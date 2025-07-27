@@ -218,12 +218,11 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 
 	// Split content into lines for analysis
 	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
 
 	// Clean up line numbers and extract actual content
 	var cleanedLines []string
 	for _, line := range lines {
-		cleaned := line
+		var cleaned string
 		
 		// Remove line number prefix patterns
 		// Pattern 1: "  1 content" or " 12 content" or "123 content"
@@ -259,7 +258,7 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 
 	// Update lines and totalLines after cleaning
 	lines = cleanedLines
-	totalLines = len(lines)
+	totalLines := len(lines)
 
 	// Tools that typically return long content and should be truncated to 3 lines
 	longContentTools := map[string]bool{
