@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/context/message"
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/pkg/types"
@@ -77,13 +76,7 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
-	if isStreaming {
-		streamCallback(StreamChunk{
-			Type:     "status",
-			Content:  message.GetRandomProcessingMessage(),
-			Metadata: map[string]any{"phase": "core_initialization"},
-		})
-	}
+	// 注意：不在这里显示初始状态消息，避免与SolveTask中的消息重复
 
 	// 执行核心ReAct循环
 	for iteration := 1; iteration <= maxIterations; iteration++ {
