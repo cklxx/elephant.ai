@@ -314,7 +314,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				rc.addToolMessagesToSession(toolMessages, toolResult)
 
 				// 读取并注入当前TODO作为用户消息（在工具执行完成后）
-				if todoContent := rc.readCurrentTodos(ctx); todoContent != "" {
+				if todoContent := rc.readCurrentTodos(ctx); todoContent != "" && !strings.Contains(todoContent, "No todo file found") {
 					todoUserMessage := llm.Message{
 						Role:    "user",
 						Content: fmt.Sprintf("Current TODOs:\n%s", todoContent),
