@@ -31,7 +31,7 @@ func (t *NewTodoUpdateTool) Name() string {
 }
 
 func (t *NewTodoUpdateTool) Description() string {
-	return `Update the entire session todo with free-form content. Content can include goals, tasks, notes in any markdown format.
+	return `Update the entire session todo with free-form content. Content can include goals, tasks, notes in any markdown format. Use only two statuses: pending (☐) and completed (☒).
 
 Example:
 # Current Sprint Goals
@@ -41,7 +41,8 @@ Example:
 
 ## Notes
 - Bug appears only in production
-- API needs validation for email format`
+- API needs validation for email format
+- Only use pending (☐) and completed (☒) statuses`
 }
 
 func (t *NewTodoUpdateTool) Parameters() map[string]interface{} {
