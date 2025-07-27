@@ -1,6 +1,7 @@
 package main
 
 import (
+	"alex/internal/utils"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
-
 
 // newSessionCommand creates the session management subcommand
 func newSessionCommand(cli *CLI) *cobra.Command {
@@ -137,7 +137,7 @@ func (cli *CLI) listSessions() error {
 		fmt.Printf("%s %s:\n", blue("📅"), date)
 		for _, session := range sessions {
 			timeStr := session.Modified.Format("15:04:05")
-			sizeStr := formatFileSize(session.Size)
+			sizeStr := utils.FormatFileSize(session.Size)
 			fmt.Printf("  %s %s %s\n",
 				blue("•"),
 				session.ID,
@@ -292,4 +292,3 @@ type sessionInfo struct {
 	Modified time.Time
 	Size     int64
 }
-

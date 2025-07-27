@@ -31,7 +31,6 @@ var (
 	yellow = color.New(color.FgYellow).SprintFunc()
 	red    = color.New(color.FgRed).SprintFunc()
 	cyan   = color.New(color.FgCyan).SprintFunc()
-	purple = color.New(color.FgMagenta).SprintFunc()
 	gray   = color.New(color.FgHiBlack).SprintFunc()
 	bold   = color.New(color.Bold).SprintFunc()
 )
@@ -164,7 +163,6 @@ through streaming responses and advanced tool calling capabilities.
 	// Add subcommands
 	rootCmd.AddCommand(newConfigCommand(cli))
 	rootCmd.AddCommand(newSessionCommand(cli))
-	rootCmd.AddCommand(newMemoryCommand(cli))
 	rootCmd.AddCommand(createToolsCommands(cli))
 	rootCmd.AddCommand(newMCPCommand(cli))
 	rootCmd.AddCommand(newBatchCommand())
@@ -463,7 +461,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		// Update token counters
 		cli.currentTokensUsed = chunk.TokensUsed
 		cli.totalTokensUsed = chunk.TotalTokensUsed
-		
+
 		// Update detailed token counts if available
 		if chunk.PromptTokens > 0 {
 			cli.totalPromptTokens += chunk.PromptTokens
@@ -471,7 +469,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		if chunk.CompletionTokens > 0 {
 			cli.totalCompletionTokens += chunk.CompletionTokens
 		}
-		
+
 		// Display token usage information in a subtle way
 		content = gray(fmt.Sprintf("💎 %s", chunk.Content)) + "\n"
 		// Update working indicator with current token usage
@@ -729,14 +727,14 @@ func (cli *CLI) showConfig() {
 // showProviders displays all available providers with their information
 func (cli *CLI) showProviders() {
 	presets := config.GetProviderPresets()
-	
+
 	output := fmt.Sprintf("\n%s Available Providers:\n", bold("🏪"))
-	
+
 	for name, preset := range presets {
 		output += fmt.Sprintf("\n%s %s (%s):\n", bold("📦"), bold(preset.DisplayName), blue(name))
 		output += fmt.Sprintf("  %s: %s\n", "Base URL", blue(preset.BaseURL))
 		output += fmt.Sprintf("  %s: %d models available\n", "Models", len(preset.Models))
-		
+
 		// Show default model
 		for _, model := range preset.Models {
 			if model.IsDefault {
@@ -744,18 +742,18 @@ func (cli *CLI) showProviders() {
 				break
 			}
 		}
-		
+
 		// Show special headers if any
 		if len(preset.Headers) > 0 {
 			output += fmt.Sprintf("  %s: %v\n", "Special Headers", preset.Headers)
 		}
 	}
-	
+
 	output += fmt.Sprintf("\n%s Quick Setup Examples:\n", bold("💡"))
 	output += fmt.Sprintf("  %s\n", gray("alex config set-provider kimi --api-key sk-your-kimi-key"))
 	output += fmt.Sprintf("  %s\n", gray("alex config set-provider claude --api-key sk-ant-your-claude-key"))
 	output += fmt.Sprintf("  %s\n", gray("alex config set-provider openrouter --api-key sk-or-your-openrouter-key"))
-	
+
 	fmt.Print(output)
 }
 
@@ -766,11 +764,11 @@ func (cli *CLI) setProvider(providerName, modelName, apiKey string) error {
 		fmt.Printf("%s Failed to set provider configuration: %v\n", red("❌"), err)
 		return err
 	}
-	
+
 	// Get the actual configuration that was set
 	presets := config.GetProviderPresets()
 	preset := presets[providerName]
-	
+
 	var selectedModel *config.ModelPreset
 	if modelName == "" {
 		// Find default model
@@ -789,7 +787,7 @@ func (cli *CLI) setProvider(providerName, modelName, apiKey string) error {
 			}
 		}
 	}
-	
+
 	fmt.Printf("%s Successfully configured %s provider\n", green("✅"), bold(preset.DisplayName))
 	if selectedModel != nil {
 		fmt.Printf("  %s: %s (%s)\n", "Model", blue(selectedModel.DisplayName), gray(selectedModel.Model))
@@ -797,14 +795,14 @@ func (cli *CLI) setProvider(providerName, modelName, apiKey string) error {
 		fmt.Printf("  %s: %.1f\n", "Temperature", selectedModel.Temperature)
 	}
 	fmt.Printf("  %s: %s\n", "Base URL", blue(preset.BaseURL))
-	
+
 	// Recommend setting search key if not configured
 	cfg := cli.config.GetConfig()
 	if cfg.TavilyAPIKey == "" || strings.Contains(cfg.TavilyAPIKey, "replace-with") {
 		fmt.Printf("\n%s Don't forget to set your search API key:\n", yellow("💡"))
 		fmt.Printf("  %s\n", gray("alex config set-search-key tvly-your-tavily-key"))
 	}
-	
+
 	return nil
 }
 
@@ -815,27 +813,27 @@ func (cli *CLI) showModels(providerName string) error {
 		fmt.Printf("%s %v\n", red("❌"), err)
 		return err
 	}
-	
+
 	presets := config.GetProviderPresets()
 	preset := presets[providerName]
-	
+
 	output := fmt.Sprintf("\n%s Available Models for %s:\n", bold("🤖"), bold(preset.DisplayName))
-	
+
 	for _, model := range models {
 		defaultMarker := ""
 		if model.IsDefault {
 			defaultMarker = green(" (default)")
 		}
-		
+
 		output += fmt.Sprintf("\n%s %s%s:\n", bold("📋"), bold(model.DisplayName), defaultMarker)
 		output += fmt.Sprintf("  %s: %s\n", "Model ID", blue(model.Model))
 		output += fmt.Sprintf("  %s: %d tokens\n", "Max Tokens", model.MaxTokens)
 		output += fmt.Sprintf("  %s: %.1f\n", "Temperature", model.Temperature)
-		
+
 		// Show usage example
 		output += fmt.Sprintf("  %s: %s\n", "Usage", gray(fmt.Sprintf("alex config set-provider %s %s --api-key your-key", providerName, model.Name)))
 	}
-	
+
 	fmt.Print(output)
 	return nil
 }
@@ -847,11 +845,11 @@ func (cli *CLI) selectProvider(providerName, modelName string) error {
 		fmt.Printf("%s Failed to select provider: %v\n", red("❌"), err)
 		return err
 	}
-	
+
 	// Get the actual configuration that was set
 	presets := config.GetProviderPresets()
 	preset := presets[providerName]
-	
+
 	var selectedModel *config.ModelPreset
 	if modelName == "" {
 		// Find default model
@@ -870,7 +868,7 @@ func (cli *CLI) selectProvider(providerName, modelName string) error {
 			}
 		}
 	}
-	
+
 	fmt.Printf("%s Successfully selected %s provider\n", green("✅"), bold(preset.DisplayName))
 	if selectedModel != nil {
 		fmt.Printf("  %s: %s (%s)\n", "Model", blue(selectedModel.DisplayName), gray(selectedModel.Model))
@@ -878,10 +876,10 @@ func (cli *CLI) selectProvider(providerName, modelName string) error {
 		fmt.Printf("  %s: %.1f\n", "Temperature", selectedModel.Temperature)
 	}
 	fmt.Printf("  %s: %s\n", "Base URL", blue(preset.BaseURL))
-	
+
 	fmt.Printf("\n%s Next step - set your API key:\n", yellow("💡"))
 	fmt.Printf("  %s\n", gray("alex config apikey sk-your-api-key-here"))
-	
+
 	return nil
 }
 
@@ -893,26 +891,26 @@ func (cli *CLI) setAPIKey(apiKey string) error {
 		fmt.Printf("  %s\n", gray("alex config provider kimi"))
 		return fmt.Errorf("no provider selected")
 	}
-	
+
 	err := cli.config.SetAPIKeyForCurrentProvider(apiKey)
 	if err != nil {
 		fmt.Printf("%s Failed to set API key: %v\n", red("❌"), err)
 		return err
 	}
-	
+
 	presets := config.GetProviderPresets()
 	preset := presets[currentProvider]
-	
+
 	fmt.Printf("%s Successfully set API key for %s\n", green("✅"), bold(preset.DisplayName))
 	fmt.Printf("  %s: %s\n", "Status", blue("Configuration complete"))
-	
+
 	// Check search key status
 	cfg := cli.config.GetConfig()
 	if cfg.TavilyAPIKey == "" || strings.Contains(cfg.TavilyAPIKey, "replace-with") {
 		fmt.Printf("\n%s Optional - enable web search:\n", yellow("💡"))
 		fmt.Printf("  %s\n", gray("alex config set-search-key tvly-your-tavily-key"))
 	}
-	
+
 	return nil
 }
 
@@ -923,10 +921,10 @@ func (cli *CLI) setSearchKey(apiKey string) error {
 		fmt.Printf("%s Failed to set search API key: %v\n", red("❌"), err)
 		return err
 	}
-	
+
 	fmt.Printf("%s Successfully set Tavily search API key\n", green("✅"))
 	fmt.Printf("  %s: %s\n", "Status", blue("Web search functionality is now enabled"))
-	
+
 	return nil
 }
 

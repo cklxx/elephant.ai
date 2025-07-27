@@ -65,6 +65,7 @@ func GetAllBuiltinToolsWithAgent(configManager *config.Manager, sessionManager *
 	return tools
 }
 
+
 // GetToolByName creates a tool instance by name
 func GetToolByName(name string) Tool {
 	return GetToolByNameWithConfig(name, nil)

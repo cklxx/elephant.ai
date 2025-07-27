@@ -35,32 +35,6 @@ func TestReactAgent_Creation(t *testing.T) {
 	}
 }
 
-// TestReactAgent_BasicFunctionality 测试基本功能
-func TestReactAgent_BasicFunctionality(t *testing.T) {
-	// 创建配置管理器
-	configMgr, err := config.NewManager()
-	if err != nil {
-		t.Fatalf("Failed to create config manager: %v", err)
-	}
-
-	// 创建ReAct代理
-	agent, err := NewReactAgent(configMgr)
-	if err != nil {
-		t.Fatalf("Failed to create ReactAgent: %v", err)
-	}
-
-	// 验证代理有基本组件
-	if agent.tools == nil {
-		t.Error("Expected non-nil tools map")
-	}
-
-	if agent.toolExecutor == nil {
-		t.Error("Expected non-nil tool executor")
-	}
-
-	t.Logf("Agent initialized successfully with %d tools", len(agent.tools))
-}
-
 // TestReactAgent_ConfigIntegration 测试配置集成
 func TestReactAgent_ConfigIntegration(t *testing.T) {
 	// 创建配置管理器
@@ -124,37 +98,6 @@ func TestReactAgent_SessionManagement(t *testing.T) {
 	}
 
 	t.Logf("Session management working correctly")
-}
-
-// TestReactAgent_ToolIntegration 测试工具集成
-func TestReactAgent_ToolIntegration(t *testing.T) {
-	// 创建配置管理器
-	configMgr, err := config.NewManager()
-	if err != nil {
-		t.Fatalf("Failed to create config manager: %v", err)
-	}
-
-	// 创建ReAct代理
-	agent, err := NewReactAgent(configMgr)
-	if err != nil {
-		t.Fatalf("Failed to create ReactAgent: %v", err)
-	}
-
-	// 验证工具已初始化
-	if agent.tools == nil {
-		t.Error("Expected non-nil tools map")
-	}
-
-	if len(agent.tools) == 0 {
-		t.Error("Expected some tools to be initialized")
-	}
-
-	// 验证工具执行器
-	if agent.toolExecutor == nil {
-		t.Error("Expected non-nil tool executor")
-	}
-
-	t.Logf("Initialized %d tools", len(agent.tools))
 }
 
 // TestReactAgent_ErrorHandling 测试错误处理

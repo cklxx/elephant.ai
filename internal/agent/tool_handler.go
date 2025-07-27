@@ -1,46 +1,31 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	"alex/internal/llm"
-	"alex/internal/tools/builtin"
 	"alex/pkg/types"
 )
 
 // ToolHandler handles tool-related operations
 type ToolHandler struct {
-	tools map[string]builtin.Tool
+	registry *ToolRegistry
 }
 
 // NewToolHandler creates a new tool handler
-func NewToolHandler(tools map[string]builtin.Tool) *ToolHandler {
+func NewToolHandler(registry *ToolRegistry) *ToolHandler {
 	return &ToolHandler{
-		tools: tools,
+		registry: registry,
 	}
 }
 
-// buildToolDefinitions - 构建工具定义列表（包括think工具）
-func (h *ToolHandler) buildToolDefinitions() []llm.Tool {
-	var tools []llm.Tool
-
-	for _, tool := range h.tools {
-		toolDef := llm.Tool{
-			Type: "function",
-			Function: llm.Function{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters:  tool.Parameters(),
-			},
-		}
-
-		tools = append(tools, toolDef)
-	}
-
-	return tools
+// buildToolDefinitions - 构建工具定义列表（使用统一的工具注册器）
+func (h *ToolHandler) buildToolDefinitions(ctx context.Context) []llm.Tool {
+	return h.registry.GetAllToolDefinitions(ctx)
 }
 
 // buildToolMessages - 构建工具结果消息

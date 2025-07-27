@@ -17,12 +17,12 @@ import (
 
 // ToolExecutor - 工具执行器
 type ToolExecutor struct {
-	agent *ReactAgent
+	registry *ToolRegistry
 }
 
 // NewToolExecutor - 创建工具执行器
-func NewToolExecutor(agent *ReactAgent) *ToolExecutor {
-	return &ToolExecutor{agent: agent}
+func NewToolExecutor(registry *ToolRegistry) *ToolExecutor {
+	return &ToolExecutor{registry: registry}
 }
 
 // parseToolCalls - 解析 OpenAI 标准工具调用格式和文本格式工具调用
@@ -413,10 +413,11 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args map[string]interface{}, callId string) (*types.ReactToolResult, error) {
 	log.Printf("[DEBUG] executeTool: Starting execution - Tool: '%s', CallID: '%s'", toolName, callId)
 
-	tool, exists := te.agent.tools[toolName]
-	if !exists {
-		log.Printf("[ERROR] executeTool: Tool %s not found", toolName)
-		return nil, fmt.Errorf("tool %s not found", toolName)
+	// 使用统一的工具注册器获取工具
+	tool, err := te.registry.GetTool(ctx, toolName)
+	if err != nil {
+		log.Printf("[ERROR] executeTool: %v", err)
+		return nil, err
 	}
 
 	// 确保args不为nil，避免工具panic

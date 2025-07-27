@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -72,7 +73,7 @@ func (cli *CLI) listTools() error {
 		return fmt.Errorf("agent not initialized")
 	}
 
-	tools := cli.agent.GetAvailableTools()
+	tools := cli.agent.GetAvailableTools(context.Background())
 
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("\n%s Available Tools (%d):\n", bold("🛠️"), len(tools)))
@@ -95,7 +96,7 @@ func (cli *CLI) showTool(toolName string) error {
 		return fmt.Errorf("agent not initialized")
 	}
 
-	tools := cli.agent.GetAvailableTools()
+	tools := cli.agent.GetAvailableTools(context.Background())
 
 	// Check if tool exists
 	found := false
@@ -125,7 +126,7 @@ func (cli *CLI) testTool(toolName string) error {
 		return fmt.Errorf("agent not initialized")
 	}
 
-	tools := cli.agent.GetAvailableTools()
+	tools := cli.agent.GetAvailableTools(context.Background())
 
 	// Check if tool exists
 	found := false
@@ -154,7 +155,7 @@ func (cli *CLI) toolStats() error {
 		return fmt.Errorf("agent not initialized")
 	}
 
-	tools := cli.agent.GetAvailableTools()
+	tools := cli.agent.GetAvailableTools(context.Background())
 
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("\n%s Tool Usage Statistics:\n", bold("📊")))

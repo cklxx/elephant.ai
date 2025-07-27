@@ -11,8 +11,6 @@ import (
 	"alex/internal/llm"
 	"alex/internal/prompts"
 	"alex/internal/session"
-	"alex/internal/tools/builtin"
-	"alex/internal/tools/mcp"
 	"alex/pkg/types"
 )
 
@@ -27,7 +25,7 @@ type ReactAgent struct {
 	llm            llm.Client
 	configManager  *config.Manager
 	sessionManager *session.Manager
-	tools          map[string]builtin.Tool
+	toolRegistry   *ToolRegistry
 	config         *types.ReactConfig
 	llmConfig      *llm.Config
 	currentSession *session.Session
@@ -91,22 +89,14 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		return nil, fmt.Errorf("failed to create session manager: %w", err)
 	}
 
-	// 初始化工具
-	tools := make(map[string]builtin.Tool)
-	builtinTools := builtin.GetAllBuiltinToolsWithAgent(configManager, sessionManager)
-
-	// 集成MCP工具
-	allTools := integrateWithMCPTools(configManager, builtinTools)
-
-	for _, tool := range allTools {
-		tools[tool.Name()] = tool
-	}
+	// 创建统一的工具注册器
+	toolRegistry := NewToolRegistry(configManager, sessionManager)
 
 	agent := &ReactAgent{
 		llm:            llmClient,
 		configManager:  configManager,
 		sessionManager: sessionManager,
-		tools:          tools,
+		toolRegistry:   toolRegistry,
 		config:         types.NewReactConfig(),
 		llmConfig:      llmConfig,
 
@@ -114,8 +104,13 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	}
 
 	// 初始化核心组件
-	agent.reactCore = NewReactCore(agent)
-	agent.toolExecutor = NewToolExecutor(agent)
+	agent.reactCore = NewReactCore(agent, toolRegistry)
+	agent.toolExecutor = NewToolExecutor(toolRegistry)
+
+	// 注册sub-agent工具到工具注册器
+	if reactCore, ok := agent.reactCore.(*ReactCore); ok {
+		toolRegistry.RegisterSubAgentTool(reactCore)
+	}
 
 	// Memory tools removed
 
@@ -188,23 +183,6 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	if err != nil {
 		return fmt.Errorf("streaming task solving failed: %w", err)
 	}
-
-	// 添加assistant消息
-	assistantMsg := &session.Message{
-		Role:    "assistant",
-		Content: result.Answer,
-		Metadata: map[string]interface{}{
-			"timestamp":   time.Now().Unix(),
-			"streaming":   true,
-			"confidence":  result.Confidence,
-			"tokens_used": result.TokensUsed,
-		},
-		Timestamp: time.Now(),
-	}
-	currentSession.AddMessage(assistantMsg)
-
-	// Memory generation removed
-
 	// 发送完成信号
 	if callback != nil {
 		callback(StreamChunk{
@@ -223,12 +201,8 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 // ========== 公共接口 ==========
 
 // GetAvailableTools - 获取可用工具列表
-func (r *ReactAgent) GetAvailableTools() []string {
-	tools := make([]string, 0, len(r.tools))
-	for name := range r.tools {
-		tools = append(tools, name)
-	}
-	return tools
+func (r *ReactAgent) GetAvailableTools(ctx context.Context) []string {
+	return r.toolRegistry.ListTools(ctx)
 }
 
 // GetSessionHistory - 获取会话历史
@@ -251,8 +225,6 @@ func (r *ReactAgent) GetReactCore() ReactCoreInterface {
 func (r *ReactAgent) GetSessionManager() *session.Manager {
 	return r.sessionManager
 }
-
-// ========== 代理方法 ==========
 
 // parseToolCalls - 委托给ToolExecutor
 func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
@@ -277,97 +249,4 @@ func NewLightPromptBuilder() *LightPromptBuilder {
 	return &LightPromptBuilder{
 		promptLoader: promptLoader,
 	}
-}
-
-// GetMemoryStats - 获取内存统计信息 (Memory module removed)
-func (r *ReactAgent) GetMemoryStats() map[string]interface{} {
-	return map[string]interface{}{
-		"memory_disabled": true,
-	}
-}
-
-// integrateWithMCPTools - 集成MCP工具
-func integrateWithMCPTools(configManager *config.Manager, builtinTools []builtin.Tool) []builtin.Tool {
-	// 获取MCP配置
-	configMCP := configManager.GetMCPConfig()
-	if !configMCP.Enabled {
-		log.Printf("[INFO] MCP integration is disabled")
-		return builtinTools
-	}
-
-	// 转换配置格式
-	mcpConfig := convertConfigToMCP(configMCP)
-
-	// 创建MCP管理器
-	mcpManager := mcp.NewManager(mcpConfig)
-
-	// 启动MCP管理器
-	ctx := context.Background()
-	if err := mcpManager.Start(ctx); err != nil {
-		log.Printf("[WARN] Failed to start MCP manager: %v", err)
-		return builtinTools
-	}
-
-	// 集成工具
-	allTools := mcpManager.IntegrateWithBuiltinTools(builtinTools)
-	log.Printf("[INFO] Integrated %d MCP tools with %d builtin tools", len(allTools)-len(builtinTools), len(builtinTools))
-
-	return allTools
-}
-
-// convertConfigToMCP - 转换配置格式从config包到mcp包
-func convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
-	mcpConfig := &mcp.MCPConfig{
-		Enabled:         configMCP.Enabled,
-		Servers:         make(map[string]*mcp.ServerConfig),
-		GlobalTimeout:   configMCP.GlobalTimeout,
-		AutoRefresh:     configMCP.AutoRefresh,
-		RefreshInterval: configMCP.RefreshInterval,
-	}
-
-	// 转换服务器配置
-	for id, configServer := range configMCP.Servers {
-		mcpServer := &mcp.ServerConfig{
-			ID:          configServer.ID,
-			Name:        configServer.Name,
-			Type:        mcp.SpawnerType(configServer.Type),
-			Command:     configServer.Command,
-			Args:        configServer.Args,
-			Env:         configServer.Env,
-			WorkDir:     configServer.WorkDir,
-			AutoStart:   configServer.AutoStart,
-			AutoRestart: configServer.AutoRestart,
-			Timeout:     configServer.Timeout,
-			Enabled:     configServer.Enabled,
-		}
-		mcpConfig.Servers[id] = mcpServer
-	}
-
-	// 转换安全配置
-	if configMCP.Security != nil {
-		mcpConfig.Security = &mcp.SecurityConfig{
-			AllowedCommands:     configMCP.Security.AllowedCommands,
-			BlockedCommands:     configMCP.Security.BlockedCommands,
-			AllowedPackages:     configMCP.Security.AllowedPackages,
-			BlockedPackages:     configMCP.Security.BlockedPackages,
-			RequireConfirmation: configMCP.Security.RequireConfirmation,
-			SandboxMode:         configMCP.Security.SandboxMode,
-			MaxProcesses:        configMCP.Security.MaxProcesses,
-			MaxMemoryMB:         configMCP.Security.MaxMemoryMB,
-			AllowedEnvironment:  configMCP.Security.AllowedEnvironment,
-			RestrictedPaths:     configMCP.Security.RestrictedPaths,
-		}
-	}
-
-	// 转换日志配置
-	if configMCP.Logging != nil {
-		mcpConfig.Logging = &mcp.LoggingConfig{
-			Level:        configMCP.Logging.Level,
-			LogRequests:  configMCP.Logging.LogRequests,
-			LogResponses: configMCP.Logging.LogResponses,
-			LogFile:      configMCP.Logging.LogFile,
-		}
-	}
-
-	return mcpConfig
 }
