@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"alex/internal/context/message"
@@ -25,9 +24,11 @@ type ReactCore struct {
 
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
+	coreLogger := utils.CoreLogger
+	
 	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
 	if err != nil {
-		log.Printf("[ERROR] NewReactCore: Failed to get LLM instance: %v", err)
+		coreLogger.Error("Failed to get LLM instance: %v", err)
 		llmClient = nil
 	}
 
@@ -106,7 +107,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 使用抽象化的核心执行逻辑
 	result, err := rc.ExecuteTaskCore(ctx, execCtx, streamCallback)
 	if err != nil {
-		log.Printf("[ERROR] ReactCore: Core execution failed: %v", err)
+		utils.CoreLogger.Error("Core execution failed: %v", err)
 		return nil, fmt.Errorf("core execution failed: %w", err)
 	}
 
@@ -160,76 +161,29 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 // addMessageToSession - 将LLM消息添加到session中供memory系统学习
 func (rc *ReactCore) addMessageToSession(llmMsg *llm.Message, session *agentsession.Session) {
-	// 使用传入的session，如果为nil则使用当前会话
-	sess := session
-	if sess == nil {
-		sess = rc.agent.currentSession
-	}
-	if sess == nil {
-		return // 没有会话则跳过
-	}
-
-	// 转换LLM消息为session消息格式
-	sessionMsg := &agentsession.Message{
-		Role:      llmMsg.Role,
-		Content:   llmMsg.Content,
-		Timestamp: time.Now(),
-		Metadata: map[string]interface{}{
-			"source":    "llm_response",
-			"timestamp": time.Now().Unix(),
-		},
-	}
-
-	// 转换工具调用信息
-	if len(llmMsg.ToolCalls) > 0 {
-		for _, tc := range llmMsg.ToolCalls {
-			// 将Arguments字符串解析为map[string]interface{}
-			var args map[string]interface{}
-			if tc.Function.Arguments != "" {
-				// 简单处理：如果是JSON字符串尝试解析，否则存为字符串
-				args = map[string]interface{}{"raw": tc.Function.Arguments}
-			}
-
-			sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, agentsession.ToolCall{
-				ID:   tc.ID,
-				Name: tc.Function.Name,
-				Args: args,
-			})
-		}
-		sessionMsg.Metadata["has_tool_calls"] = true
-		sessionMsg.Metadata["tool_count"] = len(llmMsg.ToolCalls)
-	}
-
-	// 添加到session
-	sess.AddMessage(sessionMsg)
+	sessionHelper := utils.CoreSessionHelper
+	sessionHelper.AddMessageToSession(llmMsg, session, rc.agent.currentSession)
 }
 
 // readCurrentTodos - 读取当前会话的TODO列表
 func (rc *ReactCore) readCurrentTodos(ctx context.Context, session *agentsession.Session) string {
-	// 使用传入的session，如果为nil则使用当前会话
-	sess := session
-	if sess == nil {
-		sess = rc.agent.currentSession
-	}
-	if sess == nil {
-		log.Printf("[DEBUG] ReactCore: No session available, cannot read todos")
-		return ""
-	}
-
-	sessionID := sess.ID
-	if sessionID == "" {
-		log.Printf("[DEBUG] ReactCore: Session has empty ID, cannot read todos")
+	sessionHelper := utils.CoreSessionHelper
+	coreLogger := utils.CoreLogger
+	
+	sess := sessionHelper.GetSessionWithFallback(session, rc.agent.currentSession)
+	if !sessionHelper.ValidateSession(sess) {
+		coreLogger.Debug("Cannot read todos: invalid session")
 		return ""
 	}
 
 	// 直接调用todo工具，传递session ID作为参数
 	if todoTool, err := rc.toolHandler.registry.GetTool(ctx, "todo_read"); err == nil {
 		args := map[string]interface{}{
-			"session_id": sessionID,
+			"session_id": sess.ID,
 		}
 		result, err := todoTool.Execute(ctx, args)
 		if err != nil {
-			log.Printf("[DEBUG] ReactCore: Failed to read todos: %v", err)
+			coreLogger.Debug("Failed to read todos: %v", err)
 			return ""
 		}
 		if result != nil && result.Content != "" {
@@ -238,3 +192,62 @@ func (rc *ReactCore) readCurrentTodos(ctx context.Context, session *agentsession
 	}
 	return ""
 }
+
+
+// executeToolDirect - 直接使用registry执行工具
+func (rc *ReactCore) executeToolDirect(ctx context.Context, toolName string, args map[string]interface{}, callId string) (*types.ReactToolResult, error) {
+	coreLogger := utils.CoreLogger
+	coreLogger.Debug("Starting execution - Tool: '%s', CallID: '%s'", toolName, callId)
+
+	// 使用ReactCore的工具注册器获取工具
+	tool, err := rc.toolHandler.registry.GetTool(ctx, toolName)
+	if err != nil {
+		coreLogger.Error("Failed to get tool '%s': %v", toolName, err)
+		return nil, err
+	}
+
+	// 确保args不为nil
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+
+	// 执行工具
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		coreLogger.Error("Tool '%s' execution failed: %v", toolName, err)
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    err.Error(),
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, nil
+	}
+
+	if result == nil {
+		coreLogger.Error("Tool '%s' returned nil result", toolName)
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    "tool returned nil result",
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, nil
+	}
+
+	// 转换为ReactToolResult格式
+	// builtin.ToolResult没有Success和Error字段，成功执行就认为是成功的
+	reactResult := &types.ReactToolResult{
+		Success:  true, // 能够执行到这里说明没有错误
+		Content:  result.Content,
+		Error:    "", // builtin.ToolResult没有Error字段
+		ToolName: toolName,
+		ToolArgs: args,
+		CallID:   callId,
+		Data:     result.Data,
+	}
+
+	coreLogger.Debug("Tool '%s' executed successfully", toolName)
+	return reactResult, nil
+}
+

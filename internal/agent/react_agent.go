@@ -231,10 +231,6 @@ func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall
 	return r.toolExecutor.parseToolCalls(message)
 }
 
-// executeSerialToolsStream - 委托给ToolExecutor
-func (r *ReactAgent) executeSerialToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) []*types.ReactToolResult {
-	return r.toolExecutor.executeSerialToolsStream(ctx, toolCalls, callback)
-}
 
 // ========== 组件创建函数 ==========
 
