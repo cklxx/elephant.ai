@@ -310,28 +310,40 @@ func containsHelper(s, substr string) bool {
 func TestToolExecutor_FormatToolResultContent(t *testing.T) {
 	executor := NewToolExecutor("TEST")
 
-	// 测试 file_read 长内容截断和对齐
-	t.Run("file_read long content truncation and alignment", func(t *testing.T) {
-		longContent := "     Line 1 with leading spaces\n  Line 2\n    Line 3\nLine 4\nLine 5\nLine 6"
+	// 测试 file_read 长内容截断和行号移除
+	t.Run("file_read with line numbers and truncation", func(t *testing.T) {
+		// 模拟实际的 file_read 输出格式 (用户反馈中的实际格式)
+		longContent := "1 # Alex - High-Performance Universal AI Software Engineering Assistant\n2\n3 [![CI](https://github.com/example.com/badge.svg)](https://github.com/example.com)\n4\n5 ## Features\n6 - Feature 1"
 		result := executor.formatToolResultContent("file_read", longContent)
 		
-		if !contains(result, "Line 1 with leading spaces") {
-			t.Errorf("Expected first line to be preserved, got: %s", result)
+		if !contains(result, "# Alex - High-Performance Universal AI Software Engineering Assistant") {
+			t.Errorf("Expected title line to be preserved without line number, got: %s", result)
 		}
 		if !contains(result, "(6 total lines)") {
 			t.Errorf("Expected total line count, got: %s", result)
+		}
+		
+		// Check that line numbers are removed
+		if contains(result, "1 #") || contains(result, "3 [") {
+			t.Errorf("Expected line numbers to be removed, got: %s", result)
 		}
 		
 		lines := strings.Split(result, "\n")
 		if len(lines) > 4 { // 3 content lines + summary line
 			t.Errorf("Expected at most 4 lines for file_read, got: %d", len(lines))
 		}
+	})
+
+	// 测试无行号的普通内容
+	t.Run("file_read without line numbers", func(t *testing.T) {
+		longContent := "First line\nSecond line\nThird line\nFourth line\nFifth line"
+		result := executor.formatToolResultContent("file_read", longContent)
 		
-		// Check that lines are aligned (no leading spaces after first line processing)
-		for i, line := range lines[:len(lines)-1] { // Skip summary line
-			if i > 0 && strings.HasPrefix(line, "  ") {
-				t.Errorf("Expected line %d to be aligned (no leading spaces), got: '%s'", i, line)
-			}
+		if !contains(result, "First line") {
+			t.Errorf("Expected first line to be preserved, got: %s", result)
+		}
+		if !contains(result, "(5 total lines)") {
+			t.Errorf("Expected total line count, got: %s", result)
 		}
 	})
 
@@ -353,13 +365,19 @@ func TestToolExecutor_FormatToolResultContent(t *testing.T) {
 		}
 	})
 
-	// 测试前导空格清理
-	t.Run("leading space cleanup", func(t *testing.T) {
-		content := "     \n     Line with many leading spaces\nNormal line"
+	// 测试行号移除和空行处理
+	t.Run("line number removal with empty lines", func(t *testing.T) {
+		content := "1 Title\n2 \n3 Content line"
 		result := executor.formatToolResultContent("bash", content)
 		
-		if strings.HasPrefix(result, "     ") {
-			t.Errorf("Expected leading spaces to be cleaned up, got: %s", result)
+		expected := "Title\n\nContent line"
+		if result != expected {
+			t.Errorf("Expected '%s', got: '%s'", expected, result)
+		}
+		
+		// Check that line numbers are completely removed
+		if contains(result, "1 Title") || contains(result, "3 Content") {
+			t.Errorf("Expected all line numbers to be removed, got: %s", result)
 		}
 	})
 }

@@ -208,7 +208,7 @@ func (te *ToolExecutor) ExecuteSerialToolsWithRecovery(
 	return combinedResult
 }
 
-// formatToolResultContent formats tool result content with smart truncation
+// formatToolResultContent formats tool result content with smart truncation and line number removal
 func (te *ToolExecutor) formatToolResultContent(toolName string, content string) string {
 	// First, clean up leading/trailing whitespace and normalize line endings
 	content = strings.TrimSpace(content)
@@ -219,6 +219,47 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 	// Split content into lines for analysis
 	lines := strings.Split(content, "\n")
 	totalLines := len(lines)
+
+	// Clean up line numbers and extract actual content
+	var cleanedLines []string
+	for _, line := range lines {
+		cleaned := line
+		
+		// Remove line number prefix patterns
+		// Pattern 1: "  1 content" or " 12 content" or "123 content"
+		// Pattern 2: "1 content" (no leading spaces)
+		trimmed := strings.TrimLeft(line, " ")
+		if len(trimmed) > 0 {
+			// Find where digits end and content begins
+			digitEnd := 0
+			for i, char := range trimmed {
+				if char >= '0' && char <= '9' {
+					digitEnd = i + 1
+				} else {
+					break
+				}
+			}
+			
+			// If we found digits at the start, check if followed by space
+			if digitEnd > 0 && digitEnd < len(trimmed) && trimmed[digitEnd] == ' ' {
+				// This is a line number pattern: digits + space + content
+				actualContent := trimmed[digitEnd+1:] // Skip the space after digits
+				cleaned = actualContent
+			} else {
+				// Not a line number pattern, keep original but trim leading spaces
+				cleaned = strings.TrimLeft(line, " ")
+			}
+		} else {
+			// Empty line, keep as is
+			cleaned = ""
+		}
+		
+		cleanedLines = append(cleanedLines, cleaned)
+	}
+
+	// Update lines and totalLines after cleaning
+	lines = cleanedLines
+	totalLines = len(lines)
 
 	// Tools that typically return long content and should be truncated to 3 lines
 	longContentTools := map[string]bool{
@@ -233,26 +274,20 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 
 	// For tools that typically return long content, show only first 3 lines + summary
 	if longContentTools[toolName] && totalLines > 3 {
-		// Take first 3 non-empty lines with consistent alignment
 		var displayLines []string
-		firstLineProcessed := false
+		nonEmptyCount := 0
 		
 		for _, line := range lines {
-			if len(displayLines) >= 3 {
+			if nonEmptyCount >= 3 {
 				break
 			}
 			
-			// For the first non-empty line, start processing
-			if !firstLineProcessed && strings.TrimSpace(line) != "" {
-				firstLineProcessed = true
-				displayLines = append(displayLines, strings.TrimSpace(line))
-			} else if firstLineProcessed {
-				// For subsequent lines, maintain consistent alignment (no leading spaces)
-				cleanLine := strings.TrimSpace(line)
-				if cleanLine != "" {
-					displayLines = append(displayLines, cleanLine)
-				}
+			// Include both empty and non-empty lines, but count only non-empty for limit
+			cleanLine := strings.TrimSpace(line)
+			if cleanLine != "" {
+				nonEmptyCount++
 			}
+			displayLines = append(displayLines, cleanLine)
 		}
 		
 		result := strings.Join(displayLines, "\n")
@@ -262,21 +297,12 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 		return result
 	}
 
-	// For other tools, apply general length limits with line preservation
+	// For other tools, apply general length limits
 	if totalLines > 10 {
-		// Show first 5 lines + summary for moderately long content with alignment
 		var displayLines []string
-		firstLineProcessed := false
-		
 		for i := 0; i < 5 && i < len(lines); i++ {
-			line := lines[i]
-			if !firstLineProcessed && strings.TrimSpace(line) != "" {
-				firstLineProcessed = true
-				displayLines = append(displayLines, strings.TrimSpace(line))
-			} else if firstLineProcessed {
-				cleanLine := strings.TrimSpace(line)
-				displayLines = append(displayLines, cleanLine)
-			}
+			cleanLine := strings.TrimSpace(lines[i])
+			displayLines = append(displayLines, cleanLine)
 		}
 		
 		result := strings.Join(displayLines, "\n")
@@ -284,21 +310,11 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 		return result
 	}
 
-	// For short content, align all lines consistently
+	// For short content, clean up all lines consistently
 	var cleanLines []string
-	firstLineProcessed := false
-	
 	for _, line := range lines {
-		if !firstLineProcessed && strings.TrimSpace(line) != "" {
-			firstLineProcessed = true
-			cleanLines = append(cleanLines, strings.TrimSpace(line))
-		} else if firstLineProcessed {
-			cleanLine := strings.TrimSpace(line)
-			cleanLines = append(cleanLines, cleanLine)
-		} else {
-			// Preserve empty lines before first content
-			cleanLines = append(cleanLines, line)
-		}
+		cleanLine := strings.TrimSpace(line)
+		cleanLines = append(cleanLines, cleanLine)
 	}
 
 	return strings.Join(cleanLines, "\n")
