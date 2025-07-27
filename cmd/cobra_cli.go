@@ -65,7 +65,27 @@ func DeepCodingSuccess(msg string) string {
 }
 
 func DeepCodingToolExecution(title, content string) string {
-	return fmt.Sprintf("%s %s\n", title, content)
+	// Split content into lines for proper alignment
+	lines := strings.Split(content, "\n")
+	if len(lines) <= 1 {
+		// Single line or empty content, use simple format
+		return fmt.Sprintf("%s %s\n", title, content)
+	}
+	
+	// Multi-line content: align subsequent lines with the first line
+	// Calculate indentation to match the width of title + space
+	// "⎿ " is 2 characters wide in display
+	indent := strings.Repeat(" ", len(title)+1)
+	
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("%s %s\n", title, lines[0]))
+	
+	// Add subsequent lines with proper indentation
+	for i := 1; i < len(lines); i++ {
+		result.WriteString(fmt.Sprintf("%s%s\n", indent, lines[i]))
+	}
+	
+	return result.String()
 }
 
 // CLI holds the command line interface state
