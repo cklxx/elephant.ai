@@ -74,8 +74,8 @@ func DeepCodingToolExecution(title, content string) string {
 	
 	// Multi-line content: align subsequent lines with the first line
 	// Calculate indentation to match the width of title + space
-	// "⎿ " is 2 characters wide in display
-	indent := strings.Repeat(" ", len(title)+1)
+	// "⎿ " is 2 characters wide, so we need 2 spaces for alignment
+	indent := "  " // 2 spaces to align with "⎿ " prefix
 	
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("%s %s\n", title, lines[0]))
