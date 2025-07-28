@@ -101,7 +101,7 @@ make build                    # Builds ./alex binary
 **🧪 SWE-Bench Integration**: Complete evaluation framework compatible with SWE-Agent for standardized benchmarking  
 **🔌 MCP Protocol Support**: Full Model Context Protocol implementation with stdio/SSE transports and tool integration  
 **🧠 Intelligent Memory System**: Dual-layer memory with context compression, vector storage, and automatic summarization  
-**🛠 Rich Tool Ecosystem**: 12+ built-in tools including file ops, shell execution, search, web integration, and reasoning tools  
+**🛠 Rich Tool Ecosystem**: 13 built-in tools including file ops, shell execution, smart search, web integration, task management, and reasoning tools  
 **🌐 Multi-Model LLM System**: Advanced factory pattern supporting OpenAI, DeepSeek, OpenRouter with model-specific optimizations  
 **🔒 Enterprise Security**: Comprehensive risk assessment, path protection, command validation, and sandbox execution  
 **⚡ High Performance**: Native Go implementation with concurrent execution, memory optimization, and sub-30ms response times  
@@ -142,7 +142,7 @@ make test-functionality              # Quick functionality test
 **File Operations**: `file_read`, `file_update`, `file_replace`, `file_list` with intelligent path resolution  
 **Shell Execution**: `bash`, `code_executor` with security validation and sandbox controls  
 **Search & Analysis**: `grep`, `ripgrep`, `find` with advanced pattern matching and context awareness  
-**Task Management**: `todo_create`, `todo_update`, `todo_list` with session-aware persistence  
+**Task Management**: `todo_read`, `todo_update` with session-aware persistence and markdown support  
 **Web Integration**: `web_search` with Tavily API integration for real-time information retrieval  
 **Reasoning Tools**: `think` for structured problem-solving and decision making
 

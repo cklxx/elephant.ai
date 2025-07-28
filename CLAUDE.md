@@ -46,25 +46,33 @@ make vet                      # Run go vet
 1. **ReAct Agent** (`internal/agent/`) - Think-Act-Observe cycle with streaming and memory
 2. **MCP Protocol** (`internal/mcp/`) - Model Context Protocol with JSON-RPC 2.0
 3. **Memory System** (`internal/memory/`, `internal/context/`) - Dual-layer with vector storage
-4. **Tool System** (`internal/tools/`) - 12+ built-in tools with MCP integration
+4. **Tool System** (`internal/tools/`) - 13 built-in tools with MCP integration
 5. **LLM Integration** (`internal/llm/`) - Multi-model support with caching
 6. **Session Management** (`internal/session/`) - Persistent storage with compression
 7. **SWE-Bench** (`evaluation/swe_bench/`) - Evaluation system with parallel processing
 8. **Configuration** (`internal/config/`) - Multi-model config (default: OpenRouter + DeepSeek)
 
-### Built-in Tools
-- **File**: `file_read`, `file_update`, `file_replace`, `file_list`
-- **Shell**: `bash`, `code_executor` with sandbox controls
-- **Search**: `grep`, `ripgrep`, `find`
-- **Tasks**: `todo_create`, `todo_update`, `todo_list`
-- **Web**: `web_search` with Tavily API
-- **Reasoning**: `think`
-- **MCP**: Dynamic external tool integration
+### Built-in Tools (13 total)
+- **File Operations**: `file_read`, `file_update`, `file_replace`, `file_list` (4 tools)
+- **Shell Execution**: `bash`, `code_execute` with sandbox controls (2 tools)
+- **Search & Analysis**: `grep`, `ripgrep`, `find` with context awareness (3 tools)
+- **Task Management**: `todo_read`, `todo_update` with session persistence (2 tools)
+- **Web Integration**: `web_search` with Tavily API (1 tool)
+- **Reasoning**: `think` for structured problem-solving (1 tool)
+- **MCP Protocol**: Dynamic external tool integration for extensibility
 
 ### Security Features
 - Risk assessment and path protection
-- Command safety detection
-- Configurable restrictions
+- Command safety detection with sandbox execution
+- Configurable restrictions and audit logging
+- Multi-layered threat detection
+
+### Advanced Features
+- Context-aware memory compression with cache-friendly strategies
+- Intelligent diff display with clean formatting
+- Session-based todo management with markdown support
+- Multi-model LLM integration with automatic fallback
+- Real-time streaming responses with tool execution feedback
 
 ## Performance
 - Sub-30ms execution, 10 parallel tools, <100MB baseline memory
