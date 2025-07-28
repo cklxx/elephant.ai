@@ -496,6 +496,20 @@
             font-style: italic;
         }
 
+        .output:has(🤖) {
+            color: #ff9500 !important;
+            font-weight: 600;
+        }
+
+        .output:has(🔌) {
+            color: #00ccff !important;
+            font-weight: 500;
+        }
+
+        .output:has(📋) {
+            color: var(--text-secondary) !important;
+        }
+
         /* Enhanced styling with ultra-fast animations for density */
         .terminal-content .output {
             animation: fadeInUp 0.15s ease-out;
@@ -1015,6 +1029,18 @@
                         <h3>Universal LLM Integration</h3>
                         <p>Supports OpenAI, DeepSeek, Gemini, Claude, and 200+ models via OpenRouter with intelligent caching.</p>
                     </div>
+
+                    <div class="feature-card">
+                        <span class="feature-icon">🤖</span>
+                        <h3>Sub Agent Architecture</h3>
+                        <p>Intelligent task delegation with specialized sub-agents for complex workflows, parallel processing, and domain-specific expertise.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <span class="feature-icon">🔌</span>
+                        <h3>MCP Protocol Integration</h3>
+                        <p>Model Context Protocol support for seamless tool integration, extensible architecture, and standardized AI-tool communication.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -1028,8 +1054,12 @@
                         <div class="stat-label">Average Response Time</div>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number">13</span>
-                        <div class="stat-label">Built-in Tools</div>
+                        <span class="stat-number">13+</span>
+                        <div class="stat-label">Built-in + MCP Tools</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">∞</span>
+                        <div class="stat-label">Sub-Agent Scaling</div>
                     </div>
                     <div class="stat-item">
                         <span class="stat-number">100x</span>
@@ -1297,6 +1327,64 @@
                     '  optimize hot paths. Estimated 3x speedup possible.',
                     '',
                     '✅ Task completed in 2.1s'
+                ]
+            },
+            {
+                command: './alex "Deploy microservice with sub-agents"',
+                output: [
+                    '👾 Orchestrating deployment...',
+                    '',
+                    '⏺ think(content="Complex deployment needs sub-agent coordination...")',
+                    '⎿  Spawning specialized sub-agents for deployment pipeline...',
+                    '',
+                    '🤖 Sub-Agent[Infrastructure]: Initializing...',
+                    '⏺ bash(command="terraform plan -out=deployment.tfplan")',
+                    '⎿  📋 Infrastructure changes planned: 5 resources to create',
+                    '',
+                    '🤖 Sub-Agent[Testing]: Running in parallel...',
+                    '⏺ bash(command="go test ./... -race -cover")',
+                    '⎿  ✅ All tests passed (98.5% coverage)',
+                    '',
+                    '🤖 Sub-Agent[Security]: Scanning...',
+                    '⏺ bash(command="gosec ./...")',
+                    '⎿  🔒 Security scan completed: 0 vulnerabilities found',
+                    '',
+                    '✨',
+                    '  Deployment orchestrated by 3 sub-agents in parallel.',
+                    '  Infrastructure ready, tests passed, security verified.',
+                    '',
+                    '✅ Task completed in 4.2s'
+                ]
+            },
+            {
+                command: './alex "Integrate external MCP tools"',
+                output: [
+                    '👾 Connecting to MCP ecosystem...',
+                    '',
+                    '⏺ think(content="User wants to integrate MCP protocol tools...")',
+                    '⎿  Scanning for available MCP tool providers...',
+                    '',
+                    '🔌 MCP Protocol: Discovering tools...',
+                    '⎿  Found 3 MCP providers:',
+                    '   • @modelcontextprotocol/server-filesystem',
+                    '   • @modelcontextprotocol/server-git',
+                    '   • @modelcontextprotocol/server-postgres',
+                    '',
+                    '🔌 MCP Integration: Establishing connections...',
+                    '⏺ mcp_connect(provider="filesystem", config={...})',
+                    '⎿  ✅ Connected to filesystem MCP server',
+                    '⏺ mcp_connect(provider="git", config={...})',
+                    '⎿  ✅ Connected to git MCP server',
+                    '',
+                    '🛠️ Available MCP Tools:',
+                    '   • fs_read, fs_write, fs_list (filesystem)',
+                    '   • git_status, git_commit, git_diff (git)',
+                    '',
+                    '✨',
+                    '  MCP integration complete. 6 external tools now available.',
+                    '  Seamless interop with Model Context Protocol ecosystem.',
+                    '',
+                    '✅ Task completed in 3.1s'
                 ]
             }
         ];
