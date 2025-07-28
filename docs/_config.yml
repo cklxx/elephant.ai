@@ -26,9 +26,9 @@ include:
   - README.md
   - guides/
   - assets/
+  - web/
 
 exclude:
-  - web/
   - node_modules/
   - vendor/
 
