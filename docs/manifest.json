@@ -1,7 +1,7 @@
 {
-  "name": "ALEX - Agile Lightweight EXtensible Code Agent",
+  "name": "ALEX - Agile Light Easy Xpert Code Agent",
   "short_name": "ALEX",
-  "description": "ALEX (Agile Lightweight EXtensible Code Agent) - A lightweight AI code agent focused on core coding capabilities.",
+  "description": "ALEX (Agile Light Easy Xpert Code Agent) - A lightweight AI code agent focused on core coding capabilities.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",

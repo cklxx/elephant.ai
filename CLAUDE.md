@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**ALEX - Agile Lightweight EXtensible Code Agent v1.0** is a lightweight AI code agent built in Go, focused on core coding capabilities with ReAct agent architecture, MCP protocol integration, memory management, and SWE-Bench evaluation.
+**ALEX - Agile Light Easy Xpert Code Agent v1.0** is a lightweight AI code agent built in Go, focused on core coding capabilities with ReAct agent architecture, MCP protocol integration, memory management, and SWE-Bench evaluation.
 
 ## Essential Development Commands
 

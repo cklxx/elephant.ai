@@ -1,8 +1,8 @@
 # GitHub Pages Configuration for Alex Documentation
 
 # Site settings
-title: "ALEX - Agile Lightweight EXtensible Code Agent"
-description: "ALEX (Agile Lightweight EXtensible Code Agent) - A lightweight AI code agent focused on core coding capabilities"
+title: "ALEX - Agile Light Easy Xpert Code Agent"
+description: "ALEX (Agile Light Easy Xpert Code Agent) - A lightweight AI code agent focused on core coding capabilities"
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site
 
