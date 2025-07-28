@@ -20,6 +20,7 @@ type ToolRegistry struct {
 	dynamicProviders  map[string]DynamicToolProvider // 动态工具提供者
 	configManager     *config.Manager
 	sessionManager    *session.Manager
+	mcpInitializing   bool                          // MCP异步初始化状态
 }
 
 // DynamicToolProvider - 动态工具提供者接口
@@ -82,7 +83,7 @@ func (r *ToolRegistry) registerBuiltinTools() {
 	}
 }
 
-// registerMCPTools - 注册MCP工具
+// registerMCPTools - 注册MCP工具（异步初始化）
 func (r *ToolRegistry) registerMCPTools() {
 	if r.configManager == nil {
 		return
@@ -101,19 +102,41 @@ func (r *ToolRegistry) registerMCPTools() {
 	// 创建MCP管理器
 	mcpManager := mcp.NewManager(mcpConfig)
 
-	// 启动MCP管理器
-	ctx := context.Background()
-	if err := mcpManager.Start(ctx); err != nil {
-		log.Printf("[WARN] Failed to start MCP manager: %v", err)
-		return
-	}
+	// 设置初始化标志
+	r.mu.Lock()
+	r.mcpInitializing = true
+	r.mu.Unlock()
 
-	// 集成工具 - 获取MCP工具并注册
-	mcpTools := mcpManager.IntegrateWithBuiltinTools([]builtin.Tool{})
-	for _, tool := range mcpTools {
-		r.staticTools[tool.Name()] = tool
-		log.Printf("[DEBUG] ToolRegistry: Registered MCP tool: %s", tool.Name())
-	}
+	// 异步启动MCP管理器，避免阻塞工具注册器初始化
+	go func() {
+		defer func() {
+			// 完成初始化，清除标志
+			r.mu.Lock()
+			r.mcpInitializing = false
+			r.mu.Unlock()
+		}()
+
+		ctx := context.Background()
+		if err := mcpManager.Start(ctx); err != nil {
+			log.Printf("[WARN] Failed to start MCP manager asynchronously: %v", err)
+			return
+		}
+
+		// 集成工具 - 获取MCP工具并异步注册
+		mcpTools := mcpManager.IntegrateWithBuiltinTools([]builtin.Tool{})
+		
+		// 获取锁并更新静态工具映射
+		r.mu.Lock()
+		for _, tool := range mcpTools {
+			r.staticTools[tool.Name()] = tool
+			log.Printf("[DEBUG] ToolRegistry: Registered MCP tool asynchronously: %s", tool.Name())
+		}
+		r.mu.Unlock()
+		
+		log.Printf("[INFO] MCP tools loaded asynchronously: %d tools registered", len(mcpTools))
+	}()
+	
+	log.Printf("[INFO] MCP initialization started asynchronously")
 }
 
 // convertConfigToMCP - 转换配置格式从config包到mcp包
@@ -170,6 +193,13 @@ func (r *ToolRegistry) GetTool(ctx context.Context, name string) (builtin.Tool, 
 	return nil, fmt.Errorf("tool %s not found", name)
 }
 
+// IsMCPInitializing - 检查MCP是否正在初始化
+func (r *ToolRegistry) IsMCPInitializing() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.mcpInitializing
+}
+
 // GetAllToolDefinitions - 获取所有工具定义（用于LLM）
 func (r *ToolRegistry) GetAllToolDefinitions(ctx context.Context) []llm.Tool {
 	r.mu.RLock()
@@ -209,7 +239,11 @@ func (r *ToolRegistry) GetAllToolDefinitions(ctx context.Context) []llm.Tool {
 		}
 	}
 	
-	log.Printf("[DEBUG] ToolRegistry: Generated %d tool definitions", len(tools))
+	mcpStatus := ""
+	if r.mcpInitializing {
+		mcpStatus = " (MCP tools loading asynchronously)"
+	}
+	log.Printf("[DEBUG] ToolRegistry: Generated %d tool definitions%s", len(tools), mcpStatus)
 	return tools
 }
 
