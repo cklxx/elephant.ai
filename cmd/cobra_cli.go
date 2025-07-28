@@ -426,6 +426,10 @@ func (cli *CLI) initialize(cmd *cobra.Command) error {
 	}
 	cli.config = configManager
 
+	// Initialize global MCP manager asynchronously as early as possible
+	globalMCP := agent.GetGlobalMCPManager()
+	globalMCP.InitializeAsync(configManager)
+
 	// Create agent
 	agentInstance, err := agent.NewReactAgent(configManager)
 	if err != nil {

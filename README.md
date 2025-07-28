@@ -1,11 +1,11 @@
-# Alex - High-Performance Universal AI Software Engineering Assistant
+# ALEX - Agile Lightweight EXtensible Code Agent
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/cklxx/Alex-Code/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/deploy-pages.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Alex** is a high-performance, universally accessible AI software engineering assistant built in Go with advanced ReAct (Reasoning and Acting) agent architecture. Featuring intelligent memory management, MCP (Model Context Protocol) integration, comprehensive tool ecosystem, and enterprise-grade performance optimizations, Alex provides developers with a powerful natural language interface for complex software engineering tasks including code analysis, debugging, refactoring, and automated problem-solving.
+**ALEX** (Agile Lightweight EXtensible Code Agent) is a lightweight AI code agent built in Go, focused on core coding capabilities. Designed with simplicity and efficiency in mind, it provides essential features like file operations, code analysis, and intelligent search, enabling developers to accomplish daily programming tasks effortlessly through natural language.
 
 🌐 **[Visit our website](https://cklxx.github.io/Alex-Code/)** | 📚 **[Documentation](docs/)** | 🚀 **[Quick Start](#quick-start)**
 

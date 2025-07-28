@@ -1,7 +1,7 @@
 {
-  "name": "Alex - AI-Powered Coding Assistant",
-  "short_name": "Alex",
-  "description": "High-performance AI coding assistant with ReAct intelligence, built for developers at all skill levels.",
+  "name": "ALEX - Agile Lightweight EXtensible Code Agent",
+  "short_name": "ALEX",
+  "description": "ALEX (Agile Lightweight EXtensible Code Agent) - A lightweight AI code agent focused on core coding capabilities.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",

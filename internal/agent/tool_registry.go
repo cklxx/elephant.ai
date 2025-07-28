@@ -10,7 +10,6 @@ import (
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/internal/tools/builtin"
-	"alex/internal/tools/mcp"
 )
 
 // ToolRegistry - 统一的工具注册器
@@ -20,7 +19,6 @@ type ToolRegistry struct {
 	dynamicProviders  map[string]DynamicToolProvider // 动态工具提供者
 	configManager     *config.Manager
 	sessionManager    *session.Manager
-	mcpInitializing   bool                          // MCP异步初始化状态
 }
 
 // DynamicToolProvider - 动态工具提供者接口
@@ -62,8 +60,8 @@ func NewToolRegistryWithSubAgentMode(configManager *config.Manager, sessionManag
 	// 注册所有内置工具
 	registry.registerBuiltinTools()
 	
-	// 注册MCP工具
-	registry.registerMCPTools()
+	// 从全局MCP管理器注册MCP工具
+	registry.registerMCPToolsFromGlobal()
 	
 	// 注意：sub-agent模式下不注册subagent工具，防止递归
 	if isSubAgent {
@@ -83,78 +81,22 @@ func (r *ToolRegistry) registerBuiltinTools() {
 	}
 }
 
-// registerMCPTools - 注册MCP工具（异步初始化）
-func (r *ToolRegistry) registerMCPTools() {
-	if r.configManager == nil {
-		return
-	}
+// registerMCPToolsFromGlobal - 从全局MCP管理器注册MCP工具
+func (r *ToolRegistry) registerMCPToolsFromGlobal() {
+	globalMCP := GetGlobalMCPManager()
 	
-	// 获取MCP配置
-	configMCP := r.configManager.GetMCPConfig()
-	if !configMCP.Enabled {
-		log.Printf("[INFO] MCP integration is disabled")
-		return
-	}
-
-	// 转换配置格式
-	mcpConfig := r.convertConfigToMCP(configMCP)
-
-	// 创建MCP管理器
-	mcpManager := mcp.NewManager(mcpConfig)
-
-	// 设置初始化标志
+	// 获取已初始化的MCP工具（如果有的话）
+	mcpTools := globalMCP.GetTools()
+	
+	// 注册现有的MCP工具
 	r.mu.Lock()
-	r.mcpInitializing = true
+	for _, tool := range mcpTools {
+		r.staticTools[tool.Name()] = tool
+		log.Printf("[DEBUG] ToolRegistry: Registered MCP tool from global manager: %s", tool.Name())
+	}
 	r.mu.Unlock()
-
-	// 异步启动MCP管理器，避免阻塞工具注册器初始化
-	go func() {
-		defer func() {
-			// 完成初始化，清除标志
-			r.mu.Lock()
-			r.mcpInitializing = false
-			r.mu.Unlock()
-		}()
-
-		ctx := context.Background()
-		if err := mcpManager.Start(ctx); err != nil {
-			log.Printf("[WARN] Failed to start MCP manager asynchronously: %v", err)
-			return
-		}
-
-		// 集成工具 - 获取MCP工具并异步注册
-		mcpTools := mcpManager.IntegrateWithBuiltinTools([]builtin.Tool{})
-		
-		// 获取锁并更新静态工具映射
-		r.mu.Lock()
-		for _, tool := range mcpTools {
-			r.staticTools[tool.Name()] = tool
-			log.Printf("[DEBUG] ToolRegistry: Registered MCP tool asynchronously: %s", tool.Name())
-		}
-		r.mu.Unlock()
-		
-		log.Printf("[INFO] MCP tools loaded asynchronously: %d tools registered", len(mcpTools))
-	}()
 	
-	log.Printf("[INFO] MCP initialization started asynchronously")
-}
-
-// convertConfigToMCP - 转换配置格式从config包到mcp包
-func (r *ToolRegistry) convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
-	mcpConfig := &mcp.MCPConfig{
-		Enabled: configMCP.Enabled,
-		Servers: make(map[string]*mcp.ServerConfig),
-	}
-
-	for name, server := range configMCP.Servers {
-		mcpConfig.Servers[name] = &mcp.ServerConfig{
-			Command: server.Command,
-			Args:    server.Args,
-			Env:     server.Env,
-		}
-	}
-
-	return mcpConfig
+	log.Printf("[INFO] ToolRegistry: Registered %d MCP tools from global manager", len(mcpTools))
 }
 
 // RegisterDynamicToolProvider - 注册动态工具提供者
@@ -174,6 +116,9 @@ func (r *ToolRegistry) RegisterSubAgentTool(reactCore *ReactCore) {
 
 // GetTool - 获取工具实例
 func (r *ToolRegistry) GetTool(ctx context.Context, name string) (builtin.Tool, error) {
+	// 先更新MCP工具到本地缓存
+	r.updateMCPToolsFromGlobal()
+	
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	
@@ -193,15 +138,42 @@ func (r *ToolRegistry) GetTool(ctx context.Context, name string) (builtin.Tool, 
 	return nil, fmt.Errorf("tool %s not found", name)
 }
 
-// IsMCPInitializing - 检查MCP是否正在初始化
-func (r *ToolRegistry) IsMCPInitializing() bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.mcpInitializing
+// updateMCPToolsFromGlobal - 从全局MCP管理器更新MCP工具到本地缓存
+func (r *ToolRegistry) updateMCPToolsFromGlobal() {
+	globalMCP := GetGlobalMCPManager()
+	
+	// 获取最新的MCP工具
+	mcpTools := globalMCP.GetTools()
+	
+	if len(mcpTools) == 0 {
+		return // 没有新的MCP工具
+	}
+	
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	
+	// 统计新增的工具数量
+	newToolsCount := 0
+	
+	// 更新或添加MCP工具
+	for _, tool := range mcpTools {
+		if _, exists := r.staticTools[tool.Name()]; !exists {
+			r.staticTools[tool.Name()] = tool
+			newToolsCount++
+			log.Printf("[DEBUG] ToolRegistry: Added new MCP tool from global manager: %s", tool.Name())
+		}
+	}
+	
+	if newToolsCount > 0 {
+		log.Printf("[INFO] ToolRegistry: Added %d new MCP tools from global manager", newToolsCount)
+	}
 }
 
 // GetAllToolDefinitions - 获取所有工具定义（用于LLM）
 func (r *ToolRegistry) GetAllToolDefinitions(ctx context.Context) []llm.Tool {
+	// 先更新MCP工具到本地缓存
+	r.updateMCPToolsFromGlobal()
+	
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	
@@ -239,10 +211,15 @@ func (r *ToolRegistry) GetAllToolDefinitions(ctx context.Context) []llm.Tool {
 		}
 	}
 	
+	// 检查全局MCP管理器状态用于调试
+	globalMCP := GetGlobalMCPManager()
 	mcpStatus := ""
-	if r.mcpInitializing {
-		mcpStatus = " (MCP tools loading asynchronously)"
+	if globalMCP.IsInitializing() {
+		mcpStatus = " (MCP tools still loading)"
+	} else if globalMCP.IsInitialized() {
+		mcpStatus = " (MCP tools loaded)"
 	}
+	
 	log.Printf("[DEBUG] ToolRegistry: Generated %d tool definitions%s", len(tools), mcpStatus)
 	return tools
 }
