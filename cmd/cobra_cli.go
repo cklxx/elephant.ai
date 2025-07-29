@@ -71,20 +71,20 @@ func DeepCodingToolExecution(title, content string) string {
 		// Single line or empty content, use simple format with gray color
 		return fmt.Sprintf("%s %s\n", title, gray(content))
 	}
-	
+
 	// Multi-line content: align subsequent lines with the first line
 	// Calculate indentation to match the width of title + space
 	// "⎿ " is 2 characters wide, so we need 3 spaces for alignment (additional space requested)
 	indent := "   " // 3 spaces to align with "⎿ " prefix + 1 extra space
-	
+
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("%s %s\n", title, gray(lines[0])))
-	
+
 	// Add subsequent lines with proper indentation and gray color
 	for i := 1; i < len(lines); i++ {
 		result.WriteString(fmt.Sprintf("%s%s\n", indent, gray(lines[i])))
 	}
-	
+
 	return result.String()
 }
 
@@ -402,13 +402,6 @@ func (cli *CLI) initialize(cmd *cobra.Command) error {
 		} else {
 			// If can't create log file in normal mode, disable logging
 			log.SetOutput(io.Discard)
-		}
-	}
-
-	// Initialize markdown renderer
-	if err := InitMarkdownRenderer(); err != nil {
-		if cli.debug {
-			fmt.Printf("⚠️  Failed to initialize markdown renderer: %v\n", err)
 		}
 	}
 

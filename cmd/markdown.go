@@ -16,6 +16,11 @@ type MarkdownRenderer struct {
 
 // NewMarkdownRenderer creates a new markdown renderer with Claude Code styling
 func NewMarkdownRenderer() (*MarkdownRenderer, error) {
+	return NewMarkdownRendererWithStyle(false)
+}
+
+// NewMarkdownRendererWithStyle creates a markdown renderer with optional plain text mode
+func NewMarkdownRendererWithStyle(plainText bool) (*MarkdownRenderer, error) {
 	// Get terminal width for dynamic word wrapping
 	termWidth := 80 // Default fallback
 	if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && width > 0 {
@@ -25,8 +30,14 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 		}
 	}
 
-	// Use a more consistent style
-	style := glamour.WithStandardStyle("dark")
+	var style glamour.TermRendererOption
+	if plainText {
+		// Use plain text style without colors for TUI compatibility
+		style = glamour.WithStandardStyle("notty")
+	} else {
+		// Use colored style for regular CLI
+		style = glamour.WithStandardStyle("dark")
+	}
 
 	renderer, err := glamour.NewTermRenderer(
 		style,
@@ -153,18 +164,8 @@ func (mr *MarkdownRenderer) RenderIfMarkdown(content string) string {
 	return content
 }
 
-// Global markdown renderer instance
+// Global markdown renderer instances
 var globalMarkdownRenderer *MarkdownRenderer
-
-// InitMarkdownRenderer initializes the global markdown renderer
-func InitMarkdownRenderer() error {
-	renderer, err := NewMarkdownRenderer()
-	if err != nil {
-		return err
-	}
-	globalMarkdownRenderer = renderer
-	return nil
-}
 
 // RenderMarkdown is a convenience function that uses the global renderer
 func RenderMarkdown(content string) string {

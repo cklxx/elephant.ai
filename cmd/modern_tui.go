@@ -16,24 +16,16 @@ import (
 	"alex/internal/context/message"
 )
 
-// formatToolOutput formats tool output with proper multi-line alignment and markdown rendering
+// formatToolOutput formats tool output with proper multi-line alignment for TUI mode
 func formatToolOutput(title, content string) string {
-	// Try to render content as markdown if it contains markdown formatting
-	processedContent := content
-	if globalMarkdownRenderer != nil {
-		// Check if the content should be rendered as markdown
-		if ShouldRenderAsMarkdown(content) {
-			renderedContent := globalMarkdownRenderer.RenderIfMarkdown(content)
-			// Remove trailing newlines that markdown renderer might add
-			processedContent = strings.TrimSuffix(renderedContent, "\n")
-		}
-	}
+	// For TUI mode, keep content as raw text to avoid conflicts with TUI styling
+	// The TUI styling system will handle the visual formatting
 
 	// Split content into lines for proper alignment
-	lines := strings.Split(processedContent, "\n")
+	lines := strings.Split(content, "\n")
 	if len(lines) <= 1 {
 		// Single line or empty content, use simple format
-		return fmt.Sprintf("%s%s", title, processedContent)
+		return fmt.Sprintf("%s%s", title, content)
 	}
 
 	// Multi-line content: align subsequent lines with the first line
@@ -91,7 +83,6 @@ var (
 			BorderForeground(lipgloss.Color("#6B7280")).
 			Padding(0, 0).
 			Margin(0)
-
 )
 
 // Message types
@@ -118,7 +109,6 @@ type ModernChatModel struct {
 	agent               *agent.ReactAgent
 	config              *config.Manager
 	width               int
-	height              int
 	ready               bool
 	currentInput        string
 	execTimer           ExecutionTimer
@@ -158,7 +148,7 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *Modern
 	ta.SetHeight(1) // Initial height, will expand dynamically
 	ta.ShowLineNumbers = false
 	ta.KeyMap.InsertNewline.SetEnabled(true) // Enable multiline input
-	
+
 	// Set text color to match terminal default (black)
 	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
 	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
@@ -207,7 +197,7 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetWidth(textareaWidth)
 		}
 		m.width = msg.Width
-		m.height = msg.Height
+		// Don't set height to allow unlimited content growth
 
 	case tea.KeyMsg:
 		switch {
@@ -302,30 +292,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case streamContentMsg:
-		// Handle LLM streaming content with potential markdown rendering
+		// Handle LLM streaming content
 		if m.currentMessage != nil {
-			// Only use content buffer for LLM content, not tool output
-			m.contentBuffer.WriteString(msg.content)
-			currentContent := m.contentBuffer.String()
-
-			if msg.isMarkdown && m.shouldStreamAsMarkdown(currentContent) {
-				// Try to render as markdown and show incremental updates
-				if globalMarkdownRenderer != nil {
-					renderedContent := globalMarkdownRenderer.RenderIfMarkdown(currentContent)
-					if renderedContent != m.lastRenderedContent {
-						// Replace entire content with newly rendered version
-						// Calculate only the LLM part (after tool outputs)
-						m.currentMessage.Content = m.getBaseMessageContent() + renderedContent
-						m.lastRenderedContent = renderedContent
-					}
-				} else {
-					// Fallback to raw content if markdown renderer not available
-					m.currentMessage.Content += msg.content
-				}
-			} else {
-				// For non-markdown content, append directly
-				m.currentMessage.Content += msg.content
-			}
+			// In TUI mode, always append content directly to avoid markdown rendering conflicts
+			m.currentMessage.Content += msg.content
 		}
 		return m, nil
 
@@ -413,11 +383,6 @@ func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.messages = append(m.messages, msg)
 }
 
-// getBaseMessageContent returns the base content (tool outputs) without LLM content
-func (m *ModernChatModel) getBaseMessageContent() string {
-	return m.baseMessageContent
-}
-
 // updateTextareaHeight adjusts the textarea height based on content lines
 func (m *ModernChatModel) updateTextareaHeight() {
 	content := m.textarea.Value()
@@ -428,9 +393,9 @@ func (m *ModernChatModel) updateTextareaHeight() {
 	if lineCount < 1 {
 		lineCount = 1
 	}
-	if lineCount > 10 {
-		lineCount = 10
-	}
+	// if lineCount > 10 {
+	// 	lineCount = 10
+	// }
 
 	// Only update if height changed
 	if m.textarea.Height() != lineCount {
@@ -552,13 +517,9 @@ func (m *ModernChatModel) View() string {
 		case "user":
 			styledContent = userMsgStyle.Render("> ") + msg.Content
 		case "assistant":
-			// Render assistant messages with markdown if possible
-			if globalMarkdownRenderer != nil {
-				renderedContent := globalMarkdownRenderer.RenderIfMarkdown(msg.Content)
-				styledContent = assistantMsgStyle.Render(renderedContent)
-			} else {
-				styledContent = assistantMsgStyle.Render(msg.Content)
-			}
+			// Process content to ensure proper formatting for TUI display
+			processedContent := m.processContentForTUI(msg.Content)
+			styledContent = assistantMsgStyle.Render(processedContent)
 		case "system":
 			styledContent = systemMsgStyle.Render(msg.Content)
 		case "processing":
@@ -605,38 +566,31 @@ func (m *ModernChatModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
-// shouldStreamAsMarkdown determines if content should be rendered as markdown in real-time (TUI version)
-func (m *ModernChatModel) shouldStreamAsMarkdown(content string) bool {
-	// Don't try streaming markdown for very short content
-	if len(strings.TrimSpace(content)) < 20 {
-		return false
+// processContentForTUI processes content for proper TUI display without full markdown rendering
+func (m *ModernChatModel) processContentForTUI(content string) string {
+	// Ensure proper line breaks
+	content = strings.ReplaceAll(content, "\\n", "\n")
+
+	// Split into lines and process each line
+	lines := strings.Split(content, "\n")
+	var processedLines []string
+
+	for _, line := range lines {
+		// Trim excessive whitespace but preserve intentional formatting
+		trimmed := strings.TrimRight(line, " \t")
+		processedLines = append(processedLines, trimmed)
 	}
 
-	// Check for strong markdown indicators early
-	earlyIndicators := []string{
-		"# ",   // Headers
-		"## ",  // Headers
-		"### ", // Headers
-		"```",  // Code blocks
-		"- ",   // Lists
-		"* ",   // Lists
-		"1. ",  // Numbered lists
+	// Join lines back together
+	result := strings.Join(processedLines, "\n")
+
+	// Remove excessive consecutive newlines (more than 2)
+	for strings.Contains(result, "\n\n\n") {
+		result = strings.ReplaceAll(result, "\n\n\n", "\n\n")
 	}
 
-	for _, indicator := range earlyIndicators {
-		if strings.Contains(content, indicator) {
-			return true
-		}
-	}
-
-	// Check for markdown patterns that benefit from streaming
-	if strings.Contains(content, "**") || strings.Contains(content, "`") {
-		return true
-	}
-
-	return false
+	return result
 }
-
 
 // Run the modern TUI
 func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
@@ -649,6 +603,7 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 		model,
 		// Removed tea.WithAltScreen() to allow unlimited height and native terminal scrolling
 		// Removed tea.WithMouseCellMotion() to allow text selection
+		tea.WithoutSignalHandler(), // Prevent signal handling interference
 	)
 
 	// Set the program reference for streaming callbacks
