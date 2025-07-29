@@ -68,8 +68,8 @@ func DeepCodingToolExecution(title, content string) string {
 	// Split content into lines for proper alignment
 	lines := strings.Split(content, "\n")
 	if len(lines) <= 1 {
-		// Single line or empty content, use simple format
-		return fmt.Sprintf("%s %s\n", title, content)
+		// Single line or empty content, use simple format with gray color
+		return fmt.Sprintf("%s %s\n", title, gray(content))
 	}
 	
 	// Multi-line content: align subsequent lines with the first line
@@ -78,11 +78,11 @@ func DeepCodingToolExecution(title, content string) string {
 	indent := "  " // 2 spaces to align with "⎿ " prefix
 	
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("%s %s\n", title, lines[0]))
+	result.WriteString(fmt.Sprintf("%s %s\n", title, gray(lines[0])))
 	
-	// Add subsequent lines with proper indentation
+	// Add subsequent lines with proper indentation and gray color
 	for i := 1; i < len(lines); i++ {
-		result.WriteString(fmt.Sprintf("%s%s\n", indent, lines[i]))
+		result.WriteString(fmt.Sprintf("%s%s\n", indent, gray(lines[i])))
 	}
 	
 	return result.String()

@@ -61,6 +61,9 @@ var (
 				Foreground(mutedColor).
 				Italic(true).
 				Align(lipgloss.Left)
+
+	toolResultStyle = lipgloss.NewStyle().
+				Foreground(mutedColor)
 )
 
 // Message types
@@ -95,6 +98,7 @@ type ModernChatModel struct {
 	sessionStartTime    time.Time       // Track session start time
 	contentBuffer       strings.Builder // Buffer for accumulating streaming content
 	lastRenderedContent string          // Last rendered markdown content to avoid re-rendering
+	processingMessage   string          // Fixed processing message for current conversation
 }
 
 // ChatMessage represents a chat message with type and content
@@ -253,6 +257,9 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					StartTime: time.Now(),
 					Active:    true,
 				}
+
+				// Set a fixed processing message for this conversation
+				m.processingMessage = message.GetRandomProcessingMessageWithEmoji()
 
 				m.addMessage(ChatMessage{
 					Type:    "processing",
@@ -431,7 +438,7 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 					}
 				case "tool_result":
 					if chunk.Content != "" {
-						content = "📋 " + chunk.Content + "\n"
+						content = toolResultStyle.Render("⎿ " + chunk.Content) + "\n"
 					}
 				case "tool_error":
 					if chunk.Content != "" {
@@ -538,7 +545,12 @@ func (m *ModernChatModel) View() string {
 	// Input area
 	var inputArea string
 	if m.processing {
-		inputArea = inputStyle.Render(processingStyle.Render(message.GetRandomProcessingMessageWithEmoji()))
+		// Use the fixed processing message set at conversation start
+		processingMsg := m.processingMessage
+		if processingMsg == "" {
+			processingMsg = "⚡ Processing... please wait"
+		}
+		inputArea = inputStyle.Render(processingStyle.Render(processingMsg))
 	} else {
 		inputArea = inputStyle.Render(m.textarea.View())
 	}
