@@ -65,11 +65,22 @@ func DeepCodingSuccess(msg string) string {
 }
 
 func DeepCodingToolExecution(title, content string) string {
+	// Check if this is a todo tool output and should be rendered as markdown
+	processedContent := content
+	if strings.Contains(title, "⎿") && ShouldRenderAsMarkdown(content) {
+		// Apply markdown rendering for todo tool content in CLI mode
+		if globalMarkdownRenderer != nil {
+			rendered := globalMarkdownRenderer.RenderIfMarkdown(content)
+			// Remove trailing newlines that markdown renderer might add
+			processedContent = strings.TrimSuffix(rendered, "\n")
+		}
+	}
+
 	// Split content into lines for proper alignment
-	lines := strings.Split(content, "\n")
+	lines := strings.Split(processedContent, "\n")
 	if len(lines) <= 1 {
 		// Single line or empty content, use simple format with gray color
-		return fmt.Sprintf("%s %s\n", title, gray(content))
+		return fmt.Sprintf("%s %s\n", title, gray(processedContent))
 	}
 
 	// Multi-line content: align subsequent lines with the first line

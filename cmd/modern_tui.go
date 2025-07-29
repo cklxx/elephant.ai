@@ -153,15 +153,8 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *Modern
 	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
 	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
 
-	// Initial messages - minimal
-	welcomeTime := time.Now()
-	initialMessages := []ChatMessage{
-		{
-			Type:    "system",
-			Content: "Press Ctrl+C to exit",
-			Time:    welcomeTime,
-		},
-	}
+	// No initial messages - we'll display them directly in runModernTUI
+	initialMessages := []ChatMessage{}
 
 	return &ModernChatModel{
 		textarea:         ta,
@@ -288,6 +281,8 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentMessage.Content += msg.content
 			// Update base content to include tool outputs
 			m.baseMessageContent = m.currentMessage.Content
+			// Output the chunk immediately to terminal
+			fmt.Print(msg.content)
 		}
 		return m, nil
 
@@ -296,6 +291,8 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.currentMessage != nil {
 			// In TUI mode, always append content directly to avoid markdown rendering conflicts
 			m.currentMessage.Content += msg.content
+			// Output the content immediately to terminal (streaming)
+			fmt.Print(msg.content)
 		}
 		return m, nil
 
@@ -381,6 +378,41 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.messages = append(m.messages, msg)
+	// Immediately output the message to terminal
+	m.outputMessage(msg)
+}
+
+// outputMessage outputs a message directly to terminal
+func (m *ModernChatModel) outputMessage(msg ChatMessage) {
+	// Skip empty assistant messages
+	if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
+		return
+	}
+
+	// Add spacing between messages (except for first message)
+	if len(m.messages) > 1 {
+		fmt.Println()
+	}
+
+	var styledContent string
+	switch msg.Type {
+	case "user":
+		styledContent = userMsgStyle.Render("> ") + msg.Content
+	case "assistant":
+		// Process content to ensure proper formatting for TUI display
+		processedContent := m.processContentForTUI(msg.Content)
+		styledContent = assistantMsgStyle.Render(processedContent)
+	case "system":
+		styledContent = systemMsgStyle.Render(msg.Content)
+	case "processing":
+		styledContent = processingStyle.Render("⚡ " + msg.Content)
+	case "error":
+		styledContent = errorMsgStyle.Render("❌ " + msg.Content)
+	default:
+		styledContent = msg.Content
+	}
+
+	fmt.Println(styledContent)
 }
 
 // updateTextareaHeight adjusts the textarea height based on content lines
@@ -490,80 +522,9 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 }
 
 func (m *ModernChatModel) View() string {
-	if !m.ready {
-		return "Initializing Deep Coding Agent..."
-	}
-
-	var parts []string
-
-	// Header - simplified
-	header := headerStyle.Render("Alex Code Agent")
-	parts = append(parts, header, "")
-
-	// Messages content - display all messages naturally
-	for i, msg := range m.messages {
-		// Skip empty assistant messages
-		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
-			continue
-		}
-
-		// Add spacing between messages
-		if i > 0 {
-			parts = append(parts, "")
-		}
-
-		var styledContent string
-		switch msg.Type {
-		case "user":
-			styledContent = userMsgStyle.Render("> ") + msg.Content
-		case "assistant":
-			// Process content to ensure proper formatting for TUI display
-			processedContent := m.processContentForTUI(msg.Content)
-			styledContent = assistantMsgStyle.Render(processedContent)
-		case "system":
-			styledContent = systemMsgStyle.Render(msg.Content)
-		case "processing":
-			styledContent = processingStyle.Render("⚡ " + msg.Content)
-		case "error":
-			styledContent = errorMsgStyle.Render("❌ " + msg.Content)
-		default:
-			styledContent = msg.Content
-		}
-
-		parts = append(parts, styledContent)
-	}
-
-	// Add spacing before input area
-	parts = append(parts, "")
-
-	// Processing status above input (when processing)
-	if m.processing {
-		elapsed := m.execTimer.Duration.Truncate(time.Second)
-
-		// Format token count with animation effect
-		tokenDisplay := fmt.Sprintf("%d", m.tokenCount)
-		if m.tokenCount != m.lastTokenCount {
-			// Add subtle animation for token changes
-			tokenDisplay = fmt.Sprintf("↑ %d", m.tokenCount)
-		}
-
-		// Main text in processing color, parentheses content in gray
-		mainText := processingStyle.Render("Wibbling… ")
-		grayInfo := lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("(%v · %s tokens)", elapsed, tokenDisplay))
-		statusMsg := mainText + grayInfo
-		parts = append(parts, statusMsg)
-	}
-
-	// Input area - always at the bottom
-	inputArea := inputStyle.Render(m.textarea.View())
-	parts = append(parts, inputArea)
-
-	// Add shortcuts hint
-	shortcutsHint := systemMsgStyle.Render("  Enter: send • Shift+Enter: new line • Use terminal scroll to view history")
-	parts = append(parts, shortcutsHint)
-
-	// Join all parts and return - no height restrictions, let terminal handle scrolling
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	// Since we're using WithoutRenderer(), this method won't be called for display
+	// But we keep it minimal for potential debugging
+	return ""
 }
 
 // processContentForTUI processes content for proper TUI display without full markdown rendering
@@ -599,16 +560,58 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 
 	model := NewModernChatModel(agent, config)
 
+	// Display header
+	header := headerStyle.Render("Alex Code Agent")
+	fmt.Println(header)
+	fmt.Println()
+
+	// Display initial system message
+	fmt.Println(systemMsgStyle.Render("Press Ctrl+C to exit"))
+	fmt.Println()
+
 	program := tea.NewProgram(
 		model,
-		// Removed tea.WithAltScreen() to allow unlimited height and native terminal scrolling
-		// Removed tea.WithMouseCellMotion() to allow text selection
-		tea.WithoutSignalHandler(), // Prevent signal handling interference
+		// Use input only mode - don't control terminal output, let us handle it
+		tea.WithInput(os.Stdin),
+		tea.WithoutRenderer(), // Disable BubbleTea's renderer completely
 	)
 
 	// Set the program reference for streaming callbacks
 	model.program = program
 
+	// Show input prompt initially
+	model.showInputPrompt()
+
 	_, err := program.Run()
 	return err
+}
+
+// showInputPrompt displays the input prompt at bottom of terminal
+func (m *ModernChatModel) showInputPrompt() {
+	// Processing status (when processing)
+	if m.processing {
+		elapsed := m.execTimer.Duration.Truncate(time.Second)
+
+		// Format token count with animation effect
+		tokenDisplay := fmt.Sprintf("%d", m.tokenCount)
+		if m.tokenCount != m.lastTokenCount {
+			// Add subtle animation for token changes
+			tokenDisplay = fmt.Sprintf("↑ %d", m.tokenCount)
+		}
+
+		// Main text in processing color, parentheses content in gray
+		mainText := processingStyle.Render("Wibbling… ")
+		grayInfo := lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("(%v · %s tokens)", elapsed, tokenDisplay))
+		statusMsg := mainText + grayInfo
+		fmt.Println(statusMsg)
+	}
+
+	// Input area - show prompt
+	inputArea := inputStyle.Render(m.textarea.View())
+	fmt.Print(inputArea)
+
+	// Add shortcuts hint
+	shortcutsHint := systemMsgStyle.Render("  Enter: send • Shift+Enter: new line • Use terminal scroll to view history")
+	fmt.Println()
+	fmt.Println(shortcutsHint)
 }
