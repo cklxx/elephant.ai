@@ -19,7 +19,29 @@ func (t *FileReadTool) Name() string {
 }
 
 func (t *FileReadTool) Description() string {
-	return "Read the contents of a file. Supports reading specific line ranges."
+	return `Read the contents of a file from the local filesystem with line number formatting.
+
+Usage:
+- Automatically resolves relative paths to absolute paths
+- Returns content with line numbers in "lineNum→content" format
+- Supports reading specific line ranges with start_line and end_line parameters
+- Shows file metadata including size, total lines, and modification time
+
+Parameters:
+- file_path or path: Path to the file to read (relative paths are resolved)
+- start_line: Optional starting line number (1-based, inclusive)
+- end_line: Optional ending line number (1-based, inclusive)
+
+Example output format:
+    1→package main
+    2→import "fmt"
+    3→func main() {
+
+Notes:
+- If file doesn't exist, returns an error
+- Line numbers start from 1
+- When specifying line ranges, both start and end are inclusive
+- Handles both file_path and legacy path parameter for compatibility`
 }
 
 func (t *FileReadTool) Parameters() map[string]interface{} {
@@ -136,7 +158,7 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	// Add line numbers to each line
 	for i, line := range lines {
 		lineNum := startLineNum + i
-		formattedLines = append(formattedLines, fmt.Sprintf("%5d %s", lineNum, line))
+		formattedLines = append(formattedLines, fmt.Sprintf("%5d→%s", lineNum, line))
 	}
 
 	contentStr = strings.Join(formattedLines, "\n")

@@ -19,7 +19,34 @@ func (t *GrepTool) Name() string {
 }
 
 func (t *GrepTool) Description() string {
-	return "Search for patterns in files using grep."
+	return `Search for text patterns in files using grep with line number output.
+
+Usage:
+- Searches for regular expression patterns in files
+- Returns matches with filename and line numbers
+- Supports recursive directory search
+- Case-sensitive by default, can be made case-insensitive
+- Limits output lines to 200 characters for readability
+
+Parameters:
+- pattern: Regular expression pattern to search for (required)
+- path: Directory or file to search in (defaults to current directory)
+- recursive: Search subdirectories recursively (default: false)
+- ignore_case: Perform case-insensitive search (default: false)
+
+Example patterns:
+- "function.*main" - Find lines containing "function" followed by "main"
+- "TODO|FIXME" - Find lines with TODO or FIXME comments
+- "^import" - Find lines starting with "import"
+
+Output format:
+filename:linenum:matched_line_content
+
+Notes:
+- Uses system grep command
+- Returns "No matches found" if pattern not found
+- Truncates long lines to 200 characters for display
+- Exit code 1 (grep no matches) is handled as normal result`
 }
 
 func (t *GrepTool) Parameters() map[string]interface{} {

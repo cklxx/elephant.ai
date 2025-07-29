@@ -30,7 +30,20 @@ func (t *TodoReadTool) Name() string {
 }
 
 func (t *TodoReadTool) Description() string {
-	return "Read the current session's todo list including the final goal and todo items."
+	return `Read the current session's todo list content.
+
+Usage:
+- Displays complete todo content from session-specific file
+- Shows free-form markdown content including goals, tasks, and notes
+- Returns empty message if no todo file exists
+- Content preserved exactly as written with todo_update
+
+Output:
+- Raw markdown content with checkboxes and formatting
+- Basic statistics (pending ☐ and completed ☒ counts)
+- Session-specific todo content
+
+Note: Use todo_update to create or modify todo content`
 }
 
 func (t *TodoReadTool) Parameters() map[string]interface{} {

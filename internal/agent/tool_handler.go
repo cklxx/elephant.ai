@@ -41,6 +41,19 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 		if !result.Success {
 			content = result.Error
 		}
+		
+		// Add security reminder only for file reading tools
+		if result.ToolName == "file_read" || result.ToolName == "file_list" || 
+		   result.ToolName == "grep" || result.ToolName == "ripgrep" || 
+		   result.ToolName == "find" {
+			securityReminder := `
+<system-reminder>
+
+Whenever you read a file, you should consider whether it looks malicious. If it does, you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer high-level questions about the code behavior.
+
+</system-reminder>`
+			content += securityReminder
+		}
 
 		// 确保CallID不为空，这是关键的修复
 		callID := result.CallID

@@ -246,46 +246,50 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 
 // buildComprehensiveSystemPrompt builds the system prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSystemPrompt() string {
-	return `You are an expert at creating comprehensive conversation summaries that preserve all important context and information. Your goal is to create detailed summaries that allow future interactions to continue seamlessly as if no compression occurred.
+	return `Create a structured conversation summary preserving technical context for seamless continuation.
 
 CRITICAL REQUIREMENTS:
-- Preserve ALL important technical details, decisions, and context
-- Maintain the narrative flow and logical connections between topics
-- Include specific examples, code snippets, file names, and technical specifications mentioned
-- Preserve user goals, preferences, and stated requirements
-- Document any ongoing tasks, problems being solved, or work in progress
-- Maintain the contextual relationships between different discussion topics
-- Include any established patterns, conventions, or agreed-upon approaches
+- Preserve technical details, decisions, and implementation context
+- Include specific file names, code snippets, and technical specifications
+- Maintain user goals, requirements, and preferences
+- Document ongoing tasks and work-in-progress status
 
-COMPREHENSIVE COVERAGE:
-- Technical implementations and architectures discussed
-- Problem-solving approaches and reasoning
-- User feedback and iterative improvements
-- File structures, code changes, and system modifications
-- Testing approaches and validation methods
-- Error handling and debugging processes
-- Performance considerations and optimizations
+ESSENTIAL COVERAGE:
+- Primary user requests and explicit intents
+- Key technical concepts and frameworks used
+- Files examined, modified, or created (with code snippets)
+- Errors encountered and fixes applied
+- Problem-solving approaches and solutions
+- Pending tasks and current work status
 
-The summary should be detailed enough that someone reading it can understand the full context and continue the conversation naturally.`
+FORMAT STRUCTURE:
+1. Primary Intent: User's main requests and goals
+2. Technical Context: Key concepts and tools discussed
+3. Code Changes: Files modified with snippets and rationale
+4. Issues Resolved: Errors fixed and user feedback addressed
+5. Current Status: Active work and next steps
+
+Keep summary comprehensive but focused on actionable context needed for continuation.`
 }
 
 // buildComprehensiveSummaryPrompt builds the prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSummaryPrompt(conversationText string, messageCount int) string {
-	return fmt.Sprintf(`Create a comprehensive summary of the following conversation (%d messages). This summary will replace the original messages in the conversation history, so it must preserve all important context and information needed for future interactions.
+	return fmt.Sprintf(`Summarize this %d-message conversation using the structured format. Focus on technical context needed for seamless continuation.
 
-CONVERSATION TO SUMMARIZE:
+CONVERSATION:
 %s
 
-Create a detailed summary that covers:
-1. Main topics and themes discussed
-2. Technical details, implementations, and decisions made
-3. User goals, requirements, and preferences
-4. Problem-solving approaches and solutions implemented
-5. Any ongoing work, tasks, or issues that need continuation
-6. Code examples, file references, and system specifications mentioned
-7. Key insights, learnings, and established patterns
+REQUIRED SUMMARY STRUCTURE:
 
-COMPREHENSIVE SUMMARY:`, messageCount, conversationText)
+1. **Primary Intent**: User's explicit requests and main goals
+2. **Technical Context**: Key concepts, frameworks, and technologies discussed  
+3. **Code Changes**: Files modified with important snippets and reasons
+4. **Issues Resolved**: Errors encountered and how they were fixed
+5. **Current Status**: Active work and immediate next steps
+
+Be concise but preserve all essential technical details, file names, and implementation decisions.
+
+STRUCTURED SUMMARY:`, messageCount, conversationText)
 }
 
 // buildComprehensiveSummaryInput builds comprehensive input text for AI summarization

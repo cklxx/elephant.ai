@@ -5,9 +5,9 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 //go:embed *.md
@@ -106,13 +106,16 @@ func (p *PromptLoader) ListPrompts() []string {
 func (p *PromptLoader) GetReActThinkingPrompt(taskCtx *types.ReactTaskContext) (string, error) {
 	// Try to read ALEX.md from working directory, fallback to default if not found
 	memory := p.loadProjectMemory(taskCtx.WorkingDir)
+	
+	// Load git information
+	gitInfo := p.loadGitInfo(taskCtx.WorkingDir)
 
 	variables := map[string]string{
 		"WorkingDir":    taskCtx.WorkingDir,
 		"DirectoryInfo": taskCtx.DirectoryInfo.Description,
 		"Goal":          taskCtx.Goal,
 		"Memory":        memory,
-		"LastUpdate":    taskCtx.LastUpdate.Format(time.RFC3339),
+		"GitInfo":       gitInfo,
 	}
 
 	// Add project summary if available
@@ -171,4 +174,73 @@ func (p *PromptLoader) loadProjectMemory(workingDir string) string {
 	}
 
 	return fileContent
+}
+
+// loadGitInfo loads current git information from the working directory
+func (p *PromptLoader) loadGitInfo(workingDir string) string {
+	if workingDir == "" {
+		return "Not in a git repository"
+	}
+
+	var gitInfo strings.Builder
+	
+	// Change to the working directory for git commands
+	oldWd, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+	
+	if err := os.Chdir(workingDir); err != nil {
+		return "Not in a git repository"
+	}
+	
+	// Get current branch
+	if cmd := exec.Command("git", "branch", "--show-current"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			branch := strings.TrimSpace(string(output))
+			if branch != "" {
+				gitInfo.WriteString(fmt.Sprintf("Current branch: %s\n", branch))
+			}
+		}
+	}
+	
+	// Get main branch
+	if cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			mainRef := strings.TrimSpace(string(output))
+			if mainRef != "" {
+				mainBranch := strings.TrimPrefix(mainRef, "refs/remotes/origin/")
+				gitInfo.WriteString(fmt.Sprintf("Main branch: %s\n", mainBranch))
+			}
+		}
+	}
+	
+	// Get git status
+	if cmd := exec.Command("git", "status", "--porcelain"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			status := strings.TrimSpace(string(output))
+			if status != "" {
+				gitInfo.WriteString(fmt.Sprintf("Status:\n%s\n", status))
+			} else {
+				gitInfo.WriteString("Status: Clean working directory\n")
+			}
+		}
+	}
+	
+	// Get recent commits
+	if cmd := exec.Command("git", "log", "--oneline", "-5"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			commits := strings.TrimSpace(string(output))
+			if commits != "" {
+				gitInfo.WriteString(fmt.Sprintf("Recent commits:\n%s\n", commits))
+			}
+		}
+	}
+	
+	result := gitInfo.String()
+	if result == "" {
+		return "Not in a git repository"
+	}
+	
+	return strings.TrimSpace(result)
 }

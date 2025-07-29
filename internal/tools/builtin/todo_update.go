@@ -31,18 +31,28 @@ func (t *NewTodoUpdateTool) Name() string {
 }
 
 func (t *NewTodoUpdateTool) Description() string {
-	return `Update the entire session todo with free-form content. Content can include goals, tasks, notes in any markdown format. Use only two statuses: pending (☐) and completed (☒).
+	return `Update session todo list with markdown content supporting goals, tasks, and notes.
 
-Example:
-# Current Sprint Goals
-☐ Fix authentication bug in login module  
-☐ Implement user profile API
-☒ Update documentation
+Format:
+- Use ☐ for pending tasks and ☒ for completed tasks
+- Supports any markdown formatting (headers, lists, notes)
+- Replaces entire todo content with provided text
+- Content persists across session interactions
+
+Example structure:
+# Current Goals
+☐ Task 1 description
+☐ Task 2 description  
+☒ Completed task
 
 ## Notes
-- Bug appears only in production
-- API needs validation for email format
-- Only use pending (☐) and completed (☒) statuses`
+- Additional context or reminders
+- Project notes and observations
+
+Usage:
+- Overwrites existing todo content completely
+- Automatically counts pending/completed tasks
+- Session-specific storage (survives session resume)`
 }
 
 func (t *NewTodoUpdateTool) Parameters() map[string]interface{} {

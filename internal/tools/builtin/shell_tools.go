@@ -25,7 +25,41 @@ func (t *BashTool) Name() string {
 }
 
 func (t *BashTool) Description() string {
-	return "Execute shell commands in the system. Use with caution as this can modify the system."
+	return `Execute shell commands with comprehensive security validation and output capture.
+
+Usage:
+- Executes commands via system shell (sh on Unix, cmd on Windows)
+- Captures both stdout and stderr with proper formatting
+- Built-in security validation prevents dangerous operations
+- Supports custom working directory and timeout controls
+- Automatically formats diff-like output for readability
+
+Parameters:
+- command: Shell command to execute (required)
+- working_dir: Directory to run command in (optional)
+- timeout: Maximum execution time in seconds (default: 30, max: 300)
+
+Security Features:
+- Blocks dangerous commands (rm -rf /, dd, mkfs, etc.)
+- Prevents access to sensitive paths (/etc/, /root/, etc.)
+- Restricts networking commands (ssh, scp, nmap, etc.)
+- Validates command length (max 1000 characters)
+- Detects suspicious patterns and command injection attempts
+
+Output Handling:
+- Returns combined stdout/stderr if both present
+- Applies syntax highlighting to diff output
+- Shows execution time and exit code
+- Handles timeouts gracefully
+- Distinguishes between command success/failure
+
+Common Usage Patterns:
+- Build commands: "make build", "npm install", "go build"
+- File operations: "ls -la", "find . -name '*.go'"
+- Git operations: "git status", "git diff", "git add ."
+- Test commands: "go test ./...", "npm test"
+
+Note: Commands are executed with current user permissions. Interactive commands requiring input are not supported in default mode.`
 }
 
 func (t *BashTool) Parameters() map[string]interface{} {
@@ -317,7 +351,43 @@ func (t *CodeExecutorTool) Name() string {
 }
 
 func (t *CodeExecutorTool) Description() string {
-	return "Execute code in supported languages (Python, Go, JavaScript, Bash) in a sandboxed environment."
+	return `Execute code in multiple programming languages with sandboxed execution and timeout controls.
+
+Supported Languages:
+- Python: Executes Python code with standard library access
+- Go: Compiles and runs Go code with basic packages  
+- JavaScript: Runs JavaScript via Node.js runtime
+- Bash: Executes shell scripts in controlled environment
+
+Usage:
+- Provides isolated execution environment for code testing
+- Captures both stdout and any runtime errors
+- Shows execution time and exit codes
+- Automatically handles compilation for compiled languages
+
+Parameters:
+- language: Programming language ("python", "go", "javascript"/"js", "bash")
+- code: Source code to execute
+- timeout: Maximum execution time in seconds (default: 30, max: 300)
+
+Security Features:
+- Sandboxed execution environment
+- Configurable timeout to prevent infinite loops
+- Limited system access and resource usage
+- Safe for testing code snippets and algorithms
+
+Example Usage:
+- Python: Test data processing scripts, algorithms
+- Go: Compile and test Go functions, packages
+- JavaScript: Run Node.js scripts, test JavaScript logic
+- Bash: Execute shell scripts safely
+
+Output Format:
+- Success: Shows execution time and program output
+- Failure: Displays compilation/runtime errors
+- Timeout: Indicates if execution exceeded time limit
+
+Note: This tool is designed for code testing and prototyping. Production code should be executed through proper deployment processes.`
 }
 
 func (t *CodeExecutorTool) Parameters() map[string]interface{} {

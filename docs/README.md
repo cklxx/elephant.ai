@@ -8,6 +8,11 @@ Welcome to the Alex documentation. This directory contains essential documentati
 - **[Quick Start Guide](guides/quickstart.md)** - Get up and running with Alex
 - **[Tool Development Guide](guides/tool-development.md)** - Learn to develop custom tools
 
+### 📊 Research & Planning
+- **[Ultra Think Report](Ultra-Think-Report-Container-Mobile-Agent.md)** - 完整的云端沙箱与移动端开发调研报告
+- **[Implementation Plan](implementation-plan.md)** - 实际可行的项目实施方案
+- **[Context Engineering Report](context_engineering_july_2025_deep_report.md)** - 深度上下文工程研究报告
+
 ## 🔧 Configuration
 
 Alex uses `alex-config.json` for configuration. The configuration file should be placed in your home directory (`~/.alex-config.json`) or in the current working directory.
@@ -42,15 +47,18 @@ This documentation is automatically deployed to GitHub Pages. The site structure
 
 ```
 docs/
-├── index.html          # Main landing page
-├── README.md           # This file
-├── _config.yml         # Jekyll configuration
-├── assets/             # Static assets (images, icons, etc.)
+├── index.html                                        # Main landing page
+├── README.md                                         # This file
+├── _config.yml                                       # Jekyll configuration
+├── Ultra-Think-Report-Container-Mobile-Agent.md     # 云端沙箱调研报告
+├── implementation-plan.md                            # 实际实施方案
+├── context_engineering_july_2025_deep_report.md     # 上下文工程报告
+├── assets/                                           # Static assets
 │   └── favicon.svg
-├── guides/             # Documentation guides
+├── guides/                                           # Documentation guides
 │   ├── quickstart.md
 │   └── tool-development.md
-└── web/                # Additional web resources
+└── web/                                              # Additional web resources
     ├── index.html      # Alternative landing page
     ├── manifest.json   # Web app manifest
     ├── robots.txt      # Search engine instructions
