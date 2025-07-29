@@ -23,7 +23,7 @@ func (t *FileReadTool) Description() string {
 
 Usage:
 - Automatically resolves relative paths to absolute paths
-- Returns content with line numbers in "lineNum→content" format
+- Returns content with line numbers in "lineNum:content" format
 - Supports reading specific line ranges with start_line and end_line parameters
 - Shows file metadata including size, total lines, and modification time
 
@@ -33,9 +33,9 @@ Parameters:
 - end_line: Optional ending line number (1-based, inclusive)
 
 Example output format:
-    1→package main
-    2→import "fmt"
-    3→func main() {
+    1:package main
+    2:import "fmt"
+    3:func main() {
 
 Notes:
 - If file doesn't exist, returns an error
@@ -158,7 +158,7 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	// Add line numbers to each line
 	for i, line := range lines {
 		lineNum := startLineNum + i
-		formattedLines = append(formattedLines, fmt.Sprintf("%5d→%s", lineNum, line))
+		formattedLines = append(formattedLines, fmt.Sprintf("%5d:%s", lineNum, line))
 	}
 
 	contentStr = strings.Join(formattedLines, "\n")

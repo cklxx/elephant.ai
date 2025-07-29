@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +15,41 @@ import (
 	"alex/internal/config"
 	"alex/internal/context/message"
 )
+
+// formatToolOutput formats tool output with proper multi-line alignment and markdown rendering
+func formatToolOutput(title, content string) string {
+	// Try to render content as markdown if it contains markdown formatting
+	processedContent := content
+	if globalMarkdownRenderer != nil {
+		// Check if the content should be rendered as markdown
+		if ShouldRenderAsMarkdown(content) {
+			renderedContent := globalMarkdownRenderer.RenderIfMarkdown(content)
+			// Remove trailing newlines that markdown renderer might add
+			processedContent = strings.TrimSuffix(renderedContent, "\n")
+		}
+	}
+
+	// Split content into lines for proper alignment
+	lines := strings.Split(processedContent, "\n")
+	if len(lines) <= 1 {
+		// Single line or empty content, use simple format
+		return fmt.Sprintf("%s%s", title, processedContent)
+	}
+
+	// Multi-line content: align subsequent lines with the first line
+	// "⎿ " is 2 characters wide, so we need 3 spaces for alignment (additional space requested)
+	indent := "   " // 3 spaces to align with "⎿ " prefix + 1 extra space
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("%s%s\n", title, lines[0]))
+
+	// Add subsequent lines with proper indentation
+	for i := 1; i < len(lines); i++ {
+		result.WriteString(fmt.Sprintf("%s%s\n", indent, lines[i]))
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
 
 // Modern TUI with clean, professional interface
 var (
@@ -53,17 +88,10 @@ var (
 
 	inputStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#E5E7EB")).
-			Padding(0, 1).
-			Margin(0) // Optimized spacing for better proportion
+			BorderForeground(lipgloss.Color("#6B7280")).
+			Padding(0, 0).
+			Margin(0)
 
-	sessionTimeStyle = lipgloss.NewStyle().
-				Foreground(mutedColor).
-				Italic(true).
-				Align(lipgloss.Left)
-
-	toolResultStyle = lipgloss.NewStyle().
-				Foreground(mutedColor)
 )
 
 // Message types
@@ -79,6 +107,7 @@ type (
 	processingDoneMsg struct{}
 	errorOccurredMsg  struct{ err error }
 	tickerMsg         struct{}
+	tokenUpdateMsg    struct{ count int }
 )
 
 // ModernChatModel represents the clean TUI model
@@ -99,6 +128,9 @@ type ModernChatModel struct {
 	contentBuffer       strings.Builder // Buffer for accumulating streaming content
 	lastRenderedContent string          // Last rendered markdown content to avoid re-rendering
 	processingMessage   string          // Fixed processing message for current conversation
+	tokenCount          int             // Track consumed tokens
+	lastTokenCount      int             // Previous token count for animation
+	baseMessageContent  string          // Content from tool outputs (before LLM content)
 }
 
 // ChatMessage represents a chat message with type and content
@@ -117,32 +149,26 @@ type ExecutionTimer struct {
 
 // NewModernChatModel creates a clean, modern chat interface
 func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *ModernChatModel {
-	// Configure textarea with 8x8 grid system (Golden ratio optimization)
+	// Configure textarea with clean prompt style
 	ta := textarea.New()
-	ta.Placeholder = "Ask me anything about coding..."
+	ta.Placeholder = ""
 	ta.Focus()
-	ta.Prompt = "┃ "
+	ta.Prompt = "> "
 	ta.CharLimit = 2000
-	ta.SetHeight(2) // Reduced from 3 to 2 for better proportion (following 8x8 grid)
+	ta.SetHeight(1) // Initial height, will expand dynamically
 	ta.ShowLineNumbers = false
-	ta.KeyMap.InsertNewline.SetEnabled(false)
+	ta.KeyMap.InsertNewline.SetEnabled(true) // Enable multiline input
+	
+	// Set text color to match terminal default (black)
+	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
+	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
 
-	// Initial messages
+	// Initial messages - minimal
 	welcomeTime := time.Now()
 	initialMessages := []ChatMessage{
 		{
 			Type:    "system",
-			Content: "🤖 Deep Coding Agent v2.0 - Powered by Bubble Tea",
-			Time:    welcomeTime,
-		},
-		{
-			Type:    "system",
-			Content: fmt.Sprintf("📂 Working in: %s", getCurrentWorkingDir()),
-			Time:    welcomeTime,
-		},
-		{
-			Type:    "system",
-			Content: "💡 Type your coding questions and press Enter to get help",
+			Content: "Press Ctrl+C to exit",
 			Time:    welcomeTime,
 		},
 	}
@@ -157,60 +183,6 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *Modern
 	}
 }
 
-func getCurrentWorkingDir() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "unknown"
-	}
-	// Show only last 2 directories for brevity
-	parts := strings.Split(dir, "/")
-	if len(parts) > 2 {
-		return ".../" + strings.Join(parts[len(parts)-2:], "/")
-	}
-	return dir
-}
-
-// formatSessionRuntime formats the session runtime duration
-func (m *ModernChatModel) formatSessionRuntime() string {
-	// Try to get actual session start time from agent
-	var startTime time.Time
-	if m.agent != nil {
-		sessionManager := m.agent.GetSessionManager()
-		if sessionManager != nil {
-			// Try to get current session history to find actual start time
-			history := m.agent.GetSessionHistory()
-			if len(history) > 0 {
-				// Use the timestamp of the first message as session start
-				startTime = history[0].Timestamp
-			}
-		}
-	}
-
-	// Fallback to TUI start time if no session info available
-	if startTime.IsZero() {
-		startTime = m.sessionStartTime
-	}
-
-	if startTime.IsZero() {
-		return ""
-	}
-
-	duration := time.Since(startTime)
-
-	// Format duration nicely
-	if duration < time.Minute {
-		return fmt.Sprintf("🕐 Session: %ds", int(duration.Seconds()))
-	} else if duration < time.Hour {
-		minutes := int(duration.Minutes())
-		seconds := int(duration.Seconds()) % 60
-		return fmt.Sprintf("🕐 Session: %dm %ds", minutes, seconds)
-	} else {
-		hours := int(duration.Hours())
-		minutes := int(duration.Minutes()) % 60
-		return fmt.Sprintf("🕐 Session: %dh %dm", hours, minutes)
-	}
-}
-
 func (m *ModernChatModel) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, m.startTicker())
 }
@@ -219,6 +191,9 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var tiCmd tea.Cmd
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
+
+	// Update textarea height based on content
+	m.updateTextareaHeight()
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -235,11 +210,24 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+		switch {
+		case msg.Type == tea.KeyCtrlC:
 			return m, tea.Quit
-		case tea.KeyEnter:
-			if !m.processing && m.textarea.Value() != "" {
+		case msg.Type == tea.KeyEsc:
+			// Interrupt processing
+			if m.processing {
+				m.processing = false
+				m.execTimer.Active = false
+				m.addMessage(ChatMessage{
+					Type:    "system",
+					Content: "⚠️ Processing interrupted by user",
+					Time:    time.Now(),
+				})
+			}
+			return m, nil
+		case msg.Type == tea.KeyEnter && !msg.Alt:
+			// Submit input on plain Enter (Shift+Enter is handled by textarea)
+			if !m.processing && strings.TrimSpace(m.textarea.Value()) != "" {
 				input := strings.TrimSpace(m.textarea.Value())
 				m.currentInput = input
 				m.textarea.Reset()
@@ -251,8 +239,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Time:    time.Now(),
 				})
 
-				// Start processing timer
+				// Start processing timer and reset token count
 				m.processing = true
+				m.tokenCount = 0
+				m.lastTokenCount = 0
 				m.execTimer = ExecutionTimer{
 					StartTime: time.Now(),
 					Active:    true,
@@ -261,21 +251,14 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Set a fixed processing message for this conversation
 				m.processingMessage = message.GetRandomProcessingMessageWithEmoji()
 
-				m.addMessage(ChatMessage{
-					Type:    "processing",
-					Content: "Processing your request...",
-					Time:    time.Now(),
-				})
+				// No processing message in chat area - status shown above input instead
 
 				return m, tea.Batch(m.processUserInput(input), m.startTicker())
 			}
 		}
 
 	case streamResponseMsg:
-		// Remove last processing message and add response
-		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
-			m.messages = m.messages[:len(m.messages)-1]
-		}
+		// No need to remove processing message since it's not in chat area
 
 		// Add execution time to response if available
 		content := msg.content
@@ -293,10 +276,7 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg { return processingDoneMsg{} }
 
 	case streamStartMsg:
-		// Remove processing message and start with empty assistant message
-		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
-			m.messages = m.messages[:len(m.messages)-1]
-		}
+		// No processing message to remove since it's shown above input
 
 		// Create initial assistant message for streaming
 		assistantMsg := ChatMessage{
@@ -307,19 +287,24 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addMessage(assistantMsg)
 		m.currentMessage = &m.messages[len(m.messages)-1]
 
+		// Reset base content tracking
+		m.baseMessageContent = ""
+
 		return m, nil
 
 	case streamChunkMsg:
-		// Append content to current message
+		// Handle tool execution and status messages - these are separate from main content
 		if m.currentMessage != nil {
 			m.currentMessage.Content += msg.content
+			// Update base content to include tool outputs
+			m.baseMessageContent = m.currentMessage.Content
 		}
 		return m, nil
 
 	case streamContentMsg:
-		// Handle streaming content with potential markdown rendering
+		// Handle LLM streaming content with potential markdown rendering
 		if m.currentMessage != nil {
-			// Accumulate content in buffer
+			// Only use content buffer for LLM content, not tool output
 			m.contentBuffer.WriteString(msg.content)
 			currentContent := m.contentBuffer.String()
 
@@ -328,9 +313,9 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if globalMarkdownRenderer != nil {
 					renderedContent := globalMarkdownRenderer.RenderIfMarkdown(currentContent)
 					if renderedContent != m.lastRenderedContent {
-						// Calculate the new part to display
-						newPart := m.getNewRenderedContent(renderedContent)
-						m.currentMessage.Content += newPart
+						// Replace entire content with newly rendered version
+						// Calculate only the LLM part (after tool outputs)
+						m.currentMessage.Content = m.getBaseMessageContent() + renderedContent
 						m.lastRenderedContent = renderedContent
 					}
 				} else {
@@ -345,28 +330,38 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case streamCompleteMsg:
-		// Add execution time to final message
+		// Add execution time and token consumption to final message
 		if m.currentMessage != nil && (m.execTimer.Active || !m.execTimer.StartTime.IsZero()) {
 			duration := time.Since(m.execTimer.StartTime)
-			m.currentMessage.Content += fmt.Sprintf("\n\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+			executionInfo := fmt.Sprintf("\n\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+
+			// Add token consumption if available
+			if m.tokenCount > 0 {
+				executionInfo += fmt.Sprintf(" • 🪙 %d tokens", m.tokenCount)
+			}
+
+			m.currentMessage.Content += executionInfo
 		}
 		m.currentMessage = nil
 		// Reset streaming state for next message
 		m.contentBuffer.Reset()
 		m.lastRenderedContent = ""
+		m.baseMessageContent = ""
 		return m, func() tea.Msg { return processingDoneMsg{} }
 
 	case tickerMsg:
 		if m.execTimer.Active {
 			m.execTimer.Duration = time.Since(m.execTimer.StartTime)
-			// Update the last processing message with current execution time
-			if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
-				elapsed := m.execTimer.Duration.Truncate(time.Second)
-				m.messages[len(m.messages)-1].Content = fmt.Sprintf("Processing your request... (%v)", elapsed)
-			}
+
+			// Update token count animation state
+			m.lastTokenCount = m.tokenCount
+
+			// Real token consumption will be updated via streaming callbacks
+			// No fake simulation here
+
 			return m, m.startTicker() // Continue ticking
 		} else {
-			// Continue ticking for session runtime display even when not processing
+			// Continue ticking for potential future use
 			return m, m.startTicker()
 		}
 
@@ -379,17 +374,27 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.execTimer.Duration = time.Since(m.execTimer.StartTime)
 		}
 
-	case errorOccurredMsg:
-		// Remove processing message
-		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
-			m.messages = m.messages[:len(m.messages)-1]
-		}
+	case tokenUpdateMsg:
+		// Update token count from real agent data
+		m.lastTokenCount = m.tokenCount
+		m.tokenCount = msg.count
+		return m, nil
 
-		// Add execution time to error message if available
+	case errorOccurredMsg:
+		// No processing message to remove since it's shown above input
+
+		// Add execution time and token consumption to error message if available
 		errorContent := fmt.Sprintf("Error: %v", msg.err)
 		if m.execTimer.Active || !m.execTimer.StartTime.IsZero() {
 			duration := time.Since(m.execTimer.StartTime)
-			errorContent += fmt.Sprintf("\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+			executionInfo := fmt.Sprintf("\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+
+			// Add token consumption if available
+			if m.tokenCount > 0 {
+				executionInfo += fmt.Sprintf(" • 🪙 %d tokens", m.tokenCount)
+			}
+
+			errorContent += executionInfo
 		}
 
 		m.addMessage(ChatMessage{
@@ -406,6 +411,31 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.messages = append(m.messages, msg)
+}
+
+// getBaseMessageContent returns the base content (tool outputs) without LLM content
+func (m *ModernChatModel) getBaseMessageContent() string {
+	return m.baseMessageContent
+}
+
+// updateTextareaHeight adjusts the textarea height based on content lines
+func (m *ModernChatModel) updateTextareaHeight() {
+	content := m.textarea.Value()
+	lines := strings.Split(content, "\n")
+	lineCount := len(lines)
+
+	// Ensure minimum height of 1, maximum of 10 lines
+	if lineCount < 1 {
+		lineCount = 1
+	}
+	if lineCount > 10 {
+		lineCount = 10
+	}
+
+	// Only update if height changed
+	if m.textarea.Height() != lineCount {
+		m.textarea.SetHeight(lineCount)
+	}
 }
 
 func (m *ModernChatModel) startTicker() tea.Cmd {
@@ -425,28 +455,26 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 				var content string
 				switch chunk.Type {
 				case "status":
-					if chunk.Content != "" {
-						content = "📋 " + chunk.Content + "\n"
-					}
+					// Skip status messages - handled by processing status above input
+					return
 				case "iteration":
-					if chunk.Content != "" {
-						content = "🔄 " + chunk.Content + "\n"
-					}
+					// Skip iteration messages - handled by processing status above input
+					return
 				case "tool_start":
 					if chunk.Content != "" {
-						content = "🛠️ " + chunk.Content + "\n"
+						content = "\n" + chunk.Content
 					}
 				case "tool_result":
 					if chunk.Content != "" {
-						content = toolResultStyle.Render("⎿ " + chunk.Content) + "\n"
+						content = "\n" + formatToolOutput("⎿ ", chunk.Content)
 					}
 				case "tool_error":
 					if chunk.Content != "" {
-						content = "❌ " + chunk.Content + "\n"
+						content = "\n❌ " + chunk.Content
 					}
 				case "final_answer":
 					if chunk.Content != "" {
-						content = "✨ " + chunk.Content + "\n"
+						content = "\n✨ " + chunk.Content
 					}
 				case "llm_content":
 					// Use enhanced streaming for potential markdown content
@@ -454,16 +482,25 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 					return // Skip the normal content sending below
 				case "complete":
 					if chunk.Content != "" {
-						content = "✅ " + chunk.Content + "\n"
+						content = "\n✅ " + chunk.Content
 					}
 				case "max_iterations":
 					if chunk.Content != "" {
-						content = "⚠️ " + chunk.Content + "\n"
+						content = "\n⚠️ " + chunk.Content
 					}
 				case "context_management":
 					if chunk.Content != "" {
-						content = "🧠 " + chunk.Content + "\n"
+						content = "\n🧠 " + chunk.Content
 					}
+				case "token_usage":
+					// Update token count from real usage data
+					if chunk.Content != "" {
+						// Parse token count from content (assuming it's a number)
+						if tokenCount, err := strconv.Atoi(strings.TrimSpace(chunk.Content)); err == nil {
+							m.program.Send(tokenUpdateMsg{count: tokenCount})
+						}
+					}
+					return // Don't display token usage in chat
 				case "error":
 					// Error will be handled separately
 				}
@@ -494,36 +531,34 @@ func (m *ModernChatModel) View() string {
 
 	var parts []string
 
-	// Header
-	header := headerStyle.Render("🤖 Deep Coding Agent - AI-Powered Coding Assistant")
+	// Header - simplified
+	header := headerStyle.Render("Alex Code Agent")
 	parts = append(parts, header, "")
 
-	// Session runtime info with improved spacing (8px grid aligned)
-	if !m.sessionStartTime.IsZero() {
-		sessionRuntime := m.formatSessionRuntime()
-		copyHint := " • Select text with mouse to copy"
-		// Create compact session info bar optimized for screen real estate
-		sessionInfo := sessionTimeStyle.Render(sessionRuntime + copyHint)
-		parts = append(parts, sessionInfo)
-		// Only add spacing if we have sufficient height (following 70/30 rule)
-		if m.height > 20 {
-			parts = append(parts, "")
-		}
-	}
-
-	// Messages content with optimized spacing (70/30 principle)
+	// Messages content - display all messages naturally
 	for i, msg := range m.messages {
-		// Dynamic spacing based on screen height (more compact on smaller screens)
-		if i > 0 && m.height > 15 {
-			parts = append(parts, "") // Single line between messages only on larger screens
+		// Skip empty assistant messages
+		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
+
+		// Add spacing between messages
+		if i > 0 {
+			parts = append(parts, "")
 		}
 
 		var styledContent string
 		switch msg.Type {
 		case "user":
-			styledContent = userMsgStyle.Render("👤 You: ") + msg.Content
+			styledContent = userMsgStyle.Render("> ") + msg.Content
 		case "assistant":
-			styledContent = assistantMsgStyle.Render("🤖 Alex: ") + msg.Content
+			// Render assistant messages with markdown if possible
+			if globalMarkdownRenderer != nil {
+				renderedContent := globalMarkdownRenderer.RenderIfMarkdown(msg.Content)
+				styledContent = assistantMsgStyle.Render(renderedContent)
+			} else {
+				styledContent = assistantMsgStyle.Render(msg.Content)
+			}
 		case "system":
 			styledContent = systemMsgStyle.Render(msg.Content)
 		case "processing":
@@ -537,45 +572,37 @@ func (m *ModernChatModel) View() string {
 		parts = append(parts, styledContent)
 	}
 
-	// Conditional spacing before input area (responsive design)
-	if m.height > 12 {
-		parts = append(parts, "") // Only add spacing if screen is tall enough
+	// Add spacing before input area
+	parts = append(parts, "")
+
+	// Processing status above input (when processing)
+	if m.processing {
+		elapsed := m.execTimer.Duration.Truncate(time.Second)
+
+		// Format token count with animation effect
+		tokenDisplay := fmt.Sprintf("%d", m.tokenCount)
+		if m.tokenCount != m.lastTokenCount {
+			// Add subtle animation for token changes
+			tokenDisplay = fmt.Sprintf("↑ %d", m.tokenCount)
+		}
+
+		// Main text in processing color, parentheses content in gray
+		mainText := processingStyle.Render("Wibbling… ")
+		grayInfo := lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("(%v · %s tokens)", elapsed, tokenDisplay))
+		statusMsg := mainText + grayInfo
+		parts = append(parts, statusMsg)
 	}
 
-	// Input area
-	var inputArea string
-	if m.processing {
-		// Use the fixed processing message set at conversation start
-		processingMsg := m.processingMessage
-		if processingMsg == "" {
-			processingMsg = "⚡ Processing... please wait"
-		}
-		inputArea = inputStyle.Render(processingStyle.Render(processingMsg))
-	} else {
-		inputArea = inputStyle.Render(m.textarea.View())
-	}
+	// Input area - always at the bottom
+	inputArea := inputStyle.Render(m.textarea.View())
 	parts = append(parts, inputArea)
 
-	// No footer - keep it clean
+	// Add shortcuts hint
+	shortcutsHint := systemMsgStyle.Render("  Enter: send • Shift+Enter: new line • Use terminal scroll to view history")
+	parts = append(parts, shortcutsHint)
 
-	// Join all parts and ensure it fits the screen
-	result := lipgloss.JoinVertical(lipgloss.Left, parts...)
-
-	// Dynamic content height using Golden ratio principle (62% content, 38% input area)
-	if m.height > 0 {
-		lines := strings.Split(result, "\n")
-		contentHeight := int(float64(m.height) * 0.618) // Golden ratio for content area
-		if contentHeight < 10 {
-			contentHeight = m.height - 5 // Fallback for very small screens
-		}
-		if len(lines) > contentHeight {
-			// Show last messages that fit in golden ratio proportion
-			visibleLines := lines[len(lines)-contentHeight:]
-			result = strings.Join(visibleLines, "\n")
-		}
-	}
-
-	return result
+	// Join all parts and return - no height restrictions, let terminal handle scrolling
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // shouldStreamAsMarkdown determines if content should be rendered as markdown in real-time (TUI version)
@@ -610,32 +637,17 @@ func (m *ModernChatModel) shouldStreamAsMarkdown(content string) bool {
 	return false
 }
 
-// getNewRenderedContent calculates the new part of rendered content to display (TUI version)
-func (m *ModernChatModel) getNewRenderedContent(newRendered string) string {
-	if m.lastRenderedContent == "" {
-		return newRendered
-	}
-
-	// Simple approach: if the new content is longer, show the difference
-	if len(newRendered) > len(m.lastRenderedContent) {
-		// Check if the old content is a prefix of the new content
-		if strings.HasPrefix(newRendered, m.lastRenderedContent) {
-			return newRendered[len(m.lastRenderedContent):]
-		}
-	}
-
-	// If we can't determine the diff reliably, return the new content
-	// This might cause some duplication but ensures content is displayed
-	return newRendered
-}
 
 // Run the modern TUI
 func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
+	// Clear terminal screen for a clean start
+	fmt.Print("\033[2J\033[H")
+
 	model := NewModernChatModel(agent, config)
 
 	program := tea.NewProgram(
 		model,
-		tea.WithAltScreen(),
+		// Removed tea.WithAltScreen() to allow unlimited height and native terminal scrolling
 		// Removed tea.WithMouseCellMotion() to allow text selection
 	)
 

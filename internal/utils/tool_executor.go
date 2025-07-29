@@ -260,6 +260,12 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 	lines = cleanedLines
 	totalLines := len(lines)
 
+	// Tools that should show full output without truncation
+	fullOutputTools := map[string]bool{
+		"todo_update": true,
+		"todo_read":   true,
+	}
+
 	// Tools that typically return long content and should be truncated to 3 lines
 	longContentTools := map[string]bool{
 		"file_read":   true,
@@ -269,6 +275,17 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 		"bash":        true,
 		"find":        true,
 		"web_search":  true,
+	}
+
+	// For todo tools, always show full output
+	if fullOutputTools[toolName] {
+		// For todo tools, clean up all lines consistently and return full content
+		var cleanLines []string
+		for _, line := range lines {
+			cleanLine := strings.TrimSpace(line)
+			cleanLines = append(cleanLines, cleanLine)
+		}
+		return strings.Join(cleanLines, "\n")
 	}
 
 	// For tools that typically return long content, show only first 3 lines + summary
@@ -351,6 +368,11 @@ func NewToolDisplayFormatter(colorAttribute ...interface{}) *ToolDisplayFormatte
 func (tdf *ToolDisplayFormatter) Format(toolName string, args map[string]interface{}) string {
 	if len(args) == 0 {
 		return fmt.Sprintf("%s %s()", tdf.colorDot(), toolName)
+	}
+
+	// Special handling for todo_update - don't show parameters
+	if toolName == "todo_update" {
+		return fmt.Sprintf("%s %s", tdf.colorDot(), toolName)
 	}
 
 	var argsStr []string

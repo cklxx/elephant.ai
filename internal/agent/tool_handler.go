@@ -131,7 +131,7 @@ func (h *ToolHandler) generateObservation(toolResult []*types.ReactToolResult) s
 				case "think":
 					return fmt.Sprintf("🧠 Thinking completed: %s", h.truncateContent(cleanContent, 100))
 				case "todo_update":
-					return fmt.Sprintf("📋 Todo management: %s", h.truncateContent(cleanContent, 100))
+					return fmt.Sprintf("📋 Todo management: %s", cleanContent)
 				case "file_read":
 					return fmt.Sprintf("📖 File read: %s", h.truncateContent(cleanContent, 100))
 				case "bash":
