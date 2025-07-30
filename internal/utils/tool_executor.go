@@ -52,7 +52,7 @@ func (te *ToolExecutor) ExecuteToolWithRecovery(
 	toolExecutor func(ctx context.Context, toolName string, args map[string]interface{}, callID string) (*types.ReactToolResult, error),
 	callback StreamCallback,
 ) *types.ReactToolResult {
-	
+
 	var finalResult *types.ReactToolResult
 
 	// Execute with panic recovery
@@ -172,7 +172,7 @@ func (te *ToolExecutor) ExecuteSerialToolsWithRecovery(
 	callback StreamCallback,
 	displayFormatter func(toolName string, args map[string]interface{}) string,
 ) []*types.ReactToolResult {
-	
+
 	if len(toolCalls) == 0 {
 		return []*types.ReactToolResult{
 			{
@@ -223,7 +223,7 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 	var cleanedLines []string
 	for _, line := range lines {
 		var cleaned string
-		
+
 		// Remove line number prefix patterns
 		// Pattern 1: "  1 content" or " 12 content" or "123 content"
 		// Pattern 2: "1 content" (no leading spaces)
@@ -238,7 +238,7 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 					break
 				}
 			}
-			
+
 			// If we found digits at the start, check if followed by space
 			if digitEnd > 0 && digitEnd < len(trimmed) && trimmed[digitEnd] == ' ' {
 				// This is a line number pattern: digits + space + content
@@ -252,7 +252,7 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 			// Empty line, keep as is
 			cleaned = ""
 		}
-		
+
 		cleanedLines = append(cleanedLines, cleaned)
 	}
 
@@ -268,13 +268,13 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 
 	// Tools that typically return long content and should be truncated to 3 lines
 	longContentTools := map[string]bool{
-		"file_read":   true,
-		"file_list":   true,
-		"grep":        true,
-		"ripgrep":     true,
-		"bash":        true,
-		"find":        true,
-		"web_search":  true,
+		"file_read":  true,
+		"file_list":  true,
+		"grep":       true,
+		"ripgrep":    true,
+		"bash":       true,
+		"find":       true,
+		"web_search": true,
 	}
 
 	// For todo tools, always show full output
@@ -292,12 +292,12 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 	if longContentTools[toolName] && totalLines > 3 {
 		var displayLines []string
 		nonEmptyCount := 0
-		
+
 		for _, line := range lines {
 			if nonEmptyCount >= 3 {
 				break
 			}
-			
+
 			// Include both empty and non-empty lines, but count only non-empty for limit
 			cleanLine := strings.TrimSpace(line)
 			if cleanLine != "" {
@@ -305,7 +305,7 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 			}
 			displayLines = append(displayLines, cleanLine)
 		}
-		
+
 		result := strings.Join(displayLines, "\n")
 		if totalLines > 3 {
 			result += fmt.Sprintf("\n... (%d total lines)", totalLines)
@@ -320,7 +320,7 @@ func (te *ToolExecutor) formatToolResultContent(toolName string, content string)
 			cleanLine := strings.TrimSpace(lines[i])
 			displayLines = append(displayLines, cleanLine)
 		}
-		
+
 		result := strings.Join(displayLines, "\n")
 		result += fmt.Sprintf("\n... (%d total lines)", totalLines)
 		return result
@@ -358,7 +358,7 @@ func NewToolDisplayFormatter(colorAttribute ...interface{}) *ToolDisplayFormatte
 			return "\033[32m⏺\033[0m" // Default green
 		}
 	}
-	
+
 	return &ToolDisplayFormatter{
 		colorDot: colorFunc,
 	}
@@ -377,7 +377,33 @@ func (tdf *ToolDisplayFormatter) Format(toolName string, args map[string]interfa
 
 	var argsStr []string
 	for k, v := range args {
-		argsStr = append(argsStr, fmt.Sprintf("%s=%v", k, v))
+		// Convert value to string safely
+		var valueStr string
+		switch val := v.(type) {
+		case string:
+			valueStr = val
+		case int, int8, int16, int32, int64:
+			valueStr = fmt.Sprintf("%d", val)
+		case uint, uint8, uint16, uint32, uint64:
+			valueStr = fmt.Sprintf("%d", val)
+		case float32, float64:
+			valueStr = fmt.Sprintf("%g", val)
+		case bool:
+			valueStr = fmt.Sprintf("%t", val)
+		default:
+			valueStr = fmt.Sprintf("%v", val)
+		}
+
+		// Truncate if too long
+		if len(valueStr) > 20 {
+			valueStr = valueStr[:20] + "..."
+		}
+
+		if len(args) > 1 {
+			argsStr = append(argsStr, fmt.Sprintf("%s=%s", k, valueStr))
+		} else {
+			argsStr = append(argsStr, valueStr)
+		}
 	}
 
 	return fmt.Sprintf("%s %s(%s)", tdf.colorDot(), toolName, fmt.Sprintf("%v", argsStr))

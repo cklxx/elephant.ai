@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -85,16 +86,19 @@ var (
 	inputStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#6B7280")).
-			Padding(0, 0).
-			Margin(0)
+			Padding(0, 1).
+			Margin(0, 1)
 )
 
 // Message types
 type (
 	streamResponseMsg struct{ content string }
 	streamStartMsg    struct{ input string }
-	streamChunkMsg    struct{ content string }
-	streamContentMsg  struct {
+	streamChunkMsg    struct {
+		content   string
+		chunkType string
+	}
+	streamContentMsg struct {
 		content    string
 		isMarkdown bool
 	} // Enhanced message for markdown content
@@ -108,6 +112,7 @@ type (
 // ModernChatModel represents the clean TUI model
 type ModernChatModel struct {
 	textarea            textarea.Model
+	viewport            viewport.Model // Viewport for message scrolling
 	messages            []ChatMessage
 	processing          bool
 	agent               *agent.ReactAgent
@@ -126,7 +131,7 @@ type ModernChatModel struct {
 	tokenCount          int             // Track consumed tokens
 	lastTokenCount      int             // Previous token count for animation
 	baseMessageContent  string          // Content from tool outputs (before LLM content)
-	scrollOffset        int             // Scroll position for long message history
+	viewportNeedsUpdate bool            // Flag to track if viewport content needs updating
 }
 
 // ChatMessage represents a chat message with type and content
@@ -160,11 +165,17 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *Modern
 	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
 	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("0"))
 
+	// Configure viewport for message scrolling
+	vp := viewport.New(80, 24) // Initial size, will be updated on window resize
+	vp.MouseWheelEnabled = true
+	vp.MouseWheelDelta = 3
+
 	// No initial messages - we'll display them directly in runModernTUI
 	initialMessages := []ChatMessage{}
 
 	return &ModernChatModel{
 		textarea:         ta,
+		viewport:         vp,
 		messages:         initialMessages,
 		agent:            agent,
 		config:           config,
@@ -178,9 +189,10 @@ func (m *ModernChatModel) Init() tea.Cmd {
 }
 
 func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var tiCmd tea.Cmd
+	var tiCmd, vpCmd tea.Cmd
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
+	m.viewport, vpCmd = m.viewport.Update(msg)
 
 	// Update textarea height based on content
 	m.updateTextareaHeight()
@@ -188,13 +200,30 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if !m.ready {
-			// Initialize dimensions with 8x8 grid alignment
-			textareaWidth := ((msg.Width - 8) / 8) * 8 // Align to 8x8 grid
+			// Initialize dimensions with proper padding
+			padding := 4 // 2 padding on each side
+			textareaWidth := msg.Width - padding
+			if textareaWidth < 20 {
+				textareaWidth = 20 // Minimum width
+			}
 			m.textarea.SetWidth(textareaWidth)
+
+			// Configure viewport dimensions
+			m.viewport.Width = msg.Width
+			m.viewport.Height = 20 // Will be updated dynamically in View()
+
 			m.ready = true
 		} else {
-			textareaWidth := ((msg.Width - 8) / 8) * 8 // Maintain 8x8 grid alignment
+			// Update dimensions with proper padding
+			padding := 4 // 2 padding on each side
+			textareaWidth := msg.Width - padding
+			if textareaWidth < 20 {
+				textareaWidth = 20 // Minimum width
+			}
 			m.textarea.SetWidth(textareaWidth)
+
+			// Update viewport dimensions
+			m.viewport.Width = msg.Width
 		}
 		m.width = msg.Width
 		m.height = msg.Height
@@ -209,9 +238,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.processing = false
 				m.execTimer.Active = false
 				m.addMessage(ChatMessage{
-					Type:    "system",
-					Content: "⚠️ Processing interrupted by user",
-					Time:    time.Now(),
+					Type:      "system",
+					ChunkType: "system",
+					Content:   "⚠️ Processing interrupted by user",
+					Time:      time.Now(),
 				})
 			}
 			return m, nil
@@ -224,9 +254,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Add user message
 				m.addMessage(ChatMessage{
-					Type:    "user",
-					Content: input,
-					Time:    time.Now(),
+					Type:      "user",
+					ChunkType: "user_input",
+					Content:   input,
+					Time:      time.Now(),
 				})
 
 				// Start processing timer and reset token count
@@ -258,9 +289,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.addMessage(ChatMessage{
-			Type:    "assistant",
-			Content: content,
-			Time:    time.Now(),
+			Type:      "assistant",
+			ChunkType: "final_answer",
+			Content:   content,
+			Time:      time.Now(),
 		})
 
 		return m, func() tea.Msg { return processingDoneMsg{} }
@@ -270,9 +302,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Create initial assistant message for streaming
 		assistantMsg := ChatMessage{
-			Type:    "assistant",
-			Content: "",
-			Time:    time.Now(),
+			Type:      "assistant",
+			ChunkType: "llm_content",
+			Content:   "",
+			Time:      time.Now(),
 		}
 		m.addMessage(assistantMsg)
 		m.currentMessage = &m.messages[len(m.messages)-1]
@@ -286,10 +319,14 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle tool execution and status messages - these are separate from main content
 		if m.currentMessage != nil {
 			m.currentMessage.Content += msg.content
+			// Update ChunkType based on the stream chunk type
+			if msg.chunkType != "" {
+				m.currentMessage.ChunkType = msg.chunkType
+			}
 			// Update base content to include tool outputs
 			m.baseMessageContent = m.currentMessage.Content
-			// Auto-scroll to show new content
-			m.scrollToBottom()
+			// Mark viewport for update
+			m.viewportNeedsUpdate = true
 		}
 		return m, nil
 
@@ -298,8 +335,10 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.currentMessage != nil {
 			// In TUI mode, always append content directly to avoid markdown rendering conflicts
 			m.currentMessage.Content += msg.content
-			// Auto-scroll to show new content
-			m.scrollToBottom()
+			// Set ChunkType for LLM content
+			m.currentMessage.ChunkType = "llm_content"
+			// Mark viewport for update
+			m.viewportNeedsUpdate = true
 		}
 		return m, nil
 
@@ -372,39 +411,38 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.addMessage(ChatMessage{
-			Type:    "error",
-			Content: errorContent,
-			Time:    time.Now(),
+			Type:      "error",
+			ChunkType: "error",
+			Content:   errorContent,
+			Time:      time.Now(),
 		})
 		m.processing = false
 		m.execTimer.Active = false
 	}
 
-	return m, tiCmd
+	return m, tea.Batch(tiCmd, vpCmd)
 }
 
 func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.messages = append(m.messages, msg)
-	// Auto-scroll to bottom when new message is added
-	m.scrollToBottom()
+	// Mark that viewport needs updating
+	m.viewportNeedsUpdate = true
 }
 
-// scrollToBottom scrolls to show the latest messages
-func (m *ModernChatModel) scrollToBottom() {
-	// Calculate total content height
-	totalLines := m.calculateTotalContentHeight()
-	availableHeight := m.height - 6 // Reserve space for input and status
-
-	if totalLines > availableHeight {
-		m.scrollOffset = totalLines - availableHeight
-	} else {
-		m.scrollOffset = 0
+// updateViewportContent updates the viewport content with all messages and scrolls to bottom
+func (m *ModernChatModel) updateViewportContent() {
+	if m.viewportNeedsUpdate {
+		content := m.renderAllMessages()
+		m.viewport.SetContent(content)
+		// Auto-scroll to bottom for new messages
+		m.viewport.GotoBottom()
+		m.viewportNeedsUpdate = false
 	}
 }
 
-// calculateTotalContentHeight calculates the total height needed to display all messages
-func (m *ModernChatModel) calculateTotalContentHeight() int {
-	totalLines := 2 // Header + spacing
+// renderAllMessages renders all messages as a single string for viewport
+func (m *ModernChatModel) renderAllMessages() string {
+	var parts []string
 
 	for i, msg := range m.messages {
 		// Skip empty assistant messages
@@ -414,16 +452,32 @@ func (m *ModernChatModel) calculateTotalContentHeight() int {
 
 		// Add spacing between messages
 		if i > 0 {
-			totalLines++
+			parts = append(parts, "")
 		}
 
-		// Count lines in message content
-		processedContent := m.processContentForTUI(msg.Content)
-		lines := strings.Split(processedContent, "\n")
-		totalLines += len(lines)
+		var styledContent string
+		switch msg.Type {
+		case "user":
+			styledContent = userMsgStyle.Render("> ") + msg.Content
+		case "assistant":
+			// Process content to ensure proper formatting for TUI display
+			processedContent := m.processContentForTUI(msg.Content)
+			// Apply tool output styling to tool results while keeping regular assistant text green
+			styledContent = m.styleAssistantContent(processedContent, msg.ChunkType)
+		case "system":
+			styledContent = systemMsgStyle.Render(msg.Content)
+		case "processing":
+			styledContent = processingStyle.Render("⚡ " + msg.Content)
+		case "error":
+			styledContent = errorMsgStyle.Render("❌ " + msg.Content)
+		default:
+			styledContent = msg.Content
+		}
+
+		parts = append(parts, styledContent)
 	}
 
-	return totalLines
+	return strings.Join(parts, "\n")
 }
 
 // updateTextareaHeight adjusts the textarea height based on content lines
@@ -482,7 +536,7 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 					}
 				case "final_answer":
 					if chunk.Content != "" {
-						content = "\n✨ " + chunk.Content
+						content = "\n\n✨ " + chunk.Content
 					}
 				case "llm_content":
 					// Use enhanced streaming for potential markdown content
@@ -501,21 +555,23 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 						content = "\n🧠 " + chunk.Content
 					}
 				case "token_usage":
-					// Update token count from real usage data
-					if chunk.Content != "" {
-						// Parse token count from content (assuming it's a number)
-						if tokenCount, err := strconv.Atoi(strings.TrimSpace(chunk.Content)); err == nil {
-							m.program.Send(tokenUpdateMsg{count: tokenCount})
-						}
+					// Update token count from real usage data using chunk fields like cobra_cli.go
+					if chunk.TotalTokensUsed > 0 {
+						m.program.Send(tokenUpdateMsg{count: chunk.TotalTokensUsed})
+					} else if chunk.TokensUsed > 0 {
+						m.program.Send(tokenUpdateMsg{count: chunk.TokensUsed})
 					}
 					return // Don't display token usage in chat
 				case "error":
 					// Error will be handled separately
 				}
 
+				if !strings.HasPrefix(content, "\n") {
+					content = "\n" + content
+				}
 				// Send streaming update immediately
 				if content != "" {
-					m.program.Send(streamChunkMsg{content: content})
+					m.program.Send(streamChunkMsg{content: content, chunkType: chunk.Type})
 				}
 			}
 
@@ -537,25 +593,36 @@ func (m *ModernChatModel) View() string {
 		return "Initializing Alex Code Agent..."
 	}
 
-	var parts []string
-
 	// Header
 	header := headerStyle.Render("Alex Code Agent")
-	parts = append(parts, header, "")
+
+	// Calculate heights
+	headerHeight := 2 // Header + spacing
+	processingHeight := 0
+	if m.processing {
+		processingHeight = 1
+	}
+	inputHeight := m.textarea.Height() + 2 // textarea + border
+	shortcutsHeight := 1
+	fixedHeight := headerHeight + processingHeight + inputHeight + shortcutsHeight
 
 	// Calculate available height for messages
-	headerHeight := 2 // Header + spacing
-	inputHeight := 4  // Input area + processing status + shortcuts
-	availableHeight := m.height - headerHeight - inputHeight
+	availableHeight := m.height - fixedHeight
 	if availableHeight < 5 {
-		availableHeight = 5 // Minimum height
+		availableHeight = 5
 	}
 
-	// Render messages with scrolling
-	messageLines := m.renderMessagesWithScrolling(availableHeight)
-	parts = append(parts, messageLines...)
+	// Update viewport size to match available space
+	m.viewport.Height = availableHeight
 
-	// Add spacing before input area
+	// Update viewport content only when needed to prevent flickering
+	m.updateViewportContent()
+
+	var parts []string
+	parts = append(parts, header, "")
+
+	// Always use viewport for consistent rendering - avoids flickering from mode switching
+	parts = append(parts, m.viewport.View())
 	parts = append(parts, "")
 
 	// Processing status (when processing)
@@ -587,73 +654,7 @@ func (m *ModernChatModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
-// renderMessagesWithScrolling renders messages with proper scrolling support
-func (m *ModernChatModel) renderMessagesWithScrolling(availableHeight int) []string {
-	var allLines []string
-
-	// Build all message lines
-	for i, msg := range m.messages {
-		// Skip empty assistant messages
-		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
-			continue
-		}
-
-		// Add spacing between messages
-		if i > 0 {
-			allLines = append(allLines, "")
-		}
-
-		var styledContent string
-		switch msg.Type {
-		case "user":
-			styledContent = userMsgStyle.Render("> ") + msg.Content
-		case "assistant":
-			// Process content to ensure proper formatting for TUI display
-			processedContent := m.processContentForTUI(msg.Content)
-			// Apply tool output styling to tool results while keeping regular assistant text green
-			styledContent = m.styleAssistantContent(processedContent, msg.ChunkType)
-		case "system":
-			styledContent = systemMsgStyle.Render(msg.Content)
-		case "processing":
-			styledContent = processingStyle.Render("⚡ " + msg.Content)
-		case "error":
-			styledContent = errorMsgStyle.Render("❌ " + msg.Content)
-		default:
-			styledContent = msg.Content
-		}
-
-		// Split multi-line content
-		lines := strings.Split(styledContent, "\n")
-		allLines = append(allLines, lines...)
-	}
-
-	// Apply scrolling
-	totalLines := len(allLines)
-	if totalLines <= availableHeight {
-		// All content fits, no scrolling needed
-		m.scrollOffset = 0
-		return allLines
-	}
-
-	// Apply scroll offset
-	startLine := m.scrollOffset
-	endLine := startLine + availableHeight
-
-	if startLine < 0 {
-		startLine = 0
-	}
-	if endLine > totalLines {
-		endLine = totalLines
-	}
-	if startLine >= totalLines {
-		startLine = totalLines - availableHeight
-		if startLine < 0 {
-			startLine = 0
-		}
-	}
-
-	return allLines[startLine:endLine]
-}
+// This function is no longer needed as we use viewport for scrolling
 
 // styleAssistantContent applies appropriate styling to assistant content
 // Uses ChunkType to determine styling: tool outputs are rendered in gray, regular content in green
@@ -665,7 +666,17 @@ func (m *ModernChatModel) styleAssistantContent(content string, chunkType string
 	var styledLines []string
 
 	for _, line := range lines {
-		if isToolOutput || strings.HasPrefix(strings.TrimSpace(line), "⎿") {
+		// Check both ChunkType and line content for tool output detection
+		trimmedLine := strings.TrimSpace(line)
+		isLineToolOutput := isToolOutput ||
+			strings.HasPrefix(trimmedLine, "⎿") ||
+			strings.HasPrefix(trimmedLine, "❌") ||
+			strings.HasPrefix(trimmedLine, "✅") ||
+			strings.HasPrefix(trimmedLine, "⚠️") ||
+			strings.HasPrefix(trimmedLine, "🧠") ||
+			strings.HasPrefix(trimmedLine, "✨")
+
+		if isLineToolOutput {
 			// Tool output line - apply gray styling
 			styledLines = append(styledLines, toolOutputStyle.Render(line))
 		} else {
@@ -696,8 +707,8 @@ func (m *ModernChatModel) processContentForTUI(content string) string {
 		// Trim excessive whitespace but preserve intentional formatting
 		trimmed := strings.TrimRight(line, " \t")
 
-		// Handle long lines by wrapping them
-		if len(trimmed) > availableWidth {
+		// Handle long lines by wrapping them (use rune count for proper Unicode handling)
+		if utf8.RuneCountInString(trimmed) > availableWidth {
 			wrapped := m.wrapLine(trimmed, availableWidth)
 			processedLines = append(processedLines, wrapped...)
 		} else {
@@ -716,9 +727,10 @@ func (m *ModernChatModel) processContentForTUI(content string) string {
 	return result
 }
 
-// wrapLine wraps a long line into multiple lines based on available width
+// wrapLine wraps a long line into multiple lines based on available width with proper Unicode support
 func (m *ModernChatModel) wrapLine(line string, maxWidth int) []string {
-	if len(line) <= maxWidth {
+	// Use rune count for proper Unicode handling
+	if utf8.RuneCountInString(line) <= maxWidth {
 		return []string{line}
 	}
 
@@ -730,19 +742,26 @@ func (m *ModernChatModel) wrapLine(line string, maxWidth int) []string {
 
 	currentLine := ""
 	for _, word := range words {
+		// Calculate rune lengths for proper Unicode handling
+		currentLineLen := utf8.RuneCountInString(currentLine)
+		wordLen := utf8.RuneCountInString(word)
+
 		// If adding this word would exceed the limit
-		if len(currentLine)+len(word)+1 > maxWidth {
+		if currentLineLen+wordLen+1 > maxWidth {
 			if currentLine != "" {
 				wrappedLines = append(wrappedLines, currentLine)
 				currentLine = word
 			} else {
-				// Single word is too long, break it
-				if len(word) > maxWidth {
-					for len(word) > maxWidth {
-						wrappedLines = append(wrappedLines, word[:maxWidth])
-						word = word[maxWidth:]
+				// Single word is too long, break it carefully at rune boundaries
+				if wordLen > maxWidth {
+					wordRunes := []rune(word)
+					for len(wordRunes) > maxWidth {
+						wrappedLines = append(wrappedLines, string(wordRunes[:maxWidth]))
+						wordRunes = wordRunes[maxWidth:]
 					}
-					currentLine = word
+					if len(wordRunes) > 0 {
+						currentLine = string(wordRunes)
+					}
 				} else {
 					currentLine = word
 				}
@@ -769,9 +788,10 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 
 	// Add initial system message
 	model.addMessage(ChatMessage{
-		Type:    "system",
-		Content: "Press Ctrl+C to exit",
-		Time:    time.Now(),
+		Type:      "system",
+		ChunkType: "system",
+		Content:   "Press Ctrl+C to exit",
+		Time:      time.Now(),
 	})
 
 	program := tea.NewProgram(

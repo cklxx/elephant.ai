@@ -522,7 +522,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		}
 	case "final_answer":
 		content = RenderMarkdown(chunk.Content)
-		content = "\n" + DeepCodingResult(content)
+		content = "\n\n" + DeepCodingResult(content)
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"
 		}
