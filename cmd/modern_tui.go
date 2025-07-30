@@ -46,11 +46,11 @@ func formatToolOutput(title, content string) string {
 // Modern TUI with clean, professional interface
 var (
 	// Color scheme
-	primaryColor = lipgloss.Color("#7C3AED")
-	successColor = lipgloss.Color("#10B981")
-	warningColor = lipgloss.Color("#F59E0B")
-	errorColor   = lipgloss.Color("#EF4444")
-	mutedColor   = lipgloss.Color("#6B7280")
+	primaryColor    = lipgloss.Color("#7C3AED")
+	successColor    = lipgloss.Color("#10B981")
+	warningColor    = lipgloss.Color("#F59E0B")
+	errorColor      = lipgloss.Color("#EF4444")
+	mutedColor      = lipgloss.Color("#6B7280")
 	toolOutputColor = lipgloss.Color("#6B7280") // Gray color for tool outputs
 
 	// Styles
@@ -113,7 +113,7 @@ type ModernChatModel struct {
 	agent               *agent.ReactAgent
 	config              *config.Manager
 	width               int
-	height              int             // Track terminal height for scrolling
+	height              int // Track terminal height for scrolling
 	ready               bool
 	currentInput        string
 	execTimer           ExecutionTimer
@@ -131,9 +131,10 @@ type ModernChatModel struct {
 
 // ChatMessage represents a chat message with type and content
 type ChatMessage struct {
-	Type    string // "user", "assistant", "system", "processing", "error"
-	Content string
-	Time    time.Time
+	Type      string // "user", "assistant", "system", "processing", "error"
+	ChunkType string // "llm_content", "tool_result", "status", "iteration", etc.
+	Content   string
+	Time      time.Time
 }
 
 // ExecutionTimer tracks execution time for processing messages
@@ -393,7 +394,7 @@ func (m *ModernChatModel) scrollToBottom() {
 	// Calculate total content height
 	totalLines := m.calculateTotalContentHeight()
 	availableHeight := m.height - 6 // Reserve space for input and status
-	
+
 	if totalLines > availableHeight {
 		m.scrollOffset = totalLines - availableHeight
 	} else {
@@ -404,24 +405,24 @@ func (m *ModernChatModel) scrollToBottom() {
 // calculateTotalContentHeight calculates the total height needed to display all messages
 func (m *ModernChatModel) calculateTotalContentHeight() int {
 	totalLines := 2 // Header + spacing
-	
+
 	for i, msg := range m.messages {
 		// Skip empty assistant messages
 		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
 			continue
 		}
-		
+
 		// Add spacing between messages
 		if i > 0 {
 			totalLines++
 		}
-		
+
 		// Count lines in message content
 		processedContent := m.processContentForTUI(msg.Content)
 		lines := strings.Split(processedContent, "\n")
 		totalLines += len(lines)
 	}
-	
+
 	return totalLines
 }
 
@@ -469,11 +470,11 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 					return
 				case "tool_start":
 					if chunk.Content != "" {
-						content = "\n" + chunk.Content
+						content = "\n\n" + chunk.Content
 					}
 				case "tool_result":
 					if chunk.Content != "" {
-						content = "\n\n" + formatToolOutput("⎿ ", chunk.Content)
+						content = "\n" + formatToolOutput("⎿ ", chunk.Content)
 					}
 				case "tool_error":
 					if chunk.Content != "" {
@@ -589,7 +590,7 @@ func (m *ModernChatModel) View() string {
 // renderMessagesWithScrolling renders messages with proper scrolling support
 func (m *ModernChatModel) renderMessagesWithScrolling(availableHeight int) []string {
 	var allLines []string
-	
+
 	// Build all message lines
 	for i, msg := range m.messages {
 		// Skip empty assistant messages
@@ -610,7 +611,7 @@ func (m *ModernChatModel) renderMessagesWithScrolling(availableHeight int) []str
 			// Process content to ensure proper formatting for TUI display
 			processedContent := m.processContentForTUI(msg.Content)
 			// Apply tool output styling to tool results while keeping regular assistant text green
-			styledContent = m.styleAssistantContent(processedContent)
+			styledContent = m.styleAssistantContent(processedContent, msg.ChunkType)
 		case "system":
 			styledContent = systemMsgStyle.Render(msg.Content)
 		case "processing":
@@ -655,13 +656,16 @@ func (m *ModernChatModel) renderMessagesWithScrolling(availableHeight int) []str
 }
 
 // styleAssistantContent applies appropriate styling to assistant content
-// Tool outputs (starting with ⎿) are rendered in gray, regular content in green
-func (m *ModernChatModel) styleAssistantContent(content string) string {
+// Uses ChunkType to determine styling: tool outputs are rendered in gray, regular content in green
+func (m *ModernChatModel) styleAssistantContent(content string, chunkType string) string {
+	// Check if this is tool-related content based on ChunkType
+	isToolOutput := chunkType == "tool_result" || chunkType == "tool_start" || chunkType == "tool_error"
+
 	lines := strings.Split(content, "\n")
 	var styledLines []string
-	
+
 	for _, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "⎿") {
+		if isToolOutput || strings.HasPrefix(strings.TrimSpace(line), "⎿") {
 			// Tool output line - apply gray styling
 			styledLines = append(styledLines, toolOutputStyle.Render(line))
 		} else {
@@ -669,7 +673,7 @@ func (m *ModernChatModel) styleAssistantContent(content string) string {
 			styledLines = append(styledLines, assistantMsgStyle.Render(line))
 		}
 	}
-	
+
 	return strings.Join(styledLines, "\n")
 }
 
@@ -682,10 +686,23 @@ func (m *ModernChatModel) processContentForTUI(content string) string {
 	lines := strings.Split(content, "\n")
 	var processedLines []string
 
+	// Calculate available width for content (accounting for margins and styling)
+	availableWidth := m.width - 8 // Reserve space for margins and styling
+	if availableWidth < 40 {
+		availableWidth = 40 // Minimum width to prevent overly narrow text
+	}
+
 	for _, line := range lines {
 		// Trim excessive whitespace but preserve intentional formatting
 		trimmed := strings.TrimRight(line, " \t")
-		processedLines = append(processedLines, trimmed)
+
+		// Handle long lines by wrapping them
+		if len(trimmed) > availableWidth {
+			wrapped := m.wrapLine(trimmed, availableWidth)
+			processedLines = append(processedLines, wrapped...)
+		} else {
+			processedLines = append(processedLines, trimmed)
+		}
 	}
 
 	// Join lines back together
@@ -697,6 +714,53 @@ func (m *ModernChatModel) processContentForTUI(content string) string {
 	}
 
 	return result
+}
+
+// wrapLine wraps a long line into multiple lines based on available width
+func (m *ModernChatModel) wrapLine(line string, maxWidth int) []string {
+	if len(line) <= maxWidth {
+		return []string{line}
+	}
+
+	var wrappedLines []string
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		return []string{line}
+	}
+
+	currentLine := ""
+	for _, word := range words {
+		// If adding this word would exceed the limit
+		if len(currentLine)+len(word)+1 > maxWidth {
+			if currentLine != "" {
+				wrappedLines = append(wrappedLines, currentLine)
+				currentLine = word
+			} else {
+				// Single word is too long, break it
+				if len(word) > maxWidth {
+					for len(word) > maxWidth {
+						wrappedLines = append(wrappedLines, word[:maxWidth])
+						word = word[maxWidth:]
+					}
+					currentLine = word
+				} else {
+					currentLine = word
+				}
+			}
+		} else {
+			if currentLine == "" {
+				currentLine = word
+			} else {
+				currentLine += " " + word
+			}
+		}
+	}
+
+	if currentLine != "" {
+		wrappedLines = append(wrappedLines, currentLine)
+	}
+
+	return wrappedLines
 }
 
 // Run the modern TUI
@@ -721,4 +785,3 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 	_, err := program.Run()
 	return err
 }
-
