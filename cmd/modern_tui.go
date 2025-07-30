@@ -51,6 +51,7 @@ var (
 	warningColor = lipgloss.Color("#F59E0B")
 	errorColor   = lipgloss.Color("#EF4444")
 	mutedColor   = lipgloss.Color("#6B7280")
+	toolOutputColor = lipgloss.Color("#6B7280") // Gray color for tool outputs
 
 	// Styles
 	headerStyle = lipgloss.NewStyle().
@@ -65,6 +66,9 @@ var (
 
 	assistantMsgStyle = lipgloss.NewStyle().
 				Foreground(successColor)
+
+	toolOutputStyle = lipgloss.NewStyle().
+			Foreground(toolOutputColor) // Gray style for tool outputs
 
 	systemMsgStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
@@ -109,6 +113,7 @@ type ModernChatModel struct {
 	agent               *agent.ReactAgent
 	config              *config.Manager
 	width               int
+	height              int             // Track terminal height for scrolling
 	ready               bool
 	currentInput        string
 	execTimer           ExecutionTimer
@@ -121,6 +126,7 @@ type ModernChatModel struct {
 	tokenCount          int             // Track consumed tokens
 	lastTokenCount      int             // Previous token count for animation
 	baseMessageContent  string          // Content from tool outputs (before LLM content)
+	scrollOffset        int             // Scroll position for long message history
 }
 
 // ChatMessage represents a chat message with type and content
@@ -190,7 +196,7 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetWidth(textareaWidth)
 		}
 		m.width = msg.Width
-		// Don't set height to allow unlimited content growth
+		m.height = msg.Height
 
 	case tea.KeyMsg:
 		switch {
@@ -281,8 +287,8 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentMessage.Content += msg.content
 			// Update base content to include tool outputs
 			m.baseMessageContent = m.currentMessage.Content
-			// Output the chunk immediately to terminal
-			fmt.Print(msg.content)
+			// Auto-scroll to show new content
+			m.scrollToBottom()
 		}
 		return m, nil
 
@@ -291,8 +297,8 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.currentMessage != nil {
 			// In TUI mode, always append content directly to avoid markdown rendering conflicts
 			m.currentMessage.Content += msg.content
-			// Output the content immediately to terminal (streaming)
-			fmt.Print(msg.content)
+			// Auto-scroll to show new content
+			m.scrollToBottom()
 		}
 		return m, nil
 
@@ -378,41 +384,45 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.messages = append(m.messages, msg)
-	// Immediately output the message to terminal
-	m.outputMessage(msg)
+	// Auto-scroll to bottom when new message is added
+	m.scrollToBottom()
 }
 
-// outputMessage outputs a message directly to terminal
-func (m *ModernChatModel) outputMessage(msg ChatMessage) {
-	// Skip empty assistant messages
-	if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
-		return
+// scrollToBottom scrolls to show the latest messages
+func (m *ModernChatModel) scrollToBottom() {
+	// Calculate total content height
+	totalLines := m.calculateTotalContentHeight()
+	availableHeight := m.height - 6 // Reserve space for input and status
+	
+	if totalLines > availableHeight {
+		m.scrollOffset = totalLines - availableHeight
+	} else {
+		m.scrollOffset = 0
 	}
+}
 
-	// Add spacing between messages (except for first message)
-	if len(m.messages) > 1 {
-		fmt.Println()
-	}
-
-	var styledContent string
-	switch msg.Type {
-	case "user":
-		styledContent = userMsgStyle.Render("> ") + msg.Content
-	case "assistant":
-		// Process content to ensure proper formatting for TUI display
+// calculateTotalContentHeight calculates the total height needed to display all messages
+func (m *ModernChatModel) calculateTotalContentHeight() int {
+	totalLines := 2 // Header + spacing
+	
+	for i, msg := range m.messages {
+		// Skip empty assistant messages
+		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
+		
+		// Add spacing between messages
+		if i > 0 {
+			totalLines++
+		}
+		
+		// Count lines in message content
 		processedContent := m.processContentForTUI(msg.Content)
-		styledContent = assistantMsgStyle.Render(processedContent)
-	case "system":
-		styledContent = systemMsgStyle.Render(msg.Content)
-	case "processing":
-		styledContent = processingStyle.Render("⚡ " + msg.Content)
-	case "error":
-		styledContent = errorMsgStyle.Render("❌ " + msg.Content)
-	default:
-		styledContent = msg.Content
+		lines := strings.Split(processedContent, "\n")
+		totalLines += len(lines)
 	}
-
-	fmt.Println(styledContent)
+	
+	return totalLines
 }
 
 // updateTextareaHeight adjusts the textarea height based on content lines
@@ -425,9 +435,9 @@ func (m *ModernChatModel) updateTextareaHeight() {
 	if lineCount < 1 {
 		lineCount = 1
 	}
-	// if lineCount > 10 {
-	// 	lineCount = 10
-	// }
+	if lineCount > 10 {
+		lineCount = 10
+	}
 
 	// Only update if height changed
 	if m.textarea.Height() != lineCount {
@@ -463,7 +473,7 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 					}
 				case "tool_result":
 					if chunk.Content != "" {
-						content = "\n" + formatToolOutput("⎿ ", chunk.Content)
+						content = "\n\n" + formatToolOutput("⎿ ", chunk.Content)
 					}
 				case "tool_error":
 					if chunk.Content != "" {
@@ -522,9 +532,145 @@ func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 }
 
 func (m *ModernChatModel) View() string {
-	// Since we're using WithoutRenderer(), this method won't be called for display
-	// But we keep it minimal for potential debugging
-	return ""
+	if !m.ready {
+		return "Initializing Alex Code Agent..."
+	}
+
+	var parts []string
+
+	// Header
+	header := headerStyle.Render("Alex Code Agent")
+	parts = append(parts, header, "")
+
+	// Calculate available height for messages
+	headerHeight := 2 // Header + spacing
+	inputHeight := 4  // Input area + processing status + shortcuts
+	availableHeight := m.height - headerHeight - inputHeight
+	if availableHeight < 5 {
+		availableHeight = 5 // Minimum height
+	}
+
+	// Render messages with scrolling
+	messageLines := m.renderMessagesWithScrolling(availableHeight)
+	parts = append(parts, messageLines...)
+
+	// Add spacing before input area
+	parts = append(parts, "")
+
+	// Processing status (when processing)
+	if m.processing {
+		elapsed := m.execTimer.Duration.Truncate(time.Second)
+
+		// Format token count with animation effect
+		tokenDisplay := fmt.Sprintf("%d", m.tokenCount)
+		if m.tokenCount != m.lastTokenCount {
+			// Add subtle animation for token changes
+			tokenDisplay = fmt.Sprintf("↑ %d", m.tokenCount)
+		}
+
+		// Main text in processing color, parentheses content in gray
+		mainText := processingStyle.Render("Wibbling… ")
+		grayInfo := lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("(%v · %s tokens)", elapsed, tokenDisplay))
+		statusMsg := mainText + grayInfo
+		parts = append(parts, statusMsg)
+	}
+
+	// Input area
+	inputArea := inputStyle.Render(m.textarea.View())
+	parts = append(parts, inputArea)
+
+	// Add shortcuts hint
+	shortcutsHint := systemMsgStyle.Render("  Enter: send • Shift+Enter: new line • Use terminal scroll to view history")
+	parts = append(parts, shortcutsHint)
+
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+// renderMessagesWithScrolling renders messages with proper scrolling support
+func (m *ModernChatModel) renderMessagesWithScrolling(availableHeight int) []string {
+	var allLines []string
+	
+	// Build all message lines
+	for i, msg := range m.messages {
+		// Skip empty assistant messages
+		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
+
+		// Add spacing between messages
+		if i > 0 {
+			allLines = append(allLines, "")
+		}
+
+		var styledContent string
+		switch msg.Type {
+		case "user":
+			styledContent = userMsgStyle.Render("> ") + msg.Content
+		case "assistant":
+			// Process content to ensure proper formatting for TUI display
+			processedContent := m.processContentForTUI(msg.Content)
+			// Apply tool output styling to tool results while keeping regular assistant text green
+			styledContent = m.styleAssistantContent(processedContent)
+		case "system":
+			styledContent = systemMsgStyle.Render(msg.Content)
+		case "processing":
+			styledContent = processingStyle.Render("⚡ " + msg.Content)
+		case "error":
+			styledContent = errorMsgStyle.Render("❌ " + msg.Content)
+		default:
+			styledContent = msg.Content
+		}
+
+		// Split multi-line content
+		lines := strings.Split(styledContent, "\n")
+		allLines = append(allLines, lines...)
+	}
+
+	// Apply scrolling
+	totalLines := len(allLines)
+	if totalLines <= availableHeight {
+		// All content fits, no scrolling needed
+		m.scrollOffset = 0
+		return allLines
+	}
+
+	// Apply scroll offset
+	startLine := m.scrollOffset
+	endLine := startLine + availableHeight
+
+	if startLine < 0 {
+		startLine = 0
+	}
+	if endLine > totalLines {
+		endLine = totalLines
+	}
+	if startLine >= totalLines {
+		startLine = totalLines - availableHeight
+		if startLine < 0 {
+			startLine = 0
+		}
+	}
+
+	return allLines[startLine:endLine]
+}
+
+// styleAssistantContent applies appropriate styling to assistant content
+// Tool outputs (starting with ⎿) are rendered in gray, regular content in green
+func (m *ModernChatModel) styleAssistantContent(content string) string {
+	lines := strings.Split(content, "\n")
+	var styledLines []string
+	
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "⎿") {
+			// Tool output line - apply gray styling
+			styledLines = append(styledLines, toolOutputStyle.Render(line))
+		} else {
+			// Regular assistant content - apply green styling
+			styledLines = append(styledLines, assistantMsgStyle.Render(line))
+		}
+	}
+	
+	return strings.Join(styledLines, "\n")
 }
 
 // processContentForTUI processes content for proper TUI display without full markdown rendering
@@ -555,63 +701,24 @@ func (m *ModernChatModel) processContentForTUI(content string) string {
 
 // Run the modern TUI
 func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
-	// Clear terminal screen for a clean start
-	fmt.Print("\033[2J\033[H")
-
 	model := NewModernChatModel(agent, config)
 
-	// Display header
-	header := headerStyle.Render("Alex Code Agent")
-	fmt.Println(header)
-	fmt.Println()
-
-	// Display initial system message
-	fmt.Println(systemMsgStyle.Render("Press Ctrl+C to exit"))
-	fmt.Println()
+	// Add initial system message
+	model.addMessage(ChatMessage{
+		Type:    "system",
+		Content: "Press Ctrl+C to exit",
+		Time:    time.Now(),
+	})
 
 	program := tea.NewProgram(
 		model,
-		// Use input only mode - don't control terminal output, let us handle it
-		tea.WithInput(os.Stdin),
-		tea.WithoutRenderer(), // Disable BubbleTea's renderer completely
+		tea.WithAltScreen(), // Use alt screen for proper TUI experience
 	)
 
 	// Set the program reference for streaming callbacks
 	model.program = program
 
-	// Show input prompt initially
-	model.showInputPrompt()
-
 	_, err := program.Run()
 	return err
 }
 
-// showInputPrompt displays the input prompt at bottom of terminal
-func (m *ModernChatModel) showInputPrompt() {
-	// Processing status (when processing)
-	if m.processing {
-		elapsed := m.execTimer.Duration.Truncate(time.Second)
-
-		// Format token count with animation effect
-		tokenDisplay := fmt.Sprintf("%d", m.tokenCount)
-		if m.tokenCount != m.lastTokenCount {
-			// Add subtle animation for token changes
-			tokenDisplay = fmt.Sprintf("↑ %d", m.tokenCount)
-		}
-
-		// Main text in processing color, parentheses content in gray
-		mainText := processingStyle.Render("Wibbling… ")
-		grayInfo := lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("(%v · %s tokens)", elapsed, tokenDisplay))
-		statusMsg := mainText + grayInfo
-		fmt.Println(statusMsg)
-	}
-
-	// Input area - show prompt
-	inputArea := inputStyle.Render(m.textarea.View())
-	fmt.Print(inputArea)
-
-	// Add shortcuts hint
-	shortcutsHint := systemMsgStyle.Render("  Enter: send • Shift+Enter: new line • Use terminal scroll to view history")
-	fmt.Println()
-	fmt.Println(shortcutsHint)
-}
