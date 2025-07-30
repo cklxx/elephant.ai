@@ -108,7 +108,9 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 			// 使用AI综合压缩系统进行压缩
 			unifiedMessages := rc.messageProcessor.ConvertLLMToUnified(result.Messages)
 			sessionMessages := rc.messageProcessor.ConvertUnifiedToSession(unifiedMessages)
-			compressedSessionMessages := rc.messageProcessor.CompressMessages(ctx, sessionMessages)
+			// 传入实际的累计token使用量进行精确压缩判断
+			totalTokensUsed := result.PromptTokens + result.CompletionTokens
+			compressedSessionMessages := rc.messageProcessor.CompressMessages(ctx, sessionMessages, totalTokensUsed)
 			compressedUnified := rc.messageProcessor.ConvertSessionToUnified(compressedSessionMessages)
 			result.Messages = rc.messageProcessor.ConvertUnifiedToLLM(compressedUnified)
 			

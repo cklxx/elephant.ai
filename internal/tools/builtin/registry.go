@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/config"
+	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/internal/utils"
 )
@@ -29,6 +30,15 @@ func GetAllBuiltinToolsWithAgent(configManager *config.Manager, sessionManager *
 		}
 	}
 
+	// Create web fetch tool with LLM client (following successful pattern)
+	var webFetchTool *WebFetchTool
+	if llmClient, err := llm.GetLLMInstance(llm.BasicModel); err == nil {
+		webFetchTool = CreateWebFetchToolWithLLM(llmClient)
+	} else {
+		// Fallback without LLM client
+		webFetchTool = CreateWebFetchTool()
+	}
+
 	tools := []Tool{
 		// Thinking and reasoning tools
 		NewThinkTool(),
@@ -49,8 +59,9 @@ func GetAllBuiltinToolsWithAgent(configManager *config.Manager, sessionManager *
 		// Search tools (conditionally include grep tools if ripgrep is available)
 		CreateFindTool(),
 
-		// Web search tools
+		// Web tools
 		webSearchTool,
+		webFetchTool,
 
 		// Shell tools
 		CreateBashTool(),
@@ -108,6 +119,13 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 			}
 		}
 		return webSearchTool
+	case "web_fetch":
+		// Try to get LLM client for web_fetch tool
+		if llmClient, err := llm.GetLLMInstance(llm.BasicModel); err == nil {
+			return CreateWebFetchToolWithLLM(llmClient)
+		}
+		// Fallback without LLM client
+		return CreateWebFetchTool()
 	case "bash":
 		return CreateBashTool()
 	case "code_execute":

@@ -32,8 +32,8 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) 
 // ========== 消息压缩 ==========
 
 // CompressMessages 使用AI压缩器压缩session消息
-func (mp *MessageProcessor) CompressMessages(ctx context.Context, messages []*session.Message) []*session.Message {
-	return mp.compressor.CompressMessages(ctx, messages)
+func (mp *MessageProcessor) CompressMessages(ctx context.Context, messages []*session.Message, actualTokens ...int) []*session.Message {
+	return mp.compressor.CompressMessages(ctx, messages, actualTokens...)
 }
 
 // ========== 消息转换 ==========

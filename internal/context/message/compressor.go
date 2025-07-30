@@ -29,23 +29,28 @@ func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client)
 
 // CompressMessages compresses messages using cache-friendly strategy
 // Keeps stable prefix for context caching, compresses middle, preserves recent active
-func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*session.Message) []*session.Message {
+func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*session.Message, actualTokens ...int) []*session.Message {
 	totalTokens := mc.estimateTokens(messages)
 	messageCount := len(messages)
 
-	log.Printf("[DEBUG] Token estimation: %d messages, %d estimated tokens", messageCount, totalTokens)
+	// Use actual token count if provided (more accurate than estimation)
+	if len(actualTokens) > 0 && actualTokens[0] > 0 {
+		totalTokens = actualTokens[0]
+		log.Printf("[DEBUG] Using actual token count: %d messages, %d actual tokens", messageCount, totalTokens)
+	} else {
+		log.Printf("[DEBUG] Token estimation: %d messages, %d estimated tokens", messageCount, totalTokens)
+	}
 
-	// Cache-friendly compression thresholds
+	// Simplified compression thresholds
 	const (
-		TokenThreshold      = 115000 // Kimi K2的128K token上限的90%
-		MessageThreshold    = 20     // 降低消息数量阈值，更早触发压缩
-		CacheablePrefixKeep = 4      // 保留用于缓存的稳定前缀消息数
+		TokenThreshold   = 100000 // 100K token limit as requested
+		MessageThreshold = 15     // Lower threshold for earlier compression
 	)
 
 	// Only compress if we exceed thresholds significantly
 	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
-		log.Printf("[INFO] Cache-friendly compression triggered: %d messages, %d tokens", messageCount, totalTokens)
-		return mc.cacheFriendlyCompress(ctx, messages, CacheablePrefixKeep)
+		log.Printf("[INFO] Simplified compression triggered: %d messages, %d tokens", messageCount, totalTokens)
+		return mc.simplifiedCompress(ctx, messages)
 	}
 
 	log.Printf("[DEBUG] Compression skipped: %d messages (%d threshold), %d tokens (%d threshold)",
@@ -54,13 +59,9 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*s
 	return messages
 }
 
-// cacheFriendlyCompress implements cache-friendly compression strategy
-// Keeps stable prefix for context caching, compresses the rest
-func (mc *MessageCompressor) cacheFriendlyCompress(ctx context.Context, messages []*session.Message, cacheablePrefixKeep int) []*session.Message {
-	if len(messages) <= cacheablePrefixKeep {
-		return messages // 消息不够多，不需要压缩
-	}
-
+// simplifiedCompress implements simplified compression strategy
+// Keeps only system messages, compresses all others
+func (mc *MessageCompressor) simplifiedCompress(ctx context.Context, messages []*session.Message) []*session.Message {
 	// Step 1: 分离系统消息和非系统消息
 	var systemMessages []*session.Message
 	var nonSystemMessages []*session.Message
@@ -73,83 +74,28 @@ func (mc *MessageCompressor) cacheFriendlyCompress(ctx context.Context, messages
 		}
 	}
 
-	if len(nonSystemMessages) <= cacheablePrefixKeep {
-		return messages // 非系统消息不够多，不需要压缩
+	if len(nonSystemMessages) == 0 {
+		return messages // 只有系统消息，不需要压缩
 	}
 
-	// Step 2: 提取稳定的缓存前缀（考虑工具调用成对）
-	cacheablePrefix := mc.findCacheablePrefixWithToolPairing(nonSystemMessages, cacheablePrefixKeep)
+	log.Printf("[DEBUG] Simplified compression: system=%d, non-system=%d",
+		len(systemMessages), len(nonSystemMessages))
 
-	// Step 3: 后续消息全部压缩
-	cacheablePrefixEnd := len(cacheablePrefix)
-	remainingMessages := nonSystemMessages[cacheablePrefixEnd:]
+	// Step 2: 压缩全部非系统消息
+	compressedRemaining := mc.compressRemainingMessages(ctx, nonSystemMessages)
 
-	log.Printf("[DEBUG] Cache-friendly compression: prefix=%d, remaining=%d",
-		len(cacheablePrefix), len(remainingMessages))
-
-	// Step 4: 压缩剩余消息
-	compressedRemaining := mc.compressRemainingMessages(ctx, remainingMessages)
-
-	// Step 5: 重新组合消息
-	result := make([]*session.Message, 0, len(systemMessages)+len(cacheablePrefix)+1)
+	// Step 3: 重新组合消息
+	result := make([]*session.Message, 0, len(systemMessages)+1)
 
 	// 添加系统消息
 	result = append(result, systemMessages...)
-	// 添加缓存前缀（稳定，用于 context caching）
-	result = append(result, cacheablePrefix...)
-	// 添加压缩的剩余部分
+	// 添加压缩的非系统消息
 	if compressedRemaining != nil {
 		result = append(result, compressedRemaining)
 	}
 
-	log.Printf("[INFO] Cache-friendly compression completed: %d -> %d messages", len(messages), len(result))
+	log.Printf("[INFO] Simplified compression completed: %d -> %d messages", len(messages), len(result))
 	return result
-}
-
-// findCacheablePrefixWithToolPairing finds cacheable prefix while maintaining tool call pairs
-func (mc *MessageCompressor) findCacheablePrefixWithToolPairing(messages []*session.Message, targetKeep int) []*session.Message {
-	if len(messages) <= targetKeep {
-		return messages
-	}
-
-	// 构建工具调用配对映射（用于后续的工具调用成对验证）
-	_ = mc.buildToolCallPairMap(messages)
-
-	// 从前向后查找，确保工具调用成对
-	kept := make([]*session.Message, 0, targetKeep*2)
-	mustInclude := make(map[int]bool)
-
-	// 标记必须包含的工具调用对
-	for i := 0; i < min(targetKeep*2, len(messages)); i++ {
-		msg := messages[i]
-
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			// 查找对应的工具结果
-			for j := i + 1; j < len(messages); j++ {
-				if messages[j].Role == "tool" {
-					if toolCallId, ok := messages[j].Metadata["tool_call_id"].(string); ok {
-						// 检查是否匹配当前assistant的某个tool_call
-						for _, tc := range msg.ToolCalls {
-							if tc.ID == toolCallId {
-								mustInclude[i] = true
-								mustInclude[j] = true
-								break
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 收集前缀消息，确保工具调用成对
-	for i := 0; i < len(messages) && len(kept) < targetKeep*2; i++ {
-		if i < targetKeep || mustInclude[i] {
-			kept = append(kept, messages[i])
-		}
-	}
-
-	return kept
 }
 
 // compressRemainingMessages compresses remaining messages using AI summarization
@@ -164,30 +110,15 @@ func (mc *MessageCompressor) compressRemainingMessages(ctx context.Context, mess
 		return nil
 	}
 
-	// 标记为缓存友好的压缩
+	// 标记为简化压缩
 	if summaryMsg.Metadata == nil {
-		summaryMsg.Metadata = make(map[string]interface{})
+		summaryMsg.Metadata = make(map[string]any)
 	}
-	summaryMsg.Metadata["cache_friendly_compression"] = true
+	summaryMsg.Metadata["simplified_compression"] = true
 	summaryMsg.Metadata["original_message_count"] = len(messages)
 
 	log.Printf("[DEBUG] Compressed %d remaining messages into summary", len(messages))
 	return summaryMsg
-}
-
-// buildToolCallPairMap builds a map of tool_call_id -> assistant message index
-func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) map[string]int {
-	pairs := make(map[string]int)
-
-	for i, msg := range messages {
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			for _, tc := range msg.ToolCalls {
-				pairs[tc.ID] = i
-			}
-		}
-	}
-
-	return pairs
 }
 
 // createComprehensiveAISummary creates a comprehensive AI summary preserving important context
@@ -212,8 +143,8 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 		},
 		ModelType: llm.BasicModel,
 		Config: &llm.Config{
-			Temperature: 0.2,  // Lower temperature for more consistent summaries
-			MaxTokens:   1000, // More tokens for comprehensive summaries
+			Temperature: 0.1,  // Even lower temperature for more consistent structured output
+			MaxTokens:   2000, // More tokens for comprehensive structured summaries
 		},
 	}
 
@@ -246,50 +177,98 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 
 // buildComprehensiveSystemPrompt builds the system prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSystemPrompt() string {
-	return `Create a structured conversation summary preserving technical context for seamless continuation.
+	return `Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and the assistant's previous actions.
 
-CRITICAL REQUIREMENTS:
-- Preserve technical details, decisions, and implementation context
-- Include specific file names, code snippets, and technical specifications
-- Maintain user goals, requirements, and preferences
-- Document ongoing tasks and work-in-progress status
+This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.
 
-ESSENTIAL COVERAGE:
-- Primary user requests and explicit intents
-- Key technical concepts and frameworks used
-- Files examined, modified, or created (with code snippets)
-- Errors encountered and fixes applied
-- Problem-solving approaches and solutions
-- Pending tasks and current work status
+Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:
 
-FORMAT STRUCTURE:
-1. Primary Intent: User's main requests and goals
-2. Technical Context: Key concepts and tools discussed
-3. Code Changes: Files modified with snippets and rationale
-4. Issues Resolved: Errors fixed and user feedback addressed
-5. Current Status: Active work and next steps
+1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:
+   - The user's explicit requests and intents
+   - The assistant's approach to addressing the user's requests
+   - Key decisions, technical concepts and code patterns
+   - Specific details like:
+     - file names
+     - full code snippets
+     - function signatures
+     - file edits
+   - Errors that were encountered and how they were fixed
+   - Pay special attention to specific user feedback that was received, especially if the user told the assistant to do something differently.
 
-Keep summary comprehensive but focused on actionable context needed for continuation.`
+2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.
+
+Your summary should include the following sections:
+
+1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail
+2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.
+3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.
+4. Errors and fixes: List all errors that were encountered, and how they were fixed. Pay special attention to specific user feedback that was received, especially if the user told the assistant to do something differently.
+5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.
+6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent.
+7. Pending Tasks: Outline any pending tasks that have been explicitly asked to work on.
+8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.
+9. Optional Next Step: List the next step that will be taken that is related to the most recent work. IMPORTANT: ensure that this step is DIRECTLY in line with the user's explicit requests, and the task that was being worked on immediately before this summary request.
+
+Be concise but comprehensive, focusing on technical accuracy and actionable context.`
 }
 
 // buildComprehensiveSummaryPrompt builds the prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSummaryPrompt(conversationText string, messageCount int) string {
-	return fmt.Sprintf(`Summarize this %d-message conversation using the structured format. Focus on technical context needed for seamless continuation.
+	return fmt.Sprintf(`Please analyze this %d-message conversation and provide a comprehensive summary following the structured format outlined in the system prompt.
 
-CONVERSATION:
+CONVERSATION TO ANALYZE:
 %s
 
-REQUIRED SUMMARY STRUCTURE:
+Please provide your summary using the exact structure specified:
 
-1. **Primary Intent**: User's explicit requests and main goals
-2. **Technical Context**: Key concepts, frameworks, and technologies discussed  
-3. **Code Changes**: Files modified with important snippets and reasons
-4. **Issues Resolved**: Errors encountered and how they were fixed
-5. **Current Status**: Active work and immediate next steps
+<analysis>
+[Your chronological analysis of the conversation, ensuring all points are covered thoroughly and accurately]
+</analysis>
 
-Be concise but preserve all essential technical details, file names, and implementation decisions.
+<summary>
+1. Primary Request and Intent:
+   [Detailed description of user's explicit requests and intents]
 
-STRUCTURED SUMMARY:`, messageCount, conversationText)
+2. Key Technical Concepts:
+   - [Concept 1]
+   - [Concept 2]
+   - [...]
+
+3. Files and Code Sections:
+   - [File Name 1]
+     - [Summary of why this file is important]
+     - [Summary of the changes made to this file, if any]
+     - [Important Code Snippet]
+   - [File Name 2]
+     - [Important Code Snippet]
+   - [...]
+
+4. Errors and fixes:
+   - [Detailed description of error 1]:
+     - [How the error was fixed]
+     - [User feedback on the error if any]
+   - [...]
+
+5. Problem Solving:
+   [Description of solved problems and ongoing troubleshooting]
+
+6. All user messages:
+   - [Detailed non tool use user message]
+   - [...]
+
+7. Pending Tasks:
+   - [Task 1]
+   - [Task 2]
+   - [...]
+
+8. Current Work:
+   [Precise description of current work]
+
+9. Optional Next Step:
+   [Optional Next step to take]
+</summary>
+
+Ensure precision and thoroughness in your response, focusing on technical accuracy and actionable context for continuation.`, messageCount, conversationText)
 }
 
 // buildComprehensiveSummaryInput builds comprehensive input text for AI summarization
@@ -322,11 +301,6 @@ func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.
 	}
 
 	text := strings.Join(parts, "\n\n")
-
-	// Allow longer text for comprehensive summaries, but still limit to prevent token overflow
-	if len(text) > 8000 {
-		text = text[:8000] + "\n\n[... conversation continues with additional technical details ...]"
-	}
 
 	return text
 }
