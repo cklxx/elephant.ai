@@ -226,6 +226,17 @@ func (r *ReactAgent) GetSessionManager() *session.Manager {
 	return r.sessionManager
 }
 
+// GetSessionID - 获取当前会话ID
+func (r *ReactAgent) GetSessionID() (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if r.currentSession == nil {
+		return "", fmt.Errorf("no active session")
+	}
+	return r.currentSession.ID, nil
+}
+
 // parseToolCalls - 委托给ToolExecutor
 func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	return r.toolExecutor.parseToolCalls(message)

@@ -307,7 +307,7 @@ func (kcm *KimiCacheManager) createCacheWithAPI(messages []Message, tools []Tool
 	reqBody := map[string]interface{}{
 		"model":    "moonshot-v1", // 模型组名称，不是具体模型
 		"messages": apiMessages,
-		"ttl":      3600, // 缓存存活时间：1小时
+		"ttl":      600, // 缓存存活时间：10分钟
 	}
 
 	// Add tools if present
@@ -465,6 +465,56 @@ func (kcm *KimiCacheManager) toolsMatch(requestTools, cachedTools []Tool) bool {
 	return true
 }
 
+// CleanupKimiCacheForSession cleans up Kimi cache for a specific session
+// This is a utility function that can be used from anywhere in the application
+func CleanupKimiCacheForSession(sessionID string, config *Config) error {
+	if sessionID == "" {
+		return nil // No session ID, nothing to cleanup
+	}
+
+	// Get the LLM client instance
+	llmClient, err := GetLLMInstance(BasicModel)
+	if err != nil {
+		return fmt.Errorf("failed to get LLM instance for cache cleanup: %w", err)
+	}
+
+	// Type assert to HTTP client to access Kimi cache manager
+	httpClient, ok := llmClient.(*HTTPLLMClient)
+	if !ok {
+		return nil // Not an HTTP client, no cache to cleanup
+	}
+
+	kimiCacheManager := httpClient.GetKimiCacheManager()
+	if kimiCacheManager == nil {
+		return nil // No Kimi cache manager
+	}
+
+	// Get API key from config
+	var apiKey string
+	if config != nil {
+		if config.Models != nil {
+			if basicConfig, exists := config.Models[BasicModel]; exists {
+				apiKey = basicConfig.APIKey
+			}
+		}
+		if apiKey == "" {
+			apiKey = config.APIKey
+		}
+	}
+
+	if apiKey == "" {
+		return fmt.Errorf("no API key available for cache cleanup")
+	}
+
+	// Delete the cache
+	if err := kimiCacheManager.DeleteCache(sessionID, apiKey); err != nil {
+		return fmt.Errorf("failed to cleanup Kimi cache for session %s: %w", sessionID, err)
+	}
+
+	log.Printf("[DEBUG] Kimi cache cleaned up for session: %s", sessionID)
+	return nil
+}
+
 // PrepareRequestWithCache prepares the request to use Kimi cache via Headers
 // Only validates the cacheable prefix, allowing the rest to vary
 func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *ChatRequest) map[string]string {
@@ -492,7 +542,7 @@ func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *Chat
 	// Prepare headers for cache usage
 	headers := map[string]string{
 		"X-Msh-Context-Cache": cache.CacheID,
-		"X-Msh-Context-Cache-Reset-TTL": "3600", // 重置缓存过期时间为1小时
+		"X-Msh-Context-Cache-Reset-TTL": "600", // 重置缓存过期时间为10分钟
 	}
 	
 	return headers

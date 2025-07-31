@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -15,6 +17,7 @@ import (
 	"alex/internal/agent"
 	"alex/internal/config"
 	"alex/internal/context/message"
+	"alex/internal/llm"
 )
 
 // formatToolOutput formats tool output with proper multi-line alignment for TUI mode
@@ -102,18 +105,48 @@ type (
 		content    string
 		isMarkdown bool
 	} // Enhanced message for markdown content
-	streamCompleteMsg struct{}
-	processingDoneMsg struct{}
-	errorOccurredMsg  struct{ err error }
-	tickerMsg         struct{}
-	tokenUpdateMsg    struct{ count int }
+	streamCompleteMsg  struct{}
+	processingDoneMsg  struct{}
+	errorOccurredMsg   struct{ err error }
+	tickerMsg          struct{}
+	tokenUpdateMsg     struct{ count int }
+	messagesLoadedMsg  struct{ messages []ChatMessage }
+	scrollAnimationMsg struct{}
+	forceInitMsg       struct{}
 )
+
+// VirtualMessageList handles virtual scrolling for large message lists
+type VirtualMessageList struct {
+	messages      []ChatMessage
+	visibleStart  int
+	visibleEnd    int
+	bufferSize    int
+	isLoading     bool
+	hasMore       bool
+	totalMessages int
+	maxMessages   int // Maximum messages to keep in memory
+	lastCleanup   time.Time
+}
+
+func newVirtualMessageList() *VirtualMessageList {
+	return &VirtualMessageList{
+		messages:      make([]ChatMessage, 0),
+		visibleStart:  0,
+		visibleEnd:    0,
+		bufferSize:    50, // Show 50 messages at a time
+		isLoading:     false,
+		hasMore:       true,
+		totalMessages: 0,
+		maxMessages:   500, // Keep max 500 messages in memory
+		lastCleanup:   time.Now(),
+	}
+}
 
 // ModernChatModel represents the clean TUI model
 type ModernChatModel struct {
 	textarea            textarea.Model
-	viewport            viewport.Model // Viewport for message scrolling
-	messages            []ChatMessage
+	viewport            viewport.Model      // Viewport for message scrolling
+	virtualList         *VirtualMessageList // Virtual message list for infinite scrolling
 	processing          bool
 	agent               *agent.ReactAgent
 	config              *config.Manager
@@ -132,6 +165,15 @@ type ModernChatModel struct {
 	lastTokenCount      int             // Previous token count for animation
 	baseMessageContent  string          // Content from tool outputs (before LLM content)
 	viewportNeedsUpdate bool            // Flag to track if viewport content needs updating
+	inputAtBottom       bool            // Flag to track if input should be at bottom or after last message
+	scrollAnimation     bool            // Flag to enable smooth scrolling animations
+	animationFrame      int             // Current animation frame for visual effects
+	searchMode          bool            // Flag for search mode
+	searchQuery         string          // Current search query
+	searchResults       []int           // Indices of matching messages
+	currentSearchIndex  int             // Current search result index
+	renderedCache       map[int]string  // Cache for already rendered messages
+	lastCacheUpdate     time.Time       // Last time cache was updated
 }
 
 // ChatMessage represents a chat message with type and content
@@ -170,22 +212,33 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *Modern
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
 
-	// No initial messages - we'll display them directly in runModernTUI
-	initialMessages := []ChatMessage{}
-
 	return &ModernChatModel{
-		textarea:         ta,
-		viewport:         vp,
-		messages:         initialMessages,
-		agent:            agent,
-		config:           config,
-		ready:            false,
-		sessionStartTime: time.Now(), // Initialize session start time
+		textarea:           ta,
+		viewport:           vp,
+		virtualList:        newVirtualMessageList(),
+		agent:              agent,
+		config:             config,
+		ready:              false,
+		sessionStartTime:   time.Now(), // Initialize session start time
+		inputAtBottom:      false,      // Default to input following last message
+		scrollAnimation:    true,       // Enable smooth scrolling by default
+		animationFrame:     0,
+		searchMode:         false, // Default to normal mode
+		searchQuery:        "",
+		searchResults:      make([]int, 0),
+		currentSearchIndex: -1,
+		renderedCache:      make(map[int]string),
+		lastCacheUpdate:    time.Now(),
 	}
 }
 
 func (m *ModernChatModel) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.startTicker())
+	// Send delayed force init message as fallback
+	forceInit := func() tea.Msg {
+		time.Sleep(500 * time.Millisecond)
+		return forceInitMsg{}
+	}
+	return tea.Batch(textarea.Blink, m.startTicker(), forceInit)
 }
 
 func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -231,10 +284,17 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case msg.Type == tea.KeyCtrlC:
+			// Cleanup Kimi cache before quit
+			m.cleanupKimiCache()
 			return m, tea.Quit
 		case msg.Type == tea.KeyEsc:
-			// Interrupt processing
-			if m.processing {
+			// Handle escape key based on current mode
+			if m.searchMode {
+				// Exit search mode
+				m.exitSearchMode()
+				return m, nil
+			} else if m.processing {
+				// Interrupt processing
 				m.processing = false
 				m.execTimer.Active = false
 				m.addMessage(ChatMessage{
@@ -245,9 +305,83 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 			}
 			return m, nil
+		case msg.Type == tea.KeyCtrlI:
+			// Toggle input position (Ctrl+I)
+			m.inputAtBottom = !m.inputAtBottom
+			m.viewportNeedsUpdate = true
+			var positionMsg string
+			if m.inputAtBottom {
+				positionMsg = "📝 Input moved to bottom"
+			} else {
+				positionMsg = "📝 Input follows last message"
+			}
+			m.addMessage(ChatMessage{
+				Type:      "system",
+				ChunkType: "system",
+				Content:   positionMsg,
+				Time:      time.Now(),
+			})
+			return m, nil
+		case msg.Type == tea.KeyTab:
+			// Toggle smooth scrolling animation (Tab key)
+			m.scrollAnimation = !m.scrollAnimation
+			var animationMsg string
+			if m.scrollAnimation {
+				animationMsg = "✨ Smooth scrolling enabled"
+			} else {
+				animationMsg = "✨ Smooth scrolling disabled"
+			}
+			m.addMessage(ChatMessage{
+				Type:      "system",
+				ChunkType: "system",
+				Content:   animationMsg,
+				Time:      time.Now(),
+			})
+			return m, nil
+		case msg.String() == "pgup":
+			// Page up - scroll up quickly
+			m.viewport.PageUp()
+			return m, nil
+		case msg.String() == "pgdown":
+			// Page down - scroll down quickly
+			m.viewport.PageDown()
+			return m, nil
+		case msg.String() == "home":
+			// Go to top of conversation
+			m.viewport.GotoTop()
+			return m, nil
+		case msg.String() == "end":
+			// Go to bottom of conversation
+			m.viewport.GotoBottom()
+			return m, nil
+		case msg.String() == "alt+up":
+			// Alt+Up - scroll up by 3 lines
+			for i := 0; i < 3; i++ {
+				m.viewport.ScrollUp(1)
+			}
+			return m, nil
+		case msg.String() == "alt+down":
+			// Alt+Down - scroll down by 3 lines
+			for i := 0; i < 3; i++ {
+				m.viewport.ScrollDown(1)
+			}
+			return m, nil
+		case msg.String() == "/":
+			// Start search mode (Ctrl+F alternative)
+			m.startSearchMode()
+			return m, nil
+		case msg.String() == "ctrl+e":
+			// Export conversation history
+			m.exportConversation()
+			return m, nil
 		case msg.Type == tea.KeyEnter && !msg.Alt:
-			// Submit input on plain Enter (Shift+Enter is handled by textarea)
-			if !m.processing && strings.TrimSpace(m.textarea.Value()) != "" {
+			// Handle Enter key based on current mode
+			if m.searchMode {
+				// In search mode, Enter finds next result
+				m.goToNextSearchResult()
+				return m, nil
+			} else if !m.processing && strings.TrimSpace(m.textarea.Value()) != "" {
+				// Normal mode - submit input
 				input := strings.TrimSpace(m.textarea.Value())
 				m.currentInput = input
 				m.textarea.Reset()
@@ -275,6 +409,21 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// No processing message in chat area - status shown above input instead
 
 				return m, tea.Batch(m.processUserInput(input), m.startTicker())
+			}
+		default:
+			// Handle text input in search mode
+			if m.searchMode && len(msg.String()) == 1 {
+				// Add character to search query
+				m.searchQuery += msg.String()
+				m.performSearch(m.searchQuery)
+				return m, nil
+			} else if m.searchMode && msg.Type == tea.KeyBackspace {
+				// Remove character from search query
+				if len(m.searchQuery) > 0 {
+					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+					m.performSearch(m.searchQuery)
+				}
+				return m, nil
 			}
 		}
 
@@ -308,7 +457,7 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Time:      time.Now(),
 		}
 		m.addMessage(assistantMsg)
-		m.currentMessage = &m.messages[len(m.messages)-1]
+		m.currentMessage = &m.virtualList.messages[len(m.virtualList.messages)-1]
 
 		// Reset base content tracking
 		m.baseMessageContent = ""
@@ -362,6 +511,28 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.baseMessageContent = ""
 		return m, func() tea.Msg { return processingDoneMsg{} }
 
+	case scrollAnimationMsg:
+		// Handle scroll animation frame updates
+		m.animationFrame++
+		if m.scrollAnimation {
+			return m, m.startScrollAnimation()
+		}
+		return m, nil
+
+	case forceInitMsg:
+		// Force initialization if WindowSizeMsg wasn't received
+		if !m.ready {
+			// Set default dimensions
+			m.textarea.SetWidth(60)
+			m.viewport.Width = 80
+			m.viewport.Height = 20
+			m.width = 80
+			m.height = 24
+			m.ready = true
+			m.viewportNeedsUpdate = true
+		}
+		return m, nil
+
 	case tickerMsg:
 		if m.execTimer.Active {
 			m.execTimer.Duration = time.Since(m.execTimer.StartTime)
@@ -391,6 +562,25 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update token count from real agent data
 		m.lastTokenCount = m.tokenCount
 		m.tokenCount = msg.count
+		return m, nil
+
+	case messagesLoadedMsg:
+		// Handle loaded historical messages
+		m.virtualList.isLoading = false
+
+		if len(msg.messages) > 0 {
+			// Prepend historical messages to the beginning
+			m.virtualList.messages = append(msg.messages, m.virtualList.messages...)
+			m.virtualList.totalMessages = len(m.virtualList.messages)
+
+			// Update visible range to maintain user's position
+			m.updateVisibleRange()
+			m.viewportNeedsUpdate = true
+		} else {
+			// No more historical messages available
+			m.virtualList.hasMore = false
+		}
+
 		return m, nil
 
 	case errorOccurredMsg:
@@ -424,27 +614,167 @@ func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ModernChatModel) addMessage(msg ChatMessage) {
-	m.messages = append(m.messages, msg)
+	m.virtualList.messages = append(m.virtualList.messages, msg)
+	m.virtualList.totalMessages = len(m.virtualList.messages)
+
+	// Invalidate cache for new message
+	m.invalidateCache()
+
+	// Clean up old messages if we exceed the limit
+	m.cleanupOldMessages()
+
+	// Update visible range to show latest messages
+	m.updateVisibleRange()
+
 	// Mark that viewport needs updating
 	m.viewportNeedsUpdate = true
 }
 
-// updateViewportContent updates the viewport content with all messages and scrolls to bottom
+// cleanupOldMessages removes old messages to prevent memory overflow
+func (m *ModernChatModel) cleanupOldMessages() {
+	// Only cleanup every 30 seconds to avoid frequent operations
+	if time.Since(m.virtualList.lastCleanup) < 30*time.Second {
+		return
+	}
+
+	total := len(m.virtualList.messages)
+	if total <= m.virtualList.maxMessages {
+		return
+	}
+
+	// Remove oldest messages, keeping the maxMessages most recent
+	excessMessages := total - m.virtualList.maxMessages
+	m.virtualList.messages = m.virtualList.messages[excessMessages:]
+	m.virtualList.totalMessages = len(m.virtualList.messages)
+	m.virtualList.lastCleanup = time.Now()
+
+	// Add a system message to indicate cleanup occurred
+	cleanupMsg := ChatMessage{
+		Type:      "system",
+		ChunkType: "memory_cleanup",
+		Content:   fmt.Sprintf("🧠 Memory cleanup: removed %d older messages", excessMessages),
+		Time:      time.Now(),
+	}
+	m.virtualList.messages = append([]ChatMessage{cleanupMsg}, m.virtualList.messages...)
+	m.virtualList.totalMessages = len(m.virtualList.messages)
+}
+
+// updateVisibleRange calculates which messages should be visible
+func (m *ModernChatModel) updateVisibleRange() {
+	total := len(m.virtualList.messages)
+	if total == 0 {
+		m.virtualList.visibleStart = 0
+		m.virtualList.visibleEnd = 0
+		return
+	}
+
+	// Show the last N messages (buffer size)
+	start := total - m.virtualList.bufferSize
+	if start < 0 {
+		start = 0
+	}
+
+	m.virtualList.visibleStart = start
+	m.virtualList.visibleEnd = total
+}
+
+// updateViewportContent updates the viewport content with visible messages and scrolls appropriately
 func (m *ModernChatModel) updateViewportContent() {
 	if m.viewportNeedsUpdate {
-		content := m.renderAllMessages()
+		content := m.renderVisibleMessages()
 		m.viewport.SetContent(content)
-		// Auto-scroll to bottom for new messages
-		m.viewport.GotoBottom()
+
+		// Auto-scroll to bottom for new messages, but check if user is at top for loading
+		if m.viewport.AtTop() && m.virtualList.hasMore && !m.virtualList.isLoading {
+			// User scrolled to top, trigger loading more messages
+			cmd := m.loadPreviousMessages()
+			if cmd != nil {
+				m.program.Send(cmd())
+			}
+		} else {
+			// Auto-scroll to bottom for new messages
+			m.viewport.GotoBottom()
+		}
+
 		m.viewportNeedsUpdate = false
 	}
 }
 
-// renderAllMessages renders all messages as a single string for viewport
-func (m *ModernChatModel) renderAllMessages() string {
+// loadPreviousMessages loads more historical messages from session storage
+func (m *ModernChatModel) loadPreviousMessages() tea.Cmd {
+	if m.virtualList.isLoading {
+		return nil
+	}
+
+	m.virtualList.isLoading = true
+
+	return func() tea.Msg {
+		// Load historical messages from session manager
+		var historicalMessages []ChatMessage
+
+		if sessionManager := m.agent.GetSessionManager(); sessionManager != nil {
+			// Get current session ID
+			sessionID, err := m.agent.GetSessionID()
+			if err == nil && sessionID != "" {
+				// Try to get session history
+				if sessionHistory := m.agent.GetSessionHistory(); sessionHistory != nil {
+					// Convert session messages to chat messages
+					for _, sessionMsg := range sessionHistory {
+						// Skip messages that are already loaded
+						alreadyLoaded := false
+						for _, loadedMsg := range m.virtualList.messages {
+							if loadedMsg.Content == sessionMsg.Content &&
+								loadedMsg.Time.Equal(sessionMsg.Timestamp) {
+								alreadyLoaded = true
+								break
+							}
+						}
+
+						if !alreadyLoaded {
+							chatMsg := ChatMessage{
+								Type:      sessionMsg.Role, // "user" or "assistant"
+								ChunkType: "session_history",
+								Content:   sessionMsg.Content,
+								Time:      sessionMsg.Timestamp,
+							}
+							historicalMessages = append(historicalMessages, chatMsg)
+						}
+					}
+				}
+			}
+		}
+
+		// Simulate loading delay for better UX
+		time.Sleep(300 * time.Millisecond)
+
+		return messagesLoadedMsg{messages: historicalMessages}
+	}
+}
+
+// renderVisibleMessages renders only visible messages for virtual scrolling
+func (m *ModernChatModel) renderVisibleMessages() string {
 	var parts []string
 
-	for i, msg := range m.messages {
+	// Show loading indicator if we're loading more messages
+	if m.virtualList.isLoading && m.virtualList.hasMore {
+		parts = append(parts, systemMsgStyle.Render("📥 Loading more messages..."))
+		parts = append(parts, "")
+	}
+
+	// Show search mode indicator
+	if m.searchMode {
+		searchStatus := fmt.Sprintf("🔍 Search: %s", m.searchQuery)
+		if len(m.searchResults) > 0 {
+			searchStatus += fmt.Sprintf(" (%d results)", len(m.searchResults))
+		}
+		parts = append(parts, systemMsgStyle.Render(searchStatus))
+		parts = append(parts, "")
+	}
+
+	// Only render visible messages
+	visibleMessages := m.virtualList.messages[m.virtualList.visibleStart:m.virtualList.visibleEnd]
+
+	for i, msg := range visibleMessages {
 		// Skip empty assistant messages
 		if msg.Type == "assistant" && strings.TrimSpace(msg.Content) == "" {
 			continue
@@ -455,29 +785,26 @@ func (m *ModernChatModel) renderAllMessages() string {
 			parts = append(parts, "")
 		}
 
-		var styledContent string
-		switch msg.Type {
-		case "user":
-			styledContent = userMsgStyle.Render("> ") + msg.Content
-		case "assistant":
-			// Process content to ensure proper formatting for TUI display
-			processedContent := m.processContentForTUI(msg.Content)
-			// Apply tool output styling to tool results while keeping regular assistant text green
-			styledContent = m.styleAssistantContent(processedContent, msg.ChunkType)
-		case "system":
-			styledContent = systemMsgStyle.Render(msg.Content)
-		case "processing":
-			styledContent = processingStyle.Render("⚡ " + msg.Content)
-		case "error":
-			styledContent = errorMsgStyle.Render("❌ " + msg.Content)
-		default:
-			styledContent = msg.Content
-		}
+		// Use cached rendering for better performance
+		msgIndex := m.virtualList.visibleStart + i
+		isSearchResult := m.isSearchResult(msgIndex)
+		styledContent := m.renderMessageWithCache(msgIndex, msg, isSearchResult)
 
 		parts = append(parts, styledContent)
 	}
 
+	// Add input box after last message if not at bottom
+	if !m.inputAtBottom && len(parts) > 0 {
+		parts = append(parts, "")
+		parts = append(parts, m.renderInlineInput())
+	}
+
 	return strings.Join(parts, "\n")
+}
+
+// renderInlineInput renders the input box inline with messages
+func (m *ModernChatModel) renderInlineInput() string {
+	return inputStyle.Render(m.textarea.View())
 }
 
 // updateTextareaHeight adjusts the textarea height based on content lines
@@ -504,6 +831,242 @@ func (m *ModernChatModel) startTicker() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickerMsg{}
 	})
+}
+
+// startScrollAnimation starts smooth scrolling animation
+func (m *ModernChatModel) startScrollAnimation() tea.Cmd {
+	if !m.scrollAnimation {
+		return nil
+	}
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return scrollAnimationMsg{}
+	})
+}
+
+// startSearchMode enters search mode
+func (m *ModernChatModel) startSearchMode() {
+	m.searchMode = true
+	m.searchQuery = ""
+	m.searchResults = make([]int, 0)
+	m.currentSearchIndex = -1
+	m.addMessage(ChatMessage{
+		Type:      "system",
+		ChunkType: "system",
+		Content:   "🔍 Search mode: Type to search, Enter to find next, Esc to exit",
+		Time:      time.Now(),
+	})
+}
+
+// performSearch searches for messages containing the query
+func (m *ModernChatModel) performSearch(query string) {
+	m.searchQuery = query
+	m.searchResults = make([]int, 0)
+
+	if query == "" {
+		return
+	}
+
+	// Search through all messages
+	for i, msg := range m.virtualList.messages {
+		if strings.Contains(strings.ToLower(msg.Content), strings.ToLower(query)) {
+			m.searchResults = append(m.searchResults, i)
+		}
+	}
+
+	m.currentSearchIndex = -1
+	if len(m.searchResults) > 0 {
+		m.goToNextSearchResult()
+	}
+}
+
+// goToNextSearchResult navigates to the next search result
+func (m *ModernChatModel) goToNextSearchResult() {
+	if len(m.searchResults) == 0 {
+		return
+	}
+
+	m.currentSearchIndex++
+	if m.currentSearchIndex >= len(m.searchResults) {
+		m.currentSearchIndex = 0
+	}
+
+	// Scroll to the message
+	msgIndex := m.searchResults[m.currentSearchIndex]
+	m.scrollToMessage(msgIndex)
+
+	// Update status
+	m.addMessage(ChatMessage{
+		Type:      "system",
+		ChunkType: "search_result",
+		Content:   fmt.Sprintf("🔍 Result %d/%d: \"%s\"", m.currentSearchIndex+1, len(m.searchResults), m.searchQuery),
+		Time:      time.Now(),
+	})
+}
+
+// scrollToMessage scrolls to show a specific message
+func (m *ModernChatModel) scrollToMessage(messageIndex int) {
+	// Update visible range to include the target message
+	if messageIndex < m.virtualList.visibleStart {
+		// Message is above visible range
+		m.virtualList.visibleStart = messageIndex
+		m.virtualList.visibleEnd = messageIndex + m.virtualList.bufferSize
+		if m.virtualList.visibleEnd >= len(m.virtualList.messages) {
+			m.virtualList.visibleEnd = len(m.virtualList.messages)
+		}
+	} else if messageIndex >= m.virtualList.visibleEnd {
+		// Message is below visible range
+		m.virtualList.visibleEnd = messageIndex + 1
+		m.virtualList.visibleStart = m.virtualList.visibleEnd - m.virtualList.bufferSize
+		if m.virtualList.visibleStart < 0 {
+			m.virtualList.visibleStart = 0
+		}
+	}
+
+	m.viewportNeedsUpdate = true
+}
+
+// exitSearchMode exits search mode
+func (m *ModernChatModel) exitSearchMode() {
+	m.searchMode = false
+	m.searchQuery = ""
+	m.searchResults = make([]int, 0)
+	m.currentSearchIndex = -1
+	m.addMessage(ChatMessage{
+		Type:      "system",
+		ChunkType: "system",
+		Content:   "🔍 Search mode exited",
+		Time:      time.Now(),
+	})
+}
+
+// exportConversation exports the conversation history to a file
+func (m *ModernChatModel) exportConversation() {
+	go func() {
+		// Generate filename with timestamp
+		timestamp := time.Now().Format("2006-01-02_15-04-05")
+		filename := fmt.Sprintf("alex_conversation_%s.md", timestamp)
+
+		// Create markdown content
+		var content strings.Builder
+		content.WriteString("# Alex Code Agent Conversation\n\n")
+		content.WriteString(fmt.Sprintf("Exported: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
+		content.WriteString(fmt.Sprintf("Total Messages: %d\n\n", len(m.virtualList.messages)))
+		content.WriteString("---\n\n")
+
+		// Export all messages
+		for i, msg := range m.virtualList.messages {
+			// Skip system messages for cleaner export
+			if msg.Type == "system" && msg.ChunkType != "user_input" {
+				continue
+			}
+
+			content.WriteString(fmt.Sprintf("## Message %d\n\n", i+1))
+			content.WriteString(fmt.Sprintf("**Type:** %s\n\n", msg.Type))
+			content.WriteString(fmt.Sprintf("**Time:** %s\n\n", msg.Time.Format("2006-01-02 15:04:05")))
+
+			switch msg.Type {
+			case "user":
+				content.WriteString("**User:**\n\n")
+			case "assistant":
+				content.WriteString("**Assistant:**\n\n")
+			default:
+				// Capitalize first letter manually
+				msgType := msg.Type
+				if len(msgType) > 0 {
+					msgType = strings.ToUpper(msgType[:1]) + msgType[1:]
+				}
+				content.WriteString(fmt.Sprintf("**%s:**\n\n", msgType))
+			}
+
+			content.WriteString(fmt.Sprintf("%s\n\n", msg.Content))
+			content.WriteString("---\n\n")
+		}
+
+		// Write to file
+		err := os.WriteFile(filename, []byte(content.String()), 0644)
+		if err != nil {
+			m.program.Send(tea.Msg(fmt.Sprintf("❌ Export failed: %v", err)))
+			return
+		}
+
+		// Notify user of successful export
+		m.addMessage(ChatMessage{
+			Type:      "system",
+			ChunkType: "export_success",
+			Content:   fmt.Sprintf("💾 Conversation exported to: %s", filename),
+			Time:      time.Now(),
+		})
+		m.viewportNeedsUpdate = true
+	}()
+}
+
+// isSearchResult checks if a message index is a search result
+func (m *ModernChatModel) isSearchResult(messageIndex int) bool {
+	for _, resultIndex := range m.searchResults {
+		if resultIndex == messageIndex {
+			return true
+		}
+	}
+	return false
+}
+
+// invalidateCache clears the rendered message cache
+func (m *ModernChatModel) invalidateCache() {
+	m.renderedCache = make(map[int]string)
+	m.lastCacheUpdate = time.Now()
+}
+
+
+// renderMessageWithCache renders a message with caching
+func (m *ModernChatModel) renderMessageWithCache(msgIndex int, msg ChatMessage, isSearchResult bool) string {
+	// Check cache first
+	if cached, exists := m.renderedCache[msgIndex]; exists {
+		return cached
+	}
+
+	// Render the message
+	var styledContent string
+	switch msg.Type {
+	case "user":
+		prefix := "🗨️ "
+		if isSearchResult {
+			prefix = "🔍🗨️ "
+		}
+		styledContent = userMsgStyle.Render(prefix) + msg.Content
+	case "assistant":
+		// Process content to ensure proper formatting for TUI display
+		processedContent := m.processContentForTUI(msg.Content)
+		prefix := "🤖 "
+		if isSearchResult {
+			prefix = "🔍🤖 "
+		}
+		// Apply tool output styling to tool results while keeping regular assistant text green
+		styledContent = assistantMsgStyle.Render(prefix) + m.styleAssistantContent(processedContent, msg.ChunkType)
+	case "system":
+		var prefix string
+		switch msg.ChunkType {
+		case "search_result":
+			prefix = "🔍 "
+		case "export_success":
+			prefix = "💾 "
+		case "memory_cleanup":
+			prefix = "🧠 "
+		default:
+			prefix = "ℹ️ "
+		}
+		styledContent = systemMsgStyle.Render(prefix + msg.Content)
+	case "processing":
+		styledContent = processingStyle.Render("⚡ " + msg.Content)
+	case "error":
+		styledContent = errorMsgStyle.Render("❌ " + msg.Content)
+	default:
+		styledContent = msg.Content
+	}
+
+	// Cache the result
+	m.renderedCache[msgIndex] = styledContent
+
+	return styledContent
 }
 
 func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
@@ -596,13 +1159,19 @@ func (m *ModernChatModel) View() string {
 	// Header
 	header := headerStyle.Render("Alex Code Agent")
 
-	// Calculate heights
+	// Calculate heights based on input position
 	headerHeight := 2 // Header + spacing
 	processingHeight := 0
 	if m.processing {
 		processingHeight = 1
 	}
-	inputHeight := m.textarea.Height() + 2 // textarea + border
+
+	// Input height calculation depends on position
+	inputHeight := 0
+	if m.inputAtBottom {
+		inputHeight = m.textarea.Height() + 2 // textarea + border
+	}
+
 	shortcutsHeight := 1
 	fixedHeight := headerHeight + processingHeight + inputHeight + shortcutsHeight
 
@@ -643,12 +1212,14 @@ func (m *ModernChatModel) View() string {
 		parts = append(parts, statusMsg)
 	}
 
-	// Input area
-	inputArea := inputStyle.Render(m.textarea.View())
-	parts = append(parts, inputArea)
+	// Input area - only show at bottom if inputAtBottom is true
+	if m.inputAtBottom {
+		inputArea := inputStyle.Render(m.textarea.View())
+		parts = append(parts, inputArea)
+	}
 
 	// Add shortcuts hint
-	shortcutsHint := systemMsgStyle.Render("  Enter: send • Shift+Enter: new line • Use terminal scroll to view history")
+	shortcutsHint := systemMsgStyle.Render("  Enter: send • /: search • Ctrl+I: input pos • Ctrl+E: export • PgUp/PgDn/Home/End: navigate")
 	parts = append(parts, shortcutsHint)
 
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
@@ -666,17 +1237,8 @@ func (m *ModernChatModel) styleAssistantContent(content string, chunkType string
 	var styledLines []string
 
 	for _, line := range lines {
-		// Check both ChunkType and line content for tool output detection
-		trimmedLine := strings.TrimSpace(line)
-		isLineToolOutput := isToolOutput ||
-			strings.HasPrefix(trimmedLine, "⎿") ||
-			strings.HasPrefix(trimmedLine, "❌") ||
-			strings.HasPrefix(trimmedLine, "✅") ||
-			strings.HasPrefix(trimmedLine, "⚠️") ||
-			strings.HasPrefix(trimmedLine, "🧠") ||
-			strings.HasPrefix(trimmedLine, "✨")
 
-		if isLineToolOutput {
+		if isToolOutput {
 			// Tool output line - apply gray styling
 			styledLines = append(styledLines, toolOutputStyle.Render(line))
 		} else {
@@ -782,6 +1344,24 @@ func (m *ModernChatModel) wrapLine(line string, maxWidth int) []string {
 	return wrappedLines
 }
 
+// cleanupKimiCache cleans up Kimi cache for TUI mode
+func (m *ModernChatModel) cleanupKimiCache() {
+	if m.agent == nil {
+		return
+	}
+
+	// Get current session ID
+	sessionID, _ := m.agent.GetSessionID()
+	if sessionID == "" {
+		return
+	}
+
+	// Use the generic cleanup function from llm package
+	if err := llm.CleanupKimiCacheForSession(sessionID, m.config.GetLLMConfig()); err != nil {
+		log.Printf("[DEBUG] TUI: Failed to cleanup Kimi cache: %v", err)
+	}
+}
+
 // Run the modern TUI
 func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 	model := NewModernChatModel(agent, config)
@@ -794,14 +1374,37 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 		Time:      time.Now(),
 	})
 
-	program := tea.NewProgram(
-		model,
-		tea.WithAltScreen(), // Use alt screen for proper TUI experience
-	)
+	// Try to create program with different options for different environments
+	var program *tea.Program
+	if isTTYAvailable() {
+		program = tea.NewProgram(
+			model,
+			tea.WithAltScreen(), // Use alt screen for proper TUI experience
+		)
+	} else {
+		// Fallback for environments without proper TTY
+		program = tea.NewProgram(
+			model,
+			// No alt screen, try basic mode
+		)
+	}
 
 	// Set the program reference for streaming callbacks
 	model.program = program
 
 	_, err := program.Run()
+	if err != nil {
+		// If TUI fails, provide helpful error message
+		return fmt.Errorf("TUI initialization failed (no TTY available): %w\n\nTry running without TUI:\n  alex \"your prompt here\"", err)
+	}
 	return err
+}
+
+// isTTYAvailable checks if TTY is available for TUI
+func isTTYAvailable() bool {
+	// Check if we can access /dev/tty
+	if _, err := os.Open("/dev/tty"); err != nil {
+		return false
+	}
+	return true
 }

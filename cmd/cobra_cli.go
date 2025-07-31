@@ -6,7 +6,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -16,6 +18,7 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
+	"alex/internal/llm"
 	"alex/internal/utils"
 )
 
@@ -168,7 +171,8 @@ through streaming responses and advanced tool calling capabilities.
 				return cli.runSinglePrompt(prompt)
 			}
 			// Check if we have a TTY before starting interactive mode
-			if !isTTY() {
+			// But allow force TUI mode with --tui flag
+			if !isTTY() && !cli.useTUI {
 				// No TTY available (CI environment), show help instead
 				return cmd.Help()
 			}
@@ -458,6 +462,17 @@ func (cli *CLI) initialize(cmd *cobra.Command) error {
 
 // runTUI starts the modern Bubble Tea TUI interface
 func (cli *CLI) runTUI() error {
+	// Set up signal handling for cache cleanup on Ctrl+C (backup for TUI mode)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	// Start cleanup goroutine as backup
+	go func() {
+		<-sigChan
+		cli.cleanupKimiCache()
+		os.Exit(1)
+	}()
+
 	return runModernTUI(cli.agent, cli.config)
 }
 
@@ -644,6 +659,17 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 	cli.totalPromptTokens = 0
 	cli.totalCompletionTokens = 0
 
+	// Set up signal handling for cache cleanup on Ctrl+C
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	// Start cleanup goroutine
+	go func() {
+		<-sigChan
+		cli.cleanupKimiCache()
+		os.Exit(1)
+	}()
+
 	// Record start time
 	startTime := time.Now()
 
@@ -653,6 +679,9 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 
 	ctx := context.Background()
 	err := cli.agent.ProcessMessageStream(ctx, prompt, cli.config.GetConfig(), cli.deepCodingStreamCallback)
+
+	// Cleanup Kimi cache after single prompt completion
+	cli.cleanupKimiCache()
 
 	// Calculate and display completion time
 	duration := time.Since(startTime)
@@ -692,6 +721,26 @@ func (cli *CLI) formatTokenUsage() string {
 			cli.totalTokensUsed, cli.totalPromptTokens, cli.totalCompletionTokens)
 	}
 	return fmt.Sprintf("%d tokens", cli.totalTokensUsed)
+}
+
+// cleanupKimiCache cleans up Kimi cache on program exit
+func (cli *CLI) cleanupKimiCache() {
+	if cli.agent == nil {
+		return
+	}
+
+	// Get current session ID
+	sessionID, _ := cli.agent.GetSessionID()
+	if sessionID == "" {
+		return
+	}
+
+	// Use the generic cleanup function from llm package
+	if err := llm.CleanupKimiCacheForSession(sessionID, cli.config.GetLLMConfig()); err != nil {
+		if cli.debug {
+			log.Printf("[DEBUG] Failed to cleanup Kimi cache: %v", err)
+		}
+	}
 }
 
 func (cli *CLI) showConfig() {

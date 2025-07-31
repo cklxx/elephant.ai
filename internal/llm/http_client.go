@@ -18,6 +18,11 @@ type HTTPLLMClient struct {
 	kimiCacheManager *KimiCacheManager
 }
 
+// GetKimiCacheManager returns the Kimi cache manager instance
+func (c *HTTPLLMClient) GetKimiCacheManager() *KimiCacheManager {
+	return c.kimiCacheManager
+}
+
 // NewHTTPClient creates a new HTTP-based LLM client
 func NewHTTPClient() (*HTTPLLMClient, error) {
 	timeout := 200 * time.Second
