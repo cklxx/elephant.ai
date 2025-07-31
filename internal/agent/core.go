@@ -165,33 +165,6 @@ func (rc *ReactCore) addMessageToSession(llmMsg *llm.Message, session *agentsess
 	sessionHelper.AddMessageToSession(llmMsg, session, rc.agent.currentSession)
 }
 
-// readCurrentTodos - 读取当前会话的TODO列表
-func (rc *ReactCore) readCurrentTodos(ctx context.Context, session *agentsession.Session) string {
-	sessionHelper := utils.CoreSessionHelper
-	coreLogger := utils.CoreLogger
-	
-	sess := sessionHelper.GetSessionWithFallback(session, rc.agent.currentSession)
-	if !sessionHelper.ValidateSession(sess) {
-		coreLogger.Debug("Cannot read todos: invalid session")
-		return ""
-	}
-
-	// 直接调用todo工具，传递session ID作为参数
-	if todoTool, err := rc.toolHandler.registry.GetTool(ctx, "todo_read"); err == nil {
-		args := map[string]interface{}{
-			"session_id": sess.ID,
-		}
-		result, err := todoTool.Execute(ctx, args)
-		if err != nil {
-			coreLogger.Debug("Failed to read todos: %v", err)
-			return ""
-		}
-		if result != nil && result.Content != "" {
-			return result.Content
-		}
-	}
-	return ""
-}
 
 
 // executeToolDirect - 直接使用registry执行工具

@@ -92,8 +92,6 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 		return CreateTodoReadTool()
 	case "todo_update":
 		return CreateNewTodoUpdateTool()
-	case "TodoWrite":
-		return CreateNewTodoUpdateTool() // Alias for compatibility with docs
 	case "file_read":
 		return CreateFileReadTool()
 	case "file_update":
