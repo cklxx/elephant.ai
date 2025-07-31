@@ -60,10 +60,24 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		streamCallback(StreamChunk{Type: "status", Content: message.GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
 	}
 
-	// 添加用户消息到session
+	// Ultra Think: 预分析用户任务
+	taskAnalysis, err := rc.performTaskPreAnalysis(ctx, task, streamCallback)
+	if err != nil {
+		utils.CoreLogger.Warn("Task pre-analysis failed, continuing with normal flow: %v", err)
+	} else if isStreaming && taskAnalysis != "" {
+		streamCallback(StreamChunk{Type: "analysis", Content: taskAnalysis, Metadata: map[string]any{"phase": "pre-analysis"}})
+	}
+
+	// 将分析结果融入任务输入
+	enhancedTask := task
+	if taskAnalysis != "" {
+		enhancedTask = fmt.Sprintf("Task Analysis: %s\n\nOriginal Task: %s", taskAnalysis, task)
+	}
+
+	// 添加用户消息到session（使用增强后的任务）
 	userMsg := &agentsession.Message{
 		Role:    "user",
-		Content: task,
+		Content: enhancedTask,
 		Metadata: map[string]interface{}{
 			"timestamp": time.Now().Unix(),
 			"streaming": true,
@@ -93,7 +107,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 创建任务执行上下文
 	execCtx := &TaskExecutionContext{
 		TaskID:         taskID,
-		Task:           task,
+		Task:           enhancedTask,
 		Messages:       messages,
 		TaskCtx:        taskCtx,
 		Tools:          rc.toolHandler.buildToolDefinitions(ctx),
@@ -221,4 +235,62 @@ func (rc *ReactCore) executeToolDirect(ctx context.Context, toolName string, arg
 
 	coreLogger.Debug("Tool '%s' executed successfully", toolName)
 	return reactResult, nil
+}
+
+// performTaskPreAnalysis - 执行任务预分析，理解用户需求并分析所需信息
+func (rc *ReactCore) performTaskPreAnalysis(ctx context.Context, task string, streamCallback StreamCallback) (string, error) {
+	coreLogger := utils.CoreLogger
+	coreLogger.Debug("Starting task pre-analysis for: %s", task)
+
+	// 创建优化的英文分析提示
+	analysisPrompt := fmt.Sprintf(`Ultra-brief task analysis in 2 lines:
+1. Goal: What specific outcome does the user want?
+2. Needs: What files/tools/data are likely required?
+
+Task: %s
+
+Reply format: "Goal: [action]. Needs: [specific items]."
+Max: 80 chars. Be precise.`, task)
+
+	// 获取LLM实例
+	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
+	if err != nil {
+		return "", fmt.Errorf("failed to get LLM instance for pre-analysis: %w", err)
+	}
+
+	// 构建分析消息
+	messages := []llm.Message{
+		{
+			Role:    "user",
+			Content: analysisPrompt,
+		},
+	}
+
+	// 设置简单的配置，快速响应
+	config := &llm.Config{
+		Temperature: 0.2, // 降低随机性，更聚焦
+		MaxTokens:   60,  // 严格限制输出长度
+	}
+
+	// 构建ChatRequest
+	chatReq := &llm.ChatRequest{
+		Messages:    messages,
+		Temperature: config.Temperature,
+		MaxTokens:   config.MaxTokens,
+		ModelType:   llm.BasicModel,
+	}
+
+	// 发送LLM请求
+	response, err := llmClient.Chat(ctx, chatReq, "")
+	if err != nil {
+		return "", fmt.Errorf("LLM pre-analysis request failed: %w", err)
+	}
+
+	if response == nil || len(response.Choices) == 0 || response.Choices[0].Message.Content == "" {
+		return "", fmt.Errorf("empty response from LLM pre-analysis")
+	}
+
+	content := response.Choices[0].Message.Content
+	coreLogger.Debug("Task pre-analysis completed: %s", content)
+	return content, nil
 }
