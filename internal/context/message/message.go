@@ -46,8 +46,10 @@ func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Messa
 	llmMessages := make([]llm.Message, len(sessionMessages))
 	for i, msg := range sessionMessages {
 		llmMessages[i] = llm.Message{
-			Role:    msg.Role,
-			Content: msg.Content,
+			Role:       msg.Role,
+			ToolCallId: msg.ToolCallId,
+			Name:       msg.Name,
+			Content:    msg.Content,
 		}
 		// 转换工具调用
 		for _, tc := range msg.ToolCalls {
