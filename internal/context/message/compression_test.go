@@ -1,6 +1,7 @@
 package message
 
 import (
+	"alex/internal/llm"
 	"alex/internal/session"
 	"testing"
 	"time"
@@ -61,7 +62,7 @@ func TestMessageImportanceScoring(t *testing.T) {
 			name: "High importance - code with error",
 			message: &session.Message{
 				Content:   "```go\nfunc main() {\n    err := doSomething()\n    if err != nil {\n        return err\n    }\n}\n```\nThis code has an error in the logic.",
-				ToolCalls: []session.ToolCall{{Name: "file_read", ID: "1"}},
+				ToolCalls: []llm.ToolCall{{Type: "function", Function: llm.Function{Name: "file_read", Arguments: "1"}}},
 			},
 			minScore: 20.0,
 			maxScore: 50.0,
@@ -110,7 +111,7 @@ func createTestMessages(count int) []*session.Message {
 
 	for i := 0; i < count; i++ {
 		var content string
-		var toolCalls []session.ToolCall
+		var toolCalls []llm.ToolCall
 
 		// Create varied message types
 		switch i % 5 {
@@ -120,7 +121,7 @@ func createTestMessages(count int) []*session.Message {
 			content = "Can you help me implement this function?"
 		case 2:
 			content = "```go\nfunc example() {\n    // some code\n}\n```"
-			toolCalls = []session.ToolCall{{Name: "file_read", ID: "1"}}
+			toolCalls = []llm.ToolCall{{Type: "function", Function: llm.Function{Name: "file_read", Arguments: "1"}}}
 		case 3:
 			content = "There's an error in the code: undefined variable"
 		case 4:

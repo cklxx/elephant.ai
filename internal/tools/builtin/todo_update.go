@@ -219,34 +219,27 @@ func (t *NewTodoUpdateTool) convertTodosToMarkdown(todos interface{}) (string, i
 	}
 
 	// Generate markdown content
-	lines = append(lines, "# Todo List")
 	lines = append(lines, "")
 
 	// Add high priority tasks
 	if len(highPriority) > 0 {
-		lines = append(lines, "## High Priority")
 		for _, item := range highPriority {
 			lines = append(lines, t.formatTodoItem(item))
 		}
-		lines = append(lines, "")
 	}
 
 	// Add medium priority tasks
 	if len(mediumPriority) > 0 {
-		lines = append(lines, "## Medium Priority")
 		for _, item := range mediumPriority {
 			lines = append(lines, t.formatTodoItem(item))
 		}
-		lines = append(lines, "")
 	}
 
 	// Add low priority tasks
 	if len(lowPriority) > 0 {
-		lines = append(lines, "## Low Priority")
 		for _, item := range lowPriority {
 			lines = append(lines, t.formatTodoItem(item))
 		}
-		lines = append(lines, "")
 	}
 
 	return strings.Join(lines, "\n"), pendingCount, completedCount, inProgressCount
@@ -259,7 +252,7 @@ func (t *NewTodoUpdateTool) formatTodoItem(item TodoItem) string {
 	case "pending":
 		checkbox = "☐"
 	case "in_progress":
-		checkbox = "▶️" // Play button for in-progress
+		checkbox = "▶" // Play button for in-progress
 	case "completed":
 		checkbox = "☒"
 	default:

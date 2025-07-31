@@ -32,7 +32,7 @@ func (te *TokenEstimator) EstimateSessionMessages(messages []*session.Message) i
 
 		// Add tokens for tool calls
 		for _, tc := range msg.ToolCalls {
-			totalTokens += len(tc.Name)/3 + len(tc.ID)/3 + 15 // Tool call overhead
+			totalTokens += len(tc.Function.Name)/3 + len(tc.ID)/3 + 15 // Tool call overhead
 		}
 	}
 
@@ -48,22 +48,22 @@ func (te *TokenEstimator) estimateContentTokens(content string) int {
 	// Handle code blocks separately
 	codeBlocks := te.codePattern.FindAllString(content, -1)
 	textWithoutCode := te.codePattern.ReplaceAllString(content, "")
-	
+
 	// Count tokens in regular text
 	words := te.wordPattern.FindAllString(textWithoutCode, -1)
 	regularTokens := len(words)
-	
+
 	// Add punctuation and spacing tokens (roughly 1 token per 4 characters)
 	nonWordChars := len(textWithoutCode) - len(strings.Join(words, ""))
 	regularTokens += nonWordChars / 4
-	
+
 	// Count tokens in code blocks (code is more token-dense)
 	codeTokens := 0
 	for _, codeBlock := range codeBlocks {
 		// Code blocks: approximately 2 characters per token
 		codeTokens += len(codeBlock) / 2
 	}
-	
+
 	return regularTokens + codeTokens
 }
 

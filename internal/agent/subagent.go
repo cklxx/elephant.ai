@@ -260,69 +260,14 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 
 			step.Result = toolResult
 			subAgentLogger.Info("🔧 Tool execution completed with %d results", len(toolResult))
+			subAgentLogger.Debug("🔧 Tool execution completed with %+v", toolResult)
 
 			// 构建工具消息
 			if toolResult != nil {
 				isGemini := strings.Contains(request.Config.BaseURL, "googleapis")
 				toolMessages := rc.toolHandler.buildToolMessages(toolResult, isGemini)
 
-				// 处理缺失的工具响应
-				expectedToolCallIDs := make([]string, 0, len(choice.Message.ToolCalls))
-				for _, tc := range choice.Message.ToolCalls {
-					expectedToolCallIDs = append(expectedToolCallIDs, tc.ID)
-				}
-
-				receivedIDs := make(map[string]bool)
-				for _, msg := range toolMessages {
-					if msg.ToolCallId != "" {
-						receivedIDs[msg.ToolCallId] = true
-					}
-				}
-
-				// 生成缺失响应的fallback
-				var missingIDs []string
-				for _, expectedID := range expectedToolCallIDs {
-					if !receivedIDs[expectedID] {
-						missingIDs = append(missingIDs, expectedID)
-					}
-				}
-
-				if len(missingIDs) > 0 {
-					for _, missingID := range missingIDs {
-						var toolName = "unknown"
-						for _, tc := range choice.Message.ToolCalls {
-							if tc.ID == missingID {
-								toolName = tc.Function.Name
-								break
-							}
-						}
-
-						fallbackMsg := llm.Message{
-							Role:       "tool",
-							Content:    fmt.Sprintf("Tool execution failed: no response generated for %s", toolName),
-							ToolCallId: missingID,
-							Name:       toolName,
-						}
-						toolMessages = append(toolMessages, fallbackMsg)
-					}
-
-					if isStreaming {
-						streamCallback(StreamChunk{
-							Type:     "tool_error",
-							Content:  fmt.Sprintf("Warning: %d tool call(s) failed", len(missingIDs)),
-							Metadata: map[string]any{"missing_tool_calls": missingIDs},
-						})
-					}
-				}
-
 				result.Messages = append(result.Messages, toolMessages...)
-
-				// 读取并注入当前TODO作为用户消息（在工具执行完成后）
-				// 如果没有进行压缩，才需要添加当前用户消息
-				if iteration <= 1 || rc.messageProcessor == nil {
-					result.Messages = append(result.Messages, execCtx.Messages...)
-					subAgentLogger.Debug("Injected TODO message after tool execution")
-				}
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}

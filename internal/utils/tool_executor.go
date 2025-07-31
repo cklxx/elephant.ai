@@ -78,7 +78,7 @@ func (te *ToolExecutor) ExecuteToolWithRecovery(
 
 		// Execute the tool
 		result, err := toolExecutor(ctx, toolCall.Name, toolCall.Arguments, toolCall.CallID)
-
+		te.logger.Debug("Tool call result: %+v, %s, %v, %s", result, toolCall.Name, toolCall.Arguments, toolCall.CallID)
 		if err != nil {
 			te.logger.Debug("Tool call failed with error: %v", err)
 			if callback != nil {

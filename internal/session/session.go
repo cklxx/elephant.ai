@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"alex/internal/llm"
 )
 
 // Session represents a conversation session
@@ -29,19 +31,13 @@ type Session struct {
 
 // Message represents a message in the session
 type Message struct {
-	Role      string                 `json:"role"`
-	Content   string                 `json:"content"`
-	ToolCalls []ToolCall             `json:"tool_calls,omitempty"`
-	ToolID    string                 `json:"tool_id,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
-}
-
-// ToolCall represents a tool execution request
-type ToolCall struct {
-	ID   string                 `json:"id"`
-	Name string                 `json:"name"`
-	Args map[string]interface{} `json:"args"`
+	Role       string                 `json:"role"`
+	Content    string                 `json:"content"`
+	Name       string                 `json:"name,omitempty"`
+	ToolCalls  []llm.ToolCall         `json:"tool_calls,omitempty"`
+	ToolCallId string                 `json:"tool_call_id,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
 }
 
 // Manager handles session persistence and restoration

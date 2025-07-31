@@ -53,8 +53,8 @@ func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Messa
 		for _, tc := range msg.ToolCalls {
 			// Convert map arguments to JSON string
 			var argsStr string
-			if tc.Args != nil {
-				if argsBytes, err := json.Marshal(tc.Args); err == nil {
+			if tc.Function.Arguments != "" {
+				if argsBytes, err := json.Marshal(tc.Function.Arguments); err == nil {
 					argsStr = string(argsBytes)
 				}
 			}
@@ -62,7 +62,7 @@ func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Messa
 				ID:   tc.ID,
 				Type: "function",
 				Function: llm.Function{
-					Name:      tc.Name,
+					Name:      tc.Function.Name,
 					Arguments: argsStr,
 				},
 			})

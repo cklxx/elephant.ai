@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"alex/internal/llm"
 )
 
 // TestSession_Creation 测试会话创建
@@ -412,19 +414,24 @@ func TestMessage_ToolCalls(t *testing.T) {
 	}
 
 	// 创建带工具调用的消息
-	toolCall := ToolCall{
+	toolCall := llm.ToolCall{
 		ID:   "call_123",
-		Name: "test_tool",
-		Args: map[string]interface{}{
-			"param1": "value1",
-			"param2": 42,
+		Type: "function",
+		Function: llm.Function{
+			Name:        "test_tool",
+			Arguments:   `{"param1": "value1", "param2": 42}`,
+			Description: "Test tool description",
+			Parameters: map[string]interface{}{
+				"param1": "string",
+				"param2": "number",
+			},
 		},
 	}
 
 	message := &Message{
 		Role:      "assistant",
 		Content:   "I need to use a tool",
-		ToolCalls: []ToolCall{toolCall},
+		ToolCalls: []llm.ToolCall{toolCall},
 		Timestamp: time.Now(),
 	}
 
@@ -441,12 +448,12 @@ func TestMessage_ToolCalls(t *testing.T) {
 		t.Errorf("Expected tool call ID call_123, got %s", savedToolCall.ID)
 	}
 
-	if savedToolCall.Name != "test_tool" {
-		t.Errorf("Expected tool name test_tool, got %s", savedToolCall.Name)
+	if savedToolCall.Function.Name != "test_tool" {
+		t.Errorf("Expected tool name test_tool, got %s", savedToolCall.Function.Name)
 	}
 
-	if savedToolCall.Args["param1"] != "value1" {
-		t.Errorf("Expected param1 = value1, got %v", savedToolCall.Args["param1"])
+	if savedToolCall.Function.Arguments != `{"param1": "value1", "param2": 42}` {
+		t.Errorf("Expected param1 = value1, got %v", savedToolCall.Function.Arguments)
 	}
 }
 

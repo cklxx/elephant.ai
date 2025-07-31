@@ -231,7 +231,7 @@ type ReactTaskResult struct {
 type ReactToolCall struct {
 	Name      string                 `json:"name"`      // 工具名称
 	Arguments map[string]interface{} `json:"arguments"` // 调用参数
-	CallID    string                 `json:"call_id"`   // 调用ID
+	CallID    string                 `json:"id"`        // 调用ID
 }
 
 // ReactToolResult - ReAct工具执行结果

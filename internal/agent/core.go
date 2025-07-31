@@ -25,7 +25,7 @@ type ReactCore struct {
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
 	coreLogger := utils.CoreLogger
-	
+
 	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
 	if err != nil {
 		coreLogger.Error("Failed to get LLM instance: %v", err)
@@ -123,9 +123,11 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		case "tool":
 			// 工具消息需要特殊处理
 			sessionMsg := &agentsession.Message{
-				Role:      msg.Role,
-				Content:   msg.Content,
-				Timestamp: time.Now(),
+				Role:       msg.Role,
+				Content:    msg.Content,
+				ToolCallId: msg.ToolCallId,
+				Name:       msg.Name,
+				Timestamp:  time.Now(),
 				Metadata: map[string]interface{}{
 					"source":    "tool_result",
 					"timestamp": time.Now().Unix(),
@@ -163,8 +165,6 @@ func (rc *ReactCore) addMessageToSession(llmMsg *llm.Message, session *agentsess
 	sessionHelper := utils.CoreSessionHelper
 	sessionHelper.AddMessageToSession(llmMsg, session, rc.agent.currentSession)
 }
-
-
 
 // executeToolDirect - 直接使用registry执行工具
 func (rc *ReactCore) executeToolDirect(ctx context.Context, toolName string, args map[string]interface{}, callId string) (*types.ReactToolResult, error) {
@@ -222,4 +222,3 @@ func (rc *ReactCore) executeToolDirect(ctx context.Context, toolName string, arg
 	coreLogger.Debug("Tool '%s' executed successfully", toolName)
 	return reactResult, nil
 }
-

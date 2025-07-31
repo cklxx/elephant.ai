@@ -145,8 +145,8 @@ func TestSessionHelper_AddMessageToSession_WithToolCalls(t *testing.T) {
 	if toolCall.ID != "call_123" {
 		t.Errorf("Expected tool call ID 'call_123', got: %s", toolCall.ID)
 	}
-	if toolCall.Name != "test_tool" {
-		t.Errorf("Expected tool call name 'test_tool', got: %s", toolCall.Name)
+	if toolCall.Function.Name != "test_tool" {
+		t.Errorf("Expected tool call name 'test_tool', got: %s", toolCall.Function.Name)
 	}
 
 	// 检查工具调用元数据
@@ -244,10 +244,10 @@ func TestSessionHelper_GetTodoFromSession(t *testing.T) {
 
 	// 创建有效会话
 	session := &agentsession.Session{ID: "test_session"}
-	
+
 	// 调用方法 - 当前实现返回空字符串（占位符）
 	result := helper.GetTodoFromSession(context.Background(), session, nil, nil)
-	
+
 	// 验证返回空字符串（符合当前实现）
 	if result != "" {
 		t.Errorf("Expected empty string for placeholder implementation, got: %s", result)
@@ -323,11 +323,11 @@ func TestGlobalSessionHelpers(t *testing.T) {
 func TestNewSessionHelper(t *testing.T) {
 	defer setupTestLogger()()
 	helper := NewSessionHelper("CUSTOM")
-	
+
 	if helper == nil {
 		t.Fatal("Expected non-nil session helper")
 	}
-	
+
 	// 验证日志器已设置
 	if helper.logger == nil {
 		t.Error("Expected logger to be set")
@@ -337,16 +337,15 @@ func TestNewSessionHelper(t *testing.T) {
 func TestNewSessionManager(t *testing.T) {
 	defer setupTestLogger()()
 	manager := NewSessionManager("CUSTOM")
-	
+
 	if manager == nil {
 		t.Fatal("Expected non-nil session manager")
 	}
-	
+
 	if manager.helper == nil {
 		t.Error("Expected helper to be set")
 	}
 }
-
 
 func BenchmarkSessionHelper_GetSessionWithFallback(b *testing.B) {
 	helper := NewSessionHelper("BENCH")

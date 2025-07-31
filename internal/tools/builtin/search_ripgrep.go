@@ -19,7 +19,7 @@ func (t *RipgrepTool) Name() string {
 }
 
 func (t *RipgrepTool) Description() string {
-	return "Search for patterns in files using ripgrep (rg). Faster than grep."
+	return "Search for patterns in files using ripgrep (rg). Faster than grep. Limits results to maximum 100 matches."
 }
 
 func (t *RipgrepTool) Parameters() map[string]interface{} {
@@ -117,6 +117,11 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 	// Process output
 	lines := strings.Split(string(output), "\n")
 	lines = lines[:len(lines)-1] // Remove last empty line
+
+	// Limit results to 100 matches
+	if len(lines) > 100 {
+		lines = lines[:100]
+	}
 
 	return &ToolResult{
 		Content: fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),

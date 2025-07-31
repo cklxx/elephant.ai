@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/llm"
 	"alex/internal/session"
 )
 
@@ -18,9 +19,9 @@ func TestKeepRecentMessagesWithToolPairing(t *testing.T) {
 		{
 			Role:    "assistant",
 			Content: "我来帮您分析项目结构",
-			ToolCalls: []session.ToolCall{
-				{ID: "call_1", Name: "file_list"},
-				{ID: "call_2", Name: "file_read"},
+			ToolCalls: []llm.ToolCall{
+				{ID: "call_1", Type: "function", Function: llm.Function{Name: "file_list"}},
+				{ID: "call_2", Type: "function", Function: llm.Function{Name: "file_read"}},
 			},
 			Timestamp: time.Now().Add(-9 * time.Minute),
 		},
@@ -53,7 +54,7 @@ func TestKeepRecentMessagesWithToolPairing(t *testing.T) {
 	if originalCount != 6 {
 		t.Errorf("Expected 6 original messages, got %d", originalCount)
 	}
-	
+
 	// 简化：直接保留最近3条消息
 	recentKeep := 3
 	var result []*session.Message
@@ -62,17 +63,16 @@ func TestKeepRecentMessagesWithToolPairing(t *testing.T) {
 	} else {
 		result = messages
 	}
-	
+
 	if len(result) < 3 {
 		t.Errorf("Expected at least 3 messages after processing, got %d", len(result))
 	}
-	
+
 	// 简化验证：只检查是否有消息
 	if len(result) == 0 {
 		t.Error("No messages found after processing")
 	}
-	
+
 	// 简单检查最后几条消息是否合理
 	t.Logf("Processing completed successfully with %d messages", len(result))
 }
-

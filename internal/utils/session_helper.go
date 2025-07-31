@@ -25,12 +25,12 @@ func (sh *SessionHelper) GetSessionWithFallback(session *agentsession.Session, c
 	if session != nil {
 		return session
 	}
-	
+
 	if currentSession != nil {
 		sh.logger.Debug("Using fallback current session")
 		return currentSession
 	}
-	
+
 	sh.logger.Debug("No session available")
 	return nil
 }
@@ -41,12 +41,12 @@ func (sh *SessionHelper) ValidateSession(session *agentsession.Session) bool {
 		sh.logger.Debug("Session is nil")
 		return false
 	}
-	
+
 	if session.ID == "" {
 		sh.logger.Debug("Session has empty ID")
 		return false
 	}
-	
+
 	return true
 }
 
@@ -60,9 +60,12 @@ func (sh *SessionHelper) AddMessageToSession(llmMsg *llm.Message, session *agent
 
 	// Convert LLM message to session message format
 	sessionMsg := &agentsession.Message{
-		Role:      llmMsg.Role,
-		Content:   llmMsg.Content,
-		Timestamp: time.Now(),
+		Role:       llmMsg.Role,
+		Content:    llmMsg.Content,
+		ToolCallId: llmMsg.ToolCallId,
+		Name:       llmMsg.Name,
+		ToolCalls:  llmMsg.ToolCalls,
+		Timestamp:  time.Now(),
 		Metadata: map[string]interface{}{
 			"source":    "llm_response",
 			"timestamp": time.Now().Unix(),
@@ -72,16 +75,15 @@ func (sh *SessionHelper) AddMessageToSession(llmMsg *llm.Message, session *agent
 	// Convert tool calls if present
 	if len(llmMsg.ToolCalls) > 0 {
 		for _, tc := range llmMsg.ToolCalls {
-			// Simple handling: store Arguments as raw if it's a string
-			var args map[string]interface{}
-			if tc.Function.Arguments != "" {
-				args = map[string]interface{}{"raw": tc.Function.Arguments}
-			}
-
-			sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, agentsession.ToolCall{
+			sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, llm.ToolCall{
 				ID:   tc.ID,
-				Name: tc.Function.Name,
-				Args: args,
+				Type: "function",
+				Function: llm.Function{
+					Name:        tc.Function.Name,
+					Description: tc.Function.Description,
+					Parameters:  tc.Function.Parameters,
+					Arguments:   tc.Function.Arguments,
+				},
 			})
 		}
 		sessionMsg.Metadata["has_tool_calls"] = true
@@ -102,9 +104,11 @@ func (sh *SessionHelper) AddToolResultToSession(toolResult string, toolName stri
 	}
 
 	sessionMsg := &agentsession.Message{
-		Role:      "tool",
-		Content:   toolResult,
-		Timestamp: time.Now(),
+		Role:       "tool",
+		Content:    toolResult,
+		ToolCallId: toolCallId,
+		Name:       toolName,
+		Timestamp:  time.Now(),
 		Metadata: map[string]interface{}{
 			"source":    "tool_result",
 			"timestamp": time.Now().Unix(),
@@ -131,11 +135,11 @@ func (sh *SessionHelper) GetTodoFromSession(ctx context.Context, session *agents
 	}
 
 	sessionID := targetSession.ID
-	
+
 	// This is a simplified interface - in actual implementation, you'd need to call the tool
 	// Here we provide the structure for how it should work
 	sh.logger.Debug("Reading todos for session %s", sessionID)
-	
+
 	// The actual tool call would happen here
 	// For now, return empty string as placeholder
 	return ""
@@ -179,6 +183,6 @@ var (
 
 func init() {
 	CoreSessionHelper = NewSessionHelper("REACT-CORE")
-	ReactSessionHelper = NewSessionHelper("REACT-AGENT")  
+	ReactSessionHelper = NewSessionHelper("REACT-AGENT")
 	SubAgentSessionHelper = NewSessionHelper("SUB-AGENT")
 }

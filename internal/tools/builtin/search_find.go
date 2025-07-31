@@ -20,7 +20,7 @@ func (t *FindTool) Name() string {
 }
 
 func (t *FindTool) Description() string {
-	return "Find files and directories by name or pattern using the find command."
+	return "Find files and directories by name or pattern using the find command. Limits results to maximum 100 matches."
 }
 
 func (t *FindTool) Parameters() map[string]interface{} {
@@ -124,6 +124,11 @@ func (t *FindTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 				results = append(results, line)
 			}
 		}
+	}
+
+	// Limit results to 100 matches
+	if len(results) > 100 {
+		results = results[:100]
 	}
 
 	return &ToolResult{

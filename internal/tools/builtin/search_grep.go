@@ -27,6 +27,7 @@ Usage:
 - Supports recursive directory search
 - Case-sensitive by default, can be made case-insensitive
 - Limits output lines to 200 characters for readability
+- Limits results to maximum 100 matches
 
 Parameters:
 - pattern: Regular expression pattern to search for (required)
@@ -162,6 +163,11 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	// Process output
 	lines := strings.Split(string(output), "\n")
 	lines = lines[:len(lines)-1] // Remove last empty line
+
+	// Limit results to 100 matches
+	if len(lines) > 100 {
+		lines = lines[:100]
+	}
 
 	// Limit each line to 200 characters
 	for i, line := range lines {
