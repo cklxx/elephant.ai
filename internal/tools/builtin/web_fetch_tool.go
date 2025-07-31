@@ -99,12 +99,12 @@ func (t *WebFetchTool) Validate(args map[string]any) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL format: %w", err)
 	}
-	
+
 	// Check for valid scheme
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fmt.Errorf("URL must use http or https scheme")
 	}
-	
+
 	// Check for valid host
 	if parsedURL.Host == "" {
 		return fmt.Errorf("URL must have a valid host")
@@ -126,13 +126,13 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*ToolR
 	cacheKey := t.getCacheKey(urlStr)
 	if cached := t.getFromCache(cacheKey); cached != nil {
 		// Return cached raw content (skip AI processing for now)
-		formattedContent := fmt.Sprintf("**Fetched from:** %s (cached)\n\n**User Query:** %s\n\n**Page Content:**\n\n%s\n\n---\n*Note: Content served from cache. AI analysis temporarily disabled due to configuration issues.*", 
+		formattedContent := fmt.Sprintf("**Fetched from:** %s (cached)\n\n**User Query:** %s\n\n**Page Content:**\n\n%s\n\n---\n*Note: Content served from cache. AI analysis temporarily disabled due to configuration issues.*",
 			urlStr, prompt, cached.Content)
 
 		return &ToolResult{
 			Content: formattedContent,
 			Data: map[string]any{
-				"url":             urlStr,  
+				"url":             urlStr,
 				"content_size":    len(cached.Content),
 				"prompt":          prompt,
 				"cached":          true,
@@ -140,6 +140,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*ToolR
 				"ai_processed":    false,
 				"ai_available":    false,
 				"status":          "cached_raw_content_only",
+				"content":         formattedContent,
 			},
 		}, nil
 	}
@@ -163,6 +164,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*ToolR
 					"redirect_url":  finalURL,
 					"original_host": originalHost,
 					"final_host":    finalHost,
+					"content":       content,
 				},
 			}, nil
 		}
@@ -177,19 +179,20 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*ToolR
 
 	// For now, skip AI processing entirely and return formatted raw content
 	// TODO: Re-enable AI processing once LLM configuration is fixed
-	formattedContent := fmt.Sprintf("**Fetched from:** %s\n\n**User Query:** %s\n\n**Page Content:**\n\n%s\n\n---\n*Note: Showing raw extracted content. AI analysis temporarily disabled due to configuration issues.*", 
+	formattedContent := fmt.Sprintf("**Fetched from:** %s\n\n**User Query:** %s\n\n**Page Content:**\n\n%s\n\n---\n*Note: Showing raw extracted content. AI analysis temporarily disabled due to configuration issues.*",
 		finalURL, prompt, content)
 
 	return &ToolResult{
 		Content: formattedContent,
 		Data: map[string]any{
-			"url":           finalURL,
-			"content_size":  len(content),
-			"prompt":        prompt,
-			"cached":        false,
-			"ai_processed":  false,
-			"ai_available":  false,
-			"status":        "raw_content_only",
+			"url":          finalURL,
+			"content_size": len(content),
+			"prompt":       prompt,
+			"cached":       false,
+			"ai_processed": false,
+			"ai_available": false,
+			"status":       "raw_content_only",
+			"content":      formattedContent,
 		},
 	}, nil
 }
@@ -275,7 +278,7 @@ func (t *WebFetchTool) htmlToText(html string) (string, error) {
 	})
 
 	result := content.String()
-	
+
 	// Limit content size
 	if len(result) > 15000 {
 		result = result[:15000] + "\n\n[Content truncated due to length...]"
@@ -283,7 +286,6 @@ func (t *WebFetchTool) htmlToText(html string) (string, error) {
 
 	return result, nil
 }
-
 
 func (t *WebFetchTool) getCacheKey(url string) string {
 	hash := md5.Sum([]byte(url))

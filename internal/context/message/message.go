@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"encoding/json"
 	"math/rand"
 	"time"
 
@@ -25,128 +26,49 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) 
 		sessionManager: sessionManager,
 		tokenEstimator: NewTokenEstimator(),
 		adapter:        message.NewAdapter(),                            // 统一消息适配器
-		compressor:     NewMessageCompressor(sessionManager, llmClient), // AI压缩器
+		compressor:     NewMessageCompressor(sessionManager, llmClient), // 简化的压缩器
 	}
 }
 
 // ========== 消息压缩 ==========
 
-// CompressMessages 使用AI压缩器压缩session消息
+// CompressMessages 使用AI压缩器压缩LLM消息
 // consumedTokens: 累积消耗的token数
 // currentTokens: 当前消息的token数（压缩后会重置为0）
-func (mp *MessageProcessor) CompressMessages(ctx context.Context, messages []*session.Message, consumedTokens int, currentTokens int) ([]*session.Message, int, int) {
+func (mp *MessageProcessor) CompressMessages(ctx context.Context, messages []llm.Message, consumedTokens int, currentTokens int) ([]llm.Message, int, int) {
 	return mp.compressor.CompressMessages(ctx, messages, consumedTokens, currentTokens)
 }
 
-
 // ========== 消息转换 ==========
 
-// ConvertUnifiedToLLM 使用统一消息适配器将消息转换为LLM格式
-func (mp *MessageProcessor) ConvertUnifiedToLLM(unifiedMessages []*message.Message) []llm.Message {
-	unifiedLLMMessages := mp.adapter.ConvertToLLMMessages(unifiedMessages)
-	llmMessages := make([]llm.Message, len(unifiedLLMMessages))
-	for i, msg := range unifiedLLMMessages {
+// ConvertSessionToLLM 将Session消息转换为LLM格式（仅用于session历史加载）
+func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Message) []llm.Message {
+	llmMessages := make([]llm.Message, len(sessionMessages))
+	for i, msg := range sessionMessages {
 		llmMessages[i] = llm.Message{
-			Role:             msg.Role,
-			Content:          msg.Content,
-			ToolCallId:       msg.ToolCallID,
-			Name:             msg.Name,
-			Reasoning:        msg.Reasoning,
-			ReasoningSummary: msg.ReasoningSummary,
-			Think:            msg.Think,
+			Role:    msg.Role,
+			Content: msg.Content,
 		}
 		// 转换工具调用
 		for _, tc := range msg.ToolCalls {
+			// Convert map arguments to JSON string
+			var argsStr string
+			if tc.Args != nil {
+				if argsBytes, err := json.Marshal(tc.Args); err == nil {
+					argsStr = string(argsBytes)
+				}
+			}
 			llmMessages[i].ToolCalls = append(llmMessages[i].ToolCalls, llm.ToolCall{
 				ID:   tc.ID,
-				Type: tc.Type,
+				Type: "function",
 				Function: llm.Function{
-					Name:        tc.Function.Name,
-					Description: tc.Function.Description,
-					Parameters:  tc.Function.Parameters,
-					Arguments:   tc.Function.Arguments,
+					Name:      tc.Name,
+					Arguments: argsStr,
 				},
 			})
 		}
 	}
 	return llmMessages
-}
-
-// ConvertLLMToUnified 使用统一消息适配器将LLM消息转换为统一格式
-func (mp *MessageProcessor) ConvertLLMToUnified(llmMessages []llm.Message) []*message.Message {
-	unifiedLLMMessages := make([]message.LLMMessage, len(llmMessages))
-	for i, msg := range llmMessages {
-		unifiedLLMMessages[i] = message.LLMMessage{
-			Role:             msg.Role,
-			Content:          msg.Content,
-			ToolCallID:       msg.ToolCallId,
-			Name:             msg.Name,
-			Reasoning:        msg.Reasoning,
-			ReasoningSummary: msg.ReasoningSummary,
-			Think:            msg.Think,
-		}
-		// 转换工具调用
-		for _, tc := range msg.ToolCalls {
-			unifiedLLMMessages[i].ToolCalls = append(unifiedLLMMessages[i].ToolCalls, message.LLMToolCall{
-				ID:   tc.ID,
-				Type: tc.Type,
-				Function: message.LLMFunction{
-					Name:        tc.Function.Name,
-					Description: tc.Function.Description,
-					Parameters:  tc.Function.Parameters,
-					Arguments:   tc.Function.Arguments,
-				},
-			})
-		}
-	}
-	return mp.adapter.ConvertLLMMessages(unifiedLLMMessages)
-}
-
-// ConvertSessionToUnified 将session消息转换为统一消息格式
-func (mp *MessageProcessor) ConvertSessionToUnified(sessionMessages []*session.Message) []*message.Message {
-	sessionMsgs := make([]message.SessionMessage, len(sessionMessages))
-	for i, msg := range sessionMessages {
-		sessionMsgs[i] = message.SessionMessage{
-			Role:      msg.Role,
-			Content:   msg.Content,
-			ToolID:    msg.ToolID,
-			Metadata:  msg.Metadata,
-			Timestamp: msg.Timestamp,
-		}
-		// 转换工具调用
-		for _, tc := range msg.ToolCalls {
-			sessionMsgs[i].ToolCalls = append(sessionMsgs[i].ToolCalls, message.SessionToolCall{
-				ID:   tc.ID,
-				Name: tc.Name,
-				Args: tc.Args,
-			})
-		}
-	}
-	return mp.adapter.ConvertSessionMessages(sessionMsgs)
-}
-
-// ConvertUnifiedToSession 将统一消息转换为session格式
-func (mp *MessageProcessor) ConvertUnifiedToSession(unifiedMessages []*message.Message) []*session.Message {
-	sessionMsgs := mp.adapter.ConvertToSessionMessages(unifiedMessages)
-	messages := make([]*session.Message, len(sessionMsgs))
-	for i, msg := range sessionMsgs {
-		messages[i] = &session.Message{
-			Role:      msg.Role,
-			Content:   msg.Content,
-			ToolID:    msg.ToolID,
-			Metadata:  msg.Metadata,
-			Timestamp: msg.Timestamp,
-		}
-		// 转换工具调用
-		for _, tc := range msg.ToolCalls {
-			messages[i].ToolCalls = append(messages[i].ToolCalls, session.ToolCall{
-				ID:   tc.ID,
-				Name: tc.Name,
-				Args: tc.Args,
-			})
-		}
-	}
-	return messages
 }
 
 // ========== 随机消息生成 ==========

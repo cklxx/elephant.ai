@@ -99,7 +99,18 @@ func (te *ToolExecutor) ExecuteToolWithRecovery(
 			finalResult = result
 			// Send tool result signal with smart content formatting
 			if callback != nil {
-				formattedContent := te.formatToolResultContent(toolCall.Name, result.Content)
+				var content string
+				if result.Data != nil {
+					if contentVal, ok := result.Data["content"]; ok {
+						if contentStr, ok := contentVal.(string); ok {
+							content = contentStr
+						}
+					}
+				}
+				if content == "" {
+					content = result.Content
+				}
+				formattedContent := te.formatToolResultContent(toolCall.Name, content)
 				callback(StreamChunk{Type: "tool_result", Content: formattedContent})
 			}
 			if !result.Success && callback != nil {

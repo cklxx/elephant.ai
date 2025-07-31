@@ -64,39 +64,39 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 	if !t.hasRipgrep() {
 		return nil, fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation")
 	}
-	
+
 	// 参数已通过Validate验证，可以安全访问
 	pattern := args["pattern"].(string)
-	
+
 	path := "."
 	if p, ok := args["path"]; ok {
 		path = p.(string)
 	}
-	
+
 	ignoreCase := false
 	if ic, ok := args["ignore_case"].(bool); ok {
 		ignoreCase = ic
 	}
-	
+
 	// Build ripgrep command
 	cmdArgs := []string{}
-	
+
 	if ignoreCase {
 		cmdArgs = append(cmdArgs, "-i")
 	}
-	
+
 	cmdArgs = append(cmdArgs, "-n") // Always show line numbers
-	
+
 	if fileType, ok := args["file_type"].(string); ok && fileType != "" {
 		cmdArgs = append(cmdArgs, "-t", fileType)
 	}
-	
+
 	cmdArgs = append(cmdArgs, pattern, path)
-	
+
 	// Execute ripgrep command
 	cmd := exec.CommandContext(ctx, "rg", cmdArgs...)
 	output, err := cmd.Output()
-	
+
 	if err != nil {
 		// ripgrep returns exit code 1 when no matches found
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
@@ -113,11 +113,11 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 		}
 		return nil, fmt.Errorf("ripgrep command failed: %w", err)
 	}
-	
+
 	// Process output
 	lines := strings.Split(string(output), "\n")
 	lines = lines[:len(lines)-1] // Remove last empty line
-	
+
 	return &ToolResult{
 		Content: fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
 		Data: map[string]interface{}{
@@ -127,6 +127,7 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 			"ignore_case": ignoreCase,
 			"file_type":   args["file_type"],
 			"results":     lines,
+			"content":     fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
 		},
 	}, nil
 }

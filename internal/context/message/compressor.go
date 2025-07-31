@@ -11,7 +11,6 @@ import (
 	"alex/internal/session"
 )
 
-
 // MessageCompressor handles message compression operations
 type MessageCompressor struct {
 	sessionManager *session.Manager
@@ -30,9 +29,9 @@ func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client)
 // Keeps stable prefix for context caching, compresses middle, preserves recent active
 // consumedTokens: total tokens consumed in session (accumulative)
 // currentTokens: current message tokens from result.PromptTokens (reset to zero after compression)
-func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*session.Message, consumedTokens int, currentTokens int) ([]*session.Message, int, int) {
+func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []llm.Message, consumedTokens int, currentTokens int) ([]llm.Message, int, int) {
 	messageCount := len(messages)
-	
+
 	log.Printf("[DEBUG] Using real token count: %d messages, %d current tokens", messageCount, currentTokens)
 	log.Printf("[DEBUG] Token tracking: consumed=%d, current=%d, total=%d", consumedTokens, currentTokens, consumedTokens+currentTokens)
 
@@ -41,19 +40,19 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*s
 		TokenThreshold   = 100000 // 100K token limit
 		MessageThreshold = 15     // Message count threshold
 	)
-	
+
 	// Only compress if we exceed thresholds significantly
 	if messageCount > MessageThreshold && currentTokens > TokenThreshold {
 		log.Printf("[INFO] AI compression triggered: %d messages, %d current tokens", messageCount, currentTokens)
 		compressedMessages := mc.compressWithAI(ctx, messages)
-		
+
 		// Update token counters after compression
 		newConsumedTokens := consumedTokens + currentTokens // Add current to consumed
-		newCurrentTokens := 0 // Reset current tokens to zero after compression
-		
-		log.Printf("[INFO] Token tracking after compression: consumed=%d->%d, current=%d->%d", 
+		newCurrentTokens := 0                               // Reset current tokens to zero after compression
+
+		log.Printf("[INFO] Token tracking after compression: consumed=%d->%d, current=%d->%d",
 			consumedTokens, newConsumedTokens, currentTokens, newCurrentTokens)
-		
+
 		return compressedMessages, newConsumedTokens, newCurrentTokens
 	}
 
@@ -65,22 +64,17 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*s
 
 // compressWithAI implements AI-based compression strategy
 // Keeps only system messages, compresses all others using AI
-func (mc *MessageCompressor) compressWithAI(ctx context.Context, messages []*session.Message) []*session.Message {
+func (mc *MessageCompressor) compressWithAI(ctx context.Context, messages []llm.Message) []llm.Message {
 	// Step 1: 分离系统消息和非系统消息
-	var systemMessages []*session.Message
-	var nonSystemMessages []*session.Message
+	var systemMessages []llm.Message
+	var nonSystemMessages []llm.Message
 
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemMessages = append(systemMessages, msg)
-		} else {
-			nonSystemMessages = append(nonSystemMessages, msg)
-		}
+	if len(messages) <= 2 {
+		return messages
 	}
 
-	if len(nonSystemMessages) == 0 {
-		return messages // 只有系统消息，不需要压缩
-	}
+	systemMessages = messages[:2]
+	nonSystemMessages = messages[2:]
 
 	log.Printf("[DEBUG] AI compression: system=%d, non-system=%d",
 		len(systemMessages), len(nonSystemMessages))
@@ -89,22 +83,21 @@ func (mc *MessageCompressor) compressWithAI(ctx context.Context, messages []*ses
 	compressedMessage := mc.createComprehensiveAISummary(ctx, nonSystemMessages)
 
 	// Step 3: 重新组合消息
-	result := make([]*session.Message, 0, len(systemMessages)+1)
+	result := make([]llm.Message, 0, len(systemMessages)+1)
 
 	// 添加系统消息
 	result = append(result, systemMessages...)
 	// 添加压缩的非系统消息
 	if compressedMessage != nil {
-		result = append(result, compressedMessage)
+		result = append(result, *compressedMessage)
 	}
 
 	log.Printf("[INFO] AI compression completed: %d -> %d messages", len(messages), len(result))
 	return result
 }
 
-
 // createComprehensiveAISummary creates a comprehensive AI summary preserving important context
-func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, messages []*session.Message) *session.Message {
+func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, messages []llm.Message) *llm.Message {
 	if mc.llmClient == nil {
 		return nil
 	}
@@ -148,16 +141,9 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 		return nil
 	}
 	log.Printf("[DEBUG] MessageCompressor: AI summary response: %s", response.Choices[0].Message.Content)
-	return &session.Message{
+	return &llm.Message{
 		Role:    "user",
 		Content: fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),
-		Metadata: map[string]any{
-			"type":           "comprehensive_ai_summary",
-			"original_count": len(messages),
-			"created_at":     time.Now().Unix(),
-			"summary_method": "ai_comprehensive",
-		},
-		Timestamp: time.Now(),
 	}
 }
 
@@ -258,7 +244,7 @@ Ensure precision and thoroughness in your response, focusing on technical accura
 }
 
 // buildComprehensiveSummaryInput builds comprehensive input text for AI summarization
-func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.Message) string {
+func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []llm.Message) string {
 	var parts []string
 
 	for i, msg := range messages {
@@ -270,16 +256,15 @@ func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.
 			if len(msg.ToolCalls) > 0 {
 				var toolInfo []string
 				for _, tc := range msg.ToolCalls {
-					toolInfo = append(toolInfo, fmt.Sprintf("Tool: %s", tc.Name))
+					toolInfo = append(toolInfo, fmt.Sprintf("Tool: %s", tc.Function.Name))
+					toolInfo = append(toolInfo, fmt.Sprintf("Arguments: %s", tc.Function.Arguments))
 				}
 				content += fmt.Sprintf(" [Tool calls: %s]", strings.Join(toolInfo, ", "))
 			}
 
 			// Include tool response metadata if present
 			if msg.Role == "tool" {
-				if toolName, ok := msg.Metadata["tool_name"].(string); ok {
-					content = fmt.Sprintf("[%s result]: %s", toolName, content)
-				}
+				content = fmt.Sprintf("[%s result]: %s", msg.ToolCallId, content)
 			}
 
 			parts = append(parts, fmt.Sprintf("[Message %d - %s]: %s", i+1, msg.Role, content))
@@ -290,6 +275,3 @@ func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.
 
 	return text
 }
-
-
-

@@ -194,13 +194,13 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 	var contentBuilder strings.Builder
 	contentBuilder.WriteString(fmt.Sprintf("Directory listing for: %s\n", path))
 	contentBuilder.WriteString(fmt.Sprintf("Total: %d files, %d directories\n", fileCount, dirCount))
-	
+
 	if totalSize > 0 {
 		contentBuilder.WriteString(fmt.Sprintf("Total size: %d bytes\n", totalSize))
 	}
-	
+
 	contentBuilder.WriteString("\nFiles and directories:\n")
-	
+
 	for _, file := range files {
 		indent := strings.Repeat("  ", file["depth"].(int)-1)
 		if file["is_dir"].(bool) {
@@ -221,6 +221,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 			"total_size":    totalSize,
 			"recursive":     recursive,
 			"show_hidden":   showHidden,
+			"content":       contentBuilder.String(),
 		},
 	}, nil
 }

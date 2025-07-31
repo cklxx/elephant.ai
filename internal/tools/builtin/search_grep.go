@@ -152,6 +152,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 					"matches":     0,
 					"recursive":   recursive,
 					"ignore_case": ignoreCase,
+					"content":     "No matches found",
 				},
 			}, nil
 		}
@@ -178,6 +179,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 			"recursive":   recursive,
 			"ignore_case": ignoreCase,
 			"results":     lines,
+			"content":     fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
 		},
 	}, nil
 }

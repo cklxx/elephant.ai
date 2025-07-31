@@ -122,17 +122,17 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	if args == nil {
 		return nil, fmt.Errorf("arguments cannot be nil")
 	}
-	
+
 	commandValue, exists := args["command"]
 	if !exists {
 		return nil, fmt.Errorf("command parameter is required")
 	}
-	
+
 	command, ok := commandValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("command must be a string")
 	}
-	
+
 	if command == "" {
 		return nil, fmt.Errorf("command cannot be empty")
 	}
@@ -255,6 +255,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 			"working_dir": workingDir,
 			"stdout":      stdout.String(),
 			"stderr":      stderr.String(),
+			"content":     resultContent,
 		},
 	}, nil
 }
@@ -441,22 +442,22 @@ func (t *CodeExecutorTool) Execute(ctx context.Context, args map[string]interfac
 	if args == nil {
 		return nil, fmt.Errorf("arguments cannot be nil")
 	}
-	
+
 	languageValue, exists := args["language"]
 	if !exists {
 		return nil, fmt.Errorf("language parameter is required")
 	}
-	
+
 	language, ok := languageValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("language must be a string")
 	}
-	
+
 	codeValue, exists := args["code"]
 	if !exists {
 		return nil, fmt.Errorf("code parameter is required")
 	}
-	
+
 	code, ok := codeValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("code must be a string")
@@ -498,6 +499,7 @@ func (t *CodeExecutorTool) Execute(ctx context.Context, args map[string]interfac
 			"execution_time": result.ExecutionTime.Milliseconds(),
 			"language":       result.Language,
 			"code":           result.Code,
+			"content":        content,
 		},
 	}, nil
 }

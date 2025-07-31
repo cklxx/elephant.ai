@@ -100,6 +100,7 @@ func (t *TodoReadTool) executeWithSessionID(todoFile string) (*ToolResult, error
 				"pending":       []string{},
 				"total_count":   0,
 				"pending_count": 0,
+				"content":       "No todo file found. Use todo_update to create one.",
 			},
 		}, nil
 	}

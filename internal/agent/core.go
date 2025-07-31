@@ -79,8 +79,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	sess := rc.agent.currentSession
 	sessionMessages := sess.GetMessages()
 
-	unifiedMessages := rc.messageProcessor.ConvertSessionToUnified(sessionMessages)
-	llmMessages := rc.messageProcessor.ConvertUnifiedToLLM(unifiedMessages)
+	llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
 
 	// 构建完整的消息列表
 	messages := []llm.Message{

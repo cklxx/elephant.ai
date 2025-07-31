@@ -123,6 +123,7 @@ func (m *Manager) RestoreSession(sessionID string) (*Session, error) {
 
 	// Check if already loaded in memory
 	if session, exists := m.sessions[sessionID]; exists {
+		m.currentSessionID = sessionID // Set current session ID for tools to access
 		return session, nil
 	}
 
@@ -139,6 +140,7 @@ func (m *Manager) RestoreSession(sessionID string) (*Session, error) {
 	}
 
 	m.sessions[sessionID] = &session
+	m.currentSessionID = sessionID // Set current session ID for tools to access
 	return &session, nil
 }
 

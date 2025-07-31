@@ -51,6 +51,7 @@ func (t *ThinkTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		Content: content,
 		Data: map[string]interface{}{
 			"timestamp": time.Now().Unix(),
+			"content":   content,
 		},
 	}, nil
 }

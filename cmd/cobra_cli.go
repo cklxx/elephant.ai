@@ -67,11 +67,189 @@ func DeepCodingSuccess(msg string) string {
 	return green("🎉 " + msg)
 }
 
+// ToolOutputType represents different types of tool outputs
+type ToolOutputType int
+
+const (
+	OutputTypeDefault ToolOutputType = iota
+	OutputTypeTodo
+	OutputTypeFileList
+	OutputTypeSearchResult
+	OutputTypeCodeExecution
+)
+
+// detectOutputType determines the type of tool output
+func detectOutputType(content string) ToolOutputType {
+	// Check for todo-specific patterns
+	if strings.Contains(content, "☐") || strings.Contains(content, "☒") ||
+		strings.Contains(content, "▶️") || strings.Contains(content, "Todo List") ||
+		strings.Contains(content, "Todos have been modified") {
+		return OutputTypeTodo
+	}
+
+	// Check for file list patterns
+	if strings.Contains(content, "📁") || strings.Contains(content, "📄") {
+		return OutputTypeFileList
+	}
+
+	// Check for search result patterns
+	if strings.Contains(content, "Found") && strings.Contains(content, "matches") {
+		return OutputTypeSearchResult
+	}
+
+	// Check for code execution patterns
+	if strings.Contains(content, "```") || strings.Contains(content, "Exit code:") {
+		return OutputTypeCodeExecution
+	}
+
+	return OutputTypeDefault
+}
+
+// formatCLIToolOutput formats tool output based on its type for CLI mode
+func formatCLIToolOutput(title, content string, outputType ToolOutputType) string {
+	switch outputType {
+	case OutputTypeTodo:
+		return formatTodoOutput(title, content)
+	case OutputTypeFileList:
+		return formatFileListOutput(content)
+	case OutputTypeSearchResult:
+		return formatSearchResultOutput(content)
+	case OutputTypeCodeExecution:
+		return formatCodeExecutionOutput(title, content)
+	default:
+		return formatDefaultOutput(title, content)
+	}
+}
+
+// formatTodoOutput formats todo tool output with proper alignment and structured display
+func formatTodoOutput(title, content string) string {
+	lines := strings.Split(content, "\n")
+	var result strings.Builder
+
+	// Store original content for preservation
+	var todoLines []string
+	var isStructuredFormat = false
+
+	// Check if content is already in structured JSON format from TodoWrite tool
+	if strings.Contains(content, "Todos have been modified") {
+		// Extract todo items from the system reminder JSON
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.Contains(line, "☐") || strings.Contains(line, "☒") || strings.Contains(line, "▶️") {
+				todoLines = append(todoLines, line)
+			}
+		}
+		isStructuredFormat = true
+	} else {
+		// Handle markdown-style todo content
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			// Extract actual todo items (lines with checkboxes)
+			if strings.Contains(line, "☐") || strings.Contains(line, "☒") || strings.Contains(line, "▶️") {
+				todoLines = append(todoLines, line)
+			}
+		}
+	}
+
+	if len(todoLines) == 0 {
+		// No todo items found, use default formatting
+		return formatDefaultOutput(title, content)
+	}
+
+	// Create structured display output
+	// Format first line with ⎿ prefix and two spaces
+	if len(todoLines) > 0 {
+		result.WriteString(fmt.Sprintf("⎿  %s\n", gray(todoLines[0])))
+	}
+
+	// Format subsequent lines with 5 spaces for alignment
+	for i := 1; i < len(todoLines); i++ {
+		result.WriteString(fmt.Sprintf("     %s\n", gray(todoLines[i])))
+	}
+
+	// If this was a structured format with system reminders, preserve them separately
+	if isStructuredFormat {
+		// Add a subtle note about the preservation
+		result.WriteString(fmt.Sprintf("     %s\n", gray("(Todo list updated and preserved)")))
+	}
+
+	return result.String()
+}
+
+// formatFileListOutput formats file listing output
+func formatFileListOutput(content string) string {
+	lines := strings.Split(content, "\n")
+	var result strings.Builder
+
+	result.WriteString(fmt.Sprintf("⎿  %s\n", gray("Files:")))
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			result.WriteString(fmt.Sprintf("     %s\n", gray(line)))
+		}
+	}
+
+	return result.String()
+}
+
+// formatSearchResultOutput formats search result output
+func formatSearchResultOutput(content string) string {
+	lines := strings.Split(content, "\n")
+	var result strings.Builder
+
+	if len(lines) > 0 {
+		result.WriteString(fmt.Sprintf("⎿  %s\n", gray(lines[0])))
+
+		for i := 1; i < len(lines); i++ {
+			if strings.TrimSpace(lines[i]) != "" {
+				result.WriteString(fmt.Sprintf("     %s\n", gray(lines[i])))
+			}
+		}
+	}
+
+	return result.String()
+}
+
+// formatCodeExecutionOutput formats code execution output
+func formatCodeExecutionOutput(title, content string) string {
+	// For code execution, preserve formatting but add alignment
+	return formatDefaultOutput(title, content)
+}
+
+// formatDefaultOutput provides default formatting with alignment
+func formatDefaultOutput(title, content string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) <= 1 {
+		return fmt.Sprintf("%s %s\n", title, gray(content))
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("%s %s\n", title, gray(lines[0])))
+
+	// Use 3 spaces for default alignment (matching original logic)
+	indent := "   "
+	for i := 1; i < len(lines); i++ {
+		result.WriteString(fmt.Sprintf("%s%s\n", indent, gray(lines[i])))
+	}
+
+	return result.String()
+}
+
 func DeepCodingToolExecution(title, content string) string {
-	// Check if this is a todo tool output and should be rendered as markdown
+	// Use generic tool output formatting system for CLI mode
+	if strings.Contains(title, "⎿") {
+		outputType := detectOutputType(content)
+		return formatCLIToolOutput(title, content, outputType)
+	}
+
+	// Check if this should be rendered as markdown (fallback for non-⎿ prefixed tools)
 	processedContent := content
-	if strings.Contains(title, "⎿") && ShouldRenderAsMarkdown(content) {
-		// Apply markdown rendering for todo tool content in CLI mode
+	if ShouldRenderAsMarkdown(content) {
+		// Apply markdown rendering for tool content in CLI mode
 		if globalMarkdownRenderer != nil {
 			rendered := globalMarkdownRenderer.RenderIfMarkdown(content)
 			// Remove trailing newlines that markdown renderer might add
@@ -79,27 +257,8 @@ func DeepCodingToolExecution(title, content string) string {
 		}
 	}
 
-	// Split content into lines for proper alignment
-	lines := strings.Split(processedContent, "\n")
-	if len(lines) <= 1 {
-		// Single line or empty content, use simple format with gray color
-		return fmt.Sprintf("%s %s\n", title, gray(processedContent))
-	}
-
-	// Multi-line content: align subsequent lines with the first line
-	// Calculate indentation to match the width of title + space
-	// "⎿ " is 2 characters wide, so we need 3 spaces for alignment (additional space requested)
-	indent := "   " // 3 spaces to align with "⎿ " prefix + 1 extra space
-
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("%s %s\n", title, gray(lines[0])))
-
-	// Add subsequent lines with proper indentation and gray color
-	for i := 1; i < len(lines); i++ {
-		result.WriteString(fmt.Sprintf("%s%s\n", indent, gray(lines[i])))
-	}
-
-	return result.String()
+	// Use default formatting for non-⎿ tools
+	return formatDefaultOutput(title, processedContent)
 }
 
 // CLI holds the command line interface state
@@ -465,7 +624,7 @@ func (cli *CLI) runTUI() error {
 	// Set up signal handling for cache cleanup on Ctrl+C (backup for TUI mode)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	
+
 	// Start cleanup goroutine as backup
 	go func() {
 		<-sigChan
@@ -662,7 +821,7 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 	// Set up signal handling for cache cleanup on Ctrl+C
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	
+
 	// Start cleanup goroutine
 	go func() {
 		<-sigChan

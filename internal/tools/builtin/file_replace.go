@@ -98,6 +98,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 			"bytes_written": len(content),
 			"lines_total":   newLineCount,
 			"modified":      fileInfo.ModTime().Unix(),
+			"content":       content,
 		},
 	}, nil
 }

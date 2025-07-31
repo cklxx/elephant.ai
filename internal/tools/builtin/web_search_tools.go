@@ -141,6 +141,10 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 			Data: map[string]interface{}{
 				"configured": false,
 				"message":    "API key required",
+				"content": "Web search is not configured. Please set the Tavily API key:\n\n" +
+					"Option 1: Environment variable: export TAVILY_API_KEY=\"your-api-key\"\n" +
+					"Option 2: Configuration file: Add \"tavilyApiKey\": \"your-api-key\" to ~/.alex-config.json\n\n" +
+					"Get your API key from: https://app.tavily.com/",
 			},
 		}, nil
 	}
@@ -229,6 +233,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 			"images":              response.Images,
 			"response_time":       response.ResponseTime,
 			"follow_up_questions": response.FollowUpQuestions,
+			"content":             content,
 		},
 	}, nil
 }

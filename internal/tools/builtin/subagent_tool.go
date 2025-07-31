@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
 	"github.com/fatih/color"
 )
 
@@ -71,17 +72,17 @@ func (t *SubAgentTool) Execute(ctx context.Context, args map[string]interface{})
 	for k, v := range args {
 		processedArgs[k] = v
 	}
-	
+
 	// 设置默认的system_prompt（如果未提供）
 	if _, exists := processedArgs["system_prompt"]; !exists {
 		processedArgs["system_prompt"] = "你是一个专门处理特定任务的子代理。请专注于完成分配给你的任务，使用合适的工具来达成目标。"
 	}
-	
+
 	// 设置默认的max_iterations
 	if _, exists := processedArgs["max_iterations"]; !exists {
 		processedArgs["max_iterations"] = 50
 	}
-	
+
 	// 默认允许所有工具（不设置allowed_tools限制）
 
 	// 调用executor的ExecuteSubAgentTask方法
@@ -105,7 +106,7 @@ func (t *SubAgentTool) Execute(ctx context.Context, args map[string]interface{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to process sub-agent result: %v", err)
 		}
-		
+
 		if err := json.Unmarshal(resultBytes, &resultData); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal sub-agent result: %v", err)
 		}
@@ -122,14 +123,14 @@ func (t *SubAgentTool) Execute(ctx context.Context, args map[string]interface{})
 	errorMessage, _ := resultData["error_message"].(string)
 
 	// 构建工具结果
-	content := fmt.Sprintf("Sub-agent task completed %s\n\nResult: %s", 
-		map[bool]string{true: "successfully", false: "with issues"}[success], 
+	content := fmt.Sprintf("Sub-agent task completed %s\n\nResult: %s",
+		map[bool]string{true: "successfully", false: "with issues"}[success],
 		result)
-	
+
 	if materialPath != "" {
 		content += fmt.Sprintf("\n\nMaterial Path: %s", materialPath)
 	}
-	
+
 	if errorMessage != "" {
 		content += fmt.Sprintf("\n\nError Details: %s", errorMessage)
 	}
@@ -141,12 +142,13 @@ func (t *SubAgentTool) Execute(ctx context.Context, args map[string]interface{})
 		"session_id":     sessionID,
 		"tokens_used":    tokensUsed,
 		"duration_ms":    duration,
+		"content":        content,
 	}
-	
+
 	if materialPath != "" {
 		data["material_path"] = materialPath
 	}
-	
+
 	if errorMessage != "" {
 		data["error_message"] = errorMessage
 	}
@@ -169,7 +171,7 @@ func (t *SubAgentTool) Validate(args map[string]interface{}) error {
 	if !ok {
 		return fmt.Errorf("missing required parameter: task")
 	}
-	
+
 	if taskStr, ok := task.(string); !ok || taskStr == "" {
 		return fmt.Errorf("task parameter must be a non-empty string")
 	}
@@ -213,4 +215,3 @@ func (t *SubAgentTool) Validate(args map[string]interface{}) error {
 
 	return nil
 }
-

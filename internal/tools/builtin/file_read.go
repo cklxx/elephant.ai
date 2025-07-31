@@ -77,7 +77,7 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 			return fmt.Errorf("either file_path or path is required")
 		}
 	}
-	
+
 	validator := NewValidationFramework().
 		AddOptionalStringField("file_path", "Path to the file to read").
 		AddOptionalStringField("path", "Path to the file to read (legacy)").
@@ -97,11 +97,11 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	} else {
 		return nil, fmt.Errorf("either file_path or path is required")
 	}
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
-	
+
 	// Check if file exists
 	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("file does not exist: %s", filePath)
@@ -118,7 +118,7 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	var formattedLines []string
 	startLineNum := 1
 	endLineNum := len(lines)
-	
+
 	// Handle line range if specified
 	if startLine, ok := args["start_line"]; ok {
 		start := int(startLine.(float64)) - 1 // Convert to 0-based
@@ -177,6 +177,7 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 			"start_line":      startLineNum,
 			"end_line":        endLineNum,
 			"displayed_lines": len(lines),
+			"content":         contentStr,
 		},
 	}, nil
 }

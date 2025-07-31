@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/tools/mcp/protocol"
 	"alex/internal/tools/builtin"
+	"alex/internal/tools/mcp/protocol"
 )
 
 // MCPTool implements the Alex Tool interface for MCP tools
@@ -76,9 +76,10 @@ func (t *MCPTool) Execute(ctx context.Context, input map[string]interface{}) (*b
 
 	return &builtin.ToolResult{
 		Content: formatContent(response.Content),
-		Data:    map[string]interface{}{
+		Data: map[string]interface{}{
 			"mcp_tool": t.toolName,
 			"server":   t.client.GetServerInfo(),
+			"content":  formatContent(response.Content),
 		},
 	}, nil
 }
@@ -155,7 +156,7 @@ func (r *MCPToolRegistry) RegisterClient(id string, client *Client) error {
 
 	// Register all tools from this client
 	tools := client.GetTools()
-	
+
 	for _, tool := range tools {
 		mcpTool := NewMCPTool(client, tool)
 		toolName := mcpTool.Name()
@@ -165,7 +166,7 @@ func (r *MCPToolRegistry) RegisterClient(id string, client *Client) error {
 	if len(tools) > 0 {
 		fmt.Printf("[INFO] MCP: Registered %d tools from server %s\n", len(tools), id)
 	}
-	
+
 	return nil
 }
 
@@ -225,7 +226,7 @@ func (r *MCPToolRegistry) IntegrateWithBuiltinTools(existingTools []builtin.Tool
 	// Add all MCP tools to the builtin tool list
 	result := make([]builtin.Tool, len(existingTools))
 	copy(result, existingTools)
-	
+
 	for _, tool := range r.tools {
 		result = append(result, tool)
 	}

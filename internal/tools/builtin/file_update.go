@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	
+
 	"alex/internal/utils"
 )
 
@@ -91,7 +91,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]any) (*Too
 	// 参数已通过Validate验证，可以安全访问
 	filePath := args["file_path"].(string)
 	newString := args["new_string"].(string)
-	
+
 	oldString := ""
 	if os, ok := args["old_string"]; ok {
 		oldString = os.(string)
@@ -121,17 +121,17 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]any) (*Too
 		}
 
 		fileInfo, _ := os.Stat(resolvedPath)
-		
+
 		// Generate diff data for CLI display
 		diff := utils.GenerateUnifiedDiff("", newString, filePath, utils.DefaultDiffOptions)
-		
+
 		return &ToolResult{
 			Content: fmt.Sprintf("Created %s (%d lines)", filePath, len(strings.Split(newString, "\n"))),
 			Files:   []string{resolvedPath},
 			Data: map[string]any{
 				"file_path":     filePath,
 				"resolved_path": resolvedPath,
-				"operation":     "created", 
+				"operation":     "created",
 				"bytes_written": len(newString),
 				"lines_total":   len(strings.Split(newString, "\n")),
 				"modified":      fileInfo.ModTime().Unix(),
@@ -167,7 +167,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]any) (*Too
 
 	// Generate diff data for CLI display
 	diff := utils.GenerateUnifiedDiff(originalContent, newContent, filePath, utils.DefaultDiffOptions)
-	
+
 	// Write the modified content
 	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
 	if err != nil {
@@ -182,12 +182,13 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]any) (*Too
 		Content: fmt.Sprintf("Updated %s (%d lines)", filePath, newLineCount),
 		Files:   []string{resolvedPath},
 		Data: map[string]any{
-			"file_path":         filePath,
-			"resolved_path":     resolvedPath,
-			"operation":         "edited",
-			"lines_total":       newLineCount,
-			"modified":          fileInfo.ModTime().Unix(),
-			"diff":              diff,
+			"file_path":     filePath,
+			"resolved_path": resolvedPath,
+			"operation":     "edited",
+			"lines_total":   newLineCount,
+			"modified":      fileInfo.ModTime().Unix(),
+			"diff":          diff,
+			"content":       newContent,
 		},
 	}, nil
 }

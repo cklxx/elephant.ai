@@ -50,15 +50,15 @@ type TaskExecutionContext struct {
 
 // TaskExecutionResult - 任务执行结果
 type TaskExecutionResult struct {
-	Answer              string
-	Success             bool
-	Confidence          float64
-	TokensUsed          int
-	PromptTokens        int
-	CompletionTokens    int
+	Answer               string
+	Success              bool
+	Confidence           float64
+	TokensUsed           int
+	PromptTokens         int
+	CompletionTokens     int
 	CurrentMessageTokens int // 当前消息token数，压缩后会清零
-	History             []types.ReactExecutionStep
-	Messages            []llm.Message // 返回更新后的消息列表
+	History              []types.ReactExecutionStep
+	Messages             []llm.Message // 返回更新后的消息列表
 }
 
 // ExecuteTaskCore - 核心任务执行逻辑，不依赖session和message管理
@@ -94,7 +94,7 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 		}
 
 		subAgentLog("INFO", "🔄 Starting iteration %d/%d", iteration, maxIterations)
-		
+
 		if isStreaming {
 			streamCallback(StreamChunk{
 				Type:     "iteration",
@@ -106,18 +106,18 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 		// 从第二次迭代开始，使用AI压缩系统进行消息压缩
 		if iteration > 1 && rc.messageProcessor != nil {
 			subAgentLog("DEBUG", "💾 Compressing messages for iteration %d", iteration)
-			// 使用AI综合压缩系统进行压缩
-			unifiedMessages := rc.messageProcessor.ConvertLLMToUnified(result.Messages)
-			sessionMessages := rc.messageProcessor.ConvertUnifiedToSession(unifiedMessages)
-			// 传入实际的累计token使用量进行精确压缩判断
+
+			// 直接对LLM消息进行压缩，无需转换
 			totalTokensUsed := result.PromptTokens + result.CompletionTokens
 			currentTokens := result.CurrentMessageTokens // 使用专门的当前消息token数
-			compressedSessionMessages, _, newCurrentTokens := rc.messageProcessor.CompressMessages(ctx, sessionMessages, totalTokensUsed, currentTokens)
+			compressedMessages, _, newCurrentTokens := rc.messageProcessor.CompressMessages(ctx, result.Messages, totalTokensUsed, currentTokens)
 			// 更新当前消息token数（压缩后会清零）
 			result.CurrentMessageTokens = newCurrentTokens
-			compressedUnified := rc.messageProcessor.ConvertSessionToUnified(compressedSessionMessages)
-			result.Messages = rc.messageProcessor.ConvertUnifiedToLLM(compressedUnified)
-			
+			result.Messages = compressedMessages
+
+			// 压缩后需要重新添加当前用户消息，确保它在下次迭代中可用
+			result.Messages = append(result.Messages, execCtx.Messages...)
+
 			subAgentLog("DEBUG", "💾 Messages compressed at iteration %d, count: %d", iteration, len(result.Messages))
 		}
 
@@ -226,11 +226,11 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 			step.ToolCall = toolCalls
 
 			subAgentLogger.Info("🔧 Executing %d tool calls at iteration %d", len(toolCalls), iteration)
-			
+
 			// 使用统一的工具执行系统
 			toolExecutor := utils.NewToolExecutor("SUB-AGENT")
 			displayFormatter := utils.NewToolDisplayFormatter() // Default green color
-			
+
 			// 转换回调函数类型
 			var utilsCallback utils.StreamCallback
 			if streamCallback != nil {
@@ -249,7 +249,7 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 					streamCallback(agentChunk)
 				}
 			}
-			
+
 			toolResult := toolExecutor.ExecuteSerialToolsWithRecovery(
 				ctx,
 				toolCalls,
@@ -257,7 +257,7 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 				utilsCallback,
 				displayFormatter.Format,
 			)
-			
+
 			step.Result = toolResult
 			subAgentLogger.Info("🔧 Tool execution completed with %d results", len(toolResult))
 
@@ -316,10 +316,13 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 				}
 
 				result.Messages = append(result.Messages, toolMessages...)
-				
+
 				// 读取并注入当前TODO作为用户消息（在工具执行完成后）
-				result.Messages = append(result.Messages, execCtx.Messages...)
-				subAgentLogger.Debug("Injected TODO message after tool execution")
+				// 如果没有进行压缩，才需要添加当前用户消息
+				if iteration <= 1 || rc.messageProcessor == nil {
+					result.Messages = append(result.Messages, execCtx.Messages...)
+					subAgentLogger.Debug("Injected TODO message after tool execution")
+				}
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
@@ -394,7 +397,7 @@ func (rc *ReactCore) NewTaskExecutionContext(ctx context.Context, task string, s
 		Tools:          tools,
 		Config:         rc.agent.llmConfig,
 		MaxIter:        maxIter,
-		Session:        nil, // 由调用者在需要时设置
+		Session:        nil,                     // 由调用者在需要时设置
 		SessionManager: rc.agent.sessionManager, // 使用ReactCore所属的session manager
 	}
 }
@@ -508,7 +511,7 @@ func (sa *SubAgent) ExecuteTask(ctx context.Context, task string) (*SubAgentResu
 
 	// 创建独立的任务执行上下文
 	execCtx := sa.reactCore.NewTaskExecutionContext(ctx, task, systemPrompt, sa.config.MaxIterations)
-	
+
 	// 设置sub-agent专用的session和session manager
 	execCtx.Session = subSession
 	execCtx.SessionManager = sa.sessionManager
@@ -555,7 +558,7 @@ func (sa *SubAgent) ExecuteTask(ctx context.Context, task string) (*SubAgentResu
 		subResult.ErrorMessage = "Task execution did not complete successfully"
 		subAgentLog("WARN", "Task execution unsuccessful after %dms", subResult.Duration)
 	} else {
-		subAgentLog("INFO", "Task completed successfully in %dms, tokens used: %d", 
+		subAgentLog("INFO", "Task completed successfully in %dms, tokens used: %d",
 			subResult.Duration, subResult.TokensUsed)
 	}
 
@@ -594,7 +597,7 @@ func (sa *SubAgent) ExecuteTaskWithStream(ctx context.Context, task string, stre
 
 	// 创建独立的任务执行上下文
 	execCtx := sa.reactCore.NewTaskExecutionContext(ctx, task, systemPrompt, sa.config.MaxIterations)
-	
+
 	// 设置sub-agent专用的session和session manager
 	execCtx.Session = subSession
 	execCtx.SessionManager = sa.sessionManager
@@ -649,8 +652,8 @@ func (sa *SubAgent) ExecuteTaskWithStream(ctx context.Context, task string, stre
 	// 发送子代理完成信号
 	if streamCallback != nil {
 		streamCallback(StreamChunk{
-			Type:     "sub_agent_complete",
-			Content:  fmt.Sprintf("✅ Sub-agent completed: %s", subResult.Result),
+			Type:    "sub_agent_complete",
+			Content: fmt.Sprintf("✅ Sub-agent completed: %s", subResult.Result),
 			Metadata: map[string]any{
 				"sub_agent_id":   sa.sessionID,
 				"success":        subResult.Success,
@@ -666,7 +669,7 @@ func (sa *SubAgent) ExecuteTaskWithStream(ctx context.Context, task string, stre
 		subResult.ErrorMessage = "Task execution did not complete successfully"
 		subAgentLog("WARN", "Task execution unsuccessful after %dms", subResult.Duration)
 	} else {
-		subAgentLog("INFO", "Task completed successfully in %dms, tokens used: %d", 
+		subAgentLog("INFO", "Task completed successfully in %dms, tokens used: %d",
 			subResult.Duration, subResult.TokensUsed)
 	}
 
@@ -800,7 +803,7 @@ You should work autonomously within your task scope and provide concrete results
 // filterTools - 根据配置过滤可用工具
 func (sa *SubAgent) filterTools(allTools []llm.Tool) []llm.Tool {
 	var filteredTools []llm.Tool
-	
+
 	// 始终过滤掉sub_agent工具，防止无限递归
 	for _, tool := range allTools {
 		if tool.Function.Name == "sub_agent" {
@@ -809,7 +812,7 @@ func (sa *SubAgent) filterTools(allTools []llm.Tool) []llm.Tool {
 		}
 		filteredTools = append(filteredTools, tool)
 	}
-	
+
 	// 如果指定了允许的工具列表，进一步过滤
 	if len(sa.config.Tools) > 0 {
 		allowedTools := make(map[string]bool)
@@ -819,7 +822,7 @@ func (sa *SubAgent) filterTools(allTools []llm.Tool) []llm.Tool {
 				allowedTools[toolName] = true
 			}
 		}
-		
+
 		var finalTools []llm.Tool
 		for _, tool := range filteredTools {
 			if allowedTools[tool.Function.Name] {
@@ -828,7 +831,7 @@ func (sa *SubAgent) filterTools(allTools []llm.Tool) []llm.Tool {
 		}
 		return finalTools
 	}
-	
+
 	return filteredTools
 }
 
@@ -882,7 +885,7 @@ func (rc *ReactCore) ExecuteSubAgentTask(ctx context.Context, args map[string]in
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sub-agent: %w", err)
 	}
-	
+
 	// 如果有流式回调，使用带流式回调的方法，否则使用普通方法
 	if rc.streamCallback != nil {
 		return subAgent.ExecuteTaskWithStream(ctx, task, rc.streamCallback)
