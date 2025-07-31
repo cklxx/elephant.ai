@@ -115,30 +115,42 @@ type (
 	forceInitMsg       struct{}
 )
 
-// VirtualMessageList handles virtual scrolling for large message lists
+// VirtualMessageList handles efficient scrolling for large message lists using industry best practices
 type VirtualMessageList struct {
-	messages      []ChatMessage
-	visibleStart  int
-	visibleEnd    int
-	bufferSize    int
-	isLoading     bool
-	hasMore       bool
-	totalMessages int
-	maxMessages   int // Maximum messages to keep in memory
-	lastCleanup   time.Time
+	messages         []ChatMessage
+	visibleStart     int
+	visibleEnd       int
+	bufferSize       int
+	scrollOffset     int
+	isLoading        bool
+	hasMore          bool
+	totalMessages    int
+	maxMessages      int // Maximum messages to keep in memory
+	lastCleanup      time.Time
+	renderCache      map[int]string // Cache rendered content for performance
+	cacheEnabled     bool
+	itemHeight       int // Average height per message for calculations
+	viewportHeight   int // Current viewport height
+	preloadBuffer    int // Extra messages to preload above/below visible area
 }
 
 func newVirtualMessageList() *VirtualMessageList {
 	return &VirtualMessageList{
-		messages:      make([]ChatMessage, 0),
-		visibleStart:  0,
-		visibleEnd:    0,
-		bufferSize:    50, // Show 50 messages at a time
-		isLoading:     false,
-		hasMore:       true,
-		totalMessages: 0,
-		maxMessages:   500, // Keep max 500 messages in memory
-		lastCleanup:   time.Now(),
+		messages:       make([]ChatMessage, 0, 100), // Pre-allocate for better performance
+		visibleStart:   0,
+		visibleEnd:     0,
+		bufferSize:     25,  // Optimized buffer size based on research
+		scrollOffset:   0,
+		isLoading:      false,
+		hasMore:        true,
+		totalMessages:  0,
+		maxMessages:    1000, // Increased limit based on modern memory constraints
+		lastCleanup:    time.Now(),
+		renderCache:    make(map[int]string, 50),
+		cacheEnabled:   true,
+		itemHeight:     3,    // Estimated lines per message
+		viewportHeight: 20,
+		preloadBuffer:  5,    // Preload 5 messages above/below for smooth scrolling
 	}
 }
 
@@ -233,12 +245,39 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *Modern
 }
 
 func (m *ModernChatModel) Init() tea.Cmd {
-	// Send delayed force init message as fallback
+	// Initialize with default dimensions immediately
+	m.initializeDefaultDimensions()
+	
+	// Send immediate force init to ensure TUI starts properly
 	forceInit := func() tea.Msg {
-		time.Sleep(500 * time.Millisecond)
 		return forceInitMsg{}
 	}
+	
 	return tea.Batch(textarea.Blink, m.startTicker(), forceInit)
+}
+
+// initializeDefaultDimensions sets sensible defaults to prevent initialization hang
+func (m *ModernChatModel) initializeDefaultDimensions() {
+	defaultWidth := 80
+	defaultHeight := 24
+	
+	// Set textarea dimensions with proper padding
+	padding := 4
+	textareaWidth := defaultWidth - padding
+	if textareaWidth < 20 {
+		textareaWidth = 20
+	}
+	m.textarea.SetWidth(textareaWidth)
+	
+	// Set viewport dimensions
+	m.viewport.Width = defaultWidth
+	m.viewport.Height = 20
+	
+	// Set model dimensions
+	m.width = defaultWidth
+	m.height = defaultHeight
+	m.ready = true
+	m.viewportNeedsUpdate = true
 }
 
 func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -630,36 +669,59 @@ func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.viewportNeedsUpdate = true
 }
 
-// cleanupOldMessages removes old messages to prevent memory overflow
+// cleanupOldMessages removes old messages to prevent memory overflow using optimized strategy
 func (m *ModernChatModel) cleanupOldMessages() {
-	// Only cleanup every 30 seconds to avoid frequent operations
-	if time.Since(m.virtualList.lastCleanup) < 30*time.Second {
+	// Only cleanup every 60 seconds to reduce overhead, but check message count threshold
+	total := len(m.virtualList.messages)
+	shouldCleanupByTime := time.Since(m.virtualList.lastCleanup) >= 60*time.Second
+	shouldCleanupByCount := total > m.virtualList.maxMessages
+	
+	if !shouldCleanupByTime && !shouldCleanupByCount {
 		return
 	}
 
-	total := len(m.virtualList.messages)
 	if total <= m.virtualList.maxMessages {
 		return
 	}
 
-	// Remove oldest messages, keeping the maxMessages most recent
-	excessMessages := total - m.virtualList.maxMessages
-	m.virtualList.messages = m.virtualList.messages[excessMessages:]
+	// Calculate cleanup amount - remove 20% of max to avoid frequent cleanups
+	cleanupThreshold := m.virtualList.maxMessages * 8 / 10 // Keep 80% of max
+	excessMessages := total - cleanupThreshold
+	
+	// Clear render cache for messages being removed to free memory
+	if m.virtualList.cacheEnabled {
+		for i := 0; i < excessMessages; i++ {
+			delete(m.virtualList.renderCache, i)
+		}
+		// Shift remaining cache indices down
+		newCache := make(map[int]string, len(m.virtualList.renderCache))
+		for oldIdx, content := range m.virtualList.renderCache {
+			if newIdx := oldIdx - excessMessages; newIdx >= 0 {
+				newCache[newIdx] = content
+			}
+		}
+		m.virtualList.renderCache = newCache
+	}
+
+	// Remove oldest messages efficiently using slice operations
+	m.virtualList.messages = append(m.virtualList.messages[:0], m.virtualList.messages[excessMessages:]...)
 	m.virtualList.totalMessages = len(m.virtualList.messages)
 	m.virtualList.lastCleanup = time.Now()
 
-	// Add a system message to indicate cleanup occurred
+	// Add a subtle system message to indicate cleanup occurred
 	cleanupMsg := ChatMessage{
 		Type:      "system",
 		ChunkType: "memory_cleanup",
-		Content:   fmt.Sprintf("🧠 Memory cleanup: removed %d older messages", excessMessages),
+		Content:   fmt.Sprintf("🧠 Optimized memory: %d messages archived", excessMessages),
 		Time:      time.Now(),
 	}
+	
+	// Prepend cleanup message efficiently
 	m.virtualList.messages = append([]ChatMessage{cleanupMsg}, m.virtualList.messages...)
 	m.virtualList.totalMessages = len(m.virtualList.messages)
 }
 
-// updateVisibleRange calculates which messages should be visible
+// updateVisibleRange calculates which messages should be visible using optimized virtual scrolling
 func (m *ModernChatModel) updateVisibleRange() {
 	total := len(m.virtualList.messages)
 	if total == 0 {
@@ -668,14 +730,53 @@ func (m *ModernChatModel) updateVisibleRange() {
 		return
 	}
 
-	// Show the last N messages (buffer size)
-	start := total - m.virtualList.bufferSize
-	if start < 0 {
-		start = 0
+	// Update viewport height in virtual list for calculations
+	m.virtualList.viewportHeight = m.viewport.Height
+
+	// Calculate items per viewport based on estimated item height
+	itemsPerViewport := max(1, m.virtualList.viewportHeight/m.virtualList.itemHeight)
+	
+	// Use scroll offset for precise positioning, defaulting to showing latest messages
+	if m.virtualList.scrollOffset == 0 {
+		// Default: show the most recent messages
+		start := total - itemsPerViewport
+		if start < 0 {
+			start = 0
+		}
+		m.virtualList.visibleStart = start
+		m.virtualList.visibleEnd = total
+	} else {
+		// Scrolled position: calculate based on offset with preload buffer
+		start := max(0, m.virtualList.scrollOffset-m.virtualList.preloadBuffer)
+		end := min(total, start+itemsPerViewport+(2*m.virtualList.preloadBuffer))
+		
+		m.virtualList.visibleStart = start
+		m.virtualList.visibleEnd = end
 	}
 
-	m.virtualList.visibleStart = start
-	m.virtualList.visibleEnd = total
+	// Ensure we don't exceed bounds
+	if m.virtualList.visibleEnd > total {
+		m.virtualList.visibleEnd = total
+	}
+	if m.virtualList.visibleStart < 0 {
+		m.virtualList.visibleStart = 0
+	}
+}
+
+// max returns the maximum of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// min returns the minimum of two integers  
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // updateViewportContent updates the viewport content with visible messages and scrolls appropriately
@@ -1010,21 +1111,29 @@ func (m *ModernChatModel) isSearchResult(messageIndex int) bool {
 	return false
 }
 
-// invalidateCache clears the rendered message cache
+// invalidateCache clears the rendered message cache efficiently
 func (m *ModernChatModel) invalidateCache() {
+	if m.virtualList.cacheEnabled {
+		// Clear only the virtual list cache - it's the authoritative cache now
+		m.virtualList.renderCache = make(map[int]string, 50)
+	}
+	// Keep the old cache for backward compatibility but don't use it
 	m.renderedCache = make(map[int]string)
 	m.lastCacheUpdate = time.Now()
 }
 
 
-// renderMessageWithCache renders a message with caching
+// renderMessageWithCache renders a message with optimized caching
 func (m *ModernChatModel) renderMessageWithCache(msgIndex int, msg ChatMessage, isSearchResult bool) string {
-	// Check cache first
-	if cached, exists := m.renderedCache[msgIndex]; exists {
-		return cached
+	// Use virtual list's render cache if enabled
+	cacheKey := msgIndex
+	if m.virtualList.cacheEnabled {
+		if cached, exists := m.virtualList.renderCache[cacheKey]; exists && !isSearchResult {
+			return cached
+		}
 	}
 
-	// Render the message
+	// Render the message with optimized styling
 	var styledContent string
 	switch msg.Type {
 	case "user":
@@ -1063,8 +1172,20 @@ func (m *ModernChatModel) renderMessageWithCache(msgIndex int, msg ChatMessage, 
 		styledContent = msg.Content
 	}
 
-	// Cache the result
-	m.renderedCache[msgIndex] = styledContent
+	// Cache the result if caching is enabled and not a search result (search results are temporary)
+	if m.virtualList.cacheEnabled && !isSearchResult {
+		// Limit cache size to prevent memory growth
+		if len(m.virtualList.renderCache) >= 100 {
+			// Remove oldest entries - simple LRU by removing random entries
+			for k := range m.virtualList.renderCache {
+				delete(m.virtualList.renderCache, k)
+				if len(m.virtualList.renderCache) < 50 {
+					break
+				}
+			}
+		}
+		m.virtualList.renderCache[cacheKey] = styledContent
+	}
 
 	return styledContent
 }

@@ -50,14 +50,15 @@ type TaskExecutionContext struct {
 
 // TaskExecutionResult - 任务执行结果
 type TaskExecutionResult struct {
-	Answer           string
-	Success          bool
-	Confidence       float64
-	TokensUsed       int
-	PromptTokens     int
-	CompletionTokens int
-	History          []types.ReactExecutionStep
-	Messages         []llm.Message // 返回更新后的消息列表
+	Answer              string
+	Success             bool
+	Confidence          float64
+	TokensUsed          int
+	PromptTokens        int
+	CompletionTokens    int
+	CurrentMessageTokens int // 当前消息token数，压缩后会清零
+	History             []types.ReactExecutionStep
+	Messages            []llm.Message // 返回更新后的消息列表
 }
 
 // ExecuteTaskCore - 核心任务执行逻辑，不依赖session和message管理
@@ -110,7 +111,10 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 			sessionMessages := rc.messageProcessor.ConvertUnifiedToSession(unifiedMessages)
 			// 传入实际的累计token使用量进行精确压缩判断
 			totalTokensUsed := result.PromptTokens + result.CompletionTokens
-			compressedSessionMessages := rc.messageProcessor.CompressMessages(ctx, sessionMessages, totalTokensUsed)
+			currentTokens := result.CurrentMessageTokens // 使用专门的当前消息token数
+			compressedSessionMessages, _, newCurrentTokens := rc.messageProcessor.CompressMessages(ctx, sessionMessages, totalTokensUsed, currentTokens)
+			// 更新当前消息token数（压缩后会清零）
+			result.CurrentMessageTokens = newCurrentTokens
 			compressedUnified := rc.messageProcessor.ConvertSessionToUnified(compressedSessionMessages)
 			result.Messages = rc.messageProcessor.ConvertUnifiedToLLM(compressedUnified)
 			
@@ -180,6 +184,7 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 		result.TokensUsed += tokensUsed
 		result.PromptTokens += promptTokens
 		result.CompletionTokens += completionTokens
+		result.CurrentMessageTokens += promptTokens // 当前消息token数累加
 		step.TokensUsed = tokensUsed
 
 		// 发送token使用情况
