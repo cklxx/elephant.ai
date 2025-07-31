@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,27 +32,31 @@ func (t *NewTodoUpdateTool) Name() string {
 }
 
 func (t *NewTodoUpdateTool) Description() string {
-	return `Update session todo list with markdown content supporting goals, tasks, and notes.
+	return `Update session todo list with structured JSON format or markdown content.
 
-Format:
+Supports two formats:
+1. JSON format (recommended): Array of todo objects with id, content, status, priority
+2. Markdown format (legacy): Free-form markdown with ☐/☒ checkboxes
+
+JSON Format:
+{
+  "todos": [
+    {
+      "id": "1",
+      "content": "Task description",
+      "status": "pending|in_progress|completed",
+      "priority": "high|medium|low"
+    }
+  ]
+}
+
+Markdown Format:
 - Use ☐ for pending tasks and ☒ for completed tasks
 - Supports any markdown formatting (headers, lists, notes)
-- Replaces entire todo content with provided text
-- Content persists across session interactions
-
-Example structure:
-# Current Goals
-☐ Task 1 description
-☐ Task 2 description  
-☒ Completed task
-
-## Notes
-- Additional context or reminders
-- Project notes and observations
 
 Usage:
 - Overwrites existing todo content completely
-- Automatically counts pending/completed tasks
+- Automatically detects format and converts appropriately
 - Session-specific storage (survives session resume)`
 }
 
@@ -59,26 +64,95 @@ func (t *NewTodoUpdateTool) Parameters() map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
+			"todos": map[string]interface{}{
+				"type": "array",
+				"description": "Array of todo items with structured format",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id": map[string]interface{}{
+							"type": "string",
+							"description": "Unique identifier for the todo item",
+						},
+						"content": map[string]interface{}{
+							"type": "string",
+							"description": "Description of the todo item",
+						},
+						"status": map[string]interface{}{
+							"type": "string",
+							"enum": []string{"pending", "in_progress", "completed"},
+							"description": "Current status of the todo item",
+						},
+						"priority": map[string]interface{}{
+							"type": "string",
+							"enum": []string{"high", "medium", "low"},
+							"description": "Priority level of the todo item",
+						},
+					},
+					"required": []string{"id", "content", "status", "priority"},
+				},
+			},
 			"content": map[string]interface{}{
 				"type":        "string",
-				"description": "The complete todo content in markdown format. Can include goals, tasks, notes, etc.",
+				"description": "Legacy markdown format content (alternative to todos array)",
 			},
 		},
-		"required": []string{"content"},
+		"anyOf": []map[string]interface{}{
+			{"required": []string{"todos"}},
+			{"required": []string{"content"}},
+		},
 	}
 }
 
 func (t *NewTodoUpdateTool) Validate(args map[string]interface{}) error {
-	validator := NewValidationFramework().
-		AddStringField("content", "Todo content")
-
-	return validator.Validate(args)
+	// Check if todos array is provided
+	if todos, exists := args["todos"]; exists {
+		// Validate todos array format
+		todosArray, ok := todos.([]interface{})
+		if !ok {
+			return fmt.Errorf("todos must be an array")
+		}
+		
+		for i, todo := range todosArray {
+			todoMap, ok := todo.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("todo item %d must be an object", i)
+			}
+			
+			// Validate required fields
+			for _, field := range []string{"id", "content", "status", "priority"} {
+				if _, exists := todoMap[field]; !exists {
+					return fmt.Errorf("todo item %d missing required field: %s", i, field)
+				}
+			}
+			
+			// Validate status
+			status, _ := todoMap["status"].(string)
+			if status != "pending" && status != "in_progress" && status != "completed" {
+				return fmt.Errorf("todo item %d has invalid status: %s", i, status)
+			}
+			
+			// Validate priority
+			priority, _ := todoMap["priority"].(string)
+			if priority != "high" && priority != "medium" && priority != "low" {
+				return fmt.Errorf("todo item %d has invalid priority: %s", i, priority)
+			}
+		}
+		return nil
+	}
+	
+	// Check if content (legacy format) is provided
+	if content, exists := args["content"]; exists {
+		if _, ok := content.(string); !ok {
+			return fmt.Errorf("content must be a string")
+		}
+		return nil
+	}
+	
+	return fmt.Errorf("either 'todos' array or 'content' string must be provided")
 }
 
 func (t *NewTodoUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	// Extract content parameter
-	content := args["content"].(string)
-
 	// For tools created without session manager, fall back to error
 	if t.sessionManager == nil {
 		return nil, fmt.Errorf("todo operations require session manager - tool not properly initialized")
@@ -96,36 +170,165 @@ func (t *NewTodoUpdateTool) Execute(ctx context.Context, args map[string]interfa
 	// Use session-specific todo file
 	todoFile := filepath.Join(sessionsDir, sessionID+"_todo.md")
 
-	// Write content directly to todo.md file
+	var content string
+	var pendingCount, completedCount, inProgressCount int
+	
+	// Check if JSON format (todos array) is provided
+	if todos, exists := args["todos"]; exists {
+		content, pendingCount, completedCount, inProgressCount = t.convertTodosToMarkdown(todos)
+	} else if legacyContent, exists := args["content"]; exists {
+		// Legacy markdown format
+		content = legacyContent.(string)
+		pendingCount, completedCount = t.countMarkdownTasks(content)
+	} else {
+		return nil, fmt.Errorf("either 'todos' array or 'content' string must be provided")
+	}
+
+	// Write content to todo file
 	err := os.WriteFile(todoFile, []byte(content), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write todo file: %w", err)
 	}
 
-	// Count lines for basic statistics
-	lines := strings.Split(content, "\n")
-	lineCount := len(lines)
+	totalCount := pendingCount + completedCount + inProgressCount
 
-	// Count checkboxes if present
-	completedCount := 0
-	pendingCount := 0
+	return &ToolResult{
+		Content: fmt.Sprintf("Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable\n\n<system-reminder>\nYour todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:\n\n%s. Continue on with the tasks at hand if applicable.\n</system-reminder>", t.generateTodoSummary(args)),
+		Data: map[string]interface{}{
+			"content":           content,
+			"total_count":       totalCount,
+			"pending_count":     pendingCount,
+			"completed_count":   completedCount,
+			"in_progress_count": inProgressCount,
+			"file_path":         todoFile,
+		},
+	}, nil
+}
+
+// TodoItem represents a structured todo item
+type TodoItem struct {
+	ID       string `json:"id"`
+	Content  string `json:"content"`
+	Status   string `json:"status"`
+	Priority string `json:"priority"`
+}
+
+// convertTodosToMarkdown converts JSON todos array to markdown format
+func (t *NewTodoUpdateTool) convertTodosToMarkdown(todos interface{}) (string, int, int, int) {
+	todosArray := todos.([]interface{})
+	var lines []string
+	var pendingCount, completedCount, inProgressCount int
+	
+	// Group by priority for better organization
+	highPriority := []TodoItem{}
+	mediumPriority := []TodoItem{}
+	lowPriority := []TodoItem{}
+	
+	for _, todo := range todosArray {
+		todoMap := todo.(map[string]interface{})
+		item := TodoItem{
+			ID:       todoMap["id"].(string),
+			Content:  todoMap["content"].(string),
+			Status:   todoMap["status"].(string),
+			Priority: todoMap["priority"].(string),
+		}
+		
+		// Count by status
+		switch item.Status {
+		case "pending":
+			pendingCount++
+		case "completed":
+			completedCount++
+		case "in_progress":
+			inProgressCount++
+		}
+		
+		// Group by priority
+		switch item.Priority {
+		case "high":
+			highPriority = append(highPriority, item)
+		case "medium":
+			mediumPriority = append(mediumPriority, item)
+		case "low":
+			lowPriority = append(lowPriority, item)
+		}
+	}
+	
+	// Generate markdown content
+	lines = append(lines, "# Todo List")
+	lines = append(lines, "")
+	
+	// Add high priority tasks
+	if len(highPriority) > 0 {
+		lines = append(lines, "## High Priority")
+		for _, item := range highPriority {
+			lines = append(lines, t.formatTodoItem(item))
+		}
+		lines = append(lines, "")
+	}
+	
+	// Add medium priority tasks
+	if len(mediumPriority) > 0 {
+		lines = append(lines, "## Medium Priority")
+		for _, item := range mediumPriority {
+			lines = append(lines, t.formatTodoItem(item))
+		}
+		lines = append(lines, "")
+	}
+	
+	// Add low priority tasks
+	if len(lowPriority) > 0 {
+		lines = append(lines, "## Low Priority")
+		for _, item := range lowPriority {
+			lines = append(lines, t.formatTodoItem(item))
+		}
+		lines = append(lines, "")
+	}
+	
+	return strings.Join(lines, "\n"), pendingCount, completedCount, inProgressCount
+}
+
+// formatTodoItem formats a single todo item as markdown
+func (t *NewTodoUpdateTool) formatTodoItem(item TodoItem) string {
+	var checkbox string
+	switch item.Status {
+	case "pending":
+		checkbox = "☐"
+	case "in_progress":
+		checkbox = "▶️" // Play button for in-progress
+	case "completed":
+		checkbox = "☒"
+	default:
+		checkbox = "☐"
+	}
+	
+	return fmt.Sprintf("%s %s", checkbox, item.Content)
+}
+
+// countMarkdownTasks counts tasks in legacy markdown format
+func (t *NewTodoUpdateTool) countMarkdownTasks(content string) (int, int) {
+	lines := strings.Split(content, "\n")
+	var pendingCount, completedCount int
+	
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "☒") {
 			completedCount++
-		} else if strings.HasPrefix(line, "☐") {
+		} else if strings.HasPrefix(line, "☐") || strings.HasPrefix(line, "▶️") {
 			pendingCount++
 		}
 	}
+	
+	return pendingCount, completedCount
+}
 
-	return &ToolResult{
-		Content: content,
-		Data: map[string]interface{}{
-			"content":         content,
-			"line_count":      lineCount,
-			"pending_count":   pendingCount,
-			"completed_count": completedCount,
-			"file_path":       todoFile,
-		},
-	}, nil
+// generateTodoSummary generates a JSON summary of todos for system reminder
+func (t *NewTodoUpdateTool) generateTodoSummary(args map[string]interface{}) string {
+	if todos, exists := args["todos"]; exists {
+		// Convert to JSON string for system reminder
+		if jsonBytes, err := json.Marshal(todos); err == nil {
+			return string(jsonBytes)
+		}
+	}
+	return "[]"
 }

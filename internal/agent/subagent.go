@@ -318,14 +318,8 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 				result.Messages = append(result.Messages, toolMessages...)
 				
 				// 读取并注入当前TODO作为用户消息（在工具执行完成后）
-				if todoContent := rc.readCurrentTodos(ctx, execCtx.Session); todoContent != "" && !strings.Contains(todoContent, "No todo file found") {
-					todoUserMessage := llm.Message{
-						Role:    "user",
-						Content: fmt.Sprintf("Current TODOs:\n%s", todoContent),
-					}
-					result.Messages = append(result.Messages, todoUserMessage)
-					subAgentLogger.Debug("Injected TODO message after tool execution")
-				}
+				result.Messages = append(result.Messages, execCtx.Messages...)
+				subAgentLogger.Debug("Injected TODO message after tool execution")
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
