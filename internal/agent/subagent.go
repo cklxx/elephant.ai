@@ -115,9 +115,6 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 			result.CurrentMessageTokens = newCurrentTokens
 			result.Messages = compressedMessages
 
-			// 压缩后需要重新添加当前用户消息，确保它在下次迭代中可用
-			result.Messages = append(result.Messages, execCtx.Messages...)
-
 			subAgentLog("DEBUG", "💾 Messages compressed at iteration %d, count: %d", iteration, len(result.Messages))
 		}
 
