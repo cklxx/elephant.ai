@@ -268,6 +268,11 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
+			// 添加任务输入，重复提醒目标
+			result.Messages = append(result.Messages, llm.Message{
+				Role:    "user",
+				Content: execCtx.Task,
+			})
 		} else {
 			// 没有工具调用，直接返回最终答案
 			finalAnswer := choice.Message.Content
