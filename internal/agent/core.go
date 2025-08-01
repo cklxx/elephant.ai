@@ -24,17 +24,9 @@ type ReactCore struct {
 
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
-	coreLogger := utils.CoreLogger
-
-	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
-	if err != nil {
-		coreLogger.Error("Failed to get LLM instance: %v", err)
-		llmClient = nil
-	}
-
 	return &ReactCore{
 		agent:            agent,
-		messageProcessor: message.NewMessageProcessor(llmClient, agent.sessionManager),
+		messageProcessor: message.NewMessageProcessor(agent.llm, agent.sessionManager),
 		llmHandler:       NewLLMHandler(agent.sessionManager, nil), // Will be set per request
 		toolHandler:      NewToolHandler(toolRegistry),
 		promptHandler:    NewPromptHandler(agent.promptBuilder),
@@ -61,7 +53,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	}
 
 	// Ultra Think: 预分析用户任务
-	taskAnalysis, err := rc.performTaskPreAnalysis(ctx, task, streamCallback)
+	taskAnalysis, err := rc.performTaskPreAnalysis(ctx, task)
 	if err != nil {
 		utils.CoreLogger.Warn("Task pre-analysis failed, continuing with normal flow: %v", err)
 	} else if isStreaming && taskAnalysis != "" {
@@ -238,7 +230,7 @@ func (rc *ReactCore) executeToolDirect(ctx context.Context, toolName string, arg
 }
 
 // performTaskPreAnalysis - 执行任务预分析，理解用户需求并分析所需信息
-func (rc *ReactCore) performTaskPreAnalysis(ctx context.Context, task string, streamCallback StreamCallback) (string, error) {
+func (rc *ReactCore) performTaskPreAnalysis(ctx context.Context, task string) (string, error) {
 	coreLogger := utils.CoreLogger
 	coreLogger.Debug("Starting task pre-analysis for: %s", task)
 
