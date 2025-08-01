@@ -64,7 +64,7 @@ func (sh *SessionHelper) AddMessageToSession(llmMsg *llm.Message, session *agent
 		Content:    llmMsg.Content,
 		ToolCallId: llmMsg.ToolCallId,
 		Name:       llmMsg.Name,
-		ToolCalls:  llmMsg.ToolCalls,
+		ToolCalls:  make([]llm.ToolCall, 0),
 		Timestamp:  time.Now(),
 		Metadata: map[string]interface{}{
 			"source":    "llm_response",
