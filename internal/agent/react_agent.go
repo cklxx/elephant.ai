@@ -92,6 +92,8 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 创建统一的工具注册器
 	toolRegistry := NewToolRegistry(configManager, sessionManager)
 
+	log.Printf("[DEBUG] ReactAgent: llmConfig: %+v", llmConfig)
+
 	agent := &ReactAgent{
 		llm:            llmClient,
 		configManager:  configManager,
@@ -241,7 +243,6 @@ func (r *ReactAgent) GetSessionID() (string, error) {
 func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	return r.toolExecutor.parseToolCalls(message)
 }
-
 
 // ========== 组件创建函数 ==========
 

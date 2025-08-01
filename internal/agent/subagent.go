@@ -371,7 +371,6 @@ type SubAgentConfig struct {
 	SessionID     string   // 子会话ID
 	MaxIterations int      // 最大迭代次数
 	Tools         []string // 允许使用的工具列表
-	SystemPrompt  string   // 系统提示
 	ContextCache  bool     // 是否启用上下文缓存
 }
 
@@ -413,8 +412,16 @@ func NewSubAgent(parentCore *ReactCore, config *SubAgentConfig) (*SubAgent, erro
 	// 创建独立的工具注册器，使用sub-agent模式防止递归
 	subToolRegistry := NewToolRegistryWithSubAgentMode(parentCore.agent.configManager, subSessionManager, true)
 
+	agent := &ReactAgent{
+		llm:            parentCore.agent.llm,
+		configManager:  parentCore.agent.configManager,
+		sessionManager: subSessionManager,
+		toolRegistry:   subToolRegistry,
+		config:         types.NewReactConfig(),
+		llmConfig:      parentCore.agent.llmConfig,
+	}
 	// 创建独立的ReactCore实例，避免session状态污染
-	subReactCore := NewReactCore(parentCore.agent, subToolRegistry)
+	subReactCore := NewReactCore(agent, subToolRegistry)
 
 	subAgentLog("INFO", "Sub-agent initialized successfully with %d tools", len(subToolRegistry.ListTools(context.Background())))
 
@@ -426,94 +433,8 @@ func NewSubAgent(parentCore *ReactCore, config *SubAgentConfig) (*SubAgent, erro
 	}, nil
 }
 
-// ExecuteTask - 实现SubAgentInterface.ExecuteTask
-func (sa *SubAgent) ExecuteTask(ctx context.Context, task string) (*SubAgentResult, error) {
-	startTime := time.Now()
-	subAgentLog("INFO", "🚀 Starting sub-agent task execution")
-	subAgentLog("INFO", "📋 Task: %s", task)
-	subAgentLog("INFO", "🆔 Session ID: %s", sa.sessionID)
-
-	// 为sub-agent创建独立的session，避免与主agent混淆
-	subAgentLog("DEBUG", "📝 Creating independent session for sub-agent")
-	subSession, err := sa.sessionManager.StartSession(sa.sessionID)
-	if err != nil {
-		subAgentLog("ERROR", "Failed to start session: %v", err)
-		return &SubAgentResult{
-			Success:       false,
-			TaskCompleted: false,
-			Result:        "",
-			SessionID:     sa.sessionID,
-			Duration:      time.Since(startTime).Milliseconds(),
-			ErrorMessage:  fmt.Sprintf("failed to start sub-agent session: %v", err),
-		}, err
-	}
-	subAgentLog("DEBUG", "📝 Session created successfully")
-
-	// 准备系统提示
-	systemPrompt := sa.config.SystemPrompt
-	if systemPrompt == "" {
-		// 使用默认的sub-agent系统提示
-		systemPrompt = sa.buildDefaultSystemPrompt()
-	}
-
-	// 创建独立的任务执行上下文
-	execCtx := sa.reactCore.NewTaskExecutionContext(ctx, task, systemPrompt, sa.config.MaxIterations)
-
-	// 设置sub-agent专用的session和session manager
-	execCtx.Session = subSession
-	execCtx.SessionManager = sa.sessionManager
-
-	// 如果有工具限制，过滤工具列表
-	if len(sa.config.Tools) > 0 {
-		execCtx.Tools = sa.filterTools(execCtx.Tools)
-	}
-
-	// 执行核心任务
-	subAgentLog("INFO", "⚡ Executing core task with max %d iterations", sa.config.MaxIterations)
-	// 检查是否有可用的流式回调
-	var callback StreamCallback
-	if sa.reactCore.streamCallback != nil {
-		callback = sa.reactCore.streamCallback
-		subAgentLog("DEBUG", "Using available stream callback from ReactCore")
-	}
-	result, err := sa.reactCore.ExecuteTaskCore(ctx, execCtx, callback)
-	if err != nil {
-		subAgentLog("ERROR", "❌ Core task execution failed: %v", err)
-		return &SubAgentResult{
-			Success:       false,
-			TaskCompleted: false,
-			Result:        "",
-			SessionID:     sa.sessionID,
-			Duration:      time.Since(startTime).Milliseconds(),
-			ErrorMessage:  err.Error(),
-		}, err
-	}
-	subAgentLog("DEBUG", "⚡ Core task execution completed")
-
-	// 构建sub-agent结果
-	subResult := &SubAgentResult{
-		Success:       result.Success,
-		TaskCompleted: result.Success,
-		Result:        result.Answer,
-		SessionID:     sa.sessionID,
-		TokensUsed:    result.TokensUsed,
-		Duration:      time.Since(startTime).Milliseconds(),
-	}
-
-	// 如果任务失败，设置错误信息
-	if !result.Success {
-		subResult.ErrorMessage = "Task execution did not complete successfully"
-		subAgentLog("WARN", "Task execution unsuccessful after %dms", subResult.Duration)
-	} else {
-		subAgentLog("INFO", "Task completed successfully in %dms, tokens used: %d",
-			subResult.Duration, subResult.TokensUsed)
-	}
-
-	return subResult, nil
-}
-
-// ExecuteTaskWithStream - 实现SubAgentInterface.ExecuteTaskWithStream，支持流式回调
-func (sa *SubAgent) ExecuteTaskWithStream(ctx context.Context, task string, streamCallback StreamCallback) (*SubAgentResult, error) {
+// ExecuteTask - 实现SubAgentInterface.ExecuteTask，支持流式回调
+func (sa *SubAgent) ExecuteTask(ctx context.Context, task string, streamCallback StreamCallback) (*SubAgentResult, error) {
 	startTime := time.Now()
 	subAgentLog("INFO", "🚀 Starting sub-agent task execution with stream callback")
 	subAgentLog("INFO", "📋 Task: %s", task)
@@ -536,11 +457,7 @@ func (sa *SubAgent) ExecuteTaskWithStream(ctx context.Context, task string, stre
 	subAgentLog("DEBUG", "📝 Session created successfully")
 
 	// 准备系统提示
-	systemPrompt := sa.config.SystemPrompt
-	if systemPrompt == "" {
-		// 使用默认的sub-agent系统提示
-		systemPrompt = sa.buildDefaultSystemPrompt()
-	}
+	systemPrompt := sa.buildDefaultSystemPrompt()
 
 	// 创建独立的任务执行上下文
 	execCtx := sa.reactCore.NewTaskExecutionContext(ctx, task, systemPrompt, sa.config.MaxIterations)
@@ -801,13 +718,6 @@ func (rc *ReactCore) ExecuteSubAgentTask(ctx context.Context, args map[string]in
 		}
 	}
 
-	systemPrompt := ""
-	if prompt, exists := args["system_prompt"]; exists {
-		if promptStr, ok := prompt.(string); ok {
-			systemPrompt = promptStr
-		}
-	}
-
 	var allowedTools []string
 	if tools, exists := args["allowed_tools"]; exists {
 		if toolsSlice, ok := tools.([]interface{}); ok {
@@ -823,7 +733,6 @@ func (rc *ReactCore) ExecuteSubAgentTask(ctx context.Context, args map[string]in
 	config := &SubAgentConfig{
 		MaxIterations: maxIter,
 		Tools:         allowedTools,
-		SystemPrompt:  systemPrompt,
 		ContextCache:  true, // 默认启用上下文缓存
 	}
 
@@ -833,9 +742,5 @@ func (rc *ReactCore) ExecuteSubAgentTask(ctx context.Context, args map[string]in
 		return nil, fmt.Errorf("failed to create sub-agent: %w", err)
 	}
 
-	// 如果有流式回调，使用带流式回调的方法，否则使用普通方法
-	if rc.streamCallback != nil {
-		return subAgent.ExecuteTaskWithStream(ctx, task, rc.streamCallback)
-	}
-	return subAgent.ExecuteTask(ctx, task)
+	return subAgent.ExecuteTask(ctx, task, rc.streamCallback)
 }

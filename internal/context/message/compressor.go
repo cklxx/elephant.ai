@@ -121,12 +121,8 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 				Content: prompt,
 			},
 		},
-		ModelType: llm.BasicModel,
-		Config: &llm.Config{
-
-			Temperature: 0.1,  // Even lower temperature for more consistent structured output
-			MaxTokens:   2000, // More tokens for comprehensive structured summaries
-		},
+		ModelType: mc.llmConfig.DefaultModelType,
+		Config:    mc.llmConfig,
 	}
 
 	// Use the provided context with timeout to preserve session ID and other values
