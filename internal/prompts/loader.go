@@ -145,7 +145,7 @@ func (p *PromptLoader) GetUserContextPrompt(conversationHistory, currentRequest 
 	return p.RenderPrompt("user_context", variables)
 }
 
-// loadProjectMemory loads project memory from ALEX.md file if it exists
+// loadProjectMemory loads project memory from ALEX.md file with CLAUDE.md fallback
 func (p *PromptLoader) loadProjectMemory(workingDir string) string {
 	defaultMemory := "You are a helpful assistant that can help the user with their tasks."
 
@@ -153,27 +153,19 @@ func (p *PromptLoader) loadProjectMemory(workingDir string) string {
 		return defaultMemory
 	}
 
+	// Try ALEX.md first (priority)
 	alexFilePath := filepath.Join(workingDir, "ALEX.md")
-
-	// Check if ALEX.md exists
-	if _, err := os.Stat(alexFilePath); os.IsNotExist(err) {
-		return defaultMemory
+	if content := p.tryReadFile(alexFilePath); content != "" {
+		return content
 	}
 
-	// Try to read ALEX.md content
-	content, err := os.ReadFile(alexFilePath)
-	if err != nil {
-		// If read fails, return default
-		return defaultMemory
+	// Fallback to CLAUDE.md
+	claudeFilePath := filepath.Join(workingDir, "CLAUDE.md")
+	if content := p.tryReadFile(claudeFilePath); content != "" {
+		return content
 	}
 
-	// Return file content as memory, or default if empty
-	fileContent := strings.TrimSpace(string(content))
-	if fileContent == "" {
-		return defaultMemory
-	}
-
-	return fileContent
+	return defaultMemory
 }
 
 // loadGitInfo loads current git information from the working directory
@@ -243,4 +235,22 @@ func (p *PromptLoader) loadGitInfo(workingDir string) string {
 	}
 	
 	return strings.TrimSpace(result)
+}
+
+// tryReadFile attempts to read a file and returns its content, or empty string if failed
+func (p *PromptLoader) tryReadFile(filePath string) string {
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return ""
+	}
+
+	// Try to read file content
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+
+	// Return file content, or empty if blank
+	fileContent := strings.TrimSpace(string(content))
+	return fileContent
 }
