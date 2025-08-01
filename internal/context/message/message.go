@@ -20,13 +20,13 @@ type MessageProcessor struct {
 }
 
 // NewMessageProcessor 创建统一的消息处理器
-func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) *MessageProcessor {
+func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager, llmConfig *llm.Config) *MessageProcessor {
 
 	return &MessageProcessor{
 		sessionManager: sessionManager,
 		tokenEstimator: NewTokenEstimator(),
-		adapter:        message.NewAdapter(),                            // 统一消息适配器
-		compressor:     NewMessageCompressor(sessionManager, llmClient), // 简化的压缩器
+		adapter:        message.NewAdapter(),                                       // 统一消息适配器
+		compressor:     NewMessageCompressor(sessionManager, llmClient, llmConfig), // 简化的压缩器
 	}
 }
 

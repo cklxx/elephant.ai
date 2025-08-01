@@ -26,7 +26,7 @@ type ReactCore struct {
 func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
 	return &ReactCore{
 		agent:            agent,
-		messageProcessor: message.NewMessageProcessor(agent.llm, agent.sessionManager),
+		messageProcessor: message.NewMessageProcessor(agent.llm, agent.sessionManager, agent.llmConfig),
 		llmHandler:       NewLLMHandler(agent.sessionManager, nil), // Will be set per request
 		toolHandler:      NewToolHandler(toolRegistry),
 		promptHandler:    NewPromptHandler(agent.promptBuilder),

@@ -15,13 +15,15 @@ import (
 type MessageCompressor struct {
 	sessionManager *session.Manager
 	llmClient      llm.Client
+	llmConfig      *llm.Config
 }
 
 // NewMessageCompressor creates a new message compressor
-func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client) *MessageCompressor {
+func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client, llmConfig *llm.Config) *MessageCompressor {
 	return &MessageCompressor{
 		sessionManager: sessionManager,
 		llmClient:      llmClient,
+		llmConfig:      llmConfig,
 	}
 }
 
@@ -121,6 +123,7 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 		},
 		ModelType: llm.BasicModel,
 		Config: &llm.Config{
+
 			Temperature: 0.1,  // Even lower temperature for more consistent structured output
 			MaxTokens:   2000, // More tokens for comprehensive structured summaries
 		},
