@@ -46,6 +46,8 @@ build-all: deps
 	@GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(SOURCE_MAIN)
 	@echo "Multi-platform build complete in $(BUILD_DIR)/"
 	@echo "Version: $(VERSION)"
+	@echo "Copying binaries to npm packages..."
+	@./scripts/copy-npm-binaries.sh
 
 # Install the binary to GOPATH/bin with version information
 .PHONY: install
@@ -343,10 +345,24 @@ swe-bench-clean:
 # Help target
 .PHONY: help
 help:
+	@echo ""
+	@echo "NPM Publishing:"
+	@echo "  copy-npm-binaries  Copy built binaries to their respective npm packages"
+	@echo "  publish-npm        Publish all npm packages to the registry"
+	@echo ""
 	@echo "Available targets:"
 	@echo ""
 	@echo "Build & Development:"
 	@echo "  build              Build the binary"
+
+# NPM Publishing targets
+.PHONY: copy-npm-binaries
+copy-npm-binaries:
+	@./scripts/copy-npm-binaries.sh
+
+.PHONY: publish-npm
+publish-npm: build-all
+	@./scripts/publish-npm.sh
 	@echo "  build-all          Build for multiple platforms"
 	@echo "  install            Install binary to GOPATH/bin"
 	@echo "  deps               Initialize dependencies"
