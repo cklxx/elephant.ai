@@ -60,6 +60,21 @@ export OPENAI_API_KEY="your-openrouter-key-here"
 
 ### Quick Install (Recommended)
 
+#### Using npm (for Node.js users)
+You can install ALEX using npm, which will automatically download the correct binary for your system.
+
+```bash
+npm install -g alex-code
+```
+After installation, you can run the agent using the `alex-code` command.
+
+You can also use `npx` to run it without a global installation:
+```bash
+npx alex-code "Your prompt here"
+```
+
+#### Using Shell Scripts
+
 **Linux/macOS:**
 ```bash
 curl -sSfL https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.sh | sh
