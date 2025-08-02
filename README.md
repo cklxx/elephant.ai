@@ -27,6 +27,18 @@ make build
 ./alex "List all .go files"   # Single command mode
 ```
 
+### NPM Installation
+
+For users familiar with the Node.js ecosystem, `alex` can be installed via npm.
+
+```bash
+# Install globally
+npm install -g alex-code
+
+# Now you can use the 'alex' command
+alex "Analyze the current directory"
+```
+
 ### First Time Configuration
 
 ```bash
