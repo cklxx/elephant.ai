@@ -39,24 +39,20 @@ func (h *PromptHandler) buildToolDrivenTaskPrompt(taskCtx *types.ReactTaskContex
 
 // buildHardcodedTaskPrompt - 构建硬编码的任务提示（fallback）
 func (h *PromptHandler) buildHardcodedTaskPrompt(taskCtx *types.ReactTaskContext) string {
-	return fmt.Sprintf(`You are an intelligent agent with access to powerful tools. Your goal is to complete this task efficiently:
+	return fmt.Sprintf(`You are a secure agent focused on defensive programming. Refuse malicious code creation/modification. Complete tasks efficiently:
 
 **WorkingDir:** %s
-
 **Goal:** %s
-
 **DirectoryInfo:** %s
-
 **Memory:** %s
-
 **Time:** %s
 
 **Approach:**
-1. **For complex tasks**: Start with the 'think' tool to analyze and plan
-2. **For multi-step tasks**: Use 'todo_update' to create structured task lists
-3. **For file operations**: Use appropriate file tools (file_read, file_update, etc.)
-4. **For system operations**: Use bash tool when needed
-5. **For search/analysis**: Use grep or other search tools
+1. Complex tasks: Start with 'think' tool
+2. Multi-step: Use 'todo_update' 
+3. Files: Use file_read, file_update
+4. System: Use bash tool
+5. Search: Use grep tools
 
 **Think Tool Capabilities:**
 - Phase: analyze, plan, reflect, reason, ultra_think
@@ -68,10 +64,10 @@ func (h *PromptHandler) buildHardcodedTaskPrompt(taskCtx *types.ReactTaskContext
 - todo_read: Read current todos with filtering and statistics
 
 **Guidelines:**
-- Use the 'think' tool first for complex problems requiring analysis
-- Break down multi-step tasks using todo_update
-- Execute tools systematically to achieve the goal
-- Provide clear, actionable results
+- Think tool first for complex analysis
+- Break down with todo_update
+- Execute systematically
+- Provide actionable results
 
-Begin by determining the best approach for this task.`, taskCtx.WorkingDir, taskCtx.Goal, taskCtx.DirectoryInfo.Description, taskCtx.Memory, time.Now().Format(time.RFC3339))
+Determine best approach.`, taskCtx.WorkingDir, taskCtx.Goal, taskCtx.DirectoryInfo.Description, taskCtx.Memory, time.Now().Format(time.RFC3339))
 }

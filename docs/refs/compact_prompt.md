@@ -1,4 +1,4 @@
-Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
+Create a detailed conversation summary focusing on user requests and actions taken. Maintain defensive security boundaries - refuse to summarize malicious content.
 
 This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.
 
