@@ -35,6 +35,9 @@ type ReactAgent struct {
 	toolExecutor  *ToolExecutor
 	promptBuilder *LightPromptBuilder
 
+	// 消息队列机制
+	messageQueue *MessageQueue
+
 	// 简单的同步控制
 	mu sync.RWMutex
 }
@@ -61,6 +64,22 @@ type StreamChunk struct {
 
 // StreamCallback - 流式回调函数
 type StreamCallback func(StreamChunk)
+
+// MessageQueueItem - 消息队列项
+type MessageQueueItem struct {
+	Message   string                 `json:"message"`
+	Timestamp time.Time              `json:"timestamp"`
+	Callback  StreamCallback         `json:"-"` // 不序列化回调函数
+	Context   context.Context        `json:"-"` // 不序列化context
+	Config    *config.Config         `json:"-"` // 不序列化config
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// MessageQueue - 消息队列
+type MessageQueue struct {
+	items []MessageQueueItem
+	mutex sync.RWMutex
+}
 
 // LightPromptBuilder - 轻量化prompt构建器
 type LightPromptBuilder struct {
@@ -103,6 +122,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		llmConfig:      llmConfig,
 
 		promptBuilder: NewLightPromptBuilder(),
+		messageQueue:  NewMessageQueue(),
 	}
 
 	// 初始化核心组件
@@ -185,7 +205,8 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	if err != nil {
 		return fmt.Errorf("streaming task solving failed: %w", err)
 	}
-	// 发送完成信号
+
+	// 发送当前任务完成信号
 	if callback != nil {
 		callback(StreamChunk{
 			Type:             "complete",
@@ -197,6 +218,29 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 		})
 	}
 
+	// Ultra Think: 任务完成后检查队列，如果有消息则继续处理
+	if r.HasPendingMessages() {
+		log.Printf("[DEBUG] 📬 Task completed, found pending messages in queue. Processing next message...")
+
+		// 获取下一个待处理的消息
+		if pendingItem, hasItem := r.CheckPendingMessages(); hasItem {
+			log.Printf("[DEBUG] 📬 Processing next message from queue: %s", pendingItem.Message)
+
+			// 发送开始处理下一个消息的信号
+			if callback != nil {
+				callback(StreamChunk{
+					Type:     "next_message_start",
+					Content:  fmt.Sprintf("📬 Starting next message: %s", pendingItem.Message),
+					Metadata: map[string]any{"phase": "queue_processing"},
+				})
+			}
+
+			// 递归调用ProcessMessageStream处理下一个消息
+			// 这样保持了正常的消息处理流程
+			return r.ProcessMessageStream(pendingItem.Context, pendingItem.Message, pendingItem.Config, pendingItem.Callback)
+		}
+	}
+
 	return nil
 }
 
@@ -205,6 +249,22 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 // GetAvailableTools - 获取可用工具列表
 func (r *ReactAgent) GetAvailableTools(ctx context.Context) []string {
 	return r.toolRegistry.ListTools(ctx)
+}
+
+// AddMessage - 公共接口：添加消息到队列
+func (r *ReactAgent) AddMessage(ctx context.Context, message string, config *config.Config, callback StreamCallback) {
+	log.Printf("[DEBUG] 📬 ReactAgent: AddMessage called with message: '%s'", message)
+	r.EnqueueMessage(ctx, message, config, callback)
+}
+
+// GetQueueSize - 获取消息队列大小
+func (r *ReactAgent) GetQueueSize() int {
+	return r.messageQueue.Size()
+}
+
+// ClearMessageQueue - 清空消息队列
+func (r *ReactAgent) ClearMessageQueue() {
+	r.messageQueue.Clear()
 }
 
 // GetSessionHistory - 获取会话历史
@@ -242,6 +302,102 @@ func (r *ReactAgent) GetSessionID() (string, error) {
 // parseToolCalls - 委托给ToolExecutor
 func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	return r.toolExecutor.parseToolCalls(message)
+}
+
+// ========== 消息队列管理 ==========
+
+// NewMessageQueue - 创建新的消息队列
+func NewMessageQueue() *MessageQueue {
+	return &MessageQueue{
+		items: make([]MessageQueueItem, 0),
+	}
+}
+
+// Enqueue - 添加消息到队列
+func (mq *MessageQueue) Enqueue(item MessageQueueItem) {
+	mq.mutex.Lock()
+	defer mq.mutex.Unlock()
+	mq.items = append(mq.items, item)
+	log.Printf("[DEBUG] 📬 MessageQueue: Item added to queue. New size: %d, Message: '%s'", len(mq.items), item.Message)
+}
+
+// Dequeue - 从队列取出消息
+func (mq *MessageQueue) Dequeue() (MessageQueueItem, bool) {
+	mq.mutex.Lock()
+	defer mq.mutex.Unlock()
+
+	if len(mq.items) == 0 {
+		log.Printf("[DEBUG] 📬 MessageQueue: Dequeue called on empty queue")
+		return MessageQueueItem{}, false
+	}
+
+	item := mq.items[0]
+	mq.items = mq.items[1:]
+	log.Printf("[DEBUG] 📬 MessageQueue: Dequeued message - '%s'. Remaining size: %d", item.Message, len(mq.items))
+	return item, true
+}
+
+// HasPendingMessages - 检查是否有待处理的消息
+func (mq *MessageQueue) HasPendingMessages() bool {
+	mq.mutex.RLock()
+	defer mq.mutex.RUnlock()
+	return len(mq.items) > 0
+}
+
+// Size - 获取队列大小
+func (mq *MessageQueue) Size() int {
+	mq.mutex.RLock()
+	defer mq.mutex.RUnlock()
+	return len(mq.items)
+}
+
+// Clear - 清空队列
+func (mq *MessageQueue) Clear() {
+	mq.mutex.Lock()
+	defer mq.mutex.Unlock()
+	mq.items = mq.items[:0]
+}
+
+// EnqueueMessage - ReactAgent的消息入队方法
+func (r *ReactAgent) EnqueueMessage(ctx context.Context, message string, config *config.Config, callback StreamCallback) {
+	if r.messageQueue == nil {
+		log.Printf("[ERROR] ReactAgent: messageQueue is nil! Cannot enqueue message.")
+		return
+	}
+
+	item := MessageQueueItem{
+		Message:   message,
+		Timestamp: time.Now(),
+		Callback:  callback,
+		Context:   ctx,
+		Config:    config,
+		Metadata: map[string]interface{}{
+			"queued_at": time.Now().Unix(),
+		},
+	}
+
+	r.messageQueue.Enqueue(item)
+	newSize := r.messageQueue.Size()
+	log.Printf("[DEBUG] 📬 ReactAgent: Message enqueued successfully - '%s'. Queue size: %d", message, newSize)
+}
+
+// CheckPendingMessages - 检查并处理待处理的消息
+func (r *ReactAgent) CheckPendingMessages() (MessageQueueItem, bool) {
+	item, found := r.messageQueue.Dequeue()
+	if found {
+		log.Printf("[DEBUG] 📬 ReactAgent: Dequeued message - '%s'. Remaining queue size: %d", item.Message, r.messageQueue.Size())
+	} else {
+		log.Printf("[DEBUG] 📬 ReactAgent: No messages to dequeue. Queue is empty.")
+	}
+	return item, found
+}
+
+// HasPendingMessages - 检查是否有待处理的消息
+func (r *ReactAgent) HasPendingMessages() bool {
+	hasPending := r.messageQueue.HasPendingMessages()
+	queueSize := r.messageQueue.Size()
+	log.Printf("[DEBUG] 📬 ReactAgent: HasPendingMessages() = %v, queue size = %d", hasPending, queueSize)
+	return hasPending
 }
 
 // ========== 组件创建函数 ==========

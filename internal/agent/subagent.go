@@ -95,6 +95,47 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 
 		subAgentLog("INFO", "🔄 Starting iteration %d/%d", iteration, maxIterations)
 
+		// Ultra Think: 检查消息队列是否有新的用户输入，融入当前任务
+		// 这里不中断任务，而是将新消息融入到当前工具调用循环中，更新任务目标
+		if rc.agent != nil && rc.agent.HasPendingMessages() {
+			subAgentLog("INFO", "📬 Detected pending messages in queue, integrating into current task")
+
+			// 收集所有待处理的消息
+			var newMessages []string
+			for rc.agent.HasPendingMessages() {
+				if pendingItem, hasItem := rc.agent.CheckPendingMessages(); hasItem {
+					newMessages = append(newMessages, pendingItem.Message)
+					subAgentLog("INFO", "📬 Integrating message: %s", pendingItem.Message)
+				}
+			}
+
+			if len(newMessages) > 0 {
+				if isStreaming {
+					streamCallback(StreamChunk{
+						Type:     "message_integration",
+						Content:  fmt.Sprintf("📬 Integrating %d new messages into current task", len(newMessages)),
+						Metadata: map[string]any{"iteration": iteration, "phase": "message_integration", "new_messages_count": len(newMessages)},
+					})
+				}
+
+				// 将新消息融入到当前对话中，更新任务目标
+				combinedMessage := "Additional user messages received:\n"
+				for i, msg := range newMessages {
+					combinedMessage += fmt.Sprintf("%d. %s\n", i+1, msg)
+				}
+				combinedMessage += "\nPlease integrate these new requirements with the current task and continue working."
+
+				// 添加融合消息到LLM对话历史
+				userMsg := llm.Message{
+					Role:    "user",
+					Content: combinedMessage,
+				}
+				result.Messages = append(result.Messages, userMsg)
+
+				subAgentLog("INFO", "📬 Successfully integrated %d messages into current task", len(newMessages))
+			}
+		}
+
 		if isStreaming {
 			streamCallback(StreamChunk{
 				Type:     "iteration",

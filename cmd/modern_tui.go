@@ -21,13 +21,13 @@ import (
 
 // StreamBuffer manages infinite data stream with optimized memory usage
 type StreamBuffer struct {
-	items           []ChatMessage
-	capacity        int
-	size            int
-	head            int  // Start of valid data
-	tail            int  // End of valid data
-	totalProcessed  int  // Total items ever processed
-	isCircular      bool // Whether buffer has wrapped around
+	items          []ChatMessage
+	capacity       int
+	size           int
+	head           int  // Start of valid data
+	tail           int  // End of valid data
+	totalProcessed int  // Total items ever processed
+	isCircular     bool // Whether buffer has wrapped around
 }
 
 func newStreamBuffer(capacity int) *StreamBuffer {
@@ -163,15 +163,15 @@ type StreamTUIModel struct {
 
 // Message types for streaming
 type (
-	streamStartMsg     struct{ input string }
-	streamChunkMsg     struct{ content, chunkType string }
-	streamContentMsg   struct{ content string }
-	streamCompleteMsg  struct{}
-	processingDoneMsg  struct{}
-	errorOccurredMsg   struct{ err error }
-	tickerMsg          struct{}
-	tokenUpdateMsg     struct{ count int }
-	forceInitMsg       struct{}
+	streamStartMsg    struct{ input string }
+	streamChunkMsg    struct{ content, chunkType string }
+	streamContentMsg  struct{ content string }
+	streamCompleteMsg struct{}
+	processingDoneMsg struct{}
+	errorOccurredMsg  struct{ err error }
+	tickerMsg         struct{}
+	tokenUpdateMsg    struct{ count int }
+	forceInitMsg      struct{}
 )
 
 // ChatMessage represents a message in the stream
@@ -269,7 +269,7 @@ func (m *StreamTUIModel) Init() tea.Cmd {
 
 func (m *StreamTUIModel) initializeDefaultDimensions() {
 	defaultWidth, defaultHeight := 80, 24
-	
+
 	m.textarea.SetWidth(defaultWidth - 4)
 	m.viewport.Width = defaultWidth
 	m.viewport.Height = 20
@@ -289,35 +289,35 @@ func (m *StreamTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.handleWindowResize(msg)
-		
+
 	case tea.KeyMsg:
 		return m.handleKeyInput(msg)
-		
+
 	case streamStartMsg:
 		return m.handleStreamStart(msg)
-		
+
 	case streamChunkMsg:
 		return m.handleStreamChunk(msg)
-		
+
 	case streamContentMsg:
 		return m.handleStreamContent(msg)
-		
+
 	case streamCompleteMsg:
 		return m.handleStreamComplete()
-		
+
 	case processingDoneMsg:
 		m.processing = false
 		m.execTimer.Active = false
-		
+
 	case tokenUpdateMsg:
 		m.tokenCount = msg.count
-		
+
 	case errorOccurredMsg:
 		return m.handleError(msg)
-		
+
 	case tickerMsg:
 		return m.handleTicker()
-		
+
 	case forceInitMsg:
 		if !m.ready {
 			m.initializeDefaultDimensions()
@@ -330,12 +330,12 @@ func (m *StreamTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *StreamTUIModel) handleWindowResize(msg tea.WindowSizeMsg) {
 	padding := 4
 	textareaWidth := max(20, msg.Width-padding)
-	
+
 	m.textarea.SetWidth(textareaWidth)
 	m.viewport.Width = msg.Width
 	m.width = msg.Width
 	m.height = msg.Height
-	
+
 	// Update virtual viewport height
 	availableHeight := m.calculateViewportHeight()
 	m.viewport.Height = availableHeight
@@ -347,7 +347,7 @@ func (m *StreamTUIModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case msg.Type == tea.KeyCtrlC:
 		m.cleanupKimiCache()
 		return m, tea.Quit
-		
+
 	case msg.Type == tea.KeyEsc:
 		if m.processing {
 			m.processing = false
@@ -360,7 +360,7 @@ func (m *StreamTUIModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			})
 		}
 		return m, nil
-		
+
 	case msg.Type == tea.KeyCtrlI:
 		m.inputAtBottom = !m.inputAtBottom
 		pos := "follows last message"
@@ -374,47 +374,53 @@ func (m *StreamTUIModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			Time:      time.Now(),
 		})
 		return m, nil
-		
+
 	case msg.String() == "pgup":
 		m.virtualView.scrollUp(5)
 		m.updateViewportContent()
 		return m, nil
-		
+
 	case msg.String() == "pgdown":
 		m.virtualView.scrollDown(5)
 		m.updateViewportContent()
 		return m, nil
-		
+
 	case msg.String() == "home":
 		m.virtualView.scrollOffset = 0
 		m.updateViewportContent()
 		return m, nil
-		
+
 	case msg.String() == "end":
 		m.virtualView.scrollToBottom()
 		m.updateViewportContent()
 		return m, nil
-		
+
 	case msg.Type == tea.KeyEnter && !msg.Alt:
 		return m.handleSubmit()
 	}
-	
+
 	return m, nil
 }
 
 func (m *StreamTUIModel) handleSubmit() (tea.Model, tea.Cmd) {
-	if !m.processing && strings.TrimSpace(m.textarea.Value()) != "" {
-		input := strings.TrimSpace(m.textarea.Value())
+	if strings.TrimSpace(m.textarea.Value()) == "" {
+		return m, nil
+	}
+
+	input := strings.TrimSpace(m.textarea.Value())
+	m.textarea.Reset()
+
+	// 添加用户消息到UI
+	m.addMessage(ChatMessage{
+		Type:      "user",
+		ChunkType: "user_input",
+		Content:   input,
+		Time:      time.Now(),
+	})
+
+	// 如果当前没有在处理任何消息，直接处理
+	if !m.processing {
 		m.currentInput = input
-		m.textarea.Reset()
-
-		m.addMessage(ChatMessage{
-			Type:      "user",
-			ChunkType: "user_input",
-			Content:   input,
-			Time:      time.Now(),
-		})
-
 		m.processing = true
 		m.tokenCount = 0
 		m.execTimer = ExecutionTimer{
@@ -422,8 +428,96 @@ func (m *StreamTUIModel) handleSubmit() (tea.Model, tea.Cmd) {
 			Active:    true,
 		}
 
+		log.Printf("[DEBUG] TUI: Starting direct processing of message: %s", input)
 		return m, tea.Batch(m.processUserInput(input), m.startTicker())
 	}
+
+	// 如果正在处理，将消息加入队列
+	// 创建一个callback，用于队列消息的流式处理
+	streamCallback := func(chunk agent.StreamChunk) {
+		var content string
+		switch chunk.Type {
+		case "status", "iteration":
+			return
+		case "tool_start":
+			if chunk.Content != "" {
+				content = "\n\n" + chunk.Content
+			}
+		case "tool_result":
+			if chunk.Content != "" {
+				content = "\n" + formatToolOutput("⎿ ", chunk.Content)
+			}
+		case "tool_error":
+			if chunk.Content != "" {
+				content = "\n❌ " + chunk.Content
+			}
+		case "final_answer":
+			if chunk.Content != "" {
+				content = "\n\n✨ " + chunk.Content
+			}
+		case "llm_content":
+			m.program.Send(streamContentMsg{content: chunk.Content})
+			return
+		case "complete":
+			if chunk.Content != "" {
+				content = "\n✅ " + chunk.Content
+			}
+			if chunk.Complete {
+				m.program.Send(streamCompleteMsg{})
+				return
+			}
+		case "next_message_start":
+			if chunk.Content != "" {
+				content = "\n\n" + chunk.Content
+				m.program.Send(streamChunkMsg{content: content, chunkType: chunk.Type})
+			}
+			return
+		case "message_integration":
+			if chunk.Content != "" {
+				content = "\n📬 " + chunk.Content
+			}
+		case "message_switch":
+			if chunk.Content != "" {
+				content = "\n\n" + chunk.Content
+			}
+		case "max_iterations":
+			if chunk.Content != "" {
+				content = "\n⚠️ " + chunk.Content
+			}
+		case "context_management":
+			if chunk.Content != "" {
+				content = "\n🧠 " + chunk.Content
+			}
+		case "token_usage":
+			if chunk.TotalTokensUsed > 0 {
+				m.program.Send(tokenUpdateMsg{count: chunk.TotalTokensUsed})
+			} else if chunk.TokensUsed > 0 {
+				m.program.Send(tokenUpdateMsg{count: chunk.TokensUsed})
+			}
+			return
+		}
+
+		if content != "" && !strings.HasPrefix(content, "\n") {
+			content = "\n" + content
+		}
+		if content != "" {
+			m.program.Send(streamChunkMsg{content: content, chunkType: chunk.Type})
+		}
+	}
+
+	// 将消息加入队列，并提供正确的callback
+	m.agent.AddMessage(context.Background(), input, m.config.GetConfig(), streamCallback)
+
+	queueSize := m.agent.GetQueueSize()
+	log.Printf("[DEBUG] TUI: Message queued. Queue size: %d", queueSize)
+
+	m.addMessage(ChatMessage{
+		Type:      "system",
+		ChunkType: "system",
+		Content:   fmt.Sprintf("📬 Message queued (queue size: %d). Processing current task...", queueSize),
+		Time:      time.Now(),
+	})
+
 	return m, nil
 }
 
@@ -571,7 +665,7 @@ func (m *StreamTUIModel) renderMessage(msg ChatMessage) string {
 
 func (m *StreamTUIModel) styleAssistantContent(content string, chunkType string) string {
 	isToolOutput := chunkType == "tool_result" || chunkType == "tool_start" || chunkType == "tool_error"
-	
+
 	lines := strings.Split(content, "\n")
 	var styledLines []string
 
@@ -588,12 +682,12 @@ func (m *StreamTUIModel) styleAssistantContent(content string, chunkType string)
 
 func (m *StreamTUIModel) processContentForTUI(content string) string {
 	content = strings.ReplaceAll(content, "\\n", "\n")
-	
+
 	lines := strings.Split(content, "\n")
 	var processedLines []string
-	
+
 	availableWidth := max(40, m.width-8)
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimRight(line, " \t")
 		if utf8.RuneCountInString(trimmed) > availableWidth {
@@ -603,12 +697,12 @@ func (m *StreamTUIModel) processContentForTUI(content string) string {
 			processedLines = append(processedLines, trimmed)
 		}
 	}
-	
+
 	result := strings.Join(processedLines, "\n")
 	for strings.Contains(result, "\n\n\n") {
 		result = strings.ReplaceAll(result, "\n\n\n", "\n\n")
 	}
-	
+
 	return result
 }
 
@@ -666,7 +760,7 @@ func (m *StreamTUIModel) updateTextareaHeight() {
 	content := m.textarea.Value()
 	lines := strings.Split(content, "\n")
 	lineCount := max(1, min(len(lines), 10))
-	
+
 	if m.textarea.Height() != lineCount {
 		m.textarea.SetHeight(lineCount)
 	}
@@ -678,15 +772,15 @@ func (m *StreamTUIModel) calculateViewportHeight() int {
 	if m.processing {
 		processingHeight = 1
 	}
-	
+
 	inputHeight := 0
 	if m.inputAtBottom {
 		inputHeight = m.textarea.Height() + 2
 	}
-	
+
 	shortcutsHeight := 1
 	fixedHeight := headerHeight + processingHeight + inputHeight + shortcutsHeight
-	
+
 	availableHeight := max(5, m.height-fixedHeight)
 	return availableHeight
 }
@@ -730,6 +824,30 @@ func (m *StreamTUIModel) processUserInput(input string) tea.Cmd {
 					if chunk.Content != "" {
 						content = "\n✅ " + chunk.Content
 					}
+					// 检查是否是真正的最终完成
+					if chunk.Complete {
+						// 这是最终完成，所有消息都处理完了
+						m.program.Send(streamCompleteMsg{})
+						return
+					}
+					// 如果不是Complete=true，说明可能还有队列消息在处理
+				case "next_message_start":
+					// 开始处理队列中的下一个消息
+					if chunk.Content != "" {
+						content = "\n\n" + chunk.Content
+						m.program.Send(streamChunkMsg{content: content, chunkType: chunk.Type})
+					}
+					return // 不发送完成信号，保持processing状态
+				case "message_integration":
+					// 消息融入当前任务
+					if chunk.Content != "" {
+						content = "\n📬 " + chunk.Content
+					}
+				case "message_switch":
+					// 切换到新消息处理
+					if chunk.Content != "" {
+						content = "\n\n" + chunk.Content
+					}
 				case "max_iterations":
 					if chunk.Content != "" {
 						content = "\n⚠️ " + chunk.Content
@@ -758,9 +876,8 @@ func (m *StreamTUIModel) processUserInput(input string) tea.Cmd {
 			err := m.agent.ProcessMessageStream(ctx, input, m.config.GetConfig(), streamCallback)
 			if err != nil {
 				m.program.Send(errorOccurredMsg{err: err})
-			} else {
-				m.program.Send(streamCompleteMsg{})
 			}
+			// 注意：不再自动发送streamCompleteMsg，因为这会在streamCallback中的"complete"类型处理
 		}()
 
 		return streamStartMsg{input: input}
@@ -787,19 +904,44 @@ func (m *StreamTUIModel) View() string {
 	if m.processing {
 		elapsed := m.execTimer.Duration.Truncate(time.Second)
 		tokenDisplay := fmt.Sprintf("%d", m.tokenCount)
-		
+
 		mainText := processingStyle.Render("Wibbling… ")
 		grayInfo := lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("(%v · %s tokens)", elapsed, tokenDisplay))
+
+		// 显示队列状态
+		queueSize := m.agent.GetQueueSize()
+		if queueSize > 0 {
+			queueInfo := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render(fmt.Sprintf(" · 📬 %d queued", queueSize))
+			grayInfo += queueInfo
+		}
+
 		parts = append(parts, mainText+grayInfo)
+	} else {
+		// 即使不在处理，也显示队列状态
+		queueSize := m.agent.GetQueueSize()
+		if queueSize > 0 {
+			queueText := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render(fmt.Sprintf("📬 %d messages in queue", queueSize))
+			parts = append(parts, queueText)
+		}
 	}
 
 	// Input area
 	if m.inputAtBottom {
-		parts = append(parts, inputStyle.Render(m.textarea.View()))
+		inputView := m.textarea.View()
+		if m.processing {
+			// 在处理期间修改提示符
+			inputView = strings.Replace(inputView, "> ", "📬 ", 1)
+		}
+		parts = append(parts, inputStyle.Render(inputView))
 	}
 
 	// Shortcuts
-	shortcuts := systemMsgStyle.Render("  Enter: send • Ctrl+I: input pos • PgUp/PgDn/Home/End: navigate")
+	var shortcuts string
+	if m.processing {
+		shortcuts = systemMsgStyle.Render("  Enter: queue message • Esc: interrupt • PgUp/PgDn/Home/End: navigate")
+	} else {
+		shortcuts = systemMsgStyle.Render("  Enter: send • Ctrl+I: input pos • PgUp/PgDn/Home/End: navigate")
+	}
 	parts = append(parts, shortcuts)
 
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
