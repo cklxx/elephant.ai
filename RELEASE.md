@@ -38,7 +38,23 @@ Each release automatically generates the following files:
 
 After release, users can install through the following methods:
 
-### Quick Install (Recommended)
+### NPM Install (Recommended)
+
+```bash
+npm install -g alex-code
+```
+
+### Platform-specific NPM packages
+
+```bash
+npm install -g alex-code-linux-amd64     # Linux x64
+npm install -g alex-code-linux-arm64     # Linux ARM64  
+npm install -g alex-code-darwin-amd64    # macOS Intel
+npm install -g alex-code-darwin-arm64    # macOS Apple Silicon
+npm install -g alex-code-windows-amd64   # Windows x64
+```
+
+### Quick Install (Alternative)
 
 **Linux/macOS:**
 ```bash

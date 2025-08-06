@@ -1,13 +1,13 @@
 {
-  "name": "alex-code-darwin-arm64",
+  "name": "alex-code-darwin-amd64",
   "version": "0.0.4",
-  "description": "The Darwin ARM64 binary for alex-code.",
+  "description": "The Darwin AMD64 binary for alex-code.",
   "main": "index.js",
   "os": [
     "darwin"
   ],
   "cpu": [
-    "arm64"
+    "amd64"
   ],
   "repository": {
     "type": "git",

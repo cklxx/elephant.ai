@@ -4,10 +4,29 @@ const path = require('path');
 const { exec } = require('child_process');
 
 const REPO = 'cklxx/Alex-Code';
-const VERSION = '1.0.1'; // Note: This is the package version, not the git tag.
+
+// Dynamically read version from package.json to ensure consistency
+function getVersion() {
+    try {
+        const packageJson = require('./package.json');
+        return packageJson.version;
+    } catch (e) {
+        console.warn('Warning: Could not read package.json version, using fallback');
+        return '0.0.2';
+    }
+}
+
+const VERSION = getVersion();
 
 const BIN_DIR = path.join(__dirname, 'bin');
 const BIN_PATH = path.join(BIN_DIR, 'alex');
+
+// Ensure we can write to the bin directory
+function ensureBinDirectory() {
+    if (!fs.existsSync(BIN_DIR)) {
+        fs.mkdirSync(BIN_DIR, { recursive: true });
+    }
+}
 
 function getPlatform() {
     const platform = process.platform;
@@ -49,7 +68,9 @@ function findBinaryInNodeModules() {
     const platform = getPlatform();
     if (!platform) return null;
 
-    const packageName = `@alex-code/${platform}`;
+    const packageName = `alex-code-${platform}`;
+    console.log(`Looking for platform-specific package: ${packageName}`);
+    
     try {
         // Resolve the package.json of the platform-specific package
         const packageJsonPath = require.resolve(`${packageName}/package.json`);
@@ -58,12 +79,15 @@ function findBinaryInNodeModules() {
             ? path.join(packageDir, 'bin', 'alex.exe')
             : path.join(packageDir, 'bin', 'alex');
 
+        console.log(`Checking binary path: ${binPath}`);
         if (fs.existsSync(binPath)) {
-            console.log(`Found binary in ${packageName}`);
+            console.log(`✓ Found binary in ${packageName}`);
             return binPath;
+        } else {
+            console.log(`✗ Binary not found at ${binPath}`);
         }
     } catch (e) {
-        // package not found
+        console.log(`✗ Package ${packageName} not found: ${e.message}`);
     }
     return null;
 }
@@ -76,9 +100,7 @@ async function main() {
         process.exit(1);
     }
 
-    if (!fs.existsSync(BIN_DIR)) {
-        fs.mkdirSync(BIN_DIR);
-    }
+    ensureBinDirectory();
 
     const finalExePath = getExePath(platform);
     let binaryPath = findBinaryInNodeModules();
@@ -89,17 +111,33 @@ async function main() {
     } else {
         // Fallback to downloading from GitHub
         console.log('Optional dependency not found, falling back to GitHub download.');
-        const gitHubTag = `v${VERSION}`;
+        console.log('Note: This fallback requires a GitHub release with binary assets.');
+        
+        // Try different version formats for GitHub releases
+        const possibleTags = [`v${VERSION}`, VERSION, 'latest'];
         const binaryName = `alex-${platform}${platform.startsWith('windows') ? '.exe' : ''}`;
-        const url = `https://github.com/${REPO}/releases/download/${gitHubTag}/${binaryName}`;
-
-        console.log(`Downloading from ${url}`);
-        try {
-            await download(url, finalExePath);
-            console.log('Download complete.');
-        } catch (error) {
-            console.error('Error downloading from GitHub:', error);
-            console.error('Please check if the release and assets exist.');
+        
+        let downloadSuccess = false;
+        for (const tag of possibleTags) {
+            const url = `https://github.com/${REPO}/releases/download/${tag}/${binaryName}`;
+            console.log(`Trying to download from ${url}`);
+            
+            try {
+                await download(url, finalExePath);
+                console.log('✓ Download complete from GitHub.');
+                downloadSuccess = true;
+                break;
+            } catch (error) {
+                console.log(`✗ Failed to download from ${url}: ${error.message}`);
+            }
+        }
+        
+        if (!downloadSuccess) {
+            console.error('❌ All GitHub download attempts failed.');
+            console.error('Please ensure:');
+            console.error('1. A GitHub release exists with the correct version tag');
+            console.error('2. Binary assets are uploaded to the release');
+            console.error(`3. Binary naming follows: alex-${platform}${platform.startsWith('windows') ? '.exe' : ''}`);
             process.exit(1);
         }
     }

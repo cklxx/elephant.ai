@@ -355,14 +355,73 @@ help:
 	@echo "Build & Development:"
 	@echo "  build              Build the binary"
 
-# NPM Publishing targets
+# Version Management targets
+.PHONY: update-version
+update-version:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ VERSION is required. Usage: make update-version VERSION=0.0.3"; \
+		exit 1; \
+	fi
+	@node scripts/update-version.js $(VERSION)
+
+.PHONY: show-version
+show-version:
+	@echo "📦 Current Package Versions:"
+	@echo "Main Package: $$(jq -r .version npm/alex-code/package.json)"
+	@echo "Platform Packages:"
+	@for pkg in npm/alex-*/package.json; do \
+		if [ -f "$$pkg" ] && [[ "$$pkg" != *"/alex-code/"* ]]; then \
+			name=$$(jq -r .name "$$pkg"); \
+			version=$$(jq -r .version "$$pkg"); \
+			echo "  $$name: $$version"; \
+		fi \
+	done
+	@echo "Install Script Version: $$(grep 'const VERSION' npm/alex-code/install.js | sed "s/.*'\([^']*\)'.*/\1/")"
+
+.PHONY: version-check
+version-check:
+	@echo "🔍 Checking version consistency..."
+	@main_version=$$(jq -r .version npm/alex-code/package.json); \
+	install_version=$$(grep 'getVersion()' npm/alex-code/install.js > /dev/null && echo "dynamic" || grep 'const VERSION' npm/alex-code/install.js | sed "s/.*'\([^']*\)'.*/\1/"); \
+	echo "Main package version: $$main_version"; \
+	echo "Install script version: $$install_version"; \
+	all_consistent=true; \
+	for pkg in npm/alex-*/package.json; do \
+		if [ -f "$$pkg" ] && [[ "$$pkg" != *"/alex-code/"* ]]; then \
+			pkg_version=$$(jq -r .version "$$pkg"); \
+			if [ "$$pkg_version" != "$$main_version" ]; then \
+				echo "❌ Version mismatch in $$pkg: $$pkg_version (expected: $$main_version)"; \
+				all_consistent=false; \
+			fi \
+		fi \
+	done; \
+	if [ "$$all_consistent" = true ]; then \
+		echo "✅ All versions are consistent: $$main_version"; \
+	else \
+		echo "⚠️  Version inconsistencies found. Run 'make update-version VERSION=X.Y.Z' to fix."; \
+		exit 1; \
+	fi
+
+# NPM Publishing targets  
 .PHONY: copy-npm-binaries
 copy-npm-binaries:
 	@./scripts/copy-npm-binaries.sh
 
 .PHONY: publish-npm
-publish-npm: build-all
+publish-npm: build-all version-check copy-npm-binaries
 	@./scripts/publish-npm.sh
+
+.PHONY: release-npm
+release-npm:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ VERSION is required. Usage: make release-npm VERSION=0.0.3"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting complete NPM release process for version $(VERSION)..."
+	@$(MAKE) update-version VERSION=$(VERSION)
+	@$(MAKE) build-all
+	@$(MAKE) publish-npm
+	@echo "🎉 NPM release $(VERSION) completed successfully!"
 	@echo "  build-all          Build for multiple platforms"
 	@echo "  install            Install binary to GOPATH/bin"
 	@echo "  deps               Initialize dependencies"
