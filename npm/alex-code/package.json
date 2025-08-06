@@ -1,0 +1,36 @@
+{
+  "name": "alex-code",
+  "version": "0.0.4",
+  "description": "ALEX (Agile Light Easy Xpert Code Agent) is a lightweight AI code agent built in Go, focused on core coding capabilities.",
+  "main": "index.js",
+  "bin": {
+    "alex": "bin/alex"
+  },
+  "scripts": {
+    "postinstall": "node install.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cklxx/Alex-Code.git"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "code",
+    "go"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cklxx/Alex-Code/issues"
+  },
+  "homepage": "https://github.com/cklxx/Alex-Code#readme",
+  "optionalDependencies": {
+    "alex-code-linux-amd64": "0.0.4",
+    "alex-code-linux-arm64": "0.0.4",
+    "alex-code-darwin-amd64": "0.0.4",
+    "alex-code-darwin-arm64": "0.0.4",
+    "alex-code-windows-amd64": "0.0.4"
+  }
+}

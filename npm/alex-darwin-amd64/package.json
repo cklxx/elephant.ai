@@ -1,0 +1,34 @@
+{
+  "name": "alex-code-darwin-amd64",
+  "version": "0.0.4",
+  "description": "The Darwin AMD64 binary for alex-code.",
+  "main": "index.js",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "amd64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cklxx/Alex-Code.git"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "code",
+    "go"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cklxx/Alex-Code/issues"
+  },
+  "homepage": "https://github.com/cklxx/Alex-Code#readme",
+  "files": [
+    "bin"
+  ],
+  "bin": {
+    "alex": "bin/alex"
+  }
+}

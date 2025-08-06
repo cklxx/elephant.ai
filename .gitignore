@@ -23,6 +23,10 @@ build/
 # Deep Coding Agent binary
 alex
 
+# NPM package binaries
+npm/*/bin/alex
+npm/*/bin/alex.exe
+
 # Configuration files (may contain sensitive information)
 .deep-coding-config.json
 
