@@ -1,0 +1,51 @@
+name: 🚀 Quick NPM Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.0.5)'
+        required: true
+      skip_tests:
+        description: 'Skip installation tests'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  quick-publish:
+    name: ⚡ Quick Publish
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: 🏗️ Build & Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "🚀 Quick publishing version ${{ github.event.inputs.version }}"
+          make release-npm VERSION=${{ github.event.inputs.version }}
+      
+      - name: 🧪 Test Installation
+        if: github.event.inputs.skip_tests != 'true'
+        run: |
+          echo "⏳ Waiting for NPM propagation..."
+          sleep 30
+          
+          echo "🧪 Testing installation..."
+          npm install -g alex-code@${{ github.event.inputs.version }}
+          alex version
+          echo "✅ Quick publish and test completed!"

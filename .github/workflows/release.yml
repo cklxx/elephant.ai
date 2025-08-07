@@ -1,131 +1,156 @@
-name: Release
+name: 🎉 Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag (e.g., v1.0.0)'
+      version:
+        description: 'Release version (e.g., 0.0.5)'
         required: true
-        default: 'v0.1.0'
+      create_github_release:
+        description: 'Create GitHub release'
+        required: false
+        default: true
+        type: boolean
+      publish_npm:
+        description: 'Publish to NPM'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
-  build:
-    name: Build and Release
-    runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-          - goos: linux
-            goarch: arm64
-            suffix: linux-arm64
-          - goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-          - goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-          - goos: windows
-            goarch: amd64
-            suffix: windows-amd64.exe
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24'
-
-    - name: Get version
-      id: version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-        else
-          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Build binary
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-        VERSION: ${{ steps.version.outputs.VERSION }}
-        CGO_ENABLED: 0
-      run: |
-        GIT_COMMIT=$(git rev-parse HEAD)
-        BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-        
-        LDFLAGS="-s -w \
-          -X 'alex/internal/version.Version=$VERSION' \
-          -X 'alex/internal/version.GitCommit=$GIT_COMMIT' \
-          -X 'alex/internal/version.BuildTime=$BUILD_TIME'"
-        
-        mkdir -p dist
-        
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          go build -ldflags "$LDFLAGS" -o "dist/alex-${{ matrix.suffix }}" ./cmd
-        else
-          go build -ldflags "$LDFLAGS" -o "dist/alex-${{ matrix.suffix }}" ./cmd
-        fi
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: alex-${{ matrix.suffix }}
-        path: dist/alex-${{ matrix.suffix }}
-        
   release:
-    name: Create Release
-    needs: build
+    name: 🎯 Create Release
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: 📋 Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+          echo "Publishing version: ${VERSION}"
+      
+      - name: 🏗️ Build binaries
+        run: |
+          echo "🔨 Building Alex v${{ steps.version.outputs.version }}"
+          make build-all
+          ls -la build/
+      
+      - name: 📦 Create release archives
+        run: |
+          mkdir -p releases
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Create archives for each platform
+          for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
+            echo "📦 Creating archive for $platform"
+            tar -czf "releases/alex-${platform}-v${VERSION}.tar.gz" -C build "alex-${platform}"
+          done
+          
+          # Create Windows archive
+          if [[ -f "build/alex-windows-amd64.exe" ]]; then
+            zip -j "releases/alex-windows-amd64-v${VERSION}.zip" "build/alex-windows-amd64.exe"
+          fi
+          
+          ls -la releases/
+      
+      - name: 📋 Generate checksums
+        run: |
+          cd releases
+          sha256sum * > checksums.txt
+          cat checksums.txt
+      
+      - name: 🎉 Create GitHub Release
+        if: github.event.inputs.create_github_release != 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Alex v${{ steps.version.outputs.version }}
+          body: |
+            ## 🎉 Alex v${{ steps.version.outputs.version }}
+            
+            ### 📦 Installation
+            
+            **NPM (Recommended):**
+            ```bash
+            npm install -g alex-code@${{ steps.version.outputs.version }}
+            ```
+            
+            **Direct Download:**
+            Download the appropriate binary for your platform from the assets below.
+            
+            ### ✨ What's New
+            - Automated release with GitHub Actions
+            - NPM package distribution  
+            - Multi-platform binary support
+            
+            ### 🛠️ Supported Platforms
+            - Linux (AMD64, ARM64)
+            - macOS (Intel, Apple Silicon)  
+            - Windows (AMD64)
+            
+            ### 📊 Checksums
+            See `checksums.txt` for file integrity verification.
+          files: |
+            releases/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Get version
-      id: version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-        else
-          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: dist
-
-    - name: Prepare release assets
-      run: |
-        mkdir -p release
-        find dist -name "alex-*" -type f -exec cp {} release/ \;
-        ls -la release/
-        
-        # 创建校验文件
-        cd release
-        sha256sum * > checksums.txt
-        cat checksums.txt
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.version.outputs.VERSION }}
-        name: Release ${{ steps.version.outputs.VERSION }}
-        draft: false
-        prerelease: false
-        generate_release_notes: true
-        files: release/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Trigger NPM publishing if requested
+  publish-npm:
+    name: 📦 Publish to NPM  
+    needs: release
+    if: github.event.inputs.publish_npm != 'false'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: 📋 Get version
+        id: npm_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 🚀 Build and Publish NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "📦 Publishing NPM packages for v${{ steps.npm_version.outputs.version }}"
+          make release-npm VERSION=${{ steps.npm_version.outputs.version }}

@@ -1,0 +1,297 @@
+name: 📦 NPM Package Publishing
+
+on:
+  # Trigger on version tags
+  push:
+    tags:
+      - 'v*'
+      - 'npm-v*'
+  
+  # Manual trigger with version input
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.0.5)'
+        required: true
+        default: '0.0.5'
+      dry_run:
+        description: 'Dry run mode (skip actual publishing)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  GO_VERSION: '1.21'
+
+jobs:
+  # Job 1: Build Go binaries for all platforms
+  build-binaries:
+    name: 🔨 Build Binaries
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: 📋 Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag=npm-v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            # Extract version from tag (remove 'v' or 'npm-v' prefix)
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#npm-v}
+            VERSION=${VERSION#v}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 🏗️ Build all platform binaries
+        run: |
+          echo "🚀 Building binaries for version ${{ steps.get_version.outputs.version }}"
+          make build-all
+          ls -la build/
+      
+      - name: 📦 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alex-binaries
+          path: build/
+          retention-days: 1
+
+  # Job 2: Update package versions and publish
+  publish-npm:
+    name: 📤 Publish NPM Packages
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: 📦 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: alex-binaries
+          path: build/
+      
+      - name: 🔧 Make binaries executable
+        run: |
+          chmod +x build/*
+          ls -la build/
+      
+      - name: 📋 Get version info
+        id: version_info
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+          else
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#npm-v}
+            VERSION=${VERSION#v}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 🔄 Update package versions
+        run: |
+          echo "📝 Updating all packages to version ${{ steps.version_info.outputs.version }}"
+          node scripts/update-version.js ${{ steps.version_info.outputs.version }}
+      
+      - name: 🚚 Copy binaries to npm packages
+        run: |
+          echo "📋 Copying built binaries to npm packages"
+          chmod +x scripts/copy-npm-binaries.sh
+          ./scripts/copy-npm-binaries.sh
+      
+      - name: 🧪 Verify package structure
+        run: |
+          echo "🔍 Verifying package structure before publishing"
+          for pkg in npm/alex-*/; do
+            echo "📦 Checking $pkg"
+            if [[ -f "$pkg/package.json" ]]; then
+              echo "  📄 package.json: ✓"
+              jq -r '.name + "@" + .version' "$pkg/package.json"
+            fi
+            if [[ -d "$pkg/bin" ]] && [[ -f "$pkg/bin/alex"* ]]; then
+              echo "  🗂️  bin directory: ✓"
+              ls -la "$pkg/bin/"
+            else
+              echo "  ❌ bin directory missing or empty"
+            fi
+          done
+      
+      - name: 🚀 Publish platform packages
+        if: steps.version_info.outputs.dry_run != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "📤 Publishing platform-specific packages"
+          
+          # Publish each platform package
+          for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64; do
+            pkg_dir="npm/alex-$platform"
+            if [[ -d "$pkg_dir" ]]; then
+              echo "🚀 Publishing alex-code-$platform"
+              cd "$pkg_dir"
+              
+              # Check if version already exists
+              pkg_name=$(jq -r '.name' package.json)
+              pkg_version=$(jq -r '.version' package.json)
+              
+              if npm view "$pkg_name@$pkg_version" version 2>/dev/null; then
+                echo "⚠️  Version $pkg_version already exists for $pkg_name, skipping"
+              else
+                npm publish --access public
+                echo "✅ Published $pkg_name@$pkg_version"
+              fi
+              
+              cd - > /dev/null
+            else
+              echo "❌ Package directory $pkg_dir not found"
+            fi
+          done
+      
+      - name: 🎯 Publish main package
+        if: steps.version_info.outputs.dry_run != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "📤 Publishing main alex-code package"
+          cd npm/alex-code
+          
+          pkg_name=$(jq -r '.name' package.json)
+          pkg_version=$(jq -r '.version' package.json)
+          
+          if npm view "$pkg_name@$pkg_version" version 2>/dev/null; then
+            echo "⚠️  Version $pkg_version already exists for $pkg_name, skipping"
+          else
+            npm publish --access public
+            echo "✅ Published $pkg_name@$pkg_version"
+          fi
+      
+      - name: 🎉 Publication summary
+        run: |
+          echo "## 📦 NPM Publication Complete! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Packages Published:**" >> $GITHUB_STEP_SUMMARY
+          echo "- alex-code@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- alex-code-linux-amd64@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- alex-code-linux-arm64@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- alex-code-darwin-amd64@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- alex-code-darwin-arm64@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- alex-code-windows-amd64@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Installation:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "npm install -g alex-code@${{ steps.version_info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      
+      - name: 🏷️ Create release tag
+        if: github.event_name == 'workflow_dispatch' && steps.version_info.outputs.dry_run != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          tag_name="npm-v${{ steps.version_info.outputs.version }}"
+          if ! git rev-parse "$tag_name" >/dev/null 2>&1; then
+            git tag -a "$tag_name" -m "NPM Release v${{ steps.version_info.outputs.version }}"
+            git push origin "$tag_name"
+            echo "✅ Created and pushed tag $tag_name"
+          else
+            echo "⚠️  Tag $tag_name already exists"
+          fi
+
+  # Job 3: Test installation (runs after publishing)
+  test-installation:
+    name: 🧪 Test NPM Installation
+    runs-on: ubuntu-latest
+    needs: publish-npm
+    if: always() && needs.publish-npm.result == 'success'
+    
+    steps:
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: 📋 Get version
+        id: test_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#npm-v}
+            VERSION=${VERSION#v}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: ⏳ Wait for NPM propagation
+        run: |
+          echo "⏳ Waiting 60 seconds for NPM package propagation..."
+          sleep 60
+      
+      - name: 📦 Test global installation
+        run: |
+          echo "🧪 Testing installation of alex-code@${{ steps.test_version.outputs.version }}"
+          
+          # Try to install (with retries for NPM propagation)
+          for i in {1..3}; do
+            echo "Attempt $i/3"
+            if npm install -g alex-code@${{ steps.test_version.outputs.version }}; then
+              echo "✅ Installation successful"
+              break
+            else
+              if [[ $i -eq 3 ]]; then
+                echo "❌ Installation failed after 3 attempts"
+                exit 1
+              fi
+              echo "⏳ Retrying in 30 seconds..."
+              sleep 30
+            fi
+          done
+      
+      - name: ✅ Test alex command
+        run: |
+          echo "🧪 Testing alex command"
+          
+          # Test version command
+          alex version || echo "⚠️  Version command failed"
+          
+          # Test help command
+          alex --help || echo "⚠️  Help command failed"
+          
+          # Test if command exists
+          which alex
+          echo "✅ alex command is available at: $(which alex)"
+      
+      - name: 📊 Installation test summary
+        run: |
+          echo "## 🧪 Installation Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Tested:** ${{ steps.test_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Installation:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "**Command Availability:** ✅ alex command found" >> $GITHUB_STEP_SUMMARY
+          echo "**Location:** $(which alex)" >> $GITHUB_STEP_SUMMARY

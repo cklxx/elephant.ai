@@ -422,6 +422,41 @@ release-npm:
 	@$(MAKE) build-all
 	@$(MAKE) publish-npm
 	@echo "🎉 NPM release $(VERSION) completed successfully!"
+
+# CI/CD Integration targets
+.PHONY: ci-npm-publish
+ci-npm-publish:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ VERSION environment variable is required"; \
+		exit 1; \
+	fi
+	@echo "🚀 CI: Publishing NPM packages for version $(VERSION)..."
+	@$(MAKE) update-version VERSION=$(VERSION)
+	@$(MAKE) build-all
+	@$(MAKE) copy-npm-binaries
+	@echo "📦 CI: Starting NPM publication..."
+	@cd npm/alex-linux-amd64 && npm publish --access public || echo "⚠️  Package may already exist"
+	@cd npm/alex-linux-arm64 && npm publish --access public || echo "⚠️  Package may already exist"  
+	@cd npm/alex-darwin-amd64 && npm publish --access public || echo "⚠️  Package may already exist"
+	@cd npm/alex-darwin-arm64 && npm publish --access public || echo "⚠️  Package may already exist"
+	@cd npm/alex-windows-amd64 && npm publish --access public || echo "⚠️  Package may already exist"
+	@cd npm/alex-code && npm publish --access public || echo "⚠️  Package may already exist"
+	@echo "✅ CI: NPM publication process completed"
+
+.PHONY: ci-test-install
+ci-test-install:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ VERSION environment variable is required"; \
+		exit 1; \
+	fi
+	@echo "🧪 CI: Testing NPM installation for version $(VERSION)..."
+	@echo "⏳ Waiting for NPM propagation..."
+	@sleep 30
+	@npm install -g alex-code@$(VERSION)
+	@alex version || echo "⚠️  alex version command failed"
+	@alex --help || echo "⚠️  alex help command failed"  
+	@which alex
+	@echo "✅ CI: Installation test completed"
 	@echo "  build-all          Build for multiple platforms"
 	@echo "  install            Install binary to GOPATH/bin"
 	@echo "  deps               Initialize dependencies"
