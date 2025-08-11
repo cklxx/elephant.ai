@@ -194,9 +194,6 @@ func (te *ToolExecutor) parseIndividualTextToolCall(callContent string) *types.R
 	}
 }
 
-
-
-
 // Session-related helper functions removed - tools now access session manager directly
 
 // simpleFallbackRepair - 简单的备用JSON修复方法
@@ -241,4 +238,3 @@ func simpleFallbackRepair(jsonStr string) string {
 
 	return jsonStr
 }
-
