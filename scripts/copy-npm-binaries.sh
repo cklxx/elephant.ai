@@ -1,6 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+# Function to safely handle command failures
+safe_execute() {
+    if ! "$@"; then
+        log_error "Command failed: $*"
+        return 1
+    fi
+    return 0
+}
+
 # Colors for output
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
@@ -32,8 +41,9 @@ log_step() {
 
 # Cleanup function for error handling
 cleanup() {
-    if [[ $? -ne 0 ]]; then
-        log_error "Script failed. Check the output above for details."
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        log_error "Script failed with exit code $exit_code. Check the output above for details."
     fi
 }
 trap cleanup EXIT
