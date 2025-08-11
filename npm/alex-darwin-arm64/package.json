@@ -1,6 +1,6 @@
 {
   "name": "alex-code-darwin-arm64",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "The Darwin ARM64 binary for alex-code.",
   "main": "index.js",
   "os": [

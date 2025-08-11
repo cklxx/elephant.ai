@@ -408,7 +408,8 @@ copy-npm-binaries:
 	@./scripts/copy-npm-binaries.sh
 
 .PHONY: publish-npm
-publish-npm: build-all version-check copy-npm-binaries
+publish-npm: build-all copy-npm-binaries version-check
+	@echo "🚀 Starting NPM publication process..."
 	@./scripts/publish-npm.sh
 
 .PHONY: release-npm
