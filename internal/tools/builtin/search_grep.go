@@ -26,8 +26,8 @@ Usage:
 - Returns matches with filename and line numbers
 - Supports recursive directory search
 - Case-sensitive by default, can be made case-insensitive
-- Limits output lines to 200 characters for readability
-- Limits results to maximum 100 matches
+- Limits results to maximum 100 matches, with each match line truncated to 200 characters
+- Exceeding limits will show truncated results with warnings
 
 Parameters:
 - pattern: Regular expression pattern to search for (required)
@@ -46,7 +46,7 @@ filename:linenum:matched_line_content
 Notes:
 - Uses system grep command
 - Returns "No matches found" if pattern not found
-- Truncates long lines to 200 characters for display
+- Truncated output will show warnings with total counts
 - Exit code 1 (grep no matches) is handled as normal result`
 }
 
@@ -164,28 +164,56 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	lines := strings.Split(string(output), "\n")
 	lines = lines[:len(lines)-1] // Remove last empty line
 
+	const maxMatches = 100
+	const maxLineChars = 200
+	originalMatchCount := len(lines)
+	truncatedByMatches := false
+	linesToruncated := 0
+
 	// Limit results to 100 matches
-	if len(lines) > 100 {
-		lines = lines[:100]
+	if len(lines) > maxMatches {
+		lines = lines[:maxMatches]
+		truncatedByMatches = true
 	}
 
-	// Limit each line to 200 characters
+	// Truncate each line to maxLineChars
 	for i, line := range lines {
-		if len(line) > 200 {
-			lines[i] = line[:200] + "..."
+		if len(line) > maxLineChars {
+			lines[i] = line[:maxLineChars] + "..."
+			linesToruncated++
 		}
 	}
 
+	// Build warning message
+	var warnings []string
+	if truncatedByMatches {
+		warnings = append(warnings, fmt.Sprintf("Results truncated: showing %d of %d total matches (limit: %d matches)", len(lines), originalMatchCount, maxMatches))
+	}
+	if linesToruncated > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d match lines were truncated to %d characters", linesToruncated, maxLineChars))
+	}
+
+	warningMsg := ""
+	if len(warnings) > 0 {
+		warningMsg = "\n\n[TRUNCATED] " + strings.Join(warnings, ". ")
+	}
+
+	finalContent := fmt.Sprintf("Found %d matches:\n%s%s", len(lines), strings.Join(lines, "\n"), warningMsg)
+
 	return &ToolResult{
-		Content: fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
+		Content: finalContent,
 		Data: map[string]interface{}{
-			"pattern":     pattern,
-			"path":        path,
-			"matches":     len(lines),
-			"recursive":   recursive,
-			"ignore_case": ignoreCase,
-			"results":     lines,
-			"content":     fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
+			"pattern":                pattern,
+			"path":                   path,
+			"matches":                len(lines),
+			"original_matches":       originalMatchCount,
+			"recursive":              recursive,
+			"ignore_case":            ignoreCase,
+			"results":                lines,
+			"truncated_by_matches":   truncatedByMatches,
+			"lines_truncated":        linesToruncated,
+			"max_line_chars":         maxLineChars,
+			"content":                finalContent,
 		},
 	}, nil
 }

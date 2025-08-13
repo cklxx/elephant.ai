@@ -26,6 +26,7 @@ Usage:
 - Returns content with line numbers in "lineNum:content" format
 - Supports reading specific line ranges with start_line and end_line parameters
 - Shows file metadata including size, total lines, and modification time
+- Content is limited to 2,500 characters maximum; exceeding files will show truncated content
 
 Parameters:
 - file_path or path: Path to the file to read (relative paths are resolved)
@@ -41,7 +42,9 @@ Notes:
 - If file doesn't exist, returns an error
 - Line numbers start from 1
 - When specifying line ranges, both start and end are inclusive
-- Handles both file_path and legacy path parameter for compatibility`
+- RECOMMENDED: For large files, use start_line and end_line to read specific sections
+- Handles both file_path and legacy path parameter for compatibility
+- Files over 2,500 characters will be truncated with a warning message`
 }
 
 func (t *FileReadTool) Parameters() map[string]interface{} {
@@ -113,11 +116,14 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
+	const maxChars = 2500
 	contentStr := string(content)
 	lines := strings.Split(contentStr, "\n")
 	var formattedLines []string
 	startLineNum := 1
 	endLineNum := len(lines)
+	truncated := false
+	truncationWarning := ""
 
 	// Handle line range if specified
 	if startLine, ok := args["start_line"]; ok {
@@ -155,13 +161,24 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 		endLineNum = end
 	}
 
-	// Add line numbers to each line
+	// Add line numbers to each line and check character limit
+	totalChars := 0
 	for i, line := range lines {
 		lineNum := startLineNum + i
-		formattedLines = append(formattedLines, fmt.Sprintf("%5d:%s", lineNum, line))
+		formattedLine := fmt.Sprintf("%5d:%s", lineNum, line)
+		
+		// Check if adding this line would exceed the character limit
+		if totalChars+len(formattedLine)+1 > maxChars { // +1 for newline
+			truncated = true
+			truncationWarning = fmt.Sprintf("\n\n[TRUNCATED] File content exceeds %d characters. Total file size: %d characters (%d lines). Consider using start_line and end_line parameters to read specific sections.", maxChars, len(content), len(strings.Split(string(content), "\n")))
+			break
+		}
+		
+		formattedLines = append(formattedLines, formattedLine)
+		totalChars += len(formattedLine) + 1 // +1 for newline
 	}
 
-	contentStr = strings.Join(formattedLines, "\n")
+	contentStr = strings.Join(formattedLines, "\n") + truncationWarning
 
 	// Get file info
 	fileInfo, _ := os.Stat(resolvedPath)
@@ -176,7 +193,8 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 			"modified":        fileInfo.ModTime().Unix(),
 			"start_line":      startLineNum,
 			"end_line":        endLineNum,
-			"displayed_lines": len(lines),
+			"displayed_lines": len(formattedLines),
+			"truncated":       truncated,
 			"content":         contentStr,
 		},
 	}, nil
