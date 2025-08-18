@@ -121,7 +121,6 @@ type CLI struct {
 	interactive           bool
 	verbose               bool
 	debug                 bool
-	useTUI                bool // Whether to use Bubble Tea TUI
 	currentTermCtrl       *TerminalController
 	currentStartTime      time.Time
 	contentBuffer         strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
@@ -183,8 +182,7 @@ through streaming responses and advanced tool calling capabilities.
 				return cli.runSinglePrompt(prompt)
 			}
 			// Check if we have a TTY before starting interactive mode
-			// But allow force TUI mode with --tui flag
-			if !isTTY() && !cli.useTUI {
+			if !isTTY() {
 				// No TTY available (CI environment), show help instead
 				return cmd.Help()
 			}
@@ -192,8 +190,8 @@ through streaming responses and advanced tool calling capabilities.
 			if err := cli.initialize(cmd); err != nil {
 				return err
 			}
-			// Use Bubble Tea TUI for interactive mode
-			return cli.runTUI()
+			// Use optimized TUI as default for interactive mode
+			return cli.runOptimizedTUI()
 		},
 	}
 
@@ -201,7 +199,6 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.PersistentFlags().BoolVarP(&cli.interactive, "interactive", "i", false, "Interactive mode")
 	rootCmd.PersistentFlags().BoolVarP(&cli.verbose, "verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().BoolVarP(&cli.debug, "debug", "d", false, "Debug mode")
-	rootCmd.PersistentFlags().BoolVar(&cli.useTUI, "tui", false, "Use Bubble Tea TUI (experimental)")
 	rootCmd.PersistentFlags().StringP("resume", "r", "", "Resume session by ID")
 	rootCmd.PersistentFlags().StringP("model", "m", "", "Specify model")
 	rootCmd.PersistentFlags().IntP("tokens", "t", 2000, "Max tokens")
@@ -472,9 +469,9 @@ func (cli *CLI) initialize(cmd *cobra.Command) error {
 	return nil
 }
 
-// runTUI starts the modern Bubble Tea TUI interface
-func (cli *CLI) runTUI() error {
-	// Set up signal handling for cache cleanup on Ctrl+C (backup for TUI mode)
+// runOptimizedTUI starts the optimized TUI interface
+func (cli *CLI) runOptimizedTUI() error {
+	// Set up signal handling for cache cleanup on Ctrl+C
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
@@ -485,7 +482,7 @@ func (cli *CLI) runTUI() error {
 		os.Exit(1)
 	}()
 
-	return runModernTUI(cli.agent, cli.config)
+	return RunOptimizedTUI(cli.agent, cli.config)
 }
 
 // formatWorkingIndicator formats the working indicator string
