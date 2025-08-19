@@ -79,7 +79,12 @@ func (t *BashTool) Parameters() map[string]interface{} {
 				"description": "Timeout in seconds",
 				"default":     30,
 				"minimum":     1,
-				"maximum":     300,
+				"maximum":     3600,
+			},
+			"background": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Execute command in background mode for long-running processes",
+				"default":     false,
 			},
 		},
 		"required": []string{"command"},
@@ -90,7 +95,8 @@ func (t *BashTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddStringField("command", "The shell command to execute").
 		AddOptionalStringField("working_dir", "Working directory for the command").
-		AddOptionalIntField("timeout", "Timeout in seconds", 1, 300)
+		AddOptionalIntField("timeout", "Timeout in seconds", 1, 3600).
+		AddOptionalBooleanField("background", "Execute command in background mode")
 
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {
@@ -160,6 +166,21 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 		allowInteractive, _ = interactiveArg.(bool)
 	}
 
+	background := false
+	if backgroundArg, ok := args["background"]; ok {
+		background, _ = backgroundArg.(bool)
+	}
+
+	// Handle background execution
+	if background {
+		// Apply same security validation for background commands
+		if err := t.validateSecurity(command); err != nil {
+			return nil, err
+		}
+		return t.executeBackground(ctx, command, workingDir, timeout)
+	}
+
+	// Regular synchronous execution
 	// Create command context with timeout
 	cmdCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
@@ -500,6 +521,48 @@ func (t *CodeExecutorTool) Execute(ctx context.Context, args map[string]interfac
 			"language":       result.Language,
 			"code":           result.Code,
 			"content":        content,
+		},
+	}, nil
+}
+
+// executeBackground executes a command in background mode
+func (t *BashTool) executeBackground(ctx context.Context, command, workingDir string, timeout int) (*ToolResult, error) {
+	// Create a simple callback that does nothing for now
+	// In the future, this could be enhanced to get the actual StreamCallback from context
+	callback := func(chunk utils.StreamChunk) {
+		// For now, we just ignore the callback since we can't access the real one
+		// The progress can be monitored via bash_status tool
+	}
+	
+	// Create background command
+	bgCmd := NewBackgroundCommand(command, workingDir, timeout, callback)
+	
+	// Start the background execution
+	if err := bgCmd.Start(); err != nil {
+		return &ToolResult{
+			Content: fmt.Sprintf("❌ 启动后台命令失败: %v", err),
+			Data: map[string]interface{}{
+				"success": false,
+				"error":   err.Error(),
+			},
+		}, nil
+	}
+	
+	// Register with background manager
+	mgr := GetBackgroundCommandManager()
+	mgr.Register(bgCmd.ID, bgCmd)
+	
+	return &ToolResult{
+		Content: fmt.Sprintf("🚀 后台命令已启动，执行ID: %s\n📝 命令: %s\n📂 工作目录: %s\n⏱️ 超时设置: %d 秒\n\n💡 使用以下工具监控和控制:\n  • bash_status {\"execution_id\": \"%s\"} - 查看状态和进度\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"terminate\"} - 终止命令\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"get_full_output\"} - 获取完整输出", 
+			bgCmd.ID, command, workingDir, timeout, bgCmd.ID, bgCmd.ID, bgCmd.ID),
+		Data: map[string]interface{}{
+			"success":      true,
+			"execution_id": bgCmd.ID,
+			"command":      command,
+			"working_dir":  workingDir,
+			"timeout":      timeout,
+			"status":       "started",
+			"background":   true,
 		},
 	}, nil
 }
