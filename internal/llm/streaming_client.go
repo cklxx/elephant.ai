@@ -63,7 +63,7 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 			if len(keyRunes) > 15 {
 				apiKeyPreview = string(keyRunes[:15]) + "..."
 			}
-			log.Printf("DEBUG: Using model config - BaseURL: %s, APIKey: %s, Model: %s", modelConfig.BaseURL, apiKeyPreview, modelConfig.Model)
+			// Using model-specific configuration
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
 		}
 	}
@@ -75,7 +75,7 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 	if len(keyRunes) > 15 {
 		apiKeyPreview = string(keyRunes[:15]) + "..."
 	}
-	log.Printf("DEBUG: Using fallback config - BaseURL: %s, APIKey: %s, Model: %s", config.BaseURL, apiKeyPreview, config.Model)
+	// Using fallback configuration
 	return config.BaseURL, config.APIKey, config.Model
 }
 
@@ -158,7 +158,7 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest, s
 		req.Model = model
 	}
 	jsonData, err := json.Marshal(req)
-	log.Printf("DEBUG: Request: %+v", string(jsonData))
+	// Request prepared for sending
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -281,5 +281,5 @@ func (c *StreamingLLMClient) setHeaders(req *http.Request, apiKey string) {
 	if len(keyRunes) > 15 {
 		apiKeyPreview = string(keyRunes[:15]) + "..."
 	}
-	log.Printf("DEBUG: Set Authorization header with key: %s", apiKeyPreview)
+	// Authorization header configured
 }

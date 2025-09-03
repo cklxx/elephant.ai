@@ -511,7 +511,7 @@ func CleanupKimiCacheForSession(sessionID string, config *Config) error {
 		return fmt.Errorf("failed to cleanup Kimi cache for session %s: %w", sessionID, err)
 	}
 
-	log.Printf("[DEBUG] Kimi cache cleaned up for session: %s", sessionID)
+	// Kimi cache cleaned up successfully
 	return nil
 }
 

@@ -34,8 +34,7 @@ func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client,
 func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []llm.Message, consumedTokens int, currentTokens int) ([]llm.Message, int, int) {
 	messageCount := len(messages)
 
-	log.Printf("[DEBUG] Using real token count: %d messages, %d current tokens", messageCount, currentTokens)
-	log.Printf("[DEBUG] Token tracking: consumed=%d, current=%d, total=%d", consumedTokens, currentTokens, consumedTokens+currentTokens)
+	// Token count calculated for compression threshold
 
 	// Compression thresholds
 	const (
@@ -58,8 +57,7 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []ll
 		return compressedMessages, newConsumedTokens, newCurrentTokens
 	}
 
-	log.Printf("[DEBUG] Compression skipped: %d messages (%d threshold), %d current tokens (%d threshold)",
-		messageCount, MessageThreshold, currentTokens, TokenThreshold)
+	// Compression thresholds not reached
 
 	return messages, consumedTokens, currentTokens
 }
@@ -78,8 +76,7 @@ func (mc *MessageCompressor) compressWithAI(ctx context.Context, messages []llm.
 	systemMessages = messages[:2]
 	nonSystemMessages = messages[2:]
 
-	log.Printf("[DEBUG] AI compression: system=%d, non-system=%d",
-		len(systemMessages), len(nonSystemMessages))
+	// Separating system and non-system messages for compression
 
 	// Step 2: 使用AI压缩全部非系统消息
 	compressedMessage := mc.createComprehensiveAISummary(ctx, nonSystemMessages)
@@ -139,7 +136,7 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 		log.Printf("[ERROR] MessageCompressor: No response choices from AI summary")
 		return nil
 	}
-	log.Printf("[DEBUG] MessageCompressor: AI summary response: %s", response.Choices[0].Message.Content)
+	// AI compression completed successfully
 	return &llm.Message{
 		Role:    "user",
 		Content: fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),

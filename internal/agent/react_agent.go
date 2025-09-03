@@ -55,7 +55,7 @@ type StreamChunk struct {
 	Type             string                 `json:"type"`
 	Content          string                 `json:"content"`
 	Complete         bool                   `json:"complete,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
 	TokensUsed       int                    `json:"tokens_used,omitempty"`
 	TotalTokensUsed  int                    `json:"total_tokens_used,omitempty"`
 	PromptTokens     int                    `json:"prompt_tokens,omitempty"`
@@ -72,7 +72,7 @@ type MessageQueueItem struct {
 	Callback  StreamCallback         `json:"-"` // 不序列化回调函数
 	Context   context.Context        `json:"-"` // 不序列化context
 	Config    *config.Config         `json:"-"` // 不序列化config
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
 // MessageQueue - 消息队列
@@ -111,7 +111,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 创建统一的工具注册器
 	toolRegistry := NewToolRegistry(configManager, sessionManager)
 
-	log.Printf("[DEBUG] ReactAgent: llmConfig: %+v", llmConfig)
+	// Tool registry and LLM config initialized
 
 	agent := &ReactAgent{
 		llm:            llmClient,
@@ -172,7 +172,7 @@ func (r *ReactAgent) RestoreSession(sessionID string) (*session.Session, error) 
 
 // ProcessMessageStream - 流式处理消息
 func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage string, config *config.Config, callback StreamCallback) error {
-	log.Printf("[DEBUG] ====== ProcessMessageStream called with message: %s", userMessage)
+	// Processing stream message
 
 	r.mu.RLock()
 	currentSession := r.currentSession
@@ -180,25 +180,19 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 
 	// If no active session, create one automatically
 	if currentSession == nil {
-		log.Printf("[DEBUG] No active session found, creating new session automatically")
+		// Creating new session automatically
 		sessionID := fmt.Sprintf("auto_%d", time.Now().UnixNano())
 		newSession, err := r.StartSession(sessionID)
 		if err != nil {
 			return fmt.Errorf("failed to create session automatically: %w", err)
 		}
 		currentSession = newSession
-		log.Printf("[DEBUG] Auto-created session: %s", currentSession.ID)
+		// Auto-created session
 	} else {
-		if currentSession.ID == "" {
-			log.Printf("[DEBUG] ⚠️ Session exists but has empty ID!")
-		} else {
-			log.Printf("[DEBUG] Using existing session: %s", currentSession.ID)
-		}
+		// Using existing session
 	}
 
-	// 将session ID通过其他方式传递给core，不使用context
-	// 这里可以通过直接调用方法传递
-	log.Printf("[DEBUG] 🔧 Context set with session ID: %s", currentSession.ID)
+	// Context prepared with session ID
 
 	// 执行流式ReAct循环
 	result, err := r.reactCore.SolveTask(ctx, userMessage, callback)
@@ -218,13 +212,13 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 		})
 	}
 
-	// Ultra Think: 任务完成后检查队列，如果有消息则继续处理
+	// Check for queued messages after task completion
 	if r.HasPendingMessages() {
-		log.Printf("[DEBUG] 📬 Task completed, found pending messages in queue. Processing next message...")
+		// Processing next queued message
 
-		// 获取下一个待处理的消息
+		// Get next pending message
 		if pendingItem, hasItem := r.CheckPendingMessages(); hasItem {
-			log.Printf("[DEBUG] 📬 Processing next message from queue: %s", pendingItem.Message)
+			// Processing next message from queue
 
 			// 发送开始处理下一个消息的信号
 			if callback != nil {
@@ -253,7 +247,7 @@ func (r *ReactAgent) GetAvailableTools(ctx context.Context) []string {
 
 // AddMessage - 公共接口：添加消息到队列
 func (r *ReactAgent) AddMessage(ctx context.Context, message string, config *config.Config, callback StreamCallback) {
-	log.Printf("[DEBUG] 📬 ReactAgent: AddMessage called with message: '%s'", message)
+	// Adding message to queue
 	r.EnqueueMessage(ctx, message, config, callback)
 }
 
@@ -318,7 +312,7 @@ func (mq *MessageQueue) Enqueue(item MessageQueueItem) {
 	mq.mutex.Lock()
 	defer mq.mutex.Unlock()
 	mq.items = append(mq.items, item)
-	log.Printf("[DEBUG] 📬 MessageQueue: Item added to queue. New size: %d, Message: '%s'", len(mq.items), item.Message)
+	// Item added to queue
 }
 
 // Dequeue - 从队列取出消息
@@ -327,13 +321,13 @@ func (mq *MessageQueue) Dequeue() (MessageQueueItem, bool) {
 	defer mq.mutex.Unlock()
 
 	if len(mq.items) == 0 {
-		log.Printf("[DEBUG] 📬 MessageQueue: Dequeue called on empty queue")
+		// Queue is empty
 		return MessageQueueItem{}, false
 	}
 
 	item := mq.items[0]
 	mq.items = mq.items[1:]
-	log.Printf("[DEBUG] 📬 MessageQueue: Dequeued message - '%s'. Remaining size: %d", item.Message, len(mq.items))
+	// Message dequeued
 	return item, true
 }
 
@@ -371,33 +365,25 @@ func (r *ReactAgent) EnqueueMessage(ctx context.Context, message string, config 
 		Callback:  callback,
 		Context:   ctx,
 		Config:    config,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"queued_at": time.Now().Unix(),
 		},
 	}
 
 	r.messageQueue.Enqueue(item)
-	newSize := r.messageQueue.Size()
-	log.Printf("[DEBUG] 📬 ReactAgent: Message enqueued successfully - '%s'. Queue size: %d", message, newSize)
+	// Message enqueued successfully
 }
 
 // CheckPendingMessages - 检查并处理待处理的消息
 func (r *ReactAgent) CheckPendingMessages() (MessageQueueItem, bool) {
 	item, found := r.messageQueue.Dequeue()
-	if found {
-		log.Printf("[DEBUG] 📬 ReactAgent: Dequeued message - '%s'. Remaining queue size: %d", item.Message, r.messageQueue.Size())
-	} else {
-		log.Printf("[DEBUG] 📬 ReactAgent: No messages to dequeue. Queue is empty.")
-	}
+	// Message dequeue operation completed
 	return item, found
 }
 
 // HasPendingMessages - 检查是否有待处理的消息
 func (r *ReactAgent) HasPendingMessages() bool {
-	hasPending := r.messageQueue.HasPendingMessages()
-	queueSize := r.messageQueue.Size()
-	log.Printf("[DEBUG] 📬 ReactAgent: HasPendingMessages() = %v, queue size = %d", hasPending, queueSize)
-	return hasPending
+	return r.messageQueue.HasPendingMessages()
 }
 
 // ========== 组件创建函数 ==========

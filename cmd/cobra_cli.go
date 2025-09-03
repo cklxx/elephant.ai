@@ -746,9 +746,7 @@ func (cli *CLI) cleanupKimiCache() {
 
 	// Use the generic cleanup function from llm package
 	if err := llm.CleanupKimiCacheForSession(sessionID, cli.config.GetLLMConfig()); err != nil {
-		if cli.debug {
-			log.Printf("[DEBUG] Failed to cleanup Kimi cache: %v", err)
-		}
+		// Kimi cache cleanup failed - continue with normal shutdown
 	}
 }
 

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"alex/internal/tools"
+	"alex/internal/types"
 )
 
 // FileReadTool implements file reading functionality
@@ -48,29 +51,14 @@ Notes:
 }
 
 func (t *FileReadTool) Parameters() map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"file_path": map[string]interface{}{
-				"type":        "string",
-				"description": "Path to the file to read",
-			},
-			"path": map[string]interface{}{
-				"type":        "string",
-				"description": "Path to the file to read (legacy parameter)",
-			},
-			"start_line": map[string]interface{}{
-				"type":        "integer",
-				"description": "Starting line number (1-based, optional)",
-				"minimum":     1,
-			},
-			"end_line": map[string]interface{}{
-				"type":        "integer",
-				"description": "Ending line number (1-based, optional)",
-				"minimum":     1,
-			},
-		},
-	}
+	schema := tools.NewToolSchema().
+		AddParameter("file_path", tools.NewStringParameter("Path to the file to read", false)).
+		AddParameter("path", tools.NewStringParameter("Path to the file to read (legacy parameter)", false)).
+		AddParameter("start_line", tools.NewIntegerParameter("Starting line number (1-based, optional)", false)).
+		AddParameter("end_line", tools.NewIntegerParameter("Ending line number (1-based, optional)", false))
+	
+	// Convert to legacy format for backward compatibility
+	return schema.ToLegacyMap()
 }
 
 func (t *FileReadTool) Validate(args map[string]interface{}) error {
@@ -91,12 +79,15 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	// Get file path from either parameter
+	// Convert args to typed parameters for safer access
+	params := types.ToolParameters(args)
+	
+	// Get file path using typed parameter access
 	var filePath string
-	if fp, ok := args["file_path"]; ok {
-		filePath = fp.(string)
-	} else if p, ok := args["path"]; ok {
-		filePath = p.(string)
+	if fp, ok := params.GetString("file_path"); ok {
+		filePath = fp
+	} else if p, ok := params.GetString("path"); ok {
+		filePath = p
 	} else {
 		return nil, fmt.Errorf("either file_path or path is required")
 	}
@@ -125,13 +116,13 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	truncated := false
 	truncationWarning := ""
 
-	// Handle line range if specified
-	if startLine, ok := args["start_line"]; ok {
-		start := int(startLine.(float64)) - 1 // Convert to 0-based
+	// Handle line range if specified using typed parameter access
+	if startLine, ok := params.GetInt("start_line"); ok {
+		start := startLine - 1 // Convert to 0-based
 		end := len(lines)
 
-		if endLineArg, ok := args["end_line"]; ok {
-			end = int(endLineArg.(float64))
+		if endLine, ok := params.GetInt("end_line"); ok {
+			end = endLine
 		}
 
 		if start < 0 {

@@ -1,0 +1,22 @@
+# Project-specific Alex configuration
+# This file can be committed to version control
+
+models:
+  basic: "deepseek/deepseek-chat"       # Fast model for general tasks
+  reasoning: "deepseek/deepseek-r1"     # Strong model for complex reasoning
+
+agent:
+  max_turns: 15                         # Limit conversation length
+  temperature: 0.3                      # Lower temperature for more focused responses
+  max_tokens: 4000                      # Token limit per response
+
+tools:
+  search_api_key: "your-tavily-key"     # Optional: for web search
+  allowed_tools:                        # Restrict available tools
+    - "file_read"
+    - "file_update" 
+    - "bash"
+    - "grep"
+    - "todo_read"
+    - "todo_update"
+  max_concurrent: 3                     # Max concurrent tool executions

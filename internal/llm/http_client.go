@@ -90,15 +90,11 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 	baseURL, apiKey, model := c.getModelConfig(req)
 	// Ensure streaming is disabled for HTTP mode
 	req.Stream = false
-	log.Printf("[DEBUG] API Provider: %s", baseURL)
+	// Using API provider
 
-	// Debug Kimi cache conditions
+	// Check Kimi cache conditions
 	if IsKimiAPI(baseURL) {
-		log.Printf("[DEBUG] Kimi API detected: baseURL=%s", baseURL)
-		log.Printf("[DEBUG] Session ID: '%s', Messages: %d", sessionID, len(req.Messages))
-		if sessionID == "" {
-			log.Printf("[DEBUG] ❌ Session ID is empty, cache will not be used")
-		}
+		// Kimi API detected, preparing cache if session ID is available
 	}
 
 	// Handle Kimi API context caching
@@ -110,7 +106,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 		}
 		// Prepare headers for cache usage (verifies message/tool consistency)
 		cacheHeaders = c.kimiCacheManager.PrepareRequestWithCache(sessionID, req)
-		log.Printf("[DEBUG] Cache created: %s", cacheHeaders)
+		// Cache headers prepared
 
 	}
 
@@ -129,8 +125,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 	}
 
 	jsonData, err := json.Marshal(req)
-
-	log.Printf("[DEBUG] Request: %s", string(jsonData))
+	// Request marshaled
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -164,11 +159,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Log response for cache debugging
-	if IsKimiAPI(baseURL) {
-		log.Printf("[DEBUG] 📥 Received response: %d bytes", len(body))
-	}
-	log.Printf("[DEBUG] Response: %s", string(body))
+	// Response received and processed
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {

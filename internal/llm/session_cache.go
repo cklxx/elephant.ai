@@ -354,9 +354,8 @@ func (cm *CacheManager) ClearAllCaches() {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
-	count := len(cm.caches)
 	cm.caches = make(map[string]*SessionCache)
-	log.Printf("[DEBUG] CacheManager: Cleared all %d caches", count)
+	// All caches cleared
 }
 
 // Global cache manager instance

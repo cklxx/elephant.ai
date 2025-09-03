@@ -1,0 +1,42 @@
+# Advanced Alex configuration for enterprise users
+# Only needed if you require MCP servers, advanced security, etc.
+
+mcp:
+  enabled: true
+  servers:
+    filesystem:
+      name: "Filesystem Server"
+      command: "npx"
+      args: ["@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"]
+      auto_start: true
+    
+    database:
+      name: "Database Server" 
+      command: "./database-mcp-server"
+      args: ["--connection-string", "postgresql://..."]
+      auto_start: false
+
+security:
+  allowed_commands:
+    - "git"
+    - "npm"
+    - "node"
+    - "python"
+  blocked_commands:
+    - "rm -rf"
+    - "sudo"
+    - "curl"
+  require_confirmation: true
+  sandbox_mode: false
+  max_processes: 10
+  max_memory_mb: 512
+  restricted_paths:
+    - "/etc"
+    - "/var"
+    - "/usr/bin"
+
+logging:
+  level: "INFO"
+  log_requests: false
+  log_responses: false
+  log_file: "./alex-advanced.log"

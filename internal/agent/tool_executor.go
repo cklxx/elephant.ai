@@ -28,9 +28,9 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 	var toolCalls []*types.ReactToolCall
 
 	// 首先尝试解析标准 tool_calls 格式
-	log.Printf("[DEBUG] parseToolCalls: Processing %d tool calls from LLM", len(message.ToolCalls))
-	for i, tc := range message.ToolCalls {
-		log.Printf("[DEBUG] parseToolCalls: Tool call %d - ID: '%s', Name: '%s'", i, tc.ID, tc.Function.Name)
+	// Processing tool calls from LLM
+	for _, tc := range message.ToolCalls {
+		// Processing tool call with ID and name
 
 		var args map[string]interface{}
 		if tc.Function.Arguments != "" {
@@ -62,7 +62,7 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 					}
 				} else {
 					log.Printf("[INFO] JSON repaired successfully, new length: %d", len(fixedJSON))
-					log.Printf("[DEBUG] Repaired JSON: %q", fixedJSON)
+					// JSON repaired successfully
 
 					// 尝试解析修复后的JSON
 					if err := json.Unmarshal([]byte(fixedJSON), &args); err != nil {
@@ -90,7 +90,7 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 			CallID:    callID,
 		}
 
-		log.Printf("[DEBUG] parseToolCalls: Created ReactToolCall - Name: '%s', CallID: '%s'", toolCall.Name, toolCall.CallID)
+		// Created ReactToolCall with name and callID
 		toolCalls = append(toolCalls, toolCall)
 	}
 

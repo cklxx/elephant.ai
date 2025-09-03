@@ -32,10 +32,10 @@ func (h *ToolHandler) buildToolDefinitions(ctx context.Context) []llm.Tool {
 func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, isGemini bool) []llm.Message {
 	var toolMessages []llm.Message
 
-	log.Printf("[DEBUG] buildToolMessages: Processing %d tool results", len(actionResult))
+	// Processing tool results for message construction
 
-	for i, result := range actionResult {
-		log.Printf("[DEBUG] buildToolMessages: Result %d - Tool: '%s', CallID: '%s', Success: %v", i, result.ToolName, result.CallID, result.Success)
+	for _, result := range actionResult {
+		// Processing tool result
 
 		content := result.Content
 		if !result.Success {
@@ -81,7 +81,7 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
 		}
 
 		// Debug logging for Gemini API compatibility
-		log.Printf("[DEBUG] buildToolMessages: Creating tool message - Name: '%s', CallID: '%s'", toolName, callID)
+		// Creating tool message for LLM response
 
 		// Gemini API compatibility: ensure tool response format is correct
 		// 兼容所有类型的api
@@ -98,11 +98,11 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
 			ToolCallId: callID,
 		}
 
-		log.Printf("[DEBUG] buildToolMessages: Created tool message - Role: '%s', ToolCallId: '%s'", toolMessage.Role, toolMessage.ToolCallId)
+		// Tool message created successfully
 		toolMessages = append(toolMessages, toolMessage)
 	}
 
-	log.Printf("[DEBUG] buildToolMessages: Generated %d tool messages", len(toolMessages))
+	// Generated tool messages for LLM
 
 	// 额外的验证：确保所有生成的消息都有CallID
 	for i, msg := range toolMessages {

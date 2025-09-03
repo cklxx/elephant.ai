@@ -77,7 +77,7 @@ func (r *ToolRegistry) registerBuiltinTools() {
 	
 	for _, tool := range builtinTools {
 		r.staticTools[tool.Name()] = tool
-		log.Printf("[DEBUG] ToolRegistry: Registered builtin tool: %s", tool.Name())
+		// Registered builtin tool
 	}
 }
 
@@ -92,7 +92,7 @@ func (r *ToolRegistry) registerMCPToolsFromGlobal() {
 	r.mu.Lock()
 	for _, tool := range mcpTools {
 		r.staticTools[tool.Name()] = tool
-		log.Printf("[DEBUG] ToolRegistry: Registered MCP tool from global manager: %s", tool.Name())
+		// Registered MCP tool from global manager
 	}
 	r.mu.Unlock()
 	
@@ -105,7 +105,7 @@ func (r *ToolRegistry) RegisterDynamicToolProvider(name string, provider Dynamic
 	defer r.mu.Unlock()
 	
 	r.dynamicProviders[name] = provider
-	log.Printf("[DEBUG] ToolRegistry: Registered dynamic tool provider: %s", name)
+	// Registered dynamic tool provider
 }
 
 // RegisterSubAgentTool - 注册sub-agent工具（仅在主agent中）
@@ -160,7 +160,7 @@ func (r *ToolRegistry) updateMCPToolsFromGlobal() {
 		if _, exists := r.staticTools[tool.Name()]; !exists {
 			r.staticTools[tool.Name()] = tool
 			newToolsCount++
-			log.Printf("[DEBUG] ToolRegistry: Added new MCP tool from global manager: %s", tool.Name())
+			// Added new MCP tool from global manager
 		}
 	}
 	
@@ -211,16 +211,7 @@ func (r *ToolRegistry) GetAllToolDefinitions(ctx context.Context) []llm.Tool {
 		}
 	}
 	
-	// 检查全局MCP管理器状态用于调试
-	globalMCP := GetGlobalMCPManager()
-	mcpStatus := ""
-	if globalMCP.IsInitializing() {
-		mcpStatus = " (MCP tools still loading)"
-	} else if globalMCP.IsInitialized() {
-		mcpStatus = " (MCP tools loaded)"
-	}
-	
-	log.Printf("[DEBUG] ToolRegistry: Generated %d tool definitions%s", len(tools), mcpStatus)
+	// Generated tool definitions
 	return tools
 }
 
