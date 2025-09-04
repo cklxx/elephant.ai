@@ -7,13 +7,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"alex/internal/tools/mcp/protocol"
+)
+
+// CircuitBreaker states
+const (
+	CircuitClosed = iota
+	CircuitOpen
+	CircuitHalfOpen
 )
 
 // SSETransport implements MCP transport over Server-Sent Events
@@ -29,6 +39,14 @@ type SSETransport struct {
 	headers     map[string]string
 	requestID   int64
 	pendingReqs map[int64]chan *protocol.JSONRPCResponse
+	
+	// Reconnection and circuit breaker fields
+	reconnectAttempts int64
+	lastReconnectTime time.Time
+	circuitState      int32  // atomic: CircuitClosed, CircuitOpen, CircuitHalfOpen
+	failureCount      int64  // atomic
+	lastFailureTime   time.Time
+	circuitMu         sync.RWMutex
 }
 
 // SSETransportConfig represents configuration for SSE transport
@@ -322,25 +340,112 @@ func (t *SSETransport) ReceiveErrors() <-chan error {
 	return t.errorsCh
 }
 
-// startSSEConnection establishes and maintains the SSE connection
+// startSSEConnection establishes and maintains the SSE connection with intelligent reconnection
 func (t *SSETransport) startSSEConnection() {
 	for {
 		select {
 		case <-t.ctx.Done():
 			return
 		default:
-			if err := t.connectSSE(); err != nil {
-				// Only log first few errors to avoid spam
-				t.errorsCh <- fmt.Errorf("SSE connection failed: %w", err)
+			// Check circuit breaker state
+			if t.isCircuitOpen() {
+				// Circuit is open, wait for cool-down period
 				select {
 				case <-t.ctx.Done():
 					return
-				case <-time.After(2 * time.Second): // Increased retry delay for proxy stability
+				case <-time.After(t.getCircuitCooldownDelay()):
+					t.transitionToHalfOpen()
 					continue
 				}
 			}
+			
+			if err := t.connectSSE(); err != nil {
+				t.recordFailure()
+				
+				// Only log errors if we haven't exceeded reasonable retry count
+				attempts := atomic.LoadInt64(&t.reconnectAttempts)
+				if attempts < 5 {
+					t.errorsCh <- fmt.Errorf("SSE connection failed (attempt %d): %w", attempts, err)
+				}
+				
+				// Calculate exponential backoff delay
+				delay := t.getReconnectDelay()
+				
+				select {
+				case <-t.ctx.Done():
+					return
+				case <-time.After(delay):
+					continue
+				}
+			} else {
+				// Connection successful, reset failure tracking
+				t.recordSuccess()
+			}
 		}
 	}
+}
+
+// getReconnectDelay calculates exponential backoff delay with jitter
+func (t *SSETransport) getReconnectDelay() time.Duration {
+	attempts := atomic.LoadInt64(&t.reconnectAttempts)
+	atomic.AddInt64(&t.reconnectAttempts, 1)
+	
+	// Base delay starts at 1 second, max at 30 seconds
+	baseDelay := time.Second
+	maxDelay := 30 * time.Second
+	
+	// Exponential backoff: delay = baseDelay * 2^attempts
+	delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempts)))
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+	
+	// Add jitter (±25%) to prevent thundering herd
+	jitter := float64(delay) * 0.25 * (2*rand.Float64() - 1)
+	return time.Duration(float64(delay) + jitter)
+}
+
+// isCircuitOpen checks if the circuit breaker is open
+func (t *SSETransport) isCircuitOpen() bool {
+	state := atomic.LoadInt32(&t.circuitState)
+	if state == CircuitOpen {
+		return true
+	}
+	
+	// Check if we should open the circuit based on failure rate
+	failures := atomic.LoadInt64(&t.failureCount)
+	if failures >= 5 { // Open circuit after 5 consecutive failures
+		atomic.CompareAndSwapInt32(&t.circuitState, CircuitClosed, CircuitOpen)
+		return true
+	}
+	
+	return false
+}
+
+// getCircuitCooldownDelay returns the circuit breaker cool-down delay
+func (t *SSETransport) getCircuitCooldownDelay() time.Duration {
+	// Circuit breaker cool-down period: 60 seconds
+	return 60 * time.Second
+}
+
+// transitionToHalfOpen transitions the circuit breaker to half-open state
+func (t *SSETransport) transitionToHalfOpen() {
+	atomic.CompareAndSwapInt32(&t.circuitState, CircuitOpen, CircuitHalfOpen)
+}
+
+// recordFailure records a connection failure
+func (t *SSETransport) recordFailure() {
+	atomic.AddInt64(&t.failureCount, 1)
+	t.circuitMu.Lock()
+	t.lastFailureTime = time.Now()
+	t.circuitMu.Unlock()
+}
+
+// recordSuccess records a successful connection and resets failure tracking
+func (t *SSETransport) recordSuccess() {
+	atomic.StoreInt64(&t.reconnectAttempts, 0)
+	atomic.StoreInt64(&t.failureCount, 0)
+	atomic.StoreInt32(&t.circuitState, CircuitClosed)
 }
 
 // connectSSE establishes the SSE connection

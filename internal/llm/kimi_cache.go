@@ -59,28 +59,43 @@ func IsKimiAPI(baseURL string) bool {
 }
 
 // CreateCacheIfNeeded creates a new cache for the session's cacheable prefix if not exists
+// Uses two-phase approach to avoid network I/O under mutex
 func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Message, tools []Tool, apiKey string) (*KimiCache, error) {
+	// Phase 1: Validation under lock (fast operations only)
 	kcm.mutex.Lock()
-	defer kcm.mutex.Unlock()
-
-	// 提取可缓存的前缀消息（稳定部分）
+	
+	// Extract cacheable messages (fast operation)
 	cacheableMessages := kcm.extractCacheablePrefix(messages)
 	if len(cacheableMessages) == 0 {
-		return nil, nil // 没有可缓存的内容
+		kcm.mutex.Unlock()
+		return nil, nil // No cacheable content
 	}
 
 	// Check if cache already exists and verify consistency
-	if existingCache, exists := kcm.caches[sessionID]; exists && existingCache.Status == "active" {
-		// 只需要验证可缓存前缀是否匹配
-		if kcm.messagesMatch(cacheableMessages, existingCache.CachedMessages) && kcm.toolsMatch(tools, existingCache.CachedTools) {
+	var oldCacheToDelete string
+	var existingCache *KimiCache
+	
+	if existing, exists := kcm.caches[sessionID]; exists && existing.Status == "active" {
+		// Validate cacheable prefix matches
+		if kcm.messagesMatch(cacheableMessages, existing.CachedMessages) && kcm.toolsMatch(tools, existing.CachedTools) {
+			existingCache = existing
+			kcm.mutex.Unlock()
 			log.Printf("[KIMI_CACHE] ✅ Using existing cache: %s", existingCache.CacheID)
 			return existingCache, nil
 		} else {
-			// Delete old cache and create new one
-			if err := kcm.sendCacheDeletionRequest(existingCache.CacheID, apiKey); err != nil {
-				log.Printf("[KIMI_CACHE] ⚠️  Failed to delete old cache: %v", err)
-			}
+			// Mark old cache for deletion
+			oldCacheToDelete = existing.CacheID
 			delete(kcm.caches, sessionID)
+		}
+	}
+	
+	kcm.mutex.Unlock() // Release lock before network I/O
+	
+	// Phase 2: Network I/O without locks (slow operations)
+	// Delete old cache if needed
+	if oldCacheToDelete != "" {
+		if err := kcm.sendCacheDeletionRequest(oldCacheToDelete, apiKey); err != nil {
+			log.Printf("[KIMI_CACHE] ⚠️  Failed to delete old cache: %v", err)
 		}
 	}
 
@@ -91,10 +106,11 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 		return nil, fmt.Errorf("failed to create cache with Kimi API: %w", err)
 	}
 
+	// Phase 3: Update state under lock (fast operations only)
 	cache := &KimiCache{
 		SessionID:      sessionID,
 		CacheID:        cacheID,
-		CachedMessages: cacheableMessages, // 只缓存稳定前缀
+		CachedMessages: cacheableMessages, // Only cache stable prefix
 		CachedTools:    tools,
 		CreatedAt:      time.Now(),
 		LastUsedAt:     time.Now(),
@@ -102,7 +118,10 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 		Status:         "active",
 	}
 
+	kcm.mutex.Lock()
 	kcm.caches[sessionID] = cache
+	kcm.mutex.Unlock()
+	
 	log.Printf("[KIMI_CACHE] ✅ Created new cache: %s (%d msgs)", cacheID, len(cacheableMessages))
 	return cache, nil
 }
@@ -221,28 +240,34 @@ func (kcm *KimiCacheManager) DeleteCache(sessionID string, apiKey string) error 
 	return nil
 }
 
-// CleanupExpiredCaches removes expired caches
+// CleanupExpiredCaches removes expired caches using two-phase approach
 func (kcm *KimiCacheManager) CleanupExpiredCaches(maxAge time.Duration, apiKey string) {
+	// Phase 1: Identify expired caches under lock (fast operations)
 	kcm.mutex.Lock()
-	defer kcm.mutex.Unlock()
-
 	cutoff := time.Now().Add(-maxAge)
-	var toDelete []string
+	var cachesToDelete []struct {
+		sessionID string
+		cacheID   string
+	}
 
 	for sessionID, cache := range kcm.caches {
 		if cache.LastUsedAt.Before(cutoff) {
-			toDelete = append(toDelete, sessionID)
+			cachesToDelete = append(cachesToDelete, struct {
+				sessionID string
+				cacheID   string
+			}{sessionID: sessionID, cacheID: cache.CacheID})
+			delete(kcm.caches, sessionID)
 		}
 	}
+	kcm.mutex.Unlock() // Release lock before network I/O
 
-	for _, sessionID := range toDelete {
-		cache := kcm.caches[sessionID]
-		if cache.CacheID != "" {
-			if err := kcm.sendCacheDeletionRequest(cache.CacheID, apiKey); err != nil {
-				log.Printf("WARNING: Failed to delete expired Kimi cache %s: %v", cache.CacheID, err)
+	// Phase 2: Delete caches via API without locks (slow operations)
+	for _, cache := range cachesToDelete {
+		if cache.cacheID != "" {
+			if err := kcm.sendCacheDeletionRequest(cache.cacheID, apiKey); err != nil {
+				log.Printf("WARNING: Failed to delete expired Kimi cache %s: %v", cache.cacheID, err)
 			}
 		}
-		delete(kcm.caches, sessionID)
 	}
 }
 

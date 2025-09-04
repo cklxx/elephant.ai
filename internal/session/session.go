@@ -3,8 +3,10 @@ package session
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -46,6 +48,23 @@ type Manager struct {
 	sessions         map[string]*Session
 	mutex            sync.RWMutex
 	currentSessionID string
+	
+	// Memory management
+	maxSessionsInMemory int
+	maxMessagesPerSession int
+	lastCleanup       time.Time
+	cleanupMutex      sync.Mutex
+	
+	// Access tracking for LRU cleanup
+	sessionAccess map[string]time.Time
+	accessMutex   sync.RWMutex
+	
+	// Async I/O for non-blocking persistence
+	persistQueue    chan *Session
+	persistCache    map[string]*Session
+	persistMutex    sync.RWMutex
+	lastPersist     map[string]time.Time
+	persistInterval time.Duration
 }
 
 // NewManager creates a new session manager
@@ -60,10 +79,24 @@ func NewManager() (*Manager, error) {
 		return nil, fmt.Errorf("failed to create sessions directory: %w", err)
 	}
 
-	return &Manager{
-		sessionsDir: sessionsDir,
-		sessions:    make(map[string]*Session),
-	}, nil
+	m := &Manager{
+		sessionsDir:           sessionsDir,
+		sessions:             make(map[string]*Session),
+		sessionAccess:        make(map[string]time.Time),
+		maxSessionsInMemory:  20,  // Limit to 20 sessions in memory
+		maxMessagesPerSession: 100, // Limit to 100 messages per session
+		lastCleanup:          time.Now(),
+		persistQueue:         make(chan *Session, 100),
+		persistCache:         make(map[string]*Session),
+		lastPersist:          make(map[string]time.Time),
+		persistInterval:      30 * time.Second,
+	}
+	
+	// Start background routines
+	go m.backgroundCleanup()
+	go m.backgroundPersistence()
+	
+	return m, nil
 }
 
 // GetSessionsDir returns the sessions directory path
@@ -112,40 +145,79 @@ func (m *Manager) StartSession(sessionID string) (*Session, error) {
 	return session, nil
 }
 
-// RestoreSession loads an existing session from disk
+// RestoreSession loads an existing session from disk with memory management
 func (m *Manager) RestoreSession(sessionID string) (*Session, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	// Check if already loaded in memory
 	if session, exists := m.sessions[sessionID]; exists {
-		m.currentSessionID = sessionID // Set current session ID for tools to access
+		m.updateAccess(sessionID)
+		m.currentSessionID = sessionID
 		return session, nil
 	}
 
-	// Load from disk
-	sessionFile := filepath.Join(m.sessionsDir, sessionID+".json")
-	data, err := os.ReadFile(sessionFile)
+	// Check memory pressure and cleanup if needed
+	if len(m.sessions) >= m.maxSessionsInMemory {
+		m.cleanupOldestSessions()
+	}
+
+	// Load from disk asynchronously if possible
+	session, err := m.loadSessionFromDisk(sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read session file: %w", err)
+		return nil, err
 	}
 
-	var session Session
-	if err := json.Unmarshal(data, &session); err != nil {
-		return nil, fmt.Errorf("failed to parse session data: %w", err)
+	// Apply message limits to prevent memory bloat
+	if len(session.Messages) > m.maxMessagesPerSession {
+		session.TrimMessages(m.maxMessagesPerSession)
 	}
 
-	m.sessions[sessionID] = &session
-	m.currentSessionID = sessionID // Set current session ID for tools to access
-	return &session, nil
+	m.sessions[sessionID] = session
+	m.updateAccess(sessionID)
+	m.currentSessionID = sessionID
+	return session, nil
 }
 
-// SaveSession persists a session to disk
+// SaveSession persists a session to disk (non-blocking with async option)
 func (m *Manager) SaveSession(session *Session) error {
 	session.mutex.Lock()
 	session.Updated = time.Now()
 	session.mutex.Unlock()
+	
+	// Try async save first for better performance
+	if m.saveSessionAsync(session) {
+		return nil
+	}
+	
+	// Fallback to synchronous save
+	return m.saveSessionSync(session)
+}
 
+// saveSessionAsync attempts non-blocking save
+func (m *Manager) saveSessionAsync(session *Session) bool {
+	// Check if we recently persisted this session
+	m.persistMutex.RLock()
+	lastPersistTime, exists := m.lastPersist[session.ID]
+	m.persistMutex.RUnlock()
+	
+	if exists && time.Since(lastPersistTime) < m.persistInterval {
+		// Queue for background persistence instead
+		select {
+		case m.persistQueue <- session:
+			return true
+		default:
+			// Queue is full, fallback to sync
+			return false
+		}
+	}
+	
+	// Need immediate persistence
+	return false
+}
+
+// saveSessionSync performs synchronous save
+func (m *Manager) saveSessionSync(session *Session) error {
 	sessionFile := filepath.Join(m.sessionsDir, session.ID+".json")
 	data, err := json.MarshalIndent(session, "", "  ")
 	if err != nil {
@@ -155,6 +227,11 @@ func (m *Manager) SaveSession(session *Session) error {
 	if err := os.WriteFile(sessionFile, data, 0644); err != nil {
 		return fmt.Errorf("failed to write session file: %w", err)
 	}
+	
+	// Update persist tracking
+	m.persistMutex.Lock()
+	m.lastPersist[session.ID] = time.Now()
+	m.persistMutex.Unlock()
 
 	return nil
 }
@@ -293,7 +370,7 @@ func (m *Manager) GetMemoryStats() map[string]interface{} {
 
 // Session methods
 
-// AddMessage adds a message to the session
+// AddMessage adds a message to the session with automatic cleanup
 func (s *Session) AddMessage(message *Message) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -304,6 +381,15 @@ func (s *Session) AddMessage(message *Message) {
 
 	s.Messages = append(s.Messages, message)
 	s.Updated = time.Now()
+	
+	// Auto-trim if messages exceed reasonable limits
+	const maxAutoMessages = 150
+	if len(s.Messages) > maxAutoMessages {
+		// Keep most recent messages
+		start := len(s.Messages) - 100 // Trim to 100 messages
+		s.Messages = s.Messages[start:]
+		log.Printf("[INFO] Auto-trimmed session messages from %d to %d", len(s.Messages)+50, len(s.Messages))
+	}
 }
 
 // TrimMessages trims the session messages to keep only the most recent maxMessages
@@ -424,4 +510,164 @@ func (m *Manager) cleanupSessionTodoFile(sessionID string) {
 // Helper function to generate a unique session ID
 func generateSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UnixNano())
+}
+
+// Background cleanup methods for memory management
+
+// backgroundCleanup runs periodic cleanup to manage memory usage
+func (m *Manager) backgroundCleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	
+	for range ticker.C {
+		m.cleanupMutex.Lock()
+		// Check if cleanup is needed based on memory pressure
+		var memStats runtime.MemStats
+		runtime.ReadMemStats(&memStats)
+		
+		// Trigger cleanup if memory usage is high or time-based
+		timeSinceLastCleanup := time.Since(m.lastCleanup)
+		memoryPressure := memStats.HeapAlloc > 100*1024*1024 // 100MB
+		
+		if timeSinceLastCleanup > 10*time.Minute || memoryPressure {
+			m.performMemoryCleanup()
+			m.lastCleanup = time.Now()
+		}
+		m.cleanupMutex.Unlock()
+	}
+}
+
+// performMemoryCleanup performs various cleanup operations
+func (m *Manager) performMemoryCleanup() {
+	// Clean up old sessions from memory
+	m.CleanupMemory(30 * time.Minute)
+	
+	// Clean up expired sessions from disk
+	m.CleanupExpiredSessions(7 * 24 * time.Hour) // 7 days
+	
+	log.Printf("[INFO] Performed memory cleanup: %d sessions in memory", len(m.sessions))
+}
+
+// updateAccess records when a session was last accessed
+func (m *Manager) updateAccess(sessionID string) {
+	m.accessMutex.Lock()
+	m.sessionAccess[sessionID] = time.Now()
+	m.accessMutex.Unlock()
+}
+
+// cleanupOldestSessions removes the least recently used sessions from memory
+func (m *Manager) cleanupOldestSessions() {
+	if len(m.sessions) < m.maxSessionsInMemory {
+		return
+	}
+	
+	// Find oldest sessions to remove
+	type sessionAccess struct {
+		id       string
+		lastUsed time.Time
+	}
+	
+	var accesses []sessionAccess
+	m.accessMutex.RLock()
+	for sessionID := range m.sessions {
+		lastUsed, exists := m.sessionAccess[sessionID]
+		if !exists {
+			lastUsed = time.Now().Add(-time.Hour) // Default to old if no access record
+		}
+		accesses = append(accesses, sessionAccess{id: sessionID, lastUsed: lastUsed})
+	}
+	m.accessMutex.RUnlock()
+	
+	// Sort by access time (oldest first)
+	for i := 0; i < len(accesses)-1; i++ {
+		for j := i + 1; j < len(accesses); j++ {
+			if accesses[i].lastUsed.After(accesses[j].lastUsed) {
+				accesses[i], accesses[j] = accesses[j], accesses[i]
+			}
+		}
+	}
+	
+	// Remove oldest sessions until we're under the limit
+	numToRemove := len(m.sessions) - m.maxSessionsInMemory + 1
+	for i := 0; i < numToRemove && i < len(accesses); i++ {
+		sessionID := accesses[i].id
+		if sessionID != m.currentSessionID { // Don't remove current session
+			delete(m.sessions, sessionID)
+			m.accessMutex.Lock()
+			delete(m.sessionAccess, sessionID)
+			m.accessMutex.Unlock()
+			log.Printf("[INFO] Removed session %s from memory due to pressure", sessionID)
+		}
+	}
+}
+
+// loadSessionFromDisk loads a session from disk with error handling
+func (m *Manager) loadSessionFromDisk(sessionID string) (*Session, error) {
+	sessionFile := filepath.Join(m.sessionsDir, sessionID+".json")
+	data, err := os.ReadFile(sessionFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session file: %w", err)
+	}
+
+	var session Session
+	if err := json.Unmarshal(data, &session); err != nil {
+		return nil, fmt.Errorf("failed to parse session data: %w", err)
+	}
+
+	return &session, nil
+}
+
+// backgroundPersistence handles async session persistence
+func (m *Manager) backgroundPersistence() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case session := <-m.persistQueue:
+			if session != nil {
+				if err := m.saveSessionSync(session); err != nil {
+					log.Printf("[WARN] Background persist failed for session %s: %v", session.ID, err)
+				}
+			}
+			
+		case <-ticker.C:
+			// Periodic flush of pending sessions
+			m.flushPendingSessions()
+		}
+	}
+}
+
+// flushPendingSessions ensures all pending sessions are persisted
+func (m *Manager) flushPendingSessions() {
+	m.mutex.RLock()
+	var pendingSessions []*Session
+	
+	// Find sessions that need persistence
+	for sessionID, session := range m.sessions {
+		m.persistMutex.RLock()
+		lastPersist, exists := m.lastPersist[sessionID]
+		m.persistMutex.RUnlock()
+		
+		session.mutex.RLock()
+		lastUpdate := session.Updated
+		session.mutex.RUnlock()
+		
+		// Persist if never persisted or if updated since last persist
+		if !exists || lastUpdate.After(lastPersist) {
+			pendingSessions = append(pendingSessions, session)
+		}
+	}
+	m.mutex.RUnlock()
+	
+	// Persist pending sessions
+	for _, session := range pendingSessions {
+		if err := m.saveSessionSync(session); err != nil {
+			log.Printf("[WARN] Flush persist failed for session %s: %v", session.ID, err)
+		}
+	}
+	
+	if len(pendingSessions) > 0 {
+		log.Printf("[INFO] Flushed %d pending sessions to disk", len(pendingSessions))
+	}
 }

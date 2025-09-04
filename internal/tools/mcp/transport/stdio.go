@@ -8,6 +8,8 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"alex/internal/tools/mcp/protocol"
 )
@@ -22,10 +24,16 @@ type StdioTransport struct {
 	errorsCh    chan error
 	ctx         context.Context
 	cancel      context.CancelFunc
-	mu          sync.RWMutex
-	connected   bool
-	requestID   int64
+	
+	// Fine-grained locking for performance optimization
+	connMu      sync.RWMutex  // Protects connection state (connected, stdin/stdout/stderr)
+	reqMu       sync.RWMutex  // Protects pendingReqs map
+	writeMu     sync.Mutex    // Protects stdin writes
+	
+	connected   int32         // atomic: 1 if connected, 0 if not
+	requestID   int64         // atomic
 	pendingReqs map[int64]chan *protocol.JSONRPCResponse
+	requestTimestamps map[int64]time.Time  // Track request timestamps for cleanup
 	config      *StdioTransportConfig
 }
 
@@ -40,10 +48,11 @@ type StdioTransportConfig struct {
 // NewStdioTransport creates a new stdio transport instance
 func NewStdioTransport(config *StdioTransportConfig) *StdioTransport {
 	return &StdioTransport{
-		messagesCh:  make(chan []byte, 100),
-		errorsCh:    make(chan error, 10),
-		pendingReqs: make(map[int64]chan *protocol.JSONRPCResponse),
-		config:      config,
+		messagesCh:        make(chan []byte, 100),
+		errorsCh:          make(chan error, 10),
+		pendingReqs:       make(map[int64]chan *protocol.JSONRPCResponse),
+		requestTimestamps: make(map[int64]time.Time),
+		config:            config,
 	}
 }
 
@@ -54,10 +63,10 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 
 // ConnectWithConfig establishes the stdio connection with configuration
 func (t *StdioTransport) ConnectWithConfig(ctx context.Context, config *StdioTransportConfig) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.connMu.Lock()
+	defer t.connMu.Unlock()
 
-	if t.connected {
+	if atomic.LoadInt32(&t.connected) == 1 {
 		return nil
 	}
 
@@ -107,17 +116,20 @@ func (t *StdioTransport) ConnectWithConfig(ctx context.Context, config *StdioTra
 
 	// Monitor process
 	go t.monitorProcess()
+	
+	// Start cleanup routine for orphaned requests
+	go t.cleanupOrphanedRequests()
 
-	t.connected = true
+	atomic.StoreInt32(&t.connected, 1)
 	return nil
 }
 
 // Disconnect closes the stdio connection
 func (t *StdioTransport) Disconnect() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.connMu.Lock()
+	defer t.connMu.Unlock()
 
-	if !t.connected {
+	if atomic.LoadInt32(&t.connected) == 0 {
 		return nil
 	}
 
@@ -134,19 +146,24 @@ func (t *StdioTransport) Disconnect() error {
 		_ = t.cmd.Wait()
 	}
 
-	t.connected = false
+	atomic.StoreInt32(&t.connected, 0)
 	return nil
 }
 
 // SendRequest sends a JSON-RPC request via stdin
 func (t *StdioTransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSONRPCResponse, error) {
-	t.mu.RLock()
-	connected := t.connected
-	stdin := t.stdin
-	t.mu.RUnlock()
-
-	if !connected || stdin == nil {
+	// Check connection state atomically
+	if atomic.LoadInt32(&t.connected) == 0 {
 		return nil, fmt.Errorf("transport not connected")
+	}
+	
+	// Get stdin with minimal locking
+	t.connMu.RLock()
+	stdin := t.stdin
+	t.connMu.RUnlock()
+	
+	if stdin == nil {
+		return nil, fmt.Errorf("stdin not available")
 	}
 
 	// Serialize request
@@ -159,21 +176,32 @@ func (t *StdioTransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JS
 	var responseCh chan *protocol.JSONRPCResponse
 	if req.ID != nil {
 		if id, ok := req.ID.(int64); ok {
+			// Check if we have too many pending requests to prevent memory exhaustion
+			if t.getBoundedRequestCount() >= 1000 { // Max 1000 concurrent requests
+				return nil, fmt.Errorf("too many pending requests (%d), request rejected to prevent memory exhaustion", t.getBoundedRequestCount())
+			}
+			
 			responseCh = make(chan *protocol.JSONRPCResponse, 1)
-			t.mu.Lock()
+			t.reqMu.Lock()
 			t.pendingReqs[id] = responseCh
-			t.mu.Unlock()
+			t.requestTimestamps[id] = time.Now()
+			t.reqMu.Unlock()
 
 			defer func() {
-				t.mu.Lock()
+				t.reqMu.Lock()
 				delete(t.pendingReqs, id)
-				t.mu.Unlock()
+				delete(t.requestTimestamps, id)
+				t.reqMu.Unlock()
 			}()
 		}
 	}
 
-	// Send request
-	if _, err := stdin.Write(append(data, '\n')); err != nil {
+	// Send request with write lock to prevent concurrent writes
+	t.writeMu.Lock()
+	_, err = stdin.Write(append(data, '\n'))
+	t.writeMu.Unlock()
+	
+	if err != nil {
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
 
@@ -197,13 +225,18 @@ func (t *StdioTransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JS
 
 // SendNotification sends a JSON-RPC notification via stdin
 func (t *StdioTransport) SendNotification(notification *protocol.JSONRPCNotification) error {
-	t.mu.RLock()
-	connected := t.connected
-	stdin := t.stdin
-	t.mu.RUnlock()
-
-	if !connected || stdin == nil {
+	// Check connection state atomically
+	if atomic.LoadInt32(&t.connected) == 0 {
 		return fmt.Errorf("transport not connected")
+	}
+	
+	// Get stdin with minimal locking
+	t.connMu.RLock()
+	stdin := t.stdin
+	t.connMu.RUnlock()
+	
+	if stdin == nil {
+		return fmt.Errorf("stdin not available")
 	}
 
 	// Serialize notification
@@ -212,8 +245,12 @@ func (t *StdioTransport) SendNotification(notification *protocol.JSONRPCNotifica
 		return fmt.Errorf("failed to marshal notification: %w", err)
 	}
 
-	// Send notification
-	if _, err := stdin.Write(append(data, '\n')); err != nil {
+	// Send notification with write lock to prevent concurrent writes
+	t.writeMu.Lock()
+	_, err = stdin.Write(append(data, '\n'))
+	t.writeMu.Unlock()
+	
+	if err != nil {
 		return fmt.Errorf("failed to write notification: %w", err)
 	}
 
@@ -233,11 +270,11 @@ func (t *StdioTransport) ReceiveErrors() <-chan error {
 // readStdout reads messages from stdout
 func (t *StdioTransport) readStdout() {
 	defer func() {
-		t.mu.Lock()
+		t.connMu.Lock()
 		if t.stdout != nil {
 			_ = t.stdout.Close()
 		}
-		t.mu.Unlock()
+		t.connMu.Unlock()
 	}()
 
 	scanner := bufio.NewScanner(t.stdout)
@@ -271,11 +308,11 @@ func (t *StdioTransport) readStdout() {
 // readStderr reads error messages from stderr
 func (t *StdioTransport) readStderr() {
 	defer func() {
-		t.mu.Lock()
+		t.connMu.Lock()
 		if t.stderr != nil {
 			_ = t.stderr.Close()
 		}
-		t.mu.Unlock()
+		t.connMu.Unlock()
 	}()
 
 	scanner := bufio.NewScanner(t.stderr)
@@ -318,9 +355,7 @@ func (t *StdioTransport) monitorProcess() {
 		}
 	}
 
-	t.mu.Lock()
-	t.connected = false
-	t.mu.Unlock()
+	atomic.StoreInt32(&t.connected, 0)
 }
 
 // handleMessage processes incoming messages
@@ -363,9 +398,9 @@ func (t *StdioTransport) handleResponse(response *protocol.JSONRPCResponse) {
 		return
 	}
 
-	t.mu.Lock()
+	t.reqMu.RLock()
 	responseCh, exists := t.pendingReqs[int64(id)]
-	t.mu.Unlock()
+	t.reqMu.RUnlock()
 
 	if exists {
 		select {
@@ -378,15 +413,75 @@ func (t *StdioTransport) handleResponse(response *protocol.JSONRPCResponse) {
 
 // IsConnected returns the connection status
 func (t *StdioTransport) IsConnected() bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.connected
+	return atomic.LoadInt32(&t.connected) == 1
 }
 
-// NextRequestID generates a new request ID
+// NextRequestID generates a new request ID using atomic operations
 func (t *StdioTransport) NextRequestID() int64 {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.requestID++
-	return t.requestID
+	return atomic.AddInt64(&t.requestID, 1)
+}
+
+// cleanupOrphanedRequests periodically cleans up requests that have been waiting too long
+func (t *StdioTransport) cleanupOrphanedRequests() {
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+	defer ticker.Stop()
+	
+	const requestTimeout = 2 * time.Minute // Timeout requests after 2 minutes
+	
+	for {
+		select {
+		case <-t.ctx.Done():
+			return
+		case <-ticker.C:
+			now := time.Now()
+			var expiredIDs []int64
+			
+			t.reqMu.RLock()
+			for id, timestamp := range t.requestTimestamps {
+				if now.Sub(timestamp) > requestTimeout {
+					expiredIDs = append(expiredIDs, id)
+				}
+			}
+			t.reqMu.RUnlock()
+			
+			// Clean up expired requests
+			if len(expiredIDs) > 0 {
+				t.reqMu.Lock()
+				for _, id := range expiredIDs {
+					if responseCh, exists := t.pendingReqs[id]; exists {
+						// Send timeout error to the waiting goroutine
+						select {
+						case responseCh <- &protocol.JSONRPCResponse{
+							ID: id,
+							Error: &protocol.JSONRPCError{
+								Code:    -32603, // Internal error
+								Message: "Request timeout - cleaned up orphaned request",
+							},
+						}:
+						default:
+							// Channel might be full or already closed
+						}
+						delete(t.pendingReqs, id)
+						delete(t.requestTimestamps, id)
+					}
+				}
+				t.reqMu.Unlock()
+				
+				// Log cleanup activity (only if we cleaned up requests)
+				select {
+				case t.errorsCh <- fmt.Errorf("cleaned up %d orphaned requests", len(expiredIDs)):
+				case <-t.ctx.Done():
+					return
+				}
+			}
+		}
+	}
+}
+
+// getBoundedRequestCount returns the current number of pending requests
+// This helps with monitoring and preventing unbounded growth
+func (t *StdioTransport) getBoundedRequestCount() int {
+	t.reqMu.RLock()
+	defer t.reqMu.RUnlock()
+	return len(t.pendingReqs)
 }

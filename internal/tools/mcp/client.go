@@ -4,14 +4,54 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
 	"alex/internal/tools/mcp/protocol"
 )
 
-// parseJSONResponse safely parses a JSON-RPC response result
+// parseJSONResponse efficiently parses a JSON-RPC response result using reflection
+// This avoids the inefficient double JSON marshal/unmarshal pattern
 func parseJSONResponse(result interface{}, target interface{}) error {
+	if result == nil {
+		return fmt.Errorf("response result is nil")
+	}
+	
+	// Get the target value and ensure it's a pointer
+	targetValue := reflect.ValueOf(target)
+	if targetValue.Kind() != reflect.Ptr {
+		return fmt.Errorf("target must be a pointer")
+	}
+	
+	targetElem := targetValue.Elem()
+	if !targetElem.CanSet() {
+		return fmt.Errorf("target cannot be set")
+	}
+	
+	// Try direct type assertion first for common cases
+	resultValue := reflect.ValueOf(result)
+	
+	// If result is already the correct type, assign directly
+	if resultValue.Type().AssignableTo(targetElem.Type()) {
+		targetElem.Set(resultValue)
+		return nil
+	}
+	
+	// If result is a map[string]interface{}, try JSON unmarshaling as fallback
+	// This handles the common JSON-RPC case where result is a generic map
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		resultBytes, err := json.Marshal(resultMap)
+		if err != nil {
+			return fmt.Errorf("failed to marshal response result: %w", err)
+		}
+		if err := json.Unmarshal(resultBytes, target); err != nil {
+			return fmt.Errorf("failed to parse response: %w", err)
+		}
+		return nil
+	}
+	
+	// For other types, try JSON marshaling as fallback (original behavior)
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal response result: %w", err)

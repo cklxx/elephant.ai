@@ -342,6 +342,85 @@ swe-bench-clean:
 	@rm -rf ./verified_quick_test ./verified_small_batch ./verified_medium_batch ./verified_full_evaluation ./verified_custom
 	@echo "SWE-Bench cleanup complete"
 
+# Performance Verification Framework targets
+
+# Initialize performance framework
+.PHONY: perf-init
+perf-init:
+	@echo "Initializing performance verification framework..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf init
+	@echo "Performance framework initialized"
+
+# Run performance benchmarks
+.PHONY: perf-benchmark
+perf-benchmark: build
+	@echo "Running performance benchmarks..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf benchmark
+	@echo "Benchmarks completed"
+
+# Run performance test scenarios
+.PHONY: perf-test
+perf-test: build
+	@echo "Running performance test scenarios..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf test
+	@echo "Performance tests completed"
+
+# Create performance baseline
+.PHONY: perf-baseline
+perf-baseline: build
+	@echo "Creating new performance baseline..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf baseline
+	@echo "Baseline created"
+
+# Start performance monitoring
+.PHONY: perf-monitor
+perf-monitor: build
+	@echo "Starting performance monitoring..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf monitor
+	@echo "Performance monitoring started"
+
+# Generate performance report
+.PHONY: perf-report
+perf-report:
+	@echo "Generating performance report..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf report
+	@echo "Performance report generated"
+
+# Run pre-build performance verification
+.PHONY: perf-pre-build
+perf-pre-build:
+	@echo "Running pre-build performance verification..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf pre-build
+	@echo "Pre-build verification completed"
+
+# Run post-test performance verification
+.PHONY: perf-post-test
+perf-post-test:
+	@echo "Running post-test performance verification..."
+	@go run -ldflags "$(LDFLAGS)" ./cmd/perf post-test
+	@echo "Post-test verification completed"
+
+# Run full performance verification suite
+.PHONY: perf-full
+perf-full: perf-init perf-baseline perf-benchmark perf-test perf-report
+	@echo "Full performance verification suite completed"
+
+# Clean performance data
+.PHONY: perf-clean
+perf-clean:
+	@echo "Cleaning performance data..."
+	@rm -rf ./performance/results/*
+	@echo "Performance data cleaned"
+
+# Performance automation script shortcuts
+.PHONY: perf-ci
+perf-ci:
+	@./scripts/performance-verification.sh ci
+
+.PHONY: perf-auto-full
+perf-auto-full:
+	@./scripts/performance-verification.sh full
+
 # Help target
 .PHONY: help
 help:
@@ -504,5 +583,19 @@ ci-test-install:
 	@echo "  swe-bench-verified-medium   Run Verified medium batch (150 instances)"
 	@echo "  swe-bench-verified-full     Run Verified full evaluation (500 instances)"
 	@echo "  swe-bench-verified-config   Generate Verified configuration template"
+	@echo ""
+	@echo "Performance Verification Framework:"
+	@echo "  perf-init          Initialize performance verification framework"
+	@echo "  perf-benchmark     Run performance benchmark suite"
+	@echo "  perf-test          Run performance test scenarios"
+	@echo "  perf-baseline      Create or update performance baseline"
+	@echo "  perf-monitor       Start performance monitoring"
+	@echo "  perf-report        Generate performance report"
+	@echo "  perf-pre-build     Run pre-build performance verification"
+	@echo "  perf-post-test     Run post-test performance verification"
+	@echo "  perf-full          Run full performance verification suite"
+	@echo "  perf-clean         Clean performance data"
+	@echo "  perf-ci            Run CI/CD performance checks"
+	@echo "  perf-auto-full     Run full suite using automation script"
 	@echo ""
 	@echo "  help               Show this help message"
