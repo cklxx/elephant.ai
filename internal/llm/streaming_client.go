@@ -57,25 +57,29 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 	// Try to get specific model config first
 	if config.Models != nil {
 		if modelConfig, exists := config.Models[modelType]; exists {
-			apiKeyPreview := modelConfig.APIKey
-			// Use rune-based slicing to properly handle UTF-8 characters in API key
-			keyRunes := []rune(apiKeyPreview)
+			// Use rune-based slicing to properly handle UTF-8 characters in API key for logging
+			keyRunes := []rune(modelConfig.APIKey)
+			var apiKeyPreview string
 			if len(keyRunes) > 15 {
 				apiKeyPreview = string(keyRunes[:15]) + "..."
+			} else {
+				apiKeyPreview = string(keyRunes)
 			}
-			// Using model-specific configuration
+			log.Printf("Using model-specific configuration for %s with API key: %s", modelType, apiKeyPreview)
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
 		}
 	}
 
 	// Fallback to single model config
-	apiKeyPreview := config.APIKey
-	// Use rune-based slicing to properly handle UTF-8 characters in API key
-	keyRunes := []rune(apiKeyPreview)
+	// Use rune-based slicing to properly handle UTF-8 characters in API key for logging
+	keyRunes := []rune(config.APIKey)
+	var apiKeyPreview string
 	if len(keyRunes) > 15 {
 		apiKeyPreview = string(keyRunes[:15]) + "..."
+	} else {
+		apiKeyPreview = string(keyRunes)
 	}
-	// Using fallback configuration
+	log.Printf("Using fallback configuration with API key: %s", apiKeyPreview)
 	return config.BaseURL, config.APIKey, config.Model
 }
 
@@ -275,11 +279,13 @@ func (c *StreamingLLMClient) setRequestDefaults(req *ChatRequest) {
 func (c *StreamingLLMClient) setHeaders(req *http.Request, apiKey string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	apiKeyPreview := apiKey
-	// Use rune-based slicing to properly handle UTF-8 characters in API key
-	keyRunes := []rune(apiKeyPreview)
+	// Use rune-based slicing to properly handle UTF-8 characters in API key for logging
+	keyRunes := []rune(apiKey)
+	var apiKeyPreview string
 	if len(keyRunes) > 15 {
 		apiKeyPreview = string(keyRunes[:15]) + "..."
+	} else {
+		apiKeyPreview = string(keyRunes)
 	}
-	// Authorization header configured
+	log.Printf("Authorization header configured with API key: %s", apiKeyPreview)
 }

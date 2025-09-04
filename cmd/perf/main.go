@@ -46,7 +46,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize performance framework: %v", err)
 	}
-	defer strategy.Shutdown()
+	defer func() {
+		if err := strategy.Shutdown(); err != nil {
+			log.Printf("Warning: failed to shutdown strategy: %v", err)
+		}
+	}()
 
 	// Execute command
 	switch command {

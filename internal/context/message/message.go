@@ -189,7 +189,7 @@ func (mp *MessageProcessor) marshalArgumentsOptimized(args interface{}) string {
 	buf := mp.jsonBufPool.Get().([]byte)
 	buf = buf[:0] // Reset length but keep capacity
 	
-	defer mp.jsonBufPool.Put(buf)
+	defer mp.jsonBufPool.Put(&buf)
 	
 	// Try to marshal directly to the buffer
 	if data, err := json.Marshal(args); err == nil {
@@ -208,6 +208,6 @@ func (mp *MessageProcessor) ReleaseConvertedMessages(messages []llm.Message) {
 	// Return slice to pool if it's a reasonable size
 	if cap(messages) <= 100 {
 		messages = messages[:0] // Reset length but keep capacity
-		mp.slicePool.Put(messages)
+		mp.slicePool.Put(&messages)
 	}
 }

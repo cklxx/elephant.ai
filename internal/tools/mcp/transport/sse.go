@@ -42,7 +42,6 @@ type SSETransport struct {
 	
 	// Reconnection and circuit breaker fields
 	reconnectAttempts int64
-	lastReconnectTime time.Time
 	circuitState      int32  // atomic: CircuitClosed, CircuitOpen, CircuitHalfOpen
 	failureCount      int64  // atomic
 	lastFailureTime   time.Time

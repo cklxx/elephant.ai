@@ -146,11 +146,10 @@ func (bs *BenchmarkSuite) MemoryLeakBenchmark() *BenchmarkResult {
 		// Simulate processing
 		time.Sleep(10 * time.Millisecond)
 		
-		// Clear references
+		// Clear references to help GC
 		for i := range data {
 			data[i] = nil
 		}
-		data = nil
 		
 		runtime.GC()
 	}

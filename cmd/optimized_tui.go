@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -663,7 +664,7 @@ func (m *OptimizedTUIModel) cleanupKimiCache() {
 	}
 
 	if err := llm.CleanupKimiCacheForSession(sessionID, m.config.GetLLMConfig()); err != nil {
-		// Kimi cache cleanup failed - not critical for TUI shutdown
+		log.Printf("Warning: Kimi cache cleanup failed during TUI shutdown: %v", err)
 	}
 }
 

@@ -94,7 +94,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 
 	// Check Kimi cache conditions
 	if IsKimiAPI(baseURL) {
-		// Kimi API detected, preparing cache if session ID is available
+		log.Printf("Kimi API detected, preparing cache if session ID is available")
 	}
 
 	// Handle Kimi API context caching

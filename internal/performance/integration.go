@@ -3,7 +3,6 @@ package performance
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -84,7 +83,7 @@ func LoadIntegrationConfig(configPath string) (*IntegrationConfig, error) {
 		return config, nil
 	}
 	
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
@@ -109,7 +108,7 @@ func SaveIntegrationConfig(configPath string, config *IntegrationConfig) error {
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
 	
-	return ioutil.WriteFile(configPath, data, 0644)
+	return os.WriteFile(configPath, data, 0644)
 }
 
 // GetDefaultIntegrationConfig returns default integration configuration
@@ -366,13 +365,13 @@ func (is *IntegrationStrategy) saveResults(result *BenchmarkSuiteResult) error {
 	filename := fmt.Sprintf("results_%s.json", timestamp)
 	path := filepath.Join(is.config.ResultsDir, filename)
 	
-	if err := ioutil.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write results file: %v", err)
 	}
 	
 	// Also update the latest results file
 	latestPath := filepath.Join(is.config.ResultsDir, "latest.json")
-	return ioutil.WriteFile(latestPath, data, 0644)
+	return os.WriteFile(latestPath, data, 0644)
 }
 
 // GetMakefileIntegration returns Makefile targets for integration
@@ -464,7 +463,11 @@ func (lah *LogAlertHandler) HandleAlert(alert *Alert) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: failed to close log file: %v", err)
+		}
+	}()
 	
 	_, err = file.WriteString(logEntry)
 	return err

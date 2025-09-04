@@ -326,7 +326,7 @@ func (mc *MessageCompressor) compressionWorker() {
 		
 		// Perform compression
 		compressed := mc.compressWithAI(job.context, job.messages)
-		if compressed != nil && len(compressed) > 0 {
+		if len(compressed) > 0 {
 			// Cache the summary message
 			if len(compressed) > 2 {
 				summaryMsg := &compressed[len(compressed)-1]

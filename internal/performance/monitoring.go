@@ -315,15 +315,18 @@ func (pm *PerformanceMonitor) detectRegressions(history []PerformanceMetrics) {
 	}
 	
 	count := len(recentMetrics)
-	avgResponseTime /= time.Duration(count)
-	avgMemoryUsage /= int64(count)
-	avgThroughput /= float64(count)
-	avgErrorRate /= float64(count)
+	if count > 0 {
+		avgResponseTime /= time.Duration(count)
+		avgMemoryUsage /= int64(count)
+		avgThroughput /= float64(count)
+		avgErrorRate /= float64(count)
+	}
 	
 	// Compare with baseline
 	responseTimeRegression := float64(avgResponseTime-pm.baseline.ResponseTime) / float64(pm.baseline.ResponseTime)
 	memoryRegression := float64(avgMemoryUsage-pm.baseline.HeapSize) / float64(pm.baseline.HeapSize)
 	throughputRegression := (pm.baseline.ThroughputOps - avgThroughput) / pm.baseline.ThroughputOps
+	errorRateRegression := (avgErrorRate - pm.baseline.ErrorRate) / pm.baseline.ErrorRate
 	
 	// Check for significant regressions
 	if responseTimeRegression > pm.config.RegressionThreshold {
@@ -364,6 +367,17 @@ func (pm *PerformanceMonitor) detectRegressions(history []PerformanceMetrics) {
 			recentMetrics[len(recentMetrics)-1],
 			map[string]interface{}{
 				"regression_percentage": throughputRegression * 100,
+				"window": pm.config.RegressionWindow.String(),
+			})
+	}
+	
+	if errorRateRegression > pm.config.RegressionThreshold {
+		pm.createAlert(AlertError, "Error Rate Regression",
+			fmt.Sprintf("Error rate increased by %.1f%% over %v window",
+				errorRateRegression*100, pm.config.RegressionWindow),
+			recentMetrics[len(recentMetrics)-1],
+			map[string]interface{}{
+				"regression_percentage": errorRateRegression * 100,
 				"window": pm.config.RegressionWindow.String(),
 			})
 	}

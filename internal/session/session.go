@@ -540,10 +540,14 @@ func (m *Manager) backgroundCleanup() {
 // performMemoryCleanup performs various cleanup operations
 func (m *Manager) performMemoryCleanup() {
 	// Clean up old sessions from memory
-	m.CleanupMemory(30 * time.Minute)
+	if err := m.CleanupMemory(30 * time.Minute); err != nil {
+		log.Printf("Warning: failed to cleanup memory: %v", err)
+	}
 	
 	// Clean up expired sessions from disk
-	m.CleanupExpiredSessions(7 * 24 * time.Hour) // 7 days
+	if err := m.CleanupExpiredSessions(7 * 24 * time.Hour); err != nil { // 7 days
+		log.Printf("Warning: failed to cleanup expired sessions: %v", err)
+	}
 	
 	log.Printf("[INFO] Performed memory cleanup: %d sessions in memory", len(m.sessions))
 }

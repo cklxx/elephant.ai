@@ -186,10 +186,11 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 		if err != nil {
 			return fmt.Errorf("failed to create session automatically: %w", err)
 		}
-		currentSession = newSession
-		// Auto-created session
-	} else {
-		// Using existing session
+		// Update instance variable
+		r.mu.Lock()
+		r.currentSession = newSession
+		r.mu.Unlock()
+		log.Printf("Auto-created session: %s", sessionID)
 	}
 
 	// Context prepared with session ID
