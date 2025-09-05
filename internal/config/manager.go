@@ -584,6 +584,18 @@ type ModelPreset struct {
 // GetProviderPresets returns all available provider presets
 func GetProviderPresets() map[string]*ProviderPreset {
 	return map[string]*ProviderPreset{
+		"ollama": {
+			Name:        "ollama",
+			DisplayName: "Ollama (Local Models)",
+			BaseURL:     "http://localhost:11434",
+			Models: []ModelPreset{
+				{Name: "llama3.2", DisplayName: "Llama 3.2 (3B)", Model: "llama3.2", MaxTokens: 4096, Temperature: 0.7, IsDefault: true},
+				{Name: "qwen2.5-coder", DisplayName: "Qwen 2.5 Coder (7B)", Model: "qwen2.5-coder", MaxTokens: 32768, Temperature: 0.3},
+				{Name: "deepseek-coder-v2", DisplayName: "DeepSeek Coder V2", Model: "deepseek-coder-v2", MaxTokens: 8192, Temperature: 0.3},
+				{Name: "mistral", DisplayName: "Mistral (7B)", Model: "mistral", MaxTokens: 8192, Temperature: 0.7},
+				{Name: "codellama", DisplayName: "Code Llama", Model: "codellama", MaxTokens: 4096, Temperature: 0.3},
+			},
+		},
 		"kimi": {
 			Name:        "kimi",
 			DisplayName: "Kimi (Moonshot)",

@@ -57,10 +57,24 @@ func GetLLMInstance(modelType ModelType) (Client, error) {
 	if client, exists := globalCache.clients[cacheKey]; exists {
 		return client, nil
 	}
-	// Create HTTP client for non-streaming interface
-	client, err := NewHTTPClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP LLM client for %s: %w", modelType, err)
+
+	var client Client
+	
+	// Check if this is Ollama API
+	if IsOllamaAPI(effectiveConfig.BaseURL) {
+		// Create Ollama client with ultra think support for reasoning model
+		enableUltraThink := (modelType == ReasoningModel)
+		client, err = NewOllamaClient(effectiveConfig.BaseURL, enableUltraThink)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Ollama client for %s: %w", modelType, err)
+		}
+		log.Printf("Created Ollama client for %s model (ultra think: %v)", modelType, enableUltraThink)
+	} else {
+		// Create HTTP client for other APIs
+		client, err = NewHTTPClient()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP LLM client for %s: %w", modelType, err)
+		}
 	}
 
 	// Cache the client
