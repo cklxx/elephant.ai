@@ -234,6 +234,27 @@ type ReactToolCall struct {
 	CallID    string                 `json:"id"`        // 调用ID
 }
 
+// ReactStep - ReAct执行步骤
+type ReactStep struct {
+	Type      string                 `json:"type"`               // 步骤类型（think, act, observe）
+	Content   string                 `json:"content"`            // 步骤内容
+	Timestamp time.Time              `json:"timestamp"`          // 时间戳
+	Metadata  map[string]interface{} `json:"metadata,omitempty"` // 额外元数据
+}
+
+// ReactExecutionResult - ReAct执行结果（引擎级别）
+type ReactExecutionResult struct {
+	Success          bool                 `json:"success"`            // 是否成功
+	Answer           string               `json:"answer"`             // 答案内容
+	Confidence       float64              `json:"confidence"`         // 置信度
+	TokensUsed       int                  `json:"tokens_used"`        // 使用的token数
+	PromptTokens     int                  `json:"prompt_tokens"`      // 输入token数
+	CompletionTokens int                  `json:"completion_tokens"`  // 输出token数
+	Messages         []interface{}        `json:"messages"`           // 执行过程中的消息
+	History          []ReactStep          `json:"history"`            // 执行步骤历史
+	Error            string               `json:"error,omitempty"`    // 错误信息
+}
+
 // ReactToolResult - ReAct工具执行结果
 type ReactToolResult struct {
 	Success   bool                   `json:"success"`              // 是否成功

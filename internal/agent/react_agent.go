@@ -86,7 +86,12 @@ type LightPromptBuilder struct {
 	promptLoader *prompts.PromptLoader
 }
 
-// NewReactAgent - 创建简化的ReactAgent
+// NewSimplifiedAgent - creates a new simplified Agent (recommended for new code)
+func NewSimplifiedAgent(configManager *config.Manager) (*Agent, error) {
+	return LegacyAgentFactory(configManager)
+}
+
+// NewReactAgent - 创建简化的ReactAgent (legacy, maintained for backward compatibility)
 func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 设置LLM配置提供函数
 	llm.SetConfigProvider(func() (*llm.Config, error) {
