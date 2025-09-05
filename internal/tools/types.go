@@ -4,33 +4,33 @@ package tools
 type ToolParameterType string
 
 const (
-	StringType    ToolParameterType = "string"
-	IntegerType   ToolParameterType = "integer"
-	NumberType    ToolParameterType = "number"
-	BooleanType   ToolParameterType = "boolean"
-	ArrayType     ToolParameterType = "array"
-	ObjectType    ToolParameterType = "object"
+	StringType  ToolParameterType = "string"
+	IntegerType ToolParameterType = "integer"
+	NumberType  ToolParameterType = "number"
+	BooleanType ToolParameterType = "boolean"
+	ArrayType   ToolParameterType = "array"
+	ObjectType  ToolParameterType = "object"
 )
 
 // ToolParameterDefinition defines a parameter for a tool
 // Replaces the nested map[string]interface{} structures
 type ToolParameterDefinition struct {
-	Type        ToolParameterType            `json:"type"`
-	Description string                       `json:"description"`
-	Required    bool                         `json:"required,omitempty"`
-	Default     any                          `json:"default,omitempty"`
-	Enum        []any                        `json:"enum,omitempty"`
-	Items       *ToolParameterDefinition     `json:"items,omitempty"`       // For array types
+	Type        ToolParameterType                   `json:"type"`
+	Description string                              `json:"description"`
+	Required    bool                                `json:"required,omitempty"`
+	Default     any                                 `json:"default,omitempty"`
+	Enum        []any                               `json:"enum,omitempty"`
+	Items       *ToolParameterDefinition            `json:"items,omitempty"`      // For array types
 	Properties  map[string]*ToolParameterDefinition `json:"properties,omitempty"` // For object types
-	MinLength   *int                         `json:"minLength,omitempty"`
-	MaxLength   *int                         `json:"maxLength,omitempty"`
-	Pattern     string                       `json:"pattern,omitempty"`
+	MinLength   *int                                `json:"minLength,omitempty"`
+	MaxLength   *int                                `json:"maxLength,omitempty"`
+	Pattern     string                              `json:"pattern,omitempty"`
 }
 
 // ToolSchema represents the complete parameter schema for a tool
 // Replaces map[string]interface{} for tool.Parameters()
 type ToolSchema struct {
-	Type       string                               `json:"type"`
+	Type       string                              `json:"type"`
 	Properties map[string]*ToolParameterDefinition `json:"properties"`
 	Required   []string                            `json:"required"`
 }
@@ -111,11 +111,11 @@ func (tpd *ToolParameterDefinition) WithLengthConstraints(min, max *int) *ToolPa
 // This allows gradual migration while maintaining backward compatibility
 func (ts *ToolSchema) ToLegacyMap() map[string]interface{} {
 	properties := make(map[string]interface{})
-	
+
 	for name, param := range ts.Properties {
 		properties[name] = paramToMap(param)
 	}
-	
+
 	return map[string]interface{}{
 		"type":       ts.Type,
 		"properties": properties,
@@ -129,19 +129,19 @@ func paramToMap(param *ToolParameterDefinition) map[string]interface{} {
 		"type":        string(param.Type),
 		"description": param.Description,
 	}
-	
+
 	if param.Default != nil {
 		result["default"] = param.Default
 	}
-	
+
 	if param.Enum != nil {
 		result["enum"] = param.Enum
 	}
-	
+
 	if param.Items != nil {
 		result["items"] = paramToMap(param.Items)
 	}
-	
+
 	if param.Properties != nil {
 		props := make(map[string]interface{})
 		for k, v := range param.Properties {
@@ -149,19 +149,19 @@ func paramToMap(param *ToolParameterDefinition) map[string]interface{} {
 		}
 		result["properties"] = props
 	}
-	
+
 	if param.MinLength != nil {
 		result["minLength"] = *param.MinLength
 	}
-	
+
 	if param.MaxLength != nil {
 		result["maxLength"] = *param.MaxLength
 	}
-	
+
 	if param.Pattern != "" {
 		result["pattern"] = param.Pattern
 	}
-	
+
 	return result
 }
 

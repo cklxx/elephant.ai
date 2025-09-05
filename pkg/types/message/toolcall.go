@@ -19,7 +19,7 @@ func NewToolCall(id, name string, arguments map[string]interface{}) *ToolCallImp
 	if arguments == nil {
 		arguments = make(map[string]interface{})
 	}
-	
+
 	return &ToolCallImpl{
 		ID:        id,
 		Name:      name,
@@ -38,20 +38,20 @@ func (tc *ToolCallImpl) GetArgumentsJSON() string {
 	if len(tc.Arguments) == 0 {
 		return "{}"
 	}
-	
+
 	data, err := json.Marshal(tc.Arguments)
 	if err != nil {
 		return "{}"
 	}
-	
+
 	return string(data)
 }
 
 // Setters
-func (tc *ToolCallImpl) SetID(id string)                                      { tc.ID = id }
-func (tc *ToolCallImpl) SetName(name string)                                  { tc.Name = name }
-func (tc *ToolCallImpl) SetArguments(arguments map[string]interface{})        { tc.Arguments = arguments }
-func (tc *ToolCallImpl) SetTimestamp(timestamp time.Time)                     { tc.Timestamp = timestamp }
+func (tc *ToolCallImpl) SetID(id string)                               { tc.ID = id }
+func (tc *ToolCallImpl) SetName(name string)                           { tc.Name = name }
+func (tc *ToolCallImpl) SetArguments(arguments map[string]interface{}) { tc.Arguments = arguments }
+func (tc *ToolCallImpl) SetTimestamp(timestamp time.Time)              { tc.Timestamp = timestamp }
 
 // SetArgumentsFromJSON parses JSON string and sets arguments
 func (tc *ToolCallImpl) SetArgumentsFromJSON(jsonStr string) error {
@@ -59,12 +59,12 @@ func (tc *ToolCallImpl) SetArgumentsFromJSON(jsonStr string) error {
 		tc.Arguments = make(map[string]interface{})
 		return nil
 	}
-	
+
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &args); err != nil {
 		return fmt.Errorf("failed to parse arguments JSON: %w", err)
 	}
-	
+
 	tc.Arguments = args
 	return nil
 }
@@ -115,7 +115,7 @@ func FromLLMToolCall(llmTC LLMToolCall) *ToolCallImpl {
 		Arguments: make(map[string]interface{}),
 		Timestamp: time.Now(),
 	}
-	
+
 	// Parse arguments from JSON string
 	if llmTC.Function.Arguments != "" {
 		if err := tc.SetArgumentsFromJSON(llmTC.Function.Arguments); err != nil {
@@ -125,7 +125,7 @@ func FromLLMToolCall(llmTC LLMToolCall) *ToolCallImpl {
 			}
 		}
 	}
-	
+
 	return tc
 }
 
@@ -135,7 +135,7 @@ func FromSessionToolCall(sessionTC SessionToolCall) *ToolCallImpl {
 	if args == nil {
 		args = make(map[string]interface{})
 	}
-	
+
 	return &ToolCallImpl{
 		ID:        sessionTC.ID,
 		Name:      sessionTC.Name,
@@ -186,20 +186,20 @@ func NewErrorResult(callID, toolName, errorMsg string, duration time.Duration) *
 }
 
 // Implement ToolResult interface
-func (tr *ToolResultImpl) GetCallID() string                        { return tr.CallID }
-func (tr *ToolResultImpl) GetToolName() string                      { return tr.ToolName }
-func (tr *ToolResultImpl) GetSuccess() bool                         { return tr.Success }
-func (tr *ToolResultImpl) GetContent() string                       { return tr.Content }
-func (tr *ToolResultImpl) GetData() map[string]interface{}          { return tr.Data }
-func (tr *ToolResultImpl) GetError() string                         { return tr.Error }
-func (tr *ToolResultImpl) GetDuration() time.Duration               { return tr.Duration }
+func (tr *ToolResultImpl) GetCallID() string               { return tr.CallID }
+func (tr *ToolResultImpl) GetToolName() string             { return tr.ToolName }
+func (tr *ToolResultImpl) GetSuccess() bool                { return tr.Success }
+func (tr *ToolResultImpl) GetContent() string              { return tr.Content }
+func (tr *ToolResultImpl) GetData() map[string]interface{} { return tr.Data }
+func (tr *ToolResultImpl) GetError() string                { return tr.Error }
+func (tr *ToolResultImpl) GetDuration() time.Duration      { return tr.Duration }
 
 // Setters for ToolResult
-func (tr *ToolResultImpl) SetSuccess(success bool)                           { tr.Success = success }
-func (tr *ToolResultImpl) SetContent(content string)                         { tr.Content = content }
-func (tr *ToolResultImpl) SetError(error string)                             { tr.Error = error }
-func (tr *ToolResultImpl) SetDuration(duration time.Duration)                { tr.Duration = duration }
-func (tr *ToolResultImpl) SetData(data map[string]interface{})               { tr.Data = data }
+func (tr *ToolResultImpl) SetSuccess(success bool)             { tr.Success = success }
+func (tr *ToolResultImpl) SetContent(content string)           { tr.Content = content }
+func (tr *ToolResultImpl) SetError(error string)               { tr.Error = error }
+func (tr *ToolResultImpl) SetDuration(duration time.Duration)  { tr.Duration = duration }
+func (tr *ToolResultImpl) SetData(data map[string]interface{}) { tr.Data = data }
 
 // AddData adds a key-value pair to the result data
 func (tr *ToolResultImpl) AddData(key string, value interface{}) {
@@ -221,17 +221,17 @@ func (tc *ToolCallImpl) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
 	}
-	
+
 	// Ensure timestamp is set
 	if tc.Timestamp.IsZero() {
 		tc.Timestamp = time.Now()
 	}
-	
+
 	// Ensure arguments is initialized
 	if tc.Arguments == nil {
 		tc.Arguments = make(map[string]interface{})
 	}
-	
+
 	return nil
 }
 
@@ -247,16 +247,16 @@ func (tr *ToolResultImpl) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
 	}
-	
+
 	// Ensure timestamp is set
 	if tr.Timestamp.IsZero() {
 		tr.Timestamp = time.Now()
 	}
-	
+
 	// Ensure data is initialized
 	if tr.Data == nil {
 		tr.Data = make(map[string]interface{})
 	}
-	
+
 	return nil
 }

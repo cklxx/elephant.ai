@@ -230,17 +230,17 @@ type SamplingCreateMessageRequest struct {
 
 // SamplingCreateMessageResponse represents a sampling create message response
 type SamplingCreateMessageResponse struct {
-	Role         string                 `json:"role"`
-	Content      []Content              `json:"content"`
-	Model        string                 `json:"model"`
-	StopReason   string                 `json:"stopReason,omitempty"`
-	Meta         map[string]interface{} `json:"meta,omitempty"`
+	Role       string                 `json:"role"`
+	Content    []Content              `json:"content"`
+	Model      string                 `json:"model"`
+	StopReason string                 `json:"stopReason,omitempty"`
+	Meta       map[string]interface{} `json:"meta,omitempty"`
 }
 
 // ModelPreferences represents model preferences
 type ModelPreferences struct {
-	CostPriority       float64 `json:"costPriority,omitempty"`
-	SpeedPriority      float64 `json:"speedPriority,omitempty"`
+	CostPriority         float64 `json:"costPriority,omitempty"`
+	SpeedPriority        float64 `json:"speedPriority,omitempty"`
 	IntelligencePriority float64 `json:"intelligencePriority,omitempty"`
 }
 
@@ -266,21 +266,21 @@ type CancelledNotification struct {
 
 // Common MCP method names
 const (
-	MethodInitialize        = "initialize"
-	MethodPing              = "ping"
-	MethodToolsList         = "tools/list"
-	MethodToolsCall         = "tools/call"
-	MethodResourcesList     = "resources/list"
-	MethodResourcesRead     = "resources/read"
-	MethodResourcesUpdated  = "notifications/resources/updated"
-	MethodResourcesListChanged = "notifications/resources/list_changed"
-	MethodPromptsList       = "prompts/list"
-	MethodPromptsGet        = "prompts/get"
-	MethodPromptsListChanged = "notifications/prompts/list_changed"
-	MethodRootsList         = "roots/list"
-	MethodRootsListChanged  = "notifications/roots/list_changed"
+	MethodInitialize            = "initialize"
+	MethodPing                  = "ping"
+	MethodToolsList             = "tools/list"
+	MethodToolsCall             = "tools/call"
+	MethodResourcesList         = "resources/list"
+	MethodResourcesRead         = "resources/read"
+	MethodResourcesUpdated      = "notifications/resources/updated"
+	MethodResourcesListChanged  = "notifications/resources/list_changed"
+	MethodPromptsList           = "prompts/list"
+	MethodPromptsGet            = "prompts/get"
+	MethodPromptsListChanged    = "notifications/prompts/list_changed"
+	MethodRootsList             = "roots/list"
+	MethodRootsListChanged      = "notifications/roots/list_changed"
 	MethodSamplingCreateMessage = "sampling/createMessage"
-	MethodLoggingMessage    = "notifications/message"
-	MethodProgress          = "notifications/progress"
-	MethodCancelled         = "notifications/cancelled"
+	MethodLoggingMessage        = "notifications/message"
+	MethodProgress              = "notifications/progress"
+	MethodCancelled             = "notifications/cancelled"
 )

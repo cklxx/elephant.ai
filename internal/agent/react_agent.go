@@ -52,14 +52,14 @@ type Response struct {
 
 // StreamChunk - 流式响应
 type StreamChunk struct {
-	Type             string                 `json:"type"`
-	Content          string                 `json:"content"`
-	Complete         bool                   `json:"complete,omitempty"`
+	Type             string         `json:"type"`
+	Content          string         `json:"content"`
+	Complete         bool           `json:"complete,omitempty"`
 	Metadata         map[string]any `json:"metadata,omitempty"`
-	TokensUsed       int                    `json:"tokens_used,omitempty"`
-	TotalTokensUsed  int                    `json:"total_tokens_used,omitempty"`
-	PromptTokens     int                    `json:"prompt_tokens,omitempty"`
-	CompletionTokens int                    `json:"completion_tokens,omitempty"`
+	TokensUsed       int            `json:"tokens_used,omitempty"`
+	TotalTokensUsed  int            `json:"total_tokens_used,omitempty"`
+	PromptTokens     int            `json:"prompt_tokens,omitempty"`
+	CompletionTokens int            `json:"completion_tokens,omitempty"`
 }
 
 // StreamCallback - 流式回调函数
@@ -67,12 +67,12 @@ type StreamCallback func(StreamChunk)
 
 // MessageQueueItem - 消息队列项
 type MessageQueueItem struct {
-	Message   string                 `json:"message"`
-	Timestamp time.Time              `json:"timestamp"`
-	Callback  StreamCallback         `json:"-"` // 不序列化回调函数
-	Context   context.Context        `json:"-"` // 不序列化context
-	Config    *config.Config         `json:"-"` // 不序列化config
-	Metadata  map[string]any `json:"metadata,omitempty"`
+	Message   string          `json:"message"`
+	Timestamp time.Time       `json:"timestamp"`
+	Callback  StreamCallback  `json:"-"` // 不序列化回调函数
+	Context   context.Context `json:"-"` // 不序列化context
+	Config    *config.Config  `json:"-"` // 不序列化config
+	Metadata  map[string]any  `json:"metadata,omitempty"`
 }
 
 // MessageQueue - 消息队列

@@ -18,12 +18,12 @@ type Config struct {
 	TavilyAPIKey string `yaml:"tavily_api_key" json:"tavily_api_key" mapstructure:"tavily_api_key"`
 
 	// Agent Configuration
-	AllowedTools   []string `yaml:"allowedTools" json:"allowedTools" mapstructure:"allowedTools"`
-	MaxIterations  int      `yaml:"maxIterations" json:"maxIterations" mapstructure:"maxIterations"`
-	Timeout        int      `yaml:"timeout" json:"timeout" mapstructure:"timeout"`
-	EnableStreaming bool    `yaml:"enableStreaming" json:"enableStreaming" mapstructure:"enableStreaming"`
-	EnableMemory   bool     `yaml:"enableMemory" json:"enableMemory" mapstructure:"enableMemory"`
-	
+	AllowedTools    []string `yaml:"allowedTools" json:"allowedTools" mapstructure:"allowedTools"`
+	MaxIterations   int      `yaml:"maxIterations" json:"maxIterations" mapstructure:"maxIterations"`
+	Timeout         int      `yaml:"timeout" json:"timeout" mapstructure:"timeout"`
+	EnableStreaming bool     `yaml:"enableStreaming" json:"enableStreaming" mapstructure:"enableStreaming"`
+	EnableMemory    bool     `yaml:"enableMemory" json:"enableMemory" mapstructure:"enableMemory"`
+
 	// LLM Configuration
 	Temperature      float64  `yaml:"temperature" json:"temperature" mapstructure:"temperature"`
 	MaxTokens        int      `yaml:"maxTokens" json:"maxTokens" mapstructure:"maxTokens"`
@@ -35,28 +35,28 @@ type Config struct {
 	// Storage Configuration
 	StorageType string `yaml:"storageType" json:"storageType" mapstructure:"storageType"`
 	StoragePath string `yaml:"storagePath" json:"storagePath" mapstructure:"storagePath"`
-	
+
 	// Session Configuration
-	SessionTimeout    int    `yaml:"sessionTimeout" json:"sessionTimeout" mapstructure:"sessionTimeout"`
-	SessionStorePath  string `yaml:"sessionStorePath" json:"sessionStorePath" mapstructure:"sessionStorePath"`
-	AutoSaveInterval  int    `yaml:"autoSaveInterval" json:"autoSaveInterval" mapstructure:"autoSaveInterval"`
-	
+	SessionTimeout   int    `yaml:"sessionTimeout" json:"sessionTimeout" mapstructure:"sessionTimeout"`
+	SessionStorePath string `yaml:"sessionStorePath" json:"sessionStorePath" mapstructure:"sessionStorePath"`
+	AutoSaveInterval int    `yaml:"autoSaveInterval" json:"autoSaveInterval" mapstructure:"autoSaveInterval"`
+
 	// Security Configuration
-	EnableSandbox     bool     `yaml:"enableSandbox" json:"enableSandbox" mapstructure:"enableSandbox"`
-	AllowedPaths      []string `yaml:"allowedPaths" json:"allowedPaths" mapstructure:"allowedPaths"`
-	BlockedCommands   []string `yaml:"blockedCommands" json:"blockedCommands" mapstructure:"blockedCommands"`
-	MaxFileSize       int64    `yaml:"maxFileSize" json:"maxFileSize" mapstructure:"maxFileSize"`
-	
+	EnableSandbox   bool     `yaml:"enableSandbox" json:"enableSandbox" mapstructure:"enableSandbox"`
+	AllowedPaths    []string `yaml:"allowedPaths" json:"allowedPaths" mapstructure:"allowedPaths"`
+	BlockedCommands []string `yaml:"blockedCommands" json:"blockedCommands" mapstructure:"blockedCommands"`
+	MaxFileSize     int64    `yaml:"maxFileSize" json:"maxFileSize" mapstructure:"maxFileSize"`
+
 	// Logging Configuration
-	LogLevel     string `yaml:"logLevel" json:"logLevel" mapstructure:"logLevel"`
-	LogFilePath  string `yaml:"logFilePath" json:"logFilePath" mapstructure:"logFilePath"`
-	EnableDebug  bool   `yaml:"enableDebug" json:"enableDebug" mapstructure:"enableDebug"`
-	
+	LogLevel    string `yaml:"logLevel" json:"logLevel" mapstructure:"logLevel"`
+	LogFilePath string `yaml:"logFilePath" json:"logFilePath" mapstructure:"logFilePath"`
+	EnableDebug bool   `yaml:"enableDebug" json:"enableDebug" mapstructure:"enableDebug"`
+
 	// UI Configuration
-	Theme           string `yaml:"theme" json:"theme" mapstructure:"theme"`
-	EnableTUI       bool   `yaml:"enableTUI" json:"enableTUI" mapstructure:"enableTUI"`
-	ShowProgress    bool   `yaml:"showProgress" json:"showProgress" mapstructure:"showProgress"`
-	ColorOutput     bool   `yaml:"colorOutput" json:"colorOutput" mapstructure:"colorOutput"`
+	Theme        string `yaml:"theme" json:"theme" mapstructure:"theme"`
+	EnableTUI    bool   `yaml:"enableTUI" json:"enableTUI" mapstructure:"enableTUI"`
+	ShowProgress bool   `yaml:"showProgress" json:"showProgress" mapstructure:"showProgress"`
+	ColorOutput  bool   `yaml:"colorOutput" json:"colorOutput" mapstructure:"colorOutput"`
 }
 
 // LLMConfig represents LLM-specific configuration
@@ -94,35 +94,35 @@ func NewDefaultConfig() *Config {
 		AnalysisDepth:    3,
 		BackupOnRefactor: true,
 		ExcludePatterns:  []string{".git", "node_modules", ".vscode", ".idea"},
-		
+
 		AllowedTools:    []string{"file_read", "file_write", "bash", "search"},
 		MaxIterations:   10,
 		Timeout:         300,
 		EnableStreaming: true,
 		EnableMemory:    true,
-		
+
 		Temperature:      0.7,
 		MaxTokens:        2000,
 		TopP:             0.9,
 		FrequencyPenalty: 0.0,
 		PresencePenalty:  0.0,
 		StopSequences:    []string{},
-		
+
 		StorageType:      "file",
 		StoragePath:      "~/.alex",
 		SessionTimeout:   3600,
 		SessionStorePath: "~/.alex/sessions",
 		AutoSaveInterval: 300,
-		
+
 		EnableSandbox:   true,
 		AllowedPaths:    []string{"."},
 		BlockedCommands: []string{"rm -rf", "sudo", "chmod 777"},
 		MaxFileSize:     10485760, // 10MB
-		
+
 		LogLevel:    "info",
 		LogFilePath: "~/.alex/logs/alex.log",
 		EnableDebug: false,
-		
+
 		Theme:        "default",
 		EnableTUI:    false,
 		ShowProgress: true,

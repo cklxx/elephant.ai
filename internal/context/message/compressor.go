@@ -17,15 +17,15 @@ type MessageCompressor struct {
 	sessionManager *session.Manager
 	llmClient      llm.Client
 	llmConfig      *llm.Config
-	
+
 	// Cache for compression results to avoid redundant calls
 	compressionCache map[string]*llm.Message
 	cacheMutex       sync.RWMutex
-	
+
 	// Channel for async compression results
-	compressionJobs  chan compressionJob
+	compressionJobs    chan compressionJob
 	compressionResults map[string]chan compressionResult
-	resultsMutex     sync.RWMutex
+	resultsMutex       sync.RWMutex
 }
 
 // compressionJob represents an async compression task
@@ -45,17 +45,17 @@ type compressionResult struct {
 // NewMessageCompressor creates a new message compressor
 func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client, llmConfig *llm.Config) *MessageCompressor {
 	mc := &MessageCompressor{
-		sessionManager: sessionManager,
-		llmClient:      llmClient,
-		llmConfig:      llmConfig,
-		compressionCache: make(map[string]*llm.Message),
-		compressionJobs: make(chan compressionJob, 10),
+		sessionManager:     sessionManager,
+		llmClient:          llmClient,
+		llmConfig:          llmConfig,
+		compressionCache:   make(map[string]*llm.Message),
+		compressionJobs:    make(chan compressionJob, 10),
 		compressionResults: make(map[string]chan compressionResult),
 	}
-	
+
 	// Start async compression worker
 	go mc.compressionWorker()
-	
+
 	return mc
 }
 
@@ -75,7 +75,7 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []ll
 	// Only compress if we exceed thresholds significantly
 	if messageCount > MessageThreshold && currentTokens > TokenThreshold {
 		log.Printf("[INFO] AI compression triggered: %d messages, %d current tokens", messageCount, currentTokens)
-		
+
 		// Try async compression first with fallback to sync
 		compressedMessages := mc.compressWithAIAsync(ctx, messages)
 		if compressedMessages == nil {
@@ -314,7 +314,7 @@ func (mc *MessageCompressor) compressionWorker() {
 		mc.cacheMutex.RLock()
 		cached, exists := mc.compressionCache[cacheKey]
 		mc.cacheMutex.RUnlock()
-		
+
 		if exists && cached != nil {
 			log.Printf("[INFO] Using cached compression result")
 			job.resultCh <- compressionResult{
@@ -323,7 +323,7 @@ func (mc *MessageCompressor) compressionWorker() {
 			}
 			continue
 		}
-		
+
 		// Perform compression
 		compressed := mc.compressWithAI(job.context, job.messages)
 		if len(compressed) > 0 {
@@ -334,7 +334,7 @@ func (mc *MessageCompressor) compressionWorker() {
 				mc.compressionCache[cacheKey] = summaryMsg
 				mc.cacheMutex.Unlock()
 			}
-			
+
 			job.resultCh <- compressionResult{
 				messages: compressed,
 				err:      nil,
@@ -355,20 +355,20 @@ func (mc *MessageCompressor) compressWithAIAsync(ctx context.Context, messages [
 	mc.cacheMutex.RLock()
 	cached, exists := mc.compressionCache[cacheKey]
 	mc.cacheMutex.RUnlock()
-	
+
 	if exists && cached != nil {
 		log.Printf("[INFO] Using cached compression result (fast path)")
 		return mc.rebuildWithCachedSummary(messages, cached)
 	}
-	
+
 	// Create job for async processing
 	jobID := fmt.Sprintf("compress_%d", time.Now().UnixNano())
 	resultCh := make(chan compressionResult, 1)
-	
+
 	mc.resultsMutex.Lock()
 	mc.compressionResults[jobID] = resultCh
 	mc.resultsMutex.Unlock()
-	
+
 	// Clean up after completion
 	defer func() {
 		mc.resultsMutex.Lock()
@@ -376,7 +376,7 @@ func (mc *MessageCompressor) compressWithAIAsync(ctx context.Context, messages [
 		mc.resultsMutex.Unlock()
 		close(resultCh)
 	}()
-	
+
 	// Submit job
 	job := compressionJob{
 		jobID:    jobID,
@@ -384,7 +384,7 @@ func (mc *MessageCompressor) compressWithAIAsync(ctx context.Context, messages [
 		messages: messages,
 		resultCh: resultCh,
 	}
-	
+
 	select {
 	case mc.compressionJobs <- job:
 		// Job submitted successfully
@@ -392,7 +392,7 @@ func (mc *MessageCompressor) compressWithAIAsync(ctx context.Context, messages [
 		// Queue is full, fallback to sync
 		return nil
 	}
-	
+
 	// Wait for result with timeout
 	select {
 	case result := <-resultCh:
@@ -415,7 +415,7 @@ func (mc *MessageCompressor) getCacheKey(messages []llm.Message) string {
 	if len(messages) < 3 {
 		return ""
 	}
-	
+
 	// Use a hash of the message content for cache key
 	var content strings.Builder
 	for i := 2; i < len(messages) && i < len(messages)-2; i++ {
@@ -436,11 +436,11 @@ func (mc *MessageCompressor) rebuildWithCachedSummary(messages []llm.Message, su
 	if len(messages) <= 2 {
 		return messages
 	}
-	
+
 	// Keep system messages + cached summary
 	result := make([]llm.Message, 0, 3)
 	result = append(result, messages[:2]...) // System messages
 	result = append(result, *summary)        // Cached summary
-	
+
 	return result
 }

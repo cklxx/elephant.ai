@@ -533,10 +533,10 @@ func (t *BashTool) executeBackground(ctx context.Context, command, workingDir st
 		// For now, we just ignore the callback since we can't access the real one
 		// The progress can be monitored via bash_status tool
 	}
-	
+
 	// Create background command
 	bgCmd := NewBackgroundCommand(command, workingDir, timeout, callback)
-	
+
 	// Start the background execution
 	if err := bgCmd.Start(); err != nil {
 		return &ToolResult{
@@ -547,13 +547,13 @@ func (t *BashTool) executeBackground(ctx context.Context, command, workingDir st
 			},
 		}, nil
 	}
-	
+
 	// Register with background manager
 	mgr := GetBackgroundCommandManager()
 	mgr.Register(bgCmd.ID, bgCmd)
-	
+
 	return &ToolResult{
-		Content: fmt.Sprintf("🚀 后台命令已启动，执行ID: %s\n📝 命令: %s\n📂 工作目录: %s\n⏱️ 超时设置: %d 秒\n\n💡 使用以下工具监控和控制:\n  • bash_status {\"execution_id\": \"%s\"} - 查看状态和进度\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"terminate\"} - 终止命令\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"get_full_output\"} - 获取完整输出", 
+		Content: fmt.Sprintf("🚀 后台命令已启动，执行ID: %s\n📝 命令: %s\n📂 工作目录: %s\n⏱️ 超时设置: %d 秒\n\n💡 使用以下工具监控和控制:\n  • bash_status {\"execution_id\": \"%s\"} - 查看状态和进度\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"terminate\"} - 终止命令\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"get_full_output\"} - 获取完整输出",
 			bgCmd.ID, command, workingDir, timeout, bgCmd.ID, bgCmd.ID, bgCmd.ID),
 		Data: map[string]interface{}{
 			"success":      true,

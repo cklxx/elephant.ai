@@ -117,7 +117,7 @@ func convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
 func (g *GlobalMCPManager) GetTools() []builtin.Tool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	
+
 	// 返回工具的副本，避免并发修改
 	tools := make([]builtin.Tool, len(g.tools))
 	copy(tools, g.tools)

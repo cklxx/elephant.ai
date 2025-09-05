@@ -12,7 +12,7 @@ import (
 
 // BenchmarkSuite provides automated performance testing for Alex components
 type BenchmarkSuite struct {
-	config *VerificationConfig
+	config     *VerificationConfig
 	warmupDone bool
 }
 
@@ -29,26 +29,26 @@ func (bs *BenchmarkSuite) MCPBenchmark() *BenchmarkResult {
 		Name:      "MCP Operations",
 		StartTime: time.Now(),
 	}
-	
+
 	// Warmup phase
 	if !bs.warmupDone {
 		bs.warmup()
 	}
-	
+
 	// Connection benchmark
 	connectionStart := time.Now()
 	for i := 0; i < 100; i++ {
 		bs.simulateMCPConnection()
 	}
 	connectionTime := time.Since(connectionStart)
-	
+
 	// Tool call benchmark
 	toolCallStart := time.Now()
 	for i := 0; i < 1000; i++ {
 		bs.simulateMCPToolCall()
 	}
 	toolCallTime := time.Since(toolCallStart)
-	
+
 	// Concurrent operations benchmark
 	concurrentStart := time.Now()
 	var wg sync.WaitGroup
@@ -63,7 +63,7 @@ func (bs *BenchmarkSuite) MCPBenchmark() *BenchmarkResult {
 	}
 	wg.Wait()
 	concurrentTime := time.Since(concurrentStart)
-	
+
 	result.EndTime = time.Now()
 	result.Metrics = PerformanceMetrics{
 		MCPConnectionTime:   connectionTime / 100,
@@ -72,7 +72,7 @@ func (bs *BenchmarkSuite) MCPBenchmark() *BenchmarkResult {
 		MCPProtocolOverhead: concurrentTime / time.Duration(bs.config.MaxConcurrency*50),
 		Timestamp:           time.Now(),
 	}
-	
+
 	return result
 }
 
@@ -82,36 +82,36 @@ func (bs *BenchmarkSuite) ContextBenchmark() *BenchmarkResult {
 		Name:      "Context Operations",
 		StartTime: time.Now(),
 	}
-	
+
 	// Compression benchmark
 	compressionStart := time.Now()
 	for i := 0; i < 100; i++ {
 		bs.simulateContextCompression()
 	}
 	compressionTime := time.Since(compressionStart)
-	
-	// Retrieval benchmark  
+
+	// Retrieval benchmark
 	retrievalStart := time.Now()
 	for i := 0; i < 1000; i++ {
 		bs.simulateContextRetrieval()
 	}
 	retrievalTime := time.Since(retrievalStart)
-	
+
 	// Memory usage benchmark
 	var m runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	beforeMemory := m.HeapAlloc
-	
+
 	// Simulate memory-intensive context operations
 	contexts := make([][]byte, 1000)
 	for i := 0; i < 1000; i++ {
 		contexts[i] = make([]byte, 1024*10) // 10KB each
 	}
-	
+
 	runtime.ReadMemStats(&m)
 	afterMemory := m.HeapAlloc
-	
+
 	result.EndTime = time.Now()
 	result.Metrics = PerformanceMetrics{
 		ContextCompressionTime: compressionTime / 100,
@@ -120,7 +120,7 @@ func (bs *BenchmarkSuite) ContextBenchmark() *BenchmarkResult {
 		ContextCacheHitRate:    bs.simulateCacheHitRate(),
 		Timestamp:              time.Now(),
 	}
-	
+
 	return result
 }
 
@@ -130,11 +130,11 @@ func (bs *BenchmarkSuite) MemoryLeakBenchmark() *BenchmarkResult {
 		Name:      "Memory Leak Detection",
 		StartTime: time.Now(),
 	}
-	
+
 	var initialMemStats, finalMemStats runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&initialMemStats)
-	
+
 	// Simulate operations that might leak memory
 	for cycle := 0; cycle < 10; cycle++ {
 		// Allocate and release memory in each cycle
@@ -142,23 +142,23 @@ func (bs *BenchmarkSuite) MemoryLeakBenchmark() *BenchmarkResult {
 		for i := 0; i < 1000; i++ {
 			data[i] = make([]byte, 1024)
 		}
-		
+
 		// Simulate processing
 		time.Sleep(10 * time.Millisecond)
-		
+
 		// Clear references to help GC
 		for i := range data {
 			data[i] = nil
 		}
-		
+
 		runtime.GC()
 	}
-	
+
 	runtime.GC()
 	runtime.ReadMemStats(&finalMemStats)
-	
+
 	leakScore := float64(finalMemStats.HeapAlloc-initialMemStats.HeapAlloc) / float64(initialMemStats.HeapAlloc)
-	
+
 	result.EndTime = time.Now()
 	result.Metrics = PerformanceMetrics{
 		HeapSize:        int64(finalMemStats.HeapAlloc),
@@ -166,7 +166,7 @@ func (bs *BenchmarkSuite) MemoryLeakBenchmark() *BenchmarkResult {
 		GCPause:         time.Duration(finalMemStats.PauseNs[(finalMemStats.NumGC+255)%256]),
 		Timestamp:       time.Now(),
 	}
-	
+
 	return result
 }
 
@@ -176,12 +176,12 @@ func (bs *BenchmarkSuite) ConcurrencyBenchmark() *BenchmarkResult {
 		Name:      "Concurrency Stress Test",
 		StartTime: time.Now(),
 	}
-	
+
 	var operations int64
 	var errors int64
 	ctx, cancel := context.WithTimeout(context.Background(), bs.config.BenchmarkDuration)
 	defer cancel()
-	
+
 	var wg sync.WaitGroup
 	for i := 0; i < bs.config.MaxConcurrency; i++ {
 		wg.Add(1)
@@ -198,7 +198,7 @@ func (bs *BenchmarkSuite) ConcurrencyBenchmark() *BenchmarkResult {
 					} else {
 						atomic.AddInt64(&errors, 1)
 					}
-					
+
 					// Prevent too aggressive operations
 					elapsed := time.Since(start)
 					if elapsed < time.Millisecond {
@@ -208,20 +208,20 @@ func (bs *BenchmarkSuite) ConcurrencyBenchmark() *BenchmarkResult {
 			}
 		}()
 	}
-	
+
 	wg.Wait()
-	
+
 	totalOps := atomic.LoadInt64(&operations)
 	totalErrors := atomic.LoadInt64(&errors)
 	duration := time.Since(result.StartTime)
-	
+
 	result.EndTime = time.Now()
 	result.Metrics = PerformanceMetrics{
 		ThroughputOps: float64(totalOps) / duration.Seconds(),
 		ErrorRate:     float64(totalErrors) / float64(totalOps+totalErrors),
 		Timestamp:     time.Now(),
 	}
-	
+
 	return result
 }
 
@@ -231,14 +231,14 @@ func (bs *BenchmarkSuite) LoadTestBenchmark(concurrency int, duration time.Durat
 		Name:      fmt.Sprintf("Load Test (concurrency=%d, duration=%v)", concurrency, duration),
 		StartTime: time.Now(),
 	}
-	
+
 	var totalRequests int64
 	var totalErrors int64
 	var totalResponseTime int64
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
-	
+
 	var wg sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
@@ -252,10 +252,10 @@ func (bs *BenchmarkSuite) LoadTestBenchmark(concurrency int, duration time.Durat
 					start := time.Now()
 					success := bs.simulateRequest()
 					elapsed := time.Since(start)
-					
+
 					atomic.AddInt64(&totalRequests, 1)
 					atomic.AddInt64(&totalResponseTime, int64(elapsed))
-					
+
 					if !success {
 						atomic.AddInt64(&totalErrors, 1)
 					}
@@ -263,21 +263,21 @@ func (bs *BenchmarkSuite) LoadTestBenchmark(concurrency int, duration time.Durat
 			}
 		}()
 	}
-	
+
 	wg.Wait()
-	
+
 	requests := atomic.LoadInt64(&totalRequests)
 	errors := atomic.LoadInt64(&totalErrors)
 	avgResponseTime := time.Duration(atomic.LoadInt64(&totalResponseTime) / requests)
-	
+
 	result.EndTime = time.Now()
 	result.Metrics = PerformanceMetrics{
-		ResponseTime:   avgResponseTime,
-		ThroughputOps:  float64(requests) / duration.Seconds(),
-		ErrorRate:      float64(errors) / float64(requests),
-		Timestamp:      time.Now(),
+		ResponseTime:  avgResponseTime,
+		ThroughputOps: float64(requests) / duration.Seconds(),
+		ErrorRate:     float64(errors) / float64(requests),
+		Timestamp:     time.Now(),
 	}
-	
+
 	return result
 }
 
@@ -295,32 +295,32 @@ type BenchmarkResult struct {
 // RunFullSuite executes all benchmark tests
 func (bs *BenchmarkSuite) RunFullSuite() []BenchmarkResult {
 	results := make([]BenchmarkResult, 0)
-	
+
 	// MCP benchmarks
 	mcpResult := bs.MCPBenchmark()
 	mcpResult.Duration = mcpResult.EndTime.Sub(mcpResult.StartTime)
 	results = append(results, *mcpResult)
-	
+
 	// Context benchmarks
 	contextResult := bs.ContextBenchmark()
 	contextResult.Duration = contextResult.EndTime.Sub(contextResult.StartTime)
 	results = append(results, *contextResult)
-	
+
 	// Memory leak detection
 	memoryResult := bs.MemoryLeakBenchmark()
 	memoryResult.Duration = memoryResult.EndTime.Sub(memoryResult.StartTime)
 	results = append(results, *memoryResult)
-	
+
 	// Concurrency testing
 	concurrencyResult := bs.ConcurrencyBenchmark()
 	concurrencyResult.Duration = concurrencyResult.EndTime.Sub(concurrencyResult.StartTime)
 	results = append(results, *concurrencyResult)
-	
+
 	// Load testing
 	loadResult := bs.LoadTestBenchmark(bs.config.MaxConcurrency, bs.config.BenchmarkDuration)
 	loadResult.Duration = loadResult.EndTime.Sub(loadResult.StartTime)
 	results = append(results, *loadResult)
-	
+
 	return results
 }
 
@@ -363,7 +363,7 @@ func (bs *BenchmarkSuite) simulateOperation() bool {
 
 func (bs *BenchmarkSuite) simulateRequest() bool {
 	time.Sleep(time.Millisecond * 5) // Simulate request processing
-	return true // 100% success rate for simulation
+	return true                      // 100% success rate for simulation
 }
 
 // BenchmarkTestingIntegration provides Go testing.B integration
@@ -381,43 +381,43 @@ func NewBenchmarkTestingIntegration(config *VerificationConfig) *BenchmarkTestin
 // BenchmarkMCPOperations integrates with Go benchmark testing
 func (bti *BenchmarkTestingIntegration) BenchmarkMCPOperations(b *testing.B) {
 	bti.suite.warmup()
-	
+
 	b.ResetTimer()
 	b.StartTimer()
-	
+
 	for i := 0; i < b.N; i++ {
 		bti.suite.simulateMCPToolCall()
 	}
-	
+
 	b.StopTimer()
 }
 
 // BenchmarkContextOperations integrates with Go benchmark testing
 func (bti *BenchmarkTestingIntegration) BenchmarkContextOperations(b *testing.B) {
 	bti.suite.warmup()
-	
+
 	b.ResetTimer()
 	b.StartTimer()
-	
+
 	for i := 0; i < b.N; i++ {
 		bti.suite.simulateContextRetrieval()
 	}
-	
+
 	b.StopTimer()
 }
 
 // BenchmarkConcurrentOperations tests concurrent performance
 func (bti *BenchmarkTestingIntegration) BenchmarkConcurrentOperations(b *testing.B) {
 	bti.suite.warmup()
-	
+
 	b.ResetTimer()
 	b.StartTimer()
-	
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			bti.suite.simulateOperation()
 		}
 	})
-	
+
 	b.StopTimer()
 }

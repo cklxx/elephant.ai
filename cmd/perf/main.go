@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultConfigPath = "./performance/config.json"
-	version          = "1.0.0"
+	version           = "1.0.0"
 )
 
 func main() {
@@ -40,7 +40,7 @@ func main() {
 	}
 
 	command := args[0]
-	
+
 	// Initialize integration strategy
 	strategy, err := performance.NewIntegrationStrategy(*configPath)
 	if err != nil {
@@ -118,29 +118,29 @@ Examples:
 
 func cmdInit(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Initializing performance verification framework...")
-	
+
 	if err := strategy.InitializeFramework(); err != nil {
 		return fmt.Errorf("initialization failed: %v", err)
 	}
-	
+
 	fmt.Println("✅ Framework initialized successfully")
 	fmt.Println("Configuration saved to:", defaultConfigPath)
 	fmt.Println("\nNext steps:")
 	fmt.Println("1. Run 'perf baseline' to create initial performance baseline")
 	fmt.Println("2. Run 'perf test' to execute test scenarios")
 	fmt.Println("3. Run 'perf monitor' to start continuous monitoring")
-	
+
 	return nil
 }
 
 func cmdBenchmark(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Running performance benchmark suite...")
-	
+
 	result, err := strategy.RunBenchmarkSuite()
 	if err != nil {
 		return fmt.Errorf("benchmark suite failed: %v", err)
 	}
-	
+
 	// Display summary
 	fmt.Printf("\n📊 Benchmark Results Summary:\n")
 	fmt.Printf("Total Benchmarks: %d\n", result.Summary.TotalBenchmarks)
@@ -151,12 +151,12 @@ func cmdBenchmark(strategy *performance.IntegrationStrategy) error {
 	fmt.Printf("Average Memory Usage: %.2f MB\n", float64(result.Summary.AverageMemoryUsage)/1024/1024)
 	fmt.Printf("Average Throughput: %.2f ops/sec\n", result.Summary.AverageThroughput)
 	fmt.Printf("Overall Error Rate: %.4f\n", result.Summary.OverallErrorRate)
-	
+
 	if result.Passed {
 		fmt.Println("\n✅ All benchmarks passed!")
 	} else {
 		fmt.Println("\n❌ Some benchmarks failed")
-		
+
 		// Show failed scenarios
 		for _, scenario := range result.ScenarioResults {
 			if !scenario.Passed {
@@ -168,23 +168,23 @@ func cmdBenchmark(strategy *performance.IntegrationStrategy) error {
 		}
 		return fmt.Errorf("benchmark suite had failures")
 	}
-	
+
 	return nil
 }
 
 func cmdTest(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Running performance test scenarios...")
-	
+
 	// Get scenario runner from strategy
 	config := performance.GetDefaultIntegrationConfig()
 	framework := performance.NewVerificationFramework(&config.VerificationConfig)
 	runner := performance.NewScenarioRunner(&config.VerificationConfig, framework)
-	
+
 	results, err := runner.RunAllScenarios()
 	if err != nil {
 		return fmt.Errorf("test scenarios failed: %v", err)
 	}
-	
+
 	// Display results
 	fmt.Printf("\n🧪 Test Scenario Results:\n")
 	passed := 0
@@ -195,7 +195,7 @@ func cmdTest(strategy *performance.IntegrationStrategy) error {
 		} else {
 			passed++
 		}
-		
+
 		fmt.Printf("%s %s (%.2fs)\n", status, result.Scenario.Name, result.Duration.Seconds())
 		if !result.Passed {
 			for _, failure := range result.Failures {
@@ -203,28 +203,28 @@ func cmdTest(strategy *performance.IntegrationStrategy) error {
 			}
 		}
 	}
-	
+
 	fmt.Printf("\nResults: %d/%d scenarios passed\n", passed, len(results))
-	
+
 	if passed != len(results) {
 		return fmt.Errorf("%d scenarios failed", len(results)-passed)
 	}
-	
+
 	return nil
 }
 
 func cmdBaseline(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Creating performance baseline...")
-	
+
 	// Run a quick benchmark to get current metrics
 	config := performance.GetDefaultIntegrationConfig()
 	framework := performance.NewVerificationFramework(&config.VerificationConfig)
 	suite := performance.NewBenchmarkSuite(&config.VerificationConfig)
-	
+
 	// Run a subset of benchmarks for baseline
 	mcpResult := suite.MCPBenchmark()
 	contextResult := suite.ContextBenchmark()
-	
+
 	// Create baseline from results
 	baseline := performance.PerformanceMetrics{
 		MCPConnectionTime:      mcpResult.Metrics.MCPConnectionTime,
@@ -239,7 +239,7 @@ func cmdBaseline(strategy *performance.IntegrationStrategy) error {
 		ErrorRate:              0.005,                  // Default error rate
 		Timestamp:              time.Now(),
 	}
-	
+
 	// Collect actual system metrics
 	current := framework.GetCurrentMetrics()
 	if current != nil {
@@ -247,90 +247,90 @@ func cmdBaseline(strategy *performance.IntegrationStrategy) error {
 		baseline.GCPause = current.GCPause
 		baseline.CPUUtilization = current.CPUUtilization
 	}
-	
+
 	if err := framework.SaveBaseline(&baseline); err != nil {
 		return fmt.Errorf("failed to save baseline: %v", err)
 	}
-	
+
 	fmt.Println("✅ Performance baseline created successfully")
 	fmt.Printf("MCP Connection Time: %v\n", baseline.MCPConnectionTime)
 	fmt.Printf("MCP Tool Call Latency: %v\n", baseline.MCPToolCallLatency)
 	fmt.Printf("Context Compression Time: %v\n", baseline.ContextCompressionTime)
 	fmt.Printf("Context Retrieval Time: %v\n", baseline.ContextRetrievalTime)
 	fmt.Printf("Memory Usage: %.2f MB\n", float64(baseline.HeapSize)/1024/1024)
-	
+
 	return nil
 }
 
 func cmdMonitor(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Starting performance monitoring...")
 	fmt.Println("Press Ctrl+C to stop monitoring")
-	
+
 	if err := strategy.InitializeFramework(); err != nil {
 		return fmt.Errorf("failed to initialize framework: %v", err)
 	}
-	
+
 	// This would start continuous monitoring
 	// In a real implementation, this would run until interrupted
 	fmt.Println("🔍 Monitoring started (simulation)")
 	fmt.Println("Monitoring metrics every 30 seconds...")
-	
+
 	// Simulate monitoring for demonstration
 	for i := 0; i < 5; i++ {
 		time.Sleep(2 * time.Second)
 		fmt.Printf("⏱️  [%s] Collecting performance metrics...\n", time.Now().Format("15:04:05"))
 	}
-	
+
 	fmt.Println("✅ Monitoring completed")
 	return nil
 }
 
 func cmdReport(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Generating performance report...")
-	
+
 	// Look for latest results file
 	resultsPath := "./performance/results/latest.json"
 	if _, err := os.Stat(resultsPath); os.IsNotExist(err) {
 		return fmt.Errorf("no results found - run 'perf benchmark' first")
 	}
-	
+
 	fmt.Printf("📄 Performance report available at: %s\n", resultsPath)
-	
+
 	// In a real implementation, this would generate HTML/PDF reports
 	fmt.Println("📊 Report Summary:")
 	fmt.Println("- Latest benchmark results processed")
-	fmt.Println("- Performance trends analyzed") 
+	fmt.Println("- Performance trends analyzed")
 	fmt.Println("- Recommendations generated")
-	
+
 	// Generate Makefile integration help
 	fmt.Println("\n🔧 Makefile Integration:")
 	fmt.Println("Add these targets to your Makefile for seamless integration:")
 	fmt.Println()
-	
+
 	integration := performance.IntegrationStrategy{}
 	fmt.Print(integration.GetMakefileIntegration())
-	
+
 	return nil
 }
 
 func cmdPreBuild(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Running pre-build performance verification...")
-	
+
 	if err := strategy.RunPreBuildVerification(); err != nil {
 		return fmt.Errorf("pre-build verification failed: %v", err)
 	}
-	
+
 	fmt.Println("✅ Pre-build verification passed")
 	return nil
 }
 
 func cmdPostTest(strategy *performance.IntegrationStrategy) error {
 	fmt.Println("Running post-test performance verification...")
-	
+
 	if err := strategy.RunPostTestVerification(); err != nil {
 		return fmt.Errorf("post-test verification failed: %v", err)
 	}
-	
+
 	fmt.Println("✅ Post-test verification passed")
 	return nil
 }
@@ -340,7 +340,7 @@ func init() {
 	if err := os.MkdirAll("./performance/results", 0755); err != nil {
 		log.Printf("Warning: failed to create performance directory: %v", err)
 	}
-	
+
 	// Set up logging
 	logFile := "./performance/perf.log"
 	if file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666); err == nil {

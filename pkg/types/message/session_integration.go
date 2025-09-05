@@ -20,10 +20,10 @@ func NewSessionIntegration() *SessionIntegration {
 
 // SessionStorage represents the enhanced session storage that uses unified Message
 type SessionStorage struct {
-	ID        string     `json:"id"`
-	Messages  []*Message `json:"messages"`  // Use unified Message as element
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID        string                 `json:"id"`
+	Messages  []*Message             `json:"messages"` // Use unified Message as element
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -77,14 +77,14 @@ func (ss *SessionStorage) GetLastMessage() *Message {
 // GetLastMessagesByRole returns the last N messages of a specific role
 func (ss *SessionStorage) GetLastMessagesByRole(role string, count int) []*Message {
 	var filtered []*Message
-	
+
 	// Iterate backwards to get the most recent messages first
 	for i := len(ss.Messages) - 1; i >= 0 && len(filtered) < count; i-- {
 		if ss.Messages[i].GetRole() == role {
 			filtered = append([]*Message{ss.Messages[i]}, filtered...) // Prepend to maintain order
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -213,13 +213,13 @@ func (scl *SessionCompatibilityLayer) GetStorage() *SessionStorage {
 // AddMessage adds a message using the legacy session message format
 func (scl *SessionCompatibilityLayer) AddLegacyMessage(role, content string, toolCalls []SessionToolCall) {
 	msg := NewMessage(role, content)
-	
+
 	// Convert tool calls
 	for _, tc := range toolCalls {
 		toolCall := FromSessionToolCall(tc)
 		msg.AddToolCall(toolCall)
 	}
-	
+
 	scl.storage.AddMessage(msg)
 }
 
@@ -245,7 +245,7 @@ func (ss *SessionStorage) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
 	}
-	
+
 	// Ensure slices and maps are initialized
 	if ss.Messages == nil {
 		ss.Messages = make([]*Message, 0)
@@ -253,7 +253,7 @@ func (ss *SessionStorage) UnmarshalJSON(data []byte) error {
 	if ss.Metadata == nil {
 		ss.Metadata = make(map[string]interface{})
 	}
-	
+
 	// Ensure timestamps are set
 	if ss.CreatedAt.IsZero() {
 		ss.CreatedAt = time.Now()
@@ -261,19 +261,19 @@ func (ss *SessionStorage) UnmarshalJSON(data []byte) error {
 	if ss.UpdatedAt.IsZero() {
 		ss.UpdatedAt = time.Now()
 	}
-	
+
 	return nil
 }
 
 // MessageSubtype demonstrates how Message can be used as a subtype in sessions
 // This is an example of extending the base Message for session-specific needs
 type SessionMessage_Enhanced struct {
-	*Message                                  // Message as subtype
-	SessionID     string                     `json:"session_id"`
-	Index         int                        `json:"index"`         // Position in session
-	ParentID      string                     `json:"parent_id,omitempty"`      // For threaded conversations
-	ChildrenIDs   []string                   `json:"children_ids,omitempty"`   // For threaded conversations
-	SessionMeta   map[string]interface{}     `json:"session_meta,omitempty"`   // Session-specific metadata
+	*Message                           // Message as subtype
+	SessionID   string                 `json:"session_id"`
+	Index       int                    `json:"index"`                  // Position in session
+	ParentID    string                 `json:"parent_id,omitempty"`    // For threaded conversations
+	ChildrenIDs []string               `json:"children_ids,omitempty"` // For threaded conversations
+	SessionMeta map[string]interface{} `json:"session_meta,omitempty"` // Session-specific metadata
 }
 
 // NewSessionMessageEnhanced creates an enhanced session message

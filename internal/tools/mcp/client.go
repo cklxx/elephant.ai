@@ -17,27 +17,27 @@ func parseJSONResponse(result interface{}, target interface{}) error {
 	if result == nil {
 		return fmt.Errorf("response result is nil")
 	}
-	
+
 	// Get the target value and ensure it's a pointer
 	targetValue := reflect.ValueOf(target)
 	if targetValue.Kind() != reflect.Ptr {
 		return fmt.Errorf("target must be a pointer")
 	}
-	
+
 	targetElem := targetValue.Elem()
 	if !targetElem.CanSet() {
 		return fmt.Errorf("target cannot be set")
 	}
-	
+
 	// Try direct type assertion first for common cases
 	resultValue := reflect.ValueOf(result)
-	
+
 	// If result is already the correct type, assign directly
 	if resultValue.Type().AssignableTo(targetElem.Type()) {
 		targetElem.Set(resultValue)
 		return nil
 	}
-	
+
 	// If result is a map[string]interface{}, try JSON unmarshaling as fallback
 	// This handles the common JSON-RPC case where result is a generic map
 	if resultMap, ok := result.(map[string]interface{}); ok {
@@ -50,7 +50,7 @@ func parseJSONResponse(result interface{}, target interface{}) error {
 		}
 		return nil
 	}
-	
+
 	// For other types, try JSON marshaling as fallback (original behavior)
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
@@ -76,16 +76,16 @@ type Transport interface {
 
 // Client represents an MCP client
 type Client struct {
-	transport     Transport
-	serverInfo    *protocol.ServerInfo
-	capabilities  *protocol.ServerCapabilities
-	tools         []protocol.Tool
-	resources     []protocol.Resource
-	prompts       []protocol.Prompt
-	mu            sync.RWMutex
-	ctx           context.Context
-	cancel        context.CancelFunc
-	initialized   bool
+	transport      Transport
+	serverInfo     *protocol.ServerInfo
+	capabilities   *protocol.ServerCapabilities
+	tools          []protocol.Tool
+	resources      []protocol.Resource
+	prompts        []protocol.Prompt
+	mu             sync.RWMutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	initialized    bool
 	messageHandler func([]byte)
 	errorHandler   func(error)
 }

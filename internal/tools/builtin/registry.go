@@ -66,7 +66,7 @@ func GetAllBuiltinToolsWithAgent(configManager *config.Manager, sessionManager *
 		// Shell tools
 		CreateBashTool(),
 		CreateCodeExecutorTool(),
-		
+
 		// Background command management tools
 		CreateBashStatusTool(),
 		CreateBashControlTool(),

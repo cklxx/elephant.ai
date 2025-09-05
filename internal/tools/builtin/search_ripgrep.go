@@ -123,7 +123,7 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 	originalMatchCount := len(lines)
 	truncatedByMatches := false
 	linesToruncated := 0
-	
+
 	// Limit results to 100 matches
 	if len(lines) > maxMatches {
 		lines = lines[:maxMatches]
@@ -157,17 +157,17 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 	return &ToolResult{
 		Content: finalContent,
 		Data: map[string]interface{}{
-			"pattern":                pattern,
-			"path":                   path,
-			"matches":                len(lines),
-			"original_matches":       originalMatchCount,
-			"ignore_case":            ignoreCase,
-			"file_type":              args["file_type"],
-			"results":                lines,
-			"truncated_by_matches":   truncatedByMatches,
-			"lines_truncated":        linesToruncated,
-			"max_line_chars":         maxLineChars,
-			"content":                finalContent,
+			"pattern":              pattern,
+			"path":                 path,
+			"matches":              len(lines),
+			"original_matches":     originalMatchCount,
+			"ignore_case":          ignoreCase,
+			"file_type":            args["file_type"],
+			"results":              lines,
+			"truncated_by_matches": truncatedByMatches,
+			"lines_truncated":      linesToruncated,
+			"max_line_chars":       maxLineChars,
+			"content":              finalContent,
 		},
 	}, nil
 }

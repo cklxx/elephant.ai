@@ -20,15 +20,15 @@ type ReactTaskContext struct {
 
 // ReactExecutionStep represents a single step in ReAct execution
 type ReactExecutionStep struct {
-	Number      int                  `json:"number"`
-	Timestamp   time.Time            `json:"timestamp"`
-	Duration    time.Duration        `json:"duration"`
-	Thought     string               `json:"thought"`
-	Action      string               `json:"action"`
-	Observation string               `json:"observation"`
-	ToolCall    []*ReactToolCall     `json:"toolCall,omitempty"`
-	Result      []*ReactToolResult   `json:"result,omitempty"`
-	TokensUsed  int                  `json:"tokensUsed"`
+	Number      int                    `json:"number"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Duration    time.Duration          `json:"duration"`
+	Thought     string                 `json:"thought"`
+	Action      string                 `json:"action"`
+	Observation string                 `json:"observation"`
+	ToolCall    []*ReactToolCall       `json:"toolCall,omitempty"`
+	Result      []*ReactToolResult     `json:"result,omitempty"`
+	TokensUsed  int                    `json:"tokensUsed"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -56,27 +56,27 @@ type ReactToolCall struct {
 
 // ReactToolResult represents the result of a tool call in ReAct execution
 type ReactToolResult struct {
-	CallID    string                 `json:"callId"`
-	ToolName  string                 `json:"toolName"`
-	Success   bool                   `json:"success"`
-	Content   string                 `json:"content"`
-	Error     string                 `json:"error,omitempty"`
-	Duration  time.Duration          `json:"duration"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	CallID   string                 `json:"callId"`
+	ToolName string                 `json:"toolName"`
+	Success  bool                   `json:"success"`
+	Content  string                 `json:"content"`
+	Error    string                 `json:"error,omitempty"`
+	Duration time.Duration          `json:"duration"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ReactConfig represents configuration for ReAct agent
 type ReactConfig struct {
-	MaxIterations    int     `json:"maxIterations"`
-	ThinkingTimeout  int     `json:"thinkingTimeout"`
-	ActionTimeout    int     `json:"actionTimeout"`
-	ConfidenceThreshold float64 `json:"confidenceThreshold"`
-	Temperature      float64 `json:"temperature"`
-	MaxTokens        int     `json:"maxTokens"`
-	StopSequences    []string `json:"stopSequences"`
-	EnableStreaming  bool    `json:"enableStreaming"`
-	EnableMemory     bool    `json:"enableMemory"`
-	EnableContext    bool    `json:"enableContext"`
+	MaxIterations       int      `json:"maxIterations"`
+	ThinkingTimeout     int      `json:"thinkingTimeout"`
+	ActionTimeout       int      `json:"actionTimeout"`
+	ConfidenceThreshold float64  `json:"confidenceThreshold"`
+	Temperature         float64  `json:"temperature"`
+	MaxTokens           int      `json:"maxTokens"`
+	StopSequences       []string `json:"stopSequences"`
+	EnableStreaming     bool     `json:"enableStreaming"`
+	EnableMemory        bool     `json:"enableMemory"`
+	EnableContext       bool     `json:"enableContext"`
 }
 
 // NewReactConfig creates a new ReactConfig with default values
@@ -87,11 +87,11 @@ func NewReactConfig() *ReactConfig {
 		ActionTimeout:       60,
 		ConfidenceThreshold: 0.8,
 		Temperature:         0.7,
-		MaxTokens:          2000,
-		StopSequences:      []string{"</thinking>", "<observation>"},
-		EnableStreaming:    true,
-		EnableMemory:       true,
-		EnableContext:      true,
+		MaxTokens:           2000,
+		StopSequences:       []string{"</thinking>", "<observation>"},
+		EnableStreaming:     true,
+		EnableMemory:        true,
+		EnableContext:       true,
 	}
 }
 

@@ -47,10 +47,10 @@ func (tp ToolParameters) GetBool(key string) (bool, bool) {
 // APIResponse represents structured API response data
 // Replaces map[string]interface{} for API responses
 type APIResponse struct {
-	Success   bool            `json:"success"`
-	Data      json.RawMessage `json:"data,omitempty"`
-	Error     string          `json:"error,omitempty"`
-	Metadata  ResponseMeta    `json:"metadata,omitempty"`
+	Success  bool            `json:"success"`
+	Data     json.RawMessage `json:"data,omitempty"`
+	Error    string          `json:"error,omitempty"`
+	Metadata ResponseMeta    `json:"metadata,omitempty"`
 }
 
 // ResponseMeta contains response metadata
@@ -64,20 +64,20 @@ type ResponseMeta struct {
 
 // CacheInfo represents cache-related metadata
 type CacheInfo struct {
-	CacheID     string    `json:"cache_id,omitempty"`
-	CacheHit    bool      `json:"cache_hit"`
-	TTL         int       `json:"ttl,omitempty"`
-	UpdatedAt   time.Time `json:"updated_at,omitempty"`
+	CacheID   string    `json:"cache_id,omitempty"`
+	CacheHit  bool      `json:"cache_hit"`
+	TTL       int       `json:"ttl,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
 // ConfigValue represents a typed configuration value
 // Replaces interface{} in configuration contexts
 type ConfigValue struct {
-	StringValue  *string  `json:"string_value,omitempty"`
-	IntValue     *int     `json:"int_value,omitempty"`
-	BoolValue    *bool    `json:"bool_value,omitempty"`
-	FloatValue   *float64 `json:"float_value,omitempty"`
-	StringArray  []string `json:"string_array,omitempty"`
+	StringValue *string  `json:"string_value,omitempty"`
+	IntValue    *int     `json:"int_value,omitempty"`
+	BoolValue   *bool    `json:"bool_value,omitempty"`
+	FloatValue  *float64 `json:"float_value,omitempty"`
+	StringArray []string `json:"string_array,omitempty"`
 }
 
 // Get returns the actual value based on type
@@ -103,7 +103,7 @@ func NewStringConfig(value string) ConfigValue {
 	return ConfigValue{StringValue: &value}
 }
 
-// NewIntConfig creates an integer configuration value  
+// NewIntConfig creates an integer configuration value
 func NewIntConfig(value int) ConfigValue {
 	return ConfigValue{IntValue: &value}
 }
@@ -153,20 +153,20 @@ func (sc *SessionConfig) SetSetting(key string, value ConfigValue) {
 // ToolResult represents a structured tool execution result
 // Replaces interface{} in tool result contexts
 type ToolResult[T any] struct {
-	Success   bool      `json:"success"`
-	Data      T         `json:"data,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	Metadata  ToolMeta  `json:"metadata"`
-	Duration  time.Duration `json:"duration"`
+	Success  bool          `json:"success"`
+	Data     T             `json:"data,omitempty"`
+	Error    string        `json:"error,omitempty"`
+	Metadata ToolMeta      `json:"metadata"`
+	Duration time.Duration `json:"duration"`
 }
 
 // ToolMeta contains tool execution metadata
 type ToolMeta struct {
-	ToolName    string            `json:"tool_name"`
-	Version     string            `json:"version,omitempty"`
-	ExecutedAt  time.Time         `json:"executed_at"`
-	Parameters  ToolParameters    `json:"parameters,omitempty"`
-	CustomMeta  map[string]string `json:"custom_meta,omitempty"`
+	ToolName   string            `json:"tool_name"`
+	Version    string            `json:"version,omitempty"`
+	ExecutedAt time.Time         `json:"executed_at"`
+	Parameters ToolParameters    `json:"parameters,omitempty"`
+	CustomMeta map[string]string `json:"custom_meta,omitempty"`
 }
 
 // NewSuccessResult creates a successful tool result

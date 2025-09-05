@@ -41,11 +41,11 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 		if !result.Success {
 			content = result.Error
 		}
-		
+
 		// Add security reminder only for file reading tools
-		if result.ToolName == "file_read" || result.ToolName == "file_list" || 
-		   result.ToolName == "grep" || result.ToolName == "ripgrep" || 
-		   result.ToolName == "find" {
+		if result.ToolName == "file_read" || result.ToolName == "file_list" ||
+			result.ToolName == "grep" || result.ToolName == "ripgrep" ||
+			result.ToolName == "find" {
 			securityReminder := `
 <system-reminder>
 

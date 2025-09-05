@@ -8,35 +8,35 @@ import (
 
 // MCPConfig represents the complete MCP configuration
 type MCPConfig struct {
-	Enabled         bool                    `json:"enabled"`
+	Enabled         bool                     `json:"enabled"`
 	Servers         map[string]*ServerConfig `json:"servers"`
-	GlobalTimeout   time.Duration           `json:"global_timeout"`
-	AutoRefresh     bool                    `json:"auto_refresh"`
-	RefreshInterval time.Duration           `json:"refresh_interval"`
-	Security        *SecurityConfig         `json:"security,omitempty"`
-	Logging         *LoggingConfig          `json:"logging,omitempty"`
+	GlobalTimeout   time.Duration            `json:"global_timeout"`
+	AutoRefresh     bool                     `json:"auto_refresh"`
+	RefreshInterval time.Duration            `json:"refresh_interval"`
+	Security        *SecurityConfig          `json:"security,omitempty"`
+	Logging         *LoggingConfig           `json:"logging,omitempty"`
 }
 
 // SecurityConfig represents security settings for MCP
 type SecurityConfig struct {
-	AllowedCommands      []string          `json:"allowed_commands"`
-	BlockedCommands      []string          `json:"blocked_commands"`
-	AllowedPackages      []string          `json:"allowed_packages"`
-	BlockedPackages      []string          `json:"blocked_packages"`
-	RequireConfirmation  bool              `json:"require_confirmation"`
-	SandboxMode          bool              `json:"sandbox_mode"`
-	MaxProcesses         int               `json:"max_processes"`
-	MaxMemoryMB          int               `json:"max_memory_mb"`
-	AllowedEnvironment   map[string]string `json:"allowed_environment"`
-	RestrictedPaths      []string          `json:"restricted_paths"`
+	AllowedCommands     []string          `json:"allowed_commands"`
+	BlockedCommands     []string          `json:"blocked_commands"`
+	AllowedPackages     []string          `json:"allowed_packages"`
+	BlockedPackages     []string          `json:"blocked_packages"`
+	RequireConfirmation bool              `json:"require_confirmation"`
+	SandboxMode         bool              `json:"sandbox_mode"`
+	MaxProcesses        int               `json:"max_processes"`
+	MaxMemoryMB         int               `json:"max_memory_mb"`
+	AllowedEnvironment  map[string]string `json:"allowed_environment"`
+	RestrictedPaths     []string          `json:"restricted_paths"`
 }
 
 // LoggingConfig represents logging settings for MCP
 type LoggingConfig struct {
-	Level       string `json:"level"`       // debug, info, warn, error
-	LogRequests bool   `json:"log_requests"`
+	Level        string `json:"level"` // debug, info, warn, error
+	LogRequests  bool   `json:"log_requests"`
 	LogResponses bool   `json:"log_responses"`
-	LogFile     string `json:"log_file,omitempty"`
+	LogFile      string `json:"log_file,omitempty"`
 }
 
 // GetDefaultMCPConfig returns the default MCP configuration
@@ -251,11 +251,11 @@ var (
 			Enabled:     true,
 		},
 		"github": {
-			ID:          "github",
-			Name:        "GitHub Server",
-			Type:        SpawnerTypeNPX,
-			Command:     "@modelcontextprotocol/server-github",
-			Args:        []string{},
+			ID:      "github",
+			Name:    "GitHub Server",
+			Type:    SpawnerTypeNPX,
+			Command: "@modelcontextprotocol/server-github",
+			Args:    []string{},
 			Env: map[string]string{
 				"GITHUB_PERSONAL_ACCESS_TOKEN": "your-token-here",
 			},
@@ -277,11 +277,11 @@ var (
 			Enabled:     false,
 		},
 		"postgres": {
-			ID:          "postgres",
-			Name:        "PostgreSQL Server",
-			Type:        SpawnerTypeNPX,
-			Command:     "@modelcontextprotocol/server-postgres",
-			Args:        []string{},
+			ID:      "postgres",
+			Name:    "PostgreSQL Server",
+			Type:    SpawnerTypeNPX,
+			Command: "@modelcontextprotocol/server-postgres",
+			Args:    []string{},
 			Env: map[string]string{
 				"POSTGRES_CONNECTION_STRING": "postgresql://user:pass@localhost:5432/db",
 			},
@@ -291,11 +291,11 @@ var (
 			Enabled:     false,
 		},
 		"brave": {
-			ID:          "brave",
-			Name:        "Brave Search Server",
-			Type:        SpawnerTypeNPX,
-			Command:     "@modelcontextprotocol/server-brave-search",
-			Args:        []string{},
+			ID:      "brave",
+			Name:    "Brave Search Server",
+			Type:    SpawnerTypeNPX,
+			Command: "@modelcontextprotocol/server-brave-search",
+			Args:    []string{},
 			Env: map[string]string{
 				"BRAVE_API_KEY": "your-api-key-here",
 			},

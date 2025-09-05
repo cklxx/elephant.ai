@@ -22,12 +22,12 @@ type BaseMessage interface {
 	GetToolCallID() string
 	GetMetadata() map[string]interface{}
 	GetTimestamp() time.Time
-	
+
 	// Reasoning fields for advanced models
 	GetReasoning() string
 	GetReasoningSummary() string
 	GetThink() string
-	
+
 	// Conversion methods
 	ToLLMMessage() LLMMessage
 	ToSessionMessage() SessionMessage
@@ -40,7 +40,7 @@ type ToolCall interface {
 	GetArguments() map[string]interface{}
 	GetArgumentsJSON() string
 	GetTimestamp() time.Time
-	
+
 	// Conversion methods
 	ToLLMToolCall() LLMToolCall
 	ToSessionToolCall() SessionToolCall
@@ -59,14 +59,14 @@ type ToolResult interface {
 
 // LLMMessage represents LLM protocol message
 type LLMMessage struct {
-	Role             string         `json:"role"`
-	Content          string         `json:"content,omitempty"`
-	ToolCalls        []LLMToolCall  `json:"tool_calls,omitempty"`
-	ToolCallID       string         `json:"tool_call_id,omitempty"`
-	Name             string         `json:"name,omitempty"`
-	Reasoning        string         `json:"reasoning,omitempty"`
-	ReasoningSummary string         `json:"reasoning_summary,omitempty"`
-	Think            string         `json:"think,omitempty"`
+	Role             string        `json:"role"`
+	Content          string        `json:"content,omitempty"`
+	ToolCalls        []LLMToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string        `json:"tool_call_id,omitempty"`
+	Name             string        `json:"name,omitempty"`
+	Reasoning        string        `json:"reasoning,omitempty"`
+	ReasoningSummary string        `json:"reasoning_summary,omitempty"`
+	Think            string        `json:"think,omitempty"`
 }
 
 // LLMToolCall represents LLM protocol tool call

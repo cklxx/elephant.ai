@@ -48,7 +48,7 @@ type Spawner interface {
 
 // NPXSpawner implements spawning MCP servers via npx
 type NPXSpawner struct {
-	mu           sync.RWMutex
+	mu            sync.RWMutex
 	activeServers map[string]*transport.StdioTransport
 }
 
@@ -179,7 +179,7 @@ func (s *NPXSpawner) GetActiveServers() map[string]*transport.StdioTransport {
 
 // ExecutableSpawner implements spawning MCP servers via local executables
 type ExecutableSpawner struct {
-	mu           sync.RWMutex
+	mu            sync.RWMutex
 	activeServers map[string]*transport.StdioTransport
 }
 
@@ -310,11 +310,11 @@ type SSETransportAdapter struct {
 func (a *SSETransportAdapter) Connect(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	
+
 	if err := a.sseTransport.Connect(ctx); err != nil {
 		return err
 	}
-	
+
 	a.connected = true
 	return nil
 }
@@ -323,11 +323,11 @@ func (a *SSETransportAdapter) Connect(ctx context.Context) error {
 func (a *SSETransportAdapter) Disconnect() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	
+
 	if err := a.sseTransport.Disconnect(); err != nil {
 		return err
 	}
-	
+
 	a.connected = false
 	return nil
 }
@@ -366,7 +366,7 @@ func (a *SSETransportAdapter) NextRequestID() int64 {
 
 // HTTPSpawner implements spawning MCP servers via HTTP/SSE transport
 type HTTPSpawner struct {
-	mu           sync.RWMutex
+	mu            sync.RWMutex
 	activeServers map[string]*transport.StdioTransport
 }
 
@@ -400,13 +400,13 @@ func (s *HTTPSpawner) Spawn(ctx context.Context, config *ServerConfig) (*transpo
 	// For HTTP transport, we create a special marker that the manager can recognize
 	// This is a temporary solution until we refactor the transport system
 	httpMarker := &transport.StdioTransport{}
-	
+
 	// Store the endpoint in a way the manager can access it later
 	// We'll modify the manager to handle HTTP servers specially
 	s.activeServers[config.ID] = httpMarker
 
 	fmt.Printf("[INFO] HTTP spawner: Created HTTP server marker for %s\n", endpoint)
-	
+
 	return httpMarker, nil
 }
 

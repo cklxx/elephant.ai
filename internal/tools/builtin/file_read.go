@@ -56,7 +56,7 @@ func (t *FileReadTool) Parameters() map[string]interface{} {
 		AddParameter("path", tools.NewStringParameter("Path to the file to read (legacy parameter)", false)).
 		AddParameter("start_line", tools.NewIntegerParameter("Starting line number (1-based, optional)", false)).
 		AddParameter("end_line", tools.NewIntegerParameter("Ending line number (1-based, optional)", false))
-	
+
 	// Convert to legacy format for backward compatibility
 	return schema.ToLegacyMap()
 }
@@ -81,7 +81,7 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	// Convert args to typed parameters for safer access
 	params := types.ToolParameters(args)
-	
+
 	// Get file path using typed parameter access
 	var filePath string
 	if fp, ok := params.GetString("file_path"); ok {
@@ -157,14 +157,14 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	for i, line := range lines {
 		lineNum := startLineNum + i
 		formattedLine := fmt.Sprintf("%5d:%s", lineNum, line)
-		
+
 		// Check if adding this line would exceed the character limit
 		if totalChars+len(formattedLine)+1 > maxChars { // +1 for newline
 			truncated = true
 			truncationWarning = fmt.Sprintf("\n\n[TRUNCATED] File content exceeds %d characters. Total file size: %d characters (%d lines). Consider using start_line and end_line parameters to read specific sections.", maxChars, len(content), len(strings.Split(string(content), "\n")))
 			break
 		}
-		
+
 		formattedLines = append(formattedLines, formattedLine)
 		totalChars += len(formattedLine) + 1 // +1 for newline
 	}

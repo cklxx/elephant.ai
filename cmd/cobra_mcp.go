@@ -72,7 +72,7 @@ func newMCPListCommand(cli *CLI) *cobra.Command {
 // newMCPAddCommand adds MCP servers with transport support
 func newMCPAddCommand(cli *CLI) *cobra.Command {
 	var transport string
-	
+
 	cmd := &cobra.Command{
 		Use:   "add [server-name] [url-or-package]",
 		Short: "Add MCP server",
@@ -84,11 +84,11 @@ func newMCPAddCommand(cli *CLI) *cobra.Command {
 			}
 
 			serverName := args[0]
-			
+
 			// Check if it's a common server
 			if commonConfig, exists := mcp.CommonServerConfigs[serverName]; exists && len(args) == 1 {
 				fmt.Printf("📦 Adding common MCP server: %s\n", cyan(serverName))
-				
+
 				// Convert mcp.ServerConfig to config.ServerConfig
 				serverConfig := &config.ServerConfig{
 					ID:          commonConfig.ID,
@@ -198,7 +198,7 @@ func newMCPRemoveCommand(cli *CLI) *cobra.Command {
 			if err := cli.config.RemoveMCPServerConfig(serverName); err != nil {
 				return fmt.Errorf("failed to remove server: %w", err)
 			}
-			
+
 			fmt.Printf("🗑️ Removed MCP server: %s\n", yellow(serverName))
 			return nil
 		},
@@ -300,7 +300,7 @@ func newMCPStatusCommand(cli *CLI) *cobra.Command {
 
 func installNPXPackage(packageName string) error {
 	fmt.Printf("🔄 Installing package: %s\n", packageName)
-	
+
 	cmd := exec.Command("npx", "-y", packageName, "--help")
 	if err := cmd.Run(); err != nil {
 		// If help command fails, try to install the package
@@ -309,7 +309,7 @@ func installNPXPackage(packageName string) error {
 			return fmt.Errorf("failed to install package: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 

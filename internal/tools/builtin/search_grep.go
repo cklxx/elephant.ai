@@ -203,17 +203,17 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	return &ToolResult{
 		Content: finalContent,
 		Data: map[string]interface{}{
-			"pattern":                pattern,
-			"path":                   path,
-			"matches":                len(lines),
-			"original_matches":       originalMatchCount,
-			"recursive":              recursive,
-			"ignore_case":            ignoreCase,
-			"results":                lines,
-			"truncated_by_matches":   truncatedByMatches,
-			"lines_truncated":        linesToruncated,
-			"max_line_chars":         maxLineChars,
-			"content":                finalContent,
+			"pattern":              pattern,
+			"path":                 path,
+			"matches":              len(lines),
+			"original_matches":     originalMatchCount,
+			"recursive":            recursive,
+			"ignore_case":          ignoreCase,
+			"results":              lines,
+			"truncated_by_matches": truncatedByMatches,
+			"lines_truncated":      linesToruncated,
+			"max_line_chars":       maxLineChars,
+			"content":              finalContent,
 		},
 	}, nil
 }

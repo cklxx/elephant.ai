@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/tools/builtin"
 	"alex/internal/tools/mcp/protocol"
 	"alex/internal/tools/mcp/transport"
-	"alex/internal/tools/builtin"
 )
 
 // ServerHealth represents health status of a server
@@ -128,7 +128,7 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 
 	// Handle HTTP servers specially - check BEFORE spawning
 	var clientTransport Transport
-	
+
 	if mcpServerConfig.Type == SpawnerTypeHTTP {
 		// Create SSE transport directly for HTTP servers
 		sseConfig := &transport.SSETransportConfig{
@@ -136,7 +136,7 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 			Headers:  make(map[string]string),
 			Timeout:  mcpServerConfig.Timeout,
 		}
-		
+
 		// Add any custom headers from env
 		for k, v := range mcpServerConfig.Env {
 			if strings.HasPrefix(k, "HEADER_") {
@@ -144,7 +144,7 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 				sseConfig.Headers[headerName] = v
 			}
 		}
-		
+
 		clientTransport = transport.NewSSETransport(sseConfig)
 		fmt.Printf("[INFO] Manager: Created SSE transport for %s\n", mcpServerConfig.Command)
 	} else {
@@ -190,14 +190,14 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 	}); err != nil {
 		_ = clientTransport.Disconnect()
 		fmt.Printf("[WARN] Connection timeout or failed for server %s: %v\n", serverConfig.ID, err)
-		
+
 		// Update health status
 		if health, exists := m.healthStatus[serverConfig.ID]; exists {
 			health.ErrorCount++
 			health.LastError = err.Error()
 			health.IsHealthy = false
 		}
-		
+
 		return fmt.Errorf("failed to connect client: %w", err)
 	}
 
@@ -471,10 +471,10 @@ func (m *Manager) checkServerHealth(serverConfig *ServerConfig) bool {
 	// Try a simple HEAD request with short timeout
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Head(endpoint)
-	
+
 	isHealthy := false
 	errorMsg := ""
-	
+
 	if err != nil {
 		errorMsg = err.Error()
 	} else {
@@ -493,7 +493,7 @@ func (m *Manager) checkServerHealth(serverConfig *ServerConfig) bool {
 	health.LastChecked = time.Now()
 	health.IsHealthy = isHealthy
 	health.LastError = errorMsg
-	
+
 	if !isHealthy {
 		health.ErrorCount++
 	} else {
@@ -503,6 +503,6 @@ func (m *Manager) checkServerHealth(serverConfig *ServerConfig) bool {
 	if !isHealthy && health.ErrorCount <= 1 {
 		fmt.Printf("[WARN] MCP server %s health check failed: %s\n", serverConfig.ID, errorMsg)
 	}
-	
+
 	return isHealthy
 }

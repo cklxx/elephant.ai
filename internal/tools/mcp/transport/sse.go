@@ -39,22 +39,22 @@ type SSETransport struct {
 	headers     map[string]string
 	requestID   int64
 	pendingReqs map[int64]chan *protocol.JSONRPCResponse
-	
+
 	// Reconnection and circuit breaker fields
 	reconnectAttempts int64
-	circuitState      int32  // atomic: CircuitClosed, CircuitOpen, CircuitHalfOpen
-	failureCount      int64  // atomic
+	circuitState      int32 // atomic: CircuitClosed, CircuitOpen, CircuitHalfOpen
+	failureCount      int64 // atomic
 	lastFailureTime   time.Time
 	circuitMu         sync.RWMutex
 }
 
 // SSETransportConfig represents configuration for SSE transport
 type SSETransportConfig struct {
-	Endpoint    string
-	Headers     map[string]string
-	Timeout     time.Duration
-	RetryDelay  time.Duration
-	MaxRetries  int
+	Endpoint   string
+	Headers    map[string]string
+	Timeout    time.Duration
+	RetryDelay time.Duration
+	MaxRetries int
 }
 
 // NewSSETransport creates a new SSE transport instance
@@ -75,7 +75,7 @@ func NewSSETransport(config *SSETransportConfig) *SSETransport {
 	if config.Timeout > 0 && config.Timeout < requestTimeout {
 		requestTimeout = config.Timeout
 	}
-	
+
 	client := &http.Client{
 		Timeout: requestTimeout,
 		// Don't follow redirects automatically to better handle proxy issues
@@ -103,7 +103,7 @@ func NewSSETransport(config *SSETransportConfig) *SSETransport {
 // checkProxyEnvironment checks and logs proxy configuration
 func checkProxyEnvironment() {
 	proxies := []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"}
-	
+
 	for _, proxy := range proxies {
 		if value := os.Getenv(proxy); value != "" {
 			fmt.Printf("[INFO] MCP: Using proxy %s\n", proxy)
@@ -125,7 +125,7 @@ func (t *SSETransport) Connect(ctx context.Context) error {
 
 	// For context7, we need to generate a unique session ID
 	sessionID := fmt.Sprintf("alex-%d", time.Now().Unix())
-	
+
 	// Store session ID for later use
 	if t.headers == nil {
 		t.headers = make(map[string]string)
@@ -192,7 +192,7 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 	if strings.Contains(t.endpoint, "/sse") {
 		postEndpoint = strings.Replace(t.endpoint, "/sse", "/messages", 1)
 	}
-	
+
 	// Add session ID as URL parameter if we have it
 	if sessionID, exists := t.headers["MCP-Session-Id"]; exists {
 		if strings.Contains(postEndpoint, "?") {
@@ -201,7 +201,7 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 			postEndpoint += "?sessionId=" + sessionID
 		}
 	}
-	
+
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", postEndpoint, bytes.NewBuffer(data))
 	if err != nil {
@@ -293,7 +293,7 @@ func (t *SSETransport) SendNotification(notification *protocol.JSONRPCNotificati
 	if strings.Contains(t.endpoint, "/sse") {
 		postEndpoint = strings.Replace(t.endpoint, "/sse", "/messages", 1)
 	}
-	
+
 	// Add session ID as URL parameter if we have it
 	if sessionID, exists := t.headers["MCP-Session-Id"]; exists {
 		if strings.Contains(postEndpoint, "?") {
@@ -302,7 +302,7 @@ func (t *SSETransport) SendNotification(notification *protocol.JSONRPCNotificati
 			postEndpoint += "?sessionId=" + sessionID
 		}
 	}
-	
+
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", postEndpoint, bytes.NewBuffer(data))
 	if err != nil {
@@ -357,19 +357,19 @@ func (t *SSETransport) startSSEConnection() {
 					continue
 				}
 			}
-			
+
 			if err := t.connectSSE(); err != nil {
 				t.recordFailure()
-				
+
 				// Only log errors if we haven't exceeded reasonable retry count
 				attempts := atomic.LoadInt64(&t.reconnectAttempts)
 				if attempts < 5 {
 					t.errorsCh <- fmt.Errorf("SSE connection failed (attempt %d): %w", attempts, err)
 				}
-				
+
 				// Calculate exponential backoff delay
 				delay := t.getReconnectDelay()
-				
+
 				select {
 				case <-t.ctx.Done():
 					return
@@ -388,17 +388,17 @@ func (t *SSETransport) startSSEConnection() {
 func (t *SSETransport) getReconnectDelay() time.Duration {
 	attempts := atomic.LoadInt64(&t.reconnectAttempts)
 	atomic.AddInt64(&t.reconnectAttempts, 1)
-	
+
 	// Base delay starts at 1 second, max at 30 seconds
 	baseDelay := time.Second
 	maxDelay := 30 * time.Second
-	
+
 	// Exponential backoff: delay = baseDelay * 2^attempts
 	delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempts)))
 	if delay > maxDelay {
 		delay = maxDelay
 	}
-	
+
 	// Add jitter (±25%) to prevent thundering herd
 	jitter := float64(delay) * 0.25 * (2*rand.Float64() - 1)
 	return time.Duration(float64(delay) + jitter)
@@ -410,14 +410,14 @@ func (t *SSETransport) isCircuitOpen() bool {
 	if state == CircuitOpen {
 		return true
 	}
-	
+
 	// Check if we should open the circuit based on failure rate
 	failures := atomic.LoadInt64(&t.failureCount)
 	if failures >= 5 { // Open circuit after 5 consecutive failures
 		atomic.CompareAndSwapInt32(&t.circuitState, CircuitClosed, CircuitOpen)
 		return true
 	}
-	
+
 	return false
 }
 
@@ -451,7 +451,7 @@ func (t *SSETransport) recordSuccess() {
 func (t *SSETransport) connectSSE() error {
 	// For context7, the SSE endpoint is the same as the main endpoint
 	sseEndpoint := t.endpoint
-	
+
 	// Add session ID as URL parameter if we have it
 	if sessionID, exists := t.headers["MCP-Session-Id"]; exists {
 		if strings.Contains(sseEndpoint, "?") {
@@ -471,7 +471,7 @@ func (t *SSETransport) connectSSE() error {
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Connection", "keep-alive")
 	req.Header.Set("User-Agent", "Alex-MCP-Client/1.0")
-	
+
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}
@@ -526,14 +526,14 @@ func (t *SSETransport) connectSSE() error {
 // handleSSEMessage processes incoming SSE messages
 func (t *SSETransport) handleSSEMessage(data []byte) {
 	dataStr := string(data)
-	
+
 	// Check if this is a context7 endpoint message
 	if strings.HasPrefix(dataStr, "/messages?sessionId=") {
 		// Extract the server-provided session ID
 		parts := strings.Split(dataStr, "sessionId=")
 		if len(parts) == 2 {
 			serverSessionID := parts[1]
-			
+
 			// Update our session ID to match server's
 			t.mu.Lock()
 			if t.headers == nil {
@@ -544,7 +544,7 @@ func (t *SSETransport) handleSSEMessage(data []byte) {
 		}
 		return
 	}
-	
+
 	// Try to parse as JSON-RPC response first
 	if protocol.IsResponse(data) {
 		var response protocol.JSONRPCResponse

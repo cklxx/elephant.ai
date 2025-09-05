@@ -9,45 +9,45 @@ import (
 
 // TestScenario defines a specific performance test scenario
 type TestScenario struct {
-	Name              string                 `json:"name"`
-	Description       string                 `json:"description"`
-	Duration          time.Duration          `json:"duration"`
-	Concurrency       int                    `json:"concurrency"`
-	Operations        []OperationType        `json:"operations"`
-	ValidationCriteria ValidationCriteria    `json:"validation_criteria"`
-	Setup             func() error           `json:"-"`
-	Teardown          func() error           `json:"-"`
-	Enabled           bool                   `json:"enabled"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	Duration           time.Duration      `json:"duration"`
+	Concurrency        int                `json:"concurrency"`
+	Operations         []OperationType    `json:"operations"`
+	ValidationCriteria ValidationCriteria `json:"validation_criteria"`
+	Setup              func() error       `json:"-"`
+	Teardown           func() error       `json:"-"`
+	Enabled            bool               `json:"enabled"`
 }
 
 // OperationType defines different types of operations to test
 type OperationType string
 
 const (
-	MCPConnectionOp      OperationType = "mcp_connection"
-	MCPToolCallOp        OperationType = "mcp_tool_call"
-	ContextCompressionOp OperationType = "context_compression"
-	ContextRetrievalOp   OperationType = "context_retrieval"
-	MemoryAllocationOp   OperationType = "memory_allocation"
+	MCPConnectionOp        OperationType = "mcp_connection"
+	MCPToolCallOp          OperationType = "mcp_tool_call"
+	ContextCompressionOp   OperationType = "context_compression"
+	ContextRetrievalOp     OperationType = "context_retrieval"
+	MemoryAllocationOp     OperationType = "memory_allocation"
 	ConcurrentProcessingOp OperationType = "concurrent_processing"
-	NetworkIOOp          OperationType = "network_io"
-	FileIOOp             OperationType = "file_io"
+	NetworkIOOp            OperationType = "network_io"
+	FileIOOp               OperationType = "file_io"
 )
 
 // ValidationCriteria defines pass/fail criteria for test scenarios
 type ValidationCriteria struct {
-	MaxResponseTime      time.Duration `json:"max_response_time"`
-	MaxMemoryUsage       int64         `json:"max_memory_usage"`
-	MinThroughput        float64       `json:"min_throughput"`
-	MaxErrorRate         float64       `json:"max_error_rate"`
-	MaxGCPause          time.Duration `json:"max_gc_pause"`
-	MinCacheHitRate     float64       `json:"min_cache_hit_rate"`
-	MaxMemoryLeakScore  float64       `json:"max_memory_leak_score"`
-	
+	MaxResponseTime    time.Duration `json:"max_response_time"`
+	MaxMemoryUsage     int64         `json:"max_memory_usage"`
+	MinThroughput      float64       `json:"min_throughput"`
+	MaxErrorRate       float64       `json:"max_error_rate"`
+	MaxGCPause         time.Duration `json:"max_gc_pause"`
+	MinCacheHitRate    float64       `json:"min_cache_hit_rate"`
+	MaxMemoryLeakScore float64       `json:"max_memory_leak_score"`
+
 	// Context-specific criteria
 	MaxContextCompressionTime time.Duration `json:"max_context_compression_time"`
 	MaxContextRetrievalTime   time.Duration `json:"max_context_retrieval_time"`
-	
+
 	// MCP-specific criteria
 	MaxMCPConnectionTime   time.Duration `json:"max_mcp_connection_time"`
 	MaxMCPToolCallLatency  time.Duration `json:"max_mcp_tool_call_latency"`
@@ -56,14 +56,14 @@ type ValidationCriteria struct {
 
 // ScenarioResult represents the outcome of a test scenario execution
 type ScenarioResult struct {
-	Scenario      TestScenario       `json:"scenario"`
-	StartTime     time.Time          `json:"start_time"`
-	EndTime       time.Time          `json:"end_time"`
-	Duration      time.Duration      `json:"duration"`
-	Passed        bool               `json:"passed"`
-	Failures      []string           `json:"failures"`
-	Metrics       PerformanceMetrics `json:"metrics"`
-	OperationResults []OperationResult `json:"operation_results"`
+	Scenario         TestScenario       `json:"scenario"`
+	StartTime        time.Time          `json:"start_time"`
+	EndTime          time.Time          `json:"end_time"`
+	Duration         time.Duration      `json:"duration"`
+	Passed           bool               `json:"passed"`
+	Failures         []string           `json:"failures"`
+	Metrics          PerformanceMetrics `json:"metrics"`
+	OperationResults []OperationResult  `json:"operation_results"`
 }
 
 // OperationResult tracks results for individual operations within a scenario
@@ -81,11 +81,11 @@ type OperationResult struct {
 
 // ScenarioRunner executes performance test scenarios
 type ScenarioRunner struct {
-	scenarios     []TestScenario
-	config        *VerificationConfig
-	framework     *VerificationFramework
-	results       []ScenarioResult
-	resultsMutex  sync.RWMutex
+	scenarios    []TestScenario
+	config       *VerificationConfig
+	framework    *VerificationFramework
+	results      []ScenarioResult
+	resultsMutex sync.RWMutex
 }
 
 // NewScenarioRunner creates a new scenario runner
@@ -125,13 +125,13 @@ func GetStandardScenarios() []TestScenario {
 			Concurrency: 10,
 			Operations:  []OperationType{ContextCompressionOp, ContextRetrievalOp},
 			ValidationCriteria: ValidationCriteria{
-				MaxResponseTime:             200 * time.Millisecond,
-				MaxMemoryUsage:              100 * 1024 * 1024, // 100MB
-				MinThroughput:               50.0,
-				MaxErrorRate:                0.02,
-				MaxContextCompressionTime:   150 * time.Millisecond,
-				MaxContextRetrievalTime:     50 * time.Millisecond,
-				MinCacheHitRate:            0.80,
+				MaxResponseTime:           200 * time.Millisecond,
+				MaxMemoryUsage:            100 * 1024 * 1024, // 100MB
+				MinThroughput:             50.0,
+				MaxErrorRate:              0.02,
+				MaxContextCompressionTime: 150 * time.Millisecond,
+				MaxContextRetrievalTime:   50 * time.Millisecond,
+				MinCacheHitRate:           0.80,
 			},
 			Enabled: true,
 		},
@@ -142,9 +142,9 @@ func GetStandardScenarios() []TestScenario {
 			Concurrency: 3,
 			Operations:  []OperationType{MemoryAllocationOp, ContextCompressionOp, MCPToolCallOp},
 			ValidationCriteria: ValidationCriteria{
-				MaxResponseTime:     500 * time.Millisecond,
-				MaxMemoryUsage:      200 * 1024 * 1024, // 200MB
-				MaxMemoryLeakScore:  0.10, // 10% memory growth is acceptable
+				MaxResponseTime:    500 * time.Millisecond,
+				MaxMemoryUsage:     200 * 1024 * 1024, // 200MB
+				MaxMemoryLeakScore: 0.10,              // 10% memory growth is acceptable
 				MaxGCPause:         50 * time.Millisecond,
 				MaxErrorRate:       0.005,
 			},
@@ -213,7 +213,7 @@ func (sr *ScenarioRunner) RunScenario(scenario TestScenario) (*ScenarioResult, e
 	if !scenario.Enabled {
 		return nil, fmt.Errorf("scenario %s is disabled", scenario.Name)
 	}
-	
+
 	result := &ScenarioResult{
 		Scenario:         scenario,
 		StartTime:        time.Now(),
@@ -221,14 +221,14 @@ func (sr *ScenarioRunner) RunScenario(scenario TestScenario) (*ScenarioResult, e
 		Failures:         make([]string, 0),
 		OperationResults: make([]OperationResult, 0),
 	}
-	
+
 	// Run setup if provided
 	if scenario.Setup != nil {
 		if err := scenario.Setup(); err != nil {
 			return nil, fmt.Errorf("scenario setup failed: %v", err)
 		}
 	}
-	
+
 	// Run teardown at the end
 	defer func() {
 		if scenario.Teardown != nil {
@@ -237,24 +237,24 @@ func (sr *ScenarioRunner) RunScenario(scenario TestScenario) (*ScenarioResult, e
 			}
 		}
 	}()
-	
+
 	// Execute the scenario
 	ctx, cancel := context.WithTimeout(context.Background(), scenario.Duration)
 	defer cancel()
-	
+
 	var wg sync.WaitGroup
 	operationStats := make(map[OperationType]*OperationStats)
 	statsMutex := sync.RWMutex{}
-	
+
 	// Initialize operation stats
 	for _, op := range scenario.Operations {
 		operationStats[op] = &OperationStats{
-			Times:    make([]time.Duration, 0),
+			Times:     make([]time.Duration, 0),
 			Successes: 0,
 			Errors:    0,
 		}
 	}
-	
+
 	// Start concurrent workers
 	for i := 0; i < scenario.Concurrency; i++ {
 		wg.Add(1)
@@ -263,28 +263,28 @@ func (sr *ScenarioRunner) RunScenario(scenario TestScenario) (*ScenarioResult, e
 			sr.runWorker(ctx, scenario.Operations, operationStats, &statsMutex)
 		}()
 	}
-	
+
 	wg.Wait()
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
-	
+
 	// Collect final metrics
 	result.Metrics = sr.framework.collectMetrics()
-	
+
 	// Process operation results
 	for op, stats := range operationStats {
 		opResult := sr.calculateOperationResult(op, stats)
 		result.OperationResults = append(result.OperationResults, opResult)
 	}
-	
+
 	// Validate results
 	result.Passed, result.Failures = sr.validateScenarioResult(scenario.ValidationCriteria, result.Metrics, result.OperationResults)
-	
+
 	// Store result
 	sr.resultsMutex.Lock()
 	sr.results = append(sr.results, *result)
 	sr.resultsMutex.Unlock()
-	
+
 	return result, nil
 }
 
@@ -297,9 +297,9 @@ type OperationStats struct {
 }
 
 // runWorker executes operations in a worker goroutine
-func (sr *ScenarioRunner) runWorker(ctx context.Context, operations []OperationType, 
+func (sr *ScenarioRunner) runWorker(ctx context.Context, operations []OperationType,
 	operationStats map[OperationType]*OperationStats, statsMutex *sync.RWMutex) {
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -310,11 +310,11 @@ func (sr *ScenarioRunner) runWorker(ctx context.Context, operations []OperationT
 				start := time.Now()
 				success := sr.executeOperation(op)
 				duration := time.Since(start)
-				
+
 				statsMutex.RLock()
 				stats := operationStats[op]
 				statsMutex.RUnlock()
-				
+
 				stats.mutex.Lock()
 				stats.Times = append(stats.Times, duration)
 				if success {
@@ -356,19 +356,19 @@ func (sr *ScenarioRunner) executeOperation(op OperationType) bool {
 func (sr *ScenarioRunner) calculateOperationResult(op OperationType, stats *OperationStats) OperationResult {
 	stats.mutex.Lock()
 	defer stats.mutex.Unlock()
-	
+
 	if len(stats.Times) == 0 {
 		return OperationResult{
 			Operation: op,
 			Count:     0,
 		}
 	}
-	
+
 	// Calculate timing statistics
 	totalTime := time.Duration(0)
 	minTime := stats.Times[0]
 	maxTime := stats.Times[0]
-	
+
 	for _, t := range stats.Times {
 		totalTime += t
 		if t < minTime {
@@ -378,11 +378,11 @@ func (sr *ScenarioRunner) calculateOperationResult(op OperationType, stats *Oper
 			maxTime = t
 		}
 	}
-	
+
 	count := len(stats.Times)
 	avgTime := totalTime / time.Duration(count)
-	errorRate := float64(stats.Errors) / float64(stats.Successes + stats.Errors)
-	
+	errorRate := float64(stats.Errors) / float64(stats.Successes+stats.Errors)
+
 	return OperationResult{
 		Operation:    op,
 		Count:        count,
@@ -397,101 +397,101 @@ func (sr *ScenarioRunner) calculateOperationResult(op OperationType, stats *Oper
 }
 
 // validateScenarioResult validates scenario results against criteria
-func (sr *ScenarioRunner) validateScenarioResult(criteria ValidationCriteria, 
+func (sr *ScenarioRunner) validateScenarioResult(criteria ValidationCriteria,
 	metrics PerformanceMetrics, operationResults []OperationResult) (bool, []string) {
-	
+
 	passed := true
 	failures := make([]string, 0)
-	
+
 	// Validate general metrics
 	if criteria.MaxResponseTime > 0 && metrics.ResponseTime > criteria.MaxResponseTime {
 		passed = false
-		failures = append(failures, fmt.Sprintf("Response time %v exceeds limit %v", 
+		failures = append(failures, fmt.Sprintf("Response time %v exceeds limit %v",
 			metrics.ResponseTime, criteria.MaxResponseTime))
 	}
-	
+
 	if criteria.MaxMemoryUsage > 0 && metrics.HeapSize > criteria.MaxMemoryUsage {
 		passed = false
-		failures = append(failures, fmt.Sprintf("Memory usage %d exceeds limit %d", 
+		failures = append(failures, fmt.Sprintf("Memory usage %d exceeds limit %d",
 			metrics.HeapSize, criteria.MaxMemoryUsage))
 	}
-	
+
 	if criteria.MinThroughput > 0 && metrics.ThroughputOps < criteria.MinThroughput {
 		passed = false
-		failures = append(failures, fmt.Sprintf("Throughput %.2f below minimum %.2f", 
+		failures = append(failures, fmt.Sprintf("Throughput %.2f below minimum %.2f",
 			metrics.ThroughputOps, criteria.MinThroughput))
 	}
-	
+
 	if criteria.MaxErrorRate > 0 && metrics.ErrorRate > criteria.MaxErrorRate {
 		passed = false
-		failures = append(failures, fmt.Sprintf("Error rate %.4f exceeds maximum %.4f", 
+		failures = append(failures, fmt.Sprintf("Error rate %.4f exceeds maximum %.4f",
 			metrics.ErrorRate, criteria.MaxErrorRate))
 	}
-	
+
 	// Validate operation-specific metrics
 	for _, result := range operationResults {
 		if result.ErrorRate > criteria.MaxErrorRate {
 			passed = false
-			failures = append(failures, fmt.Sprintf("Operation %s error rate %.4f exceeds maximum %.4f", 
+			failures = append(failures, fmt.Sprintf("Operation %s error rate %.4f exceeds maximum %.4f",
 				result.Operation, result.ErrorRate, criteria.MaxErrorRate))
 		}
-		
+
 		// Operation-specific validations
 		switch result.Operation {
 		case MCPConnectionOp:
 			if criteria.MaxMCPConnectionTime > 0 && result.AverageTime > criteria.MaxMCPConnectionTime {
 				passed = false
-				failures = append(failures, fmt.Sprintf("MCP connection time %v exceeds limit %v", 
+				failures = append(failures, fmt.Sprintf("MCP connection time %v exceeds limit %v",
 					result.AverageTime, criteria.MaxMCPConnectionTime))
 			}
 		case MCPToolCallOp:
 			if criteria.MaxMCPToolCallLatency > 0 && result.AverageTime > criteria.MaxMCPToolCallLatency {
 				passed = false
-				failures = append(failures, fmt.Sprintf("MCP tool call latency %v exceeds limit %v", 
+				failures = append(failures, fmt.Sprintf("MCP tool call latency %v exceeds limit %v",
 					result.AverageTime, criteria.MaxMCPToolCallLatency))
 			}
 		case ContextCompressionOp:
 			if criteria.MaxContextCompressionTime > 0 && result.AverageTime > criteria.MaxContextCompressionTime {
 				passed = false
-				failures = append(failures, fmt.Sprintf("Context compression time %v exceeds limit %v", 
+				failures = append(failures, fmt.Sprintf("Context compression time %v exceeds limit %v",
 					result.AverageTime, criteria.MaxContextCompressionTime))
 			}
 		case ContextRetrievalOp:
 			if criteria.MaxContextRetrievalTime > 0 && result.AverageTime > criteria.MaxContextRetrievalTime {
 				passed = false
-				failures = append(failures, fmt.Sprintf("Context retrieval time %v exceeds limit %v", 
+				failures = append(failures, fmt.Sprintf("Context retrieval time %v exceeds limit %v",
 					result.AverageTime, criteria.MaxContextRetrievalTime))
 			}
 		}
 	}
-	
+
 	return passed, failures
 }
 
 // RunAllScenarios executes all enabled scenarios
 func (sr *ScenarioRunner) RunAllScenarios() ([]ScenarioResult, error) {
 	results := make([]ScenarioResult, 0)
-	
+
 	for _, scenario := range sr.scenarios {
 		if !scenario.Enabled {
 			continue
 		}
-		
+
 		fmt.Printf("Running scenario: %s\n", scenario.Name)
 		result, err := sr.RunScenario(scenario)
 		if err != nil {
 			return results, fmt.Errorf("scenario %s failed: %v", scenario.Name, err)
 		}
-		
+
 		results = append(results, *result)
-		
+
 		if !result.Passed {
 			fmt.Printf("Scenario %s FAILED: %v\n", scenario.Name, result.Failures)
 		} else {
 			fmt.Printf("Scenario %s PASSED\n", scenario.Name)
 		}
 	}
-	
+
 	return results, nil
 }
 
@@ -499,7 +499,7 @@ func (sr *ScenarioRunner) RunAllScenarios() ([]ScenarioResult, error) {
 func (sr *ScenarioRunner) GetResults() []ScenarioResult {
 	sr.resultsMutex.RLock()
 	defer sr.resultsMutex.RUnlock()
-	
+
 	// Return a copy to prevent external modifications
 	results := make([]ScenarioResult, len(sr.results))
 	copy(results, sr.results)

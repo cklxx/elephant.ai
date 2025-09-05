@@ -70,7 +70,7 @@ func (t *BashStatusTool) Parameters() map[string]interface{} {
 				"default":     true,
 			},
 			"output_lines": map[string]interface{}{
-				"type":        "integer", 
+				"type":        "integer",
 				"description": "Number of recent output lines to show",
 				"default":     10,
 				"minimum":     1,
@@ -92,21 +92,21 @@ func (t *BashStatusTool) Validate(args map[string]interface{}) error {
 
 func (t *BashStatusTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	mgr := GetBackgroundCommandManager()
-	
+
 	// Check if specific execution_id is provided
 	if execIDValue, ok := args["execution_id"]; ok && execIDValue != nil {
 		execID, ok := execIDValue.(string)
 		if !ok {
 			return nil, fmt.Errorf("execution_id must be a string")
 		}
-		
+
 		if execID == "" {
 			return nil, fmt.Errorf("execution_id cannot be empty")
 		}
-		
+
 		return t.getCommandStatus(mgr, execID, args)
 	}
-	
+
 	// List all background commands
 	return t.listAllCommands(mgr, args)
 }
@@ -121,46 +121,46 @@ func (t *BashStatusTool) getCommandStatus(mgr *BackgroundCommandManager, execID 
 			},
 		}, nil
 	}
-	
+
 	// Get parameters
 	showOutput := true
 	if showOutputArg, ok := args["show_output"]; ok {
 		showOutput, _ = showOutputArg.(bool)
 	}
-	
+
 	outputLines := 10
 	if outputLinesArg, ok := args["output_lines"]; ok {
 		if outputLinesFloat, ok := outputLinesArg.(float64); ok {
 			outputLines = int(outputLinesFloat)
 		}
 	}
-	
+
 	stats := bgCmd.GetStats()
 	var content strings.Builder
-	
+
 	// Status header
 	statusEmoji := t.getStatusEmoji(bgCmd.Status)
 	content.WriteString(fmt.Sprintf("%s 命令状态: %s\n", statusEmoji, bgCmd.Status))
 	content.WriteString(fmt.Sprintf("🆔 执行ID: %s\n", bgCmd.ID))
 	content.WriteString(fmt.Sprintf("📝 命令: %s\n", bgCmd.Command))
-	
+
 	// Timing information
 	content.WriteString(fmt.Sprintf("⏰ 开始时间: %s\n", bgCmd.StartTime.Format("2006-01-02 15:04:05")))
 	content.WriteString(fmt.Sprintf("⏱️ 运行时间: %v\n", stats.ExecutionTime.Truncate(time.Second)))
-	
+
 	// Output statistics
 	content.WriteString(fmt.Sprintf("📊 输出行数: %d\n", stats.OutputLines))
 	content.WriteString(fmt.Sprintf("💾 输出大小: %d bytes\n", stats.OutputSize))
-	
+
 	if !stats.LastActivity.IsZero() {
 		content.WriteString(fmt.Sprintf("🔄 最后活动: %s\n", stats.LastActivity.Format("15:04:05")))
 	}
-	
+
 	// Working directory
 	if bgCmd.WorkingDir != "" {
 		content.WriteString(fmt.Sprintf("📂 工作目录: %s\n", bgCmd.WorkingDir))
 	}
-	
+
 	// Recent output
 	if showOutput && stats.OutputLines > 0 {
 		recentLines := bgCmd.progressDisplay.outputBuffer.GetRecentLines(outputLines)
@@ -171,12 +171,12 @@ func (t *BashStatusTool) getCommandStatus(mgr *BackgroundCommandManager, execID 
 			}
 		}
 	}
-	
+
 	// Timeout decision information
 	if pending, message := bgCmd.GetTimeoutDecision(); pending {
 		content.WriteString(fmt.Sprintf("\n🚨 超时决策等待中:\n%s\n", message))
 	}
-	
+
 	return &ToolResult{
 		Content: content.String(),
 		Data: map[string]interface{}{
@@ -196,7 +196,7 @@ func (t *BashStatusTool) getCommandStatus(mgr *BackgroundCommandManager, execID 
 
 func (t *BashStatusTool) listAllCommands(mgr *BackgroundCommandManager, args map[string]interface{}) (*ToolResult, error) {
 	commands := mgr.List()
-	
+
 	if len(commands) == 0 {
 		return &ToolResult{
 			Content: "📭 当前没有后台命令在运行或记录中",
@@ -205,31 +205,31 @@ func (t *BashStatusTool) listAllCommands(mgr *BackgroundCommandManager, args map
 			},
 		}, nil
 	}
-	
+
 	var content strings.Builder
 	content.WriteString(fmt.Sprintf("📋 后台命令列表 (%d 个):\n\n", len(commands)))
-	
+
 	runningCount := 0
 	for _, cmd := range commands {
 		stats := cmd.GetStats()
 		statusEmoji := t.getStatusEmoji(cmd.Status)
-		
+
 		if cmd.Status == StatusRunning {
 			runningCount++
 		}
-		
+
 		content.WriteString(fmt.Sprintf("%s [%s] %s\n", statusEmoji, cmd.ID[:8], cmd.Status))
 		content.WriteString(fmt.Sprintf("   📝 %s\n", cmd.Command))
-		content.WriteString(fmt.Sprintf("   ⏱️ 运行时间: %v | 输出行数: %d\n", 
+		content.WriteString(fmt.Sprintf("   ⏱️ 运行时间: %v | 输出行数: %d\n",
 			stats.ExecutionTime.Truncate(time.Second), stats.OutputLines))
 		content.WriteString("\n")
 	}
-	
+
 	if runningCount > 0 {
 		content.WriteString(fmt.Sprintf("🔄 %d 个命令正在运行中\n", runningCount))
 		content.WriteString("💡 使用 bash_status {\"execution_id\": \"具体ID\"} 查看详细信息\n")
 	}
-	
+
 	return &ToolResult{
 		Content: content.String(),
 		Data: map[string]interface{}{
@@ -242,7 +242,7 @@ func (t *BashStatusTool) listAllCommands(mgr *BackgroundCommandManager, args map
 
 func (t *BashStatusTool) buildCommandsData(commands []*BackgroundCommand) []map[string]interface{} {
 	var result []map[string]interface{}
-	
+
 	for _, cmd := range commands {
 		stats := cmd.GetStats()
 		result = append(result, map[string]interface{}{
@@ -254,7 +254,7 @@ func (t *BashStatusTool) buildCommandsData(commands []*BackgroundCommand) []map[
 			"output_lines":   stats.OutputLines,
 		})
 	}
-	
+
 	return result
 }
 
@@ -385,10 +385,10 @@ func (t *BashControlTool) Validate(args map[string]interface{}) error {
 func (t *BashControlTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	execID := args["execution_id"].(string)
 	action := args["action"].(string)
-	
+
 	mgr := GetBackgroundCommandManager()
 	bgCmd := mgr.Get(execID)
-	
+
 	if bgCmd == nil {
 		return &ToolResult{
 			Content: fmt.Sprintf("❌ 未找到执行ID: %s", execID),
@@ -398,7 +398,7 @@ func (t *BashControlTool) Execute(ctx context.Context, args map[string]interface
 			},
 		}, nil
 	}
-	
+
 	switch action {
 	case "terminate":
 		return t.terminateCommand(bgCmd)
@@ -431,7 +431,7 @@ func (t *BashControlTool) terminateCommand(bgCmd *BackgroundCommand) (*ToolResul
 			},
 		}, nil
 	}
-	
+
 	err := bgCmd.Terminate()
 	if err != nil {
 		return &ToolResult{
@@ -442,10 +442,10 @@ func (t *BashControlTool) terminateCommand(bgCmd *BackgroundCommand) (*ToolResul
 			},
 		}, nil
 	}
-	
+
 	// Clear timeout decision state since user has made a decision
 	bgCmd.ClearTimeoutDecision()
-	
+
 	return &ToolResult{
 		Content: fmt.Sprintf("🛑 命令 [%s] 已被终止\n✅ 超时决策已处理", bgCmd.ID[:8]),
 		Data: map[string]interface{}{
@@ -467,20 +467,20 @@ func (t *BashControlTool) extendTimeout(bgCmd *BackgroundCommand, seconds int) (
 			},
 		}, nil
 	}
-	
+
 	duration := time.Duration(seconds) * time.Second
 	bgCmd.ExtendTimeout(duration)
-	
+
 	// Clear timeout decision state since user has made a decision
 	bgCmd.ClearTimeoutDecision()
-	
+
 	return &ToolResult{
 		Content: fmt.Sprintf("⏱️ 命令 [%s] 超时已延长 %v\n✅ 超时决策已处理，命令继续执行", bgCmd.ID[:8], duration),
 		Data: map[string]interface{}{
-			"success":        true,
-			"execution_id":   bgCmd.ID,
-			"action":         "timeout_extended",
-			"extended_by":    duration.String(),
+			"success":          true,
+			"execution_id":     bgCmd.ID,
+			"action":           "timeout_extended",
+			"extended_by":      duration.String(),
 			"extended_seconds": seconds,
 		},
 	}, nil
@@ -489,7 +489,7 @@ func (t *BashControlTool) extendTimeout(bgCmd *BackgroundCommand, seconds int) (
 func (t *BashControlTool) getFullOutput(bgCmd *BackgroundCommand) (*ToolResult, error) {
 	fullOutput := bgCmd.GetOutput()
 	stats := bgCmd.GetStats()
-	
+
 	if fullOutput == "" {
 		return &ToolResult{
 			Content: fmt.Sprintf("📭 命令 [%s] 暂无输出", bgCmd.ID[:8]),
@@ -500,20 +500,20 @@ func (t *BashControlTool) getFullOutput(bgCmd *BackgroundCommand) (*ToolResult, 
 			},
 		}, nil
 	}
-	
+
 	// Prepare content with header
 	var content strings.Builder
 	content.WriteString(fmt.Sprintf("📄 命令 [%s] 完整输出:\n", bgCmd.ID[:8]))
-	content.WriteString(fmt.Sprintf("📊 状态: %s | 总行数: %d | 大小: %d bytes\n", 
+	content.WriteString(fmt.Sprintf("📊 状态: %s | 总行数: %d | 大小: %d bytes\n",
 		bgCmd.Status, stats.OutputLines, stats.OutputSize))
 	content.WriteString("=" + strings.Repeat("=", 50) + "\n")
 	content.WriteString(fullOutput)
-	
+
 	if bgCmd.Status == StatusRunning {
 		content.WriteString("\n" + strings.Repeat("=", 50))
 		content.WriteString("\n🔄 命令仍在运行中，以上为当前输出")
 	}
-	
+
 	return &ToolResult{
 		Content: content.String(),
 		Data: map[string]interface{}{

@@ -7,13 +7,13 @@ import (
 
 // Message is the unified message implementation
 type Message struct {
-	Role             string                 `json:"role"`
-	Content          string                 `json:"content"`
-	ToolCalls        []*ToolCallImpl        `json:"tool_calls,omitempty"`
-	ToolCallID       string                 `json:"tool_call_id,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty"`
-	Timestamp        time.Time              `json:"timestamp"`
-	
+	Role       string                 `json:"role"`
+	Content    string                 `json:"content"`
+	ToolCalls  []*ToolCallImpl        `json:"tool_calls,omitempty"`
+	ToolCallID string                 `json:"tool_call_id,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
+
 	// Advanced fields for reasoning models
 	Reasoning        string `json:"reasoning,omitempty"`
 	ReasoningSummary string `json:"reasoning_summary,omitempty"`
@@ -54,14 +54,14 @@ func NewToolMessage(content, toolCallID string) *Message {
 }
 
 // Implement BaseMessage interface
-func (m *Message) GetRole() string                        { return m.Role }
-func (m *Message) GetContent() string                     { return m.Content }
-func (m *Message) GetToolCallID() string                  { return m.ToolCallID }
-func (m *Message) GetMetadata() map[string]interface{}    { return m.Metadata }
-func (m *Message) GetTimestamp() time.Time                { return m.Timestamp }
-func (m *Message) GetReasoning() string                   { return m.Reasoning }
-func (m *Message) GetReasoningSummary() string            { return m.ReasoningSummary }
-func (m *Message) GetThink() string                       { return m.Think }
+func (m *Message) GetRole() string                     { return m.Role }
+func (m *Message) GetContent() string                  { return m.Content }
+func (m *Message) GetToolCallID() string               { return m.ToolCallID }
+func (m *Message) GetMetadata() map[string]interface{} { return m.Metadata }
+func (m *Message) GetTimestamp() time.Time             { return m.Timestamp }
+func (m *Message) GetReasoning() string                { return m.Reasoning }
+func (m *Message) GetReasoningSummary() string         { return m.ReasoningSummary }
+func (m *Message) GetThink() string                    { return m.Think }
 
 func (m *Message) GetToolCalls() []ToolCall {
 	toolCalls := make([]ToolCall, len(m.ToolCalls))
@@ -72,14 +72,14 @@ func (m *Message) GetToolCalls() []ToolCall {
 }
 
 // Setters
-func (m *Message) SetRole(role string)                                  { m.Role = role }
-func (m *Message) SetContent(content string)                            { m.Content = content }
-func (m *Message) SetToolCallID(id string)                              { m.ToolCallID = id }
-func (m *Message) SetMetadata(metadata map[string]interface{})          { m.Metadata = metadata }
-func (m *Message) SetTimestamp(timestamp time.Time)                     { m.Timestamp = timestamp }
-func (m *Message) SetReasoning(reasoning string)                        { m.Reasoning = reasoning }
-func (m *Message) SetReasoningSummary(summary string)                   { m.ReasoningSummary = summary }
-func (m *Message) SetThink(think string)                                { m.Think = think }
+func (m *Message) SetRole(role string)                         { m.Role = role }
+func (m *Message) SetContent(content string)                   { m.Content = content }
+func (m *Message) SetToolCallID(id string)                     { m.ToolCallID = id }
+func (m *Message) SetMetadata(metadata map[string]interface{}) { m.Metadata = metadata }
+func (m *Message) SetTimestamp(timestamp time.Time)            { m.Timestamp = timestamp }
+func (m *Message) SetReasoning(reasoning string)               { m.Reasoning = reasoning }
+func (m *Message) SetReasoningSummary(summary string)          { m.ReasoningSummary = summary }
+func (m *Message) SetThink(think string)                       { m.Think = think }
 
 // AddToolCall adds a tool call to the message
 func (m *Message) AddToolCall(toolCall *ToolCallImpl) {
@@ -110,7 +110,7 @@ func (m *Message) ToLLMMessage() LLMMessage {
 		ReasoningSummary: m.ReasoningSummary,
 		Think:            m.Think,
 	}
-	
+
 	// Convert tool calls
 	if len(m.ToolCalls) > 0 {
 		llmMsg.ToolCalls = make([]LLMToolCall, len(m.ToolCalls))
@@ -118,7 +118,7 @@ func (m *Message) ToLLMMessage() LLMMessage {
 			llmMsg.ToolCalls[i] = tc.ToLLMToolCall()
 		}
 	}
-	
+
 	return llmMsg
 }
 
@@ -131,7 +131,7 @@ func (m *Message) ToSessionMessage() SessionMessage {
 		Metadata:  make(map[string]interface{}),
 		Timestamp: m.Timestamp,
 	}
-	
+
 	// Copy metadata and add reasoning fields if present
 	for k, v := range m.Metadata {
 		sessionMsg.Metadata[k] = v
@@ -145,7 +145,7 @@ func (m *Message) ToSessionMessage() SessionMessage {
 	if m.Think != "" {
 		sessionMsg.Metadata["think"] = m.Think
 	}
-	
+
 	// Convert tool calls
 	if len(m.ToolCalls) > 0 {
 		sessionMsg.ToolCalls = make([]SessionToolCall, len(m.ToolCalls))
@@ -153,7 +153,7 @@ func (m *Message) ToSessionMessage() SessionMessage {
 			sessionMsg.ToolCalls[i] = tc.ToSessionToolCall()
 		}
 	}
-	
+
 	return sessionMsg
 }
 
@@ -170,27 +170,27 @@ func FromLLMMessage(llmMsg LLMMessage) *Message {
 		Timestamp:        time.Now(),
 		ToolCalls:        make([]*ToolCallImpl, 0),
 	}
-	
+
 	// Convert tool calls
 	for _, tc := range llmMsg.ToolCalls {
 		toolCall := FromLLMToolCall(tc)
 		msg.ToolCalls = append(msg.ToolCalls, toolCall)
 	}
-	
+
 	return msg
 }
 
 // FromSessionMessage creates Message from session storage message
 func FromSessionMessage(sessionMsg SessionMessage) *Message {
 	msg := &Message{
-		Role:      sessionMsg.Role,
-		Content:   sessionMsg.Content,
+		Role:       sessionMsg.Role,
+		Content:    sessionMsg.Content,
 		ToolCallID: sessionMsg.ToolID,
-		Metadata:  make(map[string]interface{}),
-		Timestamp: sessionMsg.Timestamp,
-		ToolCalls: make([]*ToolCallImpl, 0),
+		Metadata:   make(map[string]interface{}),
+		Timestamp:  sessionMsg.Timestamp,
+		ToolCalls:  make([]*ToolCallImpl, 0),
 	}
-	
+
 	// Copy metadata and extract reasoning fields
 	for k, v := range sessionMsg.Metadata {
 		switch k {
@@ -217,13 +217,13 @@ func FromSessionMessage(sessionMsg SessionMessage) *Message {
 			msg.Metadata[k] = v
 		}
 	}
-	
+
 	// Convert tool calls
 	for _, tc := range sessionMsg.ToolCalls {
 		toolCall := FromSessionToolCall(tc)
 		msg.ToolCalls = append(msg.ToolCalls, toolCall)
 	}
-	
+
 	return msg
 }
 
@@ -239,16 +239,16 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
 	}
-	
+
 	// Ensure timestamp is set
 	if m.Timestamp.IsZero() {
 		m.Timestamp = time.Now()
 	}
-	
+
 	// Ensure metadata is initialized
 	if m.Metadata == nil {
 		m.Metadata = make(map[string]interface{})
 	}
-	
+
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// IntegrationStrategy defines how the performance verification framework 
+// IntegrationStrategy defines how the performance verification framework
 // integrates with the existing Alex codebase
 type IntegrationStrategy struct {
 	config         *IntegrationConfig
@@ -17,27 +17,27 @@ type IntegrationStrategy struct {
 	monitor        *PerformanceMonitor
 	abTestManager  *ABTestManager
 	scenarioRunner *ScenarioRunner
-	
+
 	// Integration points
-	configPath     string
-	resultsPath    string
-	baselinePath   string
+	configPath   string
+	resultsPath  string
+	baselinePath string
 }
 
 // IntegrationConfig defines configuration for framework integration
 type IntegrationConfig struct {
 	// Paths
-	ConfigDir         string `json:"config_dir"`
-	ResultsDir        string `json:"results_dir"`
-	BaselineFile      string `json:"baseline_file"`
-	LogFile           string `json:"log_file"`
-	
+	ConfigDir    string `json:"config_dir"`
+	ResultsDir   string `json:"results_dir"`
+	BaselineFile string `json:"baseline_file"`
+	LogFile      string `json:"log_file"`
+
 	// Integration settings
-	AutoStart         bool  `json:"auto_start"`
-	RunOnBuild        bool  `json:"run_on_build"`
-	RunOnTest         bool  `json:"run_on_test"`
-	CIPipelineEnabled bool  `json:"ci_pipeline_enabled"`
-	
+	AutoStart         bool `json:"auto_start"`
+	RunOnBuild        bool `json:"run_on_build"`
+	RunOnTest         bool `json:"run_on_test"`
+	CIPipelineEnabled bool `json:"ci_pipeline_enabled"`
+
 	// Verification settings
 	VerificationConfig `json:"verification"`
 	MonitoringConfig   `json:"monitoring"`
@@ -49,16 +49,16 @@ func NewIntegrationStrategy(configPath string) (*IntegrationStrategy, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load integration config: %v", err)
 	}
-	
+
 	// Create verification framework
 	framework := NewVerificationFramework(&config.VerificationConfig)
-	
+
 	// Create monitoring system
 	monitor := NewPerformanceMonitor(&config.MonitoringConfig, framework)
-	
+
 	// Create scenario runner
 	scenarioRunner := NewScenarioRunner(&config.VerificationConfig, framework)
-	
+
 	return &IntegrationStrategy{
 		config:         config,
 		framework:      framework,
@@ -82,17 +82,17 @@ func LoadIntegrationConfig(configPath string) (*IntegrationConfig, error) {
 		}
 		return config, nil
 	}
-	
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
-	
+
 	var config IntegrationConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %v", err)
 	}
-	
+
 	return &config, nil
 }
 
@@ -102,12 +102,12 @@ func SaveIntegrationConfig(configPath string, config *IntegrationConfig) error {
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %v", err)
 	}
-	
+
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
-	
+
 	return os.WriteFile(configPath, data, 0644)
 }
 
@@ -122,41 +122,41 @@ func GetDefaultIntegrationConfig() *IntegrationConfig {
 		RunOnBuild:        true,
 		RunOnTest:         true,
 		CIPipelineEnabled: true,
-		
+
 		VerificationConfig: VerificationConfig{
 			BaselineFile:        "./performance/baseline.json",
 			BenchmarkDuration:   30 * time.Second,
-			WarmupDuration:     5 * time.Second,
-			MaxConcurrency:     10,
-			FeatureFlags:       make(map[string]bool),
-			ABTestingEnabled:   false,
-			TrafficSplit:       0.5,
+			WarmupDuration:      5 * time.Second,
+			MaxConcurrency:      10,
+			FeatureFlags:        make(map[string]bool),
+			ABTestingEnabled:    false,
+			TrafficSplit:        0.5,
 			RegressionThreshold: 0.05,
-			AlertingEnabled:    true,
-			RollbackEnabled:    false,
-			MaxResponseTime:    500 * time.Millisecond,
-			MaxMemoryUsage:     100 * 1024 * 1024, // 100MB
-			MinThroughput:      50.0,
-			MaxErrorRate:       0.01,
+			AlertingEnabled:     true,
+			RollbackEnabled:     false,
+			MaxResponseTime:     500 * time.Millisecond,
+			MaxMemoryUsage:      100 * 1024 * 1024, // 100MB
+			MinThroughput:       50.0,
+			MaxErrorRate:        0.01,
 		},
-		
+
 		MonitoringConfig: MonitoringConfig{
 			CollectionInterval:         30 * time.Second,
-			AnalysisInterval:          5 * time.Minute,
-			AlertCooldown:             10 * time.Minute,
-			ResponseTimeThreshold:     200 * time.Millisecond,
-			MemoryUsageThreshold:      150 * 1024 * 1024, // 150MB
-			ThroughputThreshold:       25.0,
-			ErrorRateThreshold:        0.02,
-			RegressionWindow:          1 * time.Hour,
-			RegressionThreshold:       0.05,
+			AnalysisInterval:           5 * time.Minute,
+			AlertCooldown:              10 * time.Minute,
+			ResponseTimeThreshold:      200 * time.Millisecond,
+			MemoryUsageThreshold:       150 * 1024 * 1024, // 150MB
+			ThroughputThreshold:        25.0,
+			ErrorRateThreshold:         0.02,
+			RegressionWindow:           1 * time.Hour,
+			RegressionThreshold:        0.05,
 			MinDataPointsForRegression: 10,
-			AutoRollbackEnabled:       false,
-			RollbackThreshold:         0.10,
-			RollbackConfirmationTime:  5 * time.Minute,
-			DashboardEnabled:          true,
-			ReportingEnabled:          true,
-			HistoryRetentionDays:      30,
+			AutoRollbackEnabled:        false,
+			RollbackThreshold:          0.10,
+			RollbackConfirmationTime:   5 * time.Minute,
+			DashboardEnabled:           true,
+			ReportingEnabled:           true,
+			HistoryRetentionDays:       30,
 		},
 	}
 }
@@ -170,25 +170,25 @@ func (is *IntegrationStrategy) InitializeFramework() error {
 	if err := os.MkdirAll(is.config.ResultsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create results directory: %v", err)
 	}
-	
+
 	// Initialize framework components
 	if err := is.framework.LoadBaseline(); err != nil {
 		log.Printf("Warning: failed to load baseline, will create new one: %v", err)
 	}
-	
+
 	// Add monitoring alert handlers
 	is.monitor.AddAlertHandler(&LogAlertHandler{LogFile: is.config.LogFile})
 	if is.config.CIPipelineEnabled {
 		is.monitor.AddAlertHandler(&CIAlertHandler{})
 	}
-	
+
 	// Start monitoring if auto-start is enabled
 	if is.config.AutoStart {
 		if err := is.monitor.Start(); err != nil {
 			return fmt.Errorf("failed to start monitoring: %v", err)
 		}
 	}
-	
+
 	log.Printf("Performance verification framework initialized at %s", is.config.ConfigDir)
 	return nil
 }
@@ -196,15 +196,15 @@ func (is *IntegrationStrategy) InitializeFramework() error {
 // RunBenchmarkSuite executes the full benchmark suite
 func (is *IntegrationStrategy) RunBenchmarkSuite() (*BenchmarkSuiteResult, error) {
 	log.Println("Starting performance benchmark suite...")
-	
+
 	suite := NewBenchmarkSuite(&is.config.VerificationConfig)
 	benchmarkResults := suite.RunFullSuite()
-	
+
 	scenarioResults, err := is.scenarioRunner.RunAllScenarios()
 	if err != nil {
 		return nil, fmt.Errorf("scenario execution failed: %v", err)
 	}
-	
+
 	result := &BenchmarkSuiteResult{
 		BenchmarkResults: benchmarkResults,
 		ScenarioResults:  scenarioResults,
@@ -212,7 +212,7 @@ func (is *IntegrationStrategy) RunBenchmarkSuite() (*BenchmarkSuiteResult, error
 		Passed:           true,
 		Summary:          is.generateSummary(benchmarkResults, scenarioResults),
 	}
-	
+
 	// Check if any scenarios failed
 	for _, scenario := range scenarioResults {
 		if !scenario.Passed {
@@ -220,12 +220,12 @@ func (is *IntegrationStrategy) RunBenchmarkSuite() (*BenchmarkSuiteResult, error
 			break
 		}
 	}
-	
+
 	// Save results
 	if err := is.saveResults(result); err != nil {
 		log.Printf("Warning: failed to save results: %v", err)
 	}
-	
+
 	log.Printf("Benchmark suite completed. Passed: %t", result.Passed)
 	return result, nil
 }
@@ -241,14 +241,14 @@ type BenchmarkSuiteResult struct {
 
 // ResultSummary provides high-level summary of results
 type ResultSummary struct {
-	TotalBenchmarks      int     `json:"total_benchmarks"`
-	TotalScenarios       int     `json:"total_scenarios"`
-	PassedScenarios      int     `json:"passed_scenarios"`
-	FailedScenarios      int     `json:"failed_scenarios"`
-	AverageResponseTime  float64 `json:"average_response_time_ms"`
-	AverageMemoryUsage   int64   `json:"average_memory_usage_bytes"`
-	AverageThroughput    float64 `json:"average_throughput_ops"`
-	OverallErrorRate     float64 `json:"overall_error_rate"`
+	TotalBenchmarks     int     `json:"total_benchmarks"`
+	TotalScenarios      int     `json:"total_scenarios"`
+	PassedScenarios     int     `json:"passed_scenarios"`
+	FailedScenarios     int     `json:"failed_scenarios"`
+	AverageResponseTime float64 `json:"average_response_time_ms"`
+	AverageMemoryUsage  int64   `json:"average_memory_usage_bytes"`
+	AverageThroughput   float64 `json:"average_throughput_ops"`
+	OverallErrorRate    float64 `json:"overall_error_rate"`
 }
 
 // RunPreBuildVerification runs verification before build
@@ -256,12 +256,12 @@ func (is *IntegrationStrategy) RunPreBuildVerification() error {
 	if !is.config.RunOnBuild {
 		return nil
 	}
-	
+
 	log.Println("Running pre-build performance verification...")
-	
+
 	// Run a subset of critical scenarios
 	criticalScenarios := []string{"MCP Basic Operations", "Memory Leak Detection"}
-	
+
 	for _, scenarioName := range criticalScenarios {
 		for _, scenario := range is.scenarioRunner.scenarios {
 			if scenario.Name == scenarioName && scenario.Enabled {
@@ -275,7 +275,7 @@ func (is *IntegrationStrategy) RunPreBuildVerification() error {
 			}
 		}
 	}
-	
+
 	log.Println("Pre-build verification completed successfully")
 	return nil
 }
@@ -285,13 +285,13 @@ func (is *IntegrationStrategy) RunPostTestVerification() error {
 	if !is.config.RunOnTest {
 		return nil
 	}
-	
+
 	log.Println("Running post-test performance verification...")
-	
+
 	// Collect current metrics and compare with baseline
 	current := is.framework.collectMetrics()
 	comparison := is.framework.CompareWithBaseline()
-	
+
 	if comparison != nil {
 		// Check for significant regressions
 		if comparison.ResponseTimeDiff > is.config.VerificationConfig.RegressionThreshold {
@@ -303,13 +303,13 @@ func (is *IntegrationStrategy) RunPostTestVerification() error {
 				comparison.MemoryUsageDiff*100)
 		}
 	}
-	
+
 	// Validate against criteria
 	validation := is.framework.ValidateMetrics(current)
 	if !validation.Passed {
 		return fmt.Errorf("post-test verification failed: %v", validation.Failures)
 	}
-	
+
 	log.Println("Post-test verification completed successfully")
 	return nil
 }
@@ -320,7 +320,7 @@ func (is *IntegrationStrategy) generateSummary(benchmarks []BenchmarkResult, sce
 		TotalBenchmarks: len(benchmarks),
 		TotalScenarios:  len(scenarios),
 	}
-	
+
 	// Count passed/failed scenarios
 	for _, scenario := range scenarios {
 		if scenario.Passed {
@@ -329,28 +329,28 @@ func (is *IntegrationStrategy) generateSummary(benchmarks []BenchmarkResult, sce
 			summary.FailedScenarios++
 		}
 	}
-	
+
 	// Calculate averages from scenarios
 	if len(scenarios) > 0 {
 		var totalResponseTime float64
 		var totalMemoryUsage int64
 		var totalThroughput float64
 		var totalErrorRate float64
-		
+
 		for _, scenario := range scenarios {
 			totalResponseTime += float64(scenario.Metrics.ResponseTime.Nanoseconds()) / 1e6 // Convert to ms
 			totalMemoryUsage += scenario.Metrics.HeapSize
 			totalThroughput += scenario.Metrics.ThroughputOps
 			totalErrorRate += scenario.Metrics.ErrorRate
 		}
-		
+
 		count := float64(len(scenarios))
 		summary.AverageResponseTime = totalResponseTime / count
 		summary.AverageMemoryUsage = totalMemoryUsage / int64(count)
 		summary.AverageThroughput = totalThroughput / count
 		summary.OverallErrorRate = totalErrorRate / count
 	}
-	
+
 	return summary
 }
 
@@ -360,15 +360,15 @@ func (is *IntegrationStrategy) saveResults(result *BenchmarkSuiteResult) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal results: %v", err)
 	}
-	
+
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("results_%s.json", timestamp)
 	path := filepath.Join(is.config.ResultsDir, filename)
-	
+
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write results file: %v", err)
 	}
-	
+
 	// Also update the latest results file
 	latestPath := filepath.Join(is.config.ResultsDir, "latest.json")
 	return os.WriteFile(latestPath, data, 0644)
@@ -452,13 +452,13 @@ func (lah *LogAlertHandler) HandleAlert(alert *Alert) error {
 	if int(alert.Level) < len(levelNames) {
 		levelName = levelNames[alert.Level]
 	}
-	
-	logEntry := fmt.Sprintf("[%s] %s - %s: %s\n", 
+
+	logEntry := fmt.Sprintf("[%s] %s - %s: %s\n",
 		alert.Timestamp.Format(time.RFC3339),
 		levelName,
-		alert.Title, 
+		alert.Title,
 		alert.Description)
-	
+
 	file, err := os.OpenFile(lah.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return err
@@ -468,7 +468,7 @@ func (lah *LogAlertHandler) HandleAlert(alert *Alert) error {
 			log.Printf("Warning: failed to close log file: %v", err)
 		}
 	}()
-	
+
 	_, err = file.WriteString(logEntry)
 	return err
 }
@@ -489,10 +489,10 @@ func (ciah *CIAlertHandler) HandleAlert(alert *Alert) error {
 // Shutdown gracefully shuts down the integration framework
 func (is *IntegrationStrategy) Shutdown() error {
 	log.Println("Shutting down performance verification framework...")
-	
+
 	is.monitor.Stop()
 	is.framework.StopMonitoring()
-	
+
 	// Save final baseline if needed
 	current := is.framework.GetCurrentMetrics()
 	if current != nil {
@@ -500,7 +500,7 @@ func (is *IntegrationStrategy) Shutdown() error {
 			log.Printf("Warning: failed to save final baseline: %v", err)
 		}
 	}
-	
+
 	log.Println("Performance framework shutdown complete")
 	return nil
 }

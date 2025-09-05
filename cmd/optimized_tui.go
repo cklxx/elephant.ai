@@ -82,11 +82,11 @@ var (
 
 // OptimizedMessage represents a message with cached rendering info
 type OptimizedMessage struct {
-	ID          string
-	Type        string // "user", "assistant", "system", "processing", "error"
-	ChunkType   string
-	Content     string
-	Time        time.Time
+	ID        string
+	Type      string // "user", "assistant", "system", "processing", "error"
+	ChunkType string
+	Content   string
+	Time      time.Time
 	// Caching fields
 	RenderedContent string    // Cached rendered content
 	RenderHash      uint64    // Hash of content + style for cache invalidation
@@ -97,13 +97,13 @@ type OptimizedMessage struct {
 
 // IncrementalBuffer manages messages with smart caching and incremental updates
 type IncrementalBuffer struct {
-	messages       []*OptimizedMessage
-	capacity       int
-	totalMessages  int64 // Total messages ever added
-	renderCache    map[string]string // Cache for expensive renders
-	visibleRange   VisibleRange
-	mu             sync.RWMutex
-	messagePool    sync.Pool // Pool for message reuse
+	messages      []*OptimizedMessage
+	capacity      int
+	totalMessages int64             // Total messages ever added
+	renderCache   map[string]string // Cache for expensive renders
+	visibleRange  VisibleRange
+	mu            sync.RWMutex
+	messagePool   sync.Pool // Pool for message reuse
 }
 
 type VisibleRange struct {
@@ -114,9 +114,9 @@ type VisibleRange struct {
 
 func NewIncrementalBuffer(capacity int) *IncrementalBuffer {
 	return &IncrementalBuffer{
-		messages:     make([]*OptimizedMessage, 0, capacity),
-		capacity:     capacity,
-		renderCache:  make(map[string]string),
+		messages:    make([]*OptimizedMessage, 0, capacity),
+		capacity:    capacity,
+		renderCache: make(map[string]string),
 		messagePool: sync.Pool{
 			New: func() interface{} {
 				return &OptimizedMessage{}
@@ -198,12 +198,12 @@ func (ib *IncrementalBuffer) GetVisibleMessages(viewportHeight, scrollOffset int
 
 // SmartRenderer handles intelligent rendering with caching
 type SmartRenderer struct {
-	width            int
-	contentCache     map[string]string
-	styleCache       map[string]lipgloss.Style
-	lastRenderTime   time.Time
-	renderThrottle   time.Duration
-	mu               sync.RWMutex
+	width          int
+	contentCache   map[string]string
+	styleCache     map[string]lipgloss.Style
+	lastRenderTime time.Time
+	renderThrottle time.Duration
+	mu             sync.RWMutex
 }
 
 func NewSmartRenderer() *SmartRenderer {
@@ -242,7 +242,7 @@ func (sr *SmartRenderer) RenderMessage(msg *OptimizedMessage, width int) string 
 
 	// Render content
 	rendered := sr.renderMessageContent(msg, width)
-	
+
 	// Cache the result
 	msg.RenderedContent = rendered
 	msg.IsDirty = false
@@ -347,32 +347,32 @@ func (sr *SmartRenderer) wrapLine(line string, maxWidth int) []string {
 // OptimizedTUIModel - Improved model with smart rendering
 type OptimizedTUIModel struct {
 	// Core components
-	textarea     textarea.Model
-	viewport     viewport.Model
-	buffer       *IncrementalBuffer
-	renderer     *SmartRenderer
-	
+	textarea textarea.Model
+	viewport viewport.Model
+	buffer   *IncrementalBuffer
+	renderer *SmartRenderer
+
 	// State management
-	processing   bool
-	agent        *agent.ReactAgent
-	config       *config.Manager
-	width        int
-	height       int
-	ready        bool
-	
+	processing bool
+	agent      *agent.ReactAgent
+	config     *config.Manager
+	width      int
+	height     int
+	ready      bool
+
 	// Performance tracking
-	execTimer    ExecutionTimer
-	program      *tea.Program
-	currentMsg   *OptimizedMessage
-	tokenCount   int
-	
+	execTimer  ExecutionTimer
+	program    *tea.Program
+	currentMsg *OptimizedMessage
+	tokenCount int
+
 	// Rendering optimization
-	renderPending   bool
-	inputAtBottom   bool
-	
+	renderPending bool
+	inputAtBottom bool
+
 	// Input handling
-	inputQueue      []string
-	currentInput    string
+	inputQueue   []string
+	currentInput string
 }
 
 func NewOptimizedTUIModel(agent *agent.ReactAgent, config *config.Manager) *OptimizedTUIModel {
@@ -407,7 +407,7 @@ func NewOptimizedTUIModel(agent *agent.ReactAgent, config *config.Manager) *Opti
 func (m *OptimizedTUIModel) Init() tea.Cmd {
 	m.initializeDefaultDimensions()
 	return tea.Batch(
-		textarea.Blink, 
+		textarea.Blink,
 		m.startRenderTicker(),
 		func() tea.Msg { return forceInitMsg{} },
 	)
@@ -498,7 +498,7 @@ func (m *OptimizedTUIModel) handleSubmit() (tea.Model, tea.Cmd) {
 	}
 
 	m.textarea.Reset()
-	
+
 	// Add user message
 	_ = m.buffer.AddMessage("user", "user_input", input)
 	m.scheduleRender()
@@ -509,7 +509,7 @@ func (m *OptimizedTUIModel) handleSubmit() (tea.Model, tea.Cmd) {
 
 	// Queue message if processing
 	m.inputQueue = append(m.inputQueue, input)
-	_ = m.buffer.AddMessage("system", "system", 
+	_ = m.buffer.AddMessage("system", "system",
 		fmt.Sprintf("📬 Message queued (%d in queue)", len(m.inputQueue)))
 	m.scheduleRender()
 
@@ -538,7 +538,7 @@ func (m *OptimizedTUIModel) scheduleRender() {
 
 func (m *OptimizedTUIModel) renderView() {
 	visibleMessages, rangeChanged := m.buffer.GetVisibleMessages(
-		m.viewport.Height, 
+		m.viewport.Height,
 		m.viewport.YOffset,
 	)
 
@@ -597,7 +597,7 @@ func (m *OptimizedTUIModel) startRenderTicker() tea.Cmd {
 func (m *OptimizedTUIModel) processUserInput(input string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		
+
 		go func() {
 			streamCallback := func(chunk agent.StreamChunk) {
 				switch chunk.Type {

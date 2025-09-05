@@ -588,6 +588,7 @@ func (s *CloudSessionManager) StartSessionSync(ctx context.Context) error {
 ### 4. 云端安全终端执行引擎
 
 #### 容器化执行环境
+{% raw %}
 ```go
 // 云端终端执行引擎
 type CloudTerminalExecutor struct {
@@ -833,6 +834,7 @@ func (e *CloudTerminalExecutor) HandleWebSocketTerminal(
     e.handleWebSocketMessages(ttySession, conn)
 }
 ```
+{% endraw %}
 
 ---
 
@@ -922,6 +924,7 @@ func (a *MultiLayerAuthSystem) AuthMiddleware() gin.HandlerFunc {
 ### 2. 网络安全隔离
 
 #### Kubernetes网络策略
+{% raw %}
 ```yaml
 # 网络隔离策略
 apiVersion: networking.k8s.io/v1
@@ -1004,6 +1007,7 @@ spec:
         except:
         - 10.0.1.0/24     # 排除敏感网段
 ```
+{% endraw %}
 
 ### 3. 数据加密与隐私保护
 
@@ -1444,6 +1448,7 @@ spec:
 ### 2. 监控与可观测性
 
 #### Prometheus监控配置
+{% raw %}
 ```yaml
 # Prometheus监控规则
 apiVersion: monitoring.coreos.com/v1
@@ -1567,6 +1572,7 @@ data:
       }
     }
 ```
+{% endraw %}
 
 ### 3. 灾难恢复与高可用
 

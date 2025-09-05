@@ -18,12 +18,12 @@ type MessageProcessor struct {
 	tokenEstimator *TokenEstimator
 	adapter        *message.Adapter   // 统一消息适配器
 	compressor     *MessageCompressor // AI压缩器
-	
+
 	// Object pools for reducing allocations
-	messagePool    sync.Pool
-	toolCallPool   sync.Pool
-	slicePool      sync.Pool
-	jsonBufPool    sync.Pool
+	messagePool  sync.Pool
+	toolCallPool sync.Pool
+	slicePool    sync.Pool
+	jsonBufPool  sync.Pool
 }
 
 // NewMessageProcessor 创建统一的消息处理器
@@ -34,32 +34,32 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager, 
 		adapter:        message.NewAdapter(),
 		compressor:     NewMessageCompressor(sessionManager, llmClient, llmConfig),
 	}
-	
+
 	// Initialize object pools
 	mp.messagePool = sync.Pool{
 		New: func() interface{} {
 			return &llm.Message{}
 		},
 	}
-	
+
 	mp.toolCallPool = sync.Pool{
 		New: func() interface{} {
 			return &llm.ToolCall{}
 		},
 	}
-	
+
 	mp.slicePool = sync.Pool{
 		New: func() interface{} {
 			return make([]llm.Message, 0, 10)
 		},
 	}
-	
+
 	mp.jsonBufPool = sync.Pool{
 		New: func() interface{} {
 			return make([]byte, 0, 1024)
 		},
 	}
-	
+
 	return mp
 }
 
@@ -80,7 +80,7 @@ func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Messa
 	if len(sessionMessages) == 0 {
 		return nil
 	}
-	
+
 	return mp.convertSessionToLLMOptimized(sessionMessages)
 }
 
@@ -97,32 +97,32 @@ func (mp *MessageProcessor) convertSessionToLLMOptimized(sessionMessages []*sess
 			}
 		}
 	}
-	
+
 	// Fallback to regular allocation if pool doesn't fit
 	if llmMessages == nil {
 		llmMessages = make([]llm.Message, 0, len(sessionMessages))
 	}
-	
+
 	// Convert messages using pools to reduce allocations
 	for _, msg := range sessionMessages {
 		// Get message from pool
 		pooledMsg := mp.messagePool.Get().(*llm.Message)
-		
+
 		// Reset and populate message
 		*pooledMsg = llm.Message{}
 		pooledMsg.Role = msg.Role
 		pooledMsg.ToolCallId = msg.ToolCallId
 		pooledMsg.Name = msg.Name
 		pooledMsg.Content = msg.Content
-		
+
 		// Convert tool calls with pooling
 		pooledMsg.ToolCalls = mp.convertToolCallsOptimized(msg.ToolCalls)
-		
+
 		// Copy to result slice and return to pool
 		llmMessages = append(llmMessages, *pooledMsg)
 		mp.messagePool.Put(pooledMsg)
 	}
-	
+
 	return llmMessages
 }
 
@@ -152,30 +152,30 @@ func (mp *MessageProcessor) convertToolCallsOptimized(toolCalls []llm.ToolCall) 
 	if len(toolCalls) == 0 {
 		return nil
 	}
-	
+
 	result := make([]llm.ToolCall, 0, len(toolCalls))
-	
+
 	for _, tc := range toolCalls {
 		// Get pooled tool call
 		pooledTC := mp.toolCallPool.Get().(*llm.ToolCall)
 		*pooledTC = llm.ToolCall{}
-		
+
 		pooledTC.ID = tc.ID
 		pooledTC.Type = "function"
 		pooledTC.Function.Name = tc.Function.Name
-		
+
 		// Optimize JSON marshaling using pool
 		if tc.Function.Arguments != "" {
 			if argsStr := mp.marshalArgumentsOptimized(tc.Function.Arguments); argsStr != "" {
 				pooledTC.Function.Arguments = argsStr
 			}
 		}
-		
+
 		// Copy to result and return to pool
 		result = append(result, *pooledTC)
 		mp.toolCallPool.Put(pooledTC)
 	}
-	
+
 	return result
 }
 
@@ -184,18 +184,18 @@ func (mp *MessageProcessor) marshalArgumentsOptimized(args interface{}) string {
 	if args == nil {
 		return ""
 	}
-	
+
 	// Get pooled buffer
 	buf := mp.jsonBufPool.Get().([]byte)
 	buf = buf[:0] // Reset length but keep capacity
-	
+
 	defer mp.jsonBufPool.Put(&buf)
-	
+
 	// Try to marshal directly to the buffer
 	if data, err := json.Marshal(args); err == nil {
 		return string(data)
 	}
-	
+
 	return ""
 }
 
@@ -204,7 +204,7 @@ func (mp *MessageProcessor) ReleaseConvertedMessages(messages []llm.Message) {
 	if len(messages) == 0 {
 		return
 	}
-	
+
 	// Return slice to pool if it's a reasonable size
 	if cap(messages) <= 100 {
 		messages = messages[:0] // Reset length but keep capacity

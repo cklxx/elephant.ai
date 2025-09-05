@@ -12,19 +12,19 @@ const (
 	ToolStart  StreamChunkType = "tool_start"
 	ToolResult StreamChunkType = "tool_result"
 	ToolError  StreamChunkType = "tool_error"
-	
+
 	// Processing chunks
 	Status         StreamChunkType = "status"
 	Iteration      StreamChunkType = "iteration"
 	ThinkingResult StreamChunkType = "thinking_result"
 	FinalAnswer    StreamChunkType = "final_answer"
-	
+
 	// Token usage chunks
-	TokenUsage     StreamChunkType = "token_usage"
-	
+	TokenUsage StreamChunkType = "token_usage"
+
 	// Error chunks
-	Error          StreamChunkType = "error"
-	MaxIterations  StreamChunkType = "max_iterations"
+	Error         StreamChunkType = "error"
+	MaxIterations StreamChunkType = "max_iterations"
 )
 
 // StreamHelper provides utilities for creating and managing stream callbacks
@@ -47,18 +47,18 @@ func (sh *StreamHelper) CreateChunk(chunkType StreamChunkType, content string, m
 		Type:    string(chunkType),
 		Content: content,
 	}
-	
+
 	if len(metadata) > 0 {
 		chunk.Metadata = metadata[0]
 	}
-	
+
 	if chunk.Metadata == nil {
 		chunk.Metadata = make(map[string]interface{})
 	}
-	
+
 	// Add component information
 	chunk.Metadata["component"] = sh.componentName
-	
+
 	return chunk
 }
 
@@ -67,7 +67,7 @@ func (sh *StreamHelper) SendChunk(callback StreamCallback, chunkType StreamChunk
 	if callback == nil {
 		return
 	}
-	
+
 	chunk := sh.CreateChunk(chunkType, content, metadata...)
 	callback(chunk)
 	sh.logger.Debug("Sent %s chunk: %s", string(chunkType), content[:minInt(50, len(content))])
@@ -87,7 +87,7 @@ func (sh *StreamHelper) SendToolResult(callback StreamCallback, toolName string,
 	if !success {
 		chunkType = ToolError
 	}
-	
+
 	sh.SendChunk(callback, chunkType, content, map[string]interface{}{
 		"tool_name": toolName,
 		"success":   success,
@@ -122,17 +122,17 @@ func (sh *StreamHelper) SendIteration(callback StreamCallback, iteration int, ma
 // SendTokenUsage sends a token usage chunk
 func (sh *StreamHelper) SendTokenUsage(callback StreamCallback, tokensUsed, totalTokens, promptTokens, completionTokens int, iteration int) {
 	content := fmt.Sprintf("Tokens used: %d (prompt: %d, completion: %d)", tokensUsed, promptTokens, completionTokens)
-	
+
 	chunk := sh.CreateChunk(TokenUsage, content, map[string]interface{}{
 		"iteration": iteration,
 		"phase":     "token_accounting",
 	})
-	
+
 	chunk.TokensUsed = tokensUsed
 	chunk.TotalTokensUsed = totalTokens
 	chunk.PromptTokens = promptTokens
 	chunk.CompletionTokens = completionTokens
-	
+
 	if callback != nil {
 		callback(chunk)
 	}

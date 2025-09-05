@@ -15,22 +15,22 @@ import (
 
 // KimiCacheManager handles context caching for Kimi API
 type KimiCacheManager struct {
-	mutex      sync.RWMutex
-	caches     map[string]*KimiCache // sessionID -> cache
-	llmClient  Client
+	mutex     sync.RWMutex
+	caches    map[string]*KimiCache // sessionID -> cache
+	llmClient Client
 }
 
 // KimiCache represents a cached context for a session
 type KimiCache struct {
-	SessionID       string            `json:"session_id"`
-	CacheID         string            `json:"cache_id"`
-	CachedMessages  []Message         `json:"cached_messages"`  // 完整的缓存消息
-	CachedTools     []Tool            `json:"cached_tools"`     // 缓存的 tools
-	CreatedAt       time.Time         `json:"created_at"`
-	LastUsedAt      time.Time         `json:"last_used_at"`
-	RequestCount    int               `json:"request_count"`
-	Status          string            `json:"status"` // "active", "expired", "deleted"
-	ExtraHeaders    map[string]string `json:"extra_headers,omitempty"`
+	SessionID      string            `json:"session_id"`
+	CacheID        string            `json:"cache_id"`
+	CachedMessages []Message         `json:"cached_messages"` // 完整的缓存消息
+	CachedTools    []Tool            `json:"cached_tools"`    // 缓存的 tools
+	CreatedAt      time.Time         `json:"created_at"`
+	LastUsedAt     time.Time         `json:"last_used_at"`
+	RequestCount   int               `json:"request_count"`
+	Status         string            `json:"status"` // "active", "expired", "deleted"
+	ExtraHeaders   map[string]string `json:"extra_headers,omitempty"`
 }
 
 // KimiCacheRequest represents a request with caching enabled
@@ -41,7 +41,7 @@ type KimiCacheRequest struct {
 
 // CacheControl represents cache control parameters for Kimi API
 type CacheControl struct {
-	Type    string `json:"type"`    // "ephemeral" for context caching
+	Type    string `json:"type"` // "ephemeral" for context caching
 	CacheID string `json:"cache_id,omitempty"`
 }
 
@@ -63,7 +63,7 @@ func IsKimiAPI(baseURL string) bool {
 func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Message, tools []Tool, apiKey string) (*KimiCache, error) {
 	// Phase 1: Validation under lock (fast operations only)
 	kcm.mutex.Lock()
-	
+
 	// Extract cacheable messages (fast operation)
 	cacheableMessages := kcm.extractCacheablePrefix(messages)
 	if len(cacheableMessages) == 0 {
@@ -74,7 +74,7 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	// Check if cache already exists and verify consistency
 	var oldCacheToDelete string
 	var existingCache *KimiCache
-	
+
 	if existing, exists := kcm.caches[sessionID]; exists && existing.Status == "active" {
 		// Validate cacheable prefix matches
 		if kcm.messagesMatch(cacheableMessages, existing.CachedMessages) && kcm.toolsMatch(tools, existing.CachedTools) {
@@ -88,9 +88,9 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 			delete(kcm.caches, sessionID)
 		}
 	}
-	
+
 	kcm.mutex.Unlock() // Release lock before network I/O
-	
+
 	// Phase 2: Network I/O without locks (slow operations)
 	// Delete old cache if needed
 	if oldCacheToDelete != "" {
@@ -121,7 +121,7 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	kcm.mutex.Lock()
 	kcm.caches[sessionID] = cache
 	kcm.mutex.Unlock()
-	
+
 	log.Printf("[KIMI_CACHE] ✅ Created new cache: %s (%d msgs)", cacheID, len(cacheableMessages))
 	return cache, nil
 }
@@ -145,10 +145,10 @@ func (kcm *KimiCacheManager) extractCacheablePrefix(messages []Message) []Messag
 
 	// 只取前面稳定的消息作为缓存前缀
 	prefixEnd := min(maxCacheablePrefix, len(nonSystemMessages))
-	
+
 	// 确保工具调用成对
 	prefixEnd = kcm.adjustForToolCallPairing(nonSystemMessages, prefixEnd)
-	
+
 	return nonSystemMessages[:prefixEnd]
 }
 
@@ -287,10 +287,10 @@ func (kcm *KimiCacheManager) GetCacheStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_caches":    len(kcm.caches),
-		"active_caches":   activeCaches,
-		"total_requests":  totalRequests,
-		"cache_provider":  "kimi",
+		"total_caches":   len(kcm.caches),
+		"active_caches":  activeCaches,
+		"total_requests": totalRequests,
+		"cache_provider": "kimi",
 	}
 }
 
@@ -359,7 +359,7 @@ func (kcm *KimiCacheManager) createCacheWithAPI(messages []Message, tools []Tool
 	// Create HTTP request
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.moonshot.cn/v1/caching", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to create HTTP request: %w", err)
@@ -414,7 +414,7 @@ func (kcm *KimiCacheManager) extractCacheIDFromResponse(response map[string]inte
 	if id, ok := response["id"].(string); ok {
 		return id
 	}
-	
+
 	return ""
 }
 
@@ -459,7 +459,7 @@ func (kcm *KimiCacheManager) messagesMatch(requestMessages, cachedMessages []Mes
 	if len(requestMessages) < len(cachedMessages) {
 		return false // 请求消息不能少于缓存消息
 	}
-	
+
 	// 验证前 N 个消息完全一致 (N = 缓存消息长度)
 	for i, cachedMsg := range cachedMessages {
 		requestMsg := requestMessages[i]
@@ -468,7 +468,7 @@ func (kcm *KimiCacheManager) messagesMatch(requestMessages, cachedMessages []Mes
 		}
 		// 也可以验证其他字段如 Name, ToolCallId 等
 	}
-	
+
 	return true
 }
 
@@ -477,7 +477,7 @@ func (kcm *KimiCacheManager) toolsMatch(requestTools, cachedTools []Tool) bool {
 	if len(requestTools) != len(cachedTools) {
 		return false
 	}
-	
+
 	// 简化的工具比较 - 实际应该进行深度比较
 	for i, cachedTool := range cachedTools {
 		requestTool := requestTools[i]
@@ -486,7 +486,7 @@ func (kcm *KimiCacheManager) toolsMatch(requestTools, cachedTools []Tool) bool {
 		}
 		// 这里应该进行更深入的 Function 比较
 	}
-	
+
 	return true
 }
 
@@ -550,12 +550,12 @@ func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *Chat
 
 	// 提取当前请求的可缓存前缀
 	currentCacheablePrefix := kcm.extractCacheablePrefix(req.Messages)
-	
+
 	// 验证可缓存前缀是否与缓存匹配
 	if !kcm.messagesMatch(currentCacheablePrefix, cache.CachedMessages) {
 		return nil
 	}
-	
+
 	// 验证工具是否匹配
 	if !kcm.toolsMatch(req.Tools, cache.CachedTools) {
 		return nil
@@ -566,9 +566,9 @@ func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *Chat
 
 	// Prepare headers for cache usage
 	headers := map[string]string{
-		"X-Msh-Context-Cache": cache.CacheID,
+		"X-Msh-Context-Cache":           cache.CacheID,
 		"X-Msh-Context-Cache-Reset-TTL": "600", // 重置缓存过期时间为10分钟
 	}
-	
+
 	return headers
 }

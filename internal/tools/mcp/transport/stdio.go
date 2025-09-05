@@ -16,25 +16,25 @@ import (
 
 // StdioTransport implements MCP transport over standard input/output
 type StdioTransport struct {
-	cmd         *exec.Cmd
-	stdin       io.WriteCloser
-	stdout      io.ReadCloser
-	stderr      io.ReadCloser
-	messagesCh  chan []byte
-	errorsCh    chan error
-	ctx         context.Context
-	cancel      context.CancelFunc
-	
+	cmd        *exec.Cmd
+	stdin      io.WriteCloser
+	stdout     io.ReadCloser
+	stderr     io.ReadCloser
+	messagesCh chan []byte
+	errorsCh   chan error
+	ctx        context.Context
+	cancel     context.CancelFunc
+
 	// Fine-grained locking for performance optimization
-	connMu      sync.RWMutex  // Protects connection state (connected, stdin/stdout/stderr)
-	reqMu       sync.RWMutex  // Protects pendingReqs map
-	writeMu     sync.Mutex    // Protects stdin writes
-	
-	connected   int32         // atomic: 1 if connected, 0 if not
-	requestID   int64         // atomic
-	pendingReqs map[int64]chan *protocol.JSONRPCResponse
-	requestTimestamps map[int64]time.Time  // Track request timestamps for cleanup
-	config      *StdioTransportConfig
+	connMu  sync.RWMutex // Protects connection state (connected, stdin/stdout/stderr)
+	reqMu   sync.RWMutex // Protects pendingReqs map
+	writeMu sync.Mutex   // Protects stdin writes
+
+	connected         int32 // atomic: 1 if connected, 0 if not
+	requestID         int64 // atomic
+	pendingReqs       map[int64]chan *protocol.JSONRPCResponse
+	requestTimestamps map[int64]time.Time // Track request timestamps for cleanup
+	config            *StdioTransportConfig
 }
 
 // StdioTransportConfig represents configuration for stdio transport
@@ -116,7 +116,7 @@ func (t *StdioTransport) ConnectWithConfig(ctx context.Context, config *StdioTra
 
 	// Monitor process
 	go t.monitorProcess()
-	
+
 	// Start cleanup routine for orphaned requests
 	go t.cleanupOrphanedRequests()
 
@@ -156,12 +156,12 @@ func (t *StdioTransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JS
 	if atomic.LoadInt32(&t.connected) == 0 {
 		return nil, fmt.Errorf("transport not connected")
 	}
-	
+
 	// Get stdin with minimal locking
 	t.connMu.RLock()
 	stdin := t.stdin
 	t.connMu.RUnlock()
-	
+
 	if stdin == nil {
 		return nil, fmt.Errorf("stdin not available")
 	}
@@ -180,7 +180,7 @@ func (t *StdioTransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JS
 			if t.getBoundedRequestCount() >= 1000 { // Max 1000 concurrent requests
 				return nil, fmt.Errorf("too many pending requests (%d), request rejected to prevent memory exhaustion", t.getBoundedRequestCount())
 			}
-			
+
 			responseCh = make(chan *protocol.JSONRPCResponse, 1)
 			t.reqMu.Lock()
 			t.pendingReqs[id] = responseCh
@@ -200,7 +200,7 @@ func (t *StdioTransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JS
 	t.writeMu.Lock()
 	_, err = stdin.Write(append(data, '\n'))
 	t.writeMu.Unlock()
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
@@ -229,12 +229,12 @@ func (t *StdioTransport) SendNotification(notification *protocol.JSONRPCNotifica
 	if atomic.LoadInt32(&t.connected) == 0 {
 		return fmt.Errorf("transport not connected")
 	}
-	
+
 	// Get stdin with minimal locking
 	t.connMu.RLock()
 	stdin := t.stdin
 	t.connMu.RUnlock()
-	
+
 	if stdin == nil {
 		return fmt.Errorf("stdin not available")
 	}
@@ -249,7 +249,7 @@ func (t *StdioTransport) SendNotification(notification *protocol.JSONRPCNotifica
 	t.writeMu.Lock()
 	_, err = stdin.Write(append(data, '\n'))
 	t.writeMu.Unlock()
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to write notification: %w", err)
 	}
@@ -425,9 +425,9 @@ func (t *StdioTransport) NextRequestID() int64 {
 func (t *StdioTransport) cleanupOrphanedRequests() {
 	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
 	defer ticker.Stop()
-	
+
 	const requestTimeout = 2 * time.Minute // Timeout requests after 2 minutes
-	
+
 	for {
 		select {
 		case <-t.ctx.Done():
@@ -435,7 +435,7 @@ func (t *StdioTransport) cleanupOrphanedRequests() {
 		case <-ticker.C:
 			now := time.Now()
 			var expiredIDs []int64
-			
+
 			t.reqMu.RLock()
 			for id, timestamp := range t.requestTimestamps {
 				if now.Sub(timestamp) > requestTimeout {
@@ -443,7 +443,7 @@ func (t *StdioTransport) cleanupOrphanedRequests() {
 				}
 			}
 			t.reqMu.RUnlock()
-			
+
 			// Clean up expired requests
 			if len(expiredIDs) > 0 {
 				t.reqMu.Lock()
@@ -466,7 +466,7 @@ func (t *StdioTransport) cleanupOrphanedRequests() {
 					}
 				}
 				t.reqMu.Unlock()
-				
+
 				// Log cleanup activity (only if we cleaned up requests)
 				select {
 				case t.errorsCh <- fmt.Errorf("cleaned up %d orphaned requests", len(expiredIDs)):

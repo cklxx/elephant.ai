@@ -15,15 +15,15 @@ type ToolCall struct {
 
 // ToolResult represents a tool execution result
 type ToolResult struct {
-	CallID    string                 `json:"callId"`
-	ToolName  string                 `json:"toolName"`
-	Success   bool                   `json:"success"`
-	Content   string                 `json:"content"`
-	Error     string                 `json:"error,omitempty"`
-	Duration  time.Duration          `json:"duration"`
-	Data      map[string]interface{} `json:"data,omitempty"`
-	Files     []string               `json:"files,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	CallID   string                 `json:"callId"`
+	ToolName string                 `json:"toolName"`
+	Success  bool                   `json:"success"`
+	Content  string                 `json:"content"`
+	Error    string                 `json:"error,omitempty"`
+	Duration time.Duration          `json:"duration"`
+	Data     map[string]interface{} `json:"data,omitempty"`
+	Files    []string               `json:"files,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ToolDefinition represents a tool definition for LLM
@@ -41,17 +41,17 @@ type FunctionDefinition struct {
 
 // ToolExecution represents a tool execution event
 type ToolExecution struct {
-	ID          string                 `json:"id"`
-	SessionID   string                 `json:"sessionId"`
-	ToolName    string                 `json:"toolName"`
-	Arguments   map[string]interface{} `json:"arguments"`
-	Result      *ToolResult            `json:"result,omitempty"`
-	StartTime   time.Time              `json:"startTime"`
-	EndTime     time.Time              `json:"endTime"`
-	Duration    time.Duration          `json:"duration"`
-	Status      string                 `json:"status"` // pending, running, completed, failed
-	Error       string                 `json:"error,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ID        string                 `json:"id"`
+	SessionID string                 `json:"sessionId"`
+	ToolName  string                 `json:"toolName"`
+	Arguments map[string]interface{} `json:"arguments"`
+	Result    *ToolResult            `json:"result,omitempty"`
+	StartTime time.Time              `json:"startTime"`
+	EndTime   time.Time              `json:"endTime"`
+	Duration  time.Duration          `json:"duration"`
+	Status    string                 `json:"status"` // pending, running, completed, failed
+	Error     string                 `json:"error,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ToolRegistry represents a registry of available tools
@@ -91,8 +91,8 @@ type ToolValidationResult struct {
 
 // ToolPermission represents a tool permission
 type ToolPermission struct {
-	Type        string `json:"type"`        // read, write, execute, network
-	Resource    string `json:"resource"`    // file path, URL pattern, etc.
+	Type        string `json:"type"`     // read, write, execute, network
+	Resource    string `json:"resource"` // file path, URL pattern, etc.
 	Description string `json:"description"`
 }
 
