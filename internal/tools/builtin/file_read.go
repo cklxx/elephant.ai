@@ -481,7 +481,7 @@ func (t *FileReadTool) formatGoSymbolSummary(symbols *GoSymbolInfo) string {
 			} else {
 				summary.WriteString(fmt.Sprintf("  - %s", fn.Name))
 			}
-			
+
 			// Add parameter info
 			if len(fn.Parameters) > 0 {
 				var params []string
@@ -522,7 +522,7 @@ func (t *FileReadTool) formatGoSymbolSummary(symbols *GoSymbolInfo) string {
 				summary.WriteString(fmt.Sprintf(" (%d fields)", len(st.Fields)))
 			}
 			summary.WriteString(fmt.Sprintf(" (line %d)\n", st.Line))
-			
+
 			// Show first few fields
 			for i, field := range st.Fields {
 				if i >= 3 { // Limit to first 3 fields
@@ -593,7 +593,7 @@ func (t *FileReadTool) formatGoSymbolSummary(symbols *GoSymbolInfo) string {
 	}
 
 	summary.WriteString("=======================")
-	
+
 	return summary.String()
 }
 
