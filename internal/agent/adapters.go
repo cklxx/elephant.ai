@@ -30,6 +30,11 @@ func (a *LLMClientAdapter) ChatStream(ctx context.Context, req *llm.ChatRequest,
 	return a.client.ChatStream(ctx, req, sessionID)
 }
 
+// Close implements the LLMClient interface
+func (a *LLMClientAdapter) Close() error {
+	return a.client.Close()
+}
+
 // ToolExecutorAdapter wraps the existing ToolRegistry to implement our interface
 type ToolExecutorAdapter struct {
 	registry *ToolRegistry
@@ -125,6 +130,11 @@ func (a *SessionManagerAdapter) GetCurrentSession() *session.Session {
 	return a.currentSession
 }
 
+// GetManager returns the underlying session manager (for compatibility with legacy code)
+func (a *SessionManagerAdapter) GetManager() *session.Manager {
+	return a.manager
+}
+
 // SaveSession implements the SessionManager interface
 func (a *SessionManagerAdapter) SaveSession(sess *session.Session) error {
 	a.currentSession = sess
@@ -148,7 +158,82 @@ func (a *ReactEngineAdapter) ProcessTask(ctx context.Context, task string, callb
 
 // ExecuteTaskCore implements the ReactEngine interface
 func (a *ReactEngineAdapter) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecutionContext, callback StreamCallback) (*types.ReactExecutionResult, error) {
-	return a.core.ExecuteTaskCore(ctx, execCtx, callback)
+	result, err := a.core.ExecuteTaskCore(ctx, execCtx, callback)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Convert internal TaskExecutionResult to public ReactExecutionResult
+	return convertTaskExecutionResult(result), nil
+}
+
+// convertTaskExecutionResult converts internal TaskExecutionResult to public ReactExecutionResult
+func convertTaskExecutionResult(internal *TaskExecutionResult) *types.ReactExecutionResult {
+	if internal == nil {
+		return nil
+	}
+	
+	// Convert Messages from []llm.Message to []interface{}
+	messages := make([]interface{}, len(internal.Messages))
+	for i, msg := range internal.Messages {
+		messages[i] = msg
+	}
+	
+	// Convert History from []types.ReactExecutionStep to []types.ReactStep
+	history := make([]types.ReactStep, len(internal.History))
+	for i, step := range internal.History {
+		// Convert ReactExecutionStep to ReactStep
+		// Combine thought and action into content
+		content := ""
+		if step.Thought != "" {
+			content += "Thought: " + step.Thought
+		}
+		if step.Action != "" {
+			if content != "" {
+				content += "\n"
+			}
+			content += "Action: " + step.Action
+		}
+		if step.Observation != "" {
+			if content != "" {
+				content += "\n"
+			}
+			content += "Observation: " + step.Observation
+		}
+		
+		stepType := "think"
+		if step.Action != "" {
+			stepType = "act"
+		}
+		if step.Observation != "" {
+			stepType = "observe"
+		}
+		
+		history[i] = types.ReactStep{
+			Type:      stepType,
+			Content:   content,
+			Timestamp: step.Timestamp,
+			Metadata: map[string]interface{}{
+				"number":     step.Number,
+				"confidence": step.Confidence,
+				"duration":   step.Duration,
+				"error":      step.Error,
+				"tokensUsed": step.TokensUsed,
+			},
+		}
+	}
+	
+	return &types.ReactExecutionResult{
+		Success:          internal.Success,
+		Answer:           internal.Answer,
+		Confidence:       internal.Confidence,
+		TokensUsed:       internal.TokensUsed,
+		PromptTokens:     internal.PromptTokens,
+		CompletionTokens: internal.CompletionTokens,
+		Messages:         messages,
+		History:          history,
+		Error:            "", // TaskExecutionResult doesn't have Error field, assume empty if Success=true
+	}
 }
 
 // LegacyAgentFactory creates a new Agent using existing components for backward compatibility

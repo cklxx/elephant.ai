@@ -13,18 +13,18 @@ import (
 	"github.com/kaptinlin/jsonrepair"
 )
 
-// ToolExecutor - 工具执行器
-type ToolExecutor struct {
+// ToolExecutorImpl - 工具执行器实现（处理解析功能）
+type ToolExecutorImpl struct {
 	registry *ToolRegistry
 }
 
-// NewToolExecutor - 创建工具执行器
-func NewToolExecutor(registry *ToolRegistry) *ToolExecutor {
-	return &ToolExecutor{registry: registry}
+// NewToolExecutorImpl - 创建工具执行器实现
+func NewToolExecutorImpl(registry *ToolRegistry) *ToolExecutorImpl {
+	return &ToolExecutorImpl{registry: registry}
 }
 
 // parseToolCalls - 解析 OpenAI 标准工具调用格式和文本格式工具调用
-func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
+func (te *ToolExecutorImpl) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	var toolCalls []*types.ReactToolCall
 
 	// 首先尝试解析标准 tool_calls 格式
@@ -104,7 +104,7 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 }
 
 // parseTextToolCalls - 解析文本格式的工具调用
-func (te *ToolExecutor) parseTextToolCalls(content string) []*types.ReactToolCall {
+func (te *ToolExecutorImpl) parseTextToolCalls(content string) []*types.ReactToolCall {
 	var toolCalls []*types.ReactToolCall
 
 	// 处理 <｜tool▁calls▁begin｜> 格式
@@ -141,7 +141,7 @@ func (te *ToolExecutor) parseTextToolCalls(content string) []*types.ReactToolCal
 }
 
 // parseIndividualTextToolCall - 解析单个文本工具调用
-func (te *ToolExecutor) parseIndividualTextToolCall(callContent string) *types.ReactToolCall {
+func (te *ToolExecutorImpl) parseIndividualTextToolCall(callContent string) *types.ReactToolCall {
 	// 格式: function<｜tool▁sep｜>tool_name\n```json\n{args}\n```
 	parts := strings.Split(callContent, "<｜tool▁sep｜>")
 	if len(parts) < 2 {

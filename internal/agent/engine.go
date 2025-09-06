@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"alex/internal/context/message"
@@ -89,7 +90,12 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 	// Prepare messages from session history
 	var llmMessages []llm.Message
 	if currentSession != nil {
-		messageProcessor := message.NewMessageProcessor(e.llmClient, e.sessionManager, e.llmConfig)
+		// Extract concrete session manager from the interface
+		var concreteSessionManager *agentsession.Manager
+		if adapter, ok := e.sessionManager.(*SessionManagerAdapter); ok {
+			concreteSessionManager = adapter.GetManager()
+		}
+		messageProcessor := message.NewMessageProcessor(e.llmClient, concreteSessionManager, e.llmConfig)
 		sessionMessages := currentSession.GetMessages()
 		llmMessages = messageProcessor.ConvertSessionToLLM(sessionMessages)
 	}
@@ -113,7 +119,12 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 		Config:         e.llmConfig,
 		MaxIter:        100,
 		Session:        currentSession,
-		SessionManager: e.sessionManager,
+		SessionManager: func() *agentsession.Manager {
+			if adapter, ok := e.sessionManager.(*SessionManagerAdapter); ok {
+				return adapter.GetManager()
+			}
+			return nil
+		}(),
 	}
 
 	// Execute the core ReAct loop
@@ -124,7 +135,14 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 
 	// Add execution messages to session
 	if currentSession != nil {
-		e.addMessagesToSession(result.Messages, currentSession)
+		// Convert []interface{} to []llm.Message
+		llmMessages := make([]llm.Message, 0, len(result.Messages))
+		for _, msg := range result.Messages {
+			if llmMsg, ok := msg.(llm.Message); ok {
+				llmMessages = append(llmMessages, llmMsg)
+			}
+		}
+		e.addMessagesToSession(llmMessages, currentSession)
 	}
 
 	// Build final result
@@ -132,7 +150,71 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 	finalResult.TokensUsed = result.TokensUsed
 	finalResult.PromptTokens = result.PromptTokens
 	finalResult.CompletionTokens = result.CompletionTokens
-	finalResult.Steps = result.History
+	
+	// Convert []types.ReactStep back to []types.ReactExecutionStep
+	executionSteps := make([]types.ReactExecutionStep, len(result.History))
+	for i, step := range result.History {
+		executionStep := types.ReactExecutionStep{
+			Number:    i + 1,
+			Timestamp: step.Timestamp,
+		}
+		
+		// Extract information from content and metadata
+		if step.Metadata != nil {
+			if number, ok := step.Metadata["number"].(int); ok {
+				executionStep.Number = number
+			}
+			if confidence, ok := step.Metadata["confidence"].(float64); ok {
+				executionStep.Confidence = confidence
+			}
+			if duration, ok := step.Metadata["duration"].(time.Duration); ok {
+				executionStep.Duration = duration
+			}
+			if err, ok := step.Metadata["error"].(string); ok {
+				executionStep.Error = err
+			}
+			if tokens, ok := step.Metadata["tokensUsed"].(int); ok {
+				executionStep.TokensUsed = tokens
+			}
+		}
+		
+		// Parse content back to individual fields
+		switch step.Type {
+		case "think":
+			executionStep.Thought = step.Content
+		case "act":
+			executionStep.Action = step.Content
+		case "observe":
+			executionStep.Observation = step.Content
+		default:
+			// If content contains multiple parts, try to parse them
+			if strings.Contains(step.Content, "Thought:") {
+				parts := strings.Split(step.Content, "\n")
+				for _, part := range parts {
+					part = strings.TrimSpace(part)
+					if strings.HasPrefix(part, "Thought: ") {
+						executionStep.Thought = strings.TrimPrefix(part, "Thought: ")
+					} else if strings.HasPrefix(part, "Action: ") {
+						executionStep.Action = strings.TrimPrefix(part, "Action: ")
+					} else if strings.HasPrefix(part, "Observation: ") {
+						executionStep.Observation = strings.TrimPrefix(part, "Observation: ")
+					}
+				}
+			} else {
+				// Fallback: put content in the most appropriate field based on type
+				if step.Type == "think" {
+					executionStep.Thought = step.Content
+				} else if step.Type == "act" {
+					executionStep.Action = step.Content
+				} else {
+					executionStep.Observation = step.Content
+				}
+			}
+		}
+		
+		executionSteps[i] = executionStep
+	}
+	finalResult.Steps = executionSteps
 
 	return finalResult, nil
 }
@@ -146,6 +228,12 @@ func (e *Engine) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecutionCont
 	// Create a placeholder result that maintains the expected interface
 	// The actual execution will happen in the existing ReactCore.SolveTask
 	
+	// Convert []llm.Message to []interface{}
+	messages := make([]interface{}, len(execCtx.Messages))
+	for i, msg := range execCtx.Messages {
+		messages[i] = msg
+	}
+	
 	result := &types.ReactExecutionResult{
 		Success:          true,
 		Answer:          execCtx.Task + " - processed by refactored engine",
@@ -153,7 +241,7 @@ func (e *Engine) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecutionCont
 		TokensUsed:      len(execCtx.Messages) * 20, // Estimate based on message count
 		PromptTokens:    len(execCtx.Messages) * 15,
 		CompletionTokens: len(execCtx.Messages) * 5,
-		Messages:        execCtx.Messages,
+		Messages:        messages,
 		History:         []types.ReactStep{},
 	}
 	

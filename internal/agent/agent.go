@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"alex/internal/config"
-	"alex/internal/llm"
 	"alex/internal/session"
-	"alex/pkg/types"
 )
 
 // Agent represents the main agent with simplified architecture

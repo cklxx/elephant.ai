@@ -32,7 +32,8 @@ type ReactAgent struct {
 
 	// 核心组件
 	reactCore     ReactCoreInterface
-	toolExecutor  *ToolExecutor
+	toolExecutor  ToolExecutor      // Interface for tool execution
+	toolParser    *ToolExecutorImpl // Implementation for parsing
 	promptBuilder *LightPromptBuilder
 
 	// 消息队列机制
@@ -132,7 +133,8 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 
 	// 初始化核心组件
 	agent.reactCore = NewReactCore(agent, toolRegistry)
-	agent.toolExecutor = NewToolExecutor(toolRegistry)
+	agent.toolExecutor = NewToolExecutorAdapter(toolRegistry) // Interface implementation
+	agent.toolParser = NewToolExecutorImpl(toolRegistry)       // Parsing implementation
 
 	// 注册sub-agent工具到工具注册器
 	if reactCore, ok := agent.reactCore.(*ReactCore); ok {
@@ -299,9 +301,9 @@ func (r *ReactAgent) GetSessionID() (string, error) {
 	return r.currentSession.ID, nil
 }
 
-// parseToolCalls - 委托给ToolExecutor
+// parseToolCalls - 委托给ToolExecutorImpl
 func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
-	return r.toolExecutor.parseToolCalls(message)
+	return r.toolParser.parseToolCalls(message)
 }
 
 // ========== 消息队列管理 ==========

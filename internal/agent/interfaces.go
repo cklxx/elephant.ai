@@ -15,6 +15,7 @@ import (
 type LLMClient interface {
 	Chat(ctx context.Context, req *llm.ChatRequest, sessionID string) (*llm.ChatResponse, error)
 	ChatStream(ctx context.Context, req *llm.ChatRequest, sessionID string) (<-chan llm.StreamDelta, error)
+	Close() error
 }
 
 // ToolExecutor defines the interface for tool management
