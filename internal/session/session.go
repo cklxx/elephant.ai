@@ -25,8 +25,6 @@ type Session struct {
 	WorkingDir string                 `json:"working_dir,omitempty"`
 	Config     map[string]interface{} `json:"config,omitempty"`
 
-	// Kimi API context caching
-	KimiCacheID string `json:"kimi_cache_id,omitempty"`
 
 	mutex sync.RWMutex
 }
@@ -472,31 +470,6 @@ func (s *Session) ClearMessages() {
 	s.Updated = time.Now()
 }
 
-// SetKimiCacheID sets the Kimi cache ID for the session
-func (s *Session) SetKimiCacheID(cacheID string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.KimiCacheID = cacheID
-	s.Updated = time.Now()
-}
-
-// GetKimiCacheID gets the Kimi cache ID for the session
-func (s *Session) GetKimiCacheID() string {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	return s.KimiCacheID
-}
-
-// ClearKimiCacheID clears the Kimi cache ID from the session
-func (s *Session) ClearKimiCacheID() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.KimiCacheID = ""
-	s.Updated = time.Now()
-}
 
 // cleanupSessionTodoFile removes any existing todo file for the session
 func (m *Manager) cleanupSessionTodoFile(sessionID string) {

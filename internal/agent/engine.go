@@ -111,14 +111,14 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 
 	// Create execution context
 	execCtx := &TaskExecutionContext{
-		TaskID:         taskID,
-		Task:           enhancedTask,
-		Messages:       messages,
-		TaskCtx:        taskCtx,
-		Tools:          e.toolExecutor.GetAllToolDefinitions(ctx),
-		Config:         e.llmConfig,
-		MaxIter:        100,
-		Session:        currentSession,
+		TaskID:   taskID,
+		Task:     enhancedTask,
+		Messages: messages,
+		TaskCtx:  taskCtx,
+		Tools:    e.toolExecutor.GetAllToolDefinitions(ctx),
+		Config:   e.llmConfig,
+		MaxIter:  100,
+		Session:  currentSession,
 		SessionManager: func() *agentsession.Manager {
 			if adapter, ok := e.sessionManager.(*SessionManagerAdapter); ok {
 				return adapter.GetManager()
@@ -150,7 +150,7 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 	finalResult.TokensUsed = result.TokensUsed
 	finalResult.PromptTokens = result.PromptTokens
 	finalResult.CompletionTokens = result.CompletionTokens
-	
+
 	// Convert []types.ReactStep back to []types.ReactExecutionStep
 	executionSteps := make([]types.ReactExecutionStep, len(result.History))
 	for i, step := range result.History {
@@ -158,7 +158,7 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 			Number:    i + 1,
 			Timestamp: step.Timestamp,
 		}
-		
+
 		// Extract information from content and metadata
 		if step.Metadata != nil {
 			if number, ok := step.Metadata["number"].(int); ok {
@@ -177,7 +177,7 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 				executionStep.TokensUsed = tokens
 			}
 		}
-		
+
 		// Parse content back to individual fields
 		switch step.Type {
 		case "think":
@@ -202,16 +202,17 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 				}
 			} else {
 				// Fallback: put content in the most appropriate field based on type
-				if step.Type == "think" {
+				switch step.Type {
+				case "think":
 					executionStep.Thought = step.Content
-				} else if step.Type == "act" {
+				case "act":
 					executionStep.Action = step.Content
-				} else {
+				default:
 					executionStep.Observation = step.Content
 				}
 			}
 		}
-		
+
 		executionSteps[i] = executionStep
 	}
 	finalResult.Steps = executionSteps
@@ -223,38 +224,38 @@ func (e *Engine) ProcessTask(ctx context.Context, task string, callback StreamCa
 func (e *Engine) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecutionContext, callback StreamCallback) (*types.ReactExecutionResult, error) {
 	// This is a temporary delegation to maintain backward compatibility
 	// In future phases, we'll implement the core logic directly here
-	
+
 	// For Phase 1, we maintain existing functionality by delegating
 	// Create a placeholder result that maintains the expected interface
 	// The actual execution will happen in the existing ReactCore.SolveTask
-	
+
 	// Convert []llm.Message to []interface{}
 	messages := make([]interface{}, len(execCtx.Messages))
 	for i, msg := range execCtx.Messages {
 		messages[i] = msg
 	}
-	
+
 	result := &types.ReactExecutionResult{
 		Success:          true,
-		Answer:          execCtx.Task + " - processed by refactored engine",
-		Confidence:      0.85,
-		TokensUsed:      len(execCtx.Messages) * 20, // Estimate based on message count
-		PromptTokens:    len(execCtx.Messages) * 15,
+		Answer:           execCtx.Task + " - processed by refactored engine",
+		Confidence:       0.85,
+		TokensUsed:       len(execCtx.Messages) * 20, // Estimate based on message count
+		PromptTokens:     len(execCtx.Messages) * 15,
 		CompletionTokens: len(execCtx.Messages) * 5,
-		Messages:        messages,
-		History:         []types.ReactStep{},
+		Messages:         messages,
+		History:          []types.ReactStep{},
 	}
-	
+
 	// Add a step to show the task was processed
 	if len(execCtx.Messages) > 0 {
 		step := types.ReactStep{
-			Type:        "task_execution",
-			Content:     fmt.Sprintf("Executing task: %s", execCtx.Task),
-			Timestamp:   time.Now(),
+			Type:      "task_execution",
+			Content:   fmt.Sprintf("Executing task: %s", execCtx.Task),
+			Timestamp: time.Now(),
 		}
 		result.History = append(result.History, step)
 	}
-	
+
 	return result, nil
 }
 

@@ -18,7 +18,6 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
-	"alex/internal/llm"
 	"alex/internal/utils"
 )
 
@@ -478,7 +477,6 @@ func (cli *CLI) runOptimizedTUI() error {
 	// Start cleanup goroutine as backup
 	go func() {
 		<-sigChan
-		cli.cleanupKimiCache()
 		os.Exit(1)
 	}()
 
@@ -675,7 +673,6 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 	// Start cleanup goroutine
 	go func() {
 		<-sigChan
-		cli.cleanupKimiCache()
 		os.Exit(1)
 	}()
 
@@ -689,8 +686,6 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 	ctx := context.Background()
 	err := cli.agent.ProcessMessageStream(ctx, prompt, cli.config.GetConfig(), cli.deepCodingStreamCallback)
 
-	// Cleanup Kimi cache after single prompt completion
-	cli.cleanupKimiCache()
 
 	// Calculate and display completion time
 	duration := time.Since(startTime)
@@ -732,23 +727,6 @@ func (cli *CLI) formatTokenUsage() string {
 	return fmt.Sprintf("%d tokens", cli.totalTokensUsed)
 }
 
-// cleanupKimiCache cleans up Kimi cache on program exit
-func (cli *CLI) cleanupKimiCache() {
-	if cli.agent == nil {
-		return
-	}
-
-	// Get current session ID
-	sessionID, _ := cli.agent.GetSessionID()
-	if sessionID == "" {
-		return
-	}
-
-	// Use the generic cleanup function from llm package
-	if err := llm.CleanupKimiCacheForSession(sessionID, cli.config.GetLLMConfig()); err != nil {
-		log.Printf("Warning: Kimi cache cleanup failed: %v", err)
-	}
-}
 
 func (cli *CLI) showConfig() {
 	cfg := cli.config.GetConfig()

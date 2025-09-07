@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -17,7 +16,6 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
-	"alex/internal/llm"
 )
 
 // ExecutionTimer tracks processing time
@@ -471,7 +469,6 @@ func (m *OptimizedTUIModel) handleStreamContent(msg streamContentMsg) (tea.Model
 func (m *OptimizedTUIModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.Type == tea.KeyCtrlC:
-		m.cleanupKimiCache()
 		return m, tea.Quit
 
 	case msg.Type == tea.KeyEnter && !msg.Alt:
@@ -653,20 +650,6 @@ func (m *OptimizedTUIModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
-func (m *OptimizedTUIModel) cleanupKimiCache() {
-	if m.agent == nil {
-		return
-	}
-
-	sessionID, _ := m.agent.GetSessionID()
-	if sessionID == "" {
-		return
-	}
-
-	if err := llm.CleanupKimiCacheForSession(sessionID, m.config.GetLLMConfig()); err != nil {
-		log.Printf("Warning: Kimi cache cleanup failed during TUI shutdown: %v", err)
-	}
-}
 
 // Helper functions
 func max(a, b int) int {

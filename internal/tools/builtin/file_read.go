@@ -261,7 +261,8 @@ func (t *FileReadTool) analyzeGoFile(filePath string, content []byte) (*GoSymbol
 				case *ast.ValueSpec:
 					// Handle const and var declarations
 					for i, name := range s.Names {
-						if x.Tok == token.CONST {
+						switch x.Tok {
+						case token.CONST:
 							constant := GoConstant{
 								Name: name.Name,
 								Line: fset.Position(name.Pos()).Line,
@@ -273,7 +274,7 @@ func (t *FileReadTool) analyzeGoFile(filePath string, content []byte) (*GoSymbol
 								constant.Value = t.extractValueString(s.Values[i])
 							}
 							symbols.Constants = append(symbols.Constants, constant)
-						} else if x.Tok == token.VAR {
+						case token.VAR:
 							variable := GoVariable{
 								Name: name.Name,
 								Line: fset.Position(name.Pos()).Line,
@@ -391,9 +392,10 @@ func (tool *FileReadTool) extractTypeString(expr ast.Expr) string {
 		return "map[" + tool.extractTypeString(t.Key) + "]" + tool.extractTypeString(t.Value)
 	case *ast.ChanType:
 		prefix := "chan "
-		if t.Dir == ast.RECV {
+		switch t.Dir {
+		case ast.RECV:
 			prefix = "<-chan "
-		} else if t.Dir == ast.SEND {
+		case ast.SEND:
 			prefix = "chan<- "
 		}
 		return prefix + tool.extractTypeString(t.Value)

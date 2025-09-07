@@ -13,15 +13,10 @@ import (
 
 // HTTPLLMClient implements the HTTPClient interface for HTTP-based LLM communication
 type HTTPLLMClient struct {
-	httpClient       *http.Client
-	cacheManager     *CacheManager
-	kimiCacheManager *KimiCacheManager
+	httpClient   *http.Client
+	cacheManager *CacheManager
 }
 
-// GetKimiCacheManager returns the Kimi cache manager instance
-func (c *HTTPLLMClient) GetKimiCacheManager() *KimiCacheManager {
-	return c.kimiCacheManager
-}
 
 // NewHTTPClient creates a new HTTP-based LLM client
 func NewHTTPClient() (*HTTPLLMClient, error) {
@@ -35,9 +30,6 @@ func NewHTTPClient() (*HTTPLLMClient, error) {
 		httpClient:   httpClient,
 		cacheManager: GetGlobalCacheManager(),
 	}
-
-	// Initialize Kimi cache manager
-	client.kimiCacheManager = NewKimiCacheManager(client)
 
 	return client, nil
 }
@@ -92,23 +84,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 	req.Stream = false
 	// Using API provider
 
-	// Check Kimi cache conditions
-	if IsKimiAPI(baseURL) {
-		log.Printf("Kimi API detected, preparing cache if session ID is available")
-	}
 
-	// Handle Kimi API context caching
-	var cacheHeaders map[string]string
-	if IsKimiAPI(baseURL) && sessionID != "" && len(req.Messages) > 0 {
-		// 尝试为当前的 messages 和 tools 创建或重用缓存
-		if _, err := c.kimiCacheManager.CreateCacheIfNeeded(sessionID, req.Messages, req.Tools, apiKey); err != nil {
-			log.Printf("WARNING: Failed to create/reuse Kimi cache: %v", err)
-		}
-		// Prepare headers for cache usage (verifies message/tool consistency)
-		cacheHeaders = c.kimiCacheManager.PrepareRequestWithCache(sessionID, req)
-		// Cache headers prepared
-
-	}
 
 	// Set defaults
 	c.setRequestDefaults(req)
@@ -136,7 +112,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID st
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	c.setHeaders(httpReq, apiKey, cacheHeaders)
+	c.setHeaders(httpReq, apiKey, nil)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -223,62 +199,17 @@ func (c *HTTPLLMClient) GetCacheStats() map[string]interface{} {
 // ClearSessionCache clears cache for a specific session
 func (c *HTTPLLMClient) ClearSessionCache(sessionID string) {
 	c.cacheManager.ClearCache(sessionID)
-
-	// Also clear Kimi cache if available
-	if c.kimiCacheManager != nil {
-		// Get current config to determine if cleanup is needed
-		config, err := globalConfigProvider()
-		if err == nil && IsKimiAPI(config.BaseURL) {
-			if err := c.kimiCacheManager.DeleteCache(sessionID, config.APIKey); err != nil {
-				log.Printf("WARNING: Failed to clear Kimi cache for session %s: %v", sessionID, err)
-			}
-		}
-	}
 }
 
-// ClearKimiCache clears Kimi cache for a specific session
-func (c *HTTPLLMClient) ClearKimiCache(sessionID string, apiKey string) error {
-	if c.kimiCacheManager != nil {
-		return c.kimiCacheManager.DeleteCache(sessionID, apiKey)
-	}
-	return nil
-}
-
-// GetKimiCacheStats returns Kimi cache statistics
-func (c *HTTPLLMClient) GetKimiCacheStats() map[string]interface{} {
-	if c.kimiCacheManager != nil {
-		return c.kimiCacheManager.GetCacheStats()
-	}
-	return map[string]interface{}{
-		"total_caches":   0,
-		"active_caches":  0,
-		"total_requests": 0,
-		"cache_provider": "none",
-	}
-}
 
 // Close closes the client and cleans up resources
 func (c *HTTPLLMClient) Close() error {
-	// Clean up Kimi caches only when truly shutting down
-	if c.kimiCacheManager != nil {
-		config, err := globalConfigProvider()
-		if err == nil && IsKimiAPI(config.BaseURL) {
-			c.kimiCacheManager.CleanupExpiredCaches(0, config.APIKey) // Force cleanup all
-		}
-	}
-
 	// HTTP client doesn't need explicit cleanup
 	return nil
 }
 
 // CleanupCachesOnExit should be called when the CLI application is exiting
 func (c *HTTPLLMClient) CleanupCachesOnExit() error {
-	if c.kimiCacheManager != nil {
-		config, err := globalConfigProvider()
-		if err == nil && IsKimiAPI(config.BaseURL) {
-			c.kimiCacheManager.CleanupExpiredCaches(0, config.APIKey)
-		}
-	}
 	return nil
 }
 
