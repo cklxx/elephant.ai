@@ -34,6 +34,12 @@ func CheckDependencies() error {
 			Description: "Fast text search tool used by grep and search functions",
 			Required:    true,
 		},
+		{
+			Name:        "ast-grep",
+			Command:     "ast-grep",
+			Description: "AST-based code search and transformation tool",
+			Required:    false,
+		},
 	}
 
 	var missingDeps []Dependency
@@ -98,6 +104,8 @@ func getInstallationInstructions(depName string) string {
 	switch depName {
 	case "ripgrep":
 		return getRipgrepInstallInstructions()
+	case "ast-grep":
+		return getAstGrepInstallInstructions()
 	default:
 		return "Please check the official documentation"
 	}
@@ -122,6 +130,20 @@ func getRipgrepInstallInstructions() string {
 		return cyan("choco install ripgrep") + " or " + cyan("scoop install ripgrep") + " or download from " + blue("https://github.com/BurntSushi/ripgrep/releases")
 	default:
 		return "Visit " + blue("https://github.com/BurntSushi/ripgrep#installation")
+	}
+}
+
+// getAstGrepInstallInstructions returns ast-grep installation instructions for different platforms
+func getAstGrepInstallInstructions() string {
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		return cyan("npm install -g @ast-grep/cli") + " or " + cyan("brew install ast-grep")
+	case "linux":
+		return cyan("npm install -g @ast-grep/cli") + " or " + cyan("pip install ast-grep-cli") + " or visit " + blue("https://ast-grep.github.io/guide/quick-start.html")
+	case "windows":
+		return cyan("npm install -g @ast-grep/cli") + " or " + cyan("pip install ast-grep-cli") + " or visit " + blue("https://ast-grep.github.io/guide/quick-start.html")
+	default:
+		return cyan("npm install -g @ast-grep/cli") + " or visit " + blue("https://ast-grep.github.io/guide/quick-start.html")
 	}
 }
 

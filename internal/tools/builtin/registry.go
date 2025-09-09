@@ -5,6 +5,7 @@ import (
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/internal/utils"
+	"os/exec"
 )
 
 // GetAllBuiltinTools returns a list of all builtin tools
@@ -77,5 +78,18 @@ func GetAllBuiltinToolsWithAgent(configManager *config.Manager, sessionManager *
 		tools = append(tools, CreateRipgrepTool())
 	}
 
+	// Add ast-grep tool if available (optional dependency)
+	if isAstGrepAvailable() {
+		tools = append(tools, CreateAstGrepTool())
+	}
+
 	return tools
+}
+
+// isAstGrepAvailable checks if ast-grep command is available
+func isAstGrepAvailable() bool {
+	// Use the same pattern as the ast-grep tool
+	cmd := exec.Command("ast-grep", "--version")
+	err := cmd.Run()
+	return err == nil
 }
