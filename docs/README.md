@@ -1,94 +1,107 @@
-# Alex Documentation
+# ALEX Architecture Documentation
 
-Welcome to the Alex documentation. This directory contains essential documentation for the high-performance AI software engineering assistant.
+## 📚 Documentation Navigation
 
-## 📋 Available Documentation
+### 🏗️ Core Architecture Analysis
+- [ALEX Architecture Analysis Report](architecture/ALEX_ARCHITECTURE_ANALYSIS.md) - Core architecture report with system overview and component analysis
+- [ALEX Detailed Architecture Map](architecture/ALEX_DETAILED_ARCHITECTURE.md) - Ultimate architecture blueprint with complete system landscape
 
-### 🚀 Getting Started
-- **[Quick Start Guide](guides/quickstart.md)** - Get up and running with Alex
-- **[Tool Development Guide](guides/tool-development.md)** - Learn to develop custom tools
+### 📊 Architecture Diagrams
+- [System Overview](diagrams/system_overview.md) - High-level system architecture overview
+- [Data Flow](diagrams/data_flow.md) - Detailed data flow architecture  
+- [ReAct Cycle](diagrams/react_cycle.md) - Core ReAct execution process
+- [Tool Ecosystem](diagrams/tool_ecosystem.md) - Complete tool system architecture
+- [Complete Architecture](diagrams/complete_architecture.md) - Ultimate complete architecture diagram
+- [ReAct Mindmap](diagrams/react_mindmap.md) - ReAct cognitive architecture mindmap
 
-### 📊 Research & Planning
-- **[Ultra Think Report](Ultra-Think-Report-Container-Mobile-Agent.md)** - 完整的云端沙箱与移动端开发调研报告
-- **[Implementation Plan](implementation-plan.md)** - 实际可行的项目实施方案
-- **[Context Engineering Report](context_engineering_july_2025_deep_report.md)** - 深度上下文工程研究报告
+## 🎯 Quick Start
 
-## 🔧 Configuration
+### View Architecture Overview
+```bash
+# View core architecture analysis
+cat docs/architecture/ALEX_ARCHITECTURE_ANALYSIS.md
 
-Alex uses `alex-config.json` for configuration. The configuration file should be placed in your home directory (`~/.alex-config.json`) or in the current working directory.
-
-### Basic Configuration Example
-```json
-{
-  "baseURL": "https://api.openai.com/v1",
-  "apiKey": "your-api-key-here",
-  "model": "gpt-4",
-  "maxTokens": 4000,
-  "temperature": 0.7
-}
+# View complete architecture map
+cat docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
 ```
 
-## 🛠️ Development
+### Render Architecture Diagrams
+All diagrams use Mermaid format and can be viewed through:
 
-For development information, refer to:
-- **Main Project Documentation**: See `CLAUDE.md` in the project root
-- **API Reference**: Available in the code documentation
-- **Examples**: Check the `examples/` directory in the project root
+1. **GitHub Online Rendering** - View `.md` files directly on GitHub
+2. **VS Code** - Install Mermaid Preview extension  
+3. **Online Tools** - Copy to [mermaid.live](https://mermaid.live) for viewing
+4. **CLI Tools** - Use `mmdc` command line tool to generate images
 
-## 🌐 GitHub Pages
+### Generate PNG Images
+If mermaid-cli is installed:
+```bash
+# Install mermaid-cli
+npm install -g @mermaid-js/mermaid-cli
 
-This documentation is automatically deployed to GitHub Pages. The site structure:
+# Generate system overview diagram
+mmdc -i docs/diagrams/system_overview.md -o docs/images/system_overview.png
 
-- **Documentation**: Markdown files are automatically converted to web pages
-- **Assets**: Static files like images and icons are served from the `assets/` directory
-- **Web Resources**: Additional web resources are stored in the `web/` directory
-
-## 📁 Directory Structure
-
-```
-docs/
-├── index.html                                        # Main landing page
-├── README.md                                         # This file
-├── _config.yml                                       # Jekyll configuration
-├── Ultra-Think-Report-Container-Mobile-Agent.md     # 云端沙箱调研报告
-├── implementation-plan.md                            # 实际实施方案
-├── context_engineering_july_2025_deep_report.md     # 上下文工程报告
-├── assets/                                           # Static assets
-│   └── favicon.svg
-├── guides/                                           # Documentation guides
-│   ├── quickstart.md
-│   └── tool-development.md
-└── web/                                              # Additional web resources
-    ├── index.html      # Alternative landing page
-    ├── manifest.json   # Web app manifest
-    ├── robots.txt      # Search engine instructions
-    └── sitemap.xml     # Site map
+# Generate all diagrams
+for file in docs/diagrams/*.md; do
+    filename=$(basename "$file" .md)
+    mmdc -i "$file" -o "docs/images/${filename}.png"
+done
 ```
 
-## 🚀 Local Development
+## 🏗️ ALEX Architecture Features
 
-To run the documentation site locally:
+### Core Components
+- **🤖 ReactAgent** - ReAct architecture core engine with Think-Act-Observe cycle
+- **🧠 LLM Abstraction Layer** - Multi-model support with DeepSeek Chat + DeepSeek R1  
+- **🔧 Tool Ecosystem** - 13+ built-in tools + MCP protocol external tools
+- **💾 Session Management** - Persistent storage with recovery and context compression
+- **📈 SWE-Bench Evaluation** - Standardized evaluation framework with batch processing
 
-1. Install Jekyll and dependencies:
-   ```bash
-   cd docs
-   bundle install
-   ```
+### Technology Stack
+- **Language**: Go 1.24 - High-performance, concise, concurrency-friendly
+- **CLI**: Cobra + Viper - Powerful command-line parsing and configuration management
+- **UI**: Bubble Tea + Lipgloss - Elegant terminal user interface
+- **Protocol**: JSON-RPC 2.0 (MCP) - Standardized tool communication protocol
+- **Storage**: File system - Simple and reliable session persistence
 
-2. Serve the site locally:
-   ```bash
-   bundle exec jekyll serve
-   ```
+### Design Philosophy
+> **Keep it simple and clear, add nothing without necessity**
 
-3. Open http://localhost:4000 in your browser
+- Simple and clear architectural design, avoiding over-engineering
+- Interface-driven design with loose coupling and high cohesion
+- Production-grade reliability with complete error handling and recovery mechanisms
+- Terminal-native experience with streaming responses and real-time feedback
 
-## 📖 Contributing
+## 🎨 Diagram Specifications
 
-When contributing to documentation:
+### Diagram Types
+- **System Diagrams** - Show component relationships and hierarchical structures
+- **Flow Charts** - Display data flows and execution processes  
+- **Sequence Diagrams** - Show interaction sequences between components
+- **Mind Maps** - Display conceptual hierarchies and classification relationships
 
-1. Keep it concise and practical
-2. Include code examples where helpful
-3. Test any commands or configurations
-4. Follow the existing structure and style
+### Diagram Standards
+- **Color Coding** - Different colors distinguish different layers
+- **Icon Semantics** - Intuitive emoji icons represent component types
+- **Arrow Direction** - Indicates data flow and dependency relationships
+- **Group Layout** - Related components grouped together with clear hierarchy
 
-For major changes, discuss first by opening an issue.
+## 📋 Documentation Maintenance
+
+### Update Process
+1. Update relevant architecture documentation after source code changes
+2. Use AST analysis tools to verify architectural changes
+3. Update Mermaid diagrams to reflect new architecture
+4. Regenerate image files (if needed)
+
+### Contribution Guidelines
+- Keep documentation synchronized with code
+- Use consistent diagram styles and color standards
+- Add clear explanations and comments
+- Provide multiple viewing formats
+
+---
+
+**ALEX** - *Agile Light Easy Xpert Code Agent*  
+🚀 Production-ready terminal-native AI programming assistant
