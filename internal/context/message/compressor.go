@@ -444,3 +444,37 @@ func (mc *MessageCompressor) rebuildWithCachedSummary(messages []llm.Message, su
 
 	return result
 }
+
+// HandleTokenError handles token limit errors by automatically triggering compression
+func (mc *MessageCompressor) HandleTokenError(err error, messages []llm.Message) ([]llm.Message, error) {
+	if !isTokenLimitError(err) {
+		return messages, err
+	}
+
+	log.Printf("[INFO] Token limit exceeded, performing emergency compression")
+	
+	// Perform immediate compression
+	compressed := mc.compressWithAI(context.Background(), messages)
+	if len(compressed) == 0 {
+		log.Printf("[WARN] Emergency compression failed, returning original error")
+		return messages, err
+	}
+
+	log.Printf("[INFO] Emergency compression successful: %d -> %d messages", len(messages), len(compressed))
+	return compressed, nil
+}
+
+// isTokenLimitError checks if the error is related to token limits
+func isTokenLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	
+	errStr := strings.ToLower(err.Error())
+	return (strings.Contains(errStr, "token") && 
+		   (strings.Contains(errStr, "limit") || 
+			strings.Contains(errStr, "exceed") || 
+			strings.Contains(errStr, "maximum") ||
+			strings.Contains(errStr, "too many") ||
+			strings.Contains(errStr, "context length")))
+}

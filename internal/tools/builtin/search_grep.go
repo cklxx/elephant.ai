@@ -176,6 +176,9 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 		truncatedByMatches = true
 	}
 
+	// Format output based on search context
+	lines = t.formatOutput(path, recursive, lines)
+
 	// Truncate each line to maxLineChars
 	for i, line := range lines {
 		if len(line) > maxLineChars {
@@ -216,4 +219,37 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 			"content":              finalContent,
 		},
 	}, nil
+}
+
+// formatOutput formats grep output based on search context
+// For single file searches or current directory searches, removes filename prefix for better readability
+func (t *GrepTool) formatOutput(path string, recursive bool, lines []string) []string {
+	// If searching recursively or in complex paths, keep original format
+	if recursive || (path != "." && strings.Contains(path, "/")) {
+		return lines
+	}
+
+	// For current directory or single file searches, optimize format
+	formatted := make([]string, len(lines))
+	for i, line := range lines {
+		// Check if line has the format "filename:linenum:content"
+		colonIndex := strings.Index(line, ":")
+		if colonIndex > 0 {
+			// Find the second colon (after line number)
+			remaining := line[colonIndex+1:]
+			secondColonIndex := strings.Index(remaining, ":")
+			if secondColonIndex > 0 {
+				// Remove filename prefix, keep "linenum:content" format
+				formatted[i] = remaining
+			} else {
+				// Keep original if format is unexpected
+				formatted[i] = line
+			}
+		} else {
+			// Keep original if no colon found
+			formatted[i] = line
+		}
+	}
+
+	return formatted
 }

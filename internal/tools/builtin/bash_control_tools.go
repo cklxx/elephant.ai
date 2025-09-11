@@ -115,7 +115,7 @@ func (t *BashStatusTool) getCommandStatus(mgr *BackgroundCommandManager, execID 
 	bgCmd := mgr.Get(execID)
 	if bgCmd == nil {
 		return &ToolResult{
-			Content: fmt.Sprintf("❌ 未找到执行ID: %s", execID),
+			Content: fmt.Sprintf("[ERROR] 未找到执行ID: %s", execID),
 			Data: map[string]interface{}{
 				"found": false,
 			},
@@ -146,7 +146,7 @@ func (t *BashStatusTool) getCommandStatus(mgr *BackgroundCommandManager, execID 
 
 	// Timing information
 	content.WriteString(fmt.Sprintf("⏰ 开始时间: %s\n", bgCmd.StartTime.Format("2006-01-02 15:04:05")))
-	content.WriteString(fmt.Sprintf("⏱️ 运行时间: %v\n", stats.ExecutionTime.Truncate(time.Second)))
+	content.WriteString(fmt.Sprintf("[TIMEOUT] 运行时间: %v\n", stats.ExecutionTime.Truncate(time.Second)))
 
 	// Output statistics
 	content.WriteString(fmt.Sprintf("📊 输出行数: %d\n", stats.OutputLines))
@@ -165,7 +165,7 @@ func (t *BashStatusTool) getCommandStatus(mgr *BackgroundCommandManager, execID 
 	if showOutput && stats.OutputLines > 0 {
 		recentLines := bgCmd.progressDisplay.outputBuffer.GetRecentLines(outputLines)
 		if len(recentLines) > 0 {
-			content.WriteString(fmt.Sprintf("\n📄 最近 %d 行输出:\n", len(recentLines)))
+			content.WriteString(fmt.Sprintf("\n[OUTPUT] 最近 %d 行输出:\n", len(recentLines)))
 			for i, line := range recentLines {
 				content.WriteString(fmt.Sprintf("%3d: %s\n", i+1, line))
 			}
@@ -220,7 +220,7 @@ func (t *BashStatusTool) listAllCommands(mgr *BackgroundCommandManager, args map
 
 		content.WriteString(fmt.Sprintf("%s [%s] %s\n", statusEmoji, cmd.ID[:8], cmd.Status))
 		content.WriteString(fmt.Sprintf("   📝 %s\n", cmd.Command))
-		content.WriteString(fmt.Sprintf("   ⏱️ 运行时间: %v | 输出行数: %d\n",
+		content.WriteString(fmt.Sprintf("   [TIMEOUT] 运行时间: %v | 输出行数: %d\n",
 			stats.ExecutionTime.Truncate(time.Second), stats.OutputLines))
 		content.WriteString("\n")
 	}
@@ -263,13 +263,13 @@ func (t *BashStatusTool) getStatusEmoji(status CommandStatus) string {
 	case StatusRunning:
 		return "🔄"
 	case StatusCompleted:
-		return "✅"
+		return "[SUCCESS]"
 	case StatusFailed:
-		return "❌"
+		return "[ERROR]"
 	case StatusTimedOut:
 		return "⏰"
 	case StatusKilled:
-		return "🛑"
+		return "[TERMINATED]"
 	default:
 		return "❓"
 	}
@@ -391,7 +391,7 @@ func (t *BashControlTool) Execute(ctx context.Context, args map[string]interface
 
 	if bgCmd == nil {
 		return &ToolResult{
-			Content: fmt.Sprintf("❌ 未找到执行ID: %s", execID),
+			Content: fmt.Sprintf("[ERROR] 未找到执行ID: %s", execID),
 			Data: map[string]interface{}{
 				"success": false,
 				"error":   "command not found",
@@ -435,7 +435,7 @@ func (t *BashControlTool) terminateCommand(bgCmd *BackgroundCommand) (*ToolResul
 	err := bgCmd.Terminate()
 	if err != nil {
 		return &ToolResult{
-			Content: fmt.Sprintf("❌ 终止命令失败: %v", err),
+			Content: fmt.Sprintf("[ERROR] 终止命令失败: %v", err),
 			Data: map[string]interface{}{
 				"success": false,
 				"error":   err.Error(),
@@ -447,7 +447,7 @@ func (t *BashControlTool) terminateCommand(bgCmd *BackgroundCommand) (*ToolResul
 	bgCmd.ClearTimeoutDecision()
 
 	return &ToolResult{
-		Content: fmt.Sprintf("🛑 命令 [%s] 已被终止\n✅ 超时决策已处理", bgCmd.ID[:8]),
+		Content: fmt.Sprintf("[TERMINATED] 命令 [%s] 已被终止\n[SUCCESS] 超时决策已处理", bgCmd.ID[:8]),
 		Data: map[string]interface{}{
 			"success":      true,
 			"execution_id": bgCmd.ID,
@@ -475,7 +475,7 @@ func (t *BashControlTool) extendTimeout(bgCmd *BackgroundCommand, seconds int) (
 	bgCmd.ClearTimeoutDecision()
 
 	return &ToolResult{
-		Content: fmt.Sprintf("⏱️ 命令 [%s] 超时已延长 %v\n✅ 超时决策已处理，命令继续执行", bgCmd.ID[:8], duration),
+		Content: fmt.Sprintf("[TIMEOUT] 命令 [%s] 超时已延长 %v\n[SUCCESS] 超时决策已处理，命令继续执行", bgCmd.ID[:8], duration),
 		Data: map[string]interface{}{
 			"success":          true,
 			"execution_id":     bgCmd.ID,
@@ -503,7 +503,7 @@ func (t *BashControlTool) getFullOutput(bgCmd *BackgroundCommand) (*ToolResult, 
 
 	// Prepare content with header
 	var content strings.Builder
-	content.WriteString(fmt.Sprintf("📄 命令 [%s] 完整输出:\n", bgCmd.ID[:8]))
+	content.WriteString(fmt.Sprintf("[OUTPUT] 命令 [%s] 完整输出:\n", bgCmd.ID[:8]))
 	content.WriteString(fmt.Sprintf("📊 状态: %s | 总行数: %d | 大小: %d bytes\n",
 		bgCmd.Status, stats.OutputLines, stats.OutputSize))
 	content.WriteString("=" + strings.Repeat("=", 50) + "\n")

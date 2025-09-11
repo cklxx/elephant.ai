@@ -139,12 +139,12 @@ var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // GetRandomProcessingMessage 获取随机处理消息
 func GetRandomProcessingMessage() string {
-	return "👾 " + processingMessages[rng.Intn(len(processingMessages))] + "..."
+	return "[PROCESSING] " + processingMessages[rng.Intn(len(processingMessages))] + "..."
 }
 
-// GetRandomProcessingMessageWithEmoji 获取带emoji的随机处理消息
-func GetRandomProcessingMessageWithEmoji() string {
-	return "⚡ " + GetRandomProcessingMessage() + " please wait"
+// GetRandomProcessingMessageWithStatus 获取带状态的随机处理消息
+func GetRandomProcessingMessageWithStatus() string {
+	return "[STATUS] " + processingMessages[rng.Intn(len(processingMessages))] + "... please wait"
 }
 
 // convertToolCallsOptimized converts tool calls with reduced allocations

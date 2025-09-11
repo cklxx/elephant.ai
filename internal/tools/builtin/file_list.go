@@ -204,9 +204,9 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 	for _, file := range files {
 		indent := strings.Repeat("  ", file["depth"].(int)-1)
 		if file["is_dir"].(bool) {
-			contentBuilder.WriteString(fmt.Sprintf("%s📁 %s/\n", indent, file["name"]))
+			contentBuilder.WriteString(fmt.Sprintf("%s[DIR] %s/\n", indent, file["name"]))
 		} else {
-			contentBuilder.WriteString(fmt.Sprintf("%s📄 %s (%d bytes)\n", indent, file["name"], file["size"]))
+			contentBuilder.WriteString(fmt.Sprintf("%s[FILE] %s (%d bytes)\n", indent, file["name"], file["size"]))
 		}
 	}
 

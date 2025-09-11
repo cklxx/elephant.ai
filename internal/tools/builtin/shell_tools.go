@@ -540,7 +540,7 @@ func (t *BashTool) executeBackground(ctx context.Context, command, workingDir st
 	// Start the background execution
 	if err := bgCmd.Start(); err != nil {
 		return &ToolResult{
-			Content: fmt.Sprintf("❌ 启动后台命令失败: %v", err),
+			Content: fmt.Sprintf("[ERROR] 启动后台命令失败: %v", err),
 			Data: map[string]interface{}{
 				"success": false,
 				"error":   err.Error(),
@@ -553,7 +553,7 @@ func (t *BashTool) executeBackground(ctx context.Context, command, workingDir st
 	mgr.Register(bgCmd.ID, bgCmd)
 
 	return &ToolResult{
-		Content: fmt.Sprintf("🚀 后台命令已启动，执行ID: %s\n📝 命令: %s\n📂 工作目录: %s\n⏱️ 超时设置: %d 秒\n\n💡 使用以下工具监控和控制:\n  • bash_status {\"execution_id\": \"%s\"} - 查看状态和进度\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"terminate\"} - 终止命令\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"get_full_output\"} - 获取完整输出",
+		Content: fmt.Sprintf("[SUCCESS] 后台命令已启动，执行ID: %s\n[COMMAND] 命令: %s\n[WORKDIR] 工作目录: %s\n[TIMEOUT] 超时设置: %d 秒\n\n[INFO] 使用以下工具监控和控制:\n  • bash_status {\"execution_id\": \"%s\"} - 查看状态和进度\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"terminate\"} - 终止命令\n  • bash_control {\"execution_id\": \"%s\", \"action\": \"get_full_output\"} - 获取完整输出",
 			bgCmd.ID, command, workingDir, timeout, bgCmd.ID, bgCmd.ID, bgCmd.ID),
 		Data: map[string]interface{}{
 			"success":      true,
