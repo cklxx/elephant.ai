@@ -12,13 +12,13 @@ type SimpleRuleEngine struct {
 
 // PerformanceRule 性能规则
 type PerformanceRule struct {
-	ID          string                        `json:"id"`
-	Name        string                        `json:"name"`
-	Category    RuleCategory                  `json:"category"`
-	Condition   func(*EvaluationMetrics) bool `json:"-"`
-	Recommendation *Recommendation            `json:"recommendation"`
-	Priority    Priority                      `json:"priority"`
-	Enabled     bool                         `json:"enabled"`
+	ID             string                        `json:"id"`
+	Name           string                        `json:"name"`
+	Category       RuleCategory                  `json:"category"`
+	Condition      func(*EvaluationMetrics) bool `json:"-"`
+	Recommendation *Recommendation               `json:"recommendation"`
+	Priority       Priority                      `json:"priority"`
+	Enabled        bool                          `json:"enabled"`
 }
 
 // RuleCategory 规则分类
@@ -109,7 +109,7 @@ func (sre *SimpleRuleEngine) loadDefaultRules() {
 			Priority: PriorityMedium,
 			Enabled:  true,
 		},
-		
+
 		// 质量相关规则
 		{
 			ID:       "QUAL_001",
@@ -177,7 +177,7 @@ func (sre *SimpleRuleEngine) loadDefaultRules() {
 			Priority: PriorityMedium,
 			Enabled:  true,
 		},
-		
+
 		// 效率相关规则
 		{
 			ID:       "EFF_001",
@@ -223,7 +223,7 @@ func (sre *SimpleRuleEngine) loadDefaultRules() {
 			Priority: PriorityLow,
 			Enabled:  true,
 		},
-		
+
 		// 成本相关规则
 		{
 			ID:       "COST_001",
@@ -269,7 +269,7 @@ func (sre *SimpleRuleEngine) loadDefaultRules() {
 			Priority: PriorityLow,
 			Enabled:  true,
 		},
-		
+
 		// 可靠性相关规则
 		{
 			ID:       "REL_001",
@@ -321,7 +321,7 @@ func (sre *SimpleRuleEngine) loadDefaultRules() {
 // GenerateRecommendations 生成建议
 func (sre *SimpleRuleEngine) GenerateRecommendations(metrics *EvaluationMetrics) []Recommendation {
 	var recommendations []Recommendation
-	
+
 	for _, rule := range sre.rules {
 		if rule.Enabled && rule.Condition != nil && rule.Condition(metrics) {
 			if rule.Recommendation != nil {
@@ -332,10 +332,10 @@ func (sre *SimpleRuleEngine) GenerateRecommendations(metrics *EvaluationMetrics)
 			}
 		}
 	}
-	
+
 	// 按优先级排序
 	sre.sortRecommendationsByPriority(recommendations)
-	
+
 	return recommendations
 }
 
@@ -346,7 +346,7 @@ func (sre *SimpleRuleEngine) sortRecommendationsByPriority(recommendations []Rec
 		PriorityMedium: 2,
 		PriorityLow:    3,
 	}
-	
+
 	// 简单的冒泡排序
 	n := len(recommendations)
 	for i := 0; i < n-1; i++ {
@@ -361,26 +361,26 @@ func (sre *SimpleRuleEngine) sortRecommendationsByPriority(recommendations []Rec
 // EvaluateRules 评估所有规则
 func (sre *SimpleRuleEngine) EvaluateRules(metrics *EvaluationMetrics) map[string]bool {
 	results := make(map[string]bool)
-	
+
 	for _, rule := range sre.rules {
 		if rule.Enabled && rule.Condition != nil {
 			results[rule.ID] = rule.Condition(metrics)
 		}
 	}
-	
+
 	return results
 }
 
 // GetRulesByCategory 按分类获取规则
 func (sre *SimpleRuleEngine) GetRulesByCategory(category RuleCategory) []PerformanceRule {
 	var filteredRules []PerformanceRule
-	
+
 	for _, rule := range sre.rules {
 		if rule.Category == category {
 			filteredRules = append(filteredRules, rule)
 		}
 	}
-	
+
 	return filteredRules
 }
 
@@ -415,20 +415,20 @@ func (sre *SimpleRuleEngine) GetRuleCount() map[string]int {
 		"total":   len(sre.rules),
 		"enabled": 0,
 	}
-	
+
 	for _, rule := range sre.rules {
 		if rule.Enabled {
 			counts["enabled"]++
 		}
 	}
-	
+
 	return counts
 }
 
 // ValidateRules 验证规则配置
 func (sre *SimpleRuleEngine) ValidateRules() []string {
 	var errors []string
-	
+
 	seenIDs := make(map[string]bool)
 	for _, rule := range sre.rules {
 		// 检查重复ID
@@ -436,21 +436,21 @@ func (sre *SimpleRuleEngine) ValidateRules() []string {
 			errors = append(errors, fmt.Sprintf("Duplicate rule ID: %s", rule.ID))
 		}
 		seenIDs[rule.ID] = true
-		
+
 		// 检查必需字段
 		if rule.Name == "" {
 			errors = append(errors, fmt.Sprintf("Rule %s missing name", rule.ID))
 		}
-		
+
 		if rule.Condition == nil {
 			errors = append(errors, fmt.Sprintf("Rule %s missing condition", rule.ID))
 		}
-		
+
 		if rule.Recommendation == nil {
 			errors = append(errors, fmt.Sprintf("Rule %s missing recommendation", rule.ID))
 		}
 	}
-	
+
 	return errors
 }
 
@@ -458,23 +458,23 @@ func (sre *SimpleRuleEngine) ValidateRules() []string {
 func (sre *SimpleRuleEngine) GenerateRuleReport(metrics *EvaluationMetrics) RuleEvaluationReport {
 	triggered := 0
 	skipped := 0
-	
+
 	var triggeredRules []string
 	var skippedRules []string
-	
+
 	for _, rule := range sre.rules {
 		if !rule.Enabled {
 			skipped++
 			skippedRules = append(skippedRules, rule.ID)
 			continue
 		}
-		
+
 		if rule.Condition != nil && rule.Condition(metrics) {
 			triggered++
 			triggeredRules = append(triggeredRules, rule.ID)
 		}
 	}
-	
+
 	return RuleEvaluationReport{
 		TotalRules:     len(sre.rules),
 		TriggeredRules: triggered,

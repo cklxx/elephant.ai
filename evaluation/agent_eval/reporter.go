@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Alex-code2/Alex-Code/evaluation/swe_bench"
+	"alex/evaluation/swe_bench"
 )
 
 // MarkdownReporter Markdown报告生成器
@@ -26,65 +26,65 @@ func (mr *MarkdownReporter) GenerateReport(results *EvaluationResults, outputPat
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	
+
 	report := mr.buildReportContent(results)
-	
+
 	if err := os.WriteFile(outputPath, []byte(report), 0644); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
-	
+
 	return nil
 }
 
 // buildReportContent 构建报告内容
 func (mr *MarkdownReporter) buildReportContent(results *EvaluationResults) string {
 	var report strings.Builder
-	
+
 	// Header
 	report.WriteString(mr.buildHeader(results))
 	report.WriteString("\n")
-	
+
 	// Executive Summary
 	report.WriteString(mr.buildExecutiveSummary(results))
 	report.WriteString("\n")
-	
+
 	// Performance Analysis
 	report.WriteString(mr.buildPerformanceSection(results))
 	report.WriteString("\n")
-	
+
 	// Quality Analysis
 	report.WriteString(mr.buildQualitySection(results))
 	report.WriteString("\n")
-	
+
 	// Resource Usage
 	report.WriteString(mr.buildResourceSection(results))
 	report.WriteString("\n")
-	
+
 	// Behavior Analysis
 	report.WriteString(mr.buildBehaviorSection(results))
 	report.WriteString("\n")
-	
+
 	// Insights and Recommendations
 	report.WriteString(mr.buildInsightsSection(results))
 	report.WriteString("\n")
-	
+
 	// Detailed Recommendations
 	report.WriteString(mr.buildRecommendationsSection(results))
 	report.WriteString("\n")
-	
+
 	// Alerts
 	if len(results.Analysis.Alerts) > 0 {
 		report.WriteString(mr.buildAlertsSection(results))
 		report.WriteString("\n")
 	}
-	
+
 	// Task Results Summary
 	report.WriteString(mr.buildTaskResultsSummary(results))
 	report.WriteString("\n")
-	
+
 	// Footer
 	report.WriteString(mr.buildFooter(results))
-	
+
 	return report.String()
 }
 
@@ -99,26 +99,26 @@ func (mr *MarkdownReporter) buildHeader(results *EvaluationResults) string {
 
 ---
 
-`, results.JobID, 
-   results.Timestamp.Format("2006-01-02 15:04:05"), 
-   results.Metrics.TotalTasks,
-   results.Analysis.Summary.OverallScore*100,
-   results.Analysis.Summary.PerformanceGrade)
+`, results.JobID,
+		results.Timestamp.Format("2006-01-02 15:04:05"),
+		results.Metrics.TotalTasks,
+		results.Analysis.Summary.OverallScore*100,
+		results.Analysis.Summary.PerformanceGrade)
 }
 
 // buildExecutiveSummary 构建执行摘要
 func (mr *MarkdownReporter) buildExecutiveSummary(results *EvaluationResults) string {
 	summary := results.Analysis.Summary
-	
+
 	var report strings.Builder
 	report.WriteString("## Executive Summary\n\n")
-	
+
 	// Overall Assessment
-	report.WriteString(fmt.Sprintf("The agent achieved an overall score of **%.1f%%** with a grade of **%s**. ", 
+	report.WriteString(fmt.Sprintf("The agent achieved an overall score of **%.1f%%** with a grade of **%s**. ",
 		summary.OverallScore*100, summary.PerformanceGrade))
-	
+
 	report.WriteString(fmt.Sprintf("Risk level is assessed as **%s**.\n\n", summary.RiskLevel))
-	
+
 	// Key Strengths
 	if len(summary.KeyStrengths) > 0 {
 		report.WriteString("### Key Strengths\n")
@@ -127,7 +127,7 @@ func (mr *MarkdownReporter) buildExecutiveSummary(results *EvaluationResults) st
 		}
 		report.WriteString("\n")
 	}
-	
+
 	// Key Weaknesses
 	if len(summary.KeyWeaknesses) > 0 {
 		report.WriteString("### Areas for Improvement\n")
@@ -136,14 +136,14 @@ func (mr *MarkdownReporter) buildExecutiveSummary(results *EvaluationResults) st
 		}
 		report.WriteString("\n")
 	}
-	
+
 	return report.String()
 }
 
 // buildPerformanceSection 构建性能分析部分
 func (mr *MarkdownReporter) buildPerformanceSection(results *EvaluationResults) string {
 	perf := results.Metrics.Performance
-	
+
 	return fmt.Sprintf(`## Performance Analysis
 
 | Metric | Value | Assessment |
@@ -159,20 +159,20 @@ func (mr *MarkdownReporter) buildPerformanceSection(results *EvaluationResults) 
 
 %s
 
-`, 
-	perf.SuccessRate*100, mr.assessSuccessRate(perf.SuccessRate),
-	mr.formatDuration(perf.AvgExecutionTime), mr.assessExecutionTime(perf.AvgExecutionTime),
-	mr.formatDuration(perf.MedianTime), mr.assessExecutionTime(perf.MedianTime),
-	mr.formatDuration(perf.P95Time), mr.assessExecutionTime(perf.P95Time),
-	perf.TimeoutRate*100, mr.assessTimeoutRate(perf.TimeoutRate),
-	perf.RetryRate*100, mr.assessRetryRate(perf.RetryRate),
-	mr.generatePerformanceInsights(perf))
+`,
+		perf.SuccessRate*100, mr.assessSuccessRate(perf.SuccessRate),
+		mr.formatDuration(perf.AvgExecutionTime), mr.assessExecutionTime(perf.AvgExecutionTime),
+		mr.formatDuration(perf.MedianTime), mr.assessExecutionTime(perf.MedianTime),
+		mr.formatDuration(perf.P95Time), mr.assessExecutionTime(perf.P95Time),
+		perf.TimeoutRate*100, mr.assessTimeoutRate(perf.TimeoutRate),
+		perf.RetryRate*100, mr.assessRetryRate(perf.RetryRate),
+		mr.generatePerformanceInsights(perf))
 }
 
 // buildQualitySection 构建质量分析部分
 func (mr *MarkdownReporter) buildQualitySection(results *EvaluationResults) string {
 	quality := results.Metrics.Quality
-	
+
 	return fmt.Sprintf(`## Quality Analysis
 
 | Metric | Value | Assessment |
@@ -187,17 +187,17 @@ func (mr *MarkdownReporter) buildQualitySection(results *EvaluationResults) stri
 %s
 
 `,
-	quality.SolutionQuality*100, mr.assessQualityScore(quality.SolutionQuality),
-	quality.ErrorRecoveryRate*100, mr.assessErrorRecovery(quality.ErrorRecoveryRate),
-	quality.ConsistencyScore*100, mr.assessConsistency(quality.ConsistencyScore),
-	quality.ComplexityHandling*100, mr.assessComplexityHandling(quality.ComplexityHandling),
-	mr.generateQualityInsights(quality))
+		quality.SolutionQuality*100, mr.assessQualityScore(quality.SolutionQuality),
+		quality.ErrorRecoveryRate*100, mr.assessErrorRecovery(quality.ErrorRecoveryRate),
+		quality.ConsistencyScore*100, mr.assessConsistency(quality.ConsistencyScore),
+		quality.ComplexityHandling*100, mr.assessComplexityHandling(quality.ComplexityHandling),
+		mr.generateQualityInsights(quality))
 }
 
 // buildResourceSection 构建资源使用部分
 func (mr *MarkdownReporter) buildResourceSection(results *EvaluationResults) string {
 	resources := results.Metrics.Resources
-	
+
 	return fmt.Sprintf(`## Resource Usage
 
 | Metric | Value | Assessment |
@@ -213,55 +213,55 @@ func (mr *MarkdownReporter) buildResourceSection(results *EvaluationResults) str
 %s
 
 `,
-	mr.formatNumber(resources.TotalTokens), mr.assessTokenUsage(resources.TotalTokens),
-	mr.formatNumber(resources.AvgTokensUsed), mr.assessAvgTokens(resources.AvgTokensUsed),
-	resources.TotalCost, mr.assessTotalCost(resources.TotalCost),
-	resources.AvgCostPerTask, mr.assessCostPerTask(resources.AvgCostPerTask),
-	resources.MemoryUsage, mr.assessMemoryUsage(resources.MemoryUsage),
-	mr.generateResourceInsights(resources))
+		mr.formatNumber(resources.TotalTokens), mr.assessTokenUsage(resources.TotalTokens),
+		mr.formatNumber(resources.AvgTokensUsed), mr.assessAvgTokens(resources.AvgTokensUsed),
+		resources.TotalCost, mr.assessTotalCost(resources.TotalCost),
+		resources.AvgCostPerTask, mr.assessCostPerTask(resources.AvgCostPerTask),
+		resources.MemoryUsage, mr.assessMemoryUsage(resources.MemoryUsage),
+		mr.generateResourceInsights(resources))
 }
 
 // buildBehaviorSection 构建行为分析部分
 func (mr *MarkdownReporter) buildBehaviorSection(results *EvaluationResults) string {
 	behavior := results.Metrics.Behavior
-	
+
 	var report strings.Builder
 	report.WriteString("## Behavior Analysis\n\n")
-	
+
 	// Tool Usage Summary
 	report.WriteString(fmt.Sprintf("**Average Tool Calls per Task:** %.1f\n\n", behavior.AvgToolCalls))
-	
+
 	// Tool Usage Pattern
 	if len(behavior.ToolUsagePattern) > 0 {
 		report.WriteString("### Tool Usage Pattern\n\n")
 		report.WriteString("| Tool | Usage Count | Percentage |\n")
 		report.WriteString("|------|-------------|------------|\n")
-		
+
 		totalUsage := 0
 		for _, count := range behavior.ToolUsagePattern {
 			totalUsage += count
 		}
-		
+
 		for tool, count := range behavior.ToolUsagePattern {
 			percentage := float64(count) / float64(totalUsage) * 100
 			report.WriteString(fmt.Sprintf("| %s | %d | %.1f%% |\n", tool, count, percentage))
 		}
 		report.WriteString("\n")
 	}
-	
+
 	// Common Failures
 	if len(behavior.CommonFailures) > 0 {
 		report.WriteString("### Common Failure Patterns\n\n")
 		report.WriteString("| Failure Type | Count | Impact |\n")
 		report.WriteString("|-------------|-------|--------|\n")
-		
+
 		for failureType, count := range behavior.CommonFailures {
 			impact := mr.assessFailureImpact(count)
 			report.WriteString(fmt.Sprintf("| %s | %d | %s |\n", failureType, count, impact))
 		}
 		report.WriteString("\n")
 	}
-	
+
 	// Error Patterns
 	if len(behavior.ErrorPatterns) > 0 {
 		report.WriteString("### Error Patterns\n\n")
@@ -273,7 +273,7 @@ func (mr *MarkdownReporter) buildBehaviorSection(results *EvaluationResults) str
 		}
 		report.WriteString("\n")
 	}
-	
+
 	return report.String()
 }
 
@@ -282,17 +282,17 @@ func (mr *MarkdownReporter) buildInsightsSection(results *EvaluationResults) str
 	if len(results.Analysis.Insights) == 0 {
 		return "## Key Insights\n\nNo specific insights generated for this evaluation.\n\n"
 	}
-	
+
 	var report strings.Builder
 	report.WriteString("## Key Insights\n\n")
-	
+
 	for _, insight := range results.Analysis.Insights {
 		report.WriteString(fmt.Sprintf("### %s %s\n", mr.getInsightIcon(insight.Type), insight.Title))
-		report.WriteString(fmt.Sprintf("**Impact:** %s | **Confidence:** %.0f%%\n\n", 
+		report.WriteString(fmt.Sprintf("**Impact:** %s | **Confidence:** %.0f%%\n\n",
 			strings.Title(string(insight.Impact)), insight.Confidence*100))
 		report.WriteString(fmt.Sprintf("%s\n\n", insight.Description))
 	}
-	
+
 	return report.String()
 }
 
@@ -301,15 +301,15 @@ func (mr *MarkdownReporter) buildRecommendationsSection(results *EvaluationResul
 	if len(results.Analysis.Recommendations) == 0 {
 		return "## Recommendations\n\nNo specific recommendations generated for this evaluation.\n\n"
 	}
-	
+
 	var report strings.Builder
 	report.WriteString("## Recommendations\n\n")
-	
+
 	// Group by priority
 	highPriority := []Recommendation{}
 	mediumPriority := []Recommendation{}
 	lowPriority := []Recommendation{}
-	
+
 	for _, rec := range results.Analysis.Recommendations {
 		switch rec.Priority {
 		case PriorityHigh:
@@ -320,7 +320,7 @@ func (mr *MarkdownReporter) buildRecommendationsSection(results *EvaluationResul
 			lowPriority = append(lowPriority, rec)
 		}
 	}
-	
+
 	// High Priority Recommendations
 	if len(highPriority) > 0 {
 		report.WriteString("### 🔴 High Priority\n\n")
@@ -328,7 +328,7 @@ func (mr *MarkdownReporter) buildRecommendationsSection(results *EvaluationResul
 			report.WriteString(mr.formatRecommendation(rec))
 		}
 	}
-	
+
 	// Medium Priority Recommendations
 	if len(mediumPriority) > 0 {
 		report.WriteString("### 🟡 Medium Priority\n\n")
@@ -336,7 +336,7 @@ func (mr *MarkdownReporter) buildRecommendationsSection(results *EvaluationResul
 			report.WriteString(mr.formatRecommendation(rec))
 		}
 	}
-	
+
 	// Low Priority Recommendations
 	if len(lowPriority) > 0 {
 		report.WriteString("### 🟢 Low Priority\n\n")
@@ -344,7 +344,7 @@ func (mr *MarkdownReporter) buildRecommendationsSection(results *EvaluationResul
 			report.WriteString(mr.formatRecommendation(rec))
 		}
 	}
-	
+
 	return report.String()
 }
 
@@ -352,7 +352,7 @@ func (mr *MarkdownReporter) buildRecommendationsSection(results *EvaluationResul
 func (mr *MarkdownReporter) buildAlertsSection(results *EvaluationResults) string {
 	var report strings.Builder
 	report.WriteString("## Alerts\n\n")
-	
+
 	for _, alert := range results.Analysis.Alerts {
 		icon := mr.getAlertIcon(alert.Level)
 		report.WriteString(fmt.Sprintf("### %s %s\n", icon, alert.Title))
@@ -362,7 +362,7 @@ func (mr *MarkdownReporter) buildAlertsSection(results *EvaluationResults) strin
 			report.WriteString(fmt.Sprintf("**Suggested Action:** %s\n\n", alert.Action))
 		}
 	}
-	
+
 	return report.String()
 }
 
@@ -371,28 +371,28 @@ func (mr *MarkdownReporter) buildTaskResultsSummary(results *EvaluationResults) 
 	if len(results.Results) == 0 {
 		return "## Task Results Summary\n\nNo task results available.\n\n"
 	}
-	
+
 	var report strings.Builder
 	report.WriteString("## Task Results Summary\n\n")
-	
+
 	// Status distribution
 	statusCount := make(map[swe_bench.ResultStatus]int)
 	for _, result := range results.Results {
 		statusCount[result.Status]++
 	}
-	
+
 	report.WriteString("### Task Status Distribution\n\n")
 	report.WriteString("| Status | Count | Percentage |\n")
 	report.WriteString("|--------|-------|------------|\n")
-	
+
 	total := len(results.Results)
 	for status, count := range statusCount {
 		percentage := float64(count) / float64(total) * 100
 		report.WriteString(fmt.Sprintf("| %s | %d | %.1f%% |\n", status, count, percentage))
 	}
-	
+
 	report.WriteString("\n")
-	
+
 	return report.String()
 }
 
@@ -626,10 +626,10 @@ func (mr *MarkdownReporter) getAlertIcon(level AlertLevel) string {
 
 func (mr *MarkdownReporter) formatRecommendation(rec Recommendation) string {
 	var report strings.Builder
-	
+
 	report.WriteString(fmt.Sprintf("#### %s\n\n", rec.Title))
 	report.WriteString(fmt.Sprintf("%s\n\n", rec.Description))
-	
+
 	if len(rec.ActionItems) > 0 {
 		report.WriteString("**Action Items:**\n")
 		for _, item := range rec.ActionItems {
@@ -637,81 +637,81 @@ func (mr *MarkdownReporter) formatRecommendation(rec Recommendation) string {
 		}
 		report.WriteString("\n")
 	}
-	
+
 	if rec.Expected != "" {
 		report.WriteString(fmt.Sprintf("**Expected Improvement:** %s\n\n", rec.Expected))
 	}
-	
+
 	return report.String()
 }
 
 // Generate insights for different sections
 func (mr *MarkdownReporter) generatePerformanceInsights(perf PerformanceMetrics) string {
 	insights := []string{}
-	
+
 	if perf.SuccessRate >= 0.8 {
 		insights = append(insights, "✅ High success rate indicates strong problem-solving capability")
 	} else if perf.SuccessRate < 0.6 {
 		insights = append(insights, "❌ Low success rate requires immediate attention")
 	}
-	
+
 	if perf.TimeoutRate > 0.15 {
 		insights = append(insights, "⏱️ High timeout rate suggests performance bottlenecks")
 	}
-	
+
 	if perf.RetryRate > 0.2 {
 		insights = append(insights, "🔄 High retry rate indicates reliability issues")
 	}
-	
+
 	if len(insights) == 0 {
 		insights = append(insights, "Performance metrics are within normal ranges.")
 	}
-	
+
 	return strings.Join(insights, "\n\n")
 }
 
 func (mr *MarkdownReporter) generateQualityInsights(quality QualityMetrics) string {
 	insights := []string{}
-	
+
 	if quality.SolutionQuality >= 0.8 {
 		insights = append(insights, "✅ High solution quality indicates effective problem-solving approach")
 	} else if quality.SolutionQuality < 0.6 {
 		insights = append(insights, "❌ Solution quality needs significant improvement")
 	}
-	
+
 	if quality.ErrorRecoveryRate >= 0.7 {
 		insights = append(insights, "🛡️ Strong error recovery capabilities")
 	}
-	
+
 	if quality.ConsistencyScore < 0.7 {
 		insights = append(insights, "⚖️ Inconsistent performance across similar tasks")
 	}
-	
+
 	if len(insights) == 0 {
 		insights = append(insights, "Quality metrics are within acceptable ranges.")
 	}
-	
+
 	return strings.Join(insights, "\n\n")
 }
 
 func (mr *MarkdownReporter) generateResourceInsights(resources ResourceMetrics) string {
 	insights := []string{}
-	
+
 	if resources.AvgTokensUsed > 6000 {
 		insights = append(insights, "🔤 High token usage may indicate verbose reasoning or inefficient prompts")
 	}
-	
+
 	if resources.AvgCostPerTask > 2.0 {
 		insights = append(insights, "💰 High cost per task affects scalability")
 	}
-	
+
 	if resources.MemoryUsage > 100 {
 		insights = append(insights, "🧠 High memory usage may cause stability issues")
 	}
-	
+
 	if len(insights) == 0 {
 		insights = append(insights, "Resource usage is within expected ranges.")
 	}
-	
+
 	return strings.Join(insights, "\n\n")
 }
