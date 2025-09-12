@@ -53,7 +53,7 @@ import (
     "context"
     "log"
     
-    "github.com/Alex-code2/Alex-Code/evaluation/agent_eval"
+    "alex/evaluation/agent_eval"
 )
 
 func main() {
@@ -73,7 +73,7 @@ import (
     "context"
     "time"
     
-    "github.com/Alex-code2/Alex-Code/evaluation/agent_eval"
+    "alex/evaluation/agent_eval"
 )
 
 func main() {
@@ -239,10 +239,10 @@ type EvaluationConfig struct {
 
 ```go
 // 现有的SWE-Bench组件
-import "github.com/Alex-code2/Alex-Code/evaluation/swe_bench"
+import "alex/evaluation/swe_bench"
 
 // 新的Agent评估框架
-import "github.com/Alex-code2/Alex-Code/evaluation/agent_eval"
+import "alex/evaluation/agent_eval"
 
 // 无缝集成使用
 manager := agent_eval.NewEvaluationManager(config)

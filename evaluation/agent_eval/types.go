@@ -3,12 +3,12 @@ package agent_eval
 import (
 	"time"
 
-	"github.com/Alex-code2/Alex-Code/evaluation/swe_bench"
+	"alex/evaluation/swe_bench"
 )
 
 // EvaluationResults 评估结果
 type EvaluationResults struct {
-	JobID     string                    `json:"job_id"`
+	JobID     string                   `json:"job_id"`
 	Results   []swe_bench.WorkerResult `json:"results"`
 	Metrics   *EvaluationMetrics       `json:"metrics"`
 	Analysis  *AnalysisResult          `json:"analysis"`
@@ -17,12 +17,12 @@ type EvaluationResults struct {
 
 // ComparisonResult 比较结果（用于A/B测试）
 type ComparisonResult struct {
-	BaselineResults    *EvaluationResults `json:"baseline_results"`
-	ExperimentResults  *EvaluationResults `json:"experiment_results"`
-	ComparisonMetrics  *ComparisonMetrics `json:"comparison_metrics"`
-	Improvements       []Improvement      `json:"improvements"`
-	Regressions        []Regression       `json:"regressions"`
-	Timestamp          time.Time          `json:"timestamp"`
+	BaselineResults   *EvaluationResults `json:"baseline_results"`
+	ExperimentResults *EvaluationResults `json:"experiment_results"`
+	ComparisonMetrics *ComparisonMetrics `json:"comparison_metrics"`
+	Improvements      []Improvement      `json:"improvements"`
+	Regressions       []Regression       `json:"regressions"`
+	Timestamp         time.Time          `json:"timestamp"`
 }
 
 // ComparisonMetrics 比较指标
@@ -56,7 +56,7 @@ type Regression struct {
 type HistoricalTrend struct {
 	EvaluationID string                 `json:"evaluation_id"`
 	Timestamp    time.Time              `json:"timestamp"`
-	Metrics      *EvaluationMetrics    `json:"metrics"`
+	Metrics      *EvaluationMetrics     `json:"metrics"`
 	Config       map[string]interface{} `json:"config"`
 }
 
@@ -74,22 +74,22 @@ type Benchmark struct {
 	Name        string                 `json:"name"`
 	Version     string                 `json:"version"`
 	Description string                 `json:"description"`
-	Results     *EvaluationResults    `json:"results"`
+	Results     *EvaluationResults     `json:"results"`
 	Metadata    map[string]interface{} `json:"metadata"`
 	CreatedAt   time.Time              `json:"created_at"`
 }
 
 // EvaluationSession 评估会话
 type EvaluationSession struct {
-	SessionID     string              `json:"session_id"`
-	StartTime     time.Time           `json:"start_time"`
-	EndTime       time.Time           `json:"end_time"`
-	Status        SessionStatus       `json:"status"`
-	Config        *EvaluationConfig   `json:"config"`
-	Jobs          []*EvaluationJob    `json:"jobs"`
-	TotalTasks    int                 `json:"total_tasks"`
-	CompletedTasks int                `json:"completed_tasks"`
-	FailedTasks   int                 `json:"failed_tasks"`
+	SessionID      string            `json:"session_id"`
+	StartTime      time.Time         `json:"start_time"`
+	EndTime        time.Time         `json:"end_time"`
+	Status         SessionStatus     `json:"status"`
+	Config         *EvaluationConfig `json:"config"`
+	Jobs           []*EvaluationJob  `json:"jobs"`
+	TotalTasks     int               `json:"total_tasks"`
+	CompletedTasks int               `json:"completed_tasks"`
+	FailedTasks    int               `json:"failed_tasks"`
 }
 
 // SessionStatus 会话状态
@@ -104,8 +104,8 @@ const (
 
 // TaskComplexity 任务复杂性评估
 type TaskComplexity struct {
-	TaskID          string  `json:"task_id"`
-	ComplexityScore float64 `json:"complexity_score"`
+	TaskID          string             `json:"task_id"`
+	ComplexityScore float64            `json:"complexity_score"`
 	Factors         []ComplexityFactor `json:"factors"`
 	EstimatedTime   time.Duration      `json:"estimated_time"`
 	EstimatedCost   float64            `json:"estimated_cost"`
@@ -121,57 +121,57 @@ type ComplexityFactor struct {
 
 // AgentProfile Agent性能档案
 type AgentProfile struct {
-	AgentID         string                 `json:"agent_id"`
-	ConfigHash      string                 `json:"config_hash"`
-	CreatedAt       time.Time              `json:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at"`
-	
+	AgentID    string    `json:"agent_id"`
+	ConfigHash string    `json:"config_hash"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+
 	// Performance characteristics
-	AvgSuccessRate  float64                `json:"avg_success_rate"`
-	AvgExecTime     time.Duration          `json:"avg_exec_time"`
-	AvgCostPerTask  float64                `json:"avg_cost_per_task"`
-	AvgQualityScore float64                `json:"avg_quality_score"`
-	
+	AvgSuccessRate  float64       `json:"avg_success_rate"`
+	AvgExecTime     time.Duration `json:"avg_exec_time"`
+	AvgCostPerTask  float64       `json:"avg_cost_per_task"`
+	AvgQualityScore float64       `json:"avg_quality_score"`
+
 	// Behavioral patterns
-	PreferredTools  map[string]int         `json:"preferred_tools"`
-	CommonErrors    map[string]int         `json:"common_errors"`
-	Strengths       []string               `json:"strengths"`
-	Weaknesses      []string               `json:"weaknesses"`
-	
+	PreferredTools map[string]int `json:"preferred_tools"`
+	CommonErrors   map[string]int `json:"common_errors"`
+	Strengths      []string       `json:"strengths"`
+	Weaknesses     []string       `json:"weaknesses"`
+
 	// Historical data
-	EvaluationCount int                    `json:"evaluation_count"`
-	LastEvaluated   time.Time              `json:"last_evaluated"`
-	TrendData       *TrendData             `json:"trend_data"`
-	
+	EvaluationCount int        `json:"evaluation_count"`
+	LastEvaluated   time.Time  `json:"last_evaluated"`
+	TrendData       *TrendData `json:"trend_data"`
+
 	// Metadata
-	Tags            []string               `json:"tags"`
-	Description     string                 `json:"description"`
-	Metadata        map[string]interface{} `json:"metadata"`
+	Tags        []string               `json:"tags"`
+	Description string                 `json:"description"`
+	Metadata    map[string]interface{} `json:"metadata"`
 }
 
 // TaskCategory 任务分类
 type TaskCategory string
 
 const (
-	CategoryCoding      TaskCategory = "coding"
-	CategoryDebugging   TaskCategory = "debugging"
-	CategoryRefactoring TaskCategory = "refactoring"
-	CategoryTesting     TaskCategory = "testing"
-	CategoryAnalysis    TaskCategory = "analysis"
+	CategoryCoding        TaskCategory = "coding"
+	CategoryDebugging     TaskCategory = "debugging"
+	CategoryRefactoring   TaskCategory = "refactoring"
+	CategoryTesting       TaskCategory = "testing"
+	CategoryAnalysis      TaskCategory = "analysis"
 	CategoryDocumentation TaskCategory = "documentation"
 )
 
 // TaskMetadata 任务元数据
 type TaskMetadata struct {
-	TaskID       string       `json:"task_id"`
-	Category     TaskCategory `json:"category"`
-	Difficulty   Difficulty   `json:"difficulty"`
-	Language     string       `json:"language"`
-	Framework    string       `json:"framework"`
-	Domain       string       `json:"domain"`
-	Tags         []string     `json:"tags"`
+	TaskID        string        `json:"task_id"`
+	Category      TaskCategory  `json:"category"`
+	Difficulty    Difficulty    `json:"difficulty"`
+	Language      string        `json:"language"`
+	Framework     string        `json:"framework"`
+	Domain        string        `json:"domain"`
+	Tags          []string      `json:"tags"`
 	EstimatedTime time.Duration `json:"estimated_time"`
-	Requirements []string     `json:"requirements"`
+	Requirements  []string      `json:"requirements"`
 }
 
 // Difficulty 难度等级
@@ -186,25 +186,25 @@ const (
 
 // EvaluationReport 评估报告
 type EvaluationReport struct {
-	ReportID      string                 `json:"report_id"`
-	GeneratedAt   time.Time              `json:"generated_at"`
-	ReportType    ReportType             `json:"report_type"`
-	Format        ReportFormat           `json:"format"`
-	
+	ReportID    string       `json:"report_id"`
+	GeneratedAt time.Time    `json:"generated_at"`
+	ReportType  ReportType   `json:"report_type"`
+	Format      ReportFormat `json:"format"`
+
 	// Content
-	Title         string                 `json:"title"`
-	Summary       string                 `json:"summary"`
-	Sections      []ReportSection        `json:"sections"`
-	
+	Title    string          `json:"title"`
+	Summary  string          `json:"summary"`
+	Sections []ReportSection `json:"sections"`
+
 	// Data
-	Results       *EvaluationResults     `json:"results"`
-	Analysis      *AnalysisResult        `json:"analysis"`
-	Comparisons   []*ComparisonResult    `json:"comparisons,omitempty"`
-	
+	Results     *EvaluationResults  `json:"results"`
+	Analysis    *AnalysisResult     `json:"analysis"`
+	Comparisons []*ComparisonResult `json:"comparisons,omitempty"`
+
 	// Metadata
-	GeneratedBy   string                 `json:"generated_by"`
-	Version       string                 `json:"version"`
-	Metadata      map[string]interface{} `json:"metadata"`
+	GeneratedBy string                 `json:"generated_by"`
+	Version     string                 `json:"version"`
+	Metadata    map[string]interface{} `json:"metadata"`
 }
 
 // ReportType 报告类型
@@ -241,28 +241,28 @@ type ReportSection struct {
 type SectionType string
 
 const (
-	SectionTypeSummary        SectionType = "summary"
-	SectionTypePerformance    SectionType = "performance"
-	SectionTypeQuality        SectionType = "quality"
+	SectionTypeSummary         SectionType = "summary"
+	SectionTypePerformance     SectionType = "performance"
+	SectionTypeQuality         SectionType = "quality"
 	SectionTypeRecommendations SectionType = "recommendations"
-	SectionTypeInsights       SectionType = "insights"
-	SectionTypeAlerts         SectionType = "alerts"
-	SectionTypeChart          SectionType = "chart"
-	SectionTypeTable          SectionType = "table"
+	SectionTypeInsights        SectionType = "insights"
+	SectionTypeAlerts          SectionType = "alerts"
+	SectionTypeChart           SectionType = "chart"
+	SectionTypeTable           SectionType = "table"
 )
 
 // ConfigurationDrift 配置漂移检测
 type ConfigurationDrift struct {
-	ConfigID      string                 `json:"config_id"`
+	ConfigID       string                 `json:"config_id"`
 	BaselineConfig map[string]interface{} `json:"baseline_config"`
 	CurrentConfig  map[string]interface{} `json:"current_config"`
 	DetectedAt     time.Time              `json:"detected_at"`
-	
-	Changes       []ConfigChange         `json:"changes"`
-	RiskLevel     string                 `json:"risk_level"`
-	Impact        string                 `json:"impact"`
-	
-	Recommendations []string             `json:"recommendations"`
+
+	Changes   []ConfigChange `json:"changes"`
+	RiskLevel string         `json:"risk_level"`
+	Impact    string         `json:"impact"`
+
+	Recommendations []string `json:"recommendations"`
 }
 
 // ConfigChange 配置变更
@@ -286,18 +286,18 @@ const (
 
 // PerformanceRegression 性能回归检测
 type PerformanceRegression struct {
-	DetectedAt    time.Time              `json:"detected_at"`
-	MetricName    string                 `json:"metric_name"`
-	BaselineValue float64                `json:"baseline_value"`
-	CurrentValue  float64                `json:"current_value"`
-	RegressionPct float64                `json:"regression_percentage"`
-	
-	Threshold     float64                `json:"threshold"`
-	Severity      RegressionSeverity     `json:"severity"`
-	Confidence    float64                `json:"confidence"`
-	
-	AffectedTasks []string               `json:"affected_tasks"`
-	PossibleCauses []string              `json:"possible_causes"`
+	DetectedAt    time.Time `json:"detected_at"`
+	MetricName    string    `json:"metric_name"`
+	BaselineValue float64   `json:"baseline_value"`
+	CurrentValue  float64   `json:"current_value"`
+	RegressionPct float64   `json:"regression_percentage"`
+
+	Threshold  float64            `json:"threshold"`
+	Severity   RegressionSeverity `json:"severity"`
+	Confidence float64            `json:"confidence"`
+
+	AffectedTasks  []string `json:"affected_tasks"`
+	PossibleCauses []string `json:"possible_causes"`
 }
 
 // RegressionSeverity 回归严重程度
@@ -311,18 +311,18 @@ const (
 
 // AnomalyDetection 异常检测结果
 type AnomalyDetection struct {
-	TaskID        string                 `json:"task_id"`
-	DetectedAt    time.Time              `json:"detected_at"`
-	AnomalyType   AnomalyType            `json:"anomaly_type"`
-	Severity      AnomalySeverity        `json:"severity"`
-	Confidence    float64                `json:"confidence"`
-	
-	Description   string                 `json:"description"`
-	MetricValues  map[string]float64     `json:"metric_values"`
-	ExpectedRange map[string]float64     `json:"expected_range"`
-	
-	Investigation []string               `json:"investigation_steps"`
-	AutoResolved  bool                   `json:"auto_resolved"`
+	TaskID      string          `json:"task_id"`
+	DetectedAt  time.Time       `json:"detected_at"`
+	AnomalyType AnomalyType     `json:"anomaly_type"`
+	Severity    AnomalySeverity `json:"severity"`
+	Confidence  float64         `json:"confidence"`
+
+	Description   string             `json:"description"`
+	MetricValues  map[string]float64 `json:"metric_values"`
+	ExpectedRange map[string]float64 `json:"expected_range"`
+
+	Investigation []string `json:"investigation_steps"`
+	AutoResolved  bool     `json:"auto_resolved"`
 }
 
 // AnomalyType 异常类型
@@ -347,43 +347,43 @@ const (
 
 // CacheStats 缓存统计
 type CacheStats struct {
-	HitCount    int64   `json:"hit_count"`
-	MissCount   int64   `json:"miss_count"`
-	HitRate     float64 `json:"hit_rate"`
-	CacheSize   int64   `json:"cache_size_bytes"`
-	EntryCount  int     `json:"entry_count"`
+	HitCount    int64     `json:"hit_count"`
+	MissCount   int64     `json:"miss_count"`
+	HitRate     float64   `json:"hit_rate"`
+	CacheSize   int64     `json:"cache_size_bytes"`
+	EntryCount  int       `json:"entry_count"`
 	LastCleared time.Time `json:"last_cleared"`
 }
 
 // SystemHealth 系统健康状态
 type SystemHealth struct {
-	Status        HealthStatus           `json:"status"`
-	CheckedAt     time.Time              `json:"checked_at"`
-	
-	Components    map[string]ComponentHealth `json:"components"`
-	OverallScore  float64                `json:"overall_score"`
-	
-	Warnings      []string               `json:"warnings"`
-	Errors        []string               `json:"errors"`
-	
-	Recommendations []string             `json:"recommendations"`
+	Status    HealthStatus `json:"status"`
+	CheckedAt time.Time    `json:"checked_at"`
+
+	Components   map[string]ComponentHealth `json:"components"`
+	OverallScore float64                    `json:"overall_score"`
+
+	Warnings []string `json:"warnings"`
+	Errors   []string `json:"errors"`
+
+	Recommendations []string `json:"recommendations"`
 }
 
 // HealthStatus 健康状态
 type HealthStatus string
 
 const (
-	HealthStatusHealthy  HealthStatus = "healthy"
-	HealthStatusDegraded HealthStatus = "degraded"
+	HealthStatusHealthy   HealthStatus = "healthy"
+	HealthStatusDegraded  HealthStatus = "degraded"
 	HealthStatusUnhealthy HealthStatus = "unhealthy"
 )
 
 // ComponentHealth 组件健康状态
 type ComponentHealth struct {
-	Name         string       `json:"name"`
-	Status       HealthStatus `json:"status"`
-	LastChecked  time.Time    `json:"last_checked"`
+	Name         string        `json:"name"`
+	Status       HealthStatus  `json:"status"`
+	LastChecked  time.Time     `json:"last_checked"`
 	ResponseTime time.Duration `json:"response_time"`
-	ErrorRate    float64      `json:"error_rate"`
-	Message      string       `json:"message,omitempty"`
+	ErrorRate    float64       `json:"error_rate"`
+	Message      string        `json:"message,omitempty"`
 }
