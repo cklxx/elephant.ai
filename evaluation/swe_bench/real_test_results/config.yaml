@@ -10,7 +10,7 @@ instances:
     type: file
     subset: lite
     split: dev
-    file_path: /Users/ckl/code/deep-coding/evaluation/swe_bench/./real_instances.json
+    file_path: /Users/ckl/code/Alex-code2/Alex-Code/evaluation/swe_bench/./real_instances.json
 num_workers: 1
 output_path: ./real_test_results
 enable_logging: true
