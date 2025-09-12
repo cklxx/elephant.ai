@@ -20,17 +20,31 @@ type ReactCore struct {
 	llmHandler       *LLMHandler
 	toolHandler      *ToolHandler
 	promptHandler    *PromptHandler
+	
+	// Parallel execution support
+	parallelAgent    *SimpleParallelSubAgent
 }
 
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
-	return &ReactCore{
+	core := &ReactCore{
 		agent:            agent,
 		messageProcessor: message.NewMessageProcessor(agent.llm, agent.sessionManager, agent.llmConfig),
 		llmHandler:       NewLLMHandler(agent.sessionManager, nil), // Will be set per request
 		toolHandler:      NewToolHandler(toolRegistry),
 		promptHandler:    NewPromptHandler(agent.promptBuilder),
 	}
+	
+	// Initialize parallel agent with default configuration
+	parallelAgent, err := NewSimpleParallelSubAgent(core, DefaultParallelConfig())
+	if err != nil {
+		// Log error but don't fail core creation
+		utils.CoreLogger.Error("Failed to initialize parallel subagent: %v", err)
+	} else {
+		core.parallelAgent = parallelAgent
+	}
+	
+	return core
 }
 
 // SolveTask - 使用抽象化核心逻辑的简化任务解决方法
@@ -285,4 +299,14 @@ Max: 80 chars. Be precise.`, task)
 	content := response.Choices[0].Message.Content
 	coreLogger.Debug("Task pre-analysis completed: %s", content)
 	return content, nil
+}
+
+// ExecuteTasksParallel - Implementation of ParallelSubAgentExecutor interface
+// This method allows the parallel subagent tool to use ReactCore for execution
+func (rc *ReactCore) ExecuteTasksParallel(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	if rc.parallelAgent == nil {
+		return nil, fmt.Errorf("parallel subagent not initialized")
+	}
+	
+	return rc.parallelAgent.ExecuteTasksParallelFromTool(ctx, args)
 }
