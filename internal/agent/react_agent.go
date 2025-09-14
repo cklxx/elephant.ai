@@ -133,8 +133,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 注册sub-agent工具到工具注册器
 	if reactCore, ok := agent.reactCore.(*ReactCore); ok {
 		toolRegistry.RegisterSubAgentTool(reactCore)
-		// 注册parallel subagent工具
-		toolRegistry.RegisterParallelSubAgentTool(reactCore)
+		// Removed parallel_subagent tool - parallelism now handled automatically
 	}
 
 	// Memory tools removed

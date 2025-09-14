@@ -27,6 +27,16 @@ type ReactCore struct {
 
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
+	// Validate inputs
+	if agent == nil {
+		utils.CoreLogger.Error("Cannot create ReactCore with nil agent")
+		return nil
+	}
+	if toolRegistry == nil {
+		utils.CoreLogger.Error("Cannot create ReactCore with nil toolRegistry")
+		return nil
+	}
+	
 	core := &ReactCore{
 		agent:            agent,
 		messageProcessor: message.NewMessageProcessor(agent.llm, agent.sessionManager, agent.llmConfig),
@@ -309,4 +319,141 @@ func (rc *ReactCore) ExecuteTasksParallel(ctx context.Context, args map[string]i
 	}
 	
 	return rc.parallelAgent.ExecuteTasksParallelFromTool(ctx, args)
+}
+
+// filterSubAgentCalls - Filter out subagent tool calls from the tool calls list
+func (rc *ReactCore) filterSubAgentCalls(toolCalls []*types.ReactToolCall) []*types.ReactToolCall {
+	var subagentCalls []*types.ReactToolCall
+	for _, call := range toolCalls {
+		if call.Name == "subagent" {
+			subagentCalls = append(subagentCalls, call)
+		}
+	}
+	return subagentCalls
+}
+
+// executeSubAgentsInParallel - Execute multiple subagent calls in parallel while preserving order
+func (rc *ReactCore) executeSubAgentsInParallel(
+	ctx context.Context, 
+	allToolCalls []*types.ReactToolCall, 
+	subagentCalls []*types.ReactToolCall, 
+	streamCallback StreamCallback,
+) []*types.ReactToolResult {
+	if rc.parallelAgent == nil {
+		utils.CoreLogger.Error("Parallel agent not initialized, falling back to serial execution")
+		return rc.executeSerialFallback(ctx, allToolCalls, streamCallback)
+	}
+
+	// Extract tasks from subagent calls
+	var tasks []string
+	var callIDMap = make(map[int]string) // Map task index to original call ID
+	
+	subagentIndex := 0
+	for _, call := range subagentCalls {
+		if task, ok := call.Arguments["task"].(string); ok {
+			tasks = append(tasks, task)
+			callIDMap[subagentIndex] = call.CallID
+			subagentIndex++
+		}
+	}
+
+	if len(tasks) == 0 {
+		utils.CoreLogger.Error("No valid tasks found in subagent calls")
+		return rc.executeSerialFallback(ctx, allToolCalls, streamCallback)
+	}
+
+	// Execute tasks in parallel using SimpleParallelSubAgent
+	subAgentResults, err := rc.parallelAgent.ExecuteTasksParallel(ctx, tasks, streamCallback)
+	if err != nil {
+		utils.CoreLogger.Error("Parallel execution failed: %v", err)
+		return rc.executeSerialFallback(ctx, allToolCalls, streamCallback)
+	}
+
+	// Convert SubAgentResult to ReactToolResult and maintain order
+	var results []*types.ReactToolResult
+	resultMap := make(map[string]*types.ReactToolResult) // Map CallID to result
+
+	for i, subResult := range subAgentResults {
+		callID := callIDMap[i]
+		result := &types.ReactToolResult{
+			Success:  subResult.Success,
+			Content:  subResult.Result,
+			ToolName: "subagent",
+			CallID:   callID,
+			Data: map[string]interface{}{
+				"success":        subResult.Success,
+				"task_completed": subResult.TaskCompleted,
+				"session_id":     subResult.SessionID,
+				"tokens_used":    subResult.TokensUsed,
+				"duration_ms":    subResult.Duration,
+			},
+		}
+		
+		if !subResult.Success {
+			result.Error = subResult.ErrorMessage
+		}
+		
+		resultMap[callID] = result
+	}
+
+	// Build final results in original order, mixing parallel and serial results
+	for _, call := range allToolCalls {
+		if call.Name == "subagent" {
+			if result, exists := resultMap[call.CallID]; exists {
+				results = append(results, result)
+			}
+		} else {
+			// Execute non-subagent tools serially
+			result, err := rc.executeToolDirect(ctx, call.Name, call.Arguments, call.CallID)
+			if err != nil {
+				result = &types.ReactToolResult{
+					Success:  false,
+					Error:    err.Error(),
+					ToolName: call.Name,
+					CallID:   call.CallID,
+				}
+			}
+			results = append(results, result)
+		}
+	}
+
+	return results
+}
+
+// executeSerialFallback - Fallback to serial execution when parallel fails
+func (rc *ReactCore) executeSerialFallback(
+	ctx context.Context, 
+	toolCalls []*types.ReactToolCall, 
+	streamCallback StreamCallback,
+) []*types.ReactToolResult {
+	utils.CoreLogger.Info("Using serial execution fallback")
+	
+	toolExecutor := utils.NewToolExecutor("SUB-AGENT-FALLBACK")
+	displayFormatter := utils.NewToolDisplayFormatter()
+
+	// Convert streamCallback if needed
+	var utilsCallback utils.StreamCallback
+	if streamCallback != nil {
+		utilsCallback = func(chunk utils.StreamChunk) {
+			agentChunk := StreamChunk{
+				Type:             chunk.Type,
+				Content:          chunk.Content,
+				Complete:         chunk.Complete,
+				Metadata:         chunk.Metadata,
+				TokensUsed:       chunk.TokensUsed,
+				TotalTokensUsed:  chunk.TotalTokensUsed,
+				PromptTokens:     chunk.PromptTokens,
+				CompletionTokens: chunk.CompletionTokens,
+			}
+			streamCallback(agentChunk)
+		}
+	}
+
+	return toolExecutor.ExecuteSerialToolsWithRecovery(
+		ctx,
+		toolCalls,
+		rc.executeToolDirect,
+		utilsCallback,
+		displayFormatter.Format,
+	)
 }

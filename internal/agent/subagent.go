@@ -265,36 +265,46 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 
 			subAgentLogger.Info("🔧 Executing %d tool calls at iteration %d", len(toolCalls), iteration)
 
-			// 使用统一的工具执行系统
-			toolExecutor := utils.NewToolExecutor("SUB-AGENT")
-			displayFormatter := utils.NewToolDisplayFormatter() // Default green color
+			// Check for multiple subagent calls - use parallel execution if detected
+			subagentCalls := rc.filterSubAgentCalls(toolCalls)
+			
+			var toolResult []*types.ReactToolResult
+			
+			if len(subagentCalls) > 1 {
+				subAgentLog("INFO", "🚀 Detected %d subagent calls - executing in parallel", len(subagentCalls))
+				toolResult = rc.executeSubAgentsInParallel(ctx, toolCalls, subagentCalls, streamCallback)
+			} else {
+				// 使用统一的工具执行系统进行串行执行
+				toolExecutor := utils.NewToolExecutor("SUB-AGENT")
+				displayFormatter := utils.NewToolDisplayFormatter() // Default green color
 
-			// 转换回调函数类型
-			var utilsCallback utils.StreamCallback
-			if streamCallback != nil {
-				utilsCallback = func(chunk utils.StreamChunk) {
-					// 转换 utils.StreamChunk 到 agent.StreamChunk
-					agentChunk := StreamChunk{
-						Type:             chunk.Type,
-						Content:          chunk.Content,
-						Complete:         chunk.Complete,
-						Metadata:         chunk.Metadata,
-						TokensUsed:       chunk.TokensUsed,
-						TotalTokensUsed:  chunk.TotalTokensUsed,
-						PromptTokens:     chunk.PromptTokens,
-						CompletionTokens: chunk.CompletionTokens,
+				// 转换回调函数类型
+				var utilsCallback utils.StreamCallback
+				if streamCallback != nil {
+					utilsCallback = func(chunk utils.StreamChunk) {
+						// 转换 utils.StreamChunk 到 agent.StreamChunk
+						agentChunk := StreamChunk{
+							Type:             chunk.Type,
+							Content:          chunk.Content,
+							Complete:         chunk.Complete,
+							Metadata:         chunk.Metadata,
+							TokensUsed:       chunk.TokensUsed,
+							TotalTokensUsed:  chunk.TotalTokensUsed,
+							PromptTokens:     chunk.PromptTokens,
+							CompletionTokens: chunk.CompletionTokens,
+						}
+						streamCallback(agentChunk)
 					}
-					streamCallback(agentChunk)
 				}
-			}
 
-			toolResult := toolExecutor.ExecuteSerialToolsWithRecovery(
-				ctx,
-				toolCalls,
-				rc.executeToolDirect,
-				utilsCallback,
-				displayFormatter.Format,
-			)
+				toolResult = toolExecutor.ExecuteSerialToolsWithRecovery(
+					ctx,
+					toolCalls,
+					rc.executeToolDirect,
+					utilsCallback,
+					displayFormatter.Format,
+				)
+			}
 
 			step.Result = toolResult
 			subAgentLogger.Info("🔧 Tool execution completed with %d results", len(toolResult))
@@ -437,6 +447,26 @@ type SubAgent struct {
 
 // NewSubAgent - 创建新的sub-agent实例
 func NewSubAgent(parentCore *ReactCore, config *SubAgentConfig) (*SubAgent, error) {
+	// 添加全面的nil检查
+	if parentCore == nil {
+		return nil, fmt.Errorf("parentCore cannot be nil")
+	}
+	if parentCore.agent == nil {
+		return nil, fmt.Errorf("parentCore.agent cannot be nil")
+	}
+	if parentCore.agent.llm == nil {
+		return nil, fmt.Errorf("parentCore.agent.llm cannot be nil")
+	}
+	if parentCore.agent.configManager == nil {
+		return nil, fmt.Errorf("parentCore.agent.configManager cannot be nil")
+	}
+	if parentCore.agent.llmConfig == nil {
+		return nil, fmt.Errorf("parentCore.agent.llmConfig cannot be nil")
+	}
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
 	if config.SessionID == "" {
 		config.SessionID = fmt.Sprintf("sub_%s", generateTaskID())
 	}
@@ -460,9 +490,14 @@ func NewSubAgent(parentCore *ReactCore, config *SubAgentConfig) (*SubAgent, erro
 		toolRegistry:   subToolRegistry,
 		config:         types.NewReactConfig(),
 		llmConfig:      parentCore.agent.llmConfig,
+		promptBuilder:  NewLightPromptBuilder(), // 添加缺失的promptBuilder
 	}
 	// 创建独立的ReactCore实例，避免session状态污染
 	subReactCore := NewReactCore(agent, subToolRegistry)
+	if subReactCore == nil {
+		subAgentLog("ERROR", "Failed to create ReactCore for subagent")
+		return nil, fmt.Errorf("failed to create ReactCore for subagent")
+	}
 
 	subAgentLog("INFO", "Sub-agent initialized successfully with %d tools", len(subToolRegistry.ListTools(context.Background())))
 
@@ -783,5 +818,12 @@ func (rc *ReactCore) ExecuteSubAgentTask(ctx context.Context, args map[string]in
 		return nil, fmt.Errorf("failed to create sub-agent: %w", err)
 	}
 
-	return subAgent.ExecuteTask(ctx, task, rc.streamCallback)
+	// 使用安全的回调函数 - 如果ReactCore的streamCallback为nil，使用nil
+	// ExecuteTask内部会处理nil streamCallback的情况
+	var safeCallback StreamCallback
+	if rc.streamCallback != nil {
+		safeCallback = rc.streamCallback
+	}
+
+	return subAgent.ExecuteTask(ctx, task, safeCallback)
 }

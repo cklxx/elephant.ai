@@ -152,30 +152,7 @@ func (r *ToolRegistry) RegisterSubAgentTool(reactCore *ReactCore) {
 	r.RegisterDynamicToolProvider("subagent", provider)
 }
 
-// ParallelSubAgentToolProvider - parallel subagent工具的动态提供者
-type ParallelSubAgentToolProvider struct {
-	reactCore *ReactCore
-}
-
-func (p *ParallelSubAgentToolProvider) GetTool(ctx context.Context) (builtin.Tool, error) {
-	if p.reactCore == nil {
-		return nil, fmt.Errorf("ReactCore not available")
-	}
-	
-	// Create the executor wrapper to avoid circular dependencies
-	executor := NewParallelExecutorWrapper(p.reactCore)
-	return builtin.CreateParallelSubAgentTool(executor), nil
-}
-
-func (p *ParallelSubAgentToolProvider) IsAvailable() bool {
-	return p.reactCore != nil && p.reactCore.parallelAgent != nil
-}
-
-// RegisterParallelSubAgentTool - 注册parallel subagent工具（仅在主agent中）
-func (r *ToolRegistry) RegisterParallelSubAgentTool(reactCore *ReactCore) {
-	provider := &ParallelSubAgentToolProvider{reactCore: reactCore}
-	r.RegisterDynamicToolProvider("parallel_subagent", provider)
-}
+// Removed ParallelSubAgentToolProvider - parallel execution now handled automatically in subagent tool
 
 // GetTool - 高性能工具查找，使用智能缓存
 func (r *ToolRegistry) GetTool(ctx context.Context, name string) (builtin.Tool, error) {
