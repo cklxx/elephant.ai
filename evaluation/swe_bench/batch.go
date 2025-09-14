@@ -108,7 +108,7 @@ func (bp *BatchProcessorImpl) ProcessBatch(ctx context.Context, instances []Inst
 // ProcessInstance processes a single instance
 func (bp *BatchProcessorImpl) ProcessInstance(ctx context.Context, instance Instance, config *BatchConfig) (*WorkerResult, error) {
 	// Create agent
-	agentFactory := NewAgentFactory()
+	agentFactory := NewAlexAgentFactory()
 	agent, err := agentFactory.CreateAgent(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent: %w", err)

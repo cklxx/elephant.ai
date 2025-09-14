@@ -295,6 +295,8 @@ swe-bench-config:
 # Test SWE-Bench with real instances
 .PHONY: swe-bench-verified-test
 swe-bench-verified-test: build
+	@echo "Cleaning previous test results..."
+	@rm -rf evaluation/swe_bench/real_test_results
 	@echo "Testing SWE-Bench with real instances..."
 	@cd evaluation/swe_bench && ./run_evaluation.sh real-test
 	@echo "SWE-Bench real instances test complete"

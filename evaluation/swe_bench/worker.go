@@ -56,7 +56,7 @@ func NewWorkerPool(numWorkers int) *WorkerPoolImpl {
 		taskQueue:    make(chan WorkerTask, numWorkers*2), // Buffer for better throughput
 		resultQueue:  make(chan WorkerResult, numWorkers*2),
 		workers:      make([]*Worker, numWorkers),
-		agentFactory: NewAgentFactory(),
+		agentFactory: NewAlexAgentFactory(),
 	}
 }
 
