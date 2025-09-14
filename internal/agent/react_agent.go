@@ -32,7 +32,7 @@ type ReactAgent struct {
 
 	// 核心组件
 	reactCore     ReactCoreInterface
-	toolExecutor  ToolExecutor      // Interface for tool execution
+	// toolExecutor  ToolExecutor      // Reserved for future interface-based execution
 	toolParser    *ToolExecutorImpl // Implementation for parsing
 	promptBuilder *LightPromptBuilder
 
@@ -87,11 +87,6 @@ type LightPromptBuilder struct {
 	promptLoader *prompts.PromptLoader
 }
 
-// NewSimplifiedAgent - creates a new simplified Agent (recommended for new code)
-func NewSimplifiedAgent(configManager *config.Manager) (*Agent, error) {
-	return LegacyAgentFactory(configManager)
-}
-
 // NewReactAgent - 创建简化的ReactAgent (legacy, maintained for backward compatibility)
 func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 设置LLM配置提供函数
@@ -133,8 +128,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 
 	// 初始化核心组件
 	agent.reactCore = NewReactCore(agent, toolRegistry)
-	agent.toolExecutor = NewToolExecutorAdapter(toolRegistry) // Interface implementation
-	agent.toolParser = NewToolExecutorImpl(toolRegistry)       // Parsing implementation
+	agent.toolParser = NewToolExecutorImpl(toolRegistry) // Parsing implementation
 
 	// 注册sub-agent工具到工具注册器
 	if reactCore, ok := agent.reactCore.(*ReactCore); ok {

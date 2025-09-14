@@ -38,6 +38,10 @@ type Message struct {
 	ToolCallId string                 `json:"tool_call_id,omitempty"`
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 	Timestamp  time.Time              `json:"timestamp"`
+	
+	// Compression tracking
+	SourceMessages []*Message `json:"source_messages,omitempty"`
+	IsCompressed   bool       `json:"is_compressed,omitempty"`
 }
 
 // Manager handles session persistence and restoration
@@ -108,6 +112,28 @@ func (m *Manager) GetSessionID() (string, bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.currentSessionID, m.currentSessionID != ""
+}
+
+// GetCurrentSession returns the current active session
+func (m *Manager) GetCurrentSession() (*Session, error) {
+	m.mutex.RLock()
+	sessionID := m.currentSessionID
+	m.mutex.RUnlock()
+	
+	if sessionID == "" {
+		return nil, fmt.Errorf("no active session")
+	}
+	
+	m.mutex.RLock()
+	session, exists := m.sessions[sessionID]
+	m.mutex.RUnlock()
+	
+	if !exists {
+		// Try to load from disk
+		return m.loadSessionFromDisk(sessionID)
+	}
+	
+	return session, nil
 }
 
 // StartSession creates a new session
@@ -592,6 +618,79 @@ func (m *Manager) loadSessionFromDisk(sessionID string) (*Session, error) {
 	}
 
 	return &session, nil
+}
+
+// ReplaceMessagesWithCompressed replaces a range of messages with a compressed version
+func (s *Session) ReplaceMessagesWithCompressed(startIdx, endIdx int, compressedMsg *Message) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	if startIdx < 0 || endIdx >= len(s.Messages) || startIdx > endIdx {
+		return
+	}
+	
+	// Store original messages as source in compressed message
+	if compressedMsg.SourceMessages == nil {
+		originalMessages := s.Messages[startIdx:endIdx+1]
+		compressedMsg.SourceMessages = make([]*Message, len(originalMessages))
+		copy(compressedMsg.SourceMessages, originalMessages)
+		compressedMsg.IsCompressed = true
+		
+		// Update metadata
+		if compressedMsg.Metadata == nil {
+			compressedMsg.Metadata = make(map[string]interface{})
+		}
+		compressedMsg.Metadata["compression_time"] = time.Now().Format(time.RFC3339)
+		compressedMsg.Metadata["source_count"] = len(originalMessages)
+	}
+	
+	// Build new message list
+	newMessages := make([]*Message, 0, len(s.Messages)-(endIdx-startIdx))
+	
+	// Add messages before the compressed range
+	newMessages = append(newMessages, s.Messages[:startIdx]...)
+	
+	// Add the compressed message
+	newMessages = append(newMessages, compressedMsg)
+	
+	// Add messages after the compressed range
+	if endIdx+1 < len(s.Messages) {
+		newMessages = append(newMessages, s.Messages[endIdx+1:]...)
+	}
+	
+	s.Messages = newMessages
+	s.Updated = time.Now()
+}
+
+// GetExpandedMessages returns all messages with compressed messages expanded
+func (s *Session) GetExpandedMessages() []*Message {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	
+	var expanded []*Message
+	for _, msg := range s.Messages {
+		if msg.IsCompressed && len(msg.SourceMessages) > 0 {
+			// Expand compressed message to source messages
+			expanded = append(expanded, msg.SourceMessages...)
+		} else {
+			expanded = append(expanded, msg)
+		}
+	}
+	return expanded
+}
+
+// GetCompressedMessageCount returns the number of compressed messages
+func (s *Session) GetCompressedMessageCount() int {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	
+	count := 0
+	for _, msg := range s.Messages {
+		if msg.IsCompressed {
+			count++
+		}
+	}
+	return count
 }
 
 // backgroundPersistence handles async session persistence

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"alex/internal/llm"
@@ -17,44 +16,15 @@ type MessageCompressor struct {
 	sessionManager *session.Manager
 	llmClient      llm.Client
 	llmConfig      *llm.Config
-
-	// Cache for compression results to avoid redundant calls
-	compressionCache map[string]*llm.Message
-	cacheMutex       sync.RWMutex
-
-	// Channel for async compression results
-	compressionJobs    chan compressionJob
-	compressionResults map[string]chan compressionResult
-	resultsMutex       sync.RWMutex
-}
-
-// compressionJob represents an async compression task
-type compressionJob struct {
-	jobID    string
-	context  context.Context
-	messages []llm.Message
-	resultCh chan compressionResult
-}
-
-// compressionResult represents the result of a compression task
-type compressionResult struct {
-	messages []llm.Message
-	err      error
 }
 
 // NewMessageCompressor creates a new message compressor
 func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client, llmConfig *llm.Config) *MessageCompressor {
 	mc := &MessageCompressor{
-		sessionManager:     sessionManager,
-		llmClient:          llmClient,
-		llmConfig:          llmConfig,
-		compressionCache:   make(map[string]*llm.Message),
-		compressionJobs:    make(chan compressionJob, 10),
-		compressionResults: make(map[string]chan compressionResult),
+		sessionManager: sessionManager,
+		llmClient:      llmClient,
+		llmConfig:      llmConfig,
 	}
-
-	// Start async compression worker
-	go mc.compressionWorker()
 
 	return mc
 }
@@ -76,12 +46,10 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []ll
 	if messageCount > MessageThreshold && currentTokens > TokenThreshold {
 		log.Printf("[INFO] AI compression triggered: %d messages, %d current tokens", messageCount, currentTokens)
 
-		// Try async compression first with fallback to sync
-		compressedMessages := mc.compressWithAIAsync(ctx, messages)
-		if compressedMessages == nil {
-			log.Printf("[WARN] Async compression failed, falling back to sync")
-			compressedMessages = mc.compressWithAI(ctx, messages)
-		}
+		compressedMessages := mc.compressWithAI(ctx, messages)
+		
+		// Update session with compressed messages
+		mc.updateSessionWithCompression(ctx, messages, compressedMessages)
 
 		// Update token counters after compression
 		newConsumedTokens := consumedTokens + currentTokens // Add current to consumed
@@ -112,8 +80,8 @@ func (mc *MessageCompressor) compressWithAI(ctx context.Context, messages []llm.
 
 	// Separating system and non-system messages for compression
 
-	// Step 2: 使用AI压缩全部非系统消息
-	compressedMessage := mc.createComprehensiveAISummary(ctx, nonSystemMessages)
+	// Step 2: 使用AI压缩全部非系统消息，保留历史消息
+	compressedMessage := mc.createComprehensiveAISummaryWithHistory(ctx, nonSystemMessages)
 
 	// Step 3: 重新组合消息
 	result := make([]llm.Message, 0, len(systemMessages)+1)
@@ -129,8 +97,8 @@ func (mc *MessageCompressor) compressWithAI(ctx context.Context, messages []llm.
 	return result
 }
 
-// createComprehensiveAISummary creates a comprehensive AI summary preserving important context
-func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, messages []llm.Message) *llm.Message {
+// createComprehensiveAISummaryWithHistory creates a comprehensive AI summary preserving original messages
+func (mc *MessageCompressor) createComprehensiveAISummaryWithHistory(ctx context.Context, messages []llm.Message) *llm.Message {
 	if mc.llmClient == nil {
 		return nil
 	}
@@ -170,12 +138,17 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 		log.Printf("[ERROR] MessageCompressor: No response choices from AI summary")
 		return nil
 	}
-	// AI compression completed successfully
-	return &llm.Message{
-		Role:    "user",
-		Content: fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),
-	}
+
+	// Create compressed message with history preservation
+	compressedContent := fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content)
+	
+	// Create compressed message with source history
+	compressedMsg := llm.NewCompressedMessage("user", compressedContent, messages)
+	
+	log.Printf("[INFO] AI compression completed successfully with history preservation")
+	return compressedMsg
 }
+
 
 // buildComprehensiveSystemPrompt builds the system prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSystemPrompt() string {
@@ -306,145 +279,6 @@ func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []llm.Messa
 	return text
 }
 
-// compressionWorker handles async compression jobs
-func (mc *MessageCompressor) compressionWorker() {
-	for job := range mc.compressionJobs {
-		// Check cache first
-		cacheKey := mc.getCacheKey(job.messages)
-		mc.cacheMutex.RLock()
-		cached, exists := mc.compressionCache[cacheKey]
-		mc.cacheMutex.RUnlock()
-
-		if exists && cached != nil {
-			log.Printf("[INFO] Using cached compression result")
-			job.resultCh <- compressionResult{
-				messages: mc.rebuildWithCachedSummary(job.messages, cached),
-				err:      nil,
-			}
-			continue
-		}
-
-		// Perform compression
-		compressed := mc.compressWithAI(job.context, job.messages)
-		if len(compressed) > 0 {
-			// Cache the summary message
-			if len(compressed) > 2 {
-				summaryMsg := &compressed[len(compressed)-1]
-				mc.cacheMutex.Lock()
-				mc.compressionCache[cacheKey] = summaryMsg
-				mc.cacheMutex.Unlock()
-			}
-
-			job.resultCh <- compressionResult{
-				messages: compressed,
-				err:      nil,
-			}
-		} else {
-			job.resultCh <- compressionResult{
-				messages: nil,
-				err:      fmt.Errorf("compression failed"),
-			}
-		}
-	}
-}
-
-// compressWithAIAsync attempts async compression with timeout
-func (mc *MessageCompressor) compressWithAIAsync(ctx context.Context, messages []llm.Message) []llm.Message {
-	// Check cache first for quick return
-	cacheKey := mc.getCacheKey(messages)
-	mc.cacheMutex.RLock()
-	cached, exists := mc.compressionCache[cacheKey]
-	mc.cacheMutex.RUnlock()
-
-	if exists && cached != nil {
-		log.Printf("[INFO] Using cached compression result (fast path)")
-		return mc.rebuildWithCachedSummary(messages, cached)
-	}
-
-	// Create job for async processing
-	jobID := fmt.Sprintf("compress_%d", time.Now().UnixNano())
-	resultCh := make(chan compressionResult, 1)
-
-	mc.resultsMutex.Lock()
-	mc.compressionResults[jobID] = resultCh
-	mc.resultsMutex.Unlock()
-
-	// Clean up after completion
-	defer func() {
-		mc.resultsMutex.Lock()
-		delete(mc.compressionResults, jobID)
-		mc.resultsMutex.Unlock()
-		close(resultCh)
-	}()
-
-	// Submit job
-	job := compressionJob{
-		jobID:    jobID,
-		context:  ctx,
-		messages: messages,
-		resultCh: resultCh,
-	}
-
-	select {
-	case mc.compressionJobs <- job:
-		// Job submitted successfully
-	case <-time.After(1 * time.Second):
-		// Queue is full, fallback to sync
-		return nil
-	}
-
-	// Wait for result with timeout
-	select {
-	case result := <-resultCh:
-		if result.err != nil {
-			log.Printf("[WARN] Async compression failed: %v", result.err)
-			return nil
-		}
-		return result.messages
-	case <-time.After(25 * time.Second):
-		// Timeout, return nil to trigger fallback
-		log.Printf("[WARN] Async compression timed out")
-		return nil
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-// getCacheKey generates a cache key for messages
-func (mc *MessageCompressor) getCacheKey(messages []llm.Message) string {
-	if len(messages) < 3 {
-		return ""
-	}
-
-	// Use a hash of the message content for cache key
-	var content strings.Builder
-	for i := 2; i < len(messages) && i < len(messages)-2; i++ {
-		content.WriteString(messages[i].Role)
-		content.WriteString(":")
-		if len(messages[i].Content) > 100 {
-			content.WriteString(messages[i].Content[:100])
-		} else {
-			content.WriteString(messages[i].Content)
-		}
-		content.WriteString("|")
-	}
-	return fmt.Sprintf("%x", content.String())
-}
-
-// rebuildWithCachedSummary rebuilds message array with cached summary
-func (mc *MessageCompressor) rebuildWithCachedSummary(messages []llm.Message, summary *llm.Message) []llm.Message {
-	if len(messages) <= 2 {
-		return messages
-	}
-
-	// Keep system messages + cached summary
-	result := make([]llm.Message, 0, 3)
-	result = append(result, messages[:2]...) // System messages
-	result = append(result, *summary)        // Cached summary
-
-	return result
-}
-
 // HandleTokenError handles token limit errors by automatically triggering compression
 func (mc *MessageCompressor) HandleTokenError(err error, messages []llm.Message) ([]llm.Message, error) {
 	if !isTokenLimitError(err) {
@@ -452,7 +286,7 @@ func (mc *MessageCompressor) HandleTokenError(err error, messages []llm.Message)
 	}
 
 	log.Printf("[INFO] Token limit exceeded, performing emergency compression")
-	
+
 	// Perform immediate compression
 	compressed := mc.compressWithAI(context.Background(), messages)
 	if len(compressed) == 0 {
@@ -464,16 +298,100 @@ func (mc *MessageCompressor) HandleTokenError(err error, messages []llm.Message)
 	return compressed, nil
 }
 
+// updateSessionWithCompression updates the session messages after compression
+// Replaces the original message range with compressed message containing history
+func (mc *MessageCompressor) updateSessionWithCompression(ctx context.Context, originalMessages, compressedMessages []llm.Message) {
+	if mc.sessionManager == nil {
+		log.Printf("[WARN] SessionManager is nil, cannot update session with compression")
+		return
+	}
+
+	_, exists := mc.sessionManager.GetSessionID()
+	if !exists {
+		log.Printf("[WARN] Cannot get session ID for compression update: no active session")
+		return
+	}
+
+	// Get current session
+	session, err := mc.sessionManager.GetCurrentSession()
+	if err != nil {
+		log.Printf("[WARN] Cannot get session for compression update: %v", err)
+		return
+	}
+
+	// Find compressed message in the result
+	var compressedMsg *llm.Message
+	for i := range compressedMessages {
+		if compressedMessages[i].IsCompressed {
+			compressedMsg = &compressedMessages[i]
+			break
+		}
+	}
+
+	if compressedMsg == nil {
+		log.Printf("[WARN] No compressed message found in compression result")
+		return
+	}
+
+	// Convert to session message format
+	sessionMsg := mc.convertLLMToSessionMessage(compressedMsg, originalMessages)
+	
+	// Update session: replace the non-system message range with compressed message
+	// Skip first 2 system messages, compress the rest
+	startIdx := 2
+	endIdx := len(session.Messages) - 1
+	
+	if startIdx < len(session.Messages) && endIdx >= startIdx {
+		session.ReplaceMessagesWithCompressed(startIdx, endIdx, sessionMsg)
+		
+		// Save updated session
+		if err := mc.sessionManager.SaveSession(session); err != nil {
+			log.Printf("[WARN] Failed to save session after compression: %v", err)
+		}
+	}
+	
+	log.Printf("[INFO] Session updated with compressed message containing %d source messages", len(originalMessages))
+}
+
+// convertLLMToSessionMessage converts LLM message to session message format
+func (mc *MessageCompressor) convertLLMToSessionMessage(compressedLLMMsg *llm.Message, originalLLMMessages []llm.Message) *session.Message {
+	// Convert LLM messages to session messages for source storage
+	sourceMessages := make([]*session.Message, len(originalLLMMessages))
+	for i, llmMsg := range originalLLMMessages {
+		sourceMessages[i] = &session.Message{
+			Role:       llmMsg.Role,
+			Content:    llmMsg.Content,
+			Name:       llmMsg.Name,
+			ToolCalls:  llmMsg.ToolCalls,
+			ToolCallId: llmMsg.ToolCallId,
+			Timestamp:  time.Now(),
+		}
+	}
+	
+	// Create compressed session message
+	return &session.Message{
+		Role:           compressedLLMMsg.Role,
+		Content:        compressedLLMMsg.Content,
+		Name:           compressedLLMMsg.Name,
+		ToolCalls:      compressedLLMMsg.ToolCalls,
+		ToolCallId:     compressedLLMMsg.ToolCallId,
+		Metadata:       compressedLLMMsg.Metadata,
+		Timestamp:      time.Now(),
+		SourceMessages: sourceMessages,
+		IsCompressed:   true,
+	}
+}
+
 // isTokenLimitError checks if the error is related to token limits
 func isTokenLimitError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	errStr := strings.ToLower(err.Error())
-	return (strings.Contains(errStr, "token") && 
-		   (strings.Contains(errStr, "limit") || 
-			strings.Contains(errStr, "exceed") || 
+	return (strings.Contains(errStr, "token") &&
+		(strings.Contains(errStr, "limit") ||
+			strings.Contains(errStr, "exceed") ||
 			strings.Contains(errStr, "maximum") ||
 			strings.Contains(errStr, "too many") ||
 			strings.Contains(errStr, "context length")))

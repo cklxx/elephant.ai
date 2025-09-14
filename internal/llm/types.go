@@ -21,6 +21,13 @@ type Message struct {
 	Reasoning        string `json:"reasoning,omitempty"`
 	ReasoningSummary string `json:"reasoning_summary,omitempty"`
 	Think            string `json:"think,omitempty"`
+
+	// Metadata for tracking compression and other context
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+
+	// Compression tracking
+	SourceMessages []Message `json:"source_messages,omitempty"`
+	IsCompressed   bool      `json:"is_compressed,omitempty"`
 }
 
 // ChatRequest represents a request to the LLM
@@ -213,4 +220,31 @@ type Function struct {
 type Tool struct {
 	Type     string   `json:"type"`
 	Function Function `json:"function"`
+}
+
+// NewCompressedMessage creates a new compressed message with source history
+func NewCompressedMessage(role, content string, sourceMessages []Message) *Message {
+	return &Message{
+		Role:           role,
+		Content:        content,
+		IsCompressed:   true,
+		SourceMessages: sourceMessages,
+		Metadata: map[string]interface{}{
+			"compression_time": time.Now().Format(time.RFC3339),
+			"source_count":     len(sourceMessages),
+		},
+	}
+}
+
+// HasSourceMessages checks if this message has compression history
+func (m *Message) HasSourceMessages() bool {
+	return m.IsCompressed && len(m.SourceMessages) > 0
+}
+
+// ExpandCompression expands a compressed message back to its source messages
+func (m *Message) ExpandCompression() []Message {
+	if !m.HasSourceMessages() {
+		return []Message{*m}
+	}
+	return m.SourceMessages
 }

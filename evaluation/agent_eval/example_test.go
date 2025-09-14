@@ -261,7 +261,7 @@ func TestConfigValidation(t *testing.T) {
 	// 创建临时文件
 	tmpFile := "/tmp/test.json"
 	if err := createTempFile(tmpFile); err == nil {
-		defer deleteTempFile(tmpFile)
+		defer func() { _ = deleteTempFile(tmpFile) }()
 
 		if err := ValidateConfig(validConfig); err != nil {
 			t.Errorf("Expected valid config to pass validation: %v", err)
@@ -307,7 +307,7 @@ func createTempFile(path string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 写入空JSON数组
 	_, err = file.WriteString("[]")

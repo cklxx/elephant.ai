@@ -64,3 +64,5 @@ test_results/
 verified_test_results/
 
 .git-backup-*
+
+ast_viewr

@@ -12,8 +12,8 @@ import (
 
 // MarkdownReporter Markdown报告生成器
 type MarkdownReporter struct {
-	templatePath string
-	outputDir    string
+	// templatePath string // Reserved for future template support
+	// outputDir    string // Reserved for future output directory support
 }
 
 // NewMarkdownReporter 创建Markdown报告生成器
@@ -288,8 +288,12 @@ func (mr *MarkdownReporter) buildInsightsSection(results *EvaluationResults) str
 
 	for _, insight := range results.Analysis.Insights {
 		report.WriteString(fmt.Sprintf("### %s %s\n", mr.getInsightIcon(insight.Type), insight.Title))
+		impact := string(insight.Impact)
+		if len(impact) > 0 {
+			impact = strings.ToUpper(impact[:1]) + strings.ToLower(impact[1:])
+		}
 		report.WriteString(fmt.Sprintf("**Impact:** %s | **Confidence:** %.0f%%\n\n",
-			strings.Title(string(insight.Impact)), insight.Confidence*100))
+			impact, insight.Confidence*100))
 		report.WriteString(fmt.Sprintf("%s\n\n", insight.Description))
 	}
 
@@ -356,7 +360,11 @@ func (mr *MarkdownReporter) buildAlertsSection(results *EvaluationResults) strin
 	for _, alert := range results.Analysis.Alerts {
 		icon := mr.getAlertIcon(alert.Level)
 		report.WriteString(fmt.Sprintf("### %s %s\n", icon, alert.Title))
-		report.WriteString(fmt.Sprintf("**Level:** %s\n\n", strings.Title(string(alert.Level))))
+		level := string(alert.Level)
+		if len(level) > 0 {
+			level = strings.ToUpper(level[:1]) + strings.ToLower(level[1:])
+		}
+		report.WriteString(fmt.Sprintf("**Level:** %s\n\n", level))
 		report.WriteString(fmt.Sprintf("%s\n\n", alert.Description))
 		if alert.Action != "" {
 			report.WriteString(fmt.Sprintf("**Suggested Action:** %s\n\n", alert.Action))

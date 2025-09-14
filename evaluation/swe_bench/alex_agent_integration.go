@@ -64,13 +64,13 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 		}
 		// Set models via config manager
 		for modelType, modelConfig := range models {
-			configManager.Set(fmt.Sprintf("models.%s.model", modelType), modelConfig.Model)
-			configManager.Set(fmt.Sprintf("models.%s.base_url", modelType), modelConfig.BaseURL)
-			configManager.Set(fmt.Sprintf("models.%s.temperature", modelType), modelConfig.Temperature)
-			configManager.Set(fmt.Sprintf("models.%s.max_tokens", modelType), modelConfig.MaxTokens)
-			configManager.Set(fmt.Sprintf("models.%s.api_key", modelType), modelConfig.APIKey)
+			_ = configManager.Set(fmt.Sprintf("models.%s.model", modelType), modelConfig.Model)
+			_ = configManager.Set(fmt.Sprintf("models.%s.base_url", modelType), modelConfig.BaseURL)
+			_ = configManager.Set(fmt.Sprintf("models.%s.temperature", modelType), modelConfig.Temperature)
+			_ = configManager.Set(fmt.Sprintf("models.%s.max_tokens", modelType), modelConfig.MaxTokens)
+			_ = configManager.Set(fmt.Sprintf("models.%s.api_key", modelType), modelConfig.APIKey)
 		}
-		configManager.Set("default_model_type", llm.ReasoningModel)
+		_ = configManager.Set("default_model_type", llm.ReasoningModel)
 	}
 
 	// Create the ReactAgent

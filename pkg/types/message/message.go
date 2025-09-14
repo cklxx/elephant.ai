@@ -18,16 +18,22 @@ type Message struct {
 	Reasoning        string `json:"reasoning,omitempty"`
 	ReasoningSummary string `json:"reasoning_summary,omitempty"`
 	Think            string `json:"think,omitempty"`
+
+	// Compression tracking - stores original messages if this is a compressed message
+	SourceMessages []*Message `json:"source_messages,omitempty"`
+	IsCompressed   bool       `json:"is_compressed,omitempty"`
 }
 
 // NewMessage creates a new unified message
 func NewMessage(role, content string) *Message {
 	return &Message{
-		Role:      role,
-		Content:   content,
-		Metadata:  make(map[string]interface{}),
-		Timestamp: time.Now(),
-		ToolCalls: make([]*ToolCallImpl, 0),
+		Role:           role,
+		Content:        content,
+		Metadata:       make(map[string]interface{}),
+		Timestamp:      time.Now(),
+		ToolCalls:      make([]*ToolCallImpl, 0),
+		SourceMessages: nil,
+		IsCompressed:   false,
 	}
 }
 
@@ -122,6 +128,35 @@ func (m *Message) ToLLMMessage() LLMMessage {
 	return llmMsg
 }
 
+// NewCompressedMessage creates a new compressed message with source history
+func NewCompressedMessage(role, content string, sourceMessages []*Message) *Message {
+	msg := NewMessage(role, content)
+	msg.IsCompressed = true
+	msg.SourceMessages = sourceMessages
+	msg.AddMetadata("compression_time", time.Now())
+	msg.AddMetadata("source_count", len(sourceMessages))
+	return msg
+}
+
+// GetSourceMessages returns the original messages if this is a compressed message
+func (m *Message) GetSourceMessages() []*Message {
+	return m.SourceMessages
+}
+
+// HasSourceMessages checks if this message has compression history
+func (m *Message) HasSourceMessages() bool {
+	return m.IsCompressed && len(m.SourceMessages) > 0
+}
+
+// ExpandCompression expands a compressed message back to its source messages
+func (m *Message) ExpandCompression() []*Message {
+	if !m.HasSourceMessages() {
+		return []*Message{m}
+	}
+	// Return source messages directly since they're already pointers
+	return m.SourceMessages
+}
+
 // ToSessionMessage converts to session storage message
 func (m *Message) ToSessionMessage() SessionMessage {
 	sessionMsg := SessionMessage{
@@ -144,6 +179,11 @@ func (m *Message) ToSessionMessage() SessionMessage {
 	}
 	if m.Think != "" {
 		sessionMsg.Metadata["think"] = m.Think
+	}
+	// Store compression info in metadata
+	if m.IsCompressed {
+		sessionMsg.Metadata["is_compressed"] = true
+		sessionMsg.Metadata["source_count"] = len(m.SourceMessages)
 	}
 
 	// Convert tool calls
@@ -183,12 +223,14 @@ func FromLLMMessage(llmMsg LLMMessage) *Message {
 // FromSessionMessage creates Message from session storage message
 func FromSessionMessage(sessionMsg SessionMessage) *Message {
 	msg := &Message{
-		Role:       sessionMsg.Role,
-		Content:    sessionMsg.Content,
-		ToolCallID: sessionMsg.ToolID,
-		Metadata:   make(map[string]interface{}),
-		Timestamp:  sessionMsg.Timestamp,
-		ToolCalls:  make([]*ToolCallImpl, 0),
+		Role:           sessionMsg.Role,
+		Content:        sessionMsg.Content,
+		ToolCallID:     sessionMsg.ToolID,
+		Metadata:       make(map[string]interface{}),
+		Timestamp:      sessionMsg.Timestamp,
+		ToolCalls:      make([]*ToolCallImpl, 0),
+		SourceMessages: nil,
+		IsCompressed:   false,
 	}
 
 	// Copy metadata and extract reasoning fields
