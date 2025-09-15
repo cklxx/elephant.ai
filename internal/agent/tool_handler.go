@@ -18,6 +18,10 @@ type ToolHandler struct {
 
 // NewToolHandler creates a new tool handler
 func NewToolHandler(registry *ToolRegistry) *ToolHandler {
+	if registry == nil {
+		log.Printf("[ERROR] NewToolHandler: registry cannot be nil")
+		return nil
+	}
 	return &ToolHandler{
 		registry: registry,
 	}
@@ -25,6 +29,10 @@ func NewToolHandler(registry *ToolRegistry) *ToolHandler {
 
 // buildToolDefinitions - 构建工具定义列表（使用统一的工具注册器）
 func (h *ToolHandler) buildToolDefinitions(ctx context.Context) []llm.Tool {
+	if h == nil || h.registry == nil {
+		log.Printf("[ERROR] buildToolDefinitions: ToolHandler or registry is nil")
+		return []llm.Tool{}
+	}
 	return h.registry.GetAllToolDefinitions(ctx)
 }
 

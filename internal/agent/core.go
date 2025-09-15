@@ -37,12 +37,37 @@ func NewReactCore(agent *ReactAgent, toolRegistry *ToolRegistry) *ReactCore {
 		return nil
 	}
 	
+	// Create components with additional validation
+	messageProcessor := message.NewMessageProcessor(agent.llm, agent.sessionManager, agent.llmConfig)
+	if messageProcessor == nil {
+		utils.CoreLogger.Error("Failed to create MessageProcessor")
+		return nil
+	}
+
+	llmHandler := NewLLMHandler(agent.sessionManager, nil)
+	if llmHandler == nil {
+		utils.CoreLogger.Error("Failed to create LLMHandler")
+		return nil
+	}
+
+	toolHandler := NewToolHandler(toolRegistry)
+	if toolHandler == nil {
+		utils.CoreLogger.Error("Failed to create ToolHandler")
+		return nil
+	}
+
+	promptHandler := NewPromptHandler(agent.promptBuilder)
+	if promptHandler == nil {
+		utils.CoreLogger.Error("Failed to create PromptHandler")
+		return nil
+	}
+
 	core := &ReactCore{
 		agent:            agent,
-		messageProcessor: message.NewMessageProcessor(agent.llm, agent.sessionManager, agent.llmConfig),
-		llmHandler:       NewLLMHandler(agent.sessionManager, nil), // Will be set per request
-		toolHandler:      NewToolHandler(toolRegistry),
-		promptHandler:    NewPromptHandler(agent.promptBuilder),
+		messageProcessor: messageProcessor,
+		llmHandler:       llmHandler,
+		toolHandler:      toolHandler,
+		promptHandler:    promptHandler,
 	}
 	
 	// Initialize parallel agent with default configuration
@@ -201,11 +226,62 @@ func (rc *ReactCore) executeToolDirect(ctx context.Context, toolName string, arg
 	coreLogger := utils.CoreLogger
 	coreLogger.Debug("Starting execution - Tool: '%s', CallID: '%s'", toolName, callId)
 
+	// 添加nil检查防止panic
+	if rc == nil {
+		coreLogger.Error("ReactCore is nil")
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    "ReactCore is nil",
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, fmt.Errorf("ReactCore is nil")
+	}
+
+	if rc.toolHandler == nil {
+		coreLogger.Error("toolHandler is nil")
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    "toolHandler is nil",
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, fmt.Errorf("toolHandler is nil")
+	}
+
+	if rc.toolHandler.registry == nil {
+		coreLogger.Error("toolHandler.registry is nil")
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    "toolHandler.registry is nil",
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, fmt.Errorf("toolHandler.registry is nil")
+	}
+
 	// 使用ReactCore的工具注册器获取工具
 	tool, err := rc.toolHandler.registry.GetTool(ctx, toolName)
 	if err != nil {
 		coreLogger.Error("Failed to get tool '%s': %v", toolName, err)
-		return nil, err
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    fmt.Sprintf("Failed to get tool '%s': %v", toolName, err),
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, err
+	}
+
+	if tool == nil {
+		coreLogger.Error("Tool '%s' is nil", toolName)
+		return &types.ReactToolResult{
+			Success:  false,
+			Error:    fmt.Sprintf("Tool '%s' is nil", toolName),
+			ToolName: toolName,
+			ToolArgs: args,
+			CallID:   callId,
+		}, fmt.Errorf("tool '%s' is nil", toolName)
 	}
 
 	// 确保args不为nil
