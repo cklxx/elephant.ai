@@ -171,8 +171,42 @@ func (te *ToolExecutor) ValidateAndFixResult(result *types.ReactToolResult, orig
 		result.ToolArgs = originalCall.Arguments
 	}
 
+	// Limit content length to prevent excessive memory usage and API limits
+	result.Content = te.limitToolContent(result.Content)
+
 	te.logger.Debug("Added result for tool call with CallID: '%s'", result.CallID)
 	return result
+}
+
+// limitToolContent limits tool return content to 10,000 characters with line count information
+func (te *ToolExecutor) limitToolContent(content string) string {
+	const maxContentLength = 10000
+
+	if len(content) <= maxContentLength {
+		return content
+	}
+
+	// Count total lines before truncation
+	totalLines := strings.Count(content, "\n") + 1
+
+	// Truncate content to maxContentLength
+	truncated := content[:maxContentLength]
+
+	// Find the last complete line to avoid cutting mid-line
+	lastNewlineIndex := strings.LastIndex(truncated, "\n")
+	if lastNewlineIndex > 0 && lastNewlineIndex < maxContentLength-100 {
+		// Only adjust if we're not losing too much content
+		truncated = truncated[:lastNewlineIndex]
+	}
+
+	// Count lines in truncated content
+	truncatedLines := strings.Count(truncated, "\n") + 1
+
+	// Add informational footer
+	footer := fmt.Sprintf("\n\n...更多内容被截断 (%d/%d 行显示, %d/%d 字符显示)",
+		truncatedLines, totalLines, len(truncated), len(content))
+
+	return truncated + footer
 }
 
 // ExecuteSerialToolsWithRecovery executes multiple tools in series with comprehensive error handling

@@ -109,15 +109,31 @@ func TestSimpleParallelSubAgent_EmptyTasks(t *testing.T) {
 	assert.Empty(t, results)
 }
 
-func TestParallelExecutorWrapper(t *testing.T) {
-	// Test the wrapper creation
-	wrapper := NewParallelExecutorWrapper(nil)
-	assert.NotNil(t, wrapper)
-	
-	// Test with nil ReactCore
-	_, err := wrapper.ExecuteTasksParallel(context.Background(), map[string]interface{}{
-		"tasks": []interface{}{"echo test"},
+func TestParallelExecutorTool(t *testing.T) {
+	// Test with nil ReactCore (should fail during agent creation)
+	config := DefaultParallelConfig()
+	_, err := NewSimpleParallelSubAgent(nil, config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parentCore cannot be nil")
+
+	// Test ExecuteTasksParallelFromTool with valid config but nil ReactCore
+	// We can't test the actual execution without a ReactCore, but we can test parameter parsing
+	spa := &SimpleParallelSubAgent{
+		parentCore: nil, // This will cause the execution to fail
+		config:     config,
+	}
+
+	// Test with invalid task format
+	_, err = spa.ExecuteTasksParallelFromTool(context.Background(), map[string]interface{}{
+		"invalid": "param",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ReactCore not available")
+	assert.Contains(t, err.Error(), "tasks parameter is required")
+
+	// Test with invalid tasks type
+	_, err = spa.ExecuteTasksParallelFromTool(context.Background(), map[string]interface{}{
+		"tasks": "not an array",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tasks must be an array")
 }

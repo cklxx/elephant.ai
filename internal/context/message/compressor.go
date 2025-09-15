@@ -49,7 +49,7 @@ func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []ll
 		compressedMessages := mc.compressWithAI(ctx, messages)
 		
 		// Update session with compressed messages
-		mc.updateSessionWithCompression(ctx, messages, compressedMessages)
+		mc.updateSessionWithCompression(messages, compressedMessages)
 
 		// Update token counters after compression
 		newConsumedTokens := consumedTokens + currentTokens // Add current to consumed
@@ -106,47 +106,83 @@ func (mc *MessageCompressor) createComprehensiveAISummaryWithHistory(ctx context
 		return nil
 	}
 
-	conversationText := mc.buildComprehensiveSummaryInput(messages)
-	prompt := mc.buildComprehensiveSummaryPrompt(conversationText, len(messages))
+	return mc.createComprehensiveAISummaryWithRetry(ctx, messages)
+}
 
-	request := &llm.ChatRequest{
-		Messages: []llm.Message{
-			{
-				Role:    "system",
-				Content: mc.buildComprehensiveSystemPrompt(),
+// createComprehensiveAISummaryWithRetry implements retry logic with progressive message deletion for timeout and limit errors
+func (mc *MessageCompressor) createComprehensiveAISummaryWithRetry(ctx context.Context, messages []llm.Message) *llm.Message {
+	currentMessages := make([]llm.Message, len(messages))
+	copy(currentMessages, messages)
+	originalMessageCount := len(messages)
+
+	// Minimum number of messages to keep for meaningful compression
+	const minMessages = 3
+
+	for len(currentMessages) >= minMessages {
+		conversationText := mc.buildComprehensiveSummaryInput(currentMessages)
+		prompt := mc.buildComprehensiveSummaryPrompt(conversationText, len(currentMessages))
+
+		request := &llm.ChatRequest{
+			Messages: []llm.Message{
+				{
+					Role:    "system",
+					Content: mc.buildComprehensiveSystemPrompt(),
+				},
+				{
+					Role:    "user",
+					Content: prompt,
+				},
 			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
-		ModelType: mc.llmConfig.DefaultModelType,
-		Config:    mc.llmConfig,
+			ModelType: mc.llmConfig.DefaultModelType,
+			Config:    mc.llmConfig,
+		}
+
+		// Use shorter timeout to prevent blocking, with fallback handling
+		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		sessionID, _ := mc.sessionManager.GetSessionID()
+		response, err := mc.llmClient.Chat(timeoutCtx, request, sessionID)
+		cancel()
+
+		if err != nil {
+			// Check if it's a timeout or context limit error
+			if isTimeoutOrLimitError(err) {
+				// Delete the last message and retry
+				if len(currentMessages) > minMessages {
+					currentMessages = currentMessages[:len(currentMessages)-1]
+					log.Printf("[WARN] MessageCompressor: %v, removing 1 message (%d->%d) and retrying", err, len(currentMessages)+1, len(currentMessages))
+					continue
+				} else {
+					log.Printf("[ERROR] MessageCompressor: Cannot reduce messages further, minimum reached. Original error: %v", err)
+					return nil
+				}
+			} else {
+				// Other errors, fail immediately
+				log.Printf("[ERROR] MessageCompressor: Comprehensive AI summary failed: %v", err)
+				return nil
+			}
+		}
+
+		if len(response.Choices) == 0 {
+			log.Printf("[ERROR] MessageCompressor: No response choices from AI summary")
+			return nil
+		}
+
+		// Create compressed message with history preservation
+		compressedContent := fmt.Sprintf("Comprehensive conversation summary (%d->%d messages): %s", originalMessageCount, len(currentMessages), response.Choices[0].Message.Content)
+
+		// Create compressed message with source history using original messages
+		compressedMsg := llm.NewCompressedMessage("user", compressedContent, messages)
+
+		if len(currentMessages) < originalMessageCount {
+			log.Printf("[INFO] AI compression completed with %d message(s) removed due to limits", originalMessageCount-len(currentMessages))
+		} else {
+			log.Printf("[INFO] AI compression completed successfully with history preservation")
+		}
+		return compressedMsg
 	}
 
-	// Use shorter timeout to prevent blocking, with fallback handling
-	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	sessionID, _ := mc.sessionManager.GetSessionID()
-	response, err := mc.llmClient.Chat(timeoutCtx, request, sessionID)
-	if err != nil {
-		log.Printf("[ERROR] MessageCompressor: Comprehensive AI summary failed: %v", err)
-		return nil
-	}
-
-	if len(response.Choices) == 0 {
-		log.Printf("[ERROR] MessageCompressor: No response choices from AI summary")
-		return nil
-	}
-
-	// Create compressed message with history preservation
-	compressedContent := fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content)
-	
-	// Create compressed message with source history
-	compressedMsg := llm.NewCompressedMessage("user", compressedContent, messages)
-	
-	log.Printf("[INFO] AI compression completed successfully with history preservation")
-	return compressedMsg
+	log.Printf("[ERROR] MessageCompressor: Unable to compress - too few messages remaining")
+	return nil
 }
 
 
@@ -300,7 +336,7 @@ func (mc *MessageCompressor) HandleTokenError(err error, messages []llm.Message)
 
 // updateSessionWithCompression updates the session messages after compression
 // Replaces the original message range with compressed message containing history
-func (mc *MessageCompressor) updateSessionWithCompression(ctx context.Context, originalMessages, compressedMessages []llm.Message) {
+func (mc *MessageCompressor) updateSessionWithCompression(originalMessages, compressedMessages []llm.Message) {
 	if mc.sessionManager == nil {
 		log.Printf("[WARN] SessionManager is nil, cannot update session with compression")
 		return
@@ -395,4 +431,34 @@ func isTokenLimitError(err error) bool {
 			strings.Contains(errStr, "maximum") ||
 			strings.Contains(errStr, "too many") ||
 			strings.Contains(errStr, "context length")))
+}
+
+// isTimeoutOrLimitError checks if the error is related to timeout or context limits that can be resolved by reducing message count
+func isTimeoutOrLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for timeout errors
+	isTimeout := strings.Contains(errStr, "context deadline exceeded") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "deadline")
+
+	// Check for token/context limit errors
+	isTokenLimit := strings.Contains(errStr, "token") &&
+		(strings.Contains(errStr, "limit") ||
+			strings.Contains(errStr, "exceed") ||
+			strings.Contains(errStr, "maximum") ||
+			strings.Contains(errStr, "too many") ||
+			strings.Contains(errStr, "context length") ||
+			strings.Contains(errStr, "too long"))
+
+	// Check for request size errors
+	isRequestTooLarge := strings.Contains(errStr, "request too large") ||
+		strings.Contains(errStr, "payload too large") ||
+		strings.Contains(errStr, "content too long")
+
+	return isTimeout || isTokenLimit || isRequestTooLarge
 }
