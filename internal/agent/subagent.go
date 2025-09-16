@@ -491,6 +491,7 @@ func NewSubAgent(parentCore *ReactCore, config *SubAgentConfig) (*SubAgent, erro
 		config:         types.NewReactConfig(),
 		llmConfig:      parentCore.agent.llmConfig,
 		promptBuilder:  NewLightPromptBuilder(), // 添加缺失的promptBuilder
+		messageQueue:   NewMessageQueue(),       // 初始化MessageQueue防止nil pointer
 	}
 	// 创建独立的ReactCore实例，避免session状态污染
 	subReactCore := NewReactCore(agent, subToolRegistry)

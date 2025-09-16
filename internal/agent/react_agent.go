@@ -336,6 +336,9 @@ func (mq *MessageQueue) Dequeue() (MessageQueueItem, bool) {
 
 // HasPendingMessages - 检查是否有待处理的消息
 func (mq *MessageQueue) HasPendingMessages() bool {
+	if mq == nil {
+		return false
+	}
 	mq.mutex.RLock()
 	defer mq.mutex.RUnlock()
 	return len(mq.items) > 0
@@ -379,6 +382,9 @@ func (r *ReactAgent) EnqueueMessage(ctx context.Context, message string, config 
 
 // CheckPendingMessages - 检查并处理待处理的消息
 func (r *ReactAgent) CheckPendingMessages() (MessageQueueItem, bool) {
+	if r == nil || r.messageQueue == nil {
+		return MessageQueueItem{}, false
+	}
 	item, found := r.messageQueue.Dequeue()
 	// Message dequeue operation completed
 	return item, found
@@ -386,6 +392,9 @@ func (r *ReactAgent) CheckPendingMessages() (MessageQueueItem, bool) {
 
 // HasPendingMessages - 检查是否有待处理的消息
 func (r *ReactAgent) HasPendingMessages() bool {
+	if r == nil || r.messageQueue == nil {
+		return false
+	}
 	return r.messageQueue.HasPendingMessages()
 }
 
