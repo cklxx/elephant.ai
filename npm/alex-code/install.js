@@ -147,7 +147,51 @@ async function main() {
         fs.chmodSync(finalExePath, '755');
     }
 
+    // Manually create symlink for global installation
+    // Check if we're in a global installation context
+    const isGlobalInstall = process.env.npm_config_global === 'true' ||
+                           __dirname.includes('/lib/node_modules/');
+
+    if (isGlobalInstall) {
+        // Calculate global bin directory more accurately
+        let globalBinDir;
+        if (process.env.npm_config_prefix) {
+            globalBinDir = path.join(process.env.npm_config_prefix, 'bin');
+        } else {
+            // Use npm's convention: if we're in /installation/lib/node_modules, bin is in /installation/bin
+            const nodeModulesPath = __dirname;
+            const installationPath = nodeModulesPath.replace(/\/lib\/node_modules\/.*$/, '');
+            globalBinDir = path.join(installationPath, 'bin');
+        }
+
+        const symlinkPath = path.join(globalBinDir, 'alex');
+
+        console.log('🔗 Attempting to create global symlink...');
+        console.log('  From:', finalExePath);
+        console.log('  To:', symlinkPath);
+
+        try {
+            // Remove existing symlink if it exists
+            if (fs.existsSync(symlinkPath)) {
+                fs.unlinkSync(symlinkPath);
+                console.log('  ✓ Removed existing symlink');
+            }
+
+            // Create new symlink
+            fs.symlinkSync(finalExePath, symlinkPath);
+            console.log('✅ Global symlink created successfully!');
+        } catch (e) {
+            console.log('⚠️ Could not create global symlink:', e.message);
+            console.log('💡 You can manually run:', finalExePath);
+            console.log('💡 Or add this to your PATH:', path.dirname(finalExePath));
+        }
+    } else {
+        console.log('ℹ️ Local installation detected - no global symlink needed');
+    }
+
     console.log('Alex-Code installed successfully!');
+    console.log('✓ Binary installed at:', finalExePath);
+    console.log('✓ You can now use: alex');
 }
 
 main();
