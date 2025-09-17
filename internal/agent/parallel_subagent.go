@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -107,6 +108,29 @@ func (spa *SimpleParallelSubAgent) ExecuteTasksParallel(
 		i, task := i, task // Capture loop variables
 		
 		g.Go(func() error {
+			// Comprehensive panic recovery for subagent execution
+			defer func() {
+				if r := recover(); r != nil {
+					subAgentLog("ERROR", "Task %d panicked: %v", i, r)
+					// Create failed result on panic
+					results[i] = &SubAgentResult{
+						Success:       false,
+						TaskCompleted: false,
+						Result:        "",
+						SessionID:     fmt.Sprintf("panic-task-%d", i),
+						ErrorMessage:  fmt.Sprintf("panic during execution: %v", r),
+						Duration:      time.Since(startTime).Milliseconds(),
+					}
+					if streamCallback != nil {
+						streamCallback(StreamChunk{
+							Type:     "task_panic",
+							Content:  fmt.Sprintf("⚠️  Task %d recovered from panic: %v", i, r),
+							Metadata: map[string]any{"task_index": i, "panic_value": fmt.Sprintf("%v", r)},
+						})
+					}
+				}
+			}()
+
 			// Acquire semaphore slot
 			select {
 			case sem <- struct{}{}:
@@ -145,28 +169,89 @@ func (spa *SimpleParallelSubAgent) ExecuteTasksParallel(
 				}
 			}
 			
-			// Execute task using existing SubAgent implementation
+			// Execute task using existing SubAgent implementation with enhanced error handling
 			result, err := subAgent.ExecuteTask(gCtx, task, taskStreamCallback)
 			if err != nil {
 				subAgentLog("ERROR", "Task %d failed: %v", i, err)
-				// Create failed result instead of returning error
+
+				// Enhanced error categorization and handling
+				errorMsg := err.Error()
+				errorCategory := "general_error"
+				partialResult := extractPartialResult(err)
+
+				if isContextLimitError(err) {
+					subAgentLog("WARN", "Task %d hit context limits, task partially completed", i)
+					errorMsg = fmt.Sprintf("Task partially completed due to context limits: %v", err)
+					errorCategory = "context_limit"
+					partialResult = "Task execution reached context limits but may have produced partial results before interruption."
+				} else if strings.Contains(strings.ToLower(errorMsg), "panic") {
+					subAgentLog("WARN", "Task %d recovered from panic, system stable", i)
+					errorCategory = "panic_recovered"
+					partialResult = "Task execution was interrupted by system panic but recovered safely."
+				} else if strings.Contains(strings.ToLower(errorMsg), "timeout") {
+					subAgentLog("WARN", "Task %d timed out, may have partial work", i)
+					errorCategory = "timeout"
+					partialResult = "Task execution timed out. Some work may have been completed before timeout."
+				}
+
+				// Send error notification through stream callback
+				if taskStreamCallback != nil {
+					taskStreamCallback(StreamChunk{
+						Type:     "parallel_task_error",
+						Content:  fmt.Sprintf("⚠️ Task %d encountered %s but recovered gracefully", i, errorCategory),
+						Metadata: map[string]any{
+							"task_index":     i,
+							"error_category": errorCategory,
+							"has_partial_result": partialResult != "",
+						},
+					})
+				}
+
+				// Create enhanced result with error categorization
 				results[i] = &SubAgentResult{
 					Success:       false,
 					TaskCompleted: false,
-					Result:        "",
+					Result:        partialResult,
 					SessionID:     subAgent.GetSessionID(),
-					ErrorMessage:  err.Error(),
+					ErrorMessage:  fmt.Sprintf("[%s] %s", errorCategory, errorMsg),
 					Duration:      time.Since(startTime).Milliseconds(),
 				}
 				return nil // Don't fail entire execution for individual task failure
 			}
 			
-			// Store result in correct position to maintain order
-			results[i] = result
-			
-			subAgentLog("DEBUG", "Task %d completed successfully in %dms", 
-				i, result.Duration)
-			
+			// Enhanced success handling with compression monitoring
+			if result != nil {
+				// Store result in correct position to maintain order
+				results[i] = result
+
+				// Send success notification with details
+				if taskStreamCallback != nil {
+					taskStreamCallback(StreamChunk{
+						Type:     "parallel_task_success",
+						Content:  fmt.Sprintf("✅ Task %d completed successfully (tokens: %d, duration: %dms)", i, result.TokensUsed, result.Duration),
+						Metadata: map[string]any{
+							"task_index":    i,
+							"tokens_used":   result.TokensUsed,
+							"duration_ms":   result.Duration,
+							"task_completed": result.TaskCompleted,
+						},
+					})
+				}
+
+				subAgentLog("INFO", "Task %d completed successfully: %d tokens, %dms duration, result: %.100s...",
+					i, result.TokensUsed, result.Duration, result.Result)
+			} else {
+				subAgentLog("WARN", "Task %d returned nil result despite no error", i)
+				results[i] = &SubAgentResult{
+					Success:       false,
+					TaskCompleted: false,
+					Result:        "Task completed but returned no result",
+					SessionID:     subAgent.GetSessionID(),
+					ErrorMessage:  "nil result returned",
+					Duration:      time.Since(startTime).Milliseconds(),
+				}
+			}
+
 			return nil
 		})
 	}
@@ -323,4 +408,39 @@ func (spa *SimpleParallelSubAgent) countSuccessful(results []*SubAgentResult) in
 		}
 	}
 	return count
+}
+
+// isContextLimitError - Check if error is related to API context limits
+func isContextLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errorStr := strings.ToLower(err.Error())
+	return strings.Contains(errorStr, "context") &&
+		(strings.Contains(errorStr, "limit") ||
+			strings.Contains(errorStr, "exceed") ||
+			strings.Contains(errorStr, "too large") ||
+			strings.Contains(errorStr, "maximum")) ||
+		strings.Contains(errorStr, "token") &&
+			(strings.Contains(errorStr, "limit") ||
+				strings.Contains(errorStr, "exceed"))
+}
+
+// extractPartialResult - Extract any partial results from error for graceful degradation
+func extractPartialResult(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	errorStr := err.Error()
+	if isContextLimitError(err) {
+		return "Task execution was interrupted due to API context limits. Partial work may have been completed."
+	}
+
+	// Look for any useful information in the error message
+	if strings.Contains(errorStr, "panic") {
+		return "Task execution was interrupted unexpectedly. System recovered safely."
+	}
+
+	return "Task failed to complete"
 }

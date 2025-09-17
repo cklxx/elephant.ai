@@ -95,17 +95,19 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 
 		subAgentLog("INFO", "🔄 Starting iteration %d/%d", iteration, maxIterations)
 
-		// Ultra Think: 检查消息队列是否有新的用户输入，融入当前任务
-		// 这里不中断任务，而是将新消息融入到当前工具调用循环中，更新任务目标
-		if rc.agent != nil && rc.agent.HasPendingMessages() {
-			subAgentLog("INFO", "📬 Detected pending messages in queue, integrating into current task")
+		// Optimized message queue handling for subagents:
+		// SubAgents should focus on their assigned task without interruption from new user messages
+		// Only check for pending messages in main agent context (not subagents)
+		// This prevents performance issues and race conditions in parallel execution
+		if rc.agent != nil && rc.agent.HasPendingMessages() && !isSubAgentContext(execCtx) {
+			subAgentLog("DEBUG", "📬 Main agent detected pending messages, integrating into current task")
 
-			// 收集所有待处理的消息
+			// 收集所有待处理的消息 (仅在主 agent 中)
 			var newMessages []string
-			for rc.agent.HasPendingMessages() {
+			for rc.agent.HasPendingMessages() && len(newMessages) < 5 { // Limit message integration to prevent overflow
 				if pendingItem, hasItem := rc.agent.CheckPendingMessages(); hasItem {
 					newMessages = append(newMessages, pendingItem.Message)
-					subAgentLog("INFO", "📬 Integrating message: %s", pendingItem.Message)
+					subAgentLog("DEBUG", "📬 Integrating message: %s", pendingItem.Message)
 				}
 			}
 
@@ -132,8 +134,11 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 				}
 				result.Messages = append(result.Messages, userMsg)
 
-				subAgentLog("INFO", "📬 Successfully integrated %d messages into current task", len(newMessages))
+				subAgentLog("DEBUG", "📬 Successfully integrated %d messages into current task", len(newMessages))
 			}
+		} else if isSubAgentContext(execCtx) {
+			// SubAgent should focus on assigned task without message queue interruption
+			subAgentLog("DEBUG", "SubAgent context: skipping message queue check for focused execution")
 		}
 
 		if isStreaming {
@@ -144,19 +149,109 @@ func (rc *ReactCore) ExecuteTaskCore(ctx context.Context, execCtx *TaskExecution
 			})
 		}
 
-		// 从第二次迭代开始，使用AI压缩系统进行消息压缩
-		if iteration > 1 && rc.messageProcessor != nil {
-			subAgentLog("DEBUG", "💾 Compressing messages for iteration %d", iteration)
-
-			// 直接对LLM消息进行压缩，无需转换
+		// SubAgent 优化的消息压缩系统 - 使用更低的阈值和更好的错误处理
+		if rc.messageProcessor != nil {
+			// SubAgent 使用更严格的压缩策略：较低的 token 阈值和消息数量阈值
 			totalTokensUsed := result.PromptTokens + result.CompletionTokens
-			currentTokens := result.CurrentMessageTokens // 使用专门的当前消息token数
-			compressedMessages, _, newCurrentTokens := rc.messageProcessor.CompressMessages(ctx, result.Messages, totalTokensUsed, currentTokens)
-			// 更新当前消息token数（压缩后会清零）
-			result.CurrentMessageTokens = newCurrentTokens
-			result.Messages = compressedMessages
+			currentTokens := result.CurrentMessageTokens
+			messageCount := len(result.Messages)
 
-			subAgentLog("DEBUG", "💾 Messages compressed at iteration %d, count: %d", iteration, len(result.Messages))
+			// SubAgent 特定的压缩阈值（比主 agent 更低）
+			const (
+				subAgentTokenThreshold   = 50000 // 50K token 限制（主 agent 是 100K）
+				subAgentMessageThreshold = 10    // 10 条消息（主 agent 是 15）
+				subAgentForceThreshold   = 30000 // 30K token 强制压缩阈值
+			)
+
+			shouldCompress := false
+			compressReason := ""
+
+			// 判断是否需要压缩
+			if iteration > 1 && (messageCount > subAgentMessageThreshold && currentTokens > subAgentTokenThreshold) {
+				shouldCompress = true
+				compressReason = "normal_threshold"
+			} else if currentTokens > subAgentForceThreshold {
+				// 强制压缩：当 token 数过高时，即使在第一次迭代也要压缩
+				shouldCompress = true
+				compressReason = "force_threshold"
+			} else if isSubAgentContext(execCtx) && messageCount > 8 {
+				// SubAgent 专用逻辑：即使 token 不多，也要控制消息数量
+				shouldCompress = true
+				compressReason = "subagent_message_limit"
+			}
+
+			if shouldCompress {
+				subAgentLog("INFO", "💾 SubAgent compressing messages at iteration %d (reason: %s): %d messages, %d tokens",
+					iteration, compressReason, messageCount, currentTokens)
+
+				// 执行压缩，带有完善的错误处理
+				compressedMessages, newConsumedTokens, newCurrentTokens := rc.compressMessagesWithFallback(ctx, result.Messages, totalTokensUsed, currentTokens, iteration)
+
+				if compressedMessages != nil {
+					// 压缩成功
+					result.CurrentMessageTokens = newCurrentTokens
+					result.Messages = compressedMessages
+					result.PromptTokens = newConsumedTokens // 更新累积 token 数
+					subAgentLog("INFO", "💾 SubAgent compression successful: %d->%d messages, tokens: %d->%d",
+						messageCount, len(compressedMessages), currentTokens, newCurrentTokens)
+
+					// 发送压缩成功的流式通知
+					if isStreaming {
+						streamCallback(StreamChunk{
+							Type:     "subagent_compression",
+							Content:  fmt.Sprintf("💾 SubAgent compressed %d messages to %d (saved %d tokens)",
+								messageCount, len(compressedMessages), currentTokens-newCurrentTokens),
+							Metadata: map[string]any{
+								"iteration":        iteration,
+								"compress_reason":  compressReason,
+								"original_messages": messageCount,
+								"compressed_messages": len(compressedMessages),
+								"tokens_saved":     currentTokens - newCurrentTokens,
+							},
+						})
+					}
+				} else {
+					// 压缩失败，但继续执行
+					subAgentLog("WARN", "⚠️ SubAgent compression failed at iteration %d, continuing with original messages", iteration)
+				}
+			} else {
+				subAgentLog("DEBUG", "💾 SubAgent skipping compression at iteration %d: %d messages, %d tokens (below thresholds)",
+					iteration, messageCount, currentTokens)
+			}
+		}
+
+		// SubAgent 专用：在 LLM 调用前检查是否需要紧急压缩
+		if rc.messageProcessor != nil {
+			// 估算当前消息的 token 数
+			estimatedTokens := rc.estimateMessageTokens(result.Messages)
+			maxTokensLimit := execCtx.Config.MaxTokens
+			if maxTokensLimit <= 0 {
+				maxTokensLimit = 8000 // 默认限制
+			}
+
+			// 如果预计 token 数超过 80% 的限制，进行紧急压缩
+			if estimatedTokens > int(float64(maxTokensLimit)*0.8) {
+				subAgentLog("WARN", "⚠️ SubAgent emergency compression triggered: %d tokens (80%% of %d limit)", estimatedTokens, maxTokensLimit)
+
+				// 执行紧急压缩
+				totalTokensUsed := result.PromptTokens + result.CompletionTokens
+				compressedMessages, newConsumedTokens, newCurrentTokens := rc.compressMessagesWithFallback(ctx, result.Messages, totalTokensUsed, result.CurrentMessageTokens, iteration)
+
+				if compressedMessages != nil && len(compressedMessages) < len(result.Messages) {
+					result.Messages = compressedMessages
+					result.PromptTokens = newConsumedTokens
+					result.CurrentMessageTokens = newCurrentTokens
+					subAgentLog("INFO", "✅ SubAgent emergency compression successful: %d->%d messages", len(result.Messages), len(compressedMessages))
+
+					if isStreaming {
+						streamCallback(StreamChunk{
+							Type:     "emergency_compression",
+							Content:  fmt.Sprintf("⚡ Emergency compression: %d->%d messages to avoid context limit", len(result.Messages), len(compressedMessages)),
+							Metadata: map[string]any{"iteration": iteration, "reason": "approaching_context_limit"},
+						})
+					}
+				}
+			}
 		}
 
 		// 构建LLM请求
@@ -511,8 +606,34 @@ func NewSubAgent(parentCore *ReactCore, config *SubAgentConfig) (*SubAgent, erro
 }
 
 // ExecuteTask - 实现SubAgentInterface.ExecuteTask，支持流式回调
-func (sa *SubAgent) ExecuteTask(ctx context.Context, task string, streamCallback StreamCallback) (*SubAgentResult, error) {
+func (sa *SubAgent) ExecuteTask(ctx context.Context, task string, streamCallback StreamCallback) (result *SubAgentResult, err error) {
 	startTime := time.Now()
+
+	// Comprehensive panic recovery for subagent execution
+	defer func() {
+		if r := recover(); r != nil {
+			subAgentLog("ERROR", "Sub-agent task execution panicked: %v", r)
+			// Create safe result on panic
+			result = &SubAgentResult{
+				Success:       false,
+				TaskCompleted: false,
+				Result:        "Task execution was interrupted by system panic but recovered safely",
+				SessionID:     sa.sessionID,
+				Duration:      time.Since(startTime).Milliseconds(),
+				ErrorMessage:  fmt.Sprintf("panic during execution: %v", r),
+			}
+			err = fmt.Errorf("subagent execution panicked: %v", r)
+
+			if streamCallback != nil {
+				streamCallback(StreamChunk{
+					Type:     "sub_agent_panic_recovery",
+					Content:  fmt.Sprintf("⚠️ Sub-agent recovered from panic: %v", r),
+					Metadata: map[string]any{"sub_agent_id": sa.sessionID, "panic_value": fmt.Sprintf("%v", r)},
+				})
+			}
+		}
+	}()
+
 	subAgentLog("INFO", "🚀 Starting sub-agent task execution with stream callback")
 	subAgentLog("INFO", "📋 Task: %s", task)
 	subAgentLog("INFO", "🆔 Session ID: %s", sa.sessionID)
@@ -557,10 +678,31 @@ func (sa *SubAgent) ExecuteTask(ctx context.Context, task string, streamCallback
 		})
 	}
 
-	// 执行核心任务，传入流式回调
+	// 执行核心任务，传入流式回调 with robust error handling
 	subAgentLog("INFO", "⚡ Executing core task with max %d iterations and stream callback", sa.config.MaxIterations)
-	result, err := sa.reactCore.ExecuteTaskCore(ctx, execCtx, streamCallback)
+	coreResult, err := sa.reactCore.ExecuteTaskCore(ctx, execCtx, streamCallback)
 	if err != nil {
+		// Enhanced error handling for context limit and other API errors
+		if isContextLimitError(err) {
+			subAgentLog("WARN", "⚠️ Core task hit context limits, attempting graceful degradation: %v", err)
+			if streamCallback != nil {
+				streamCallback(StreamChunk{
+					Type:     "context_limit_warning",
+					Content:  "⚠️ Task hit context limits but recovered with partial results",
+					Metadata: map[string]any{"sub_agent_id": sa.sessionID, "error_type": "context_limit"},
+				})
+			}
+			// Return partial results instead of complete failure
+			return &SubAgentResult{
+				Success:       false,
+				TaskCompleted: false,
+				Result:        "Task partially completed before hitting context limits",
+				SessionID:     sa.sessionID,
+				Duration:      time.Since(startTime).Milliseconds(),
+				ErrorMessage:  fmt.Sprintf("context limit reached: %v", err),
+			}, nil // Don't return error, let caller handle gracefully
+		}
+
 		subAgentLog("ERROR", "❌ Core task execution failed: %v", err)
 		if streamCallback != nil {
 			streamCallback(StreamChunk{
@@ -582,11 +724,11 @@ func (sa *SubAgent) ExecuteTask(ctx context.Context, task string, streamCallback
 
 	// 构建sub-agent结果
 	subResult := &SubAgentResult{
-		Success:       result.Success,
-		TaskCompleted: result.Success,
-		Result:        result.Answer,
+		Success:       coreResult.Success,
+		TaskCompleted: coreResult.Success,
+		Result:        coreResult.Answer,
 		SessionID:     sa.sessionID,
-		TokensUsed:    result.TokensUsed,
+		TokensUsed:    coreResult.TokensUsed,
 		Duration:      time.Since(startTime).Milliseconds(),
 	}
 
@@ -606,7 +748,7 @@ func (sa *SubAgent) ExecuteTask(ctx context.Context, task string, streamCallback
 	}
 
 	// 如果任务失败，设置错误信息
-	if !result.Success {
+	if !coreResult.Success {
 		subResult.ErrorMessage = "Task execution did not complete successfully"
 		subAgentLog("WARN", "Task execution unsuccessful after %dms", subResult.Duration)
 	} else {
@@ -740,6 +882,92 @@ JWT + OAuth2 recommended. Testing plan included...
 
 You should work autonomously within your task scope and provide concrete results that the main agent can use.`
 }
+
+// estimateMessageTokens - 快速估算消息的 token 数量
+func (rc *ReactCore) estimateMessageTokens(messages []llm.Message) int {
+	totalTokens := 0
+	for _, msg := range messages {
+		// 简单的字符数估算：通常 1 token ≈ 4 characters
+		contentLength := len(msg.Content)
+		estimatedTokens := contentLength / 4
+
+		// 为工具调用添加额外的 token 估算
+		if len(msg.ToolCalls) > 0 {
+			for _, tc := range msg.ToolCalls {
+				estimatedTokens += len(tc.Function.Name)/4 + len(tc.Function.Arguments)/4 + 10 // 额外开销
+			}
+		}
+
+		totalTokens += estimatedTokens
+	}
+
+	// 添加消息结构开销
+	totalTokens += len(messages) * 10 // 每条消息大约 10 token 的结构开销
+
+	return totalTokens
+}
+
+// compressMessagesWithFallback - SubAgent 专用的消息压缩，带有降级策略
+func (rc *ReactCore) compressMessagesWithFallback(ctx context.Context, messages []llm.Message, consumedTokens, currentTokens, iteration int) ([]llm.Message, int, int) {
+	// 首先尝试正常压缩
+	compressedMessages, newConsumedTokens, newCurrentTokens := rc.messageProcessor.CompressMessages(ctx, messages, consumedTokens, currentTokens)
+
+	// 检查压缩是否成功（压缩后消息数量应该减少）
+	if len(compressedMessages) > 0 && len(compressedMessages) < len(messages) {
+		subAgentLog("DEBUG", "✅ SubAgent compression successful via normal method")
+		return compressedMessages, newConsumedTokens, newCurrentTokens
+	}
+
+	// 如果正常压缩失败，尝试简单的历史裁剪策略
+	subAgentLog("WARN", "⚠️ Normal compression failed, trying fallback message truncation")
+
+	if len(messages) <= 3 {
+		// 消息太少，无法裁剪
+		subAgentLog("WARN", "Too few messages for fallback compression, keeping original")
+		return messages, consumedTokens, currentTokens
+	}
+
+	// 保留系统消息和最近的消息，删除中间的消息
+	fallbackMessages := make([]llm.Message, 0, len(messages))
+
+	// 保留前2条系统消息
+	systemMsgCount := 0
+	for i, msg := range messages {
+		if msg.Role == "system" && systemMsgCount < 2 {
+			fallbackMessages = append(fallbackMessages, msg)
+			systemMsgCount++
+		} else if msg.Role != "system" {
+			// 只保留最后3条非系统消息
+			if i >= len(messages)-3 {
+				fallbackMessages = append(fallbackMessages, msg)
+			}
+		}
+	}
+
+	// 添加一条说明消息
+	fallbackMessages = append(fallbackMessages, llm.Message{
+		Role:    "assistant",
+		Content: fmt.Sprintf("📝 [SubAgent Note: Message history was truncated at iteration %d to manage context length. Previous conversation context may be lost.]", iteration),
+	})
+
+	subAgentLog("INFO", "📝 SubAgent fallback compression: %d->%d messages", len(messages), len(fallbackMessages))
+
+	// 重新计算 token 数（简单估算）
+	newCurrentTokens = currentTokens / 3 // 粗略估算压缩后的 token 数
+
+	return fallbackMessages, consumedTokens + currentTokens/2, newCurrentTokens
+}
+
+// isSubAgentContext - Check if execution context is for a SubAgent
+func isSubAgentContext(execCtx *TaskExecutionContext) bool {
+	if execCtx == nil || execCtx.TaskID == "" {
+		return false
+	}
+	// SubAgent TaskIDs typically start with "sub_" prefix
+	return strings.HasPrefix(execCtx.TaskID, "sub_") ||
+		(execCtx.Session != nil && strings.Contains(execCtx.Session.ID, "sub"))
+}
+
 
 // filterTools - 根据配置过滤可用工具
 func (sa *SubAgent) filterTools(allTools []llm.Tool) []llm.Tool {

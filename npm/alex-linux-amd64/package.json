@@ -1,6 +1,6 @@
 {
   "name": "alex-code-linux-amd64",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "The Linux AMD64 binary for alex-code.",
   "main": "index.js",
   "os": [
