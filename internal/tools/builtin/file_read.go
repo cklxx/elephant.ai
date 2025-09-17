@@ -66,7 +66,6 @@ Notes:
 func (t *FileReadTool) Parameters() map[string]interface{} {
 	schema := tools.NewToolSchema().
 		AddParameter("file_path", tools.NewStringParameter("Path to the file to read", false)).
-		AddParameter("path", tools.NewStringParameter("Path to the file to read (legacy parameter)", false)).
 		AddParameter("start_line", tools.NewIntegerParameter("Starting line number (1-based, optional)", false)).
 		AddParameter("end_line", tools.NewIntegerParameter("Ending line number (1-based, optional)", false)).
 		AddParameter("analyze_go", tools.NewBooleanParameter("Enable Go code analysis for .go files (default: true)", false))
@@ -78,14 +77,11 @@ func (t *FileReadTool) Parameters() map[string]interface{} {
 func (t *FileReadTool) Validate(args map[string]interface{}) error {
 	// Check if either file_path or path is provided
 	if _, hasFilePath := args["file_path"]; !hasFilePath {
-		if _, hasPath := args["path"]; !hasPath {
-			return fmt.Errorf("either file_path or path is required")
-		}
+		return fmt.Errorf("either file_path or path is required")
 	}
 
 	validator := NewValidationFramework().
-		AddOptionalStringField("file_path", "Path to the file to read").
-		AddOptionalStringField("path", "Path to the file to read (legacy)").
+		AddStringField("file_path", "Path to the file to read").
 		AddOptionalIntField("start_line", "Starting line number (1-based)", 1, 0).
 		AddOptionalIntField("end_line", "Ending line number (1-based)", 1, 0).
 		AddOptionalBooleanField("analyze_go", "Enable Go code analysis")
@@ -607,8 +603,6 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	var filePath string
 	if fp, ok := params.GetString("file_path"); ok {
 		filePath = fp
-	} else if p, ok := params.GetString("path"); ok {
-		filePath = p
 	} else {
 		return nil, fmt.Errorf("either file_path or path is required")
 	}
