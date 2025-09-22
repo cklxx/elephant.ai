@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/llm"
+	"alex/internal/config"
 	"alex/internal/session"
 	"alex/pkg/types"
 
@@ -13,37 +13,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockConfigManager - Mock implementation for testing ReactAgent
-type MockConfigManager struct {
-	llmConfig *llm.Config
-}
-
-func (m *MockConfigManager) GetLLMConfig() *llm.Config {
-	if m.llmConfig == nil {
-		return &llm.Config{
-			BaseURL: "https://api.test.com",
-			Model:   "test-model",
-			APIKey:  "test-key",
-		}
-	}
-	return m.llmConfig
-}
-
-func NewMockConfigManager() *MockConfigManager {
-	return &MockConfigManager{
-		llmConfig: &llm.Config{
-			BaseURL: "https://api.test.com",
-			Model:   "test-model",
-			APIKey:  "test-key",
-		},
-	}
-}
-
 func TestNewReactAgent(t *testing.T) {
-	// This test is challenging because NewReactAgent has many dependencies
-	// Testing with nil input causes panic, so we skip this for now
-	// In real usage, NewReactAgent should always be called with a valid config manager
-	t.Skip("NewReactAgent requires complex dependency setup, skipping for basic test suite")
+	// Test basic ReactAgent creation with valid config
+	// Note: This is an integration test that may fail if LLM services are unavailable
+
+	// Create a real config manager for testing
+	configManager, err := config.NewManager()
+	if err != nil {
+		t.Skip("Skipping NewReactAgent test - config manager creation failed:", err)
+		return
+	}
+
+	// Test NewReactAgent with valid config
+	agent, err := NewReactAgent(configManager)
+
+	// Accept that this might fail due to external dependencies
+	if err != nil {
+		t.Logf("NewReactAgent failed (expected in test environment): %v", err)
+		// This is acceptable for testing environment
+		return
+	}
+
+	// If it succeeds, verify the agent structure
+	assert.NotNil(t, agent)
+	assert.NotNil(t, agent.sessionManager)
+	assert.NotNil(t, agent.toolRegistry)
+	assert.NotNil(t, agent.config)
+	assert.NotNil(t, agent.messageQueue)
 }
 
 func TestReactAgentStructure(t *testing.T) {
@@ -87,8 +83,19 @@ func TestReactAgentSessionManagement(t *testing.T) {
 }
 
 func TestReactAgentStartSessionError(t *testing.T) {
-	// Test StartSession with invalid session manager
-	t.Skip("StartSession with nil sessionManager causes panic, skipping for basic test suite")
+	// Test StartSession with nil session manager
+	agent := &ReactAgent{
+		sessionManager: nil, // This should be handled gracefully
+	}
+
+	// Test that we handle nil sessionManager gracefully
+	sessionID := "test_session"
+	sess, err := agent.StartSession(sessionID)
+
+	// We expect this to fail gracefully with an error, not panic
+	assert.Error(t, err)
+	assert.Nil(t, sess)
+	assert.Contains(t, err.Error(), "sessionManager")
 }
 
 func TestReactAgentRestoreSession(t *testing.T) {

@@ -145,6 +145,10 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 
 // StartSession - 开始会话
 func (r *ReactAgent) StartSession(sessionID string) (*session.Session, error) {
+	if r.sessionManager == nil {
+		return nil, fmt.Errorf("sessionManager is nil")
+	}
+
 	session, err := r.sessionManager.StartSession(sessionID)
 	if err != nil {
 		return nil, err
@@ -159,6 +163,10 @@ func (r *ReactAgent) StartSession(sessionID string) (*session.Session, error) {
 
 // RestoreSession - 恢复会话
 func (r *ReactAgent) RestoreSession(sessionID string) (*session.Session, error) {
+	if r.sessionManager == nil {
+		return nil, fmt.Errorf("sessionManager is nil")
+	}
+
 	session, err := r.sessionManager.RestoreSession(sessionID)
 	if err != nil {
 		log.Printf("[ERROR] ReactAgent: Failed to restore session %s: %v", sessionID, err)
