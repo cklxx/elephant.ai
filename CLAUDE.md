@@ -21,6 +21,12 @@ make test-working            # Run only working tests
 make test-functionality      # Quick test of core functionality
 go test ./internal/agent/    # Test specific package
 
+# Comprehensive Testing Framework
+go test ./internal/tools/builtin/ -v    # Test builtin tools (file_read, todo_read, todo_update)
+go test ./internal/agent/ -v            # Test ReAct agent and tool registry
+go test ./internal/context/ -v          # Test message compression and token estimation
+go test ./internal/session/ -v          # Test session management and persistence
+
 # Code Quality
 make fmt                      # Format Go code
 make vet                      # Run go vet
@@ -189,6 +195,53 @@ cd evaluation/swe_bench && ./run_evaluation.sh real-test
 - `StreamCallback` - Streaming response handling
 - `llm.Client` - LLM client interface
 
+## Testing Strategy and Quality Assurance
+
+### Current Test Coverage (2025-01)
+```
+✅ Agent System (internal/agent/)
+├── ReactAgent: Comprehensive unit tests with dependency injection
+├── ToolRegistry: Dynamic registration and caching tests
+├── ParallelSubAgent: Concurrency and workflow tests
+└── Interfaces: Mock implementations and contract validation
+
+✅ Builtin Tools (internal/tools/builtin/)
+├── file_read: 11 tests covering file operations, Go AST analysis, edge cases
+├── todo_read: 10 tests covering session management and file operations
+└── todo_update: 13 tests covering validation, JSON handling, formatting
+
+✅ LLM Integration (internal/llm/)
+├── Factory pattern and model selection tests
+├── Caching and instance management tests
+└── Interface compliance and error handling tests
+
+⚠️ Pending High-Priority Test Coverage:
+├── Session Management (internal/session/) - Message compression, persistence
+├── Context Management (internal/context/) - Token limits, compression triggers
+├── MCP Protocol (internal/mcp/) - JSON-RPC, transport layers
+└── End-to-End Testing - Complete agent workflows with compression
+```
+
+### Testing Principles and Standards
+- **Comprehensive Coverage**: Unit tests, integration tests, edge cases
+- **Dependency Injection**: Proper mocking and isolation for reliable tests
+- **Real-World Scenarios**: File permissions, network errors, concurrent access
+- **Robust Assertions**: Flexible checks that adapt to implementation changes
+- **Session Testing**: Todo persistence, compression, and session recovery
+
+### Test Execution Strategy
+```bash
+# Development Testing Workflow
+make test-working        # Quick validation during development
+go test ./internal/agent/ -v    # Agent system comprehensive tests
+go test ./internal/tools/builtin/ -v    # Builtin tools validation
+
+# Quality Assurance Testing
+make test               # Full test suite execution
+go test -race ./...     # Concurrency safety validation
+go test -bench=.        # Performance benchmarking
+```
+
 ## Performance and Monitoring
 
 ### Performance Framework (`internal/performance/`)
@@ -204,3 +257,46 @@ make perf-test        # Run performance test scenarios
 make perf-baseline    # Create performance baseline
 make perf-monitor     # Start performance monitoring
 ```
+
+## Development Workflow and Best Practices
+
+### Code Quality Requirements
+- **All new code MUST include comprehensive tests**
+- **ReAct agent modifications require dependency injection testing**
+- **Builtin tools require unit tests with edge case coverage**
+- **Session management changes require persistence testing**
+- **Run `make dev` before commits to ensure code quality**
+
+### Testing Requirements for New Features
+```bash
+# Required test coverage for new code:
+1. Unit tests with >80% coverage
+2. Integration tests for component interactions
+3. Edge case testing (errors, edge conditions, concurrency)
+4. Dependency injection and mocking for external dependencies
+5. Performance benchmarks for critical paths
+```
+
+### Git Workflow Standards
+```bash
+# Standard development cycle:
+make dev                    # Format, vet, build, test
+go test ./internal/agent/ -v    # Validate agent changes
+go test ./internal/tools/builtin/ -v    # Validate tool changes
+git add -A && git commit    # Commit with descriptive message
+git push                    # Push to remote repository
+```
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+
+**TESTING REQUIREMENTS (2025-01)**:
+- All new agent functionality MUST include comprehensive test coverage
+- Use proper dependency injection patterns for testable code
+- Include edge case testing for error scenarios and concurrent access
+- Test session persistence and message compression scenarios end-to-end
+- Run full test suite before commits: `make test` or `go test ./...`
+- Builtin tools require validation, execution, and error handling tests

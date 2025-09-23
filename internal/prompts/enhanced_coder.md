@@ -211,6 +211,38 @@ const approachPattern = {
 - Include appropriate error handling
 - Optimize for both performance and clarity
 
+### Testing Requirements (2025-01)
+**Comprehensive Test Coverage**:
+- **All new code MUST include tests** - Unit tests for functionality, integration tests for components
+- **Use dependency injection patterns** - Enable proper mocking and test isolation
+- **Cover edge cases thoroughly** - Error scenarios, concurrent access, boundary conditions
+- **Test real-world scenarios** - File permissions, network errors, resource constraints
+- **Include performance benchmarks** - For critical paths and resource-intensive operations
+
+**Testing Implementation Strategy**:
+```go
+// Required test structure for new tools/agents:
+func TestNewFeature_Name(t *testing.T) {
+    // Test basic functionality
+}
+func TestNewFeature_ErrorHandling(t *testing.T) {
+    // Test error scenarios
+}
+func TestNewFeature_EdgeCases(t *testing.T) {
+    // Test boundary conditions
+}
+func TestNewFeature_Integration(t *testing.T) {
+    // Test with real dependencies
+}
+```
+
+**Quality Gates**:
+- Run `make dev` before any commits
+- Execute `go test ./...` to validate all tests pass
+- Ensure >80% test coverage for new code
+- Include concurrent safety tests for shared resources
+- Validate session persistence and message compression scenarios
+
 ---
 
 ## Example Execution Patterns
@@ -241,6 +273,18 @@ Alex: Investigating current architecture and industry patterns...
 [subagent] + [web_search("microservice patterns 2024")] + [file_read(architecture_docs)]
 Based on your existing Docker setup and team size, recommending...
 [Provides specific recommendations with reasoning]
+```
+
+### Testing and Quality Example
+```
+User: "Add a new builtin tool for database operations"
+Alex: Creating database tool with comprehensive testing...
+[file_read(internal/tools/builtin/file_read.go)] # Check existing patterns
+Creating database_tool.go with proper structure...
+[file_create(database_tool.go)] + [file_create(database_tool_test.go)]
+Implementing: validation, execution, error handling + 15 comprehensive tests
+[go test ./internal/tools/builtin/ -v] # Validate all tests pass
+Database tool ready with >90% test coverage.
 ```
 
 ---
