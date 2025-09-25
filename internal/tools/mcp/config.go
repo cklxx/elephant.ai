@@ -352,6 +352,18 @@ var (
 			Timeout:     30 * time.Second,
 			Enabled:     false,
 		},
+		"chrome-devtools": {
+			ID:          "chrome-devtools",
+			Name:        "Chrome DevTools Server",
+			Type:        SpawnerTypeNPX,
+			Command:     "chrome-devtools-mcp@latest",
+			Args:        []string{},
+			Env:         make(map[string]string),
+			AutoStart:   false,
+			AutoRestart: true,
+			Timeout:     30 * time.Second,
+			Enabled:     true,
+		},
 	}
 )
 

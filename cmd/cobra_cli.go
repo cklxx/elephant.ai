@@ -211,6 +211,7 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.AddCommand(newBatchCommand())
 	rootCmd.AddCommand(newVersionCommand())
 	rootCmd.AddCommand(newInitCommand(cli))
+	rootCmd.AddCommand(webuiCmd) // Add Web UI command
 
 	// Configure viper
 	viper.SetConfigName("alex-config")

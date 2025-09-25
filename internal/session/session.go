@@ -278,6 +278,26 @@ func (m *Manager) ListSessions() ([]string, error) {
 	return sessionIDs, nil
 }
 
+// ListSessionObjects returns all sessions as Session objects
+func (m *Manager) ListSessionObjects() ([]*Session, error) {
+	sessionIDs, err := m.ListSessions()
+	if err != nil {
+		return nil, err
+	}
+
+	var sessions []*Session
+	for _, sessionID := range sessionIDs {
+		session, err := m.RestoreSession(sessionID)
+		if err != nil {
+			// Skip sessions that can't be loaded
+			continue
+		}
+		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
 // DeleteSession removes a session from memory and disk
 func (m *Manager) DeleteSession(sessionID string) error {
 	m.mutex.Lock()
