@@ -124,16 +124,22 @@ func (s *Server) wsReadPump(wsConn *WebSocketConnection) {
 	defer func() {
 		s.wg.Done()
 		s.removeWebSocketConnection(wsConn.SessionID)
-		wsConn.Conn.Close()
+		if err := wsConn.Conn.Close(); err != nil {
+			log.Printf("Failed to close WebSocket connection: %v", err)
+		}
 		// 安全地发送Done信号
 		wsConn.safeSendDone()
 	}()
 
 	// 设置读取配置
 	wsConn.Conn.SetReadLimit(maxMessageSize)
-	wsConn.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err := wsConn.Conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		log.Printf("Failed to set read deadline: %v", err)
+	}
 	wsConn.Conn.SetPongHandler(func(string) error {
-		wsConn.Conn.SetReadDeadline(time.Now().Add(pongWait))
+		if err := wsConn.Conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+			log.Printf("Failed to set read deadline in pong handler: %v", err)
+		}
 		return nil
 	})
 
@@ -164,7 +170,9 @@ func (s *Server) wsWritePump(wsConn *WebSocketConnection) {
 	defer func() {
 		s.wg.Done()
 		ticker.Stop()
-		wsConn.Conn.Close()
+		if err := wsConn.Conn.Close(); err != nil {
+			log.Printf("Failed to close WebSocket connection: %v", err)
+		}
 	}()
 
 	for {
@@ -172,9 +180,13 @@ func (s *Server) wsWritePump(wsConn *WebSocketConnection) {
 		case <-wsConn.Context.Done():
 			return
 		case message, ok := <-wsConn.Send:
-			wsConn.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := wsConn.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				log.Printf("Failed to set write deadline: %v", err)
+			}
 			if !ok {
-				wsConn.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err := wsConn.Conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					log.Printf("Failed to write close message: %v", err)
+				}
 				return
 			}
 
@@ -184,7 +196,9 @@ func (s *Server) wsWritePump(wsConn *WebSocketConnection) {
 			}
 
 		case <-ticker.C:
-			wsConn.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := wsConn.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				log.Printf("Failed to set write deadline for ping: %v", err)
+			}
 			if err := wsConn.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -242,7 +256,9 @@ func (s *Server) handleWebSocketMessageRequest(wsConn *WebSocketConnection, msg 
 	if messageReq.Config != nil {
 		// 将map转换为config (简化处理)
 		cfgBytes, _ := json.Marshal(messageReq.Config)
-		json.Unmarshal(cfgBytes, cfg)
+		if err := json.Unmarshal(cfgBytes, cfg); err != nil {
+			log.Printf("Failed to unmarshal config: %v", err)
+		}
 	}
 
 	// 创建流式回调函数
@@ -271,7 +287,9 @@ func (s *Server) handleWebSocketMessageRequest(wsConn *WebSocketConnection, msg 
 
 	// 异步处理消息
 	go func() {
-		ctx := context.WithValue(wsConn.Context, "session_id", wsConn.SessionID)
+		type wsSessionKey string
+		const wsSessionIDKey wsSessionKey = "session_id"
+		ctx := context.WithValue(wsConn.Context, wsSessionIDKey, wsConn.SessionID)
 		err := s.reactAgent.ProcessMessageStream(ctx, messageReq.Content, cfg, streamCallback)
 		if err != nil {
 			s.sendWebSocketError(wsConn, fmt.Sprintf("failed to process message: %v", err))

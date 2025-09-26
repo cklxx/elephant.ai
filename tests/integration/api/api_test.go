@@ -143,19 +143,25 @@ func (suite *APITestSuite) TestCreateSession() {
 	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+	assert.Equal(suite.T(), http.StatusCreated, resp.StatusCode)
 
 	var response APIResponse
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	require.NoError(suite.T(), err)
 	assert.True(suite.T(), response.Success)
-	assert.Equal(suite.T(), "test-session-1", response.SessionID)
+
+	// Extract session data from response
+	sessionData, ok := response.Data.(map[string]interface{})
+	require.True(suite.T(), ok, "response.Data should be a map")
+	sessionID, ok := sessionData["id"].(string)
+	require.True(suite.T(), ok, "session ID should be a string")
+	assert.Equal(suite.T(), "test-session-1", sessionID)
 }
 
 // TestListSessions 测试获取会话列表
 func (suite *APITestSuite) TestListSessions() {
 	// 先创建一个会话
-	suite.TestCreateSession()
+	suite.createTestSession("test-session-list")
 
 	resp, err := suite.client.Get(suite.baseURL + "/api/sessions")
 	require.NoError(suite.T(), err)
@@ -181,10 +187,9 @@ func (suite *APITestSuite) TestSendMessage() {
 	suite.createTestSession(sessionID)
 
 	// 发送消息
-	requestData := APIRequest{
-		Message:   "Hello, ALEX!",
-		SessionID: sessionID,
-		Stream:    false,
+	requestData := map[string]interface{}{
+		"content":     "Hello, ALEX!",
+		"stream_mode": false,
 	}
 
 	jsonData, err := json.Marshal(requestData)
@@ -331,7 +336,7 @@ func (suite *APITestSuite) createTestSession(sessionID string) {
 	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	require.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+	require.Equal(suite.T(), http.StatusCreated, resp.StatusCode)
 }
 
 // 运行测试套件

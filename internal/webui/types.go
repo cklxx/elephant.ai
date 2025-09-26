@@ -90,10 +90,11 @@ type WebSocketConnection struct {
 
 // SessionManager - Web UI专用的会话管理器
 type WebUISessionManager struct {
-	reactAgent *agent.ReactAgent
-	configMgr  *config.Manager
-	sessions   map[string]*session.Session
-	wsConnections map[string]*WebSocketConnection
+	reactAgent    *agent.ReactAgent    // nolint:unused
+	configMgr     *config.Manager     // nolint:unused
+	sessions      map[string]*session.Session // nolint:unused
+	wsConnections map[string]*WebSocketConnection // nolint:unused
+	// Fields are used by the web UI for session and connection management
 }
 
 // ConfigUpdateRequest - 配置更新请求

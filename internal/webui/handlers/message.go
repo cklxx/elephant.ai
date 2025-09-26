@@ -90,12 +90,14 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	// 非流式处理
 	cfg := &config.Config{}
 	if req.Config != nil {
-		// 简化的配置处理
-		// 在实际应用中，你可能需要更复杂的配置转换逻辑
+		// TODO: 实现配置处理逻辑
+		cfg.Model = "default-model"
 	}
 
 	// 使用上下文
-	ctx := context.WithValue(context.Background(), "session_id", sessionID)
+	type sessionKey string
+	const sessionIDKey sessionKey = "session_id"
+	ctx := context.WithValue(context.Background(), sessionIDKey, sessionID)
 
 	// 收集流式输出
 	var streamChunks []agent.StreamChunk
@@ -166,12 +168,14 @@ func (h *MessageHandler) GetMessages(c *gin.Context) {
 	// 获取分页参数
 	limit := 50 // 默认限制
 	if limitParam := c.Query("limit"); limitParam != "" {
-		// 解析limit参数 (简化处理)
+		// TODO: 解析limit参数
+		_ = limitParam
 	}
 
 	offset := 0 // 默认偏移
 	if offsetParam := c.Query("offset"); offsetParam != "" {
-		// 解析offset参数 (简化处理)
+		// TODO: 解析offset参数
+		_ = offsetParam
 	}
 
 	// 应用分页

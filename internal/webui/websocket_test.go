@@ -38,10 +38,16 @@ func TestWebSocketConnection(t *testing.T) {
 	// 连接WebSocket
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Logf("Failed to close WebSocket connection: %v", err)
+		}
+	}()
 
 	// 设置读取超时
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("Failed to set read deadline: %v", err)
+	}
 
 	// 读取连接消息
 	var msg WebSocketMessage
@@ -76,7 +82,11 @@ func TestWebSocketHeartbeat(t *testing.T) {
 	// 连接WebSocket
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Logf("Failed to close WebSocket connection: %v", err)
+		}
+	}()
 
 	// 跳过连接消息
 	var connectMsg WebSocketMessage
@@ -94,7 +104,9 @@ func TestWebSocketHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 
 	// 设置读取超时
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("Failed to set read deadline: %v", err)
+	}
 
 	// 读取心跳响应
 	var responseMsg WebSocketMessage
