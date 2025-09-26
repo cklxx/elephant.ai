@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"context"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -161,10 +162,13 @@ func TestWebSocketConnectionManagement(t *testing.T) {
 	sessionID := "test-connection-mgmt"
 
 	// 测试添加连接
+	ctx, cancel := context.WithCancel(context.Background())
 	wsConn := &WebSocketConnection{
 		SessionID: sessionID,
 		Send:      make(chan WebSocketMessage, 256),
 		Done:      make(chan bool),
+		Context:   ctx,
+		Cancel:    cancel,
 	}
 
 	server.addWebSocketConnection(sessionID, wsConn)
