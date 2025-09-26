@@ -15,12 +15,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   onSubmit,
   disabled = false,
 }) => {
-  const {
-    inputState,
-    updateInputState,
-    setError,
-    clearError,
-  } = useUIStore()
+  const { inputState, updateInputState, setError, clearError } = useUIStore()
 
   const { sendMessage, streamingState } = useMessageStore()
 
@@ -62,33 +57,45 @@ export const CommandInput: React.FC<CommandInputProps> = ({
       }
     } catch (error) {
       setError({
-        message: error instanceof Error ? error.message : 'Failed to send message',
+        message:
+          error instanceof Error ? error.message : 'Failed to send message',
         recoverable: true,
         timestamp: new Date().toISOString(),
       })
     }
-  }, [inputState, onSubmit, sendMessage, setError, clearError, updateInputState])
+  }, [
+    inputState,
+    onSubmit,
+    sendMessage,
+    setError,
+    clearError,
+    updateInputState,
+  ])
 
-  const handleHistoryNavigation = React.useCallback((direction: 'up' | 'down') => {
-    const { history, historyIndex } = inputState
+  const handleHistoryNavigation = React.useCallback(
+    (direction: 'up' | 'down') => {
+      const { history, historyIndex } = inputState
 
-    if (history.length === 0) return
+      if (history.length === 0) return
 
-    let newIndex: number
-    if (direction === 'up') {
-      newIndex = historyIndex < history.length - 1 ? historyIndex + 1 : historyIndex
-    } else {
-      newIndex = historyIndex > -1 ? historyIndex - 1 : -1
-    }
+      let newIndex: number
+      if (direction === 'up') {
+        newIndex =
+          historyIndex < history.length - 1 ? historyIndex + 1 : historyIndex
+      } else {
+        newIndex = historyIndex > -1 ? historyIndex - 1 : -1
+      }
 
-    const newValue = newIndex === -1 ? '' : history[newIndex]
+      const newValue = newIndex === -1 ? '' : history[newIndex]
 
-    updateInputState({
-      historyIndex: newIndex,
-      value: newValue,
-      cursorPosition: newValue.length,
-    })
-  }, [inputState, updateInputState])
+      updateInputState({
+        historyIndex: newIndex,
+        value: newValue,
+        cursorPosition: newValue.length,
+      })
+    },
+    [inputState, updateInputState]
+  )
 
   useInput((input, key) => {
     if (disabled || streamingState.isActive) {
@@ -120,7 +127,10 @@ export const CommandInput: React.FC<CommandInputProps> = ({
     }
 
     if (key.rightArrow) {
-      const newPosition = Math.min(inputState.value.length, inputState.cursorPosition + 1)
+      const newPosition = Math.min(
+        inputState.value.length,
+        inputState.cursorPosition + 1
+      )
       updateInputState({ cursorPosition: newPosition })
       return
     }

@@ -3,7 +3,11 @@ import { Box, Text } from 'ink'
 import { Message, MessageContent } from '@/types'
 import { useUIStore } from '@/stores'
 import { formatTimestamp } from '@/utils/formatting'
-import { formatCodeBlock, extractCodeBlocks, isCodeLikeContent } from '@/utils/syntax-highlighting'
+import {
+  formatCodeBlock,
+  extractCodeBlocks,
+  isCodeLikeContent,
+} from '@/utils/syntax-highlighting'
 
 export interface MessageItemProps {
   message: Message
@@ -19,38 +23,41 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 }) => {
   const { enableSyntaxHighlighting } = useUIStore()
 
-  const formatContent = React.useCallback((content: MessageContent) => {
-    switch (content.type) {
-      case 'text':
-        if (!content.text) return null
+  const formatContent = React.useCallback(
+    (content: MessageContent) => {
+      switch (content.type) {
+        case 'text':
+          if (!content.text) return null
 
-        // Check if content looks like code
-        if (enableSyntaxHighlighting && isCodeLikeContent(content.text)) {
-          const codeBlocks = extractCodeBlocks(content.text)
+          // Check if content looks like code
+          if (enableSyntaxHighlighting && isCodeLikeContent(content.text)) {
+            const codeBlocks = extractCodeBlocks(content.text)
 
-          if (codeBlocks.length > 0) {
-            // Render with syntax highlighting
-            let result = content.text
-            codeBlocks.forEach(block => {
-              const highlighted = formatCodeBlock(block.code, block.language)
-              result = result.replace(block.code, highlighted)
-            })
-            return result
+            if (codeBlocks.length > 0) {
+              // Render with syntax highlighting
+              let result = content.text
+              codeBlocks.forEach(block => {
+                const highlighted = formatCodeBlock(block.code, block.language)
+                result = result.replace(block.code, highlighted)
+              })
+              return result
+            }
           }
-        }
 
-        return content.text
+          return content.text
 
-      case 'tool_call':
-        return `🔧 Tool Call: ${content.tool_name}`
+        case 'tool_call':
+          return `🔧 Tool Call: ${content.tool_name}`
 
-      case 'tool_result':
-        return `✅ Tool Result: ${content.tool_result ? 'Success' : 'Failed'}`
+        case 'tool_result':
+          return `✅ Tool Result: ${content.tool_result ? 'Success' : 'Failed'}`
 
-      default:
-        return 'Unknown content type'
-    }
-  }, [enableSyntaxHighlighting])
+        default:
+          return 'Unknown content type'
+      }
+    },
+    [enableSyntaxHighlighting]
+  )
 
   const renderContentItem = (content: MessageContent, index: number) => {
     const formattedContent = formatContent(content)
@@ -59,7 +66,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     return (
       <Box key={index} marginTop={index > 0 ? 1 : 0}>
         {content.type === 'tool_call' && (
-          <Box flexDirection="column" borderStyle="round" borderColor="yellow" padding={1}>
+          <Box
+            flexDirection="column"
+            borderStyle="round"
+            borderColor="yellow"
+            padding={1}
+          >
             <Text color="yellow" bold>
               🔧 Tool Call: {content.tool_name}
             </Text>
@@ -74,7 +86,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         )}
 
         {content.type === 'tool_result' && (
-          <Box flexDirection="column" borderStyle="round" borderColor="green" padding={1}>
+          <Box
+            flexDirection="column"
+            borderStyle="round"
+            borderColor="green"
+            padding={1}
+          >
             <Text color="green" bold>
               ✅ Tool Result
             </Text>
@@ -108,16 +125,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         </Text>
         {showTimestamp && (
           <Box marginLeft={2}>
-            <Text color="gray">
-              {formatTimestamp(message.timestamp)}
-            </Text>
+            <Text color="gray">{formatTimestamp(message.timestamp)}</Text>
           </Box>
         )}
       </Box>
 
       {/* Message content */}
       <Box flexDirection="column" marginLeft={2} marginTop={1}>
-        {message.content.map((content, index) => renderContentItem(content, index))}
+        {message.content.map((content, index) =>
+          renderContentItem(content, index)
+        )}
       </Box>
 
       {/* Message metadata */}

@@ -65,26 +65,33 @@ function convertHtmlToTerminalColors(html: string): string {
   let result = html
 
   // Replace common hljs classes with terminal colors
-  result = result.replace(/<span class="hljs-keyword"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.keyword(text)
+  result = result.replace(
+    /<span class="hljs-keyword"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.keyword(text)
   )
-  result = result.replace(/<span class="hljs-string"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.string(text)
+  result = result.replace(
+    /<span class="hljs-string"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.string(text)
   )
-  result = result.replace(/<span class="hljs-number"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.number(text)
+  result = result.replace(
+    /<span class="hljs-number"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.number(text)
   )
-  result = result.replace(/<span class="hljs-comment"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.comment(text)
+  result = result.replace(
+    /<span class="hljs-comment"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.comment(text)
   )
-  result = result.replace(/<span class="hljs-function"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.function(text)
+  result = result.replace(
+    /<span class="hljs-function"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.function(text)
   )
-  result = result.replace(/<span class="hljs-variable"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.variable(text)
+  result = result.replace(
+    /<span class="hljs-variable"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.variable(text)
   )
-  result = result.replace(/<span class="hljs-operator"[^>]*>(.*?)<\/span>/g, (_, text) =>
-    SYNTAX_COLORS.operator(text)
+  result = result.replace(
+    /<span class="hljs-operator"[^>]*>(.*?)<\/span>/g,
+    (_, text) => SYNTAX_COLORS.operator(text)
   )
 
   // Remove remaining HTML tags
@@ -101,7 +108,11 @@ function convertHtmlToTerminalColors(html: string): string {
   return result
 }
 
-export function formatCodeBlock(code: string, language?: string, lineNumbers = false): string {
+export function formatCodeBlock(
+  code: string,
+  language?: string,
+  lineNumbers = false
+): string {
   const highlighted = highlightCode(code, language)
   const lines = highlighted.split('\n')
 
@@ -113,13 +124,17 @@ export function formatCodeBlock(code: string, language?: string, lineNumbers = f
 
   return lines
     .map((line, index) => {
-      const lineNumber = (index + 1).toString().padStart(maxLineNumberWidth, ' ')
+      const lineNumber = (index + 1)
+        .toString()
+        .padStart(maxLineNumberWidth, ' ')
       return `${chalk.gray(lineNumber)} │ ${line}`
     })
     .join('\n')
 }
 
-export function extractCodeBlocks(text: string): Array<{ code: string; language?: string }> {
+export function extractCodeBlocks(
+  text: string
+): Array<{ code: string; language?: string }> {
   const codeBlocks: Array<{ code: string; language?: string }> = []
 
   // Extract fenced code blocks
@@ -136,7 +151,8 @@ export function extractCodeBlocks(text: string): Array<{ code: string; language?
   // Extract inline code
   const inlineRegex = /`([^`]+)`/g
   while ((match = inlineRegex.exec(text)) !== null) {
-    if (match[1].length > 50) { // Only highlight longer inline code
+    if (match[1].length > 50) {
+      // Only highlight longer inline code
       codeBlocks.push({
         code: match[1],
       })

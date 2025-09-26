@@ -35,7 +35,10 @@ export const InputHistory: React.FC<InputHistoryProps> = ({
       </Box>
 
       {displayHistory.map((command, index) => (
-        <Box key={index} marginBottom={index < displayHistory.length - 1 ? 1 : 0}>
+        <Box
+          key={index}
+          marginBottom={index < displayHistory.length - 1 ? 1 : 0}
+        >
           <Box width={4}>
             <Text color="gray">{String(index + 1).padStart(2)}</Text>
           </Box>

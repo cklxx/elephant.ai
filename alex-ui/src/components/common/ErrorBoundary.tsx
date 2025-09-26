@@ -35,7 +35,12 @@ export class ErrorBoundary extends React.Component<
       }
 
       return (
-        <Box flexDirection="column" padding={1} borderStyle="round" borderColor="red">
+        <Box
+          flexDirection="column"
+          padding={1}
+          borderStyle="round"
+          borderColor="red"
+        >
           <Text color="red" bold>
             Application Error
           </Text>

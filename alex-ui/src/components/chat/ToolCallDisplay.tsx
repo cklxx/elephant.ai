@@ -42,8 +42,9 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
       : calls.filter(call => call.status !== 'completed')
 
     // Sort by start time (most recent first)
-    const sorted = filtered.sort((a, b) =>
-      new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    const sorted = filtered.sort(
+      (a, b) =>
+        new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
     )
 
     // Limit number of items
@@ -77,9 +78,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           </Box>
           <Box gap={1}>
             {toolCall.status === 'running' && <Spinner type="dots" />}
-            <Text color="gray">
-              {toolCall.status.toUpperCase()}
-            </Text>
+            <Text color="gray">{toolCall.status.toUpperCase()}</Text>
           </Box>
         </Box>
 
@@ -91,7 +90,10 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
             </Text>
             <Box marginLeft={2}>
               <Text color="gray">
-                {formatCodeBlock(JSON.stringify(toolCall.input, null, 2), 'json')}
+                {formatCodeBlock(
+                  JSON.stringify(toolCall.input, null, 2),
+                  'json'
+                )}
               </Text>
             </Box>
           </Box>
@@ -108,7 +110,10 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
                 <Text>{toolCall.result}</Text>
               ) : (
                 <Text color="gray">
-                  {formatCodeBlock(JSON.stringify(toolCall.result, null, 2), 'json')}
+                  {formatCodeBlock(
+                    JSON.stringify(toolCall.result, null, 2),
+                    'json'
+                  )}
                 </Text>
               )}
             </Box>
@@ -157,11 +162,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
         <Text color="blue" bold>
           Tool Calls
         </Text>
-        {!showCompleted && (
-          <Text color="gray">
-            (Active only)
-          </Text>
-        )}
+        {!showCompleted && <Text color="gray">(Active only)</Text>}
       </Box>
 
       {toolCallsArray.map(renderToolCall)}
@@ -196,9 +197,7 @@ export const InlineToolCall: React.FC<InlineToolCallProps> = ({
       <Box>
         <Text>{statusIcon} </Text>
         <Text color={statusColor}>{toolCall.name}</Text>
-        {toolCall.status === 'running' && (
-          <Spinner type="dots" />
-        )}
+        {toolCall.status === 'running' && <Spinner type="dots" />}
       </Box>
     )
   }
@@ -216,9 +215,7 @@ export const InlineToolCall: React.FC<InlineToolCallProps> = ({
         <Text color={statusColor} bold>
           {toolCall.name}
         </Text>
-        {toolCall.status === 'running' && (
-          <Spinner type="dots" />
-        )}
+        {toolCall.status === 'running' && <Spinner type="dots" />}
       </Box>
 
       {toolCall.error && (

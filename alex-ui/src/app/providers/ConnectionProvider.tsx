@@ -44,7 +44,14 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     return () => {
       connectionManager.shutdown().catch(console.error)
     }
-  }, [apiUrl, wsUrl, enableWebSocket, setConnected, setConnectionError, setAvailableTools])
+  }, [
+    apiUrl,
+    wsUrl,
+    enableWebSocket,
+    setConnected,
+    setConnectionError,
+    setAvailableTools,
+  ])
 
   return <>{children}</>
 }

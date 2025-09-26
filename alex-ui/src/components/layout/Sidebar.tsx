@@ -42,7 +42,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               sessionList.slice(0, 5).map(session => (
                 <Box key={session.id} marginBottom={1}>
                   <Text
-                    color={session.id === currentSession?.state.id ? 'green' : 'white'}
+                    color={
+                      session.id === currentSession?.state.id
+                        ? 'green'
+                        : 'white'
+                    }
                     bold={session.id === currentSession?.state.id}
                   >
                     {session.id.slice(0, 8)}...
@@ -81,8 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           tool.risk_level === 'high'
                             ? 'red'
                             : tool.risk_level === 'medium'
-                            ? 'yellow'
-                            : 'green'
+                              ? 'yellow'
+                              : 'green'
                         }
                         dimColor
                       >

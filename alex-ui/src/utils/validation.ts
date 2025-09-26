@@ -22,6 +22,7 @@ export function isValidJson(str: string): boolean {
 
 export function sanitizeInput(input: string): string {
   // Remove ANSI escape codes
+  // eslint-disable-next-line no-control-regex
   const ansiEscapePattern = /\u001b\[[0-9;]*m/g
   let sanitized = input.replace(ansiEscapePattern, '')
 
@@ -36,7 +37,8 @@ export function sanitizeInput(input: string): string {
 
 export function validateSessionId(id: string): boolean {
   // Session ID should be a valid UUID or alphanumeric string
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const alphanumericPattern = /^[a-zA-Z0-9_-]+$/
 
   return uuidPattern.test(id) || alphanumericPattern.test(id)
@@ -136,5 +138,8 @@ export function unescapeHtml(text: string): string {
     '&#x2F;': '/',
   }
 
-  return text.replace(/&(?:amp|lt|gt|quot|#x27|#x2F);/g, match => htmlUnescapes[match])
+  return text.replace(
+    /&(?:amp|lt|gt|quot|#x27|#x2F);/g,
+    match => htmlUnescapes[match]
+  )
 }

@@ -45,9 +45,11 @@ class ConnectionManager {
       useAppStore.getState().setConnected(true)
     } catch (error) {
       console.error('Connection initialization failed:', error)
-      useAppStore.getState().setConnectionError(
-        error instanceof Error ? error.message : 'Connection failed'
-      )
+      useAppStore
+        .getState()
+        .setConnectionError(
+          error instanceof Error ? error.message : 'Connection failed'
+        )
       throw error
     }
   }
@@ -71,7 +73,6 @@ class ConnectionManager {
       throw new Error(`API connection failed: ${error}`)
     }
   }
-
 
   private startHealthChecks(): void {
     this.healthCheckTimer = setInterval(async () => {
@@ -141,7 +142,10 @@ class ConnectionManager {
       // 连接到会话特定的WebSocket端点
       await webSocketClient.connect(sessionWsUrl)
     } catch (error) {
-      console.warn('Session WebSocket connection failed, falling back to HTTP:', error)
+      console.warn(
+        'Session WebSocket connection failed, falling back to HTTP:',
+        error
+      )
       // 继续使用HTTP API
     }
   }

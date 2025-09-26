@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { MessageSchema, StreamingChunkSchema, StreamingChunk } from './message'
-import { SessionSchema, SessionStateSchema, Session, SessionState } from './session'
+import {
+  SessionSchema,
+  SessionStateSchema,
+  Session,
+  SessionState,
+} from './session'
 import { ToolDefinitionSchema, ToolDefinition } from './tool'
 
 // API Request/Response types
@@ -38,11 +43,13 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>
 export const ChatResponseSchema = z.object({
   message: MessageSchema,
   session_id: z.string(),
-  token_usage: z.object({
-    prompt_tokens: z.number(),
-    completion_tokens: z.number(),
-    total_tokens: z.number(),
-  }).optional(),
+  token_usage: z
+    .object({
+      prompt_tokens: z.number(),
+      completion_tokens: z.number(),
+      total_tokens: z.number(),
+    })
+    .optional(),
 })
 
 export type ChatResponse = z.infer<typeof ChatResponseSchema>

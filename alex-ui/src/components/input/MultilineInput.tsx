@@ -78,7 +78,12 @@ export const MultilineInput: React.FC<MultilineInputProps> = ({
   })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="blue" padding={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor="blue"
+      padding={1}
+    >
       <Box marginBottom={1}>
         <Text color="blue" bold>
           Multiline Input Mode

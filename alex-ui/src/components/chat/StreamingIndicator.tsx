@@ -33,7 +33,12 @@ export const StreamingIndicator: React.FC<StreamingIndicatorProps> = ({
   const phaseColor = PHASE_COLORS[phase]
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={phaseColor} padding={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={phaseColor}
+      padding={1}
+    >
       {/* Phase indicator */}
       <Box marginBottom={1} gap={1}>
         <Spinner type="dots" />
@@ -53,7 +58,7 @@ export const StreamingIndicator: React.FC<StreamingIndicatorProps> = ({
           <ProgressBar
             progress={progress}
             width={40}
-            color={phaseColor as any}
+            color={phaseColor as 'green' | 'yellow' | 'blue' | 'red'}
             showPercentage={true}
           />
         </Box>

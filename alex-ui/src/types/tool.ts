@@ -6,7 +6,7 @@ export const ToolStatusSchema = z.enum([
   'running',
   'completed',
   'failed',
-  'cancelled'
+  'cancelled',
 ])
 export type ToolStatus = z.infer<typeof ToolStatusSchema>
 
@@ -56,4 +56,5 @@ export const BUILTIN_TOOLS = {
 } as const
 
 export type BuiltinToolCategory = keyof typeof BUILTIN_TOOLS
-export type BuiltinToolName = typeof BUILTIN_TOOLS[BuiltinToolCategory][number]
+export type BuiltinToolName =
+  (typeof BUILTIN_TOOLS)[BuiltinToolCategory][number]

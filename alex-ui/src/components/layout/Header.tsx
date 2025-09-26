@@ -38,9 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
             {isConnected ? (
               <Box gap={1}>
                 <Text color="green">●</Text>
-                <Text color="green">
-                  Connected
-                </Text>
+                <Text color="green">Connected</Text>
               </Box>
             ) : (
               <Box gap={1}>
@@ -57,9 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
         {showSessionInfo && currentSession && (
           <Box gap={1}>
             <Text color="cyan">Session: </Text>
-            <Text color="white">
-              {currentSession.state.id.slice(0, 8)}...
-            </Text>
+            <Text color="white">{currentSession.state.id.slice(0, 8)}...</Text>
             <Text color="gray">
               ({currentSession.state.message_count} msgs)
             </Text>

@@ -32,7 +32,7 @@ export default defineConfig({
         'highlight.js',
         'zustand',
         'immer',
-        'zod'
+        'zod',
       ],
     },
   },

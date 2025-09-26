@@ -30,17 +30,19 @@ export const Footer: React.FC<FooterProps> = ({
     >
       {/* Error display */}
       {errorState && (
-        <Box marginBottom={1} padding={1} borderStyle="single" borderColor="red" gap={1}>
+        <Box
+          marginBottom={1}
+          padding={1}
+          borderStyle="single"
+          borderColor="red"
+          gap={1}
+        >
           <Text color="red" bold>
             Error:
           </Text>
-          <Text color="red">
-            {errorState.message}
-          </Text>
+          <Text color="red">{errorState.message}</Text>
           {errorState.recoverable && (
-            <Text color="yellow">
-              (Press Enter to retry)
-            </Text>
+            <Text color="yellow">(Press Enter to retry)</Text>
           )}
         </Box>
       )}
@@ -50,13 +52,11 @@ export const Footer: React.FC<FooterProps> = ({
         {/* Keyboard shortcuts */}
         {showShortcuts && (
           <Box>
-            {SHORTCUTS.map((shortcut) => (
+            {SHORTCUTS.map(shortcut => (
               <Box key={shortcut.key} marginRight={3} gap={1}>
                 <Text color="blue">{shortcut.key}</Text>
                 <Text color="gray">:</Text>
-                <Text color="gray">
-                  {shortcut.description}
-                </Text>
+                <Text color="gray">{shortcut.description}</Text>
               </Box>
             ))}
           </Box>

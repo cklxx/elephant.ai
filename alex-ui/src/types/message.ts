@@ -30,16 +30,20 @@ export type Message = z.infer<typeof MessageSchema>
 export const StreamingChunkSchema = z.object({
   type: z.enum(['content', 'tool_call', 'tool_result', 'error', 'done']),
   content: z.string().optional(),
-  tool_call: z.object({
-    id: z.string(),
-    name: z.string(),
-    input: z.record(z.any()),
-  }).optional(),
-  tool_result: z.object({
-    id: z.string(),
-    result: z.any(),
-    error: z.string().optional(),
-  }).optional(),
+  tool_call: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      input: z.record(z.any()),
+    })
+    .optional(),
+  tool_result: z
+    .object({
+      id: z.string(),
+      result: z.any(),
+      error: z.string().optional(),
+    })
+    .optional(),
   error: z.string().optional(),
   metadata: z.record(z.any()).optional(),
 })
@@ -52,7 +56,7 @@ export interface ChatSession {
   messages: Message[]
   created_at: string
   updated_at: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface MessageThread {

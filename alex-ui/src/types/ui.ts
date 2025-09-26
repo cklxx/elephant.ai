@@ -62,7 +62,7 @@ export interface StreamingState {
 export interface ErrorState {
   message: string
   code?: string
-  details?: Record<string, any>
+  details?: Record<string, unknown>
   recoverable: boolean
   timestamp: string
 }

@@ -83,24 +83,28 @@ src/
 ### Core Components
 
 #### MessageList & MessageItem
+
 - Renders conversation history with role-based styling
 - Supports syntax highlighting for code blocks
 - Handles tool calls and results display
 - Auto-scrolling and pagination
 
 #### CommandInput
+
 - Real-time input with cursor management
 - Command history navigation (↑/↓)
 - Multi-line support with Ctrl+M submit
 - Input validation and sanitization
 
 #### StreamingIndicator
+
 - Visual feedback for AI processing phases
 - Progress bars for long-running operations
 - Estimated time remaining display
 - Phase-specific icons and colors
 
 #### ToolCallDisplay
+
 - Live tool execution monitoring
 - Input/output visualization
 - Status tracking (pending → running → completed/failed)
@@ -109,22 +113,26 @@ src/
 ### State Management
 
 #### App Store
+
 - Connection status and error handling
 - Available tools registry
 - Global notifications
 
 #### Session Store
+
 - Session creation, loading, and persistence
 - Session list management
 - Configuration updates
 
 #### Message Store
+
 - Conversation thread management
 - Tool call tracking
 - Streaming state coordination
 - Message sending and receiving
 
 #### UI Store
+
 - Input state and history
 - Display preferences (timestamps, metadata, syntax highlighting)
 - Layout state (sidebar, header visibility)
@@ -133,18 +141,21 @@ src/
 ### Communication Layer
 
 #### API Client
+
 - RESTful HTTP client for session management
 - Tool discovery and health checks
 - Configurable base URL and headers
 - Request/response type safety
 
 #### WebSocket Client
+
 - Real-time streaming communication
 - Automatic reconnection with exponential backoff
 - Event-based message handling
 - Connection state management
 
 #### Connection Manager
+
 - Orchestrates API and WebSocket initialization
 - Health monitoring and reconnection
 - Graceful error handling and fallbacks
@@ -181,6 +192,7 @@ interface ToolCall {
 ```
 
 The UI provides:
+
 - Real-time status updates
 - Input/output display
 - Error handling and retry mechanisms
@@ -197,16 +209,16 @@ Multi-layered error handling:
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+C` | Exit application |
-| `Ctrl+L` | Clear screen/errors |
-| `Ctrl+N` | New session |
-| `Ctrl+S` | Save session |
-| `Ctrl+B` | Toggle sidebar |
-| `Ctrl+H` | Toggle header |
-| `↑/↓` | Navigate command history |
-| `Ctrl+M` | Submit multiline input |
+| Shortcut | Action                   |
+| -------- | ------------------------ |
+| `Ctrl+C` | Exit application         |
+| `Ctrl+L` | Clear screen/errors      |
+| `Ctrl+N` | New session              |
+| `Ctrl+S` | Save session             |
+| `Ctrl+B` | Toggle sidebar           |
+| `Ctrl+H` | Toggle header            |
+| `↑/↓`    | Navigate command history |
+| `Ctrl+M` | Submit multiline input   |
 
 ## Development
 

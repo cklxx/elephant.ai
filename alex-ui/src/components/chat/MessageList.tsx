@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import { useMessageStore, useUIStore } from '@/stores'
 import { MessageItem } from './MessageItem'
 import { StreamingIndicator } from './StreamingIndicator'
+import type { Message } from '@/types'
 
 export interface MessageListProps {
   maxHeight?: number
@@ -93,12 +94,17 @@ export const MessageList: React.FC<MessageListProps> = ({
 
       {/* Current streaming message */}
       {messageThread.currentStreamingMessage && (
-        <Box marginTop={1} borderStyle="single" borderColor="yellow" padding={1}>
+        <Box
+          marginTop={1}
+          borderStyle="single"
+          borderColor="yellow"
+          padding={1}
+        >
           <Text color="yellow" bold>
             Streaming...
           </Text>
           <MessageItem
-            message={messageThread.currentStreamingMessage as any}
+            message={messageThread.currentStreamingMessage as Message}
             showTimestamp={false}
             showMetadata={false}
             maxWidth={maxWidth - 6} // Account for border and padding

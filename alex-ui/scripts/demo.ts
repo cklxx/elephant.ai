@@ -18,34 +18,40 @@ const mockApiResponses = {
     {
       name: 'file_read',
       description: 'Read file contents',
-      parameters: { file_path: { type: 'string', description: 'Path to file' } },
-      risk_level: 'low'
+      parameters: {
+        file_path: { type: 'string', description: 'Path to file' },
+      },
+      risk_level: 'low',
     },
     {
       name: 'bash',
       description: 'Execute bash commands',
-      parameters: { command: { type: 'string', description: 'Command to execute' } },
-      risk_level: 'high'
+      parameters: {
+        command: { type: 'string', description: 'Command to execute' },
+      },
+      risk_level: 'high',
     },
     {
       name: 'grep',
       description: 'Search for patterns in files',
-      parameters: { pattern: { type: 'string', description: 'Search pattern' } },
-      risk_level: 'low'
-    }
+      parameters: {
+        pattern: { type: 'string', description: 'Search pattern' },
+      },
+      risk_level: 'low',
+    },
   ],
-  '/sessions': []
+  '/sessions': [],
 }
 
 // Mock fetch for demo
-global.fetch = async (url: string, options?: any) => {
+global.fetch = async (url: string, _options?: RequestInit) => {
   const path = url.replace(/^.*\/api\/v1/, '')
 
   if (mockApiResponses[path as keyof typeof mockApiResponses]) {
     return {
       ok: true,
       status: 200,
-      json: async () => mockApiResponses[path as keyof typeof mockApiResponses]
+      json: async () => mockApiResponses[path as keyof typeof mockApiResponses],
     } as Response
   }
 

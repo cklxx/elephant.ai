@@ -126,7 +126,9 @@ class WebSocketClientImpl implements WebSocketClient {
     this.reconnectAttempts++
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
 
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`)
+    console.log(
+      `Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`
+    )
 
     setTimeout(() => {
       if (this.url && !this.isConnected()) {

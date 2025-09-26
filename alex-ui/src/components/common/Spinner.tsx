@@ -28,9 +28,7 @@ export const Spinner: React.FC<SpinnerProps> = ({ label, type = 'dots' }) => {
   return (
     <Box>
       <Text color="blue">{frames[frameIndex]}</Text>
-      {label && (
-        <Text> {label}</Text>
-      )}
+      {label && <Text> {label}</Text>}
     </Box>
   )
 }

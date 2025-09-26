@@ -84,7 +84,12 @@ describe('Keyboard Utils', () => {
 
   it('should match key bindings correctly', () => {
     const keyPress = { name: 'c', ctrl: true }
-    const binding = { key: 'c', ctrl: true, description: 'Copy', action: () => {} }
+    const binding = {
+      key: 'c',
+      ctrl: true,
+      description: 'Copy',
+      action: () => {},
+    }
 
     expect(keyMatches(keyPress, binding)).toBe(true)
 

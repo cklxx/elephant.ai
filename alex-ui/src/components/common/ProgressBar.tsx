@@ -29,9 +29,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       <Text color={color}>[{filledBar}</Text>
       <Text color="gray">{emptyBar}</Text>
       <Text color={color}>]</Text>
-      {showPercentage && (
-        <Text> {clampedProgress.toFixed(1)}%</Text>
-      )}
+      {showPercentage && <Text> {clampedProgress.toFixed(1)}%</Text>}
     </Box>
   )
 }

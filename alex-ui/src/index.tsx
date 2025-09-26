@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// @ts-ignore - React import needed for JSX
+// @ts-expect-error - React import needed for JSX
 import React from 'react'
 import { render } from 'ink'
 import { Command } from 'commander'
@@ -21,8 +21,16 @@ function createCLI() {
     .name('alex-ui')
     .description('ALEX - AI Code Agent Terminal UI')
     .version('0.1.0')
-    .option('-a, --api-url <url>', 'API server URL', 'http://localhost:8080/api')
-    .option('-w, --ws-url <url>', 'WebSocket server URL', 'ws://localhost:8080/api/sessions')
+    .option(
+      '-a, --api-url <url>',
+      'API server URL',
+      'http://localhost:8080/api'
+    )
+    .option(
+      '-w, --ws-url <url>',
+      'WebSocket server URL',
+      'ws://localhost:8080/api/sessions'
+    )
     .option('--no-websocket', 'Disable WebSocket connection')
     .option('-d, --debug', 'Enable debug mode')
     .option('-v, --version', 'Show version')

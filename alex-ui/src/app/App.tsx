@@ -61,7 +61,7 @@ const AppContent: React.FC = () => {
   }, [clearError, createSession, isConnected, toggleSidebar, toggleHeader])
 
   // Global key handler
-  useInput((input) => {
+  useInput(input => {
     const keyPress = parseKeyPress(input)
     keyboardHandler.handleKeyPress(keyPress)
   })

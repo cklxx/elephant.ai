@@ -14,7 +14,7 @@ const initialInputState: InputState = {
 
 export const useUIStore = create<UIStore>()(
   persist(
-    immer((set) => ({
+    immer(set => ({
       // Initial state
       inputState: initialInputState,
       errorState: undefined,

@@ -116,7 +116,8 @@ describe('UI Store', () => {
   })
 
   it('should toggle UI preferences', () => {
-    const { toggleTimestamps, toggleSyntaxHighlighting, setTheme } = useUIStore.getState()
+    const { toggleTimestamps, toggleSyntaxHighlighting, setTheme } =
+      useUIStore.getState()
 
     toggleTimestamps()
     expect(useUIStore.getState().showTimestamps).toBe(false)
