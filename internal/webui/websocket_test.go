@@ -40,7 +40,8 @@ func TestWebSocketConnection(t *testing.T) {
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer func() {
-		if err := conn.Close(); err != nil {
+		// 安全关闭连接，忽略已关闭的连接错误
+		if err := conn.Close(); err != nil && !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
 			t.Logf("Failed to close WebSocket connection: %v", err)
 		}
 	}()
@@ -84,7 +85,8 @@ func TestWebSocketHeartbeat(t *testing.T) {
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer func() {
-		if err := conn.Close(); err != nil {
+		// 安全关闭连接，忽略已关闭的连接错误
+		if err := conn.Close(); err != nil && !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
 			t.Logf("Failed to close WebSocket connection: %v", err)
 		}
 	}()

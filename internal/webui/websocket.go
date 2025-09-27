@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -124,8 +125,13 @@ func (s *Server) wsReadPump(wsConn *WebSocketConnection) {
 	defer func() {
 		s.wg.Done()
 		s.removeWebSocketConnection(wsConn.SessionID)
+		// 安全关闭WebSocket连接
 		if err := wsConn.Conn.Close(); err != nil {
-			log.Printf("Failed to close WebSocket connection: %v", err)
+			// 忽略已关闭连接的错误
+			if !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) &&
+				!strings.Contains(err.Error(), "use of closed network connection") {
+				log.Printf("Failed to close WebSocket connection: %v", err)
+			}
 		}
 		// 安全地发送Done信号
 		wsConn.safeSendDone()
@@ -170,8 +176,13 @@ func (s *Server) wsWritePump(wsConn *WebSocketConnection) {
 	defer func() {
 		s.wg.Done()
 		ticker.Stop()
+		// 安全关闭WebSocket连接
 		if err := wsConn.Conn.Close(); err != nil {
-			log.Printf("Failed to close WebSocket connection: %v", err)
+			// 忽略已关闭连接的错误
+			if !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) &&
+				!strings.Contains(err.Error(), "use of closed network connection") {
+				log.Printf("Failed to close WebSocket connection: %v", err)
+			}
 		}
 	}()
 
