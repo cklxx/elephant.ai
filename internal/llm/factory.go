@@ -3,6 +3,7 @@ package llm
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,6 +25,14 @@ var (
 // SetConfigProvider sets the global config provider function
 func SetConfigProvider(provider func() (*Config, error)) {
 	globalConfigProvider = provider
+}
+
+// IsMockURL checks if the URL is a mock URL for testing
+func IsMockURL(baseURL string) bool {
+	return strings.HasPrefix(baseURL, "mock://") ||
+		   strings.Contains(baseURL, "mock.") ||
+		   strings.Contains(baseURL, "test.local") ||
+		   baseURL == ""
 }
 
 // GetLLMInstance returns a cached LLM client instance based on model type
@@ -59,9 +68,16 @@ func GetLLMInstance(modelType ModelType) (Client, error) {
 	}
 
 	var client Client
-	
-	// Check if this is Ollama API
-	if IsOllamaAPI(effectiveConfig.BaseURL) {
+
+	// Check if this is a mock URL for testing
+	if IsMockURL(effectiveConfig.BaseURL) {
+		// Create mock client for testing
+		client = &MockLLMClient{
+			model:   effectiveConfig.Model,
+			baseURL: effectiveConfig.BaseURL,
+		}
+		log.Printf("Created mock client for %s model (URL: %s)", modelType, effectiveConfig.BaseURL)
+	} else if IsOllamaAPI(effectiveConfig.BaseURL) {
 		// Create Ollama client with ultra think support for reasoning model
 		enableUltraThink := (modelType == ReasoningModel)
 		client, err = NewOllamaClient(effectiveConfig.BaseURL, enableUltraThink)

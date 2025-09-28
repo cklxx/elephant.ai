@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -86,31 +85,7 @@ func TestGetLLMInstanceConfigError(t *testing.T) {
 	globalConfigProvider = originalProvider
 }
 
-// MockLLMClient for testing factory functionality
-type MockLLMClient struct {
-	model   string
-	baseURL string
-}
-
-func (m *MockLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID string) (*ChatResponse, error) {
-	return &ChatResponse{
-		Model: m.model,
-		Choices: []Choice{
-			{Message: Message{Role: "assistant", Content: "mock response"}},
-		},
-	}, nil
-}
-
-func (m *MockLLMClient) ChatStream(ctx context.Context, req *ChatRequest, sessionID string) (<-chan StreamDelta, error) {
-	ch := make(chan StreamDelta, 1)
-	ch <- StreamDelta{Model: m.model}
-	close(ch)
-	return ch, nil
-}
-
-func (m *MockLLMClient) Close() error {
-	return nil
-}
+// Note: MockLLMClient is now defined in mock.go
 
 // TestLLMInstanceCacheConcurrency tests concurrent access to the cache
 func TestLLMInstanceCacheConcurrency(t *testing.T) {
