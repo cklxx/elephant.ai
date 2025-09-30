@@ -2,12 +2,14 @@ package llm
 
 import (
 	"alex/internal/agent/ports"
+	"alex/internal/utils"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -17,6 +19,7 @@ type openaiClient struct {
 	apiKey     string
 	baseURL    string
 	httpClient *http.Client
+	logger     *utils.Logger
 }
 
 func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
@@ -31,6 +34,7 @@ func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
+		logger: utils.NewComponentLogger("llm"),
 	}, nil
 }
 
@@ -54,6 +58,11 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
+	// Debug log: Request details
+	c.logger.Debug("=== LLM Request ===")
+	c.logger.Debug("URL: POST %s/chat/completions", c.baseURL)
+	c.logger.Debug("Model: %s", c.model)
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -62,14 +71,45 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
+	// Debug log: Request headers
+	c.logger.Debug("Request Headers:")
+	for k, v := range httpReq.Header {
+		if k == "Authorization" {
+			// Mask API key for security
+			c.logger.Debug("  %s: Bearer %s...%s", k, c.apiKey[:8], c.apiKey[len(c.apiKey)-4:])
+		} else {
+			c.logger.Debug("  %s: %s", k, strings.Join(v, ", "))
+		}
+	}
+
+	// Debug log: Request body (pretty print)
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
+		c.logger.Debug("Request Body:\n%s", prettyJSON.String())
+	} else {
+		c.logger.Debug("Request Body: %s", string(body))
+	}
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		c.logger.Debug("HTTP request failed: %v", err)
 		return nil, fmt.Errorf("http request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Debug log: Response status
+	c.logger.Debug("=== LLM Response ===")
+	c.logger.Debug("Status: %d %s", resp.StatusCode, resp.Status)
+
+	// Debug log: Response headers
+	c.logger.Debug("Response Headers:")
+	for k, v := range resp.Header {
+		c.logger.Debug("  %s: %s", k, strings.Join(v, ", "))
+	}
+
 	if resp.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		c.logger.Debug("Error Response Body: %s", string(bodyBytes))
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -95,11 +135,28 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		} `json:"usage"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&oaiResp); err != nil {
+	// Read response body for both decoding and logging
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Debug("Failed to read response body: %v", err)
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	// Debug log: Response body (pretty print)
+	var prettyResp bytes.Buffer
+	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
+		c.logger.Debug("Response Body:\n%s", prettyResp.String())
+	} else {
+		c.logger.Debug("Response Body: %s", string(respBody))
+	}
+
+	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
+		c.logger.Debug("Failed to decode response: %v", err)
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
 	if len(oaiResp.Choices) == 0 {
+		c.logger.Debug("No choices in response")
 		return nil, fmt.Errorf("no choices in response")
 	}
 
@@ -117,6 +174,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	for _, tc := range oaiResp.Choices[0].Message.ToolCalls {
 		var args map[string]any
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+			c.logger.Debug("Failed to parse tool call arguments: %v", err)
 			continue
 		}
 		result.ToolCalls = append(result.ToolCalls, ports.ToolCall{
@@ -125,6 +183,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			Arguments: args,
 		})
 	}
+
+	// Debug log: Summary
+	c.logger.Debug("=== LLM Response Summary ===")
+	c.logger.Debug("Stop Reason: %s", result.StopReason)
+	c.logger.Debug("Content Length: %d chars", len(result.Content))
+	c.logger.Debug("Tool Calls: %d", len(result.ToolCalls))
+	c.logger.Debug("Usage: %d prompt + %d completion = %d total tokens",
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens)
+	c.logger.Debug("==================")
 
 	return result, nil
 }

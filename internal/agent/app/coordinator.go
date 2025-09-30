@@ -131,12 +131,14 @@ func (c *AgentCoordinator) ExecuteTask(
 	taskAnalysis := c.performTaskPreAnalysis(ctx, task, llmClient)
 	if taskAnalysis != "" {
 		c.logger.Debug("Task pre-analysis: %s", taskAnalysis)
-		fmt.Printf("\n🧠 Analysis: %s\n\n", taskAnalysis)
+		fmt.Printf("\nAnalysis: %s\n\n", taskAnalysis)
 	}
 
-	// 7. Delegate to domain logic
+	// 7. Delegate to domain logic with tool display
 	c.logger.Info("Delegating to ReactEngine...")
-	result, err := c.reactEngine.SolveTask(ctx, task, state, services)
+
+	// Create a callback-enabled execution wrapper
+	result, err := c.executeWithToolDisplay(ctx, task, state, services)
 	if err != nil {
 		c.logger.Error("Task execution failed: %v", err)
 		return nil, fmt.Errorf("task execution failed: %w", err)
@@ -194,6 +196,91 @@ func (c *AgentCoordinator) ListSessions(ctx context.Context) ([]string, error) {
 }
 
 // performTaskPreAnalysis performs quick task analysis using LLM
+// executeWithToolDisplay wraps ReactEngine execution with tool call display
+func (c *AgentCoordinator) executeWithToolDisplay(
+	ctx context.Context,
+	task string,
+	state *domain.TaskState,
+	services domain.Services,
+) (*domain.TaskResult, error) {
+	// Create a tool-intercepting registry wrapper
+	originalRegistry := services.ToolExecutor
+	displayRegistry := &toolDisplayWrapper{
+		inner:     originalRegistry,
+		formatter: domain.NewToolFormatter(),
+	}
+	services.ToolExecutor = displayRegistry
+
+	// Execute with display wrapper
+	return c.reactEngine.SolveTask(ctx, task, state, services)
+}
+
+// toolDisplayWrapper intercepts tool execution to display calls
+type toolDisplayWrapper struct {
+	inner     ports.ToolRegistry
+	formatter *domain.ToolFormatter
+}
+
+func (w *toolDisplayWrapper) Get(name string) (ports.ToolExecutor, error) {
+	tool, err := w.inner.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap tool with display logic
+	return &toolExecutorDisplay{
+		inner:     tool,
+		formatter: w.formatter,
+		name:      name,
+	}, nil
+}
+
+func (w *toolDisplayWrapper) List() []ports.ToolDefinition {
+	return w.inner.List()
+}
+
+func (w *toolDisplayWrapper) Register(tool ports.ToolExecutor) error {
+	return w.inner.Register(tool)
+}
+
+func (w *toolDisplayWrapper) Unregister(name string) error {
+	return w.inner.Unregister(name)
+}
+
+// toolExecutorDisplay wraps individual tool execution with display
+type toolExecutorDisplay struct {
+	inner     ports.ToolExecutor
+	formatter *domain.ToolFormatter
+	name      string
+}
+
+func (t *toolExecutorDisplay) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	// Display tool call
+	fmt.Println(t.formatter.FormatToolCall(call.Name, call.Arguments))
+
+	// Execute actual tool
+	result, err := t.inner.Execute(ctx, call)
+
+	// Display result preview
+	if err != nil || (result != nil && result.Error != nil) {
+		formatted := t.formatter.FormatToolResult(call.Name, "", false)
+		fmt.Printf("\033[90m%s\033[0m\n", formatted)
+	} else if result != nil {
+		formatted := t.formatter.FormatToolResult(call.Name, result.Content, true)
+		fmt.Printf("\033[90m%s\033[0m\n", formatted)
+	}
+
+	return result, err
+}
+
+func (t *toolExecutorDisplay) Definition() ports.ToolDefinition {
+	return t.inner.Definition()
+}
+
+func (t *toolExecutorDisplay) Metadata() ports.ToolMetadata {
+	return t.inner.Metadata()
+}
+
 func (c *AgentCoordinator) performTaskPreAnalysis(
 	ctx context.Context,
 	task string,

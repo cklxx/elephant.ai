@@ -14,6 +14,36 @@ type ToolExecutor interface {
 	Metadata() ToolMetadata
 }
 
+// AgentCoordinator represents the main agent coordinator for subagent delegation
+type AgentCoordinator interface {
+	// ExecuteTask executes a task and returns the result
+	ExecuteTask(ctx context.Context, task string, sessionID string) (*TaskResult, error)
+
+	// ListSessions lists all available sessions
+	ListSessions(ctx context.Context) ([]string, error)
+}
+
+// TaskResult represents the result of task execution
+type TaskResult struct {
+	Answer     string
+	Iterations int
+	TokensUsed int
+	StopReason string
+}
+
+// StreamCallback is called during task execution to stream events
+type StreamCallback func(event StreamEvent)
+
+// StreamEvent represents different types of events during execution
+type StreamEvent struct {
+	Type    string // "tool_start", "tool_end", "thought", "error"
+	Tool    string
+	Args    map[string]any
+	Result  string
+	Error   error
+	Content string
+}
+
 // ToolRegistry manages available tools
 type ToolRegistry interface {
 	// Register adds a tool to the registry

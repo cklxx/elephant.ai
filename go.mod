@@ -23,6 +23,9 @@ require (
 )
 
 require (
+	github.com/MichaelMure/go-term-markdown v0.1.4 // indirect
+	github.com/MichaelMure/go-term-text v0.3.1 // indirect
+	github.com/alecthomas/chroma v0.7.1 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
@@ -35,10 +38,13 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
+	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
+	github.com/eliukblau/pixterm/pkg/ansimage v0.0.0-20191210081756-9fb6cf8c2f75 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
@@ -49,10 +55,12 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
+	github.com/gomarkdown/markdown v0.0.0-20191123064959-2c17d62f5098 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/kyokomi/emoji/v2 v2.2.8 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -88,6 +96,7 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/image v0.0.0-20191206065243-da761ea9ff43 // indirect
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
