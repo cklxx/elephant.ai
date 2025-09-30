@@ -34,19 +34,18 @@ func RunInteractive(container *Container) error {
 	historyFile := filepath.Join(homeDir, ".alex-history")
 
 	rl, err := readline.NewEx(&readline.Config{
-		Prompt:          "> ",
-		HistoryFile:     historyFile,
-		InterruptPrompt: "^C",
-		EOFPrompt:       "exit",
-
-		// History search with Ctrl+R
+		Prompt:            "> ",
+		HistoryFile:       historyFile,
+		InterruptPrompt:   "^C",
+		EOFPrompt:         "exit",
 		HistorySearchFold: true,
+		AutoComplete:      nil,
+		UniqueEditLine:    true,
 
-		// Auto-complete can be added later
-		AutoComplete: nil,
-
-		// UTF-8 support
-		UniqueEditLine: true,
+		// Important: Use stdin/stdout/stderr explicitly
+		Stdin:  readline.NewCancelableStdin(os.Stdin),
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize readline: %w", err)

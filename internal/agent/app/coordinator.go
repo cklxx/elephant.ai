@@ -146,8 +146,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
 		result.Iterations, result.TokensUsed, result.StopReason)
 
-	// 8. Update session with results
-	session.Messages = append(session.Messages, convertDomainMessages(result.Messages)...)
+	// 8. Update session with results (result.Messages contains ALL messages including history)
+	session.Messages = convertDomainMessages(result.Messages)
 	session.UpdatedAt = time.Now()
 
 	c.logger.Debug("Saving session...")
