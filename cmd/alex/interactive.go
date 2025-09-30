@@ -41,11 +41,6 @@ func RunInteractive(container *Container) error {
 		HistorySearchFold: true,
 		AutoComplete:      nil,
 		UniqueEditLine:    true,
-
-		// Important: Use stdin/stdout/stderr explicitly
-		Stdin:  readline.NewCancelableStdin(os.Stdin),
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize readline: %w", err)

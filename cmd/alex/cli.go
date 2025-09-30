@@ -38,6 +38,9 @@ func (c *CLI) Run(args []string) error {
 	case "chat", "interactive", "i":
 		return RunInteractive(c.container)
 
+	case "simple", "--simple":
+		return RunSimpleREPL(c.container)
+
 	case "tui":
 		return RunTUI(c.container)
 
@@ -69,6 +72,7 @@ ALEX - Agile Light Easy Xpert Code Agent (v2.0)
 Usage:
   alex <task>                    Execute a task
   alex interactive               Start interactive chat mode with readline (default)
+  alex simple                    Start simple REPL mode (no readline, guaranteed compatibility)
   alex tui                       Start TUI mode with Bubble Tea framework
   alex --demo-parallel           Run parallel execution demo
   alex help                      Show this help message
