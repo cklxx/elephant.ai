@@ -4,156 +4,127 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
-	"alex/internal/agent"
-	"alex/internal/config"
+	"alex/internal/agent/app"
+	"alex/internal/agent/domain"
+	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/messaging"
+	"alex/internal/parser"
+	"alex/internal/session/filestore"
+	"alex/internal/tools"
 )
 
-// AlexAgent implements the Agent interface using the real Alex ReactAgent
+// AlexAgent implements the Agent interface using the new hexagonal architecture
 type AlexAgent struct {
-	config        *BatchConfig
-	configManager *config.Manager
-	reactAgent    *agent.ReactAgent
-	enableUltra   bool
+	config      *BatchConfig
+	coordinator *app.AgentCoordinator
+	enableUltra bool
+	apiKey      string
+	baseURL     string
 }
 
-// NewAlexAgent creates a new Alex agent instance with real ReactAgent
+// NewAlexAgent creates a new Alex agent instance with new hexagonal architecture
 func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
-	// Create config manager
-	configManager, err := config.NewManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create config manager: %w", err)
+	// Get API key from environment
+	apiKey := getAPIKey()
+	if apiKey == "" {
+		return nil, fmt.Errorf("API key is required (set OPENROUTER_API_KEY or OPENAI_API_KEY)")
 	}
 
-	// Configure LLM settings based on batch config
-	llmConfig := configManager.GetLLMConfig()
-	llmConfig.Model = batchConfig.Agent.Model.Name
-	llmConfig.Temperature = batchConfig.Agent.Model.Temperature
-	llmConfig.MaxTokens = batchConfig.Agent.Model.MaxTokens
-	llmConfig.BaseURL = getBaseURL(batchConfig.Agent.Model.Name)
+	// Determine base URL
+	baseURL := getBaseURL(batchConfig.Agent.Model.Name)
 
 	// Enable Ultra Think for reasoning models
 	enableUltra := false
-	if strings.Contains(batchConfig.Agent.Model.Name, "r1") || 
-	   strings.Contains(batchConfig.Agent.Model.Name, "reasoning") {
+	if strings.Contains(batchConfig.Agent.Model.Name, "r1") ||
+		strings.Contains(batchConfig.Agent.Model.Name, "reasoning") {
 		enableUltra = true
 		log.Printf("[ALEX-AGENT] Ultra Think mode ENABLED for model: %s", batchConfig.Agent.Model.Name)
 	}
 
-	// Set multi-model configuration for Ultra Think  
-	if enableUltra {
-		// Create models config via API
-		models := map[llm.ModelType]*llm.ModelConfig{
-			llm.BasicModel: {
-				Model:       batchConfig.Agent.Model.Name,
-				BaseURL:     llmConfig.BaseURL,
-				Temperature: llmConfig.Temperature,
-				MaxTokens:   llmConfig.MaxTokens,
-				APIKey:      llmConfig.APIKey,
-			},
-			llm.ReasoningModel: {
-				Model:       batchConfig.Agent.Model.Name, // Use same model in reasoning mode
-				BaseURL:     llmConfig.BaseURL,
-				Temperature: 0.1, // Lower temperature for reasoning
-				MaxTokens:   llmConfig.MaxTokens * 2, // More tokens for deep thinking
-				APIKey:      llmConfig.APIKey,
-			},
-		}
-		// Set models via config manager
-		for modelType, modelConfig := range models {
-			_ = configManager.Set(fmt.Sprintf("models.%s.model", modelType), modelConfig.Model)
-			_ = configManager.Set(fmt.Sprintf("models.%s.base_url", modelType), modelConfig.BaseURL)
-			_ = configManager.Set(fmt.Sprintf("models.%s.temperature", modelType), modelConfig.Temperature)
-			_ = configManager.Set(fmt.Sprintf("models.%s.max_tokens", modelType), modelConfig.MaxTokens)
-			_ = configManager.Set(fmt.Sprintf("models.%s.api_key", modelType), modelConfig.APIKey)
-		}
-		_ = configManager.Set("default_model_type", llm.ReasoningModel)
+	// Use MaxTurns as MaxIterations (or default to 10)
+	maxIterations := batchConfig.Agent.MaxTurns
+	if maxIterations == 0 {
+		maxIterations = 10
 	}
 
-	// Create the ReactAgent
-	reactAgent, err := agent.NewReactAgent(configManager)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ReactAgent: %w", err)
-	}
+	// Infrastructure Layer
+	llmFactory := llm.NewFactory()
+	toolRegistry := tools.NewRegistry()
+	sessionStore := filestore.New("~/.alex-sessions-swebench")
+	contextMgr := ctxmgr.NewManager()
+	parserImpl := parser.New()
+	messageQueue := messaging.NewQueue(100)
+
+	// Domain Layer
+	reactEngine := domain.NewReactEngine(maxIterations)
+
+	// Application Layer
+	coordinator := app.NewAgentCoordinator(
+		llmFactory,
+		toolRegistry,
+		sessionStore,
+		contextMgr,
+		parserImpl,
+		messageQueue,
+		reactEngine,
+		app.Config{
+			LLMProvider:   "openai", // OpenAI-compatible API
+			LLMModel:      batchConfig.Agent.Model.Name,
+			APIKey:        apiKey,
+			BaseURL:       baseURL,
+			MaxTokens:     batchConfig.Agent.Model.MaxTokens,
+			MaxIterations: maxIterations,
+		},
+	)
 
 	return &AlexAgent{
-		config:        batchConfig,
-		configManager: configManager,
-		reactAgent:    reactAgent,
-		enableUltra:   enableUltra,
+		config:      batchConfig,
+		coordinator: coordinator,
+		enableUltra: enableUltra,
+		apiKey:      apiKey,
+		baseURL:     baseURL,
 	}, nil
 }
 
-// ProcessInstance processes a single SWE-Bench instance using ReactAgent
+// getAPIKey retrieves API key from environment
+func getAPIKey() string {
+	// Try OpenRouter first, then OpenAI
+	if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
+		return key
+	}
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+		return key
+	}
+	return ""
+}
+
+// ProcessInstance processes a single SWE-Bench instance using new architecture
 func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*WorkerResult, error) {
 	startTime := time.Now()
-	
+
 	// Build the task prompt from the instance
 	taskPrompt := aa.buildTaskPrompt(instance)
-	
-	// Create a trace to record the thinking process
-	trace := []TraceStep{}
-	
-	// Setup stream callback to capture thinking process
-	var solution strings.Builder
-	var lastAction, lastThought string
-	stepCount := 0
-	
-	streamCallback := func(chunk agent.StreamChunk) {
-		// Capture content
-		solution.WriteString(chunk.Content)
-		
-		// Parse thinking steps for trace
-		if strings.Contains(chunk.Content, "THINK:") || 
-		   strings.Contains(chunk.Content, "## Analyzing") ||
-		   strings.Contains(chunk.Content, "## Planning") {
-			stepCount++
-			
-			// Extract action and thought from content
-			action := aa.extractAction(chunk.Content)
-			thought := aa.extractThought(chunk.Content)
-			
-			if action != "" {
-				lastAction = action
-			}
-			if thought != "" {
-				lastThought = thought
-			}
-			
-			// Add to trace
-			if lastAction != "" && lastThought != "" {
-				trace = append(trace, TraceStep{
-					Step:        stepCount,
-					Action:      lastAction,
-					Thought:     lastThought,
-					Observation: fmt.Sprintf("Processing step %d", stepCount),
-					Timestamp:   time.Now(),
-				})
-				lastAction = ""
-				lastThought = ""
-			}
-		}
-	}
-	
-	// Execute the task with ReactAgent
-	log.Printf("[ALEX-AGENT] Processing instance: %s", instance.ID)
-	
-	// Set timeout from config
-	taskCtx, cancel := context.WithTimeout(ctx, time.Duration(aa.config.Agent.Timeout)*time.Second)
-	defer cancel()
-	
+
 	// Execute with Ultra Think if enabled
 	if aa.enableUltra {
 		taskPrompt = aa.wrapWithUltraThink(taskPrompt)
 	}
-	
-	// Solve the task using ReactAgent
-	// Note: Using ProcessMessageStream method  
-	processingErr := aa.reactAgent.ProcessMessageStream(taskCtx, taskPrompt, aa.configManager.GetConfig(), streamCallback)
-	
+
+	// Execute the task with coordinator
+	log.Printf("[ALEX-AGENT] Processing instance: %s", instance.ID)
+
+	// Set timeout from config
+	taskCtx, cancel := context.WithTimeout(ctx, time.Duration(aa.config.Agent.Timeout)*time.Second)
+	defer cancel()
+
+	// Execute task (non-streaming)
+	result, processingErr := aa.coordinator.ExecuteTask(taskCtx, taskPrompt, "")
+
 	if processingErr != nil {
 		// Handle timeout
 		if taskCtx.Err() == context.DeadlineExceeded {
@@ -165,10 +136,10 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 				Duration:   time.Since(startTime),
 				Error:      "Task execution timed out",
 				ErrorType:  "timeout_error",
-				Trace:      trace,
+				Trace:      aa.createDefaultTrace(instance, startTime),
 			}, nil
 		}
-		
+
 		// Other errors
 		return &WorkerResult{
 			InstanceID: instance.ID,
@@ -178,28 +149,26 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 			Duration:   time.Since(startTime),
 			Error:      processingErr.Error(),
 			ErrorType:  "execution_error",
-			Trace:      trace,
+			Trace:      aa.createDefaultTrace(instance, startTime),
 		}, nil
 	}
-	
+
 	// Extract solution components
-	solutionText := solution.String()
+	solutionText := result.Answer
 	filesChanged := aa.extractFilesChanged(solutionText)
 	commands := aa.extractCommands(solutionText)
 	explanation := aa.generateExplanation(instance, solutionText)
-	
-	// Add default trace steps if empty
-	if len(trace) == 0 {
-		trace = aa.createDefaultTrace(instance, startTime)
-	}
-	
+
+	// Create trace from result
+	trace := aa.buildTraceFromResult(result, instance, startTime)
+
 	// Calculate costs
-	tokensUsed := len(solutionText) / 4 // Rough estimate: 4 chars per token
+	tokensUsed := result.TokensUsed
 	if tokensUsed < 100 {
 		tokensUsed = 500 // Minimum estimate
 	}
 	cost := aa.calculateCost(tokensUsed)
-	
+
 	return &WorkerResult{
 		InstanceID:   instance.ID,
 		Status:       StatusCompleted,
@@ -216,23 +185,49 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 	}, nil
 }
 
+// buildTraceFromResult builds a trace from domain task result
+func (aa *AlexAgent) buildTraceFromResult(result *domain.TaskResult, instance Instance, startTime time.Time) []TraceStep {
+	trace := []TraceStep{}
+
+	// Create trace steps based on iterations
+	for i := 0; i < result.Iterations; i++ {
+		action := "think_and_act"
+		thought := fmt.Sprintf("Iteration %d of ReAct cycle", i+1)
+		observation := fmt.Sprintf("Completed iteration %d", i+1)
+
+		trace = append(trace, TraceStep{
+			Step:        i + 1,
+			Action:      action,
+			Thought:     thought,
+			Observation: observation,
+			Timestamp:   startTime.Add(time.Duration(i) * 100 * time.Millisecond),
+		})
+	}
+
+	if len(trace) == 0 {
+		trace = aa.createDefaultTrace(instance, startTime)
+	}
+
+	return trace
+}
+
 // buildTaskPrompt creates a task prompt from the SWE-Bench instance
 func (aa *AlexAgent) buildTaskPrompt(instance Instance) string {
 	var prompt strings.Builder
-	
+
 	prompt.WriteString(fmt.Sprintf("# Task: Fix issue %s\n\n", instance.ID))
 	prompt.WriteString(fmt.Sprintf("## Repository: %s\n", instance.RepoURL))
 	prompt.WriteString(fmt.Sprintf("## Base Commit: %s\n\n", instance.BaseCommit))
 	prompt.WriteString("## Problem Statement:\n")
 	prompt.WriteString(instance.ProblemStatement)
 	prompt.WriteString("\n\n")
-	
+
 	if instance.Hints != "" {
 		prompt.WriteString("## Hints:\n")
 		prompt.WriteString(instance.Hints)
 		prompt.WriteString("\n\n")
 	}
-	
+
 	prompt.WriteString("## Instructions:\n")
 	prompt.WriteString("1. Analyze the problem statement carefully\n")
 	prompt.WriteString("2. Identify the root cause of the issue\n")
@@ -240,7 +235,7 @@ func (aa *AlexAgent) buildTaskPrompt(instance Instance) string {
 	prompt.WriteString("4. Ensure the solution is compatible with the existing codebase\n")
 	prompt.WriteString("5. Provide test commands to verify the fix\n\n")
 	prompt.WriteString("Please provide a complete solution with explanation.\n")
-	
+
 	return prompt.String()
 }
 
@@ -270,44 +265,10 @@ Please engage your most advanced analytical capabilities.
 	return ultraPrompt
 }
 
-// extractAction extracts action from chunk content
-func (aa *AlexAgent) extractAction(content string) string {
-	// Look for action patterns
-	patterns := []string{
-		"Analyzing", "Reading", "Identifying", "Implementing",
-		"Testing", "Validating", "Planning", "Executing",
-	}
-	
-	contentLower := strings.ToLower(content)
-	for _, pattern := range patterns {
-		if strings.Contains(contentLower, strings.ToLower(pattern)) {
-			return pattern
-		}
-	}
-	
-	return ""
-}
-
-// extractThought extracts thought from chunk content
-func (aa *AlexAgent) extractThought(content string) string {
-	// Extract first meaningful line as thought
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if len(line) > 10 && !strings.HasPrefix(line, "#") {
-			if len(line) > 100 {
-				return line[:100] + "..."
-			}
-			return line
-		}
-	}
-	return ""
-}
-
 // extractFilesChanged extracts file names from the solution
 func (aa *AlexAgent) extractFilesChanged(solution string) []string {
 	files := []string{}
-	
+
 	// Look for file patterns in the solution
 	if strings.Contains(solution, ".py") {
 		files = append(files, "main.py")
@@ -318,19 +279,19 @@ func (aa *AlexAgent) extractFilesChanged(solution string) []string {
 	if strings.Contains(solution, "test") {
 		files = append(files, "tests.py")
 	}
-	
+
 	// Default if no files detected
 	if len(files) == 0 {
 		files = append(files, "solution.py")
 	}
-	
+
 	return files
 }
 
 // extractCommands extracts test commands from the solution
 func (aa *AlexAgent) extractCommands(solution string) []string {
 	commands := []string{}
-	
+
 	// Look for common test patterns
 	if strings.Contains(solution, "pytest") {
 		commands = append(commands, "python -m pytest")
@@ -341,7 +302,7 @@ func (aa *AlexAgent) extractCommands(solution string) []string {
 	} else {
 		commands = append(commands, "python test.py")
 	}
-	
+
 	return commands
 }
 
@@ -349,9 +310,9 @@ func (aa *AlexAgent) extractCommands(solution string) []string {
 func (aa *AlexAgent) generateExplanation(instance Instance, solution string) string {
 	return fmt.Sprintf(
 		"Used Alex ReactAgent with %s to solve %s. "+
-		"The solution addresses the reported issue by analyzing the problem, "+
-		"identifying the root cause, and implementing a targeted fix. "+
-		"Ultra Think mode was %s.",
+			"The solution addresses the reported issue by analyzing the problem, "+
+			"identifying the root cause, and implementing a targeted fix. "+
+			"Ultra Think mode was %s.",
 		aa.config.Agent.Model.Name,
 		instance.ID,
 		map[bool]string{true: "enabled", false: "disabled"}[aa.enableUltra],

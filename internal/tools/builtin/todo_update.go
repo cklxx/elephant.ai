@@ -2,273 +2,155 @@ package builtin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"alex/internal/session"
+	"alex/internal/agent/ports"
 )
 
-// NewTodoUpdateTool implements todo update functionality (full replacement)
-type NewTodoUpdateTool struct {
-	sessionManager *session.Manager // 直接引用 session manager
+type todoUpdate struct {
+	sessionsDir string // For testing override
 }
 
-func CreateNewTodoUpdateTool() *NewTodoUpdateTool {
-	return &NewTodoUpdateTool{}
+func NewTodoUpdate() ports.ToolExecutor {
+	return &todoUpdate{}
 }
 
-// CreateTodoUpdateToolWithSessionManager creates todo update tool with session manager
-func CreateTodoUpdateToolWithSessionManager(sessionManager *session.Manager) *NewTodoUpdateTool {
-	return &NewTodoUpdateTool{
-		sessionManager: sessionManager,
+// NewTodoUpdateWithSessionsDir creates todo_update with custom sessions directory (for testing)
+func NewTodoUpdateWithSessionsDir(sessionsDir string) ports.ToolExecutor {
+	return &todoUpdate{sessionsDir: sessionsDir}
+}
+
+func (t *todoUpdate) Metadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:     "todo_update",
+		Version:  "1.0.0",
+		Category: "session",
+		Tags:     []string{"todo"},
 	}
 }
 
-func (t *NewTodoUpdateTool) Name() string {
-	return "todo_update"
-}
+func (t *todoUpdate) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{
+		Name: "todo_update",
+		Description: `Update session todo list with structured format.
 
-func (t *NewTodoUpdateTool) Description() string {
-	return `Update session todo list with structured JSON format or markdown content.
-
-Supports two formats:
-JSON format (recommended): Array of todo objects with id, content, status, priority
-
-Usage:
-- Overwrites existing todo content completely
-- Automatically detects format and converts appropriately
-- Session-specific storage (survives session resume)`
-}
-
-func (t *NewTodoUpdateTool) Parameters() map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"todos": map[string]interface{}{
-				"type":        "array",
-				"description": "Array of todo items with structured format",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"id": map[string]interface{}{
-							"type":        "string",
-							"description": "Unique identifier for the todo item",
-						},
-						"content": map[string]interface{}{
-							"type":        "string",
-							"description": "Description of the todo item",
-						},
-						"status": map[string]interface{}{
-							"type":        "string",
-							"enum":        []string{"pending", "in_progress", "completed"},
-							"description": "Current status of the todo item",
-						},
-						"priority": map[string]interface{}{
-							"type":        "string",
-							"enum":        []string{"high", "medium", "low"},
-							"description": "Priority level of the todo item",
-						},
-					},
-					"required": []string{"id", "content", "status", "priority"},
+Parameters:
+- todos: Array of {content, status, activeForm}
+  - content (required): Task description
+  - status (required): "pending", "in_progress", "completed"
+  - activeForm (optional): Present continuous form`,
+		Parameters: ports.ParameterSchema{
+			Type: "object",
+			Properties: map[string]ports.Property{
+				"todos": {
+					Type:        "array",
+					Description: "Array of todo items",
 				},
 			},
+			Required: []string{"todos"},
 		},
-		"required": []string{"todos"},
 	}
 }
 
-func (t *NewTodoUpdateTool) Validate(args map[string]interface{}) error {
-	// Check if todos array is provided
-	if todos, exists := args["todos"]; exists {
-		// Validate todos array format
-		todosArray, ok := todos.([]interface{})
-		if !ok {
-			return fmt.Errorf("todos must be an array")
-		}
-
-		for i, todo := range todosArray {
-			todoMap, ok := todo.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("todo item %d must be an object", i)
-			}
-
-			// Validate required fields
-			for _, field := range []string{"id", "content", "status", "priority"} {
-				if _, exists := todoMap[field]; !exists {
-					return fmt.Errorf("todo item %d missing required field: %s", i, field)
-				}
-			}
-
-			// Validate status
-			status, _ := todoMap["status"].(string)
-			if status != "pending" && status != "in_progress" && status != "completed" {
-				return fmt.Errorf("todo item %d has invalid status: %s", i, status)
-			}
-
-			// Validate priority
-			priority, _ := todoMap["priority"].(string)
-			if priority != "high" && priority != "medium" && priority != "low" {
-				return fmt.Errorf("todo item %d has invalid priority: %s", i, priority)
-			}
-		}
-		return nil
+func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	todosArg, ok := call.Arguments["todos"]
+	if !ok {
+		return &ports.ToolResult{CallID: call.ID, Content: "Error: todos required", Error: fmt.Errorf("missing todos")}, nil
 	}
 
-	return fmt.Errorf("todos array must be provided")
-}
+	todosArray, _ := todosArg.([]any)
+	var inProgress, pending, completed []string
 
-func (t *NewTodoUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	// For tools created without session manager, fall back to error
-	if t.sessionManager == nil {
-		return nil, fmt.Errorf("todo operations require session manager - tool not properly initialized")
-	}
+	for _, item := range todosArray {
+		todo, _ := item.(map[string]any)
+		content, _ := todo["content"].(string)
+		status, _ := todo["status"].(string)
 
-	// Get sessions directory and ensure it exists
-	sessionsDir := t.sessionManager.GetSessionsDir()
-
-	// Get session ID directly from manager
-	sessionID, hasSession := t.sessionManager.GetSessionID()
-	if !hasSession {
-		return nil, fmt.Errorf("session ID not available - todo operations require a valid session")
-	}
-
-	// Use session-specific todo file
-	todoFile := filepath.Join(sessionsDir, sessionID+"_todo.md")
-
-	var content string
-	var pendingCount, completedCount, inProgressCount int
-
-	// Check if JSON format (todos array) is provided
-	if todos, exists := args["todos"]; exists {
-		content, pendingCount, completedCount, inProgressCount = t.convertTodosToMarkdown(todos)
-	} else {
-		return nil, fmt.Errorf("todos array must be provided")
-	}
-
-	// Write content to todo file
-	err := os.WriteFile(todoFile, []byte(content), 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write todo file: %w", err)
-	}
-
-	totalCount := pendingCount + completedCount + inProgressCount
-
-	return &ToolResult{
-		Content: fmt.Sprintf("Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable\n\n<system-reminder>\nYour todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:\n\n%s. Continue on with the tasks at hand if applicable.\n</system-reminder>", t.generateTodoSummary(args)),
-		Data: map[string]interface{}{
-			"content":           content,
-			"total_count":       totalCount,
-			"pending_count":     pendingCount,
-			"completed_count":   completedCount,
-			"in_progress_count": inProgressCount,
-			"file_path":         todoFile,
-		},
-	}, nil
-}
-
-// TodoItem represents a structured todo item
-type TodoItem struct {
-	ID       string `json:"id"`
-	Content  string `json:"content"`
-	Status   string `json:"status"`
-	Priority string `json:"priority"`
-}
-
-// convertTodosToMarkdown converts JSON todos array to markdown format
-func (t *NewTodoUpdateTool) convertTodosToMarkdown(todos interface{}) (string, int, int, int) {
-	todosArray := todos.([]interface{})
-	var lines []string
-	var pendingCount, completedCount, inProgressCount int
-
-	// Group by priority for better organization
-	highPriority := []TodoItem{}
-	mediumPriority := []TodoItem{}
-	lowPriority := []TodoItem{}
-
-	for _, todo := range todosArray {
-		todoMap := todo.(map[string]interface{})
-		item := TodoItem{
-			ID:       todoMap["id"].(string),
-			Content:  todoMap["content"].(string),
-			Status:   todoMap["status"].(string),
-			Priority: todoMap["priority"].(string),
-		}
-
-		// Count by status
-		switch item.Status {
-		case "pending":
-			pendingCount++
-		case "completed":
-			completedCount++
+		switch status {
 		case "in_progress":
-			inProgressCount++
-		}
-
-		// Group by priority
-		switch item.Priority {
-		case "high":
-			highPriority = append(highPriority, item)
-		case "medium":
-			mediumPriority = append(mediumPriority, item)
-		case "low":
-			lowPriority = append(lowPriority, item)
+			inProgress = append(inProgress, content)
+		case "pending":
+			pending = append(pending, content)
+		case "completed":
+			completed = append(completed, content)
 		}
 	}
 
-	// Generate markdown content
-	lines = append(lines, "")
+	var md strings.Builder
+	md.WriteString("# Task List\n\n")
 
-	// Add high priority tasks
-	if len(highPriority) > 0 {
-		for _, item := range highPriority {
-			lines = append(lines, t.formatTodoItem(item))
+	if len(inProgress) > 0 {
+		md.WriteString("## In Progress\n\n")
+		for _, t := range inProgress {
+			md.WriteString(fmt.Sprintf("- [▶] %s\n", t))
+		}
+		md.WriteString("\n")
+	}
+
+	if len(pending) > 0 {
+		md.WriteString("## Pending\n\n")
+		for _, t := range pending {
+			md.WriteString(fmt.Sprintf("- [ ] %s\n", t))
+		}
+		md.WriteString("\n")
+	}
+
+	if len(completed) > 0 {
+		md.WriteString("## Completed\n\n")
+		for _, t := range completed {
+			md.WriteString(fmt.Sprintf("- [✓] %s\n", t))
+		}
+		md.WriteString("\n")
+	}
+
+	var sessionDir, todoFile string
+	if t.sessionsDir != "" {
+		// Test mode with custom sessions directory
+		sessionDir = filepath.Join(t.sessionsDir, "default")
+	} else {
+		// Production mode
+		homeDir, _ := os.UserHomeDir()
+		sessionDir = filepath.Join(homeDir, ".alex-sessions", "default")
+	}
+	os.MkdirAll(sessionDir, 0755)
+	todoFile = filepath.Join(sessionDir, "todo.md")
+	os.WriteFile(todoFile, []byte(md.String()), 0644)
+
+	// Build detailed result content
+	var result strings.Builder
+	total := len(inProgress) + len(pending) + len(completed)
+	result.WriteString(fmt.Sprintf("Updated: %d in progress, %d pending, %d completed (%d total)\n\n",
+		len(inProgress), len(pending), len(completed), total))
+
+	// Add task details
+	if len(inProgress) > 0 {
+		result.WriteString("In Progress:\n")
+		for _, task := range inProgress {
+			result.WriteString(fmt.Sprintf("  - %s\n", task))
+		}
+		result.WriteString("\n")
+	}
+
+	if len(pending) > 0 {
+		result.WriteString("Pending:\n")
+		for _, task := range pending {
+			result.WriteString(fmt.Sprintf("  - %s\n", task))
+		}
+		result.WriteString("\n")
+	}
+
+	if len(completed) > 0 && len(completed) <= 3 {
+		result.WriteString("Recently Completed:\n")
+		for _, task := range completed {
+			result.WriteString(fmt.Sprintf("  - %s\n", task))
 		}
 	}
 
-	// Add medium priority tasks
-	if len(mediumPriority) > 0 {
-		for _, item := range mediumPriority {
-			lines = append(lines, t.formatTodoItem(item))
-		}
-	}
-
-	// Add low priority tasks
-	if len(lowPriority) > 0 {
-		for _, item := range lowPriority {
-			lines = append(lines, t.formatTodoItem(item))
-		}
-	}
-
-	return strings.Join(lines, "\n"), pendingCount, completedCount, inProgressCount
-}
-
-// formatTodoItem formats a single todo item as markdown
-func (t *NewTodoUpdateTool) formatTodoItem(item TodoItem) string {
-	var checkbox string
-	switch item.Status {
-	case "pending":
-		checkbox = "☐"
-	case "in_progress":
-		checkbox = "▶" // Play button for in-progress
-	case "completed":
-		checkbox = "☒"
-	default:
-		checkbox = "☐"
-	}
-
-	return fmt.Sprintf("%s %s", checkbox, item.Content)
-}
-
-// generateTodoSummary generates a JSON summary of todos for system reminder
-func (t *NewTodoUpdateTool) generateTodoSummary(args map[string]interface{}) string {
-	if todos, exists := args["todos"]; exists {
-		// Convert to JSON string for system reminder
-		if jsonBytes, err := json.Marshal(todos); err == nil {
-			return string(jsonBytes)
-		}
-	}
-	return "[]"
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: result.String(),
+	}, nil
 }

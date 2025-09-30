@@ -50,19 +50,20 @@ Download from [Releases](https://github.com/cklxx/Alex-Code/releases)
 ## Features
 
 ### Core Capabilities
+- **Hexagonal Architecture**: Clean separation of domain, application, and infrastructure layers
 - **ReAct Agent Architecture**: Think-Act-Observe cycle with streaming responses
-- **13 Built-in Tools**: File operations, shell execution, search, web, task management
-- **MCP Protocol**: Full Model Context Protocol implementation with JSON-RPC 2.0
-- **Multi-Model Support**: OpenAI, DeepSeek, OpenRouter with automatic selection
+- **15+ Built-in Tools**: File operations, shell execution, search, web, task management
+- **Modern TUI**: Clean streaming interface like Claude Code/Aider (no chat format)
+- **Multi-Model Support**: OpenAI, DeepSeek, OpenRouter, Ollama with automatic selection
 - **Session Management**: Persistent conversations with context compression
 - **SWE-Bench Integration**: Evaluation framework for benchmarking
 
 ### Built-in Tools
-- **File Operations**: `file_read`, `file_update`, `file_replace`, `file_list`
+- **File Operations**: `file_read`, `file_write`, `file_edit`, `file_replace`, `list_files`
 - **Shell Execution**: `bash`, `code_execute` with security validation
 - **Search**: `grep`, `ripgrep`, `find` with pattern matching
-- **Task Management**: `todo_read`, `todo_update` with session persistence
-- **Web**: `web_search` via Tavily API
+- **Task Management**: `todo_read`, `todo_update` with markdown format
+- **Web**: `web_search` (Tavily), `web_fetch` with 15-min cache
 - **Reasoning**: `think` for structured problem-solving
 
 ## Configuration
@@ -96,37 +97,44 @@ export USE_REACT_AGENT="true"          # Force ReAct mode
 
 ```bash
 # Main workflow
-make dev          # Format, vet, build, test
+make dev          # Format, vet, build (recommended)
 make test         # Run all tests
-make build-all    # Build for all platforms
+make build        # Build alex binary
 
 # Testing
-make test-functionality    # Quick core test
-make test-working         # Skip known issues
-go test ./internal/agent/ # Test specific package
+go test ./internal/agent/domain/ -v    # Domain layer tests
+go test ./internal/tools/builtin/ -v   # Builtin tools tests
+
+# NPM Publishing
+make npm-copy-binaries    # Copy binaries to npm packages
+make npm-publish          # Publish to npm registry
+make npm-test-install     # Test local installation
 
 # SWE-Bench Evaluation
 make swe-bench-verified-test   # Test with 3 instances
 make swe-bench-verified-small  # Run 50 instances
-make swe-bench-verified-full   # Run all 500 instances
 ```
 
-## Architecture
+## Architecture (Hexagonal)
 
 ```
 alex/
-├── cmd/                    # CLI entry points
+├── cmd/alex/              # CLI entry (main.go, tui_modern.go)
 ├── internal/
-│   ├── agent/             # ReAct agent implementation
-│   ├── llm/              # Multi-model LLM factory
+│   ├── agent/            # Hexagonal architecture layers
+│   │   ├── domain/       # Pure business logic (ReactEngine)
+│   │   ├── app/          # Application services (Coordinator)
+│   │   └── ports/        # Interfaces for adapters
+│   ├── llm/              # LLM adapters (OpenAI, DeepSeek, Ollama)
 │   ├── tools/            # Tool system
-│   │   └── builtin/      # Core tool implementations
-│   ├── memory/           # Dual-layer memory system
-│   ├── mcp/              # MCP protocol
-│   ├── session/          # Session management
-│   └── prompts/          # Markdown prompt templates
+│   │   ├── builtin/      # 15+ built-in tools
+│   │   └── registry.go   # Dynamic tool registration
+│   ├── messaging/        # Message types and parsers
+│   ├── parser/           # Tool call parsing (XML, JSON)
+│   ├── context/          # Context management
+│   └── session/          # Session persistence
 └── evaluation/
-    └── swe_bench/        # SWE-Bench evaluation
+    └── swe_bench/        # SWE-Bench integration
 ```
 
 ## Documentation

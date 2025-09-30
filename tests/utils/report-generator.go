@@ -12,75 +12,75 @@ import (
 
 // TestReport 测试报告结构
 type TestReport struct {
-	Metadata       ReportMetadata    `json:"metadata"`
-	Summary        TestSummary       `json:"summary"`
-	Suites         []TestSuite       `json:"suites"`
-	Performance    PerformanceReport `json:"performance"`
-	Coverage       CoverageReport    `json:"coverage"`
-	Acceptance     AcceptanceReport  `json:"acceptance"`
-	Recommendations []string         `json:"recommendations"`
+	Metadata        ReportMetadata    `json:"metadata"`
+	Summary         TestSummary       `json:"summary"`
+	Suites          []TestSuite       `json:"suites"`
+	Performance     PerformanceReport `json:"performance"`
+	Coverage        CoverageReport    `json:"coverage"`
+	Acceptance      AcceptanceReport  `json:"acceptance"`
+	Recommendations []string          `json:"recommendations"`
 }
 
 // ReportMetadata 报告元数据
 type ReportMetadata struct {
-	GeneratedAt    time.Time `json:"generated_at"`
-	Version        string    `json:"version"`
-	Environment    string    `json:"environment"`
-	GoVersion      string    `json:"go_version"`
-	Platform       string    `json:"platform"`
-	TestDuration   string    `json:"test_duration"`
-	ReportVersion  string    `json:"report_version"`
+	GeneratedAt   time.Time `json:"generated_at"`
+	Version       string    `json:"version"`
+	Environment   string    `json:"environment"`
+	GoVersion     string    `json:"go_version"`
+	Platform      string    `json:"platform"`
+	TestDuration  string    `json:"test_duration"`
+	ReportVersion string    `json:"report_version"`
 }
 
 // TestSummary 测试摘要
 type TestSummary struct {
-	TotalTests      int     `json:"total_tests"`
-	PassedTests     int     `json:"passed_tests"`
-	FailedTests     int     `json:"failed_tests"`
-	SkippedTests    int     `json:"skipped_tests"`
-	PassRate        float64 `json:"pass_rate"`
-	TotalDuration   string  `json:"total_duration"`
-	OverallStatus   string  `json:"overall_status"`
+	TotalTests    int     `json:"total_tests"`
+	PassedTests   int     `json:"passed_tests"`
+	FailedTests   int     `json:"failed_tests"`
+	SkippedTests  int     `json:"skipped_tests"`
+	PassRate      float64 `json:"pass_rate"`
+	TotalDuration string  `json:"total_duration"`
+	OverallStatus string  `json:"overall_status"`
 }
 
 // TestSuite 测试套件
 type TestSuite struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Status      string      `json:"status"`
-	Duration    string      `json:"duration"`
-	Tests       []TestCase  `json:"tests"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Status      string       `json:"status"`
+	Duration    string       `json:"duration"`
+	Tests       []TestCase   `json:"tests"`
 	Metrics     SuiteMetrics `json:"metrics"`
 }
 
 // TestCase 测试用例
 type TestCase struct {
-	Name        string            `json:"name"`
-	Status      string            `json:"status"`
-	Duration    string            `json:"duration"`
-	Output      string            `json:"output,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	Name     string            `json:"name"`
+	Status   string            `json:"status"`
+	Duration string            `json:"duration"`
+	Output   string            `json:"output,omitempty"`
+	Error    string            `json:"error,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // SuiteMetrics 套件指标
 type SuiteMetrics struct {
-	TestCount      int     `json:"test_count"`
-	PassedCount    int     `json:"passed_count"`
-	FailedCount    int     `json:"failed_count"`
-	SkippedCount   int     `json:"skipped_count"`
-	PassRate       float64 `json:"pass_rate"`
+	TestCount       int     `json:"test_count"`
+	PassedCount     int     `json:"passed_count"`
+	FailedCount     int     `json:"failed_count"`
+	SkippedCount    int     `json:"skipped_count"`
+	PassRate        float64 `json:"pass_rate"`
 	AverageDuration string  `json:"average_duration"`
 }
 
 // PerformanceReport 性能报告
 type PerformanceReport struct {
-	Benchmarks      []BenchmarkResult `json:"benchmarks"`
-	LoadTests       []LoadTestResult  `json:"load_tests"`
-	StressTests     []StressTestResult `json:"stress_tests"`
-	MemoryProfile   MemoryProfile     `json:"memory_profile"`
-	CPUProfile      CPUProfile        `json:"cpu_profile"`
-	Summary         PerformanceSummary `json:"summary"`
+	Benchmarks    []BenchmarkResult  `json:"benchmarks"`
+	LoadTests     []LoadTestResult   `json:"load_tests"`
+	StressTests   []StressTestResult `json:"stress_tests"`
+	MemoryProfile MemoryProfile      `json:"memory_profile"`
+	CPUProfile    CPUProfile         `json:"cpu_profile"`
+	Summary       PerformanceSummary `json:"summary"`
 }
 
 // BenchmarkResult 基准测试结果
@@ -96,38 +96,38 @@ type BenchmarkResult struct {
 
 // LoadTestResult 负载测试结果
 type LoadTestResult struct {
-	Name              string  `json:"name"`
-	Concurrency       int     `json:"concurrency"`
-	TotalRequests     int64   `json:"total_requests"`
+	Name               string  `json:"name"`
+	Concurrency        int     `json:"concurrency"`
+	TotalRequests      int64   `json:"total_requests"`
 	SuccessfulRequests int64   `json:"successful_requests"`
-	FailedRequests    int64   `json:"failed_requests"`
-	RequestsPerSecond float64 `json:"requests_per_second"`
-	AverageLatency    string  `json:"average_latency"`
-	P95Latency        string  `json:"p95_latency"`
-	P99Latency        string  `json:"p99_latency"`
-	SuccessRate       float64 `json:"success_rate"`
-	Duration          string  `json:"duration"`
+	FailedRequests     int64   `json:"failed_requests"`
+	RequestsPerSecond  float64 `json:"requests_per_second"`
+	AverageLatency     string  `json:"average_latency"`
+	P95Latency         string  `json:"p95_latency"`
+	P99Latency         string  `json:"p99_latency"`
+	SuccessRate        float64 `json:"success_rate"`
+	Duration           string  `json:"duration"`
 }
 
 // StressTestResult 压力测试结果
 type StressTestResult struct {
-	Name            string                 `json:"name"`
-	MaxConcurrency  int                    `json:"max_concurrency"`
-	Duration        string                 `json:"duration"`
-	TotalRequests   int64                  `json:"total_requests"`
-	SuccessRate     float64                `json:"success_rate"`
-	SystemStability StabilityMetrics       `json:"system_stability"`
-	ErrorBreakdown  map[string]int64       `json:"error_breakdown"`
-	PhaseResults    []StressPhaseResult    `json:"phase_results"`
+	Name            string              `json:"name"`
+	MaxConcurrency  int                 `json:"max_concurrency"`
+	Duration        string              `json:"duration"`
+	TotalRequests   int64               `json:"total_requests"`
+	SuccessRate     float64             `json:"success_rate"`
+	SystemStability StabilityMetrics    `json:"system_stability"`
+	ErrorBreakdown  map[string]int64    `json:"error_breakdown"`
+	PhaseResults    []StressPhaseResult `json:"phase_results"`
 }
 
 // StabilityMetrics 稳定性指标
 type StabilityMetrics struct {
-	MemoryLeaks     bool   `json:"memory_leaks"`
-	CrashOccurred   bool   `json:"crash_occurred"`
-	RecoveryTime    string `json:"recovery_time"`
-	MaxMemoryUsage  string `json:"max_memory_usage"`
-	MaxCPUUsage     string `json:"max_cpu_usage"`
+	MemoryLeaks    bool   `json:"memory_leaks"`
+	CrashOccurred  bool   `json:"crash_occurred"`
+	RecoveryTime   string `json:"recovery_time"`
+	MaxMemoryUsage string `json:"max_memory_usage"`
+	MaxCPUUsage    string `json:"max_cpu_usage"`
 }
 
 // StressPhaseResult 压力测试阶段结果
@@ -141,34 +141,34 @@ type StressPhaseResult struct {
 
 // MemoryProfile 内存概况
 type MemoryProfile struct {
-	HeapAlloc      string `json:"heap_alloc"`
-	HeapSys        string `json:"heap_sys"`
-	HeapInuse      string `json:"heap_inuse"`
-	HeapReleased   string `json:"heap_released"`
-	StackInuse     string `json:"stack_inuse"`
-	GCRuns         uint32 `json:"gc_runs"`
-	GCPauseTotal   string `json:"gc_pause_total"`
+	HeapAlloc    string `json:"heap_alloc"`
+	HeapSys      string `json:"heap_sys"`
+	HeapInuse    string `json:"heap_inuse"`
+	HeapReleased string `json:"heap_released"`
+	StackInuse   string `json:"stack_inuse"`
+	GCRuns       uint32 `json:"gc_runs"`
+	GCPauseTotal string `json:"gc_pause_total"`
 }
 
 // CPUProfile CPU概况
 type CPUProfile struct {
-	Samples       int    `json:"samples"`
-	Duration      string `json:"duration"`
-	TopFunctions  []CPUFunction `json:"top_functions"`
+	Samples      int           `json:"samples"`
+	Duration     string        `json:"duration"`
+	TopFunctions []CPUFunction `json:"top_functions"`
 }
 
 // CPUFunction CPU函数
 type CPUFunction struct {
-	Name     string  `json:"name"`
-	Percent  float64 `json:"percent"`
-	Samples  int     `json:"samples"`
+	Name    string  `json:"name"`
+	Percent float64 `json:"percent"`
+	Samples int     `json:"samples"`
 }
 
 // PerformanceSummary 性能摘要
 type PerformanceSummary struct {
-	OverallRating        string             `json:"overall_rating"`
-	PerformanceIssues    []PerformanceIssue `json:"performance_issues"`
-	RecommendedActions   []string           `json:"recommended_actions"`
+	OverallRating          string             `json:"overall_rating"`
+	PerformanceIssues      []PerformanceIssue `json:"performance_issues"`
+	RecommendedActions     []string           `json:"recommended_actions"`
 	ComparisonWithBaseline BaselineComparison `json:"comparison_with_baseline"`
 }
 
@@ -187,17 +187,17 @@ type BaselineComparison struct {
 	PerformanceChange float64 `json:"performance_change"`
 	MemoryChange      float64 `json:"memory_change"`
 	ThroughputChange  float64 `json:"throughput_change"`
-	Summary          string  `json:"summary"`
+	Summary           string  `json:"summary"`
 }
 
 // CoverageReport 覆盖率报告
 type CoverageReport struct {
-	OverallCoverage float64              `json:"overall_coverage"`
-	PackageCoverage []PackageCoverage    `json:"package_coverage"`
-	FileCoverage    []FileCoverage       `json:"file_coverage"`
-	UncoveredLines  []UncoveredLine      `json:"uncovered_lines"`
-	CoverageGoals   CoverageGoals        `json:"coverage_goals"`
-	Trend          CoverageTrend         `json:"trend"`
+	OverallCoverage float64           `json:"overall_coverage"`
+	PackageCoverage []PackageCoverage `json:"package_coverage"`
+	FileCoverage    []FileCoverage    `json:"file_coverage"`
+	UncoveredLines  []UncoveredLine   `json:"uncovered_lines"`
+	CoverageGoals   CoverageGoals     `json:"coverage_goals"`
+	Trend           CoverageTrend     `json:"trend"`
 }
 
 // PackageCoverage 包覆盖率
@@ -231,7 +231,7 @@ type UncoveredLine struct {
 type CoverageGoals struct {
 	TargetCoverage   float64 `json:"target_coverage"`
 	CurrentCoverage  float64 `json:"current_coverage"`
-	GoalMet         bool    `json:"goal_met"`
+	GoalMet          bool    `json:"goal_met"`
 	RequiredIncrease float64 `json:"required_increase"`
 }
 
@@ -239,19 +239,19 @@ type CoverageGoals struct {
 type CoverageTrend struct {
 	PreviousCoverage float64 `json:"previous_coverage"`
 	CurrentCoverage  float64 `json:"current_coverage"`
-	Trend           string  `json:"trend"`
-	Change          float64 `json:"change"`
+	Trend            string  `json:"trend"`
+	Change           float64 `json:"change"`
 }
 
 // AcceptanceReport 验收报告
 type AcceptanceReport struct {
-	OverallAcceptance  AcceptanceStatus      `json:"overall_acceptance"`
-	FunctionalTests    []AcceptanceCategory  `json:"functional_tests"`
-	PerformanceTests   []AcceptanceCategory  `json:"performance_tests"`
-	SecurityTests      []AcceptanceCategory  `json:"security_tests"`
-	UsabilityTests     []AcceptanceCategory  `json:"usability_tests"`
-	CompatibilityTests []AcceptanceCategory  `json:"compatibility_tests"`
-	Summary           AcceptanceSummary     `json:"summary"`
+	OverallAcceptance  AcceptanceStatus     `json:"overall_acceptance"`
+	FunctionalTests    []AcceptanceCategory `json:"functional_tests"`
+	PerformanceTests   []AcceptanceCategory `json:"performance_tests"`
+	SecurityTests      []AcceptanceCategory `json:"security_tests"`
+	UsabilityTests     []AcceptanceCategory `json:"usability_tests"`
+	CompatibilityTests []AcceptanceCategory `json:"compatibility_tests"`
+	Summary            AcceptanceSummary    `json:"summary"`
 }
 
 // AcceptanceStatus 验收状态
@@ -265,11 +265,11 @@ type AcceptanceStatus struct {
 
 // AcceptanceCategory 验收类别
 type AcceptanceCategory struct {
-	Category    string             `json:"category"`
-	Description string             `json:"description"`
-	Status      string             `json:"status"`
-	Tests       []AcceptanceTest   `json:"tests"`
-	Metrics     AcceptanceMetrics  `json:"metrics"`
+	Category    string            `json:"category"`
+	Description string            `json:"description"`
+	Status      string            `json:"status"`
+	Tests       []AcceptanceTest  `json:"tests"`
+	Metrics     AcceptanceMetrics `json:"metrics"`
 }
 
 // AcceptanceTest 验收测试
@@ -734,7 +734,7 @@ func CollectTestResults(logDir string) (*TestReport, error) {
 			GeneratedAt:   time.Now(),
 			ReportVersion: "1.0.0",
 		},
-		Suites:      []TestSuite{},
+		Suites:          []TestSuite{},
 		Recommendations: []string{},
 	}
 

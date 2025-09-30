@@ -23,13 +23,13 @@ func (af *AlexAgentFactory) CreateAgent(ctx context.Context, config *BatchConfig
 	if err := af.ValidateConfig(config); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
-	
+
 	log.Printf("[AGENT-FACTORY] Creating AlexAgent with model: %s", config.Agent.Model.Name)
 	agent, err := NewAlexAgent(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AlexAgent: %w", err)
 	}
-	
+
 	return agent, nil
 }
 
@@ -38,23 +38,23 @@ func (af *AlexAgentFactory) ValidateConfig(config *BatchConfig) error {
 	if config == nil {
 		return fmt.Errorf("config cannot be nil")
 	}
-	
+
 	if config.Agent.Model.Name == "" {
 		return fmt.Errorf("model name is required")
 	}
-	
+
 	if config.Agent.Model.Temperature < 0 || config.Agent.Model.Temperature > 2 {
 		return fmt.Errorf("temperature must be between 0 and 2")
 	}
-	
+
 	if config.Agent.MaxTurns <= 0 {
 		return fmt.Errorf("max turns must be positive")
 	}
-	
+
 	if config.Agent.Timeout <= 0 {
 		return fmt.Errorf("timeout must be positive")
 	}
-	
+
 	// Check API key is available
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -67,7 +67,7 @@ func (af *AlexAgentFactory) ValidateConfig(config *BatchConfig) error {
 		log.Println("[AGENT-FACTORY] Warning: No API key found in environment variables")
 		log.Println("[AGENT-FACTORY] Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or DEEPSEEK_API_KEY")
 	}
-	
+
 	// Validate model-specific settings for reasoning models
 	modelLower := strings.ToLower(config.Agent.Model.Name)
 	if strings.Contains(modelLower, "r1") || strings.Contains(modelLower, "reasoning") {
@@ -81,6 +81,6 @@ func (af *AlexAgentFactory) ValidateConfig(config *BatchConfig) error {
 				config.Agent.Model.Name, config.Agent.Timeout)
 		}
 	}
-	
+
 	return nil
 }

@@ -1,0 +1,433 @@
+package domain
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"sync"
+
+	"alex/internal/agent/ports"
+	"alex/internal/utils"
+)
+
+// ReactEngine orchestrates the Think-Act-Observe cycle
+type ReactEngine struct {
+	maxIterations int
+	stopReasons   []string
+	logger        *utils.Logger
+	formatter     *ToolFormatter
+}
+
+// NewReactEngine creates a new ReAct engine
+func NewReactEngine(maxIterations int) *ReactEngine {
+	return &ReactEngine{
+		maxIterations: maxIterations,
+		stopReasons:   []string{"final_answer", "done", "complete"},
+		logger:        utils.NewComponentLogger("ReactEngine"),
+		formatter:     NewToolFormatter(),
+	}
+}
+
+// SolveTask is the main ReAct loop - pure business logic
+func (e *ReactEngine) SolveTask(
+	ctx context.Context,
+	task string,
+	state *TaskState,
+	services Services,
+) (*TaskResult, error) {
+	e.logger.Info("Starting ReAct loop for task: %s", task)
+
+	// Initialize state if empty
+	if len(state.Messages) == 0 {
+		// Add system prompt first if available
+		if state.SystemPrompt != "" {
+			state.Messages = []Message{
+				{Role: "system", Content: state.SystemPrompt},
+				{Role: "user", Content: task},
+			}
+			e.logger.Debug("Initialized state with system prompt and user message")
+		} else {
+			state.Messages = []Message{
+				{Role: "user", Content: task},
+			}
+			e.logger.Debug("Initialized state with user message (no system prompt)")
+		}
+	}
+
+	// ReAct loop: Think → Act → Observe
+	for state.Iterations < e.maxIterations {
+		state.Iterations++
+		e.logger.Info("=== Iteration %d/%d ===", state.Iterations, e.maxIterations)
+
+		// 1. THINK: Get LLM reasoning
+		e.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
+		thought, err := e.think(ctx, state, services)
+		if err != nil {
+			e.logger.Error("Think step failed: %v", err)
+			return nil, fmt.Errorf("think step failed: %w", err)
+		}
+
+		// Add thought to state
+		state.Messages = append(state.Messages, thought)
+		e.logger.Debug("LLM response: content_length=%d, tool_calls=%d",
+			len(thought.Content), len(thought.ToolCalls))
+
+		// 2. ACT: Parse and execute tool calls
+		toolCalls := e.parseToolCalls(thought, services.Parser)
+		e.logger.Info("Parsed %d tool calls", len(toolCalls))
+
+		if len(toolCalls) == 0 {
+			// No tool calls - check if this is a final answer
+			if len(strings.TrimSpace(thought.Content)) > 0 {
+				e.logger.Info("No tool calls and has content - treating as final answer")
+				return e.finalize(state, "final_answer"), nil
+			}
+			// Empty response - continue loop
+			e.logger.Warn("No tool calls and empty content - continuing loop")
+			continue
+		}
+
+		// Filter valid tool calls (no stdout printing)
+		var validCalls []ToolCall
+		for _, tc := range toolCalls {
+			// Skip invalid tool calls with leaked markers
+			if strings.Contains(tc.Name, "<|") || strings.Contains(tc.Name, "functions.") || strings.Contains(tc.Name, "user<") {
+				e.logger.Warn("Filtering out invalid tool call with leaked markers: %s", tc.Name)
+				continue
+			}
+			validCalls = append(validCalls, tc)
+			e.logger.Debug("Tool call: %s (id=%s)", tc.Name, tc.ID)
+		}
+
+		// If no valid calls, continue
+		if len(validCalls) == 0 {
+			e.logger.Warn("All tool calls were invalid, continuing loop")
+			continue
+		}
+
+		// Filter out any leaked tool call markers from thought content
+		if thought.Content != "" {
+			thought.Content = e.cleanToolCallMarkers(thought.Content)
+		}
+
+		// Execute tools
+		e.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
+		results := e.executeTools(ctx, validCalls, services.ToolExecutor)
+		state.ToolResults = append(state.ToolResults, results...)
+
+		// Log results (no stdout printing - let TUI handle display)
+		for i, r := range results {
+			if r.Error != nil {
+				e.logger.Warn("Tool %d failed: %v", i, r.Error)
+			} else {
+				e.logger.Debug("Tool %d succeeded: result_length=%d", i, len(r.Content))
+			}
+		}
+
+		// 3. OBSERVE: Add results to conversation
+		observation := e.buildObservation(results)
+		state.Messages = append(state.Messages, observation)
+		e.logger.Debug("OBSERVE phase: Added observation to state")
+
+		// 4. Check context limits
+		tokenCount := services.Context.EstimateTokens(convertMessagesToPortsMessages(state.Messages))
+		state.TokenCount = tokenCount
+		e.logger.Debug("Current token count: %d", tokenCount)
+
+		// Check stop conditions
+		if e.shouldStop(state, results) {
+			e.logger.Info("Stop condition met - all tools errored")
+			return e.finalize(state, "completed"), nil
+		}
+
+		// Check if we should continue
+		e.logger.Debug("Iteration %d complete, continuing to next iteration", state.Iterations)
+	}
+
+	// Max iterations reached - try to get final answer
+	e.logger.Warn("Max iterations (%d) reached, requesting final answer", e.maxIterations)
+	finalResult := e.finalize(state, "max_iterations")
+
+	// If no answer, try one more time to ask for final answer
+	if finalResult.Answer == "" || len(strings.TrimSpace(finalResult.Answer)) == 0 {
+		e.logger.Info("No final answer found, requesting explicit answer")
+		state.Messages = append(state.Messages, Message{
+			Role:    "user",
+			Content: "Please provide your final answer to the user's question now.",
+		})
+
+		// One final LLM call for answer
+		finalThought, err := e.think(ctx, state, services)
+		if err == nil && finalThought.Content != "" {
+			finalResult.Answer = finalThought.Content
+			e.logger.Info("Got final answer from retry: %d chars", len(finalResult.Answer))
+		}
+	}
+
+	return finalResult, nil
+}
+
+// think sends current state to LLM for reasoning
+func (e *ReactEngine) think(
+	ctx context.Context,
+	state *TaskState,
+	services Services,
+) (Message, error) {
+	// Convert state to LLM request
+	tools := services.ToolExecutor.List()
+	e.logger.Debug("Preparing LLM request: messages=%d, tools=%d", len(state.Messages), len(tools))
+
+	req := ports.CompletionRequest{
+		Messages:    convertMessagesToPortsMessages(state.Messages),
+		Tools:       tools,
+		Temperature: 0.7,
+		MaxTokens:   4000,
+	}
+
+	// Call LLM
+	e.logger.Debug("Calling LLM...")
+	resp, err := services.LLM.Complete(ctx, req)
+	if err != nil {
+		e.logger.Error("LLM call failed: %v", err)
+		return Message{}, fmt.Errorf("LLM call failed: %w", err)
+	}
+
+	e.logger.Debug("LLM response received: content=%d bytes, tool_calls=%d",
+		len(resp.Content), len(resp.ToolCalls))
+
+	// Convert response to domain message
+	return Message{
+		Role:      "assistant",
+		Content:   resp.Content,
+		ToolCalls: convertToolCallsFromPorts(resp.ToolCalls),
+	}, nil
+}
+
+// executeTools runs all tool calls in parallel
+func (e *ReactEngine) executeTools(
+	ctx context.Context,
+	calls []ToolCall,
+	registry ports.ToolRegistry,
+) []ToolResult {
+	results := make([]ToolResult, len(calls))
+	e.logger.Debug("Executing %d tools in parallel", len(calls))
+
+	// Execute in parallel using goroutines
+	var wg sync.WaitGroup
+	for i, call := range calls {
+		wg.Add(1)
+		go func(idx int, tc ToolCall) {
+			defer wg.Done()
+
+			e.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
+			tool, err := registry.Get(tc.Name)
+			if err != nil {
+				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
+				results[idx] = ToolResult{
+					CallID:  tc.ID,
+					Content: "",
+					Error:   fmt.Errorf("tool not found: %s", tc.Name),
+				}
+				return
+			}
+
+			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, tc.Arguments)
+			result, err := tool.Execute(ctx, ports.ToolCall{
+				ID:        tc.ID,
+				Name:      tc.Name,
+				Arguments: tc.Arguments,
+			})
+
+			if err != nil {
+				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
+				results[idx] = ToolResult{
+					CallID:  tc.ID,
+					Content: "",
+					Error:   err,
+				}
+				return
+			}
+
+			e.logger.Debug("Tool %d: Success, result=%d bytes", idx, len(result.Content))
+			results[idx] = ToolResult{
+				CallID:   result.CallID,
+				Content:  result.Content,
+				Error:    result.Error,
+				Metadata: result.Metadata,
+			}
+		}(i, call)
+	}
+
+	wg.Wait()
+	e.logger.Debug("All %d tools completed execution", len(calls))
+	return results
+}
+
+// parseToolCalls extracts tool calls from assistant message
+func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParser) []ToolCall {
+	// If message has explicit tool calls (native function calling)
+	if len(msg.ToolCalls) > 0 {
+		e.logger.Debug("Using native tool calls from message: count=%d", len(msg.ToolCalls))
+		return msg.ToolCalls
+	}
+
+	// Otherwise, parse from content (XML or JSON format)
+	e.logger.Debug("Parsing tool calls from content: length=%d", len(msg.Content))
+	parsed, err := parser.Parse(msg.Content)
+	if err != nil {
+		e.logger.Warn("Failed to parse tool calls from content: %v", err)
+		return nil
+	}
+
+	// Convert ports.ToolCall to domain.ToolCall
+	var calls []ToolCall
+	for _, p := range parsed {
+		calls = append(calls, ToolCall{
+			ID:        p.ID,
+			Name:      p.Name,
+			Arguments: p.Arguments,
+		})
+	}
+
+	e.logger.Debug("Parsed %d tool calls from content", len(calls))
+	return calls
+}
+
+// buildObservation creates a message with tool results
+func (e *ReactEngine) buildObservation(results []ToolResult) Message {
+	var content string
+
+	for _, result := range results {
+		if result.Error != nil {
+			content += fmt.Sprintf("Tool %s failed: %v\n", result.CallID, result.Error)
+		} else {
+			content += fmt.Sprintf("Tool %s result:\n%s\n", result.CallID, result.Content)
+		}
+	}
+
+	return Message{
+		Role:        "user", // Observations come back as user messages
+		Content:     content,
+		ToolResults: results,
+	}
+}
+
+// isFinalAnswer checks if message contains final answer
+func (e *ReactEngine) isFinalAnswer(msg Message) bool {
+	for _, reason := range e.stopReasons {
+		if contains(msg.Content, reason) {
+			return true
+		}
+	}
+	return len(msg.ToolCalls) == 0 && msg.Content != ""
+}
+
+// shouldStop determines if ReAct loop should terminate
+func (e *ReactEngine) shouldStop(state *TaskState, results []ToolResult) bool {
+	// Stop if all tools errored
+	allErrored := true
+	for _, r := range results {
+		if r.Error == nil {
+			allErrored = false
+			break
+		}
+	}
+
+	return allErrored
+}
+
+// finalize creates the final task result
+func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult {
+	// Extract final answer from last assistant message
+	var finalAnswer string
+	for i := len(state.Messages) - 1; i >= 0; i-- {
+		if state.Messages[i].Role == "assistant" {
+			finalAnswer = state.Messages[i].Content
+			break
+		}
+	}
+
+	return &TaskResult{
+		Answer:     finalAnswer,
+		Messages:   state.Messages,
+		Iterations: state.Iterations,
+		TokensUsed: state.TokenCount,
+		StopReason: stopReason,
+	}
+}
+
+// cleanToolCallMarkers removes leaked tool call XML markers from content
+func (e *ReactEngine) cleanToolCallMarkers(content string) string {
+	// Remove incomplete tool call markers that LLM might output
+	patterns := []string{
+		`<\|tool_call_begin\|>.*`,
+		`<tool_call>.*(?:</tool_call>)?$`,
+		`user<\|tool_call_begin\|>.*`,
+		`functions\.[\w_]+:\d+\(.*`,
+	}
+
+	cleaned := content
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		cleaned = re.ReplaceAllString(cleaned, "")
+	}
+
+	return strings.TrimSpace(cleaned)
+}
+
+// Helper functions
+func convertMessagesToPortsMessages(messages []Message) []ports.Message {
+	result := make([]ports.Message, len(messages))
+	for i, msg := range messages {
+		result[i] = ports.Message{
+			Role:        msg.Role,
+			Content:     msg.Content,
+			ToolCalls:   convertToolCallsToPorts(msg.ToolCalls),
+			ToolResults: convertToolResultsToPorts(msg.ToolResults),
+			Metadata:    msg.Metadata,
+		}
+	}
+	return result
+}
+
+func convertToolCallsToPorts(calls []ToolCall) []ports.ToolCall {
+	result := make([]ports.ToolCall, len(calls))
+	for i, call := range calls {
+		result[i] = ports.ToolCall{
+			ID:        call.ID,
+			Name:      call.Name,
+			Arguments: call.Arguments,
+		}
+	}
+	return result
+}
+
+func convertToolCallsFromPorts(calls []ports.ToolCall) []ToolCall {
+	result := make([]ToolCall, len(calls))
+	for i, call := range calls {
+		result[i] = ToolCall{
+			ID:        call.ID,
+			Name:      call.Name,
+			Arguments: call.Arguments,
+		}
+	}
+	return result
+}
+
+func convertToolResultsToPorts(results []ToolResult) []ports.ToolResult {
+	converted := make([]ports.ToolResult, len(results))
+	for i, r := range results {
+		converted[i] = ports.ToolResult{
+			CallID:   r.CallID,
+			Content:  r.Content,
+			Error:    r.Error,
+			Metadata: r.Metadata,
+		}
+	}
+	return converted
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
