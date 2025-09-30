@@ -86,6 +86,7 @@ Configuration:
     OPENROUTER_API_KEY           API key for OpenRouter/OpenAI
     LLM_PROVIDER                 LLM provider (openrouter, openai, deepseek, ollama, mock)
     LLM_MODEL                    Model name
+    ALEX_VERBOSE                 Show full tool output (set to 1 or true)
 
 Examples:
   alex "list files in current directory"
