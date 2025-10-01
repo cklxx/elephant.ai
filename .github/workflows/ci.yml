@@ -94,21 +94,21 @@ jobs:
         GOARCH: amd64
       run: |
         mkdir -p build
-        go build -ldflags="-w -s" -o "build/alex-linux-amd64" ./cmd
+        go build -ldflags="-w -s" -o "build/alex-linux-amd64" ./cmd/alex
         
     - name: Build for macOS (amd64)
       env:
         GOOS: darwin
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" -o "build/alex-darwin-amd64" ./cmd
+        go build -ldflags="-w -s" -o "build/alex-darwin-amd64" ./cmd/alex
         
     - name: Build for macOS (arm64)
       env:
         GOOS: darwin
         GOARCH: arm64
       run: |
-        go build -ldflags="-w -s" -o "build/alex-darwin-arm64" ./cmd
+        go build -ldflags="-w -s" -o "build/alex-darwin-arm64" ./cmd/alex
         
         
     - name: Create release packages
@@ -172,7 +172,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o alex ./cmd
+      run: go build -o alex ./cmd/alex
       
     - name: Make binary executable
       run: chmod +x alex
@@ -198,7 +198,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o alex ./cmd
+      run: go build -o alex ./cmd/alex
       
     - name: Create test files
       run: |

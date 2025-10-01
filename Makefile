@@ -73,3 +73,24 @@ npm-test-install: ## Test npm package installation locally
 	@echo "Testing local npm installation..."
 	@cd npm/alex-code && npm pack
 	@echo "Package created. Test with: npm install -g npm/alex-code/alex-code-*.tgz"
+
+# Multi-platform builds
+build-all: ## Build binaries for all platforms
+	@echo "Building binaries for all platforms..."
+	@mkdir -p build
+	@echo "Building Linux AMD64..."
+	@GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o build/alex-linux-amd64 ./cmd/alex
+	@echo "Building Linux ARM64..."
+	@GOOS=linux GOARCH=arm64 go build -ldflags="-w -s" -o build/alex-linux-arm64 ./cmd/alex
+	@echo "Building macOS AMD64..."
+	@GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o build/alex-darwin-amd64 ./cmd/alex
+	@echo "Building macOS ARM64..."
+	@GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o build/alex-darwin-arm64 ./cmd/alex
+	@echo "Building Windows AMD64..."
+	@GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o build/alex-windows-amd64.exe ./cmd/alex
+	@echo "✓ All builds complete"
+	@ls -lh build/
+
+release-npm: build-all npm-copy-binaries ## Build binaries and publish to npm
+	@echo "Publishing to npm..."
+	@./scripts/publish-npm.sh
