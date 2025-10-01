@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -39,8 +40,8 @@ func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOut
 func RunTaskWithStreamOutput(container *Container, task string, sessionID string) error {
 	handler := NewStreamingOutputHandler(container, isVerbose())
 
-	// Print task header
-	fmt.Printf("Executing: %s\n\n", task)
+	// Add newline before output
+	fmt.Println()
 
 	// Start execution with stream handler
 	ctx := context.Background()
@@ -109,19 +110,8 @@ func (h *StreamingOutputHandler) onThinking(event *domain.ThinkingEvent) {
 }
 
 func (h *StreamingOutputHandler) onThinkComplete(event *domain.ThinkCompleteEvent) {
-	if len(event.Content) == 0 {
-		return
-	}
-
-	// Print analysis (formatted)
-	analysis := strings.TrimSpace(event.Content)
-	if len(analysis) > 100 {
-		analysis = analysis[:97] + "..."
-	}
-
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")) // Muted
-	fmt.Printf("Analysis: %s\n\n", style.Render(analysis))
+	// Silent - don't print analysis output
+	// Analysis is internal reasoning, not user-facing output
 }
 
 func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEvent) {
@@ -130,12 +120,20 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEven
 		StartTime: event.Timestamp(),
 	}
 
-	// Print tool indicator
-	icon := getToolIcon(event.ToolName)
+	// Print tool indicator with bold bright green dot
 	args := formatArgsInline(event.Arguments)
 
-	// Simple format: ⏺ tool_name(args)
-	fmt.Printf("⏺ %s%s(%s)\n", icon, event.ToolName, args)
+	// Format: ● tool_name(args) - bold bright green dot, bold tool name
+	dotStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00ff00")). // Bright green (#00ff00)
+		Bold(true)                             // Bold dot
+	toolNameStyle := lipgloss.NewStyle().Bold(true) // Bold tool name
+
+	if args != "" {
+		fmt.Printf("%s %s(%s)\n", dotStyle.Render("●"), toolNameStyle.Render(event.ToolName), args)
+	} else {
+		fmt.Printf("%s %s\n", dotStyle.Render("●"), toolNameStyle.Render(event.ToolName))
+	}
 }
 
 func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallCompleteEvent) {
@@ -174,161 +172,268 @@ func (h *StreamingOutputHandler) printCompletion(result *domain.TaskResult) {
 	// Print token usage
 	statsStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")) // Muted
-	fmt.Printf("%s\n", statsStyle.Render(fmt.Sprintf("Tokens used: %d", result.TokensUsed)))
+	fmt.Printf("%s\n\n", statsStyle.Render(fmt.Sprintf("Tokens used: %d", result.TokensUsed)))
 
-	// Print answer
+	// Print answer with markdown rendering
 	if result.Answer != "" {
-		fmt.Println("\nAnswer:")
-		fmt.Println(result.Answer)
+		rendered := h.renderMarkdown(result.Answer)
+		fmt.Print(rendered)
+		if !strings.HasSuffix(rendered, "\n") {
+			fmt.Println()
+		}
 	}
+}
+
+// renderMarkdown renders markdown content with syntax highlighting
+func (h *StreamingOutputHandler) renderMarkdown(content string) string {
+	// Try dark style first, then fallback to ASCII, then plain text
+	styles := []string{"dark", "ascii"}
+
+	for _, style := range styles {
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithStylePath(style),
+			glamour.WithWordWrap(100), // 100 char width for CLI output
+		)
+		if err != nil {
+			continue
+		}
+
+		// Render markdown
+		rendered, err := renderer.Render(content)
+		if err != nil {
+			continue
+		}
+
+		return strings.TrimSpace(rendered)
+	}
+
+	// Ultimate fallback to plain text
+	return content
 }
 
 // printSmartToolOutput intelligently displays tool output based on tool type and user needs
 func (h *StreamingOutputHandler) printSmartToolOutput(toolName, result string) {
+	// Filter out system-reminder tags (for model only, not user display)
+	result = filterSystemReminders(result)
+
+	category := getToolCategory(toolName)
+
 	switch toolName {
 	case "code_execute":
 		// Code execution: ALWAYS show full code and output
-		h.printFullOutput("Execution Result", result, lipgloss.Color("10"))
+		h.printCategorizedOutput(category, "execution result", result, lipgloss.Color("10"))
 
 	case "todo_read", "todo_update":
 		// Todo tools: ALWAYS show full task list
-		h.printFullOutput("Task List", result, lipgloss.Color("12"))
+		h.printCategorizedOutput(category, "task list", result, lipgloss.Color("12"))
 
 	case "bash":
 		// Bash: show summary + important lines
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		if len(result) <= 300 {
-			h.printFullOutput("Command Output", result, lipgloss.Color("14"))
+			h.printGrayOutput(result)
 		} else {
-			// Show first 10 and last 10 lines
 			lines := strings.Split(result, "\n")
 			preview := fmt.Sprintf("Output: %d lines total", len(lines))
-			fmt.Printf("  → %s\n", preview)
+			fmt.Printf("  → %s\n", grayStyle.Render(preview))
 
 			if !h.verbose {
-				fmt.Printf("    %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("(Use ALEX_VERBOSE=1 to see full output)"))
+				fmt.Printf("    %s\n", grayStyle.Render("(Use ALEX_VERBOSE=1 to see full output)"))
 			} else {
-				h.printFullOutput("Full Output", result, lipgloss.Color("14"))
+				h.printGrayOutput(result)
 			}
 		}
 
 	case "grep", "ripgrep", "code_search", "find":
 		// Search tools: show count + preview
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		lines := strings.Split(strings.TrimSpace(result), "\n")
 		matchCount := len(lines)
 		if result == "" {
 			matchCount = 0
 		}
 
-		fmt.Printf("  → %d matches\n", matchCount)
+		fmt.Printf("  → %s\n", grayStyle.Render(fmt.Sprintf("%d matches", matchCount)))
 
-		// Show first few matches
+		// Show first few matches in gray
 		if matchCount > 0 && matchCount <= 10 {
 			for i, line := range lines {
 				if i >= 5 {
 					break
 				}
-				fmt.Printf("    %s\n", line)
+				fmt.Printf("    %s\n", grayStyle.Render(line))
 			}
 			if matchCount > 5 {
-				fmt.Printf("    %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(fmt.Sprintf("... and %d more", matchCount-5)))
+				fmt.Printf("    %s\n", grayStyle.Render(fmt.Sprintf("... and %d more", matchCount-5)))
 			}
 		} else if matchCount > 10 {
 			for i := 0; i < 3; i++ {
-				fmt.Printf("    %s\n", lines[i])
+				fmt.Printf("    %s\n", grayStyle.Render(lines[i]))
 			}
-			fmt.Printf("    %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(fmt.Sprintf("... and %d more (use ALEX_VERBOSE=1 for full output)", matchCount-3)))
+			fmt.Printf("    %s\n", grayStyle.Render(fmt.Sprintf("... and %d more (use ALEX_VERBOSE=1 for full output)", matchCount-3)))
 		}
 
 	case "file_read":
-		// File read: just show line count (content is for LLM)
+		// File read: just show line count in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		lines := strings.Count(result, "\n")
-		fmt.Printf("  → %d lines read\n", lines)
+		fmt.Printf("  → %s\n", grayStyle.Render(fmt.Sprintf("%d lines read", lines)))
 
 	case "file_write":
-		// File write: simple confirmation with path if available
+		// File write: simple confirmation in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		if strings.Contains(result, "written") {
-			fmt.Printf("  → %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("✓ file written"))
+			fmt.Printf("  → %s\n", grayStyle.Render("✓ file written"))
 		} else {
-			fmt.Printf("  → %s\n", result)
+			fmt.Printf("  → %s\n", grayStyle.Render(result))
 		}
 
 	case "file_edit":
-		// File edit: show what changed
+		// File edit: show what changed in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		if strings.Contains(result, "Success") {
-			fmt.Printf("  → %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("✓ file edited"))
+			fmt.Printf("  → %s\n", grayStyle.Render("✓ file edited"))
 		} else {
-			fmt.Printf("  → %s\n", result)
+			fmt.Printf("  → %s\n", grayStyle.Render(result))
 		}
 
 	case "list_files":
-		// List files: show count + first few
+		// List files: show count + first few in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		lines := strings.Split(strings.TrimSpace(result), "\n")
 		fileCount := len(lines)
 		if result == "" {
 			fileCount = 0
 		}
 
-		fmt.Printf("  → %d files/directories\n", fileCount)
+		fmt.Printf("  → %s\n", grayStyle.Render(fmt.Sprintf("%d files/directories", fileCount)))
 		if fileCount > 0 && fileCount <= 10 {
 			for _, line := range lines {
-				fmt.Printf("    %s\n", line)
+				fmt.Printf("    %s\n", grayStyle.Render(line))
 			}
 		} else if fileCount > 10 {
 			for i := 0; i < 5; i++ {
-				fmt.Printf("    %s\n", lines[i])
+				fmt.Printf("    %s\n", grayStyle.Render(lines[i]))
 			}
-			fmt.Printf("    %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(fmt.Sprintf("... and %d more", fileCount-5)))
+			fmt.Printf("    %s\n", grayStyle.Render(fmt.Sprintf("... and %d more", fileCount-5)))
 		}
 
 	case "web_search":
-		// Web search: show result count
-		fmt.Printf("  → %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("✓ search completed"))
+		// Web search: show result count in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		fmt.Printf("  → %s\n", grayStyle.Render("✓ search completed"))
 
 	case "web_fetch":
-		// Web fetch: show fetched status
-		fmt.Printf("  → %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("✓ content fetched"))
+		// Web fetch: show fetched status in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		fmt.Printf("  → %s\n", grayStyle.Render("✓ content fetched"))
 
 	case "think":
-		// Think: show summary
+		// Think: show summary in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		summary := result
 		if len(summary) > 100 {
 			summary = summary[:97] + "..."
 		}
-		fmt.Printf("  → %s\n", summary)
+		fmt.Printf("  → %s\n", grayStyle.Render(summary))
 
 	case "git_commit", "git_pr", "git_history":
-		// Git tools: show full output (usually important)
-		h.printFullOutput("Git Result", result, lipgloss.Color("13"))
+		// Git tools: show full output in gray
+		h.printGrayOutput(result)
 
 	default:
-		// Default: show preview
+		// Default: show preview in gray
+		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 		preview := result
 		if len(preview) > 80 {
 			preview = preview[:77] + "..."
 		}
-		fmt.Printf("  → %s\n", preview)
+		fmt.Printf("  → %s\n", grayStyle.Render(preview))
 
 		// Show full output in verbose mode
 		if h.verbose && len(result) > 80 {
-			h.printFullOutput("Full Output", result, lipgloss.Color("8"))
+			h.printGrayOutput(result)
 		}
 	}
 }
 
-// printFullOutput prints the complete tool output with formatting
-func (h *StreamingOutputHandler) printFullOutput(label, content string, color lipgloss.Color) {
+// printGrayOutput prints tool output in gray color
+func (h *StreamingOutputHandler) printGrayOutput(content string) {
 	if content == "" {
 		return
 	}
 
-	// Print content with indent
+	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	lines := strings.Split(strings.TrimSpace(content), "\n")
 	for _, line := range lines {
-		fmt.Printf("    %s\n", line)
+		fmt.Printf("  → %s\n", grayStyle.Render(line))
 	}
 }
 
-// Helper functions
+// printCategorizedOutput prints tool output with category-specific formatting
+func (h *StreamingOutputHandler) printCategorizedOutput(category, label, content string, color lipgloss.Color) {
+	if content == "" {
+		return
+	}
+
+	// Category-specific icons and colors
+	categoryStyle := map[string]lipgloss.Style{
+		"execution": lipgloss.NewStyle().Foreground(lipgloss.Color("10")), // Green
+		"task":      lipgloss.NewStyle().Foreground(lipgloss.Color("12")), // Blue
+		"file":      lipgloss.NewStyle().Foreground(lipgloss.Color("14")), // Cyan
+		"search":    lipgloss.NewStyle().Foreground(lipgloss.Color("11")), // Yellow
+		"web":       lipgloss.NewStyle().Foreground(lipgloss.Color("13")), // Magenta
+		"shell":     lipgloss.NewStyle().Foreground(lipgloss.Color("14")), // Cyan
+		"reasoning": lipgloss.NewStyle().Foreground(lipgloss.Color("8")),  // Gray
+		"other":     lipgloss.NewStyle().Foreground(lipgloss.Color("15")), // White
+	}
+
+	style, ok := categoryStyle[category]
+	if !ok {
+		style = categoryStyle["other"]
+	}
+
+	// Print content with category-specific styling
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			fmt.Printf("  → %s\n", style.Render(line))
+		} else {
+			fmt.Printf("    %s\n", line)
+		}
+	}
+}
+
+// Shared helper functions (used by both stream_output and tui_streaming)
+
+// filterSystemReminders removes system-reminder tags from content (for display only)
+func filterSystemReminders(content string) string {
+	// Remove <system-reminder>...</system-reminder> tags
+	lines := strings.Split(content, "\n")
+	var filtered []string
+	inReminder := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "<system-reminder>") {
+			inReminder = true
+			// Skip lines that start with system-reminder
+			if strings.HasSuffix(trimmed, "</system-reminder>") {
+				inReminder = false
+			}
+			continue
+		}
+		if strings.HasSuffix(trimmed, "</system-reminder>") {
+			inReminder = false
+			continue
+		}
+		if !inReminder {
+			filtered = append(filtered, line)
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(filtered, "\n"))
+}
 
 func formatArgsInline(args map[string]interface{}) string {
 	if len(args) == 0 {
@@ -362,26 +467,26 @@ func isVerbose() bool {
 	return verbose == "1" || verbose == "true" || verbose == "yes"
 }
 
-// getToolIcon returns an emoji icon for a tool
-func getToolIcon(toolName string) string {
-	icons := map[string]string{
-		"bash":         "🖥️  ",
-		"code_execute": "▶️  ",
-		"file_read":    "📖 ",
-		"file_write":   "✏️  ",
-		"file_edit":    "📝 ",
-		"list_files":   "📁 ",
-		"grep":         "🔍 ",
-		"ripgrep":      "🔍 ",
-		"find":         "🔎 ",
-		"web_search":   "🌐 ",
-		"web_fetch":    "🌐 ",
-		"think":        "💭 ",
-		"todo_read":    "📋 ",
-		"todo_update":  "✅ ",
+// getToolCategory returns the category of a tool for smart display
+func getToolCategory(toolName string) string {
+	categories := map[string]string{
+		"bash":         "shell",
+		"code_execute": "execution",
+		"file_read":    "file",
+		"file_write":   "file",
+		"file_edit":    "file",
+		"list_files":   "file",
+		"grep":         "search",
+		"ripgrep":      "search",
+		"find":         "search",
+		"web_search":   "web",
+		"web_fetch":    "web",
+		"think":        "reasoning",
+		"todo_read":    "task",
+		"todo_update":  "task",
 	}
-	if icon, ok := icons[toolName]; ok {
-		return icon
+	if category, ok := categories[toolName]; ok {
+		return category
 	}
-	return "🔧 "
+	return "other"
 }

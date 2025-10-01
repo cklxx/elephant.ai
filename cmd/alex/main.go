@@ -39,6 +39,6 @@ func main() {
 
 // RunInteractiveChatTUI starts the interactive chat interface
 func RunInteractiveChatTUI(container *Container) error {
-	// Use the new comprehensive chat TUI
-	return RunChatTUI(container)
+	// Use native terminal UI for better input handling
+	return RunNativeChatUI(container)
 }

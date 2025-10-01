@@ -194,14 +194,53 @@ func (tf *ToolFormatter) formatThinkCall(args map[string]any) string {
 		return fmt.Sprintf("%s think", tf.colorDot)
 	}
 
-	// Show full thought with clear formatting
+	// Parse structured thought content
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s think:\n", tf.colorDot))
+	dimStyle := "\033[90m"  // Gray
+	resetStyle := "\033[0m" // Reset
 
-	// Add thought with indentation
-	lines := strings.Split(thought, "\n")
-	for _, line := range lines {
-		output.WriteString("  " + line + "\n")
+	// Check if thought has structured format (Goal/Approach)
+	if strings.Contains(thought, "Goal:") && strings.Contains(thought, "Approach:") {
+		lines := strings.Split(thought, "\n")
+
+		// Find the task/title (first line before Goal)
+		var title string
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" && !strings.HasPrefix(trimmed, "Goal:") {
+				title = trimmed
+				lines = lines[i+1:] // Skip title line
+				break
+			}
+		}
+
+		// Format with devil emoji and compact layout
+		if title != "" {
+			output.WriteString(fmt.Sprintf("%s😈 %s%s\n", dimStyle, title, resetStyle))
+		} else {
+			output.WriteString(fmt.Sprintf("%s😈 Thinking...%s\n", dimStyle, resetStyle))
+		}
+
+		// Format Goal and Approach on same line, more compact
+		var goal, approach string
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "Goal:") {
+				goal = strings.TrimSpace(strings.TrimPrefix(trimmed, "Goal:"))
+			} else if strings.HasPrefix(trimmed, "Approach:") {
+				approach = strings.TrimSpace(strings.TrimPrefix(trimmed, "Approach:"))
+			}
+		}
+
+		if goal != "" {
+			output.WriteString(fmt.Sprintf("   %s→ %s%s\n", dimStyle, goal, resetStyle))
+		}
+		if approach != "" {
+			output.WriteString(fmt.Sprintf("   %s⇢ %s%s", dimStyle, approach, resetStyle))
+		}
+	} else {
+		// Simple unstructured thought
+		output.WriteString(fmt.Sprintf("%s😈 %s%s", dimStyle, thought, resetStyle))
 	}
 
 	return strings.TrimRight(output.String(), "\n")
