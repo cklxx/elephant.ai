@@ -209,53 +209,6 @@ func (ui *NativeChatUI) displayMessage(msg DisplayMessage) {
 	}
 }
 
-// readLine reads a line of input in raw mode
-func (ui *NativeChatUI) readLine() (string, error) {
-	var line strings.Builder
-	buf := make([]byte, 1)
-
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil {
-			return "", err
-		}
-		if n == 0 {
-			continue
-		}
-
-		b := buf[0]
-
-		// Handle special keys
-		switch b {
-		case 3: // Ctrl+C
-			fmt.Println()
-			return "/quit", nil
-		case 13, 10: // Enter
-			fmt.Println()
-			return line.String(), nil
-		case 127, 8: // Backspace
-			if line.Len() > 0 {
-				// Remove last character
-				str := line.String()
-				line.Reset()
-				line.WriteString(str[:len(str)-1])
-				// Clear character on screen
-				fmt.Print("\b \b")
-			}
-		default:
-			if b >= 32 && b < 127 { // Printable characters
-				line.WriteByte(b)
-				fmt.Printf("%c", b)
-			}
-		}
-	}
-}
-
-// clearScreen clears the terminal screen
-func (ui *NativeChatUI) clearScreen() {
-	fmt.Print("\033[2J\033[H")
-}
-
 // printWelcome prints the welcome message
 func (ui *NativeChatUI) printWelcome() {
 	// Color codes
