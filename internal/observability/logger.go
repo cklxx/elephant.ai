@@ -127,12 +127,12 @@ func (l *Logger) ErrorContext(ctx context.Context, msg string, args ...any) {
 	l.WithContext(ctx).Error(msg, args...)
 }
 
-// SanitizeAPIKey masks API key for security
+// SanitizeAPIKey completely hides API key for security
 func SanitizeAPIKey(key string) string {
-	if len(key) <= 12 {
-		return "***"
+	if key == "" {
+		return "(not set)"
 	}
-	return key[:8] + "..." + key[len(key)-4:]
+	return "(hidden)"
 }
 
 // Context key types

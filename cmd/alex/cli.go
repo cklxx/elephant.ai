@@ -132,7 +132,7 @@ func (c *CLI) handleConfig() error {
 	fmt.Printf("  Max Tokens:    %d\n", config.MaxTokens)
 	fmt.Printf("  Max Iterations: %d\n", config.MaxIterations)
 	if config.APIKey != "" {
-		fmt.Printf("  API Key:       %s...%s\n", config.APIKey[:8], config.APIKey[len(config.APIKey)-4:])
+		fmt.Println("  API Key:       (set)")
 	} else {
 		fmt.Println("  API Key:       (not set)")
 	}

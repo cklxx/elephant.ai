@@ -105,14 +105,19 @@ func TestSanitizeAPIKey(t *testing.T) {
 		expected string
 	}{
 		{
+			name:     "empty key",
+			key:      "",
+			expected: "(not set)",
+		},
+		{
 			name:     "short key",
 			key:      "short",
-			expected: "***",
+			expected: "(hidden)",
 		},
 		{
 			name:     "long key",
 			key:      "sk-1234567890abcdefghijklmnop",
-			expected: "sk-12345...mnop",
+			expected: "(hidden)",
 		},
 	}
 

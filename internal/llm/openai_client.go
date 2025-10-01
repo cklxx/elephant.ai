@@ -77,7 +77,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	for k, v := range httpReq.Header {
 		if k == "Authorization" {
 			// Mask API key for security
-			c.logger.Debug("  %s: Bearer %s...%s", k, c.apiKey[:8], c.apiKey[len(c.apiKey)-4:])
+			c.logger.Debug("  %s: Bearer (hidden)", k)
 		} else {
 			c.logger.Debug("  %s: %s", k, strings.Join(v, ", "))
 		}
