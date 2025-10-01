@@ -1,6 +1,6 @@
 {
   "name": "alex-code-linux-arm64",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "The Linux ARM64 binary for alex-code.",
   "main": "index.js",
   "os": [
