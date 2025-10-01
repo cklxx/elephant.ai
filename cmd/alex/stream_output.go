@@ -5,11 +5,18 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"alex/internal/agent/domain"
 
 	"github.com/charmbracelet/lipgloss"
 )
+
+// ToolInfo stores information about an active tool call
+type ToolInfo struct {
+	Name      string
+	StartTime time.Time
+}
 
 // StreamingOutputHandler handles streaming output to terminal (not full-screen TUI)
 type StreamingOutputHandler struct {
@@ -365,4 +372,28 @@ func isVerbose() bool {
 		verbose = "false"
 	}
 	return verbose == "1" || verbose == "true" || verbose == "yes"
+}
+
+// getToolIcon returns an emoji icon for a tool
+func getToolIcon(toolName string) string {
+	icons := map[string]string{
+		"bash":         "🖥️  ",
+		"code_execute": "▶️  ",
+		"file_read":    "📖 ",
+		"file_write":   "✏️  ",
+		"file_edit":    "📝 ",
+		"list_files":   "📁 ",
+		"grep":         "🔍 ",
+		"ripgrep":      "🔍 ",
+		"find":         "🔎 ",
+		"web_search":   "🌐 ",
+		"web_fetch":    "🌐 ",
+		"think":        "💭 ",
+		"todo_read":    "📋 ",
+		"todo_update":  "✅ ",
+	}
+	if icon, ok := icons[toolName]; ok {
+		return icon
+	}
+	return "🔧 "
 }

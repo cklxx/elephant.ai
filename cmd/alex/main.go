@@ -7,8 +7,6 @@ import (
 	"os"
 	"time"
 
-	"alex/cmd/alex/tui_chat"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -49,23 +47,19 @@ func main() {
 func RunInteractiveChatTUI(container *Container) error {
 	// Create a new session
 	ctx := context.Background()
-	session, err := container.Coordinator.GetSession(ctx, "") // Empty ID creates new session
+	_, err := container.Coordinator.GetSession(ctx, "") // Empty ID creates new session
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
 	}
 
-	// Create chat model with the session ID
-	model := tui_chat.NewChatTUI(container.Coordinator, session.ID)
+	// Use streaming TUI model instead
+	model := initialStreamingModel()
 
 	// Create Bubble Tea program
 	p := tea.NewProgram(
 		model,
 		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
 	)
-
-	// Set program reference in model for event streaming
-	model.SetProgram(p)
 
 	// Run (blocks until quit)
 	if _, err := p.Run(); err != nil {
