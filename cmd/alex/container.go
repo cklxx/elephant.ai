@@ -65,20 +65,24 @@ func buildContainer() (*Container, error) {
 	}
 	costTracker := app.NewCostTracker(costStore)
 
-	// MCP Registry - Initialize MCP servers and register their tools
+	// MCP Registry - Initialize asynchronously to avoid blocking UI startup
 	mcpRegistry := mcp.NewRegistry()
 	logger := utils.NewComponentLogger("Container")
-	if err := mcpRegistry.Initialize(); err != nil {
-		logger.Warn("Failed to initialize MCP registry: %v", err)
-		// Not fatal - continue without MCP tools
-	} else {
-		// Register MCP tools with the tool registry
-		if err := mcpRegistry.RegisterWithToolRegistry(toolRegistry); err != nil {
-			logger.Warn("Failed to register MCP tools: %v", err)
+
+	// Initialize MCP in background
+	go func() {
+		if err := mcpRegistry.Initialize(); err != nil {
+			logger.Warn("Failed to initialize MCP registry: %v", err)
+			// Not fatal - continue without MCP tools
 		} else {
-			logger.Info("MCP tools registered successfully")
+			// Register MCP tools with the tool registry
+			if err := mcpRegistry.RegisterWithToolRegistry(toolRegistry); err != nil {
+				logger.Warn("Failed to register MCP tools: %v", err)
+			} else {
+				logger.Info("MCP tools registered successfully")
+			}
 		}
-	}
+	}()
 
 	// Domain Layer
 	reactEngine := domain.NewReactEngine(config.MaxIterations)

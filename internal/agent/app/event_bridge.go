@@ -175,3 +175,10 @@ type ErrorMsg struct {
 	Error       error
 	Recoverable bool
 }
+
+type TaskAnalysisMsg struct {
+	Timestamp  time.Time
+	ActionName string
+	Goal       string
+	Approach   string
+}

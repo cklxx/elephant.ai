@@ -33,6 +33,7 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+	// Save immediately to ensure session can be retrieved later
 	if err := s.Save(ctx, session); err != nil {
 		return nil, err
 	}

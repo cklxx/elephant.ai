@@ -21,6 +21,8 @@ type NativeChatUI struct {
 	toolFormatter *domain.ToolFormatter
 	ctx           context.Context
 	startTime     time.Time
+	history       []string // Input history
+	historyIndex  int      // Current position in history (-1 = not browsing)
 }
 
 // DisplayMessage represents a message to display
@@ -37,6 +39,8 @@ func NewNativeChatUI(container *Container) *NativeChatUI {
 		toolFormatter: domain.NewToolFormatter(),
 		ctx:           context.Background(),
 		startTime:     time.Now(),
+		history:       make([]string, 0),
+		historyIndex:  -1,
 	}
 }
 
@@ -73,6 +77,10 @@ func (ui *NativeChatUI) runLineMode() error {
 
 		// Add newline to separate input from output
 		fmt.Println()
+
+		// Add to history
+		ui.history = append(ui.history, input)
+		ui.historyIndex = -1 // Reset history browsing
 
 		// Execute task (don't display user message separately, it's already in the prompt)
 		messageCount++
@@ -254,8 +262,22 @@ func (ui *NativeChatUI) printWelcome() {
 	cyan := "\033[36m"
 	green := "\033[32m"
 	yellow := "\033[33m"
+	gray := "\033[90m"
 	reset := "\033[0m"
 	bold := "\033[1m"
+
+	// Get current directory
+	cwd, _ := os.Getwd()
+	if len(cwd) > 35 {
+		cwd = "..." + cwd[len(cwd)-32:]
+	}
+
+	// Get git branch if in git repo
+	gitBranch := ui.getGitBranch()
+	gitInfo := ""
+	if gitBranch != "" {
+		gitInfo = fmt.Sprintf("%sgit:%s%s%s%s", gray, reset, green, gitBranch, reset)
+	}
 
 	// Print colorful welcome banner
 	fmt.Printf("%s%s┌─────────────────────────────────────────┐%s\n", cyan, bold, reset)
@@ -264,10 +286,44 @@ func (ui *NativeChatUI) printWelcome() {
 		green, bold, reset,
 		yellow, reset,
 		cyan, bold, reset)
+	fmt.Printf("%s%s│%s  %s%s%-35s%s  %s%s│%s\n",
+		cyan, bold, reset,
+		gray, reset, cwd, gray,
+		cyan, bold, reset)
+
+	if gitInfo != "" {
+		fmt.Printf("%s%s│%s  %s                                    %s%s│%s\n",
+			cyan, bold, reset,
+			gitInfo,
+			cyan, bold, reset)
+	}
+
 	fmt.Printf("%s%s│%s  Type your request, /quit to exit      %s%s│%s\n",
 		cyan, bold, reset,
 		cyan, bold, reset)
 	fmt.Printf("%s%s└─────────────────────────────────────────┘%s\n", cyan, bold, reset)
+}
+
+// getGitBranch returns the current git branch name, or empty if not in a git repo
+func (ui *NativeChatUI) getGitBranch() string {
+	// Try to read .git/HEAD
+	headFile := ".git/HEAD"
+	content, err := os.ReadFile(headFile)
+	if err != nil {
+		return ""
+	}
+
+	// Parse branch name from "ref: refs/heads/branch-name"
+	line := strings.TrimSpace(string(content))
+	if strings.HasPrefix(line, "ref: refs/heads/") {
+		branch := strings.TrimPrefix(line, "ref: refs/heads/")
+		if len(branch) > 20 {
+			branch = branch[:17] + "..."
+		}
+		return branch
+	}
+
+	return ""
 }
 
 // NativeEventListener implements domain.EventListener for native UI

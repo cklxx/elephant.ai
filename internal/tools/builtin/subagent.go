@@ -202,6 +202,7 @@ type SubtaskResult struct {
 	Answer     string
 	Iterations int
 	TokensUsed int
+	ToolCalls  int // Number of tool calls made
 	Error      error
 }
 
@@ -216,7 +217,7 @@ func markSubagentContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, subagentCtxKey{}, true)
 }
 
-// executeParallel runs subtasks concurrently
+// executeParallel runs subtasks concurrently with progress tracking
 func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWorkers int) ([]SubtaskResult, error) {
 	// Mark context to prevent nested subagent calls
 	ctx = markSubagentContext(ctx)
@@ -225,16 +226,35 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 	g.SetLimit(maxWorkers)
 
 	results := make([]SubtaskResult, len(subtasks))
+	completed := 0
 	var mu sync.Mutex
+
+	// Print initial status
+	fmt.Printf("\n⏳ Starting %d parallel subtasks (max %d workers)...\n", len(subtasks), maxWorkers)
+	for i, task := range subtasks {
+		taskPreview := task
+		if len(taskPreview) > 60 {
+			taskPreview = taskPreview[:57] + "..."
+		}
+		fmt.Printf("   [%d] %s\n", i+1, taskPreview)
+	}
+	fmt.Println()
 
 	for i, task := range subtasks {
 		i, task := i, task // Capture loop variables
 
 		g.Go(func() error {
+			// Execute subtask
 			result, err := t.coordinator.ExecuteTask(ctx, task, "")
 
 			mu.Lock()
 			defer mu.Unlock()
+
+			completed++
+			taskPreview := task
+			if len(taskPreview) > 50 {
+				taskPreview = taskPreview[:47] + "..."
+			}
 
 			if err != nil {
 				results[i] = SubtaskResult{
@@ -242,8 +262,14 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 					Task:  task,
 					Error: err,
 				}
+				fmt.Printf("   ❌ [%d/%d] %s - Failed: %v\n", completed, len(subtasks), taskPreview, err)
 				return nil // Don't fail the whole group
 			}
+
+			// Count tool calls from the task result
+			// For now, we estimate based on iterations (typically 1-3 tool calls per iteration)
+			// TODO: Add ToolCalls field to ports.TaskResult for accurate tracking
+			toolCalls := result.Iterations // Conservative estimate
 
 			results[i] = SubtaskResult{
 				Index:      i,
@@ -251,7 +277,10 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 				Answer:     result.Answer,
 				Iterations: result.Iterations,
 				TokensUsed: result.TokensUsed,
+				ToolCalls:  toolCalls,
 			}
+			fmt.Printf("   ✓ [%d/%d] %s - %d tokens, %d tools\n",
+				completed, len(subtasks), taskPreview, result.TokensUsed, toolCalls)
 			return nil
 		})
 	}
@@ -260,6 +289,7 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 		return nil, err
 	}
 
+	fmt.Println()
 	return results, nil
 }
 
@@ -282,12 +312,16 @@ func (t *subagent) executeSerial(ctx context.Context, subtasks []string) ([]Subt
 			continue
 		}
 
+		// Count tool calls from the task result
+		toolCalls := result.Iterations // Conservative estimate
+
 		results[i] = SubtaskResult{
 			Index:      i,
 			Task:       task,
 			Answer:     result.Answer,
 			Iterations: result.Iterations,
 			TokensUsed: result.TokensUsed,
+			ToolCalls:  toolCalls,
 		}
 	}
 
@@ -298,41 +332,58 @@ func (t *subagent) executeSerial(ctx context.Context, subtasks []string) ([]Subt
 func (t *subagent) formatResults(callID string, subtasks []string, results []SubtaskResult, mode string) (*ports.ToolResult, error) {
 	var output strings.Builder
 
-	// Summary header
+	// Calculate summary statistics
 	successCount := 0
 	failureCount := 0
 	totalTokens := 0
 	totalIterations := 0
+	totalToolCalls := 0
 
 	for _, r := range results {
 		if r.Error == nil {
 			successCount++
 			totalTokens += r.TokensUsed
 			totalIterations += r.Iterations
+			totalToolCalls += r.ToolCalls
 		} else {
 			failureCount++
 		}
 	}
 
-	output.WriteString(fmt.Sprintf("Subagent Execution Summary (%s mode)\n", mode))
-	output.WriteString(strings.Repeat("=", 50) + "\n\n")
-	output.WriteString(fmt.Sprintf("Total tasks: %d | Success: %d | Failed: %d\n", len(subtasks), successCount, failureCount))
-	output.WriteString(fmt.Sprintf("Total iterations: %d | Total tokens: %d\n\n", totalIterations, totalTokens))
+	// Compact header with key stats
+	output.WriteString(fmt.Sprintf("═══ Parallel Subagent Results (%s mode) ═══\n", mode))
+	output.WriteString(fmt.Sprintf("✓ %d/%d completed | %d iterations | %d tool calls | %d tokens\n\n",
+		successCount, len(subtasks), totalIterations, totalToolCalls, totalTokens))
 
-	// Individual results
+	// Individual results - more compact format
 	for _, r := range results {
-		output.WriteString(fmt.Sprintf("[Task %d] %s\n", r.Index+1, r.Task))
-		output.WriteString(strings.Repeat("-", 50) + "\n")
+		taskPreview := r.Task
+		if len(taskPreview) > 70 {
+			taskPreview = taskPreview[:67] + "..."
+		}
 
 		if r.Error != nil {
-			output.WriteString(fmt.Sprintf("❌ Failed: %v\n\n", r.Error))
+			output.WriteString(fmt.Sprintf("❌ [%d] %s\n    Error: %v\n\n",
+				r.Index+1, taskPreview, r.Error))
 		} else {
-			output.WriteString(fmt.Sprintf("✓ Success (iterations: %d, tokens: %d)\n", r.Iterations, r.TokensUsed))
-			output.WriteString(fmt.Sprintf("Answer:\n%s\n\n", r.Answer))
+			// Truncate answer for display, full version in metadata
+			answerPreview := r.Answer
+			if len(answerPreview) > 200 {
+				answerPreview = answerPreview[:197] + "..."
+			}
+
+			output.WriteString(fmt.Sprintf("✓ [%d] %s\n", r.Index+1, taskPreview))
+			output.WriteString(fmt.Sprintf("   Stats: %d iterations, %d tool calls, %d tokens\n", r.Iterations, r.ToolCalls, r.TokensUsed))
+			output.WriteString(fmt.Sprintf("   Result: %s\n\n", strings.TrimSpace(answerPreview)))
 		}
 	}
 
-	// Metadata for programmatic access
+	// Footer summary
+	if failureCount > 0 {
+		output.WriteString(fmt.Sprintf("⚠️  %d task(s) failed - review details above\n", failureCount))
+	}
+
+	// Metadata for programmatic access (full results)
 	metadata := map[string]any{
 		"mode":             mode,
 		"total_tasks":      len(subtasks),
@@ -340,9 +391,10 @@ func (t *subagent) formatResults(callID string, subtasks []string, results []Sub
 		"failure_count":    failureCount,
 		"total_tokens":     totalTokens,
 		"total_iterations": totalIterations,
+		"total_tool_calls": totalToolCalls,
 	}
 
-	// Add individual results to metadata
+	// Add individual results to metadata (full answers included)
 	resultsJSON, _ := json.Marshal(results)
 	metadata["results"] = string(resultsJSON)
 

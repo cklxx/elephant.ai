@@ -252,11 +252,6 @@ make swe-bench-verified-small  # Run 50 instances
 4. Ensure all tests pass: `make test`
 5. Submit a pull request
 
-### Git Configuration
-```bash
-git config user.name "cklxx"
-git config user.email "q1293822641@gmail.com"
-```
 
 ## 📝 License
 

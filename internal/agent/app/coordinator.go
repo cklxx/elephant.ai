@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -167,10 +168,18 @@ func (c *AgentCoordinator) ExecuteTask(
 	c.logger.Debug("Services bundle created")
 
 	// 6.5. Ultra Think: Pre-analyze task (optional, non-blocking)
-	taskAnalysis := c.performTaskPreAnalysis(ctx, task, llmClient)
-	if taskAnalysis != "" {
-		c.logger.Debug("Task pre-analysis: %s", taskAnalysis)
-		fmt.Printf("\nAnalysis: %s\n\n", taskAnalysis)
+	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+	if taskAnalysisStruct != nil {
+		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
+		// Display formatted analysis with action name prominently
+		fmt.Printf("\n📋 %s\n", taskAnalysisStruct.ActionName)
+		if taskAnalysisStruct.Goal != "" {
+			fmt.Printf("   Goal: %s\n", taskAnalysisStruct.Goal)
+		}
+		if taskAnalysisStruct.Approach != "" {
+			fmt.Printf("   Approach: %s\n", taskAnalysisStruct.Approach)
+		}
+		fmt.Println()
 	}
 
 	// 7. Delegate to domain logic with tool display
@@ -339,6 +348,32 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	// 7. Set up event listener
 	c.reactEngine.SetEventListener(listener)
 	defer c.reactEngine.SetEventListener(nil) // Clear listener when done
+
+	// 7.5. Pre-analyze task and send to listener
+	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+	if taskAnalysisStruct != nil && listener != nil {
+		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
+		// Send analysis to listener
+		if bridge, ok := listener.(*EventBridge); ok {
+			// For TUI: send via program.Send
+			bridge.program.Send(TaskAnalysisMsg{
+				Timestamp:  time.Now(),
+				ActionName: taskAnalysisStruct.ActionName,
+				Goal:       taskAnalysisStruct.Goal,
+				Approach:   taskAnalysisStruct.Approach,
+			})
+		} else {
+			// For CLI streaming: print directly
+			fmt.Printf("📋 %s\n", taskAnalysisStruct.ActionName)
+			if taskAnalysisStruct.Goal != "" {
+				fmt.Printf("   Goal: %s\n", taskAnalysisStruct.Goal)
+			}
+			if taskAnalysisStruct.Approach != "" {
+				fmt.Printf("   Approach: %s\n", taskAnalysisStruct.Approach)
+			}
+			fmt.Println()
+		}
+	}
 
 	// 8. Execute task (events will stream to TUI)
 	c.logger.Info("Delegating to ReactEngine with TUI streaming...")
@@ -532,25 +567,40 @@ func (t *toolExecutorDisplay) Metadata() ports.ToolMetadata {
 	return t.inner.Metadata()
 }
 
-func (c *AgentCoordinator) performTaskPreAnalysis(
+// TaskAnalysis contains the structured result of task pre-analysis
+type TaskAnalysis struct {
+	ActionName  string // The overall action/operation name, e.g., "Analyzing codebase"
+	Goal        string // What the task aims to achieve
+	Approach    string // High-level approach or strategy
+	RawAnalysis string // Full analysis text
+}
+
+// performTaskPreAnalysisStructured performs task analysis with structured output
+func (c *AgentCoordinator) performTaskPreAnalysisStructured(
 	ctx context.Context,
 	task string,
 	llmClient ports.LLMClient,
-) string {
+) *TaskAnalysis {
 	c.logger.Debug("Starting task pre-analysis")
 
-	// Quick analysis prompt
-	analysisPrompt := fmt.Sprintf(`Quick 1-line task analysis:
+	// Enhanced analysis prompt with action naming
+	analysisPrompt := fmt.Sprintf(`Analyze this task and provide a concise structured response:
+
 Task: %s
 
-Reply format: "Goal: [what] | Needs: [tools/files]" (max 60 chars)`, task)
+Respond in this exact format:
+Action: [single verb phrase, e.g., "Analyzing codebase", "Implementing feature", "Debugging issue"]
+Goal: [what needs to be achieved]
+Approach: [brief strategy]
+
+Keep each line under 80 characters. Be specific and actionable.`, task)
 
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{Role: "user", Content: analysisPrompt},
 		},
 		Temperature: 0.2,
-		MaxTokens:   50,
+		MaxTokens:   150,
 	}
 
 	// Non-blocking timeout
@@ -560,13 +610,41 @@ Reply format: "Goal: [what] | Needs: [tools/files]" (max 60 chars)`, task)
 	resp, err := llmClient.Complete(analyzeCtx, req)
 	if err != nil {
 		c.logger.Warn("Task pre-analysis failed: %v", err)
-		return ""
+		return nil
 	}
 
 	if resp == nil || resp.Content == "" {
-		return ""
+		return nil
 	}
 
-	c.logger.Debug("Task pre-analysis completed: %s", resp.Content)
-	return resp.Content
+	// Parse structured response
+	analysis := parseTaskAnalysis(resp.Content)
+	c.logger.Debug("Task pre-analysis completed: action=%s, goal=%s", analysis.ActionName, analysis.Goal)
+	return analysis
+}
+
+// parseTaskAnalysis extracts structured information from analysis response
+func parseTaskAnalysis(content string) *TaskAnalysis {
+	analysis := &TaskAnalysis{
+		RawAnalysis: content,
+	}
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Action:") {
+			analysis.ActionName = strings.TrimSpace(strings.TrimPrefix(line, "Action:"))
+		} else if strings.HasPrefix(line, "Goal:") {
+			analysis.Goal = strings.TrimSpace(strings.TrimPrefix(line, "Goal:"))
+		} else if strings.HasPrefix(line, "Approach:") {
+			analysis.Approach = strings.TrimSpace(strings.TrimPrefix(line, "Approach:"))
+		}
+	}
+
+	// Fallback if parsing failed
+	if analysis.ActionName == "" {
+		analysis.ActionName = "Processing request"
+	}
+
+	return analysis
 }

@@ -161,11 +161,10 @@ func (r *Registry) registerBuiltins() {
 	r.static["web_search"] = builtin.NewWebSearch()
 	r.static["web_fetch"] = builtin.NewWebFetch()
 
-	// RAG tools
-	r.static["code_search"] = builtin.NewCodeSearch()
-
 	// Git tools (without LLM - will be registered separately if needed)
 	r.static["git_history"] = builtin.NewGitHistory()
+
+	// Note: code_search tool is not registered (feature not ready)
 }
 
 // RegisterGitTools registers Git tools that require an LLM client

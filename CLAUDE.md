@@ -113,12 +113,6 @@ func TestFileRead_Execute(t *testing.T) {
 
 ## Commit Standards
 
-### Git Configuration
-```bash
-git config user.name "cklxx"
-git config user.email "q1293822641@gmail.com"
-```
-
 ### Commit Message Format
 ```
 <type>: <concise description>

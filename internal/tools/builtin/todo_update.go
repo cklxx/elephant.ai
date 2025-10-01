@@ -140,35 +140,40 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		}, nil
 	}
 
-	// Build detailed result content
+	// Build detailed result content with flat layout
 	var result strings.Builder
 	total := len(inProgress) + len(pending) + len(completed)
 
+	// Add system reminder for model (will be filtered out in display)
 	result.WriteString("<system-reminder>Todos have been modified successfully.</system-reminder>\n\n")
-	result.WriteString(fmt.Sprintf("Updated: %d in progress, %d pending, %d completed (%d total)\n\n",
-		len(inProgress), len(pending), len(completed), total))
 
-	// Add task details
+	// Flat layout with completion status
+	result.WriteString(fmt.Sprintf("Tasks: %d total", total))
 	if len(inProgress) > 0 {
-		result.WriteString("In Progress:\n")
-		for _, task := range inProgress {
-			result.WriteString(fmt.Sprintf("  - %s\n", task))
-		}
-		result.WriteString("\n")
+		result.WriteString(fmt.Sprintf(" | %d in progress", len(inProgress)))
 	}
-
 	if len(pending) > 0 {
-		result.WriteString("Pending:\n")
-		for _, task := range pending {
-			result.WriteString(fmt.Sprintf("  - %s\n", task))
-		}
-		result.WriteString("\n")
+		result.WriteString(fmt.Sprintf(" | %d pending", len(pending)))
 	}
+	if len(completed) > 0 {
+		result.WriteString(fmt.Sprintf(" | %d completed", len(completed)))
+	}
+	result.WriteString("\n\n")
 
+	// Show all tasks in flat list
+	if len(inProgress) > 0 {
+		for _, task := range inProgress {
+			result.WriteString(fmt.Sprintf("▶ %s\n", task))
+		}
+	}
+	if len(pending) > 0 {
+		for _, task := range pending {
+			result.WriteString(fmt.Sprintf("☐ %s\n", task))
+		}
+	}
 	if len(completed) > 0 && len(completed) <= 3 {
-		result.WriteString("Recently Completed:\n")
 		for _, task := range completed {
-			result.WriteString(fmt.Sprintf("  - %s\n", task))
+			result.WriteString(fmt.Sprintf("☑ %s\n", task))
 		}
 	}
 
