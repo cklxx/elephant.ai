@@ -1,13 +1,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
@@ -45,26 +42,6 @@ func main() {
 
 // RunInteractiveChatTUI starts the interactive chat interface
 func RunInteractiveChatTUI(container *Container) error {
-	// Create a new session
-	ctx := context.Background()
-	_, err := container.Coordinator.GetSession(ctx, "") // Empty ID creates new session
-	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-
-	// Use streaming TUI model instead
-	model := initialStreamingModel()
-
-	// Create Bubble Tea program
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-	)
-
-	// Run (blocks until quit)
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("TUI error: %w", err)
-	}
-
-	return nil
+	// Use the new comprehensive chat TUI
+	return RunChatTUI(container)
 }
