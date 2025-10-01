@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,11 +14,18 @@ type todoRead struct {
 }
 
 func NewTodoRead() ports.ToolExecutor {
-	return &todoRead{}
+	homeDir, _ := os.UserHomeDir()
+	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
+	return &todoRead{sessionsDir: sessionsDir}
 }
 
 // NewTodoReadWithSessionsDir creates todo_read with custom sessions directory (for testing)
 func NewTodoReadWithSessionsDir(sessionsDir string) ports.ToolExecutor {
+	// Expand tilde if present
+	if strings.HasPrefix(sessionsDir, "~/") {
+		homeDir, _ := os.UserHomeDir()
+		sessionsDir = filepath.Join(homeDir, sessionsDir[2:])
+	}
 	return &todoRead{sessionsDir: sessionsDir}
 }
 
@@ -44,15 +50,14 @@ func (t *todoRead) Definition() ports.ToolDefinition {
 }
 
 func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	var todoFile string
-	if t.sessionsDir != "" {
-		// Test mode with custom sessions directory
-		todoFile = filepath.Join(t.sessionsDir, "default", "todo.md")
-	} else {
-		// Production mode
-		homeDir, _ := os.UserHomeDir()
-		todoFile = filepath.Join(homeDir, ".alex-sessions", "default", "todo.md")
+	// Get session ID from context
+	sessionID, ok := GetSessionID(ctx)
+	if !ok || sessionID == "" {
+		sessionID = "default"
 	}
+
+	// Construct file path
+	todoFile := filepath.Join(t.sessionsDir, sessionID+"_todo.md")
 
 	content, err := os.ReadFile(todoFile)
 	if os.IsNotExist(err) {
@@ -66,20 +71,36 @@ func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}, nil
 	}
 
+	// Count tasks by status
 	lines := strings.Split(string(content), "\n")
-	taskCount := 0
+	totalCount := 0
+	inProgressCount := 0
+	pendingCount := 0
+	completedCount := 0
+
 	for _, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "-") {
-			taskCount++
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "▶") {
+			inProgressCount++
+			totalCount++
+		} else if strings.HasPrefix(trimmed, "☐") {
+			pendingCount++
+			totalCount++
+		} else if strings.HasPrefix(trimmed, "☒") {
+			completedCount++
+			totalCount++
 		}
 	}
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Todo List:\n\n%s\n\n%d tasks", string(content), taskCount),
+		Content: string(content),
 		Metadata: map[string]interface{}{
-			"has_todos":  taskCount > 0,
-			"task_count": taskCount,
+			"has_todos":         totalCount > 0,
+			"total_count":       totalCount,
+			"in_progress_count": inProgressCount,
+			"pending_count":     pendingCount,
+			"completed_count":   completedCount,
 		},
 	}, nil
 }

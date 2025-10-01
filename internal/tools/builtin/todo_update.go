@@ -15,11 +15,18 @@ type todoUpdate struct {
 }
 
 func NewTodoUpdate() ports.ToolExecutor {
-	return &todoUpdate{}
+	homeDir, _ := os.UserHomeDir()
+	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
+	return &todoUpdate{sessionsDir: sessionsDir}
 }
 
 // NewTodoUpdateWithSessionsDir creates todo_update with custom sessions directory (for testing)
 func NewTodoUpdateWithSessionsDir(sessionsDir string) ports.ToolExecutor {
+	// Expand tilde if present
+	if strings.HasPrefix(sessionsDir, "~/") {
+		homeDir, _ := os.UserHomeDir()
+		sessionsDir = filepath.Join(homeDir, sessionsDir[2:])
+	}
 	return &todoUpdate{sessionsDir: sessionsDir}
 }
 
@@ -66,12 +73,23 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		return &ports.ToolResult{CallID: call.ID, Content: "Error: todos must be an array", Error: fmt.Errorf("todos must be an array")}, nil
 	}
 
+	// Get session ID from context
+	sessionID, ok := GetSessionID(ctx)
+	if !ok || sessionID == "" {
+		sessionID = "default"
+	}
+
 	var inProgress, pending, completed []string
 
 	for _, item := range todosArray {
 		todo, _ := item.(map[string]any)
 		content, _ := todo["content"].(string)
 		status, _ := todo["status"].(string)
+
+		// Default to pending if no status
+		if status == "" && content != "" {
+			status = "pending"
+		}
 
 		switch status {
 		case "in_progress":
@@ -89,7 +107,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	if len(inProgress) > 0 {
 		md.WriteString("## In Progress\n\n")
 		for _, t := range inProgress {
-			md.WriteString(fmt.Sprintf("- [▶] %s\n", t))
+			md.WriteString(fmt.Sprintf("▶ %s\n", t))
 		}
 		md.WriteString("\n")
 	}
@@ -97,7 +115,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	if len(pending) > 0 {
 		md.WriteString("## Pending\n\n")
 		for _, t := range pending {
-			md.WriteString(fmt.Sprintf("- [ ] %s\n", t))
+			md.WriteString(fmt.Sprintf("☐ %s\n", t))
 		}
 		md.WriteString("\n")
 	}
@@ -105,27 +123,28 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	if len(completed) > 0 {
 		md.WriteString("## Completed\n\n")
 		for _, t := range completed {
-			md.WriteString(fmt.Sprintf("- [✓] %s\n", t))
+			md.WriteString(fmt.Sprintf("☒ %s\n", t))
 		}
 		md.WriteString("\n")
 	}
 
-	var sessionDir, todoFile string
-	if t.sessionsDir != "" {
-		// Test mode with custom sessions directory
-		sessionDir = filepath.Join(t.sessionsDir, "default")
-	} else {
-		// Production mode
-		homeDir, _ := os.UserHomeDir()
-		sessionDir = filepath.Join(homeDir, ".alex-sessions", "default")
+	// Determine file path and write
+	todoFile := filepath.Join(t.sessionsDir, sessionID+"_todo.md")
+
+	// Write file with error handling
+	if err := os.WriteFile(todoFile, []byte(md.String()), 0644); err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("Error: failed to write todo file: %v", err),
+			Error:   fmt.Errorf("failed to write todo file: %w", err),
+		}, nil
 	}
-	_ = os.MkdirAll(sessionDir, 0755)
-	todoFile = filepath.Join(sessionDir, "todo.md")
-	_ = os.WriteFile(todoFile, []byte(md.String()), 0644)
 
 	// Build detailed result content
 	var result strings.Builder
 	total := len(inProgress) + len(pending) + len(completed)
+
+	result.WriteString("<system-reminder>Todos have been modified successfully.</system-reminder>\n\n")
 	result.WriteString(fmt.Sprintf("Updated: %d in progress, %d pending, %d completed (%d total)\n\n",
 		len(inProgress), len(pending), len(completed), total))
 
@@ -156,5 +175,11 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: result.String(),
+		Metadata: map[string]any{
+			"total_count":       total,
+			"in_progress_count": len(inProgress),
+			"pending_count":     len(pending),
+			"completed_count":   len(completed),
+		},
 	}, nil
 }

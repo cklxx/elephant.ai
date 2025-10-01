@@ -11,22 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Session ID context key for testing
-type testContextKey string
-
-const testSessionIDKey testContextKey = "session_id"
-
-// WithSessionID adds session ID to context (for testing)
-func WithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, testSessionIDKey, sessionID)
-}
-
-// GetSessionID retrieves session ID from context (for testing)
-func GetSessionID(ctx context.Context) (string, bool) {
-	sessionID, ok := ctx.Value(testSessionIDKey).(string)
-	return sessionID, ok
-}
-
 func TestTodoRead_Metadata(t *testing.T) {
 	tool := NewTodoRead()
 	meta := tool.Metadata()
@@ -81,22 +65,27 @@ func TestTodoRead_Execute_WithTodoFile(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := NewTodoReadWithSessionsDir(tempDir)
 
-	// Create todo file content with simple list items (using - prefix)
+	// Create todo file content using new format
 	todoContent := `# Task List
 
-- Implement authentication
-- Create database schema
-- Build REST API
-- Write unit tests
-- Setup project structure`
+## Pending
 
-	// Write todo file to sessions directory (default/todo.md)
-	sessionDir := filepath.Join(tempDir, "default")
-	err := os.MkdirAll(sessionDir, 0755)
-	require.NoError(t, err)
+☐ Implement authentication
+☐ Create database schema
 
-	todoFile := filepath.Join(sessionDir, "todo.md")
-	err = os.WriteFile(todoFile, []byte(todoContent), 0644)
+## In Progress
+
+▶ Build REST API
+
+## Completed
+
+☒ Write unit tests
+☒ Setup project structure
+`
+
+	// Write todo file to sessions directory (default_todo.md)
+	todoFile := filepath.Join(tempDir, "default_todo.md")
+	err := os.WriteFile(todoFile, []byte(todoContent), 0644)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -114,11 +103,13 @@ func TestTodoRead_Execute_WithTodoFile(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, "call-2", result.CallID)
 	assert.Contains(t, result.Content, todoContent)
-	assert.Contains(t, result.Content, "5 tasks")
 
 	// Check metadata
 	assert.True(t, result.Metadata["has_todos"].(bool))
-	assert.Equal(t, 5, result.Metadata["task_count"])
+	assert.Equal(t, 5, result.Metadata["total_count"])
+	assert.Equal(t, 2, result.Metadata["pending_count"])
+	assert.Equal(t, 1, result.Metadata["in_progress_count"])
+	assert.Equal(t, 2, result.Metadata["completed_count"])
 }
 
 func TestTodoRead_Execute_NoContext(t *testing.T) {
@@ -172,13 +163,9 @@ func TestTodoRead_Execute_EmptyTodoFile(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := NewTodoReadWithSessionsDir(tempDir)
 
-	// Create empty todo file in default/todo.md
-	sessionDir := filepath.Join(tempDir, "default")
-	err := os.MkdirAll(sessionDir, 0755)
-	require.NoError(t, err)
-
-	todoFile := filepath.Join(sessionDir, "todo.md")
-	err = os.WriteFile(todoFile, []byte(""), 0644)
+	// Create empty todo file (default_todo.md)
+	todoFile := filepath.Join(tempDir, "default_todo.md")
+	err := os.WriteFile(todoFile, []byte(""), 0644)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -191,11 +178,11 @@ func TestTodoRead_Execute_EmptyTodoFile(t *testing.T) {
 
 	result, err := tool.Execute(ctx, call)
 
-	// Should succeed with empty content formatted
+	// Should succeed but have no tasks
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Contains(t, result.Content, "0 tasks")
-	assert.Equal(t, 0, result.Metadata["task_count"])
+	assert.False(t, result.Metadata["has_todos"].(bool))
+	assert.Equal(t, 0, result.Metadata["total_count"])
 }
 
 func TestTodoRead_NewTodoRead(t *testing.T) {
@@ -205,8 +192,10 @@ func TestTodoRead_NewTodoRead(t *testing.T) {
 	// Check that it's a todoRead instance
 	todoReadTool, ok := tool.(*todoRead)
 	require.True(t, ok)
-	// sessionsDir should be empty for production mode
-	assert.Equal(t, "", todoReadTool.sessionsDir)
+	// sessionsDir should be set to .alex-sessions
+	home, _ := os.UserHomeDir()
+	expectedDir := filepath.Join(home, ".alex-sessions")
+	assert.Equal(t, expectedDir, todoReadTool.sessionsDir)
 }
 
 func TestTodoRead_NewTodoReadWithSessionsDir(t *testing.T) {
@@ -221,7 +210,16 @@ func TestTodoRead_NewTodoReadWithSessionsDir(t *testing.T) {
 }
 
 func TestTodoRead_NewTodoReadWithSessionsDir_TildeExpansion(t *testing.T) {
-	t.Skip("Tilde expansion not implemented in todo_read")
+	tool := NewTodoReadWithSessionsDir("~/.test-sessions")
+	assert.NotNil(t, tool)
+
+	// Check that tilde is expanded
+	todoReadTool, ok := tool.(*todoRead)
+	require.True(t, ok)
+
+	home, _ := os.UserHomeDir()
+	expectedDir := filepath.Join(home, ".test-sessions")
+	assert.Equal(t, expectedDir, todoReadTool.sessionsDir)
 }
 
 func TestWithSessionID(t *testing.T) {
