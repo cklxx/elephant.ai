@@ -15,20 +15,20 @@ func NewRipgrep() ports.ToolExecutor {
 }
 
 func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Check if ripgrep is available
-	if !t.hasRipgrep() {
-		return &ports.ToolResult{
-			CallID: call.ID,
-			Error:  fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation"),
-		}, nil
-	}
-
-	// Validate and extract pattern
+	// Validate and extract pattern first (before checking installation)
 	pattern, ok := call.Arguments["pattern"].(string)
 	if !ok || pattern == "" {
 		return &ports.ToolResult{
 			CallID: call.ID,
 			Error:  fmt.Errorf("missing required 'pattern' parameter"),
+		}, nil
+	}
+
+	// Check if ripgrep is available
+	if !t.hasRipgrep() {
+		return &ports.ToolResult{
+			CallID: call.ID,
+			Error:  fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation"),
 		}, nil
 	}
 
