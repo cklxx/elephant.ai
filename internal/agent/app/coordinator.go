@@ -171,13 +171,16 @@ func (c *AgentCoordinator) ExecuteTask(
 	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
 	if taskAnalysisStruct != nil {
 		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-		// Display formatted analysis with action name prominently
-		fmt.Printf("\n📋 %s\n", taskAnalysisStruct.ActionName)
+		// Display formatted analysis with devil emoji and compact layout
+		dimStyle := "\033[90m"  // Gray
+		resetStyle := "\033[0m" // Reset
+
+		fmt.Printf("\n%s😈 %s%s\n", dimStyle, taskAnalysisStruct.ActionName, resetStyle)
 		if taskAnalysisStruct.Goal != "" {
-			fmt.Printf("   Goal: %s\n", taskAnalysisStruct.Goal)
+			fmt.Printf("   %s→ %s%s\n", dimStyle, taskAnalysisStruct.Goal, resetStyle)
 		}
 		if taskAnalysisStruct.Approach != "" {
-			fmt.Printf("   Approach: %s\n", taskAnalysisStruct.Approach)
+			fmt.Printf("   %s⇢ %s%s\n", dimStyle, taskAnalysisStruct.Approach, resetStyle)
 		}
 		fmt.Println()
 	}
@@ -363,13 +366,16 @@ func (c *AgentCoordinator) executeTaskWithListener(
 				Approach:   taskAnalysisStruct.Approach,
 			})
 		} else {
-			// For CLI streaming: print directly
-			fmt.Printf("📋 %s\n", taskAnalysisStruct.ActionName)
+			// For CLI streaming: print directly with devil emoji and compact layout
+			dimStyle := "\033[90m"  // Gray
+			resetStyle := "\033[0m" // Reset
+
+			fmt.Printf("%s😈 %s%s\n", dimStyle, taskAnalysisStruct.ActionName, resetStyle)
 			if taskAnalysisStruct.Goal != "" {
-				fmt.Printf("   Goal: %s\n", taskAnalysisStruct.Goal)
+				fmt.Printf("   %s→ %s%s\n", dimStyle, taskAnalysisStruct.Goal, resetStyle)
 			}
 			if taskAnalysisStruct.Approach != "" {
-				fmt.Printf("   Approach: %s\n", taskAnalysisStruct.Approach)
+				fmt.Printf("   %s⇢ %s%s\n", dimStyle, taskAnalysisStruct.Approach, resetStyle)
 			}
 			fmt.Println()
 		}
