@@ -167,17 +167,20 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	c.logger.Debug("Services bundle created")
 
-	// 6.5. Show simple analyzing indicator
+	// 6.5. Pre-analyze task to get dynamic action verb
+	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+
+	// 6.6. Show dynamic analyzing indicator
 	dimStyle := "\033[90m"  // Gray
 	resetStyle := "\033[0m" // Reset
-	fmt.Printf("\n%s👾 Analyzing...%s\n\n", dimStyle, resetStyle)
 
-	// 6.6. Ultra Think: Pre-analyze task (optional, non-blocking) - silent for user
-	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
-	if taskAnalysisStruct != nil {
+	actionText := "Analyzing..."
+	if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
+		actionText = taskAnalysisStruct.ActionName
 		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-		// Internal analysis - don't display to user
 	}
+
+	fmt.Printf("\n%s👾 %s%s\n\n", dimStyle, actionText, resetStyle)
 
 	// 7. Delegate to domain logic with tool display
 	c.logger.Info("Delegating to ReactEngine...")
@@ -346,17 +349,20 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	c.reactEngine.SetEventListener(listener)
 	defer c.reactEngine.SetEventListener(nil) // Clear listener when done
 
-	// 7.5. Show simple analyzing indicator
+	// 7.5. Pre-analyze task to get dynamic action verb
+	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+
+	// 7.6. Show dynamic analyzing indicator
 	dimStyle := "\033[90m"  // Gray
 	resetStyle := "\033[0m" // Reset
-	fmt.Printf("\n%s👾 Analyzing...%s\n\n", dimStyle, resetStyle)
 
-	// 7.6. Pre-analyze task (silent for user, only for internal logging)
-	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
-	if taskAnalysisStruct != nil {
+	actionText := "Analyzing..."
+	if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
+		actionText = taskAnalysisStruct.ActionName
 		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-		// Internal analysis - don't display to user
 	}
+
+	fmt.Printf("\n%s👾 %s%s\n\n", dimStyle, actionText, resetStyle)
 
 	// 8. Execute task (events will stream to TUI)
 	c.logger.Info("Delegating to ReactEngine with TUI streaming...")
