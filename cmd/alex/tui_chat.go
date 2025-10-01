@@ -76,7 +76,7 @@ type ChatTUIModel struct {
 	state            ChatState
 	messages         []ChatMessage
 	streamingMessage *ChatMessage // Currently streaming assistant message
-	streamBuffer     strings.Builder
+	streamBuffer     *strings.Builder
 
 	// Tool tracking
 	activeTools      map[string]ToolExecution
@@ -114,15 +114,16 @@ func NewChatTUIModel(container *Container, sessionID string) ChatTUIModel {
 	// No border - clean display
 
 	return ChatTUIModel{
-		viewport:    vp,
-		textarea:    ta,
-		messages:    make([]ChatMessage, 0),
-		activeTools: make(map[string]ToolExecution, 0),
-		container:   container,
-		sessionID:   sessionID,
-		ctx:         context.Background(),
-		state:       StateWaitingForInput,
-		startTime:   time.Now(),
+		viewport:     vp,
+		textarea:     ta,
+		messages:     make([]ChatMessage, 0),
+		activeTools:  make(map[string]ToolExecution, 0),
+		container:    container,
+		sessionID:    sessionID,
+		ctx:          context.Background(),
+		state:        StateWaitingForInput,
+		startTime:    time.Now(),
+		streamBuffer: &strings.Builder{},
 	}
 }
 
@@ -365,22 +366,32 @@ func (m ChatTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Timestamp: time.Now(),
 				Metadata:  map[string]interface{}{"streaming": true},
 			}
+			// Initialize streamBuffer if needed
+			if m.streamBuffer == nil {
+				m.streamBuffer = &strings.Builder{}
+			}
 		}
 
 		if msg.Done {
 			// Finalize streaming message
-			m.streamingMessage.Content = m.streamBuffer.String()
+			if m.streamBuffer != nil {
+				m.streamingMessage.Content = m.streamBuffer.String()
+			}
 			m.streamingMessage.Metadata["streaming"] = false
 			m.messages = append(m.messages, *m.streamingMessage)
 			m.streamingMessage = nil
-			m.streamBuffer.Reset()
+			if m.streamBuffer != nil {
+				m.streamBuffer.Reset()
+			}
 			m.updateViewportContent()
 			return m, nil
 		}
 
 		// Append chunk to buffer
-		m.streamBuffer.WriteString(msg.Content)
-		m.streamingMessage.Content = m.streamBuffer.String()
+		if m.streamBuffer != nil {
+			m.streamBuffer.WriteString(msg.Content)
+			m.streamingMessage.Content = m.streamBuffer.String()
+		}
 		m.updateViewportContent()
 
 		return m, nil

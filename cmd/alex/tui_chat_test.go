@@ -7,6 +7,7 @@ import (
 	"alex/internal/agent/app"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -126,6 +127,7 @@ func TestUpdate_WindowSizeMsg(t *testing.T) {
 		messages:    make([]ChatMessage, 0),
 		activeTools: make(map[string]ToolExecution),
 		state:       StateWaitingForInput,
+		textarea:    textarea.New(), // Initialize textarea
 	}
 
 	msg := tea.WindowSizeMsg{
