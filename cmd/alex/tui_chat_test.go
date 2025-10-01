@@ -366,6 +366,7 @@ func TestView_Ready(t *testing.T) {
 		activeTools: make(map[string]ToolExecution),
 		state:       StateWaitingForInput,
 		startTime:   time.Now(),
+		textarea:    textarea.New(), // Initialize textarea
 	}
 
 	view := model.View()
