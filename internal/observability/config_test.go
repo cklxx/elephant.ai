@@ -17,7 +17,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.True(t, config.Metrics.Enabled)
 	assert.Equal(t, 9090, config.Metrics.PrometheusPort)
 	assert.False(t, config.Tracing.Enabled)
-	assert.Equal(t, "jaeger", config.Tracing.Exporter)
+	assert.Equal(t, "otlp", config.Tracing.Exporter)
 	assert.Equal(t, 1.0, config.Tracing.SampleRate)
 }
 
@@ -107,8 +107,8 @@ func TestSaveConfig(t *testing.T) {
 		},
 		Tracing: TracingConfig{
 			Enabled:        true,
-			Exporter:       "jaeger",
-			JaegerEndpoint: "http://localhost:14268/api/traces",
+			Exporter:       "otlp",
+			OTLPEndpoint:   "localhost:4318",
 			SampleRate:     0.8,
 			ServiceName:    "alex",
 			ServiceVersion: "1.0.0",

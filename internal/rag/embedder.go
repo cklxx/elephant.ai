@@ -170,7 +170,7 @@ func (e *openaiEmbedder) callAPI(ctx context.Context, texts []string) ([][]float
 	if err != nil {
 		return nil, fmt.Errorf("http request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(resp.Body)

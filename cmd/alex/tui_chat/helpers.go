@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	// rand.Seed is deprecated since Go 1.20, no longer needed
 }
 
 // generateID creates a unique message ID

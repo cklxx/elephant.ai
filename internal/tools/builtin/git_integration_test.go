@@ -32,7 +32,7 @@ func TestGitIntegration_FullWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Initialize git repository
 	if err := initTestRepo(t, tempDir); err != nil {
@@ -47,7 +47,7 @@ func TestGitIntegration_FullWorkflow(t *testing.T) {
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	// Create mock LLM client
 	mockLLM := &mockLLMClient{
@@ -273,7 +273,7 @@ func TestGitIntegration_CustomCommitMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Initialize git repository
 	if err := initTestRepo(t, tempDir); err != nil {
@@ -288,7 +288,7 @@ func TestGitIntegration_CustomCommitMessage(t *testing.T) {
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	// Create and stage a file
 	testFile := filepath.Join(tempDir, "custom.txt")

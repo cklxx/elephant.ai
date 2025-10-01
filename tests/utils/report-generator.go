@@ -361,7 +361,7 @@ func (rg *ReportGenerator) generateJSONReport(report *TestReport) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
@@ -375,7 +375,7 @@ func (rg *ReportGenerator) generateHTMLReport(report *TestReport) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	tmpl := rg.templates["html"]
 	return tmpl.Execute(file, report)
@@ -388,7 +388,7 @@ func (rg *ReportGenerator) generateMarkdownReport(report *TestReport) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	tmpl := rg.templates["markdown"]
 	return tmpl.Execute(file, report)
@@ -418,7 +418,7 @@ func (rg *ReportGenerator) generateTestResultsCSV(report *TestReport) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 写入CSV标题
 	_, err = file.WriteString("Suite,Test,Status,Duration,Error\n")
@@ -448,7 +448,7 @@ func (rg *ReportGenerator) generatePerformanceCSV(report *TestReport) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 写入CSV标题
 	_, err = file.WriteString("Type,Name,Metric,Value,Unit\n")
@@ -771,7 +771,7 @@ func parseTestLog(logFile, suiteName string) (*TestSuite, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	suite := &TestSuite{
 		Name:  suiteName,
@@ -863,7 +863,7 @@ func (rg *ReportGenerator) GenerateComparisonReport(current, baseline *TestRepor
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")

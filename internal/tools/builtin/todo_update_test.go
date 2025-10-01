@@ -376,7 +376,7 @@ func TestTodoUpdate_Execute_FileWriteError(t *testing.T) {
 
 	// Restore permissions for cleanup
 	t.Cleanup(func() {
-		os.Chmod(tempDir, 0755)
+		_ = os.Chmod(tempDir, 0755)
 	})
 
 	tool := NewTodoUpdateWithSessionsDir(tempDir)

@@ -200,7 +200,7 @@ func (t *webFetch) fetchContent(ctx context.Context, urlStr string) (string, str
 	if err != nil {
 		return "", "", fmt.Errorf("HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)

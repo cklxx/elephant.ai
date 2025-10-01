@@ -121,7 +121,7 @@ func (pm *ProcessManager) Stop(timeout time.Duration) error {
 
 	// Try graceful shutdown first by closing stdin
 	if pm.stdin != nil {
-		pm.stdin.Close()
+		_ = pm.stdin.Close()
 	}
 
 	// Wait for process to exit with timeout

@@ -315,10 +315,10 @@ func (m ChatTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Content:   msg.FinalAnswer,
 				Timestamp: time.Now(),
 				Metadata: map[string]interface{}{
-					"type":            "final_answer",
-					"total_tokens":    msg.TotalTokens,
+					"type":             "final_answer",
+					"total_tokens":     msg.TotalTokens,
 					"total_iterations": msg.TotalIterations,
-					"duration":        msg.Duration.String(),
+					"duration":         msg.Duration.String(),
 				},
 			}
 			m.messages = append(m.messages, answerMsg)
@@ -557,7 +557,7 @@ func (m *ChatTUIModel) getRoleStyle(role MessageRole) lipgloss.Style {
 	case RoleAssistant:
 		return base.Foreground(lipgloss.Color("12")) // Blue
 	case RoleSystem:
-		return base.Foreground(lipgloss.Color("8"))  // Gray
+		return base.Foreground(lipgloss.Color("8")) // Gray
 	case RoleTool:
 		return base.Foreground(lipgloss.Color("11")) // Yellow
 	default:

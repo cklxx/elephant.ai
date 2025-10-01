@@ -23,9 +23,9 @@ clean: ## Clean build artifacts
 	@rm -f alex
 	@echo "✓ Cleaned"
 
-fmt: ## Format Go code
-	@go fmt ./...
-	@echo "✓ Formatted"
+fmt: ## Format and lint Go code with golangci-lint
+	@golangci-lint run --fix ./...
+	@echo "✓ Formatted and linted"
 
 vet: ## Run go vet
 	@go vet ./cmd/... ./internal/...

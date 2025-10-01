@@ -119,9 +119,9 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		homeDir, _ := os.UserHomeDir()
 		sessionDir = filepath.Join(homeDir, ".alex-sessions", "default")
 	}
-	os.MkdirAll(sessionDir, 0755)
+	_ = os.MkdirAll(sessionDir, 0755)
 	todoFile = filepath.Join(sessionDir, "todo.md")
-	os.WriteFile(todoFile, []byte(md.String()), 0644)
+	_ = os.WriteFile(todoFile, []byte(md.String()), 0644)
 
 	// Build detailed result content
 	var result strings.Builder

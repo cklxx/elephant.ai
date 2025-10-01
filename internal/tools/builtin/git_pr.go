@@ -108,7 +108,7 @@ func (t *gitPR) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRe
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to create PR: %w", err)}, nil
 	}
 
-	output := fmt.Sprintf("Successfully created pull request!\n\n")
+	output := "Successfully created pull request!\n\n"
 	output += fmt.Sprintf("Title: %s\n", title)
 	output += fmt.Sprintf("Base: %s <- %s\n", baseBranch, currentBranch)
 	output += fmt.Sprintf("URL: %s\n\n", prURL)

@@ -293,5 +293,5 @@ func TestFileCostStore_HomeDirectory(t *testing.T) {
 	// Clean up
 	home, _ := os.UserHomeDir()
 	testDir := filepath.Join(home, ".test-alex-costs")
-	os.RemoveAll(testDir)
+	_ = os.RemoveAll(testDir)
 }

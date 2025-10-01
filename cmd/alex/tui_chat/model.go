@@ -94,9 +94,7 @@ func (m ChatTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case app.ThinkCompleteMsg:
 		// Optionally show thought summary
-		if len(msg.Content) > 0 {
-			// Could add system message here
-		}
+		// Could add system message here if msg.Content is not empty
 		return m, nil
 
 	case app.ToolCallStartMsg:

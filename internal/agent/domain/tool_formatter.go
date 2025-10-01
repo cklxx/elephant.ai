@@ -642,4 +642,3 @@ func (tf *ToolFormatter) formatDefaultResult(content string) string {
 	preview = strings.ReplaceAll(preview, "\n", " ")
 	return "  → " + preview
 }
-

@@ -489,14 +489,15 @@ func NewTodoManagementScenario() ToolScenario {
 							return &ports.ToolResult{CallID: call.ID, Content: result}, nil
 						case "todo_update":
 							action := call.Arguments["action"].(string)
-							if action == "add" {
+							switch action {
+							case "add":
 								items := call.Arguments["items"].([]string)
 								todos = append(todos, items...)
 								return &ports.ToolResult{
 									CallID:  call.ID,
 									Content: fmt.Sprintf("Added %d tasks", len(items)),
 								}, nil
-							} else if action == "complete" {
+							case "complete":
 								idx := call.Arguments["index"].(int)
 								if idx >= 0 && idx < len(todos) {
 									completed := todos[idx]

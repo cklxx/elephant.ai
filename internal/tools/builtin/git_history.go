@@ -197,8 +197,8 @@ func (t *gitHistory) searchFileHistory(ctx context.Context, file string, limit i
 			fields := strings.Fields(line)
 			if len(fields) >= 2 {
 				var add, del int
-				fmt.Sscanf(fields[0], "%d", &add)
-				fmt.Sscanf(fields[1], "%d", &del)
+				_, _ = fmt.Sscanf(fields[0], "%d", &add)
+				_, _ = fmt.Sscanf(fields[1], "%d", &del)
 				totalAdditions += add
 				totalDeletions += del
 			}

@@ -209,4 +209,3 @@ func IsHTTPStatusError(err error, statusCode int) bool {
 		strings.Contains(strings.ToLower(err.Error()), "api error") ||
 		httpErr != nil
 }
-

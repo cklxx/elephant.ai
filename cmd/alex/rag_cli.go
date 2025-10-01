@@ -81,7 +81,7 @@ func (c *CLI) handleIndex(args []string) error {
 	if err != nil {
 		return fmt.Errorf("create vector store: %w", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Create indexer
 	indexer := rag.NewIndexer(rag.IndexerConfig{
@@ -159,7 +159,7 @@ func (c *CLI) handleSearch(query string) error {
 	if err != nil {
 		return fmt.Errorf("create vector store: %w", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Check if index exists
 	if store.Count() == 0 {

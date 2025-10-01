@@ -34,8 +34,8 @@ func DefaultConfig() Config {
 		},
 		Tracing: TracingConfig{
 			Enabled:        false,
-			Exporter:       "jaeger",
-			JaegerEndpoint: "http://localhost:14268/api/traces",
+			Exporter:       "otlp",
+			OTLPEndpoint:   "localhost:4318",
 			SampleRate:     1.0,
 			ServiceName:    "alex",
 			ServiceVersion: "1.0.0",
@@ -97,9 +97,6 @@ func LoadConfig(configPath string) (Config, error) {
 	config.Tracing.Enabled = fileConfig.Observability.Tracing.Enabled
 	if fileConfig.Observability.Tracing.Exporter != "" {
 		config.Tracing.Exporter = fileConfig.Observability.Tracing.Exporter
-	}
-	if fileConfig.Observability.Tracing.JaegerEndpoint != "" {
-		config.Tracing.JaegerEndpoint = fileConfig.Observability.Tracing.JaegerEndpoint
 	}
 	if fileConfig.Observability.Tracing.OTLPEndpoint != "" {
 		config.Tracing.OTLPEndpoint = fileConfig.Observability.Tracing.OTLPEndpoint

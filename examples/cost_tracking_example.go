@@ -19,7 +19,8 @@ import (
 
 func main() {
 	fmt.Println("ALEX Cost Tracking Integration Example")
-	fmt.Println("=" + string(make([]byte, 40)) + "=\n")
+	fmt.Println("=" + string(make([]byte, 40)) + "=")
+	fmt.Println()
 
 	// 1. Initialize Cost Store
 	fmt.Println("1. Initializing cost store...")
@@ -27,15 +28,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create cost store: %v", err)
 	}
-	fmt.Println("   ✓ Cost store initialized at ~/.alex-costs-example\n")
+	fmt.Println("   ✓ Cost store initialized at ~/.alex-costs-example")
+	fmt.Println()
 
 	// 2. Create Cost Tracker
 	fmt.Println("2. Creating cost tracker...")
 	costTracker := app.NewCostTracker(costStore)
-	fmt.Println("   ✓ Cost tracker created\n")
+	fmt.Println("   ✓ Cost tracker created")
+	fmt.Println()
 
 	// 3. Simulate LLM Usage
-	fmt.Println("3. Simulating LLM API calls...\n")
+	fmt.Println("3. Simulating LLM API calls...")
+	fmt.Println()
 
 	ctx := context.Background()
 	sessionID := "example-session-" + fmt.Sprintf("%d", time.Now().Unix())
@@ -94,7 +98,8 @@ func main() {
 	}
 
 	// 4. Query Session Cost
-	fmt.Println("4. Querying session cost...\n")
+	fmt.Println("4. Querying session cost...")
+	fmt.Println()
 	sessionSummary, err := costTracker.GetSessionCost(ctx, sessionID)
 	if err != nil {
 		log.Fatalf("Failed to get session cost: %v", err)
@@ -103,7 +108,8 @@ func main() {
 	printCostSummary("Session Cost", sessionSummary)
 
 	// 5. Query Daily Cost
-	fmt.Println("5. Querying daily cost...\n")
+	fmt.Println("5. Querying daily cost...")
+	fmt.Println()
 	dailySummary, err := costTracker.GetDailyCost(ctx, time.Now())
 	if err != nil {
 		log.Fatalf("Failed to get daily cost: %v", err)
@@ -112,7 +118,8 @@ func main() {
 	printCostSummary("Daily Cost (Today)", dailySummary)
 
 	// 6. Export to CSV
-	fmt.Println("6. Exporting data to CSV...\n")
+	fmt.Println("6. Exporting data to CSV...")
+	fmt.Println()
 	csvData, err := costTracker.Export(ctx, ports.ExportFormatCSV, ports.ExportFilter{
 		SessionID: sessionID,
 	})
@@ -127,7 +134,8 @@ func main() {
 	fmt.Printf("   ✓ CSV exported to: %s\n\n", csvFile)
 
 	// 7. Export to JSON
-	fmt.Println("7. Exporting data to JSON...\n")
+	fmt.Println("7. Exporting data to JSON...")
+	fmt.Println()
 	jsonData, err := costTracker.Export(ctx, ports.ExportFormatJSON, ports.ExportFilter{
 		SessionID: sessionID,
 	})
@@ -142,7 +150,8 @@ func main() {
 	fmt.Printf("   ✓ JSON exported to: %s\n\n", jsonFile)
 
 	// 8. Cost Analysis
-	fmt.Println("8. Cost Analysis\n")
+	fmt.Println("8. Cost Analysis")
+	fmt.Println()
 	analyzeCosts(sessionSummary)
 
 	fmt.Println("\n" + string(make([]byte, 50)) + "")
@@ -224,10 +233,11 @@ func analyzeCosts(summary *ports.CostSummary) {
 	if summary.TotalCost > 0.01 {
 		potentialSavings := 0.0
 		for model, cost := range summary.ByModel {
-			if model == "gpt-4" {
+			switch model {
+			case "gpt-4":
 				// gpt-4 to gpt-4o is ~5x cheaper
 				potentialSavings += cost * 0.8
-			} else if model == "gpt-4o" {
+			case "gpt-4o":
 				// gpt-4o to gpt-4o-mini is ~30x cheaper
 				potentialSavings += cost * 0.95
 			}

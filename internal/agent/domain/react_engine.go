@@ -434,7 +434,6 @@ func (e *ReactEngine) buildObservation(results []ToolResult) Message {
 	}
 }
 
-
 // shouldStop determines if ReAct loop should terminate
 func (e *ReactEngine) shouldStop(state *TaskState, results []ToolResult) bool {
 	// Stop if all tools errored

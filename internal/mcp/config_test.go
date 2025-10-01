@@ -251,8 +251,8 @@ func TestConfigLoader_SaveToPath(t *testing.T) {
 
 func TestConfigLoader_ExpandEnvVars(t *testing.T) {
 	// Set test environment variable
-	os.Setenv("TEST_ENV_VAR", "test_value")
-	defer os.Unsetenv("TEST_ENV_VAR")
+	_ = os.Setenv("TEST_ENV_VAR", "test_value")
+	defer func() { _ = os.Unsetenv("TEST_ENV_VAR") }()
 
 	loader := NewConfigLoader()
 
@@ -278,8 +278,8 @@ func TestConfigLoader_ExpandEnvVars(t *testing.T) {
 }
 
 func TestConfigLoader_ExpandString(t *testing.T) {
-	os.Setenv("TEST_VAR", "value")
-	defer os.Unsetenv("TEST_VAR")
+	_ = os.Setenv("TEST_VAR", "value")
+	defer func() { _ = os.Unsetenv("TEST_VAR") }()
 
 	loader := NewConfigLoader()
 

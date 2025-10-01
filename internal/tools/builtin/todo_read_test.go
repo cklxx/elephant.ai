@@ -133,7 +133,7 @@ func TestTodoRead_Execute_NoContext(t *testing.T) {
 		Arguments: map[string]any{},
 	}
 
-	result, err := tool.Execute(nil, call)
+	result, err := tool.Execute(context.Background(), call)
 
 	// Should succeed with default session
 	assert.NoError(t, err)

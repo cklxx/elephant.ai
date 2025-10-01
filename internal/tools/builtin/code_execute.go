@@ -117,29 +117,29 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		output, err = string(out), e
 	case "go":
 		tmpDir, _ := os.MkdirTemp("", "alex-go-*")
-		defer os.RemoveAll(tmpDir)
+		defer func() { _ = os.RemoveAll(tmpDir) }()
 		tmpFile := filepath.Join(tmpDir, "main.go")
-		os.WriteFile(tmpFile, []byte(code), 0644)
+		_ = os.WriteFile(tmpFile, []byte(code), 0644)
 		cmd := exec.CommandContext(execCtx, "go", "run", tmpFile)
 		out, e := cmd.CombinedOutput()
 		output, err = string(out), e
 	case "javascript":
 		tmpFile, _ := os.CreateTemp("", "alex-js-*.js")
-		defer os.Remove(tmpFile.Name())
-		tmpFile.WriteString(code)
-		tmpFile.Close()
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
+		_, _ = tmpFile.WriteString(code)
+		_ = tmpFile.Close()
 		cmd := exec.CommandContext(execCtx, "node", tmpFile.Name())
 		out, e := cmd.CombinedOutput()
 		output, err = string(out), e
 	case "bash":
 		tmpFile, _ := os.CreateTemp("", "alex-bash-*.sh")
-		defer os.Remove(tmpFile.Name())
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
 		if !strings.HasPrefix(code, "#!") {
 			code = "#!/bin/bash\n" + code
 		}
-		tmpFile.WriteString(code)
-		tmpFile.Close()
-		os.Chmod(tmpFile.Name(), 0755)
+		_, _ = tmpFile.WriteString(code)
+		_ = tmpFile.Close()
+		_ = os.Chmod(tmpFile.Name(), 0755)
 		cmd := exec.CommandContext(execCtx, "bash", tmpFile.Name())
 		out, e := cmd.CombinedOutput()
 		output, err = string(out), e

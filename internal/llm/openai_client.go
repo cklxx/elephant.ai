@@ -96,7 +96,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		c.logger.Debug("HTTP request failed: %v", err)
 		return nil, fmt.Errorf("http request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Debug log: Response status
 	c.logger.Debug("=== LLM Response ===")

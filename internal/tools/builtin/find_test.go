@@ -70,7 +70,7 @@ func TestFindExecute_DirectoriesOnly(t *testing.T) {
 	// Create a temporary test directory
 	tmpDir := t.TempDir()
 	testDir := filepath.Join(tmpDir, "testsubdir")
-	os.Mkdir(testDir, 0755)
+	_ = os.Mkdir(testDir, 0755)
 
 	call := ports.ToolCall{
 		ID:   "test-2",

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"alex/internal/agent/app"
-	costapp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	ctxmgr "alex/internal/context"
@@ -68,7 +67,7 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cost store: %w", err)
 	}
-	costTracker := costapp.NewCostTracker(costStore)
+	costTracker := app.NewCostTracker(costStore)
 
 	// Domain Layer
 	reactEngine := domain.NewReactEngine(maxIterations)

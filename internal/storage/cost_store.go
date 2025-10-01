@@ -59,7 +59,7 @@ func (s *fileCostStore) SaveUsage(ctx context.Context, record ports.UsageRecord)
 	if err != nil {
 		return fmt.Errorf("open records file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Write record as JSON line
 	data, err := json.Marshal(record)
