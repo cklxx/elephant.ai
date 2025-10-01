@@ -167,22 +167,16 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	c.logger.Debug("Services bundle created")
 
-	// 6.5. Ultra Think: Pre-analyze task (optional, non-blocking)
+	// 6.5. Show simple analyzing indicator
+	dimStyle := "\033[90m"  // Gray
+	resetStyle := "\033[0m" // Reset
+	fmt.Printf("\n%s👾 Analyzing...%s\n\n", dimStyle, resetStyle)
+
+	// 6.6. Ultra Think: Pre-analyze task (optional, non-blocking) - silent for user
 	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
 	if taskAnalysisStruct != nil {
 		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-		// Display formatted analysis with devil emoji and compact layout
-		dimStyle := "\033[90m"  // Gray
-		resetStyle := "\033[0m" // Reset
-
-		fmt.Printf("\n%s😈 %s%s\n", dimStyle, taskAnalysisStruct.ActionName, resetStyle)
-		if taskAnalysisStruct.Goal != "" {
-			fmt.Printf("   %s→ %s%s\n", dimStyle, taskAnalysisStruct.Goal, resetStyle)
-		}
-		if taskAnalysisStruct.Approach != "" {
-			fmt.Printf("   %s⇢ %s%s\n", dimStyle, taskAnalysisStruct.Approach, resetStyle)
-		}
-		fmt.Println()
+		// Internal analysis - don't display to user
 	}
 
 	// 7. Delegate to domain logic with tool display
@@ -352,33 +346,16 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	c.reactEngine.SetEventListener(listener)
 	defer c.reactEngine.SetEventListener(nil) // Clear listener when done
 
-	// 7.5. Pre-analyze task and send to listener
-	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
-	if taskAnalysisStruct != nil && listener != nil {
-		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-		// Send analysis to listener
-		if bridge, ok := listener.(*EventBridge); ok {
-			// For TUI: send via program.Send
-			bridge.program.Send(TaskAnalysisMsg{
-				Timestamp:  time.Now(),
-				ActionName: taskAnalysisStruct.ActionName,
-				Goal:       taskAnalysisStruct.Goal,
-				Approach:   taskAnalysisStruct.Approach,
-			})
-		} else {
-			// For CLI streaming: print directly with devil emoji and compact layout
-			dimStyle := "\033[90m"  // Gray
-			resetStyle := "\033[0m" // Reset
+	// 7.5. Show simple analyzing indicator
+	dimStyle := "\033[90m"  // Gray
+	resetStyle := "\033[0m" // Reset
+	fmt.Printf("\n%s👾 Analyzing...%s\n\n", dimStyle, resetStyle)
 
-			fmt.Printf("%s😈 %s%s\n", dimStyle, taskAnalysisStruct.ActionName, resetStyle)
-			if taskAnalysisStruct.Goal != "" {
-				fmt.Printf("   %s→ %s%s\n", dimStyle, taskAnalysisStruct.Goal, resetStyle)
-			}
-			if taskAnalysisStruct.Approach != "" {
-				fmt.Printf("   %s⇢ %s%s\n", dimStyle, taskAnalysisStruct.Approach, resetStyle)
-			}
-			fmt.Println()
-		}
+	// 7.6. Pre-analyze task (silent for user, only for internal logging)
+	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+	if taskAnalysisStruct != nil {
+		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
+		// Internal analysis - don't display to user
 	}
 
 	// 8. Execute task (events will stream to TUI)
