@@ -524,8 +524,8 @@ func (tf *ToolFormatter) formatTodoResult(content string) string {
 
 		// Format task items - show ALL tasks (no limits)
 		if strings.HasPrefix(line, "- [▶]") || strings.HasPrefix(line, "- [ ]") ||
-		   strings.HasPrefix(line, "- [✓]") || strings.HasPrefix(line, "- [x]") ||
-		   strings.HasPrefix(line, "- ") {
+			strings.HasPrefix(line, "- [✓]") || strings.HasPrefix(line, "- [x]") ||
+			strings.HasPrefix(line, "- ") {
 			// Extract task text
 			task := line
 			task = strings.TrimPrefix(task, "- [▶] ")

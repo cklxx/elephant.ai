@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"alex/internal/agent/app"
+	costapp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/messaging"
 	"alex/internal/parser"
 	"alex/internal/session/filestore"
+	coststore "alex/internal/storage"
 	"alex/internal/tools"
 )
 
@@ -60,6 +63,13 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	parserImpl := parser.New()
 	messageQueue := messaging.NewQueue(100)
 
+	// Cost tracking (using file-based store for SWE-Bench)
+	costStore, err := coststore.NewFileCostStore("~/.alex-costs-swebench")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cost store: %w", err)
+	}
+	costTracker := costapp.NewCostTracker(costStore)
+
 	// Domain Layer
 	reactEngine := domain.NewReactEngine(maxIterations)
 
@@ -72,6 +82,7 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 		parserImpl,
 		messageQueue,
 		reactEngine,
+		costTracker,
 		app.Config{
 			LLMProvider:   "openai", // OpenAI-compatible API
 			LLMModel:      batchConfig.Agent.Model.Name,
@@ -81,6 +92,9 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 			MaxIterations: maxIterations,
 		},
 	)
+
+	// Register subagent tool after coordinator is created
+	toolRegistry.RegisterSubAgent(coordinator)
 
 	return &AlexAgent{
 		config:      batchConfig,
@@ -186,7 +200,7 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 }
 
 // buildTraceFromResult builds a trace from domain task result
-func (aa *AlexAgent) buildTraceFromResult(result *domain.TaskResult, instance Instance, startTime time.Time) []TraceStep {
+func (aa *AlexAgent) buildTraceFromResult(result *ports.TaskResult, instance Instance, startTime time.Time) []TraceStep {
 	trace := []TraceStep{}
 
 	// Create trace steps based on iterations

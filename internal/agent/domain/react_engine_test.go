@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"alex/internal/agent/domain"
@@ -183,8 +184,8 @@ func TestReactEngine_SolveTask_ToolError(t *testing.T) {
 
 	mockTools := &mocks.MockToolRegistry{
 		GetFunc: func(name string) (ports.ToolExecutor, error) {
-			// Tool not found
-			return nil, nil
+			// Tool not found - return error
+			return nil, fmt.Errorf("tool not found: %s", name)
 		},
 	}
 

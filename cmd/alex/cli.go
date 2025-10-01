@@ -18,8 +18,8 @@ func NewCLI(container *Container) *CLI {
 
 func (c *CLI) Run(args []string) error {
 	if len(args) == 0 {
-		// Default to interactive mode if no arguments
-		return RunInteractive(c.container)
+		c.showUsage()
+		return nil
 	}
 
 	// Parse command
@@ -35,33 +35,32 @@ func (c *CLI) Run(args []string) error {
 		fmt.Println("ALEX v2.0 (Hexagonal Architecture)")
 		return nil
 
-	case "chat", "interactive", "i":
-		return RunInteractive(c.container)
-
-	case "simple", "--simple":
-		return RunSimpleREPL(c.container)
-
-	case "tui":
-		return RunTUI(c.container)
-
-	case "demo", "--demo-parallel":
-		if c.container != nil {
-			fmt.Println("Running parallel execution demo...")
-			// Demo functionality can be added later
-			return nil
-		}
-		return fmt.Errorf("demo not available")
-
 	case "session", "sessions":
 		return c.handleSessions(cmdArgs)
 
 	case "config":
 		return c.handleConfig()
 
+	case "cost", "costs":
+		return c.handleCostCommand(cmdArgs)
+
+	case "index":
+		return c.handleIndex(cmdArgs)
+
+	case "search":
+		if len(cmdArgs) == 0 {
+			return fmt.Errorf("usage: alex search <query>")
+		}
+		query := strings.Join(cmdArgs, " ")
+		return c.handleSearch(query)
+
+	case "mcp":
+		return c.handleMCP(cmdArgs)
+
 	default:
-		// Default: treat as task
+		// Default: treat as task and run with stream output
 		task := strings.Join(args, " ")
-		return c.handleTask(task, "")
+		return RunTaskWithStreamOutput(c.container, task, "")
 	}
 }
 
@@ -70,15 +69,15 @@ func (c *CLI) showUsage() {
 ALEX - Agile Light Easy Xpert Code Agent (v2.0)
 
 Usage:
-  alex <task>                    Execute a task
-  alex interactive               Start interactive chat mode with readline (default)
-  alex simple                    Start simple REPL mode (no readline, guaranteed compatibility)
-  alex tui                       Start TUI mode with Bubble Tea framework
-  alex --demo-parallel           Run parallel execution demo
+  alex <task>                    Execute a task with streaming output
   alex help                      Show this help message
   alex version                   Show version
   alex sessions                  List all sessions
   alex config                    Show current configuration
+  alex cost                      Show cost tracking commands
+  alex index [--repo PATH]       Index repository for code search
+  alex search "query"            Search indexed code
+  alex mcp                       MCP (Model Context Protocol) management
 
 Configuration:
   Config file: ~/.alex-config.json
@@ -90,11 +89,19 @@ Configuration:
 
 Examples:
   alex "list files in current directory"
-  alex "analyze the Go project structure"
-  alex --demo-parallel
+  alex "analyze the authentication flow in this codebase"
+  alex "explain how the ReAct engine works"
+
+Features:
+  ✓ Real-time streaming output with tool visualization
+  ✓ Markdown rendering with syntax highlighting
+  ✓ Color-coded tool status and icons
+  ✓ Cost tracking and analytics
+  ✓ Session management
+  ✓ Code search and indexing
 
 Architecture: Hexagonal (Ports & Adapters)
-Documentation: See NEW_ARCHITECTURE.md
+Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
 `)
 }
 

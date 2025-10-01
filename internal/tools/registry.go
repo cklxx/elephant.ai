@@ -8,16 +8,16 @@ import (
 	"alex/internal/tools/builtin"
 )
 
-// registry implements ToolRegistry with three-tier caching
-type registry struct {
+// Registry implements ToolRegistry with three-tier caching
+type Registry struct {
 	static  map[string]ports.ToolExecutor
 	dynamic map[string]ports.ToolExecutor
 	mcp     map[string]ports.ToolExecutor
 	mu      sync.RWMutex
 }
 
-func NewRegistry() ports.ToolRegistry {
-	r := &registry{
+func NewRegistry() *Registry {
+	r := &Registry{
 		static:  make(map[string]ports.ToolExecutor),
 		dynamic: make(map[string]ports.ToolExecutor),
 		mcp:     make(map[string]ports.ToolExecutor),
@@ -26,18 +26,24 @@ func NewRegistry() ports.ToolRegistry {
 	return r
 }
 
-func (r *registry) Register(tool ports.ToolExecutor) error {
+func (r *Registry) Register(tool ports.ToolExecutor) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	name := tool.Metadata().Name
 	if _, exists := r.static[name]; exists {
 		return fmt.Errorf("tool already exists: %s", name)
 	}
-	r.dynamic[name] = tool
+
+	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
+	if len(name) > 5 && name[:5] == "mcp__" {
+		r.mcp[name] = tool
+	} else {
+		r.dynamic[name] = tool
+	}
 	return nil
 }
 
-func (r *registry) Get(name string) (ports.ToolExecutor, error) {
+func (r *Registry) Get(name string) (ports.ToolExecutor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if tool, ok := r.static[name]; ok {
@@ -52,7 +58,7 @@ func (r *registry) Get(name string) (ports.ToolExecutor, error) {
 	return nil, fmt.Errorf("tool not found: %s", name)
 }
 
-func (r *registry) List() []ports.ToolDefinition {
+func (r *Registry) List() []ports.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var defs []ports.ToolDefinition
@@ -68,7 +74,7 @@ func (r *registry) List() []ports.ToolDefinition {
 	return defs
 }
 
-func (r *registry) Unregister(name string) error {
+func (r *Registry) Unregister(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.static[name]; ok {
@@ -79,7 +85,7 @@ func (r *registry) Unregister(name string) error {
 	return nil
 }
 
-func (r *registry) registerBuiltins() {
+func (r *Registry) registerBuiltins() {
 	// File operations
 	r.static["file_read"] = builtin.NewFileRead()
 	r.static["file_write"] = builtin.NewFileWrite()
@@ -103,4 +109,29 @@ func (r *registry) registerBuiltins() {
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch()
 	r.static["web_fetch"] = builtin.NewWebFetch()
+
+	// RAG tools
+	r.static["code_search"] = builtin.NewCodeSearch()
+
+	// Git tools (without LLM - will be registered separately if needed)
+	r.static["git_history"] = builtin.NewGitHistory()
+}
+
+// RegisterGitTools registers Git tools that require an LLM client
+func (r *Registry) RegisterGitTools(llmClient ports.LLMClient) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if llmClient != nil {
+		r.static["git_commit"] = builtin.NewGitCommit(llmClient)
+		r.static["git_pr"] = builtin.NewGitPR(llmClient)
+	}
+}
+
+// RegisterSubAgent registers the subagent tool that requires a coordinator
+func (r *Registry) RegisterSubAgent(coordinator ports.AgentCoordinator) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if coordinator != nil {
+		r.static["subagent"] = builtin.NewSubAgent(coordinator, 3)
+	}
 }

@@ -11,6 +11,8 @@ import (
 	"alex/internal/llm"
 	"alex/internal/prompts"
 	"alex/internal/utils"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // AgentCoordinator manages session lifecycle and delegates to domain
@@ -23,6 +25,7 @@ type AgentCoordinator struct {
 	messageQueue ports.MessageQueue
 	reactEngine  *domain.ReactEngine
 	promptLoader *prompts.Loader
+	costTracker  ports.CostTracker
 	config       Config
 	logger       *utils.Logger
 }
@@ -44,6 +47,7 @@ func NewAgentCoordinator(
 	parser ports.FunctionCallParser,
 	messageQueue ports.MessageQueue,
 	reactEngine *domain.ReactEngine,
+	costTracker ports.CostTracker,
 	config Config,
 ) *AgentCoordinator {
 	return &AgentCoordinator{
@@ -55,6 +59,7 @@ func NewAgentCoordinator(
 		messageQueue: messageQueue,
 		reactEngine:  reactEngine,
 		promptLoader: prompts.New(),
+		costTracker:  costTracker,
 		config:       config,
 		logger:       utils.NewComponentLogger("Coordinator"),
 	}
@@ -64,7 +69,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	ctx context.Context,
 	task string,
 	sessionID string,
-) (*domain.TaskResult, error) {
+) (*ports.TaskResult, error) {
 	c.logger.Info("ExecuteTask called: task='%s', sessionID='%s'", task, sessionID)
 
 	// 1. Load or create session
@@ -99,6 +104,39 @@ func (c *AgentCoordinator) ExecuteTask(
 		return nil, fmt.Errorf("failed to get LLM client: %w", err)
 	}
 	c.logger.Debug("LLM client obtained successfully")
+
+	// 3.5. Set up cost tracking callback if cost tracker is available
+	if c.costTracker != nil {
+		if trackingClient, ok := llmClient.(ports.UsageTrackingClient); ok {
+			trackingClient.SetUsageCallback(func(usage ports.TokenUsage, model string, provider string) {
+				record := ports.UsageRecord{
+					SessionID:    sessionID,
+					Model:        model,
+					Provider:     provider,
+					InputTokens:  usage.PromptTokens,
+					OutputTokens: usage.CompletionTokens,
+					TotalTokens:  usage.TotalTokens,
+					Timestamp:    time.Now(),
+				}
+
+				// Calculate costs
+				inputCost, outputCost, totalCost := ports.CalculateCost(
+					usage.PromptTokens,
+					usage.CompletionTokens,
+					model,
+				)
+				record.InputCost = inputCost
+				record.OutputCost = outputCost
+				record.TotalCost = totalCost
+
+				// Record usage (non-blocking, log errors only)
+				if err := c.costTracker.RecordUsage(ctx, record); err != nil {
+					c.logger.Warn("Failed to record cost: %v", err)
+				}
+			})
+			c.logger.Debug("Cost tracking enabled for session: %s", sessionID)
+		}
+	}
 
 	// 4. Generate system prompt
 	workingDir, err := os.Getwd()
@@ -158,7 +196,170 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	c.logger.Debug("Session saved successfully")
 
+	// Convert domain.TaskResult to ports.TaskResult
+	return &ports.TaskResult{
+		Answer:     result.Answer,
+		Iterations: result.Iterations,
+		TokensUsed: result.TokensUsed,
+		StopReason: result.StopReason,
+	}, nil
+}
+
+// ExecuteTaskWithListener runs a task with a custom event listener
+func (c *AgentCoordinator) ExecuteTaskWithListener(
+	ctx context.Context,
+	task string,
+	sessionID string,
+	listener domain.EventListener,
+) (*domain.TaskResult, error) {
+	return c.executeTaskWithListener(ctx, task, sessionID, listener)
+}
+
+// ExecuteTaskWithTUI runs a task with TUI event streaming
+func (c *AgentCoordinator) ExecuteTaskWithTUI(
+	ctx context.Context,
+	task string,
+	sessionID string,
+	tuiProgram *tea.Program,
+) (*domain.TaskResult, error) {
+	bridge := NewEventBridge(tuiProgram)
+	return c.executeTaskWithListener(ctx, task, sessionID, bridge)
+}
+
+// executeTaskWithListener is the internal implementation
+func (c *AgentCoordinator) executeTaskWithListener(
+	ctx context.Context,
+	task string,
+	sessionID string,
+	listener domain.EventListener,
+) (*domain.TaskResult, error) {
+	c.logger.Info("ExecuteTaskWithTUI called: task='%s', sessionID='%s'", task, sessionID)
+
+	// 1. Load or create session
+	c.logger.Debug("Loading session...")
+	session, err := c.getSession(ctx, sessionID)
+	if err != nil {
+		c.logger.Error("Failed to get session: %v", err)
+		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+	c.logger.Debug("Session loaded: id=%s, messages=%d", session.ID, len(session.Messages))
+
+	// 2. Check context limits & compress if needed
+	if c.contextMgr.ShouldCompress(session.Messages, c.config.MaxTokens) {
+		c.logger.Info("Context limit reached, compressing...")
+		compressed, err := c.contextMgr.Compress(session.Messages, c.config.MaxTokens*80/100)
+		if err != nil {
+			c.logger.Error("Failed to compress context: %v", err)
+			return nil, fmt.Errorf("failed to compress context: %w", err)
+		}
+		c.logger.Info("Compression complete: %d -> %d messages", len(session.Messages), len(compressed))
+		session.Messages = compressed
+	}
+
+	// 3. Get appropriate LLM client
+	c.logger.Debug("Getting LLM client: provider=%s, model=%s", c.config.LLMProvider, c.config.LLMModel)
+	llmClient, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, llm.Config{
+		APIKey:  c.config.APIKey,
+		BaseURL: c.config.BaseURL,
+	})
+	if err != nil {
+		c.logger.Error("Failed to get LLM client: %v", err)
+		return nil, fmt.Errorf("failed to get LLM client: %w", err)
+	}
+	c.logger.Debug("LLM client obtained successfully")
+
+	// 3.5. Set up cost tracking callback if cost tracker is available
+	if c.costTracker != nil {
+		if trackingClient, ok := llmClient.(ports.UsageTrackingClient); ok {
+			trackingClient.SetUsageCallback(func(usage ports.TokenUsage, model string, provider string) {
+				record := ports.UsageRecord{
+					SessionID:    sessionID,
+					Model:        model,
+					Provider:     provider,
+					InputTokens:  usage.PromptTokens,
+					OutputTokens: usage.CompletionTokens,
+					TotalTokens:  usage.TotalTokens,
+					Timestamp:    time.Now(),
+				}
+
+				// Calculate costs
+				inputCost, outputCost, totalCost := ports.CalculateCost(
+					usage.PromptTokens,
+					usage.CompletionTokens,
+					model,
+				)
+				record.InputCost = inputCost
+				record.OutputCost = outputCost
+				record.TotalCost = totalCost
+
+				// Record usage (non-blocking, log errors only)
+				if err := c.costTracker.RecordUsage(ctx, record); err != nil {
+					c.logger.Warn("Failed to record cost: %v", err)
+				}
+			})
+			c.logger.Debug("Cost tracking enabled for session: %s", sessionID)
+		}
+	}
+
+	// 4. Generate system prompt
+	workingDir, err := os.Getwd()
+	if err != nil {
+		workingDir = "."
+	}
+	systemPrompt, err := c.promptLoader.GetSystemPrompt(workingDir, task)
+	if err != nil {
+		c.logger.Warn("Failed to load system prompt: %v, using default", err)
+		systemPrompt = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
+	}
+	c.logger.Debug("System prompt loaded: %d bytes", len(systemPrompt))
+
+	// 5. Prepare task state from session
+	state := &domain.TaskState{
+		SystemPrompt: systemPrompt,
+		Messages:     convertSessionMessages(session.Messages),
+	}
+	c.logger.Debug("Task state prepared: %d messages, system_prompt=%d bytes", len(state.Messages), len(systemPrompt))
+
+	// 6. Create services bundle for domain layer
+	services := domain.Services{
+		LLM:          llmClient,
+		ToolExecutor: c.toolRegistry,
+		Parser:       c.parser,
+		Context:      c.contextMgr,
+	}
+	c.logger.Debug("Services bundle created")
+
+	// 7. Set up event listener
+	c.reactEngine.SetEventListener(listener)
+	defer c.reactEngine.SetEventListener(nil) // Clear listener when done
+
+	// 8. Execute task (events will stream to TUI)
+	c.logger.Info("Delegating to ReactEngine with TUI streaming...")
+	result, err := c.reactEngine.SolveTask(ctx, task, state, services)
+	if err != nil {
+		c.logger.Error("Task execution failed: %v", err)
+		return nil, fmt.Errorf("task execution failed: %w", err)
+	}
+	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
+		result.Iterations, result.TokensUsed, result.StopReason)
+
+	// 9. Update session with results
+	session.Messages = convertDomainMessages(result.Messages)
+	session.UpdatedAt = time.Now()
+
+	c.logger.Debug("Saving session...")
+	if err := c.sessionStore.Save(ctx, session); err != nil {
+		c.logger.Error("Failed to save session: %v", err)
+		return nil, fmt.Errorf("failed to save session: %w", err)
+	}
+	c.logger.Debug("Session saved successfully")
+
 	return result, nil
+}
+
+// GetSession retrieves or creates a session (public method)
+func (c *AgentCoordinator) GetSession(ctx context.Context, id string) (*ports.Session, error) {
+	return c.getSession(ctx, id)
 }
 
 func (c *AgentCoordinator) getSession(ctx context.Context, id string) (*ports.Session, error) {
@@ -194,6 +395,11 @@ func convertDomainMessages(msgs []domain.Message) []ports.Message {
 
 func (c *AgentCoordinator) ListSessions(ctx context.Context) ([]string, error) {
 	return c.sessionStore.List(ctx)
+}
+
+// GetCostTracker returns the cost tracker instance
+func (c *AgentCoordinator) GetCostTracker() ports.CostTracker {
+	return c.costTracker
 }
 
 // performTaskPreAnalysis performs quick task analysis using LLM

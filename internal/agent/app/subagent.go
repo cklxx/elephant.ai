@@ -45,7 +45,14 @@ func (o *SubAgentOrchestrator) ExecuteParallel(
 			if err != nil {
 				return fmt.Errorf("task %s failed: %w", task.ID, err)
 			}
-			results[i] = *result
+			// Convert ports.TaskResult to domain.TaskResult
+			results[i] = domain.TaskResult{
+				Answer:     result.Answer,
+				Messages:   nil, // SubAgent doesn't need full message history
+				Iterations: result.Iterations,
+				TokensUsed: result.TokensUsed,
+				StopReason: result.StopReason,
+			}
 			return nil
 		})
 	}
@@ -70,7 +77,14 @@ func (o *SubAgentOrchestrator) ExecuteSerial(
 		if err != nil {
 			return nil, fmt.Errorf("task %s failed: %w", task.ID, err)
 		}
-		results[i] = *result
+		// Convert ports.TaskResult to domain.TaskResult
+		results[i] = domain.TaskResult{
+			Answer:     result.Answer,
+			Messages:   nil, // SubAgent doesn't need full message history
+			Iterations: result.Iterations,
+			TokensUsed: result.TokensUsed,
+			StopReason: result.StopReason,
+		}
 	}
 
 	return results, nil

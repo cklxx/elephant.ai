@@ -2,19 +2,43 @@ package llm
 
 import (
 	"alex/internal/agent/ports"
+	alexerrors "alex/internal/errors"
 	"fmt"
 	"sync"
 )
 
 type Factory struct {
-	cache map[string]ports.LLMClient
-	mu    sync.RWMutex
+	cache                map[string]ports.LLMClient
+	mu                   sync.RWMutex
+	enableRetry          bool
+	retryConfig          alexerrors.RetryConfig
+	circuitBreakerConfig alexerrors.CircuitBreakerConfig
 }
 
 func NewFactory() *Factory {
 	return &Factory{
-		cache: make(map[string]ports.LLMClient),
+		cache:                make(map[string]ports.LLMClient),
+		enableRetry:          true, // Enabled by default
+		retryConfig:          alexerrors.DefaultRetryConfig(),
+		circuitBreakerConfig: alexerrors.DefaultCircuitBreakerConfig(),
 	}
+}
+
+// NewFactoryWithRetryConfig creates a factory with custom retry configuration
+func NewFactoryWithRetryConfig(retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) *Factory {
+	return &Factory{
+		cache:                make(map[string]ports.LLMClient),
+		enableRetry:          true,
+		retryConfig:          retryConfig,
+		circuitBreakerConfig: circuitBreakerConfig,
+	}
+}
+
+// DisableRetry disables retry logic for all clients created by this factory
+func (f *Factory) DisableRetry() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.enableRetry = false
 }
 
 func (f *Factory) GetClient(provider, model string, config Config) (ports.LLMClient, error) {
@@ -25,6 +49,9 @@ func (f *Factory) GetClient(provider, model string, config Config) (ports.LLMCli
 		f.mu.RUnlock()
 		return client, nil
 	}
+	enableRetry := f.enableRetry
+	retryConfig := f.retryConfig
+	circuitBreakerConfig := f.circuitBreakerConfig
 	f.mu.RUnlock()
 
 	var client ports.LLMClient
@@ -43,6 +70,11 @@ func (f *Factory) GetClient(provider, model string, config Config) (ports.LLMCli
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Wrap with retry logic if enabled
+	if enableRetry {
+		client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
 	}
 
 	f.mu.Lock()

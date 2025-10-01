@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"alex/internal/agent/ports"
 	"alex/internal/utils"
@@ -17,6 +18,7 @@ type ReactEngine struct {
 	stopReasons   []string
 	logger        *utils.Logger
 	formatter     *ToolFormatter
+	eventListener EventListener // Optional event listener for TUI
 }
 
 // NewReactEngine creates a new ReAct engine
@@ -26,6 +28,19 @@ func NewReactEngine(maxIterations int) *ReactEngine {
 		stopReasons:   []string{"final_answer", "done", "complete"},
 		logger:        utils.NewComponentLogger("ReactEngine"),
 		formatter:     NewToolFormatter(),
+		eventListener: nil, // No listener by default
+	}
+}
+
+// SetEventListener configures event emission for TUI/streaming
+func (e *ReactEngine) SetEventListener(listener EventListener) {
+	e.eventListener = listener
+}
+
+// emit sends event to listener if configured (nil-safe)
+func (e *ReactEngine) emit(event AgentEvent) {
+	if e.eventListener != nil {
+		e.eventListener.OnEvent(event)
 	}
 }
 
@@ -37,6 +52,7 @@ func (e *ReactEngine) SolveTask(
 	services Services,
 ) (*TaskResult, error) {
 	e.logger.Info("Starting ReAct loop for task: %s", task)
+	startTime := time.Now()
 
 	// Initialize state if empty
 	if len(state.Messages) == 0 {
@@ -60,11 +76,34 @@ func (e *ReactEngine) SolveTask(
 		state.Iterations++
 		e.logger.Info("=== Iteration %d/%d ===", state.Iterations, e.maxIterations)
 
+		// EMIT: Iteration started
+		e.emit(&IterationStartEvent{
+			BaseEvent:  newBaseEvent(),
+			Iteration:  state.Iterations,
+			TotalIters: e.maxIterations,
+		})
+
 		// 1. THINK: Get LLM reasoning
 		e.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
+
+		// EMIT: Thinking
+		e.emit(&ThinkingEvent{
+			BaseEvent:    newBaseEvent(),
+			Iteration:    state.Iterations,
+			MessageCount: len(state.Messages),
+		})
+
 		thought, err := e.think(ctx, state, services)
 		if err != nil {
 			e.logger.Error("Think step failed: %v", err)
+			// EMIT: Error
+			e.emit(&ErrorEvent{
+				BaseEvent:   newBaseEvent(),
+				Iteration:   state.Iterations,
+				Phase:       "think",
+				Error:       err,
+				Recoverable: false,
+			})
 			return nil, fmt.Errorf("think step failed: %w", err)
 		}
 
@@ -72,6 +111,14 @@ func (e *ReactEngine) SolveTask(
 		state.Messages = append(state.Messages, thought)
 		e.logger.Debug("LLM response: content_length=%d, tool_calls=%d",
 			len(thought.Content), len(thought.ToolCalls))
+
+		// EMIT: Think complete
+		e.emit(&ThinkCompleteEvent{
+			BaseEvent:     newBaseEvent(),
+			Iteration:     state.Iterations,
+			Content:       thought.Content,
+			ToolCallCount: len(thought.ToolCalls),
+		})
 
 		// 2. ACT: Parse and execute tool calls
 		toolCalls := e.parseToolCalls(thought, services.Parser)
@@ -113,7 +160,19 @@ func (e *ReactEngine) SolveTask(
 
 		// Execute tools
 		e.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
-		results := e.executeTools(ctx, validCalls, services.ToolExecutor)
+
+		// EMIT: Tool calls starting
+		for _, call := range validCalls {
+			e.emit(&ToolCallStartEvent{
+				BaseEvent: newBaseEvent(),
+				Iteration: state.Iterations,
+				CallID:    call.ID,
+				ToolName:  call.Name,
+				Arguments: call.Arguments,
+			})
+		}
+
+		results := e.executeToolsWithEvents(ctx, state.Iterations, validCalls, services.ToolExecutor)
 		state.ToolResults = append(state.ToolResults, results...)
 
 		// Log results (no stdout printing - let TUI handle display)
@@ -135,10 +194,28 @@ func (e *ReactEngine) SolveTask(
 		state.TokenCount = tokenCount
 		e.logger.Debug("Current token count: %d", tokenCount)
 
+		// EMIT: Iteration complete
+		e.emit(&IterationCompleteEvent{
+			BaseEvent:  newBaseEvent(),
+			Iteration:  state.Iterations,
+			TokensUsed: state.TokenCount,
+			ToolsRun:   len(results),
+		})
+
 		// Check stop conditions
 		if e.shouldStop(state, results) {
 			e.logger.Info("Stop condition met - all tools errored")
-			return e.finalize(state, "completed"), nil
+			finalResult := e.finalize(state, "completed")
+			// EMIT: Task complete
+			e.emit(&TaskCompleteEvent{
+				BaseEvent:       newBaseEvent(),
+				FinalAnswer:     finalResult.Answer,
+				TotalIterations: finalResult.Iterations,
+				TotalTokens:     finalResult.TokensUsed,
+				StopReason:      finalResult.StopReason,
+				Duration:        time.Since(startTime),
+			})
+			return finalResult, nil
 		}
 
 		// Check if we should continue
@@ -165,6 +242,16 @@ func (e *ReactEngine) SolveTask(
 		}
 	}
 
+	// EMIT: Task complete
+	e.emit(&TaskCompleteEvent{
+		BaseEvent:       newBaseEvent(),
+		FinalAnswer:     finalResult.Answer,
+		TotalIterations: finalResult.Iterations,
+		TotalTokens:     finalResult.TokensUsed,
+		StopReason:      finalResult.StopReason,
+		Duration:        time.Since(startTime),
+	})
+
 	return finalResult, nil
 }
 
@@ -179,10 +266,11 @@ func (e *ReactEngine) think(
 	e.logger.Debug("Preparing LLM request: messages=%d, tools=%d", len(state.Messages), len(tools))
 
 	req := ports.CompletionRequest{
-		Messages:    convertMessagesToPortsMessages(state.Messages),
-		Tools:       tools,
+		Messages: convertMessagesToPortsMessages(state.Messages),
+		Tools:    tools,
+		// TODO: need from config
 		Temperature: 0.7,
-		MaxTokens:   4000,
+		MaxTokens:   12000,
 	}
 
 	// Call LLM
@@ -204,9 +292,10 @@ func (e *ReactEngine) think(
 	}, nil
 }
 
-// executeTools runs all tool calls in parallel
-func (e *ReactEngine) executeTools(
+// executeToolsWithEvents runs all tool calls in parallel and emits completion events
+func (e *ReactEngine) executeToolsWithEvents(
 	ctx context.Context,
+	iteration int,
 	calls []ToolCall,
 	registry ports.ToolRegistry,
 ) []ToolResult {
@@ -220,10 +309,21 @@ func (e *ReactEngine) executeTools(
 		go func(idx int, tc ToolCall) {
 			defer wg.Done()
 
+			startTime := time.Now()
+
 			e.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
 			tool, err := registry.Get(tc.Name)
 			if err != nil {
 				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
+				// EMIT: Tool error
+				e.emit(&ToolCallCompleteEvent{
+					BaseEvent: newBaseEvent(),
+					CallID:    tc.ID,
+					ToolName:  tc.Name,
+					Result:    "",
+					Error:     fmt.Errorf("tool not found: %s", tc.Name),
+					Duration:  time.Since(startTime),
+				})
 				results[idx] = ToolResult{
 					CallID:  tc.ID,
 					Content: "",
@@ -241,6 +341,15 @@ func (e *ReactEngine) executeTools(
 
 			if err != nil {
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
+				// EMIT: Tool error
+				e.emit(&ToolCallCompleteEvent{
+					BaseEvent: newBaseEvent(),
+					CallID:    tc.ID,
+					ToolName:  tc.Name,
+					Result:    "",
+					Error:     err,
+					Duration:  time.Since(startTime),
+				})
 				results[idx] = ToolResult{
 					CallID:  tc.ID,
 					Content: "",
@@ -250,6 +359,17 @@ func (e *ReactEngine) executeTools(
 			}
 
 			e.logger.Debug("Tool %d: Success, result=%d bytes", idx, len(result.Content))
+
+			// EMIT: Tool success
+			e.emit(&ToolCallCompleteEvent{
+				BaseEvent: newBaseEvent(),
+				CallID:    result.CallID,
+				ToolName:  tc.Name,
+				Result:    result.Content,
+				Error:     result.Error,
+				Duration:  time.Since(startTime),
+			})
+
 			results[idx] = ToolResult{
 				CallID:   result.CallID,
 				Content:  result.Content,

@@ -15,11 +15,12 @@ import (
 
 // OpenAI API compatible client
 type openaiClient struct {
-	model      string
-	apiKey     string
-	baseURL    string
-	httpClient *http.Client
-	logger     *utils.Logger
+	model         string
+	apiKey        string
+	baseURL       string
+	httpClient    *http.Client
+	logger        *utils.Logger
+	usageCallback func(usage ports.TokenUsage, model string, provider string)
 }
 
 func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
@@ -170,6 +171,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		},
 	}
 
+	// Trigger usage callback if set
+	if c.usageCallback != nil {
+		provider := "openrouter"
+		if strings.Contains(c.baseURL, "api.openai.com") {
+			provider = "openai"
+		} else if strings.Contains(c.baseURL, "api.deepseek.com") {
+			provider = "deepseek"
+		}
+		c.usageCallback(result.Usage, c.model, provider)
+	}
+
 	// Convert tool calls
 	for _, tc := range oaiResp.Choices[0].Message.ToolCalls {
 		var args map[string]any
@@ -200,6 +212,11 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 
 func (c *openaiClient) Model() string {
 	return c.model
+}
+
+// SetUsageCallback implements UsageTrackingClient
+func (c *openaiClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
+	c.usageCallback = callback
 }
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {

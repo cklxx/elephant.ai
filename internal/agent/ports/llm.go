@@ -11,6 +11,13 @@ type LLMClient interface {
 	Model() string
 }
 
+// UsageTrackingClient extends LLMClient with usage tracking
+type UsageTrackingClient interface {
+	LLMClient
+	// SetUsageCallback sets a callback to be invoked after each API call
+	SetUsageCallback(callback func(usage TokenUsage, model string, provider string))
+}
+
 // CompletionRequest contains all parameters for LLM completion
 type CompletionRequest struct {
 	Messages      []Message        `json:"messages"`

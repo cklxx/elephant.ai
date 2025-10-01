@@ -59,6 +59,10 @@ func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{
 			CallID:  call.ID,
 			Content: "No todo list found. Use todo_update to create one.",
+			Metadata: map[string]interface{}{
+				"has_todos":  false,
+				"task_count": 0,
+			},
 		}, nil
 	}
 
@@ -73,5 +77,9 @@ func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Todo List:\n\n%s\n\n%d tasks", string(content), taskCount),
+		Metadata: map[string]interface{}{
+			"has_todos":  taskCount > 0,
+			"task_count": taskCount,
+		},
 	}, nil
 }

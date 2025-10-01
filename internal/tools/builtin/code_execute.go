@@ -81,6 +81,19 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	language, _ := call.Arguments["language"].(string)
 	code, _ := call.Arguments["code"].(string)
 
+	// Validate required parameters
+	if language == "" || code == "" {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: "Error: missing required parameters (language and code)",
+			Error:   fmt.Errorf("missing required parameters"),
+			Metadata: map[string]interface{}{
+				"success": false,
+				"error":   "missing parameters",
+			},
+		}, nil
+	}
+
 	timeout := 30
 	if timeoutVal, ok := call.Arguments["timeout"].(float64); ok {
 		timeout = int(timeoutVal)
@@ -134,7 +147,12 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return &ports.ToolResult{
 			CallID:  call.ID,
 			Content: fmt.Sprintf("Error: unsupported language '%s'", language),
-			Error:   fmt.Errorf("unsupported language"),
+			Error:   fmt.Errorf("unsupported language: %s", language),
+			Metadata: map[string]interface{}{
+				"success":  false,
+				"language": language,
+				"error":    "unsupported language",
+			},
 		}, nil
 	}
 
@@ -143,7 +161,14 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if execCtx.Err() == context.DeadlineExceeded {
 		return &ports.ToolResult{
 			CallID:  call.ID,
-			Content: fmt.Sprintf("Timeout after %ds\n%s", timeout, output),
+			Content: fmt.Sprintf("Execution timed out after %ds\n%s", timeout, output),
+			Metadata: map[string]interface{}{
+				"success":       false,
+				"language":      language,
+				"duration_ms":   duration.Milliseconds(),
+				"timeout":       true,
+				"timeout_after": timeout,
+			},
 		}, nil
 	}
 
@@ -151,11 +176,22 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		return &ports.ToolResult{
 			CallID:  call.ID,
 			Content: fmt.Sprintf("Failed:\n%s\n\n%s", err, output),
+			Metadata: map[string]interface{}{
+				"success":     false,
+				"language":    language,
+				"duration_ms": duration.Milliseconds(),
+				"error":       err.Error(),
+			},
 		}, nil
 	}
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Success in %v:\n%s", duration.Round(time.Millisecond), output),
+		Metadata: map[string]interface{}{
+			"success":     true,
+			"language":    language,
+			"duration_ms": duration.Milliseconds(),
+		},
 	}, nil
 }

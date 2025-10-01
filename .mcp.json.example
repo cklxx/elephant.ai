@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "disabled": false
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "disabled": false
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
+      "env": {
+        "POSTGRES_PASSWORD": "${POSTGRES_PASSWORD}"
+      },
+      "disabled": true
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "disabled": true
+    },
+    "custom-server": {
+      "command": "/path/to/custom-mcp-server",
+      "args": ["--option", "value"],
+      "env": {
+        "CUSTOM_VAR": "custom_value"
+      },
+      "disabled": true
+    }
+  }
+}

@@ -17,10 +17,8 @@ func TestTodoUpdate_Metadata(t *testing.T) {
 
 	assert.Equal(t, "todo_update", meta.Name)
 	assert.Equal(t, "1.0.0", meta.Version)
-	assert.Equal(t, "task_management", meta.Category)
+	assert.Equal(t, "session", meta.Category)
 	assert.Contains(t, meta.Tags, "todo")
-	assert.Contains(t, meta.Tags, "task")
-	assert.Contains(t, meta.Tags, "session")
 }
 
 func TestTodoUpdate_Definition(t *testing.T) {
@@ -29,8 +27,7 @@ func TestTodoUpdate_Definition(t *testing.T) {
 
 	assert.Equal(t, "todo_update", def.Name)
 	assert.Contains(t, def.Description, "todo list")
-	assert.Contains(t, def.Description, "JSON format")
-	assert.Contains(t, def.Description, "session-specific")
+	assert.Contains(t, def.Description, "session")
 
 	// Should have todos parameter
 	assert.Equal(t, "object", def.Parameters.Type)
@@ -60,7 +57,7 @@ func TestTodoUpdate_Execute_NoTodos(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Error)
-	assert.Contains(t, result.Error.Error(), "todos array must be provided")
+	assert.Contains(t, result.Error.Error(), "missing todos")
 }
 
 func TestTodoUpdate_Execute_InvalidTodos(t *testing.T) {

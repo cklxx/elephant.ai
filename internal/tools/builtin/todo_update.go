@@ -61,7 +61,11 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		return &ports.ToolResult{CallID: call.ID, Content: "Error: todos required", Error: fmt.Errorf("missing todos")}, nil
 	}
 
-	todosArray, _ := todosArg.([]any)
+	todosArray, ok := todosArg.([]any)
+	if !ok {
+		return &ports.ToolResult{CallID: call.ID, Content: "Error: todos must be an array", Error: fmt.Errorf("todos must be an array")}, nil
+	}
+
 	var inProgress, pending, completed []string
 
 	for _, item := range todosArray {
