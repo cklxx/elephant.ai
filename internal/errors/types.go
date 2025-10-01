@@ -269,10 +269,10 @@ func FormatForLLM(err error) string {
 // Helper functions
 
 func isNetworkError(err error) bool {
-	// net.Error with Timeout or Temporary
+	// net.Error with Timeout
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		return netErr.Timeout() || netErr.Temporary()
+		return netErr.Timeout()
 	}
 
 	// Connection errors

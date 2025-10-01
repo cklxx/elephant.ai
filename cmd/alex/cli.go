@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	markdown "github.com/MichaelMure/go-term-markdown"
 )
 
 type CLI struct {
@@ -103,39 +101,6 @@ Features:
 Architecture: Hexagonal (Ports & Adapters)
 Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
 `)
-}
-
-func (c *CLI) handleDemo() error {
-	fmt.Println("Demo functionality - parallel subagent execution")
-	fmt.Println("To be implemented...")
-	return nil
-}
-
-func (c *CLI) handleTask(task string, sessionID string) error {
-	fmt.Printf("Executing: %s\n", task)
-
-	result, err := c.container.Coordinator.ExecuteTask(context.Background(), task, sessionID)
-	if err != nil {
-		return fmt.Errorf("task execution failed: %w", err)
-	}
-
-	fmt.Printf("\n✓ Task completed in %d iterations\n", result.Iterations)
-	fmt.Printf("Tokens used: %d\n", result.TokensUsed)
-
-	// Render markdown answer
-	if result.Answer != "" {
-		rendered := renderMarkdownCLI(result.Answer)
-		fmt.Printf("\nAnswer:\n%s\n", rendered)
-	}
-
-	return nil
-}
-
-// renderMarkdownCLI renders markdown content to terminal
-func renderMarkdownCLI(content string) string {
-	width := 100
-	result := markdown.Render(content, width, 0) // No left padding for single task
-	return string(result)
 }
 
 func (c *CLI) handleSessions(args []string) error {

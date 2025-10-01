@@ -69,10 +69,10 @@ func (r *Retriever) Search(ctx context.Context, query string) ([]RetrievalResult
 
 		// Parse line numbers
 		if startLine, ok := sr.Document.Metadata["start_line"]; ok {
-			fmt.Sscanf(startLine, "%d", &result.StartLine)
+			_, _ = fmt.Sscanf(startLine, "%d", &result.StartLine) // Ignore parse errors
 		}
 		if endLine, ok := sr.Document.Metadata["end_line"]; ok {
-			fmt.Sscanf(endLine, "%d", &result.EndLine)
+			_, _ = fmt.Sscanf(endLine, "%d", &result.EndLine) // Ignore parse errors
 		}
 
 		results = append(results, result)

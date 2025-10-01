@@ -357,36 +357,6 @@ func (m *StreamingTUIModel) renderMarkdown(content string, maxChars int) string 
 	return strings.TrimSpace(rendered)
 }
 
-// getToolAction returns a descriptive action for running tools
-func getToolAction(toolName string) string {
-	actions := map[string]string{
-		"file_read":    "Reading file",
-		"file_write":   "Writing file",
-		"file_edit":    "Editing file",
-		"grep":         "Searching content",
-		"ripgrep":      "Searching content",
-		"code_search":  "Searching code",
-		"bash":         "Running command",
-		"code_execute": "Executing code",
-		"web_search":   "Searching web",
-		"web_fetch":    "Fetching URL",
-		"list_files":   "Listing files",
-		"find":         "Finding files",
-		"think":        "Analyzing",
-		"todo_read":    "Reading tasks",
-		"todo_update":  "Updating tasks",
-		"subagent":     "Delegating task",
-		"git_commit":   "Creating commit",
-		"git_history":  "Checking history",
-		"git_pr":       "Creating PR",
-	}
-
-	if action, ok := actions[toolName]; ok {
-		return action
-	}
-	return "Processing"
-}
-
 // RunTaskWithTUI executes a task with streaming TUI
 func RunTaskWithTUI(container *Container, task string, sessionID string) error {
 	// Create TUI model

@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-
-	"alex/internal/llm"
 )
 
 type AppConfig struct {
@@ -105,11 +103,4 @@ func loadConfig() AppConfig {
 	}
 
 	return config
-}
-
-func (c AppConfig) toLLMConfig() llm.Config {
-	return llm.Config{
-		APIKey:  c.APIKey,
-		BaseURL: c.BaseURL,
-	}
 }

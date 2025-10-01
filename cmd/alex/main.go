@@ -2,13 +2,10 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
 
 	container, err := buildContainer()
 	if err != nil {

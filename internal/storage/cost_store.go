@@ -246,7 +246,7 @@ func (s *fileCostStore) updateSessionIndex(record ports.UsageRecord) error {
 	// Read existing dates
 	var dates []string
 	if data, err := os.ReadFile(indexFile); err == nil {
-		json.Unmarshal(data, &dates)
+		_ = json.Unmarshal(data, &dates) // Ignore unmarshal errors - will create new index
 	}
 
 	// Add new date if not present

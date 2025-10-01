@@ -16,6 +16,12 @@ type Registry struct {
 	mu      sync.RWMutex
 }
 
+// filteredRegistry wraps a parent registry and excludes certain tools
+type filteredRegistry struct {
+	parent  *Registry
+	exclude map[string]bool
+}
+
 func NewRegistry() *Registry {
 	r := &Registry{
 		static:  make(map[string]ports.ToolExecutor),
@@ -56,6 +62,51 @@ func (r *Registry) Get(name string) (ports.ToolExecutor, error) {
 		return tool, nil
 	}
 	return nil, fmt.Errorf("tool not found: %s", name)
+}
+
+// WithoutSubagent returns a filtered registry that excludes the subagent tool
+// This prevents nested subagent calls at registration level
+func (r *Registry) WithoutSubagent() ports.ToolRegistry {
+	return &filteredRegistry{
+		parent:  r,
+		exclude: map[string]bool{"subagent": true},
+	}
+}
+
+// filteredRegistry implements ports.ToolRegistry with exclusions
+
+func (f *filteredRegistry) Get(name string) (ports.ToolExecutor, error) {
+	if f.exclude[name] {
+		return nil, fmt.Errorf("tool not available: %s", name)
+	}
+	return f.parent.Get(name)
+}
+
+func (f *filteredRegistry) List() []ports.ToolDefinition {
+	allTools := f.parent.List()
+	filtered := make([]ports.ToolDefinition, 0, len(allTools))
+	for _, tool := range allTools {
+		if !f.exclude[tool.Name] {
+			filtered = append(filtered, tool)
+		}
+	}
+	return filtered
+}
+
+func (f *filteredRegistry) Register(tool ports.ToolExecutor) error {
+	// Delegate to parent, but exclude from own filter
+	name := tool.Metadata().Name
+	if f.exclude[name] {
+		return fmt.Errorf("tool registration blocked: %s", name)
+	}
+	return f.parent.Register(tool)
+}
+
+func (f *filteredRegistry) Unregister(name string) error {
+	if f.exclude[name] {
+		return fmt.Errorf("tool unregistration blocked: %s", name)
+	}
+	return f.parent.Unregister(name)
 }
 
 func (r *Registry) List() []ports.ToolDefinition {

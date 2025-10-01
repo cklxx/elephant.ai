@@ -111,9 +111,7 @@ func NewChatTUIModel(container *Container, sessionID string) ChatTUIModel {
 	ta.ShowLineNumbers = false
 
 	vp := viewport.New(80, 20)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
+	// No border - clean display
 
 	return ChatTUIModel{
 		viewport:    vp,
@@ -209,7 +207,8 @@ func (m ChatTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Add user message
+			// Add user message ONLY to local display
+			// The coordinator will add it to session when executing
 			userMsg := ChatMessage{
 				ID:        fmt.Sprintf("user-%d", time.Now().UnixNano()),
 				Role:      RoleUser,
@@ -226,6 +225,8 @@ func (m ChatTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateViewportContent()
 
 			// Change state and execute task
+			// NOTE: The coordinator will add this task as a user message to the session
+			// and include all previous session history for context
 			m.state = StateProcessingRequest
 			return m, m.executeTask(userInput, m.program)
 
@@ -258,18 +259,8 @@ func (m ChatTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = StateExecutingTools
 		}
 
-		// Add assistant's thought as a message
-		if len(msg.Content) > 0 && m.streamingMessage == nil {
-			thoughtMsg := ChatMessage{
-				ID:        fmt.Sprintf("thought-%d", time.Now().UnixNano()),
-				Role:      RoleAssistant,
-				Content:   msg.Content,
-				Timestamp: time.Now(),
-				Metadata:  map[string]interface{}{"type": "thought"},
-			}
-			m.messages = append(m.messages, thoughtMsg)
-			m.updateViewportContent()
-		}
+		// Don't display internal thoughts - they're redundant with final answer
+		// Only show if there's NO final answer coming (i.e., pure thinking step)
 		return m, nil
 
 	case app.ToolCallStartMsg:
@@ -429,14 +420,9 @@ func (m ChatTUIModel) View() string {
 	viewportView := m.viewport.View()
 
 	// ─────────────────────────────────────────────────────────
-	// Textarea (input)
+	// Textarea (input) - no border for clean look
 	// ─────────────────────────────────────────────────────────
-	textareaStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		Padding(0, 1)
-
-	textareaView := textareaStyle.Render(m.textarea.View())
+	textareaView := m.textarea.View()
 
 	// ─────────────────────────────────────────────────────────
 	// Footer

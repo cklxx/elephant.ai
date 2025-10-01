@@ -20,7 +20,7 @@ func New(baseDir string) ports.SessionStore {
 		home, _ := os.UserHomeDir()
 		baseDir = filepath.Join(home, baseDir[2:])
 	}
-	os.MkdirAll(baseDir, 0755)
+	_ = os.MkdirAll(baseDir, 0755) // Ignore error - directory may already exist
 	return &store{baseDir: baseDir}
 }
 

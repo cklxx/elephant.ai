@@ -121,7 +121,7 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// Perform initialize handshake
 	if err := c.initialize(ctx); err != nil {
-		c.process.Stop(5 * time.Second)
+		_ = c.process.Stop(5 * time.Second) // Best effort cleanup
 		return fmt.Errorf("initialize handshake failed: %w", err)
 	}
 

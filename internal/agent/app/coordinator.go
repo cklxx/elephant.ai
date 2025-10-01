@@ -321,9 +321,16 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	c.logger.Debug("Task state prepared: %d messages, system_prompt=%d bytes", len(state.Messages), len(systemPrompt))
 
 	// 6. Create services bundle for domain layer
+	// Check if this is a subagent context - use filtered registry if so
+	toolRegistry := c.toolRegistry
+	if c.isSubagentContext(ctx) {
+		toolRegistry = c.GetToolRegistryWithoutSubagent()
+		c.logger.Debug("Using filtered registry (subagent excluded) for nested call")
+	}
+
 	services := domain.Services{
 		LLM:          llmClient,
-		ToolExecutor: c.toolRegistry,
+		ToolExecutor: toolRegistry,
 		Parser:       c.parser,
 		Context:      c.contextMgr,
 	}
@@ -400,6 +407,30 @@ func (c *AgentCoordinator) ListSessions(ctx context.Context) ([]string, error) {
 // GetCostTracker returns the cost tracker instance
 func (c *AgentCoordinator) GetCostTracker() ports.CostTracker {
 	return c.costTracker
+}
+
+// GetToolRegistryWithoutSubagent returns a filtered registry that excludes subagent
+// This is used by subagent tool to prevent nested subagent calls
+func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+	// Check if the registry implements WithoutSubagent method
+	type registryWithFilter interface {
+		WithoutSubagent() ports.ToolRegistry
+	}
+
+	if filtered, ok := c.toolRegistry.(registryWithFilter); ok {
+		return filtered.WithoutSubagent()
+	}
+
+	// Fallback: return original registry if filtering not supported
+	return c.toolRegistry
+}
+
+// Context key for subagent detection (must match builtin/subagent.go)
+type subagentCtxKey struct{}
+
+// isSubagentContext checks if this is a nested subagent call
+func (c *AgentCoordinator) isSubagentContext(ctx context.Context) bool {
+	return ctx.Value(subagentCtxKey{}) != nil
 }
 
 // performTaskPreAnalysis performs quick task analysis using LLM

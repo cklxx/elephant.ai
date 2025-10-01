@@ -643,22 +643,3 @@ func (tf *ToolFormatter) formatDefaultResult(content string) string {
 	return "  → " + preview
 }
 
-// extractTaskName extracts task description from todo line
-func extractTaskName(line string) string {
-	// Remove status indicators
-	line = strings.TrimPrefix(line, "-")
-	line = strings.TrimPrefix(line, "*")
-	line = strings.TrimSpace(line)
-
-	// Remove status words
-	for _, status := range []string{"in progress", "in_progress", "pending", "completed"} {
-		line = strings.ReplaceAll(line, status, "")
-		line = strings.ReplaceAll(line, strings.ToUpper(status), "")
-	}
-
-	line = strings.TrimSpace(line)
-	if len(line) > 50 {
-		line = line[:50] + "..."
-	}
-	return line
-}

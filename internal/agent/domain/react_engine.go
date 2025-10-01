@@ -60,16 +60,17 @@ func (e *ReactEngine) SolveTask(
 		if state.SystemPrompt != "" {
 			state.Messages = []Message{
 				{Role: "system", Content: state.SystemPrompt},
-				{Role: "user", Content: task},
 			}
-			e.logger.Debug("Initialized state with system prompt and user message")
-		} else {
-			state.Messages = []Message{
-				{Role: "user", Content: task},
-			}
-			e.logger.Debug("Initialized state with user message (no system prompt)")
+			e.logger.Debug("Initialized state with system prompt")
 		}
 	}
+
+	// ALWAYS append the new user task to messages (even if history exists)
+	state.Messages = append(state.Messages, Message{
+		Role:    "user",
+		Content: task,
+	})
+	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
 
 	// ReAct loop: Think → Act → Observe
 	for state.Iterations < e.maxIterations {
@@ -433,15 +434,6 @@ func (e *ReactEngine) buildObservation(results []ToolResult) Message {
 	}
 }
 
-// isFinalAnswer checks if message contains final answer
-func (e *ReactEngine) isFinalAnswer(msg Message) bool {
-	for _, reason := range e.stopReasons {
-		if contains(msg.Content, reason) {
-			return true
-		}
-	}
-	return len(msg.ToolCalls) == 0 && msg.Content != ""
-}
 
 // shouldStop determines if ReAct loop should terminate
 func (e *ReactEngine) shouldStop(state *TaskState, results []ToolResult) bool {
@@ -546,8 +538,4 @@ func convertToolResultsToPorts(results []ToolResult) []ports.ToolResult {
 		}
 	}
 	return converted
-}
-
-func contains(s, substr string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

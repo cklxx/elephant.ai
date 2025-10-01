@@ -256,7 +256,8 @@ func TestCalculateBackoff_WithJitter(t *testing.T) {
 		multiplier := float64(int(1) << attempt)
 		expectedBase := time.Duration(float64(config.BaseDelay) * multiplier)
 		if expectedBase > config.MaxDelay {
-			expectedBase = config.MaxDelay
+			// Clamp to max delay (we don't use this value further, but keep logic for clarity)
+			_ = expectedBase // Mark as intentionally unused after clamping
 		}
 
 		// With jitter, delay should be within reasonable bounds

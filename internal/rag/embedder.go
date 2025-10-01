@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -40,7 +39,6 @@ type openaiEmbedder struct {
 	config     EmbedderConfig
 	httpClient *http.Client
 	cache      *lru.Cache[string, []float32]
-	mu         sync.RWMutex
 }
 
 // NewEmbedder creates a new embedder

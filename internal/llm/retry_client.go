@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -211,32 +210,3 @@ func IsHTTPStatusError(err error, statusCode int) bool {
 		httpErr != nil
 }
 
-// extractStatusCode tries to extract HTTP status code from error
-func extractStatusCode(err error) int {
-	if err == nil {
-		return 0
-	}
-
-	// Try common patterns
-	errStr := strings.ToLower(err.Error())
-
-	codes := map[string]int{
-		"400": http.StatusBadRequest,
-		"401": http.StatusUnauthorized,
-		"403": http.StatusForbidden,
-		"404": http.StatusNotFound,
-		"429": http.StatusTooManyRequests,
-		"500": http.StatusInternalServerError,
-		"502": http.StatusBadGateway,
-		"503": http.StatusServiceUnavailable,
-		"504": http.StatusGatewayTimeout,
-	}
-
-	for codeStr, code := range codes {
-		if strings.Contains(errStr, codeStr) {
-			return code
-		}
-	}
-
-	return 0
-}

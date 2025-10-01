@@ -21,11 +21,10 @@ type IndexerConfig struct {
 
 // Indexer indexes code files
 type Indexer struct {
-	config      IndexerConfig
-	chunker     Chunker
-	embedder    Embedder
-	store       VectorStore
-	indexedPath string // Path to store indexed file hashes
+	config   IndexerConfig
+	chunker  Chunker
+	embedder Embedder
+	store    VectorStore
 }
 
 // IndexStats holds indexing statistics

@@ -6,20 +6,19 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/zipkin"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // TracingConfig configures distributed tracing
 type TracingConfig struct {
 	Enabled        bool    `yaml:"enabled"`
-	Exporter       string  `yaml:"exporter"` // jaeger, otlp, zipkin
-	JaegerEndpoint string  `yaml:"jaeger_endpoint"`
+	Exporter       string  `yaml:"exporter"` // otlp, zipkin
 	OTLPEndpoint   string  `yaml:"otlp_endpoint"`
 	ZipkinEndpoint string  `yaml:"zipkin_endpoint"`
 	SampleRate     float64 `yaml:"sample_rate"` // 0.0 to 1.0
@@ -38,7 +37,7 @@ func NewTracerProvider(config TracingConfig) (*TracerProvider, error) {
 	if !config.Enabled {
 		// Return noop tracer
 		return &TracerProvider{
-			tracer: trace.NewNoopTracerProvider().Tracer("alex"),
+			tracer: noop.NewTracerProvider().Tracer("alex"),
 		}, nil
 	}
 
@@ -57,12 +56,6 @@ func NewTracerProvider(config TracingConfig) (*TracerProvider, error) {
 	var err error
 
 	switch config.Exporter {
-	case "jaeger":
-		endpoint := config.JaegerEndpoint
-		if endpoint == "" {
-			endpoint = "http://localhost:14268/api/traces"
-		}
-		exporter, err = jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
 	case "otlp":
 		endpoint := config.OTLPEndpoint
 		if endpoint == "" {

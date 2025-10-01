@@ -179,8 +179,7 @@ func (h *StreamingOutputHandler) printCompletion(result *domain.TaskResult) {
 	// Print answer
 	if result.Answer != "" {
 		fmt.Println("\nAnswer:")
-		rendered := renderMarkdownCLI(result.Answer)
-		fmt.Println(rendered)
+		fmt.Println(result.Answer)
 	}
 }
 
@@ -325,17 +324,6 @@ func (h *StreamingOutputHandler) printFullOutput(label, content string, color li
 	// Print content with indent
 	lines := strings.Split(strings.TrimSpace(content), "\n")
 	for _, line := range lines {
-		fmt.Printf("    %s\n", line)
-	}
-}
-
-func (h *StreamingOutputHandler) printVerboseResult(toolName, result string) {
-	// Indent and print full result
-	lines := strings.Split(result, "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
 		fmt.Printf("    %s\n", line)
 	}
 }
