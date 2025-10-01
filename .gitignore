@@ -21,7 +21,7 @@ go.work
 build/
 
 # Deep Coding Agent binary
-alex
+/alex
 
 # NPM package binaries
 npm/*/bin/alex
@@ -58,6 +58,8 @@ temp/
 
 # Legacy files
 legacy-sample.js
+old_cmd/
+old_internal/
 
 # Test results
 test_results/
@@ -66,3 +68,5 @@ verified_test_results/
 .git-backup-*
 
 ast_viewr
+
+debug-logs

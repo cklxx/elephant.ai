@@ -1,0 +1,211 @@
+package llm
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"alex/internal/agent/ports"
+	alexerrors "alex/internal/errors"
+	"alex/internal/utils"
+)
+
+// retryClient wraps an LLM client with retry logic and circuit breaker
+type retryClient struct {
+	underlying     ports.LLMClient
+	retryConfig    alexerrors.RetryConfig
+	circuitBreaker *alexerrors.CircuitBreaker
+	logger         *utils.Logger
+}
+
+// NewRetryClient wraps an LLM client with retry and circuit breaker logic
+func NewRetryClient(client ports.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker) ports.LLMClient {
+	return &retryClient{
+		underlying:     client,
+		retryConfig:    retryConfig,
+		circuitBreaker: circuitBreaker,
+		logger:         utils.NewComponentLogger("llm-retry"),
+	}
+}
+
+// Complete executes LLM completion with retry logic
+func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	startTime := time.Now()
+
+	// Execute with circuit breaker and retry
+	resp, err := alexerrors.RetryWithResultAndLog(ctx, c.retryConfig, func(ctx context.Context) (*ports.CompletionResponse, error) {
+		// Use circuit breaker to protect against cascading failures
+		return alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
+			response, err := c.underlying.Complete(ctx, req)
+			if err != nil {
+				// Classify and wrap error for better retry decisions
+				return nil, c.classifyLLMError(err)
+			}
+			return response, nil
+		})
+	}, c.logger)
+
+	duration := time.Since(startTime)
+
+	if err != nil {
+		c.logger.Warn("LLM request failed after retries (took %v): %v", duration, err)
+
+		// Check if it's a degraded error (circuit breaker open)
+		if alexerrors.IsDegraded(err) {
+			// Return formatted error for LLM
+			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
+		}
+
+		// Format error for LLM with retry context
+		formattedErr := c.formatRetryError(err, duration)
+		return nil, fmt.Errorf("%s", formattedErr)
+	}
+
+	if duration > 5*time.Second {
+		c.logger.Debug("LLM request succeeded after %v", duration)
+	}
+
+	return resp, nil
+}
+
+// Model returns the underlying model name
+func (c *retryClient) Model() string {
+	return c.underlying.Model()
+}
+
+// classifyLLMError detects transient errors from LLM API
+func (c *retryClient) classifyLLMError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+	lowerErr := strings.ToLower(errStr)
+
+	// Rate limit errors (429)
+	if strings.Contains(lowerErr, "429") || strings.Contains(lowerErr, "rate limit") {
+		return alexerrors.NewTransientError(err,
+			"API rate limit reached. Retrying with exponential backoff.")
+	}
+
+	// Server errors (500, 502, 503, 504)
+	if strings.Contains(lowerErr, "500") || strings.Contains(lowerErr, "internal server error") {
+		return alexerrors.NewTransientError(err,
+			"Server error (500). Retrying request.")
+	}
+
+	if strings.Contains(lowerErr, "502") || strings.Contains(lowerErr, "bad gateway") {
+		return alexerrors.NewTransientError(err,
+			"Bad gateway (502). Retrying request.")
+	}
+
+	if strings.Contains(lowerErr, "503") || strings.Contains(lowerErr, "service unavailable") {
+		return alexerrors.NewTransientError(err,
+			"Service unavailable (503). Retrying request.")
+	}
+
+	if strings.Contains(lowerErr, "504") || strings.Contains(lowerErr, "gateway timeout") {
+		return alexerrors.NewTransientError(err,
+			"Gateway timeout (504). Retrying request.")
+	}
+
+	// Network errors
+	if strings.Contains(lowerErr, "connection refused") {
+		return alexerrors.NewTransientError(err,
+			alexerrors.FormatForLLM(err))
+	}
+
+	if strings.Contains(lowerErr, "timeout") || strings.Contains(lowerErr, "deadline exceeded") {
+		return alexerrors.NewTransientError(err,
+			"Request timed out. Retrying with backoff.")
+	}
+
+	if strings.Contains(lowerErr, "network") || strings.Contains(lowerErr, "dns") {
+		return alexerrors.NewTransientError(err,
+			"Network connectivity issue. Retrying request.")
+	}
+
+	// Connection reset, broken pipe
+	if strings.Contains(lowerErr, "connection reset") || strings.Contains(lowerErr, "broken pipe") {
+		return alexerrors.NewTransientError(err,
+			"Connection reset. Retrying request.")
+	}
+
+	// Permanent errors
+	if strings.Contains(lowerErr, "401") || strings.Contains(lowerErr, "unauthorized") {
+		return alexerrors.NewPermanentError(err,
+			"Authentication failed. Please check your API key configuration.")
+	}
+
+	if strings.Contains(lowerErr, "403") || strings.Contains(lowerErr, "forbidden") {
+		return alexerrors.NewPermanentError(err,
+			"Permission denied. You don't have access to this model or resource.")
+	}
+
+	if strings.Contains(lowerErr, "404") || strings.Contains(lowerErr, "not found") {
+		return alexerrors.NewPermanentError(err,
+			"Model or endpoint not found. Please verify the model name.")
+	}
+
+	if strings.Contains(lowerErr, "400") || strings.Contains(lowerErr, "bad request") {
+		return alexerrors.NewPermanentError(err,
+			"Invalid request. Please check the parameters.")
+	}
+
+	// Default: return as-is (will be classified by IsTransient)
+	return err
+}
+
+// formatRetryError formats error message with retry context
+func (c *retryClient) formatRetryError(err error, duration time.Duration) string {
+	// Get formatted LLM message
+	llmMessage := alexerrors.FormatForLLM(err)
+
+	// Add retry context
+	attempts := c.retryConfig.MaxAttempts + 1
+	return fmt.Sprintf("%s Retried %d times over %v.",
+		llmMessage, attempts, duration.Round(time.Second))
+}
+
+// WrapWithRetry wraps an existing LLM client with retry logic using provided configuration
+func WrapWithRetry(client ports.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) ports.LLMClient {
+	// Create circuit breaker for this client
+	circuitBreaker := alexerrors.NewCircuitBreaker(
+		fmt.Sprintf("llm-%s", client.Model()),
+		circuitBreakerConfig,
+	)
+
+	return NewRetryClient(client, retryConfig, circuitBreaker)
+}
+
+// HTTPStatusError represents an HTTP error with status code
+type HTTPStatusError struct {
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Status)
+}
+
+// NewHTTPStatusError creates an HTTP status error
+func NewHTTPStatusError(statusCode int, status, body string) error {
+	return &HTTPStatusError{
+		StatusCode: statusCode,
+		Status:     status,
+		Body:       body,
+	}
+}
+
+// IsHTTPStatusError checks if error is an HTTP status error
+func IsHTTPStatusError(err error, statusCode int) bool {
+	var httpErr *HTTPStatusError
+	if !strings.Contains(err.Error(), fmt.Sprintf("%d", statusCode)) {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "http") ||
+		strings.Contains(strings.ToLower(err.Error()), "api error") ||
+		httpErr != nil
+}

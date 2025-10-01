@@ -3,191 +3,186 @@ package utils
 import (
 	"fmt"
 	"log"
-	"strings"
-
-	"github.com/fatih/color"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
+	"time"
 )
 
-// LogLevel represents the severity level of a log message
-type LogLevel string
+// LogLevel represents the severity of a log message
+type LogLevel int
 
 const (
-	DEBUG LogLevel = "DEBUG"
-	INFO  LogLevel = "INFO"
-	WARN  LogLevel = "WARN"
-	ERROR LogLevel = "ERROR"
+	DEBUG LogLevel = iota
+	INFO
+	WARN
+	ERROR
 )
-
-// ComponentLogger provides component-specific logging with colors and prefixes
-type ComponentLogger struct {
-	componentName string
-	colorFunc     func(...interface{}) string
-	enabled       map[LogLevel]bool
-}
-
-// ComponentLoggerConfig configures a component logger
-type ComponentLoggerConfig struct {
-	ComponentName string
-	Color         color.Attribute
-	EnabledLevels []LogLevel
-}
 
 var (
-	// Predefined color functions for different components
-	defaultColor = color.New(color.Reset).SprintFunc()
-	errorColor   = color.New(color.FgRed).SprintFunc()
-	warnColor    = color.New(color.FgYellow).SprintFunc()
-	debugColor   = color.New(color.FgCyan).SprintFunc()
+	loggerInstance *Logger
+	loggerOnce     sync.Once
 )
 
-// NewComponentLogger creates a new component-specific logger
-func NewComponentLogger(config ComponentLoggerConfig) *ComponentLogger {
-	logger := &ComponentLogger{
-		componentName: config.ComponentName,
-		enabled:       make(map[LogLevel]bool),
-	}
-
-	// Set up color function
-	if config.Color != 0 {
-		logger.colorFunc = color.New(config.Color).SprintFunc()
-	} else {
-		logger.colorFunc = defaultColor
-	}
-
-	// Enable specified log levels (default: all levels enabled)
-	if len(config.EnabledLevels) == 0 {
-		config.EnabledLevels = []LogLevel{DEBUG, INFO, WARN, ERROR}
-	}
-	for _, level := range config.EnabledLevels {
-		logger.enabled[level] = true
-	}
-
-	return logger
+// Logger provides structured logging to alex-debug.log
+type Logger struct {
+	file       *os.File
+	logger     *log.Logger
+	level      LogLevel
+	mu         sync.Mutex
+	component  string
+	enableFile bool
 }
 
-// Log logs a message with the specified level
-func (cl *ComponentLogger) Log(level LogLevel, format string, args ...interface{}) {
-	if !cl.enabled[level] {
+// GetLogger returns the singleton logger instance
+func GetLogger() *Logger {
+	loggerOnce.Do(func() {
+		loggerInstance = newLogger("", DEBUG, true)
+	})
+	return loggerInstance
+}
+
+// NewComponentLogger creates a logger for a specific component
+func NewComponentLogger(component string) *Logger {
+	logger := GetLogger()
+	return &Logger{
+		file:       logger.file,
+		logger:     logger.logger,
+		level:      logger.level,
+		component:  component,
+		enableFile: logger.enableFile,
+	}
+}
+
+// newLogger creates a new Logger instance
+func newLogger(component string, level LogLevel, enableFile bool) *Logger {
+	l := &Logger{
+		level:      level,
+		component:  component,
+		enableFile: enableFile,
+	}
+
+	if enableFile {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("Failed to get home directory: %v", err)
+			return l
+		}
+
+		logPath := filepath.Join(home, "alex-debug.log")
+		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			log.Printf("Failed to open log file: %v", err)
+			return l
+		}
+
+		l.file = file
+		l.logger = log.New(file, "", 0) // We'll format ourselves
+	}
+
+	return l
+}
+
+// SetLevel sets the minimum log level
+func (l *Logger) SetLevel(level LogLevel) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.level = level
+}
+
+// Close closes the log file
+func (l *Logger) Close() error {
+	if l.file != nil {
+		return l.file.Close()
+	}
+	return nil
+}
+
+// log is the internal logging function
+func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
+	if level < l.level || !l.enableFile {
 		return
 	}
 
-	var levelColor func(...interface{}) string
-	switch level {
-	case ERROR:
-		levelColor = errorColor
-	case WARN:
-		levelColor = warnColor
-	case DEBUG:
-		levelColor = debugColor
-	default:
-		levelColor = defaultColor
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Get caller info
+	_, file, line, ok := runtime.Caller(2)
+	if ok {
+		file = filepath.Base(file)
+	} else {
+		file = "???"
+		line = 0
 	}
 
-	prefix := cl.colorFunc(fmt.Sprintf("[%s]", cl.componentName))
-	levelStr := levelColor(string(level))
-	message := fmt.Sprintf(format, args...)
+	// Format: 2025-09-30 12:34:56 [INFO] [ComponentName] file.go:123 - Message
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	levelStr := levelToString(level)
+	component := l.component
+	if component == "" {
+		component = "ALEX"
+	}
 
-	log.Printf("%s [%s] %s", prefix, levelStr, message)
+	message := fmt.Sprintf(format, args...)
+	logLine := fmt.Sprintf("%s [%s] [%s] %s:%d - %s\n",
+		timestamp, levelStr, component, file, line, message)
+
+	if l.logger != nil {
+		l.logger.Print(logLine)
+	}
 }
 
 // Debug logs a debug message
-func (cl *ComponentLogger) Debug(format string, args ...interface{}) {
-	cl.Log(DEBUG, format, args...)
+func (l *Logger) Debug(format string, args ...interface{}) {
+	l.log(DEBUG, format, args...)
 }
 
 // Info logs an info message
-func (cl *ComponentLogger) Info(format string, args ...interface{}) {
-	cl.Log(INFO, format, args...)
+func (l *Logger) Info(format string, args ...interface{}) {
+	l.log(INFO, format, args...)
 }
 
 // Warn logs a warning message
-func (cl *ComponentLogger) Warn(format string, args ...interface{}) {
-	cl.Log(WARN, format, args...)
+func (l *Logger) Warn(format string, args ...interface{}) {
+	l.log(WARN, format, args...)
 }
 
 // Error logs an error message
-func (cl *ComponentLogger) Error(format string, args ...interface{}) {
-	cl.Log(ERROR, format, args...)
+func (l *Logger) Error(format string, args ...interface{}) {
+	l.log(ERROR, format, args...)
 }
 
-// Global component loggers
-var (
-	ReactLogger    *ComponentLogger
-	ToolLogger     *ComponentLogger
-	SubAgentLogger *ComponentLogger
-	CoreLogger     *ComponentLogger
-	LLMLogger      *ComponentLogger
-)
-
-// Initialize global loggers
-func init() {
-	ReactLogger = NewComponentLogger(ComponentLoggerConfig{
-		ComponentName: "REACT-AGENT",
-		Color:         color.FgBlue,
-	})
-
-	ToolLogger = NewComponentLogger(ComponentLoggerConfig{
-		ComponentName: "TOOL-EXEC",
-		Color:         color.FgGreen,
-	})
-
-	SubAgentLogger = NewComponentLogger(ComponentLoggerConfig{
-		ComponentName: "SUB-AGENT",
-		Color:         color.FgMagenta,
-	})
-
-	CoreLogger = NewComponentLogger(ComponentLoggerConfig{
-		ComponentName: "REACT-CORE",
-		Color:         color.FgCyan,
-	})
-
-	LLMLogger = NewComponentLogger(ComponentLoggerConfig{
-		ComponentName: "LLM-HANDLER",
-		Color:         color.FgYellow,
-	})
-}
-
-// LoggerFactory provides easy access to component loggers
-type LoggerFactory struct{}
-
-// GetLogger returns a logger for the specified component
-func (lf *LoggerFactory) GetLogger(component string) *ComponentLogger {
-	component = strings.ToUpper(component)
-	switch component {
-	case "REACT", "REACT-AGENT":
-		return ReactLogger
-	case "TOOL", "TOOL-EXEC", "TOOL-EXECUTOR":
-		return ToolLogger
-	case "SUB-AGENT", "SUBAGENT":
-		return SubAgentLogger
-	case "CORE", "REACT-CORE":
-		return CoreLogger
-	case "LLM", "LLM-HANDLER":
-		return LLMLogger
+// levelToString converts LogLevel to string
+func levelToString(level LogLevel) string {
+	switch level {
+	case DEBUG:
+		return "DEBUG"
+	case INFO:
+		return "INFO"
+	case WARN:
+		return "WARN"
+	case ERROR:
+		return "ERROR"
 	default:
-		return NewComponentLogger(ComponentLoggerConfig{
-			ComponentName: component,
-			Color:         color.Reset,
-		})
+		return "UNKNOWN"
 	}
 }
 
-// Global logger factory instance
-var Logger = &LoggerFactory{}
-
-// Convenience functions for backward compatibility
-func LogDebug(component, format string, args ...interface{}) {
-	Logger.GetLogger(component).Debug(format, args...)
+// Helper functions for global logging
+func Debug(format string, args ...interface{}) {
+	GetLogger().Debug(format, args...)
 }
 
-func LogInfo(component, format string, args ...interface{}) {
-	Logger.GetLogger(component).Info(format, args...)
+func Info(format string, args ...interface{}) {
+	GetLogger().Info(format, args...)
 }
 
-func LogWarn(component, format string, args ...interface{}) {
-	Logger.GetLogger(component).Warn(format, args...)
+func Warn(format string, args ...interface{}) {
+	GetLogger().Warn(format, args...)
 }
 
-func LogError(component, format string, args ...interface{}) {
-	Logger.GetLogger(component).Error(format, args...)
+func Error(format string, args ...interface{}) {
+	GetLogger().Error(format, args...)
 }

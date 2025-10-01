@@ -1,5 +1,0 @@
-export { Spinner } from './Spinner'
-export { ProgressBar } from './ProgressBar'
-export { ErrorBoundary } from './ErrorBoundary'
-export { Box } from './Box'
-export { Text } from './Text'

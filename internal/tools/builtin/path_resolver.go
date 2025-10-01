@@ -5,11 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"alex/internal/utils"
 )
 
-// 常见的项目目录名称
+// Context key for working directory
+type contextKey string
+
+const WorkingDirKey contextKey = "working_dir"
+
+// Common project directory names
 var projectDirs = []string{
 	"src", "lib", "components", "pages", "app", "docs", "test", "tests",
 	"assets", "static", "public", "build", "dist", "config", "scripts",
@@ -17,14 +20,15 @@ var projectDirs = []string{
 	"utils", "helpers", "services", "models", "views", "controllers",
 	"middleware", "types", "interfaces", "hooks", "store", "redux",
 	"api", "data", "database", "migrations", "seeds", "fixtures",
+	"internal", "pkg", "cmd",
 }
 
-// PathResolver 路径解析器
+// PathResolver resolves file paths
 type PathResolver struct {
 	workingDir string
 }
 
-// NewPathResolver 创建新的路径解析器
+// NewPathResolver creates a new path resolver
 func NewPathResolver(workingDir string) *PathResolver {
 	if workingDir == "" {
 		workingDir, _ = os.Getwd()
@@ -32,19 +36,19 @@ func NewPathResolver(workingDir string) *PathResolver {
 	return &PathResolver{workingDir: workingDir}
 }
 
-// isProjectRelativePath 判断是否为项目相对路径
+// isProjectRelativePath determines if a path is project-relative
 func (pr *PathResolver) isProjectRelativePath(path string) bool {
 	if len(path) == 0 || path[0] != '/' {
 		return false
 	}
 
-	// 移除开头的 /
+	// Remove leading /
 	cleanPath := path[1:]
 	if cleanPath == "" {
 		return false
 	}
 
-	// 获取第一个路径段
+	// Get first path segment
 	parts := strings.Split(cleanPath, "/")
 	if len(parts) == 0 {
 		return false
@@ -52,58 +56,59 @@ func (pr *PathResolver) isProjectRelativePath(path string) bool {
 
 	firstDir := parts[0]
 
-	// 检查是否是常见的项目目录
+	// Check if it's a common project directory
 	for _, projectDir := range projectDirs {
 		if firstDir == projectDir {
 			return true
 		}
 	}
 
-	// 检查是否是配置文件（在根目录）
+	// Check if it's a config file in root directory
 	if strings.Contains(firstDir, ".") && (strings.HasSuffix(firstDir, ".json") ||
 		strings.HasSuffix(firstDir, ".js") || strings.HasSuffix(firstDir, ".ts") ||
 		strings.HasSuffix(firstDir, ".yaml") || strings.HasSuffix(firstDir, ".yml") ||
-		strings.HasSuffix(firstDir, ".md") || strings.HasSuffix(firstDir, ".txt")) {
+		strings.HasSuffix(firstDir, ".md") || strings.HasSuffix(firstDir, ".txt") ||
+		strings.HasSuffix(firstDir, ".go")) {
 		return true
 	}
 
 	return false
 }
 
-// ResolvePath 解析路径，将相对路径转换为绝对路径
+// ResolvePath resolves a path, converting relative paths to absolute paths
 func (pr *PathResolver) ResolvePath(path string) string {
-	// 特殊处理：检查是否为项目相对路径
+	// Special handling: check if it's a project-relative path
 	if pr.isProjectRelativePath(path) {
-		// 去掉开头的 / 并基于工作目录解析
+		// Remove leading / and resolve based on working directory
 		relativePath := path[1:]
 		resolved := filepath.Join(pr.workingDir, relativePath)
 		return filepath.Clean(resolved)
 	}
 
-	// 系统绝对路径直接返回（例如 /usr/local/bin/node 或 C:\）
+	// System absolute paths are returned directly (e.g., /usr/local/bin/node or C:\)
 	if filepath.IsAbs(path) {
 		return path
 	}
 
-	// 将相对路径基于工作目录解析为绝对路径
+	// Convert relative paths to absolute paths based on working directory
 	resolved := filepath.Join(pr.workingDir, path)
 	return filepath.Clean(resolved)
 }
 
-// GetPathResolverFromContext 从context获取路径解析器
+// GetPathResolverFromContext retrieves the path resolver from context
 func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 	if ctx == nil {
 		return NewPathResolver("")
 	}
 
-	if workingDir, ok := ctx.Value(utils.WorkingDirKey).(string); ok {
+	if workingDir, ok := ctx.Value(WorkingDirKey).(string); ok {
 		return NewPathResolver(workingDir)
 	}
 
 	return NewPathResolver("")
 }
 
-// WithWorkingDir 在context中设置工作目录
+// WithWorkingDir sets the working directory in context
 func WithWorkingDir(ctx context.Context, workingDir string) context.Context {
-	return context.WithValue(ctx, utils.WorkingDirKey, workingDir)
+	return context.WithValue(ctx, WorkingDirKey, workingDir)
 }

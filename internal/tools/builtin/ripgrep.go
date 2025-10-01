@@ -1,0 +1,195 @@
+package builtin
+
+import (
+	"alex/internal/agent/ports"
+	"context"
+	"fmt"
+	"os/exec"
+	"strings"
+)
+
+type ripgrep struct{}
+
+func NewRipgrep() ports.ToolExecutor {
+	return &ripgrep{}
+}
+
+func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	// Validate and extract pattern first (before checking installation)
+	pattern, ok := call.Arguments["pattern"].(string)
+	if !ok || pattern == "" {
+		return &ports.ToolResult{
+			CallID: call.ID,
+			Error:  fmt.Errorf("missing required 'pattern' parameter"),
+		}, nil
+	}
+
+	// Check if ripgrep is available
+	if !t.hasRipgrep() {
+		return &ports.ToolResult{
+			CallID: call.ID,
+			Error:  fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation"),
+		}, nil
+	}
+
+	// Extract optional parameters with defaults
+	path := "."
+	if p, ok := call.Arguments["path"].(string); ok && p != "" {
+		path = p
+	}
+
+	ignoreCase := false
+	if ic, ok := call.Arguments["ignore_case"].(bool); ok {
+		ignoreCase = ic
+	}
+
+	maxResults := 100
+	if mr, ok := call.Arguments["max_results"].(float64); ok && mr > 0 {
+		maxResults = int(mr)
+	}
+
+	// Build ripgrep command
+	cmdArgs := []string{}
+
+	if ignoreCase {
+		cmdArgs = append(cmdArgs, "-i")
+	}
+
+	cmdArgs = append(cmdArgs, "-n") // Always show line numbers
+
+	if fileType, ok := call.Arguments["file_type"].(string); ok && fileType != "" {
+		cmdArgs = append(cmdArgs, "-t", fileType)
+	}
+
+	cmdArgs = append(cmdArgs, pattern, path)
+
+	// Execute ripgrep command
+	cmd := exec.CommandContext(ctx, "rg", cmdArgs...)
+	output, err := cmd.Output()
+
+	if err != nil {
+		// ripgrep returns exit code 1 when no matches found
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: "No matches found",
+				Metadata: map[string]any{
+					"pattern":     pattern,
+					"path":        path,
+					"matches":     0,
+					"ignore_case": ignoreCase,
+					"file_type":   call.Arguments["file_type"],
+				},
+			}, nil
+		}
+		return &ports.ToolResult{
+			CallID: call.ID,
+			Error:  fmt.Errorf("ripgrep command failed: %w", err),
+		}, nil
+	}
+
+	// Process output
+	lines := strings.Split(string(output), "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1] // Remove last empty line
+	}
+
+	const maxLineChars = 200
+	originalMatchCount := len(lines)
+	truncatedByMatches := false
+	linesToruncated := 0
+
+	// Limit results to maxResults matches
+	if len(lines) > maxResults {
+		lines = lines[:maxResults]
+		truncatedByMatches = true
+	}
+
+	// Truncate each line to maxLineChars
+	for i, line := range lines {
+		if len(line) > maxLineChars {
+			lines[i] = line[:maxLineChars] + "..."
+			linesToruncated++
+		}
+	}
+
+	// Build warning message
+	var warnings []string
+	if truncatedByMatches {
+		warnings = append(warnings, fmt.Sprintf("Results truncated: showing %d of %d total matches (limit: %d matches)", len(lines), originalMatchCount, maxResults))
+	}
+	if linesToruncated > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d match lines were truncated to %d characters", linesToruncated, maxLineChars))
+	}
+
+	warningMsg := ""
+	if len(warnings) > 0 {
+		warningMsg = "\n\n[TRUNCATED] " + strings.Join(warnings, ". ")
+	}
+
+	finalContent := fmt.Sprintf("Found %d matches:\n%s%s", len(lines), strings.Join(lines, "\n"), warningMsg)
+
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: finalContent,
+		Metadata: map[string]any{
+			"pattern":              pattern,
+			"path":                 path,
+			"matches":              len(lines),
+			"original_matches":     originalMatchCount,
+			"ignore_case":          ignoreCase,
+			"file_type":            call.Arguments["file_type"],
+			"results":              lines,
+			"truncated_by_matches": truncatedByMatches,
+			"lines_truncated":      linesToruncated,
+			"max_line_chars":       maxLineChars,
+		},
+	}, nil
+}
+
+func (t *ripgrep) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{
+		Name:        "ripgrep",
+		Description: "Search for patterns in files using ripgrep (rg). Faster than grep. Limits results to maximum 100 matches, with each match line truncated to 200 characters. Exceeding limits will show truncated results with warnings.",
+		Parameters: ports.ParameterSchema{
+			Type: "object",
+			Properties: map[string]ports.Property{
+				"pattern": {
+					Type:        "string",
+					Description: "The pattern to search for",
+				},
+				"path": {
+					Type:        "string",
+					Description: "Path to search in (default: .)",
+				},
+				"file_type": {
+					Type:        "string",
+					Description: "File type to search (e.g., 'go', 'js', 'py')",
+				},
+				"ignore_case": {
+					Type:        "boolean",
+					Description: "Ignore case (default: false)",
+				},
+				"max_results": {
+					Type:        "number",
+					Description: "Maximum number of results to return (default: 100)",
+				},
+			},
+			Required: []string{"pattern"},
+		},
+	}
+}
+
+func (t *ripgrep) Metadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:     "ripgrep",
+		Version:  "1.0.0",
+		Category: "search",
+		Tags:     []string{"search", "files", "pattern"},
+	}
+}
+
+func (t *ripgrep) hasRipgrep() bool {
+	_, err := exec.LookPath("rg")
+	return err == nil
+}
