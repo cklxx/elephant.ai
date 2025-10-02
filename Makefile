@@ -94,3 +94,51 @@ build-all: ## Build binaries for all platforms
 release-npm: build-all npm-copy-binaries ## Build binaries and publish to npm
 	@echo "Publishing to npm..."
 	@./scripts/publish-npm.sh
+
+# SSE Server targets
+server-build: ## Build alex-server binary
+	@echo "Building alex-server..."
+	@go build -o alex-server ./cmd/alex-server/
+	@echo "✓ Server build complete: ./alex-server"
+
+server-run: server-build ## Run alex-server
+	@echo "Starting alex-server on port 8080..."
+	@./alex-server
+
+server-test: ## Run server tests
+	@echo "Running server tests..."
+	@go test ./internal/server/... -v
+
+server-test-integration: server-build ## Run integration tests with test script
+	@echo "Running SSE server integration tests..."
+	@./scripts/test-sse-server.sh
+
+# ========================================
+# Deployment Targets
+# ========================================
+
+.PHONY: deploy-local deploy-docker deploy-dev deploy-k8s deploy-test deploy-status deploy-down
+
+deploy-local: ## Deploy locally (Go + Next.js)
+	@./deploy.sh local
+
+deploy-docker: ## Deploy with Docker Compose (production)
+	@./deploy.sh docker
+
+deploy-dev: ## Deploy with Docker Compose (development)
+	@./deploy.sh dev
+
+deploy-k8s: ## Deploy to Kubernetes
+	@./deploy.sh k8s
+
+deploy-test: ## Run all deployment tests
+	@./deploy.sh test
+
+deploy-status: ## Show deployment status
+	@./deploy.sh status
+
+deploy-down: ## Stop all deployments
+	@./deploy.sh down
+
+# Quick deploy (default: local)
+deploy: deploy-local ## Quick deploy (local mode)

@@ -1,0 +1,336 @@
+# Kubernetes Deployment for ALEX System
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alex-system
+
+---
+# ConfigMap for shared configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alex-config
+  namespace: alex-system
+data:
+  ALEX_MODEL: "gpt-4"
+  ALEX_VERBOSE: "false"
+  SESSION_STORE_PATH: "/data/sessions"
+
+---
+# Secret for API keys
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alex-secrets
+  namespace: alex-system
+type: Opaque
+stringData:
+  OPENAI_API_KEY: "your-api-key-here"  # Replace with actual key or use sealed-secrets
+
+---
+# ALEX Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alex-server
+  namespace: alex-system
+  labels:
+    app: alex-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: alex-server
+  template:
+    metadata:
+      labels:
+        app: alex-server
+    spec:
+      containers:
+      - name: alex-server
+        image: alex-server:latest  # Replace with your registry
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: alex-secrets
+              key: OPENAI_API_KEY
+        - name: ALEX_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: alex-config
+              key: ALEX_MODEL
+        - name: ALEX_VERBOSE
+          valueFrom:
+            configMapKeyRef:
+              name: alex-config
+              key: ALEX_VERBOSE
+        - name: SESSION_STORE_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: alex-config
+              key: SESSION_STORE_PATH
+        - name: REDIS_URL
+          value: "redis-service:6379"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        volumeMounts:
+        - name: sessions
+          mountPath: /data/sessions
+      volumes:
+      - name: sessions
+        persistentVolumeClaim:
+          claimName: alex-sessions-pvc
+
+---
+# ALEX Server Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: alex-server-service
+  namespace: alex-system
+spec:
+  selector:
+    app: alex-server
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+
+---
+# Web Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alex-web
+  namespace: alex-system
+  labels:
+    app: alex-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alex-web
+  template:
+    metadata:
+      labels:
+        app: alex-web
+    spec:
+      containers:
+      - name: alex-web
+        image: alex-web:latest  # Replace with your registry
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://alex-server-service:8080"
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Web Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: alex-web-service
+  namespace: alex-system
+spec:
+  selector:
+    app: alex-web
+  ports:
+  - protocol: TCP
+    port: 3000
+    targetPort: 3000
+    name: http
+  type: ClusterIP
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: alex-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: alex-system
+spec:
+  selector:
+    app: redis
+  ports:
+  - protocol: TCP
+    port: 6379
+    targetPort: 6379
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alex-ingress
+  namespace: alex-system
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # For SSL
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - alex.yourdomain.com
+    secretName: alex-tls
+  rules:
+  - host: alex.yourdomain.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: alex-server-service
+            port:
+              number: 8080
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: alex-web-service
+            port:
+              number: 3000
+
+---
+# PersistentVolumeClaim for sessions
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alex-sessions-pvc
+  namespace: alex-system
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard  # Adjust based on your cluster
+
+---
+# PersistentVolumeClaim for Redis
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: alex-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+
+---
+# HorizontalPodAutoscaler for alex-server
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: alex-server-hpa
+  namespace: alex-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: alex-server
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

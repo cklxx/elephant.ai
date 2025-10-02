@@ -1,115 +1,100 @@
 version: '3.8'
 
 services:
-  deep-coding-agent:
+  # ALEX SSE Server (Go)
+  alex-server:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: deep-coding-agent:latest
-    container_name: deep-coding-agent
+      dockerfile: Dockerfile.server
+    container_name: alex-server
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - ALEX_MODEL=${ALEX_MODEL:-gpt-4}
+      - ALEX_VERBOSE=${ALEX_VERBOSE:-false}
+      - SESSION_STORE_PATH=/data/sessions
+      - REDIS_URL=${REDIS_URL:-}
+    volumes:
+      - alex-sessions:/data/sessions
+      - ./:/workspace:cached  # Mount workspace for development
     restart: unless-stopped
-    
-    # Mount current directory for analysis
-    volumes:
-      - .:/workspace:ro
-      - alex-config:/home/appuser/.config
-    
-    # Environment variables
-    environment:
-      - ALEX_CONFIG_PATH=/home/appuser/.config/alex-config.json
-      - ALEX_LOG_LEVEL=info
-    
-    # Default command - can be overridden
-    command: ["analyze", "/workspace", "--format=json"]
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '1.0'
-        reservations:
-          memory: 128M
-          cpus: '0.5'
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - alex-network
 
-  # Development service with hot reload
-  dev:
+  # Next.js Web Frontend
+  web:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
-      target: development
-    image: deep-coding-agent:dev
-    container_name: deep-coding-agent-dev
-    
-    volumes:
-      - .:/app
-      - go-modules:/go/pkg/mod
-      - go-build-cache:/root/.cache/go-build
-    
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: alex-web
+    ports:
+      - "3000:3000"
     environment:
-      - CGO_ENABLED=0
-      - GOOS=linux
-    
-    working_dir: /app
-    command: ["go", "run", "cmd/main.go", "--help"]
-    
-    # Enable development features
-    stdin_open: true
-    tty: true
+      - NEXT_PUBLIC_API_URL=http://alex-server:8080
+      - NODE_ENV=production
+    depends_on:
+      - alex-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - alex-network
 
-  # CI/Testing service
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    image: deep-coding-agent:test
-    container_name: deep-coding-agent-test
-    
+  # Redis (optional - for session persistence)
+  redis:
+    image: redis:7-alpine
+    container_name: alex-redis
+    ports:
+      - "6379:6379"
     volumes:
-      - .:/app
-      - test-results:/app/test-results
-    
-    environment:
-      - GO_ENV=test
-      - COVERAGE_OUTPUT=/app/test-results/coverage.out
-    
-    command: ["./scripts/test.sh", "all"]
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alex-network
 
-  # Performance testing service
-  performance:
-    image: deep-coding-agent:latest
-    container_name: deep-coding-agent-perf
-    
+  # Nginx reverse proxy (optional - for production)
+  nginx:
+    image: nginx:alpine
+    container_name: alex-nginx
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
-      - ./test/performance:/workspace:ro
-      - performance-results:/results
-    
-    environment:
-      - PERFORMANCE_MODE=true
-      - RESULTS_PATH=/results
-    
-    command: ["analyze", "/workspace", "--concurrent", "--format=json"]
-    
-    # Dedicated resources for performance testing
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '2.0'
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL certificates
+    depends_on:
+      - alex-server
+      - web
+    restart: unless-stopped
+    networks:
+      - alex-network
 
 volumes:
-  alex-config:
+  alex-sessions:
     driver: local
-  go-modules:
-    driver: local
-  go-build-cache:
-    driver: local
-  test-results:
-    driver: local
-  performance-results:
+  redis-data:
     driver: local
 
 networks:
-  default:
-    name: deep-coding-network
+  alex-network:
     driver: bridge

@@ -206,6 +206,8 @@ func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, se
 			Goal:     taskAnalysis.Goal,
 			Approach: taskAnalysis.Approach,
 		}
+	} else {
+		c.logger.Debug("Task pre-analysis skipped or failed")
 	}
 
 	// 5. Generate system prompt with task analysis
@@ -423,8 +425,8 @@ Keep each line under 80 characters. Be specific and actionable.`, task)
 		MaxTokens:   150,
 	}
 
-	// Non-blocking timeout
-	analyzeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	// Non-blocking timeout (increased to 5 seconds for more reliable analysis)
+	analyzeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	resp, err := llmClient.Complete(analyzeCtx, req)
@@ -433,9 +435,17 @@ Keep each line under 80 characters. Be specific and actionable.`, task)
 		return nil
 	}
 
-	if resp == nil || resp.Content == "" {
+	if resp == nil {
+		c.logger.Warn("Task pre-analysis: LLM returned nil response")
 		return nil
 	}
+
+	if resp.Content == "" {
+		c.logger.Warn("Task pre-analysis: LLM returned empty content")
+		return nil
+	}
+
+	c.logger.Debug("Task pre-analysis LLM response: %s", resp.Content)
 
 	// Parse structured response
 	analysis := parseTaskAnalysis(resp.Content)
@@ -461,9 +471,20 @@ func parseTaskAnalysis(content string) *TaskAnalysis {
 		}
 	}
 
-	// Fallback if parsing failed
+	// Fallback if parsing failed - use first line or generic message
 	if analysis.ActionName == "" {
-		analysis.ActionName = "Processing request"
+		// Try to extract first meaningful line as action
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && len(line) < 80 {
+				analysis.ActionName = line
+				break
+			}
+		}
+		// Final fallback
+		if analysis.ActionName == "" {
+			analysis.ActionName = "Processing request"
+		}
 	}
 
 	return analysis

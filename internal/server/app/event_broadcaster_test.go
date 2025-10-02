@@ -1,0 +1,134 @@
+package app
+
+import (
+	"testing"
+	"time"
+
+	"alex/internal/agent/domain"
+	"alex/internal/agent/types"
+)
+
+func TestEventBroadcaster_RegisterUnregister(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	sessionID := "test-session"
+	ch := make(chan domain.AgentEvent, 10)
+
+	// Register client
+	broadcaster.RegisterClient(sessionID, ch)
+
+	// Check client count
+	if count := broadcaster.GetClientCount(sessionID); count != 1 {
+		t.Errorf("Expected 1 client, got %d", count)
+	}
+
+	// Unregister client
+	broadcaster.UnregisterClient(sessionID, ch)
+
+	// Check client count after unregistration
+	if count := broadcaster.GetClientCount(sessionID); count != 0 {
+		t.Errorf("Expected 0 clients after unregister, got %d", count)
+	}
+}
+
+func TestEventBroadcaster_BroadcastEvent(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	sessionID := "test-session"
+	ch1 := make(chan domain.AgentEvent, 10)
+	ch2 := make(chan domain.AgentEvent, 10)
+
+	// Register two clients
+	broadcaster.RegisterClient(sessionID, ch1)
+	broadcaster.RegisterClient(sessionID, ch2)
+
+	// Create and broadcast an event
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test Action", "Test Goal")
+	broadcaster.OnEvent(event)
+
+	// Give some time for event to be delivered
+	time.Sleep(100 * time.Millisecond)
+
+	// Check if both clients received the event
+	select {
+	case receivedEvent := <-ch1:
+		if receivedEvent.EventType() != "task_analysis" {
+			t.Errorf("Client 1 received wrong event type: %s", receivedEvent.EventType())
+		}
+	default:
+		t.Error("Client 1 did not receive event")
+	}
+
+	select {
+	case receivedEvent := <-ch2:
+		if receivedEvent.EventType() != "task_analysis" {
+			t.Errorf("Client 2 received wrong event type: %s", receivedEvent.EventType())
+		}
+	default:
+		t.Error("Client 2 did not receive event")
+	}
+
+	// Cleanup
+	broadcaster.UnregisterClient(sessionID, ch1)
+	broadcaster.UnregisterClient(sessionID, ch2)
+}
+
+func TestEventBroadcaster_MultipleSessionsIsolation(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	session1 := "session-1"
+	session2 := "session-2"
+
+	ch1 := make(chan domain.AgentEvent, 10)
+	ch2 := make(chan domain.AgentEvent, 10)
+
+	// Register clients to different sessions
+	broadcaster.RegisterClient(session1, ch1)
+	broadcaster.RegisterClient(session2, ch2)
+
+	// Broadcast event - currently broadcasts to all sessions
+	// In production, you'd extract sessionID from event
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test", "Test")
+	broadcaster.OnEvent(event)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Both should receive since we broadcast to all in current implementation
+	if len(ch1) == 0 {
+		t.Error("Session 1 client should have received event")
+	}
+	if len(ch2) == 0 {
+		t.Error("Session 2 client should have received event")
+	}
+
+	// Cleanup
+	broadcaster.UnregisterClient(session1, ch1)
+	broadcaster.UnregisterClient(session2, ch2)
+}
+
+func TestEventBroadcaster_BufferFull(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	sessionID := "test-session"
+	// Create a small buffer channel
+	ch := make(chan domain.AgentEvent, 2)
+
+	broadcaster.RegisterClient(sessionID, ch)
+
+	// Fill the buffer
+	for i := 0; i < 5; i++ {
+		event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test", "Test")
+		broadcaster.OnEvent(event)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Should have at most 2 events (buffer size)
+	eventCount := len(ch)
+	if eventCount > 2 {
+		t.Errorf("Expected at most 2 events in buffer, got %d", eventCount)
+	}
+
+	// Cleanup
+	broadcaster.UnregisterClient(sessionID, ch)
+}

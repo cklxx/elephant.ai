@@ -1,0 +1,65 @@
+# Development Docker Compose - with hot reload
+version: '3.8'
+
+services:
+  # ALEX Server - Development mode with volume mount
+  alex-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: alex-server-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ALEX_MODEL=${ALEX_MODEL:-gpt-4}
+      - ALEX_VERBOSE=true
+      - SESSION_STORE_PATH=/data/sessions
+    volumes:
+      - ./:/app:cached
+      - alex-sessions-dev:/data/sessions
+    working_dir: /app
+    command: go run ./cmd/alex-server
+    restart: unless-stopped
+    networks:
+      - alex-dev-network
+
+  # Next.js - Development mode with hot reload
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+      target: dev
+    container_name: alex-web-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NODE_ENV=development
+    volumes:
+      - ./web:/app:cached
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - alex-dev-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: alex-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-dev:/data
+    networks:
+      - alex-dev-network
+
+volumes:
+  alex-sessions-dev:
+  redis-data-dev:
+
+networks:
+  alex-dev-network:
+    driver: bridge
