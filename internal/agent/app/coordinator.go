@@ -177,17 +177,10 @@ func (c *AgentCoordinator) ExecuteTask(
 	// 6.5. Pre-analyze task to get dynamic action verb
 	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
 
-	// 6.6. Show dynamic analyzing indicator
-	dimStyle := "\033[90m"  // Gray
-	resetStyle := "\033[0m" // Reset
-
-	actionText := "Analyzing..."
+	// 6.6. Log task pre-analysis (no direct output - let caller handle display)
 	if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
-		actionText = taskAnalysisStruct.ActionName
 		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
 	}
-
-	fmt.Printf("\n%s👾 %s%s\n\n", dimStyle, actionText, resetStyle)
 
 	// 7. Delegate to domain logic with tool display
 	c.logger.Info("Delegating to ReactEngine...")
@@ -359,19 +352,12 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	// 7.5. Pre-analyze task to get dynamic action verb
 	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
 
-	// 7.6. Show dynamic analyzing indicator
-	dimStyle := "\033[90m"  // Gray
-	resetStyle := "\033[0m" // Reset
-
-	actionText := "Analyzing..."
+	// 7.6. Log task pre-analysis (no direct output - events go to listener)
 	if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
-		actionText = taskAnalysisStruct.ActionName
 		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
 	}
 
-	fmt.Printf("\n%s👾 %s%s\n\n", dimStyle, actionText, resetStyle)
-
-	// 8. Execute task (events will stream to TUI)
+	// 8. Execute task (events will stream to listener)
 	c.logger.Info("Delegating to ReactEngine with TUI streaming...")
 	result, err := c.reactEngine.SolveTask(ctx, task, state, services)
 	if err != nil {

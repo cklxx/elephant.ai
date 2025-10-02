@@ -40,9 +40,6 @@ func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOut
 func RunTaskWithStreamOutput(container *Container, task string, sessionID string) error {
 	handler := NewStreamingOutputHandler(container, isVerbose())
 
-	// Add newline before output
-	fmt.Println()
-
 	// Start execution with stream handler
 	ctx := context.Background()
 	result, err := executeTaskWithStreamHandler(ctx, container, task, sessionID, handler)
