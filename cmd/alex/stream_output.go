@@ -171,6 +171,11 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEven
 		StartTime: event.Timestamp(),
 	}
 
+	// Only print in verbose mode
+	if !h.verbose {
+		return
+	}
+
 	// Print tool indicator with bold bright green dot
 	args := formatArgsInline(event.Arguments)
 
@@ -190,6 +195,12 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEven
 func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallCompleteEvent) {
 	info, exists := h.activeTools[event.CallID]
 	if !exists {
+		return
+	}
+
+	// Only print in verbose mode
+	if !h.verbose {
+		delete(h.activeTools, event.CallID)
 		return
 	}
 
@@ -214,16 +225,18 @@ func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
 }
 
 func (h *StreamingOutputHandler) printCompletion(result *domain.TaskResult) {
-	// Print completion line
-	successStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("10")). // Bright green
-		Bold(true)
-	fmt.Printf("\n%s\n", successStyle.Render(fmt.Sprintf("✓ Task completed in %d iterations", result.Iterations)))
-
-	// Print token usage
+	// Print compact completion summary
 	statsStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")) // Muted
-	fmt.Printf("%s\n\n", statsStyle.Render(fmt.Sprintf("Tokens used: %d", result.TokensUsed)))
+		Foreground(lipgloss.Color("10")) // Green
+
+	if h.verbose {
+		// Verbose mode: show detailed stats
+		fmt.Printf("\n%s\n", statsStyle.Render(fmt.Sprintf("✓ Task completed in %d iterations", result.Iterations)))
+		fmt.Printf("%s\n\n", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(fmt.Sprintf("Tokens used: %d", result.TokensUsed)))
+	} else {
+		// Concise mode: one-line summary
+		fmt.Printf("\n%s\n\n", statsStyle.Render(fmt.Sprintf("✓ Done | %d iterations | %d tokens", result.Iterations, result.TokensUsed)))
+	}
 
 	// Print answer with markdown rendering
 	if result.Answer != "" {
