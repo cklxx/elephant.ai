@@ -101,11 +101,55 @@ func (b *StreamEventBridge) OnEvent(event domain.AgentEvent) {
 // Event handlers
 
 func (h *StreamingOutputHandler) onTaskAnalysis(event *domain.TaskAnalysisEvent) {
-	// Print task analysis at the beginning
-	dimStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")) // Gray
+	// Print task analysis with purple gradient
+	text := fmt.Sprintf("👾 %s", event.ActionName)
+	gradientText := renderPurpleGradient(text)
+	fmt.Printf("\n%s\n\n", gradientText)
+}
 
-	fmt.Printf("\n%s\n\n", dimStyle.Render(fmt.Sprintf("👾 %s", event.ActionName)))
+// renderPurpleGradient creates a purple gradient effect for text
+func renderPurpleGradient(text string) string {
+	// Purple gradient colors: from light purple to deep purple
+	colors := []string{
+		"#E0B0FF", // Light purple
+		"#D8A7F5", // Mauve
+		"#C78EEB", // Medium purple
+		"#B678E0", // Purple
+		"#9F5FD6", // Deep purple
+		"#8B47CC", // Royal purple
+	}
+
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return text
+	}
+
+	var result strings.Builder
+
+	// Calculate color step
+	colorsLen := len(colors)
+	runesLen := len(runes)
+
+	for i, r := range runes {
+		// Map character position to color index
+		colorIdx := (i * (colorsLen - 1)) / max(runesLen-1, 1)
+		if colorIdx >= colorsLen {
+			colorIdx = colorsLen - 1
+		}
+
+		color := colors[colorIdx]
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+		result.WriteString(style.Render(string(r)))
+	}
+
+	return result.String()
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (h *StreamingOutputHandler) onIterationStart(event *domain.IterationStartEvent) {
