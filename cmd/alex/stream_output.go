@@ -25,7 +25,6 @@ type SubtaskProgress struct {
 	CurrentTool    string
 	ToolsCompleted int
 	Status         string // "running", "completed", "failed"
-	LineNumber     int    // Which line this task occupies for cursor positioning
 }
 
 // StreamingOutputHandler handles streaming output to terminal using unified renderers
@@ -218,7 +217,7 @@ func (h *StreamingOutputHandler) printCompletion(result *domain.TaskResult) {
 	}
 }
 
-// handleSubtaskEvent handles events from subtasks with real-time progress tracking
+// handleSubtaskEvent handles events from subtasks with simple line-by-line output
 func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.SubtaskEvent) {
 	idx := subtaskEvent.SubtaskIndex
 
@@ -228,31 +227,25 @@ func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.Subtas
 
 	// Initialize progress tracking for this subtask if needed
 	if _, exists := h.subtaskProgress[idx]; !exists {
-		// First event - setup display layout if this is the first subtask
+		// First event - print header once
 		if !h.headerPrinted {
 			h.totalSubtasks = subtaskEvent.TotalSubtasks
 			h.headerPrinted = true
-
-			// Print header
 			fmt.Printf("\n%s🤖 Subagent: Running %d tasks%s\n", grayStyle, h.totalSubtasks, resetStyle)
-
-			// Print all task lines with placeholders
-			for i := 0; i < h.totalSubtasks; i++ {
-				fmt.Printf("%s  ⇉ Task %d/%d: ...%s\n", grayStyle, i+1, h.totalSubtasks, resetStyle)
-				fmt.Printf("%s    [waiting]%s\n", grayStyle, resetStyle)
-			}
 		}
 
 		h.subtaskProgress[idx] = &SubtaskProgress{
-			Index:      idx,
-			Preview:    subtaskEvent.SubtaskPreview,
-			Status:     "running",
-			LineNumber: 2 + idx*2, // Header + (task line + status line) for each task
+			Index:   idx,
+			Preview: subtaskEvent.SubtaskPreview,
+			Status:  "running",
 		}
 
-		// Update this task's title and preview
-		h.updateTaskTitle(idx, subtaskEvent.SubtaskPreview)
-		h.updateTaskLine(idx, subtaskEvent.SubtaskPreview, "[starting]")
+		// Print task start
+		preview := subtaskEvent.SubtaskPreview
+		if len(preview) > 60 {
+			preview = preview[:57] + "..."
+		}
+		fmt.Printf("%s  ⇉ Task %d/%d: %s%s\n", grayStyle, idx+1, h.totalSubtasks, preview, resetStyle)
 	}
 
 	progress := h.subtaskProgress[idx]
@@ -260,114 +253,29 @@ func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.Subtas
 	// Handle different event types from the subtask
 	switch e := subtaskEvent.OriginalEvent.(type) {
 	case *domain.ToolCallStartEvent:
-		// Update current tool being executed
+		// Tool started - show on same line
 		progress.CurrentTool = e.ToolName
 		progress.Status = "running"
-		h.updateTaskLine(idx, progress.Preview, "● "+e.ToolName)
+		// Use \r to overwrite current line
+		fmt.Printf("\r%s    ● %s%s", grayStyle, e.ToolName, resetStyle)
 
 	case *domain.ToolCallCompleteEvent:
-		// Tool completed
+		// Tool completed - clear line and update count
 		progress.ToolsCompleted++
 		progress.CurrentTool = ""
-		// Show progress
-		h.updateTaskLine(idx, progress.Preview, fmt.Sprintf("✓ %d tools", progress.ToolsCompleted))
+		fmt.Printf("\r\033[K") // Clear line
 
 	case *domain.TaskCompleteEvent:
-		// Task completed successfully
+		// Task completed - print final status on new line
 		progress.Status = "completed"
-		h.updateTaskLine(idx, progress.Preview, fmt.Sprintf("✓ Completed | %d tokens", e.TotalTokens))
+		fmt.Printf("\r\033[K%s    ✓ Completed | %d tokens%s\n", grayStyle, e.TotalTokens, resetStyle)
 
 	case *domain.ErrorEvent:
-		// Subtask failed - errors in red
+		// Subtask failed - print error in red
 		progress.Status = "failed"
-		h.updateTaskLineError(idx, progress.Preview, fmt.Sprintf("✗ Error: %v", e.Error))
+		redStyle := "\033[91m"
+		fmt.Printf("\r\033[K%s    ✗ Error: %v%s\n", redStyle, e.Error, resetStyle)
 	}
-}
-
-// updateTaskLine updates a specific task's status line using ANSI cursor positioning
-func (h *StreamingOutputHandler) updateTaskLine(taskIdx int, preview, status string) {
-	progress := h.subtaskProgress[taskIdx]
-	if progress == nil {
-		return
-	}
-
-	grayStyle := "\033[90m"
-	resetStyle := "\033[0m"
-
-	// Save cursor position
-	fmt.Print("\033[s")
-
-	// Calculate absolute line position: header(1) + task lines before this one + task title(1) + status line(1)
-	// Line numbering: 1=header, 2=task1 title, 3=task1 status, 4=task2 title, 5=task2 status...
-	absoluteLine := 1 + (taskIdx * 2) + 2 // header + (task_index * 2) + title_line + status_line
-
-	// Move to absolute position (row, column)
-	fmt.Printf("\033[%d;1H", absoluteLine)
-
-	// Clear line and write status
-	fmt.Printf("\r\033[K%s    %s%s", grayStyle, status, resetStyle)
-
-	// Restore cursor position
-	fmt.Print("\033[u")
-}
-
-// updateTaskLineError updates a task line with error in red
-func (h *StreamingOutputHandler) updateTaskLineError(taskIdx int, preview, errorMsg string) {
-	progress := h.subtaskProgress[taskIdx]
-	if progress == nil {
-		return
-	}
-
-	redStyle := "\033[91m"
-	resetStyle := "\033[0m"
-
-	// Save cursor position
-	fmt.Print("\033[s")
-
-	// Calculate absolute line position for status line
-	absoluteLine := 1 + (taskIdx * 2) + 2
-
-	// Move to absolute position
-	fmt.Printf("\033[%d;1H", absoluteLine)
-
-	// Clear line and write error
-	fmt.Printf("\r\033[K%s    %s%s", redStyle, errorMsg, resetStyle)
-
-	// Restore cursor position
-	fmt.Print("\033[u")
-}
-
-// updateTaskTitle updates a task's title line (first line) with the actual preview
-func (h *StreamingOutputHandler) updateTaskTitle(taskIdx int, preview string) {
-	progress := h.subtaskProgress[taskIdx]
-	if progress == nil {
-		return
-	}
-
-	grayStyle := "\033[90m"
-	resetStyle := "\033[0m"
-
-	// Save cursor position
-	fmt.Print("\033[s")
-
-	// Calculate absolute line position for title line
-	// Line numbering: 1=header, 2=task1 title, 3=task1 status...
-	absoluteLine := 1 + (taskIdx * 2) + 1 // header + (task_index * 2) + title_line
-
-	// Truncate preview if too long
-	maxLen := 60
-	if len(preview) > maxLen {
-		preview = preview[:maxLen-3] + "..."
-	}
-
-	// Move to absolute position
-	fmt.Printf("\033[%d;1H", absoluteLine)
-
-	// Clear line and write title
-	fmt.Printf("\r\033[K%s  ⇉ Task %d/%d: %s%s", grayStyle, taskIdx+1, h.totalSubtasks, preview, resetStyle)
-
-	// Restore cursor position
-	fmt.Print("\033[u")
 }
 
 // getOutputContext retrieves OutputContext from coordinator context

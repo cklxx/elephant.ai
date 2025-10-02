@@ -342,11 +342,11 @@ func (e *SubtaskEvent) GetAgentLevel() types.AgentLevel {
 
 // subagentListener tracks progress and forwards events to parent
 type subagentListener struct {
-	taskIndex      int                   // Which subtask this is (0-based)
-	totalTasks     int                   // Total number of subtasks
-	taskPreview    string                // Short preview of the task
-	toolCallCount  int                   // Number of tools executed
-	parentListener domain.EventListener  // Parent listener to forward events to
+	taskIndex      int                  // Which subtask this is (0-based)
+	totalTasks     int                  // Total number of subtasks
+	taskPreview    string               // Short preview of the task
+	toolCallCount  int                  // Number of tools executed
+	parentListener domain.EventListener // Parent listener to forward events to
 	mu             sync.Mutex
 }
 

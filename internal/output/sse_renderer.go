@@ -1,8 +1,8 @@
 package output
 
 import (
-	"alex/internal/agent/types"
 	"alex/internal/agent/domain"
+	"alex/internal/agent/types"
 	"encoding/json"
 	"fmt"
 	"time"

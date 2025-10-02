@@ -434,7 +434,6 @@ func (e *ReactEngine) buildObservation(results []ToolResult) Message {
 	}
 }
 
-
 // finalize creates the final task result
 func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult {
 	// Extract final answer from last assistant message

@@ -201,7 +201,7 @@ func (r *CLIRenderer) formatToolOutput(ctx *types.OutputContext, toolName, resul
 		if len(preview) > 80 {
 			preview = preview[:77] + "..."
 		}
-		return fmt.Sprintf("%s  → %s\n", indent, grayStyle.Render(preview))
+		return fmt.Sprintf("%s  %s\n", indent, grayStyle.Render("→ "+preview))
 	}
 }
 
@@ -214,16 +214,16 @@ func (r *CLIRenderer) formatFileOutput(toolName, result, indent string, style li
 	switch toolName {
 	case "file_read":
 		lines := strings.Count(cleaned, "\n")
-		return fmt.Sprintf("%s  → %s\n", indent, style.Render(fmt.Sprintf("%d lines read", lines)))
+		return fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d lines read", lines)))
 	case "file_write", "file_edit":
 		if strings.Contains(cleaned, "Success") || strings.Contains(cleaned, "written") {
-			return fmt.Sprintf("%s  → %s\n", indent, style.Render("✓ file written"))
+			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ ✓ file written"))
 		}
-		return fmt.Sprintf("%s  → %s\n", indent, style.Render(cleaned))
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
 	case "list_files":
 		return r.formatListFiles(cleaned, indent, style)
 	default:
-		return fmt.Sprintf("%s  → %s\n", indent, style.Render(cleaned))
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
 	}
 }
 
@@ -236,7 +236,7 @@ func (r *CLIRenderer) formatSearchOutput(toolName, result, indent string, style 
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s  → %s\n", indent, style.Render(fmt.Sprintf("%d matches", matchCount))))
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d matches", matchCount))))
 
 	// In verbose mode, show first few matches
 	if r.verbose && matchCount > 0 && matchCount <= 5 {
@@ -265,7 +265,7 @@ func (r *CLIRenderer) formatExecutionOutput(toolName, result, indent string, sty
 		// In verbose mode, show more output
 		lines := strings.Split(strings.TrimSpace(cleaned), "\n")
 		var output strings.Builder
-		output.WriteString(fmt.Sprintf("%s  → %s\n", indent, style.Render("execution output:")))
+		output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ execution output:")))
 		for i, line := range lines {
 			if i >= 10 {
 				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... (%d more lines)", len(lines)-10))))
@@ -283,11 +283,11 @@ func (r *CLIRenderer) formatExecutionOutput(toolName, result, indent string, sty
 	if len(preview) > 100 {
 		preview = preview[:97] + "..."
 	}
-	return fmt.Sprintf("%s  → %s\n", indent, style.Render(preview))
+	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 }
 
 func (r *CLIRenderer) formatWebOutput(toolName, result, indent string, style lipgloss.Style) string {
-	return fmt.Sprintf("%s  → %s\n", indent, style.Render("✓ fetched"))
+	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ ✓ fetched"))
 }
 
 func (r *CLIRenderer) formatTaskOutput(toolName, result, indent string, style lipgloss.Style) string {
@@ -316,7 +316,7 @@ func (r *CLIRenderer) formatReasoningOutput(result, indent string, style lipglos
 	if len(preview) > 100 {
 		preview = preview[:97] + "..."
 	}
-	return fmt.Sprintf("%s  → %s\n", indent, style.Render(preview))
+	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 }
 
 // Helper functions
@@ -439,7 +439,7 @@ func (r *CLIRenderer) formatListFiles(content, indent string, style lipgloss.Sty
 	var output strings.Builder
 
 	// Show count summary
-	output.WriteString(fmt.Sprintf("%s  → %s\n", indent, style.Render(fmt.Sprintf("%d files/directories", fileCount))))
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d files/directories", fileCount))))
 
 	// In verbose mode, show first few files
 	if r.verbose && fileCount > 0 && fileCount <= 10 {
