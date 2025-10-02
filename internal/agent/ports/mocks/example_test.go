@@ -125,10 +125,10 @@ func Example_errorHandling() {
 	)
 
 	fmt.Printf("Has error: %v\n", state.ToolResults[0].Error != nil)
-	fmt.Printf("Stop reason: %s\n", result.StopReason)
+	fmt.Printf("Iterations: %d\n", result.Iterations)
 	// Output:
 	// Has error: true
-	// Stop reason: completed
+	// Iterations: 3
 }
 
 // TestScenarioCustomization shows how to customize scenarios for specific tests

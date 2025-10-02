@@ -194,14 +194,14 @@ func TestReactEngine_ToolErrorScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Engine stops after all tools error (current behavior)
-	// First iteration: file_read fails, engine stops with "completed"
-	if result.Iterations != 1 {
-		t.Errorf("Expected 1 iteration (engine stops on all tools errored), got %d", result.Iterations)
+	// LLM decides when to stop - should retry after error
+	// Expected flow: iter1: file_read fails → iter2: find succeeds → iter3: final answer
+	if result.Iterations < 2 {
+		t.Errorf("Expected at least 2 iterations (LLM retries after error), got %d", result.Iterations)
 	}
 
-	if result.StopReason != "completed" {
-		t.Errorf("Expected stop reason 'completed', got '%s'", result.StopReason)
+	if result.StopReason != "final_answer" && result.StopReason != "max_iterations" {
+		t.Errorf("Expected stop reason 'final_answer' or 'max_iterations', got '%s'", result.StopReason)
 	}
 
 	// Should have one tool result with error

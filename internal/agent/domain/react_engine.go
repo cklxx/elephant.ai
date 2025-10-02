@@ -203,23 +203,7 @@ func (e *ReactEngine) SolveTask(
 			ToolsRun:   len(results),
 		})
 
-		// Check stop conditions
-		if e.shouldStop(state, results) {
-			e.logger.Info("Stop condition met - all tools errored")
-			finalResult := e.finalize(state, "completed")
-			// EMIT: Task complete
-			e.emit(&TaskCompleteEvent{
-				BaseEvent:       newBaseEvent(),
-				FinalAnswer:     finalResult.Answer,
-				TotalIterations: finalResult.Iterations,
-				TotalTokens:     finalResult.TokensUsed,
-				StopReason:      finalResult.StopReason,
-				Duration:        time.Since(startTime),
-			})
-			return finalResult, nil
-		}
-
-		// Check if we should continue
+		// LLM decides when to stop - no hardcoded stop conditions
 		e.logger.Debug("Iteration %d complete, continuing to next iteration", state.Iterations)
 	}
 
@@ -434,19 +418,6 @@ func (e *ReactEngine) buildObservation(results []ToolResult) Message {
 	}
 }
 
-// shouldStop determines if ReAct loop should terminate
-func (e *ReactEngine) shouldStop(state *TaskState, results []ToolResult) bool {
-	// Stop if all tools errored
-	allErrored := true
-	for _, r := range results {
-		if r.Error == nil {
-			allErrored = false
-			break
-		}
-	}
-
-	return allErrored
-}
 
 // finalize creates the final task result
 func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult {

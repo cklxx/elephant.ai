@@ -521,30 +521,37 @@ type toolExecutorDisplay struct {
 }
 
 func (t *toolExecutorDisplay) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Display tool call
-	fmt.Println(t.formatter.FormatToolCall(call.Name, call.Arguments))
+	// Check if in silent mode (for subagent)
+	isSilent := contextkeys.IsSilentMode(ctx)
+
+	// Display tool call (skip if silent)
+	if !isSilent {
+		fmt.Println(t.formatter.FormatToolCall(call.Name, call.Arguments))
+	}
 
 	// Execute actual tool
 	result, err := t.inner.Execute(ctx, call)
 
-	// Display result preview (always show formatted summary)
-	if err != nil || (result != nil && result.Error != nil) {
-		formatted := t.formatter.FormatToolResult(call.Name, "", false)
-		fmt.Printf("\033[90m%s\033[0m\n", formatted)
-	} else if result != nil {
-		formatted := t.formatter.FormatToolResult(call.Name, result.Content, true)
-		fmt.Printf("\033[90m%s\033[0m\n", formatted)
+	// Display result preview (skip if silent)
+	if !isSilent {
+		if err != nil || (result != nil && result.Error != nil) {
+			formatted := t.formatter.FormatToolResult(call.Name, "", false)
+			fmt.Printf("\033[90m%s\033[0m\n", formatted)
+		} else if result != nil {
+			formatted := t.formatter.FormatToolResult(call.Name, result.Content, true)
+			fmt.Printf("\033[90m%s\033[0m\n", formatted)
 
-		// For verbose mode, show full output for certain tools
-		// Check environment variable ALEX_VERBOSE
-		if os.Getenv("ALEX_VERBOSE") == "1" || os.Getenv("ALEX_VERBOSE") == "true" {
-			// Show first 500 chars of actual result
-			if len(result.Content) > 0 {
-				preview := result.Content
-				if len(preview) > 500 {
-					preview = preview[:500] + "..."
+			// For verbose mode, show full output for certain tools
+			// Check environment variable ALEX_VERBOSE
+			if os.Getenv("ALEX_VERBOSE") == "1" || os.Getenv("ALEX_VERBOSE") == "true" {
+				// Show first 500 chars of actual result
+				if len(result.Content) > 0 {
+					preview := result.Content
+					if len(preview) > 500 {
+						preview = preview[:500] + "..."
+					}
+					fmt.Printf("\033[90m  Full output:\n%s\033[0m\n", preview)
 				}
-				fmt.Printf("\033[90m  Full output:\n%s\033[0m\n", preview)
 			}
 		}
 	}

@@ -153,7 +153,7 @@ scenario := mocks.NewCodeEditScenario()
 scenario := mocks.NewToolErrorScenario()
 ```
 
-**Note:** The current engine implementation stops when all tools error. Future versions may implement retry/recovery logic.
+**Note:** The engine allows the LLM to decide whether to retry after errors, enabling intelligent error recovery.
 
 ### 7. Todo Management Scenario
 **Name:** `todo_management`

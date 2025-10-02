@@ -209,8 +209,8 @@ func TestReactEngine_SolveTask_ToolError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	// Should stop due to tool error
-	if result.StopReason != "completed" {
-		t.Errorf("Expected stop reason 'completed', got '%s'", result.StopReason)
+	// LLM doesn't provide more responses, so reaches max iterations
+	if result.StopReason != "max_iterations" {
+		t.Errorf("Expected stop reason 'max_iterations' (LLM decides when to stop), got '%s'", result.StopReason)
 	}
 }
