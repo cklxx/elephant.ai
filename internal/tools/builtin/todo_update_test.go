@@ -144,8 +144,8 @@ func TestTodoUpdate_Execute_Success(t *testing.T) {
 	assert.Contains(t, contentStr, "Write tests")
 	assert.Contains(t, contentStr, "Setup database")
 	assert.Contains(t, contentStr, "☐") // pending checkbox
-	assert.Contains(t, contentStr, "▶") // in_progress indicator
-	assert.Contains(t, contentStr, "☒") // completed checkbox
+	assert.Contains(t, contentStr, "→") // in_progress indicator
+	assert.Contains(t, contentStr, "✓") // completed checkbox
 }
 
 func TestTodoUpdate_Execute_EmptyTodos(t *testing.T) {
@@ -490,7 +490,7 @@ func TestTodoUpdate_IntegrationWithRead(t *testing.T) {
 
 	// Verify content matches
 	assert.Contains(t, readResult.Content, "Integration test task")
-	assert.Contains(t, readResult.Content, "▶")
+	assert.Contains(t, readResult.Content, "→")
 	assert.Equal(t, 1, readResult.Metadata["total_count"])
 	assert.Equal(t, 1, readResult.Metadata["in_progress_count"])
 }

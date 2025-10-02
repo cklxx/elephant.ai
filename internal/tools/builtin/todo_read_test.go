@@ -75,12 +75,12 @@ func TestTodoRead_Execute_WithTodoFile(t *testing.T) {
 
 ## In Progress
 
-▶ Build REST API
+→ Build REST API
 
 ## Completed
 
-☒ Write unit tests
-☒ Setup project structure
+✓ Write unit tests
+✓ Setup project structure
 `
 
 	// Write todo file to sessions directory (default_todo.md)

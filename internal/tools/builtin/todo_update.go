@@ -107,7 +107,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	if len(inProgress) > 0 {
 		md.WriteString("## In Progress\n\n")
 		for _, t := range inProgress {
-			md.WriteString(fmt.Sprintf("▶ %s\n", t))
+			md.WriteString(fmt.Sprintf("→ %s\n", t))
 		}
 		md.WriteString("\n")
 	}
@@ -123,7 +123,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	if len(completed) > 0 {
 		md.WriteString("## Completed\n\n")
 		for _, t := range completed {
-			md.WriteString(fmt.Sprintf("☒ %s\n", t))
+			md.WriteString(fmt.Sprintf("✓ %s\n", t))
 		}
 		md.WriteString("\n")
 	}
@@ -163,7 +163,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	// Show all tasks in flat list
 	if len(inProgress) > 0 {
 		for _, task := range inProgress {
-			result.WriteString(fmt.Sprintf("▶ %s\n", task))
+			result.WriteString(fmt.Sprintf("→ %s\n", task))
 		}
 	}
 	if len(pending) > 0 {
@@ -173,7 +173,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	}
 	if len(completed) > 0 && len(completed) <= 3 {
 		for _, task := range completed {
-			result.WriteString(fmt.Sprintf("☑ %s\n", task))
+			result.WriteString(fmt.Sprintf("✓ %s\n", task))
 		}
 	}
 

@@ -9,20 +9,21 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/types"
+	"alex/internal/output"
 
 	"golang.org/x/term"
 )
 
 // NativeChatUI implements a chat interface using native terminal control
 type NativeChatUI struct {
-	container     *Container
-	sessionID     string
-	messages      []DisplayMessage
-	toolFormatter *domain.ToolFormatter
-	ctx           context.Context
-	startTime     time.Time
-	history       []string // Input history
-	historyIndex  int      // Current position in history (-1 = not browsing)
+	container    *Container
+	sessionID    string
+	messages     []DisplayMessage
+	ctx          context.Context
+	startTime    time.Time
+	history      []string // Input history
+	historyIndex int      // Current position in history (-1 = not browsing)
 }
 
 // DisplayMessage represents a message to display
@@ -33,14 +34,22 @@ type DisplayMessage struct {
 
 // NewNativeChatUI creates a new native chat UI
 func NewNativeChatUI(container *Container) *NativeChatUI {
+	// Set core agent output context
+	ctx := context.Background()
+	coreOutCtx := &types.OutputContext{
+		Level:   types.LevelCore,
+		AgentID: "core",
+		Verbose: isVerbose(),
+	}
+	ctx = types.WithOutputContext(ctx, coreOutCtx)
+
 	return &NativeChatUI{
-		container:     container,
-		messages:      make([]DisplayMessage, 0),
-		toolFormatter: domain.NewToolFormatter(),
-		ctx:           context.Background(),
-		startTime:     time.Now(),
-		history:       make([]string, 0),
-		historyIndex:  -1,
+		container:    container,
+		messages:     make([]DisplayMessage, 0),
+		ctx:          ctx,
+		startTime:    time.Now(),
+		history:      make([]string, 0),
+		historyIndex: -1,
 	}
 }
 
@@ -165,18 +174,13 @@ func (ui *NativeChatUI) executeTask(task string) error {
 		ui.sessionID = session.ID
 	}
 
-	// Create event listener
-	listener := &NativeEventListener{ui: ui}
+	// Create event listener with unified renderer
+	listener := newNativeEventListener(ui)
 
-	// Execute task
-	result, err := ui.container.Coordinator.ExecuteTaskWithListener(
-		ui.ctx,
-		task,
-		ui.sessionID,
-		listener,
-	)
+	// Execute task using coordinator's method
+	result, err := ui.container.Coordinator.ExecuteTask(ui.ctx, task, ui.sessionID, listener)
 	if err != nil {
-		return err
+		return fmt.Errorf("task execution failed: %w", err)
 	}
 
 	// Display final answer
@@ -280,12 +284,32 @@ func (ui *NativeChatUI) getGitBranch() string {
 }
 
 // NativeEventListener implements domain.EventListener for native UI
+// It uses the unified CLIRenderer for consistent output
 type NativeEventListener struct {
-	ui *NativeChatUI
+	ui          *NativeChatUI
+	renderer    *output.CLIRenderer
+	activeTools map[string]ToolInfo
+}
+
+func newNativeEventListener(ui *NativeChatUI) *NativeEventListener {
+	return &NativeEventListener{
+		ui:          ui,
+		renderer:    output.NewCLIRenderer(isVerbose()),
+		activeTools: make(map[string]ToolInfo),
+	}
 }
 
 func (l *NativeEventListener) OnEvent(event domain.AgentEvent) {
+	// Get output context from UI
+	outCtx := types.GetOutputContext(l.ui.ctx)
+
 	switch e := event.(type) {
+	case *domain.TaskAnalysisEvent:
+		// Show task analysis with purple gradient
+		rendered := l.renderer.RenderTaskAnalysis(outCtx, e)
+		if rendered != "" {
+			fmt.Print(rendered)
+		}
 	case *domain.IterationStartEvent:
 		// Optional: show iteration info
 	case *domain.ThinkingEvent:
@@ -293,13 +317,30 @@ func (l *NativeEventListener) OnEvent(event domain.AgentEvent) {
 	case *domain.ThinkCompleteEvent:
 		// Optional: show thought
 	case *domain.ToolCallStartEvent:
-		// Show tool call
-		formatted := l.ui.toolFormatter.FormatToolCall(e.ToolName, e.Arguments)
-		fmt.Printf("\033[90m%s\033[0m\n", formatted)
+		// Store tool info for duration calculation
+		l.activeTools[e.CallID] = ToolInfo{
+			Name:      e.ToolName,
+			StartTime: e.Timestamp(),
+		}
+
+		// Show tool call using unified renderer
+		outCtx.Category = output.CategorizeToolName(e.ToolName)
+		rendered := l.renderer.RenderToolCallStart(outCtx, e.ToolName, e.Arguments)
+		if rendered != "" {
+			fmt.Print(rendered)
+		}
 	case *domain.ToolCallCompleteEvent:
-		// Show tool result
-		formatted := l.ui.toolFormatter.FormatToolResult(e.ToolName, e.Result, e.Error == nil)
-		fmt.Printf("\033[90m%s\033[0m\n", formatted)
+		// Show tool result using unified renderer
+		info, exists := l.activeTools[e.CallID]
+		if exists {
+			outCtx.Category = output.CategorizeToolName(info.Name)
+			duration := time.Since(info.StartTime)
+			rendered := l.renderer.RenderToolCallComplete(outCtx, info.Name, e.Result, e.Error, duration)
+			if rendered != "" {
+				fmt.Print(rendered)
+			}
+			delete(l.activeTools, e.CallID)
+		}
 	case *domain.IterationCompleteEvent:
 		// Optional: show iteration stats
 	case *domain.TaskCompleteEvent:

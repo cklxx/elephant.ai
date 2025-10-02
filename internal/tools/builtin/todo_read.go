@@ -80,13 +80,13 @@ func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "▶") {
+		if strings.HasPrefix(trimmed, "→") {
 			inProgressCount++
 			totalCount++
 		} else if strings.HasPrefix(trimmed, "☐") {
 			pendingCount++
 			totalCount++
-		} else if strings.HasPrefix(trimmed, "☒") {
+		} else if strings.HasPrefix(trimmed, "✓") {
 			completedCount++
 			totalCount++
 		}

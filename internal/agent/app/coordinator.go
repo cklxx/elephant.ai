@@ -7,14 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/contextkeys"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/types"
 	"alex/internal/llm"
 	"alex/internal/prompts"
 	"alex/internal/utils"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // AgentCoordinator manages session lifecycle and delegates to domain
@@ -25,7 +23,6 @@ type AgentCoordinator struct {
 	contextMgr   ports.ContextManager
 	parser       ports.FunctionCallParser
 	messageQueue ports.MessageQueue
-	reactEngine  *domain.ReactEngine
 	promptLoader *prompts.Loader
 	costTracker  ports.CostTracker
 	config       Config
@@ -48,7 +45,6 @@ func NewAgentCoordinator(
 	contextMgr ports.ContextManager,
 	parser ports.FunctionCallParser,
 	messageQueue ports.MessageQueue,
-	reactEngine *domain.ReactEngine,
 	costTracker ports.CostTracker,
 	config Config,
 ) *AgentCoordinator {
@@ -59,7 +55,6 @@ func NewAgentCoordinator(
 		contextMgr:   contextMgr,
 		parser:       parser,
 		messageQueue: messageQueue,
-		reactEngine:  reactEngine,
 		promptLoader: prompts.New(),
 		costTracker:  costTracker,
 		config:       config,
@@ -67,127 +62,49 @@ func NewAgentCoordinator(
 	}
 }
 
+// ExecuteTask executes a task with optional event listener for streaming output
 func (c *AgentCoordinator) ExecuteTask(
 	ctx context.Context,
 	task string,
 	sessionID string,
+	listener any,
 ) (*ports.TaskResult, error) {
 	c.logger.Info("ExecuteTask called: task='%s', sessionID='%s'", task, sessionID)
 
-	// 1. Load or create session
-	c.logger.Debug("Loading session...")
-	session, err := c.getSession(ctx, sessionID)
+	// Prepare execution environment
+	env, err := c.PrepareExecution(ctx, task, sessionID)
 	if err != nil {
-		c.logger.Error("Failed to get session: %v", err)
-		return nil, fmt.Errorf("failed to get session: %w", err)
-	}
-	c.logger.Debug("Session loaded: id=%s, messages=%d", session.ID, len(session.Messages))
-
-	// 2. Check context limits & compress if needed
-	if c.contextMgr.ShouldCompress(session.Messages, c.config.MaxTokens) {
-		c.logger.Info("Context limit reached, compressing...")
-		compressed, err := c.contextMgr.Compress(session.Messages, c.config.MaxTokens*80/100)
-		if err != nil {
-			c.logger.Error("Failed to compress context: %v", err)
-			return nil, fmt.Errorf("failed to compress context: %w", err)
-		}
-		c.logger.Info("Compression complete: %d -> %d messages", len(session.Messages), len(compressed))
-		session.Messages = compressed
+		return nil, err
 	}
 
-	// 3. Get appropriate LLM client
-	c.logger.Debug("Getting LLM client: provider=%s, model=%s", c.config.LLMProvider, c.config.LLMModel)
-	llmClient, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, llm.Config{
-		APIKey:  c.config.APIKey,
-		BaseURL: c.config.BaseURL,
-	})
-	if err != nil {
-		c.logger.Error("Failed to get LLM client: %v", err)
-		return nil, fmt.Errorf("failed to get LLM client: %w", err)
-	}
-	c.logger.Debug("LLM client obtained successfully")
-
-	// 3.5. Set up cost tracking callback if cost tracker is available
-	if c.costTracker != nil {
-		if trackingClient, ok := llmClient.(ports.UsageTrackingClient); ok {
-			trackingClient.SetUsageCallback(func(usage ports.TokenUsage, model string, provider string) {
-				record := ports.UsageRecord{
-					SessionID:    sessionID,
-					Model:        model,
-					Provider:     provider,
-					InputTokens:  usage.PromptTokens,
-					OutputTokens: usage.CompletionTokens,
-					TotalTokens:  usage.TotalTokens,
-					Timestamp:    time.Now(),
-				}
-
-				// Calculate costs
-				inputCost, outputCost, totalCost := ports.CalculateCost(
-					usage.PromptTokens,
-					usage.CompletionTokens,
-					model,
-				)
-				record.InputCost = inputCost
-				record.OutputCost = outputCost
-				record.TotalCost = totalCost
-
-				// Record usage (non-blocking, log errors only)
-				if err := c.costTracker.RecordUsage(ctx, record); err != nil {
-					c.logger.Warn("Failed to record cost: %v", err)
-				}
-			})
-			c.logger.Debug("Cost tracking enabled for session: %s", sessionID)
-		}
-	}
-
-	// 4. Generate system prompt
-	workingDir, err := os.Getwd()
-	if err != nil {
-		workingDir = "."
-	}
-	systemPrompt, err := c.promptLoader.GetSystemPrompt(workingDir, task)
-	if err != nil {
-		c.logger.Warn("Failed to load system prompt: %v, using default", err)
-		systemPrompt = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
-	}
-	c.logger.Debug("System prompt loaded: %d bytes", len(systemPrompt))
-
-	// 5. Prepare task state from session
-	state := &domain.TaskState{
-		SystemPrompt: systemPrompt,
-		Messages:     convertSessionMessages(session.Messages),
-	}
-	c.logger.Debug("Task state prepared: %d messages, system_prompt=%d bytes", len(state.Messages), len(systemPrompt))
-
-	// 6. Create services bundle for domain layer
-	// Check if this is a subagent context - use filtered registry if so
-	toolRegistry := c.toolRegistry
-	if c.isSubagentContext(ctx) {
-		toolRegistry = c.GetToolRegistryWithoutSubagent()
-		c.logger.Debug("Using filtered registry (subagent excluded) for nested call")
-	}
-
-	services := domain.Services{
-		LLM:          llmClient,
-		ToolExecutor: toolRegistry,
-		Parser:       c.parser,
-		Context:      c.contextMgr,
-	}
-	c.logger.Debug("Services bundle created")
-
-	// 6.5. Pre-analyze task to get dynamic action verb
-	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
-
-	// 6.6. Log task pre-analysis (no direct output - let caller handle display)
-	if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
-		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-	}
-
-	// 7. Delegate to domain logic with tool display
+	// Create ReactEngine and configure listener
 	c.logger.Info("Delegating to ReactEngine...")
+	reactEngine := domain.NewReactEngine(c.config.MaxIterations)
 
-	// Create a callback-enabled execution wrapper
-	result, err := c.executeWithToolDisplay(ctx, task, state, services)
+	// Type assert listener to domain.EventListener if provided
+	var domainListener domain.EventListener
+	if listener != nil {
+		if dl, ok := listener.(domain.EventListener); ok {
+			domainListener = dl
+			reactEngine.SetEventListener(domainListener)
+		}
+	}
+
+	// If there's task analysis, emit the event before starting execution
+	if env.TaskAnalysis != nil && env.TaskAnalysis.ActionName != "" && domainListener != nil {
+		// Get agent level from context
+		agentLevel := types.LevelCore
+		if outCtx := types.GetOutputContext(ctx); outCtx != nil {
+			agentLevel = outCtx.Level
+		}
+
+		event := domain.NewTaskAnalysisEvent(agentLevel, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal)
+		domainListener.OnEvent(event)
+	}
+
+	state := env.State.(*domain.TaskState)
+	services := env.Services.(domain.Services)
+	result, err := reactEngine.SolveTask(ctx, task, state, services)
 	if err != nil {
 		c.logger.Error("Task execution failed: %v", err)
 		return nil, fmt.Errorf("task execution failed: %w", err)
@@ -195,16 +112,10 @@ func (c *AgentCoordinator) ExecuteTask(
 	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
 		result.Iterations, result.TokensUsed, result.StopReason)
 
-	// 8. Update session with results (result.Messages contains ALL messages including history)
-	session.Messages = convertDomainMessages(result.Messages)
-	session.UpdatedAt = time.Now()
-
-	c.logger.Debug("Saving session...")
-	if err := c.sessionStore.Save(ctx, session); err != nil {
-		c.logger.Error("Failed to save session: %v", err)
-		return nil, fmt.Errorf("failed to save session: %w", err)
+	// Save session
+	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
+		return nil, err
 	}
-	c.logger.Debug("Session saved successfully")
 
 	// Convert domain.TaskResult to ports.TaskResult
 	return &ports.TaskResult{
@@ -215,34 +126,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	}, nil
 }
 
-// ExecuteTaskWithListener runs a task with a custom event listener
-func (c *AgentCoordinator) ExecuteTaskWithListener(
-	ctx context.Context,
-	task string,
-	sessionID string,
-	listener domain.EventListener,
-) (*domain.TaskResult, error) {
-	return c.executeTaskWithListener(ctx, task, sessionID, listener)
-}
-
-// ExecuteTaskWithTUI runs a task with TUI event streaming
-func (c *AgentCoordinator) ExecuteTaskWithTUI(
-	ctx context.Context,
-	task string,
-	sessionID string,
-	tuiProgram *tea.Program,
-) (*domain.TaskResult, error) {
-	bridge := NewEventBridge(tuiProgram)
-	return c.executeTaskWithListener(ctx, task, sessionID, bridge)
-}
-
-// executeTaskWithListener is the internal implementation
-func (c *AgentCoordinator) executeTaskWithListener(
-	ctx context.Context,
-	task string,
-	sessionID string,
-	listener domain.EventListener,
-) (*domain.TaskResult, error) {
+// PrepareExecution prepares the execution environment without running the task
+func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
 	c.logger.Info("ExecuteTaskWithTUI called: task='%s', sessionID='%s'", task, sessionID)
 
 	// 1. Load or create session
@@ -311,12 +196,24 @@ func (c *AgentCoordinator) executeTaskWithListener(
 		}
 	}
 
-	// 4. Generate system prompt
+	// 4. Pre-analyze task
+	taskAnalysis := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+	var analysisInfo *prompts.TaskAnalysisInfo
+	if taskAnalysis != nil && taskAnalysis.ActionName != "" {
+		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysis.ActionName, taskAnalysis.Goal)
+		analysisInfo = &prompts.TaskAnalysisInfo{
+			Action:   taskAnalysis.ActionName,
+			Goal:     taskAnalysis.Goal,
+			Approach: taskAnalysis.Approach,
+		}
+	}
+
+	// 5. Generate system prompt with task analysis
 	workingDir, err := os.Getwd()
 	if err != nil {
 		workingDir = "."
 	}
-	systemPrompt, err := c.promptLoader.GetSystemPrompt(workingDir, task)
+	systemPrompt, err := c.promptLoader.GetSystemPrompt(workingDir, task, analysisInfo)
 	if err != nil {
 		c.logger.Warn("Failed to load system prompt: %v, using default", err)
 		systemPrompt = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
@@ -346,50 +243,43 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	}
 	c.logger.Debug("Services bundle created")
 
-	// 7. Set up event listener (skip if in silent mode for subagent)
-	if !contextkeys.IsSilentMode(ctx) {
-		c.reactEngine.SetEventListener(listener)
-		defer c.reactEngine.SetEventListener(nil) // Clear listener when done
+	c.logger.Info("Execution environment prepared successfully")
 
-		// 7.5. Pre-analyze task to get dynamic action verb
-		taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
-
-		// 7.6. Emit task analysis event
-		if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
-			c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
-
-			// Emit analysis event for display
-			if listener != nil {
-				listener.OnEvent(domain.NewTaskAnalysisEvent(
-					taskAnalysisStruct.ActionName,
-					taskAnalysisStruct.Goal,
-				))
-			}
+	// Return everything needed for the caller to run the task
+	var taskAnalysisInfo *ports.TaskAnalysis
+	if taskAnalysis != nil && taskAnalysis.ActionName != "" {
+		taskAnalysisInfo = &ports.TaskAnalysis{
+			ActionName: taskAnalysis.ActionName,
+			Goal:       taskAnalysis.Goal,
+			Approach:   taskAnalysis.Approach,
 		}
 	}
 
-	// 8. Execute task (events will stream to listener)
-	c.logger.Info("Delegating to ReactEngine with TUI streaming...")
-	result, err := c.reactEngine.SolveTask(ctx, task, state, services)
-	if err != nil {
-		c.logger.Error("Task execution failed: %v", err)
-		return nil, fmt.Errorf("task execution failed: %w", err)
-	}
-	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
-		result.Iterations, result.TokensUsed, result.StopReason)
+	return &ports.ExecutionEnvironment{
+		State:        state,
+		Services:     services,
+		Session:      session,
+		SystemPrompt: systemPrompt,
+		TaskAnalysis: taskAnalysisInfo,
+	}, nil
+}
 
-	// 9. Update session with results
-	session.Messages = convertDomainMessages(result.Messages)
+// SaveSessionAfterExecution saves session state after task completion
+func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result any) error {
+	domainResult := result.(*domain.TaskResult)
+
+	// Update session with results
+	session.Messages = convertDomainMessages(domainResult.Messages)
 	session.UpdatedAt = time.Now()
 
 	c.logger.Debug("Saving session...")
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		c.logger.Error("Failed to save session: %v", err)
-		return nil, fmt.Errorf("failed to save session: %w", err)
+		return fmt.Errorf("failed to save session: %w", err)
 	}
 	c.logger.Debug("Session saved successfully")
 
-	return result, nil
+	return nil
 }
 
 // GetSession retrieves or creates a session (public method)
@@ -461,111 +351,41 @@ func (c *AgentCoordinator) isSubagentContext(ctx context.Context) bool {
 	return ctx.Value(subagentCtxKey{}) != nil
 }
 
+// GetConfig returns the coordinator configuration
+func (c *AgentCoordinator) GetConfig() any {
+	return c.config
+}
+
+// GetLLMClient returns an LLM client
+func (c *AgentCoordinator) GetLLMClient() (any, error) {
+	return c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, llm.Config{
+		APIKey:  c.config.APIKey,
+		BaseURL: c.config.BaseURL,
+	})
+}
+
+// GetParser returns the function call parser
+func (c *AgentCoordinator) GetParser() any {
+	return c.parser
+}
+
+// GetContextManager returns the context manager
+func (c *AgentCoordinator) GetContextManager() any {
+	return c.contextMgr
+}
+
+// GetSystemPrompt returns the system prompt
+func (c *AgentCoordinator) GetSystemPrompt() string {
+	workingDir, _ := os.Getwd()
+	if workingDir == "" {
+		workingDir = "."
+	}
+	prompt, _ := c.promptLoader.GetSystemPrompt(workingDir, "", nil)
+	return prompt
+}
+
 // performTaskPreAnalysis performs quick task analysis using LLM
 // executeWithToolDisplay wraps ReactEngine execution with tool call display
-func (c *AgentCoordinator) executeWithToolDisplay(
-	ctx context.Context,
-	task string,
-	state *domain.TaskState,
-	services domain.Services,
-) (*domain.TaskResult, error) {
-	// Create a tool-intercepting registry wrapper
-	originalRegistry := services.ToolExecutor
-	displayRegistry := &toolDisplayWrapper{
-		inner:     originalRegistry,
-		formatter: domain.NewToolFormatter(),
-	}
-	services.ToolExecutor = displayRegistry
-
-	// Execute with display wrapper
-	return c.reactEngine.SolveTask(ctx, task, state, services)
-}
-
-// toolDisplayWrapper intercepts tool execution to display calls
-type toolDisplayWrapper struct {
-	inner     ports.ToolRegistry
-	formatter *domain.ToolFormatter
-}
-
-func (w *toolDisplayWrapper) Get(name string) (ports.ToolExecutor, error) {
-	tool, err := w.inner.Get(name)
-	if err != nil {
-		return nil, err
-	}
-
-	// Wrap tool with display logic
-	return &toolExecutorDisplay{
-		inner:     tool,
-		formatter: w.formatter,
-		name:      name,
-	}, nil
-}
-
-func (w *toolDisplayWrapper) List() []ports.ToolDefinition {
-	return w.inner.List()
-}
-
-func (w *toolDisplayWrapper) Register(tool ports.ToolExecutor) error {
-	return w.inner.Register(tool)
-}
-
-func (w *toolDisplayWrapper) Unregister(name string) error {
-	return w.inner.Unregister(name)
-}
-
-// toolExecutorDisplay wraps individual tool execution with display
-type toolExecutorDisplay struct {
-	inner     ports.ToolExecutor
-	formatter *domain.ToolFormatter
-	name      string
-}
-
-func (t *toolExecutorDisplay) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Check if in silent mode (for subagent)
-	isSilent := contextkeys.IsSilentMode(ctx)
-
-	// Display tool call (skip if silent)
-	if !isSilent {
-		fmt.Println(t.formatter.FormatToolCall(call.Name, call.Arguments))
-	}
-
-	// Execute actual tool
-	result, err := t.inner.Execute(ctx, call)
-
-	// Display result preview (skip if silent)
-	if !isSilent {
-		if err != nil || (result != nil && result.Error != nil) {
-			formatted := t.formatter.FormatToolResult(call.Name, "", false)
-			fmt.Printf("\033[90m%s\033[0m\n", formatted)
-		} else if result != nil {
-			formatted := t.formatter.FormatToolResult(call.Name, result.Content, true)
-			fmt.Printf("\033[90m%s\033[0m\n", formatted)
-
-			// For verbose mode, show full output for certain tools
-			// Check environment variable ALEX_VERBOSE
-			if os.Getenv("ALEX_VERBOSE") == "1" || os.Getenv("ALEX_VERBOSE") == "true" {
-				// Show first 500 chars of actual result
-				if len(result.Content) > 0 {
-					preview := result.Content
-					if len(preview) > 500 {
-						preview = preview[:500] + "..."
-					}
-					fmt.Printf("\033[90m  Full output:\n%s\033[0m\n", preview)
-				}
-			}
-		}
-	}
-
-	return result, err
-}
-
-func (t *toolExecutorDisplay) Definition() ports.ToolDefinition {
-	return t.inner.Definition()
-}
-
-func (t *toolExecutorDisplay) Metadata() ports.ToolMetadata {
-	return t.inner.Metadata()
-}
 
 // TaskAnalysis contains the structured result of task pre-analysis
 type TaskAnalysis struct {

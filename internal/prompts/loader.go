@@ -86,18 +86,33 @@ func (l *Loader) List() []string {
 }
 
 // GetSystemPrompt returns the system prompt with context
-func (l *Loader) GetSystemPrompt(workingDir, goal string) (string, error) {
+// TaskAnalysisInfo contains task analysis data for prompt injection
+type TaskAnalysisInfo struct {
+	Action   string
+	Goal     string
+	Approach string
+}
+
+func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *TaskAnalysisInfo) (string, error) {
 	// Load project memory (ALEX.md or CLAUDE.md)
 	memory := l.loadProjectMemory(workingDir)
 
 	// Load git information
 	gitInfo := l.loadGitInfo(workingDir)
 
+	// Format task analysis if provided
+	var taskAnalysis string
+	if analysis != nil && analysis.Action != "" {
+		taskAnalysis = fmt.Sprintf("Action: %s\nGoal: %s\nApproach: %s",
+			analysis.Action, analysis.Goal, analysis.Approach)
+	}
+
 	variables := map[string]string{
-		"WorkingDir": workingDir,
-		"Goal":       goal,
-		"Memory":     memory,
-		"GitInfo":    gitInfo,
+		"WorkingDir":   workingDir,
+		"Goal":         goal,
+		"Memory":       memory,
+		"GitInfo":      gitInfo,
+		"TaskAnalysis": taskAnalysis,
 	}
 
 	return l.Render("coder", variables)

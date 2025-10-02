@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/agent/types"
 	"alex/internal/utils"
 )
 
@@ -17,7 +18,6 @@ type ReactEngine struct {
 	maxIterations int
 	stopReasons   []string
 	logger        *utils.Logger
-	formatter     *ToolFormatter
 	eventListener EventListener // Optional event listener for TUI
 }
 
@@ -27,7 +27,6 @@ func NewReactEngine(maxIterations int) *ReactEngine {
 		maxIterations: maxIterations,
 		stopReasons:   []string{"final_answer", "done", "complete"},
 		logger:        utils.NewComponentLogger("ReactEngine"),
-		formatter:     NewToolFormatter(),
 		eventListener: nil, // No listener by default
 	}
 }
@@ -37,8 +36,25 @@ func (e *ReactEngine) SetEventListener(listener EventListener) {
 	e.eventListener = listener
 }
 
-// emit sends event to listener if configured (nil-safe)
-func (e *ReactEngine) emit(event AgentEvent) {
+// GetEventListener returns the current event listener (for saving/restoring)
+func (e *ReactEngine) GetEventListener() EventListener {
+	return e.eventListener
+}
+
+// getAgentLevel reads the current agent level from context
+func (e *ReactEngine) getAgentLevel(ctx context.Context) types.AgentLevel {
+	if ctx == nil {
+		return types.LevelCore
+	}
+	outCtx := types.GetOutputContext(ctx)
+	if outCtx == nil {
+		return types.LevelCore
+	}
+	return outCtx.Level
+}
+
+// emitEvent sends event to listener if one is set
+func (e *ReactEngine) emitEvent(event AgentEvent) {
 	if e.eventListener != nil {
 		e.eventListener.OnEvent(event)
 	}
@@ -78,8 +94,8 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Info("=== Iteration %d/%d ===", state.Iterations, e.maxIterations)
 
 		// EMIT: Iteration started
-		e.emit(&IterationStartEvent{
-			BaseEvent:  newBaseEvent(),
+		e.emitEvent(&IterationStartEvent{
+			BaseEvent:  newBaseEvent(e.getAgentLevel(ctx)),
 			Iteration:  state.Iterations,
 			TotalIters: e.maxIterations,
 		})
@@ -88,8 +104,8 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
 
 		// EMIT: Thinking
-		e.emit(&ThinkingEvent{
-			BaseEvent:    newBaseEvent(),
+		e.emitEvent(&ThinkingEvent{
+			BaseEvent:    newBaseEvent(e.getAgentLevel(ctx)),
 			Iteration:    state.Iterations,
 			MessageCount: len(state.Messages),
 		})
@@ -98,8 +114,8 @@ func (e *ReactEngine) SolveTask(
 		if err != nil {
 			e.logger.Error("Think step failed: %v", err)
 			// EMIT: Error
-			e.emit(&ErrorEvent{
-				BaseEvent:   newBaseEvent(),
+			e.emitEvent(&ErrorEvent{
+				BaseEvent:   newBaseEvent(e.getAgentLevel(ctx)),
 				Iteration:   state.Iterations,
 				Phase:       "think",
 				Error:       err,
@@ -114,8 +130,8 @@ func (e *ReactEngine) SolveTask(
 			len(thought.Content), len(thought.ToolCalls))
 
 		// EMIT: Think complete
-		e.emit(&ThinkCompleteEvent{
-			BaseEvent:     newBaseEvent(),
+		e.emitEvent(&ThinkCompleteEvent{
+			BaseEvent:     newBaseEvent(e.getAgentLevel(ctx)),
 			Iteration:     state.Iterations,
 			Content:       thought.Content,
 			ToolCallCount: len(thought.ToolCalls),
@@ -164,8 +180,8 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Tool calls starting
 		for _, call := range validCalls {
-			e.emit(&ToolCallStartEvent{
-				BaseEvent: newBaseEvent(),
+			e.emitEvent(&ToolCallStartEvent{
+				BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
 				Iteration: state.Iterations,
 				CallID:    call.ID,
 				ToolName:  call.Name,
@@ -196,8 +212,8 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Debug("Current token count: %d", tokenCount)
 
 		// EMIT: Iteration complete
-		e.emit(&IterationCompleteEvent{
-			BaseEvent:  newBaseEvent(),
+		e.emitEvent(&IterationCompleteEvent{
+			BaseEvent:  newBaseEvent(e.getAgentLevel(ctx)),
 			Iteration:  state.Iterations,
 			TokensUsed: state.TokenCount,
 			ToolsRun:   len(results),
@@ -228,8 +244,8 @@ func (e *ReactEngine) SolveTask(
 	}
 
 	// EMIT: Task complete
-	e.emit(&TaskCompleteEvent{
-		BaseEvent:       newBaseEvent(),
+	e.emitEvent(&TaskCompleteEvent{
+		BaseEvent:       newBaseEvent(e.getAgentLevel(ctx)),
 		FinalAnswer:     finalResult.Answer,
 		TotalIterations: finalResult.Iterations,
 		TotalTokens:     finalResult.TokensUsed,
@@ -301,8 +317,8 @@ func (e *ReactEngine) executeToolsWithEvents(
 			if err != nil {
 				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
 				// EMIT: Tool error
-				e.emit(&ToolCallCompleteEvent{
-					BaseEvent: newBaseEvent(),
+				e.emitEvent(&ToolCallCompleteEvent{
+					BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -327,8 +343,8 @@ func (e *ReactEngine) executeToolsWithEvents(
 			if err != nil {
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
 				// EMIT: Tool error
-				e.emit(&ToolCallCompleteEvent{
-					BaseEvent: newBaseEvent(),
+				e.emitEvent(&ToolCallCompleteEvent{
+					BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -346,8 +362,8 @@ func (e *ReactEngine) executeToolsWithEvents(
 			e.logger.Debug("Tool %d: Success, result=%d bytes", idx, len(result.Content))
 
 			// EMIT: Tool success
-			e.emit(&ToolCallCompleteEvent{
-				BaseEvent: newBaseEvent(),
+			e.emitEvent(&ToolCallCompleteEvent{
+				BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
 				CallID:    result.CallID,
 				ToolName:  tc.Name,
 				Result:    result.Content,

@@ -14,13 +14,53 @@ type ToolExecutor interface {
 	Metadata() ToolMetadata
 }
 
+// ExecutionEnvironment contains all dependencies needed to run a task
+type ExecutionEnvironment struct {
+	State        any // *domain.TaskState
+	Services     any // domain.Services
+	Session      *Session
+	SystemPrompt string
+	TaskAnalysis *TaskAnalysis // Pre-analysis result (action name, goal, approach)
+}
+
+// TaskAnalysis contains structured task pre-analysis result
+type TaskAnalysis struct {
+	ActionName string
+	Goal       string
+	Approach   string
+}
+
 // AgentCoordinator represents the main agent coordinator for subagent delegation
 type AgentCoordinator interface {
-	// ExecuteTask executes a task and returns the result
-	ExecuteTask(ctx context.Context, task string, sessionID string) (*TaskResult, error)
+	// ExecuteTask executes a task with optional event listener and returns the result
+	ExecuteTask(ctx context.Context, task string, sessionID string, listener any) (*TaskResult, error)
+
+	// PrepareExecution prepares the execution environment (session, state, services) without running the task
+	PrepareExecution(ctx context.Context, task string, sessionID string) (*ExecutionEnvironment, error)
+
+	// SaveSessionAfterExecution saves session state after task completion
+	SaveSessionAfterExecution(ctx context.Context, session *Session, result any) error
 
 	// ListSessions lists all available sessions
 	ListSessions(ctx context.Context) ([]string, error)
+
+	// GetConfig returns the coordinator configuration
+	GetConfig() any // Returns app.Config
+
+	// GetLLMClient returns an LLM client
+	GetLLMClient() (any, error) // Returns LLMClient
+
+	// GetToolRegistry returns the tool registry (without subagent for nested calls)
+	GetToolRegistryWithoutSubagent() ToolRegistry
+
+	// GetParser returns the function call parser
+	GetParser() any // Returns FunctionCallParser
+
+	// GetContextManager returns the context manager
+	GetContextManager() any // Returns ContextManager
+
+	// GetSystemPrompt returns the system prompt
+	GetSystemPrompt() string
 }
 
 // TaskResult represents the result of task execution

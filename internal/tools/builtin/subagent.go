@@ -1,14 +1,18 @@
 package builtin
 
 import (
+	"alex/internal/agent/types"
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
-	"alex/internal/agent/contextkeys"
+	"alex/internal/agent/app"
+	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/output"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -17,6 +21,7 @@ import (
 type subagent struct {
 	coordinator ports.AgentCoordinator // Injected coordinator for recursion
 	maxWorkers  int
+	renderer    *output.CLIRenderer // Unified renderer for output
 }
 
 // NewSubAgent creates a subagent tool with coordinator injection
@@ -27,6 +32,7 @@ func NewSubAgent(coordinator ports.AgentCoordinator, maxWorkers int) ports.ToolE
 	return &subagent{
 		coordinator: coordinator,
 		maxWorkers:  maxWorkers,
+		renderer:    output.NewCLIRenderer(false), // Always use concise mode for subagent
 	}
 }
 
@@ -174,14 +180,20 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}
 	}
 
+	// Get parent listener from context (if any)
+	var parentListener domain.EventListener
+	if listenerVal := ctx.Value(parentListenerKey{}); listenerVal != nil {
+		parentListener = listenerVal.(domain.EventListener)
+	}
+
 	// Execute based on mode
 	var results []SubtaskResult
 	var err error
 
 	if mode == "parallel" {
-		results, err = t.executeParallel(ctx, subtasks, maxWorkers)
+		results, err = t.executeParallel(ctx, subtasks, maxWorkers, parentListener)
 	} else {
-		results, err = t.executeSerial(ctx, subtasks)
+		results, err = t.executeSerial(ctx, subtasks, parentListener)
 	}
 
 	if err != nil {
@@ -207,22 +219,185 @@ type SubtaskResult struct {
 	Error      error
 }
 
+// executionEnv holds all dependencies needed to execute a subtask
+type executionEnv struct {
+	llmClient    ports.LLMClient
+	toolRegistry ports.ToolRegistry
+	parser       ports.FunctionCallParser
+	contextMgr   ports.ContextManager
+	systemPrompt string
+	maxIters     int
+}
+
+// prepareExecutionEnv gets all dependencies from coordinator
+func (t *subagent) prepareExecutionEnv() (*executionEnv, error) {
+	llmClient, err := t.coordinator.GetLLMClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLM client: %w", err)
+	}
+
+	config := t.coordinator.GetConfig()
+	maxIters := config.(app.Config).MaxIterations
+
+	return &executionEnv{
+		llmClient:    llmClient.(ports.LLMClient),
+		toolRegistry: t.coordinator.GetToolRegistryWithoutSubagent(),
+		parser:       t.coordinator.GetParser().(ports.FunctionCallParser),
+		contextMgr:   t.coordinator.GetContextManager().(ports.ContextManager),
+		systemPrompt: t.coordinator.GetSystemPrompt(),
+		maxIters:     maxIters,
+	}, nil
+}
+
+// executeSubtask executes a single subtask and returns the result
+func (t *subagent) executeSubtask(ctx context.Context, task string, index int, totalTasks int, parentListener domain.EventListener) SubtaskResult {
+	// Create task preview (max 60 chars)
+	taskPreview := task
+	if len(taskPreview) > 60 {
+		taskPreview = taskPreview[:57] + "..."
+	}
+
+	// Create listener for this subtask that forwards to parent
+	listener := &subagentListener{
+		taskIndex:      index,
+		totalTasks:     totalTasks,
+		taskPreview:    taskPreview,
+		parentListener: parentListener,
+	}
+
+	// Get execution environment
+	env, err := t.prepareExecutionEnv()
+	if err != nil {
+		return SubtaskResult{Index: index, Task: task, Error: err}
+	}
+
+	// Create state
+	state := &domain.TaskState{
+		Messages:     []domain.Message{{Role: "system", Content: env.systemPrompt}},
+		SystemPrompt: env.systemPrompt,
+	}
+
+	// Create services
+	services := domain.Services{
+		LLM:          env.llmClient,
+		ToolExecutor: env.toolRegistry,
+		Parser:       env.parser,
+		Context:      env.contextMgr,
+	}
+
+	// Create ReactEngine with listener and execute
+	reactEngine := domain.NewReactEngine(env.maxIters)
+	reactEngine.SetEventListener(listener)
+	result, err := reactEngine.SolveTask(ctx, task, state, services)
+
+	if err != nil {
+		return SubtaskResult{
+			Index: index,
+			Task:  task,
+			Error: err,
+		}
+	}
+
+	return SubtaskResult{
+		Index:      index,
+		Task:       task,
+		Answer:     result.Answer,
+		Iterations: result.Iterations,
+		TokensUsed: result.TokensUsed,
+		ToolCalls:  listener.getToolCallCount(),
+	}
+}
+
 // Context key for nested subagent detection
 type subagentCtxKey struct{}
+
+// Context key for parent listener
+type parentListenerKey struct{}
+
+// WithParentListener adds a parent listener to context for subagent event forwarding
+func WithParentListener(ctx context.Context, listener domain.EventListener) context.Context {
+	return context.WithValue(ctx, parentListenerKey{}, listener)
+}
+
+// SubtaskEvent wraps domain events with subtask context
+type SubtaskEvent struct {
+	OriginalEvent  domain.AgentEvent
+	SubtaskIndex   int    // 0-based subtask index
+	TotalSubtasks  int    // Total number of subtasks
+	SubtaskPreview string // Short preview of the subtask (for display)
+}
+
+// Implement domain.AgentEvent interface
+func (e *SubtaskEvent) EventType() string {
+	return "subtask_" + e.OriginalEvent.EventType()
+}
+
+func (e *SubtaskEvent) Timestamp() time.Time {
+	return e.OriginalEvent.Timestamp()
+}
+
+func (e *SubtaskEvent) GetAgentLevel() types.AgentLevel {
+	return e.OriginalEvent.GetAgentLevel()
+}
+
+// subagentListener tracks progress and forwards events to parent
+type subagentListener struct {
+	taskIndex      int                   // Which subtask this is (0-based)
+	totalTasks     int                   // Total number of subtasks
+	taskPreview    string                // Short preview of the task
+	toolCallCount  int                   // Number of tools executed
+	parentListener domain.EventListener  // Parent listener to forward events to
+	mu             sync.Mutex
+}
+
+func (l *subagentListener) OnEvent(event domain.AgentEvent) {
+	// Count tool calls
+	if _, ok := event.(*domain.ToolCallCompleteEvent); ok {
+		l.mu.Lock()
+		l.toolCallCount++
+		l.mu.Unlock()
+	}
+
+	// Forward event to parent listener wrapped with subtask context
+	if l.parentListener != nil {
+		// Wrap the event with subtask information
+		wrappedEvent := &SubtaskEvent{
+			OriginalEvent:  event,
+			SubtaskIndex:   l.taskIndex,
+			TotalSubtasks:  l.totalTasks,
+			SubtaskPreview: l.taskPreview,
+		}
+		l.parentListener.OnEvent(wrappedEvent)
+	}
+}
+
+func (l *subagentListener) getToolCallCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.toolCallCount
+}
 
 func isNestedSubagent(ctx context.Context) bool {
 	return ctx.Value(subagentCtxKey{}) != nil
 }
 
 func markSubagentContext(ctx context.Context) context.Context {
-	// Mark as subagent and enable silent mode (no event output)
+	// Mark as subagent - output layer will decide what to show
 	ctx = context.WithValue(ctx, subagentCtxKey{}, true)
-	ctx = contextkeys.WithSilentMode(ctx)
+
+	// Add subagent output context - events will carry this level
+	outCtx := &types.OutputContext{
+		Level:   types.LevelSubagent,
+		AgentID: "subagent",
+		Verbose: false,
+	}
+	ctx = types.WithOutputContext(ctx, outCtx)
+
 	return ctx
 }
 
 // executeParallel runs subtasks concurrently with dynamic progress tracking
-func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWorkers int) ([]SubtaskResult, error) {
+func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWorkers int, parentListener domain.EventListener) ([]SubtaskResult, error) {
 	// Mark context to prevent nested subagent calls
 	ctx = markSubagentContext(ctx)
 
@@ -235,55 +410,32 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 	totalToolCalls := 0
 	var mu sync.Mutex
 
-	// Print compact initial status - no dynamic updates to avoid conflicts
-	fmt.Printf("\n🤖 Subagent: Running %d tasks (max %d parallel)\n", len(subtasks), maxWorkers)
+	// Display header is now handled by event listener in stream_output.go
 
 	for i, task := range subtasks {
 		i, task := i, task // Capture loop variables
 
 		g.Go(func() error {
 			// Execute subtask
-			result, err := t.coordinator.ExecuteTask(ctx, task, "")
+			result := t.executeSubtask(ctx, task, i, len(subtasks), parentListener)
 
 			mu.Lock()
 			defer mu.Unlock()
 
 			completed++
+			results[i] = result
 
-			if err != nil {
-				results[i] = SubtaskResult{
-					Index: i,
-					Task:  task,
-					Error: err,
-				}
-				// Show error on new line (safe for concurrent output)
-				taskPreview := task
-				if len(taskPreview) > 50 {
-					taskPreview = taskPreview[:47] + "..."
-				}
-				fmt.Printf("   ❌ [%d/%d] %s: %v\n", completed, len(subtasks), taskPreview, err)
+			// Handle errors
+			if result.Error != nil {
+				// Error events already forwarded via listener
 				return nil // Don't fail the whole group
-			}
-
-			// Count tool calls from the task result
-			toolCalls := result.Iterations // Conservative estimate
-
-			results[i] = SubtaskResult{
-				Index:      i,
-				Task:       task,
-				Answer:     result.Answer,
-				Iterations: result.Iterations,
-				TokensUsed: result.TokensUsed,
-				ToolCalls:  toolCalls,
 			}
 
 			// Update totals
 			totalTokens += result.TokensUsed
-			totalToolCalls += toolCalls
+			totalToolCalls += result.ToolCalls
 
-			// Show completion on new line (safe for concurrent output)
-			fmt.Printf("   ✓ [%d/%d] Task %d | %d tokens | %d tools\n",
-				completed, len(subtasks), i+1, result.TokensUsed, toolCalls)
+			// Task completion is now shown via event system in stream_output.go
 
 			return nil
 		})
@@ -293,43 +445,40 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 		return nil, err
 	}
 
+	// Count successes and failures
+	success, failed := 0, 0
+	for _, r := range results {
+		if r.Error != nil {
+			failed++
+		} else {
+			success++
+		}
+	}
+
 	// Show final summary
-	fmt.Printf("   ━━━ Completed: %d/%d tasks | Total: %d tokens, %d tool calls\n\n",
-		completed, len(subtasks), totalTokens, totalToolCalls)
+	outCtx := types.GetOutputContext(ctx)
+	if outCtx == nil {
+		outCtx = &types.OutputContext{
+			Level:   types.LevelSubagent,
+			AgentID: "subagent",
+			Verbose: false,
+		}
+	}
+	rendered := t.renderer.RenderSubagentComplete(outCtx, len(subtasks), success, failed, totalTokens, totalToolCalls)
+	fmt.Print(rendered)
 
 	return results, nil
 }
 
 // executeSerial runs subtasks sequentially
-func (t *subagent) executeSerial(ctx context.Context, subtasks []string) ([]SubtaskResult, error) {
+func (t *subagent) executeSerial(ctx context.Context, subtasks []string, parentListener domain.EventListener) ([]SubtaskResult, error) {
 	// Mark context to prevent nested subagent calls
 	ctx = markSubagentContext(ctx)
 
 	results := make([]SubtaskResult, len(subtasks))
 
 	for i, task := range subtasks {
-		result, err := t.coordinator.ExecuteTask(ctx, task, "")
-
-		if err != nil {
-			results[i] = SubtaskResult{
-				Index: i,
-				Task:  task,
-				Error: err,
-			}
-			continue
-		}
-
-		// Count tool calls from the task result
-		toolCalls := result.Iterations // Conservative estimate
-
-		results[i] = SubtaskResult{
-			Index:      i,
-			Task:       task,
-			Answer:     result.Answer,
-			Iterations: result.Iterations,
-			TokensUsed: result.TokensUsed,
-			ToolCalls:  toolCalls,
-		}
+		results[i] = t.executeSubtask(ctx, task, i, len(subtasks), parentListener)
 	}
 
 	return results, nil

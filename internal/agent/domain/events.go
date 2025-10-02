@@ -1,24 +1,37 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"alex/internal/agent/types"
+)
 
 // AgentEvent is the base interface for all agent events
 type AgentEvent interface {
 	EventType() string
 	Timestamp() time.Time
+	GetAgentLevel() types.AgentLevel
 }
 
 // BaseEvent provides common fields for all events
 type BaseEvent struct {
-	timestamp time.Time
+	timestamp  time.Time
+	agentLevel types.AgentLevel
 }
 
 func (e *BaseEvent) Timestamp() time.Time {
 	return e.timestamp
 }
 
-func newBaseEvent() BaseEvent {
-	return BaseEvent{timestamp: time.Now()}
+func (e *BaseEvent) GetAgentLevel() types.AgentLevel {
+	return e.agentLevel
+}
+
+func newBaseEvent(level types.AgentLevel) BaseEvent {
+	return BaseEvent{
+		timestamp:  time.Now(),
+		agentLevel: level,
+	}
 }
 
 // TaskAnalysisEvent - emitted after task pre-analysis
@@ -31,9 +44,9 @@ type TaskAnalysisEvent struct {
 func (e *TaskAnalysisEvent) EventType() string { return "task_analysis" }
 
 // NewTaskAnalysisEvent creates a new task analysis event
-func NewTaskAnalysisEvent(actionName, goal string) *TaskAnalysisEvent {
+func NewTaskAnalysisEvent(level types.AgentLevel, actionName, goal string) *TaskAnalysisEvent {
 	return &TaskAnalysisEvent{
-		BaseEvent:  newBaseEvent(),
+		BaseEvent:  newBaseEvent(level),
 		ActionName: actionName,
 		Goal:       goal,
 	}

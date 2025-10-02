@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"alex/internal/agent/app"
-	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
@@ -69,9 +68,6 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	}
 	costTracker := app.NewCostTracker(costStore)
 
-	// Domain Layer
-	reactEngine := domain.NewReactEngine(maxIterations)
-
 	// Application Layer
 	coordinator := app.NewAgentCoordinator(
 		llmFactory,
@@ -80,7 +76,6 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 		contextMgr,
 		parserImpl,
 		messageQueue,
-		reactEngine,
 		costTracker,
 		app.Config{
 			LLMProvider:   "openai", // OpenAI-compatible API
@@ -135,8 +130,8 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 	taskCtx, cancel := context.WithTimeout(ctx, time.Duration(aa.config.Agent.Timeout)*time.Second)
 	defer cancel()
 
-	// Execute task (non-streaming)
-	result, processingErr := aa.coordinator.ExecuteTask(taskCtx, taskPrompt, "")
+	// Execute task (non-streaming, no listener)
+	result, processingErr := aa.coordinator.ExecuteTask(taskCtx, taskPrompt, "", nil)
 
 	if processingErr != nil {
 		// Handle timeout

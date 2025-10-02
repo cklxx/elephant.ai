@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"alex/internal/agent/app"
-	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
@@ -84,9 +83,6 @@ func buildContainer() (*Container, error) {
 		}
 	}()
 
-	// Domain Layer
-	reactEngine := domain.NewReactEngine(config.MaxIterations)
-
 	// Application Layer
 	coordinator := app.NewAgentCoordinator(
 		llmFactory,
@@ -95,7 +91,6 @@ func buildContainer() (*Container, error) {
 		contextMgr,
 		parserImpl,
 		messageQueue,
-		reactEngine,
 		costTracker,
 		app.Config{
 			LLMProvider:   config.LLMProvider,
