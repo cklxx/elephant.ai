@@ -21,6 +21,24 @@ func newBaseEvent() BaseEvent {
 	return BaseEvent{timestamp: time.Now()}
 }
 
+// TaskAnalysisEvent - emitted after task pre-analysis
+type TaskAnalysisEvent struct {
+	BaseEvent
+	ActionName string // e.g., "Optimizing context collection pipeline"
+	Goal       string // Brief description of what needs to be achieved
+}
+
+func (e *TaskAnalysisEvent) EventType() string { return "task_analysis" }
+
+// NewTaskAnalysisEvent creates a new task analysis event
+func NewTaskAnalysisEvent(actionName, goal string) *TaskAnalysisEvent {
+	return &TaskAnalysisEvent{
+		BaseEvent:  newBaseEvent(),
+		ActionName: actionName,
+		Goal:       goal,
+	}
+}
+
 // IterationStartEvent - emitted at start of each ReAct iteration
 type IterationStartEvent struct {
 	BaseEvent

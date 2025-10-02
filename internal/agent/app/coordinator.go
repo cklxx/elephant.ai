@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/agent/contextkeys"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/llm"
@@ -345,16 +346,26 @@ func (c *AgentCoordinator) executeTaskWithListener(
 	}
 	c.logger.Debug("Services bundle created")
 
-	// 7. Set up event listener
-	c.reactEngine.SetEventListener(listener)
-	defer c.reactEngine.SetEventListener(nil) // Clear listener when done
+	// 7. Set up event listener (skip if in silent mode for subagent)
+	if !contextkeys.IsSilentMode(ctx) {
+		c.reactEngine.SetEventListener(listener)
+		defer c.reactEngine.SetEventListener(nil) // Clear listener when done
 
-	// 7.5. Pre-analyze task to get dynamic action verb
-	taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
+		// 7.5. Pre-analyze task to get dynamic action verb
+		taskAnalysisStruct := c.performTaskPreAnalysisStructured(ctx, task, llmClient)
 
-	// 7.6. Log task pre-analysis (no direct output - events go to listener)
-	if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
-		c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
+		// 7.6. Emit task analysis event
+		if taskAnalysisStruct != nil && taskAnalysisStruct.ActionName != "" {
+			c.logger.Debug("Task pre-analysis: action=%s, goal=%s", taskAnalysisStruct.ActionName, taskAnalysisStruct.Goal)
+
+			// Emit analysis event for display
+			if listener != nil {
+				listener.OnEvent(domain.NewTaskAnalysisEvent(
+					taskAnalysisStruct.ActionName,
+					taskAnalysisStruct.Goal,
+				))
+			}
+		}
 	}
 
 	// 8. Execute task (events will stream to listener)

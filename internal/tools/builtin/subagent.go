@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"alex/internal/agent/contextkeys"
 	"alex/internal/agent/ports"
 
 	"golang.org/x/sync/errgroup"
@@ -214,7 +215,10 @@ func isNestedSubagent(ctx context.Context) bool {
 }
 
 func markSubagentContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, subagentCtxKey{}, true)
+	// Mark as subagent and enable silent mode (no event output)
+	ctx = context.WithValue(ctx, subagentCtxKey{}, true)
+	ctx = contextkeys.WithSilentMode(ctx)
+	return ctx
 }
 
 // executeParallel runs subtasks concurrently with dynamic progress tracking

@@ -81,6 +81,8 @@ func NewStreamEventBridge(handler *StreamingOutputHandler) *StreamEventBridge {
 // OnEvent implements domain.EventListener
 func (b *StreamEventBridge) OnEvent(event domain.AgentEvent) {
 	switch e := event.(type) {
+	case *domain.TaskAnalysisEvent:
+		b.handler.onTaskAnalysis(e)
 	case *domain.IterationStartEvent:
 		b.handler.onIterationStart(e)
 	case *domain.ThinkingEvent:
@@ -97,6 +99,14 @@ func (b *StreamEventBridge) OnEvent(event domain.AgentEvent) {
 }
 
 // Event handlers
+
+func (h *StreamingOutputHandler) onTaskAnalysis(event *domain.TaskAnalysisEvent) {
+	// Print task analysis at the beginning
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")) // Gray
+
+	fmt.Printf("\n%s\n\n", dimStyle.Render(fmt.Sprintf("👾 %s", event.ActionName)))
+}
 
 func (h *StreamingOutputHandler) onIterationStart(event *domain.IterationStartEvent) {
 	// Silent - don't print iteration headers in simple mode
