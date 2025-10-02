@@ -217,7 +217,7 @@ func markSubagentContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, subagentCtxKey{}, true)
 }
 
-// executeParallel runs subtasks concurrently with progress tracking
+// executeParallel runs subtasks concurrently with dynamic progress tracking
 func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWorkers int) ([]SubtaskResult, error) {
 	// Mark context to prevent nested subagent calls
 	ctx = markSubagentContext(ctx)
@@ -227,18 +227,12 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 
 	results := make([]SubtaskResult, len(subtasks))
 	completed := 0
+	totalTokens := 0
+	totalToolCalls := 0
 	var mu sync.Mutex
 
-	// Print initial status
-	fmt.Printf("\n⏳ Starting %d parallel subtasks (max %d workers)...\n", len(subtasks), maxWorkers)
-	for i, task := range subtasks {
-		taskPreview := task
-		if len(taskPreview) > 60 {
-			taskPreview = taskPreview[:57] + "..."
-		}
-		fmt.Printf("   [%d] %s\n", i+1, taskPreview)
-	}
-	fmt.Println()
+	// Print compact initial status - no dynamic updates to avoid conflicts
+	fmt.Printf("\n🤖 Subagent: Running %d tasks (max %d parallel)\n", len(subtasks), maxWorkers)
 
 	for i, task := range subtasks {
 		i, task := i, task // Capture loop variables
@@ -251,10 +245,6 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 			defer mu.Unlock()
 
 			completed++
-			taskPreview := task
-			if len(taskPreview) > 50 {
-				taskPreview = taskPreview[:47] + "..."
-			}
 
 			if err != nil {
 				results[i] = SubtaskResult{
@@ -262,13 +252,16 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 					Task:  task,
 					Error: err,
 				}
-				fmt.Printf("   ❌ [%d/%d] %s - Failed: %v\n", completed, len(subtasks), taskPreview, err)
+				// Show error on new line (safe for concurrent output)
+				taskPreview := task
+				if len(taskPreview) > 50 {
+					taskPreview = taskPreview[:47] + "..."
+				}
+				fmt.Printf("   ❌ [%d/%d] %s: %v\n", completed, len(subtasks), taskPreview, err)
 				return nil // Don't fail the whole group
 			}
 
 			// Count tool calls from the task result
-			// For now, we estimate based on iterations (typically 1-3 tool calls per iteration)
-			// TODO: Add ToolCalls field to ports.TaskResult for accurate tracking
 			toolCalls := result.Iterations // Conservative estimate
 
 			results[i] = SubtaskResult{
@@ -279,8 +272,15 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 				TokensUsed: result.TokensUsed,
 				ToolCalls:  toolCalls,
 			}
-			fmt.Printf("   ✓ [%d/%d] %s - %d tokens, %d tools\n",
-				completed, len(subtasks), taskPreview, result.TokensUsed, toolCalls)
+
+			// Update totals
+			totalTokens += result.TokensUsed
+			totalToolCalls += toolCalls
+
+			// Show completion on new line (safe for concurrent output)
+			fmt.Printf("   ✓ [%d/%d] Task %d | %d tokens | %d tools\n",
+				completed, len(subtasks), i+1, result.TokensUsed, toolCalls)
+
 			return nil
 		})
 	}
@@ -289,7 +289,10 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 		return nil, err
 	}
 
-	fmt.Println()
+	// Show final summary
+	fmt.Printf("   ━━━ Completed: %d/%d tasks | Total: %d tokens, %d tool calls\n\n",
+		completed, len(subtasks), totalTokens, totalToolCalls)
+
 	return results, nil
 }
 
@@ -328,7 +331,7 @@ func (t *subagent) executeSerial(ctx context.Context, subtasks []string) ([]Subt
 	return results, nil
 }
 
-// formatResults formats subtask results into readable output
+// formatResults formats subtask results for LLM (concise) and metadata (detailed)
 func (t *subagent) formatResults(callID string, subtasks []string, results []SubtaskResult, mode string) (*ports.ToolResult, error) {
 	var output strings.Builder
 
@@ -350,40 +353,18 @@ func (t *subagent) formatResults(callID string, subtasks []string, results []Sub
 		}
 	}
 
-	// Compact header with key stats
-	output.WriteString(fmt.Sprintf("═══ Parallel Subagent Results (%s mode) ═══\n", mode))
-	output.WriteString(fmt.Sprintf("✓ %d/%d completed | %d iterations | %d tool calls | %d tokens\n\n",
-		successCount, len(subtasks), totalIterations, totalToolCalls, totalTokens))
+	// Concise output for LLM - just the answers
+	output.WriteString(fmt.Sprintf("Subagent completed %d/%d tasks (%s mode)\n\n", successCount, len(subtasks), mode))
 
-	// Individual results - more compact format
 	for _, r := range results {
-		taskPreview := r.Task
-		if len(taskPreview) > 70 {
-			taskPreview = taskPreview[:67] + "..."
-		}
-
 		if r.Error != nil {
-			output.WriteString(fmt.Sprintf("❌ [%d] %s\n    Error: %v\n\n",
-				r.Index+1, taskPreview, r.Error))
+			output.WriteString(fmt.Sprintf("Task %d failed: %v\n\n", r.Index+1, r.Error))
 		} else {
-			// Truncate answer for display, full version in metadata
-			answerPreview := r.Answer
-			if len(answerPreview) > 200 {
-				answerPreview = answerPreview[:197] + "..."
-			}
-
-			output.WriteString(fmt.Sprintf("✓ [%d] %s\n", r.Index+1, taskPreview))
-			output.WriteString(fmt.Sprintf("   Stats: %d iterations, %d tool calls, %d tokens\n", r.Iterations, r.ToolCalls, r.TokensUsed))
-			output.WriteString(fmt.Sprintf("   Result: %s\n\n", strings.TrimSpace(answerPreview)))
+			output.WriteString(fmt.Sprintf("Task %d result:\n%s\n\n", r.Index+1, strings.TrimSpace(r.Answer)))
 		}
 	}
 
-	// Footer summary
-	if failureCount > 0 {
-		output.WriteString(fmt.Sprintf("⚠️  %d task(s) failed - review details above\n", failureCount))
-	}
-
-	// Metadata for programmatic access (full results)
+	// Metadata for programmatic access (full details for user display)
 	metadata := map[string]any{
 		"mode":             mode,
 		"total_tasks":      len(subtasks),

@@ -159,9 +159,16 @@ func (c *AgentCoordinator) ExecuteTask(
 	c.logger.Debug("Task state prepared: %d messages, system_prompt=%d bytes", len(state.Messages), len(systemPrompt))
 
 	// 6. Create services bundle for domain layer
+	// Check if this is a subagent context - use filtered registry if so
+	toolRegistry := c.toolRegistry
+	if c.isSubagentContext(ctx) {
+		toolRegistry = c.GetToolRegistryWithoutSubagent()
+		c.logger.Debug("Using filtered registry (subagent excluded) for nested call")
+	}
+
 	services := domain.Services{
 		LLM:          llmClient,
-		ToolExecutor: c.toolRegistry,
+		ToolExecutor: toolRegistry,
 		Parser:       c.parser,
 		Context:      c.contextMgr,
 	}
