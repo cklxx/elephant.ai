@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"alex/internal/server/app"
 	"alex/internal/utils"
@@ -21,21 +22,63 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	// SSE endpoint
 	mux.HandleFunc("/api/sse", sseHandler.HandleSSEStream)
 
-	// REST API endpoints
-	mux.HandleFunc("/api/tasks", apiHandler.HandleCreateTask)
-	mux.HandleFunc("/api/sessions", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/sessions" {
+	// Task endpoints
+	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			apiHandler.HandleCreateTask(w, r)
+		case http.MethodGet:
+			apiHandler.HandleListTasks(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/tasks/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
+
+		// Handle /api/tasks/:id/cancel
+		if strings.HasSuffix(path, "/cancel") {
+			apiHandler.HandleCancelTask(w, r)
+			return
+		}
+
+		// Handle /api/tasks/:id
+		if !strings.Contains(path, "/") {
+			apiHandler.HandleGetTask(w, r)
+			return
+		}
+
+		http.Error(w, "Not found", http.StatusNotFound)
+	})
+
+	// Session endpoints
+	mux.HandleFunc("/api/sessions/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
 			apiHandler.HandleListSessions(w, r)
 		} else {
-			// Handle /api/sessions/:id
-			switch r.Method {
-			case http.MethodGet:
-				apiHandler.HandleGetSession(w, r)
-			case http.MethodDelete:
-				apiHandler.HandleDeleteSession(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+
+			// Handle /api/sessions/:id/fork
+			if strings.HasSuffix(path, "/fork") {
+				apiHandler.HandleForkSession(w, r)
+				return
 			}
+
+			// Handle /api/sessions/:id
+			if !strings.Contains(path, "/") {
+				switch r.Method {
+				case http.MethodGet:
+					apiHandler.HandleGetSession(w, r)
+				case http.MethodDelete:
+					apiHandler.HandleDeleteSession(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+				return
+			}
+
+			http.Error(w, "Not found", http.StatusNotFound)
 		}
 	})
 

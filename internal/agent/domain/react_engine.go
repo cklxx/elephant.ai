@@ -56,7 +56,11 @@ func (e *ReactEngine) getAgentLevel(ctx context.Context) types.AgentLevel {
 // emitEvent sends event to listener if one is set
 func (e *ReactEngine) emitEvent(event AgentEvent) {
 	if e.eventListener != nil {
+		e.logger.Debug("[emitEvent] Emitting event type=%s, sessionID=%s to listener", event.EventType(), event.GetSessionID())
 		e.eventListener.OnEvent(event)
+		e.logger.Debug("[emitEvent] Event emitted successfully")
+	} else {
+		e.logger.Debug("[emitEvent] No listener set, skipping event type=%s", event.EventType())
 	}
 }
 
@@ -95,7 +99,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Iteration started
 		e.emitEvent(&IterationStartEvent{
-			BaseEvent:  newBaseEvent(e.getAgentLevel(ctx)),
+			BaseEvent:  newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 			Iteration:  state.Iterations,
 			TotalIters: e.maxIterations,
 		})
@@ -105,7 +109,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Thinking
 		e.emitEvent(&ThinkingEvent{
-			BaseEvent:    newBaseEvent(e.getAgentLevel(ctx)),
+			BaseEvent:    newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 			Iteration:    state.Iterations,
 			MessageCount: len(state.Messages),
 		})
@@ -115,7 +119,7 @@ func (e *ReactEngine) SolveTask(
 			e.logger.Error("Think step failed: %v", err)
 			// EMIT: Error
 			e.emitEvent(&ErrorEvent{
-				BaseEvent:   newBaseEvent(e.getAgentLevel(ctx)),
+				BaseEvent:   newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 				Iteration:   state.Iterations,
 				Phase:       "think",
 				Error:       err,
@@ -131,7 +135,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Think complete
 		e.emitEvent(&ThinkCompleteEvent{
-			BaseEvent:     newBaseEvent(e.getAgentLevel(ctx)),
+			BaseEvent:     newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 			Iteration:     state.Iterations,
 			Content:       thought.Content,
 			ToolCallCount: len(thought.ToolCalls),
@@ -181,7 +185,7 @@ func (e *ReactEngine) SolveTask(
 		// EMIT: Tool calls starting
 		for _, call := range validCalls {
 			e.emitEvent(&ToolCallStartEvent{
-				BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
+				BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 				Iteration: state.Iterations,
 				CallID:    call.ID,
 				ToolName:  call.Name,
@@ -189,7 +193,7 @@ func (e *ReactEngine) SolveTask(
 			})
 		}
 
-		results := e.executeToolsWithEvents(ctx, state.Iterations, validCalls, services.ToolExecutor)
+		results := e.executeToolsWithEvents(ctx, state.SessionID, state.Iterations, validCalls, services.ToolExecutor)
 		state.ToolResults = append(state.ToolResults, results...)
 
 		// Log results (no stdout printing - let TUI handle display)
@@ -213,7 +217,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Iteration complete
 		e.emitEvent(&IterationCompleteEvent{
-			BaseEvent:  newBaseEvent(e.getAgentLevel(ctx)),
+			BaseEvent:  newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 			Iteration:  state.Iterations,
 			TokensUsed: state.TokenCount,
 			ToolsRun:   len(results),
@@ -245,7 +249,7 @@ func (e *ReactEngine) SolveTask(
 
 	// EMIT: Task complete
 	e.emitEvent(&TaskCompleteEvent{
-		BaseEvent:       newBaseEvent(e.getAgentLevel(ctx)),
+		BaseEvent:       newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
 		FinalAnswer:     finalResult.Answer,
 		TotalIterations: finalResult.Iterations,
 		TotalTokens:     finalResult.TokensUsed,
@@ -296,6 +300,7 @@ func (e *ReactEngine) think(
 // executeToolsWithEvents runs all tool calls in parallel and emits completion events
 func (e *ReactEngine) executeToolsWithEvents(
 	ctx context.Context,
+	sessionID string,
 	iteration int,
 	calls []ToolCall,
 	registry ports.ToolRegistry,
@@ -318,7 +323,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
+					BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), sessionID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -344,7 +349,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
+					BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), sessionID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -363,7 +368,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 
 			// EMIT: Tool success
 			e.emitEvent(&ToolCallCompleteEvent{
-				BaseEvent: newBaseEvent(e.getAgentLevel(ctx)),
+				BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), sessionID),
 				CallID:    result.CallID,
 				ToolName:  tc.Name,
 				Result:    result.Content,

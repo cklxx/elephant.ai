@@ -340,6 +340,10 @@ func (e *SubtaskEvent) GetAgentLevel() types.AgentLevel {
 	return e.OriginalEvent.GetAgentLevel()
 }
 
+func (e *SubtaskEvent) GetSessionID() string {
+	return e.OriginalEvent.GetSessionID()
+}
+
 // subagentListener tracks progress and forwards events to parent
 type subagentListener struct {
 	taskIndex      int                  // Which subtask this is (0-based)

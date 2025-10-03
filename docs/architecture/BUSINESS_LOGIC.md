@@ -541,19 +541,20 @@ type AgentCoordinator struct {
     sessionStore ports.SessionStore
     contextMgr   ports.ContextManager
     parser       ports.FunctionCallParser
-    messageQueue ports.MessageQueue
-
-    // Domain logic (injected)
-    reactEngine *domain.ReactEngine
+    promptLoader *prompts.Loader
+    costTracker  ports.CostTracker
 
     // Configuration
     config Config
+    logger *utils.Logger
 }
 
 // Config holds coordinator configuration
 type Config struct {
     LLMProvider    string
     LLMModel       string
+    APIKey         string
+    BaseURL        string
     MaxTokens      int
     MaxIterations  int
 }
@@ -565,8 +566,7 @@ func NewAgentCoordinator(
     sessionStore ports.SessionStore,
     contextMgr ports.ContextManager,
     parser ports.FunctionCallParser,
-    messageQueue ports.MessageQueue,
-    reactEngine *domain.ReactEngine,
+    costTracker ports.CostTracker,
     config Config,
 ) *AgentCoordinator {
     return &AgentCoordinator{
@@ -575,9 +575,10 @@ func NewAgentCoordinator(
         sessionStore: sessionStore,
         contextMgr:   contextMgr,
         parser:       parser,
-        messageQueue: messageQueue,
-        reactEngine:  reactEngine,
+        promptLoader: prompts.New(),
+        costTracker:  costTracker,
         config:       config,
+        logger:       utils.NewComponentLogger("Coordinator"),
     }
 }
 

@@ -10,18 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	agentApp "alex/internal/agent/app"
-	"alex/internal/agent/ports"
-	ctxmgr "alex/internal/context"
-	"alex/internal/llm"
-	"alex/internal/mcp"
-	"alex/internal/messaging"
-	"alex/internal/parser"
+	"alex/internal/di"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
-	"alex/internal/session/filestore"
-	"alex/internal/storage"
-	"alex/internal/tools"
 	"alex/internal/utils"
 )
 
@@ -56,10 +47,16 @@ func main() {
 
 	// Create server coordinator
 	broadcaster := serverApp.NewEventBroadcaster()
+	taskStore := serverApp.NewInMemoryTaskStore()
+
+	// Set task store on broadcaster for progress tracking
+	broadcaster.SetTaskStore(taskStore)
+
 	serverCoordinator := serverApp.NewServerCoordinator(
 		container.AgentCoordinator,
 		broadcaster,
 		container.SessionStore,
+		taskStore,
 	)
 
 	// Setup HTTP router
@@ -100,109 +97,41 @@ func main() {
 	logger.Info("Server stopped")
 }
 
-// Container holds all dependencies
-type Container struct {
-	AgentCoordinator *agentApp.AgentCoordinator
-	SessionStore     ports.SessionStore
-	CostTracker      ports.CostTracker
-	MCPRegistry      *mcp.Registry
-}
-
-// Cleanup gracefully shuts down all resources
-func (c *Container) Cleanup() error {
-	if c.MCPRegistry != nil {
-		return c.MCPRegistry.Shutdown()
-	}
-	return nil
-}
-
 // buildContainer builds the dependency injection container
-func buildContainer(config Config) (*Container, error) {
-	logger := utils.NewComponentLogger("Container")
-
-	// Infrastructure Layer
-	llmFactory := llm.NewFactory()
-	toolRegistry := tools.NewRegistry()
-	sessionStore := filestore.New("~/.alex-sessions")
-	contextMgr := ctxmgr.NewManager()
-	parserImpl := parser.New()
-	messageQueue := messaging.NewQueue(100)
-
-	// Register Git tools with LLM client
-	llmClient, err := llmFactory.GetClient(config.LLMProvider, config.LLMModel, llm.Config{
-		APIKey:  config.APIKey,
-		BaseURL: config.BaseURL,
-	})
-	if err == nil {
-		toolRegistry.RegisterGitTools(llmClient)
+func buildContainer(config Config) (*di.Container, error) {
+	// Build DI container with configurable storage
+	diConfig := di.Config{
+		LLMProvider:   config.LLMProvider,
+		LLMModel:      config.LLMModel,
+		APIKey:        config.APIKey,
+		BaseURL:       config.BaseURL,
+		MaxTokens:     config.MaxTokens,
+		MaxIterations: config.MaxIterations,
+		SessionDir:    di.GetStorageDir("ALEX_SESSION_DIR", "~/.alex-sessions"),
+		CostDir:       di.GetStorageDir("ALEX_COST_DIR", "~/.alex-costs"),
 	}
 
-	// Cost tracking storage
-	costStore, err := storage.NewFileCostStore("~/.alex-costs")
-	if err != nil {
-		return nil, err
-	}
-	costTracker := agentApp.NewCostTracker(costStore)
-
-	// MCP Registry - Initialize asynchronously
-	mcpRegistry := mcp.NewRegistry()
-	go func() {
-		if err := mcpRegistry.Initialize(); err != nil {
-			logger.Warn("Failed to initialize MCP registry: %v", err)
-		} else {
-			if err := mcpRegistry.RegisterWithToolRegistry(toolRegistry); err != nil {
-				logger.Warn("Failed to register MCP tools: %v", err)
-			} else {
-				logger.Info("MCP tools registered successfully")
-			}
-		}
-	}()
-
-	// Application Layer
-	coordinator := agentApp.NewAgentCoordinator(
-		llmFactory,
-		toolRegistry,
-		sessionStore,
-		contextMgr,
-		parserImpl,
-		messageQueue,
-		costTracker,
-		agentApp.Config{
-			LLMProvider:   config.LLMProvider,
-			LLMModel:      config.LLMModel,
-			APIKey:        config.APIKey,
-			BaseURL:       config.BaseURL,
-			MaxTokens:     config.MaxTokens,
-			MaxIterations: config.MaxIterations,
-		},
-	)
-
-	// Register subagent tool
-	toolRegistry.RegisterSubAgent(coordinator)
-
-	return &Container{
-		AgentCoordinator: coordinator,
-		SessionStore:     sessionStore,
-		CostTracker:      costTracker,
-		MCPRegistry:      mcpRegistry,
-	}, nil
+	return di.BuildContainer(diConfig)
 }
 
 // loadConfig loads configuration from environment variables
 func loadConfig() Config {
+	provider := getEnv("ALEX_LLM_PROVIDER", "openai")
+
 	config := Config{
-		LLMProvider:   getEnv("ALEX_LLM_PROVIDER", "openai"),
+		LLMProvider:   provider,
 		LLMModel:      getEnv("ALEX_LLM_MODEL", "gpt-4o"),
-		APIKey:        getEnv("OPENAI_API_KEY", ""),
+		APIKey:        di.GetAPIKey(provider),
 		BaseURL:       getEnv("ALEX_BASE_URL", ""),
 		MaxTokens:     128000,
 		MaxIterations: 20,
 		Port:          getEnv("PORT", "8080"),
 	}
 
-	// Validate required configuration
-	if config.APIKey == "" {
-		fmt.Fprintf(os.Stderr, "Error: OPENAI_API_KEY environment variable is required\n")
+	// Validate required configuration (skip for Ollama which doesn't need API key)
+	if config.APIKey == "" && provider != "ollama" {
+		fmt.Fprintf(os.Stderr, "Error: API key required for provider '%s'\n", provider)
+		fmt.Fprintf(os.Stderr, "Set one of: OPENAI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY\n")
 		os.Exit(1)
 	}
 

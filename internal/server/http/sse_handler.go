@@ -27,12 +27,10 @@ func NewSSEHandler(broadcaster *app.EventBroadcaster) *SSEHandler {
 
 // HandleSSEStream handles SSE connection for real-time event streaming
 func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
-	// Set SSE headers
+	// Set SSE headers (CORS headers are handled by middleware)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// Get session ID from query parameter
@@ -111,6 +109,7 @@ func (h *SSEHandler) serializeEvent(event domain.AgentEvent) (string, error) {
 		"event_type":  event.EventType(),
 		"timestamp":   event.Timestamp().Format(time.RFC3339),
 		"agent_level": event.GetAgentLevel(),
+		"session_id":  event.GetSessionID(),
 	}
 
 	// Add event-specific fields based on type

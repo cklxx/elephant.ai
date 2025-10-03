@@ -4,6 +4,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -26,6 +27,9 @@ type CLIRenderer struct {
 // verbose=true enables detailed output (full args, more content preview)
 // verbose=false shows compact output (tool name + brief summary)
 func NewCLIRenderer(verbose bool) *CLIRenderer {
+	// Set lipgloss to use stdout for color detection
+	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
+
 	return &CLIRenderer{
 		verbose: verbose,
 	}

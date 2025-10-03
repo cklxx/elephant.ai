@@ -11,12 +11,14 @@ type AgentEvent interface {
 	EventType() string
 	Timestamp() time.Time
 	GetAgentLevel() types.AgentLevel
+	GetSessionID() string
 }
 
 // BaseEvent provides common fields for all events
 type BaseEvent struct {
 	timestamp  time.Time
 	agentLevel types.AgentLevel
+	sessionID  string
 }
 
 func (e *BaseEvent) Timestamp() time.Time {
@@ -27,10 +29,15 @@ func (e *BaseEvent) GetAgentLevel() types.AgentLevel {
 	return e.agentLevel
 }
 
-func newBaseEvent(level types.AgentLevel) BaseEvent {
+func (e *BaseEvent) GetSessionID() string {
+	return e.sessionID
+}
+
+func newBaseEventWithSession(level types.AgentLevel, sessionID string) BaseEvent {
 	return BaseEvent{
 		timestamp:  time.Now(),
 		agentLevel: level,
+		sessionID:  sessionID,
 	}
 }
 
@@ -44,9 +51,9 @@ type TaskAnalysisEvent struct {
 func (e *TaskAnalysisEvent) EventType() string { return "task_analysis" }
 
 // NewTaskAnalysisEvent creates a new task analysis event
-func NewTaskAnalysisEvent(level types.AgentLevel, actionName, goal string) *TaskAnalysisEvent {
+func NewTaskAnalysisEvent(level types.AgentLevel, sessionID, actionName, goal string) *TaskAnalysisEvent {
 	return &TaskAnalysisEvent{
-		BaseEvent:  newBaseEvent(level),
+		BaseEvent:  newBaseEventWithSession(level, sessionID),
 		ActionName: actionName,
 		Goal:       goal,
 	}

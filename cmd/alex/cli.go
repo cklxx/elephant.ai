@@ -104,19 +104,57 @@ Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
 }
 
 func (c *CLI) handleSessions(args []string) error {
-	sessions, err := c.container.Coordinator.ListSessions(context.Background())
+	ctx := context.Background()
+
+	sessionIDs, err := c.container.Coordinator.ListSessions(ctx)
 	if err != nil {
 		return err
 	}
 
-	if len(sessions) == 0 {
+	if len(sessionIDs) == 0 {
 		fmt.Println("No sessions found")
 		return nil
 	}
 
-	fmt.Printf("Found %d session(s):\n", len(sessions))
-	for i, sid := range sessions {
+	fmt.Printf("Found %d session(s):\n\n", len(sessionIDs))
+
+	// Fetch and display detailed metadata for each session
+	for i, sid := range sessionIDs {
+		session, err := c.container.SessionStore.Get(ctx, sid)
+		if err != nil {
+			fmt.Printf("  %d. %s (error loading metadata: %v)\n", i+1, sid, err)
+			continue
+		}
+
+		// Calculate stats
+		messageCount := len(session.Messages)
+		todoCount := len(session.Todos)
+
+		// Format timestamps
+		created := session.CreatedAt.Format("2006-01-02 15:04:05")
+		updated := session.UpdatedAt.Format("2006-01-02 15:04:05")
+
+		// Display session info
 		fmt.Printf("  %d. %s\n", i+1, sid)
+		fmt.Printf("     Created:  %s\n", created)
+		fmt.Printf("     Updated:  %s\n", updated)
+		fmt.Printf("     Messages: %d\n", messageCount)
+		fmt.Printf("     Todos:    %d\n", todoCount)
+
+		// Show metadata if present
+		if len(session.Metadata) > 0 {
+			fmt.Printf("     Metadata: ")
+			first := true
+			for key, value := range session.Metadata {
+				if !first {
+					fmt.Printf(", ")
+				}
+				fmt.Printf("%s=%s", key, value)
+				first = false
+			}
+			fmt.Println()
+		}
+		fmt.Println()
 	}
 
 	return nil

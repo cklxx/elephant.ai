@@ -369,7 +369,6 @@ See [BUSINESS_LOGIC.md](./BUSINESS_LOGIC.md) for detailed specifications of:
 │   │   │   ├── tools.go              # ToolExecutor, ToolRegistry
 │   │   │   ├── session.go            # SessionStore interface
 │   │   │   ├── context.go            # ContextManager interface
-│   │   │   ├── messaging.go          # MessageQueue, Converter
 │   │   │   └── parser.go             # FunctionCallParser interface
 │   │   │
 │   │   ├── domain/                    # Pure business logic
@@ -865,10 +864,6 @@ func TestCoordinator_SessionPersistence(t *testing.T) {
 
 func TestCoordinator_ContextCompression(t *testing.T) {
     // Test compression triggers correctly
-}
-
-func TestCoordinator_MessageQueue(t *testing.T) {
-    // Test async message processing
 }
 ```
 

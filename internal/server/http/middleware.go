@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"os"
 
 	"alex/internal/utils"
 )
@@ -28,10 +29,16 @@ func CORSMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		// For development, allow all origins if not in production
-		if origin != "" && (allowed || true) { // TODO: Set to false in production
+		// Check if in development mode (via env var)
+		isDev := os.Getenv("ALEX_ENV") != "production"
+
+		// Only set CORS headers for allowed origins (or all in dev mode)
+		if origin != "" && (allowed || isDev) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			// Only set credentials header for explicitly allowed origins
+			if allowed {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		}

@@ -46,6 +46,9 @@ type TaskState struct {
 
 	// Final answer (if complete)
 	FinalAnswer string
+
+	// Session ID for event routing
+	SessionID string
 }
 
 // TaskResult is the final result of task execution

@@ -975,91 +975,23 @@ func New() ports.SessionStore {
 
 ---
 
-## 6. Message Channel
+## 6. Message Channel (REMOVED)
 
-**Package**: `internal/messaging/`
-**Interface Location**: `internal/agent/ports/messaging.go`
+**Status**: Removed in cleanup (2025-10-03)
 
-### 6.1 Interface Definition
+**Rationale**: The MessageQueue abstraction was never used in the production codebase. ALEX uses a direct synchronous execution model where tasks are processed immediately through `AgentCoordinator.ExecuteTask()`. There is no need for async message queuing.
 
-```go
-package ports
+**Architecture Decision**: Tasks are processed directly through the coordinator:
+- CLI calls `ExecuteTask()` synchronously with streaming output via EventListener
+- Server uses SSE (Server-Sent Events) for streaming with `EventBroadcaster`
+- No message queue needed - YAGNI principle applied
 
-// MessageQueue handles async message processing
-type MessageQueue interface {
-    // Enqueue adds a message to process
-    Enqueue(msg UserMessage) error
+**Migration Notes**: If async task processing is needed in the future, consider:
+1. Worker pool pattern at the server layer (not domain)
+2. Channel-based task distribution for parallel processing
+3. Message broker integration (RabbitMQ, Redis) for distributed scenarios
 
-    // Dequeue retrieves next message (blocks if empty)
-    Dequeue(ctx context.Context) (UserMessage, error)
-
-    // Len returns queue length
-    Len() int
-
-    // Close stops the queue
-    Close() error
-}
-
-// MessageConverter converts between formats
-type MessageConverter interface {
-    // ToLLMFormat converts session messages to LLM format
-    ToLLMFormat(messages []Message) ([]llm.Message, error)
-
-    // FromLLMFormat converts LLM response to session message
-    FromLLMFormat(msg llm.Message) (Message, error)
-}
-```
-
-### 6.2 Queue Implementation
-
-```go
-package messaging
-
-type queue struct {
-    messages chan ports.UserMessage
-    closed   atomic.Bool
-}
-
-func NewQueue(bufferSize int) ports.MessageQueue {
-    return &queue{
-        messages: make(chan ports.UserMessage, bufferSize),
-    }
-}
-
-func (q *queue) Enqueue(msg ports.UserMessage) error {
-    if q.closed.Load() {
-        return fmt.Errorf("queue is closed")
-    }
-
-    select {
-    case q.messages <- msg:
-        return nil
-    default:
-        return fmt.Errorf("queue is full")
-    }
-}
-
-func (q *queue) Dequeue(ctx context.Context) (ports.UserMessage, error) {
-    select {
-    case msg := <-q.messages:
-        return msg, nil
-    case <-ctx.Done():
-        return ports.UserMessage{}, ctx.Err()
-    }
-}
-
-func (q *queue) Len() int {
-    return len(q.messages)
-}
-
-func (q *queue) Close() error {
-    if q.closed.Swap(true) {
-        return fmt.Errorf("already closed")
-    }
-    close(q.messages)
-    return nil
-}
-```
+For historical reference, see git history before 2025-10-03.
 
 ---
 

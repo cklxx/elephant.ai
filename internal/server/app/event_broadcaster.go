@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"alex/internal/agent/domain"
+	"alex/internal/server/ports"
 	"alex/internal/utils"
 )
 
@@ -14,18 +15,34 @@ type EventBroadcaster struct {
 	clients map[string][]chan domain.AgentEvent
 	mu      sync.RWMutex
 	logger  *utils.Logger
+
+	// Task progress tracking
+	taskStore     ports.TaskStore
+	sessionToTask map[string]string // sessionID -> taskID mapping
+	taskMu        sync.RWMutex      // separate mutex for task tracking
 }
 
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster() *EventBroadcaster {
 	return &EventBroadcaster{
-		clients: make(map[string][]chan domain.AgentEvent),
-		logger:  utils.NewComponentLogger("EventBroadcaster"),
+		clients:       make(map[string][]chan domain.AgentEvent),
+		sessionToTask: make(map[string]string),
+		logger:        utils.NewComponentLogger("EventBroadcaster"),
 	}
+}
+
+// SetTaskStore sets the task store for progress tracking
+func (b *EventBroadcaster) SetTaskStore(store ports.TaskStore) {
+	b.taskStore = store
 }
 
 // OnEvent implements domain.EventListener - broadcasts event to all subscribed clients
 func (b *EventBroadcaster) OnEvent(event domain.AgentEvent) {
+	b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
+
+	// Update task progress before broadcasting
+	b.updateTaskProgress(event)
+
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -34,9 +51,13 @@ func (b *EventBroadcaster) OnEvent(event domain.AgentEvent) {
 	// from the event's context or metadata
 	sessionID := b.extractSessionID(event)
 
+	b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, len(b.clients))
+
 	if sessionID == "" {
 		// Broadcast to all sessions if no session ID
+		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", len(b.clients))
 		for sid, clients := range b.clients {
+			b.logger.Debug("[OnEvent] Broadcasting to session '%s' with %d clients", sid, len(clients))
 			b.broadcastToClients(sid, clients, event)
 		}
 		return
@@ -44,29 +65,83 @@ func (b *EventBroadcaster) OnEvent(event domain.AgentEvent) {
 
 	// Broadcast to specific session's clients
 	if clients, ok := b.clients[sessionID]; ok {
+		b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
 		b.broadcastToClients(sessionID, clients, event)
+	} else {
+		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
+	}
+}
+
+// getSessionIDs returns list of session IDs for debugging
+func (b *EventBroadcaster) getSessionIDs() []string {
+	ids := make([]string, 0, len(b.clients))
+	for id := range b.clients {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// updateTaskProgress updates task progress based on event type
+func (b *EventBroadcaster) updateTaskProgress(event domain.AgentEvent) {
+	if b.taskStore == nil {
+		return
+	}
+
+	sessionID := event.GetSessionID()
+	if sessionID == "" {
+		return
+	}
+
+	// Get taskID for this session
+	b.taskMu.RLock()
+	taskID, ok := b.sessionToTask[sessionID]
+	b.taskMu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	ctx := context.Background()
+
+	// Update progress based on event type
+	switch e := event.(type) {
+	case *domain.IterationStartEvent:
+		// Update current iteration only, preserve tokens
+		task, err := b.taskStore.Get(ctx, taskID)
+		if err == nil {
+			_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, task.TokensUsed)
+		}
+
+	case *domain.IterationCompleteEvent:
+		// Update current iteration and tokens
+		_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, e.TokensUsed)
+
+	case *domain.TaskCompleteEvent:
+		// Final update is handled by SetResult, but we can update one more time
+		_ = b.taskStore.UpdateProgress(ctx, taskID, e.TotalIterations, e.TotalTokens)
 	}
 }
 
 // broadcastToClients sends event to all clients in the list
 func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan domain.AgentEvent, event domain.AgentEvent) {
-	for _, ch := range clients {
+	b.logger.Debug("[broadcastToClients] Sending event type=%s to %d clients for session=%s", event.EventType(), len(clients), sessionID)
+
+	for i, ch := range clients {
 		select {
 		case ch <- event:
 			// Event sent successfully
+			b.logger.Debug("[broadcastToClients] Event sent successfully to client %d/%d for session=%s", i+1, len(clients), sessionID)
 		default:
 			// Client buffer full, skip this event to avoid blocking
-			b.logger.Warn("Client buffer full for session %s, dropping event", sessionID)
+			b.logger.Warn("Client buffer full for session %s, dropping event (client %d/%d)", sessionID, i+1, len(clients))
 		}
 	}
 }
 
-// extractSessionID extracts session ID from event context
-// TODO: Implement proper context extraction when events carry context
+// extractSessionID extracts session ID from event
 func (b *EventBroadcaster) extractSessionID(event domain.AgentEvent) string {
-	// For now, return empty string to broadcast to all
-	// In production, you might have a SessionContext attached to events
-	return ""
+	// Events now carry session ID directly
+	return event.GetSessionID()
 }
 
 // RegisterClient registers a new client for a session
@@ -113,6 +188,24 @@ func (b *EventBroadcaster) GetClientCount(sessionID string) int {
 func (b *EventBroadcaster) SetSessionContext(ctx context.Context, sessionID string) context.Context {
 	// Store sessionID in context for later extraction
 	return context.WithValue(ctx, sessionContextKey{}, sessionID)
+}
+
+// RegisterTaskSession associates a taskID with a sessionID for progress tracking
+func (b *EventBroadcaster) RegisterTaskSession(sessionID, taskID string) {
+	b.taskMu.Lock()
+	defer b.taskMu.Unlock()
+
+	b.sessionToTask[sessionID] = taskID
+	b.logger.Info("Registered task-session mapping: sessionID=%s, taskID=%s", sessionID, taskID)
+}
+
+// UnregisterTaskSession removes the taskID-sessionID mapping
+func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
+	b.taskMu.Lock()
+	defer b.taskMu.Unlock()
+
+	delete(b.sessionToTask, sessionID)
+	b.logger.Info("Unregistered task-session mapping: sessionID=%s", sessionID)
 }
 
 type sessionContextKey struct{}

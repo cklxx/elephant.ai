@@ -21,37 +21,42 @@ export function ConnectionStatus({
 }: ConnectionStatusProps) {
   if (connected) {
     return (
-      <Badge variant="success" className="flex items-center gap-1.5">
-        <Wifi className="h-3 w-3" />
-        Connected
+      <Badge variant="success" className="flex items-center gap-2 animate-scaleIn shadow-soft">
+        <div className="relative flex items-center">
+          <span className="absolute w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></span>
+          <Wifi className="h-3 w-3 relative" />
+        </div>
+        <span className="font-semibold">Connected</span>
       </Badge>
     );
   }
 
   if (reconnecting) {
     return (
-      <Badge variant="warning" className="flex items-center gap-1.5">
-        <RefreshCw className="h-3 w-3 animate-spin" />
-        Reconnecting... (Attempt {reconnectAttempts})
+      <Badge variant="warning" className="flex items-center gap-2 animate-pulse-soft shadow-soft">
+        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+        <span className="font-semibold">Reconnecting... (Attempt {reconnectAttempts})</span>
       </Badge>
     );
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Badge variant="error" className="flex items-center gap-1.5">
-        <WifiOff className="h-3 w-3" />
-        Disconnected
+    <div className="flex items-center gap-3 animate-slideIn">
+      <Badge variant="error" className="flex items-center gap-2 shadow-soft">
+        <WifiOff className="h-3 w-3 animate-pulse" />
+        <span className="font-semibold">Disconnected</span>
       </Badge>
       {error && (
-        <span className="text-xs text-red-600">{error}</span>
+        <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded border border-red-200">
+          {error}
+        </span>
       )}
       {onReconnect && (
         <Button
           size="sm"
           variant="outline"
           onClick={onReconnect}
-          className="h-6 px-2 text-xs"
+          className="h-7 px-3 text-xs font-semibold hover:scale-105 transition-all duration-200 shadow-soft hover:shadow-medium"
         >
           Reconnect
         </Button>

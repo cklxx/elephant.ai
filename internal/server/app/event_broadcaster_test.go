@@ -43,7 +43,7 @@ func TestEventBroadcaster_BroadcastEvent(t *testing.T) {
 	broadcaster.RegisterClient(sessionID, ch2)
 
 	// Create and broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test Action", "Test Goal")
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "Test Action", "Test Goal")
 	broadcaster.OnEvent(event)
 
 	// Give some time for event to be delivered
@@ -86,19 +86,19 @@ func TestEventBroadcaster_MultipleSessionsIsolation(t *testing.T) {
 	broadcaster.RegisterClient(session1, ch1)
 	broadcaster.RegisterClient(session2, ch2)
 
-	// Broadcast event - currently broadcasts to all sessions
-	// In production, you'd extract sessionID from event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test", "Test")
+	// Broadcast event for session1 - should only go to session1
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, session1, "Test", "Test")
 	broadcaster.OnEvent(event)
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Both should receive since we broadcast to all in current implementation
+	// Session 1 should receive the event
 	if len(ch1) == 0 {
 		t.Error("Session 1 client should have received event")
 	}
-	if len(ch2) == 0 {
-		t.Error("Session 2 client should have received event")
+	// Session 2 should NOT receive the event (isolation)
+	if len(ch2) != 0 {
+		t.Error("Session 2 client should NOT have received event (isolation)")
 	}
 
 	// Cleanup
@@ -117,7 +117,7 @@ func TestEventBroadcaster_BufferFull(t *testing.T) {
 
 	// Fill the buffer
 	for i := 0; i < 5; i++ {
-		event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test", "Test")
+		event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "Test", "Test")
 		broadcaster.OnEvent(event)
 	}
 

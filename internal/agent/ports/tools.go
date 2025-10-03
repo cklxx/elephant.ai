@@ -69,6 +69,7 @@ type TaskResult struct {
 	Iterations int
 	TokensUsed int
 	StopReason string
+	SessionID  string // The session ID used for this task
 }
 
 // StreamCallback is called during task execution to stream events

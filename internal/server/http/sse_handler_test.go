@@ -40,7 +40,7 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, "Test Action", "Test Goal")
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test Action", "Test Goal")
 	broadcaster.OnEvent(event)
 
 	// Wait for event to be sent
@@ -76,7 +76,7 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}{
 		{
 			name:      "TaskAnalysisEvent",
-			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "Test", "Goal"),
+			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test", "Goal"),
 			wantField: "action_name",
 		},
 		{
@@ -117,6 +117,9 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 			}
 			if !strings.Contains(json, "timestamp") {
 				t.Error("Expected timestamp in JSON")
+			}
+			if !strings.Contains(json, "session_id") {
+				t.Error("Expected session_id in JSON")
 			}
 		})
 	}

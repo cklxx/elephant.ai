@@ -12,7 +12,6 @@ import (
 	"alex/internal/agent/ports"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
-	"alex/internal/messaging"
 	"alex/internal/parser"
 	"alex/internal/session/filestore"
 	coststore "alex/internal/storage"
@@ -59,7 +58,6 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	sessionStore := filestore.New("~/.alex-sessions-swebench")
 	contextMgr := ctxmgr.NewManager()
 	parserImpl := parser.New()
-	messageQueue := messaging.NewQueue(100)
 
 	// Cost tracking (using file-based store for SWE-Bench)
 	costStore, err := coststore.NewFileCostStore("~/.alex-costs-swebench")
@@ -75,7 +73,6 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 		sessionStore,
 		contextMgr,
 		parserImpl,
-		messageQueue,
 		costTracker,
 		app.Config{
 			LLMProvider:   "openai", // OpenAI-compatible API

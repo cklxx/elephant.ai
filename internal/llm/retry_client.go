@@ -74,6 +74,13 @@ func (c *retryClient) Model() string {
 	return c.underlying.Model()
 }
 
+// SetUsageCallback sets the usage callback for cost tracking
+func (c *retryClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
+	if trackingClient, ok := c.underlying.(ports.UsageTrackingClient); ok {
+		trackingClient.SetUsageCallback(callback)
+	}
+}
+
 // classifyLLMError detects transient errors from LLM API
 func (c *retryClient) classifyLLMError(err error) error {
 	if err == nil {

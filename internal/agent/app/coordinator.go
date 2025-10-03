@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
 	"alex/internal/agent/types"
 	"alex/internal/llm"
 	"alex/internal/prompts"
@@ -22,7 +23,6 @@ type AgentCoordinator struct {
 	sessionStore ports.SessionStore
 	contextMgr   ports.ContextManager
 	parser       ports.FunctionCallParser
-	messageQueue ports.MessageQueue
 	promptLoader *prompts.Loader
 	costTracker  ports.CostTracker
 	config       Config
@@ -36,6 +36,8 @@ type Config struct {
 	BaseURL       string
 	MaxTokens     int
 	MaxIterations int
+	AgentPreset   string // Agent persona preset (default, code-expert, etc.)
+	ToolPreset    string // Tool access preset (full, read-only, etc.)
 }
 
 func NewAgentCoordinator(
@@ -44,7 +46,6 @@ func NewAgentCoordinator(
 	sessionStore ports.SessionStore,
 	contextMgr ports.ContextManager,
 	parser ports.FunctionCallParser,
-	messageQueue ports.MessageQueue,
 	costTracker ports.CostTracker,
 	config Config,
 ) *AgentCoordinator {
@@ -54,7 +55,6 @@ func NewAgentCoordinator(
 		sessionStore: sessionStore,
 		contextMgr:   contextMgr,
 		parser:       parser,
-		messageQueue: messageQueue,
 		promptLoader: prompts.New(),
 		costTracker:  costTracker,
 		config:       config,
@@ -84,10 +84,16 @@ func (c *AgentCoordinator) ExecuteTask(
 	// Type assert listener to domain.EventListener if provided
 	var domainListener domain.EventListener
 	if listener != nil {
+		c.logger.Debug("Listener provided: type=%T", listener)
 		if dl, ok := listener.(domain.EventListener); ok {
 			domainListener = dl
 			reactEngine.SetEventListener(domainListener)
+			c.logger.Info("Event listener successfully set on ReactEngine")
+		} else {
+			c.logger.Warn("Listener type assertion failed - listener is not domain.EventListener")
 		}
+	} else {
+		c.logger.Warn("No listener provided to ExecuteTask")
 	}
 
 	// If there's task analysis, emit the event before starting execution
@@ -98,7 +104,7 @@ func (c *AgentCoordinator) ExecuteTask(
 			agentLevel = outCtx.Level
 		}
 
-		event := domain.NewTaskAnalysisEvent(agentLevel, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal)
+		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal)
 		domainListener.OnEvent(event)
 	}
 
@@ -123,6 +129,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		Iterations: result.Iterations,
 		TokensUsed: result.TokensUsed,
 		StopReason: result.StopReason,
+		SessionID:  env.Session.ID,
 	}, nil
 }
 
@@ -210,15 +217,37 @@ func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, se
 		c.logger.Debug("Task pre-analysis skipped or failed")
 	}
 
-	// 5. Generate system prompt with task analysis
+	// 5. Generate system prompt based on agent preset
 	workingDir, err := os.Getwd()
 	if err != nil {
 		workingDir = "."
 	}
-	systemPrompt, err := c.promptLoader.GetSystemPrompt(workingDir, task, analysisInfo)
-	if err != nil {
-		c.logger.Warn("Failed to load system prompt: %v, using default", err)
-		systemPrompt = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
+
+	var systemPrompt string
+
+	// Check for preset in context (takes priority over config)
+	agentPreset := c.config.AgentPreset
+	if presetCfg, ok := ctx.Value(PresetContextKey{}).(PresetConfig); ok && presetCfg.AgentPreset != "" {
+		agentPreset = presetCfg.AgentPreset
+		c.logger.Debug("Using agent preset from context: %s", agentPreset)
+	}
+
+	// Use preset system prompt if specified, otherwise use default prompt loader
+	if agentPreset != "" && presets.IsValidPreset(agentPreset) {
+		presetConfig, err := presets.GetPromptConfig(presets.AgentPreset(agentPreset))
+		if err != nil {
+			c.logger.Warn("Failed to load preset prompt: %v, using default", err)
+			systemPrompt, _ = c.promptLoader.GetSystemPrompt(workingDir, task, analysisInfo)
+		} else {
+			c.logger.Info("Using preset system prompt: %s", presetConfig.Name)
+			systemPrompt = presetConfig.SystemPrompt
+		}
+	} else {
+		systemPrompt, err = c.promptLoader.GetSystemPrompt(workingDir, task, analysisInfo)
+		if err != nil {
+			c.logger.Warn("Failed to load system prompt: %v, using default", err)
+			systemPrompt = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
+		}
 	}
 	c.logger.Debug("System prompt loaded: %d bytes", len(systemPrompt))
 
@@ -226,6 +255,7 @@ func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, se
 	state := &domain.TaskState{
 		SystemPrompt: systemPrompt,
 		Messages:     convertSessionMessages(session.Messages),
+		SessionID:    session.ID,
 	}
 	c.logger.Debug("Task state prepared: %d messages, system_prompt=%d bytes", len(state.Messages), len(systemPrompt))
 
@@ -235,6 +265,25 @@ func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, se
 	if c.isSubagentContext(ctx) {
 		toolRegistry = c.GetToolRegistryWithoutSubagent()
 		c.logger.Debug("Using filtered registry (subagent excluded) for nested call")
+	}
+
+	// Check for tool preset in context (takes priority over config)
+	toolPreset := c.config.ToolPreset
+	if presetCfg, ok := ctx.Value(PresetContextKey{}).(PresetConfig); ok && presetCfg.ToolPreset != "" {
+		toolPreset = presetCfg.ToolPreset
+		c.logger.Debug("Using tool preset from context: %s", toolPreset)
+	}
+
+	// Apply tool preset filtering if specified
+	if toolPreset != "" && presets.IsValidToolPreset(toolPreset) {
+		filteredRegistry, err := presets.NewFilteredToolRegistry(toolRegistry, presets.ToolPreset(toolPreset))
+		if err != nil {
+			c.logger.Warn("Failed to create filtered registry: %v, using default", err)
+		} else {
+			toolRegistry = filteredRegistry
+			toolConfig, _ := presets.GetToolConfig(presets.ToolPreset(toolPreset))
+			c.logger.Info("Using tool preset: %s", toolConfig.Name)
+		}
 	}
 
 	services := domain.Services{
@@ -347,6 +396,15 @@ func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
 
 // Context key for subagent detection (must match builtin/subagent.go)
 type subagentCtxKey struct{}
+
+// Context key for preset configuration
+type PresetContextKey struct{}
+
+// PresetConfig holds preset configuration passed via context
+type PresetConfig struct {
+	AgentPreset string
+	ToolPreset  string
+}
 
 // isSubagentContext checks if this is a nested subagent call
 func (c *AgentCoordinator) isSubagentContext(ctx context.Context) bool {

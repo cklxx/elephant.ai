@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type store struct {
@@ -25,18 +27,40 @@ func New(baseDir string) ports.SessionStore {
 }
 
 func (s *store) Create(ctx context.Context) (*ports.Session, error) {
+	// Generate unique UUID for session
+	sessionID := fmt.Sprintf("session-%s", uuid.New().String())
+
 	session := &ports.Session{
-		ID:        fmt.Sprintf("session-%d", time.Now().Unix()),
+		ID:        sessionID,
 		Messages:  []ports.Message{},
 		Todos:     []ports.Todo{},
 		Metadata:  make(map[string]string),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	// Save immediately to ensure session can be retrieved later
-	if err := s.Save(ctx, session); err != nil {
+
+	// Save with O_CREATE|O_EXCL to prevent overwrites
+	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))
+	data, err := json.MarshalIndent(session, "", "  ")
+	if err != nil {
 		return nil, err
 	}
+
+	// Create file exclusively (fail if exists)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session file: %w", err)
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close session file: %w", closeErr)
+		}
+	}()
+
+	if _, err := f.Write(data); err != nil {
+		return nil, fmt.Errorf("failed to write session: %w", err)
+	}
+
 	return session, nil
 }
 
