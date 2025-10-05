@@ -1,9 +1,11 @@
 package http
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,10 +33,24 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	handler := NewSSEHandler(broadcaster)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=test-session", nil)
-	rec := httptest.NewRecorder()
+
+	// Use a thread-safe buffer to capture output
+	var mu sync.Mutex
+	var buf bytes.Buffer
+
+	// Create a custom ResponseWriter that is thread-safe
+	writer := &threadSafeResponseWriter{
+		mu:     &mu,
+		buf:    &buf,
+		header: make(http.Header),
+	}
 
 	// Run SSE handler in goroutine
-	go handler.HandleSSEStream(rec, req)
+	done := make(chan bool)
+	go func() {
+		handler.HandleSSEStream(writer, req)
+		done <- true
+	}()
 
 	// Wait for connection to establish
 	time.Sleep(100 * time.Millisecond)
@@ -46,24 +62,56 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	// Wait for event to be sent
 	time.Sleep(200 * time.Millisecond)
 
-	// Check response
-	body := rec.Body.String()
+	// Read response body safely
+	mu.Lock()
+	body := buf.String()
+	mu.Unlock()
 
 	// Should contain SSE format
 	if !strings.Contains(body, "event: connected") {
 		t.Error("Expected connected event in response")
 	}
 
-	// Check headers
-	contentType := rec.Header().Get("Content-Type")
+	// Check headers (read safely after they're set)
+	mu.Lock()
+	contentType := writer.header.Get("Content-Type")
+	cacheControl := writer.header.Get("Cache-Control")
+	mu.Unlock()
+
 	if contentType != "text/event-stream" {
 		t.Errorf("Expected Content-Type text/event-stream, got %s", contentType)
 	}
 
-	cacheControl := rec.Header().Get("Cache-Control")
 	if cacheControl != "no-cache" {
 		t.Errorf("Expected Cache-Control no-cache, got %s", cacheControl)
 	}
+}
+
+// threadSafeResponseWriter is a thread-safe ResponseWriter for testing
+type threadSafeResponseWriter struct {
+	mu     *sync.Mutex
+	buf    *bytes.Buffer
+	header http.Header
+}
+
+func (w *threadSafeResponseWriter) Header() http.Header {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.header
+}
+
+func (w *threadSafeResponseWriter) Write(b []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(b)
+}
+
+func (w *threadSafeResponseWriter) WriteHeader(statusCode int) {
+	// Not needed for SSE
+}
+
+func (w *threadSafeResponseWriter) Flush() {
+	// Implement Flusher interface
 }
 
 func TestSSEHandler_SerializeEvent(t *testing.T) {
