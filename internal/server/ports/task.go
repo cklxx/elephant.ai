@@ -20,14 +20,14 @@ const (
 
 // Task represents a task execution
 type Task struct {
-	ID          string                `json:"task_id"`
-	SessionID   string                `json:"session_id"`
-	Status      TaskStatus            `json:"status"`
-	Description string                `json:"task"`
-	CreatedAt   time.Time             `json:"created_at"`
-	StartedAt   *time.Time            `json:"started_at,omitempty"`
-	CompletedAt *time.Time            `json:"completed_at,omitempty"`
-	Error       string                `json:"error,omitempty"`
+	ID          string                 `json:"task_id"`
+	SessionID   string                 `json:"session_id"`
+	Status      TaskStatus             `json:"status"`
+	Description string                 `json:"task"`
+	CreatedAt   time.Time              `json:"created_at"`
+	StartedAt   *time.Time             `json:"started_at,omitempty"`
+	CompletedAt *time.Time             `json:"completed_at,omitempty"`
+	Error       string                 `json:"error,omitempty"`
 	Result      *agentPorts.TaskResult `json:"result,omitempty"`
 
 	// Progress tracking

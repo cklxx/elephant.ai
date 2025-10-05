@@ -58,7 +58,9 @@ func (s *InMemoryTaskStore) Get(ctx context.Context, taskID string) (*ports.Task
 		return nil, fmt.Errorf("task not found: %s", taskID)
 	}
 
-	return task, nil
+	// Return a copy to prevent concurrent access issues
+	taskCopy := *task
+	return &taskCopy, nil
 }
 
 // Update updates task state
@@ -82,7 +84,9 @@ func (s *InMemoryTaskStore) List(ctx context.Context, limit int, offset int) ([]
 	// Convert map to slice and sort by created_at (newest first)
 	tasks := make([]*ports.Task, 0, len(s.tasks))
 	for _, task := range s.tasks {
-		tasks = append(tasks, task)
+		// Create a copy to prevent concurrent access issues
+		taskCopy := *task
+		tasks = append(tasks, &taskCopy)
 	}
 
 	sort.Slice(tasks, func(i, j int) bool {
@@ -112,7 +116,9 @@ func (s *InMemoryTaskStore) ListBySession(ctx context.Context, sessionID string)
 	tasks := make([]*ports.Task, 0)
 	for _, task := range s.tasks {
 		if task.SessionID == sessionID {
-			tasks = append(tasks, task)
+			// Create a copy to prevent concurrent access issues
+			taskCopy := *task
+			tasks = append(tasks, &taskCopy)
 		}
 	}
 

@@ -121,8 +121,12 @@ func TestSessionIDConsistency(t *testing.T) {
 
 		t.Logf("✓ Session ID present in initial response: %s", task.SessionID)
 
-		// Store initial session ID for comparison
-		initialSessionID := task.SessionID
+		// Store initial session ID for comparison - get fresh data to avoid race
+		initialTask, err := taskStore.Get(ctx, task.ID)
+		if err != nil {
+			t.Fatalf("Failed to get initial task: %v", err)
+		}
+		initialSessionID := initialTask.SessionID
 
 		// Wait briefly to simulate polling
 		time.Sleep(100 * time.Millisecond)
@@ -183,16 +187,22 @@ func TestSessionIDConsistency(t *testing.T) {
 
 		// Progress fields should be 0 initially, not omitted
 		// This is verified by the JSON marshaling, but we can check the values
-		if task.CurrentIteration != 0 {
-			t.Logf("⚠ CurrentIteration is %d (expected 0)", task.CurrentIteration)
+		// Get fresh copy to avoid race condition
+		freshTask, err := taskStore.Get(ctx, task.ID)
+		if err != nil {
+			t.Fatalf("Failed to get fresh task: %v", err)
 		}
 
-		if task.TokensUsed != 0 {
-			t.Logf("⚠ TokensUsed is %d (expected 0)", task.TokensUsed)
+		if freshTask.CurrentIteration != 0 {
+			t.Logf("⚠ CurrentIteration is %d (expected 0)", freshTask.CurrentIteration)
+		}
+
+		if freshTask.TokensUsed != 0 {
+			t.Logf("⚠ TokensUsed is %d (expected 0)", freshTask.TokensUsed)
 		}
 
 		t.Logf("✓ Progress fields initialized: current_iteration=%d, tokens_used=%d",
-			task.CurrentIteration, task.TokensUsed)
+			freshTask.CurrentIteration, freshTask.TokensUsed)
 	})
 }
 
@@ -225,12 +235,16 @@ func TestBroadcasterMapping(t *testing.T) {
 
 	// Verify that broadcaster has a mapping for the session ID
 	// (This would require exposing broadcaster internals or using a different test approach)
-	// For now, we just verify the session ID is not empty
-	if task.SessionID == "" {
+	// For now, we just verify the session ID is not empty - get fresh data to avoid race
+	freshTask, err := taskStore.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("Failed to get fresh task: %v", err)
+	}
+	if freshTask.SessionID == "" {
 		t.Fatal("Session ID is empty - broadcaster mapping will fail")
 	}
 
-	t.Logf("✓ Task created with valid session ID for broadcaster mapping: %s", task.SessionID)
+	t.Logf("✓ Task created with valid session ID for broadcaster mapping: %s", freshTask.SessionID)
 }
 
 // TestTaskStoreProgressFields verifies that task store properly handles progress fields

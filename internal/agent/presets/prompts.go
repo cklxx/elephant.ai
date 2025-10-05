@@ -15,8 +15,8 @@ const (
 
 // PromptConfig contains system prompt configuration for a preset
 type PromptConfig struct {
-	Name        string
-	Description string
+	Name         string
+	Description  string
 	SystemPrompt string
 }
 
