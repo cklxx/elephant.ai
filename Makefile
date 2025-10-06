@@ -1,23 +1,25 @@
 .PHONY: help build test clean dev fmt vet demo
 
+GO ?= scripts/go-with-toolchain.sh
+
 help: ## Show this help
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 build: ## Build alex binary
 	@echo "Building alex..."
-	@go build -o alex ./cmd/alex/
+	@$(GO) build -o alex ./cmd/alex/
 	@echo "✓ Build complete: ./alex"
 
 test: ## Run all tests
 	@echo "Running tests..."
-	@go test ./... -v
+	@$(GO) test ./... -v
 
 test-domain: ## Run domain layer tests (fast, mocked)
-	@go test ./internal/agent/domain/ -v
+	@$(GO) test ./internal/agent/domain/ -v
 
 test-app: ## Run application layer tests
-	@go test ./internal/agent/app/ -v
+	@$(GO) test ./internal/agent/app/ -v
 
 clean: ## Clean build artifacts
 	@rm -f alex
@@ -28,7 +30,7 @@ fmt: ## Format and lint Go code with golangci-lint
 	@echo "✓ Formatted and linted"
 
 vet: ## Run go vet
-	@go vet ./cmd/... ./internal/...
+	@$(GO) vet ./cmd/... ./internal/...
 	@echo "✓ Vet passed"
 
 dev: fmt vet build ## Format, vet, build (development workflow)
@@ -47,11 +49,11 @@ install: build ## Install alex to $GOPATH/bin
 # Architecture validation
 check-deps: ## Check that domain has zero infrastructure deps
 	@echo "Checking domain layer dependencies..."
-	@go list -f '{{.Imports}}' ./internal/agent/domain/ | grep -v ports | grep -E 'alex/internal/(llm|tools|session|context|messaging|parser)' && echo "❌ Domain layer has infrastructure dependencies!" || echo "✓ Domain layer is clean (only depends on ports)"
+	@$(GO) list -f '{{.Imports}}' ./internal/agent/domain/ | grep -v ports | grep -E 'alex/internal/(llm|tools|session|context|messaging|parser)' && echo "❌ Domain layer has infrastructure dependencies!" || echo "✓ Domain layer is clean (only depends on ports)"
 
 # Performance
 bench: ## Run benchmarks
-	@go test ./... -bench=. -benchmem
+	@$(GO) test ./... -bench=. -benchmem
 
 # Documentation
 docs: ## Generate documentation
@@ -79,15 +81,15 @@ build-all: ## Build binaries for all platforms
 	@echo "Building binaries for all platforms..."
 	@mkdir -p build
 	@echo "Building Linux AMD64..."
-	@GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o build/alex-linux-amd64 ./cmd/alex
+	@GOOS=linux GOARCH=amd64 $(GO) build -ldflags="-w -s" -o build/alex-linux-amd64 ./cmd/alex
 	@echo "Building Linux ARM64..."
-	@GOOS=linux GOARCH=arm64 go build -ldflags="-w -s" -o build/alex-linux-arm64 ./cmd/alex
+	@GOOS=linux GOARCH=arm64 $(GO) build -ldflags="-w -s" -o build/alex-linux-arm64 ./cmd/alex
 	@echo "Building macOS AMD64..."
-	@GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o build/alex-darwin-amd64 ./cmd/alex
+	@GOOS=darwin GOARCH=amd64 $(GO) build -ldflags="-w -s" -o build/alex-darwin-amd64 ./cmd/alex
 	@echo "Building macOS ARM64..."
-	@GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o build/alex-darwin-arm64 ./cmd/alex
+	@GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="-w -s" -o build/alex-darwin-arm64 ./cmd/alex
 	@echo "Building Windows AMD64..."
-	@GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o build/alex-windows-amd64.exe ./cmd/alex
+	@GOOS=windows GOARCH=amd64 $(GO) build -ldflags="-w -s" -o build/alex-windows-amd64.exe ./cmd/alex
 	@echo "✓ All builds complete"
 	@ls -lh build/
 
@@ -98,7 +100,7 @@ release-npm: build-all npm-copy-binaries ## Build binaries and publish to npm
 # SSE Server targets
 server-build: ## Build alex-server binary
 	@echo "Building alex-server..."
-	@go build -o alex-server ./cmd/alex-server/
+	@$(GO) build -o alex-server ./cmd/alex-server/
 	@echo "✓ Server build complete: ./alex-server"
 
 server-run: server-build ## Run alex-server
@@ -107,7 +109,7 @@ server-run: server-build ## Run alex-server
 
 server-test: ## Run server tests
 	@echo "Running server tests..."
-	@go test ./internal/server/... -v
+	@$(GO) test ./internal/server/... -v
 
 server-test-integration: server-build ## Run integration tests with test script
 	@echo "Running SSE server integration tests..."

@@ -3,22 +3,45 @@
 import { SessionCard } from './SessionCard';
 import { useSessions, useDeleteSession, useForkSession } from '@/hooks/useSessionStore';
 import { Loader2 } from 'lucide-react';
+import { toast } from '@/components/ui/toast';
+import { useConfirmDialog } from '@/components/ui/dialog';
 
 export function SessionList() {
   const { data, isLoading, error } = useSessions();
   const deleteSession = useDeleteSession();
   const forkSession = useForkSession();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const handleDelete = async (sessionId: string) => {
-    if (confirm('Are you sure you want to delete this session?')) {
-      await deleteSession.mutateAsync(sessionId);
+    const confirmed = await confirm({
+      title: 'Delete Session?',
+      description: 'This action cannot be undone. All session data will be permanently deleted.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (confirmed) {
+      try {
+        await deleteSession.mutateAsync(sessionId);
+        toast.success('Session deleted', 'The session has been permanently removed.');
+      } catch (err) {
+        toast.error('Failed to delete session', err instanceof Error ? err.message : 'Unknown error');
+      }
     }
   };
 
   const handleFork = async (sessionId: string) => {
-    const result = await forkSession.mutateAsync(sessionId);
-    if (result) {
-      alert(`Session forked successfully! New session ID: ${result.new_session_id}`);
+    try {
+      const result = await forkSession.mutateAsync(sessionId);
+      if (result) {
+        toast.success(
+          'Session forked successfully!',
+          `New session ID: ${result.new_session_id.slice(0, 8)}...`
+        );
+      }
+    } catch (err) {
+      toast.error('Failed to fork session', err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -47,15 +70,18 @@ export function SessionList() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {data.sessions.map((session) => (
-        <SessionCard
-          key={session.id}
-          session={session}
-          onDelete={handleDelete}
-          onFork={handleFork}
-        />
-      ))}
-    </div>
+    <>
+      <ConfirmDialog />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {data.sessions.map((session) => (
+          <SessionCard
+            key={session.id}
+            session={session}
+            onDelete={handleDelete}
+            onFork={handleFork}
+          />
+        ))}
+      </div>
+    </>
   );
 }

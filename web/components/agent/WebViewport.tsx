@@ -1,0 +1,516 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Monitor,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  X,
+  FileText,
+  Terminal,
+  Globe,
+  Code,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Highlight, themes } from 'prism-react-renderer';
+
+export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
+
+export interface ToolOutput {
+  id: string;
+  type: ToolOutputType;
+  toolName: string;
+  timestamp: number;
+  // For web_fetch
+  url?: string;
+  screenshot?: string; // base64 encoded
+  htmlPreview?: string;
+  // For bash
+  command?: string;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number;
+  // For file operations
+  filePath?: string;
+  content?: string;
+  oldContent?: string; // for edits/diffs
+  newContent?: string; // for edits/diffs
+  // Generic
+  result?: string;
+}
+
+interface WebViewportProps {
+  outputs: ToolOutput[];
+  className?: string;
+}
+
+export function WebViewport({ outputs, className }: WebViewportProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    // Auto-advance to latest output
+    if (outputs.length > 0) {
+      setCurrentIndex(outputs.length - 1);
+    }
+  }, [outputs.length]);
+
+  if (outputs.length === 0) {
+    return (
+      <Card className={cn('glass-card shadow-medium', className)}>
+        <CardContent className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <Monitor className="h-16 w-16 mb-4 text-gray-300" />
+          <p className="font-medium">No tool outputs yet</p>
+          <p className="text-sm mt-1">Results will appear here as tools execute</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const currentOutput = outputs[currentIndex];
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < outputs.length - 1;
+
+  const handlePrevious = () => {
+    if (hasPrevious) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (hasNext) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  return (
+    <>
+      <Card className={cn('glass-card shadow-medium', className)}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                <Monitor className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Computer View</h3>
+                <p className="text-xs text-gray-500">
+                  {currentIndex + 1} of {outputs.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Carousel controls */}
+              {outputs.length > 1 && (
+                <>
+                  <Button
+                    onClick={handlePrevious}
+                    disabled={!hasPrevious}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={handleNext}
+                    disabled={!hasNext}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+
+              {/* Fullscreen toggle */}
+              <Button
+                onClick={() => setIsFullscreen(true)}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <OutputRenderer output={currentOutput} />
+        </CardContent>
+      </Card>
+
+      {/* Fullscreen modal */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fadeIn">
+          <div className="absolute top-4 right-4">
+            <Button
+              onClick={() => setIsFullscreen(false)}
+              variant="outline"
+              size="sm"
+              className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Close
+            </Button>
+          </div>
+          <div className="w-full h-full p-8 overflow-auto">
+            <OutputRenderer output={currentOutput} fullscreen />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function OutputRenderer({
+  output,
+  fullscreen = false,
+}: {
+  output: ToolOutput;
+  fullscreen?: boolean;
+}) {
+  const containerClass = fullscreen ? 'text-white' : 'text-gray-900';
+
+  return (
+    <div className={cn('space-y-3', containerClass)}>
+      {/* Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <ToolTypeIcon type={output.type} />
+          <span className="font-semibold">{output.toolName}</span>
+        </div>
+        <Badge variant="default" className="text-xs">
+          {new Date(output.timestamp).toLocaleTimeString()}
+        </Badge>
+      </div>
+
+      {/* Content based on type */}
+      {output.type === 'web_fetch' && (
+        <WebFetchOutput
+          url={output.url}
+          screenshot={output.screenshot}
+          htmlPreview={output.htmlPreview}
+          fullscreen={fullscreen}
+        />
+      )}
+
+      {output.type === 'bash' && (
+        <BashOutput
+          command={output.command}
+          stdout={output.stdout}
+          stderr={output.stderr}
+          exitCode={output.exitCode}
+          fullscreen={fullscreen}
+        />
+      )}
+
+      {(output.type === 'file_read' || output.type === 'file_write') && (
+        <FileOutput
+          filePath={output.filePath}
+          content={output.content}
+          fullscreen={fullscreen}
+        />
+      )}
+
+      {output.type === 'file_edit' && (
+        <FileDiffOutput
+          filePath={output.filePath}
+          oldContent={output.oldContent}
+          newContent={output.newContent}
+          fullscreen={fullscreen}
+        />
+      )}
+
+      {output.type === 'generic' && (
+        <GenericOutput result={output.result} fullscreen={fullscreen} />
+      )}
+    </div>
+  );
+}
+
+function ToolTypeIcon({ type }: { type: ToolOutputType }) {
+  const iconClass = 'h-4 w-4';
+
+  switch (type) {
+    case 'web_fetch':
+      return <Globe className={iconClass} />;
+    case 'bash':
+      return <Terminal className={iconClass} />;
+    case 'file_read':
+    case 'file_write':
+    case 'file_edit':
+      return <FileText className={iconClass} />;
+    default:
+      return <Code className={iconClass} />;
+  }
+}
+
+function WebFetchOutput({
+  url,
+  screenshot,
+  htmlPreview,
+  fullscreen,
+}: {
+  url?: string;
+  screenshot?: string;
+  htmlPreview?: string;
+  fullscreen: boolean;
+}) {
+  const [showMode, setShowMode] = useState<'screenshot' | 'html'>('screenshot');
+
+  return (
+    <div className="space-y-3">
+      {url && (
+        <div className="text-sm">
+          <span className="font-semibold text-gray-600">URL:</span>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-2 text-blue-600 hover:underline"
+          >
+            {url}
+          </a>
+        </div>
+      )}
+
+      {screenshot && htmlPreview && (
+        <div className="flex gap-2 mb-2">
+          <Button
+            onClick={() => setShowMode('screenshot')}
+            variant={showMode === 'screenshot' ? 'default' : 'outline'}
+            size="sm"
+          >
+            Screenshot
+          </Button>
+          <Button
+            onClick={() => setShowMode('html')}
+            variant={showMode === 'html' ? 'default' : 'outline'}
+            size="sm"
+          >
+            HTML
+          </Button>
+        </div>
+      )}
+
+      {screenshot && showMode === 'screenshot' && (
+        <div className="bg-white rounded-lg overflow-hidden border border-gray-200">
+          <img
+            src={screenshot}
+            alt="Screenshot"
+            className={cn('w-full', fullscreen ? 'max-h-none' : 'max-h-96 object-contain')}
+          />
+        </div>
+      )}
+
+      {htmlPreview && showMode === 'html' && (
+        <div
+          className={cn(
+            'bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-auto font-mono text-xs',
+            fullscreen ? 'max-h-none' : 'max-h-96'
+          )}
+        >
+          <pre className="whitespace-pre-wrap">{htmlPreview}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BashOutput({
+  command,
+  stdout,
+  stderr,
+  exitCode,
+  fullscreen,
+}: {
+  command?: string;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number;
+  fullscreen: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      {command && (
+        <div>
+          <p className="text-xs font-semibold text-gray-600 mb-1">Command:</p>
+          <div className="bg-gray-900 text-green-400 rounded-lg p-3 font-mono text-sm">
+            <span className="text-gray-500">$</span> {command}
+          </div>
+        </div>
+      )}
+
+      {stdout && (
+        <div>
+          <p className="text-xs font-semibold text-gray-600 mb-1">Output:</p>
+          <div
+            className={cn(
+              'bg-gray-900 text-gray-100 rounded-lg p-3 font-mono text-xs overflow-auto',
+              fullscreen ? 'max-h-none' : 'max-h-64'
+            )}
+          >
+            <pre className="whitespace-pre-wrap">{stdout}</pre>
+          </div>
+        </div>
+      )}
+
+      {stderr && (
+        <div>
+          <p className="text-xs font-semibold text-red-600 mb-1">Error Output:</p>
+          <div className="bg-red-50 text-red-900 rounded-lg p-3 font-mono text-xs overflow-auto max-h-32">
+            <pre className="whitespace-pre-wrap">{stderr}</pre>
+          </div>
+        </div>
+      )}
+
+      {exitCode !== undefined && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-600">Exit Code:</span>
+          <Badge variant={exitCode === 0 ? 'success' : 'error'}>{exitCode}</Badge>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FileOutput({
+  filePath,
+  content,
+  fullscreen,
+}: {
+  filePath?: string;
+  content?: string;
+  fullscreen: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      {filePath && (
+        <div className="text-sm font-mono text-gray-600 bg-gray-50 px-3 py-1.5 rounded border border-gray-200">
+          {filePath}
+        </div>
+      )}
+
+      {content && (
+        <div
+          className={cn(
+            'bg-gray-900 rounded-lg overflow-auto',
+            fullscreen ? 'max-h-none' : 'max-h-96'
+          )}
+        >
+          <Highlight theme={themes.vsDark} code={content} language="tsx">
+            {({ className, style, tokens, getLineProps, getTokenProps }) => (
+              <pre className={cn(className, 'p-4 text-xs')} style={style}>
+                {tokens.map((line, i) => (
+                  <div key={i} {...getLineProps({ line })}>
+                    <span className="inline-block w-8 text-gray-500 select-none">{i + 1}</span>
+                    {line.map((token, key) => (
+                      <span key={key} {...getTokenProps({ token })} />
+                    ))}
+                  </div>
+                ))}
+              </pre>
+            )}
+          </Highlight>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FileDiffOutput({
+  filePath,
+  oldContent,
+  newContent,
+  fullscreen,
+}: {
+  filePath?: string;
+  oldContent?: string;
+  newContent?: string;
+  fullscreen: boolean;
+}) {
+  const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
+
+  return (
+    <div className="space-y-3">
+      {filePath && (
+        <div className="text-sm font-mono text-gray-600 bg-gray-50 px-3 py-1.5 rounded border border-gray-200">
+          {filePath}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          onClick={() => setViewMode('split')}
+          variant={viewMode === 'split' ? 'default' : 'outline'}
+          size="sm"
+        >
+          Side by Side
+        </Button>
+        <Button
+          onClick={() => setViewMode('unified')}
+          variant={viewMode === 'unified' ? 'default' : 'outline'}
+          size="sm"
+        >
+          Unified
+        </Button>
+      </div>
+
+      {viewMode === 'split' ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs font-semibold text-red-600 mb-1 px-2">Before</p>
+            <div className="bg-red-50 border border-red-200 rounded-lg overflow-auto max-h-96">
+              <pre className="p-3 text-xs font-mono whitespace-pre-wrap">{oldContent}</pre>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-green-600 mb-1 px-2">After</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg overflow-auto max-h-96">
+              <pre className="p-3 text-xs font-mono whitespace-pre-wrap">{newContent}</pre>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gray-900 text-gray-100 rounded-lg overflow-auto max-h-96 p-3 font-mono text-xs">
+          <div className="text-red-400">
+            <div className="text-gray-500">--- Before</div>
+            <pre className="whitespace-pre-wrap">{oldContent}</pre>
+          </div>
+          <div className="text-green-400 mt-2">
+            <div className="text-gray-500">+++ After</div>
+            <pre className="whitespace-pre-wrap">{newContent}</pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GenericOutput({
+  result,
+  fullscreen,
+}: {
+  result?: string;
+  fullscreen: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-auto font-mono text-xs',
+        fullscreen ? 'max-h-none' : 'max-h-96'
+      )}
+    >
+      <pre className="whitespace-pre-wrap">{result}</pre>
+    </div>
+  );
+}

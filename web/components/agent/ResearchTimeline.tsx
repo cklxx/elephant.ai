@@ -1,0 +1,268 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Circle,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
+import { cn, formatDuration } from '@/lib/utils';
+import { useState } from 'react';
+
+export type StepStatus = 'pending' | 'active' | 'complete' | 'error';
+
+export interface TimelineStep {
+  id: string;
+  title: string;
+  description?: string;
+  status: StepStatus;
+  startTime?: number;
+  endTime?: number;
+  duration?: number;
+  toolsUsed?: string[];
+  tokensUsed?: number;
+  error?: string;
+}
+
+interface ResearchTimelineProps {
+  steps: TimelineStep[];
+  className?: string;
+}
+
+export function ResearchTimeline({ steps, className }: ResearchTimelineProps) {
+  const activeStepRef = useRef<HTMLDivElement>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+
+  // Auto-scroll to active step
+  useEffect(() => {
+    if (activeStepRef.current) {
+      activeStepRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [steps]);
+
+  const toggleExpand = (stepId: string) => {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(stepId)) {
+        next.delete(stepId);
+      } else {
+        next.add(stepId);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <Card className={cn('glass-card p-6 shadow-medium', className)}>
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">Execution Timeline</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          Track progress through each research step
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {steps.map((step, idx) => {
+          const isActive = step.status === 'active';
+          const isExpanded = expandedSteps.has(step.id);
+          const isComplete = step.status === 'complete';
+          const hasDetails = step.toolsUsed || step.tokensUsed || step.error;
+
+          return (
+            <div
+              key={step.id}
+              ref={isActive ? activeStepRef : null}
+              className={cn(
+                'relative transition-all duration-300',
+                isActive && 'animate-pulse-soft'
+              )}
+            >
+              {/* Connector line */}
+              {idx < steps.length - 1 && (
+                <div
+                  className={cn(
+                    'absolute left-4 top-10 w-0.5 h-full transition-colors duration-300',
+                    step.status === 'complete'
+                      ? 'bg-green-300'
+                      : step.status === 'error'
+                      ? 'bg-red-300'
+                      : 'bg-gray-200'
+                  )}
+                />
+              )}
+
+              <div
+                className={cn(
+                  'relative flex items-start gap-3 p-4 rounded-xl transition-all duration-300',
+                  isActive && 'bg-blue-50/50 border-2 border-blue-200 shadow-md',
+                  isComplete && !isExpanded && 'opacity-70 hover:opacity-100',
+                  'hover:bg-gray-50/50'
+                )}
+              >
+                {/* Status icon */}
+                <div className="flex-shrink-0 z-10">
+                  <StepIcon status={step.status} />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-gray-900">{step.title}</h4>
+                        <StepStatusBadge status={step.status} />
+                      </div>
+                      {step.description && (
+                        <p className="text-sm text-gray-600 leading-relaxed">
+                          {step.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Expand button */}
+                    {hasDetails && (
+                      <button
+                        onClick={() => toggleExpand(step.id)}
+                        className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-gray-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Duration/timestamp */}
+                  {step.duration !== undefined && (
+                    <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatDuration(step.duration)}</span>
+                    </div>
+                  )}
+
+                  {/* Expanded details */}
+                  {isExpanded && hasDetails && (
+                    <div className="mt-3 space-y-2 animate-fadeIn">
+                      {/* Tools used */}
+                      {step.toolsUsed && step.toolsUsed.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700 mb-1">
+                            Tools Used:
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {step.toolsUsed.map((tool, toolIdx) => (
+                              <span
+                                key={toolIdx}
+                                className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200"
+                              >
+                                {tool}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tokens used */}
+                      {step.tokensUsed !== undefined && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700 mb-1">
+                            Tokens Used:
+                          </p>
+                          <Badge variant="info">{step.tokensUsed.toLocaleString()}</Badge>
+                        </div>
+                      )}
+
+                      {/* Error details */}
+                      {step.error && (
+                        <div>
+                          <p className="text-xs font-semibold text-red-700 mb-1">Error:</p>
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                            <pre className="text-xs text-red-900 whitespace-pre-wrap font-mono">
+                              {step.error}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function StepIcon({ status }: { status: StepStatus }) {
+  const iconClasses = 'h-8 w-8';
+
+  switch (status) {
+    case 'pending':
+      return (
+        <div className="p-1 rounded-full bg-gray-200">
+          <Circle className={cn(iconClasses, 'text-gray-400')} />
+        </div>
+      );
+    case 'active':
+      return (
+        <div className="p-1 rounded-full bg-blue-100 animate-pulse">
+          <Loader2 className={cn(iconClasses, 'text-blue-600 animate-spin')} />
+        </div>
+      );
+    case 'complete':
+      return (
+        <div className="p-1 rounded-full bg-green-100">
+          <CheckCircle2 className={cn(iconClasses, 'text-green-600')} />
+        </div>
+      );
+    case 'error':
+      return (
+        <div className="p-1 rounded-full bg-red-100">
+          <XCircle className={cn(iconClasses, 'text-red-600')} />
+        </div>
+      );
+  }
+}
+
+function StepStatusBadge({ status }: { status: StepStatus }) {
+  switch (status) {
+    case 'pending':
+      return (
+        <Badge variant="default" className="text-xs">
+          Pending
+        </Badge>
+      );
+    case 'active':
+      return (
+        <Badge variant="info" className="text-xs animate-pulse-soft">
+          In Progress
+        </Badge>
+      );
+    case 'complete':
+      return (
+        <Badge variant="success" className="text-xs">
+          Complete
+        </Badge>
+      );
+    case 'error':
+      return (
+        <Badge variant="error" className="text-xs">
+          Failed
+        </Badge>
+      );
+  }
+}

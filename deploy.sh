@@ -21,7 +21,12 @@
 #   ./deploy.sh down           # 停止所有服务
 ###############################################################################
 
-set -e
+# DO NOT use set -e to allow better error handling
+set -u  # Exit on undefined variables
+set -o pipefail  # Catch errors in pipes
+
+# Global error tracking
+DEPLOY_ERROR=0
 
 # Colors
 RED='\033[0;31m'
@@ -145,19 +150,35 @@ deploy_local() {
 
     # Build backend
     log_info "Building backend server..."
-    make server-build
+    if ! make server-build 2>&1 | tee logs/build-server.log; then
+        log_error "Backend build failed. Check logs/build-server.log for details:"
+        tail -n 20 logs/build-server.log
+        DEPLOY_ERROR=1
+        return 1
+    fi
     log_success "Backend built successfully"
 
     # Install frontend dependencies
     log_info "Installing frontend dependencies..."
     cd web
-    npm install --silent
+    if ! npm install --silent 2>&1 | tee ../logs/npm-install.log; then
+        log_error "npm install failed. Check logs/npm-install.log for details:"
+        tail -n 20 ../logs/npm-install.log
+        cd ..
+        DEPLOY_ERROR=1
+        return 1
+    fi
     log_success "Frontend dependencies installed"
     cd ..
 
     # Start backend in background
     log_info "Starting backend server on :8080..."
     export OPENAI_API_KEY=$(grep OPENAI_API_KEY .env | cut -d '=' -f2-)
+    if [ ! -f "./alex-server" ]; then
+        log_error "alex-server binary not found. Build may have failed."
+        DEPLOY_ERROR=1
+        return 1
+    fi
     ./alex-server > logs/server.log 2>&1 &
     SERVER_PID=$!
     echo $SERVER_PID > .server.pid
@@ -171,9 +192,13 @@ deploy_local() {
             break
         fi
         if [ $i -eq 30 ]; then
-            log_error "Server failed to start. Check logs/server.log"
+            log_error "Server failed to start within 30 seconds."
+            log_error "Recent server logs:"
+            tail -n 30 logs/server.log
             kill $SERVER_PID 2>/dev/null || true
-            exit 1
+            rm .server.pid
+            DEPLOY_ERROR=1
+            return 1
         fi
         sleep 1
     done
@@ -454,6 +479,37 @@ ${YELLOW}Documentation:${NC}
 EOF
 }
 
+# Error handler
+handle_error() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ] || [ $DEPLOY_ERROR -ne 0 ]; then
+        echo ""
+        log_error "================================================="
+        log_error " Deployment failed with errors!"
+        log_error "================================================="
+        log_error "Exit code: $exit_code"
+        log_error "Error flag: $DEPLOY_ERROR"
+        echo ""
+        log_info "Common troubleshooting steps:"
+        log_info "  1. Check log files in ./logs/ directory"
+        log_info "  2. Verify prerequisites: ./deploy.sh help"
+        log_info "  3. Check .env configuration"
+        log_info "  4. Run: ./deploy.sh down  (to clean up)"
+        echo ""
+        log_info "Recent logs:"
+        if [ -f "logs/server.log" ]; then
+            echo -e "${CYAN}Server log (last 10 lines):${NC}"
+            tail -n 10 logs/server.log
+        fi
+        if [ -f "logs/build-server.log" ]; then
+            echo -e "${CYAN}Build log (last 10 lines):${NC}"
+            tail -n 10 logs/build-server.log
+        fi
+        echo ""
+        exit 1
+    fi
+}
+
 # Main function
 main() {
     # Create logs directory
@@ -467,30 +523,50 @@ main() {
             print_banner
             check_prerequisites local
             setup_environment
-            deploy_local
+            if deploy_local; then
+                log_success "Local deployment completed successfully!"
+            else
+                handle_error
+            fi
             ;;
         docker)
             print_banner
             check_prerequisites docker
             setup_environment
-            deploy_docker production
+            if deploy_docker production; then
+                log_success "Docker deployment completed successfully!"
+            else
+                handle_error
+            fi
             ;;
         dev)
             print_banner
             check_prerequisites dev
             setup_environment
-            deploy_docker dev
+            if deploy_docker dev; then
+                log_success "Dev deployment completed successfully!"
+            else
+                handle_error
+            fi
             ;;
         k8s)
             print_banner
             check_prerequisites k8s
             setup_environment
-            deploy_k8s
+            if deploy_k8s; then
+                log_success "Kubernetes deployment completed successfully!"
+            else
+                handle_error
+            fi
             ;;
         test)
             print_banner
             setup_environment
-            run_tests
+            if run_tests; then
+                log_success "All tests completed successfully!"
+            else
+                handle_error
+            fi
             ;;
         status)
             show_status

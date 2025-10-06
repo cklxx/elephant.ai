@@ -93,6 +93,35 @@ export interface ErrorEvent extends AgentEvent {
   recoverable: boolean;
 }
 
+// Research Plan Event - emitted when agent creates a research/execution plan
+export interface ResearchPlanEvent extends AgentEvent {
+  event_type: 'research_plan';
+  plan_steps: string[];
+  estimated_iterations: number;
+}
+
+// Step Started Event - emitted when a research step begins
+export interface StepStartedEvent extends AgentEvent {
+  event_type: 'step_started';
+  step_index: number;
+  step_description: string;
+}
+
+// Step Completed Event - emitted when a research step finishes
+export interface StepCompletedEvent extends AgentEvent {
+  event_type: 'step_completed';
+  step_index: number;
+  step_result: string;
+}
+
+// Browser Snapshot Event - emitted when capturing browser state (for web automation tools)
+export interface BrowserSnapshotEvent extends AgentEvent {
+  event_type: 'browser_snapshot';
+  url: string;
+  screenshot_data?: string; // base64 encoded image
+  html_preview?: string; // truncated HTML for preview
+}
+
 // Union type for all agent events
 export type AnyAgentEvent =
   | TaskAnalysisEvent
@@ -104,19 +133,44 @@ export type AnyAgentEvent =
   | ToolCallCompleteEvent
   | IterationCompleteEvent
   | TaskCompleteEvent
-  | ErrorEvent;
+  | ErrorEvent
+  | ResearchPlanEvent
+  | StepStartedEvent
+  | StepCompletedEvent
+  | BrowserSnapshotEvent;
 
 // API Request/Response Types
 
 export interface CreateTaskRequest {
   task: string;
   session_id?: string;
+  auto_approve_plan?: boolean; // If true, skip plan approval flow
 }
 
 export interface CreateTaskResponse {
   task_id: string;
   session_id: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  requires_plan_approval?: boolean; // If true, wait for plan approval before execution
+}
+
+export interface ResearchPlan {
+  goal: string;
+  steps: string[];
+  estimated_tools: string[];
+  estimated_iterations: number;
+}
+
+export interface ApprovePlanRequest {
+  session_id: string;
+  task_id: string;
+  approved: boolean;
+  modified_plan?: ResearchPlan;
+}
+
+export interface ApprovePlanResponse {
+  success: boolean;
+  message: string;
 }
 
 export interface TaskStatusResponse {

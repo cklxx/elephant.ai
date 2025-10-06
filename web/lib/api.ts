@@ -6,6 +6,8 @@ import {
   TaskStatusResponse,
   SessionListResponse,
   SessionDetailsResponse,
+  ApprovePlanRequest,
+  ApprovePlanResponse,
 } from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -75,6 +77,15 @@ export async function cancelTask(taskId: string): Promise<void> {
   });
 }
 
+export async function approvePlan(
+  request: ApprovePlanRequest
+): Promise<ApprovePlanResponse> {
+  return fetchAPI<ApprovePlanResponse>('/api/plans/approve', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
 // Session APIs
 
 export async function listSessions(): Promise<SessionListResponse> {
@@ -115,6 +126,7 @@ export const apiClient = {
   createTask,
   getTaskStatus,
   cancelTask,
+  approvePlan,
   listSessions,
   getSessionDetails,
   deleteSession,
