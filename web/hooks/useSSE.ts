@@ -34,81 +34,73 @@ export function useSSE(
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // UI state - shows current reconnection attempt count
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  // Refs for connection management (no re-render triggers)
+  // Refs for connection management
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Use ref for reconnection logic to avoid dependency cycle
-  // This tracks the ACTUAL attempt count without triggering re-renders
   const reconnectAttemptsRef = useRef(0);
-  // Track if a connection is currently being established
   const isConnectingRef = useRef(false);
+  const sessionIdRef = useRef(sessionId);
+
+  // Update session ID ref
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // Store onEvent callback in ref to avoid dependency issues
+  const onEventRef = useRef(onEvent);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   const clearEvents = useCallback(() => {
     setEvents([]);
   }, []);
 
-  const disconnect = useCallback(() => {
-    // Clear any pending reconnection attempts
+  // Cleanup function
+  const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
-
-    // Close active EventSource connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
-
-    // Reset connection state
     isConnectingRef.current = false;
-    setIsConnected(false);
-    setIsReconnecting(false);
   }, []);
 
-  const connect = useCallback(() => {
-    if (!sessionId || !enabled) return;
+  //  Connect function - stable, no dependencies
+  const connectInternal = useCallback(() => {
+    const currentSessionId = sessionIdRef.current;
 
-    // Prevent double connections - if already connecting, skip
-    if (isConnectingRef.current) {
-      console.log('[SSE] Connection already in progress, skipping duplicate attempt');
+    if (!currentSessionId || !enabled) {
       return;
     }
 
-    // Mark as connecting BEFORE cleanup to prevent race conditions
+    // Prevent double connections
+    if (isConnectingRef.current || eventSourceRef.current) {
+      return;
+    }
+
     isConnectingRef.current = true;
 
-    // Cleanup any existing connection/timers before establishing new one
-    // This ensures only ONE connection attempt happens at a time
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-
     try {
-      const eventSource = apiClient.createSSEConnection(sessionId);
+      const eventSource = apiClient.createSSEConnection(currentSessionId);
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
-        console.log('[SSE] Connected to session:', sessionId);
+        console.log('[SSE] Connected to session:', currentSessionId);
         isConnectingRef.current = false;
         setIsConnected(true);
         setIsReconnecting(false);
         setError(null);
-        // Reset both state and ref on successful connection
         reconnectAttemptsRef.current = 0;
         setReconnectAttempts(0);
       };
 
-      // Listen to all event types from the backend
+      // Listen to all event types
       const eventTypes = [
         'task_analysis',
         'iteration_start',
@@ -120,7 +112,6 @@ export function useSSE(
         'iteration_complete',
         'task_complete',
         'error',
-        // Manus-style events (Phase 3)
         'research_plan',
         'step_started',
         'step_completed',
@@ -132,38 +123,34 @@ export function useSSE(
           try {
             const event = JSON.parse(e.data) as AnyAgentEvent;
             setEvents((prev) => [...prev, event]);
-            onEvent?.(event);
+            onEventRef.current?.(event);
           } catch (err) {
             console.error(`[SSE] Failed to parse event ${type}:`, err);
           }
         });
       });
 
-      eventSource.onerror = (err) => {
-        console.error('[SSE] Connection error:', err);
+      eventSource.onerror = () => {
+        console.error('[SSE] Connection error');
         isConnectingRef.current = false;
         setIsConnected(false);
         eventSource.close();
+        eventSourceRef.current = null;
 
-        // Use REF for reconnection logic to avoid dependency cycle
-        // This prevents the connect function from being recreated on every attempt
         const currentAttempts = reconnectAttemptsRef.current;
 
-        // Attempt reconnection with exponential backoff
         if (currentAttempts < maxReconnectAttempts) {
-          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s
           const delay = Math.min(1000 * Math.pow(2, currentAttempts), 30000);
           console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${currentAttempts + 1}/${maxReconnectAttempts})`);
 
           setIsReconnecting(true);
-          // Increment both ref (for logic) and state (for UI)
           reconnectAttemptsRef.current = currentAttempts + 1;
           setReconnectAttempts(currentAttempts + 1);
 
-          // Schedule reconnection - this will NOT trigger useEffect
-          // because connect() is stable (no dependency on reconnectAttempts state)
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            reconnectTimeoutRef.current = null;
+            isConnectingRef.current = false;
+            connectInternal();
           }, delay);
         } else {
           setError('Max reconnection attempts reached');
@@ -175,27 +162,32 @@ export function useSSE(
       isConnectingRef.current = false;
       setError(err instanceof Error ? err.message : 'Failed to connect');
     }
-  }, [sessionId, enabled, maxReconnectAttempts, onEvent]);
+  }, [enabled, maxReconnectAttempts]);
 
   const reconnect = useCallback(() => {
-    // Manual reconnect - reset all counters and errors
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
     setError(null);
-    connect();
-  }, [connect]);
+    setIsReconnecting(false);
+    cleanup();
+    connectInternal();
+  }, [cleanup, connectInternal]);
 
   // Main connection effect - only triggers on sessionId or enabled changes
-  // NOT on reconnectAttempts changes (which was the bug)
   useEffect(() => {
-    if (sessionId && enabled) {
-      connect();
+    if (!sessionId || !enabled) {
+      cleanup();
+      setIsConnected(false);
+      setIsReconnecting(false);
+      return;
     }
 
+    connectInternal();
+
     return () => {
-      disconnect();
+      cleanup();
     };
-  }, [sessionId, enabled, connect, disconnect]);
+  }, [sessionId, enabled, cleanup, connectInternal]);
 
   return {
     events,
