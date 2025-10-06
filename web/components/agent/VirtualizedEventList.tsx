@@ -25,15 +25,18 @@ export function VirtualizedEventList({ events, autoScroll = true }: VirtualizedE
     overscan: 5, // Render 5 extra items above/below viewport
   });
 
-  // Auto-scroll to bottom when new events arrive
+  // Auto-scroll to bottom when new events arrive (with debouncing)
   useEffect(() => {
-    if (autoScroll && events.length > 0) {
-      // Scroll to last item
+    if (!autoScroll || events.length === 0) return;
+
+    const timeoutId = setTimeout(() => {
       virtualizer.scrollToIndex(events.length - 1, {
         align: 'end',
         behavior: 'smooth',
       });
-    }
+    }, 100); // Debounce scroll updates
+
+    return () => clearTimeout(timeoutId);
   }, [events.length, autoScroll, virtualizer]);
 
   return (

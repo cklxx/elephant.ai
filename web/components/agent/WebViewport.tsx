@@ -115,6 +115,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0"
+                    aria-label="Previous output"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -124,6 +125,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0"
+                    aria-label="Next output"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
@@ -136,6 +138,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                 variant="outline"
                 size="sm"
                 className="h-8 w-8 p-0"
+                aria-label="Enter fullscreen mode"
               >
                 <Maximize2 className="h-4 w-4" />
               </Button>
@@ -150,13 +153,19 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
 
       {/* Fullscreen modal */}
       {isFullscreen && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fadeIn">
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Fullscreen tool output viewer"
+        >
           <div className="absolute top-4 right-4">
             <Button
               onClick={() => setIsFullscreen(false)}
               variant="outline"
               size="sm"
               className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+              aria-label="Exit fullscreen mode"
             >
               <X className="h-4 w-4 mr-2" />
               Close

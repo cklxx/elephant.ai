@@ -218,12 +218,12 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
  */
 export function extractBrowserSnapshots(events: AnyAgentEvent[]): BrowserSnapshot[] {
   return events
-    .filter((e) => e.event_type === 'browser_snapshot')
+    .filter((e): e is import('./types').BrowserSnapshotEvent => e.event_type === 'browser_snapshot')
     .map((e) => ({
       id: `snapshot-${e.timestamp}`,
-      url: (e as any).url,
-      screenshot_data: (e as any).screenshot_data,
-      html_preview: (e as any).html_preview,
+      url: e.url,
+      screenshot_data: e.screenshot_data,
+      html_preview: e.html_preview,
       timestamp: e.timestamp,
     }));
 }

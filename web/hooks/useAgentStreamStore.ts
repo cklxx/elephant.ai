@@ -95,15 +95,85 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
         case 'iteration_start':
           updates.taskStatus = 'running';
           updates.currentIteration = event.iteration;
+          // Incremental update: add new iteration
+          const newIterations = new Map(state.iterations);
+          newIterations.set(event.iteration, {
+            id: `iter-${event.iteration}`,
+            iteration: event.iteration,
+            total_iters: event.total_iters,
+            status: 'running',
+            started_at: event.timestamp,
+            tool_calls: [],
+            errors: [],
+          });
+          updates.iterations = newIterations;
           break;
 
         case 'tool_call_start':
           updates.activeToolCall = event.call_id;
+          // Incremental update: add tool call
+          const updatedToolCalls = new Map(state.toolCalls);
+          updatedToolCalls.set(event.call_id, {
+            id: event.call_id,
+            call_id: event.call_id,
+            tool_name: event.tool_name,
+            arguments: event.arguments,
+            status: 'running',
+            stream_chunks: [],
+            timestamp: event.timestamp,
+            iteration: event.iteration,
+          });
+          updates.toolCalls = updatedToolCalls;
+          // Add tool call to iteration
+          const iterWithTool = new Map(state.iterations);
+          const iter = iterWithTool.get(event.iteration);
+          if (iter) {
+            iter.tool_calls.push(updatedToolCalls.get(event.call_id)!);
+            iterWithTool.set(event.iteration, iter);
+            updates.iterations = iterWithTool;
+          }
+          break;
+
+        case 'tool_call_stream':
+          // Incremental update: append stream chunk
+          const streamToolCalls = new Map(state.toolCalls);
+          const streamingCall = streamToolCalls.get(event.call_id);
+          if (streamingCall) {
+            streamingCall.status = 'streaming';
+            streamingCall.stream_chunks.push(event.chunk);
+            streamToolCalls.set(event.call_id, streamingCall);
+            updates.toolCalls = streamToolCalls;
+          }
           break;
 
         case 'tool_call_complete':
           if (state.activeToolCall === event.call_id) {
             updates.activeToolCall = null;
+          }
+          // Incremental update: update tool call status
+          const completeToolCalls = new Map(state.toolCalls);
+          const completedCall = completeToolCalls.get(event.call_id);
+          if (completedCall) {
+            completedCall.status = event.error ? 'error' : 'complete';
+            completedCall.result = event.result;
+            completedCall.error = event.error;
+            completedCall.duration = event.duration;
+            completeToolCalls.set(event.call_id, completedCall);
+            updates.toolCalls = completeToolCalls;
+          }
+          break;
+
+        case 'iteration_complete':
+          // Incremental update: mark iteration complete
+          const completeIterations = new Map(state.iterations);
+          const completedIter = completeIterations.get(event.iteration);
+          if (completedIter) {
+            completedIter.status = 'complete';
+            completedIter.completed_at = event.timestamp;
+            completedIter.tokens_used = event.tokens_used;
+            completedIter.tools_run = event.tools_run;
+            completeIterations.set(event.iteration, completedIter);
+            updates.iterations = completeIterations;
           }
           break;
 
@@ -130,14 +200,15 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
             updates.currentResearchStep = null;
           }
           break;
-      }
 
-      // Recompute aggregations
-      const allEvents = globalEventCache.getAll();
-      updates.toolCalls = aggregateToolCalls(allEvents);
-      updates.iterations = groupByIteration(allEvents);
-      updates.researchSteps = extractResearchSteps(allEvents);
-      updates.browserSnapshots = extractBrowserSnapshots(allEvents);
+        case 'research_plan':
+        case 'browser_snapshot':
+          // For less common events, do full recomputation
+          const allEvents = globalEventCache.getAll();
+          updates.researchSteps = extractResearchSteps(allEvents);
+          updates.browserSnapshots = extractBrowserSnapshots(allEvents);
+          break;
+      }
 
       set(updates);
     },
