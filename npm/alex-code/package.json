@@ -27,10 +27,10 @@
   },
   "homepage": "https://github.com/cklxx/Alex-Code#readme",
   "optionalDependencies": {
-    "alex-code-linux-amd64": "0.5.2",
-    "alex-code-linux-arm64": "0.5.2",
-    "alex-code-darwin-amd64": "0.5.2",
-    "alex-code-darwin-arm64": "0.5.2",
-    "alex-code-windows-amd64": "0.5.2"
+    "alex-code-linux-amd64": "0.5.3",
+    "alex-code-linux-arm64": "0.5.3",
+    "alex-code-darwin-amd64": "0.5.3",
+    "alex-code-darwin-arm64": "0.5.3",
+    "alex-code-windows-amd64": "0.5.3"
   }
 }
