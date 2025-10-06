@@ -138,6 +138,7 @@ export function useConfirmDialog() {
     onCancel: () => void;
     variant?: 'default' | 'danger';
   } | null>(null);
+  const isHandlingCloseRef = useRef(false);
 
   const confirm = (options: {
     title: string;
@@ -150,12 +151,12 @@ export function useConfirmDialog() {
       setConfig({
         ...options,
         onConfirm: () => {
-          resolve(true);
           setIsOpen(false);
+          resolve(true);
         },
         onCancel: () => {
-          resolve(false);
           setIsOpen(false);
+          resolve(false);
         },
       });
       setIsOpen(true);
@@ -169,19 +170,16 @@ export function useConfirmDialog() {
       ? 'bg-red-600 hover:bg-red-700 text-white'
       : 'bg-blue-600 hover:bg-blue-700 text-white';
 
+    const handleConfirm = () => {
+      config.onConfirm();
+    };
+
     const handleCancel = () => {
       config.onCancel();
     };
 
-    const handleOpenChange = (open: boolean) => {
-      if (!open) {
-        config.onCancel();
-      }
-      setIsOpen(open);
-    };
-
     return (
-      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent onClose={handleCancel}>
           <DialogHeader>
             <DialogTitle>{config.title}</DialogTitle>

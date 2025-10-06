@@ -36,6 +36,9 @@ npm/*/bin/alex.exe
 # Server binaries
 alex-server
 
+# Process ID files
+*.pid
+
 # IDE files
 .vscode/
 .idea/

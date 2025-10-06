@@ -344,13 +344,24 @@ export const useTaskSummary = () => {
 
 // Get memory usage stats
 export const useMemoryStats = () => {
-  return useAgentStreamStore((state) => ({
-    ...state.eventCache.getMemoryUsage(),
-    toolCallCount: state.toolCalls.size,
-    iterationCount: state.iterations.size,
-    researchStepCount: state.researchSteps.length,
-    browserSnapshotCount: state.browserSnapshots.length,
-  }));
+  return useAgentStreamStore((state) => {
+    const memUsage = state.eventCache.getMemoryUsage();
+    return {
+      eventCount: memUsage.eventCount,
+      estimatedBytes: memUsage.estimatedBytes,
+      toolCallCount: state.toolCalls.size,
+      iterationCount: state.iterations.size,
+      researchStepCount: state.researchSteps.length,
+      browserSnapshotCount: state.browserSnapshots.length,
+    };
+  }, (a, b) =>
+    a.eventCount === b.eventCount &&
+    a.estimatedBytes === b.estimatedBytes &&
+    a.toolCallCount === b.toolCallCount &&
+    a.iterationCount === b.iterationCount &&
+    a.researchStepCount === b.researchStepCount &&
+    a.browserSnapshotCount === b.browserSnapshotCount
+  );
 };
 
 // Get latest browser snapshot
