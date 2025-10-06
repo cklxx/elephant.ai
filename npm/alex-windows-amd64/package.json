@@ -1,6 +1,6 @@
 {
   "name": "alex-code-windows-amd64",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "The Windows AMD64 binary for alex-code.",
   "main": "index.js",
   "os": [

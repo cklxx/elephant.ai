@@ -1,0 +1,276 @@
+// Event aggregation logic for grouping and organizing agent events
+// Implements Manus-style research step tracking and tool call grouping
+
+import { AnyAgentEvent, ToolCallStartEvent, ToolCallStreamEvent, ToolCallCompleteEvent } from './types';
+
+/**
+ * Aggregated tool call - combines start, stream chunks, and completion
+ */
+export interface AggregatedToolCall {
+  id: string;
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, any>;
+  status: 'running' | 'streaming' | 'complete' | 'error';
+  stream_chunks: string[];
+  result?: string;
+  error?: string;
+  duration?: number;
+  timestamp: string;
+  iteration: number;
+}
+
+/**
+ * Iteration group - all events within a single ReAct iteration
+ */
+export interface IterationGroup {
+  id: string;
+  iteration: number;
+  total_iters: number;
+  status: 'running' | 'complete';
+  started_at: string;
+  completed_at?: string;
+  thinking?: string;
+  tool_calls: AggregatedToolCall[];
+  tokens_used?: number;
+  tools_run?: number;
+  errors: string[];
+}
+
+/**
+ * Research step - high-level plan step tracking
+ */
+export interface ResearchStep {
+  id: string;
+  step_index: number;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  started_at?: string;
+  completed_at?: string;
+  result?: string;
+  iterations: number[];
+}
+
+/**
+ * Browser snapshot data
+ */
+export interface BrowserSnapshot {
+  id: string;
+  url: string;
+  screenshot_data?: string;
+  html_preview?: string;
+  timestamp: string;
+}
+
+/**
+ * Aggregate events into tool calls by call_id
+ */
+export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, AggregatedToolCall> {
+  const toolCallMap = new Map<string, AggregatedToolCall>();
+
+  for (const event of events) {
+    if (event.event_type === 'tool_call_start') {
+      const startEvent = event as ToolCallStartEvent;
+      toolCallMap.set(startEvent.call_id, {
+        id: startEvent.call_id,
+        call_id: startEvent.call_id,
+        tool_name: startEvent.tool_name,
+        arguments: startEvent.arguments,
+        status: 'running',
+        stream_chunks: [],
+        timestamp: startEvent.timestamp,
+        iteration: startEvent.iteration,
+      });
+    } else if (event.event_type === 'tool_call_stream') {
+      const streamEvent = event as ToolCallStreamEvent;
+      const existing = toolCallMap.get(streamEvent.call_id);
+      if (existing) {
+        existing.status = 'streaming';
+        existing.stream_chunks.push(streamEvent.chunk);
+      }
+    } else if (event.event_type === 'tool_call_complete') {
+      const completeEvent = event as ToolCallCompleteEvent;
+      const existing = toolCallMap.get(completeEvent.call_id);
+      if (existing) {
+        existing.status = completeEvent.error ? 'error' : 'complete';
+        existing.result = completeEvent.result;
+        existing.error = completeEvent.error;
+        existing.duration = completeEvent.duration;
+      } else {
+        // Handle case where complete arrives before start
+        toolCallMap.set(completeEvent.call_id, {
+          id: completeEvent.call_id,
+          call_id: completeEvent.call_id,
+          tool_name: completeEvent.tool_name,
+          arguments: {},
+          status: completeEvent.error ? 'error' : 'complete',
+          stream_chunks: [],
+          result: completeEvent.result,
+          error: completeEvent.error,
+          duration: completeEvent.duration,
+          timestamp: completeEvent.timestamp,
+          iteration: 0, // Unknown iteration
+        });
+      }
+    }
+  }
+
+  return toolCallMap;
+}
+
+/**
+ * Group events by iteration
+ */
+export function groupByIteration(events: AnyAgentEvent[]): Map<number, IterationGroup> {
+  const iterationMap = new Map<number, IterationGroup>();
+  const toolCallMap = aggregateToolCalls(events);
+
+  for (const event of events) {
+    if (event.event_type === 'iteration_start') {
+      iterationMap.set(event.iteration, {
+        id: `iter-${event.iteration}`,
+        iteration: event.iteration,
+        total_iters: event.total_iters,
+        status: 'running',
+        started_at: event.timestamp,
+        tool_calls: [],
+        errors: [],
+      });
+    } else if (event.event_type === 'think_complete') {
+      const group = iterationMap.get(event.iteration);
+      if (group) {
+        group.thinking = event.content;
+      }
+    } else if (event.event_type === 'iteration_complete') {
+      const group = iterationMap.get(event.iteration);
+      if (group) {
+        group.status = 'complete';
+        group.completed_at = event.timestamp;
+        group.tokens_used = event.tokens_used;
+        group.tools_run = event.tools_run;
+      }
+    } else if (event.event_type === 'error') {
+      const group = iterationMap.get(event.iteration);
+      if (group) {
+        group.errors.push(event.error);
+      }
+    }
+  }
+
+  // Assign aggregated tool calls to their iterations
+  for (const toolCall of toolCallMap.values()) {
+    const group = iterationMap.get(toolCall.iteration);
+    if (group) {
+      group.tool_calls.push(toolCall);
+    }
+  }
+
+  return iterationMap;
+}
+
+/**
+ * Extract research steps from events
+ */
+export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
+  const steps: ResearchStep[] = [];
+  const stepMap = new Map<number, ResearchStep>();
+
+  // First pass: create steps from research_plan
+  for (const event of events) {
+    if (event.event_type === 'research_plan') {
+      event.plan_steps.forEach((description, index) => {
+        const step: ResearchStep = {
+          id: `step-${index}`,
+          step_index: index,
+          description,
+          status: 'pending',
+          iterations: [],
+        };
+        stepMap.set(index, step);
+        steps.push(step);
+      });
+    }
+  }
+
+  // Second pass: update step status from events
+  for (const event of events) {
+    if (event.event_type === 'step_started') {
+      const step = stepMap.get(event.step_index);
+      if (step) {
+        step.status = 'in_progress';
+        step.started_at = event.timestamp;
+      }
+    } else if (event.event_type === 'step_completed') {
+      const step = stepMap.get(event.step_index);
+      if (step) {
+        step.status = 'completed';
+        step.completed_at = event.timestamp;
+        step.result = event.step_result;
+      }
+    }
+  }
+
+  return steps;
+}
+
+/**
+ * Extract browser snapshots from events
+ */
+export function extractBrowserSnapshots(events: AnyAgentEvent[]): BrowserSnapshot[] {
+  return events
+    .filter((e): e is import('./types').BrowserSnapshotEvent => e.event_type === 'browser_snapshot')
+    .map((e) => ({
+      id: `snapshot-${e.timestamp}`,
+      url: e.url,
+      screenshot_data: e.screenshot_data,
+      html_preview: e.html_preview,
+      timestamp: e.timestamp,
+    }));
+}
+
+/**
+ * LRU cache for events with configurable size
+ */
+export class EventLRUCache {
+  private maxSize: number;
+  private events: AnyAgentEvent[] = [];
+
+  constructor(maxSize: number = 1000) {
+    this.maxSize = maxSize;
+  }
+
+  add(event: AnyAgentEvent): void {
+    this.events.push(event);
+
+    // Evict oldest events if over limit
+    if (this.events.length > this.maxSize) {
+      const evictCount = this.events.length - this.maxSize;
+      this.events.splice(0, evictCount);
+    }
+  }
+
+  addMany(events: AnyAgentEvent[]): void {
+    events.forEach((e) => this.add(e));
+  }
+
+  getAll(): AnyAgentEvent[] {
+    return this.events;
+  }
+
+  clear(): void {
+    this.events = [];
+  }
+
+  size(): number {
+    return this.events.length;
+  }
+
+  getMemoryUsage(): { eventCount: number; estimatedBytes: number } {
+    // Rough estimation: ~500 bytes per event on average
+    const estimatedBytes = this.events.length * 500;
+    return {
+      eventCount: this.events.length,
+      estimatedBytes,
+    };
+  }
+}

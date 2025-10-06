@@ -29,6 +29,15 @@ npm/*/bin/alex.exe
 
 # Configuration files (may contain sensitive information)
 .deep-coding-config.json
+.env
+.env.local
+.env*.local
+
+# Server binaries
+alex-server
+
+# Process ID files
+*.pid
 
 # IDE files
 .vscode/

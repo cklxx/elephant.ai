@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { formatRelativeTime } from '@/lib/utils';
+import { toast } from '@/components/ui/toast';
 
 export default function SessionDetailsPage() {
   const params = useParams();
@@ -36,8 +37,11 @@ export default function SessionDetailsPage() {
         session_id: sessionId,
       },
       {
+        onSuccess: () => {
+          toast.success('Task started', 'Execution has begun in this session.');
+        },
         onError: (error) => {
-          alert(`Failed to execute task: ${error.message}`);
+          toast.error('Failed to execute task', error.message);
         },
       }
     );

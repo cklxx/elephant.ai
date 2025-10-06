@@ -3,15 +3,21 @@
 import { useState } from 'react';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { AgentOutput } from '@/components/agent/AgentOutput';
+import { ManusAgentOutput } from '@/components/agent/ManusAgentOutput';
 import { useTaskExecution } from '@/hooks/useTaskExecution';
 import { useSSE } from '@/hooks/useSSE';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { Card } from '@/components/ui/card';
+import { toast } from '@/components/ui/toast';
+import { useConfirmDialog } from '@/components/ui/dialog';
 
 export default function HomePage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [useManusUI, setUseManusUI] = useState(true); // Toggle for Manus-style UI
   const { mutate: executeTask, isPending } = useTaskExecution();
   const { currentSessionId, setCurrentSession, addToHistory } = useSessionStore();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const {
     events,
@@ -28,31 +34,50 @@ export default function HomePage() {
       {
         task,
         session_id: sessionId || currentSessionId || undefined,
+        auto_approve_plan: !useManusUI, // Auto-approve if not using Manus UI
       },
       {
         onSuccess: (data) => {
-          // Set session ID and connect to SSE
+          // Set session ID and task ID and connect to SSE
           setSessionId(data.session_id);
+          setTaskId(data.task_id);
           setCurrentSession(data.session_id);
           addToHistory(data.session_id);
+
+          if (data.requires_plan_approval && useManusUI) {
+            toast.info('Task submitted', 'Waiting for research plan...');
+          } else {
+            toast.success('Task started', `Session: ${data.session_id.slice(0, 8)}...`);
+          }
         },
         onError: (error) => {
-          alert(`Failed to execute task: ${error.message}`);
+          toast.error('Failed to execute task', error.message);
         },
       }
     );
   };
 
-  const handleNewSession = () => {
-    if (confirm('Start a new session? Current session will be preserved.')) {
+  const handleNewSession = async () => {
+    const confirmed = await confirm({
+      title: 'Start New Session?',
+      description: 'Current session will be preserved and you can return to it later.',
+      confirmText: 'Start New Session',
+      cancelText: 'Cancel',
+    });
+
+    if (confirmed) {
       setSessionId(null);
+      setTaskId(null);
       clearEvents();
+      toast.info('New session started', 'Previous session has been saved.');
     }
   };
 
   return (
-    <div className="space-y-8 gradient-mesh min-h-[calc(100vh-10rem)]">
-      {/* Hero section */}
+    <>
+      <ConfirmDialog />
+      <div className="space-y-8 gradient-mesh min-h-[calc(100vh-10rem)]">
+        {/* Hero section */}
       <div className="text-center space-y-6 py-8 animate-fadeIn">
         <div className="inline-block">
           <h1 className="text-5xl md:text-6xl font-bold gradient-text mb-2">
@@ -103,14 +128,28 @@ export default function HomePage() {
       {/* Agent output */}
       {(sessionId || currentSessionId) && (
         <div className="animate-fadeIn">
-          <AgentOutput
-            events={events}
-            isConnected={isConnected}
-            isReconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={reconnect}
-          />
+          {useManusUI ? (
+            <ManusAgentOutput
+              events={events}
+              isConnected={isConnected}
+              isReconnecting={isReconnecting}
+              error={error}
+              reconnectAttempts={reconnectAttempts}
+              onReconnect={reconnect}
+              sessionId={sessionId}
+              taskId={taskId}
+              autoApprovePlan={false}
+            />
+          ) : (
+            <AgentOutput
+              events={events}
+              isConnected={isConnected}
+              isReconnecting={isReconnecting}
+              error={error}
+              reconnectAttempts={reconnectAttempts}
+              onReconnect={reconnect}
+            />
+          )}
         </div>
       )}
 
@@ -146,6 +185,7 @@ export default function HomePage() {
           </div>
         </Card>
       )}
-    </div>
+      </div>
+    </>
   );
 }
