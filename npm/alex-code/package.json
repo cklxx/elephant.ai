@@ -1,6 +1,6 @@
 {
   "name": "alex-code",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "ALEX (Agile Light Easy Xpert Code Agent) is a lightweight AI code agent built in Go, focused on core coding capabilities.",
   "main": "install.js",
   "bin": {
