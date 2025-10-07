@@ -28,8 +28,6 @@ concurrency:
 jobs:
   # Build job
   build:
-    env:
-      PAGES_REPO_NWO: cklxx/Alex-Code
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -69,7 +67,7 @@ jobs:
           bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
         env:
           JEKYLL_ENV: production
-
+          PAGES_REPO_NWO: cklxx/Alex-Code
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
