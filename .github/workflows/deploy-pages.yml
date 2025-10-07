@@ -1,30 +1,28 @@
 name: Deploy to GitHub Pages
 
 on:
-  # 当推送到main分支时触发
   push:
     branches: [ main ]
     paths:
-      - 'docs/**'
-      - 'README.md'
+      - 'web/**'
       - '.github/workflows/deploy-pages.yml'
-
-  # 允许手动触发
+      - 'package.json'
+      - 'go.mod'
   workflow_dispatch:
 
-# 设置GITHUB_TOKEN的权限以允许部署到GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# 只允许一个并发部署，跳过正在运行的队列
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
+env:
+  NODE_VERSION: '20'
+
 jobs:
-  # 构建工作
   build:
     runs-on: ubuntu-latest
     steps:
@@ -34,22 +32,44 @@ jobs:
       - name: 🔧 Setup Pages
         uses: actions/configure-pages@v4
 
+      - name: 🛠️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 🔁 Configure base path for Pages
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          echo "NEXT_PUBLIC_BASE_PATH=/${REPO_NAME}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_ASSET_PREFIX=/${REPO_NAME}" >> $GITHUB_ENV
+
+      - name: 📦 Install dependencies
+        working-directory: web
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+        run: npm ci
+
+      - name: 🏗️ Build static site
+        working-directory: web
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || secrets.NEXT_PUBLIC_API_URL || '' }}
+        run: npm run build
+
       - name: 📊 Generate project stats
         run: |
           echo "🔢 Generating project statistics..."
-          
-          # 计算代码行数
+
           TOTAL_LINES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" | xargs wc -l | tail -1 | awk '{print $1}')
           GO_FILES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" | wc -l)
-          
-          # 计算包数量
           PACKAGES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" -exec dirname {} \; | sort -u | wc -l)
-          
-          # 获取最新commit信息
           LAST_COMMIT=$(git log -1 --pretty=format:"%h - %s (%cr)" || echo "No commits")
-          
-          # 创建stats.json文件
-          cat > docs/stats.json << EOF
+
+          mkdir -p web/out/meta
+
+          cat > web/out/meta/stats.json << EOF
           {
             "total_lines": ${TOTAL_LINES:-0},
             "go_files": ${GO_FILES:-0},
@@ -59,74 +79,41 @@ jobs:
             "version": "v1.0.0"
           }
           EOF
-          
+
           echo "📈 Project stats generated:"
-          cat docs/stats.json
+          cat web/out/meta/stats.json
 
-      - name: 🎨 Update website with build info
+      - name: 🔍 Validate static export
         run: |
-          echo "🔄 Updating website with latest build information..."
-          
-          # 读取stats
-          if [ -f docs/stats.json ]; then
-            TOTAL_LINES=$(jq -r '.total_lines' docs/stats.json)
-            BUILD_TIME=$(jq -r '.build_time' docs/stats.json)
-            
-            # 更新HTML中的统计数据（如果需要的话）
-            sed -i "s/Build Time: .*/Build Time: ${BUILD_TIME}/g" docs/index.html || true
-            
-            echo "✅ Website updated with build info"
-          fi
+          echo "🔍 Validating static export..."
 
-      - name: 🔍 Validate HTML
-        run: |
-          echo "🔍 Validating website files..."
-          
-          # 检查关键文件是否存在
-          if [ ! -f "docs/index.html" ]; then
-            echo "❌ index.html not found!"
+          if [ ! -d "web/out" ]; then
+            echo "❌ Static export directory web/out not found!"
             exit 1
           fi
-          
-          if [ ! -f "docs/manifest.json" ]; then
-            echo "❌ manifest.json not found!"
+
+          if [ ! -f "web/out/index.html" ]; then
+            echo "❌ index.html not found in web/out!"
             exit 1
           fi
-          
-          # 简单的HTML验证
-          if ! grep -q "<title>" docs/index.html; then
+
+          if ! grep -q "<title>" web/out/index.html; then
             echo "❌ Missing title tag in index.html"
             exit 1
           fi
-          
-          if ! grep -q "viewport" docs/index.html; then
+
+          if ! grep -q "viewport" web/out/index.html; then
             echo "❌ Missing viewport meta tag"
             exit 1
           fi
-          
-          echo "✅ HTML validation passed"
 
-      - name: 🛠️ Optimize assets
-        run: |
-          echo "🛠️ Optimizing website assets..."
-          
-          # 压缩JavaScript (如果有的话)
-          if command -v uglifyjs &> /dev/null; then
-            find docs/ -name "*.js" -not -name "*.min.js" -exec uglifyjs {} -o {}.min.js \;
-          fi
-          
-          # 确保所有文件权限正确
-          find docs/ -type f -exec chmod 644 {} \;
-          find docs/ -type d -exec chmod 755 {} \;
-          
-          echo "✅ Asset optimization complete"
+          echo "✅ Static export validation passed"
 
       - name: 📦 Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs
+          path: web/out
 
-  # 部署工作
   deploy:
     environment:
       name: github-pages
@@ -139,6 +126,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: 📝 Create deployment summary
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           echo "## 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -151,17 +140,18 @@ jobs:
           echo "- 📱 [Mobile View](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
           echo "- 🔧 [Repository](https://github.com/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
 
-  # 通知工作（可选）
   notify:
     runs-on: ubuntu-latest
     needs: [build, deploy]
     if: always()
     steps:
       - name: 📢 Notify deployment status
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           if [ "${{ needs.deploy.result }}" == "success" ]; then
             echo "✅ Website deployed successfully!"
-            echo "🔗 URL: https://${{ github.repository_owner }}.github.io/Alex-Code/"
+            echo "🔗 URL: https://${{ github.repository_owner }}.github.io/${REPO_NAME}/"
           else
             echo "❌ Deployment failed!"
             echo "📝 Check the logs for details"
