@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight, themes, Language } from "prism-react-renderer";
 
 export type ViewMode = "default" | "reading" | "compare";
 
@@ -263,7 +263,7 @@ function DocumentRenderer({
                 <Highlight
                   theme={themes.vsDark}
                   code={String(children).replace(/\n$/, "")}
-                  language={language as any}
+                  language={language as Language}
                 >
                   {({
                     className,
@@ -306,7 +306,7 @@ function DocumentRenderer({
       <Highlight
         theme={themes.vsDark}
         code={document.content}
-        language={(document.language || "text") as any}
+        language={(document.language || "text") as Language}
       >
         {({ className, style, tokens, getLineProps, getTokenProps }) => (
           <pre
