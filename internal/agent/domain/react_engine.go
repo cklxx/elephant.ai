@@ -421,11 +421,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 			}
 
 			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, tc.Arguments)
-			result, err := tool.Execute(ctx, ports.ToolCall{
-				ID:        tc.ID,
-				Name:      tc.Name,
-				Arguments: tc.Arguments,
-			})
+			result, err := tool.Execute(ctx, ports.ToolCall(tc))
 
 			if err != nil {
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
@@ -489,10 +485,8 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParse
 	}
 
 	// Convert ports.ToolCall to domain.ToolCall
-	var calls []ToolCall
-	for _, p := range parsed {
-		calls = append(calls, p)
-	}
+	calls := make([]ToolCall, 0, len(parsed))
+	calls = append(calls, parsed...)
 
 	e.logger.Debug("Parsed %d tool calls from content", len(calls))
 	return calls
