@@ -21,7 +21,7 @@ export function ConnectionStatus({
 }: ConnectionStatusProps) {
   if (connected) {
     return (
-      <Badge variant="success" className="flex items-center gap-2 animate-scaleIn shadow-soft">
+      <Badge variant="success" className="flex items-center gap-2 animate-fadeIn">
         <div className="relative flex items-center">
           <span className="absolute w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></span>
           <Wifi className="h-3 w-3 relative" />
@@ -33,7 +33,7 @@ export function ConnectionStatus({
 
   if (reconnecting) {
     return (
-      <Badge variant="warning" className="flex items-center gap-2 animate-pulse-soft shadow-soft">
+      <Badge variant="warning" className="flex items-center gap-2 animate-pulse">
         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
         <span className="font-semibold">Reconnecting... (Attempt {reconnectAttempts})</span>
       </Badge>
@@ -41,8 +41,8 @@ export function ConnectionStatus({
   }
 
   return (
-    <div className="flex items-center gap-3 animate-slideIn">
-      <Badge variant="error" className="flex items-center gap-2 shadow-soft">
+    <div className="flex items-center gap-3 animate-fadeIn">
+      <Badge variant="error" className="flex items-center gap-2">
         <WifiOff className="h-3 w-3 animate-pulse" />
         <span className="font-semibold">Disconnected</span>
       </Badge>
@@ -56,7 +56,7 @@ export function ConnectionStatus({
           size="sm"
           variant="outline"
           onClick={onReconnect}
-          className="h-7 px-3 text-xs font-semibold hover:scale-105 transition-all duration-200 shadow-soft hover:shadow-medium"
+          className="h-7 px-3 text-xs font-semibold hover-subtle"
         >
           Reconnect
         </Button>

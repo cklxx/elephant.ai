@@ -4,6 +4,8 @@ import { Fragment, ReactNode, useCallback, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AgentEvent, AnyAgentEvent } from '@/lib/types';
 import { ResearchPlanCard } from './ResearchPlanCard';
+import { ConnectionBanner } from './ConnectionBanner';
+import { EventList } from './EventList';
 import { apiClient } from '@/lib/api';
 import {
   AlertCircle,
@@ -210,38 +212,16 @@ export function TerminalOutput({
     );
   };
 
-  // Connection status banner
+  // Show connection banner if disconnected
   if (!isConnected || error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full space-y-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {isReconnecting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Reconnecting... (Attempt {reconnectAttempts})</span>
-            </>
-          ) : (
-            <>
-              <WifiOff className="h-4 w-4" />
-              <span>Disconnected</span>
-            </>
-          )}
-        </div>
-
-        {error && (
-          <div className="flex items-center gap-2 text-xs text-red-500">
-            <AlertCircle className="h-3 w-3" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <button
-          onClick={onReconnect}
-          className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
-        >
-          Reconnect
-        </button>
-      </div>
+      <ConnectionBanner
+        isConnected={isConnected}
+        isReconnecting={isReconnecting}
+        error={error}
+        reconnectAttempts={reconnectAttempts}
+        onReconnect={onReconnect}
+      />
     );
   }
 
