@@ -168,12 +168,18 @@ func TestSessionIDConsistency(t *testing.T) {
 		}
 
 		// CRITICAL: Verify explicit session_id is preserved
-		if task.SessionID != explicitSessionID {
-			t.Fatalf("FAILED: Explicit session_id not preserved!\n  Expected: %s\n  Got: %s",
-				explicitSessionID, task.SessionID)
+		// Use taskStore.Get() to avoid race condition with background goroutine
+		freshTask, err := taskStore.Get(ctx, task.ID)
+		if err != nil {
+			t.Fatalf("Failed to get fresh task: %v", err)
 		}
 
-		t.Logf("✓ Explicit session_id preserved: %s", task.SessionID)
+		if freshTask.SessionID != explicitSessionID {
+			t.Fatalf("FAILED: Explicit session_id not preserved!\n  Expected: %s\n  Got: %s",
+				explicitSessionID, freshTask.SessionID)
+		}
+
+		t.Logf("✓ Explicit session_id preserved: %s", freshTask.SessionID)
 	})
 
 	// Test Case 3: Verify progress fields are not null (no omitempty)

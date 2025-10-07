@@ -7,10 +7,13 @@ import { CreateTaskRequest, CreateTaskResponse, TaskStatusResponse } from '@/lib
 export function useTaskExecution() {
   return useMutation({
     mutationFn: async (request: CreateTaskRequest): Promise<CreateTaskResponse> => {
-      return apiClient.createTask(request);
+      console.log('[useTaskExecution] Sending task request:', request);
+      const response = await apiClient.createTask(request);
+      console.log('[useTaskExecution] Task created successfully:', response);
+      return response;
     },
     onError: (error: Error) => {
-      console.error('Task execution failed:', error);
+      console.error('[useTaskExecution] Task execution failed:', error);
     },
   });
 }

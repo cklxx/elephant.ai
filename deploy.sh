@@ -1,590 +1,489 @@
 #!/bin/bash
-
 ###############################################################################
-# ALEX SSE 服务一键部署脚本
+# ALEX SSE Service - Ultra-Simplified Local Deployment
 #
-# 支持的部署模式:
-#   1. local   - 本地开发模式 (Go + Next.js 本地运行)
-#   2. docker  - Docker Compose 生产模式
-#   3. dev     - Docker Compose 开发模式 (热重载)
-#   4. k8s     - Kubernetes 集群部署
+# Design Philosophy:
+#   - One script, one purpose: local development
+#   - Fast, reliable, debuggable
+#   - Clear output, proper cleanup
+#   - Port conflict detection
 #
-# 使用方法:
-#   ./deploy.sh <mode> [options]
-#
-# 示例:
-#   ./deploy.sh local          # 本地运行
-#   ./deploy.sh docker         # Docker Compose 生产部署
-#   ./deploy.sh dev            # Docker Compose 开发模式
-#   ./deploy.sh k8s            # Kubernetes 部署
-#   ./deploy.sh test           # 运行所有测试
-#   ./deploy.sh down           # 停止所有服务
+# Usage:
+#   ./deploy.sh          # Start services
+#   ./deploy.sh down     # Stop services
+#   ./deploy.sh status   # Check status
+#   ./deploy.sh logs     # Tail logs
 ###############################################################################
 
-# DO NOT use set -e to allow better error handling
-set -u  # Exit on undefined variables
-set -o pipefail  # Catch errors in pipes
-
-# Global error tracking
-DEPLOY_ERROR=0
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+set -euo pipefail
 
 # Configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_NAME="alex-sse"
-DEFAULT_API_KEY=${OPENAI_API_KEY:-""}
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SERVER_PORT=8080
+readonly WEB_PORT=3000
+readonly PID_DIR="${SCRIPT_DIR}/.pids"
+readonly LOG_DIR="${SCRIPT_DIR}/logs"
+readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
+readonly WEB_PID_FILE="${PID_DIR}/web.pid"
+readonly SERVER_LOG="${LOG_DIR}/server.log"
+readonly WEB_LOG="${LOG_DIR}/web.log"
 
-# Banner
-print_banner() {
-    echo -e "${PURPLE}"
-    cat << "EOF"
-    ___    __    _______  __  __       _______ _______  ______
-   /   |  / /   / ____/ |/ / / /      / ____/ / ____/ / ____/
-  / /| | / /   / __/  |   / / /      / /   / / __/   / __/
- / ___ |/ /___/ /___ /   | / /___   / /___/ / /___  / /___
-/_/  |_/_____/_____//_/|_|/_____/   \____/_/_____/ /_____/
+# Colors
+readonly C_RED='\033[0;31m'
+readonly C_GREEN='\033[0;32m'
+readonly C_YELLOW='\033[1;33m'
+readonly C_BLUE='\033[0;34m'
+readonly C_CYAN='\033[0;36m'
+readonly C_RESET='\033[0m'
 
-    AI Programming Agent - SSE Service Deployment
-EOF
-    echo -e "${NC}"
-}
+###############################################################################
+# Utilities
+###############################################################################
 
-# Logging functions
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${C_BLUE}▸${C_RESET} $*"
 }
 
 log_success() {
-    echo -e "${GREEN}[✓]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${C_GREEN}✓${C_RESET} $*"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${C_RED}✗${C_RESET} $*" >&2
 }
 
-log_step() {
-    echo -e "${CYAN}[STEP]${NC} $1"
+log_warn() {
+    echo -e "${C_YELLOW}⚠${C_RESET} $*"
 }
 
-# Check prerequisites
-check_prerequisites() {
-    local mode=$1
+banner() {
+    echo -e "${C_CYAN}"
+    cat << 'EOF'
+    ___    __    _______  __  __
+   /   |  / /   / ____/ |/ / / /
+  / /| | / /   / __/  |   / / /
+ / ___ |/ /___/ /___ /   | / /___
+/_/  |_/_____/_____//_/|_|/_____/
 
-    log_step "Checking prerequisites for mode: $mode"
-
-    case $mode in
-        local)
-            command -v go >/dev/null 2>&1 || { log_error "Go is not installed. Please install Go 1.23+"; exit 1; }
-            command -v node >/dev/null 2>&1 || { log_error "Node.js is not installed. Please install Node.js 20+"; exit 1; }
-            command -v npm >/dev/null 2>&1 || { log_error "npm is not installed. Please install npm"; exit 1; }
-            log_success "Go $(go version | awk '{print $3}')"
-            log_success "Node $(node --version)"
-            log_success "npm $(npm --version)"
-            ;;
-        docker|dev)
-            command -v docker >/dev/null 2>&1 || { log_error "Docker is not installed. Please install Docker"; exit 1; }
-            command -v docker-compose >/dev/null 2>&1 || { log_error "Docker Compose is not installed. Please install Docker Compose"; exit 1; }
-            log_success "Docker $(docker --version | awk '{print $3}' | tr -d ',')"
-            log_success "Docker Compose $(docker-compose --version | awk '{print $3}' | tr -d ',')"
-            ;;
-        k8s)
-            command -v kubectl >/dev/null 2>&1 || { log_error "kubectl is not installed. Please install kubectl"; exit 1; }
-            log_success "kubectl $(kubectl version --client --short 2>/dev/null | awk '{print $3}')"
-            ;;
-    esac
-}
-
-# Setup environment
-setup_environment() {
-    log_step "Setting up environment variables"
-
-    if [ ! -f ".env" ]; then
-        log_warning ".env file not found, creating from template"
-        cat > .env << EOF
-# ALEX SSE Service Configuration
-OPENAI_API_KEY=${DEFAULT_API_KEY}
-OPENAI_BASE_URL=https://api.openai.com/v1
-ALEX_MODEL=gpt-4
-ALEX_VERBOSE=false
-REDIS_URL=
+AI Programming Agent - Local Dev
 EOF
-        log_info "Created .env file. Please edit it with your API key if not set."
-    fi
+    echo -e "${C_RESET}"
+}
 
-    # Check if API key is set
-    source .env
-    if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" == "" ]; then
-        log_warning "OPENAI_API_KEY is not set in .env"
-        read -p "Enter your OpenAI API key (or press Enter to skip): " api_key
-        if [ -n "$api_key" ]; then
-            sed -i.bak "s|OPENAI_API_KEY=.*|OPENAI_API_KEY=$api_key|" .env
-            log_success "API key updated in .env"
-        fi
-    else
-        log_success "API key configured: ${OPENAI_API_KEY:0:10}..."
-    fi
+die() {
+    log_error "$*"
+    exit 1
+}
 
-    # Setup web environment
-    if [ ! -f "web/.env.local" ]; then
-        log_info "Creating web/.env.local"
-        echo "NEXT_PUBLIC_API_URL=http://localhost:8080" > web/.env.local
-        log_success "Created web/.env.local"
+###############################################################################
+# Process Management
+###############################################################################
+
+is_port_available() {
+    local port=$1
+    ! lsof -i ":$port" -sTCP:LISTEN -t >/dev/null 2>&1
+}
+
+kill_process_on_port() {
+    local port=$1
+    local pids
+    pids=$(lsof -i ":$port" -sTCP:LISTEN -t 2>/dev/null || true)
+
+    if [[ -n "$pids" ]]; then
+        log_warn "Port $port is in use, killing processes: $pids"
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+        sleep 1
     fi
 }
 
-# Deploy local mode
-deploy_local() {
-    log_step "Deploying in LOCAL mode"
-
-    # Build backend
-    log_info "Building backend server..."
-    if ! make server-build 2>&1 | tee logs/build-server.log; then
-        log_error "Backend build failed. Check logs/build-server.log for details:"
-        tail -n 20 logs/build-server.log
-        DEPLOY_ERROR=1
-        return 1
+read_pid() {
+    local pid_file=$1
+    if [[ -f "$pid_file" ]]; then
+        cat "$pid_file"
     fi
-    log_success "Backend built successfully"
+}
 
-    # Install frontend dependencies
-    log_info "Installing frontend dependencies..."
-    cd web
-    if ! npm install --silent 2>&1 | tee ../logs/npm-install.log; then
-        log_error "npm install failed. Check logs/npm-install.log for details:"
-        tail -n 20 ../logs/npm-install.log
-        cd ..
-        DEPLOY_ERROR=1
-        return 1
+is_process_running() {
+    local pid=$1
+    [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
+stop_service() {
+    local name=$1
+    local pid_file=$2
+    local pid
+
+    pid=$(read_pid "$pid_file")
+
+    if is_process_running "$pid"; then
+        log_info "Stopping $name (PID: $pid)"
+        kill "$pid" 2>/dev/null || true
+
+        # Wait for graceful shutdown
+        for i in {1..10}; do
+            if ! is_process_running "$pid"; then
+                log_success "$name stopped"
+                rm -f "$pid_file"
+                return 0
+            fi
+            sleep 0.5
+        done
+
+        # Force kill if still running
+        log_warn "$name didn't stop gracefully, force killing"
+        kill -9 "$pid" 2>/dev/null || true
+        rm -f "$pid_file"
+    elif [[ -f "$pid_file" ]]; then
+        log_warn "$name PID file exists but process not running, cleaning up"
+        rm -f "$pid_file"
+    else
+        log_info "$name is not running"
     fi
-    log_success "Frontend dependencies installed"
-    cd ..
+}
 
-    # Start backend in background
-    log_info "Starting backend server on :8080..."
-    export OPENAI_API_KEY=$(grep OPENAI_API_KEY .env | cut -d '=' -f2-)
-    if [ ! -f "./alex-server" ]; then
-        log_error "alex-server binary not found. Build may have failed."
-        DEPLOY_ERROR=1
-        return 1
-    fi
-    ./alex-server > logs/server.log 2>&1 &
-    SERVER_PID=$!
-    echo $SERVER_PID > .server.pid
-    log_success "Backend started (PID: $SERVER_PID)"
+###############################################################################
+# Health Checks
+###############################################################################
 
-    # Wait for server to be ready
-    log_info "Waiting for server to be ready..."
-    for i in {1..30}; do
-        if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-            log_success "Server is ready!"
-            break
+wait_for_health() {
+    local url=$1
+    local name=$2
+    local max_attempts=30
+
+    log_info "Waiting for $name to be ready..."
+
+    for i in $(seq 1 $max_attempts); do
+        if curl -sf "$url" >/dev/null 2>&1; then
+            log_success "$name is ready!"
+            return 0
         fi
-        if [ $i -eq 30 ]; then
-            log_error "Server failed to start within 30 seconds."
-            log_error "Recent server logs:"
-            tail -n 30 logs/server.log
-            kill $SERVER_PID 2>/dev/null || true
-            rm .server.pid
-            DEPLOY_ERROR=1
+
+        if [[ $i -eq $max_attempts ]]; then
+            log_error "$name failed to start within ${max_attempts}s"
             return 1
         fi
+
         sleep 1
     done
+}
 
-    # Start frontend
-    log_info "Starting frontend on :3000..."
+###############################################################################
+# Environment Setup
+###############################################################################
+
+setup_environment() {
+    # Create directories
+    mkdir -p "$PID_DIR" "$LOG_DIR"
+
+    # Check prerequisites
+    command -v go >/dev/null 2>&1 || die "Go not installed"
+    command -v node >/dev/null 2>&1 || die "Node.js not installed"
+    command -v npm >/dev/null 2>&1 || die "npm not installed"
+
+    # Check .env
+    if [[ ! -f .env ]]; then
+        log_warn ".env not found, creating default"
+        cat > .env << 'EOF'
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+ALEX_MODEL=anthropic/claude-3.5-sonnet
+ALEX_VERBOSE=false
+EOF
+    fi
+
+    # Source environment
+    set -a
+    source .env
+    set +a
+
+    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+        log_warn "OPENAI_API_KEY not set in .env"
+    else
+        log_success "API key configured: ${OPENAI_API_KEY:0:12}..."
+    fi
+
+    # Verify .env.development exists
+    if [[ ! -f web/.env.development ]]; then
+        log_warn ".env.development not found, creating it"
+        echo "NEXT_PUBLIC_API_URL=http://localhost:$SERVER_PORT" > web/.env.development
+        log_success "Created web/.env.development"
+    fi
+}
+
+###############################################################################
+# Build & Deploy
+###############################################################################
+
+build_backend() {
+    log_info "Building backend..."
+
+    if ! make server-build 2>&1 | tee "$LOG_DIR/build.log"; then
+        log_error "Backend build failed, check logs/build.log"
+        tail -20 "$LOG_DIR/build.log"
+        return 1
+    fi
+
+    if [[ ! -f ./alex-server ]]; then
+        die "alex-server binary not found after build"
+    fi
+
+    log_success "Backend built: ./alex-server"
+}
+
+install_frontend_deps() {
+    log_info "Installing frontend dependencies..."
+
     cd web
-    npm run dev > ../logs/web.log 2>&1 &
-    WEB_PID=$!
-    echo $WEB_PID > ../.web.pid
-    log_success "Frontend started (PID: $WEB_PID)"
+    if ! npm install 2>&1 | tee "$LOG_DIR/npm-install.log"; then
+        log_error "npm install failed, check logs/npm-install.log"
+        tail -20 "$LOG_DIR/npm-install.log"
+        cd ..
+        return 1
+    fi
     cd ..
 
-    # Print access info
+    log_success "Frontend dependencies installed"
+}
+
+start_backend() {
+    # Ensure port is available
+    if ! is_port_available "$SERVER_PORT"; then
+        kill_process_on_port "$SERVER_PORT"
+    fi
+
+    log_info "Starting backend on :$SERVER_PORT..."
+
+    # Rotate logs
+    if [[ -f "$SERVER_LOG" ]]; then
+        mv "$SERVER_LOG" "$SERVER_LOG.old"
+    fi
+
+    # Start server in background
+    ./alex-server > "$SERVER_LOG" 2>&1 &
+    local pid=$!
+    echo "$pid" > "$SERVER_PID_FILE"
+
+    log_success "Backend started (PID: $pid)"
+
+    # Wait for health
+    if ! wait_for_health "http://localhost:$SERVER_PORT/health" "Backend"; then
+        log_error "Recent logs from $SERVER_LOG:"
+        tail -30 "$SERVER_LOG"
+        stop_service "Backend" "$SERVER_PID_FILE"
+        return 1
+    fi
+}
+
+start_frontend() {
+    # Ensure port is available
+    if ! is_port_available "$WEB_PORT"; then
+        kill_process_on_port "$WEB_PORT"
+    fi
+
+    log_info "Starting frontend on :$WEB_PORT..."
+
+    # Rotate logs
+    if [[ -f "$WEB_LOG" ]]; then
+        mv "$WEB_LOG" "$WEB_LOG.old"
+    fi
+
+    # Clear Next.js cache to avoid webpack issues
+    rm -rf web/.next
+
+    # Start frontend in background
+    cd web
+    PORT=$WEB_PORT npm run dev > "$WEB_LOG" 2>&1 &
+    local pid=$!
+    cd ..
+    echo "$pid" > "$WEB_PID_FILE"
+
+    log_success "Frontend started (PID: $pid)"
+
+    # Give it a moment to start
+    sleep 2
+}
+
+###############################################################################
+# Commands
+###############################################################################
+
+cmd_start() {
+    banner
+
+    # Stop any existing services
+    stop_service "Backend" "$SERVER_PID_FILE"
+    stop_service "Frontend" "$WEB_PID_FILE"
+
+    # Setup
+    setup_environment
+
+    # Build & start
+    build_backend || die "Backend build failed"
+    install_frontend_deps || die "Frontend dependency installation failed"
+    start_backend || die "Backend failed to start"
+    start_frontend || die "Frontend failed to start"
+
+    # Success message
     echo ""
-    log_success "================================"
-    log_success " ALEX SSE Service is running!"
-    log_success "================================"
-    echo -e "${GREEN}Web UI:${NC}    http://localhost:3000"
-    echo -e "${GREEN}API:${NC}       http://localhost:8080"
-    echo -e "${GREEN}Health:${NC}    http://localhost:8080/health"
-    echo -e "${GREEN}SSE:${NC}       http://localhost:8080/api/sse?session_id=xxx"
+    echo -e "${C_GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}  ALEX SSE Service Running${C_RESET}"
+    echo -e "${C_GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     echo ""
-    echo -e "${YELLOW}Logs:${NC}"
-    echo -e "  Server: ${CYAN}tail -f logs/server.log${NC}"
-    echo -e "  Web:    ${CYAN}tail -f logs/web.log${NC}"
+    echo -e "  ${C_CYAN}Web UI:${C_RESET}  http://localhost:$WEB_PORT"
+    echo -e "  ${C_CYAN}API:${C_RESET}     http://localhost:$SERVER_PORT"
+    echo -e "  ${C_CYAN}Health:${C_RESET}  http://localhost:$SERVER_PORT/health"
     echo ""
-    echo -e "${YELLOW}Stop:${NC}   ${CYAN}./deploy.sh down${NC}"
+    echo -e "${C_YELLOW}Commands:${C_RESET}"
+    echo -e "  ./deploy.sh logs     # Tail logs"
+    echo -e "  ./deploy.sh status   # Check status"
+    echo -e "  ./deploy.sh down     # Stop services"
     echo ""
 }
 
-# Deploy Docker mode
-deploy_docker() {
-    local mode=$1
-    log_step "Deploying in DOCKER mode ($mode)"
-
-    # Determine compose file
-    if [ "$mode" == "dev" ]; then
-        COMPOSE_FILE="docker-compose.dev.yml"
-    else
-        COMPOSE_FILE="docker-compose.yml"
-    fi
-
-    # Build images
-    log_info "Building Docker images..."
-    docker-compose -f $COMPOSE_FILE build
-    log_success "Images built successfully"
-
-    # Start services
-    log_info "Starting services..."
-    docker-compose -f $COMPOSE_FILE up -d
-    log_success "Services started"
-
-    # Wait for services
-    log_info "Waiting for services to be ready..."
-    sleep 5
-
-    # Check health
-    for i in {1..30}; do
-        if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-            log_success "Server is healthy!"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            log_error "Server health check failed"
-            docker-compose -f $COMPOSE_FILE logs alex-server
-            exit 1
-        fi
-        sleep 1
-    done
-
-    # Print access info
+cmd_stop() {
+    log_info "Stopping all services..."
     echo ""
-    log_success "================================"
-    log_success " Docker Deployment Complete!"
-    log_success "================================"
-    echo -e "${GREEN}Web UI:${NC}    http://localhost:3000"
-    echo -e "${GREEN}API:${NC}       http://localhost:8080"
-    echo -e "${GREEN}Nginx:${NC}     http://localhost (if enabled)"
-    echo ""
-    echo -e "${YELLOW}Commands:${NC}"
-    echo -e "  Status:    ${CYAN}docker-compose -f $COMPOSE_FILE ps${NC}"
-    echo -e "  Logs:      ${CYAN}docker-compose -f $COMPOSE_FILE logs -f${NC}"
-    echo -e "  Stop:      ${CYAN}./deploy.sh down${NC}"
-    echo ""
-}
 
-# Deploy Kubernetes
-deploy_k8s() {
-    log_step "Deploying to Kubernetes"
+    stop_service "Backend" "$SERVER_PID_FILE"
+    stop_service "Frontend" "$WEB_PID_FILE"
 
-    # Check cluster connection
-    log_info "Checking cluster connection..."
-    kubectl cluster-info > /dev/null 2>&1 || { log_error "Cannot connect to Kubernetes cluster"; exit 1; }
-    log_success "Connected to cluster"
-
-    # Update secret
-    log_info "Updating secrets..."
-    source .env
-    kubectl create secret generic alex-secrets \
-        --from-literal=OPENAI_API_KEY=$OPENAI_API_KEY \
-        -n alex-system \
-        --dry-run=client -o yaml | kubectl apply -f -
-    log_success "Secrets updated"
-
-    # Apply manifests
-    log_info "Applying Kubernetes manifests..."
-    kubectl apply -f k8s/deployment.yaml
-    log_success "Manifests applied"
-
-    # Wait for deployment
-    log_info "Waiting for deployment to be ready..."
-    kubectl wait --for=condition=available --timeout=300s \
-        deployment/alex-server -n alex-system
-    kubectl wait --for=condition=available --timeout=300s \
-        deployment/alex-web -n alex-system
-    log_success "Deployments are ready"
-
-    # Get service info
-    echo ""
-    log_success "================================"
-    log_success " Kubernetes Deployment Complete!"
-    log_success "================================"
-    echo ""
-    log_info "Pods:"
-    kubectl get pods -n alex-system
-    echo ""
-    log_info "Services:"
-    kubectl get svc -n alex-system
-    echo ""
-    log_info "Ingress:"
-    kubectl get ingress -n alex-system
-    echo ""
-    echo -e "${YELLOW}Port Forward (for testing):${NC}"
-    echo -e "  ${CYAN}kubectl port-forward svc/alex-web-service 3000:3000 -n alex-system${NC}"
-    echo -e "  ${CYAN}kubectl port-forward svc/alex-server-service 8080:8080 -n alex-system${NC}"
-    echo ""
-}
-
-# Run tests
-run_tests() {
-    log_step "Running all tests"
-
-    # Backend unit tests
-    log_info "Running backend unit tests..."
-    make server-test
-    log_success "Backend tests passed"
-
-    # Build backend
-    log_info "Building backend for integration tests..."
-    make server-build
-    log_success "Backend built"
-
-    # Start server for integration tests
-    log_info "Starting server for integration tests..."
-    export OPENAI_API_KEY=$(grep OPENAI_API_KEY .env | cut -d '=' -f2-)
-    ./alex-server > logs/test-server.log 2>&1 &
-    TEST_SERVER_PID=$!
-
-    # Wait for server
-    sleep 3
-
-    # Run integration tests
-    log_info "Running integration tests..."
-    if ./scripts/integration-test.sh http://localhost:8080; then
-        log_success "Integration tests passed"
-    else
-        log_error "Integration tests failed"
-        kill $TEST_SERVER_PID 2>/dev/null || true
-        exit 1
-    fi
-
-    # Cleanup
-    kill $TEST_SERVER_PID 2>/dev/null || true
+    # Clean up port bindings
+    kill_process_on_port "$SERVER_PORT" || true
+    kill_process_on_port "$WEB_PORT" || true
 
     echo ""
-    log_success "================================"
-    log_success " All Tests Passed!"
-    log_success "================================"
-    echo ""
-}
-
-# Stop services
-stop_services() {
-    log_step "Stopping all services"
-
-    # Stop local services
-    if [ -f ".server.pid" ]; then
-        SERVER_PID=$(cat .server.pid)
-        log_info "Stopping backend server (PID: $SERVER_PID)..."
-        kill $SERVER_PID 2>/dev/null || true
-        rm .server.pid
-        log_success "Backend stopped"
-    fi
-
-    if [ -f ".web.pid" ]; then
-        WEB_PID=$(cat .web.pid)
-        log_info "Stopping frontend (PID: $WEB_PID)..."
-        kill $WEB_PID 2>/dev/null || true
-        rm .web.pid
-        log_success "Frontend stopped"
-    fi
-
-    # Stop Docker services
-    if [ -f "docker-compose.yml" ]; then
-        log_info "Stopping Docker Compose services..."
-        docker-compose down 2>/dev/null || true
-        docker-compose -f docker-compose.dev.yml down 2>/dev/null || true
-        log_success "Docker services stopped"
-    fi
-
     log_success "All services stopped"
 }
 
-# Show status
-show_status() {
-    log_step "Service Status"
+cmd_status() {
+    echo ""
+    echo -e "${C_CYAN}Service Status${C_RESET}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
-    # Local services
-    if [ -f ".server.pid" ] && kill -0 $(cat .server.pid) 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} Backend Server:  Running (PID: $(cat .server.pid))"
-        curl -s http://localhost:8080/health | jq '.' 2>/dev/null || echo "  Health check failed"
+    # Backend
+    local server_pid
+    server_pid=$(read_pid "$SERVER_PID_FILE")
+    if is_process_running "$server_pid"; then
+        echo -e "${C_GREEN}✓${C_RESET} Backend:   Running (PID: $server_pid)"
+        if curl -sf "http://localhost:$SERVER_PORT/health" >/dev/null 2>&1; then
+            echo -e "             Health check: ${C_GREEN}OK${C_RESET}"
+        else
+            echo -e "             Health check: ${C_RED}FAILED${C_RESET}"
+        fi
     else
-        echo -e "${RED}✗${NC} Backend Server:  Not running"
-    fi
-
-    if [ -f ".web.pid" ] && kill -0 $(cat .web.pid) 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} Frontend:        Running (PID: $(cat .web.pid))"
-    else
-        echo -e "${RED}✗${NC} Frontend:        Not running"
+        echo -e "${C_RED}✗${C_RESET} Backend:   Not running"
     fi
 
     echo ""
 
-    # Docker services
-    if docker ps --format '{{.Names}}' | grep -q "alex-"; then
-        echo -e "${YELLOW}Docker Services:${NC}"
-        docker-compose ps 2>/dev/null || docker-compose -f docker-compose.dev.yml ps 2>/dev/null || true
+    # Frontend
+    local web_pid
+    web_pid=$(read_pid "$WEB_PID_FILE")
+    if is_process_running "$web_pid"; then
+        echo -e "${C_GREEN}✓${C_RESET} Frontend:  Running (PID: $web_pid)"
+        if curl -sf "http://localhost:$WEB_PORT" >/dev/null 2>&1; then
+            echo -e "             Accessible: ${C_GREEN}YES${C_RESET}"
+        else
+            echo -e "             Accessible: ${C_YELLOW}STARTING${C_RESET}"
+        fi
+    else
+        echo -e "${C_RED}✗${C_RESET} Frontend:  Not running"
     fi
 
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Port status
+    echo ""
+    echo -e "${C_CYAN}Port Status${C_RESET}"
+    echo "  :$SERVER_PORT - $(lsof -i ":$SERVER_PORT" -sTCP:LISTEN -t >/dev/null 2>&1 && echo -e "${C_GREEN}IN USE${C_RESET}" || echo -e "${C_YELLOW}FREE${C_RESET}")"
+    echo "  :$WEB_PORT - $(lsof -i ":$WEB_PORT" -sTCP:LISTEN -t >/dev/null 2>&1 && echo -e "${C_GREEN}IN USE${C_RESET}" || echo -e "${C_YELLOW}FREE${C_RESET}")"
     echo ""
 }
 
-# Show usage
-show_usage() {
+cmd_logs() {
+    local service=${1:-all}
+
+    case $service in
+        server|backend)
+            log_info "Tailing backend logs (Ctrl+C to stop)"
+            tail -f "$SERVER_LOG"
+            ;;
+        web|frontend)
+            log_info "Tailing frontend logs (Ctrl+C to stop)"
+            tail -f "$WEB_LOG"
+            ;;
+        all|*)
+            log_info "Tailing all logs (Ctrl+C to stop)"
+            tail -f "$SERVER_LOG" "$WEB_LOG"
+            ;;
+    esac
+}
+
+cmd_help() {
     cat << EOF
-${CYAN}ALEX SSE Service Deployment Tool${NC}
 
-${YELLOW}Usage:${NC}
-  ./deploy.sh <command> [options]
+${C_CYAN}ALEX SSE Service - Local Deployment${C_RESET}
 
-${YELLOW}Commands:${NC}
-  ${GREEN}local${NC}          Deploy locally (Go + Next.js)
-  ${GREEN}docker${NC}         Deploy with Docker Compose (production)
-  ${GREEN}dev${NC}            Deploy with Docker Compose (development)
-  ${GREEN}k8s${NC}            Deploy to Kubernetes
-  ${GREEN}test${NC}           Run all tests
-  ${GREEN}status${NC}         Show service status
-  ${GREEN}down${NC}           Stop all services
-  ${GREEN}help${NC}           Show this help message
+${C_YELLOW}Usage:${C_RESET}
+  ./deploy.sh [command]
 
-${YELLOW}Examples:${NC}
-  ./deploy.sh local          # Start locally
-  ./deploy.sh docker         # Docker production
-  ./deploy.sh test           # Run tests
-  ./deploy.sh down           # Stop everything
-  ./deploy.sh status         # Check status
+${C_YELLOW}Commands:${C_RESET}
+  ${C_GREEN}start${C_RESET}              Start all services (default)
+  ${C_GREEN}down, stop${C_RESET}         Stop all services
+  ${C_GREEN}status${C_RESET}             Show service status
+  ${C_GREEN}logs [service]${C_RESET}     Tail logs (all/server/web)
+  ${C_GREEN}help${C_RESET}               Show this help
 
-${YELLOW}Environment:${NC}
-  Configure via .env file (created automatically)
+${C_YELLOW}Examples:${C_RESET}
+  ./deploy.sh              # Start everything
+  ./deploy.sh status       # Check status
+  ./deploy.sh logs server  # Tail backend logs
+  ./deploy.sh down         # Stop all
 
-${YELLOW}Documentation:${NC}
-  - Quick Start:  QUICKSTART_SSE.md
-  - Deployment:   DEPLOYMENT.md
-  - Architecture: docs/design/SSE_WEB_ARCHITECTURE.md
+${C_YELLOW}Log Files:${C_RESET}
+  Backend:  logs/server.log
+  Frontend: logs/web.log
+  Build:    logs/build.log
+
+${C_YELLOW}Environment:${C_RESET}
+  Edit .env to configure API keys and settings
 
 EOF
 }
 
-# Error handler
-handle_error() {
-    local exit_code=$?
-    if [ $exit_code -ne 0 ] || [ $DEPLOY_ERROR -ne 0 ]; then
-        echo ""
-        log_error "================================================="
-        log_error " Deployment failed with errors!"
-        log_error "================================================="
-        log_error "Exit code: $exit_code"
-        log_error "Error flag: $DEPLOY_ERROR"
-        echo ""
-        log_info "Common troubleshooting steps:"
-        log_info "  1. Check log files in ./logs/ directory"
-        log_info "  2. Verify prerequisites: ./deploy.sh help"
-        log_info "  3. Check .env configuration"
-        log_info "  4. Run: ./deploy.sh down  (to clean up)"
-        echo ""
-        log_info "Recent logs:"
-        if [ -f "logs/server.log" ]; then
-            echo -e "${CYAN}Server log (last 10 lines):${NC}"
-            tail -n 10 logs/server.log
-        fi
-        if [ -f "logs/build-server.log" ]; then
-            echo -e "${CYAN}Build log (last 10 lines):${NC}"
-            tail -n 10 logs/build-server.log
-        fi
-        echo ""
-        exit 1
-    fi
-}
+###############################################################################
+# Main
+###############################################################################
 
-# Main function
 main() {
-    # Create logs directory
-    mkdir -p logs
+    cd "$SCRIPT_DIR"
 
-    # Parse command
-    COMMAND=${1:-help}
+    local cmd=${1:-start}
 
-    case $COMMAND in
-        local)
-            print_banner
-            check_prerequisites local
-            setup_environment
-            if deploy_local; then
-                log_success "Local deployment completed successfully!"
-            else
-                handle_error
-            fi
+    case $cmd in
+        start|up|run)
+            cmd_start
             ;;
-        docker)
-            print_banner
-            check_prerequisites docker
-            setup_environment
-            if deploy_docker production; then
-                log_success "Docker deployment completed successfully!"
-            else
-                handle_error
-            fi
+        stop|down|kill)
+            cmd_stop
             ;;
-        dev)
-            print_banner
-            check_prerequisites dev
-            setup_environment
-            if deploy_docker dev; then
-                log_success "Dev deployment completed successfully!"
-            else
-                handle_error
-            fi
+        status|ps)
+            cmd_status
             ;;
-        k8s)
-            print_banner
-            check_prerequisites k8s
-            setup_environment
-            if deploy_k8s; then
-                log_success "Kubernetes deployment completed successfully!"
-            else
-                handle_error
-            fi
+        logs|log|tail)
+            cmd_logs "${2:-all}"
             ;;
-        test)
-            print_banner
-            setup_environment
-            if run_tests; then
-                log_success "All tests completed successfully!"
-            else
-                handle_error
-            fi
-            ;;
-        status)
-            show_status
-            ;;
-        down|stop)
-            stop_services
-            ;;
-        help|--help|-h)
-            show_usage
+        help|-h|--help)
+            cmd_help
             ;;
         *)
-            log_error "Unknown command: $COMMAND"
-            echo ""
-            show_usage
+            log_error "Unknown command: $cmd"
+            cmd_help
             exit 1
             ;;
     esac
 }
 
-# Run main
 main "$@"

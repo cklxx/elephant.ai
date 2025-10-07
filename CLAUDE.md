@@ -15,6 +15,16 @@ make test                    # Run all tests
 make build                   # Build ./alex binary
 ```
 
+### Deployment (Local Development)
+```bash
+./deploy.sh start            # Start backend + frontend
+./deploy.sh status           # Check service status
+./deploy.sh logs             # Tail logs
+./deploy.sh down             # Stop all services
+```
+
+**Note**: Deployment script refactored to focus on local development only. Removed Docker/K8s logic.
+
 ### Testing
 ```bash
 go test ./internal/agent/domain/ -v      # Domain layer
@@ -38,6 +48,8 @@ make npm-publish             # Publish to npm
 - `internal/tools/builtin/` - 15+ built-in tools
 - `internal/llm/` - LLM client adapters (OpenAI, DeepSeek, Ollama)
 - `cmd/alex/` - CLI entry points (main.go, tui_modern.go, cli.go)
+- `cmd/alex-server/` - Web server for SSE-based agent API
+- `web/` - Next.js web frontend (Manus-style terminal UI)
 
 ### Hexagonal Architecture Layers
 ```
@@ -89,6 +101,20 @@ Adapters (Infrastructure: LLM, Tools, Session)
 - `cmd/alex/tui_modern.go` - Clean streaming interface (no chat format)
 - `cmd/alex/tui.go` - Original chat-style TUI (deprecated)
 
+### Web Frontend (Next.js)
+- `web/app/page.tsx` - Main page with Manus-style layout (header → output → input)
+- `web/components/agent/TerminalOutput.tsx` - Terminal-style event display
+- `web/components/agent/TaskInput.tsx` - Persistent input (always visible)
+- `web/hooks/useSSE.ts` - SSE connection with auto-reconnect
+- `web/hooks/useTaskExecution.ts` - Task submission API
+- `web/lib/api.ts` - API client (uses `NEXT_PUBLIC_API_URL`)
+- `web/lib/types.ts` - TypeScript event types (15+ event types)
+
+**Environment Config:**
+- `web/.env.development` - Dev mode (npm run dev)
+- `web/.env.production` - Production mode (npm run build)
+- No `.env.local` - use environment-specific files only
+
 ## Testing Requirements
 
 **All new code MUST include comprehensive tests**
@@ -137,3 +163,4 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - **Detailed Architecture:** `docs/architecture/ALEX_DETAILED_ARCHITECTURE.md`
 - **SWE-Bench Evaluation:** `evaluation/swe_bench/README.md`
 - **Project README:** `README.md` - User-facing documentation
+- **Changelog:** `CHANGELOG.md` - Version history and migration notes

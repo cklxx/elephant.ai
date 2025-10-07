@@ -22,7 +22,14 @@ export function AgentOutput({
   reconnectAttempts,
   onReconnect,
 }: AgentOutputProps) {
-  const memoryStats = useMemoryStats();
+  const memoryStats = useMemoryStats() as {
+    eventCount: number;
+    estimatedBytes: number;
+    toolCallCount: number;
+    iterationCount: number;
+    researchStepCount: number;
+    browserSnapshotCount: number;
+  };
 
   return (
     <div className="space-y-6">

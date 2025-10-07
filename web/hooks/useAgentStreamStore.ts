@@ -353,7 +353,7 @@ export const useMemoryStats = () => {
       iterationCount: state.iterations.size,
       researchStepCount: state.researchSteps.length,
       browserSnapshotCount: state.browserSnapshots.length,
-    } as const;
+    };
   });
 };
 

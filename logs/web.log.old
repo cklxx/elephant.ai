@@ -1,0 +1,11 @@
+
+> alex-web@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.15
+  - Local:        http://localhost:3000
+  - Environments: .env.local, .env.development
+
+ ✓ Starting...
+ ✓ Ready in 1657ms
+[?25h
