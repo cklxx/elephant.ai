@@ -122,6 +122,12 @@ export interface BrowserSnapshotEvent extends AgentEvent {
   html_preview?: string; // truncated HTML for preview
 }
 
+// User Task Event - client-side only event to display user's task
+export interface UserTaskEvent extends AgentEvent {
+  event_type: 'user_task';
+  task: string;
+}
+
 // Union type for all agent events
 export type AnyAgentEvent =
   | TaskAnalysisEvent
@@ -137,7 +143,8 @@ export type AnyAgentEvent =
   | ResearchPlanEvent
   | StepStartedEvent
   | StepCompletedEvent
-  | BrowserSnapshotEvent;
+  | BrowserSnapshotEvent
+  | UserTaskEvent;
 
 // API Request/Response Types
 

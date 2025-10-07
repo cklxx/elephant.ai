@@ -1,23 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { TaskInput } from '@/components/agent/TaskInput';
-import { AgentOutput } from '@/components/agent/AgentOutput';
-import { ManusAgentOutput } from '@/components/agent/ManusAgentOutput';
+import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { useTaskExecution } from '@/hooks/useTaskExecution';
 import { useSSE } from '@/hooks/useSSE';
 import { useSessionStore } from '@/hooks/useSessionStore';
-import { Card } from '@/components/ui/card';
 import { toast } from '@/components/ui/toast';
-import { useConfirmDialog } from '@/components/ui/dialog';
 
 export default function HomePage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
-  const [useManusUI, setUseManusUI] = useState(true); // Toggle for Manus-style UI
+  const outputRef = useRef<HTMLDivElement>(null);
+
   const { mutate: executeTask, isPending } = useTaskExecution();
   const { currentSessionId, setCurrentSession, addToHistory } = useSessionStore();
-  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const {
     events,
@@ -27,165 +24,125 @@ export default function HomePage() {
     reconnectAttempts,
     clearEvents,
     reconnect,
+    addEvent,
   } = useSSE(sessionId || currentSessionId);
 
+  // Auto-scroll to bottom when new events arrive
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [events]);
+
   const handleTaskSubmit = (task: string) => {
+    console.log('[HomePage] Task submitted:', task);
+
+    // Add user task message to events (manually, since backend doesn't send it)
+    const userEvent = {
+      event_type: 'user_task' as const,
+      timestamp: new Date().toISOString(),
+      agent_level: 'core' as const,
+      task,
+    };
+    addEvent(userEvent);
+
     executeTask(
       {
         task,
         session_id: sessionId || currentSessionId || undefined,
-        auto_approve_plan: !useManusUI, // Auto-approve if not using Manus UI
+        auto_approve_plan: false,
       },
       {
         onSuccess: (data) => {
-          // Set session ID and task ID and connect to SSE
+          console.log('[HomePage] Task execution started:', data);
           setSessionId(data.session_id);
           setTaskId(data.task_id);
           setCurrentSession(data.session_id);
           addToHistory(data.session_id);
-
-          if (data.requires_plan_approval && useManusUI) {
-            toast.info('Task submitted', 'Waiting for research plan...');
-          } else {
-            toast.success('Task started', `Session: ${data.session_id.slice(0, 8)}...`);
-          }
         },
         onError: (error) => {
-          toast.error('Failed to execute task', error.message);
+          console.error('[HomePage] Task execution error:', error);
+          toast.error('Task execution failed', error.message);
         },
       }
     );
   };
 
-  const handleNewSession = async () => {
-    const confirmed = await confirm({
-      title: 'Start New Session?',
-      description: 'Current session will be preserved and you can return to it later.',
-      confirmText: 'Start New Session',
-      cancelText: 'Cancel',
-    });
-
-    if (confirmed) {
-      setSessionId(null);
-      setTaskId(null);
-      clearEvents();
-      toast.info('New session started', 'Previous session has been saved.');
-    }
+  const handleClear = () => {
+    setSessionId(null);
+    setTaskId(null);
+    clearEvents();
   };
 
   return (
-    <>
-      <ConfirmDialog />
-      <div className="space-y-8 gradient-mesh min-h-[calc(100vh-10rem)]">
-        {/* Hero section */}
-      <div className="text-center space-y-6 py-8 animate-fadeIn">
-        <div className="inline-block">
-          <h1 className="text-5xl md:text-6xl font-bold gradient-text mb-2">
-            Welcome to ALEX
-          </h1>
-          <div className="h-1 w-32 mx-auto bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
-        </div>
-        <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-          An AI-powered programming agent built with hexagonal architecture and ReAct pattern.
-          Submit tasks and watch ALEX solve them in real-time.
-        </p>
-      </div>
-
-      {/* Task input */}
-      <div className="animate-scaleIn">
-        <Card className="glass-card p-6 shadow-strong hover-lift">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                New Task
-              </h2>
-              {sessionId && (
-                <button
-                  onClick={handleNewSession}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-all duration-200 hover:scale-105"
-                >
-                  Start New Session
-                </button>
-              )}
-            </div>
-            <TaskInput
-              onSubmit={handleTaskSubmit}
-              disabled={isPending}
-              loading={isPending}
-            />
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      {/* Minimal header - Manus style */}
+      <div className="flex-shrink-0 pb-3 mb-3 border-b border-border/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-lg font-semibold tracking-tight">ALEX</h1>
             {sessionId && (
-              <div className="flex items-center gap-2">
-                <div className="status-dot-animated bg-green-500"></div>
-                <p className="text-xs text-gray-500 font-mono">
-                  Session: {sessionId.slice(0, 8)}...
-                </p>
+              <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <span>{sessionId.slice(0, 8)}</span>
+                </div>
               </div>
             )}
           </div>
-        </Card>
-      </div>
 
-      {/* Agent output */}
-      {(sessionId || currentSessionId) && (
-        <div className="animate-fadeIn">
-          {useManusUI ? (
-            <ManusAgentOutput
-              events={events}
-              isConnected={isConnected}
-              isReconnecting={isReconnecting}
-              error={error}
-              reconnectAttempts={reconnectAttempts}
-              onReconnect={reconnect}
-              sessionId={sessionId}
-              taskId={taskId}
-              autoApprovePlan={false}
-            />
-          ) : (
-            <AgentOutput
-              events={events}
-              isConnected={isConnected}
-              isReconnecting={isReconnecting}
-              error={error}
-              reconnectAttempts={reconnectAttempts}
-              onReconnect={reconnect}
-            />
+          {sessionId && (
+            <button
+              onClick={handleClear}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Clear
+            </button>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Empty state */}
-      {!sessionId && !currentSessionId && (
-        <Card className="glass-card p-12 shadow-medium hover-lift animate-scaleIn">
-          <div className="text-center space-y-6">
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 animate-pulse-soft">
-              <span className="text-5xl">🤖</span>
-            </div>
-            <div>
-              <h3 className="text-2xl font-semibold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">
-                Ready to assist
-              </h3>
-              <p className="text-gray-600">
-                Enter a task above to start working with ALEX
+      {/* Terminal output area - scrollable */}
+      <div
+        ref={outputRef}
+        className="flex-1 overflow-y-auto mb-4 scroll-smooth"
+      >
+        {events.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Enter a task to get started
               </p>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 pt-4">
-              <span className="px-3 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full border border-blue-200">
-                Code Generation
-              </span>
-              <span className="px-3 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-full border border-purple-200">
-                Debugging
-              </span>
-              <span className="px-3 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full border border-green-200">
-                Testing
-              </span>
-              <span className="px-3 py-1 text-xs font-medium bg-orange-50 text-orange-700 rounded-full border border-orange-200">
-                Refactoring
-              </span>
+              <div className="text-xs text-muted-foreground/70 space-y-1">
+                <div>• Code generation & debugging</div>
+                <div>• Testing & refactoring</div>
+                <div>• Architecture planning</div>
+              </div>
             </div>
           </div>
-        </Card>
-      )}
+        ) : (
+          <TerminalOutput
+            events={events}
+            isConnected={isConnected}
+            isReconnecting={isReconnecting}
+            error={error}
+            reconnectAttempts={reconnectAttempts}
+            onReconnect={reconnect}
+            sessionId={sessionId}
+            taskId={taskId}
+          />
+        )}
       </div>
-    </>
+
+      {/* Fixed input at bottom - always visible */}
+      <div className="flex-shrink-0 border-t border-border/50 pt-3">
+        <TaskInput
+          onSubmit={handleTaskSubmit}
+          disabled={isPending}
+          loading={isPending}
+          placeholder={sessionId ? "Continue conversation..." : "Describe your task..."}
+        />
+      </div>
+    </div>
   );
 }

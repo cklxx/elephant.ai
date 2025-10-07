@@ -40,7 +40,7 @@ export function ManusAgentOutput({
   taskId,
   autoApprovePlan = false,
 }: ManusAgentOutputProps) {
-  const memoryStats = useMemoryStats();
+  // const memoryStats = useMemoryStats();
   const timelineSteps = useTimelineSteps(events);
   const toolOutputs = useToolOutputs(events);
   const [activeTab, setActiveTab] = useState<'timeline' | 'events' | 'document'>('timeline');
@@ -115,24 +115,20 @@ export function ManusAgentOutput({
 
   return (
     <div className="space-y-6">
-      {/* Connection status */}
-      <div className="glass-card p-4 rounded-xl shadow-soft flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+      {/* Connection status - Manus minimal style */}
+      <div className="manus-section">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold tracking-tight">
             Agent Output
           </h2>
-          {/* Memory usage indicator */}
-          <div className="text-xs text-gray-500 font-mono">
-            {memoryStats.eventCount} events ({Math.round(memoryStats.estimatedBytes / 1024)}KB)
-          </div>
+          <ConnectionStatus
+            connected={isConnected}
+            reconnecting={isReconnecting}
+            error={error}
+            reconnectAttempts={reconnectAttempts}
+            onReconnect={onReconnect}
+          />
         </div>
-        <ConnectionStatus
-          connected={isConnected}
-          reconnecting={isReconnecting}
-          error={error}
-          reconnectAttempts={reconnectAttempts}
-          onReconnect={onReconnect}
-        />
       </div>
 
       {/* Plan approval card (if awaiting approval) */}
@@ -151,23 +147,23 @@ export function ManusAgentOutput({
         <ResearchPlanCard plan={currentPlan} readonly />
       )}
 
-      {/* Main content area with tabs */}
+      {/* Main content area with tabs - Manus minimal style */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left pane: Timeline/Events */}
         <div className="lg:col-span-2 space-y-4">
-          <Card className="glass-card p-4">
+          <div className="manus-card">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-3 mb-4">
-                <TabsTrigger value="timeline" className="flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
+              <TabsList className="grid w-full grid-cols-3 mb-4 bg-muted p-1 rounded-md">
+                <TabsTrigger value="timeline" className="text-xs">
+                  <Activity className="h-3 w-3 mr-1.5" />
                   Timeline
                 </TabsTrigger>
-                <TabsTrigger value="events" className="flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4" />
+                <TabsTrigger value="events" className="text-xs">
+                  <LayoutGrid className="h-3 w-3 mr-1.5" />
                   Events
                 </TabsTrigger>
-                <TabsTrigger value="document" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
+                <TabsTrigger value="document" className="text-xs">
+                  <FileText className="h-3 w-3 mr-1.5" />
                   Document
                 </TabsTrigger>
               </TabsList>
@@ -176,9 +172,9 @@ export function ManusAgentOutput({
                 {timelineSteps.length > 0 ? (
                   <ResearchTimeline steps={timelineSteps} />
                 ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <Activity className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                    <p>No timeline steps yet</p>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-xs">No timeline steps yet</p>
                   </div>
                 )}
               </TabsContent>
@@ -194,19 +190,30 @@ export function ManusAgentOutput({
                     initialMode={documentViewMode}
                   />
                 ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <FileText className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                    <p>Document will appear when task completes</p>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-xs">Document will appear when task completes</p>
                   </div>
                 )}
               </TabsContent>
             </Tabs>
-          </Card>
+          </div>
         </div>
 
         {/* Right pane: Computer View */}
         <div className="lg:col-span-1">
-          <WebViewport outputs={toolOutputs} />
+          <div className="manus-card p-4">
+            <h3 className="text-xs font-semibold mb-3 tracking-tight">Tool Outputs</h3>
+            {toolOutputs.length > 0 ? (
+              <WebViewport outputs={toolOutputs} />
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Monitor className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                <p className="text-xs">No tool outputs yet</p>
+                <p className="text-xs mt-1">Results will appear here as tools execute</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

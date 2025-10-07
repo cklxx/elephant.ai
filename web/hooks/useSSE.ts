@@ -18,6 +18,7 @@ interface UseSSEReturn {
   reconnectAttempts: number;
   clearEvents: () => void;
   reconnect: () => void;
+  addEvent: (event: AnyAgentEvent) => void;
 }
 
 export function useSSE(
@@ -56,6 +57,10 @@ export function useSSE(
 
   const clearEvents = useCallback(() => {
     setEvents([]);
+  }, []);
+
+  const addEvent = useCallback((event: AnyAgentEvent) => {
+    setEvents((prev) => [...prev, event]);
   }, []);
 
   // Cleanup function
@@ -197,5 +202,6 @@ export function useSSE(
     reconnectAttempts,
     clearEvents,
     reconnect,
+    addEvent,
   };
 }

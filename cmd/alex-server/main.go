@@ -34,6 +34,17 @@ func main() {
 	// Load configuration
 	config := loadConfig()
 
+	// Log configuration for debugging
+	logger.Info("=== Server Configuration ===")
+	logger.Info("LLM Provider: %s", config.LLMProvider)
+	logger.Info("LLM Model: %s", config.LLMModel)
+	logger.Info("Base URL: %s", config.BaseURL)
+	logger.Info("API Key: %s...%s", config.APIKey[:10], config.APIKey[len(config.APIKey)-10:])
+	logger.Info("Max Tokens: %d", config.MaxTokens)
+	logger.Info("Max Iterations: %d", config.MaxIterations)
+	logger.Info("Port: %s", config.Port)
+	logger.Info("===========================")
+
 	// Initialize container
 	container, err := buildContainer(config)
 	if err != nil {
