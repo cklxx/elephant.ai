@@ -1,11 +1,23 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, ReactNode, useCallback, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AnyAgentEvent } from '@/lib/types';
+import { AgentEvent, AnyAgentEvent } from '@/lib/types';
 import { ResearchPlanCard } from './ResearchPlanCard';
 import { apiClient } from '@/lib/api';
-import { AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardList,
+  Cpu,
+  Info,
+  Loader2,
+  MessageSquare,
+  WifiOff,
+  Wrench,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -16,6 +28,24 @@ interface TerminalOutputProps {
   onReconnect: () => void;
   sessionId: string | null;
   taskId: string | null;
+}
+
+type DisplayEvent = AnyAgentEvent | ToolStreamCombinedEvent;
+
+const EVENT_FILTERS = [
+  { id: 'conversation', label: 'Conversation' },
+  { id: 'plan', label: 'Planning' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'system', label: 'System' },
+] as const;
+
+type EventFilterId = (typeof EVENT_FILTERS)[number]['id'];
+
+interface ToolStreamCombinedEvent extends AgentEvent {
+  event_type: 'tool_stream_combined';
+  call_id: string;
+  content: string;
+  tool_name?: string;
 }
 
 export function TerminalOutput({
@@ -29,6 +59,107 @@ export function TerminalOutput({
   taskId,
 }: TerminalOutputProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<Set<EventFilterId>>(
+    () => new Set(EVENT_FILTERS.map((filter) => filter.id))
+  );
+
+  const displayEvents = useMemo(() => {
+    const aggregated: DisplayEvent[] = [];
+    let streamBuffer: string[] = [];
+    let streamCallId: string | null = null;
+    let streamTimestamp: string | null = null;
+    let streamAgentLevel: AgentEvent['agent_level'] | null = null;
+    const callMetadata = new Map<string, { toolName?: string }>();
+
+    const flushBuffer = () => {
+      if (!streamBuffer.length || !streamCallId) {
+        streamBuffer = [];
+        streamCallId = null;
+        streamTimestamp = null;
+        streamAgentLevel = null;
+        return;
+      }
+
+      aggregated.push({
+        event_type: 'tool_stream_combined',
+        agent_level: streamAgentLevel ?? 'core',
+        call_id: streamCallId,
+        content: streamBuffer.join(''),
+        timestamp: streamTimestamp ?? new Date().toISOString(),
+        tool_name: callMetadata.get(streamCallId)?.toolName,
+      });
+
+      streamBuffer = [];
+      streamCallId = null;
+      streamTimestamp = null;
+      streamAgentLevel = null;
+    };
+
+    events.forEach((event) => {
+      if (event.event_type === 'tool_call_start') {
+        callMetadata.set(event.call_id, { toolName: event.tool_name });
+      }
+
+      if (event.event_type === 'tool_call_complete') {
+        callMetadata.set(event.call_id, { toolName: event.tool_name });
+      }
+
+      if (event.event_type === 'tool_call_stream') {
+        if (!streamCallId || streamCallId !== event.call_id) {
+          flushBuffer();
+          streamCallId = event.call_id;
+        }
+
+        streamTimestamp = event.timestamp;
+        streamAgentLevel = event.agent_level;
+        streamBuffer.push(event.chunk);
+
+        if (event.is_complete) {
+          flushBuffer();
+        }
+        return;
+      }
+
+      flushBuffer();
+      aggregated.push(event);
+    });
+
+    flushBuffer();
+    return aggregated;
+  }, [events]);
+
+  const toggleFilter = useCallback((filterId: EventFilterId) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filterId)) {
+        if (next.size === 1) {
+          return prev;
+        }
+        next.delete(filterId);
+      } else {
+        next.add(filterId);
+      }
+
+      return next;
+    });
+  }, []);
+
+  const filteredEvents = useMemo(() => {
+    if (activeFilters.size === EVENT_FILTERS.length) {
+      return displayEvents;
+    }
+
+    return displayEvents.filter((event) => {
+      const category = getEventCategory(event);
+      if (category === 'conversation' || category === 'plan' || category === 'tools' || category === 'system') {
+        return activeFilters.has(category);
+      }
+
+      return true;
+    });
+  }, [displayEvents, activeFilters]);
+
+  const hiddenCount = displayEvents.length - filteredEvents.length;
 
   // Simple approve plan mutation
   const { mutate: approvePlan } = useMutation({
@@ -115,7 +246,7 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="terminal-output">
       {/* Plan approval card - if awaiting */}
       {planState === 'awaiting_approval' && currentPlan && (
         <div className="mb-4">
@@ -127,12 +258,61 @@ export function TerminalOutput({
         </div>
       )}
 
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"
+        data-testid="event-visibility-summary"
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-foreground font-semibold" data-testid="event-count-visible">
+            {filteredEvents.length}
+          </span>
+          <span>events visible</span>
+          {hiddenCount > 0 && (
+            <span className="text-muted-foreground/70" data-testid="event-count-hidden">
+              ({hiddenCount} hidden)
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-1 py-1 backdrop-blur">
+          {EVENT_FILTERS.map((filter) => {
+            const isActive = activeFilters.has(filter.id);
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => toggleFilter(filter.id)}
+                aria-pressed={isActive}
+                data-testid={`event-filter-${filter.id}`}
+                className={cn(
+                  'rounded-full px-3 py-1 text-[11px] font-medium transition-all duration-150',
+                  isActive
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground/80'
+                )}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Event stream - terminal style */}
-      <div className="space-y-2 font-mono text-xs">
-        {events.map((event, idx) => (
-          <EventLine key={idx} event={event} />
+      <div className="space-y-3" data-testid="event-list">
+        {filteredEvents.map((event, idx) => (
+          <EventLine key={`${event.event_type}-${idx}`} event={event} />
         ))}
       </div>
+
+      {filteredEvents.length === 0 && displayEvents.length > 0 && (
+        <div
+          className="text-xs text-muted-foreground/80 italic"
+          data-testid="event-empty-filters"
+        >
+          All events are hidden by the current filters.
+        </div>
+      )}
 
       {/* Active indicator */}
       {isConnected && events.length > 0 && (
@@ -146,7 +326,7 @@ export function TerminalOutput({
 }
 
 // Single event line component
-function EventLine({ event }: { event: AnyAgentEvent }) {
+function EventLine({ event }: { event: DisplayEvent }) {
   const timestamp = new Date(event.timestamp || Date.now()).toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
@@ -154,172 +334,573 @@ function EventLine({ event }: { event: AnyAgentEvent }) {
     second: '2-digit',
   });
 
-  // Event type styling
-  const getEventStyle = () => {
-    switch (event.event_type) {
-      case 'user_task':
-        return 'text-blue-700 font-semibold';
-      case 'task_analysis':
-        return 'text-blue-600';
-      case 'task_complete':
-        return 'text-green-500 font-semibold';
-      case 'error':
-        return 'text-red-500 font-semibold';
-      case 'research_plan':
-        return 'text-blue-600';
-      case 'tool_call_start':
-        return 'text-cyan-600';
-      case 'tool_call_complete':
-        return 'text-cyan-500';
-      case 'thinking':
-        return 'text-purple-600';
-      case 'think_complete':
-        return 'text-purple-500';
-      case 'step_started':
-        return 'text-yellow-600';
-      case 'step_completed':
-        return 'text-yellow-500';
-      case 'iteration_start':
-        return 'text-gray-600';
-      case 'iteration_complete':
-        return 'text-gray-500';
-      default:
-        return 'text-muted-foreground';
-    }
-  };
-
-  // Format event content
-  const formatContent = () => {
-    switch (event.event_type) {
-      case 'user_task':
-        if ('task' in event) {
-          return `👤 User: ${event.task}`;
-        }
-        return 'User task';
-
-      case 'task_analysis':
-        if ('action_name' in event) {
-          return `📋 ${event.action_name} - ${event.goal}`;
-        }
-        return 'Task analysis';
-
-      case 'iteration_start':
-        if ('iteration' in event) {
-          return `→ Iteration ${event.iteration}/${event.total_iters}`;
-        }
-        return 'Iteration started';
-
-      case 'thinking':
-        if ('iteration' in event) {
-          return `💭 Thinking... (iteration ${event.iteration})`;
-        }
-        return '💭 Thinking...';
-
-      case 'think_complete':
-        if ('content' in event) {
-          const preview = event.content.slice(0, 100);
-          const suffix = event.content.length > 100 ? '...' : '';
-          return `✓ Response: ${preview}${suffix}`;
-        }
-        return '✓ Response received';
-
-      case 'tool_call_start':
-        if ('tool_name' in event) {
-          return `▸ ${event.tool_name}(${formatArgs(event.arguments)})`;
-        }
-        return 'Tool executing';
-
-      case 'tool_call_complete':
-        if ('tool_name' in event) {
-          const icon = event.error ? '✗' : '✓';
-          const content = event.error || formatResult(event.result);
-          return `${icon} ${event.tool_name} → ${content}`;
-        }
-        return 'Tool complete';
-
-      case 'iteration_complete':
-        if ('iteration' in event) {
-          return `✓ Iteration ${event.iteration} complete (${event.tokens_used} tokens, ${event.tools_run} tools)`;
-        }
-        return 'Iteration complete';
-
-      case 'task_complete':
-        if ('final_answer' in event) {
-          const preview = event.final_answer.slice(0, 150);
-          const suffix = event.final_answer.length > 150 ? '...' : '';
-          return `✓ Task Complete\n${preview}${suffix}`;
-        }
-        return '✓ Task complete';
-
-      case 'error':
-        if ('error' in event) {
-          return `✗ Error: ${event.error}`;
-        }
-        return '✗ Error occurred';
-
-      case 'research_plan':
-        if ('plan_steps' in event) {
-          return `→ Research plan created (${event.plan_steps.length} steps, ~${event.estimated_iterations} iterations)`;
-        }
-        return 'Research plan created';
-
-      case 'step_started':
-        if ('step_description' in event) {
-          return `→ Step ${event.step_index + 1}: ${event.step_description}`;
-        }
-        return 'Step started';
-
-      case 'step_completed':
-        if ('step_result' in event) {
-          return `✓ Step ${event.step_index + 1} complete: ${event.step_result.slice(0, 80)}`;
-        }
-        return 'Step completed';
-
-      case 'browser_snapshot':
-        if ('url' in event) {
-          return `📸 Browser snapshot: ${event.url}`;
-        }
-        return 'Browser snapshot';
-
-      case 'tool_call_stream':
-        if ('chunk' in event) {
-          return event.chunk;
-        }
-        return '';
-
-      default:
-        return JSON.stringify(event).slice(0, 100);
-    }
-  };
+  const category = getEventCategory(event);
+  const presentation = describeEvent(event);
+  const meta = EVENT_STYLE_META[category];
 
   return (
-    <div className="flex gap-3 group hover:bg-muted/30 -mx-2 px-2 py-1 rounded transition-colors">
-      <span className="text-muted-foreground/50 flex-shrink-0 select-none">
-        {timestamp}
-      </span>
-      <span className={getEventStyle()}>
-        {formatContent()}
-      </span>
+    <article
+      className={cn(
+        'relative overflow-hidden rounded-lg border px-4 py-3 transition-colors backdrop-blur-sm shadow-sm',
+        'bg-card/90 text-card-foreground',
+        meta.card,
+        presentation.status ? STATUS_VARIANTS[presentation.status] : null
+      )}
+      data-testid={`event-line-${event.event_type}`}
+      data-category={category}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              'mt-0.5 flex h-8 w-8 items-center justify-center rounded-md border text-sm',
+              meta.iconWrapper
+            )}
+          >
+            <meta.icon className="h-4 w-4" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={cn('text-sm font-semibold tracking-tight', meta.headline)}>{presentation.headline}</p>
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                  meta.pill
+                )}
+              >
+                {meta.label}
+              </span>
+              {presentation.status && (
+                <StatusBadge status={presentation.status} />
+              )}
+            </div>
+            {presentation.subheading && (
+              <p className="text-[11px] text-muted-foreground/80">{presentation.subheading}</p>
+            )}
+          </div>
+        </div>
+        <time className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+          {timestamp}
+        </time>
+      </div>
+
+      {presentation.summary && (
+        <div className="mt-3 text-xs leading-relaxed text-muted-foreground/90 whitespace-pre-wrap">
+          {presentation.summary}
+        </div>
+      )}
+
+      {presentation.supplementary}
+
+      <EventMetadata event={event} />
+    </article>
+  );
+}
+
+function isCombinedStreamEvent(event: DisplayEvent): event is ToolStreamCombinedEvent {
+  return event.event_type === 'tool_stream_combined';
+}
+
+// Helper functions
+function getEventCategory(event: DisplayEvent): EventFilterId | 'other' {
+  switch (event.event_type) {
+    case 'user_task':
+    case 'thinking':
+    case 'think_complete':
+    case 'task_complete':
+      return 'conversation';
+    case 'task_analysis':
+    case 'research_plan':
+    case 'step_started':
+    case 'step_completed':
+      return 'plan';
+    case 'tool_call_start':
+    case 'tool_call_complete':
+    case 'tool_call_stream':
+    case 'tool_stream_combined':
+    case 'browser_snapshot':
+      return 'tools';
+    case 'iteration_start':
+    case 'iteration_complete':
+    case 'error':
+      return 'system';
+    default:
+      return 'other';
+  }
+}
+
+type EventStatus = 'success' | 'warning' | 'danger' | 'info';
+
+interface EventPresentation {
+  headline: string;
+  subheading?: string;
+  summary?: ReactNode;
+  supplementary?: ReactNode;
+  status?: EventStatus;
+}
+
+const EVENT_STYLE_META: Record<
+  EventFilterId | 'other',
+  {
+    icon: typeof MessageSquare;
+    card: string;
+    iconWrapper: string;
+    pill: string;
+    headline: string;
+    label: string;
+  }
+> = {
+  conversation: {
+    icon: MessageSquare,
+    card: 'border-sky-200/80 bg-sky-50/70 dark:border-sky-500/30 dark:bg-sky-500/5',
+    iconWrapper: 'border-sky-200/80 bg-sky-100 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100',
+    pill: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-100',
+    headline: 'text-sky-900 dark:text-sky-100',
+    label: 'Conversation',
+  },
+  plan: {
+    icon: ClipboardList,
+    card: 'border-amber-200/80 bg-amber-50/70 dark:border-amber-500/25 dark:bg-amber-500/5',
+    iconWrapper: 'border-amber-200/80 bg-amber-100 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100',
+    pill: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+    headline: 'text-amber-900 dark:text-amber-50',
+    label: 'Planning',
+  },
+  tools: {
+    icon: Wrench,
+    card: 'border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-500/25 dark:bg-emerald-500/5',
+    iconWrapper:
+      'border-emerald-200/80 bg-emerald-100 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100',
+    pill: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+    headline: 'text-emerald-900 dark:text-emerald-50',
+    label: 'Tools',
+  },
+  system: {
+    icon: Cpu,
+    card: 'border-slate-200/80 bg-slate-50/80 dark:border-slate-600/40 dark:bg-slate-900/40',
+    iconWrapper: 'border-slate-200/80 bg-slate-100 text-slate-700 dark:border-slate-600/40 dark:bg-slate-800/60 dark:text-slate-200',
+    pill: 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-100',
+    headline: 'text-slate-900 dark:text-slate-100',
+    label: 'System',
+  },
+  other: {
+    icon: Info,
+    card: 'border-border bg-card/90',
+    iconWrapper: 'border-border bg-muted text-muted-foreground',
+    pill: 'bg-muted text-muted-foreground',
+    headline: 'text-foreground',
+    label: 'Other',
+  },
+};
+
+const STATUS_VARIANTS: Record<EventStatus, string> = {
+  success: 'border-emerald-400/50 bg-emerald-50/90 dark:border-emerald-500/40 dark:bg-emerald-500/10',
+  warning: 'border-amber-400/60 bg-amber-50/80 dark:border-amber-500/40 dark:bg-amber-500/10',
+  danger: 'border-red-400/60 bg-red-50/80 dark:border-red-500/40 dark:bg-red-500/10',
+  info: 'border-sky-400/60 bg-sky-50/80 dark:border-sky-500/40 dark:bg-sky-500/10',
+};
+
+function describeEvent(event: DisplayEvent): EventPresentation {
+  switch (event.event_type) {
+    case 'user_task':
+      if ('task' in event) {
+        return {
+          headline: 'User Task',
+          subheading: 'Initiated by you',
+          summary: <strong className="font-semibold text-foreground">{event.task}</strong>,
+        };
+      }
+      return { headline: 'User Task' };
+
+    case 'task_analysis':
+      return {
+        headline: event.action_name,
+        subheading: 'Task Analysis',
+        summary: event.goal,
+      };
+
+    case 'iteration_start':
+      return {
+        headline: `Iteration ${event.iteration} Started`,
+        subheading: `Total iterations: ${event.total_iters}`,
+        status: 'info',
+      };
+
+    case 'thinking':
+      return {
+        headline: 'Model Thinking',
+        subheading: `Iteration ${event.iteration}`,
+        summary: `Streaming response chunk ${event.message_count}`,
+      };
+
+    case 'think_complete':
+      return {
+        headline: 'Response Ready',
+        subheading: `Iteration ${event.iteration}`,
+        summary: truncateText(event.content, 220),
+        supplementary: (
+          <ContentBlock title="Model Response">
+            <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+              {event.content}
+            </pre>
+          </ContentBlock>
+        ),
+      };
+
+    case 'tool_call_start':
+      return {
+        headline: `${event.tool_name} Started`,
+        subheading: `Call ${event.call_id}`,
+        summary: formatArgumentsPreview(event.arguments),
+        supplementary: <ToolArguments callId={event.call_id} args={event.arguments} />,
+      };
+
+    case 'tool_stream_combined':
+      if (isCombinedStreamEvent(event)) {
+        return {
+          headline: `${event.tool_name ?? 'Tool'} Output`,
+          subheading: `Call ${event.call_id}`,
+          summary: truncateText(event.content.trim(), 240),
+          supplementary: (
+            <ContentBlock title="Live Output" dataTestId={`tool-call-stream-${event.call_id}`}>
+              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+                {event.content.trim()}
+              </pre>
+            </ContentBlock>
+          ),
+        };
+      }
+      return { headline: 'Tool Output' };
+
+    case 'tool_call_complete':
+      return {
+        headline: event.error ? `${event.tool_name} Failed` : `${event.tool_name} Completed`,
+        subheading: `Call ${event.call_id} • ${formatDuration(event.duration)}`,
+        status: event.error ? 'danger' : 'success',
+        summary: event.error ? event.error : formatResultPreview(event.result),
+        supplementary: (
+          <ToolResult
+            callId={event.call_id}
+            result={event.result}
+            error={event.error}
+            toolName={event.tool_name}
+          />
+        ),
+      };
+
+    case 'iteration_complete':
+      return {
+        headline: `Iteration ${event.iteration} Complete`,
+        subheading: `${event.tools_run} tools • ${event.tokens_used.toLocaleString()} tokens`,
+        status: 'info',
+      };
+
+    case 'task_complete':
+      return {
+        headline: 'Task Complete',
+        subheading: `Duration ${formatDuration(event.duration)} • ${event.total_iterations} iterations`,
+        status: 'success',
+        summary: truncateText(event.final_answer, 240),
+        supplementary: (
+          <ContentBlock title="Final Answer">
+            <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+              {event.final_answer}
+            </pre>
+          </ContentBlock>
+        ),
+      };
+
+    case 'error':
+      return {
+        headline: 'Execution Error',
+        subheading: `Phase: ${event.phase} • Iteration ${event.iteration}`,
+        status: 'danger',
+        summary: event.error,
+      };
+
+    case 'research_plan':
+      return {
+        headline: 'Research Plan Drafted',
+        subheading: `${event.plan_steps.length} steps • ≈${event.estimated_iterations} iterations`,
+        supplementary: (
+          <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs text-muted-foreground/90">
+            {event.plan_steps.map((step, index) => (
+              <li key={index}>{step}</li>
+            ))}
+          </ol>
+        ),
+      };
+
+    case 'step_started':
+      return {
+        headline: `Step ${event.step_index + 1} Started`,
+        subheading: 'Execution Plan',
+        summary: event.step_description,
+      };
+
+    case 'step_completed':
+      return {
+        headline: `Step ${event.step_index + 1} Completed`,
+        subheading: 'Execution Plan',
+        status: 'info',
+        summary: truncateText(event.step_result, 200),
+      };
+
+    case 'browser_snapshot':
+      return {
+        headline: 'Browser Snapshot',
+        subheading: event.url,
+        supplementary:
+          event.html_preview ? (
+            <ContentBlock title="HTML Preview">
+              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+                {event.html_preview}
+              </pre>
+            </ContentBlock>
+          ) : undefined,
+      };
+
+    default:
+      return {
+        headline: formatHeadline(event.event_type),
+        summary: JSON.stringify(event, null, 2),
+      };
+  }
+}
+
+function EventMetadata({ event }: { event: DisplayEvent }) {
+  const entries = getEventMetadata(event);
+  if (!entries.length) return null;
+
+  return (
+    <dl className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-muted-foreground/80 sm:grid-cols-2">
+      {entries.map(({ label, value }) => (
+        <Fragment key={`${event.timestamp}-${label}`}>
+          <dt className="font-medium uppercase tracking-wide">{label}</dt>
+          <dd className="text-foreground/80 dark:text-foreground/90">{value}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
+function getEventMetadata(event: DisplayEvent): Array<{ label: string; value: string }> {
+  switch (event.event_type) {
+    case 'tool_call_start':
+      return [
+        { label: 'Call ID', value: event.call_id },
+        { label: 'Tool', value: event.tool_name },
+      ];
+    case 'tool_call_complete':
+      return [
+        { label: 'Call ID', value: event.call_id },
+        { label: 'Duration', value: formatDuration(event.duration) },
+      ];
+    case 'iteration_complete':
+      return [
+        { label: 'Tokens Used', value: event.tokens_used.toLocaleString() },
+        { label: 'Tools Run', value: event.tools_run.toString() },
+      ];
+    case 'task_complete':
+      return [
+        { label: 'Total Tokens', value: event.total_tokens.toLocaleString() },
+        { label: 'Stop Reason', value: event.stop_reason },
+      ];
+    case 'error':
+      return [
+        { label: 'Recoverable', value: event.recoverable ? 'Yes' : 'No' },
+      ];
+    case 'browser_snapshot':
+      return event.url
+        ? [
+            {
+              label: 'URL',
+              value: event.url,
+            },
+          ]
+        : [];
+    default:
+      return [];
+  }
+}
+
+function ToolArguments({ args, callId }: { args?: Record<string, any> | string; callId: string }) {
+  if (!args || (typeof args === 'object' && Object.keys(args).length === 0)) {
+    return null;
+  }
+
+  const formatted = typeof args === 'string' ? args : JSON.stringify(args, null, 2);
+
+  return (
+    <ContentBlock
+      title="Input Arguments"
+      tone="emerald"
+      dataTestId={`tool-call-arguments-${callId}`}
+    >
+      <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-200">
+        {formatted}
+      </pre>
+    </ContentBlock>
+  );
+}
+
+function ToolResult({
+  result,
+  error,
+  callId,
+  toolName,
+}: {
+  result: any;
+  error?: string;
+  callId: string;
+  toolName: string;
+}) {
+  if (error) {
+    return (
+      <ContentBlock title="Error Output" tone="red" dataTestId={`tool-call-result-${callId}`}>
+        <p className="text-xs font-medium text-red-600 dark:text-red-200">{error}</p>
+      </ContentBlock>
+    );
+  }
+
+  if (!result) return null;
+
+  const formatted = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+
+  return (
+    <ContentBlock
+      title={`${toolName} Result`}
+      tone="emerald"
+      dataTestId={`tool-call-result-${callId}`}
+    >
+      <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-200">
+        {formatted}
+      </pre>
+    </ContentBlock>
+  );
+}
+
+function ContentBlock({
+  title,
+  children,
+  tone = 'slate',
+  dataTestId,
+}: {
+  title: string;
+  children: ReactNode;
+  tone?: 'emerald' | 'slate' | 'red';
+  dataTestId?: string;
+}) {
+  const toneClasses = {
+    emerald:
+      'border-emerald-300/60 bg-emerald-50/80 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100',
+    slate:
+      'border-slate-200/80 bg-slate-50/80 text-slate-900 dark:border-slate-600/40 dark:bg-slate-900/40 dark:text-slate-100',
+    red: 'border-red-300/60 bg-red-50/80 text-red-900 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100',
+  } as const;
+
+  return (
+    <div
+      className={cn(
+        'mt-3 rounded-md border px-3 py-2 text-xs shadow-inner transition-colors',
+        toneClasses[tone]
+      )}
+      data-testid={dataTestId}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{title}</p>
+      <div className="mt-1.5">{children}</div>
     </div>
   );
 }
 
-// Helper functions
-function formatArgs(args: any): string {
-  if (!args) return '';
-  if (typeof args === 'string') return args;
+function StatusBadge({ status }: { status: EventStatus }) {
+  const config: Record<EventStatus, { icon: typeof CheckCircle2; label: string; className: string }> = {
+    success: {
+      icon: CheckCircle2,
+      label: 'Success',
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+    },
+    warning: {
+      icon: AlertTriangle,
+      label: 'Warning',
+      className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+    },
+    danger: {
+      icon: AlertTriangle,
+      label: 'Error',
+      className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-100',
+    },
+    info: {
+      icon: Info,
+      label: 'Info',
+      className: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-100',
+    },
+  };
 
-  const keys = Object.keys(args);
-  if (keys.length === 0) return '';
-  if (keys.length === 1) return String(args[keys[0]]);
-
-  return keys.slice(0, 2).map(k => `${k}: ${String(args[k]).slice(0, 20)}`).join(', ');
+  const meta = config[status];
+  const Icon = meta.icon;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        meta.className
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {meta.label}
+    </span>
+  );
 }
 
-function formatResult(result: any): string {
-  if (!result) return '';
-  if (typeof result === 'string') return result.slice(0, 100);
-  if (result.output) return String(result.output).slice(0, 100);
-  if (result.content) return String(result.content).slice(0, 100);
-  return JSON.stringify(result).slice(0, 100);
+function formatHeadline(value: string) {
+  return value
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function truncateText(value: string, length: number) {
+  if (value.length <= length) return value;
+  return `${value.slice(0, length)}…`;
+}
+
+function formatDuration(durationMs: number) {
+  if (!Number.isFinite(durationMs)) return '—';
+  if (durationMs < 1000) {
+    return `${Math.round(durationMs)} ms`;
+  }
+  const seconds = durationMs / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)} s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
+}
+
+function formatArgumentsPreview(args: Record<string, any> | string | undefined) {
+  if (!args) {
+    return undefined;
+  }
+
+  if (typeof args === 'string') {
+    return truncateText(args, 120);
+  }
+
+  const entries = Object.entries(args).map(([key, value]) => `${key}: ${String(value)}`);
+  return truncateText(entries.join(', '), 120);
+}
+
+function formatResultPreview(result: any) {
+  if (!result) return undefined;
+  if (typeof result === 'string') return truncateText(result, 160);
+  if (typeof result === 'object') {
+    if ('output' in result) {
+      return truncateText(String(result.output), 160);
+    }
+    if ('content' in result) {
+      return truncateText(String(result.content), 160);
+    }
+  }
+  return truncateText(JSON.stringify(result), 160);
 }

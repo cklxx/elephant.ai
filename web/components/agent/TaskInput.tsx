@@ -36,8 +36,8 @@ export function TaskInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full">
-      <div className="flex gap-2 items-end">
+    <form onSubmit={handleSubmit} className="w-full" data-testid="task-input-form">
+      <div className="flex items-end gap-2">
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -52,7 +52,9 @@ export function TaskInput({
             placeholder={placeholder}
             disabled={disabled || loading}
             rows={1}
-            className="w-full px-3 py-2 text-sm border border-border/50 rounded bg-background resize-none focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed font-mono min-h-[2.5rem] max-h-32 overflow-y-auto"
+            aria-label="Task input"
+            data-testid="task-input"
+            className="w-full rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm font-mono text-foreground shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 min-h-[2.75rem] max-h-32 resize-none overflow-y-auto"
             style={{ fieldSizing: 'content' } as any}
           />
         </div>
@@ -60,8 +62,9 @@ export function TaskInput({
         <button
           type="submit"
           disabled={disabled || loading || !task.trim()}
-          className="flex-shrink-0 px-3 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium h-10"
+          className="flex h-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold uppercase tracking-wide text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           title={loading ? 'Running...' : 'Submit (Enter)'}
+          data-testid="task-submit"
         >
           {loading ? (
             <span className="flex items-center gap-1.5">
@@ -77,7 +80,7 @@ export function TaskInput({
         </button>
       </div>
 
-      <div className="mt-1.5 text-xs text-muted-foreground/60 font-mono">
+      <div className="mt-2 text-[11px] font-mono uppercase tracking-wide text-muted-foreground/70">
         Enter to send · Shift+Enter for new line
       </div>
     </form>

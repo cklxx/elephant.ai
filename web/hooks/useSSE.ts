@@ -4,13 +4,13 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
 import { apiClient } from '@/lib/api';
 
-interface UseSSEOptions {
+export interface UseSSEOptions {
   enabled?: boolean;
   onEvent?: (event: AnyAgentEvent) => void;
   maxReconnectAttempts?: number;
 }
 
-interface UseSSEReturn {
+export interface UseSSEReturn {
   events: AnyAgentEvent[];
   isConnected: boolean;
   isReconnecting: boolean;
