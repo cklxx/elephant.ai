@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 type AppConfig struct {
@@ -14,6 +16,9 @@ type AppConfig struct {
 	BaseURL       string                 `json:"base_url"`
 	MaxIterations int                    `json:"max_iterations"`
 	MaxTokens     int                    `json:"max_tokens"`
+	Temperature   float64                `json:"temperature"`
+	TopP          float64                `json:"top_p"`
+	StopSequences []string               `json:"stop_sequences"`
 	Models        map[string]ModelConfig `json:"models"` // Support old format
 }
 
@@ -31,6 +36,8 @@ func loadConfig() AppConfig {
 		BaseURL:       "https://openrouter.ai/api/v1",
 		MaxIterations: 150,
 		MaxTokens:     100000,
+		Temperature:   0.7,
+		TopP:          1.0,
 	}
 
 	// Try to load from environment
@@ -45,6 +52,30 @@ func loadConfig() AppConfig {
 	}
 	if model := os.Getenv("LLM_MODEL"); model != "" {
 		config.LLMModel = model
+	}
+	if temp := os.Getenv("LLM_TEMPERATURE"); temp != "" {
+		if parsed, err := strconv.ParseFloat(temp, 64); err == nil {
+			config.Temperature = parsed
+		}
+	}
+	if topP := os.Getenv("LLM_TOP_P"); topP != "" {
+		if parsed, err := strconv.ParseFloat(topP, 64); err == nil {
+			config.TopP = parsed
+		}
+	}
+	if stops := os.Getenv("LLM_STOP"); stops != "" {
+		// Support comma or whitespace separated lists
+		split := strings.FieldsFunc(stops, func(r rune) bool {
+			return r == ',' || r == ';' || r == ' ' || r == '\n' || r == '\t'
+		})
+		filtered := split[:0]
+		for _, token := range split {
+			trimmed := strings.TrimSpace(token)
+			if trimmed != "" {
+				filtered = append(filtered, trimmed)
+			}
+		}
+		config.StopSequences = append([]string(nil), filtered...)
 	}
 
 	// Try to load from config file
@@ -77,6 +108,15 @@ func loadConfig() AppConfig {
 				}
 				if fileConfig.MaxTokens > 0 {
 					config.MaxTokens = fileConfig.MaxTokens
+				}
+				if fileConfig.Temperature > 0 {
+					config.Temperature = fileConfig.Temperature
+				}
+				if fileConfig.TopP > 0 {
+					config.TopP = fileConfig.TopP
+				}
+				if len(config.StopSequences) == 0 && len(fileConfig.StopSequences) > 0 {
+					config.StopSequences = append([]string(nil), fileConfig.StopSequences...)
 				}
 
 				// Support old "models.basic" format

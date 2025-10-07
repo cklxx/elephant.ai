@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,13 +12,14 @@ import (
 )
 
 type todoUpdate struct {
-	sessionsDir string // For testing override
+	sessionsDir string
+	writeFile   func(string, []byte, fs.FileMode) error
 }
 
 func NewTodoUpdate() ports.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
 	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
-	return &todoUpdate{sessionsDir: sessionsDir}
+	return newTodoUpdate(sessionsDir, nil)
 }
 
 // NewTodoUpdateWithSessionsDir creates todo_update with custom sessions directory (for testing)
@@ -27,7 +29,18 @@ func NewTodoUpdateWithSessionsDir(sessionsDir string) ports.ToolExecutor {
 		homeDir, _ := os.UserHomeDir()
 		sessionsDir = filepath.Join(homeDir, sessionsDir[2:])
 	}
-	return &todoUpdate{sessionsDir: sessionsDir}
+	return newTodoUpdate(sessionsDir, nil)
+}
+
+func newTodoUpdate(sessionsDir string, writer func(string, []byte, fs.FileMode) error) *todoUpdate {
+	if writer == nil {
+		writer = os.WriteFile
+	}
+
+	return &todoUpdate{
+		sessionsDir: sessionsDir,
+		writeFile:   writer,
+	}
 }
 
 func (t *todoUpdate) Metadata() ports.ToolMetadata {
@@ -132,7 +145,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	todoFile := filepath.Join(t.sessionsDir, sessionID+"_todo.md")
 
 	// Write file with error handling
-	if err := os.WriteFile(todoFile, []byte(md.String()), 0644); err != nil {
+	if err := t.writeFile(todoFile, []byte(md.String()), 0644); err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
 			Content: fmt.Sprintf("Error: failed to write todo file: %v", err),

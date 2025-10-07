@@ -178,7 +178,7 @@ func TestProgressTracking_WithoutTaskStore(t *testing.T) {
 
 // Helper functions to create events for testing
 func createIterationStartEvent(sessionID string, iteration, totalIters int) *domain.IterationStartEvent {
-	evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "test", "test")
+        evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "test", "test", time.Now())
 	return &domain.IterationStartEvent{
 		BaseEvent:  evt.BaseEvent,
 		Iteration:  iteration,
@@ -187,7 +187,7 @@ func createIterationStartEvent(sessionID string, iteration, totalIters int) *dom
 }
 
 func createIterationCompleteEvent(sessionID string, iteration, tokensUsed, toolsRun int) *domain.IterationCompleteEvent {
-	evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "test", "test")
+        evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "test", "test", time.Now())
 	return &domain.IterationCompleteEvent{
 		BaseEvent:  evt.BaseEvent,
 		Iteration:  iteration,
@@ -197,7 +197,7 @@ func createIterationCompleteEvent(sessionID string, iteration, tokensUsed, tools
 }
 
 func createTaskCompleteEvent(sessionID string, totalIterations, totalTokens int) *domain.TaskCompleteEvent {
-	evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "test", "test")
+        evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "test", "test", time.Now())
 	return &domain.TaskCompleteEvent{
 		BaseEvent:       evt.BaseEvent,
 		FinalAnswer:     "Task completed successfully",

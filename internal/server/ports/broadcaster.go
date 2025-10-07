@@ -1,14 +1,14 @@
 package ports
 
-import "alex/internal/agent/domain"
+import "alex/internal/agent/ports"
 
 // SSEBroadcaster manages client connections and broadcasts events
 type SSEBroadcaster interface {
 	// RegisterClient registers a new client for a session
-	RegisterClient(sessionID string, ch chan domain.AgentEvent)
+	RegisterClient(sessionID string, ch chan ports.AgentEvent)
 
 	// UnregisterClient removes a client from the session
-	UnregisterClient(sessionID string, ch chan domain.AgentEvent)
+	UnregisterClient(sessionID string, ch chan ports.AgentEvent)
 
 	// GetClientCount returns the number of clients subscribed to a session
 	GetClientCount(sessionID string) int

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/output"
@@ -221,12 +220,16 @@ type SubtaskResult struct {
 
 // executionEnv holds all dependencies needed to execute a subtask
 type executionEnv struct {
-	llmClient    ports.LLMClient
-	toolRegistry ports.ToolRegistry
-	parser       ports.FunctionCallParser
-	contextMgr   ports.ContextManager
-	systemPrompt string
-	maxIters     int
+	llmClient     ports.LLMClient
+	toolRegistry  ports.ToolRegistry
+	parser        ports.FunctionCallParser
+	contextMgr    ports.ContextManager
+	systemPrompt  string
+	maxIters      int
+	maxTokens     int
+	temperature   float64
+	topP          float64
+	stopSequences []string
 }
 
 // prepareExecutionEnv gets all dependencies from coordinator
@@ -237,15 +240,27 @@ func (t *subagent) prepareExecutionEnv() (*executionEnv, error) {
 	}
 
 	config := t.coordinator.GetConfig()
-	maxIters := config.(app.Config).MaxIterations
+	maxIters := config.MaxIterations
+	maxTokens := config.MaxTokens
+	temperature := config.Temperature
+	topP := config.TopP
+	stopSequences := append([]string(nil), config.StopSequences...)
+
+	if maxIters <= 0 {
+		maxIters = 50
+	}
 
 	return &executionEnv{
-		llmClient:    llmClient.(ports.LLMClient),
-		toolRegistry: t.coordinator.GetToolRegistryWithoutSubagent(),
-		parser:       t.coordinator.GetParser().(ports.FunctionCallParser),
-		contextMgr:   t.coordinator.GetContextManager().(ports.ContextManager),
-		systemPrompt: t.coordinator.GetSystemPrompt(),
-		maxIters:     maxIters,
+		llmClient:     llmClient,
+		toolRegistry:  t.coordinator.GetToolRegistryWithoutSubagent(),
+		parser:        t.coordinator.GetParser(),
+		contextMgr:    t.coordinator.GetContextManager(),
+		systemPrompt:  t.coordinator.GetSystemPrompt(),
+		maxIters:      maxIters,
+		maxTokens:     maxTokens,
+		temperature:   temperature,
+		topP:          topP,
+		stopSequences: stopSequences,
 	}, nil
 }
 
@@ -286,7 +301,27 @@ func (t *subagent) executeSubtask(ctx context.Context, task string, index int, t
 	}
 
 	// Create ReactEngine with listener and execute
-	reactEngine := domain.NewReactEngine(env.maxIters)
+	completionDefaults := domain.CompletionDefaults{}
+	if env.maxTokens > 0 {
+		maxTokens := env.maxTokens
+		completionDefaults.MaxTokens = &maxTokens
+	}
+	if env.temperature > 0 {
+		temp := env.temperature
+		completionDefaults.Temperature = &temp
+	}
+	if env.topP > 0 {
+		topP := env.topP
+		completionDefaults.TopP = &topP
+	}
+	if len(env.stopSequences) > 0 {
+		completionDefaults.StopSequences = append([]string(nil), env.stopSequences...)
+	}
+
+	reactEngine := domain.NewReactEngine(domain.ReactEngineConfig{
+		MaxIterations:      env.maxIters,
+		CompletionDefaults: completionDefaults,
+	})
 	reactEngine.SetEventListener(listener)
 	result, err := reactEngine.SolveTask(ctx, task, state, services)
 

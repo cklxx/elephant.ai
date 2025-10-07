@@ -169,6 +169,13 @@ func (c *CLI) handleConfig() error {
 	fmt.Printf("  Base URL:      %s\n", config.BaseURL)
 	fmt.Printf("  Max Tokens:    %d\n", config.MaxTokens)
 	fmt.Printf("  Max Iterations: %d\n", config.MaxIterations)
+	fmt.Printf("  Temperature:   %.2f\n", config.Temperature)
+	fmt.Printf("  Top P:         %.2f\n", config.TopP)
+	if len(config.StopSequences) > 0 {
+		fmt.Printf("  Stop Seqs:     %s\n", strings.Join(config.StopSequences, ", "))
+	} else {
+		fmt.Println("  Stop Seqs:     (not set)")
+	}
 	if config.APIKey != "" {
 		fmt.Println("  API Key:       (set)")
 	} else {

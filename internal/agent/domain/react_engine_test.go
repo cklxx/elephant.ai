@@ -33,7 +33,7 @@ func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
 		Context:      mockContext,
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	// Act
@@ -101,7 +101,7 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 		Context:      mockContext,
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	// Act
@@ -116,6 +116,64 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	}
 	if len(state.ToolResults) != 1 {
 		t.Errorf("Expected 1 tool result, got %d", len(state.ToolResults))
+	}
+}
+
+func TestReactEngine_UsesCompletionDefaults(t *testing.T) {
+	// Arrange
+	var capturedReq ports.CompletionRequest
+	mockLLM := &mocks.MockLLMClient{
+		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+			capturedReq = req
+			return &ports.CompletionResponse{
+				Content:    "Final answer.",
+				StopReason: "stop",
+			}, nil
+		},
+	}
+
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+
+	temp := 0.25
+	maxTokens := 4096
+	topP := 0.85
+	engine := domain.NewReactEngine(domain.ReactEngineConfig{
+		MaxIterations: 1,
+		CompletionDefaults: domain.CompletionDefaults{
+			Temperature:   &temp,
+			MaxTokens:     &maxTokens,
+			TopP:          &topP,
+			StopSequences: []string{"STOP"},
+		},
+	})
+
+	// Act
+	result, err := engine.SolveTask(context.Background(), "Provide answer", &domain.TaskState{}, services)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+
+	if capturedReq.Temperature != temp {
+		t.Errorf("expected temperature %.2f, got %.2f", temp, capturedReq.Temperature)
+	}
+	if capturedReq.MaxTokens != maxTokens {
+		t.Errorf("expected max tokens %d, got %d", maxTokens, capturedReq.MaxTokens)
+	}
+	if capturedReq.TopP != topP {
+		t.Errorf("expected top-p %.2f, got %.2f", topP, capturedReq.TopP)
+	}
+	if len(capturedReq.StopSequences) != 1 || capturedReq.StopSequences[0] != "STOP" {
+		t.Fatalf("expected stop sequences [STOP], got %v", capturedReq.StopSequences)
 	}
 }
 
@@ -151,7 +209,7 @@ func TestReactEngine_SolveTask_MaxIterations(t *testing.T) {
 	}
 
 	maxIter := 3
-	engine := domain.NewReactEngine(maxIter)
+	engine := newReactEngineForTest(maxIter)
 	state := &domain.TaskState{}
 
 	// Act
@@ -199,7 +257,7 @@ func TestReactEngine_SolveTask_ToolError(t *testing.T) {
 		Context:      mockContext,
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	// Act
@@ -212,5 +270,59 @@ func TestReactEngine_SolveTask_ToolError(t *testing.T) {
 	// LLM doesn't provide more responses, so reaches max iterations
 	if result.StopReason != "max_iterations" {
 		t.Errorf("Expected stop reason 'max_iterations' (LLM decides when to stop), got '%s'", result.StopReason)
+	}
+}
+
+type capturingListener struct {
+	events []domain.AgentEvent
+}
+
+func (c *capturingListener) OnEvent(evt domain.AgentEvent) {
+	c.events = append(c.events, evt)
+}
+
+func TestReactEngine_EventListenerReceivesEvents(t *testing.T) {
+	mockLLM := &mocks.MockLLMClient{
+		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+			return &ports.CompletionResponse{
+				Content:    "",
+				StopReason: "continue",
+			}, nil
+		},
+	}
+
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+
+	engine := newReactEngineForTest(1)
+	listener := &capturingListener{}
+	engine.SetEventListener(listener)
+
+	if engine.GetEventListener() != listener {
+		t.Fatalf("expected listener to be registered")
+	}
+
+	_, err := engine.SolveTask(context.Background(), "summarize", &domain.TaskState{SessionID: "sess"}, services)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(listener.events) == 0 {
+		t.Fatalf("expected events to be captured")
+	}
+
+	foundTaskComplete := false
+	for _, evt := range listener.events {
+		if evt.EventType() == "task_complete" {
+			foundTaskComplete = true
+			break
+		}
+	}
+	if !foundTaskComplete {
+		t.Fatalf("expected task_complete event in captured events")
 	}
 }

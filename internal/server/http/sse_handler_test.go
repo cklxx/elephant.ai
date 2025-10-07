@@ -56,7 +56,7 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test Action", "Test Goal")
+        event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test Action", "Test Goal", time.Now())
 	broadcaster.OnEvent(event)
 
 	// Wait for event to be sent
@@ -124,7 +124,7 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}{
 		{
 			name:      "TaskAnalysisEvent",
-			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test", "Goal"),
+                    event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test", "Goal", time.Now()),
 			wantField: "action_name",
 		},
 		{

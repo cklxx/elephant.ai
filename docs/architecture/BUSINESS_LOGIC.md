@@ -120,19 +120,41 @@ package domain
 import (
     "context"
     "fmt"
+
+    "alex/internal/agent/ports"
 )
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
 type ReactEngine struct {
     maxIterations int
     stopReasons   []string
+    logger        ports.Logger
+    clock         ports.Clock
 }
 
-// NewReactEngine creates a new ReAct engine
-func NewReactEngine(maxIterations int) *ReactEngine {
+type ReactEngineConfig struct {
+    MaxIterations int
+    StopReasons   []string
+    Logger        ports.Logger
+    Clock         ports.Clock
+}
+
+// NewReactEngine creates a new ReAct engine with injected infrastructure dependencies
+func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
+    if cfg.Logger == nil {
+        cfg.Logger = ports.NoopLogger{}
+    }
+    if cfg.Clock == nil {
+        cfg.Clock = ports.SystemClock{}
+    }
+    if len(cfg.StopReasons) == 0 {
+        cfg.StopReasons = []string{"final_answer", "done", "complete"}
+    }
     return &ReactEngine{
-        maxIterations: maxIterations,
-        stopReasons:   []string{"final_answer", "done", "complete"},
+        maxIterations: cfg.MaxIterations,
+        stopReasons:   cfg.StopReasons,
+        logger:        cfg.Logger,
+        clock:         cfg.Clock,
     }
 }
 
@@ -410,7 +432,7 @@ func TestReactEngine_SolveTask_SingleToolCall(t *testing.T) {
         Context:      mockContext,
     }
 
-    engine := domain.NewReactEngine(10)
+    engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10})
 
     // Setup expectations: LLM requests tool, then provides final answer
     mockLLM.On("Complete", mock.Anything, mock.MatchedBy(func(req ports.CompletionRequest) bool {
@@ -469,7 +491,7 @@ func TestReactEngine_SolveTask_MaxIterations(t *testing.T) {
         Context:      mockContext,
     }
 
-    engine := domain.NewReactEngine(3)  // Only 3 iterations
+    engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 3})  // Only 3 iterations
 
     // Setup: LLM always requests more tools
     mockLLM.On("Complete", mock.Anything, mock.Anything).Return(&ports.CompletionResponse{
@@ -581,6 +603,10 @@ func NewAgentCoordinator(
         logger:       utils.NewComponentLogger("Coordinator"),
     }
 }
+
+> **2025-11 架构更新**：生产代码现已引入 `ExecutionPreparationService`、`TaskAnalysisService` 与 `CostTrackingDecorator`，
+> `AgentCoordinator` 本身仅负责 orchestration 与错误处理。本文档保留了原始示例以说明职责边界，
+> 详细实现请参考 `internal/agent/app/execution_preparation_service.go` 与 `internal/agent/app/task_analysis_service.go`。
 
 // ExecuteTask is the main entry point for task execution
 func (c *AgentCoordinator) ExecuteTask(
@@ -825,7 +851,7 @@ func TestCoordinator_ExecuteTask_WithRealComponents(t *testing.T) {
     parser := parser.New()                       // Real parser
     messageQueue := messaging.NewQueue(10)       // Real queue
 
-    engine := domain.NewReactEngine(10)
+    engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10})
 
     coordinator := app.NewAgentCoordinator(
         llmFactory,
@@ -1140,7 +1166,7 @@ func buildContainer() (*Container, error) {
     messageQueue := messaging.NewQueue(100)
 
     // Domain Layer
-    reactEngine := domain.NewReactEngine(config.MaxIterations)
+    reactEngine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: config.MaxIterations})
 
     // Application Layer
     coordinator := app.NewAgentCoordinator(

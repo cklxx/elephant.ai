@@ -24,6 +24,9 @@ func buildContainer() (*Container, error) {
 		BaseURL:       config.BaseURL,
 		MaxTokens:     config.MaxTokens,
 		MaxIterations: config.MaxIterations,
+		Temperature:   config.Temperature,
+		TopP:          config.TopP,
+		StopSequences: append([]string(nil), config.StopSequences...),
 		SessionDir:    di.GetStorageDir("ALEX_SESSION_DIR", "~/.alex-sessions"),
 		CostDir:       di.GetStorageDir("ALEX_COST_DIR", "~/.alex-costs"),
 	}
