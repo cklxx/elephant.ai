@@ -59,20 +59,19 @@ export function ResearchPlanCard({
   };
 
   return (
-    <Card className="border-l-4 border-blue-500 bg-gradient-to-br from-blue-50/50 via-white to-transparent backdrop-blur-sm shadow-medium animate-slideIn overflow-hidden">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/20 rounded-full blur-3xl"></div>
+    <Card className="manus-card border-l-4 border-primary animate-fadeIn overflow-hidden">
 
       <CardHeader className="pb-3 relative">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
-              <Lightbulb className="h-6 w-6 text-white" />
+            <div className="p-3 bg-primary rounded-md">
+              <Lightbulb className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg text-blue-900">
+              <h3 className="manus-heading text-lg">
                 Research Plan
               </h3>
-              <p className="text-sm text-blue-700 font-medium">
+              <p className="manus-caption">
                 {readonly ? 'Approved Plan' : 'Review and approve to start execution'}
               </p>
             </div>
@@ -80,7 +79,7 @@ export function ResearchPlanCard({
 
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="text-gray-400 hover:text-gray-700 transition-all duration-300 hover:scale-110 p-1 rounded-lg hover:bg-gray-100"
+            className="text-muted-foreground hover:text-foreground hover-subtle p-1 rounded-md"
             aria-label={isExpanded ? 'Collapse plan' : 'Expand plan'}
           >
             {isExpanded ? (
@@ -96,8 +95,8 @@ export function ResearchPlanCard({
         <CardContent className="space-y-4 animate-fadeIn relative">
           {/* Goal Section */}
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+            <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
               Goal:
             </p>
             {isEditing ? (
@@ -106,26 +105,26 @@ export function ResearchPlanCard({
                 onChange={(e) =>
                   setEditedPlan({ ...currentPlan, goal: e.target.value })
                 }
-                className="w-full bg-white/60 backdrop-blur-sm p-3 rounded-xl border border-blue-200/50 shadow-soft text-sm text-gray-900 leading-relaxed min-h-[80px] focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="manus-input text-sm leading-relaxed min-h-[80px]"
                 aria-label="Edit goal"
               />
             ) : (
-              <div className="bg-white/60 backdrop-blur-sm p-4 rounded-xl border border-blue-200/50 shadow-soft">
-                <p className="text-sm text-gray-900 leading-relaxed">{currentPlan.goal}</p>
+              <div className="manus-card p-4">
+                <p className="manus-body text-sm">{currentPlan.goal}</p>
               </div>
             )}
           </div>
 
           {/* Steps Section */}
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+            <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
               Planned Steps ({currentPlan.steps.length}):
             </p>
-            <div className="bg-white/60 backdrop-blur-sm p-4 rounded-xl border border-blue-200/50 shadow-soft space-y-2">
+            <div className="manus-card p-4 space-y-2">
               {currentPlan.steps.map((step, idx) => (
                 <div key={idx} className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-semibold">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
                     {idx + 1}
                   </div>
                   {isEditing ? (
@@ -137,11 +136,11 @@ export function ResearchPlanCard({
                         newSteps[idx] = e.target.value;
                         setEditedPlan({ ...currentPlan, steps: newSteps });
                       }}
-                      className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 manus-input px-3 py-1.5 text-sm"
                       aria-label={`Edit step ${idx + 1}`}
                     />
                   ) : (
-                    <p className="flex-1 text-sm text-gray-900 leading-relaxed">{step}</p>
+                    <p className="flex-1 manus-body text-sm">{step}</p>
                   )}
                 </div>
               ))}
@@ -177,12 +176,12 @@ export function ResearchPlanCard({
 
           {/* Action Buttons */}
           {!readonly && (
-            <div className="pt-4 border-t border-blue-100">
+            <div className="pt-4 border-t border-border">
               {isEditing ? (
                 <div className="flex items-center gap-3">
                   <Button
                     onClick={handleSaveEdit}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="flex-1 manus-button-primary"
                   >
                     <Check className="h-4 w-4 mr-2" />
                     Save Changes
@@ -190,7 +189,7 @@ export function ResearchPlanCard({
                   <Button
                     onClick={handleCancelEdit}
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 manus-button-secondary"
                   >
                     <X className="h-4 w-4 mr-2" />
                     Cancel
@@ -200,7 +199,7 @@ export function ResearchPlanCard({
                 <div className="flex items-center gap-3">
                   <Button
                     onClick={onApprove}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex-1 manus-button-primary"
                   >
                     <Check className="h-4 w-4 mr-2" />
                     Approve & Start
@@ -208,7 +207,7 @@ export function ResearchPlanCard({
                   <Button
                     onClick={() => setIsEditing(true)}
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 manus-button-secondary"
                   >
                     <Edit3 className="h-4 w-4 mr-2" />
                     Modify Plan
@@ -216,7 +215,7 @@ export function ResearchPlanCard({
                   <Button
                     onClick={onCancel}
                     variant="outline"
-                    className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                    className="flex-1"
                   >
                     <X className="h-4 w-4 mr-2" />
                     Cancel
@@ -233,10 +232,10 @@ export function ResearchPlanCard({
 
 function ResearchPlanSkeleton() {
   return (
-    <Card className="border-l-4 border-blue-500 bg-gradient-to-br from-blue-50/50 via-white to-transparent backdrop-blur-sm shadow-medium animate-slideIn overflow-hidden">
+    <Card className="manus-card border-l-4 border-primary animate-fadeIn overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
-          <Skeleton className="h-12 w-12 rounded-xl" />
+          <Skeleton className="h-12 w-12 rounded-md" />
           <div className="space-y-2 flex-1">
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-64" />

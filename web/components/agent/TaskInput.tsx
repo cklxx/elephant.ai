@@ -53,7 +53,7 @@ export function TaskInput({
             disabled={disabled || loading}
             rows={1}
             className="w-full px-3 py-2 text-sm border border-border/50 rounded bg-background resize-none focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed font-mono min-h-[2.5rem] max-h-32 overflow-y-auto"
-            style={{ fieldSizing: 'content' } as any}
+            style={{ fieldSizing: 'content' } as React.CSSProperties}
           />
         </div>
 

@@ -396,12 +396,19 @@
 }
 
 /* ========================================================================
-   DEPRECATED/LEGACY CLASSES (Preserved for Compatibility)
+   DEPRECATED/LEGACY CLASSES (Phase 1 Cleanup - 2025-10-07)
    ======================================================================== */
 
 /**
- * These classes are kept empty to prevent breaking existing components
- * that reference them. Remove these after updating all components.
+ * Empty placeholders for deprecated classes to prevent breaking existing
+ * components that haven't been migrated yet. These will be removed in Phase 2.
+ *
+ * Deprecated classes:
+ * - glass, glass-dark, glass-card -> Use manus-card instead
+ * - gradient-* -> Use CSS variables (--primary, --foreground, etc.)
+ * - shadow-* -> Removed (Manus uses no shadows)
+ * - hover-lift, hover-glow -> Use hover-subtle instead
+ * - card-interactive -> Use manus-card-interactive instead
  */
 .glass,
 .glass-dark,
@@ -412,9 +419,6 @@
 .gradient-mesh,
 .gradient-text,
 .border-gradient,
-.animate-shimmer,
-.animate-pulse-soft,
-.animate-gradient,
 .hover-lift,
 .hover-glow,
 .card-interactive,
@@ -422,55 +426,4 @@
 .shadow-medium,
 .shadow-strong {
   /* Deprecated - no styles applied */
-}
-
-/**
- * Legacy animations kept for backward compatibility
- * but should not be used in new code
- */
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-slideIn {
-  animation: slideIn 0.2s ease-out;
-}
-
-.animate-scaleIn {
-  animation: scaleIn 0.2s ease-out;
-}
-
-/**
- * Shimmer Animation for Loading States
- * - Smooth gradient animation for skeleton loaders
- */
-@keyframes shimmer {
-  0% {
-    background-position: -400% 0;
-  }
-  100% {
-    background-position: 400% 0;
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer 2s ease-in-out infinite;
 }
