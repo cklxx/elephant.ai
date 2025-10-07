@@ -22,11 +22,7 @@ import { AnyAgentEvent } from '@/lib/types';
 import { apiClient } from '@/lib/api';
 import { safeValidateEvent } from '@/lib/schemas';
 
-/**
- * Configuration options for SSE connection
- */
-interface UseSSEOptions {
-  /** Whether the SSE connection should be active */
+export interface UseSSEOptions {
   enabled?: boolean;
   /** Callback fired when an event is received */
   onEvent?: (event: AnyAgentEvent) => void;
@@ -34,11 +30,7 @@ interface UseSSEOptions {
   maxReconnectAttempts?: number;
 }
 
-/**
- * Return value of useSSE hook
- */
-interface UseSSEReturn {
-  /** Array of all received events */
+export interface UseSSEReturn {
   events: AnyAgentEvent[];
   /** Whether the SSE connection is currently active */
   isConnected: boolean;
