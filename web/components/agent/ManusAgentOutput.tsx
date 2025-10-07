@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { AnyAgentEvent, ResearchPlan as ResearchPlanType, ResearchPlanEvent } from '@/lib/types';
+import { isTaskCompleteEvent, isResearchPlanEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
 import { ResearchPlanCard } from './ResearchPlanCard';
@@ -48,7 +49,7 @@ export function ManusAgentOutput({
 
   // Extract research plan from events
   const researchPlan = useMemo(() => {
-    const planEvent = events.find((e) => e.event_type === 'research_plan') as ResearchPlanEvent | undefined;
+    const planEvent = events.find(isResearchPlanEvent);
     if (!planEvent) return null;
 
     return {
@@ -95,20 +96,19 @@ export function ManusAgentOutput({
 
   // Build document from task completion
   const document = useMemo((): DocumentContent | null => {
-    const taskComplete = events.find((e) => e.event_type === 'task_complete');
+    const taskComplete = events.find(isTaskCompleteEvent);
     if (!taskComplete) return null;
 
-    const e = taskComplete as any;
     return {
       id: 'task-result',
       title: 'Task Result',
-      content: e.final_answer || 'Task completed successfully',
+      content: taskComplete.final_answer || 'Task completed successfully',
       type: 'markdown',
       timestamp: new Date(taskComplete.timestamp).getTime(),
       metadata: {
-        iterations: e.total_iterations,
-        tokens: e.total_tokens,
-        stop_reason: e.stop_reason,
+        iterations: taskComplete.total_iterations,
+        tokens: taskComplete.total_tokens,
+        stop_reason: taskComplete.stop_reason,
       },
     };
   }, [events]);
@@ -152,7 +152,7 @@ export function ManusAgentOutput({
         {/* Left pane: Timeline/Events */}
         <div className="lg:col-span-2 space-y-4">
           <div className="manus-card">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timeline' | 'events' | 'document')}>
               <TabsList className="grid w-full grid-cols-3 mb-4 bg-muted p-1 rounded-md">
                 <TabsTrigger value="timeline" className="text-xs">
                   <Activity className="h-3 w-3 mr-1.5" />
