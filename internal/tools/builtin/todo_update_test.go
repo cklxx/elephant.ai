@@ -3,6 +3,8 @@ package builtin
 import (
 	"alex/internal/agent/ports"
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -370,16 +372,12 @@ func TestTodoUpdate_Execute_NoSessionID(t *testing.T) {
 func TestTodoUpdate_Execute_FileWriteError(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Make directory read-only
-	err := os.Chmod(tempDir, 0444)
-	require.NoError(t, err)
-
-	// Restore permissions for cleanup
-	t.Cleanup(func() {
-		_ = os.Chmod(tempDir, 0755)
-	})
-
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
+	todoTool, ok := tool.(*todoUpdate)
+	require.True(t, ok)
+	todoTool.writeFile = func(string, []byte, fs.FileMode) error {
+		return errors.New("disk quota exceeded")
+	}
 
 	sessionID := "test_session_error"
 	ctx := WithSessionID(context.Background(), sessionID)

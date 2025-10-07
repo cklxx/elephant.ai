@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/output"
 
@@ -299,7 +300,7 @@ func newNativeEventListener(ui *NativeChatUI) *NativeEventListener {
 	}
 }
 
-func (l *NativeEventListener) OnEvent(event domain.AgentEvent) {
+func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
 	// Get output context from UI
 	outCtx := types.GetOutputContext(l.ui.ctx)
 

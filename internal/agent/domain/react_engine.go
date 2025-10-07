@@ -6,28 +6,102 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/agent/types"
-	"alex/internal/utils"
 )
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
 type ReactEngine struct {
 	maxIterations int
 	stopReasons   []string
-	logger        *utils.Logger
+	logger        ports.Logger
+	clock         ports.Clock
 	eventListener EventListener // Optional event listener for TUI
+	completion    completionConfig
 }
 
-// NewReactEngine creates a new ReAct engine
-func NewReactEngine(maxIterations int) *ReactEngine {
+type completionConfig struct {
+	temperature   float64
+	maxTokens     int
+	topP          float64
+	stopSequences []string
+}
+
+// CompletionDefaults defines optional overrides for LLM completion behaviour.
+type CompletionDefaults struct {
+	Temperature   *float64
+	MaxTokens     *int
+	TopP          *float64
+	StopSequences []string
+}
+
+// ReactEngineConfig captures the dependencies required to construct a ReactEngine.
+type ReactEngineConfig struct {
+	MaxIterations      int
+	StopReasons        []string
+	Logger             ports.Logger
+	Clock              ports.Clock
+	CompletionDefaults CompletionDefaults
+}
+
+// NewReactEngine creates a new ReAct engine with injected infrastructure dependencies.
+func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = ports.NoopLogger{}
+	}
+
+	clock := cfg.Clock
+	if clock == nil {
+		clock = ports.SystemClock{}
+	}
+
+	stopReasons := cfg.StopReasons
+	if len(stopReasons) == 0 {
+		stopReasons = []string{"final_answer", "done", "complete"}
+	}
+
+	maxIterations := cfg.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = 1
+	}
+
+	completion := buildCompletionDefaults(cfg.CompletionDefaults)
+
 	return &ReactEngine{
 		maxIterations: maxIterations,
-		stopReasons:   []string{"final_answer", "done", "complete"},
-		logger:        utils.NewComponentLogger("ReactEngine"),
-		eventListener: nil, // No listener by default
+		stopReasons:   stopReasons,
+		logger:        logger,
+		clock:         clock,
+		eventListener: nil,
+		completion:    completion,
+	}
+}
+
+func buildCompletionDefaults(cfg CompletionDefaults) completionConfig {
+	temperature := 0.7
+	if cfg.Temperature != nil {
+		temperature = *cfg.Temperature
+	}
+
+	maxTokens := 12000
+	if cfg.MaxTokens != nil && *cfg.MaxTokens > 0 {
+		maxTokens = *cfg.MaxTokens
+	}
+
+	topP := 1.0
+	if cfg.TopP != nil {
+		topP = *cfg.TopP
+	}
+
+	stopSequences := make([]string, len(cfg.StopSequences))
+	copy(stopSequences, cfg.StopSequences)
+
+	return completionConfig{
+		temperature:   temperature,
+		maxTokens:     maxTokens,
+		topP:          topP,
+		stopSequences: stopSequences,
 	}
 }
 
@@ -42,13 +116,13 @@ func (e *ReactEngine) GetEventListener() EventListener {
 }
 
 // getAgentLevel reads the current agent level from context
-func (e *ReactEngine) getAgentLevel(ctx context.Context) types.AgentLevel {
+func (e *ReactEngine) getAgentLevel(ctx context.Context) ports.AgentLevel {
 	if ctx == nil {
-		return types.LevelCore
+		return ports.LevelCore
 	}
-	outCtx := types.GetOutputContext(ctx)
+	outCtx := ports.GetOutputContext(ctx)
 	if outCtx == nil {
-		return types.LevelCore
+		return ports.LevelCore
 	}
 	return outCtx.Level
 }
@@ -64,6 +138,10 @@ func (e *ReactEngine) emitEvent(event AgentEvent) {
 	}
 }
 
+func (e *ReactEngine) newBaseEvent(ctx context.Context, sessionID string) BaseEvent {
+	return newBaseEventWithSession(e.getAgentLevel(ctx), sessionID, e.clock.Now())
+}
+
 // SolveTask is the main ReAct loop - pure business logic
 func (e *ReactEngine) SolveTask(
 	ctx context.Context,
@@ -72,7 +150,7 @@ func (e *ReactEngine) SolveTask(
 	services Services,
 ) (*TaskResult, error) {
 	e.logger.Info("Starting ReAct loop for task: %s", task)
-	startTime := time.Now()
+	startTime := e.clock.Now()
 
 	// Initialize state if empty
 	if len(state.Messages) == 0 {
@@ -99,7 +177,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Iteration started
 		e.emitEvent(&IterationStartEvent{
-			BaseEvent:  newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+			BaseEvent:  e.newBaseEvent(ctx, state.SessionID),
 			Iteration:  state.Iterations,
 			TotalIters: e.maxIterations,
 		})
@@ -109,7 +187,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Thinking
 		e.emitEvent(&ThinkingEvent{
-			BaseEvent:    newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+			BaseEvent:    e.newBaseEvent(ctx, state.SessionID),
 			Iteration:    state.Iterations,
 			MessageCount: len(state.Messages),
 		})
@@ -119,7 +197,7 @@ func (e *ReactEngine) SolveTask(
 			e.logger.Error("Think step failed: %v", err)
 			// EMIT: Error
 			e.emitEvent(&ErrorEvent{
-				BaseEvent:   newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+				BaseEvent:   e.newBaseEvent(ctx, state.SessionID),
 				Iteration:   state.Iterations,
 				Phase:       "think",
 				Error:       err,
@@ -135,7 +213,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Think complete
 		e.emitEvent(&ThinkCompleteEvent{
-			BaseEvent:     newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+			BaseEvent:     e.newBaseEvent(ctx, state.SessionID),
 			Iteration:     state.Iterations,
 			Content:       thought.Content,
 			ToolCallCount: len(thought.ToolCalls),
@@ -185,7 +263,7 @@ func (e *ReactEngine) SolveTask(
 		// EMIT: Tool calls starting
 		for _, call := range validCalls {
 			e.emitEvent(&ToolCallStartEvent{
-				BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+				BaseEvent: e.newBaseEvent(ctx, state.SessionID),
 				Iteration: state.Iterations,
 				CallID:    call.ID,
 				ToolName:  call.Name,
@@ -211,13 +289,13 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Debug("OBSERVE phase: Added observation to state")
 
 		// 4. Check context limits
-		tokenCount := services.Context.EstimateTokens(convertMessagesToPortsMessages(state.Messages))
+		tokenCount := services.Context.EstimateTokens(state.Messages)
 		state.TokenCount = tokenCount
 		e.logger.Debug("Current token count: %d", tokenCount)
 
 		// EMIT: Iteration complete
 		e.emitEvent(&IterationCompleteEvent{
-			BaseEvent:  newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+			BaseEvent:  e.newBaseEvent(ctx, state.SessionID),
 			Iteration:  state.Iterations,
 			TokensUsed: state.TokenCount,
 			ToolsRun:   len(results),
@@ -249,12 +327,12 @@ func (e *ReactEngine) SolveTask(
 
 	// EMIT: Task complete
 	e.emitEvent(&TaskCompleteEvent{
-		BaseEvent:       newBaseEventWithSession(e.getAgentLevel(ctx), state.SessionID),
+		BaseEvent:       e.newBaseEvent(ctx, state.SessionID),
 		FinalAnswer:     finalResult.Answer,
 		TotalIterations: finalResult.Iterations,
 		TotalTokens:     finalResult.TokensUsed,
 		StopReason:      finalResult.StopReason,
-		Duration:        time.Since(startTime),
+		Duration:        e.clock.Now().Sub(startTime),
 	})
 
 	return finalResult, nil
@@ -271,11 +349,15 @@ func (e *ReactEngine) think(
 	e.logger.Debug("Preparing LLM request: messages=%d, tools=%d", len(state.Messages), len(tools))
 
 	req := ports.CompletionRequest{
-		Messages: convertMessagesToPortsMessages(state.Messages),
-		Tools:    tools,
-		// TODO: need from config
-		Temperature: 0.7,
-		MaxTokens:   12000,
+		Messages:    state.Messages,
+		Tools:       tools,
+		Temperature: e.completion.temperature,
+		MaxTokens:   e.completion.maxTokens,
+		TopP:        e.completion.topP,
+	}
+
+	if len(e.completion.stopSequences) > 0 {
+		req.StopSequences = append([]string(nil), e.completion.stopSequences...)
 	}
 
 	// Call LLM
@@ -293,7 +375,7 @@ func (e *ReactEngine) think(
 	return Message{
 		Role:      "assistant",
 		Content:   resp.Content,
-		ToolCalls: convertToolCallsFromPorts(resp.ToolCalls),
+		ToolCalls: resp.ToolCalls,
 	}, nil
 }
 
@@ -315,7 +397,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 		go func(idx int, tc ToolCall) {
 			defer wg.Done()
 
-			startTime := time.Now()
+			startTime := e.clock.Now()
 
 			e.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
 			tool, err := registry.Get(tc.Name)
@@ -323,12 +405,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), sessionID),
+					BaseEvent: e.newBaseEvent(ctx, sessionID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
 					Error:     fmt.Errorf("tool not found: %s", tc.Name),
-					Duration:  time.Since(startTime),
+					Duration:  e.clock.Now().Sub(startTime),
 				})
 				results[idx] = ToolResult{
 					CallID:  tc.ID,
@@ -349,12 +431,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), sessionID),
+					BaseEvent: e.newBaseEvent(ctx, sessionID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
 					Error:     err,
-					Duration:  time.Since(startTime),
+					Duration:  e.clock.Now().Sub(startTime),
 				})
 				results[idx] = ToolResult{
 					CallID:  tc.ID,
@@ -368,12 +450,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 
 			// EMIT: Tool success
 			e.emitEvent(&ToolCallCompleteEvent{
-				BaseEvent: newBaseEventWithSession(e.getAgentLevel(ctx), sessionID),
+				BaseEvent: e.newBaseEvent(ctx, sessionID),
 				CallID:    result.CallID,
 				ToolName:  tc.Name,
 				Result:    result.Content,
 				Error:     result.Error,
-				Duration:  time.Since(startTime),
+				Duration:  e.clock.Now().Sub(startTime),
 			})
 
 			results[idx] = ToolResult{
@@ -409,11 +491,7 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParse
 	// Convert ports.ToolCall to domain.ToolCall
 	var calls []ToolCall
 	for _, p := range parsed {
-		calls = append(calls, ToolCall{
-			ID:        p.ID,
-			Name:      p.Name,
-			Arguments: p.Arguments,
-		})
+		calls = append(calls, p)
 	}
 
 	e.logger.Debug("Parsed %d tool calls from content", len(calls))
@@ -476,56 +554,4 @@ func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 	}
 
 	return strings.TrimSpace(cleaned)
-}
-
-// Helper functions
-func convertMessagesToPortsMessages(messages []Message) []ports.Message {
-	result := make([]ports.Message, len(messages))
-	for i, msg := range messages {
-		result[i] = ports.Message{
-			Role:        msg.Role,
-			Content:     msg.Content,
-			ToolCalls:   convertToolCallsToPorts(msg.ToolCalls),
-			ToolResults: convertToolResultsToPorts(msg.ToolResults),
-			Metadata:    msg.Metadata,
-		}
-	}
-	return result
-}
-
-func convertToolCallsToPorts(calls []ToolCall) []ports.ToolCall {
-	result := make([]ports.ToolCall, len(calls))
-	for i, call := range calls {
-		result[i] = ports.ToolCall{
-			ID:        call.ID,
-			Name:      call.Name,
-			Arguments: call.Arguments,
-		}
-	}
-	return result
-}
-
-func convertToolCallsFromPorts(calls []ports.ToolCall) []ToolCall {
-	result := make([]ToolCall, len(calls))
-	for i, call := range calls {
-		result[i] = ToolCall{
-			ID:        call.ID,
-			Name:      call.Name,
-			Arguments: call.Arguments,
-		}
-	}
-	return result
-}
-
-func convertToolResultsToPorts(results []ToolResult) []ports.ToolResult {
-	converted := make([]ports.ToolResult, len(results))
-	for i, r := range results {
-		converted[i] = ports.ToolResult{
-			CallID:   r.CallID,
-			Content:  r.Content,
-			Error:    r.Error,
-			Metadata: r.Metadata,
-		}
-	}
-	return converted
 }

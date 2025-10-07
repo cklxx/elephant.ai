@@ -5,19 +5,20 @@ import (
 	"sync"
 
 	"alex/internal/agent/domain"
-	"alex/internal/server/ports"
+	agentports "alex/internal/agent/ports"
+	serverports "alex/internal/server/ports"
 	"alex/internal/utils"
 )
 
-// EventBroadcaster implements domain.EventListener and broadcasts events to SSE clients
+// EventBroadcaster implements ports.EventListener and broadcasts events to SSE clients
 type EventBroadcaster struct {
 	// Map sessionID -> list of client channels
-	clients map[string][]chan domain.AgentEvent
+	clients map[string][]chan agentports.AgentEvent
 	mu      sync.RWMutex
 	logger  *utils.Logger
 
 	// Task progress tracking
-	taskStore     ports.TaskStore
+	taskStore     serverports.TaskStore
 	sessionToTask map[string]string // sessionID -> taskID mapping
 	taskMu        sync.RWMutex      // separate mutex for task tracking
 }
@@ -25,19 +26,19 @@ type EventBroadcaster struct {
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster() *EventBroadcaster {
 	return &EventBroadcaster{
-		clients:       make(map[string][]chan domain.AgentEvent),
+		clients:       make(map[string][]chan agentports.AgentEvent),
 		sessionToTask: make(map[string]string),
 		logger:        utils.NewComponentLogger("EventBroadcaster"),
 	}
 }
 
 // SetTaskStore sets the task store for progress tracking
-func (b *EventBroadcaster) SetTaskStore(store ports.TaskStore) {
+func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
 	b.taskStore = store
 }
 
-// OnEvent implements domain.EventListener - broadcasts event to all subscribed clients
-func (b *EventBroadcaster) OnEvent(event domain.AgentEvent) {
+// OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
+func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
 
 	// Update task progress before broadcasting
@@ -82,7 +83,7 @@ func (b *EventBroadcaster) getSessionIDs() []string {
 }
 
 // updateTaskProgress updates task progress based on event type
-func (b *EventBroadcaster) updateTaskProgress(event domain.AgentEvent) {
+func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 	if b.taskStore == nil {
 		return
 	}
@@ -123,7 +124,7 @@ func (b *EventBroadcaster) updateTaskProgress(event domain.AgentEvent) {
 }
 
 // broadcastToClients sends event to all clients in the list
-func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan domain.AgentEvent, event domain.AgentEvent) {
+func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan agentports.AgentEvent, event agentports.AgentEvent) {
 	b.logger.Debug("[broadcastToClients] Sending event type=%s to %d clients for session=%s", event.EventType(), len(clients), sessionID)
 
 	for i, ch := range clients {
@@ -139,13 +140,13 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan d
 }
 
 // extractSessionID extracts session ID from event
-func (b *EventBroadcaster) extractSessionID(event domain.AgentEvent) string {
+func (b *EventBroadcaster) extractSessionID(event agentports.AgentEvent) string {
 	// Events now carry session ID directly
 	return event.GetSessionID()
 }
 
 // RegisterClient registers a new client for a session
-func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan domain.AgentEvent) {
+func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.AgentEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -154,7 +155,7 @@ func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan domain.Agent
 }
 
 // UnregisterClient removes a client from the session
-func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan domain.AgentEvent) {
+func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports.AgentEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

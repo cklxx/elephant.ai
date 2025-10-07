@@ -71,7 +71,7 @@ func (m *MockAgentCoordinator) GetSession(ctx context.Context, id string) (*agen
 	return m.sessionStore.Get(ctx, id)
 }
 
-func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener any) (*agentPorts.TaskResult, error) {
+func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
 	return &agentPorts.TaskResult{
 		Answer:     "Mock answer",
 		Iterations: 3,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
 )
@@ -79,16 +80,8 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 		return fmt.Errorf("task execution failed: %w", err)
 	}
 
-	// Convert to domain.TaskResult for completion rendering
-	result := &domain.TaskResult{
-		Answer:     domainResult.Answer,
-		Iterations: domainResult.Iterations,
-		TokensUsed: domainResult.TokensUsed,
-		StopReason: domainResult.StopReason,
-	}
-
 	// Print completion summary
-	handler.printCompletion(result)
+	handler.printCompletion(domainResult)
 
 	return nil
 }
@@ -102,8 +95,8 @@ func NewStreamEventBridge(handler *StreamingOutputHandler) *StreamEventBridge {
 	return &StreamEventBridge{handler: handler}
 }
 
-// OnEvent implements domain.EventListener
-func (b *StreamEventBridge) OnEvent(event domain.AgentEvent) {
+// OnEvent implements ports.EventListener
+func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 	// Check if this is a wrapped subtask event
 	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
 		// Handle subtask-specific tracking
@@ -209,9 +202,9 @@ func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
 	}
 }
 
-func (h *StreamingOutputHandler) printCompletion(result *domain.TaskResult) {
+func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 	outCtx := h.getOutputContext()
-	rendered := h.renderer.RenderTaskComplete(outCtx, result)
+	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(result))
 	if rendered != "" {
 		fmt.Print(rendered)
 	}

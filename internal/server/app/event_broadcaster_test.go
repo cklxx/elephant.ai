@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 )
 
@@ -12,7 +13,7 @@ func TestEventBroadcaster_RegisterUnregister(t *testing.T) {
 	broadcaster := NewEventBroadcaster()
 
 	sessionID := "test-session"
-	ch := make(chan domain.AgentEvent, 10)
+	ch := make(chan ports.AgentEvent, 10)
 
 	// Register client
 	broadcaster.RegisterClient(sessionID, ch)
@@ -35,15 +36,15 @@ func TestEventBroadcaster_BroadcastEvent(t *testing.T) {
 	broadcaster := NewEventBroadcaster()
 
 	sessionID := "test-session"
-	ch1 := make(chan domain.AgentEvent, 10)
-	ch2 := make(chan domain.AgentEvent, 10)
+	ch1 := make(chan ports.AgentEvent, 10)
+	ch2 := make(chan ports.AgentEvent, 10)
 
 	// Register two clients
 	broadcaster.RegisterClient(sessionID, ch1)
 	broadcaster.RegisterClient(sessionID, ch2)
 
 	// Create and broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "Test Action", "Test Goal")
+        event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "Test Action", "Test Goal", time.Now())
 	broadcaster.OnEvent(event)
 
 	// Give some time for event to be delivered
@@ -79,15 +80,15 @@ func TestEventBroadcaster_MultipleSessionsIsolation(t *testing.T) {
 	session1 := "session-1"
 	session2 := "session-2"
 
-	ch1 := make(chan domain.AgentEvent, 10)
-	ch2 := make(chan domain.AgentEvent, 10)
+	ch1 := make(chan ports.AgentEvent, 10)
+	ch2 := make(chan ports.AgentEvent, 10)
 
 	// Register clients to different sessions
 	broadcaster.RegisterClient(session1, ch1)
 	broadcaster.RegisterClient(session2, ch2)
 
 	// Broadcast event for session1 - should only go to session1
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, session1, "Test", "Test")
+        event := domain.NewTaskAnalysisEvent(types.LevelCore, session1, "Test", "Test", time.Now())
 	broadcaster.OnEvent(event)
 
 	time.Sleep(100 * time.Millisecond)
@@ -111,13 +112,13 @@ func TestEventBroadcaster_BufferFull(t *testing.T) {
 
 	sessionID := "test-session"
 	// Create a small buffer channel
-	ch := make(chan domain.AgentEvent, 2)
+	ch := make(chan ports.AgentEvent, 2)
 
 	broadcaster.RegisterClient(sessionID, ch)
 
 	// Fill the buffer
 	for i := 0; i < 5; i++ {
-		event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "Test", "Test")
+            event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "Test", "Test", time.Now())
 		broadcaster.OnEvent(event)
 	}
 

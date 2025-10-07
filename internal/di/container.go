@@ -34,6 +34,9 @@ type Config struct {
 	BaseURL       string
 	MaxTokens     int
 	MaxIterations int
+	Temperature   float64
+	TopP          float64
+	StopSequences []string
 
 	// Storage Configuration
 	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
@@ -114,6 +117,9 @@ func BuildContainer(config Config) (*Container, error) {
 			BaseURL:       config.BaseURL,
 			MaxTokens:     config.MaxTokens,
 			MaxIterations: config.MaxIterations,
+			Temperature:   config.Temperature,
+			TopP:          config.TopP,
+			StopSequences: append([]string(nil), config.StopSequences...),
 		},
 	)
 

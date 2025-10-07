@@ -15,7 +15,7 @@ import (
 // This allows for easier testing and mocking
 type AgentExecutor interface {
 	GetSession(ctx context.Context, id string) (*ports.Session, error)
-	ExecuteTask(ctx context.Context, task string, sessionID string, listener any) (*ports.TaskResult, error)
+	ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error)
 }
 
 // Ensure AgentCoordinator implements AgentExecutor

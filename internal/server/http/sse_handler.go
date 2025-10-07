@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/server/app"
 	"alex/internal/utils"
 )
@@ -43,7 +44,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("SSE connection established for session: %s", sessionID)
 
 	// Create event channel for this client
-	clientChan := make(chan domain.AgentEvent, 100)
+	clientChan := make(chan ports.AgentEvent, 100)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -103,7 +104,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 }
 
 // serializeEvent converts domain event to JSON
-func (h *SSEHandler) serializeEvent(event domain.AgentEvent) (string, error) {
+func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 	// Create a map with common fields
 	data := map[string]interface{}{
 		"event_type":  event.EventType(),
