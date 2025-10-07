@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - User task display in event stream
 - Terminal-style event output component with color-coded events
 - Research plan approval UI integration
+- Agent runtime ports for logger/clock abstraction and a `ReactiveExecutor` contract to enable typed mocking
 
 ### Changed
 - **BREAKING**: Completely refactored deployment script (`deploy.sh`)
@@ -29,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed event display to use correct `event_type` field
 - Updated all event formatting with proper type narrowing
 - Migrated to Zustand v5 API in `useAgentStreamStore`
+- React engine now constructed via `ReactEngineConfig`, receiving injected logger/clock dependencies and emitting timestamped events
+- Agent coordinator delegates preparation to new execution/task-analysis services, reducing orchestration surface area and stabilising cost tracking
 
 ### Fixed
 - Input box disappearing after task submission

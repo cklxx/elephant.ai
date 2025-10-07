@@ -3,21 +3,17 @@ package domain
 import (
 	"time"
 
-	"alex/internal/agent/types"
+	"alex/internal/agent/ports"
 )
 
-// AgentEvent is the base interface for all agent events
-type AgentEvent interface {
-	EventType() string
-	Timestamp() time.Time
-	GetAgentLevel() types.AgentLevel
-	GetSessionID() string
-}
+// Re-export the event listener contract defined at the port layer.
+type AgentEvent = ports.AgentEvent
+type EventListener = ports.EventListener
 
 // BaseEvent provides common fields for all events
 type BaseEvent struct {
 	timestamp  time.Time
-	agentLevel types.AgentLevel
+	agentLevel ports.AgentLevel
 	sessionID  string
 }
 
@@ -25,7 +21,7 @@ func (e *BaseEvent) Timestamp() time.Time {
 	return e.timestamp
 }
 
-func (e *BaseEvent) GetAgentLevel() types.AgentLevel {
+func (e *BaseEvent) GetAgentLevel() ports.AgentLevel {
 	return e.agentLevel
 }
 
@@ -33,9 +29,9 @@ func (e *BaseEvent) GetSessionID() string {
 	return e.sessionID
 }
 
-func newBaseEventWithSession(level types.AgentLevel, sessionID string) BaseEvent {
+func newBaseEventWithSession(level ports.AgentLevel, sessionID string, ts time.Time) BaseEvent {
 	return BaseEvent{
-		timestamp:  time.Now(),
+		timestamp:  ts,
 		agentLevel: level,
 		sessionID:  sessionID,
 	}
@@ -51,9 +47,9 @@ type TaskAnalysisEvent struct {
 func (e *TaskAnalysisEvent) EventType() string { return "task_analysis" }
 
 // NewTaskAnalysisEvent creates a new task analysis event
-func NewTaskAnalysisEvent(level types.AgentLevel, sessionID, actionName, goal string) *TaskAnalysisEvent {
+func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, actionName, goal string, ts time.Time) *TaskAnalysisEvent {
 	return &TaskAnalysisEvent{
-		BaseEvent:  newBaseEventWithSession(level, sessionID),
+		BaseEvent:  newBaseEventWithSession(level, sessionID, ts),
 		ActionName: actionName,
 		Goal:       goal,
 	}
@@ -152,11 +148,6 @@ type ErrorEvent struct {
 }
 
 func (e *ErrorEvent) EventType() string { return "error" }
-
-// EventListener receives agent events
-type EventListener interface {
-	OnEvent(event AgentEvent)
-}
 
 // EventListenerFunc is a function adapter for EventListener
 type EventListenerFunc func(AgentEvent)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/agent/ports/mocks"
 )
 
@@ -23,7 +24,7 @@ func Example_basicScenario() {
 	}
 
 	// Create engine and execute task
-	engine := domain.NewReactEngine(10)
+	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: ports.NoopLogger{}, Clock: ports.SystemClock{}})
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(
@@ -58,7 +59,7 @@ func Example_multipleToolCalls() {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: ports.NoopLogger{}, Clock: ports.SystemClock{}})
 	state := &domain.TaskState{}
 
 	result, _ := engine.SolveTask(
@@ -86,7 +87,7 @@ func Example_parallelToolCalls() {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: ports.NoopLogger{}, Clock: ports.SystemClock{}})
 	state := &domain.TaskState{}
 
 	result, _ := engine.SolveTask(
@@ -114,7 +115,7 @@ func Example_errorHandling() {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: ports.NoopLogger{}, Clock: ports.SystemClock{}})
 	state := &domain.TaskState{}
 
 	result, _ := engine.SolveTask(
@@ -147,7 +148,7 @@ func TestScenarioCustomization(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: ports.NoopLogger{}, Clock: ports.SystemClock{}})
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(
@@ -180,7 +181,7 @@ func TestIteratingAllScenarios(t *testing.T) {
 				Context:      &mocks.MockContextManager{},
 			}
 
-			engine := domain.NewReactEngine(10)
+			engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: ports.NoopLogger{}, Clock: ports.SystemClock{}})
 			state := &domain.TaskState{}
 
 			result, err := engine.SolveTask(

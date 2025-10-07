@@ -598,7 +598,7 @@ See [BUSINESS_LOGIC.md](./BUSINESS_LOGIC.md) for detailed specifications of:
 - ✅ Domain logic independently testable
 
 **Success Criteria**:
-- `go list -f '{{.Imports}}' internal/agent/domain` shows no infrastructure imports
+- {% raw %}`go list -f '{{.Imports}}' internal/agent/domain`{% endraw %} shows no infrastructure imports
 - All tests pass without real LLM calls
 - Test execution time < 1 second
 

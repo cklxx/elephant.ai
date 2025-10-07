@@ -18,7 +18,7 @@ func TestReactEngine_FileReadScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "What is the API endpoint?", state, services)
@@ -51,7 +51,7 @@ func TestReactEngine_MultipleToolCallsScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Check if tests pass", state, services)
@@ -94,7 +94,7 @@ func TestReactEngine_ParallelToolCallsScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Compare config files", state, services)
@@ -127,7 +127,7 @@ func TestReactEngine_WebSearchScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "What's new in Go 1.22?", state, services)
@@ -156,7 +156,7 @@ func TestReactEngine_CodeEditScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Add error handling to utils.go", state, services)
@@ -185,7 +185,7 @@ func TestReactEngine_ToolErrorScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Read /nonexistent/file.txt", state, services)
@@ -225,7 +225,7 @@ func TestReactEngine_TodoManagementScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Add tasks and mark first as complete", state, services)
@@ -254,7 +254,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Optimize the codebase", state, services)
@@ -288,7 +288,7 @@ func TestReactEngine_GitOperationsScenario(t *testing.T) {
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(10)
+	engine := newReactEngineForTest(10)
 	state := &domain.TaskState{}
 
 	result, err := engine.SolveTask(context.Background(), "Commit changes and create PR", state, services)
@@ -320,7 +320,7 @@ func TestAllScenarios(t *testing.T) {
 				Context:      &mocks.MockContextManager{},
 			}
 
-			engine := domain.NewReactEngine(10)
+			engine := newReactEngineForTest(10)
 			state := &domain.TaskState{}
 
 			result, err := engine.SolveTask(context.Background(), scenario.Description, state, services)
@@ -354,7 +354,7 @@ func BenchmarkScenarios(b *testing.B) {
 
 	for _, scenario := range scenarios {
 		b.Run(scenario.Name, func(b *testing.B) {
-			engine := domain.NewReactEngine(10)
+			engine := newReactEngineForTest(10)
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
