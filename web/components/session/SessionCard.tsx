@@ -26,7 +26,7 @@ export function SessionCard({ session, onDelete, onFork }: SessionCardProps) {
               {formatRelativeTime(session.created_at)}
             </p>
           </div>
-          <Link href={`/sessions/${session.id}`}>
+          <Link href={{ pathname: '/sessions', query: { sessionId: session.id } }} scroll={false}>
             <Button size="sm" variant="ghost">
               <ExternalLink className="h-4 w-4" />
             </Button>
