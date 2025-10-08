@@ -4,6 +4,7 @@ import HomePage from '../page';
 import { AnyAgentEvent } from '@/lib/types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactElement } from 'react';
+import { LanguageProvider } from '@/lib/i18n';
 
 const mockEventsRef: { current: AnyAgentEvent[] } = { current: [] };
 
@@ -51,7 +52,11 @@ vi.mock('@/hooks/useSessionStore', () => ({
 describe('HomePage mobile timeline dialog', () => {
   const renderWithProviders = (ui: ReactElement) => {
     const queryClient = new QueryClient();
-    return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+    return render(
+      <LanguageProvider>
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+      </LanguageProvider>
+    );
   };
 
   beforeAll(() => {
@@ -78,7 +83,7 @@ describe('HomePage mobile timeline dialog', () => {
       {
         event_type: 'step_started',
         step_index: 0,
-        step_description: '调研现有实现',
+        step_description: 'Research existing implementations',
         timestamp: baseTimestamp,
         agent_level: 'core',
       } as AnyAgentEvent,
@@ -91,7 +96,7 @@ describe('HomePage mobile timeline dialog', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    expect(screen.getByText('执行时间线')).toBeInTheDocument();
+    expect(screen.getByText('Execution timeline')).toBeInTheDocument();
 
     const stepHeading = screen.getAllByText('Step 1')[0];
     const stepTrigger = stepHeading.closest('[role="button"]');

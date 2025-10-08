@@ -11,6 +11,8 @@ import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useI18n } from '@/lib/i18n';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +31,7 @@ function HomePageContent() {
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightedElementRef = useRef<HTMLElement | null>(null);
   const searchParams = useSearchParams();
+  const { t } = useI18n();
 
   const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
 
@@ -62,8 +65,8 @@ function HomePageContent() {
   const timelineProgressCopy = useMemo(() => {
     if (!timelineSteps.length) {
       return {
-        statusLabel: '执行时间线',
-        progressLabel: '等待执行开始',
+        statusLabel: t('timeline.label'),
+        progressLabel: t('timeline.waiting'),
       };
     }
 
@@ -71,31 +74,34 @@ function HomePageContent() {
     const statusLabel = (() => {
       const activeStep = timelineSteps.find((step) => step.status === 'active');
       if (activeStep) {
-        return `进行中：${activeStep.title}`;
+        return t('timeline.status.inProgress', { title: activeStep.title });
       }
 
       const erroredStep = [...timelineSteps]
         .reverse()
         .find((step) => step.status === 'error');
       if (erroredStep) {
-        return `需要关注：${erroredStep.title}`;
+        return t('timeline.status.attention', { title: erroredStep.title });
       }
 
       const latestComplete = [...timelineSteps]
         .reverse()
         .find((step) => step.status === 'complete');
       if (latestComplete) {
-        return `最近完成：${latestComplete.title}`;
+        return t('timeline.status.recent', { title: latestComplete.title });
       }
 
-      return '执行时间线';
+      return t('timeline.label');
     })();
 
     return {
       statusLabel,
-      progressLabel: `已完成 ${completedCount}/${timelineSteps.length}`,
+      progressLabel: t('timeline.progress', {
+        completed: completedCount,
+        total: timelineSteps.length,
+      }),
     };
-  }, [timelineSteps]);
+  }, [timelineSteps, t]);
 
   // Reset focused step when available steps change
   useEffect(() => {
@@ -172,7 +178,7 @@ function HomePageContent() {
         },
         onError: (error) => {
           console.error('[HomePage] Task execution error:', error);
-          toast.error('Task execution failed', error.message);
+          toast.error(t('console.toast.taskFailed'), error.message);
         },
       }
     );
@@ -239,7 +245,11 @@ function HomePageContent() {
   );
 
   const isSubmitting = useMockStream ? false : isPending;
-  const sessionBadge = resolvedSessionId?.slice(0, 8);
+  const sessionBadge = resolvedSessionId
+    ? resolvedSessionId.length > 8
+      ? `${resolvedSessionId.slice(0, 4)}…${resolvedSessionId.slice(-4)}`
+      : resolvedSessionId
+    : null;
 
   return (
     <Fragment>
@@ -248,13 +258,13 @@ function HomePageContent() {
         <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
           <aside className="console-panel flex h-full flex-col gap-6 p-6">
             <div className="space-y-2">
-              <p className="console-pane-title">ALEX 控制台</p>
+              <p className="console-pane-title">{t('console.title')}</p>
               <div className="space-y-1">
-                <h1 className="text-2xl font-semibold text-slate-900">Operator Dashboard</h1>
+                <h1 className="text-2xl font-semibold text-slate-900">{t('console.heading')}</h1>
                 <p className="text-sm text-slate-500">
                   {resolvedSessionId
-                    ? `Active session ${sessionBadge}`
-                    : '用中文或英文描述你的工作目标，开始新的研究会话。'}
+                    ? t('console.subtitle.active', { id: sessionBadge ?? '' })
+                    : t('console.subtitle.default')}
                 </p>
               </div>
             </div>
@@ -262,8 +272,8 @@ function HomePageContent() {
             <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-600">Connection</p>
-                  <p className="text-xs text-slate-400">实时状态</p>
+                  <p className="text-sm font-medium text-slate-600">{t('console.connection.title')}</p>
+                  <p className="text-xs text-slate-400">{t('console.connection.subtitle')}</p>
                 </div>
                 <ConnectionStatus
                   connected={isConnected}
@@ -278,26 +288,27 @@ function HomePageContent() {
                   className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-amber-700"
                   data-testid="mock-stream-indicator"
                 >
-                  Mock Stream Enabled
+                  {t('console.connection.mock')}
                 </div>
               )}
+              <LanguageSwitcher className="w-full" />
               <button
                 onClick={handleClear}
                 className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 transition hover:bg-slate-100"
               >
-                新建对话
+                {t('console.connection.newConversation')}
               </button>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="console-section-title">历史会话</p>
-                <span className="text-xs text-slate-400">自动保存最近 10 个</span>
+                <p className="console-section-title">{t('console.history.title')}</p>
+                <span className="text-xs text-slate-400">{t('console.history.subtitle')}</span>
               </div>
               <div className="space-y-2 overflow-hidden rounded-2xl border border-slate-100 bg-white">
                 {sessionHistory.length === 0 ? (
                   <div className="px-4 py-6 text-center text-sm text-slate-400">
-                    目前还没有历史会话。
+                    {t('console.history.empty')}
                   </div>
                 ) : (
                   <ul className="max-h-64 space-y-1 overflow-y-auto px-2 py-2 console-scrollbar">
@@ -317,7 +328,7 @@ function HomePageContent() {
                                 : 'text-slate-600 hover:bg-slate-50'
                             }`}
                           >
-                            <span className="font-medium">Session {prefix}</span>
+                            <span className="font-medium">{t('console.history.itemPrefix', { id: prefix })}</span>
                             <span className="text-xs text-slate-400">…{suffix}</span>
                           </button>
                         </li>
@@ -329,11 +340,11 @@ function HomePageContent() {
             </div>
 
             <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4">
-              <p className="console-section-title">快速指引</p>
+              <p className="console-section-title">{t('console.quickstart.title')}</p>
               <ul className="space-y-2 text-sm text-slate-500">
-                <li>• 代码生成、调试与测试</li>
-                <li>• 文档撰写、研究总结</li>
-                <li>• 架构分析与技术对比</li>
+                <li>{t('console.quickstart.items.code')}</li>
+                <li>{t('console.quickstart.items.docs')}</li>
+                <li>{t('console.quickstart.items.architecture')}</li>
               </ul>
             </div>
           </aside>
@@ -342,21 +353,23 @@ function HomePageContent() {
             <div className="flex flex-col gap-3 border-b border-slate-100 bg-white/80 px-8 py-6">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="console-pane-title">Live Thread</p>
+                  <p className="console-pane-title">{t('console.thread.title')}</p>
                   <h2 className="text-xl font-semibold text-slate-900">
-                    {resolvedSessionId ? `会话 ${sessionBadge}` : '新的研究对话'}
+                    {resolvedSessionId
+                      ? t('console.thread.sessionPrefix', { id: sessionBadge ?? '' })
+                      : t('console.thread.newConversation')}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <span>自动保存</span>
+                  <span>{t('console.thread.autosave')}</span>
                   <span className="h-1 w-1 rounded-full bg-slate-300" />
                   <span>{new Date().toLocaleTimeString()}</span>
                 </div>
               </div>
               <p className="text-sm text-slate-500">
                 {resolvedSessionId
-                  ? '继续你的研究或提出新的请求。ALEX 将保持上下文并延续推理。'
-                  : '描述你的目标，我们会生成执行计划并通过工具完成任务。'}
+                  ? t('console.thread.subtitle.active')
+                  : t('console.thread.subtitle.idle')}
               </p>
             </div>
 
@@ -378,7 +391,7 @@ function HomePageContent() {
                   {hasTimeline && (
                     <div className="flex items-center justify-between px-8 pt-6 lg:hidden">
                       <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        时间线概览
+                        {t('console.timeline.mobileLabel')}
                       </div>
                       <button
                         type="button"
@@ -409,12 +422,12 @@ function HomePageContent() {
                       <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
                         <div className="flex items-center gap-3 rounded-full bg-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
                           <span className="inline-flex h-2 w-2 rounded-full bg-sky-400" />
-                          等待新的任务指令
+                          {t('console.empty.badge')}
                         </div>
                         <div className="space-y-3">
-                          <p className="text-lg font-semibold text-slate-700">准备好接管你的任务</p>
+                          <p className="text-lg font-semibold text-slate-700">{t('console.empty.title')}</p>
                           <p className="text-sm text-slate-500">
-                            提交指令后，左侧将记录历史会话，右侧展示计划、工具调用与输出结果。
+                            {t('console.empty.description')}
                           </p>
                         </div>
                       </div>
@@ -437,7 +450,11 @@ function HomePageContent() {
                       onSubmit={handleTaskSubmit}
                       disabled={isSubmitting}
                       loading={isSubmitting}
-                      placeholder={resolvedSessionId ? '继续对话，输入新的需求…' : '请输入你想完成的任务或问题…'}
+                      placeholder={
+                        resolvedSessionId
+                          ? t('console.input.placeholder.active')
+                          : t('console.input.placeholder.idle')
+                      }
                     />
                   </div>
                 </div>
@@ -454,10 +471,8 @@ function HomePageContent() {
           onClose={() => setTimelineDialogOpen(false)}
         >
           <DialogHeader>
-            <DialogTitle>执行时间线</DialogTitle>
-            <DialogDescription>
-              在移动端查看研究步骤进度，点击任意步骤即可定位到对应的事件记录。
-            </DialogDescription>
+            <DialogTitle>{t('console.timeline.dialogTitle')}</DialogTitle>
+            <DialogDescription>{t('console.timeline.dialogDescription')}</DialogDescription>
           </DialogHeader>
           <div className="console-scrollbar max-h-[70vh] overflow-y-auto pr-2">
             <ResearchTimeline
@@ -473,11 +488,12 @@ function HomePageContent() {
 }
 
 export default function HomePage() {
+  const { t } = useI18n();
   return (
     <Suspense
       fallback={
         <div className="flex min-h-[calc(100vh-6rem)] items-center justify-center text-sm text-muted-foreground">
-          Loading console…
+          {t('app.loading')}
         </div>
       }
     >

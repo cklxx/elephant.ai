@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDuration } from '@/lib/utils';
 import { useState } from 'react';
+import { useTranslation } from '@/lib/i18n';
 
 export type StepStatus = 'pending' | 'active' | 'complete' | 'error';
 
@@ -45,6 +46,7 @@ export function ResearchTimeline({
 }: ResearchTimelineProps) {
   const activeStepRef = useRef<HTMLDivElement>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const t = useTranslation();
 
   // Auto-scroll to active step
   useEffect(() => {
@@ -71,10 +73,8 @@ export function ResearchTimeline({
   return (
     <Card className={cn('glass-card p-6 shadow-medium', className)}>
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Execution Timeline</h3>
-        <p className="text-sm text-gray-600 mt-1">
-          Track progress through each research step
-        </p>
+        <h3 className="text-lg font-semibold text-gray-900">{t('timeline.card.title')}</h3>
+        <p className="text-sm text-gray-600 mt-1">{t('timeline.card.subtitle')}</p>
       </div>
 
       <div className="space-y-3">
@@ -150,7 +150,11 @@ export function ResearchTimeline({
                       <button
                         onClick={() => toggleExpand(step.id)}
                         className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        aria-label={
+                          isExpanded
+                            ? t('timeline.card.collapse')
+                            : t('timeline.card.expand')
+                        }
                         onClickCapture={(event) => event.stopPropagation()}
                         onKeyDownCapture={(event) => event.stopPropagation()}
                       >
@@ -178,7 +182,7 @@ export function ResearchTimeline({
                       {step.toolsUsed && step.toolsUsed.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-gray-700 mb-1">
-                            Tools Used:
+                            {t('timeline.card.toolsUsed')}
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {step.toolsUsed.map((tool, toolIdx) => (
@@ -197,7 +201,7 @@ export function ResearchTimeline({
                       {step.tokensUsed !== undefined && (
                         <div>
                           <p className="text-xs font-semibold text-gray-700 mb-1">
-                            Tokens Used:
+                            {t('timeline.card.tokensUsed')}
                           </p>
                           <Badge variant="info">{step.tokensUsed.toLocaleString()}</Badge>
                         </div>
@@ -206,7 +210,9 @@ export function ResearchTimeline({
                       {/* Error details */}
                       {step.error && (
                         <div>
-                          <p className="text-xs font-semibold text-red-700 mb-1">Error:</p>
+                          <p className="text-xs font-semibold text-red-700 mb-1">
+                            {t('timeline.card.error')}
+                          </p>
                           <div className="bg-red-50 border border-red-200 rounded-lg p-2">
                             <pre className="text-xs text-red-900 whitespace-pre-wrap font-mono">
                               {step.error}
@@ -258,29 +264,30 @@ function StepIcon({ status }: { status: StepStatus }) {
 }
 
 function StepStatusBadge({ status }: { status: StepStatus }) {
+  const t = useTranslation();
   switch (status) {
     case 'pending':
       return (
         <Badge variant="default" className="text-xs">
-          Pending
+          {t('timeline.card.badge.pending')}
         </Badge>
       );
     case 'active':
       return (
         <Badge variant="info" className="text-xs animate-pulse-soft">
-          In Progress
+          {t('timeline.card.badge.active')}
         </Badge>
       );
     case 'complete':
       return (
         <Badge variant="success" className="text-xs">
-          Complete
+          {t('timeline.card.badge.complete')}
         </Badge>
       );
     case 'error':
       return (
         <Badge variant="error" className="text-xs">
-          Failed
+          {t('timeline.card.badge.error')}
         </Badge>
       );
   }

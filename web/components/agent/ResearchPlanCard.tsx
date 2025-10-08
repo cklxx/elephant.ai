@@ -17,6 +17,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n';
 
 export interface ResearchPlan {
   goal: string;
@@ -47,6 +48,7 @@ export function ResearchPlanCard({
   const [draftPlan, setDraftPlan] = useState<ResearchPlan | null>(null);
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const t = useTranslation();
 
   if (loading) {
     return <ResearchPlanSkeleton />;
@@ -138,11 +140,9 @@ export function ResearchPlanCard({
               <Lightbulb className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="manus-heading text-lg">
-                Research Plan
-              </h3>
+              <h3 className="manus-heading text-lg">{t('plan.title')}</h3>
               <p className="manus-caption">
-                {readonly ? 'Approved Plan' : 'Review and approve to start execution'}
+                {readonly ? t('plan.caption.readonly') : t('plan.caption.default')}
               </p>
             </div>
           </div>
@@ -150,7 +150,7 @@ export function ResearchPlanCard({
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="text-muted-foreground hover:text-foreground hover-subtle p-1 rounded-md"
-            aria-label={isExpanded ? 'Collapse plan' : 'Expand plan'}
+            aria-label={isExpanded ? t('plan.collapse') : t('plan.expand')}
           >
             {isExpanded ? (
               <ChevronUp className="h-5 w-5" />
@@ -167,7 +167,7 @@ export function ResearchPlanCard({
           <div>
             <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-              Goal:
+              {t('plan.goal.label')}
             </p>
             {isEditing && planForEditing ? (
               <textarea
@@ -179,7 +179,7 @@ export function ResearchPlanCard({
                   }))
                 }
                 className="manus-input text-sm leading-relaxed min-h-[80px]"
-                aria-label="Edit goal"
+                aria-label={t('plan.edit.goal')}
               />
             ) : (
               <div className="manus-card p-4">
@@ -192,7 +192,7 @@ export function ResearchPlanCard({
           <div>
             <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-              Planned Steps ({displayedPlan.steps.length}):
+              {t('plan.steps.label', { count: displayedPlan.steps.length })}
             </p>
             <div className="manus-card p-4 space-y-2">
               {displayedPlan.steps.map((step, idx) => (
@@ -204,42 +204,42 @@ export function ResearchPlanCard({
                     <input
                       type="text"
                       value={planForEditing.steps[idx]}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        updateDraftPlan((current) => {
-                          const updatedSteps = [...current.steps];
-                          updatedSteps[idx] = value;
-                          return { ...current, steps: updatedSteps };
-                        });
-                      }}
-                      className="flex-1 manus-input px-3 py-1.5 text-sm"
-                      aria-label={`Edit step ${idx + 1}`}
-                    />
-                  ) : (
-                    <p className="flex-1 manus-body text-sm">{step}</p>
-                  )}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      updateDraftPlan((current) => {
+                        const updatedSteps = [...current.steps];
+                        updatedSteps[idx] = value;
+                        return { ...current, steps: updatedSteps };
+                      });
+                    }}
+                    className="flex-1 manus-input px-3 py-1.5 text-sm"
+                    aria-label={t('plan.edit.stepLabel', { index: idx + 1 })}
+                  />
+                ) : (
+                  <p className="flex-1 manus-body text-sm">{step}</p>
+                )}
 
-                  {isEditing && displayedPlan.steps.length > 1 && (
-                    <div className="flex flex-col gap-1">
-                      <button
-                        type="button"
-                        onClick={() => moveStep(idx, idx - 1)}
-                        className="rounded-md border border-border/60 bg-background/60 p-1 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
-                        aria-label={`Move step ${idx + 1} up`}
-                        disabled={idx === 0}
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveStep(idx, idx + 1)}
-                        className="rounded-md border border-border/60 bg-background/60 p-1 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
-                        aria-label={`Move step ${idx + 1} down`}
-                        disabled={idx === displayedPlan.steps.length - 1}
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                {isEditing && displayedPlan.steps.length > 1 && (
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => moveStep(idx, idx - 1)}
+                      className="rounded-md border border-border/60 bg-background/60 p-1 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                      aria-label={t('plan.move.up', { index: idx + 1 })}
+                      disabled={idx === 0}
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveStep(idx, idx + 1)}
+                      className="rounded-md border border-border/60 bg-background/60 p-1 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                      aria-label={t('plan.move.down', { index: idx + 1 })}
+                      disabled={idx === displayedPlan.steps.length - 1}
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   )}
                 </div>
               ))}
@@ -249,11 +249,11 @@ export function ResearchPlanCard({
           {/* Metadata Section */}
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="info" className="flex items-center gap-1">
-              <span className="text-xs">Iterations:</span>
+              <span className="text-xs">{t('plan.iterations')}</span>
               <span className="font-semibold">{displayedPlan.estimated_iterations}</span>
             </Badge>
             <Badge variant="default" className="flex items-center gap-1">
-              <span className="text-xs">Tools:</span>
+              <span className="text-xs">{t('plan.tools')}</span>
               <span className="font-semibold">{displayedPlan.estimated_tools.length}</span>
             </Badge>
             <div className="flex items-center gap-1 flex-wrap">
@@ -267,7 +267,7 @@ export function ResearchPlanCard({
               ))}
               {displayedPlan.estimated_tools.length > 5 && (
                 <span className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded border border-gray-200">
-                  +{displayedPlan.estimated_tools.length - 5} more
+                  {t('plan.tools.more', { count: displayedPlan.estimated_tools.length - 5 })}
                 </span>
               )}
             </div>
@@ -284,7 +284,7 @@ export function ResearchPlanCard({
                     disabled={!canSave}
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    Save Changes
+                    {t('plan.actions.saveChanges')}
                   </Button>
                   <Button
                     onClick={handleCancelEdit}
@@ -292,7 +292,7 @@ export function ResearchPlanCard({
                     className="flex-1 manus-button-secondary"
                   >
                     <X className="h-4 w-4 mr-2" />
-                    Cancel
+                    {t('plan.actions.cancel')}
                   </Button>
                 </div>
               ) : (
@@ -303,7 +303,7 @@ export function ResearchPlanCard({
                     disabled={loading}
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    Approve & Start
+                    {t('plan.actions.approve')}
                   </Button>
                   <Button
                     onClick={handleStartEditing}
@@ -311,7 +311,7 @@ export function ResearchPlanCard({
                     className="flex-1 manus-button-secondary"
                   >
                     <Edit3 className="h-4 w-4 mr-2" />
-                    Modify Plan
+                    {t('plan.actions.modify')}
                   </Button>
                   <Button
                     onClick={() => {
@@ -322,7 +322,7 @@ export function ResearchPlanCard({
                     className="flex-1 border-destructive/40 text-destructive hover:border-destructive hover:text-destructive"
                   >
                     <Ban className="h-4 w-4 mr-2" />
-                    Reject Plan
+                    {t('plan.actions.reject')}
                   </Button>
                 </div>
               )}
@@ -330,12 +330,14 @@ export function ResearchPlanCard({
               {isRejecting && (
                 <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-destructive">Rejection Reason</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
+                      {t('plan.reject.reasonLabel')}
+                    </p>
                     <textarea
                       value={rejectReason}
                       onChange={(event) => setRejectReason(event.target.value)}
                       className="manus-input min-h-[80px] text-sm"
-                      placeholder="Why is this plan not ready to execute?"
+                      placeholder={t('plan.reject.placeholder')}
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -345,7 +347,7 @@ export function ResearchPlanCard({
                       disabled={!rejectReason.trim()}
                     >
                       <Ban className="h-4 w-4 mr-2" />
-                      Confirm Rejection
+                      {t('plan.reject.confirm')}
                     </Button>
                     <Button
                       onClick={handleRejectCancel}
@@ -353,7 +355,7 @@ export function ResearchPlanCard({
                       className="flex-1"
                     >
                       <X className="h-4 w-4 mr-2" />
-                      Cancel
+                      {t('plan.reject.cancel')}
                     </Button>
                   </div>
                 </div>

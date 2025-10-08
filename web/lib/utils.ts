@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function isBrowser(): boolean {
+  return typeof window !== 'undefined';
+}
+
 // Format duration in milliseconds to human readable string
 export function formatDuration(ms: number): string {
   if (ms < 1000) {

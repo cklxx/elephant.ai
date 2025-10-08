@@ -7,6 +7,7 @@ import { formatDuration } from '@/lib/utils';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 interface ToolOutputCardProps {
   toolName: string;
@@ -31,6 +32,7 @@ export function ToolOutputCard({
   const hasParameters = Boolean(parameters && Object.keys(parameters).length > 0);
   const hasError = Boolean(error && error.trim().length > 0);
   const [isExpanded, setIsExpanded] = useState(() => Boolean(error) || !hasResult);
+  const t = useTranslation();
 
   const language = useMemo(
     () => detectLanguage(toolName, parameters, result),
@@ -73,76 +75,83 @@ export function ToolOutputCard({
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>{formattedTimestamp}</span>
-              {typeof duration === 'number' && duration >= 0 && (
-                <Badge variant="info" className="font-mono text-[11px]">
-                  {formatDuration(duration)}
-                </Badge>
-              )}
-              {callId && (
-                <span className="font-mono text-muted-foreground/70">#{callId}</span>
-              )}
-            </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span>{formattedTimestamp}</span>
+            {typeof duration === 'number' && duration >= 0 && (
+              <Badge variant="info" className="font-mono text-[11px]">
+                {formatDuration(duration)}
+              </Badge>
+            )}
+            {callId && (
+              <span className="font-mono text-muted-foreground/70">#{callId}</span>
+            )}
           </div>
-          <Badge variant={error ? 'error' : 'success'} className="shrink-0">
-            {error ? 'Failed' : 'Completed'}
-          </Badge>
         </div>
-        {previewText && (
-          <p
-            className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-              error ? 'text-red-600' : 'text-muted-foreground'
-            }`}
+        <Badge variant={error ? 'error' : 'success'} className="shrink-0">
+          {error ? t('tool.status.failed') : t('tool.status.completed')}
+        </Badge>
+      </div>
+      {previewText && (
+        <p
+          className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+            error ? 'text-red-600' : 'text-muted-foreground'
+          }`}
+        >
+          {previewText}
+        </p>
+      )}
+    </CardHeader>
+
+    {(hasResult || hasParameters || hasError) && (
+      <div className="border-t border-border/60 bg-muted/40">
+        {shouldShowToggle && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2 px-5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
           >
-            {previewText}
-          </p>
+            <span>
+                {isExpanded ? t('tool.toggle.collapse') : t('tool.toggle.expand')}
+                {hasResult &&
+                  t('tool.toggle.length', { count: resultLength.toLocaleString() })}
+            </span>
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
         )}
-      </CardHeader>
 
-      {(hasResult || hasParameters || hasError) && (
-        <div className="border-t border-border/60 bg-muted/40">
-          {shouldShowToggle && (
-            <button
-              type="button"
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="flex w-full items-center justify-between gap-2 px-5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
-            >
-              <span>
-                {isExpanded ? '收起输出' : '展开输出'}
-                {hasResult && ` · ${resultLength.toLocaleString()} 字符`}
-              </span>
-              {isExpanded ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </button>
-          )}
-
-          {(isExpanded || !shouldShowToggle) && (
-            <CardContent className="space-y-4 px-5 pb-5 pt-4">
-              {hasParameters && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">参数</p>
+        {(isExpanded || !shouldShowToggle) && (
+          <CardContent className="space-y-4 px-5 pb-5 pt-4">
+            {hasParameters && (
+              <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('tool.section.parameters')}
+                  </p>
                   <pre className="manus-card bg-background p-3 text-xs font-mono overflow-x-auto">
                     {JSON.stringify(parameters, null, 2)}
                   </pre>
-                </div>
-              )}
+              </div>
+            )}
 
-              {hasError && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-destructive">错误</p>
+            {hasError && (
+              <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
+                    {t('tool.section.error')}
+                  </p>
                   <pre className="manus-card bg-destructive/10 border border-destructive/30 p-3 text-xs font-mono text-destructive overflow-x-auto">
                     {error}
                   </pre>
-                </div>
-              )}
+              </div>
+            )}
 
-              {hasResult && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">输出</p>
+            {hasResult && (
+              <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('tool.section.output')}
+                  </p>
                   <SyntaxHighlighter
                     language={language}
                     style={vscDarkPlus}
