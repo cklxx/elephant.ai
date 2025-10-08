@@ -255,57 +255,76 @@ function HomePageContent() {
     <Fragment>
       <div className="flex flex-1">
         <div className="console-shell">
-        <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
-          <aside className="console-panel flex h-full flex-col gap-6 p-6">
-            <div className="space-y-2">
-              <p className="console-pane-title">{t('console.title')}</p>
-              <div className="space-y-1">
-                <h1 className="text-2xl font-semibold text-slate-900">{t('console.heading')}</h1>
-                <p className="text-sm text-slate-500">
-                  {resolvedSessionId
-                    ? t('console.subtitle.active', { id: sessionBadge ?? '' })
-                    : t('console.subtitle.default')}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-              <div className="flex items-center justify-between">
+          <header className="console-panel flex flex-col gap-4 px-6 py-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="space-y-2">
+                <p className="console-pane-title">{t('console.title')}</p>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-600">{t('console.connection.title')}</p>
-                  <p className="text-xs text-slate-400">{t('console.connection.subtitle')}</p>
+                  <h1 className="text-3xl font-semibold text-slate-900">{t('console.heading')}</h1>
+                  <p className="text-sm text-slate-500">
+                    {resolvedSessionId
+                      ? t('console.subtitle.active', { id: sessionBadge ?? '' })
+                      : t('console.subtitle.default')}
+                  </p>
                 </div>
-                <ConnectionStatus
-                  connected={isConnected}
-                  reconnecting={isReconnecting}
-                  reconnectAttempts={reconnectAttempts}
-                  error={error}
-                  onReconnect={reconnect}
-                />
               </div>
-              {useMockStream && (
-                <div
-                  className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-amber-700"
-                  data-testid="mock-stream-indicator"
-                >
-                  {t('console.connection.mock')}
-                </div>
-              )}
-              <LanguageSwitcher className="w-full" />
-              <button
-                onClick={handleClear}
-                className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 transition hover:bg-slate-100"
-              >
-                {t('console.connection.newConversation')}
-              </button>
+              <LanguageSwitcher variant="toolbar" />
             </div>
+          </header>
+          <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
+            <aside className="console-panel flex h-full flex-col gap-6 p-6">
+              <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-5 shadow-inner">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-slate-700">{t('console.settings.title')}</p>
+                  <p className="text-xs text-slate-400">{t('console.settings.subtitle')}</p>
+                </div>
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t('console.connection.title')}
+                    </p>
+                    <p className="text-xs text-slate-400">{t('console.connection.subtitle')}</p>
+                  </div>
+                  <ConnectionStatus
+                    connected={isConnected}
+                    reconnecting={isReconnecting}
+                    reconnectAttempts={reconnectAttempts}
+                    error={error}
+                    onReconnect={reconnect}
+                  />
+                  {useMockStream && (
+                    <div
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-amber-700"
+                      data-testid="mock-stream-indicator"
+                    >
+                      {t('console.connection.mock')}
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-semibold uppercase tracking-wide">
+                      {t('console.settings.sessionLabel')}
+                    </span>
+                    <span className="font-medium text-slate-600">
+                      {resolvedSessionId ? sessionBadge : t('console.settings.sessionEmpty')}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleClear}
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
+                  >
+                    {t('console.connection.newConversation')}
+                  </button>
+                </div>
+              </section>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="console-section-title">{t('console.history.title')}</p>
-                <span className="text-xs text-slate-400">{t('console.history.subtitle')}</span>
-              </div>
-              <div className="space-y-2 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="console-section-title">{t('console.history.title')}</p>
+                  <span className="text-xs text-slate-400">{t('console.history.subtitle')}</span>
+                </div>
+                <div className="space-y-2 overflow-hidden rounded-2xl border border-slate-100 bg-white">
                 {sessionHistory.length === 0 ? (
                   <div className="px-4 py-6 text-center text-sm text-slate-400">
                     {t('console.history.empty')}
@@ -339,15 +358,15 @@ function HomePageContent() {
               </div>
             </div>
 
-            <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4">
-              <p className="console-section-title">{t('console.quickstart.title')}</p>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li>{t('console.quickstart.items.code')}</li>
-                <li>{t('console.quickstart.items.docs')}</li>
-                <li>{t('console.quickstart.items.architecture')}</li>
-              </ul>
-            </div>
-          </aside>
+              <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4">
+                <p className="console-section-title">{t('console.quickstart.title')}</p>
+                <ul className="space-y-2 text-sm text-slate-500">
+                  <li>{t('console.quickstart.items.code')}</li>
+                  <li>{t('console.quickstart.items.docs')}</li>
+                  <li>{t('console.quickstart.items.architecture')}</li>
+                </ul>
+              </div>
+            </aside>
 
           <section className="console-panel flex h-full flex-col overflow-hidden">
             <div className="flex flex-col gap-3 border-b border-slate-100 bg-white/80 px-8 py-6">
