@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, ReactNode, useCallback, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AgentEvent, AnyAgentEvent, ToolCallCompleteEvent } from '@/lib/types';
 import { ResearchPlanCard } from './ResearchPlanCard';
@@ -299,7 +299,7 @@ export function TerminalOutput({
       </div>
 
       {/* Event stream - terminal style */}
-      <div className="space-y-3" data-testid="event-list">
+      <div className="space-y-2.5" data-testid="event-list">
         {filteredEvents.map((event, idx) => (
           <EventLine key={`${event.event_type}-${idx}`} event={event} />
         ))}
@@ -342,8 +342,8 @@ function EventLine({ event }: { event: DisplayEvent }) {
   return (
     <article
       className={cn(
-        'relative overflow-hidden rounded-2xl border border-slate-100 px-5 py-4 shadow-sm transition-colors',
-        'bg-white/90 text-slate-700',
+        'group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-slate-100/80 bg-white/80 px-4 py-3 shadow-sm transition-colors sm:px-5',
+        'text-slate-700',
         meta.card,
         presentation.status ? STATUS_VARIANTS[presentation.status] : null,
         anchorId && 'scroll-mt-28 timeline-anchor-target'
@@ -354,43 +354,43 @@ function EventLine({ event }: { event: DisplayEvent }) {
       id={anchorId ? `event-${anchorId}` : undefined}
       tabIndex={anchorId ? -1 : undefined}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              'mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-sm text-sky-600',
-              meta.iconWrapper
-            )}
-          >
-            <meta.icon className="h-4 w-4" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className={cn('text-sm font-semibold tracking-tight text-slate-700', meta.headline)}>{presentation.headline}</p>
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                  meta.pill
-                )}
-              >
-                {meta.label}
-              </span>
-              {presentation.status && (
-                <StatusBadge status={presentation.status} />
-              )}
-            </div>
-            {presentation.subheading && (
-              <p className="text-[11px] text-slate-400">{presentation.subheading}</p>
-            )}
-          </div>
+      <div className="flex w-full items-start gap-3">
+        <div
+          className={cn(
+            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm text-sky-600',
+            meta.iconWrapper
+          )}
+        >
+          <meta.icon className="h-4 w-4" />
         </div>
-        <time className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className={cn('text-sm font-semibold leading-tight text-slate-700', meta.headline)}>
+              {presentation.headline}
+            </p>
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em]',
+                meta.pill
+              )}
+            >
+              {meta.label}
+            </span>
+            {presentation.status && <StatusBadge status={presentation.status} />}
+          </div>
+          {presentation.subheading && (
+            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">
+              {presentation.subheading}
+            </p>
+          )}
+        </div>
+        <time className="ml-auto whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.35em] text-slate-300">
           {timestamp}
         </time>
       </div>
 
       {presentation.summary && (
-        <div className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">
+        <div className="min-w-0 text-xs leading-snug text-slate-500 [&_strong]:text-slate-700 [&_strong]:font-semibold">
           {presentation.summary}
         </div>
       )}
@@ -566,7 +566,7 @@ function describeEvent(event: DisplayEvent): EventPresentation {
         summary: truncateText(event.content, 220),
         supplementary: (
           <ContentBlock title="Model Response">
-            <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
               {event.content}
             </pre>
           </ContentBlock>
@@ -589,7 +589,7 @@ function describeEvent(event: DisplayEvent): EventPresentation {
           summary: truncateText(event.content.trim(), 240),
           supplementary: (
             <ContentBlock title="Live Output" dataTestId={`tool-call-stream-${event.call_id}`}>
-              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+              <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
                 {event.content.trim()}
               </pre>
             </ContentBlock>
@@ -628,8 +628,8 @@ function describeEvent(event: DisplayEvent): EventPresentation {
         status: 'success',
         summary: truncateText(event.final_answer, 240),
         supplementary: (
-          <ContentBlock title="Final Answer">
-            <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+          <ContentBlock title="Final Answer" scrollable={false}>
+            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
               {event.final_answer}
             </pre>
           </ContentBlock>
@@ -679,7 +679,7 @@ function describeEvent(event: DisplayEvent): EventPresentation {
         supplementary:
           event.html_preview ? (
             <ContentBlock title="HTML Preview">
-              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+              <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
                 {event.html_preview}
               </pre>
             </ContentBlock>
@@ -699,14 +699,17 @@ function EventMetadata({ event }: { event: DisplayEvent }) {
   if (!entries.length) return null;
 
   return (
-    <dl className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-muted-foreground/80 sm:grid-cols-2">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {entries.map(({ label, value }) => (
-        <Fragment key={`${event.timestamp}-${label}`}>
-          <dt className="font-medium uppercase tracking-wide">{label}</dt>
-          <dd className="text-foreground/80 dark:text-foreground/90">{value}</dd>
-        </Fragment>
+        <span
+          key={`${event.timestamp}-${label}`}
+          className="inline-flex items-center gap-1 rounded-full bg-slate-100/80 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.25em] text-slate-400"
+        >
+          <span>{label}</span>
+          <span className="text-slate-600 normal-case tracking-normal">{value}</span>
+        </span>
       ))}
-    </dl>
+    </div>
   );
 }
 
@@ -763,7 +766,7 @@ function ToolArguments({ args, callId }: { args?: Record<string, any> | string; 
       tone="emerald"
       dataTestId={`tool-call-arguments-${callId}`}
     >
-      <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-200">
+      <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-emerald-700 dark:text-emerald-200">
         {formatted}
       </pre>
     </ContentBlock>
@@ -799,7 +802,7 @@ function ToolResult({
       tone="emerald"
       dataTestId={`tool-call-result-${callId}`}
     >
-      <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-200">
+      <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-emerald-700 dark:text-emerald-200">
         {formatted}
       </pre>
     </ContentBlock>
@@ -811,11 +814,13 @@ function ContentBlock({
   children,
   tone = 'slate',
   dataTestId,
+  scrollable = true,
 }: {
   title: string;
   children: ReactNode;
   tone?: 'emerald' | 'slate' | 'destructive';
   dataTestId?: string;
+  scrollable?: boolean;
 }) {
   const toneClasses = {
     emerald:
@@ -829,13 +834,16 @@ function ContentBlock({
   return (
     <div
       className={cn(
-        'mt-3 rounded-md border px-3 py-2 text-xs shadow-inner transition-colors',
-        toneClasses[tone]
+        'mt-2 rounded-xl border px-3 py-2 text-[11px] shadow-inner transition-colors sm:px-4',
+        toneClasses[tone],
+        scrollable && 'console-scrollbar max-h-36 overflow-y-auto pr-1'
       )}
       data-testid={dataTestId}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{title}</p>
-      <div className="mt-1.5">{children}</div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500/80">{title}</p>
+      <div className="mt-1.5 space-y-1 text-xs leading-snug text-slate-600">
+        {children}
+      </div>
     </div>
   );
 }
@@ -869,7 +877,7 @@ function StatusBadge({ status }: { status: EventStatus }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em]',
         meta.className
       )}
     >

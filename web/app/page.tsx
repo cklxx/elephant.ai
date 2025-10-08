@@ -414,7 +414,7 @@ function HomePageContent() {
   return (
     <div className="flex flex-1">
       <div className="console-shell">
-          <header className="console-panel flex flex-col gap-4 px-6 py-5">
+          <header className="console-panel flex flex-col gap-4 px-5 py-5 sm:px-6 lg:px-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-3">
                 <span className="console-quiet-chip tracking-[0.35em] text-slate-500">
@@ -429,8 +429,8 @@ function HomePageContent() {
               <LanguageSwitcher variant="toolbar" showLabel={false} />
             </div>
           </header>
-          <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
-            <aside className="console-panel flex h-full flex-col gap-6 p-6">
+          <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(240px,320px),minmax(0,1fr)] xl:grid-cols-[minmax(280px,360px),minmax(0,1fr)]">
+            <aside className="console-panel flex h-full flex-col gap-6 p-5 sm:p-6">
               <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-5 shadow-inner">
                 <span className="console-quiet-chip text-slate-500">{t('console.settings.title')}</span>
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -550,7 +550,7 @@ function HomePageContent() {
             <div className="flex min-h-[420px] flex-1 flex-col">
               <div className="flex flex-1 flex-col gap-6 lg:flex-row">
                 {hasTimeline && (
-                  <aside className="hidden w-72 flex-shrink-0 lg:block">
+                  <aside className="hidden w-[min(17rem,28vw)] flex-shrink-0 lg:block">
                     <div className="console-scrollbar sticky top-24 max-h-[calc(100vh-14rem)] overflow-y-auto pr-2">
                       <ResearchTimeline
                         steps={timelineSteps}
@@ -563,7 +563,7 @@ function HomePageContent() {
 
                 <div className="flex min-w-0 flex-1 flex-col">
                   {hasTimeline && (
-                    <div className="flex items-center justify-between px-8 pt-6 lg:hidden">
+                    <div className="flex items-center justify-between px-5 pt-6 sm:px-6 lg:px-8 lg:hidden">
                       <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         {t('console.timeline.mobileLabel')}
                       </div>
@@ -590,7 +590,7 @@ function HomePageContent() {
                   )}
                   <div
                     ref={outputRef}
-                    className="console-scrollbar flex-1 overflow-y-auto px-8 py-8"
+                    className="console-scrollbar flex-1 overflow-y-auto px-5 py-6 sm:px-6 sm:py-8 lg:px-8"
                   >
                     {events.length === 0 ? (
                       <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
@@ -619,7 +619,7 @@ function HomePageContent() {
                     )}
                   </div>
 
-                  <div className="border-t border-slate-100 bg-slate-50/70 px-8 py-6">
+                  <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-5 sm:px-6 sm:py-6 lg:px-8">
                     <TaskInput
                       onSubmit={handleTaskSubmit}
                       disabled={isSubmitting}
