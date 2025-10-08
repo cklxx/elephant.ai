@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 const STORAGE_KEY = 'alex-session-storage';
 
-test.describe('Manus-inspired console layout', () => {
+test.describe('ALEX console layout', () => {
   test('renders console shell with empty state', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByText('Manus Console')).toBeVisible();
+    await expect(page.getByText('ALEX 控制台')).toBeVisible();
     await expect(page.getByText('Operator Dashboard')).toBeVisible();
     await expect(page.getByText('历史会话', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '新建对话' })).toBeVisible();

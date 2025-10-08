@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /**
- * Manus Visual Language - Global Styles
+ * ALEX Visual Language - Global Styles
  *
  * Design Philosophy:
  * - Low-saturation grayscale foundation
@@ -32,7 +32,7 @@
     --card: 0 0% 100%;
     --card-foreground: 213 19% 18%;
 
-    /* Primary accent (Manus-inspired azure) */
+    /* Primary accent */
     --primary: 199 89% 48%;
     --primary-foreground: 199 100% 97%;
 
@@ -439,7 +439,7 @@
 /**
  * Loading Skeleton
  * - Subtle pulse, no shimmer effects
- * - Maintains Manus grayscale palette
+ * - Maintains the extended grayscale palette
  */
 .skeleton {
   @apply animate-pulse bg-muted rounded;
@@ -456,7 +456,7 @@
  * Deprecated classes:
  * - glass, glass-dark, glass-card -> Use manus-card instead
  * - gradient-* -> Use CSS variables (--primary, --foreground, etc.)
- * - shadow-* -> Removed (Manus uses no shadows)
+ * - shadow-* -> Removed (console uses no shadows)
  * - hover-lift, hover-glow -> Use hover-subtle instead
  * - card-interactive -> Use manus-card-interactive instead
  */

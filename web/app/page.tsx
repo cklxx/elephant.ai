@@ -248,7 +248,7 @@ function HomePageContent() {
         <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
           <aside className="console-panel flex h-full flex-col gap-6 p-6">
             <div className="space-y-2">
-              <p className="console-pane-title">Manus Console</p>
+              <p className="console-pane-title">ALEX 控制台</p>
               <div className="space-y-1">
                 <h1 className="text-2xl font-semibold text-slate-900">Operator Dashboard</h1>
                 <p className="text-sm text-slate-500">
@@ -344,7 +344,7 @@ function HomePageContent() {
                 <div>
                   <p className="console-pane-title">Live Thread</p>
                   <h2 className="text-xl font-semibold text-slate-900">
-                    {resolvedSessionId ? `会话 ${sessionBadge}` : '新的 Manus 对话'}
+                    {resolvedSessionId ? `会话 ${sessionBadge}` : '新的研究对话'}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -477,7 +477,7 @@ export default function HomePage() {
     <Suspense
       fallback={
         <div className="flex min-h-[calc(100vh-6rem)] items-center justify-center text-sm text-muted-foreground">
-          Loading Manus console…
+          Loading console…
         </div>
       }
     >

@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  title: "ALEX - Manus-style Research Console",
-  description: "Reimagined Manus-inspired operator console for the ALEX agent.",
+  title: "ALEX Research Console",
+  description: "Streamlined operator console for the ALEX agent.",
 };
 
 export default function RootLayout({

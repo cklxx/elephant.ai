@@ -1,4 +1,4 @@
-// Plan approval hook for Manus-style plan-first workflow
+// Plan approval hook for the plan-first workflow
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
