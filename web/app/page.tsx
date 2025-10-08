@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
@@ -11,11 +11,20 @@ import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Activity, ChevronRight } from 'lucide-react';
 
 function HomePageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
+  const [isTimelineDialogOpen, setTimelineDialogOpen] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightedElementRef = useRef<HTMLElement | null>(null);
@@ -50,6 +59,44 @@ function HomePageContent() {
   const timelineSteps = useTimelineSteps(events);
   const hasTimeline = timelineSteps.length > 0;
 
+  const timelineProgressCopy = useMemo(() => {
+    if (!timelineSteps.length) {
+      return {
+        statusLabel: '执行时间线',
+        progressLabel: '等待执行开始',
+      };
+    }
+
+    const completedCount = timelineSteps.filter((step) => step.status === 'complete').length;
+    const statusLabel = (() => {
+      const activeStep = timelineSteps.find((step) => step.status === 'active');
+      if (activeStep) {
+        return `进行中：${activeStep.title}`;
+      }
+
+      const erroredStep = [...timelineSteps]
+        .reverse()
+        .find((step) => step.status === 'error');
+      if (erroredStep) {
+        return `需要关注：${erroredStep.title}`;
+      }
+
+      const latestComplete = [...timelineSteps]
+        .reverse()
+        .find((step) => step.status === 'complete');
+      if (latestComplete) {
+        return `最近完成：${latestComplete.title}`;
+      }
+
+      return '执行时间线';
+    })();
+
+    return {
+      statusLabel,
+      progressLabel: `已完成 ${completedCount}/${timelineSteps.length}`,
+    };
+  }, [timelineSteps]);
+
   // Reset focused step when available steps change
   useEffect(() => {
     if (!focusedStepId) {
@@ -65,6 +112,12 @@ function HomePageContent() {
       setFocusedStepId(null);
     }
   }, [timelineSteps, focusedStepId]);
+
+  useEffect(() => {
+    if (!hasTimeline) {
+      setTimelineDialogOpen(false);
+    }
+  }, [hasTimeline]);
 
   useEffect(() => {
     return () => {
@@ -179,16 +232,19 @@ function HomePageContent() {
         highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
         highlightedElementRef.current = null;
       }, 1800);
+
+      setTimelineDialogOpen(false);
     },
-    []
+    [setTimelineDialogOpen]
   );
 
   const isSubmitting = useMockStream ? false : isPending;
   const sessionBadge = resolvedSessionId?.slice(0, 8);
 
   return (
-    <div className="flex flex-1">
-      <div className="console-shell">
+    <Fragment>
+      <div className="flex flex-1">
+        <div className="console-shell">
         <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
           <aside className="console-panel flex h-full flex-col gap-6 p-6">
             <div className="space-y-2">
@@ -319,6 +375,32 @@ function HomePageContent() {
                 )}
 
                 <div className="flex min-w-0 flex-1 flex-col">
+                  {hasTimeline && (
+                    <div className="flex items-center justify-between px-8 pt-6 lg:hidden">
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        时间线概览
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTimelineDialogOpen(true)}
+                        className="group inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-left shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
+                        aria-haspopup="dialog"
+                        aria-expanded={isTimelineDialogOpen}
+                        data-testid="mobile-timeline-trigger"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-sky-500 transition group-hover:scale-105" />
+                          <span className="text-sm font-semibold text-slate-700">
+                            {timelineProgressCopy.statusLabel}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-2 text-xs text-slate-500">
+                          {timelineProgressCopy.progressLabel}
+                          <ChevronRight className="h-3.5 w-3.5 text-slate-400 transition group-hover:translate-x-0.5" />
+                        </span>
+                      </button>
+                    </div>
+                  )}
                   <div
                     ref={outputRef}
                     className="console-scrollbar flex-1 overflow-y-auto px-8 py-8"
@@ -364,7 +446,29 @@ function HomePageContent() {
           </section>
         </div>
       </div>
-    </div>
+      </div>
+
+      <Dialog open={isTimelineDialogOpen} onOpenChange={setTimelineDialogOpen}>
+        <DialogContent
+          className="max-w-2xl"
+          onClose={() => setTimelineDialogOpen(false)}
+        >
+          <DialogHeader>
+            <DialogTitle>执行时间线</DialogTitle>
+            <DialogDescription>
+              在移动端查看研究步骤进度，点击任意步骤即可定位到对应的事件记录。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="console-scrollbar max-h-[70vh] overflow-y-auto pr-2">
+            <ResearchTimeline
+              steps={timelineSteps}
+              focusedStepId={focusedStepId}
+              onStepSelect={handleTimelineStepSelect}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Fragment>
   );
 }
 

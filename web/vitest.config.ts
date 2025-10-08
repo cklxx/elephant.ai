@@ -13,6 +13,8 @@ export default defineConfig({
       'hooks/**/__tests__/**/*.test.ts',
       'hooks/**/__tests__/**/*.test.tsx',
       'components/**/__tests__/**/*.test.tsx',
+      'app/**/__tests__/**/*.test.ts',
+      'app/**/__tests__/**/*.test.tsx',
       'lib/**/*.test.ts',
       'tests/**/*.test.ts',
     ],
