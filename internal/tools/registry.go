@@ -22,13 +22,17 @@ type filteredRegistry struct {
 	exclude map[string]bool
 }
 
-func NewRegistry() *Registry {
+type Config struct {
+	TavilyAPIKey string
+}
+
+func NewRegistry(config Config) *Registry {
 	r := &Registry{
 		static:  make(map[string]ports.ToolExecutor),
 		dynamic: make(map[string]ports.ToolExecutor),
 		mcp:     make(map[string]ports.ToolExecutor),
 	}
-	r.registerBuiltins()
+	r.registerBuiltins(config)
 	return r
 }
 
@@ -136,7 +140,7 @@ func (r *Registry) Unregister(name string) error {
 	return nil
 }
 
-func (r *Registry) registerBuiltins() {
+func (r *Registry) registerBuiltins(config Config) {
 	// File operations
 	r.static["file_read"] = builtin.NewFileRead()
 	r.static["file_write"] = builtin.NewFileWrite()
@@ -158,7 +162,7 @@ func (r *Registry) registerBuiltins() {
 	r.static["think"] = builtin.NewThink()
 
 	// Web tools
-	r.static["web_search"] = builtin.NewWebSearch()
+	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
 	r.static["web_fetch"] = builtin.NewWebFetch()
 
 	// Git tools (without LLM - will be registered separately if needed)

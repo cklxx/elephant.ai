@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/output"
+	"alex/internal/tools/builtin"
 
 	"golang.org/x/term"
 )
@@ -40,7 +41,7 @@ func NewNativeChatUI(container *Container) *NativeChatUI {
 	coreOutCtx := &types.OutputContext{
 		Level:   types.LevelCore,
 		AgentID: "core",
-		Verbose: isVerbose(),
+		Verbose: container.Runtime.Verbose,
 	}
 	ctx = types.WithOutputContext(ctx, coreOutCtx)
 
@@ -290,17 +291,27 @@ type NativeEventListener struct {
 	ui          *NativeChatUI
 	renderer    *output.CLIRenderer
 	activeTools map[string]ToolInfo
+	subagents   *SubagentDisplay
 }
 
 func newNativeEventListener(ui *NativeChatUI) *NativeEventListener {
 	return &NativeEventListener{
 		ui:          ui,
-		renderer:    output.NewCLIRenderer(isVerbose()),
+		renderer:    output.NewCLIRenderer(ui.container.Runtime.Verbose),
 		activeTools: make(map[string]ToolInfo),
+		subagents:   NewSubagentDisplay(),
 	}
 }
 
 func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
+	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+		lines := l.subagents.Handle(subtaskEvent)
+		for _, line := range lines {
+			fmt.Print(line)
+		}
+		return
+	}
+
 	// Get output context from UI
 	outCtx := types.GetOutputContext(l.ui.ctx)
 

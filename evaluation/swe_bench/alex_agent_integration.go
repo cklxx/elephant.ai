@@ -4,108 +4,109 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"alex/internal/agent/app"
 	"alex/internal/agent/ports"
-	ctxmgr "alex/internal/context"
-	"alex/internal/llm"
-	"alex/internal/parser"
-	"alex/internal/session/filestore"
-	coststore "alex/internal/storage"
-	"alex/internal/tools"
+	runtimeconfig "alex/internal/config"
+	"alex/internal/di"
 )
 
 // AlexAgent implements the Agent interface using the new hexagonal architecture
 type AlexAgent struct {
-	config      *BatchConfig
-	coordinator *app.AgentCoordinator
-	enableUltra bool
-	apiKey      string
-	baseURL     string
+	config         *BatchConfig
+	coordinator    *app.AgentCoordinator
+	container      *di.Container
+	enableUltra    bool
+	resolvedConfig ports.AgentConfig
+	runtimeConfig  runtimeconfig.RuntimeConfig
 }
 
 // NewAlexAgent creates a new Alex agent instance with new hexagonal architecture
 func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
-	// Get API key from environment
-	apiKey := getAPIKey()
-	if apiKey == "" {
+	overrides := runtimeconfig.Overrides{}
+
+	if name := strings.TrimSpace(batchConfig.Agent.Model.Name); name != "" {
+		overrides.LLMModel = ptr(name)
+	}
+	if tokens := batchConfig.Agent.Model.MaxTokens; tokens > 0 {
+		overrides.MaxTokens = ptr(tokens)
+	}
+	if turns := batchConfig.Agent.MaxTurns; turns > 0 {
+		overrides.MaxIterations = ptr(turns)
+	} else {
+		overrides.MaxIterations = ptr(10)
+	}
+	if temp := batchConfig.Agent.Model.Temperature; temp != 0 {
+		overrides.Temperature = ptr(temp)
+	}
+
+	sessionDir := "~/.alex-sessions-swebench"
+	costDir := "~/.alex-costs-swebench"
+	overrides.SessionDir = &sessionDir
+	overrides.CostDir = &costDir
+
+	runtimeCfg, meta, err := runtimeconfig.Load(
+		runtimeconfig.WithEnv(runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, sweBenchEnvAliases)),
+		runtimeconfig.WithOverrides(overrides),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load runtime configuration: %w", err)
+	}
+	if runtimeCfg.APIKey == "" {
 		return nil, fmt.Errorf("API key is required (set OPENROUTER_API_KEY or OPENAI_API_KEY)")
 	}
 
-	// Determine base URL
-	baseURL := getBaseURL(batchConfig.Agent.Model.Name)
+	baseURL := runtimeCfg.BaseURL
+	if baseURL == "" || meta.Source("base_url") == runtimeconfig.SourceDefault {
+		baseURL = getBaseURL(runtimeCfg.LLMModel)
+	}
+	runtimeCfg.BaseURL = baseURL
 
-	// Enable Ultra Think for reasoning models
-	enableUltra := false
-	if strings.Contains(batchConfig.Agent.Model.Name, "r1") ||
-		strings.Contains(batchConfig.Agent.Model.Name, "reasoning") {
-		enableUltra = true
-		log.Printf("[ALEX-AGENT] Ultra Think mode ENABLED for model: %s", batchConfig.Agent.Model.Name)
+	diConfig := di.Config{
+		LLMProvider:    runtimeCfg.LLMProvider,
+		LLMModel:       runtimeCfg.LLMModel,
+		APIKey:         runtimeCfg.APIKey,
+		BaseURL:        runtimeCfg.BaseURL,
+		TavilyAPIKey:   runtimeCfg.TavilyAPIKey,
+		MaxTokens:      runtimeCfg.MaxTokens,
+		MaxIterations:  runtimeCfg.MaxIterations,
+		Temperature:    runtimeCfg.Temperature,
+		TemperatureSet: runtimeCfg.TemperatureProvided,
+		TopP:           runtimeCfg.TopP,
+		StopSequences:  append([]string(nil), runtimeCfg.StopSequences...),
+		SessionDir:     runtimeCfg.SessionDir,
+		CostDir:        runtimeCfg.CostDir,
+		Environment:    runtimeCfg.Environment,
+		Verbose:        runtimeCfg.Verbose,
 	}
 
-	// Use MaxTurns as MaxIterations (or default to 10)
-	maxIterations := batchConfig.Agent.MaxTurns
-	if maxIterations == 0 {
-		maxIterations = 10
-	}
-
-	// Infrastructure Layer
-	llmFactory := llm.NewFactory()
-	toolRegistry := tools.NewRegistry()
-	sessionStore := filestore.New("~/.alex-sessions-swebench")
-	contextMgr := ctxmgr.NewManager()
-	parserImpl := parser.New()
-
-	// Cost tracking (using file-based store for SWE-Bench)
-	costStore, err := coststore.NewFileCostStore("~/.alex-costs-swebench")
+	container, err := di.BuildContainer(diConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cost store: %w", err)
+		return nil, fmt.Errorf("build container: %w", err)
 	}
-	costTracker := app.NewCostTracker(costStore)
 
-	// Application Layer
-	coordinator := app.NewAgentCoordinator(
-		llmFactory,
-		toolRegistry,
-		sessionStore,
-		contextMgr,
-		parserImpl,
-		costTracker,
-		app.Config{
-			LLMProvider:   "openai", // OpenAI-compatible API
-			LLMModel:      batchConfig.Agent.Model.Name,
-			APIKey:        apiKey,
-			BaseURL:       baseURL,
-			MaxTokens:     batchConfig.Agent.Model.MaxTokens,
-			MaxIterations: maxIterations,
-		},
-	)
+	resolved := container.AgentCoordinator.GetConfig()
+	batchConfig.Agent.Model.Name = resolved.LLMModel
+	batchConfig.Agent.Model.Temperature = resolved.Temperature
+	batchConfig.Agent.Model.MaxTokens = resolved.MaxTokens
+	batchConfig.Agent.MaxTurns = resolved.MaxIterations
 
-	// Register subagent tool after coordinator is created
-	toolRegistry.RegisterSubAgent(coordinator)
+	modelLower := strings.ToLower(resolved.LLMModel)
+	enableUltra := strings.Contains(modelLower, "r1") || strings.Contains(modelLower, "reasoning")
+	if enableUltra {
+		log.Printf("[ALEX-AGENT] Ultra Think mode ENABLED for model: %s", resolved.LLMModel)
+	}
 
 	return &AlexAgent{
-		config:      batchConfig,
-		coordinator: coordinator,
-		enableUltra: enableUltra,
-		apiKey:      apiKey,
-		baseURL:     baseURL,
+		config:         batchConfig,
+		coordinator:    container.AgentCoordinator,
+		container:      container,
+		enableUltra:    enableUltra,
+		resolvedConfig: resolved,
+		runtimeConfig:  runtimeCfg,
 	}, nil
-}
-
-// getAPIKey retrieves API key from environment
-func getAPIKey() string {
-	// Try OpenRouter first, then OpenAI
-	if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
-		return key
-	}
-	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-		return key
-	}
-	return ""
 }
 
 // ProcessInstance processes a single SWE-Bench instance using new architecture
@@ -318,7 +319,7 @@ func (aa *AlexAgent) generateExplanation(instance Instance, solution string) str
 			"The solution addresses the reported issue by analyzing the problem, "+
 			"identifying the root cause, and implementing a targeted fix. "+
 			"Ultra Think mode was %s.",
-		aa.config.Agent.Model.Name,
+		aa.resolvedConfig.LLMModel,
 		instance.ID,
 		map[bool]string{true: "enabled", false: "disabled"}[aa.enableUltra],
 	)
@@ -355,7 +356,7 @@ func (aa *AlexAgent) createDefaultTrace(instance Instance, startTime time.Time) 
 func (aa *AlexAgent) calculateCost(tokens int) float64 {
 	// Rough cost estimation (adjust based on actual model pricing)
 	costPer1000Tokens := 0.0005 // $0.0005 per 1000 tokens for DeepSeek
-	if strings.Contains(aa.config.Agent.Model.Name, "gpt-4") {
+	if strings.Contains(strings.ToLower(aa.resolvedConfig.LLMModel), "gpt-4") {
 		costPer1000Tokens = 0.03 // $0.03 per 1000 tokens for GPT-4
 	}
 	return float64(tokens) / 1000.0 * costPer1000Tokens
@@ -379,16 +380,25 @@ func getBaseURL(modelName string) string {
 // GetConfiguration returns the agent configuration
 func (aa *AlexAgent) GetConfiguration() map[string]interface{} {
 	return map[string]interface{}{
-		"type":        "AlexAgent",
-		"model":       aa.config.Agent.Model.Name,
-		"ultra_think": aa.enableUltra,
-		"temperature": aa.config.Agent.Model.Temperature,
-		"max_tokens":  aa.config.Agent.Model.MaxTokens,
+		"type":           "AlexAgent",
+		"model":          aa.resolvedConfig.LLMModel,
+		"provider":       aa.runtimeConfig.LLMProvider,
+		"base_url":       aa.runtimeConfig.BaseURL,
+		"ultra_think":    aa.enableUltra,
+		"temperature":    aa.resolvedConfig.Temperature,
+		"max_tokens":     aa.resolvedConfig.MaxTokens,
+		"max_iterations": aa.resolvedConfig.MaxIterations,
 	}
 }
 
 // Close cleans up resources
 func (aa *AlexAgent) Close() error {
-	// Cleanup if needed
+	if aa.container != nil {
+		return aa.container.Cleanup()
+	}
 	return nil
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }

@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
+
+	runtimeconfig "alex/internal/config"
 )
 
 // AlexAgentFactory implements the AgentFactory interface using real Alex agent
@@ -55,17 +56,12 @@ func (af *AlexAgentFactory) ValidateConfig(config *BatchConfig) error {
 		return fmt.Errorf("timeout must be positive")
 	}
 
-	// Check API key is available
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
+	runtimeCfg, _, err := runtimeconfig.Load()
+	if err != nil {
+		return fmt.Errorf("load runtime configuration: %w", err)
 	}
-	if apiKey == "" {
-		apiKey = os.Getenv("DEEPSEEK_API_KEY")
-	}
-	if apiKey == "" {
-		log.Println("[AGENT-FACTORY] Warning: No API key found in environment variables")
-		log.Println("[AGENT-FACTORY] Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or DEEPSEEK_API_KEY")
+	if runtimeCfg.APIKey == "" {
+		log.Println("[AGENT-FACTORY] Warning: No API key configured; set OPENAI_API_KEY or OPENROUTER_API_KEY")
 	}
 
 	// Validate model-specific settings for reasoning models

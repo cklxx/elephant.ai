@@ -135,13 +135,14 @@ func TestCoordinatorGetConfigIncludesCompletionDefaults(t *testing.T) {
 		stubParser{},
 		nil,
 		Config{
-			LLMProvider:   "mock",
-			LLMModel:      "config-check",
-			MaxIterations: 3,
-			MaxTokens:     2048,
-			Temperature:   0.55,
-			TopP:          0.9,
-			StopSequences: stopSeqs,
+			LLMProvider:         "mock",
+			LLMModel:            "config-check",
+			MaxIterations:       3,
+			MaxTokens:           2048,
+			Temperature:         0.55,
+			TemperatureProvided: true,
+			TopP:                0.9,
+			StopSequences:       stopSeqs,
 		},
 	)
 
@@ -162,6 +163,40 @@ func TestCoordinatorGetConfigIncludesCompletionDefaults(t *testing.T) {
 	cfg2 := coordinator.GetConfig()
 	if cfg2.StopSequences[0] != stopSeqs[0] {
 		t.Fatalf("expected coordinator to protect stop sequences copy, got %v", cfg2.StopSequences)
+	}
+}
+
+func TestNewAgentCoordinatorHonorsZeroTemperature(t *testing.T) {
+	llmFactory := llm.NewFactory()
+	sessionStore := &stubSessionStore{}
+
+	coordinator := NewAgentCoordinator(
+		llmFactory,
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		stubParser{},
+		nil,
+		Config{
+			LLMProvider:         "mock",
+			LLMModel:            "deterministic",
+			Temperature:         0,
+			TemperatureProvided: true,
+			MaxIterations:       1,
+		},
+	)
+
+	cfg := coordinator.GetConfig()
+	if cfg.Temperature != 0 {
+		t.Fatalf("expected zero temperature to be preserved, got %.2f", cfg.Temperature)
+	}
+
+	defaults := buildCompletionDefaultsFromConfig(coordinator.config)
+	if defaults.Temperature == nil {
+		t.Fatalf("expected completion defaults to include explicit zero temperature override")
+	}
+	if got := *defaults.Temperature; got != 0 {
+		t.Fatalf("expected completion defaults temperature 0, got %.2f", got)
 	}
 }
 
