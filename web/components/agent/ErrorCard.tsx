@@ -11,7 +11,7 @@ interface ErrorCardProps {
 
 export function ErrorCard({ event }: ErrorCardProps) {
   return (
-    <Card className="manus-card border-l-4 border-destructive animate-fadeIn overflow-hidden">
+    <Card className="console-card border-l-4 border-destructive animate-fadeIn overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -19,8 +19,8 @@ export function ErrorCard({ event }: ErrorCardProps) {
               <AlertCircle className="h-6 w-6 text-destructive-foreground" />
             </div>
             <div>
-              <h3 className="manus-heading text-lg text-destructive">Error</h3>
-              <p className="manus-caption">
+              <h3 className="console-heading text-lg text-destructive">Error</h3>
+              <p className="console-caption">
                 Phase: {event.phase} (Iteration {event.iteration})
               </p>
             </div>
@@ -31,7 +31,7 @@ export function ErrorCard({ event }: ErrorCardProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="manus-card p-4 bg-destructive/5">
+        <div className="console-card p-4 bg-destructive/5">
           <pre className="text-sm text-destructive whitespace-pre-wrap font-mono leading-relaxed">
             {event.error}
           </pre>

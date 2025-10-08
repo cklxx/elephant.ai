@@ -2,7 +2,7 @@
 
 import { Fragment, ReactNode, useCallback, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AgentEvent, AnyAgentEvent } from '@/lib/types';
+import { AgentEvent, AnyAgentEvent, ToolCallCompleteEvent } from '@/lib/types';
 import { ResearchPlanCard } from './ResearchPlanCard';
 import { ConnectionBanner } from './ConnectionBanner';
 import { EventList } from './EventList';
@@ -32,7 +32,11 @@ interface TerminalOutputProps {
   taskId: string | null;
 }
 
-type DisplayEvent = AnyAgentEvent | ToolStreamCombinedEvent;
+type DisplayEvent = AnyAgentEvent | ToolStreamCombinedEvent | ToolCallCompleteDisplayEvent;
+
+interface ToolCallCompleteDisplayEvent extends ToolCallCompleteEvent {
+  arguments?: Record<string, unknown>;
+}
 
 const EVENT_FILTERS = [
   { id: 'conversation', label: 'Conversation' },
@@ -71,7 +75,7 @@ export function TerminalOutput({
     let streamCallId: string | null = null;
     let streamTimestamp: string | null = null;
     let streamAgentLevel: AgentEvent['agent_level'] | null = null;
-    const callMetadata = new Map<string, { toolName?: string }>();
+    const callMetadata = new Map<string, { toolName?: string; arguments?: Record<string, unknown> }>();
 
     const flushBuffer = () => {
       if (!streamBuffer.length || !streamCallId) {
@@ -99,11 +103,18 @@ export function TerminalOutput({
 
     events.forEach((event) => {
       if (event.event_type === 'tool_call_start') {
-        callMetadata.set(event.call_id, { toolName: event.tool_name });
+        callMetadata.set(event.call_id, {
+          toolName: event.tool_name,
+          arguments: event.arguments,
+        });
       }
 
       if (event.event_type === 'tool_call_complete') {
-        callMetadata.set(event.call_id, { toolName: event.tool_name });
+        const existing = callMetadata.get(event.call_id);
+        callMetadata.set(event.call_id, {
+          toolName: event.tool_name,
+          arguments: existing?.arguments,
+        });
       }
 
       if (event.event_type === 'tool_call_stream') {
@@ -123,6 +134,15 @@ export function TerminalOutput({
       }
 
       flushBuffer();
+      if (event.event_type === 'tool_call_complete') {
+        const metadata = callMetadata.get(event.call_id);
+        aggregated.push({
+          ...event,
+          arguments: metadata?.arguments,
+        });
+        return;
+      }
+
       aggregated.push(event);
     });
 
@@ -226,7 +246,7 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-3" data-testid="terminal-output">
+    <div className="space-y-4" data-testid="terminal-output">
       {/* Plan approval card - if awaiting */}
       {planState === 'awaiting_approval' && currentPlan && (
         <div className="mb-4">
@@ -239,22 +259,22 @@ export function TerminalOutput({
       )}
 
       <div
-        className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/70 px-4 py-3 text-xs text-slate-500"
         data-testid="event-visibility-summary"
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-foreground font-semibold" data-testid="event-count-visible">
+          <span className="text-slate-700 font-semibold" data-testid="event-count-visible">
             {filteredEvents.length}
           </span>
           <span>events visible</span>
           {hiddenCount > 0 && (
-            <span className="text-muted-foreground/70" data-testid="event-count-hidden">
+            <span className="text-slate-400" data-testid="event-count-hidden">
               ({hiddenCount} hidden)
             </span>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-1 py-1 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/70 px-1 py-1">
           {EVENT_FILTERS.map((filter) => {
             const isActive = activeFilters.has(filter.id);
             return (
@@ -267,8 +287,8 @@ export function TerminalOutput({
                 className={cn(
                   'rounded-full px-3 py-1 text-[11px] font-medium transition-all duration-150',
                   isActive
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground/80'
+                    ? 'bg-white text-sky-600 shadow-sm shadow-sky-100'
+                    : 'text-slate-400 hover:text-slate-600'
                 )}
               >
                 {filter.label}
@@ -296,8 +316,8 @@ export function TerminalOutput({
 
       {/* Active indicator */}
       {isConnected && events.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        <div className="flex items-center gap-2 pt-2 text-xs text-slate-400">
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
           <span>Listening for events...</span>
         </div>
       )}
@@ -317,23 +337,28 @@ function EventLine({ event }: { event: DisplayEvent }) {
   const category = getEventCategory(event);
   const presentation = describeEvent(event);
   const meta = EVENT_STYLE_META[category];
+  const anchorId = getAnchorId(event);
 
   return (
     <article
       className={cn(
-        'relative overflow-hidden rounded-lg border px-4 py-3 transition-colors backdrop-blur-sm shadow-sm',
-        'bg-card/90 text-card-foreground',
+        'relative overflow-hidden rounded-2xl border border-slate-100 px-5 py-4 shadow-sm transition-colors',
+        'bg-white/90 text-slate-700',
         meta.card,
-        presentation.status ? STATUS_VARIANTS[presentation.status] : null
+        presentation.status ? STATUS_VARIANTS[presentation.status] : null,
+        anchorId && 'scroll-mt-28 timeline-anchor-target'
       )}
       data-testid={`event-line-${event.event_type}`}
       data-category={category}
+      data-anchor-id={anchorId ?? undefined}
+      id={anchorId ? `event-${anchorId}` : undefined}
+      tabIndex={anchorId ? -1 : undefined}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              'mt-0.5 flex h-8 w-8 items-center justify-center rounded-md border text-sm',
+              'mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-sm text-sky-600',
               meta.iconWrapper
             )}
           >
@@ -341,7 +366,7 @@ function EventLine({ event }: { event: DisplayEvent }) {
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className={cn('text-sm font-semibold tracking-tight', meta.headline)}>{presentation.headline}</p>
+              <p className={cn('text-sm font-semibold tracking-tight text-slate-700', meta.headline)}>{presentation.headline}</p>
               <span
                 className={cn(
                   'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
@@ -355,17 +380,17 @@ function EventLine({ event }: { event: DisplayEvent }) {
               )}
             </div>
             {presentation.subheading && (
-              <p className="text-[11px] text-muted-foreground/80">{presentation.subheading}</p>
+              <p className="text-[11px] text-slate-400">{presentation.subheading}</p>
             )}
           </div>
         </div>
-        <time className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+        <time className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
           {timestamp}
         </time>
       </div>
 
       {presentation.summary && (
-        <div className="mt-3 text-xs leading-relaxed text-muted-foreground/90 whitespace-pre-wrap">
+        <div className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">
           {presentation.summary}
         </div>
       )}
@@ -379,6 +404,27 @@ function EventLine({ event }: { event: DisplayEvent }) {
 
 function isCombinedStreamEvent(event: DisplayEvent): event is ToolStreamCombinedEvent {
   return event.event_type === 'tool_stream_combined';
+}
+
+function getAnchorId(event: DisplayEvent): string | null {
+  switch (event.event_type) {
+    case 'step_started':
+    case 'step_completed':
+      return typeof event.step_index === 'number'
+        ? `step-${event.step_index}`
+        : null;
+    case 'iteration_start':
+    case 'iteration_complete':
+      return typeof (event as any).iteration === 'number'
+        ? `iteration-${(event as any).iteration}`
+        : null;
+    case 'error':
+      return typeof (event as any).iteration === 'number'
+        ? `iteration-${(event as any).iteration}`
+        : null;
+    default:
+      return null;
+  }
 }
 
 // Helper functions
@@ -476,8 +522,8 @@ const EVENT_STYLE_META: Record<
 const STATUS_VARIANTS: Record<EventStatus, string> = {
   success: 'border-emerald-400/50 bg-emerald-50/90 dark:border-emerald-500/40 dark:bg-emerald-500/10',
   warning: 'border-amber-400/60 bg-amber-50/80 dark:border-amber-500/40 dark:bg-amber-500/10',
-  danger: 'border-red-400/60 bg-red-50/80 dark:border-red-500/40 dark:bg-red-500/10',
-  info: 'border-sky-400/60 bg-sky-50/80 dark:border-sky-500/40 dark:bg-sky-500/10',
+  danger: 'border-destructive/40 bg-destructive/10 dark:border-destructive/40 dark:bg-destructive/20',
+  info: 'border-primary/40 bg-primary/10 dark:border-primary/40 dark:bg-primary/20',
 };
 
 function describeEvent(event: DisplayEvent): EventPresentation {
@@ -737,8 +783,8 @@ function ToolResult({
 }) {
   if (error) {
     return (
-      <ContentBlock title="Error Output" tone="red" dataTestId={`tool-call-result-${callId}`}>
-        <p className="text-xs font-medium text-red-600 dark:text-red-200">{error}</p>
+      <ContentBlock title="Error Output" tone="destructive" dataTestId={`tool-call-result-${callId}`}>
+        <p className="text-xs font-medium text-destructive dark:text-destructive/80">{error}</p>
       </ContentBlock>
     );
   }
@@ -768,7 +814,7 @@ function ContentBlock({
 }: {
   title: string;
   children: ReactNode;
-  tone?: 'emerald' | 'slate' | 'red';
+  tone?: 'emerald' | 'slate' | 'destructive';
   dataTestId?: string;
 }) {
   const toneClasses = {
@@ -776,7 +822,8 @@ function ContentBlock({
       'border-emerald-300/60 bg-emerald-50/80 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100',
     slate:
       'border-slate-200/80 bg-slate-50/80 text-slate-900 dark:border-slate-600/40 dark:bg-slate-900/40 dark:text-slate-100',
-    red: 'border-red-300/60 bg-red-50/80 text-red-900 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100',
+    destructive:
+      'border-destructive/40 bg-destructive/10 text-destructive dark:border-destructive/40 dark:bg-destructive/20 dark:text-destructive/80',
   } as const;
 
   return (
@@ -808,7 +855,7 @@ function StatusBadge({ status }: { status: EventStatus }) {
     danger: {
       icon: AlertTriangle,
       label: 'Error',
-      className: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-100',
+      className: 'bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive/80',
     },
     info: {
       icon: Info,

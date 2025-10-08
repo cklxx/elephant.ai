@@ -5,8 +5,19 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Check, X, Edit3, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
+import {
+  Check,
+  X,
+  Edit3,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  ArrowUp,
+  ArrowDown,
+  Ban,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n';
 
 export interface ResearchPlan {
   goal: string;
@@ -20,7 +31,7 @@ interface ResearchPlanCardProps {
   loading?: boolean;
   onApprove?: () => void;
   onModify?: (updatedPlan: ResearchPlan) => void;
-  onCancel?: () => void;
+  onReject?: (reason: string) => void;
   readonly?: boolean;
 }
 
@@ -29,37 +40,98 @@ export function ResearchPlanCard({
   loading = false,
   onApprove,
   onModify,
-  onCancel,
+  onReject,
   readonly = false,
 }: ResearchPlanCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedPlan, setEditedPlan] = useState<ResearchPlan | null>(plan);
+  const [draftPlan, setDraftPlan] = useState<ResearchPlan | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const t = useTranslation();
 
   if (loading) {
     return <ResearchPlanSkeleton />;
   }
 
-  if (!plan && !editedPlan) {
+  const displayedPlan = isEditing ? draftPlan : plan;
+
+  if (!displayedPlan) {
     return null;
   }
 
-  const currentPlan = editedPlan || plan!;
-
   const handleSaveEdit = () => {
-    if (editedPlan && onModify) {
-      onModify(editedPlan);
-      setIsEditing(false);
-    }
+    if (!draftPlan || !onModify) return;
+
+    onModify(draftPlan);
+    setIsEditing(false);
+    setDraftPlan(null);
   };
 
   const handleCancelEdit = () => {
-    setEditedPlan(plan);
+    setDraftPlan(plan ? { ...plan, steps: [...plan.steps], estimated_tools: [...plan.estimated_tools] } : null);
     setIsEditing(false);
   };
 
+  const handleStartEditing = () => {
+    if (!plan) return;
+
+    setDraftPlan({
+      ...plan,
+      steps: [...plan.steps],
+      estimated_tools: [...plan.estimated_tools],
+    });
+    setIsEditing(true);
+    setIsRejecting(false);
+  };
+
+  const handleRejectConfirm = () => {
+    if (!onReject) {
+      setIsRejecting(false);
+      setRejectReason('');
+      return;
+    }
+
+    onReject(rejectReason.trim());
+    setIsRejecting(false);
+    setRejectReason('');
+  };
+
+  const handleRejectCancel = () => {
+    setRejectReason('');
+    setIsRejecting(false);
+  };
+
+  const planForEditing = isEditing && draftPlan ? draftPlan : displayedPlan;
+
+  const updateDraftPlan = (updater: (current: ResearchPlan) => ResearchPlan) => {
+    setDraftPlan((current) => {
+      const source = current ?? (plan ? { ...plan, steps: [...plan.steps], estimated_tools: [...plan.estimated_tools] } : null);
+      if (!source) return current;
+      return updater(source);
+    });
+  };
+
+  const moveStep = (from: number, to: number) => {
+    if (!draftPlan) return;
+    if (to < 0 || to >= draftPlan.steps.length) return;
+
+    const nextSteps = [...draftPlan.steps];
+    const [moved] = nextSteps.splice(from, 1);
+    nextSteps.splice(to, 0, moved);
+
+    setDraftPlan({ ...draftPlan, steps: nextSteps });
+  };
+
+  const canSave = Boolean(
+    isEditing &&
+      draftPlan &&
+      draftPlan.goal.trim().length > 0 &&
+      draftPlan.steps.every((step) => step.trim().length > 0)
+  );
+
   return (
-    <Card className="manus-card border-l-4 border-primary animate-fadeIn overflow-hidden">
+    <Card className="console-card border-l-4 border-primary animate-fadeIn overflow-hidden">
 
       <CardHeader className="pb-3 relative">
         <div className="flex items-center justify-between">
@@ -68,11 +140,9 @@ export function ResearchPlanCard({
               <Lightbulb className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="manus-heading text-lg">
-                Research Plan
-              </h3>
-              <p className="manus-caption">
-                {readonly ? 'Approved Plan' : 'Review and approve to start execution'}
+              <h3 className="console-heading text-lg">{t('plan.title')}</h3>
+              <p className="console-caption">
+                {readonly ? t('plan.caption.readonly') : t('plan.caption.default')}
               </p>
             </div>
           </div>
@@ -80,7 +150,7 @@ export function ResearchPlanCard({
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="text-muted-foreground hover:text-foreground hover-subtle p-1 rounded-md"
-            aria-label={isExpanded ? 'Collapse plan' : 'Expand plan'}
+            aria-label={isExpanded ? t('plan.collapse') : t('plan.expand')}
           >
             {isExpanded ? (
               <ChevronUp className="h-5 w-5" />
@@ -95,52 +165,81 @@ export function ResearchPlanCard({
         <CardContent className="space-y-4 animate-fadeIn relative">
           {/* Goal Section */}
           <div>
-            <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
+            <p className="console-subheading text-sm mb-2 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-              Goal:
+              {t('plan.goal.label')}
             </p>
-            {isEditing ? (
+            {isEditing && planForEditing ? (
               <textarea
-                value={currentPlan.goal}
+                value={planForEditing.goal}
                 onChange={(e) =>
-                  setEditedPlan({ ...currentPlan, goal: e.target.value })
+                  updateDraftPlan((current) => ({
+                    ...current,
+                    goal: e.target.value,
+                  }))
                 }
-                className="manus-input text-sm leading-relaxed min-h-[80px]"
-                aria-label="Edit goal"
+                className="console-input text-sm leading-relaxed min-h-[80px]"
+                aria-label={t('plan.edit.goal')}
               />
             ) : (
-              <div className="manus-card p-4">
-                <p className="manus-body text-sm">{currentPlan.goal}</p>
+              <div className="console-card p-4">
+                <p className="console-body text-sm">{displayedPlan.goal}</p>
               </div>
             )}
           </div>
 
           {/* Steps Section */}
           <div>
-            <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
+            <p className="console-subheading text-sm mb-2 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-              Planned Steps ({currentPlan.steps.length}):
+              {t('plan.steps.label', { count: displayedPlan.steps.length })}
             </p>
-            <div className="manus-card p-4 space-y-2">
-              {currentPlan.steps.map((step, idx) => (
+            <div className="console-card p-4 space-y-2">
+              {displayedPlan.steps.map((step, idx) => (
                 <div key={idx} className="flex items-start gap-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
                     {idx + 1}
                   </div>
-                  {isEditing ? (
+                  {isEditing && planForEditing ? (
                     <input
                       type="text"
-                      value={step}
-                      onChange={(e) => {
-                        const newSteps = [...currentPlan.steps];
-                        newSteps[idx] = e.target.value;
-                        setEditedPlan({ ...currentPlan, steps: newSteps });
-                      }}
-                      className="flex-1 manus-input px-3 py-1.5 text-sm"
-                      aria-label={`Edit step ${idx + 1}`}
-                    />
-                  ) : (
-                    <p className="flex-1 manus-body text-sm">{step}</p>
+                      value={planForEditing.steps[idx]}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      updateDraftPlan((current) => {
+                        const updatedSteps = [...current.steps];
+                        updatedSteps[idx] = value;
+                        return { ...current, steps: updatedSteps };
+                      });
+                    }}
+                    className="flex-1 console-input px-3 py-1.5 text-sm"
+                    aria-label={t('plan.edit.stepLabel', { index: idx + 1 })}
+                  />
+                ) : (
+                  <p className="flex-1 console-body text-sm">{step}</p>
+                )}
+
+                {isEditing && displayedPlan.steps.length > 1 && (
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => moveStep(idx, idx - 1)}
+                      className="rounded-md border border-border/60 bg-background/60 p-1 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                      aria-label={t('plan.move.up', { index: idx + 1 })}
+                      disabled={idx === 0}
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveStep(idx, idx + 1)}
+                      className="rounded-md border border-border/60 bg-background/60 p-1 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                      aria-label={t('plan.move.down', { index: idx + 1 })}
+                      disabled={idx === displayedPlan.steps.length - 1}
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   )}
                 </div>
               ))}
@@ -150,15 +249,15 @@ export function ResearchPlanCard({
           {/* Metadata Section */}
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="info" className="flex items-center gap-1">
-              <span className="text-xs">Iterations:</span>
-              <span className="font-semibold">{currentPlan.estimated_iterations}</span>
+              <span className="text-xs">{t('plan.iterations')}</span>
+              <span className="font-semibold">{displayedPlan.estimated_iterations}</span>
             </Badge>
             <Badge variant="default" className="flex items-center gap-1">
-              <span className="text-xs">Tools:</span>
-              <span className="font-semibold">{currentPlan.estimated_tools.length}</span>
+              <span className="text-xs">{t('plan.tools')}</span>
+              <span className="font-semibold">{displayedPlan.estimated_tools.length}</span>
             </Badge>
             <div className="flex items-center gap-1 flex-wrap">
-              {currentPlan.estimated_tools.slice(0, 5).map((tool, idx) => (
+              {displayedPlan.estimated_tools.slice(0, 5).map((tool, idx) => (
                 <span
                   key={idx}
                   className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-200"
@@ -166,9 +265,9 @@ export function ResearchPlanCard({
                   {tool}
                 </span>
               ))}
-              {currentPlan.estimated_tools.length > 5 && (
+              {displayedPlan.estimated_tools.length > 5 && (
                 <span className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded border border-gray-200">
-                  +{currentPlan.estimated_tools.length - 5} more
+                  {t('plan.tools.more', { count: displayedPlan.estimated_tools.length - 5 })}
                 </span>
               )}
             </div>
@@ -176,50 +275,89 @@ export function ResearchPlanCard({
 
           {/* Action Buttons */}
           {!readonly && (
-            <div className="pt-4 border-t border-border">
+            <div className="space-y-4 border-t border-border pt-4">
               {isEditing ? (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={handleSaveEdit}
-                    className="flex-1 manus-button-primary"
+                    className="flex-1 console-button-primary"
+                    disabled={!canSave}
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    Save Changes
+                    {t('plan.actions.saveChanges')}
                   </Button>
                   <Button
                     onClick={handleCancelEdit}
                     variant="outline"
-                    className="flex-1 manus-button-secondary"
+                    className="flex-1 console-button-secondary"
                   >
                     <X className="h-4 w-4 mr-2" />
-                    Cancel
+                    {t('plan.actions.cancel')}
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={onApprove}
-                    className="flex-1 manus-button-primary"
+                    className="flex-1 console-button-primary"
+                    disabled={loading}
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    Approve & Start
+                    {t('plan.actions.approve')}
                   </Button>
                   <Button
-                    onClick={() => setIsEditing(true)}
+                    onClick={handleStartEditing}
                     variant="outline"
-                    className="flex-1 manus-button-secondary"
+                    className="flex-1 console-button-secondary"
                   >
                     <Edit3 className="h-4 w-4 mr-2" />
-                    Modify Plan
+                    {t('plan.actions.modify')}
                   </Button>
                   <Button
-                    onClick={onCancel}
+                    onClick={() => {
+                      setRejectReason('');
+                      setIsRejecting(true);
+                    }}
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 border-destructive/40 text-destructive hover:border-destructive hover:text-destructive"
                   >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
+                    <Ban className="h-4 w-4 mr-2" />
+                    {t('plan.actions.reject')}
                   </Button>
+                </div>
+              )}
+
+              {isRejecting && (
+                <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
+                      {t('plan.reject.reasonLabel')}
+                    </p>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(event) => setRejectReason(event.target.value)}
+                      className="console-input min-h-[80px] text-sm"
+                      placeholder={t('plan.reject.placeholder')}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={handleRejectConfirm}
+                      className="flex-1 console-button-secondary"
+                      disabled={!rejectReason.trim()}
+                    >
+                      <Ban className="h-4 w-4 mr-2" />
+                      {t('plan.reject.confirm')}
+                    </Button>
+                    <Button
+                      onClick={handleRejectCancel}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      {t('plan.reject.cancel')}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -232,7 +370,7 @@ export function ResearchPlanCard({
 
 function ResearchPlanSkeleton() {
   return (
-    <Card className="manus-card border-l-4 border-primary animate-fadeIn overflow-hidden">
+    <Card className="console-card border-l-4 border-primary animate-fadeIn overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <Skeleton className="h-12 w-12 rounded-md" />

@@ -60,9 +60,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1', 'Step 2'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1', 'Step 2'],
         estimated_iterations: 5,
-        estimated_time: '2 minutes',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {
@@ -88,9 +89,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1', 'Step 2'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1', 'Step 2'],
         estimated_iterations: 5,
-        estimated_time: '2 minutes',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {
@@ -128,9 +130,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1', 'Step 2'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1', 'Step 2'],
         estimated_iterations: 5,
-        estimated_time: '2 minutes',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {
@@ -138,7 +141,7 @@ describe('usePlanApproval', () => {
       });
 
       act(() => {
-        result.current.handleCancel();
+        result.current.handleReject('Not ready for execution');
       });
 
       await waitFor(() => {
@@ -149,8 +152,9 @@ describe('usePlanApproval', () => {
         session_id: 'test-123',
         task_id: 'task-456',
         approved: false,
+        rejection_reason: 'Not ready for execution',
       });
-      expect(onRejected).toHaveBeenCalled();
+      expect(onRejected).toHaveBeenCalledWith('Not ready for execution');
     });
   });
 
@@ -170,15 +174,17 @@ describe('usePlanApproval', () => {
       );
 
       const originalPlan: ResearchPlan = {
-        plan_steps: ['Step 1', 'Step 2'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1', 'Step 2'],
         estimated_iterations: 5,
-        estimated_time: '2 minutes',
+        estimated_tools: ['file_read'],
       };
 
       const modifiedPlan: ResearchPlan = {
-        plan_steps: ['Modified Step 1', 'Modified Step 2', 'Step 3'],
+        goal: 'Execute repository analysis',
+        steps: ['Modified Step 1', 'Modified Step 2', 'Step 3'],
         estimated_iterations: 7,
-        estimated_time: '3 minutes',
+        estimated_tools: ['bash', 'file_write'],
       };
 
       act(() => {
@@ -210,15 +216,17 @@ describe('usePlanApproval', () => {
       );
 
       const originalPlan: ResearchPlan = {
-        plan_steps: ['Step 1', 'Step 2'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1', 'Step 2'],
         estimated_iterations: 5,
-        estimated_time: '2 minutes',
+        estimated_tools: ['file_read'],
       };
 
       const modifiedPlan: ResearchPlan = {
-        plan_steps: ['Modified Step 1'],
+        goal: 'Execute repository analysis',
+        steps: ['Modified Step 1'],
         estimated_iterations: 3,
-        estimated_time: '1 minute',
+        estimated_tools: ['file_edit'],
       };
 
       act(() => {
@@ -248,9 +256,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1'],
         estimated_iterations: 3,
-        estimated_time: '1 minute',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {
@@ -282,9 +291,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1'],
         estimated_iterations: 3,
-        estimated_time: '1 minute',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {
@@ -315,7 +325,7 @@ describe('usePlanApproval', () => {
       });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Cannot cancel plan: missing sessionId or taskId'
+        'Cannot reject plan: missing sessionId or taskId'
       );
 
       consoleErrorSpy.mockRestore();
@@ -330,9 +340,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1'],
         estimated_iterations: 3,
-        estimated_time: '1 minute',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {
@@ -364,9 +375,10 @@ describe('usePlanApproval', () => {
       );
 
       const plan: ResearchPlan = {
-        plan_steps: ['Step 1'],
+        goal: 'Execute repository analysis',
+        steps: ['Step 1'],
         estimated_iterations: 3,
-        estimated_time: '1 minute',
+        estimated_tools: ['file_read'],
       };
 
       act(() => {

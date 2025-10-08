@@ -365,12 +365,12 @@ All interactive elements have visible focus indicators:
 }
 
 /* Custom focus for buttons */
-.manus-button:focus-visible {
+.console-button:focus-visible {
   box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb;
 }
 
 /* Custom focus for inputs */
-.manus-input:focus-visible {
+.console-input:focus-visible {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }

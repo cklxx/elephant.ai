@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Tailwind Config - Manus Visual Language
+ * Tailwind Config - ALEX Visual Language
  *
  * Design Principles:
  * - Low-saturation grayscale palette
@@ -20,7 +20,7 @@ const config: Config = {
   theme: {
     extend: {
       /**
-       * Manus Color Palette
+       * Console color palette
        * - Grays: Low-saturation, desaturated tones
        * - Primary: Minimal blue accent (low saturation)
        * - Destructive: Subdued red for errors
@@ -56,7 +56,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Manus extended grayscale palette
+        // Extended grayscale palette tuned for the console UI
         gray: {
           50: "hsl(var(--gray-50))",
           100: "hsl(var(--gray-100))",

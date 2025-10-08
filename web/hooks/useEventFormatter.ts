@@ -71,31 +71,31 @@ export function useEventFormatter(
     () => (eventType: AnyAgentEvent['event_type']): string => {
       switch (eventType) {
         case 'user_task':
-          return 'text-blue-700 font-semibold';
+          return 'text-primary font-semibold';
         case 'task_analysis':
-          return 'text-blue-600';
+          return 'text-primary';
         case 'task_complete':
-          return 'text-green-500 font-semibold';
+          return 'text-emerald-600 font-semibold';
         case 'error':
-          return 'text-red-500 font-semibold';
+          return 'text-destructive font-semibold';
         case 'research_plan':
-          return 'text-blue-600';
+          return 'text-primary';
         case 'tool_call_start':
-          return 'text-cyan-600';
+          return 'text-primary';
         case 'tool_call_complete':
-          return 'text-cyan-500';
+          return 'text-primary';
         case 'thinking':
-          return 'text-purple-600';
+          return 'text-muted-foreground';
         case 'think_complete':
-          return 'text-purple-500';
+          return 'text-muted-foreground';
         case 'step_started':
-          return 'text-yellow-600';
+          return 'text-primary';
         case 'step_completed':
-          return 'text-yellow-500';
+          return 'text-emerald-600 font-medium';
         case 'iteration_start':
-          return 'text-gray-600';
+          return 'text-muted-foreground';
         case 'iteration_complete':
-          return 'text-gray-500';
+          return 'text-muted-foreground';
         default:
           return 'text-muted-foreground';
       }

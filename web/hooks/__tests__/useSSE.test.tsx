@@ -1,12 +1,13 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 import { useSSE } from '../useSSE';
 import { apiClient } from '@/lib/api';
 import { AnyAgentEvent } from '@/lib/types';
 
 // Mock the apiClient
-jest.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', () => ({
   apiClient: {
-    createSSEConnection: jest.fn(),
+    createSSEConnection: vi.fn(),
   },
 }));
 
@@ -65,19 +66,19 @@ describe('useSSE', () => {
   let mockEventSource: MockEventSource;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
 
     // Setup mock EventSource factory
-    (apiClient.createSSEConnection as jest.Mock).mockImplementation((sessionId: string) => {
+    (apiClient.createSSEConnection as vi.Mock).mockImplementation((sessionId: string) => {
       mockEventSource = new MockEventSource(`http://localhost:8080/api/sse?session_id=${sessionId}`);
       return mockEventSource;
     });
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   describe('Basic Connection', () => {
@@ -121,7 +122,7 @@ describe('useSSE', () => {
       );
 
       const firstEventSource = mockEventSource;
-      const closeSpy = jest.spyOn(firstEventSource, 'close');
+      const closeSpy = vi.spyOn(firstEventSource, 'close');
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -141,7 +142,7 @@ describe('useSSE', () => {
         mockEventSource.simulateOpen();
       });
 
-      const closeSpy = jest.spyOn(mockEventSource, 'close');
+      const closeSpy = vi.spyOn(mockEventSource, 'close');
       unmount();
 
       expect(closeSpy).toHaveBeenCalled();
@@ -181,7 +182,7 @@ describe('useSSE', () => {
     });
 
     test('should call onEvent callback when event is received', () => {
-      const onEvent = jest.fn();
+      const onEvent = vi.fn();
       const { result } = renderHook(() => useSSE('test-session-123', { onEvent }));
 
       act(() => {
@@ -249,7 +250,7 @@ describe('useSSE', () => {
 
       // First reconnection: 1000ms * 2^0 = 1000ms
       act(() => {
-        jest.advanceTimersByTime(1000);
+        vi.advanceTimersByTime(1000);
       });
 
       expect(apiClient.createSSEConnection).toHaveBeenCalledTimes(2);
@@ -263,7 +264,7 @@ describe('useSSE', () => {
 
       // Second reconnection: 1000ms * 2^1 = 2000ms
       act(() => {
-        jest.advanceTimersByTime(2000);
+        vi.advanceTimersByTime(2000);
       });
 
       expect(apiClient.createSSEConnection).toHaveBeenCalledTimes(3);
@@ -284,7 +285,7 @@ describe('useSSE', () => {
 
         const expectedDelay = Math.min(1000 * Math.pow(2, i), 30000);
         act(() => {
-          jest.advanceTimersByTime(expectedDelay);
+          vi.advanceTimersByTime(expectedDelay);
         });
       }
 
@@ -317,7 +318,7 @@ describe('useSSE', () => {
         if (i < maxAttempts - 1) {
           const delay = 1000 * Math.pow(2, i);
           act(() => {
-            jest.advanceTimersByTime(delay);
+            vi.advanceTimersByTime(delay);
           });
         }
       }
@@ -326,7 +327,7 @@ describe('useSSE', () => {
       // The 3rd error scheduled a reconnection, let's trigger it
       const delay = 1000 * Math.pow(2, maxAttempts - 1);
       act(() => {
-        jest.advanceTimersByTime(delay);
+        vi.advanceTimersByTime(delay);
       });
 
       // Now trigger the final error that will hit the limit
@@ -340,11 +341,11 @@ describe('useSSE', () => {
       expect(result.current.reconnectAttempts).toBe(maxAttempts);
 
       // Should not attempt more connections
-      const callCount = (apiClient.createSSEConnection as jest.Mock).mock.calls.length;
+      const callCount = (apiClient.createSSEConnection as vi.Mock).mock.calls.length;
       act(() => {
-        jest.advanceTimersByTime(60000); // Wait a long time
+        vi.advanceTimersByTime(60000); // Wait a long time
       });
-      expect((apiClient.createSSEConnection as jest.Mock).mock.calls.length).toBe(callCount);
+      expect((apiClient.createSSEConnection as vi.Mock).mock.calls.length).toBe(callCount);
     });
 
     test('should reset reconnection attempts on successful connection', () => {
@@ -363,7 +364,7 @@ describe('useSSE', () => {
 
       // Advance timer and simulate successful reconnection
       act(() => {
-        jest.advanceTimersByTime(1000);
+        vi.advanceTimersByTime(1000);
       });
 
       act(() => {
@@ -382,7 +383,7 @@ describe('useSSE', () => {
         mockEventSource.simulateOpen();
       });
 
-      const initialCallCount = (apiClient.createSSEConnection as jest.Mock).mock.calls.length;
+      const initialCallCount = (apiClient.createSSEConnection as vi.Mock).mock.calls.length;
 
       // Trigger error
       act(() => {
@@ -394,12 +395,12 @@ describe('useSSE', () => {
 
       // Advance timer to trigger scheduled reconnection
       act(() => {
-        jest.advanceTimersByTime(1000);
+        vi.advanceTimersByTime(1000);
       });
 
       // Should only have ONE new connection attempt (from setTimeout)
       // NOT two (one from setTimeout + one from useEffect re-run)
-      expect((apiClient.createSSEConnection as jest.Mock).mock.calls.length).toBe(initialCallCount + 1);
+      expect((apiClient.createSSEConnection as vi.Mock).mock.calls.length).toBe(initialCallCount + 1);
     });
   });
 
@@ -432,7 +433,7 @@ describe('useSSE', () => {
     test('should prevent double connections when connect is called rapidly', () => {
       const { result } = renderHook(() => useSSE('test-session-123'));
 
-      const initialCallCount = (apiClient.createSSEConnection as jest.Mock).mock.calls.length;
+      const initialCallCount = (apiClient.createSSEConnection as vi.Mock).mock.calls.length;
 
       // Try to connect multiple times rapidly
       act(() => {
@@ -443,7 +444,7 @@ describe('useSSE', () => {
 
       // Should only create one additional connection (debounced)
       // The isConnectingRef prevents duplicate attempts
-      expect((apiClient.createSSEConnection as jest.Mock).mock.calls.length).toBeLessThanOrEqual(
+      expect((apiClient.createSSEConnection as vi.Mock).mock.calls.length).toBeLessThanOrEqual(
         initialCallCount + 1
       );
     });
@@ -460,18 +461,18 @@ describe('useSSE', () => {
         mockEventSource.simulateError();
       });
 
-      const callCountBeforeTimer = (apiClient.createSSEConnection as jest.Mock).mock.calls.length;
+      const callCountBeforeTimer = (apiClient.createSSEConnection as vi.Mock).mock.calls.length;
 
       // Unmount component before timer fires - this should clear the reconnection timeout
       unmount();
 
       // Advance timer - should NOT trigger reconnection
       act(() => {
-        jest.advanceTimersByTime(5000);
+        vi.advanceTimersByTime(5000);
       });
 
       // No new connection should be created
-      expect((apiClient.createSSEConnection as jest.Mock).mock.calls.length).toBe(callCountBeforeTimer);
+      expect((apiClient.createSSEConnection as vi.Mock).mock.calls.length).toBe(callCountBeforeTimer);
     });
   });
 
@@ -512,7 +513,7 @@ describe('useSSE', () => {
 
       // Reconnect
       act(() => {
-        jest.advanceTimersByTime(1000);
+        vi.advanceTimersByTime(1000);
       });
 
       // Successful reconnection
@@ -535,7 +536,7 @@ describe('useSSE', () => {
       // Rapidly change sessions
       for (let i = 2; i <= 5; i++) {
         const prevEventSource = mockEventSource;
-        const closeSpy = jest.spyOn(prevEventSource, 'close');
+        const closeSpy = vi.spyOn(prevEventSource, 'close');
 
         rerender({ sessionId: `session-${i}` });
 
@@ -556,7 +557,7 @@ describe('useSSE', () => {
         mockEventSource.simulateOpen();
       });
 
-      const closeSpy = jest.spyOn(mockEventSource, 'close');
+      const closeSpy = vi.spyOn(mockEventSource, 'close');
 
       // Disable
       rerender({ enabled: false });
@@ -568,7 +569,7 @@ describe('useSSE', () => {
     });
 
     test('should handle malformed JSON events gracefully', () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
       const { result } = renderHook(() => useSSE('test-session-123'));
 
       act(() => {

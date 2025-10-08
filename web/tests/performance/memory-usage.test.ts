@@ -1,12 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { act } from '@testing-library/react';
 import { useAgentStreamStore } from '@/hooks/useAgentStreamStore';
 import { AnyAgentEvent } from '@/lib/types';
 
 describe('Memory Usage Tests', () => {
-  it('should keep memory bounded with 1000 events', () => {
-    const { result } = renderHook(() => useAgentStreamStore());
+  beforeEach(() => {
+    act(() => {
+      useAgentStreamStore.getState().clearEvents();
+    });
+  });
 
+  it('should keep memory bounded with 1000 events', () => {
     // Generate 1000 typical events
     const events: AnyAgentEvent[] = Array.from({ length: 1000 }, (_, i) => ({
       event_type: 'tool_call_complete' as const,
@@ -21,10 +25,12 @@ describe('Memory Usage Tests', () => {
     }));
 
     // Add all events
-    result.current.addEvents(events);
+    act(() => {
+      useAgentStreamStore.getState().addEvents(events);
+    });
 
     // Check memory usage via store
-    const state = result.current;
+    const state = useAgentStreamStore.getState();
     const eventCount = state.toolCalls.size;
 
     // Should have processed all events into aggregated structure
@@ -39,8 +45,6 @@ describe('Memory Usage Tests', () => {
   });
 
   it('should evict old events when exceeding 1000', () => {
-    const { result } = renderHook(() => useAgentStreamStore());
-
     // Add 1500 events
     const events: AnyAgentEvent[] = Array.from({ length: 1500 }, (_, i) => ({
       event_type: 'thinking' as const,
@@ -50,10 +54,12 @@ describe('Memory Usage Tests', () => {
       iteration: i,
     }));
 
-    result.current.addEvents(events);
+    act(() => {
+      useAgentStreamStore.getState().addEvents(events);
+    });
 
     // Should evict oldest 500 events
-    const rawEvents = result.current.eventCache.getAll();
+    const rawEvents = useAgentStreamStore.getState().eventCache.getAll();
     expect(rawEvents.length).toBe(1000);
 
     // First event should be from iteration 500 (oldest 500 evicted)
@@ -62,8 +68,6 @@ describe('Memory Usage Tests', () => {
   });
 
   it('should handle large tool outputs efficiently', () => {
-    const { result } = renderHook(() => useAgentStreamStore());
-
     // Simulate large file read outputs
     const largeOutput = 'x'.repeat(100000); // 100KB output
 
@@ -91,19 +95,19 @@ describe('Memory Usage Tests', () => {
       },
     ]).flat();
 
-    result.current.addEvents(events);
+    act(() => {
+      useAgentStreamStore.getState().addEvents(events);
+    });
 
     // Should aggregate into 100 tool calls
-    expect(result.current.toolCalls.size).toBe(100);
+    expect(useAgentStreamStore.getState().toolCalls.size).toBe(100);
 
     // Even with large outputs, LRU should keep memory bounded
-    const rawEvents = result.current.eventCache.getAll();
+    const rawEvents = useAgentStreamStore.getState().eventCache.getAll();
     expect(rawEvents.length).toBeLessThanOrEqual(1000);
   });
 
   it('should clear memory efficiently', () => {
-    const { result } = renderHook(() => useAgentStreamStore());
-
     // Fill with events
     const events: AnyAgentEvent[] = Array.from({ length: 1000 }, (_, i) => ({
       event_type: 'thinking' as const,
@@ -113,23 +117,26 @@ describe('Memory Usage Tests', () => {
       iteration: i,
     }));
 
-    result.current.addEvents(events);
+    act(() => {
+      useAgentStreamStore.getState().addEvents(events);
+    });
 
-    expect(result.current.eventCache.size()).toBe(1000);
+    expect(useAgentStreamStore.getState().eventCache.size()).toBe(1000);
 
     // Clear all
-    result.current.clearEvents();
+    act(() => {
+      useAgentStreamStore.getState().clearEvents();
+    });
 
     // Memory should be freed
-    expect(result.current.eventCache.size()).toBe(0);
-    expect(result.current.toolCalls.size).toBe(0);
-    expect(result.current.iterations.size).toBe(0);
-    expect(result.current.researchSteps.length).toBe(0);
+    const clearedState = useAgentStreamStore.getState();
+    expect(clearedState.eventCache.size()).toBe(0);
+    expect(clearedState.toolCalls.size).toBe(0);
+    expect(clearedState.iterations.size).toBe(0);
+    expect(clearedState.researchSteps.length).toBe(0);
   });
 
   it('should maintain reasonable memory with streaming chunks', () => {
-    const { result } = renderHook(() => useAgentStreamStore());
-
     // Simulate streaming tool call with many chunks
     const callId = 'streaming-call';
 
@@ -166,17 +173,20 @@ describe('Memory Usage Tests', () => {
       duration: 5000,
     };
 
-    result.current.addEvent(startEvent);
-    result.current.addEvents(streamEvents);
-    result.current.addEvent(completeEvent);
+    act(() => {
+      const { addEvent, addEvents } = useAgentStreamStore.getState();
+      addEvent(startEvent);
+      addEvents(streamEvents);
+      addEvent(completeEvent);
+    });
 
     // Should aggregate into single tool call with all chunks
-    const toolCall = result.current.toolCalls.get(callId);
+    const toolCall = useAgentStreamStore.getState().toolCalls.get(callId);
     expect(toolCall).toBeDefined();
     expect(toolCall?.stream_chunks.length).toBe(500);
 
     // Total events should be capped by LRU
-    const rawEvents = result.current.eventCache.getAll();
+    const rawEvents = useAgentStreamStore.getState().eventCache.getAll();
     expect(rawEvents.length).toBeLessThanOrEqual(1000);
   });
 });

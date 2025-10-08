@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 interface TaskInputProps {
   onSubmit: (task: string) => void;
@@ -14,10 +15,12 @@ export function TaskInput({
   onSubmit,
   disabled = false,
   loading = false,
-  placeholder = "Describe your task...",
+  placeholder,
 }: TaskInputProps) {
   const [task, setTask] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const t = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t('console.input.placeholder.idle');
 
   // Auto-resize textarea
   useEffect(() => {
@@ -37,8 +40,8 @@ export function TaskInput({
 
   return (
     <form onSubmit={handleSubmit} className="w-full" data-testid="task-input-form">
-      <div className="flex items-end gap-2">
-        <div className="flex-1 relative">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end sm:gap-2.5">
+        <div className="relative flex-1">
           <textarea
             ref={textareaRef}
             value={task}
@@ -49,12 +52,12 @@ export function TaskInput({
                 handleSubmit(e);
               }
             }}
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             disabled={disabled || loading}
             rows={1}
-            aria-label="Task input"
+            aria-label={t('task.input.ariaLabel')}
             data-testid="task-input"
-            className="w-full rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm font-mono text-foreground shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 min-h-[2.75rem] max-h-32 resize-none overflow-y-auto"
+            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-slate-200/80 bg-white/90 px-3.5 py-2.5 text-[13px] text-slate-700 shadow-sm transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ fieldSizing: 'content' } as any}
           />
         </div>
@@ -62,26 +65,26 @@ export function TaskInput({
         <button
           type="submit"
           disabled={disabled || loading || !task.trim()}
-          className="flex h-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold uppercase tracking-wide text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          title={loading ? 'Running...' : 'Submit (Enter)'}
+          className="inline-flex h-[2.75rem] flex-shrink-0 items-center justify-center gap-2 rounded-2xl bg-sky-500 px-4 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          title={loading ? t('task.submit.title.running') : t('task.submit.title.default')}
           data-testid="task-submit"
         >
           {loading ? (
             <span className="flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-current animate-pulse" />
-              Running
+              <span className="h-2 w-2 rounded-full bg-white/80 animate-pulse" />
+              {t('task.submit.running')}
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
               <Send className="h-3.5 w-3.5" />
-              Send
+              {t('task.submit.label')}
             </span>
           )}
         </button>
       </div>
 
-      <div className="mt-2 text-[11px] font-mono uppercase tracking-wide text-muted-foreground/70">
-        Enter to send · Shift+Enter for new line
+      <div className="mt-1 flex justify-end text-[10px] font-medium uppercase tracking-[0.35em] text-slate-300">
+        {t('console.input.hotkeyHint')}
       </div>
     </form>
   );

@@ -13,6 +13,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes, Language } from "prism-react-renderer";
@@ -42,6 +43,7 @@ export function DocumentCanvas({
   className,
   initialMode = "default",
 }: DocumentCanvasProps) {
+  const t = useTranslation();
   const [viewMode, setViewMode] = useState<ViewMode>(initialMode);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -50,8 +52,8 @@ export function DocumentCanvas({
       <Card className={cn("glass-card shadow-medium", className)}>
         <CardContent className="flex flex-col items-center justify-center h-64 text-gray-500">
           <FileText className="h-16 w-16 mb-4 text-gray-300" />
-          <p className="font-medium">No document selected</p>
-          <p className="text-sm mt-1">Document content will appear here</p>
+          <p className="font-medium">{t("document.empty.title")}</p>
+          <p className="text-sm mt-1">{t("document.empty.description")}</p>
         </CardContent>
       </Card>
     );
@@ -111,7 +113,7 @@ export function DocumentCanvas({
               className="flex items-center gap-1.5"
             >
               <BookOpen className="h-3.5 w-3.5" />
-              Default
+              {t("document.view.default")}
             </Button>
             <Button
               onClick={() => setViewMode("reading")}
@@ -120,7 +122,7 @@ export function DocumentCanvas({
               className="flex items-center gap-1.5"
             >
               <Eye className="h-3.5 w-3.5" />
-              Reading
+              {t("document.view.reading")}
             </Button>
             {compareDocument && (
               <Button
@@ -130,7 +132,7 @@ export function DocumentCanvas({
                 className="flex items-center gap-1.5"
               >
                 <Columns className="h-3.5 w-3.5" />
-                Compare
+                {t("document.view.compare")}
               </Button>
             )}
           </div>
@@ -199,8 +201,8 @@ function CompareView({
     <div className="h-full grid grid-cols-2 divide-x divide-gray-200">
       {/* Left pane */}
       <div className="overflow-auto">
-        <div className="sticky top-0 bg-red-50 border-b border-red-200 px-4 py-2 z-10">
-          <p className="text-sm font-semibold text-red-800">{document.title}</p>
+        <div className="sticky top-0 bg-destructive/10 border-b border-destructive/30 px-4 py-2 z-10">
+          <p className="text-sm font-semibold text-destructive">{document.title}</p>
         </div>
         <div className="p-4">
           <DocumentRenderer document={document} />
@@ -209,10 +211,8 @@ function CompareView({
 
       {/* Right pane */}
       <div className="overflow-auto">
-        <div className="sticky top-0 bg-green-50 border-b border-green-200 px-4 py-2 z-10">
-          <p className="text-sm font-semibold text-green-800">
-            {compareDocument.title}
-          </p>
+        <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 px-4 py-2 z-10">
+          <p className="text-sm font-semibold text-emerald-700">{compareDocument.title}</p>
         </div>
         <div className="p-4">
           <DocumentRenderer document={compareDocument} />

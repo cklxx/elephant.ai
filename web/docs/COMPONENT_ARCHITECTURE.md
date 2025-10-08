@@ -2,41 +2,19 @@
 
 ## Overview
 
-This document provides visual diagrams of the Manus-style UI architecture.
+This document provides visual diagrams of the research console-style UI architecture.
 
 ## Component Hierarchy
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                          page.tsx                                │
-│                     (Main Application)                           │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-       useManusUI = true           useManusUI = false
-              │                             │
-              ▼                             ▼
-    ┌──────────────────┐          ┌─────────────────┐
-    │ ManusAgentOutput │          │  AgentOutput    │
-    │  (Manus-style)   │          │  (Classic UI)   │
-    └────────┬─────────┘          └─────────────────┘
-             │
-   ┌─────────┼─────────┬──────────────┬─────────────┐
-   │         │         │              │             │
-   ▼         ▼         ▼              ▼             ▼
-┌──────┐ ┌──────┐ ┌────────┐ ┌──────────────┐ ┌─────────┐
-│Toast │ │Dialog│ │PlanCard│ │   Tabs       │ │Computer │
-│      │ │      │ │        │ │              │ │  View   │
-└──────┘ └──────┘ └────────┘ └──────┬───────┘ └─────────┘
-                                     │
-                      ┌──────────────┼──────────────┐
-                      │              │              │
-                      ▼              ▼              ▼
-                 ┌─────────┐  ┌──────────┐  ┌──────────┐
-                 │Timeline │  │  Events  │  │Document  │
-                 │         │  │  List    │  │ Canvas   │
-                 └─────────┘  └──────────┘  └──────────┘
+-```
+- page.tsx (Main application shell)
+  └─ ConsoleAgentOutput (research console layout)
+     ├─ ConnectionStatus (stream health + reconnect controls)
+     ├─ ResearchPlanCard (approval, editing, rejection flows)
+     ├─ ResearchTimeline (step navigation + highlighting)
+     ├─ VirtualizedEventList (event stream rendering)
+     ├─ ToolOutputCard / WebViewport (tool completion details)
+     └─ DocumentCanvas (task result presentation)
 ```
 
 ## Data Flow
@@ -195,7 +173,7 @@ Props Flow (Top-down):
 ─────────────────────
 page.tsx
   │
-  ├─► ManusAgentOutput
+  ├─► ConsoleAgentOutput
   │     │
   │     ├─► events: AnyAgentEvent[]
   │     ├─► sessionId: string
@@ -207,7 +185,7 @@ page.tsx
         ├─► plan: ResearchPlan
         ├─► onApprove: () => void
         ├─► onModify: (plan) => void
-        └─► onCancel: () => void
+        └─► onReject: (reason) => void
 
 Callback Flow (Bottom-up):
 ──────────────────────────
@@ -224,6 +202,17 @@ Toast Notification: "Plan approved"
   │
   ▼
 Timeline: Execution starts
+
+ResearchPlanCard
+  │ onReject(reason)
+  ▼
+usePlanApproval
+  │ handleReject(reason)
+  ▼
+Toast Notification: "Plan rejected"
+  │
+  ▼
+Plan remains editable for revision
 
 
 Hook Dependencies:
@@ -281,7 +270,7 @@ Derived State (useMemo):
 Local State (useState):
 ───────────────────────
 ┌───────────────────────┐
-│ ManusAgentOutput      │
+│ ConsoleAgentOutput      │
 │ - activeTab           │
 │ - documentViewMode    │
 └───────────────────────┘

@@ -69,6 +69,7 @@ export function useSSE(
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
+  const pendingReconnectRef = useRef(false);
   const sessionIdRef = useRef(sessionId);
 
   // Update session ID ref
@@ -122,11 +123,13 @@ export function useSSE(
     const currentMaxAttempts = maxReconnectAttempts;
 
     if (!currentSessionId || !currentEnabled) {
+      pendingReconnectRef.current = false;
       return;
     }
 
     // Prevent double connections
     if (isConnectingRef.current || eventSourceRef.current) {
+      pendingReconnectRef.current = false;
       return;
     }
 
@@ -223,6 +226,8 @@ export function useSSE(
       console.error('[SSE] Failed to create connection:', err);
       isConnectingRef.current = false;
       setError(err instanceof Error ? err.message : 'Failed to connect');
+    } finally {
+      pendingReconnectRef.current = false;
     }
   }, [enabled, maxReconnectAttempts]);
 
@@ -231,6 +236,11 @@ export function useSSE(
    * Resets reconnection counter and immediately attempts to connect
    */
   const reconnect = useCallback(() => {
+    if (isConnectingRef.current || pendingReconnectRef.current) {
+      return;
+    }
+
+    pendingReconnectRef.current = true;
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
     setError(null);

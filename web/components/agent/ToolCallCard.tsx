@@ -24,7 +24,7 @@ export function ToolCallCard({ event, status }: ToolCallCardProps) {
   const isComplete = event.event_type === 'tool_call_complete';
 
   return (
-    <Card className={cn('manus-card border-l-4 animate-fadeIn overflow-hidden', toolColor)}>
+    <Card className={cn('console-card border-l-4 animate-fadeIn overflow-hidden', toolColor)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -33,7 +33,7 @@ export function ToolCallCard({ event, status }: ToolCallCardProps) {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="manus-heading text-lg">{event.tool_name}</h3>
+                <h3 className="console-heading text-lg">{event.tool_name}</h3>
                 {status === 'running' && (
                   <Badge variant="info" className="flex items-center gap-1 animate-pulse">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -53,7 +53,7 @@ export function ToolCallCard({ event, status }: ToolCallCardProps) {
                   </Badge>
                 )}
               </div>
-              <p className="manus-caption text-sm mt-1">
+              <p className="console-caption text-sm mt-1">
                 {isComplete && completeEvent?.duration
                   ? `Completed in ${formatDuration(completeEvent.duration)}`
                   : 'Executing...'}
@@ -78,11 +78,11 @@ export function ToolCallCard({ event, status }: ToolCallCardProps) {
           {/* Arguments */}
           {hasArguments(event) && (
             <div>
-              <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
+              <p className="console-subheading text-sm mb-2 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
                 Arguments:
               </p>
-              <pre className="manus-card bg-muted p-4 text-xs overflow-x-auto font-mono">
+              <pre className="console-card bg-muted p-4 text-xs overflow-x-auto font-mono">
                 {formatJSON(event.arguments)}
               </pre>
             </div>
@@ -91,11 +91,11 @@ export function ToolCallCard({ event, status }: ToolCallCardProps) {
           {/* Result */}
           {completeEvent?.result && (
             <div>
-              <p className="manus-subheading text-sm mb-2 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>
+              <p className="console-subheading text-sm mb-2 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
                 Result:
               </p>
-              <pre className="manus-card bg-muted p-4 text-xs overflow-x-auto max-h-96 font-mono">
+              <pre className="console-card bg-muted p-4 text-xs overflow-x-auto max-h-96 font-mono">
                 {completeEvent.result}
               </pre>
             </div>
@@ -108,14 +108,14 @@ export function ToolCallCard({ event, status }: ToolCallCardProps) {
                 <span className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse"></span>
                 Error:
               </p>
-              <pre className="manus-card bg-destructive/5 p-4 text-xs overflow-x-auto border-destructive font-mono">
+              <pre className="console-card bg-destructive/5 p-4 text-xs overflow-x-auto border-destructive font-mono">
                 {completeEvent.error}
               </pre>
             </div>
           )}
 
           {/* Call ID */}
-          <div className="text-xs manus-caption font-mono pt-2 border-t border-border">
+          <div className="text-xs console-caption font-mono pt-2 border-t border-border">
             Call ID: {event.call_id}
           </div>
         </CardContent>

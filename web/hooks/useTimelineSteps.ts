@@ -1,14 +1,7 @@
 // Hook to convert agent events to timeline steps for ResearchTimeline
 
 import { useMemo } from 'react';
-import {
-  AnyAgentEvent,
-  IterationStartEvent,
-  IterationCompleteEvent,
-  StepStartedEvent,
-  StepCompletedEvent,
-  ErrorEvent,
-} from '@/lib/types';
+import { AnyAgentEvent } from '@/lib/types';
 import {
   isStepStartedEvent,
   isStepCompletedEvent,
@@ -17,7 +10,7 @@ import {
   isErrorEvent,
   isToolCallStartEvent,
 } from '@/lib/typeGuards';
-import { TimelineStep, StepStatus } from '@/components/agent/ResearchTimeline';
+import { TimelineStep } from '@/components/agent/ResearchTimeline';
 
 export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
   return useMemo(() => {

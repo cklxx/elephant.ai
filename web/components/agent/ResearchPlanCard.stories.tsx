@@ -17,7 +17,7 @@ const meta = {
   args: {
     onApprove: fn(),
     onModify: fn(),
-    onCancel: fn(),
+    onReject: fn(),
   },
 } satisfies Meta<typeof ResearchPlanCard>;
 

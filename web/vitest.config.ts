@@ -8,6 +8,16 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    exclude: ['node_modules/**', 'e2e/**'],
+    include: [
+      'hooks/**/__tests__/**/*.test.ts',
+      'hooks/**/__tests__/**/*.test.tsx',
+      'components/**/__tests__/**/*.test.tsx',
+      'app/**/__tests__/**/*.test.ts',
+      'app/**/__tests__/**/*.test.tsx',
+      'lib/**/*.test.ts',
+      'tests/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

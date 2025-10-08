@@ -72,13 +72,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       // Default fallback UI
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-destructive/10 via-amber-50 to-primary/10 p-4">
           <div className="max-w-2xl w-full">
-            <div className="bg-white rounded-xl shadow-xl p-8 border border-red-200">
+            <div className="bg-white rounded-xl shadow-xl p-8 border border-destructive/30">
               {/* Header */}
               <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-red-100 rounded-full">
-                  <AlertTriangle className="h-8 w-8 text-red-600" />
+                <div className="p-3 bg-destructive/10 rounded-full">
+                  <AlertTriangle className="h-8 w-8 text-destructive" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">
@@ -92,11 +92,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
               {/* Error details */}
               <div className="mb-6">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-red-900 mb-2">
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-destructive mb-2">
                     Error Message:
                   </p>
-                  <p className="text-sm text-red-800 font-mono">
+                  <p className="text-sm text-destructive font-mono">
                     {error.message || 'Unknown error'}
                   </p>
                 </div>
@@ -123,14 +123,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <div className="flex gap-3">
                 <button
                   onClick={this.handleReset}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors font-medium"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Try Again
                 </button>
                 <Link
                   href="/"
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/30 bg-background text-foreground hover:bg-primary/10 transition-colors font-medium"
                 >
                   <Home className="h-4 w-4" />
                   Go Home

@@ -203,7 +203,7 @@ cancelTask(taskId);
 function MyComponent({ event }) {
   const getStyle = () => {
     switch (event.event_type) {
-      case 'error': return 'text-red-500';
+      case 'error': return 'text-destructive';
       // ... more cases
     }
   };

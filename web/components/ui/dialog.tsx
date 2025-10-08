@@ -94,33 +94,57 @@ export function DialogContent({
   );
 }
 
-export function DialogHeader({ children }: { children: React.ReactNode }) {
+export function DialogHeader({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mb-4">
+    <div className={cn('mb-4', className)}>
       {children}
     </div>
   );
 }
 
-export function DialogTitle({ children }: { children: React.ReactNode }) {
+export function DialogTitle({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <h2 className="text-2xl font-bold gradient-text">
+    <h2 className={cn('text-2xl font-bold gradient-text', className)}>
       {children}
     </h2>
   );
 }
 
-export function DialogDescription({ children }: { children: React.ReactNode }) {
+export function DialogDescription({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <p className="mt-2 text-sm text-gray-600">
+    <p className={cn('mt-2 text-sm text-gray-600', className)}>
       {children}
     </p>
   );
 }
 
-export function DialogFooter({ children }: { children: React.ReactNode }) {
+export function DialogFooter({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mt-6 flex items-center justify-end gap-3">
+    <div className={cn('mt-6 flex items-center justify-end gap-3', className)}>
       {children}
     </div>
   );
@@ -167,8 +191,8 @@ export function useConfirmDialog() {
     if (!config) return null;
 
     const confirmButtonClass = config.variant === 'danger'
-      ? 'bg-red-600 hover:bg-red-700 text-white'
-      : 'bg-blue-600 hover:bg-blue-700 text-white';
+      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+      : 'bg-primary hover:bg-primary/90 text-primary-foreground';
 
     const handleConfirm = () => {
       config.onConfirm();
@@ -188,7 +212,7 @@ export function useConfirmDialog() {
           <DialogFooter>
             <button
               onClick={handleCancel}
-              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+              className="px-4 py-2 rounded-lg border border-primary/30 bg-background text-foreground hover:bg-primary/10 transition-colors"
             >
               {config.cancelText || 'Cancel'}
             </button>

@@ -16,8 +16,8 @@ export function Toaster() {
           toast: 'glass-card shadow-strong border-0',
           title: 'font-semibold text-gray-900',
           description: 'text-sm text-gray-600',
-          actionButton: 'bg-blue-600 text-white hover:bg-blue-700',
-          cancelButton: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+          actionButton: 'bg-primary text-primary-foreground hover:bg-primary/90',
+          cancelButton: 'border border-primary/30 bg-background text-foreground hover:bg-primary/10',
           closeButton: 'hover:bg-gray-100',
         },
       }}

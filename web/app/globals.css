@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /**
- * Manus Visual Language - Global Styles
+ * ALEX Visual Language - Global Styles
  *
  * Design Philosophy:
  * - Low-saturation grayscale foundation
@@ -25,52 +25,52 @@
    */
   :root {
     /* Base colors */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
+    --background: 210 40% 98%;
+    --foreground: 213 19% 18%;
 
     /* Card backgrounds */
-    --card: 0 0% 99%;
-    --card-foreground: 0 0% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 19% 18%;
 
-    /* Primary accent (low-saturation blue) */
-    --primary: 215 14% 34%;
-    --primary-foreground: 0 0% 98%;
+    /* Primary accent */
+    --primary: 199 89% 48%;
+    --primary-foreground: 199 100% 97%;
 
     /* Secondary elements */
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 13%;
+    --secondary: 213 27% 93%;
+    --secondary-foreground: 213 19% 26%;
 
     /* Muted elements */
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 213 33% 94%;
+    --muted-foreground: 215 16% 45%;
 
-    /* Accent (subtle) */
-    --accent: 0 0% 95%;
-    --accent-foreground: 0 0% 13%;
+    /* Accent (subtle neutral) */
+    --accent: 0 0% 100%;
+    --accent-foreground: 213 19% 18%;
 
-    /* Destructive (subdued red) */
-    --destructive: 0 50% 45%;
-    --destructive-foreground: 0 0% 98%;
+    /* Destructive */
+    --destructive: 6 84% 58%;
+    --destructive-foreground: 0 0% 100%;
 
     /* Borders and inputs */
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
+    --border: 214 32% 92%;
+    --input: 214 32% 90%;
 
     /* Focus ring */
-    --ring: 215 14% 34%;
+    --ring: 199 89% 48%;
 
     /* Grayscale palette */
-    --gray-50: 0 0% 98%;
-    --gray-100: 0 0% 96%;
-    --gray-200: 0 0% 92%;
-    --gray-300: 0 0% 88%;
-    --gray-400: 0 0% 64%;
-    --gray-500: 0 0% 50%;
-    --gray-600: 0 0% 40%;
-    --gray-700: 0 0% 28%;
-    --gray-800: 0 0% 16%;
-    --gray-900: 0 0% 9%;
-    --gray-950: 0 0% 5%;
+    --gray-50: 210 40% 98%;
+    --gray-100: 214 32% 94%;
+    --gray-200: 213 27% 90%;
+    --gray-300: 213 22% 84%;
+    --gray-400: 215 17% 65%;
+    --gray-500: 214 17% 45%;
+    --gray-600: 216 15% 34%;
+    --gray-700: 218 17% 24%;
+    --gray-800: 220 18% 16%;
+    --gray-900: 222 19% 12%;
+    --gray-950: 225 24% 9%;
   }
 
   /**
@@ -80,52 +80,52 @@
    */
   .dark {
     /* Base colors */
-    --background: 0 0% 7%;
-    --foreground: 0 0% 96%;
+    --background: 220 26% 8%;
+    --foreground: 213 31% 88%;
 
     /* Card backgrounds */
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 96%;
+    --card: 220 21% 12%;
+    --card-foreground: 213 31% 88%;
 
-    /* Primary accent (low-saturation blue) */
-    --primary: 215 20% 65%;
-    --primary-foreground: 0 0% 9%;
+    /* Primary accent */
+    --primary: 199 92% 68%;
+    --primary-foreground: 215 33% 14%;
 
     /* Secondary elements */
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary: 220 18% 18%;
+    --secondary-foreground: 213 31% 88%;
 
     /* Muted elements */
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 220 19% 20%;
+    --muted-foreground: 215 19% 65%;
 
-    /* Accent (subtle) */
-    --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 96%;
+    /* Accent */
+    --accent: 220 20% 22%;
+    --accent-foreground: 210 40% 95%;
 
-    /* Destructive (subdued red) */
-    --destructive: 0 55% 55%;
-    --destructive-foreground: 0 0% 98%;
+    /* Destructive */
+    --destructive: 5 78% 61%;
+    --destructive-foreground: 0 0% 100%;
 
     /* Borders and inputs */
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
+    --border: 220 18% 28%;
+    --input: 220 18% 24%;
 
     /* Focus ring */
-    --ring: 215 20% 65%;
+    --ring: 199 92% 68%;
 
     /* Grayscale palette (dark) */
-    --gray-50: 0 0% 5%;
-    --gray-100: 0 0% 9%;
-    --gray-200: 0 0% 16%;
-    --gray-300: 0 0% 24%;
-    --gray-400: 0 0% 40%;
-    --gray-500: 0 0% 50%;
-    --gray-600: 0 0% 64%;
-    --gray-700: 0 0% 76%;
-    --gray-800: 0 0% 88%;
-    --gray-900: 0 0% 96%;
-    --gray-950: 0 0% 98%;
+    --gray-50: 220 26% 8%;
+    --gray-100: 218 24% 12%;
+    --gray-200: 220 21% 18%;
+    --gray-300: 220 20% 26%;
+    --gray-400: 220 18% 38%;
+    --gray-500: 218 17% 48%;
+    --gray-600: 218 17% 58%;
+    --gray-700: 219 15% 68%;
+    --gray-800: 216 18% 78%;
+    --gray-900: 214 32% 88%;
+    --gray-950: 213 45% 94%;
   }
 }
 
@@ -157,7 +157,7 @@
 }
 
 /* ========================================================================
-   MANUS UTILITY CLASSES
+   CONSOLE UTILITY CLASSES
    ======================================================================== */
 
 @layer components {
@@ -166,15 +166,15 @@
    * - Clean borders, no shadows or blur
    * - Subtle background differentiation
    */
-  .manus-card {
+  .console-card {
     @apply bg-card border border-border rounded-md;
   }
 
-  .manus-card-interactive {
-    @apply manus-card transition-colors duration-150;
+  .console-card-interactive {
+    @apply console-card transition-colors duration-150;
   }
 
-  .manus-card-interactive:hover {
+  .console-card-interactive:hover {
     @apply bg-accent;
   }
 
@@ -183,11 +183,11 @@
    * - Clear visual hierarchy through borders
    * - Generous padding for readability
    */
-  .manus-section {
+  .console-section {
     @apply border-b border-border py-6;
   }
 
-  .manus-section:last-child {
+  .console-section:last-child {
     @apply border-b-0;
   }
 
@@ -196,20 +196,28 @@
    * - Bold headings for hierarchy
    * - Regular body text with proper line height
    */
-  .manus-heading {
+  .console-heading {
     @apply font-semibold text-foreground tracking-tight;
   }
 
-  .manus-subheading {
+  .console-subheading {
     @apply font-medium text-muted-foreground;
   }
 
-  .manus-body {
+  .console-body {
     @apply text-foreground leading-relaxed;
   }
 
-  .manus-caption {
+  .console-caption {
     @apply text-sm text-muted-foreground;
+  }
+
+  .timeline-anchor-target {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .timeline-anchor-highlight {
+    @apply ring-2 ring-sky-400 ring-offset-2 ring-offset-background bg-sky-50 dark:bg-sky-500/20;
   }
 
   /**
@@ -217,32 +225,32 @@
    * - Minimal decoration
    * - Clear states without heavy effects
    */
-  .manus-button {
+  .console-button {
     @apply px-4 py-2 rounded-md font-medium transition-colors duration-150;
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
   }
 
-  .manus-button-primary {
-    @apply manus-button bg-primary text-primary-foreground;
+  .console-button-primary {
+    @apply console-button bg-primary text-primary-foreground;
   }
 
-  .manus-button-primary:hover {
+  .console-button-primary:hover {
     @apply opacity-90;
   }
 
-  .manus-button-secondary {
-    @apply manus-button bg-secondary text-secondary-foreground;
+  .console-button-secondary {
+    @apply console-button bg-secondary text-secondary-foreground;
   }
 
-  .manus-button-secondary:hover {
+  .console-button-secondary:hover {
     @apply bg-accent;
   }
 
-  .manus-button-ghost {
-    @apply manus-button bg-transparent;
+  .console-button-ghost {
+    @apply console-button bg-transparent;
   }
 
-  .manus-button-ghost:hover {
+  .console-button-ghost:hover {
     @apply bg-accent;
   }
 
@@ -251,7 +259,7 @@
    * - Clean borders
    * - Clear focus states
    */
-  .manus-input {
+  .console-input {
     @apply w-full px-3 py-2 bg-background border border-input rounded-md;
     @apply text-foreground placeholder:text-muted-foreground;
     @apply focus:outline-none focus:ring-2 focus:ring-ring;
@@ -263,17 +271,67 @@
    * - Minimal, flat design
    * - Clear text hierarchy
    */
-  .manus-badge {
+  .console-badge {
     @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium;
     @apply bg-secondary text-secondary-foreground;
   }
 
-  .manus-badge-primary {
-    @apply manus-badge bg-primary text-primary-foreground;
+  .console-badge-primary {
+    @apply console-badge bg-primary text-primary-foreground;
   }
 
-  .manus-badge-outline {
-    @apply manus-badge bg-transparent border border-border;
+  .console-badge-outline {
+    @apply console-badge bg-transparent border border-border;
+  }
+}
+
+@layer utilities {
+  .bg-app-canvas {
+    background-image:
+      radial-gradient(circle at top right, hsl(var(--primary) / 0.12), transparent 45%),
+      radial-gradient(circle at bottom left, hsl(var(--gray-300) / 0.35), transparent 55%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--gray-100)) 100%);
+  }
+
+  .console-shell {
+    @apply mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 pb-8 pt-6 sm:px-6 lg:px-8;
+  }
+
+  .console-panel {
+    @apply rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0px_18px_60px_rgba(15,23,42,0.08)] backdrop-blur;
+  }
+
+  .console-pane-title {
+    @apply text-[13px] font-semibold uppercase tracking-[0.2em] text-slate-500;
+  }
+
+  .console-section-title {
+    @apply text-lg font-semibold text-slate-800;
+  }
+
+  .console-subtle {
+    @apply text-sm text-slate-500;
+  }
+
+  .console-microcopy {
+    @apply text-xs leading-relaxed text-slate-400;
+  }
+
+  .console-quiet-chip {
+    @apply inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600;
+  }
+
+  .console-scrollbar {
+    scrollbar-color: hsla(var(--primary) / 0.25) transparent;
+  }
+
+  .console-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .console-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsla(var(--primary) / 0.25);
+    border-radius: 9999px;
   }
 }
 
@@ -389,7 +447,7 @@
 /**
  * Loading Skeleton
  * - Subtle pulse, no shimmer effects
- * - Maintains Manus grayscale palette
+ * - Maintains the extended grayscale palette
  */
 .skeleton {
   @apply animate-pulse bg-muted rounded;
@@ -404,11 +462,11 @@
  * components that haven't been migrated yet. These will be removed in Phase 2.
  *
  * Deprecated classes:
- * - glass, glass-dark, glass-card -> Use manus-card instead
+ * - glass, glass-dark, glass-card -> Use console-card instead
  * - gradient-* -> Use CSS variables (--primary, --foreground, etc.)
- * - shadow-* -> Removed (Manus uses no shadows)
+ * - shadow-* -> Removed (console uses no shadows)
  * - hover-lift, hover-glow -> Use hover-subtle instead
- * - card-interactive -> Use manus-card-interactive instead
+ * - card-interactive -> Use console-card-interactive instead
  */
 .glass,
 .glass-dark,

@@ -19,7 +19,7 @@ export function LoadingSpinner({ size = 'md', className, label }: LoadingSpinner
 
   return (
     <div className={cn('flex flex-col items-center justify-center gap-3', className)}>
-      <Loader2 className={cn('animate-spin text-blue-600', sizeClasses[size])} />
+      <Loader2 className={cn('animate-spin text-primary', sizeClasses[size])} />
       {label && <p className="text-sm text-gray-600 font-medium">{label}</p>}
     </div>
   );
@@ -46,20 +46,20 @@ export function LoadingState({
     <div className={cn('flex items-center gap-3 p-4 rounded-lg', className)}>
       {status === 'loading' && (
         <>
-          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
           <span className="text-sm text-gray-700">{loadingText}</span>
         </>
       )}
       {status === 'success' && (
         <>
-          <CheckCircle2 className="h-5 w-5 text-green-600" />
-          <span className="text-sm text-green-700 font-medium">{successText}</span>
+          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          <span className="text-sm text-emerald-700 font-medium">{successText}</span>
         </>
       )}
       {status === 'error' && (
         <>
-          <AlertCircle className="h-5 w-5 text-red-600" />
-          <span className="text-sm text-red-700 font-medium">{errorText}</span>
+          <AlertCircle className="h-5 w-5 text-destructive" />
+          <span className="text-sm text-destructive font-medium">{errorText}</span>
         </>
       )}
     </div>
@@ -91,12 +91,12 @@ export function LoadingOverlay({
   );
 }
 
-export function PulsingDot({ color = 'blue' }: { color?: 'blue' | 'green' | 'red' | 'yellow' }) {
+export function PulsingDot({ color = 'primary' }: { color?: 'primary' | 'green' | 'red' | 'yellow' }) {
   const colorClasses = {
-    blue: 'bg-blue-500',
-    green: 'bg-green-500',
-    red: 'bg-red-500',
-    yellow: 'bg-yellow-500',
+    primary: 'bg-primary',
+    green: 'bg-emerald-500',
+    red: 'bg-destructive',
+    yellow: 'bg-amber-400',
   };
 
   return (
@@ -137,7 +137,7 @@ export function ProgressBar({
       )}
       <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
         <div
-          className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500 ease-out"
+          className="bg-gradient-to-r from-primary/80 to-primary h-full rounded-full transition-all duration-500 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -151,9 +151,9 @@ export function StreamingIndicator({ active = true }: { active?: boolean }) {
   return (
     <div className="flex items-center gap-2 text-sm text-gray-600">
       <div className="flex gap-1">
-        <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-        <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-        <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
       </div>
       <span className="font-medium">Streaming...</span>
     </div>

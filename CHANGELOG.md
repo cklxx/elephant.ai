@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Environment-based configuration for web frontend (`.env.development`, `.env.production`)
-- Manus-style terminal UI layout with persistent input
+- research console-style terminal UI layout with persistent input
 - User task display in event stream
 - Terminal-style event output component with color-coded events
 - Research plan approval UI integration
 - Agent runtime ports for logger/clock abstraction and a `ReactiveExecutor` contract to enable typed mocking
+- Session history pinning and renaming controls with localized copy
 
 ### Changed
 - **BREAKING**: Completely refactored deployment script (`deploy.sh`)
@@ -22,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Implemented PID-based process management
   - Added log rotation and health checks
   - Removed Docker and Kubernetes logic
-- Refactored web frontend layout following Manus design pattern
+- Refactored web frontend layout following the research console design pattern
   - Three-section flexbox: header (fixed) → output (scrollable) → input (fixed)
   - Persistent task input always visible at bottom
   - Auto-scroll to latest events
@@ -86,4 +87,4 @@ The `.env.local` file is no longer used. Update your environment configuration i
 The web UI has been redesigned with a terminal-style layout:
 - Input is always visible at the bottom
 - Events stream above with auto-scroll
-- Minimalist design inspired by Manus
+- Minimalist design inspired by the research console reference experience

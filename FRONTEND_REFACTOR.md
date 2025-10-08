@@ -1,4 +1,4 @@
-# 前端重构 - Manus 风格终端布局
+# 前端重构 - 研究控制台风格终端布局
 
 ## 问题分析
 
@@ -18,7 +18,7 @@
 )}
 ```
 
-## Manus 设计原则
+## 研究控制台设计原则
 
 ### 核心理念
 1. **持续性输入** - 输入框永远固定在底部
@@ -261,7 +261,7 @@ isConnected ? 'bg-green-500' : 'bg-gray-400'
 ### 旧版本
 - ❌ 输入框条件渲染，提交后消失
 - ❌ 布局分散，状态切换明显
-- ❌ AgentOutput + ManusAgentOutput 两套实现
+- ❌ AgentOutput + ConsoleAgentOutput 两套实现
 - ❌ 复杂的状态管理逻辑
 - ❌ 卡片式布局，非终端风格
 
@@ -300,7 +300,7 @@ isConnected ? 'bg-green-500' : 'bg-gray-400'
 
 ### 保留文件 (待清理)
 - `web/components/agent/AgentOutput.tsx` - 旧版输出
-- `web/components/agent/ManusAgentOutput.tsx` - 旧版 Manus 输出
+- `web/components/agent/ConsoleAgentOutput.tsx` - 旧版研究控制台输出
 
 ## 后续优化
 
@@ -336,7 +336,7 @@ isConnected ? 'bg-green-500' : 'bg-gray-400'
 
 ## 结论
 
-通过采用 Manus 的终端风格布局，我们实现了:
+通过采用研究控制台的终端风格布局，我们实现了:
 1. **更好的用户体验** - 输入框始终可见，像真正的终端
 2. **更简洁的代码** - 减少条件渲染，统一状态管理
 3. **更高效的空间利用** - Flexbox 布局充分利用屏幕高度
