@@ -172,45 +172,72 @@ export function groupByIteration(events: AnyAgentEvent[]): Map<number, Iteration
  * Extract research steps from events
  */
 export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
-  const steps: ResearchStep[] = [];
-  const stepMap = new Map<number, ResearchStep>();
+  const plannedDescriptions = new Map<number, string>();
+  const steps = new Map<number, ResearchStep>();
 
-  // First pass: create steps from research_plan
-  for (const event of events) {
-    if (event.event_type === 'research_plan') {
-      event.plan_steps.forEach((description, index) => {
-        const step: ResearchStep = {
-          id: `step-${index}`,
-          step_index: index,
-          description,
-          status: 'pending',
-          iterations: [],
-        };
-        stepMap.set(index, step);
-        steps.push(step);
+  const ensureStep = (stepIndex: number, fallbackDescription?: string): ResearchStep => {
+    if (!steps.has(stepIndex)) {
+      const description =
+        fallbackDescription ?? plannedDescriptions.get(stepIndex) ?? `Step ${stepIndex + 1}`;
+
+      steps.set(stepIndex, {
+        id: `step-${stepIndex}`,
+        step_index: stepIndex,
+        description,
+        status: 'pending',
+        iterations: [],
       });
     }
-  }
 
-  // Second pass: update step status from events
+    const step = steps.get(stepIndex)!;
+
+    if (!step.description && fallbackDescription) {
+      step.description = fallbackDescription;
+    }
+
+    return step;
+  };
+
   for (const event of events) {
-    if (event.event_type === 'step_started') {
-      const step = stepMap.get(event.step_index);
-      if (step) {
+    switch (event.event_type) {
+      case 'research_plan':
+        event.plan_steps.forEach((description, index) => {
+          plannedDescriptions.set(index, description);
+          ensureStep(index, description);
+        });
+        break;
+      case 'step_started': {
+        const step = ensureStep(event.step_index, event.step_description);
         step.status = 'in_progress';
         step.started_at = event.timestamp;
+        if (typeof event.iteration === 'number' && !step.iterations.includes(event.iteration)) {
+          step.iterations.push(event.iteration);
+        }
+        break;
       }
-    } else if (event.event_type === 'step_completed') {
-      const step = stepMap.get(event.step_index);
-      if (step) {
+      case 'step_completed': {
+        const step = ensureStep(event.step_index, event.step_description);
         step.status = 'completed';
         step.completed_at = event.timestamp;
         step.result = event.step_result;
+        if (!step.started_at) {
+          step.started_at = event.timestamp;
+        }
+        if (typeof event.iteration === 'number' && !step.iterations.includes(event.iteration)) {
+          step.iterations.push(event.iteration);
+        }
+        break;
       }
     }
   }
 
-  return steps;
+  for (const [index, step] of steps.entries()) {
+    if (!step.description) {
+      step.description = plannedDescriptions.get(index) ?? `Step ${index + 1}`;
+    }
+  }
+
+  return Array.from(steps.values()).sort((a, b) => a.step_index - b.step_index);
 }
 
 /**
@@ -254,7 +281,7 @@ export class EventLRUCache {
   }
 
   getAll(): AnyAgentEvent[] {
-    return this.events;
+    return this.events.slice();
   }
 
   clear(): void {

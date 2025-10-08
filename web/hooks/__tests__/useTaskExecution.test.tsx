@@ -118,11 +118,6 @@ describe('useTaskExecution', () => {
 describe('useTaskStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('should not query when taskId is null', () => {
@@ -165,7 +160,8 @@ describe('useTaskStatus', () => {
 
     vi.mocked(apiClient.getTaskStatus).mockResolvedValue(mockRunningStatus);
 
-    renderHook(() => useTaskStatus('task-123'), {
+    const pollingInterval = 50;
+    renderHook(() => useTaskStatus('task-123', { pollingInterval }), {
       wrapper: createWrapper(),
     });
 
@@ -175,12 +171,9 @@ describe('useTaskStatus', () => {
 
     const initialCallCount = vi.mocked(apiClient.getTaskStatus).mock.calls.length;
 
-    // Advance time by 2 seconds
-    vi.advanceTimersByTime(2000);
+    await new Promise((resolve) => setTimeout(resolve, pollingInterval * 2));
 
-    await waitFor(() => {
-      expect(vi.mocked(apiClient.getTaskStatus).mock.calls.length).toBeGreaterThan(initialCallCount);
-    });
+    expect(vi.mocked(apiClient.getTaskStatus).mock.calls.length).toBeGreaterThan(initialCallCount);
   });
 
   it('should stop polling when task is completed', async () => {
@@ -194,7 +187,8 @@ describe('useTaskStatus', () => {
 
     vi.mocked(apiClient.getTaskStatus).mockResolvedValue(mockCompletedStatus);
 
-    renderHook(() => useTaskStatus('task-123'), {
+    const pollingInterval = 50;
+    renderHook(() => useTaskStatus('task-123', { pollingInterval }), {
       wrapper: createWrapper(),
     });
 
@@ -204,10 +198,8 @@ describe('useTaskStatus', () => {
 
     const callCountAfterComplete = vi.mocked(apiClient.getTaskStatus).mock.calls.length;
 
-    // Advance time
-    vi.advanceTimersByTime(10000);
+    await new Promise((resolve) => setTimeout(resolve, pollingInterval * 4));
 
-    // Should not have made additional calls
     expect(vi.mocked(apiClient.getTaskStatus).mock.calls.length).toBe(callCountAfterComplete);
   });
 
@@ -222,7 +214,8 @@ describe('useTaskStatus', () => {
 
     vi.mocked(apiClient.getTaskStatus).mockResolvedValue(mockFailedStatus);
 
-    renderHook(() => useTaskStatus('task-123'), {
+    const pollingInterval = 50;
+    renderHook(() => useTaskStatus('task-123', { pollingInterval }), {
       wrapper: createWrapper(),
     });
 
@@ -232,10 +225,8 @@ describe('useTaskStatus', () => {
 
     const callCountAfterFail = vi.mocked(apiClient.getTaskStatus).mock.calls.length;
 
-    // Advance time
-    vi.advanceTimersByTime(10000);
+    await new Promise((resolve) => setTimeout(resolve, pollingInterval * 4));
 
-    // Should not have made additional calls
     expect(vi.mocked(apiClient.getTaskStatus).mock.calls.length).toBe(callCountAfterFail);
   });
 });

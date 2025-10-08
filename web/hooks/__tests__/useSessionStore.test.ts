@@ -7,9 +7,11 @@ describe('useSessionStore', () => {
     // Clear localStorage before each test
     localStorage.clear();
     // Reset store state
-    const { result } = renderHook(() => useSessionStore());
     act(() => {
-      result.current.clearCurrentSession();
+      useSessionStore.setState({
+        currentSessionId: null,
+        sessionHistory: [],
+      });
     });
   });
 
@@ -122,7 +124,7 @@ describe('useSessionStore', () => {
       expect(parsed.state.sessionHistory).toContain('session-123');
     });
 
-    it('should restore from localStorage on mount', () => {
+    it('should restore from localStorage on mount', async () => {
       // Pre-populate localStorage
       const mockState = {
         state: {
@@ -132,6 +134,10 @@ describe('useSessionStore', () => {
         version: 0,
       };
       localStorage.setItem('alex-session-storage', JSON.stringify(mockState));
+
+      await act(async () => {
+        await useSessionStore.persist.rehydrate();
+      });
 
       // Mount hook
       const { result } = renderHook(() => useSessionStore());
