@@ -337,6 +337,7 @@ function EventLine({ event }: { event: DisplayEvent }) {
   const category = getEventCategory(event);
   const presentation = describeEvent(event);
   const meta = EVENT_STYLE_META[category];
+  const anchorId = getAnchorId(event);
 
   return (
     <article
@@ -344,10 +345,14 @@ function EventLine({ event }: { event: DisplayEvent }) {
         'relative overflow-hidden rounded-2xl border border-slate-100 px-5 py-4 shadow-sm transition-colors',
         'bg-white/90 text-slate-700',
         meta.card,
-        presentation.status ? STATUS_VARIANTS[presentation.status] : null
+        presentation.status ? STATUS_VARIANTS[presentation.status] : null,
+        anchorId && 'scroll-mt-28 timeline-anchor-target'
       )}
       data-testid={`event-line-${event.event_type}`}
       data-category={category}
+      data-anchor-id={anchorId ?? undefined}
+      id={anchorId ? `event-${anchorId}` : undefined}
+      tabIndex={anchorId ? -1 : undefined}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
@@ -399,6 +404,27 @@ function EventLine({ event }: { event: DisplayEvent }) {
 
 function isCombinedStreamEvent(event: DisplayEvent): event is ToolStreamCombinedEvent {
   return event.event_type === 'tool_stream_combined';
+}
+
+function getAnchorId(event: DisplayEvent): string | null {
+  switch (event.event_type) {
+    case 'step_started':
+    case 'step_completed':
+      return typeof event.step_index === 'number'
+        ? `step-${event.step_index}`
+        : null;
+    case 'iteration_start':
+    case 'iteration_complete':
+      return typeof (event as any).iteration === 'number'
+        ? `iteration-${(event as any).iteration}`
+        : null;
+    case 'error':
+      return typeof (event as any).iteration === 'number'
+        ? `iteration-${(event as any).iteration}`
+        : null;
+    default:
+      return null;
+  }
 }
 
 // Helper functions

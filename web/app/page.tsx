@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
@@ -15,7 +15,10 @@ import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 function HomePageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightedElementRef = useRef<HTMLElement | null>(null);
   const searchParams = useSearchParams();
 
   const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
@@ -46,6 +49,30 @@ function HomePageContent() {
 
   const timelineSteps = useTimelineSteps(events);
   const hasTimeline = timelineSteps.length > 0;
+
+  // Reset focused step when available steps change
+  useEffect(() => {
+    if (!focusedStepId) {
+      const activeStep = timelineSteps.find((step) => step.status === 'active');
+      if (activeStep) {
+        setFocusedStepId(activeStep.id);
+      }
+      return;
+    }
+
+    const exists = timelineSteps.some((step) => step.id === focusedStepId);
+    if (!exists) {
+      setFocusedStepId(null);
+    }
+  }, [timelineSteps, focusedStepId]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -103,6 +130,9 @@ function HomePageContent() {
     setTaskId(null);
     clearEvents();
     clearCurrentSession();
+    setFocusedStepId(null);
+    highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
+    highlightedElementRef.current = null;
   };
 
   const handleSessionSelect = (id: string) => {
@@ -112,7 +142,46 @@ function HomePageContent() {
     setTaskId(null);
     setCurrentSession(id);
     addToHistory(id);
+    setFocusedStepId(null);
+    highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
+    highlightedElementRef.current = null;
   };
+
+  const handleTimelineStepSelect = useCallback(
+    (stepId: string) => {
+      setFocusedStepId(stepId);
+
+      const container = outputRef.current;
+      if (!container) return;
+
+      const safeId =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(stepId)
+          : stepId;
+
+      const target = container.querySelector<HTMLElement>(
+        `[data-anchor-id="${safeId}"]`
+      );
+      if (!target) return;
+
+      target.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+      target.focus({ preventScroll: true });
+
+      highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
+      highlightedElementRef.current = target;
+      target.classList.add('timeline-anchor-highlight');
+
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+
+      highlightTimeoutRef.current = setTimeout(() => {
+        highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
+        highlightedElementRef.current = null;
+      }, 1800);
+    },
+    []
+  );
 
   const isSubmitting = useMockStream ? false : isPending;
   const sessionBadge = resolvedSessionId?.slice(0, 8);
@@ -240,7 +309,11 @@ function HomePageContent() {
                 {hasTimeline && (
                   <aside className="hidden w-72 flex-shrink-0 lg:block">
                     <div className="console-scrollbar sticky top-24 max-h-[calc(100vh-14rem)] overflow-y-auto pr-2">
-                      <ResearchTimeline steps={timelineSteps} />
+                      <ResearchTimeline
+                        steps={timelineSteps}
+                        focusedStepId={focusedStepId}
+                        onStepSelect={handleTimelineStepSelect}
+                      />
                     </div>
                   </aside>
                 )}

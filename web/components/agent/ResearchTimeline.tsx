@@ -33,9 +33,16 @@ export interface TimelineStep {
 interface ResearchTimelineProps {
   steps: TimelineStep[];
   className?: string;
+  focusedStepId?: string | null;
+  onStepSelect?: (stepId: string) => void;
 }
 
-export function ResearchTimeline({ steps, className }: ResearchTimelineProps) {
+export function ResearchTimeline({
+  steps,
+  className,
+  focusedStepId,
+  onStepSelect,
+}: ResearchTimelineProps) {
   const activeStepRef = useRef<HTMLDivElement>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
@@ -73,6 +80,7 @@ export function ResearchTimeline({ steps, className }: ResearchTimelineProps) {
       <div className="space-y-3">
         {steps.map((step, idx) => {
           const isActive = step.status === 'active';
+          const isFocused = focusedStepId === step.id;
           const isExpanded = expandedSteps.has(step.id);
           const isComplete = step.status === 'complete';
           const hasDetails = step.toolsUsed || step.tokensUsed || step.error;
@@ -80,11 +88,7 @@ export function ResearchTimeline({ steps, className }: ResearchTimelineProps) {
           return (
             <div
               key={step.id}
-              ref={isActive ? activeStepRef : null}
-              className={cn(
-                'relative transition-all duration-300',
-                isActive && 'animate-pulse-soft'
-              )}
+              className="relative"
             >
               {/* Connector line */}
               {idx < steps.length - 1 && (
@@ -101,11 +105,24 @@ export function ResearchTimeline({ steps, className }: ResearchTimelineProps) {
               )}
 
               <div
+                ref={isActive ? activeStepRef : null}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isFocused || isActive}
+                data-step-id={step.id}
+                onClick={() => onStepSelect?.(step.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onStepSelect?.(step.id);
+                  }
+                }}
                 className={cn(
-                  'relative flex items-start gap-3 p-4 rounded-xl transition-all duration-300',
-                  isActive && 'bg-blue-50/50 border-2 border-blue-200 shadow-md',
+                  'relative flex items-start gap-3 rounded-xl p-4 text-left transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                  isActive && 'bg-blue-50/50 border-2 border-blue-200 shadow-md animate-pulse-soft',
                   isComplete && !isExpanded && 'opacity-70 hover:opacity-100',
-                  'hover:bg-gray-50/50'
+                  'hover:bg-gray-50/50',
+                  isFocused && 'ring-2 ring-sky-400 ring-offset-2 ring-offset-background'
                 )}
               >
                 {/* Status icon */}
@@ -134,6 +151,8 @@ export function ResearchTimeline({ steps, className }: ResearchTimelineProps) {
                         onClick={() => toggleExpand(step.id)}
                         className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-100 transition-colors"
                         aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        onClickCapture={(event) => event.stopPropagation()}
+                        onKeyDownCapture={(event) => event.stopPropagation()}
                       >
                         {isExpanded ? (
                           <ChevronUp className="h-4 w-4 text-gray-500" />

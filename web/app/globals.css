@@ -212,6 +212,14 @@
     @apply text-sm text-muted-foreground;
   }
 
+  .timeline-anchor-target {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .timeline-anchor-highlight {
+    @apply ring-2 ring-sky-400 ring-offset-2 ring-offset-background bg-sky-50 dark:bg-sky-500/20;
+  }
+
   /**
    * Button Styles
    * - Minimal decoration
