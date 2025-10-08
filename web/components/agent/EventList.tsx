@@ -91,7 +91,13 @@ export function EventList({ events, isConnected }: EventListProps) {
         >
           {virtualizer.getVirtualItems().map((virtualItem) => (
             <div
-              key={virtualItem.index}
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={(node) => {
+                if (node) {
+                  virtualizer.measureElement(node);
+                }
+              }}
               style={{
                 position: 'absolute',
                 top: 0,

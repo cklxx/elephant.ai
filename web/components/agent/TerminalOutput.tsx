@@ -2,7 +2,7 @@
 
 import { Fragment, ReactNode, useCallback, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AgentEvent, AnyAgentEvent } from '@/lib/types';
+import { AgentEvent, AnyAgentEvent, ToolCallCompleteEvent } from '@/lib/types';
 import { ResearchPlanCard } from './ResearchPlanCard';
 import { ConnectionBanner } from './ConnectionBanner';
 import { EventList } from './EventList';
@@ -32,7 +32,11 @@ interface TerminalOutputProps {
   taskId: string | null;
 }
 
-type DisplayEvent = AnyAgentEvent | ToolStreamCombinedEvent;
+type DisplayEvent = AnyAgentEvent | ToolStreamCombinedEvent | ToolCallCompleteDisplayEvent;
+
+interface ToolCallCompleteDisplayEvent extends ToolCallCompleteEvent {
+  arguments?: Record<string, unknown>;
+}
 
 const EVENT_FILTERS = [
   { id: 'conversation', label: 'Conversation' },
@@ -71,7 +75,7 @@ export function TerminalOutput({
     let streamCallId: string | null = null;
     let streamTimestamp: string | null = null;
     let streamAgentLevel: AgentEvent['agent_level'] | null = null;
-    const callMetadata = new Map<string, { toolName?: string }>();
+    const callMetadata = new Map<string, { toolName?: string; arguments?: Record<string, unknown> }>();
 
     const flushBuffer = () => {
       if (!streamBuffer.length || !streamCallId) {
@@ -99,11 +103,18 @@ export function TerminalOutput({
 
     events.forEach((event) => {
       if (event.event_type === 'tool_call_start') {
-        callMetadata.set(event.call_id, { toolName: event.tool_name });
+        callMetadata.set(event.call_id, {
+          toolName: event.tool_name,
+          arguments: event.arguments,
+        });
       }
 
       if (event.event_type === 'tool_call_complete') {
-        callMetadata.set(event.call_id, { toolName: event.tool_name });
+        const existing = callMetadata.get(event.call_id);
+        callMetadata.set(event.call_id, {
+          toolName: event.tool_name,
+          arguments: existing?.arguments,
+        });
       }
 
       if (event.event_type === 'tool_call_stream') {
@@ -123,6 +134,15 @@ export function TerminalOutput({
       }
 
       flushBuffer();
+      if (event.event_type === 'tool_call_complete') {
+        const metadata = callMetadata.get(event.call_id);
+        aggregated.push({
+          ...event,
+          arguments: metadata?.arguments,
+        });
+        return;
+      }
+
       aggregated.push(event);
     });
 
