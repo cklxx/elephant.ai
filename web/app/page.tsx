@@ -24,6 +24,7 @@ function HomePageContent() {
     setCurrentSession,
     addToHistory,
     clearCurrentSession,
+    sessionHistory,
   } = useSessionStore();
 
   const resolvedSessionId = sessionId || currentSessionId;
@@ -99,43 +100,41 @@ function HomePageContent() {
     clearCurrentSession();
   };
 
+  const handleSessionSelect = (id: string) => {
+    if (!id) return;
+    clearEvents();
+    setSessionId(id);
+    setTaskId(null);
+    setCurrentSession(id);
+    addToHistory(id);
+  };
+
   const isSubmitting = useMockStream ? false : isPending;
   const sessionBadge = resolvedSessionId?.slice(0, 8);
 
   return (
-    <div className="relative min-h-[calc(100vh-6rem)] overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,theme(colors.sky.500/12),transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-1/3 -z-10 h-1/2 bg-gradient-to-b from-transparent via-background/60 to-background" />
-
-      <div className="relative flex h-full flex-col gap-6">
-        <div className="manus-section">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-1">
+      <div className="console-shell">
+        <div className="grid flex-1 gap-6 lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
+          <aside className="console-panel flex h-full flex-col gap-6 p-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Manus Research Console
-              </div>
-              <div>
-                <h1 className="manus-heading text-2xl tracking-tight">Agent Operations</h1>
-                <p className="manus-caption text-muted-foreground/90">
+              <p className="console-pane-title">Manus Console</p>
+              <div className="space-y-1">
+                <h1 className="text-2xl font-semibold text-slate-900">Operator Dashboard</h1>
+                <p className="text-sm text-slate-500">
                   {resolvedSessionId
-                    ? `Active session • ${sessionBadge}`
-                    : 'Describe your objective to launch a Manus session'}
+                    ? `Active session ${sessionBadge}`
+                    : '用中文或英文描述你的工作目标，开始新的研究会话。'}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-              {useMockStream && (
-                <span
-                  className="manus-badge manus-badge-outline text-xs uppercase tracking-wide"
-                  data-testid="mock-stream-indicator"
-                >
-                  Mock Stream
-                </span>
-              )}
-
-              <div className="rounded-lg border border-border/60 bg-background/80 px-3 py-2 shadow-sm" data-testid="connection-status">
+            <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-600">Connection</p>
+                  <p className="text-xs text-slate-400">实时状态</p>
+                </div>
                 <ConnectionStatus
                   connected={isConnected}
                   reconnecting={isReconnecting}
@@ -144,64 +143,135 @@ function HomePageContent() {
                   onReconnect={reconnect}
                 />
               </div>
-
-              {resolvedSessionId && (
-                <button
-                  onClick={handleClear}
-                  className="manus-button-ghost text-xs"
+              {useMockStream && (
+                <div
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-amber-700"
+                  data-testid="mock-stream-indicator"
                 >
-                  Clear Session
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="manus-card relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card/80 shadow-lg backdrop-blur">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-background/60 via-background/10 to-transparent" />
-          <div
-            ref={outputRef}
-            className="relative flex-1 overflow-y-auto scroll-smooth px-4 py-6"
-          >
-            {events.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-sm text-muted-foreground/90">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/70 text-muted-foreground">
-                  <span className="text-xl">⌘</span>
+                  Mock Stream Enabled
                 </div>
-                <div className="space-y-3 max-w-sm">
-                  <p className="text-base font-semibold text-foreground">No events yet</p>
-                  <p className="text-xs text-muted-foreground/80">
-                    Submit a task to begin streaming Manus events. Tool output, planning updates, and final responses will appear here.
-                  </p>
-                  <div className="text-xs text-muted-foreground/60 space-y-1 font-mono">
-                    <div>• Code generation &amp; debugging</div>
-                    <div>• Testing &amp; refactoring</div>
-                    <div>• Architecture research</div>
+              )}
+              <button
+                onClick={handleClear}
+                className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 transition hover:bg-slate-100"
+              >
+                新建对话
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="console-section-title">历史会话</p>
+                <span className="text-xs text-slate-400">自动保存最近 10 个</span>
+              </div>
+              <div className="space-y-2 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+                {sessionHistory.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-sm text-slate-400">
+                    目前还没有历史会话。
                   </div>
+                ) : (
+                  <ul className="max-h-64 space-y-1 overflow-y-auto px-2 py-2 console-scrollbar">
+                    {sessionHistory.map((id) => {
+                      const isActive = id === resolvedSessionId;
+                      const prefix = id.length > 8 ? id.slice(0, 8) : id;
+                      const suffix = id.slice(-4);
+                      return (
+                        <li key={id}>
+                          <button
+                            onClick={() => handleSessionSelect(id)}
+                            data-testid={`session-history-${id}`}
+                            aria-current={isActive ? 'true' : undefined}
+                            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                              isActive
+                                ? 'bg-sky-500/10 text-sky-700 ring-1 ring-inset ring-sky-400/50'
+                                : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="font-medium">Session {prefix}</span>
+                            <span className="text-xs text-slate-400">…{suffix}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4">
+              <p className="console-section-title">快速指引</p>
+              <ul className="space-y-2 text-sm text-slate-500">
+                <li>• 代码生成、调试与测试</li>
+                <li>• 文档撰写、研究总结</li>
+                <li>• 架构分析与技术对比</li>
+              </ul>
+            </div>
+          </aside>
+
+          <section className="console-panel flex h-full flex-col overflow-hidden">
+            <div className="flex flex-col gap-3 border-b border-slate-100 bg-white/80 px-8 py-6">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="console-pane-title">Live Thread</p>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    {resolvedSessionId ? `会话 ${sessionBadge}` : '新的 Manus 对话'}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span>自动保存</span>
+                  <span className="h-1 w-1 rounded-full bg-slate-300" />
+                  <span>{new Date().toLocaleTimeString()}</span>
                 </div>
               </div>
-            ) : (
-              <TerminalOutput
-                events={events}
-                isConnected={isConnected}
-                isReconnecting={isReconnecting}
-                error={error}
-                reconnectAttempts={reconnectAttempts}
-                onReconnect={reconnect}
-                sessionId={resolvedSessionId}
-                taskId={taskId}
-              />
-            )}
-          </div>
+              <p className="text-sm text-slate-500">
+                {resolvedSessionId
+                  ? '继续你的研究或提出新的请求。ALEX 将保持上下文并延续推理。'
+                  : '描述你的目标，我们会生成执行计划并通过工具完成任务。'}
+              </p>
+            </div>
 
-          <div className="border-t border-border/60 bg-background/80 px-4 py-4">
-            <TaskInput
-              onSubmit={handleTaskSubmit}
-              disabled={isSubmitting}
-              loading={isSubmitting}
-              placeholder={resolvedSessionId ? 'Continue conversation...' : 'Describe your task...'}
-            />
-          </div>
+            <div className="flex min-h-[420px] flex-1 flex-col">
+              <div
+                ref={outputRef}
+                className="console-scrollbar flex-1 overflow-y-auto px-8 py-8"
+              >
+                {events.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
+                    <div className="flex items-center gap-3 rounded-full bg-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-sky-400" />
+                      等待新的任务指令
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-lg font-semibold text-slate-700">准备好接管你的任务</p>
+                      <p className="text-sm text-slate-500">
+                        提交指令后，左侧将记录历史会话，右侧展示计划、工具调用与输出结果。
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <TerminalOutput
+                    events={events}
+                    isConnected={isConnected}
+                    isReconnecting={isReconnecting}
+                    error={error}
+                    reconnectAttempts={reconnectAttempts}
+                    onReconnect={reconnect}
+                    sessionId={resolvedSessionId}
+                    taskId={taskId}
+                  />
+                )}
+              </div>
+
+              <div className="border-t border-slate-100 bg-slate-50/70 px-8 py-6">
+                <TaskInput
+                  onSubmit={handleTaskSubmit}
+                  disabled={isSubmitting}
+                  loading={isSubmitting}
+                  placeholder={resolvedSessionId ? '继续对话，输入新的需求…' : '请输入你想完成的任务或问题…'}
+                />
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>

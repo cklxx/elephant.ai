@@ -37,8 +37,8 @@ export function TaskInput({
 
   return (
     <form onSubmit={handleSubmit} className="w-full" data-testid="task-input-form">
-      <div className="flex items-end gap-2">
-        <div className="flex-1 relative">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-3">
+        <div className="relative flex-1">
           <textarea
             ref={textareaRef}
             value={task}
@@ -54,7 +54,7 @@ export function TaskInput({
             rows={1}
             aria-label="Task input"
             data-testid="task-input"
-            className="w-full rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm font-mono text-foreground shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 min-h-[2.75rem] max-h-32 resize-none overflow-y-auto"
+            className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50 min-h-[3rem] max-h-36 resize-none overflow-y-auto"
             style={{ fieldSizing: 'content' } as any}
           />
         </div>
@@ -62,13 +62,13 @@ export function TaskInput({
         <button
           type="submit"
           disabled={disabled || loading || !task.trim()}
-          className="flex h-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold uppercase tracking-wide text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-12 flex-shrink-0 items-center justify-center gap-2 rounded-2xl bg-sky-500 px-5 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           title={loading ? 'Running...' : 'Submit (Enter)'}
           data-testid="task-submit"
         >
           {loading ? (
             <span className="flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-current animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-white/80 animate-pulse" />
               Running
             </span>
           ) : (
@@ -80,8 +80,8 @@ export function TaskInput({
         </button>
       </div>
 
-      <div className="mt-2 text-[11px] font-mono uppercase tracking-wide text-muted-foreground/70">
-        Enter to send · Shift+Enter for new line
+      <div className="text-[11px] font-medium uppercase tracking-[0.3em] text-slate-400">
+        Enter 发送 · Shift+Enter 换行
       </div>
     </form>
   );

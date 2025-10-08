@@ -85,14 +85,14 @@ export function ManusAgentOutput({
     if (researchPlan && planState === 'idle') {
       handlePlanGenerated(researchPlan);
     }
-  }, [researchPlan, planState]);
+  }, [handlePlanGenerated, researchPlan, planState]);
 
   // Auto-approve if enabled
   useEffect(() => {
     if (autoApprovePlan && planState === 'awaiting_approval' && currentPlan) {
       handleApprove();
     }
-  }, [autoApprovePlan, planState, currentPlan]);
+  }, [autoApprovePlan, currentPlan, handleApprove, planState]);
 
   // Build document from task completion
   const document = useMemo((): DocumentContent | null => {

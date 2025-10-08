@@ -226,7 +226,7 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-3" data-testid="terminal-output">
+    <div className="space-y-4" data-testid="terminal-output">
       {/* Plan approval card - if awaiting */}
       {planState === 'awaiting_approval' && currentPlan && (
         <div className="mb-4">
@@ -239,22 +239,22 @@ export function TerminalOutput({
       )}
 
       <div
-        className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/70 px-4 py-3 text-xs text-slate-500"
         data-testid="event-visibility-summary"
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-foreground font-semibold" data-testid="event-count-visible">
+          <span className="text-slate-700 font-semibold" data-testid="event-count-visible">
             {filteredEvents.length}
           </span>
           <span>events visible</span>
           {hiddenCount > 0 && (
-            <span className="text-muted-foreground/70" data-testid="event-count-hidden">
+            <span className="text-slate-400" data-testid="event-count-hidden">
               ({hiddenCount} hidden)
             </span>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-1 py-1 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/70 px-1 py-1">
           {EVENT_FILTERS.map((filter) => {
             const isActive = activeFilters.has(filter.id);
             return (
@@ -267,8 +267,8 @@ export function TerminalOutput({
                 className={cn(
                   'rounded-full px-3 py-1 text-[11px] font-medium transition-all duration-150',
                   isActive
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground/80'
+                    ? 'bg-white text-sky-600 shadow-sm shadow-sky-100'
+                    : 'text-slate-400 hover:text-slate-600'
                 )}
               >
                 {filter.label}
@@ -296,8 +296,8 @@ export function TerminalOutput({
 
       {/* Active indicator */}
       {isConnected && events.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        <div className="flex items-center gap-2 pt-2 text-xs text-slate-400">
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
           <span>Listening for events...</span>
         </div>
       )}
@@ -321,8 +321,8 @@ function EventLine({ event }: { event: DisplayEvent }) {
   return (
     <article
       className={cn(
-        'relative overflow-hidden rounded-lg border px-4 py-3 transition-colors backdrop-blur-sm shadow-sm',
-        'bg-card/90 text-card-foreground',
+        'relative overflow-hidden rounded-2xl border border-slate-100 px-5 py-4 shadow-sm transition-colors',
+        'bg-white/90 text-slate-700',
         meta.card,
         presentation.status ? STATUS_VARIANTS[presentation.status] : null
       )}
@@ -333,7 +333,7 @@ function EventLine({ event }: { event: DisplayEvent }) {
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              'mt-0.5 flex h-8 w-8 items-center justify-center rounded-md border text-sm',
+              'mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-sm text-sky-600',
               meta.iconWrapper
             )}
           >
@@ -341,7 +341,7 @@ function EventLine({ event }: { event: DisplayEvent }) {
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className={cn('text-sm font-semibold tracking-tight', meta.headline)}>{presentation.headline}</p>
+              <p className={cn('text-sm font-semibold tracking-tight text-slate-700', meta.headline)}>{presentation.headline}</p>
               <span
                 className={cn(
                   'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
@@ -355,17 +355,17 @@ function EventLine({ event }: { event: DisplayEvent }) {
               )}
             </div>
             {presentation.subheading && (
-              <p className="text-[11px] text-muted-foreground/80">{presentation.subheading}</p>
+              <p className="text-[11px] text-slate-400">{presentation.subheading}</p>
             )}
           </div>
         </div>
-        <time className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+        <time className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
           {timestamp}
         </time>
       </div>
 
       {presentation.summary && (
-        <div className="mt-3 text-xs leading-relaxed text-muted-foreground/90 whitespace-pre-wrap">
+        <div className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">
           {presentation.summary}
         </div>
       )}

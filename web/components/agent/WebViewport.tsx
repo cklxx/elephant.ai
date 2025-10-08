@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -313,10 +314,14 @@ function WebFetchOutput({
 
       {screenshot && showMode === 'screenshot' && (
         <div className="bg-white rounded-lg overflow-hidden border border-gray-200">
-          <img
+          <Image
             src={screenshot}
             alt="Screenshot"
-            className={cn('w-full', fullscreen ? 'max-h-none' : 'max-h-96 object-contain')}
+            width={1280}
+            height={720}
+            className={cn('h-auto w-full', fullscreen ? 'max-h-none' : 'max-h-96 object-contain')}
+            unoptimized
+            sizes="(max-width: 1024px) 100vw, 960px"
           />
         </div>
       )}

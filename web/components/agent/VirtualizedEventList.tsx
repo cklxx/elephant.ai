@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnyAgentEvent } from '@/lib/types';
 import { TaskAnalysisCard } from './TaskAnalysisCard';
@@ -189,11 +190,17 @@ function EventCard({ event }: { event: AnyAgentEvent }) {
           </h3>
           <p className="text-xs text-gray-500 font-mono mb-2">{event.url}</p>
           {event.screenshot_data && (
-            <img
-              src={`data:image/png;base64,${event.screenshot_data}`}
-              alt="Browser screenshot"
-              className="w-full rounded-lg border border-gray-200 shadow-sm"
-            />
+            <div className="relative w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+              <Image
+                src={`data:image/png;base64,${event.screenshot_data}`}
+                alt="Browser screenshot"
+                width={1280}
+                height={720}
+                className="h-auto w-full"
+                unoptimized
+                sizes="(max-width: 768px) 100vw, 720px"
+              />
+            </div>
           )}
           {event.html_preview && (
             <details className="mt-2">
