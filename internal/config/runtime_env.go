@@ -34,8 +34,12 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 		values[key] = value
 	}
 
-	set("OPENAI_API_KEY", cfg.APIKey)
-	set("OPENROUTER_API_KEY", cfg.APIKey)
+	switch strings.ToLower(cfg.LLMProvider) {
+	case "openai":
+		set("OPENAI_API_KEY", cfg.APIKey)
+	case "openrouter", "deepseek":
+		set("OPENROUTER_API_KEY", cfg.APIKey)
+	}
 
 	set("LLM_PROVIDER", cfg.LLMProvider)
 	set("ALEX_LLM_PROVIDER", cfg.LLMProvider)
