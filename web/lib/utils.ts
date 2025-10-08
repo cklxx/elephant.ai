@@ -23,20 +23,39 @@ export function formatDuration(ms: number): string {
 }
 
 // Format timestamp to relative time
-export function formatRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
+export function formatRelativeTime(timestamp: string, locale: string = 'en-US'): string {
+  const targetDate = new Date(timestamp);
+  if (Number.isNaN(targetDate.getTime())) {
+    return '';
+  }
 
-  if (diffSecs < 60) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  const now = new Date();
+  const diffInSeconds = (targetDate.getTime() - now.getTime()) / 1000;
+
+  const divisions = [
+    { amount: 60, unit: 'second' },
+    { amount: 60, unit: 'minute' },
+    { amount: 24, unit: 'hour' },
+    { amount: 7, unit: 'day' },
+    { amount: 4.34524, unit: 'week' },
+    { amount: 12, unit: 'month' },
+    { amount: Number.POSITIVE_INFINITY, unit: 'year' },
+  ] as const;
+
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+
+  let duration = diffInSeconds;
+  for (const division of divisions) {
+    if (Math.abs(duration) < division.amount) {
+      return formatter.format(
+        Math.round(duration),
+        division.unit as Intl.RelativeTimeFormatUnit
+      );
+    }
+    duration /= division.amount;
+  }
+
+  return new Intl.DateTimeFormat(locale).format(targetDate);
 }
 
 // Get tool icon based on tool name

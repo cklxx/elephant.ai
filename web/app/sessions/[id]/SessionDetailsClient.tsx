@@ -12,6 +12,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatRelativeTime } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
+import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
+
+const statusLabels: Record<string, TranslationKey> = {
+  completed: 'sessions.details.history.status.completed',
+  running: 'sessions.details.history.status.running',
+  pending: 'sessions.details.history.status.pending',
+  failed: 'sessions.details.history.status.failed',
+  in_progress: 'sessions.details.history.status.in_progress',
+  error: 'sessions.details.history.status.error',
+};
 
 type SessionDetailsClientProps = {
   sessionId: string;
@@ -20,6 +30,8 @@ type SessionDetailsClientProps = {
 export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const { data: sessionData, isLoading, error } = useSessionDetails(sessionId);
   const { mutate: executeTask, isPending } = useTaskExecution();
+  const { t, language } = useI18n();
+  const locale = getLanguageLocale(language);
 
   const {
     events,
@@ -38,10 +50,16 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       },
       {
         onSuccess: () => {
-          toast.success('Task started', 'Execution has begun in this session.');
+          toast.success(
+            t('sessions.details.toast.taskStarted.title'),
+            t('sessions.details.toast.taskStarted.description')
+          );
         },
         onError: (submitError) => {
-          toast.error('Failed to execute task', submitError.message);
+          toast.error(
+            t('sessions.details.toast.taskError.title'),
+            t('sessions.details.toast.taskError.description', { message: submitError.message })
+          );
         },
       }
     );
@@ -49,8 +67,9 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center h-64" aria-live="polite">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-hidden />
+        <span className="sr-only">{t('sessions.details.loading')}</span>
       </div>
     );
   }
@@ -58,7 +77,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64 text-red-600">
-        <p>Error loading session: {error.message}</p>
+        <p>{t('sessions.details.error', { message: error.message })}</p>
       </div>
     );
   }
@@ -66,7 +85,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   if (!sessionData) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">
-        <p>Session not found</p>
+        <p>{t('sessions.details.notFound')}</p>
       </div>
     );
   }
@@ -77,36 +96,36 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
         <Link href="/sessions">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            {t('sessions.details.back')}
           </Button>
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-gray-900">Session Details</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{t('sessions.details.title')}</h1>
             <Badge variant={isConnected ? 'success' : 'default'}>
-              {isConnected ? 'Active' : 'Inactive'}
+              {isConnected ? t('sessions.details.status.active') : t('sessions.details.status.inactive')}
             </Badge>
           </div>
-          <p className="text-gray-600 mt-1">Session ID: {sessionId}</p>
+          <p className="text-gray-600 mt-1">{t('sessions.details.sessionId', { id: sessionId })}</p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Session Information</CardTitle>
+          <CardTitle>{t('sessions.details.info.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <p className="text-sm text-gray-600">Created</p>
-              <p className="font-medium">{formatRelativeTime(sessionData.session.created_at)}</p>
+              <p className="text-sm text-gray-600">{t('sessions.details.info.created')}</p>
+              <p className="font-medium">{formatRelativeTime(sessionData.session.created_at, locale)}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Last Updated</p>
-              <p className="font-medium">{formatRelativeTime(sessionData.session.updated_at)}</p>
+              <p className="text-sm text-gray-600">{t('sessions.details.info.updated')}</p>
+              <p className="font-medium">{formatRelativeTime(sessionData.session.updated_at, locale)}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Tasks</p>
+              <p className="text-sm text-gray-600">{t('sessions.details.info.taskCount')}</p>
               <p className="font-medium">{sessionData.session.task_count}</p>
             </div>
           </div>
@@ -115,7 +134,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
 
       <Card className="p-6">
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">New Task</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('sessions.details.newTask')}</h2>
           <TaskInput onSubmit={handleTaskSubmit} disabled={isPending} loading={isPending} />
         </div>
       </Card>
@@ -132,19 +151,30 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       {sessionData.tasks && sessionData.tasks.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Task History</CardTitle>
+            <CardTitle>{t('sessions.details.history')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {sessionData.tasks.map((task) => (
-                <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{task.status.toUpperCase()}</p>
-                    <p className="text-sm text-gray-600">Started {formatRelativeTime(task.created_at)}</p>
+              {sessionData.tasks.map((task) => {
+                const statusKey = statusLabels[task.status];
+                const translatedStatus = statusKey ? t(statusKey) : task.status.toUpperCase();
+
+                return (
+                  <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">{translatedStatus}</p>
+                      <p className="text-sm text-gray-600">
+                        {t('sessions.details.history.started', {
+                          time: formatRelativeTime(task.created_at, locale),
+                        })}
+                      </p>
+                    </div>
+                    <Badge variant={task.status === 'completed' ? 'success' : 'info'}>
+                      {translatedStatus}
+                    </Badge>
                   </div>
-                  <Badge variant={task.status === 'completed' ? 'success' : 'info'}>{task.status}</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

@@ -5,28 +5,38 @@ import { useSessions, useDeleteSession, useForkSession } from '@/hooks/useSessio
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { useConfirmDialog } from '@/components/ui/dialog';
+import { useI18n } from '@/lib/i18n';
 
 export function SessionList() {
   const { data, isLoading, error } = useSessions();
   const deleteSession = useDeleteSession();
   const forkSession = useForkSession();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const { t } = useI18n();
 
   const handleDelete = async (sessionId: string) => {
     const confirmed = await confirm({
-      title: 'Delete Session?',
-      description: 'This action cannot be undone. All session data will be permanently deleted.',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: t('sessions.list.confirmDelete.title'),
+      description: t('sessions.list.confirmDelete.description'),
+      confirmText: t('sessions.list.confirmDelete.confirm'),
+      cancelText: t('sessions.list.confirmDelete.cancel'),
       variant: 'danger',
     });
 
     if (confirmed) {
       try {
         await deleteSession.mutateAsync(sessionId);
-        toast.success('Session deleted', 'The session has been permanently removed.');
+        toast.success(
+          t('sessions.list.toast.deleteSuccess.title'),
+          t('sessions.list.toast.deleteSuccess.description')
+        );
       } catch (err) {
-        toast.error('Failed to delete session', err instanceof Error ? err.message : 'Unknown error');
+        toast.error(
+          t('sessions.list.toast.deleteError.title'),
+          err instanceof Error
+            ? t('sessions.list.toast.deleteError.description', { message: err.message })
+            : t('sessions.list.toast.deleteError.description', { message: t('common.error.unknown') })
+        );
       }
     }
   };
@@ -36,19 +46,27 @@ export function SessionList() {
       const result = await forkSession.mutateAsync(sessionId);
       if (result) {
         toast.success(
-          'Session forked successfully!',
-          `New session ID: ${result.new_session_id.slice(0, 8)}...`
+          t('sessions.list.toast.forkSuccess.title'),
+          t('sessions.list.toast.forkSuccess.description', {
+            id: result.new_session_id.slice(0, 8),
+          })
         );
       }
     } catch (err) {
-      toast.error('Failed to fork session', err instanceof Error ? err.message : 'Unknown error');
+      toast.error(
+        t('sessions.list.toast.forkError.title'),
+        err instanceof Error
+          ? t('sessions.list.toast.forkError.description', { message: err.message })
+          : t('sessions.list.toast.forkError.description', { message: t('common.error.unknown') })
+      );
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center h-64" aria-live="polite">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-hidden />
+        <span className="sr-only">{t('sessions.list.loading')}</span>
       </div>
     );
   }
@@ -56,7 +74,7 @@ export function SessionList() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64 text-red-600">
-        <p>Error loading sessions: {error.message}</p>
+        <p>{t('sessions.list.error', { message: error.message })}</p>
       </div>
     );
   }
@@ -64,7 +82,7 @@ export function SessionList() {
   if (!data || data.sessions.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">
-        <p>No sessions found. Create a new task to start a session.</p>
+        <p>{t('sessions.list.empty')}</p>
       </div>
     );
   }

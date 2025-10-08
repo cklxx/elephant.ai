@@ -5,6 +5,8 @@ import { isBrowser } from '@/lib/utils';
 
 export type Language = 'en' | 'zh';
 
+const LANGUAGE_STORAGE_KEY = 'alex.language';
+
 const translations = {
   en: {
     'app.loading': 'Loading console…',
@@ -115,6 +117,55 @@ const translations = {
     'sessions.title': 'Session management',
     'sessions.description': 'Review, revisit, and reopen ALEX automated workflows.',
     'sessions.newConversation': 'Start new conversation',
+    'sessions.card.title': 'Session {id}',
+    'sessions.card.lastTask': 'Last task',
+    'sessions.card.taskCount': '{count} tasks',
+    'sessions.card.updated': 'Updated {time}',
+    'sessions.card.fork': 'Fork',
+    'sessions.card.delete': 'Delete',
+    'sessions.card.open': 'Open session',
+    'sessions.list.confirmDelete.title': 'Delete session?',
+    'sessions.list.confirmDelete.description':
+      'This action cannot be undone. All session data will be permanently deleted.',
+    'sessions.list.confirmDelete.confirm': 'Delete',
+    'sessions.list.confirmDelete.cancel': 'Cancel',
+    'sessions.list.toast.deleteSuccess.title': 'Session deleted',
+    'sessions.list.toast.deleteSuccess.description': 'The session has been permanently removed.',
+    'sessions.list.toast.deleteError.title': 'Failed to delete session',
+    'sessions.list.toast.deleteError.description': 'Reason: {message}',
+    'sessions.list.toast.forkSuccess.title': 'Session forked successfully!',
+    'sessions.list.toast.forkSuccess.description': 'New session ID: {id}…',
+    'sessions.list.toast.forkError.title': 'Failed to fork session',
+    'sessions.list.toast.forkError.description': 'Reason: {message}',
+    'sessions.list.error': 'Error loading sessions: {message}',
+    'sessions.list.empty': 'No sessions found. Create a new task to start a session.',
+    'sessions.list.loading': 'Loading sessions…',
+    'sessions.details.back': 'Back',
+    'sessions.details.title': 'Session details',
+    'sessions.details.sessionId': 'Session ID: {id}',
+    'sessions.details.status.active': 'Active',
+    'sessions.details.status.inactive': 'Inactive',
+    'sessions.details.info.title': 'Session information',
+    'sessions.details.info.created': 'Created',
+    'sessions.details.info.updated': 'Last updated',
+    'sessions.details.info.taskCount': 'Total tasks',
+    'sessions.details.newTask': 'New task',
+    'sessions.details.history': 'Task history',
+    'sessions.details.history.started': 'Started {time}',
+    'sessions.details.history.status.completed': 'Completed',
+    'sessions.details.history.status.running': 'Running',
+    'sessions.details.history.status.pending': 'Pending',
+    'sessions.details.history.status.failed': 'Failed',
+    'sessions.details.history.status.in_progress': 'In progress',
+    'sessions.details.history.status.error': 'Error',
+    'sessions.details.toast.taskStarted.title': 'Task started',
+    'sessions.details.toast.taskStarted.description': 'Execution has begun in this session.',
+    'sessions.details.toast.taskError.title': 'Failed to execute task',
+    'sessions.details.toast.taskError.description': 'Reason: {message}',
+    'sessions.details.error': 'Error loading session: {message}',
+    'sessions.details.notFound': 'Session not found',
+    'sessions.details.loading': 'Loading session…',
+    'common.error.unknown': 'Unknown error',
   },
   zh: {
     'app.loading': '加载控制台…',
@@ -220,6 +271,54 @@ const translations = {
     'sessions.title': '历史会话管理',
     'sessions.description': '查看、回溯并重新打开 ALEX 的自动化工作流。',
     'sessions.newConversation': '新建对话',
+    'sessions.card.title': '会话 {id}',
+    'sessions.card.lastTask': '最近的任务',
+    'sessions.card.taskCount': '任务数：{count}',
+    'sessions.card.updated': '更新于 {time}',
+    'sessions.card.fork': '分叉',
+    'sessions.card.delete': '删除',
+    'sessions.card.open': '打开会话',
+    'sessions.list.confirmDelete.title': '删除会话？',
+    'sessions.list.confirmDelete.description': '该操作无法撤销，所有会话数据将被永久删除。',
+    'sessions.list.confirmDelete.confirm': '删除',
+    'sessions.list.confirmDelete.cancel': '取消',
+    'sessions.list.toast.deleteSuccess.title': '会话已删除',
+    'sessions.list.toast.deleteSuccess.description': '该会话已被永久移除。',
+    'sessions.list.toast.deleteError.title': '删除会话失败',
+    'sessions.list.toast.deleteError.description': '原因：{message}',
+    'sessions.list.toast.forkSuccess.title': '分叉会话成功！',
+    'sessions.list.toast.forkSuccess.description': '新的会话 ID：{id}…',
+    'sessions.list.toast.forkError.title': '分叉会话失败',
+    'sessions.list.toast.forkError.description': '原因：{message}',
+    'sessions.list.error': '加载会话失败：{message}',
+    'sessions.list.empty': '没有找到会话。创建一个新任务来开启会话。',
+    'sessions.list.loading': '正在加载会话…',
+    'sessions.details.back': '返回',
+    'sessions.details.title': '会话详情',
+    'sessions.details.sessionId': '会话 ID：{id}',
+    'sessions.details.status.active': '进行中',
+    'sessions.details.status.inactive': '未激活',
+    'sessions.details.info.title': '会话信息',
+    'sessions.details.info.created': '创建时间',
+    'sessions.details.info.updated': '最近更新时间',
+    'sessions.details.info.taskCount': '任务总数',
+    'sessions.details.newTask': '新建任务',
+    'sessions.details.history': '任务历史',
+    'sessions.details.history.started': '开始于 {time}',
+    'sessions.details.history.status.completed': '已完成',
+    'sessions.details.history.status.running': '执行中',
+    'sessions.details.history.status.pending': '待处理',
+    'sessions.details.history.status.failed': '失败',
+    'sessions.details.history.status.in_progress': '执行中',
+    'sessions.details.history.status.error': '错误',
+    'sessions.details.toast.taskStarted.title': '任务已开始',
+    'sessions.details.toast.taskStarted.description': '该会话的执行已经启动。',
+    'sessions.details.toast.taskError.title': '执行任务失败',
+    'sessions.details.toast.taskError.description': '原因：{message}',
+    'sessions.details.error': '加载会话失败：{message}',
+    'sessions.details.notFound': '未找到会话',
+    'sessions.details.loading': '正在加载会话…',
+    'common.error.unknown': '未知错误',
   },
 } as const;
 
@@ -235,6 +334,15 @@ interface LanguageContextValue {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
+const languageLocaleMap: Record<Language, string> = {
+  en: 'en-US',
+  zh: 'zh-CN',
+};
+
+export function getLanguageLocale(language: Language): string {
+  return languageLocaleMap[language] ?? 'en-US';
+}
+
 function format(template: string, params?: TranslationParams) {
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (_, token: string) => {
@@ -244,12 +352,28 @@ function format(template: string, params?: TranslationParams) {
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguageState] = useState<Language>('en');
 
   useEffect(() => {
-    if (isBrowser()) {
-      document.documentElement.lang = language;
+    if (!isBrowser()) return;
+
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored === 'en' || stored === 'zh') {
+      setLanguageState((current) => (current === stored ? current : stored));
+      return;
     }
+
+    const browserLanguage = window.navigator.language?.toLowerCase();
+    if (browserLanguage && browserLanguage.startsWith('zh')) {
+      setLanguageState((current) => (current === 'zh' ? current : 'zh'));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isBrowser()) return;
+
+    document.documentElement.lang = language === 'zh' ? 'zh-Hans' : 'en';
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   }, [language]);
 
   const translate = useCallback(
@@ -262,13 +386,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     [language]
   );
 
+  const setLanguage = useCallback((nextLanguage: Language) => {
+    setLanguageState(nextLanguage);
+  }, []);
+
   const value = useMemo<LanguageContextValue>(
     () => ({
       language,
       setLanguage,
       t: translate,
     }),
-    [language, translate]
+    [language, setLanguage, translate]
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

@@ -275,7 +275,7 @@ const { mutate: forkSession } = useForkSession();
 **Functions:**
 - `cn()` - Tailwind class merging
 - `formatDuration()` - ms to "2.5s" or "1m 30s"
-- `formatRelativeTime()` - "5m ago", "2h ago"
+- `formatRelativeTime()` - Locale-aware outputs like "5 minutes ago" or "2 hours ago"
 - `getToolIcon()` - Tool name → emoji
 - `getToolColor()` - Tool name → Tailwind classes
 - `getEventCardStyle()` - Event type → border/bg colors
