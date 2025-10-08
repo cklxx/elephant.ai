@@ -68,15 +68,15 @@ export function ManusAgentOutput({
     handlePlanGenerated,
     handleApprove,
     handleModify,
-    handleCancel,
+    handleReject,
   } = usePlanApproval({
     sessionId,
     taskId,
     onApproved: () => {
       console.log('Plan approved, execution started');
     },
-    onRejected: () => {
-      console.log('Plan rejected');
+    onRejected: (reason) => {
+      console.log('Plan rejected', reason);
     },
   });
 
@@ -138,7 +138,7 @@ export function ManusAgentOutput({
           loading={isSubmitting}
           onApprove={handleApprove}
           onModify={handleModify}
-          onCancel={handleCancel}
+          onReject={handleReject}
         />
       )}
 

@@ -11,7 +11,7 @@ export interface UsePlanApprovalOptions {
   sessionId: string | null;
   taskId: string | null;
   onApproved?: () => void;
-  onRejected?: () => void;
+  onRejected?: (reason?: string) => void;
   onModified?: (plan: ResearchPlan) => void;
 }
 
@@ -35,7 +35,7 @@ export function usePlanApproval({
         onApproved?.();
       } else {
         setState('rejected');
-        onRejected?.();
+        onRejected?.(variables.rejection_reason);
       }
     },
     onError: (error: Error) => {
@@ -84,9 +84,9 @@ export function usePlanApproval({
     });
   };
 
-  const handleCancel = () => {
+  const handleReject = (reason?: string) => {
     if (!sessionId || !taskId) {
-      console.error('Cannot cancel plan: missing sessionId or taskId');
+      console.error('Cannot reject plan: missing sessionId or taskId');
       return;
     }
 
@@ -94,7 +94,12 @@ export function usePlanApproval({
       session_id: sessionId,
       task_id: taskId,
       approved: false,
+      rejection_reason: reason && reason.trim().length > 0 ? reason : undefined,
     });
+  };
+
+  const handleCancel = () => {
+    handleReject();
   };
 
   const reset = () => {
@@ -110,6 +115,7 @@ export function usePlanApproval({
     handlePlanGenerated,
     handleApprove,
     handleModify,
+    handleReject,
     handleCancel,
     reset,
   };

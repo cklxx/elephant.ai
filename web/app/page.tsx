@@ -5,10 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { ConnectionStatus } from '@/components/agent/ConnectionStatus';
+import { ResearchTimeline } from '@/components/agent/ResearchTimeline';
 import { useTaskExecution } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
+import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 
 function HomePageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -41,6 +43,9 @@ function HomePageContent() {
   } = useAgentEventStream(resolvedSessionId, {
     useMock: useMockStream,
   });
+
+  const timelineSteps = useTimelineSteps(events);
+  const hasTimeline = timelineSteps.length > 0;
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -231,44 +236,56 @@ function HomePageContent() {
             </div>
 
             <div className="flex min-h-[420px] flex-1 flex-col">
-              <div
-                ref={outputRef}
-                className="console-scrollbar flex-1 overflow-y-auto px-8 py-8"
-              >
-                {events.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
-                    <div className="flex items-center gap-3 rounded-full bg-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-sky-400" />
-                      等待新的任务指令
+              <div className="flex flex-1 flex-col gap-6 lg:flex-row">
+                {hasTimeline && (
+                  <aside className="hidden w-72 flex-shrink-0 lg:block">
+                    <div className="console-scrollbar sticky top-24 max-h-[calc(100vh-14rem)] overflow-y-auto pr-2">
+                      <ResearchTimeline steps={timelineSteps} />
                     </div>
-                    <div className="space-y-3">
-                      <p className="text-lg font-semibold text-slate-700">准备好接管你的任务</p>
-                      <p className="text-sm text-slate-500">
-                        提交指令后，左侧将记录历史会话，右侧展示计划、工具调用与输出结果。
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <TerminalOutput
-                    events={events}
-                    isConnected={isConnected}
-                    isReconnecting={isReconnecting}
-                    error={error}
-                    reconnectAttempts={reconnectAttempts}
-                    onReconnect={reconnect}
-                    sessionId={resolvedSessionId}
-                    taskId={taskId}
-                  />
+                  </aside>
                 )}
-              </div>
 
-              <div className="border-t border-slate-100 bg-slate-50/70 px-8 py-6">
-                <TaskInput
-                  onSubmit={handleTaskSubmit}
-                  disabled={isSubmitting}
-                  loading={isSubmitting}
-                  placeholder={resolvedSessionId ? '继续对话，输入新的需求…' : '请输入你想完成的任务或问题…'}
-                />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div
+                    ref={outputRef}
+                    className="console-scrollbar flex-1 overflow-y-auto px-8 py-8"
+                  >
+                    {events.length === 0 ? (
+                      <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
+                        <div className="flex items-center gap-3 rounded-full bg-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
+                          <span className="inline-flex h-2 w-2 rounded-full bg-sky-400" />
+                          等待新的任务指令
+                        </div>
+                        <div className="space-y-3">
+                          <p className="text-lg font-semibold text-slate-700">准备好接管你的任务</p>
+                          <p className="text-sm text-slate-500">
+                            提交指令后，左侧将记录历史会话，右侧展示计划、工具调用与输出结果。
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <TerminalOutput
+                        events={events}
+                        isConnected={isConnected}
+                        isReconnecting={isReconnecting}
+                        error={error}
+                        reconnectAttempts={reconnectAttempts}
+                        onReconnect={reconnect}
+                        sessionId={resolvedSessionId}
+                        taskId={taskId}
+                      />
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-100 bg-slate-50/70 px-8 py-6">
+                    <TaskInput
+                      onSubmit={handleTaskSubmit}
+                      disabled={isSubmitting}
+                      loading={isSubmitting}
+                      placeholder={resolvedSessionId ? '继续对话，输入新的需求…' : '请输入你想完成的任务或问题…'}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </section>

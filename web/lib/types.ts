@@ -173,6 +173,7 @@ export interface ApprovePlanRequest {
   task_id: string;
   approved: boolean;
   modified_plan?: ResearchPlan;
+  rejection_reason?: string;
 }
 
 export interface ApprovePlanResponse {
