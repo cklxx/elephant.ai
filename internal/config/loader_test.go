@@ -225,3 +225,33 @@ func TestInvalidVerboseReturnsError(t *testing.T) {
 		t.Fatalf("expected error mentioning ALEX_VERBOSE, got %v", err)
 	}
 }
+
+func TestEnvAPIKeyRespectsProvider(t *testing.T) {
+	cfg, _, err := Load(
+		WithEnv(envMap{
+			"LLM_PROVIDER":       "openai",
+			"OPENAI_API_KEY":     "env-openai",
+			"OPENROUTER_API_KEY": "env-openrouter",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.APIKey != "env-openai" {
+		t.Fatalf("expected OPENAI_API_KEY to win, got %q", cfg.APIKey)
+	}
+
+	cfg, _, err = Load(
+		WithEnv(envMap{
+			"LLM_PROVIDER":       "openrouter",
+			"OPENAI_API_KEY":     "env-openai",
+			"OPENROUTER_API_KEY": "env-openrouter",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.APIKey != "env-openrouter" {
+		t.Fatalf("expected OPENROUTER_API_KEY to win, got %q", cfg.APIKey)
+	}
+}

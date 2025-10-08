@@ -341,17 +341,48 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		lookup = DefaultEnvLookup
 	}
 
+	var (
+		openAIKey      string
+		haveOpenAIKey  bool
+		openRouterKey  string
+		haveOpenRouter bool
+	)
+
 	if value, ok := lookup("OPENAI_API_KEY"); ok && value != "" {
-		cfg.APIKey = value
-		meta.sources["api_key"] = SourceEnv
+		openAIKey = value
+		haveOpenAIKey = true
 	}
 	if value, ok := lookup("OPENROUTER_API_KEY"); ok && value != "" {
-		cfg.APIKey = value
-		meta.sources["api_key"] = SourceEnv
+		openRouterKey = value
+		haveOpenRouter = true
 	}
+
+	provider := strings.ToLower(cfg.LLMProvider)
 	if value, ok := lookup("LLM_PROVIDER"); ok && value != "" {
 		cfg.LLMProvider = value
 		meta.sources["llm_provider"] = SourceEnv
+		provider = strings.ToLower(value)
+	}
+
+	apiKeySet := false
+	if haveOpenAIKey && (provider == "" || provider == "openai") {
+		cfg.APIKey = openAIKey
+		meta.sources["api_key"] = SourceEnv
+		apiKeySet = true
+	}
+	if haveOpenRouter {
+		switch provider {
+		case "openrouter", "deepseek":
+			cfg.APIKey = openRouterKey
+			meta.sources["api_key"] = SourceEnv
+			apiKeySet = true
+		case "":
+			if !apiKeySet {
+				cfg.APIKey = openRouterKey
+				meta.sources["api_key"] = SourceEnv
+				apiKeySet = true
+			}
+		}
 	}
 	if value, ok := lookup("LLM_MODEL"); ok && value != "" {
 		cfg.LLMModel = value
