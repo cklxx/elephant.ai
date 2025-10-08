@@ -25,7 +25,6 @@ func TestRuntimeEnvLookup(t *testing.T) {
 
 	cases := map[string]string{
 		"OPENAI_API_KEY":      "test-key",
-		"OPENROUTER_API_KEY":  "test-key",
 		"LLM_PROVIDER":        "openai",
 		"ALEX_LLM_PROVIDER":   "openai",
 		"LLM_MODEL":           "gpt-4",
@@ -53,6 +52,53 @@ func TestRuntimeEnvLookup(t *testing.T) {
 			t.Fatalf("lookup(%s) = %q, want %q", key, value, expected)
 		}
 	}
+
+	if _, ok := lookup("OPENROUTER_API_KEY"); ok {
+		t.Fatal("expected OPENROUTER_API_KEY to be absent for openai provider")
+	}
+}
+
+func TestRuntimeEnvLookupProviderSpecificAPIKeys(t *testing.T) {
+	baseValues := map[string]string{
+		"OPENAI_API_KEY":     "env-openai",
+		"OPENROUTER_API_KEY": "env-openrouter",
+	}
+
+	base := func(key string) (string, bool) {
+		value, ok := baseValues[key]
+		return value, ok
+	}
+
+	cfg := RuntimeConfig{
+		LLMProvider: "openai",
+		APIKey:      "cfg-openai",
+	}
+
+	lookup := RuntimeEnvLookup(cfg, base)
+
+	assertValue := func(key, expected string) {
+		t.Helper()
+		value, ok := lookup(key)
+		if !ok {
+			t.Fatalf("expected %s to be present", key)
+		}
+		if value != expected {
+			t.Fatalf("expected %s=%q, got %q", key, expected, value)
+		}
+	}
+
+	assertValue("OPENAI_API_KEY", "cfg-openai")
+	assertValue("OPENROUTER_API_KEY", "env-openrouter")
+
+	cfg = RuntimeConfig{
+		LLMProvider: "openrouter",
+		APIKey:      "cfg-openrouter",
+	}
+
+	lookup = RuntimeEnvLookup(cfg, base)
+
+	assertValue("OPENROUTER_API_KEY", "cfg-openrouter")
+	assertValue("OPENAI_API_KEY", "env-openai")
 }
 
 func TestRuntimeEnvLookupFallsBack(t *testing.T) {
