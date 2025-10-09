@@ -40,6 +40,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Verbose {
 		t.Fatal("expected verbose default to be false")
 	}
+	if !cfg.FollowTranscript || !cfg.FollowStream {
+		t.Fatalf("expected follow defaults to be true, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
+	}
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -50,6 +53,8 @@ func TestLoadFromFile(t *testing.T) {
                 "tavilyApiKey": "file-tavily",
                 "environment": "staging",
                 "verbose": true,
+                "follow_transcript": false,
+                "follow_stream": false,
                 "temperature": 0,
                 "max_iterations": 200,
                 "stop_sequences": ["DONE"],
@@ -87,11 +92,20 @@ func TestLoadFromFile(t *testing.T) {
 	if !cfg.Verbose {
 		t.Fatal("expected verbose true from file")
 	}
+	if cfg.FollowTranscript || cfg.FollowStream {
+		t.Fatalf("expected follow defaults overridden to false, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
+	}
 	if meta.Source("tavily_api_key") != SourceFile {
 		t.Fatalf("expected tavily key source from file, got %s", meta.Source("tavily_api_key"))
 	}
 	if meta.Source("temperature") != SourceFile {
 		t.Fatalf("expected temperature source to be file, got %s", meta.Source("temperature"))
+	}
+	if meta.Source("follow_transcript") != SourceFile {
+		t.Fatalf("expected follow_transcript source to be file, got %s", meta.Source("follow_transcript"))
+	}
+	if meta.Source("follow_stream") != SourceFile {
+		t.Fatalf("expected follow_stream source to be file, got %s", meta.Source("follow_stream"))
 	}
 }
 
@@ -100,11 +114,14 @@ func TestEnvOverridesFile(t *testing.T) {
 	cfg, meta, err := Load(
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 		WithEnv(envMap{
-			"LLM_TEMPERATURE": "0",
-			"LLM_MODEL":       "env-model",
-			"TAVILY_API_KEY":  "env-tavily",
-			"ALEX_ENV":        "production",
-			"ALEX_VERBOSE":    "yes",
+			"LLM_TEMPERATURE":            "0",
+			"LLM_MODEL":                  "env-model",
+			"TAVILY_API_KEY":             "env-tavily",
+			"ALEX_ENV":                   "production",
+			"ALEX_VERBOSE":               "yes",
+			"ALEX_NO_TUI":                "true",
+			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
+			"ALEX_TUI_FOLLOW_STREAM":     "false",
 		}.Lookup),
 	)
 	if err != nil {
@@ -125,6 +142,12 @@ func TestEnvOverridesFile(t *testing.T) {
 	if !cfg.Verbose {
 		t.Fatal("expected verbose true from env override")
 	}
+	if !cfg.DisableTUI {
+		t.Fatal("expected disable TUI true from env override")
+	}
+	if cfg.FollowTranscript || cfg.FollowStream {
+		t.Fatalf("expected follow toggles false from env override, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
+	}
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -137,6 +160,15 @@ func TestEnvOverridesFile(t *testing.T) {
 	if meta.Source("verbose") != SourceEnv {
 		t.Fatalf("expected env source for verbose, got %s", meta.Source("verbose"))
 	}
+	if meta.Source("disable_tui") != SourceEnv {
+		t.Fatalf("expected env source for disable_tui, got %s", meta.Source("disable_tui"))
+	}
+	if meta.Source("follow_transcript") != SourceEnv {
+		t.Fatalf("expected env source for follow_transcript, got %s", meta.Source("follow_transcript"))
+	}
+	if meta.Source("follow_stream") != SourceEnv {
+		t.Fatalf("expected env source for follow_stream, got %s", meta.Source("follow_stream"))
+	}
 }
 
 func TestOverridesTakePriority(t *testing.T) {
@@ -145,14 +177,18 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideTavily := "override-tavily"
 	overrideEnv := "qa"
 	overrideVerbose := true
+	overrideFollowTranscript := false
+	overrideFollowStream := false
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
-			LLMModel:     &overrideModel,
-			Temperature:  &overrideTemp,
-			TavilyAPIKey: &overrideTavily,
-			Environment:  &overrideEnv,
-			Verbose:      &overrideVerbose,
+			LLMModel:         &overrideModel,
+			Temperature:      &overrideTemp,
+			TavilyAPIKey:     &overrideTavily,
+			Environment:      &overrideEnv,
+			Verbose:          &overrideVerbose,
+			FollowTranscript: &overrideFollowTranscript,
+			FollowStream:     &overrideFollowStream,
 		}),
 	)
 	if err != nil {
@@ -173,6 +209,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	if !cfg.Verbose {
 		t.Fatal("expected override verbose true")
 	}
+	if cfg.FollowTranscript || cfg.FollowStream {
+		t.Fatalf("expected override follow toggles false, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
+	}
 	if meta.Source("tavily_api_key") != SourceOverride {
 		t.Fatalf("expected override source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -184,6 +223,12 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("verbose") != SourceOverride {
 		t.Fatalf("expected override source for verbose, got %s", meta.Source("verbose"))
+	}
+	if meta.Source("follow_transcript") != SourceOverride {
+		t.Fatalf("expected override source for follow_transcript, got %s", meta.Source("follow_transcript"))
+	}
+	if meta.Source("follow_stream") != SourceOverride {
+		t.Fatalf("expected override source for follow_stream, got %s", meta.Source("follow_stream"))
 	}
 }
 
@@ -223,5 +268,59 @@ func TestInvalidVerboseReturnsError(t *testing.T) {
 	}
 	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_VERBOSE") {
 		t.Fatalf("expected error mentioning ALEX_VERBOSE, got %v", err)
+	}
+}
+
+func TestInvalidDisableTUIReturnsError(t *testing.T) {
+	_, _, err := Load(
+		WithEnv(envMap{"ALEX_NO_TUI": "sometimes"}.Lookup),
+	)
+	if err == nil {
+		t.Fatal("expected error when disable TUI env is invalid")
+	}
+	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_NO_TUI") {
+		t.Fatalf("expected error mentioning ALEX_NO_TUI, got %v", err)
+	}
+}
+
+func TestInvalidFollowTranscriptReturnsError(t *testing.T) {
+	_, _, err := Load(
+		WithEnv(envMap{"ALEX_TUI_FOLLOW_TRANSCRIPT": "maybe"}.Lookup),
+	)
+	if err == nil {
+		t.Fatal("expected error when follow transcript env is invalid")
+	}
+	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_TUI_FOLLOW_TRANSCRIPT") {
+		t.Fatalf("expected error mentioning ALEX_TUI_FOLLOW_TRANSCRIPT, got %v", err)
+	}
+}
+
+func TestInvalidFollowStreamReturnsError(t *testing.T) {
+	_, _, err := Load(
+		WithEnv(envMap{"ALEX_TUI_FOLLOW_STREAM": "sometimes"}.Lookup),
+	)
+	if err == nil {
+		t.Fatal("expected error when follow stream env is invalid")
+	}
+	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_TUI_FOLLOW_STREAM") {
+		t.Fatalf("expected error mentioning ALEX_TUI_FOLLOW_STREAM, got %v", err)
+	}
+}
+
+func TestFollowAliasEnvironmentOverrides(t *testing.T) {
+	cfg, _, err := Load(
+		WithEnv(envMap{
+			"ALEX_FOLLOW_TRANSCRIPT": "false",
+			"ALEX_FOLLOW_STREAM":     "true",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.FollowTranscript {
+		t.Fatal("expected alias env to disable transcript follow")
+	}
+	if !cfg.FollowStream {
+		t.Fatal("expected alias env to enable stream follow")
 	}
 }

@@ -30,6 +30,9 @@ type RuntimeConfig struct {
 	TavilyAPIKey        string
 	Environment         string
 	Verbose             bool
+	DisableTUI          bool
+	FollowTranscript    bool
+	FollowStream        bool
 	MaxIterations       int
 	MaxTokens           int
 	Temperature         float64
@@ -64,20 +67,23 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider   *string
-	LLMModel      *string
-	APIKey        *string
-	BaseURL       *string
-	TavilyAPIKey  *string
-	Environment   *string
-	Verbose       *bool
-	MaxIterations *int
-	MaxTokens     *int
-	Temperature   *float64
-	TopP          *float64
-	StopSequences *[]string
-	SessionDir    *string
-	CostDir       *string
+	LLMProvider      *string
+	LLMModel         *string
+	APIKey           *string
+	BaseURL          *string
+	TavilyAPIKey     *string
+	Environment      *string
+	Verbose          *bool
+	DisableTUI       *bool
+	FollowTranscript *bool
+	FollowStream     *bool
+	MaxIterations    *int
+	MaxTokens        *int
+	Temperature      *float64
+	TopP             *float64
+	StopSequences    *[]string
+	SessionDir       *string
+	CostDir          *string
 }
 
 // EnvLookup resolves the value for an environment variable.
@@ -168,16 +174,18 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:   "openrouter",
-		LLMModel:      "deepseek/deepseek-chat",
-		BaseURL:       "https://openrouter.ai/api/v1",
-		Environment:   "development",
-		MaxIterations: 150,
-		MaxTokens:     100000,
-		Temperature:   0.7,
-		TopP:          1.0,
-		SessionDir:    "~/.alex-sessions",
-		CostDir:       "~/.alex-costs",
+		LLMProvider:      "openrouter",
+		LLMModel:         "deepseek/deepseek-chat",
+		BaseURL:          "https://openrouter.ai/api/v1",
+		Environment:      "development",
+		FollowTranscript: true,
+		FollowStream:     true,
+		MaxIterations:    150,
+		MaxTokens:        100000,
+		Temperature:      0.7,
+		TopP:             1.0,
+		SessionDir:       "~/.alex-sessions",
+		CostDir:          "~/.alex-costs",
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -208,22 +216,24 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 }
 
 type fileConfig struct {
-	LLMProvider   string                 `json:"llm_provider"`
-	LLMModel      string                 `json:"llm_model"`
-	Model         string                 `json:"model"`
-	APIKey        string                 `json:"api_key"`
-	BaseURL       string                 `json:"base_url"`
-	TavilyAPIKey  string                 `json:"tavilyApiKey"`
-	Environment   string                 `json:"environment"`
-	Verbose       *bool                  `json:"verbose"`
-	MaxIterations *int                   `json:"max_iterations"`
-	MaxTokens     *int                   `json:"max_tokens"`
-	Temperature   *float64               `json:"temperature"`
-	TopP          *float64               `json:"top_p"`
-	StopSequences []string               `json:"stop_sequences"`
-	SessionDir    string                 `json:"session_dir"`
-	CostDir       string                 `json:"cost_dir"`
-	Models        map[string]modelConfig `json:"models"`
+	LLMProvider      string                 `json:"llm_provider"`
+	LLMModel         string                 `json:"llm_model"`
+	Model            string                 `json:"model"`
+	APIKey           string                 `json:"api_key"`
+	BaseURL          string                 `json:"base_url"`
+	TavilyAPIKey     string                 `json:"tavilyApiKey"`
+	Environment      string                 `json:"environment"`
+	Verbose          *bool                  `json:"verbose"`
+	FollowTranscript *bool                  `json:"follow_transcript"`
+	FollowStream     *bool                  `json:"follow_stream"`
+	MaxIterations    *int                   `json:"max_iterations"`
+	MaxTokens        *int                   `json:"max_tokens"`
+	Temperature      *float64               `json:"temperature"`
+	TopP             *float64               `json:"top_p"`
+	StopSequences    []string               `json:"stop_sequences"`
+	SessionDir       string                 `json:"session_dir"`
+	CostDir          string                 `json:"cost_dir"`
+	Models           map[string]modelConfig `json:"models"`
 }
 
 type modelConfig struct {
@@ -285,6 +295,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.Verbose != nil {
 		cfg.Verbose = *parsed.Verbose
 		meta.sources["verbose"] = SourceFile
+	}
+	if parsed.FollowTranscript != nil {
+		cfg.FollowTranscript = *parsed.FollowTranscript
+		meta.sources["follow_transcript"] = SourceFile
+	}
+	if parsed.FollowStream != nil {
+		cfg.FollowStream = *parsed.FollowStream
+		meta.sources["follow_stream"] = SourceFile
 	}
 	if parsed.MaxIterations != nil {
 		cfg.MaxIterations = *parsed.MaxIterations
@@ -376,6 +394,45 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		}
 		cfg.Verbose = parsed
 		meta.sources["verbose"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_NO_TUI"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_NO_TUI: %w", err)
+		}
+		cfg.DisableTUI = parsed
+		meta.sources["disable_tui"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_TUI_FOLLOW_TRANSCRIPT"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_TUI_FOLLOW_TRANSCRIPT: %w", err)
+		}
+		cfg.FollowTranscript = parsed
+		meta.sources["follow_transcript"] = SourceEnv
+	} else if value, ok := lookup("ALEX_FOLLOW_TRANSCRIPT"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_FOLLOW_TRANSCRIPT: %w", err)
+		}
+		cfg.FollowTranscript = parsed
+		meta.sources["follow_transcript"] = SourceEnv
+	}
+
+	if value, ok := lookup("ALEX_TUI_FOLLOW_STREAM"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_TUI_FOLLOW_STREAM: %w", err)
+		}
+		cfg.FollowStream = parsed
+		meta.sources["follow_stream"] = SourceEnv
+	} else if value, ok := lookup("ALEX_FOLLOW_STREAM"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_FOLLOW_STREAM: %w", err)
+		}
+		cfg.FollowStream = parsed
+		meta.sources["follow_stream"] = SourceEnv
 	}
 	if value, ok := lookup("LLM_MAX_ITERATIONS"); ok && value != "" {
 		parsed, err := strconv.Atoi(value)
@@ -469,6 +526,18 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.Verbose != nil {
 		cfg.Verbose = *overrides.Verbose
 		meta.sources["verbose"] = SourceOverride
+	}
+	if overrides.DisableTUI != nil {
+		cfg.DisableTUI = *overrides.DisableTUI
+		meta.sources["disable_tui"] = SourceOverride
+	}
+	if overrides.FollowTranscript != nil {
+		cfg.FollowTranscript = *overrides.FollowTranscript
+		meta.sources["follow_transcript"] = SourceOverride
+	}
+	if overrides.FollowStream != nil {
+		cfg.FollowStream = *overrides.FollowStream
+		meta.sources["follow_stream"] = SourceOverride
 	}
 	if overrides.MaxIterations != nil {
 		cfg.MaxIterations = *overrides.MaxIterations

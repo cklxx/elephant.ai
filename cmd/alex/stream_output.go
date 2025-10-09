@@ -4,6 +4,8 @@ import (
 	"alex/internal/agent/types"
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -23,6 +25,7 @@ type StreamingOutputHandler struct {
 	container *Container
 	renderer  *output.CLIRenderer
 	ctx       context.Context // Context from coordinator for OutputContext
+	out       io.Writer
 
 	// State
 	activeTools     map[string]ToolInfo
@@ -37,7 +40,17 @@ func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOut
 		activeTools:     make(map[string]ToolInfo),
 		subagentDisplay: NewSubagentDisplay(),
 		verbose:         verbose,
+		out:             os.Stdout,
 	}
+}
+
+// SetOutputWriter allows overriding the output writer, primarily for testing
+func (h *StreamingOutputHandler) SetOutputWriter(w io.Writer) {
+	if w == nil {
+		h.out = os.Stdout
+		return
+	}
+	h.out = w
 }
 
 // RunTaskWithStreamOutput executes a task with inline streaming output
@@ -123,9 +136,7 @@ func (h *StreamingOutputHandler) onTaskAnalysis(event *domain.TaskAnalysisEvent)
 		Verbose: h.verbose,
 	}
 	rendered := h.renderer.RenderTaskAnalysis(outCtx, event)
-	if rendered != "" {
-		fmt.Print(rendered)
-	}
+	h.write(rendered)
 }
 
 func (h *StreamingOutputHandler) onIterationStart(event *domain.IterationStartEvent) {
@@ -156,9 +167,7 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEven
 	}
 
 	rendered := h.renderer.RenderToolCallStart(outCtx, event.ToolName, event.Arguments)
-	if rendered != "" {
-		fmt.Print(rendered)
-	}
+	h.write(rendered)
 }
 
 func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallCompleteEvent) {
@@ -177,9 +186,7 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallComple
 
 	duration := time.Since(info.StartTime)
 	rendered := h.renderer.RenderToolCallComplete(outCtx, info.Name, event.Result, event.Error, duration)
-	if rendered != "" {
-		fmt.Print(rendered)
-	}
+	h.write(rendered)
 
 	delete(h.activeTools, event.CallID)
 }
@@ -187,24 +194,20 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallComple
 func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
 	outCtx := h.getOutputContext()
 	rendered := h.renderer.RenderError(outCtx, event.Phase, event.Error)
-	if rendered != "" {
-		fmt.Print(rendered)
-	}
+	h.write(rendered)
 }
 
 func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 	outCtx := h.getOutputContext()
 	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(result))
-	if rendered != "" {
-		fmt.Print(rendered)
-	}
+	h.write(rendered)
 }
 
 // handleSubtaskEvent handles events from subtasks with simple line-by-line output
 func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.SubtaskEvent) {
 	lines := h.subagentDisplay.Handle(subtaskEvent)
 	for _, line := range lines {
-		fmt.Print(line)
+		h.write(line)
 	}
 }
 
@@ -224,5 +227,14 @@ func (h *StreamingOutputHandler) getOutputContext() *types.OutputContext {
 		Level:   types.LevelCore,
 		AgentID: "core",
 		Verbose: h.verbose,
+	}
+}
+
+func (h *StreamingOutputHandler) write(rendered string) {
+	if rendered == "" {
+		return
+	}
+	if _, err := fmt.Fprint(h.out, rendered); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "stream output write error: %v\n", err)
 	}
 }

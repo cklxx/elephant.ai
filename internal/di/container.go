@@ -32,19 +32,22 @@ type Container struct {
 // Config holds the dependency injection configuration
 type Config struct {
 	// LLM Configuration
-	LLMProvider    string
-	LLMModel       string
-	APIKey         string
-	BaseURL        string
-	TavilyAPIKey   string
-	MaxTokens      int
-	MaxIterations  int
-	Temperature    float64
-	TemperatureSet bool
-	TopP           float64
-	StopSequences  []string
-	Environment    string
-	Verbose        bool
+	LLMProvider      string
+	LLMModel         string
+	APIKey           string
+	BaseURL          string
+	TavilyAPIKey     string
+	MaxTokens        int
+	MaxIterations    int
+	Temperature      float64
+	TemperatureSet   bool
+	TopP             float64
+	StopSequences    []string
+	Environment      string
+	Verbose          bool
+	DisableTUI       bool
+	FollowTranscript bool
+	FollowStream     bool
 
 	// Storage Configuration
 	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
@@ -103,6 +106,9 @@ func BuildContainer(config Config) (*Container, error) {
 		TavilyAPIKey:        config.TavilyAPIKey,
 		Environment:         config.Environment,
 		Verbose:             config.Verbose,
+		DisableTUI:          config.DisableTUI,
+		FollowTranscript:    config.FollowTranscript,
+		FollowStream:        config.FollowStream,
 		MaxIterations:       config.MaxIterations,
 		MaxTokens:           config.MaxTokens,
 		Temperature:         config.Temperature,
