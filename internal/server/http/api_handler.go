@@ -96,6 +96,13 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID, err := isValidOptionalSessionID(req.SessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	req.SessionID = sessionID
+
 	h.logger.Info("Creating task: task='%s', sessionID='%s'", req.Task, req.SessionID)
 
 	// Execute task asynchronously - coordinator returns immediately after creating task record
@@ -132,8 +139,9 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 
 	// Extract session ID from URL path
 	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	if sessionID == "" {
-		http.Error(w, "Session ID required", http.StatusBadRequest)
+	sessionID = strings.TrimSpace(sessionID)
+	if err := validateSessionID(sessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -223,8 +231,9 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 
 	// Extract session ID from URL path
 	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	if sessionID == "" {
-		http.Error(w, "Session ID required", http.StatusBadRequest)
+	sessionID = strings.TrimSpace(sessionID)
+	if err := validateSessionID(sessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -386,6 +395,12 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := strings.TrimSuffix(path, "/fork")
 	if sessionID == "" || sessionID == path {
 		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	if err := validateSessionID(sessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

@@ -36,9 +36,9 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// Get session ID from query parameter
-	sessionID := r.URL.Query().Get("session_id")
-	if sessionID == "" {
-		http.Error(w, "session_id required", http.StatusBadRequest)
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if err := validateSessionID(sessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

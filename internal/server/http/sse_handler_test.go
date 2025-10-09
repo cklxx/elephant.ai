@@ -28,6 +28,24 @@ func TestSSEHandler_MissingSessionID(t *testing.T) {
 	}
 }
 
+func TestSSEHandler_InvalidSessionID(t *testing.T) {
+	broadcaster := app.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=../../etc/passwd", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleSSEStream(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+
+	if !strings.Contains(rec.Body.String(), "invalid characters") {
+		t.Fatalf("expected invalid characters error, got %q", rec.Body.String())
+	}
+}
+
 func TestSSEHandler_StreamingEvents(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
