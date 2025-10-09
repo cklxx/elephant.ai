@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/utils"
 )
 
@@ -43,10 +44,29 @@ const (
 	StatusError    ServerStatus = "error"
 )
 
+// RegistryOption customises registry construction.
+type RegistryOption func(*Registry)
+
+// WithConfigLoader allows callers to supply a preconfigured MCP config loader.
+func WithConfigLoader(loader *ConfigLoader) RegistryOption {
+	return func(r *Registry) {
+		if loader != nil {
+			r.configLoader = loader
+		}
+	}
+}
+
+// WithEnvLookup injects a custom environment lookup used when expanding MCP configurations.
+func WithEnvLookup(lookup runtimeconfig.EnvLookup) RegistryOption {
+	return func(r *Registry) {
+		r.configLoader = NewConfigLoader(WithLoaderEnvLookup(lookup))
+	}
+}
+
 // NewRegistry creates a new MCP registry
-func NewRegistry() *Registry {
+func NewRegistry(opts ...RegistryOption) *Registry {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Registry{
+	registry := &Registry{
 		configLoader: NewConfigLoader(),
 		servers:      make(map[string]*ServerInstance),
 		toolAdapters: make(map[string]*ToolAdapter),
@@ -54,6 +74,10 @@ func NewRegistry() *Registry {
 		ctx:          ctx,
 		cancel:       cancel,
 	}
+	for _, opt := range opts {
+		opt(registry)
+	}
+	return registry
 }
 
 // Initialize loads configuration and starts all MCP servers

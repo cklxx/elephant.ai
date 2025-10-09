@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
@@ -18,13 +19,8 @@ import (
 
 // Config holds server configuration
 type Config struct {
-	LLMProvider   string
-	LLMModel      string
-	APIKey        string
-	BaseURL       string
-	MaxTokens     int
-	MaxIterations int
-	Port          string
+	Runtime runtimeconfig.RuntimeConfig
+	Port    string
 }
 
 func main() {
@@ -32,16 +28,28 @@ func main() {
 	logger.Info("Starting ALEX SSE Server...")
 
 	// Load configuration
-	config := loadConfig()
+	config, err := loadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
 
 	// Log configuration for debugging
 	logger.Info("=== Server Configuration ===")
-	logger.Info("LLM Provider: %s", config.LLMProvider)
-	logger.Info("LLM Model: %s", config.LLMModel)
-	logger.Info("Base URL: %s", config.BaseURL)
-	logger.Info("API Key: %s...%s", config.APIKey[:10], config.APIKey[len(config.APIKey)-10:])
-	logger.Info("Max Tokens: %d", config.MaxTokens)
-	logger.Info("Max Iterations: %d", config.MaxIterations)
+	runtimeCfg := config.Runtime
+	logger.Info("LLM Provider: %s", runtimeCfg.LLMProvider)
+	logger.Info("LLM Model: %s", runtimeCfg.LLMModel)
+	logger.Info("Base URL: %s", runtimeCfg.BaseURL)
+	if keyLen := len(runtimeCfg.APIKey); keyLen > 10 {
+		logger.Info("API Key: %s...%s", runtimeCfg.APIKey[:10], runtimeCfg.APIKey[keyLen-10:])
+	} else if keyLen > 0 {
+		logger.Info("API Key: %s", runtimeCfg.APIKey)
+	} else {
+		logger.Info("API Key: (not set)")
+	}
+	logger.Info("Max Tokens: %d", runtimeCfg.MaxTokens)
+	logger.Info("Max Iterations: %d", runtimeCfg.MaxIterations)
+	logger.Info("Temperature: %.2f (provided=%t)", runtimeCfg.Temperature, runtimeCfg.TemperatureProvided)
+	logger.Info("Environment: %s", runtimeCfg.Environment)
 	logger.Info("Port: %s", config.Port)
 	logger.Info("===========================")
 
@@ -71,7 +79,7 @@ func main() {
 	)
 
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, runtimeCfg.Environment)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -112,47 +120,57 @@ func main() {
 func buildContainer(config Config) (*di.Container, error) {
 	// Build DI container with configurable storage
 	diConfig := di.Config{
-		LLMProvider:   config.LLMProvider,
-		LLMModel:      config.LLMModel,
-		APIKey:        config.APIKey,
-		BaseURL:       config.BaseURL,
-		MaxTokens:     config.MaxTokens,
-		MaxIterations: config.MaxIterations,
-		SessionDir:    di.GetStorageDir("ALEX_SESSION_DIR", "~/.alex-sessions"),
-		CostDir:       di.GetStorageDir("ALEX_COST_DIR", "~/.alex-costs"),
+		LLMProvider:    config.Runtime.LLMProvider,
+		LLMModel:       config.Runtime.LLMModel,
+		APIKey:         config.Runtime.APIKey,
+		BaseURL:        config.Runtime.BaseURL,
+		TavilyAPIKey:   config.Runtime.TavilyAPIKey,
+		MaxTokens:      config.Runtime.MaxTokens,
+		MaxIterations:  config.Runtime.MaxIterations,
+		Temperature:    config.Runtime.Temperature,
+		TemperatureSet: config.Runtime.TemperatureProvided,
+		TopP:           config.Runtime.TopP,
+		StopSequences:  append([]string(nil), config.Runtime.StopSequences...),
+		SessionDir:     config.Runtime.SessionDir,
+		CostDir:        config.Runtime.CostDir,
 	}
 
 	return di.BuildContainer(diConfig)
 }
 
 // loadConfig loads configuration from environment variables
-func loadConfig() Config {
-	provider := getEnv("ALEX_LLM_PROVIDER", "openai")
+func loadConfig() (Config, error) {
+	envLookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, map[string][]string{
+		"LLM_PROVIDER":       {"ALEX_LLM_PROVIDER"},
+		"LLM_MODEL":          {"ALEX_LLM_MODEL"},
+		"LLM_BASE_URL":       {"ALEX_BASE_URL"},
+		"LLM_MAX_TOKENS":     {"ALEX_LLM_MAX_TOKENS"},
+		"LLM_MAX_ITERATIONS": {"ALEX_LLM_MAX_ITERATIONS"},
+		"TAVILY_API_KEY":     {"ALEX_TAVILY_API_KEY"},
+		"ALEX_ENV":           {"ENVIRONMENT", "NODE_ENV"},
+		"ALEX_VERBOSE":       {"VERBOSE"},
+		"PORT":               {"ALEX_SERVER_PORT"},
+	})
 
-	config := Config{
-		LLMProvider:   provider,
-		LLMModel:      getEnv("ALEX_LLM_MODEL", "gpt-4o"),
-		APIKey:        di.GetAPIKey(provider),
-		BaseURL:       getEnv("ALEX_BASE_URL", ""),
-		MaxTokens:     128000,
-		MaxIterations: 20,
-		Port:          getEnv("PORT", "8080"),
+	runtimeCfg, _, err := runtimeconfig.Load(
+		runtimeconfig.WithEnv(envLookup),
+	)
+	if err != nil {
+		return Config{}, err
 	}
 
-	// Validate required configuration (skip for Ollama which doesn't need API key)
-	if config.APIKey == "" && provider != "ollama" {
-		fmt.Fprintf(os.Stderr, "Error: API key required for provider '%s'\n", provider)
-		fmt.Fprintf(os.Stderr, "Set one of: OPENAI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY\n")
-		os.Exit(1)
+	cfg := Config{
+		Runtime: runtimeCfg,
+		Port:    "8080",
 	}
 
-	return config
-}
-
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	if port, ok := envLookup("PORT"); ok && port != "" {
+		cfg.Port = port
 	}
-	return defaultValue
+
+	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
+		return Config{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
+	}
+
+	return cfg, nil
 }

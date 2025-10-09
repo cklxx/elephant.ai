@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/mcp"
@@ -23,20 +26,28 @@ type Container struct {
 	SessionStore     ports.SessionStore
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
+	mcpInitTracker   *MCPInitializationTracker
 }
 
 // Config holds the dependency injection configuration
 type Config struct {
 	// LLM Configuration
-	LLMProvider   string
-	LLMModel      string
-	APIKey        string
-	BaseURL       string
-	MaxTokens     int
-	MaxIterations int
-	Temperature   float64
-	TopP          float64
-	StopSequences []string
+	LLMProvider      string
+	LLMModel         string
+	APIKey           string
+	BaseURL          string
+	TavilyAPIKey     string
+	MaxTokens        int
+	MaxIterations    int
+	Temperature      float64
+	TemperatureSet   bool
+	TopP             float64
+	StopSequences    []string
+	Environment      string
+	Verbose          bool
+	DisableTUI       bool
+	FollowTranscript bool
+	FollowStream     bool
 
 	// Storage Configuration
 	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
@@ -63,7 +74,7 @@ func BuildContainer(config Config) (*Container, error) {
 
 	// Infrastructure Layer
 	llmFactory := llm.NewFactory()
-	toolRegistry := tools.NewRegistry()
+	toolRegistry := tools.NewRegistry(tools.Config{TavilyAPIKey: config.TavilyAPIKey})
 	sessionStore := filestore.New(sessionDir)
 	contextMgr := ctxmgr.NewManager()
 	parserImpl := parser.New()
@@ -87,20 +98,32 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	costTracker := agentApp.NewCostTracker(costStore)
 
-	// MCP Registry - Initialize asynchronously to avoid blocking startup
-	mcpRegistry := mcp.NewRegistry()
-	go func() {
-		if err := mcpRegistry.Initialize(); err != nil {
-			logger.Warn("Failed to initialize MCP registry: %v", err)
-			// Not fatal - continue without MCP tools
-		} else {
-			if err := mcpRegistry.RegisterWithToolRegistry(toolRegistry); err != nil {
-				logger.Warn("Failed to register MCP tools: %v", err)
-			} else {
-				logger.Info("MCP tools registered successfully")
-			}
-		}
-	}()
+	runtimeSnapshot := runtimeconfig.RuntimeConfig{
+		LLMProvider:         config.LLMProvider,
+		LLMModel:            config.LLMModel,
+		APIKey:              config.APIKey,
+		BaseURL:             config.BaseURL,
+		TavilyAPIKey:        config.TavilyAPIKey,
+		Environment:         config.Environment,
+		Verbose:             config.Verbose,
+		DisableTUI:          config.DisableTUI,
+		FollowTranscript:    config.FollowTranscript,
+		FollowStream:        config.FollowStream,
+		MaxIterations:       config.MaxIterations,
+		MaxTokens:           config.MaxTokens,
+		Temperature:         config.Temperature,
+		TemperatureProvided: config.TemperatureSet,
+		TopP:                config.TopP,
+		StopSequences:       append([]string(nil), config.StopSequences...),
+		SessionDir:          config.SessionDir,
+		CostDir:             config.CostDir,
+	}
+
+	// MCP Registry - Initialize asynchronously with retry/backoff
+	envLookup := runtimeconfig.RuntimeEnvLookup(runtimeSnapshot, runtimeconfig.DefaultEnvLookup)
+	mcpRegistry := mcp.NewRegistry(mcp.WithEnvLookup(envLookup))
+	tracker := newMCPInitializationTracker()
+	startMCPInitialization(mcpRegistry, toolRegistry, logger, tracker)
 
 	// Application Layer
 	coordinator := agentApp.NewAgentCoordinator(
@@ -111,15 +134,16 @@ func BuildContainer(config Config) (*Container, error) {
 		parserImpl,
 		costTracker,
 		agentApp.Config{
-			LLMProvider:   config.LLMProvider,
-			LLMModel:      config.LLMModel,
-			APIKey:        config.APIKey,
-			BaseURL:       config.BaseURL,
-			MaxTokens:     config.MaxTokens,
-			MaxIterations: config.MaxIterations,
-			Temperature:   config.Temperature,
-			TopP:          config.TopP,
-			StopSequences: append([]string(nil), config.StopSequences...),
+			LLMProvider:         config.LLMProvider,
+			LLMModel:            config.LLMModel,
+			APIKey:              config.APIKey,
+			BaseURL:             config.BaseURL,
+			MaxTokens:           config.MaxTokens,
+			MaxIterations:       config.MaxIterations,
+			Temperature:         config.Temperature,
+			TemperatureProvided: config.TemperatureSet,
+			TopP:                config.TopP,
+			StopSequences:       append([]string(nil), config.StopSequences...),
 		},
 	)
 
@@ -133,7 +157,117 @@ func BuildContainer(config Config) (*Container, error) {
 		SessionStore:     sessionStore,
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
+		mcpInitTracker:   tracker,
 	}, nil
+}
+
+// MCPInitializationStatus captures the asynchronous MCP bootstrap status.
+type MCPInitializationStatus struct {
+	Ready       bool
+	Attempts    int
+	LastError   error
+	LastAttempt time.Time
+	LastSuccess time.Time
+}
+
+// MCPInitializationTracker tracks registry initialization state over time.
+type MCPInitializationTracker struct {
+	mu     sync.RWMutex
+	status MCPInitializationStatus
+}
+
+func newMCPInitializationTracker() *MCPInitializationTracker {
+	return &MCPInitializationTracker{}
+}
+
+func (t *MCPInitializationTracker) recordAttempt() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.status.Attempts++
+	t.status.LastAttempt = time.Now()
+}
+
+func (t *MCPInitializationTracker) recordFailure(err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.status.LastError = err
+	t.status.Ready = false
+}
+
+func (t *MCPInitializationTracker) recordSuccess() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.status.Ready = true
+	t.status.LastError = nil
+	t.status.LastSuccess = time.Now()
+}
+
+// Snapshot returns a copy of the current initialization status.
+func (t *MCPInitializationTracker) Snapshot() MCPInitializationStatus {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.status
+}
+
+// MCPInitializationStatus returns the current asynchronous MCP bootstrap state.
+func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
+	if c == nil || c.mcpInitTracker == nil {
+		return MCPInitializationStatus{}
+	}
+	return c.mcpInitTracker.Snapshot()
+}
+
+func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger *utils.Logger, tracker *MCPInitializationTracker) {
+	const (
+		initialBackoff = time.Second
+		maxBackoff     = 30 * time.Second
+	)
+
+	go func() {
+		backoff := initialBackoff
+		for {
+			tracker.recordAttempt()
+			snapshot := tracker.Snapshot()
+			logger.Info("Initializing MCP registry (attempt %d)", snapshot.Attempts)
+
+			if err := registry.Initialize(); err != nil {
+				logger.Warn("MCP initialization failed: %v", err)
+				tracker.recordFailure(err)
+				backoff = nextBackoff(backoff, maxBackoff)
+				time.Sleep(backoff)
+				continue
+			}
+
+			backoff = initialBackoff
+
+			for {
+				if err := registry.RegisterWithToolRegistry(toolRegistry); err != nil {
+					logger.Warn("MCP tool registration failed: %v", err)
+					tracker.recordFailure(err)
+					backoff = nextBackoff(backoff, maxBackoff)
+					time.Sleep(backoff)
+					continue
+				}
+				tracker.recordSuccess()
+				logger.Info("MCP registry ready")
+				return
+			}
+		}
+	}()
+}
+
+func nextBackoff(current, max time.Duration) time.Duration {
+	if current >= max {
+		return max
+	}
+	next := current * 2
+	if next > max {
+		return max
+	}
+	if next < time.Second {
+		return time.Second
+	}
+	return next
 }
 
 // resolveStorageDir resolves a storage directory path, handling ~ expansion and environment variables
@@ -174,31 +308,12 @@ func resolveStorageDir(configured, defaultPath string) string {
 	return path
 }
 
-// GetAPIKey attempts to retrieve API key from multiple sources based on provider
+// Deprecated: API key resolution moved to internal/config loader. Retained for backward compatibility.
 func GetAPIKey(provider string) string {
-	// Try provider-specific key first
 	switch provider {
-	case "openrouter":
-		if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
-			return key
-		}
-	case "deepseek":
-		if key := os.Getenv("DEEPSEEK_API_KEY"); key != "" {
-			return key
-		}
 	case "ollama":
-		// Ollama doesn't require API key
+		return ""
+	default:
 		return ""
 	}
-
-	// Fallback to OPENAI_API_KEY for OpenAI and as generic fallback
-	return os.Getenv("OPENAI_API_KEY")
-}
-
-// GetStorageDir retrieves storage directory from environment or returns default
-func GetStorageDir(envVar, defaultPath string) string {
-	if dir := os.Getenv(envVar); dir != "" {
-		return dir
-	}
-	return defaultPath
 }

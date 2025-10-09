@@ -1,6 +1,7 @@
 package main
 
 import (
+	runtimeconfig "alex/internal/config"
 	"alex/internal/rag"
 	"context"
 	"fmt"
@@ -8,6 +9,17 @@ import (
 	"path/filepath"
 	"time"
 )
+
+func resolveAPIKey() (string, error) {
+	cfg, _, err := runtimeconfig.Load()
+	if err != nil {
+		return "", fmt.Errorf("load runtime configuration: %w", err)
+	}
+	if cfg.APIKey == "" {
+		return "", fmt.Errorf("OPENROUTER_API_KEY or OPENAI_API_KEY environment variable not set")
+	}
+	return cfg.APIKey, nil
+}
 
 // handleIndex indexes the repository for code search
 func (c *CLI) handleIndex(args []string) error {
@@ -28,13 +40,9 @@ func (c *CLI) handleIndex(args []string) error {
 
 	fmt.Printf("Indexing repository: %s\n", absPath)
 
-	// Get API key
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("OPENAI_API_KEY")
-	}
-	if apiKey == "" {
-		return fmt.Errorf("OPENROUTER_API_KEY or OPENAI_API_KEY environment variable not set")
+	apiKey, err := resolveAPIKey()
+	if err != nil {
+		return err
 	}
 
 	// Create embedder
@@ -122,13 +130,9 @@ func (c *CLI) handleSearch(query string) error {
 	fmt.Printf("Searching in: %s\n", repoPath)
 	fmt.Printf("Query: %s\n\n", query)
 
-	// Get API key
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("OPENAI_API_KEY")
-	}
-	if apiKey == "" {
-		return fmt.Errorf("OPENROUTER_API_KEY or OPENAI_API_KEY environment variable not set")
+	apiKey, err := resolveAPIKey()
+	if err != nil {
+		return err
 	}
 
 	// Create embedder

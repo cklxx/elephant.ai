@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"alex/internal/agent/app"
 	"alex/internal/di"
 )
@@ -10,25 +12,36 @@ type Container struct {
 	*di.Container
 	// Coordinator is an alias for AgentCoordinator to maintain backward compatibility
 	Coordinator *app.AgentCoordinator
+	Runtime     appConfig
 }
 
 func buildContainer() (*Container, error) {
 	// Load configuration
-	config := loadConfig()
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
 
 	// Build DI container with configurable storage
 	diConfig := di.Config{
-		LLMProvider:   config.LLMProvider,
-		LLMModel:      config.LLMModel,
-		APIKey:        config.APIKey,
-		BaseURL:       config.BaseURL,
-		MaxTokens:     config.MaxTokens,
-		MaxIterations: config.MaxIterations,
-		Temperature:   config.Temperature,
-		TopP:          config.TopP,
-		StopSequences: append([]string(nil), config.StopSequences...),
-		SessionDir:    di.GetStorageDir("ALEX_SESSION_DIR", "~/.alex-sessions"),
-		CostDir:       di.GetStorageDir("ALEX_COST_DIR", "~/.alex-costs"),
+		LLMProvider:      cfg.LLMProvider,
+		LLMModel:         cfg.LLMModel,
+		APIKey:           cfg.APIKey,
+		BaseURL:          cfg.BaseURL,
+		TavilyAPIKey:     cfg.TavilyAPIKey,
+		MaxTokens:        cfg.MaxTokens,
+		MaxIterations:    cfg.MaxIterations,
+		Temperature:      cfg.Temperature,
+		TemperatureSet:   cfg.TemperatureProvided,
+		TopP:             cfg.TopP,
+		StopSequences:    append([]string(nil), cfg.StopSequences...),
+		SessionDir:       cfg.SessionDir,
+		CostDir:          cfg.CostDir,
+		Environment:      cfg.Environment,
+		Verbose:          cfg.Verbose,
+		DisableTUI:       cfg.DisableTUI,
+		FollowTranscript: cfg.FollowTranscript,
+		FollowStream:     cfg.FollowStream,
 	}
 
 	container, err := di.BuildContainer(diConfig)
@@ -39,5 +52,6 @@ func buildContainer() (*Container, error) {
 	return &Container{
 		Container:   container,
 		Coordinator: container.AgentCoordinator,
+		Runtime:     cfg,
 	}, nil
 }

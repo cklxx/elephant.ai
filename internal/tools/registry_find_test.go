@@ -5,7 +5,7 @@ import (
 )
 
 func TestRegistry_FindToolRegistered(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewRegistry(Config{})
 
 	// Test that find tool is registered
 	tool, err := registry.Get("find")

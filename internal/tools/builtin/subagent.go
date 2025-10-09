@@ -265,7 +265,7 @@ func (t *subagent) prepareExecutionEnv() (*executionEnv, error) {
 }
 
 // executeSubtask executes a single subtask and returns the result
-func (t *subagent) executeSubtask(ctx context.Context, task string, index int, totalTasks int, parentListener domain.EventListener) SubtaskResult {
+func (t *subagent) executeSubtask(ctx context.Context, task string, index int, totalTasks int, parentListener domain.EventListener, maxParallel int) SubtaskResult {
 	// Create task preview (max 60 chars)
 	taskPreview := task
 	if len(taskPreview) > 60 {
@@ -273,11 +273,16 @@ func (t *subagent) executeSubtask(ctx context.Context, task string, index int, t
 	}
 
 	// Create listener for this subtask that forwards to parent
+	if maxParallel < 1 {
+		maxParallel = 1
+	}
+
 	listener := &subagentListener{
 		taskIndex:      index,
 		totalTasks:     totalTasks,
 		taskPreview:    taskPreview,
 		parentListener: parentListener,
+		maxParallel:    maxParallel,
 	}
 
 	// Get execution environment
@@ -360,6 +365,7 @@ type SubtaskEvent struct {
 	SubtaskIndex   int    // 0-based subtask index
 	TotalSubtasks  int    // Total number of subtasks
 	SubtaskPreview string // Short preview of the subtask (for display)
+	MaxParallel    int    // Maximum number of subtasks running in parallel
 }
 
 // Implement domain.AgentEvent interface
@@ -386,6 +392,7 @@ type subagentListener struct {
 	taskPreview    string               // Short preview of the task
 	toolCallCount  int                  // Number of tools executed
 	parentListener domain.EventListener // Parent listener to forward events to
+	maxParallel    int
 	mu             sync.Mutex
 }
 
@@ -405,6 +412,7 @@ func (l *subagentListener) OnEvent(event domain.AgentEvent) {
 			SubtaskIndex:   l.taskIndex,
 			TotalSubtasks:  l.totalTasks,
 			SubtaskPreview: l.taskPreview,
+			MaxParallel:    l.maxParallel,
 		}
 		l.parentListener.OnEvent(wrappedEvent)
 	}
@@ -444,7 +452,6 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 	g.SetLimit(maxWorkers)
 
 	results := make([]SubtaskResult, len(subtasks))
-	completed := 0
 	totalTokens := 0
 	totalToolCalls := 0
 	var mu sync.Mutex
@@ -456,12 +463,11 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 
 		g.Go(func() error {
 			// Execute subtask
-			result := t.executeSubtask(ctx, task, i, len(subtasks), parentListener)
+			result := t.executeSubtask(ctx, task, i, len(subtasks), parentListener, maxWorkers)
 
 			mu.Lock()
 			defer mu.Unlock()
 
-			completed++
 			results[i] = result
 
 			// Handle errors
@@ -503,8 +509,10 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 			Verbose: false,
 		}
 	}
-	rendered := t.renderer.RenderSubagentComplete(outCtx, len(subtasks), success, failed, totalTokens, totalToolCalls)
-	fmt.Print(rendered)
+	if parentListener == nil {
+		rendered := t.renderer.RenderSubagentComplete(outCtx, len(subtasks), success, failed, totalTokens, totalToolCalls)
+		fmt.Print(rendered)
+	}
 
 	return results, nil
 }
@@ -517,7 +525,35 @@ func (t *subagent) executeSerial(ctx context.Context, subtasks []string, parentL
 	results := make([]SubtaskResult, len(subtasks))
 
 	for i, task := range subtasks {
-		results[i] = t.executeSubtask(ctx, task, i, len(subtasks), parentListener)
+		results[i] = t.executeSubtask(ctx, task, i, len(subtasks), parentListener, 1)
+	}
+
+	success, failed := 0, 0
+	totalTokens := 0
+	totalToolCalls := 0
+
+	for _, r := range results {
+		if r.Error != nil {
+			failed++
+			continue
+		}
+		success++
+		totalTokens += r.TokensUsed
+		totalToolCalls += r.ToolCalls
+	}
+
+	outCtx := types.GetOutputContext(ctx)
+	if outCtx == nil {
+		outCtx = &types.OutputContext{
+			Level:   types.LevelSubagent,
+			AgentID: "subagent",
+			Verbose: false,
+		}
+	}
+
+	if parentListener == nil {
+		rendered := t.renderer.RenderSubagentComplete(outCtx, len(subtasks), success, failed, totalTokens, totalToolCalls)
+		fmt.Print(rendered)
 	}
 
 	return results, nil
