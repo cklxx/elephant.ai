@@ -7,6 +7,7 @@ interface ConnectionBannerProps {
   isConnected: boolean;
   isReconnecting: boolean;
   error: string | null;
+  reconnectAttempts?: number;
   onReconnect: () => void;
 }
 
@@ -18,6 +19,7 @@ export function ConnectionBanner({
   isConnected,
   isReconnecting,
   error,
+  reconnectAttempts,
   onReconnect,
 }: ConnectionBannerProps) {
   // Only show banner when disconnected or has error
@@ -31,7 +33,14 @@ export function ConnectionBanner({
         {isReconnecting ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Reconnecting…</span>
+            <span>
+              Reconnecting…
+              {typeof reconnectAttempts === 'number' && reconnectAttempts > 0 && (
+                <span className="ml-1 text-muted-foreground/80">
+                  (attempt {reconnectAttempts})
+                </span>
+              )}
+            </span>
           </>
         ) : (
           <>
