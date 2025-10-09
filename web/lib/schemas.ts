@@ -107,6 +107,7 @@ export const StepStartedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('step_started'),
   step_index: z.number(),
   step_description: z.string(),
+  iteration: z.number().optional(),
 });
 
 // Step Completed Event
@@ -114,6 +115,8 @@ export const StepCompletedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('step_completed'),
   step_index: z.number(),
   step_result: z.string(),
+  iteration: z.number().optional(),
+  step_description: z.string().optional(),
 });
 
 // Browser Snapshot Event

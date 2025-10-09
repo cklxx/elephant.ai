@@ -49,7 +49,7 @@ make npm-publish             # Publish to npm
 - `internal/llm/` - LLM client adapters (OpenAI, DeepSeek, Ollama)
 - `cmd/alex/` - CLI entry points (main.go, tui_modern.go, cli.go)
 - `cmd/alex-server/` - Web server for SSE-based agent API
-- `web/` - Next.js web frontend (Manus-style terminal UI)
+- `web/` - Next.js web frontend (research console UI)
 
 ### Hexagonal Architecture Layers
 ```
@@ -102,7 +102,7 @@ Adapters (Infrastructure: LLM, Tools, Session)
 - `cmd/alex/tui.go` - Original chat-style TUI (deprecated)
 
 ### Web Frontend (Next.js)
-- `web/app/page.tsx` - Main page with Manus-style layout (header → output → input)
+- `web/app/page.tsx` - Main page with the research console layout (header → output → input)
 - `web/components/agent/TerminalOutput.tsx` - Terminal-style event display
 - `web/components/agent/TaskInput.tsx` - Persistent input (always visible)
 - `web/hooks/useSSE.ts` - SSE connection with auto-reconnect

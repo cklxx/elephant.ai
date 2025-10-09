@@ -1,8 +1,8 @@
-# Manus-Style Interaction Patterns for ALEX Web UI
+# Research Console Interaction Patterns for ALEX Web UI
 
 ## Overview
 
-This document describes the Manus-inspired interaction patterns implemented in the ALEX web UI.
+This document describes the research console interaction patterns implemented in the ALEX web UI.
 
 ## Implemented Features
 
@@ -42,7 +42,7 @@ This document describes the Manus-inspired interaction patterns implemented in t
 web/
 ├── components/
 │   ├── agent/
-│   │   ├── ManusAgentOutput.tsx      # Main integration component
+│   │   ├── ConsoleAgentOutput.tsx      # Main integration component
 │   │   ├── ResearchPlanCard.tsx      # Plan approval UI
 │   │   ├── ResearchTimeline.tsx      # Step-by-step timeline
 │   │   ├── WebViewport.tsx           # Tool output inspector
@@ -65,7 +65,7 @@ web/
 
 All components are fully keyboard-accessible with:
 - ARIA attributes (role, aria-label, aria-selected)
-- Focus indicators (ring-2, ring-blue-500)
+- Focus indicators (ring-2, ring-primary)
 - Keyboard shortcuts (Tab, Enter, Escape, Arrow keys)
 - Screen reader support
 
@@ -74,7 +74,7 @@ All components are fully keyboard-accessible with:
 - VirtualizedEventList for large event streams
 - useMemo for expensive computations
 - Lazy loading strategy ready (see docs)
-- Code splitting for Manus UI bundle
+- Code splitting for research console UI bundle
 
 ## Backend Requirements
 

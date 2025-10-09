@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Environment-based configuration for web frontend (`.env.development`, `.env.production`)
-- Manus-style terminal UI layout with persistent input
+- research console-style terminal UI layout with persistent input
 - User task display in event stream
 - Terminal-style event output component with color-coded events
 - Research plan approval UI integration
 - Agent runtime ports for logger/clock abstraction and a `ReactiveExecutor` contract to enable typed mocking
+- Session history pinning and renaming controls with localized copy
 
 ### Changed
 - **BREAKING**: Completely refactored deployment script (`deploy.sh`)
@@ -22,11 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Implemented PID-based process management
   - Added log rotation and health checks
   - Removed Docker and Kubernetes logic
-- Refactored web frontend layout following Manus design pattern
+- Refactored web frontend layout following the research console design pattern
   - Three-section flexbox: header (fixed) → output (scrollable) → input (fixed)
   - Persistent task input always visible at bottom
   - Auto-scroll to latest events
   - Horizontal input layout with auto-resize textarea
+- Reimagined console home to match the new research workspace reference
+  - Hero card greets the user, surfaces quick actions, and embeds the task input
+  - Left rail consolidates connection status, timeline progress, and pinned/recent sessions
+  - Right guidance rail highlights quick starts and timeline messaging with reduced copy
+  - Updated translations, Playwright layout spec, and documentation to reflect the lighter style
+- Split the marketing homepage from the research console so the hero CTA links directly to the dedicated conversation view
+- Added live "Doing something…" badges to tool start events so ongoing agent actions read naturally in the chat stream
+- Quickstart panel buttons now prefill the chat input and focus the composer for faster task setup
+- Tool call timelines highlight active steps with animated markers and elapsed timing metadata inside the transcript
 - Fixed event display to use correct `event_type` field
 - Updated all event formatting with proper type narrowing
 - Migrated to Zustand v5 API in `useAgentStreamStore`
@@ -86,4 +96,4 @@ The `.env.local` file is no longer used. Update your environment configuration i
 The web UI has been redesigned with a terminal-style layout:
 - Input is always visible at the bottom
 - Events stream above with auto-scroll
-- Minimalist design inspired by Manus
+- Minimalist design inspired by the research console reference experience

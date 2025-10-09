@@ -121,7 +121,7 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         event_type: 'browser_snapshot',
         agent_level: 'core',
         url: 'http://localhost:3000/',
-        html_preview: '<main>Mock Manus Terminal</main>',
+        html_preview: '<main>Mock Research Console</main>',
       },
     },
     {
@@ -159,7 +159,7 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         event_type: 'task_complete',
         agent_level: 'core',
         final_answer:
-          '1. Keep the input dock always visible.\n2. Stream events in a terminal column.\n3. Provide reconnection affordances with Manus styling.',
+          '1. Keep the input dock always visible.\n2. Stream events in a terminal column.\n3. Provide reconnection affordances with the new console styling.',
         total_iterations: 1,
         total_tokens: 865,
         stop_reason: 'completed',

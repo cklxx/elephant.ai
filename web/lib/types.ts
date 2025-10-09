@@ -105,6 +105,7 @@ export interface StepStartedEvent extends AgentEvent {
   event_type: 'step_started';
   step_index: number;
   step_description: string;
+  iteration?: number;
 }
 
 // Step Completed Event - emitted when a research step finishes
@@ -112,6 +113,8 @@ export interface StepCompletedEvent extends AgentEvent {
   event_type: 'step_completed';
   step_index: number;
   step_result: string;
+  iteration?: number;
+  step_description?: string;
 }
 
 // Browser Snapshot Event - emitted when capturing browser state (for web automation tools)
@@ -173,6 +176,7 @@ export interface ApprovePlanRequest {
   task_id: string;
   approved: boolean;
   modified_plan?: ResearchPlan;
+  rejection_reason?: string;
 }
 
 export interface ApprovePlanResponse {

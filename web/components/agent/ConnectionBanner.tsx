@@ -7,7 +7,6 @@ interface ConnectionBannerProps {
   isConnected: boolean;
   isReconnecting: boolean;
   error: string | null;
-  reconnectAttempts: number;
   onReconnect: () => void;
 }
 
@@ -19,7 +18,6 @@ export function ConnectionBanner({
   isConnected,
   isReconnecting,
   error,
-  reconnectAttempts,
   onReconnect,
 }: ConnectionBannerProps) {
   // Only show banner when disconnected or has error
@@ -33,18 +31,18 @@ export function ConnectionBanner({
         {isReconnecting ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Reconnecting... (Attempt {reconnectAttempts})</span>
+            <span>Reconnecting…</span>
           </>
         ) : (
           <>
             <WifiOff className="h-4 w-4" />
-            <span>Disconnected</span>
+            <span>Offline</span>
           </>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-xs text-red-500">
+        <div className="flex items-center gap-2 text-xs text-destructive">
           <AlertCircle className="h-3 w-3" />
           <span>{error}</span>
         </div>
@@ -54,7 +52,7 @@ export function ConnectionBanner({
         onClick={onReconnect}
         className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
       >
-        Reconnect
+        Retry
       </button>
     </div>
   );

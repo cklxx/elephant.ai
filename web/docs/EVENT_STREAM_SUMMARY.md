@@ -2,7 +2,7 @@
 
 ## Overview
 
-A complete event stream state management system has been implemented for the ALEX web UI, addressing memory accumulation, performance bottlenecks, and adding support for Manus-style research step tracking.
+A complete event stream state management system has been implemented for the ALEX web UI, addressing memory accumulation, performance bottlenecks, and adding support for research console-style research step tracking.
 
 ## What Was Implemented
 
@@ -107,7 +107,7 @@ IterationGroup {
 }
 ```
 
-**Research Steps**: Manus-style step tracking
+**Research Steps**: research console-style step tracking
 ```typescript
 ResearchStep {
   step_index: 0,
@@ -429,7 +429,7 @@ useEffect(() => {
 
 4. **Create Research Timeline Component** (optional):
    - Use `QUICK_START_STORE.md` examples
-   - Build Manus-style step visualization
+   - Build research console-style step visualization
    - Add to main page layout
 
 ## References

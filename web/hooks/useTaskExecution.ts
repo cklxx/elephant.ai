@@ -43,7 +43,7 @@ interface UseTaskExecutionOptions extends Omit<
  */
 export function useTaskExecution(options: UseTaskExecutionOptions = {}) {
   const {
-    retry = true,
+    retry = false,
     maxRetries = 3,
     onMutate,
     onSuccess,
@@ -73,10 +73,13 @@ export function useTaskExecution(options: UseTaskExecutionOptions = {}) {
     retry: retry ? maxRetries : false,
     retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 10000),
 
-    // Lifecycle hooks - pass through from options
+    // Lifecycle hooks - pass through from options with error logging
     onMutate,
     onSuccess,
-    onError,
+    onError: (error, variables, context, mutation) => {
+      console.error('Task execution failed:', error);
+      onError?.(error, variables, context, mutation);
+    },
     onSettled,
 
     ...mutationOptions,
@@ -171,8 +174,6 @@ export function useCancelTask(options: UseCancelTaskOptions = {}) {
       await apiClient.cancelTask(taskId);
       console.log('[useCancelTask] Task canceled successfully');
     },
-    retry: 2,
-    retryDelay: 1000,
     ...options,
   });
 }

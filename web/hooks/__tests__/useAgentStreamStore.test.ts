@@ -1,21 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useAgentStreamStore, useMemoryStats } from '../useAgentStreamStore';
+import { act } from '@testing-library/react';
+import { useAgentStreamStore } from '../useAgentStreamStore';
 import { AnyAgentEvent } from '@/lib/types';
 
 describe('useAgentStreamStore', () => {
   beforeEach(() => {
-    // Reset store before each test
-    const { result } = renderHook(() => useAgentStreamStore());
     act(() => {
-      result.current.clearEvents();
+      useAgentStreamStore.getState().clearEvents();
     });
   });
 
   describe('LRU Event Caching', () => {
     it('should add events to cache', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const event: AnyAgentEvent = {
         event_type: 'task_analysis',
         timestamp: new Date().toISOString(),
@@ -27,16 +23,14 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(event);
+        useAgentStreamStore.getState().addEvent(event);
       });
 
-      const { result: memoryResult } = renderHook(() => useMemoryStats());
-      expect(memoryResult.current.eventCount).toBe(1);
+      const cacheUsage = useAgentStreamStore.getState().eventCache.getMemoryUsage();
+      expect(cacheUsage.eventCount).toBe(1);
     });
 
     it('should evict oldest events when cache exceeds 1000 events', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       // Add 1001 events
       const events: AnyAgentEvent[] = Array.from({ length: 1001 }, (_, i) => ({
         event_type: 'thinking',
@@ -47,18 +41,16 @@ describe('useAgentStreamStore', () => {
       }));
 
       act(() => {
-        result.current.addEvents(events);
+        useAgentStreamStore.getState().addEvents(events);
       });
 
-      const { result: memoryResult } = renderHook(() => useMemoryStats());
+      const cacheUsage = useAgentStreamStore.getState().eventCache.getMemoryUsage();
 
       // Should have exactly 1000 events (LRU eviction)
-      expect(memoryResult.current.eventCount).toBe(1000);
+      expect(cacheUsage.eventCount).toBe(1000);
     });
 
     it('should maintain memory bounds under 5MB for typical events', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       // Add 1000 typical events
       const events: AnyAgentEvent[] = Array.from({ length: 1000 }, (_, i) => ({
         event_type: 'tool_call_start',
@@ -72,18 +64,16 @@ describe('useAgentStreamStore', () => {
       }));
 
       act(() => {
-        result.current.addEvents(events);
+        useAgentStreamStore.getState().addEvents(events);
       });
 
-      const { result: memoryResult } = renderHook(() => useMemoryStats());
+      const cacheUsage = useAgentStreamStore.getState().eventCache.getMemoryUsage();
 
       // Estimated memory should be under 5MB (5 * 1024 * 1024 bytes)
-      expect(memoryResult.current.estimatedBytes).toBeLessThan(5 * 1024 * 1024);
+      expect(cacheUsage.estimatedBytes).toBeLessThan(5 * 1024 * 1024);
     });
 
     it('should handle event deduplication by call_id', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const startEvent: AnyAgentEvent = {
         event_type: 'tool_call_start',
         timestamp: new Date().toISOString(),
@@ -117,14 +107,16 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(startEvent);
-        result.current.addEvent(streamEvent);
-        result.current.addEvent(completeEvent);
+        const store = useAgentStreamStore.getState();
+        store.addEvent(startEvent);
+        store.addEvent(streamEvent);
+        store.addEvent(completeEvent);
       });
 
       // Should aggregate into single tool call
-      expect(result.current.toolCalls.size).toBe(1);
-      const toolCall = result.current.toolCalls.get('call-123');
+      const updatedState = useAgentStreamStore.getState();
+      expect(updatedState.toolCalls.size).toBe(1);
+      const toolCall = updatedState.toolCalls.get('call-123');
       expect(toolCall?.status).toBe('complete');
       expect(toolCall?.stream_chunks).toHaveLength(1);
     });
@@ -132,8 +124,6 @@ describe('useAgentStreamStore', () => {
 
   describe('Step Tree Aggregation', () => {
     it('should track research steps correctly', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const planEvent: AnyAgentEvent = {
         event_type: 'research_plan',
         timestamp: new Date().toISOString(),
@@ -165,19 +155,19 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(planEvent);
-        result.current.addEvent(stepStartedEvent);
-        result.current.addEvent(stepCompletedEvent);
+        const store = useAgentStreamStore.getState();
+        store.addEvent(planEvent);
+        store.addEvent(stepStartedEvent);
+        store.addEvent(stepCompletedEvent);
       });
 
-      expect(result.current.researchSteps).toHaveLength(1);
-      expect(result.current.researchSteps[0].status).toBe('completed');
-      expect(result.current.researchSteps[0].result).toBe('Research completed successfully');
+      const state = useAgentStreamStore.getState();
+      expect(state.researchSteps).toHaveLength(1);
+      expect(state.researchSteps[0].status).toBe('completed');
+      expect(state.researchSteps[0].result).toBe('Research completed successfully');
     });
 
     it('should group events by iteration', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const iterStartEvent: AnyAgentEvent = {
         event_type: 'iteration_start',
         timestamp: new Date().toISOString(),
@@ -206,13 +196,15 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(iterStartEvent);
-        result.current.addEvent(thinkingEvent);
-        result.current.addEvent(iterCompleteEvent);
+        const store = useAgentStreamStore.getState();
+        store.addEvent(iterStartEvent);
+        store.addEvent(thinkingEvent);
+        store.addEvent(iterCompleteEvent);
       });
 
-      expect(result.current.iterations.size).toBe(1);
-      const iteration = result.current.iterations.get(1);
+      const state = useAgentStreamStore.getState();
+      expect(state.iterations.size).toBe(1);
+      const iteration = state.iterations.get(1);
       expect(iteration?.status).toBe('complete');
       expect(iteration?.tokens_used).toBe(500);
     });
@@ -220,9 +212,7 @@ describe('useAgentStreamStore', () => {
 
   describe('Task Status Management', () => {
     it('should transition from idle to analyzing', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
-      expect(result.current.taskStatus).toBe('idle');
+      expect(useAgentStreamStore.getState().taskStatus).toBe('idle');
 
       const analysisEvent: AnyAgentEvent = {
         event_type: 'task_analysis',
@@ -235,16 +225,15 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(analysisEvent);
+        useAgentStreamStore.getState().addEvent(analysisEvent);
       });
 
-      expect(result.current.taskStatus).toBe('analyzing');
-      expect(result.current.taskAnalysis.action_name).toBe('Test Task');
+      const state = useAgentStreamStore.getState();
+      expect(state.taskStatus).toBe('analyzing');
+      expect(state.taskAnalysis.action_name).toBe('Test Task');
     });
 
     it('should transition to running on iteration start', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const iterStartEvent: AnyAgentEvent = {
         event_type: 'iteration_start',
         timestamp: new Date().toISOString(),
@@ -255,16 +244,15 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(iterStartEvent);
+        useAgentStreamStore.getState().addEvent(iterStartEvent);
       });
 
-      expect(result.current.taskStatus).toBe('running');
-      expect(result.current.currentIteration).toBe(1);
+      const state = useAgentStreamStore.getState();
+      expect(state.taskStatus).toBe('running');
+      expect(state.currentIteration).toBe(1);
     });
 
     it('should transition to completed on task complete', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const completeEvent: AnyAgentEvent = {
         event_type: 'task_complete',
         timestamp: new Date().toISOString(),
@@ -279,18 +267,17 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(completeEvent);
+        useAgentStreamStore.getState().addEvent(completeEvent);
       });
 
-      expect(result.current.taskStatus).toBe('completed');
-      expect(result.current.finalAnswer).toBe('Task completed successfully');
-      expect(result.current.totalIterations).toBe(3);
-      expect(result.current.totalTokens).toBe(1500);
+      const state = useAgentStreamStore.getState();
+      expect(state.taskStatus).toBe('completed');
+      expect(state.finalAnswer).toBe('Task completed successfully');
+      expect(state.totalIterations).toBe(3);
+      expect(state.totalTokens).toBe(1500);
     });
 
     it('should transition to error on error event', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const errorEvent: AnyAgentEvent = {
         event_type: 'error',
         timestamp: new Date().toISOString(),
@@ -303,17 +290,17 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(errorEvent);
+        useAgentStreamStore.getState().addEvent(errorEvent);
       });
 
-      expect(result.current.taskStatus).toBe('error');
-      expect(result.current.errorMessage).toBe('Something went wrong');
+      const state = useAgentStreamStore.getState();
+      expect(state.taskStatus).toBe('error');
+      expect(state.errorMessage).toBe('Something went wrong');
     });
   });
 
   describe('Active Tool Call Tracking', () => {
     it('should track active tool call', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
 
       const startEvent: AnyAgentEvent = {
         event_type: 'tool_call_start',
@@ -327,10 +314,10 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(startEvent);
+        useAgentStreamStore.getState().addEvent(startEvent);
       });
 
-      expect(result.current.activeToolCall).toBe('call-456');
+      expect(useAgentStreamStore.getState().activeToolCall).toBe('call-456');
 
       const completeEvent: AnyAgentEvent = {
         event_type: 'tool_call_complete',
@@ -344,17 +331,15 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(completeEvent);
+        useAgentStreamStore.getState().addEvent(completeEvent);
       });
 
-      expect(result.current.activeToolCall).toBe(null);
+      expect(useAgentStreamStore.getState().activeToolCall).toBe(null);
     });
   });
 
   describe('Clear Events', () => {
     it('should reset all state when clearing events', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       // Add some events
       const events: AnyAgentEvent[] = [
         {
@@ -377,27 +362,26 @@ describe('useAgentStreamStore', () => {
       ];
 
       act(() => {
-        result.current.addEvents(events);
+        useAgentStreamStore.getState().addEvents(events);
       });
 
-      expect(result.current.taskStatus).not.toBe('idle');
+      expect(useAgentStreamStore.getState().taskStatus).not.toBe('idle');
 
       act(() => {
-        result.current.clearEvents();
+        useAgentStreamStore.getState().clearEvents();
       });
 
-      expect(result.current.taskStatus).toBe('idle');
-      expect(result.current.toolCalls.size).toBe(0);
-      expect(result.current.iterations.size).toBe(0);
-      expect(result.current.currentIteration).toBe(null);
-      expect(result.current.activeToolCall).toBe(null);
+      const state = useAgentStreamStore.getState();
+      expect(state.taskStatus).toBe('idle');
+      expect(state.toolCalls.size).toBe(0);
+      expect(state.iterations.size).toBe(0);
+      expect(state.currentIteration).toBe(null);
+      expect(state.activeToolCall).toBe(null);
     });
   });
 
   describe('Browser Snapshot Tracking', () => {
     it('should track browser snapshots', () => {
-      const { result } = renderHook(() => useAgentStreamStore());
-
       const snapshotEvent: AnyAgentEvent = {
         event_type: 'browser_snapshot',
         timestamp: new Date().toISOString(),
@@ -410,11 +394,12 @@ describe('useAgentStreamStore', () => {
       };
 
       act(() => {
-        result.current.addEvent(snapshotEvent);
+        useAgentStreamStore.getState().addEvent(snapshotEvent);
       });
 
-      expect(result.current.browserSnapshots).toHaveLength(1);
-      expect(result.current.browserSnapshots[0].url).toBe('https://example.com');
+      const state = useAgentStreamStore.getState();
+      expect(state.browserSnapshots).toHaveLength(1);
+      expect(state.browserSnapshots[0].url).toBe('https://example.com');
     });
   });
 });

@@ -1,223 +1,144 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { TaskInput } from '@/components/agent/TaskInput';
-import { TerminalOutput } from '@/components/agent/TerminalOutput';
-import { ConnectionStatus } from '@/components/agent/ConnectionStatus';
-import { useTaskExecution } from '@/hooks/useTaskExecution';
-import { useAgentEventStream } from '@/hooks/useAgentEventStream';
-import { useSessionStore } from '@/hooks/useSessionStore';
-import { toast } from '@/components/ui/toast';
+import Link from 'next/link';
+import { Suspense } from 'react';
+import { ArrowRight, MessageSquare, Sparkles } from 'lucide-react';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { TranslationKey, useI18n } from '@/lib/i18n';
 
-function HomePageContent() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
+const highlightIcons = {
+  chat: MessageSquare,
+  glow: Sparkles,
+};
 
-  const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
-
-  const { mutate: executeTask, isPending } = useTaskExecution();
-  const {
-    currentSessionId,
-    setCurrentSession,
-    addToHistory,
-    clearCurrentSession,
-  } = useSessionStore();
-
-  const resolvedSessionId = sessionId || currentSessionId;
-
-  const {
-    events,
-    isConnected,
-    isReconnecting,
-    error,
-    reconnectAttempts,
-    clearEvents,
-    reconnect,
-    addEvent,
-  } = useAgentEventStream(resolvedSessionId, {
-    useMock: useMockStream,
-  });
-
-  // Auto-scroll to bottom when new events arrive
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
-    }
-  }, [events]);
-
-  const handleTaskSubmit = (task: string) => {
-    console.log('[HomePage] Task submitted:', task);
-
-    // Add user task message to events (manually, since backend doesn't send it)
-    const userEvent = {
-      event_type: 'user_task' as const,
-      timestamp: new Date().toISOString(),
-      agent_level: 'core' as const,
-      task,
-    };
-    addEvent(userEvent);
-
-    if (useMockStream) {
-      const mockSessionId = sessionId || currentSessionId || `mock-${Date.now().toString(36)}`;
-      const mockTaskId = `mock-task-${Date.now().toString(36)}`;
-      setSessionId(mockSessionId);
-      setTaskId(mockTaskId);
-      setCurrentSession(mockSessionId);
-      addToHistory(mockSessionId);
-      return;
-    }
-
-    executeTask(
-      {
-        task,
-        session_id: resolvedSessionId || undefined,
-        auto_approve_plan: false,
-      },
-      {
-        onSuccess: (data) => {
-          console.log('[HomePage] Task execution started:', data);
-          setSessionId(data.session_id);
-          setTaskId(data.task_id);
-          setCurrentSession(data.session_id);
-          addToHistory(data.session_id);
-        },
-        onError: (error) => {
-          console.error('[HomePage] Task execution error:', error);
-          toast.error('Task execution failed', error.message);
-        },
-      }
-    );
-  };
-
-  const handleClear = () => {
-    setSessionId(null);
-    setTaskId(null);
-    clearEvents();
-    clearCurrentSession();
-  };
-
-  const isSubmitting = useMockStream ? false : isPending;
-  const sessionBadge = resolvedSessionId?.slice(0, 8);
+function HomeContent() {
+  const { t } = useI18n();
+  const highlights: Array<{ title: TranslationKey; description: TranslationKey; icon: keyof typeof highlightIcons }> = [
+    {
+      title: 'home.feature.chat.title',
+      description: 'home.feature.chat.description',
+      icon: 'chat',
+    },
+    {
+      title: 'home.feature.actions.title',
+      description: 'home.feature.actions.description',
+      icon: 'glow',
+    },
+  ];
+  const summaryCards: Array<{
+    label: TranslationKey;
+    value: TranslationKey;
+    description: TranslationKey;
+  }> = [
+    {
+      label: 'home.summary.sessions.label',
+      value: 'home.summary.sessions.value',
+      description: 'home.summary.sessions.description',
+    },
+    {
+      label: 'home.summary.timeline.label',
+      value: 'home.summary.timeline.value',
+      description: 'home.summary.timeline.description',
+    },
+    {
+      label: 'home.summary.languages.label',
+      value: 'home.summary.languages.value',
+      description: 'home.summary.languages.description',
+    },
+  ];
 
   return (
-    <div className="relative min-h-[calc(100vh-6rem)] overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,theme(colors.sky.500/12),transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-1/3 -z-10 h-1/2 bg-gradient-to-b from-transparent via-background/60 to-background" />
+    <div className="bg-app-canvas">
+      <div className="console-shell py-16 sm:py-20">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500 shadow-sm">
+            {t('console.brand')}
+          </span>
+          <LanguageSwitcher variant="toolbar" showLabel />
+        </header>
 
-      <div className="relative flex h-full flex-col gap-6">
-        <div className="manus-section">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Manus Research Console
-              </div>
-              <div>
-                <h1 className="manus-heading text-2xl tracking-tight">Agent Operations</h1>
-                <p className="manus-caption text-muted-foreground/90">
-                  {resolvedSessionId
-                    ? `Active session • ${sessionBadge}`
-                    : 'Describe your objective to launch a Manus session'}
-                </p>
-              </div>
-            </div>
+        <section className="mt-16 grid gap-12 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="max-w-2xl space-y-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
+              {t('home.hero.label')}
+            </p>
+            <h1 className="text-4xl font-semibold text-slate-900 sm:text-5xl">
+              {t('home.hero.title')}
+            </h1>
+            <p className="text-base text-slate-500 sm:text-lg">
+              {t('home.hero.subtitle')}
+            </p>
 
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-              {useMockStream && (
-                <span
-                  className="manus-badge manus-badge-outline text-xs uppercase tracking-wide"
-                  data-testid="mock-stream-indicator"
-                >
-                  Mock Stream
-                </span>
-              )}
-
-              <div className="rounded-lg border border-border/60 bg-background/80 px-3 py-2 shadow-sm" data-testid="connection-status">
-                <ConnectionStatus
-                  connected={isConnected}
-                  reconnecting={isReconnecting}
-                  reconnectAttempts={reconnectAttempts}
-                  error={error}
-                  onReconnect={reconnect}
-                />
-              </div>
-
-              {resolvedSessionId && (
-                <button
-                  onClick={handleClear}
-                  className="manus-button-ghost text-xs"
-                >
-                  Clear Session
-                </button>
-              )}
+            <div className="flex flex-wrap gap-3 pt-4">
+              <Link
+                href="/conversation"
+                className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+              >
+                <span>{t('home.hero.ctaPrimary')}</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/sessions"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+              >
+                {t('home.hero.ctaSecondary')}
+              </Link>
             </div>
           </div>
-        </div>
 
-        <div className="manus-card relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card/80 shadow-lg backdrop-blur">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-background/60 via-background/10 to-transparent" />
-          <div
-            ref={outputRef}
-            className="relative flex-1 overflow-y-auto scroll-smooth px-4 py-6"
-          >
-            {events.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-sm text-muted-foreground/90">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/70 text-muted-foreground">
-                  <span className="text-xl">⌘</span>
-                </div>
-                <div className="space-y-3 max-w-sm">
-                  <p className="text-base font-semibold text-foreground">No events yet</p>
-                  <p className="text-xs text-muted-foreground/80">
-                    Submit a task to begin streaming Manus events. Tool output, planning updates, and final responses will appear here.
-                  </p>
-                  <div className="text-xs text-muted-foreground/60 space-y-1 font-mono">
-                    <div>• Code generation &amp; debugging</div>
-                    <div>• Testing &amp; refactoring</div>
-                    <div>• Architecture research</div>
+          <div className="space-y-4">
+            {highlights.map(({ title, description, icon }) => {
+              const Icon = highlightIcons[icon];
+              return (
+                <div
+                  key={title}
+                  className="flex items-start gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)]"
+                >
+                  <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-500">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-slate-800">{t(title)}</p>
+                    <p className="text-sm text-slate-500">{t(description)}</p>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <TerminalOutput
-                events={events}
-                isConnected={isConnected}
-                isReconnecting={isReconnecting}
-                error={error}
-                reconnectAttempts={reconnectAttempts}
-                onReconnect={reconnect}
-                sessionId={resolvedSessionId}
-                taskId={taskId}
-              />
-            )}
+              );
+            })}
           </div>
+        </section>
 
-          <div className="border-t border-border/60 bg-background/80 px-4 py-4">
-            <TaskInput
-              onSubmit={handleTaskSubmit}
-              disabled={isSubmitting}
-              loading={isSubmitting}
-              placeholder={resolvedSessionId ? 'Continue conversation...' : 'Describe your task...'}
-            />
-          </div>
-        </div>
+        <section className="mt-16 grid gap-6 rounded-[28px] border border-white/40 bg-white/70 p-6 shadow-[0_24px_120px_rgba(15,23,42,0.08)] sm:grid-cols-3">
+          {summaryCards.map(({ label, value, description }) => (
+            <div
+              key={label}
+              className="flex flex-col gap-2 rounded-2xl border border-slate-200/60 bg-white/90 p-4 text-sm text-slate-500"
+            >
+              <span className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">
+                {t(label)}
+              </span>
+              <span className="text-lg font-semibold text-slate-800">
+                {t(value)}
+              </span>
+              <p className="console-microcopy text-slate-400">{t(description)}</p>
+            </div>
+          ))}
+        </section>
       </div>
     </div>
   );
 }
 
 export default function HomePage() {
+  const { t } = useI18n();
   return (
     <Suspense
       fallback={
         <div className="flex min-h-[calc(100vh-6rem)] items-center justify-center text-sm text-muted-foreground">
-          Loading Manus console…
+          {t('app.loading')}
         </div>
       }
     >
-      <HomePageContent />
+      <HomeContent />
     </Suspense>
   );
 }

@@ -160,14 +160,12 @@ All events correspond to Go types in `internal/agent/domain/events.go`:
 
 ## Tool Icons and Colors
 
-Tools are color-coded by category:
+Tools use the unified console palette:
 
-- **File operations** (blue): file_read, file_write, file_edit
-- **Shell** (purple): bash, code_execute
-- **Search** (green): grep, ripgrep, find
-- **Web** (orange): web_search, web_fetch
-- **Think** (gray): think
-- **Task** (cyan): todo_read, todo_update
+- **File & web operations** (primary accent): file_read, file_write, file_edit, web_search, web_fetch
+- **Shell execution** (amber accent): bash, code_execute
+- **Indexing & organization** (primary accent): grep, ripgrep, find, todo_read, todo_update
+- **Think** (muted neutral): think
 
 ## API Integration
 

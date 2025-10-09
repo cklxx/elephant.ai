@@ -118,17 +118,21 @@ App
     ├── Header (Navigation)
     └── Main Content
         ├── HomePage (/)
-        │   ├── Hero Section
-        │   ├── TaskInput
-        │   │   └── Textarea + Submit Button
-        │   └── AgentOutput
-        │       ├── ConnectionStatus
-        │       └── Event Cards
-        │           ├── TaskAnalysisCard
-        │           ├── ThinkingIndicator
-        │           ├── ToolCallCard
-        │           ├── TaskCompleteCard
-        │           └── ErrorCard
+        │   ├── Hero Section (CTA to /conversation)
+        │   ├── Highlight Cards
+        │   └── Summary Tiles
+        │
+        ├── ConversationPage (/conversation)
+        │   ├── SessionSidebar
+        │   │   ├── ConnectionStatus
+        │   │   └── SessionHistory (pinned + recent)
+        │   ├── ConversationStream
+        │   │   ├── Header (language switch + timeline status)
+        │   │   ├── TerminalOutput
+        │   │   └── TaskInput
+        │   └── GuidanceSidebar
+        │       ├── Quickstart Buttons
+        │       └── Timeline Overview Card
         │
         ├── SessionsPage (/sessions)
         │   ├── Header + New Session Button
@@ -319,7 +323,7 @@ lib/utils.ts (cn() for class merging)
 
 | Category | Color | Hex | Usage |
 |----------|-------|-----|-------|
-| Primary | Blue | #2563eb | Links, buttons |
+| Primary | Azure | #0ea5e9 | Links, buttons |
 | Success | Green | #16a34a | Success states |
 | Warning | Yellow | #eab308 | Warnings |
 | Error | Red | #dc2626 | Errors |
@@ -327,14 +331,11 @@ lib/utils.ts (cn() for class merging)
 
 ### Tool Colors
 
-| Tool Type | Color | Border | Background |
-|-----------|-------|--------|------------|
-| File | Blue | border-blue-200 | bg-blue-50 |
-| Shell | Purple | border-purple-200 | bg-purple-50 |
-| Search | Green | border-green-200 | bg-green-50 |
-| Web | Orange | border-orange-200 | bg-orange-50 |
-| Think | Gray | border-gray-200 | bg-gray-50 |
-| Task | Cyan | border-cyan-200 | bg-cyan-50 |
+| Tool Type | Palette Token | Border | Background |
+|-----------|----------------|--------|------------|
+| File / Web / Search / Task | Primary accent | border-primary/30 | bg-primary/10 |
+| Shell | Amber accent | border-amber-200 | bg-amber-50 |
+| Think | Neutral muted | border-border | bg-muted |
 
 ---
 

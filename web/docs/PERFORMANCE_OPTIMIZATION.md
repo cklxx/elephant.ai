@@ -40,20 +40,20 @@ const steps = useMemo(() => {
 
 ### 3. Lazy Loading (Recommended)
 
-Create a lazy-loaded version of ManusAgentOutput:
+Create a lazy-loaded version of ConsoleAgentOutput:
 
 ```tsx
-// app/page.tsx
+// app/conversation/page.tsx
 import { lazy, Suspense } from 'react';
 
-const ManusAgentOutput = lazy(() => 
-  import('@/components/agent/ManusAgentOutput')
+const ConsoleAgentOutput = lazy(() =>
+  import('@/components/agent/ConsoleAgentOutput')
 );
 
-function HomePage() {
+function ConversationPage() {
   return (
     <Suspense fallback={<LoadingSkeleton />}>
-      <ManusAgentOutput {...props} />
+      <ConsoleAgentOutput {...props} />
     </Suspense>
   );
 }
@@ -131,10 +131,10 @@ useEffect(() => {
 
 ## Recommended Next Steps
 
-1. **Lazy Load Manus UI**
+1. **Lazy Load research console UI**
 ```bash
 # Expected improvement: 100KB smaller initial bundle
-# Users without sessions won't load Manus components
+# Users without sessions won't load console components
 ```
 
 2. **Optimize Prism Themes**

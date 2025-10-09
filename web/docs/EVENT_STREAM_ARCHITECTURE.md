@@ -161,7 +161,7 @@ interface ResearchStep {
 ```
 
 **Benefits**:
-- Manus-style research timeline
+- research console-style research timeline
 - Step progress tracking
 - Iteration-to-step mapping
 
@@ -353,12 +353,15 @@ type StepStartedEvent struct {
     BaseEvent
     StepIndex       int    `json:"step_index"`
     StepDescription string `json:"step_description"`
+    Iteration       int    `json:"iteration,omitempty"`
 }
 
 type StepCompletedEvent struct {
     BaseEvent
-    StepIndex  int    `json:"step_index"`
-    StepResult string `json:"step_result"`
+    StepIndex       int    `json:"step_index"`
+    StepResult      string `json:"step_result"`
+    StepDescription string `json:"step_description,omitempty"`
+    Iteration       int    `json:"iteration,omitempty"`
 }
 
 type BrowserSnapshotEvent struct {

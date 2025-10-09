@@ -472,7 +472,7 @@ npm run lint
 **Result:** ✅ PASS (warnings only, no errors)
 
 **Warnings:**
-- 2 warnings in `ManusAgentOutput.tsx` (pre-existing)
+- 2 warnings in `ConsoleAgentOutput.tsx` (pre-existing)
 - 2 warnings about `<img>` tags (pre-existing)
 
 ### TypeScript Compilation

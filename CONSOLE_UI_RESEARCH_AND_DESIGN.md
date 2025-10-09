@@ -1,4 +1,4 @@
-# Manus UI 界面布局调研与设计方案
+# Research Console UI 界面布局调研与设计方案
 
 **文档版本**: v1.0
 **创建日期**: 2025-10-07
@@ -9,7 +9,7 @@
 
 ## 目录
 
-1. [Manus 核心设计理念](#一manus-核心设计理念)
+1. [Research Console 核心设计理念](#一console-核心设计理念)
 2. [ALEX 项目现有实现](#二alex-项目现有实现)
 3. [推荐设计方案](#三推荐设计方案)
 4. [立即实施计划](#四立即实施计划)
@@ -18,14 +18,14 @@
 
 ---
 
-## 一、Manus 核心设计理念
+## 一、Research Console 核心设计理念
 
 ### 1.1 产品哲学
 
-Manus 作为新一代 AI Agent 产品,其界面设计围绕以下核心原则:
+Research Console 作为新一代 AI Agent 产品,其界面设计围绕以下核心原则:
 
 #### **透明化执行 (Transparency)**
-- 通过 "Manus's Computer" 侧面板实时展示 AI 执行步骤
+- 通过 "Research Console's Computer" 侧面板实时展示 AI 执行步骤
 - 用户可以看到每个工具调用、每个决策节点
 - 避免 "黑盒" 体验,建立信任
 
@@ -179,7 +179,7 @@ p-6: 1.5rem   /* Section */
 | `ResearchPlanCard.tsx` | ✅ 生产中 | Plan 审批/修改 UI | ~150 行 |
 | `TaskInput.tsx` | ✅ 生产中 | 自动调整高度的输入框 | ~100 行 |
 | `ConnectionBanner.tsx` | ✅ 生产中 | 连接状态提示 + 重连按钮 | ~50 行 |
-| `ManusAgentOutput.tsx` | ⚠️ 存在但未使用 | 包含 Tab 切换逻辑 (Computer/Timeline) | ~200 行 |
+| `Research ConsoleAgentOutput.tsx` | ⚠️ 存在但未使用 | 包含 Tab 切换逻辑 (Computer/Timeline) | ~200 行 |
 | `WebViewport.tsx` | ⚠️ 存在但未使用 | 工具输出轮播查看器 | ~150 行 |
 | `ResearchTimeline.tsx` | ❓ 待确认 | 步骤时间线组件 | 未知 |
 | `DocumentCanvas.tsx` | ❓ 待确认 | 多模式文档查看 (Default/Reading/Compare) | 未知 |
@@ -251,7 +251,7 @@ useEffect(() => {
 | **用户影响** | 🟢 无感知升级 | 🟡 需要重新学习 |
 | **移动端适配** | 🟢 容易 (单栏布局) | 🔴 复杂 (需响应式断点) |
 | **可回滚性** | 🟢 每阶段独立 | 🔴 需全部完成才能发布 |
-| **最终效果** | 🟡 70% Manus 体验 | 🟢 100% Manus 体验 |
+| **最终效果** | 🟡 70% Research Console 体验 | 🟢 100% Research Console 体验 |
 
 ### 推荐: 方案 A - 渐进式增强 ⭐
 
@@ -622,14 +622,14 @@ const [isRejecting, setIsRejecting] = useState(false);
 <div className="flex gap-2">
   <button
     onClick={onApprove}
-    className="flex-1 manus-button-primary"
+    className="flex-1 console-button-primary"
   >
     ✓ Approve Plan
   </button>
 
   <button
     onClick={() => setIsRejecting(true)}
-    className="manus-button-ghost text-destructive"
+    className="console-button-ghost text-destructive"
   >
     ✗ Reject
   </button>
@@ -642,18 +642,18 @@ const [isRejecting, setIsRejecting] = useState(false);
       value={rejectReason}
       onChange={(e) => setRejectReason(e.target.value)}
       placeholder="Why are you rejecting this plan? (optional)"
-      className="manus-input min-h-[60px]"
+      className="console-input min-h-[60px]"
     />
     <div className="flex gap-2">
       <button
         onClick={() => onReject(rejectReason)}
-        className="manus-button-secondary"
+        className="console-button-secondary"
       >
         Confirm Rejection
       </button>
       <button
         onClick={() => setIsRejecting(false)}
-        className="manus-button-ghost"
+        className="console-button-ghost"
       >
         Cancel
       </button>
@@ -743,48 +743,48 @@ font-mono text-xs (12px)
 font-mono text-sm (14px)
 ```
 
-### 5.4 Manus 工具类
+### 5.4 Research Console 工具类
 
 #### **卡片样式**
 ```css
-.manus-card {
+.console-card {
   @apply bg-card border border-border rounded-md;
 }
 
-.manus-card-interactive {
-  @apply manus-card transition-colors duration-150;
+.console-card-interactive {
+  @apply console-card transition-colors duration-150;
 }
 
-.manus-card-interactive:hover {
+.console-card-interactive:hover {
   @apply bg-accent;
 }
 ```
 
 #### **按钮样式**
 ```css
-.manus-button-primary {
+.console-button-primary {
   @apply px-4 py-2 rounded-md font-medium transition-colors duration-150;
   @apply bg-primary text-primary-foreground;
   @apply focus:ring-2 focus:ring-ring focus:ring-offset-2;
 }
 
-.manus-button-primary:hover {
+.console-button-primary:hover {
   @apply opacity-90;
 }
 
-.manus-button-ghost {
+.console-button-ghost {
   @apply px-4 py-2 rounded-md font-medium transition-colors duration-150;
   @apply bg-transparent;
 }
 
-.manus-button-ghost:hover {
+.console-button-ghost:hover {
   @apply bg-accent;
 }
 ```
 
 #### **输入框样式**
 ```css
-.manus-input {
+.console-input {
   @apply w-full px-3 py-2 bg-background border border-input rounded-md;
   @apply text-foreground placeholder:text-muted-foreground;
   @apply focus:outline-none focus:ring-2 focus:ring-ring;
@@ -831,7 +831,7 @@ transition-transform duration-300  /* 300ms */
 - ✅ Plan 审批流程完整 (Approve/Edit)
 - ✅ 自动滚动到底部
 - ✅ 输入框始终可见
-- ✅ 完善的设计系统 (Manus 工具类)
+- ✅ 完善的设计系统 (Research Console 工具类)
 
 #### **待改进项**:
 - ❌ 工具输出不可视化 (纯文本)
@@ -902,14 +902,14 @@ npm run dev
 ### A. 参考资料
 
 - [Emerge Haus - The New Dominant UI Design for AI Agents](https://www.emerge.haus/blog/the-new-dominant-ui-design-for-ai-agents)
-- [Manus Official Website](https://manus.im/)
-- [Manus Context Engineering Blog](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)
-- [GitHub Gist - Manus Technical Investigation](https://gist.github.com/renschni/4fbc70b31bad8dd57f3370239dccd58f)
+- [Cursor Agent Console Overview](https://cursor.sh/)
+- [Perplexity Copilot Workspace](https://www.perplexity.ai/)
+- [GitHub Copilot Workspace Announcement](https://github.blog/news-insights/product-news/github-copilot-workspace/)
 
 ### B. 相关文档
 
 - `FRONTEND_REFACTOR.md` - 前端重构详细文档
-- `web/docs/MANUS_INTERACTION_PATTERNS.md` - Manus 交互模式
+- `web/docs/MANUS_INTERACTION_PATTERNS.md` - Research Console 交互模式
 - `web/docs/COMPONENT_ARCHITECTURE.md` - 组件架构图
 - `web/docs/EVENT_STREAM_ARCHITECTURE.md` - 事件流架构
 - `CLAUDE.md` - 项目指南

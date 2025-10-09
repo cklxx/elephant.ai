@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize2,
-  Minimize2,
   X,
   FileText,
   Terminal,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Highlight, themes } from 'prism-react-renderer';
+import { useTranslation } from '@/lib/i18n';
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -50,6 +51,7 @@ interface WebViewportProps {
 }
 
 export function WebViewport({ outputs, className }: WebViewportProps) {
+  const t = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -65,8 +67,8 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
       <Card className={cn('glass-card shadow-medium', className)}>
         <CardContent className="flex flex-col items-center justify-center h-64 text-gray-500">
           <Monitor className="h-16 w-16 mb-4 text-gray-300" />
-          <p className="font-medium">No tool outputs yet</p>
-          <p className="text-sm mt-1">Results will appear here as tools execute</p>
+          <p className="font-medium">{t('viewport.empty.title')}</p>
+          <p className="text-sm mt-1">{t('viewport.empty.description')}</p>
         </CardContent>
       </Card>
     );
@@ -94,13 +96,13 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
-                <Monitor className="h-5 w-5 text-white" />
+              <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+                <Monitor className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Computer View</h3>
+                <h3 className="font-semibold text-gray-900">{t('viewport.title')}</h3>
                 <p className="text-xs text-gray-500">
-                  {currentIndex + 1} of {outputs.length}
+                  {t('viewport.position', { index: currentIndex + 1, total: outputs.length })}
                 </p>
               </div>
             </div>
@@ -115,7 +117,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0"
-                    aria-label="Previous output"
+                    aria-label={t('viewport.aria.previous')}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -125,7 +127,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0"
-                    aria-label="Next output"
+                    aria-label={t('viewport.aria.next')}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
@@ -138,7 +140,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                 variant="outline"
                 size="sm"
                 className="h-8 w-8 p-0"
-                aria-label="Enter fullscreen mode"
+                aria-label={t('viewport.aria.enterFullscreen')}
               >
                 <Maximize2 className="h-4 w-4" />
               </Button>
@@ -157,7 +159,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fadeIn"
           role="dialog"
           aria-modal="true"
-          aria-label="Fullscreen tool output viewer"
+          aria-label={t('viewport.aria.fullscreenViewer')}
         >
           <div className="absolute top-4 right-4">
             <Button
@@ -165,10 +167,10 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
               variant="outline"
               size="sm"
               className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-              aria-label="Exit fullscreen mode"
+              aria-label={t('viewport.aria.exitFullscreen')}
             >
               <X className="h-4 w-4 mr-2" />
-              Close
+              {t('viewport.fullscreen.close')}
             </Button>
           </div>
           <div className="w-full h-full p-8 overflow-auto">
@@ -274,18 +276,19 @@ function WebFetchOutput({
   htmlPreview?: string;
   fullscreen: boolean;
 }) {
+  const t = useTranslation();
   const [showMode, setShowMode] = useState<'screenshot' | 'html'>('screenshot');
 
   return (
     <div className="space-y-3">
       {url && (
         <div className="text-sm">
-          <span className="font-semibold text-gray-600">URL:</span>
+          <span className="font-semibold text-gray-600">{t('viewport.web.url')}</span>
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-2 text-blue-600 hover:underline"
+            className="ml-2 text-primary hover:underline"
           >
             {url}
           </a>
@@ -299,24 +302,28 @@ function WebFetchOutput({
             variant={showMode === 'screenshot' ? 'default' : 'outline'}
             size="sm"
           >
-            Screenshot
+            {t('viewport.web.screenshot')}
           </Button>
           <Button
             onClick={() => setShowMode('html')}
             variant={showMode === 'html' ? 'default' : 'outline'}
             size="sm"
           >
-            HTML
+            {t('viewport.web.html')}
           </Button>
         </div>
       )}
 
       {screenshot && showMode === 'screenshot' && (
         <div className="bg-white rounded-lg overflow-hidden border border-gray-200">
-          <img
+          <Image
             src={screenshot}
-            alt="Screenshot"
-            className={cn('w-full', fullscreen ? 'max-h-none' : 'max-h-96 object-contain')}
+            alt={t('viewport.web.screenshotAlt')}
+            width={1280}
+            height={720}
+            className={cn('h-auto w-full', fullscreen ? 'max-h-none' : 'max-h-96 object-contain')}
+            unoptimized
+            sizes="(max-width: 1024px) 100vw, 960px"
           />
         </div>
       )}
@@ -348,12 +355,13 @@ function BashOutput({
   exitCode?: number;
   fullscreen: boolean;
 }) {
+  const t = useTranslation();
   return (
     <div className="space-y-3">
       {command && (
         <div>
-          <p className="text-xs font-semibold text-gray-600 mb-1">Command:</p>
-          <div className="bg-gray-900 text-green-400 rounded-lg p-3 font-mono text-sm">
+          <p className="text-xs font-semibold text-gray-600 mb-1">{t('viewport.bash.command')}</p>
+          <div className="bg-gray-900 text-emerald-400 rounded-lg p-3 font-mono text-sm">
             <span className="text-gray-500">$</span> {command}
           </div>
         </div>
@@ -361,7 +369,7 @@ function BashOutput({
 
       {stdout && (
         <div>
-          <p className="text-xs font-semibold text-gray-600 mb-1">Output:</p>
+          <p className="text-xs font-semibold text-gray-600 mb-1">{t('viewport.bash.output')}</p>
           <div
             className={cn(
               'bg-gray-900 text-gray-100 rounded-lg p-3 font-mono text-xs overflow-auto',
@@ -375,8 +383,8 @@ function BashOutput({
 
       {stderr && (
         <div>
-          <p className="text-xs font-semibold text-red-600 mb-1">Error Output:</p>
-          <div className="bg-red-50 text-red-900 rounded-lg p-3 font-mono text-xs overflow-auto max-h-32">
+          <p className="text-xs font-semibold text-destructive mb-1">{t('viewport.bash.errorOutput')}</p>
+          <div className="bg-destructive/10 text-destructive rounded-lg p-3 font-mono text-xs overflow-auto max-h-32">
             <pre className="whitespace-pre-wrap">{stderr}</pre>
           </div>
         </div>
@@ -384,7 +392,7 @@ function BashOutput({
 
       {exitCode !== undefined && (
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-gray-600">Exit Code:</span>
+          <span className="text-xs font-semibold text-gray-600">{t('viewport.bash.exitCode')}</span>
           <Badge variant={exitCode === 0 ? 'success' : 'error'}>{exitCode}</Badge>
         </div>
       )}
@@ -447,6 +455,7 @@ function FileDiffOutput({
   newContent?: string;
   fullscreen: boolean;
 }) {
+  const t = useTranslation();
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
 
   return (
@@ -463,40 +472,40 @@ function FileDiffOutput({
           variant={viewMode === 'split' ? 'default' : 'outline'}
           size="sm"
         >
-          Side by Side
+          {t('viewport.diff.split')}
         </Button>
         <Button
           onClick={() => setViewMode('unified')}
           variant={viewMode === 'unified' ? 'default' : 'outline'}
           size="sm"
         >
-          Unified
+          {t('viewport.diff.unified')}
         </Button>
       </div>
 
       {viewMode === 'split' ? (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-xs font-semibold text-red-600 mb-1 px-2">Before</p>
-            <div className="bg-red-50 border border-red-200 rounded-lg overflow-auto max-h-96">
+            <p className="text-xs font-semibold text-destructive mb-1 px-2">{t('viewport.diff.before')}</p>
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg overflow-auto max-h-96">
               <pre className="p-3 text-xs font-mono whitespace-pre-wrap">{oldContent}</pre>
             </div>
           </div>
           <div>
-            <p className="text-xs font-semibold text-green-600 mb-1 px-2">After</p>
-            <div className="bg-green-50 border border-green-200 rounded-lg overflow-auto max-h-96">
+            <p className="text-xs font-semibold text-emerald-600 mb-1 px-2">{t('viewport.diff.after')}</p>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg overflow-auto max-h-96">
               <pre className="p-3 text-xs font-mono whitespace-pre-wrap">{newContent}</pre>
             </div>
           </div>
         </div>
       ) : (
         <div className="bg-gray-900 text-gray-100 rounded-lg overflow-auto max-h-96 p-3 font-mono text-xs">
-          <div className="text-red-400">
-            <div className="text-gray-500">--- Before</div>
+          <div className="text-destructive">
+            <div className="text-gray-500">{t('viewport.diff.beforeHeading')}</div>
             <pre className="whitespace-pre-wrap">{oldContent}</pre>
           </div>
-          <div className="text-green-400 mt-2">
-            <div className="text-gray-500">+++ After</div>
+          <div className="text-emerald-400 mt-2">
+            <div className="text-gray-500">{t('viewport.diff.afterHeading')}</div>
             <pre className="whitespace-pre-wrap">{newContent}</pre>
           </div>
         </div>

@@ -123,7 +123,7 @@ Fully typed API client with error handling:
 Helper functions:
 - `cn()` - Tailwind class merging
 - `formatDuration()` - Convert ms to human readable
-- `formatRelativeTime()` - Convert timestamp to "5m ago"
+- `formatRelativeTime()` - Convert timestamps to locale-aware phrases like "5 minutes ago"
 - `getToolIcon()` - Map tool name to emoji
 - `getToolColor()` - Map tool to color scheme
 - `getEventCardStyle()` - Event-specific styling
@@ -146,7 +146,7 @@ Helper functions:
 - Live scroll to latest event
 
 ### Tool Visualization
-- Color-coded by category (file=blue, shell=purple, etc.)
+- Unified console palette for tool categories (primary accent for file/search/web/task, amber for shell, muted neutral for think)
 - Icon mapping for each tool
 - Expandable argument/result display
 - Duration and status indicators

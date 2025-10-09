@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnyAgentEvent } from '@/lib/types';
 import { TaskAnalysisCard } from './TaskAnalysisCard';
@@ -8,6 +9,7 @@ import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
+import { useTranslation } from '@/lib/i18n';
 
 interface VirtualizedEventListProps {
   events: AnyAgentEvent[];
@@ -15,6 +17,7 @@ interface VirtualizedEventListProps {
 }
 
 export function VirtualizedEventList({ events, autoScroll = true }: VirtualizedEventListProps) {
+  const t = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Create virtualizer instance
@@ -54,7 +57,7 @@ export function VirtualizedEventList({ events, autoScroll = true }: VirtualizedE
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-4 animate-pulse-soft">
             <span className="text-2xl">💭</span>
           </div>
-          <p className="font-medium">No events yet. Submit a task to get started.</p>
+          <p className="font-medium">{t('events.empty')}</p>
         </div>
       ) : (
         <div
@@ -92,6 +95,7 @@ export function VirtualizedEventList({ events, autoScroll = true }: VirtualizedE
 }
 
 function EventCard({ event }: { event: AnyAgentEvent }) {
+  const t = useTranslation();
   switch (event.event_type) {
     case 'task_analysis':
       return <TaskAnalysisCard event={event} />;
@@ -119,9 +123,14 @@ function EventCard({ event }: { event: AnyAgentEvent }) {
 
     case 'iteration_start':
       return (
-        <div className="flex items-center gap-2 text-sm text-gray-600 font-medium px-4 py-2 bg-gradient-to-r from-blue-50/50 to-transparent rounded-lg border-l-2 border-blue-400 animate-slideIn">
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-          <span>Iteration {event.iteration} of {event.total_iters}</span>
+        <div className="flex items-center gap-2 text-sm text-foreground font-medium px-4 py-2 bg-primary/10 rounded-lg border-l-2 border-primary/50 animate-slideIn">
+          <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+          <span>
+            {t('events.iteration.progress', {
+              iteration: event.iteration,
+              total: event.total_iters,
+            })}
+          </span>
         </div>
       );
 
@@ -129,15 +138,15 @@ function EventCard({ event }: { event: AnyAgentEvent }) {
       return (
         <div className="flex items-center justify-end gap-3 text-xs text-gray-500 font-medium px-4 py-2 bg-gradient-to-l from-gray-50/50 to-transparent rounded-lg border-r-2 border-gray-300 animate-fadeIn">
           <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-            Iteration {event.iteration} complete
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+            {t('events.iteration.complete', { iteration: event.iteration })}
           </span>
           <span>•</span>
-          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-200">
-            {event.tokens_used} tokens
+          <span className="px-2 py-0.5 bg-primary/10 text-primary rounded border border-primary/30">
+            {t('events.iteration.tokens', { count: event.tokens_used })}
           </span>
-          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded border border-purple-200">
-            {event.tools_run} tools
+          <span className="px-2 py-0.5 bg-muted text-foreground rounded border border-border">
+            {t('events.iteration.tools', { count: event.tools_run })}
           </span>
         </div>
       );
@@ -145,15 +154,15 @@ function EventCard({ event }: { event: AnyAgentEvent }) {
     // New event types (backend not yet emitting, but ready for when they do)
     case 'research_plan':
       return (
-        <div className="glass-card p-4 rounded-xl shadow-soft border-l-4 border-purple-400 animate-slideIn">
+        <div className="glass-card p-4 rounded-xl shadow-soft border-l-4 border-primary/40 animate-slideIn">
           <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
             <span className="text-lg">🔬</span>
-            Research Plan ({event.estimated_iterations} iterations)
+            {t('events.researchPlan.title', { count: event.estimated_iterations })}
           </h3>
           <ol className="space-y-2 ml-4">
             {event.plan_steps.map((step, idx) => (
               <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
-                <span className="font-semibold text-purple-600">{idx + 1}.</span>
+                <span className="font-semibold text-primary">{idx + 1}.</span>
                 <span>{step}</span>
               </li>
             ))}
@@ -163,18 +172,23 @@ function EventCard({ event }: { event: AnyAgentEvent }) {
 
     case 'step_started':
       return (
-        <div className="flex items-center gap-2 text-sm text-purple-600 font-medium px-4 py-2 bg-gradient-to-r from-purple-50/50 to-transparent rounded-lg border-l-2 border-purple-400 animate-slideIn">
-          <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
-          <span>Step {event.step_index + 1}: {event.step_description}</span>
+        <div className="flex items-center gap-2 text-sm text-primary font-medium px-4 py-2 bg-primary/10 rounded-lg border-l-2 border-primary/40 animate-slideIn">
+          <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+          <span>
+            {t('events.step.started', {
+              index: event.step_index + 1,
+              description: event.step_description,
+            })}
+          </span>
         </div>
       );
 
     case 'step_completed':
       return (
         <div className="glass-card p-4 rounded-xl shadow-soft border-l-4 border-green-400 animate-slideIn">
-          <h3 className="text-sm font-semibold text-green-700 mb-2 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-emerald-700 mb-2 flex items-center gap-2">
             <span className="text-lg">✅</span>
-            Step {event.step_index + 1} Complete
+            {t('events.step.completed', { index: event.step_index + 1 })}
           </h3>
           <p className="text-sm text-gray-600 ml-6">{event.step_result}</p>
         </div>
@@ -182,23 +196,29 @@ function EventCard({ event }: { event: AnyAgentEvent }) {
 
     case 'browser_snapshot':
       return (
-        <div className="glass-card p-4 rounded-xl shadow-soft border-l-4 border-blue-400 animate-slideIn">
+        <div className="glass-card p-4 rounded-xl shadow-soft border-l-4 border-primary/40 animate-slideIn">
           <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
             <span className="text-lg">🌐</span>
-            Browser Snapshot
+            {t('events.browserSnapshot.title')}
           </h3>
           <p className="text-xs text-gray-500 font-mono mb-2">{event.url}</p>
           {event.screenshot_data && (
-            <img
-              src={`data:image/png;base64,${event.screenshot_data}`}
-              alt="Browser screenshot"
-              className="w-full rounded-lg border border-gray-200 shadow-sm"
-            />
+            <div className="relative w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+              <Image
+                src={`data:image/png;base64,${event.screenshot_data}`}
+                alt={t('events.browserSnapshot.alt')}
+                width={1280}
+                height={720}
+                className="h-auto w-full"
+                unoptimized
+                sizes="(max-width: 768px) 100vw, 720px"
+              />
+            </div>
           )}
           {event.html_preview && (
             <details className="mt-2">
               <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-900">
-                View HTML Preview
+                {t('events.browserSnapshot.preview')}
               </summary>
               <pre className="mt-2 bg-gray-50 p-2 rounded text-xs overflow-x-auto max-h-40">
                 {event.html_preview}

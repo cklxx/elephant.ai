@@ -1,8 +1,8 @@
-# Manus-Style Interaction Implementation Summary
+# Research Console-Style Interaction Implementation Summary
 
 ## Executive Summary
 
-Successfully implemented all Manus-style interaction patterns for the ALEX web UI. The implementation provides a plan-first workflow, real-time execution monitoring, tool output inspection, and multiple document viewing modes.
+Successfully implemented all research console-style interaction patterns for the ALEX web UI. The implementation provides a plan-first workflow, real-time execution monitoring, tool output inspection, and multiple document viewing modes.
 
 ## What Was Implemented
 
@@ -84,8 +84,8 @@ Submit Task → Generate Plan → Review → Approve/Modify/Cancel → Execute
 ### 6. Main Integration ✅
 
 **Components:**
-- `ManusAgentOutput.tsx` - Main orchestrator component
-- `page.tsx` - Updated with Manus UI toggle
+- `ConsoleAgentOutput.tsx` - Main orchestrator component
+- `page.tsx` - Updated with research console UI toggle
 
 **Features:**
 - Integrates all components
@@ -102,7 +102,7 @@ Submit Task → Generate Plan → Review → Approve/Modify/Cancel → Execute
 web/
 ├── components/
 │   ├── agent/
-│   │   ├── ManusAgentOutput.tsx      # 🆕 Main integration
+│   │   ├── ConsoleAgentOutput.tsx      # 🆕 Main integration
 │   │   ├── ResearchPlanCard.tsx      # ✅ Existing (enhanced)
 │   │   ├── ResearchTimeline.tsx      # ✅ Existing (enhanced)
 │   │   ├── WebViewport.tsx           # ✅ Existing (enhanced)
@@ -128,7 +128,7 @@ web/
 │   ├── api.ts                       # ✏️ Updated (added approvePlan)
 │   └── types.ts                     # ✏️ Updated (added plan types)
 ├── app/
-│   └── page.tsx                     # ✏️ Updated (Manus UI integration)
+│   └── page.tsx                     # ✏️ Updated (research console UI integration)
 └── docs/                            # 🆕 New directory
     ├── MANUS_INTERACTION_PATTERNS.md
     ├── ACCESSIBILITY_CHECKLIST.md
@@ -244,14 +244,14 @@ web/hooks/__tests__/useTimelineSteps.test.ts
 
 # Test components
 web/components/agent/__tests__/ResearchPlanCard.test.tsx
-web/components/agent/__tests__/ManusAgentOutput.test.tsx
+web/components/agent/__tests__/ConsoleAgentOutput.test.tsx
 ```
 
 ### Integration Tests
 
 ```bash
 # E2E with Playwright
-web/e2e/manus-interaction.spec.ts
+web/e2e/console-layout.spec.ts
 - Plan approval flow
 - Timeline updates
 - Tool output inspection
@@ -268,13 +268,13 @@ npm run test:a11y
 ## Usage Example
 
 ```tsx
-import { ManusAgentOutput } from '@/components/agent/ManusAgentOutput';
+import { ConsoleAgentOutput } from '@/components/agent/ConsoleAgentOutput';
 
 function MyPage() {
   const { events, isConnected } = useSSE(sessionId);
 
   return (
-    <ManusAgentOutput
+    <ConsoleAgentOutput
       events={events}
       isConnected={isConnected}
       sessionId={sessionId}
@@ -287,13 +287,13 @@ function MyPage() {
 
 ## Toggle Between UIs
 
-The main page supports toggling between classic and Manus UI:
+The main page supports toggling between classic and research console UI:
 
 ```tsx
-const [useManusUI, setUseManusUI] = useState(true);
+const [useResearch ConsoleUI, setUseResearch ConsoleUI] = useState(true);
 
-{useManusUI ? (
-  <ManusAgentOutput {...props} />
+{useResearch ConsoleUI ? (
+  <ConsoleAgentOutput {...props} />
 ) : (
   <AgentOutput {...props} />  // Classic UI
 )}
@@ -322,7 +322,7 @@ const [useManusUI, setUseManusUI] = useState(true);
 ### Frontend Enhancements (Optional)
 
 1. **Lazy Loading**
-   - Implement code splitting for Manus UI
+   - Implement code splitting for research console UI
    - Expected: -100KB bundle size
 
 2. **Additional View Modes**
@@ -349,7 +349,7 @@ const [useManusUI, setUseManusUI] = useState(true);
 
 ## Conclusion
 
-All Manus-style interaction patterns have been successfully implemented on the frontend. The UI is ready for integration with backend plan approval and step-based execution. The implementation is:
+All research console-style interaction patterns have been successfully implemented on the frontend. The UI is ready for integration with backend plan approval and step-based execution. The implementation is:
 
 - ✅ Fully accessible (WCAG AA)
 - ✅ Performant (handles 1000+ events)
