@@ -105,18 +105,14 @@ func (h *Hub) broadcast(updates []state.Update) {
 	}
 
 	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	if h.closed || len(h.subscribers) == 0 {
-		h.mu.RUnlock()
 		return
 	}
-	listeners := make([]chan state.Update, 0, len(h.subscribers))
-	for ch := range h.subscribers {
-		listeners = append(listeners, ch)
-	}
-	h.mu.RUnlock()
 
 	for _, update := range updates {
-		for _, ch := range listeners {
+		for ch := range h.subscribers {
 			select {
 			case ch <- update:
 			default:
