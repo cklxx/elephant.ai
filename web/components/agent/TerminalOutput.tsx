@@ -232,7 +232,7 @@ function EventLine({
 
   const timestamp = formatTimestamp(event.timestamp, locale);
   const category = getEventCategory(event);
-  const presentation = describeEvent(event);
+  const presentation = describeEvent(event, t);
   const meta = EVENT_STYLE_META[category];
   const anchorId = getAnchorId(event);
 
@@ -597,7 +597,10 @@ const STATUS_VARIANTS: Record<EventStatus, string> = {
   pending: 'border-sky-300/50 bg-sky-50/80 dark:border-sky-500/40 dark:bg-sky-500/10',
 };
 
-function describeEvent(event: DisplayEvent): EventPresentation {
+function describeEvent(
+  event: DisplayEvent,
+  t: (key: TranslationKey, params?: TranslationParams) => string
+): EventPresentation {
   switch (event.event_type) {
     case 'user_task':
       if ('task' in event) {
@@ -672,6 +675,7 @@ function describeEvent(event: DisplayEvent): EventPresentation {
             result={event.result}
             error={event.error}
             toolName={event.tool_name}
+            t={t}
           />
         ),
       };
