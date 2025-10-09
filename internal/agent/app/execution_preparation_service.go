@@ -182,9 +182,13 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 
 func (s *ExecutionPreparationService) resolveSystemPrompt(ctx context.Context, workingDir, task string, analysis *prompts.TaskAnalysisInfo) string {
 	agentPreset := s.config.AgentPreset
+	presetSource := "config"
 	if presetCfg, ok := ctx.Value(PresetContextKey{}).(PresetConfig); ok && presetCfg.AgentPreset != "" {
 		agentPreset = presetCfg.AgentPreset
+		presetSource = "context"
 		s.logger.Debug("Using agent preset from context: %s", agentPreset)
+	} else if agentPreset == "" {
+		presetSource = ""
 	}
 
 	if agentPreset != "" && presets.IsValidPreset(agentPreset) {
@@ -194,7 +198,10 @@ func (s *ExecutionPreparationService) resolveSystemPrompt(ctx context.Context, w
 			prompt, _ := s.promptLoader.GetSystemPrompt(workingDir, task, analysis)
 			return prompt
 		}
-		s.logger.Info("Using preset system prompt: %s", presetConfig.Name)
+		if presetSource == "" {
+			presetSource = "config"
+		}
+		s.logger.Info("Using preset system prompt: %s (source=%s)", presetConfig.Name, presetSource)
 		return presetConfig.SystemPrompt
 	}
 
@@ -215,9 +222,13 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) po
 	}
 
 	toolPreset := s.config.ToolPreset
+	presetSource := "config"
 	if presetCfg, ok := ctx.Value(PresetContextKey{}).(PresetConfig); ok && presetCfg.ToolPreset != "" {
 		toolPreset = presetCfg.ToolPreset
+		presetSource = "context"
 		s.logger.Debug("Using tool preset from context: %s", toolPreset)
+	} else if toolPreset == "" {
+		presetSource = ""
 	}
 
 	if toolPreset != "" && presets.IsValidToolPreset(toolPreset) {
@@ -227,7 +238,11 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) po
 		} else {
 			registry = filteredRegistry
 			toolConfig, _ := presets.GetToolConfig(presets.ToolPreset(toolPreset))
-			s.logger.Info("Using tool preset: %s", toolConfig.Name)
+			if presetSource == "" {
+				presetSource = "config"
+			}
+			toolCount := len(filteredRegistry.List())
+			s.logger.Info("Using tool preset: %s (source=%s, tool_count=%d)", toolConfig.Name, presetSource, toolCount)
 		}
 	}
 

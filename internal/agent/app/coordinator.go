@@ -31,17 +31,18 @@ type AgentCoordinator struct {
 }
 
 type Config struct {
-	LLMProvider   string
-	LLMModel      string
-	APIKey        string
-	BaseURL       string
-	MaxTokens     int
-	MaxIterations int
-	Temperature   float64
-	TopP          float64
-	StopSequences []string
-	AgentPreset   string // Agent persona preset (default, code-expert, etc.)
-	ToolPreset    string // Tool access preset (full, read-only, etc.)
+	LLMProvider         string
+	LLMModel            string
+	APIKey              string
+	BaseURL             string
+	MaxTokens           int
+	MaxIterations       int
+	Temperature         float64
+	TemperatureProvided bool
+	TopP                float64
+	StopSequences       []string
+	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
+	ToolPreset          string // Tool access preset (full, read-only, etc.)
 }
 
 func NewAgentCoordinator(
@@ -54,8 +55,12 @@ func NewAgentCoordinator(
 	config Config,
 	opts ...CoordinatorOption,
 ) *AgentCoordinator {
-	if config.Temperature == 0 {
-		config.Temperature = 0.7
+	if !config.TemperatureProvided {
+		if config.Temperature != 0 {
+			config.TemperatureProvided = true
+		} else {
+			config.Temperature = 0.7
+		}
 	}
 	if len(config.StopSequences) > 0 {
 		config.StopSequences = append([]string(nil), config.StopSequences...)
@@ -114,22 +119,7 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	// Create ReactEngine and configure listener
 	c.logger.Info("Delegating to ReactEngine...")
-	completionDefaults := domain.CompletionDefaults{}
-	if c.config.Temperature > 0 {
-		temp := c.config.Temperature
-		completionDefaults.Temperature = &temp
-	}
-	if c.config.MaxTokens > 0 {
-		maxTokens := c.config.MaxTokens
-		completionDefaults.MaxTokens = &maxTokens
-	}
-	if c.config.TopP > 0 {
-		topP := c.config.TopP
-		completionDefaults.TopP = &topP
-	}
-	if len(c.config.StopSequences) > 0 {
-		completionDefaults.StopSequences = append([]string(nil), c.config.StopSequences...)
-	}
+	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
 
 	reactEngine := domain.NewReactEngine(domain.ReactEngineConfig{
 		MaxIterations:      c.config.MaxIterations,
@@ -176,6 +166,28 @@ func (c *AgentCoordinator) ExecuteTask(
 		StopReason: result.StopReason,
 		SessionID:  env.Session.ID,
 	}, nil
+}
+
+func buildCompletionDefaultsFromConfig(cfg Config) domain.CompletionDefaults {
+	defaults := domain.CompletionDefaults{}
+
+	if cfg.TemperatureProvided {
+		temp := cfg.Temperature
+		defaults.Temperature = &temp
+	}
+	if cfg.MaxTokens > 0 {
+		maxTokens := cfg.MaxTokens
+		defaults.MaxTokens = &maxTokens
+	}
+	if cfg.TopP > 0 {
+		topP := cfg.TopP
+		defaults.TopP = &topP
+	}
+	if len(cfg.StopSequences) > 0 {
+		defaults.StopSequences = append([]string(nil), cfg.StopSequences...)
+	}
+
+	return defaults
 }
 
 // PrepareExecution prepares the execution environment without running the task

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	runtimeconfig "alex/internal/config"
 )
 
 func TestConfig_AddServer(t *testing.T) {
@@ -203,6 +205,60 @@ func TestConfigLoader_LoadFromPath(t *testing.T) {
 	}
 	if server.Env["TEST_VAR"] != "test_value" {
 		t.Errorf("Expected TEST_VAR='test_value', got %s", server.Env["TEST_VAR"])
+	}
+}
+
+func TestConfigLoader_LoadWithCustomEnvLookup(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "env-config.json")
+
+	configJSON := `{ "mcpServers": { "env-server": { "command": "$CUSTOM_CMD", "args": ["$CUSTOM_ARG"], "env": { "TOKEN": "$RUNTIME_TOKEN" } } } }`
+
+	if err := os.WriteFile(configPath, []byte(configJSON), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	lookup := runtimeconfig.RuntimeEnvLookup(runtimeconfig.RuntimeConfig{
+		APIKey:        "runtime-key",
+		LLMProvider:   "provider",
+		LLMModel:      "model",
+		SessionDir:    "/tmp/sessions",
+		CostDir:       "/tmp/costs",
+		StopSequences: []string{"stop"},
+	}, func(key string) (string, bool) {
+		switch key {
+		case "CUSTOM_CMD":
+			return "run.sh", true
+		case "CUSTOM_ARG":
+			return "--flag", true
+		case "RUNTIME_TOKEN":
+			return "runtime-key", true
+		default:
+			return "", false
+		}
+	})
+
+	loader := NewConfigLoader(WithLoaderEnvLookup(lookup))
+	config, err := loader.LoadFromPath(configPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	server, ok := config.GetServer("env-server")
+	if !ok {
+		t.Fatalf("expected server to be present")
+	}
+
+	if server.Command != "run.sh" {
+		t.Fatalf("unexpected command %q", server.Command)
+	}
+
+	if len(server.Args) != 1 || server.Args[0] != "--flag" {
+		t.Fatalf("unexpected args %v", server.Args)
+	}
+
+	if server.Env["TOKEN"] != "runtime-key" {
+		t.Fatalf("unexpected env expansion: %v", server.Env)
 	}
 }
 

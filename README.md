@@ -81,6 +81,34 @@ See [QUICKSTART_SSE.md](QUICKSTART_SSE.md) for details.
 alex
 ```
 
+Key shortcuts:
+
+- `Tab` / `Shift+Tab` – move focus between transcript, stream, tools, subagents, MCP, and input panes.
+- `PgUp` / `PgDn`, arrow keys – scroll the focused pane; `End` jumps back to live updates.
+- `?` – toggle an in-terminal help overlay with all shortcuts.
+- `/` – search within the focused pane; `n`/`N` moves to the next/previous match.
+- Slash commands:
+  - `/new` – start a fresh session and clear the transcript.
+  - `/sessions` – list saved sessions with the active one highlighted.
+  - `/load <id>` – load a prior session into the UI.
+  - `/mcp [list|refresh|restart <name>]` – inspect or restart MCP servers without leaving the chat.
+  - `/cost [session_id]` – display the latest cost totals for the active (or specified) session directly in the transcript.
+  - `/export [path]` – write the visible transcript to a Markdown file (defaults to `session-…-transcript-<timestamp>.md`).
+  - `/follow <transcript|stream|both> <on|off|toggle>` – inspect or persist the default auto-follow behaviour from inside the TUI.
+- `/verbose [on|off|toggle]` – inspect or change the CLI verbose flag that controls tool logging detail.
+- `/quit` – exit the session (or press `Ctrl+C`).
+- The Subagents pane now highlights each worker's agent level, start/finish times, and run duration so you can spot slow or failing subtasks at a glance.
+- The status bar shows live token totals alongside per-model LLM spend so you can keep an eye on usage costs during long sessions.
+- Configure default auto-follow behaviour either via the `/follow` command in the TUI, by editing `follow_transcript` / `follow_stream` in `~/.alex-config.json`, or by setting the `ALEX_TUI_FOLLOW_TRANSCRIPT` / `ALEX_TUI_FOLLOW_STREAM` environment variables if you prefer panes to stay pinned after session resets.
+
+Need the legacy line UI? Launch with:
+
+```bash
+alex --no-tui
+```
+
+or set `ALEX_NO_TUI=1` before running `alex`.
+
 **Command Mode**
 ```bash
 alex "analyze this codebase"
@@ -91,6 +119,8 @@ alex "analyze this codebase"
 alex -r session_id -i    # resume
 alex session list        # list all
 ```
+
+Launching the TUI without arguments automatically restores your most recent session so you can continue the previous conversation immediately.
 
 ### Web Server Mode 🆕
 
@@ -137,7 +167,11 @@ Override with environment:
 ```bash
 export OPENAI_API_KEY="your-key"
 export ALEX_VERBOSE="1"
+export ALEX_TUI_FOLLOW_TRANSCRIPT="0"   # disable transcript auto-follow
+export ALEX_TUI_FOLLOW_STREAM="0"       # disable live stream auto-follow
 ```
+
+Set the same defaults persistently by adding `"follow_transcript"` / `"follow_stream"` entries to `~/.alex-config.json`.
 
 ## Tools
 
