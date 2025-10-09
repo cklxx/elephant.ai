@@ -288,17 +288,17 @@
 @layer utilities {
   .bg-app-canvas {
     background-image:
-      radial-gradient(circle at top right, hsl(var(--primary) / 0.12), transparent 45%),
-      radial-gradient(circle at bottom left, hsl(var(--gray-300) / 0.35), transparent 55%),
-      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--gray-100)) 100%);
+      radial-gradient(circle at 20% -10%, hsla(210, 40%, 96%, 0.6), transparent 52%),
+      radial-gradient(circle at 90% 10%, hsla(199, 88%, 85%, 0.18), transparent 55%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(210 32% 96%) 100%);
   }
 
   .console-shell {
-    @apply mx-auto flex w-full max-w-screen-2xl flex-1 flex-col gap-6 px-4 pb-8 pt-6 sm:px-6 lg:px-8 xl:px-12;
+    @apply mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 pb-10 pt-8 sm:px-6 lg:px-8 xl:px-10;
   }
 
   .console-panel {
-    @apply rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0px_18px_60px_rgba(15,23,42,0.08)] backdrop-blur;
+    @apply rounded-[28px] border border-slate-200 bg-white shadow-[0px_20px_60px_rgba(15,23,42,0.04)];
   }
 
   .console-pane-title {

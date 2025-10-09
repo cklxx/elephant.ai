@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Persistent task input always visible at bottom
   - Auto-scroll to latest events
   - Horizontal input layout with auto-resize textarea
+- Reimagined console home to match the new research workspace reference
+  - Hero card greets the user, surfaces quick actions, and embeds the task input
+  - Left rail consolidates connection status, timeline progress, and pinned/recent sessions
+  - Right guidance rail highlights quick starts and timeline messaging with reduced copy
+  - Updated translations, Playwright layout spec, and documentation to reflect the lighter style
 - Fixed event display to use correct `event_type` field
 - Updated all event formatting with proper type narrowing
 - Migrated to Zustand v5 API in `useAgentStreamStore`

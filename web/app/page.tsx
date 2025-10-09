@@ -412,34 +412,30 @@ function HomePageContent() {
   };
 
   return (
-    <div className="flex flex-1">
+    <div className="bg-app-canvas">
       <div className="console-shell">
-          <header className="console-panel flex flex-col gap-4 px-5 py-5 sm:px-6 lg:px-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="space-y-3">
-                <span className="console-quiet-chip tracking-[0.35em] text-slate-500">
-                  {t('console.brand')}
-                </span>
-                <h1 className="text-2xl font-semibold text-slate-900">
-                  {resolvedSessionId
-                    ? t('console.heading.active', { id: sessionBadge ?? '' })
-                    : t('console.heading.idle')}
-                </h1>
+        <div className="grid flex-1 gap-6 xl:grid-cols-[250px_minmax(0,1fr)_300px]">
+          <aside className="flex flex-col gap-6">
+            <div className="console-panel p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    {t('console.settings.title')}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-slate-800">
+                    {sessionBadge ?? t('console.settings.sessionNone')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-300 transition hover:text-slate-500"
+                >
+                  {t('console.settings.reset')}
+                </button>
               </div>
-              <LanguageSwitcher variant="toolbar" showLabel={false} />
-            </div>
-          </header>
-          <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(240px,320px),minmax(0,1fr)] xl:grid-cols-[minmax(280px,360px),minmax(0,1fr)]">
-            <aside className="console-panel flex h-full flex-col gap-6 p-5 sm:p-6">
-              <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-5 shadow-inner">
-                <span className="console-quiet-chip text-slate-500">{t('console.settings.title')}</span>
-                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t('console.connection.title')}
-                    </p>
-                    <p className="console-microcopy">{t('console.connection.subtitle')}</p>
-                  </div>
+              <div className="mt-6 space-y-4">
+                <div className="space-y-3">
                   <ConnectionStatus
                     connected={isConnected}
                     reconnecting={isReconnecting}
@@ -449,161 +445,180 @@ function HomePageContent() {
                   />
                   {useMockStream && (
                     <div
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-amber-700"
+                      className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-700"
                       data-testid="mock-stream-indicator"
                     >
                       {t('console.connection.mock')}
                     </div>
                   )}
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-semibold uppercase tracking-wide">
-                      {t('console.settings.sessionLabel')}
-                    </span>
-                    <span className="font-medium text-slate-600">
-                      {resolvedSessionId ? sessionBadge : t('console.settings.sessionEmpty')}
+                <div className="grid gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/60 px-3 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  <div className="flex items-center justify-between">
+                    <span>{t('console.settings.timelineStatus')}</span>
+                    <span className="text-slate-600">
+                      {hasTimeline
+                        ? timelineProgressCopy.progressLabel
+                        : t('console.timeline.waiting')}
                     </span>
                   </div>
-                  <button
-                    onClick={handleClear}
-                    className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
-                  >
-                    {t('console.connection.newConversation')}
-                  </button>
-                </div>
-              </section>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="console-section-title">{t('console.history.title')}</p>
-                  <span className="console-microcopy">{t('console.history.subtitle')}</span>
-                </div>
-                <div className="space-y-2 overflow-hidden rounded-2xl border border-slate-100 bg-white">
-                  {hasPinnedSessions && (
-                    <div className="space-y-1 border-b border-slate-100 px-3 py-3">
-                      <span className="console-microcopy text-[10px] uppercase tracking-[0.3em] text-slate-400">
-                        {t('console.history.pinned')}
-                      </span>
-                      <ul className="space-y-1">
-                        {pinnedSessions.map((id) => renderSessionItem(id, true))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {hasRecentSessions && (
-                    <div className={cn('space-y-1', hasPinnedSessions ? 'px-3 pb-3' : '')}>
-                      {hasPinnedSessions && (
-                        <span className="console-microcopy text-[10px] uppercase tracking-[0.3em] text-slate-400">
-                          {t('console.history.recents')}
-                        </span>
-                      )}
-                      <ul
-                        className={cn(
-                          'space-y-1 console-scrollbar',
-                          hasPinnedSessions
-                            ? 'max-h-40 overflow-y-auto pr-1'
-                            : 'max-h-64 overflow-y-auto px-2 py-2'
-                        )}
-                      >
-                        {recentSessions.map((id) => renderSessionItem(id))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {!hasPinnedSessions && !hasRecentSessions && (
-                    <div className="px-4 py-6 text-center text-sm text-slate-400">
-                      {t('console.history.empty')}
-                    </div>
-                  )}
-                </div>
-            </div>
-
-              <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4">
-                <p className="console-section-title">{t('console.quickstart.title')}</p>
-                <div className="flex flex-wrap gap-2">
-                  {quickstartKeys.map((key) => (
-                    <span key={key} className="console-quiet-chip">
-                      {t(key)}
+                  <div className="flex items-center justify-between">
+                    <span>{t('console.settings.sessionStatus')}</span>
+                    <span className="text-slate-600">
+                      {resolvedSessionId
+                        ? t('console.thread.sessionPrefix', { id: sessionBadge ?? '' })
+                        : t('console.thread.newConversation')}
                     </span>
-                  ))}
-                </div>
-              </div>
-            </aside>
-
-          <section className="console-panel flex h-full flex-col overflow-hidden">
-            <div className="flex flex-col gap-2 border-b border-slate-100 bg-white/80 px-8 py-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  {resolvedSessionId
-                    ? t('console.thread.sessionPrefix', { id: sessionBadge ?? '' })
-                    : t('console.thread.newConversation')}
-                </h2>
-                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.3em] text-slate-300">
-                  <span>{t('console.thread.autosave')}</span>
-                  <span className="h-1 w-1 rounded-full bg-slate-200" />
-                  <span>{new Date().toLocaleTimeString()}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex min-h-[420px] flex-1 flex-col">
-              <div className="flex flex-1 flex-col gap-6 lg:flex-row">
-                {hasTimeline && (
-                  <aside className="hidden w-[min(17rem,28vw)] flex-shrink-0 lg:block">
-                    <div className="console-scrollbar sticky top-24 max-h-[calc(100vh-14rem)] overflow-y-auto pr-2">
-                      <ResearchTimeline
-                        steps={timelineSteps}
-                        focusedStepId={focusedStepId}
-                        onStepSelect={handleTimelineStepSelect}
-                      />
-                    </div>
-                  </aside>
+            <div className="console-panel p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-700">
+                  {t('console.history.title')}
+                </p>
+                {sessionHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearEvents();
+                      clearCurrentSession();
+                      setSessionId(null);
+                      setTaskId(null);
+                      setFocusedStepId(null);
+                    }}
+                    className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-300 transition hover:text-slate-500"
+                  >
+                    {t('console.history.clearSelection')}
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-4 space-y-4">
+                {hasPinnedSessions && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-300">
+                      {t('console.history.pinned')}
+                    </p>
+                    <ul className="space-y-2">{pinnedSessions.map((id) => renderSessionItem(id, true))}</ul>
+                  </div>
                 )}
 
-                <div className="flex min-w-0 flex-1 flex-col">
+                {hasRecentSessions ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-300">
+                      {t('console.history.recent')}
+                    </p>
+                    <ul className="space-y-2">{recentSessions.map((id) => renderSessionItem(id))}</ul>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[120px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 text-center">
+                    <span className="console-quiet-chip">{t('console.history.empty')}</span>
+                    <p className="console-microcopy max-w-[200px]">{t('console.history.emptyDescription')}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
+
+          <main className="flex flex-col gap-6">
+            <section className="console-panel px-5 py-6 sm:px-8 sm:py-8">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    {t('console.hero.label')}
+                  </span>
+                  <h1 className="text-3xl font-semibold text-slate-900">
+                    {resolvedSessionId
+                      ? t('console.hero.title.active', { id: sessionBadge ?? '' })
+                      : t('console.hero.title.idle')}
+                  </h1>
+                  <p className="console-microcopy max-w-xl text-slate-500">
+                    {t('console.hero.subtitle')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 self-start">
+                  <LanguageSwitcher variant="toolbar" showLabel={false} />
                   {hasTimeline && (
-                    <div className="flex items-center justify-between px-5 pt-6 sm:px-6 lg:px-8 lg:hidden">
-                      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        {t('console.timeline.mobileLabel')}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setTimelineDialogOpen(true)}
-                        className="group inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-left shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
-                        aria-haspopup="dialog"
-                        aria-expanded={isTimelineDialogOpen}
-                        data-testid="mobile-timeline-trigger"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Activity className="h-4 w-4 text-sky-500 transition group-hover:scale-105" />
-                          <span className="text-sm font-semibold text-slate-700">
-                            {timelineProgressCopy.statusLabel}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-2 console-microcopy">
-                          {timelineProgressCopy.progressLabel}
-                          <ChevronRight className="h-3.5 w-3.5 text-slate-400 transition group-hover:translate-x-0.5" />
-                        </span>
-                      </button>
+                    <div className="hidden text-right lg:block">
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                        {timelineProgressCopy.statusLabel}
+                      </p>
+                      <p className="console-microcopy text-slate-500">
+                        {timelineProgressCopy.progressLabel}
+                      </p>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {quickstartKeys.map((key) => (
+                  <span
+                    key={key}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.05)]"
+                  >
+                    {t(key)}
+                    <ChevronRight className="h-4 w-4 text-slate-300" />
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <TaskInput
+                  onSubmit={handleTaskSubmit}
+                  disabled={isSubmitting}
+                  loading={isSubmitting}
+                  placeholder={
+                    resolvedSessionId
+                      ? t('console.input.placeholder.active')
+                      : t('console.input.placeholder.idle')
+                  }
+                />
+              </div>
+            </section>
+
+            <section className="console-panel flex min-h-[420px] flex-1 flex-col overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-5 sm:px-8">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {resolvedSessionId
+                      ? t('console.thread.sessionPrefix', { id: sessionBadge ?? '' })
+                      : t('console.thread.newConversation')}
+                  </h2>
+                  <p className="console-microcopy text-slate-400">
+                    {t('console.thread.autosave')} · {new Date().toLocaleTimeString()}
+                  </p>
+                </div>
+                {hasTimeline && (
+                  <button
+                    type="button"
+                    onClick={() => setTimelineDialogOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-sky-200 hover:text-sky-600 lg:hidden"
+                    aria-haspopup="dialog"
+                    aria-expanded={isTimelineDialogOpen}
+                    data-testid="mobile-timeline-trigger"
+                  >
+                    <Activity className="h-3.5 w-3.5" />
+                    <span>{timelineProgressCopy.statusLabel}</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-1 flex-col lg:flex-row">
+                <div className="flex min-w-0 flex-1 flex-col">
                   <div
                     ref={outputRef}
-                    className="console-scrollbar flex-1 overflow-y-auto px-5 py-6 sm:px-6 sm:py-8 lg:px-8"
+                    className="console-scrollbar flex-1 overflow-y-auto px-5 py-6 sm:px-8"
                   >
                     {events.length === 0 ? (
-                      <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
-                        <div className="flex items-center gap-3 rounded-full bg-slate-100 px-4 py-2 text-xs font-medium text-slate-500">
-                          <span className="inline-flex h-2 w-2 rounded-full bg-sky-400" />
-                          {t('console.empty.badge')}
-                        </div>
-                        <div className="space-y-3">
-                          <p className="text-lg font-semibold text-slate-700">{t('console.empty.title')}</p>
-                          <p className="console-microcopy max-w-md mx-auto">
-                            {t('console.empty.description')}
-                          </p>
-                        </div>
+                      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+                        <span className="console-quiet-chip">{t('console.empty.badge')}</span>
+                        <p className="text-base font-semibold text-slate-700">{t('console.empty.title')}</p>
+                        <p className="console-microcopy max-w-sm text-slate-400">
+                          {t('console.empty.description')}
+                        </p>
                       </div>
                     ) : (
                       <TerminalOutput
@@ -618,23 +633,64 @@ function HomePageContent() {
                       />
                     )}
                   </div>
-
-                  <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-5 sm:px-6 sm:py-6 lg:px-8">
-                    <TaskInput
-                      onSubmit={handleTaskSubmit}
-                      disabled={isSubmitting}
-                      loading={isSubmitting}
-                      placeholder={
-                        resolvedSessionId
-                          ? t('console.input.placeholder.active')
-                          : t('console.input.placeholder.idle')
-                      }
-                    />
-                  </div>
                 </div>
+
+                {hasTimeline && (
+                  <aside className="hidden w-[280px] flex-shrink-0 border-l border-slate-100 px-5 py-6 lg:block">
+                    <div className="console-scrollbar sticky top-24 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2">
+                      <ResearchTimeline
+                        steps={timelineSteps}
+                        focusedStepId={focusedStepId}
+                        onStepSelect={handleTimelineStepSelect}
+                      />
+                    </div>
+                  </aside>
+                )}
+              </div>
+            </section>
+          </main>
+
+          <aside className="flex flex-col gap-6">
+            <div className="console-panel p-5 sm:p-6">
+              <p className="text-sm font-semibold text-slate-700">
+                {t('console.quickstart.title')}
+              </p>
+              <div className="mt-4 grid gap-3">
+                {quickstartKeys.map((key) => (
+                  <div
+                    key={key}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm font-medium text-slate-500"
+                  >
+                    {t(key)}
+                  </div>
+                ))}
               </div>
             </div>
-          </section>
+
+            <div className="console-panel p-5 sm:p-6">
+              <p className="text-sm font-semibold text-slate-700">
+                {t('console.timeline.sidebarTitle')}
+              </p>
+              <p className="console-microcopy mt-2 text-slate-400">
+                {t('console.timeline.sidebarDescription')}
+              </p>
+              {hasTimeline ? (
+                <div className="mt-4 hidden lg:block">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                    {timelineProgressCopy.statusLabel}
+                  </p>
+                  <p className="console-microcopy text-slate-500">
+                    {timelineProgressCopy.progressLabel}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-6 flex items-center justify-between rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
+                  <span>{t('console.timeline.waiting')}</span>
+                  <Activity className="h-4 w-4 text-slate-200" />
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
       </div>
 

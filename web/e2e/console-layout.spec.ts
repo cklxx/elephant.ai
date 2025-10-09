@@ -6,10 +6,10 @@ test.describe('ALEX console layout', () => {
   test('renders console shell with empty state', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByText('Alex Console')).toBeVisible();
-    await expect(page.getByText('New task')).toBeVisible();
+    await expect(page.getByText('Alex workspace')).toBeVisible();
+    await expect(page.getByText('What should we work on today?')).toBeVisible();
     await expect(page.getByText('Session history', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start new conversation' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
 
     await expect(page.getByText('No sessions yet.')).toBeVisible();
     await expect(page.getByText('Ready to take on your work')).toBeVisible();
