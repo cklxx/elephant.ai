@@ -105,7 +105,7 @@ On subsequent runs, Chromatic:
   - [x] With placeholder
 - [x] ConnectionStatus
   - [x] Connected
-  - [x] Disconnected
+  - [x] Offline
   - [x] Reconnecting
   - [x] Max retries
 - [x] ThinkingIndicator

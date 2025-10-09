@@ -36,7 +36,6 @@ export const Reconnecting: Story = {
   args: {
     connected: false,
     reconnecting: true,
-    reconnectAttempts: 2,
   },
 };
 
@@ -44,7 +43,6 @@ export const ReconnectingWithError: Story = {
   args: {
     connected: false,
     reconnecting: true,
-    reconnectAttempts: 4,
     error: 'Connection failed. Retrying...',
   },
 };
@@ -53,7 +51,6 @@ export const MaxRetriesReached: Story = {
   args: {
     connected: false,
     reconnecting: false,
-    reconnectAttempts: 5,
     error: 'Max reconnection attempts reached',
   },
 };

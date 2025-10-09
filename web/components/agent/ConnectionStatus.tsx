@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/lib/i18n';
 
@@ -16,43 +16,32 @@ interface ConnectionStatusProps {
 export function ConnectionStatus({
   connected,
   reconnecting,
-  reconnectAttempts = 0,
   error,
   onReconnect,
 }: ConnectionStatusProps) {
   const t = useTranslation();
 
-  if (connected) {
-    return (
-      <Badge variant="success" className="flex items-center gap-2 animate-fadeIn">
-        <div className="relative flex items-center">
-          <span className="absolute w-3 h-3 bg-emerald-400 rounded-full animate-ping opacity-75"></span>
-          <Wifi className="relative h-3 w-3" />
-        </div>
-        <span className="font-semibold">{t('connection.connected')}</span>
-      </Badge>
-    );
+  if (connected && !reconnecting) {
+    return null;
   }
 
   if (reconnecting) {
     return (
-      <Badge variant="warning" className="flex items-center gap-2 animate-pulse">
-        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-        <span className="font-semibold">
-          {t('connection.reconnecting', { attempt: reconnectAttempts })}
-        </span>
+      <Badge variant="warning" className="flex items-center gap-1.5 animate-pulse text-[11px] font-semibold">
+        <RefreshCw className="h-3 w-3 animate-spin" />
+        <span>{t('connection.reconnecting')}</span>
       </Badge>
     );
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2 animate-fadeIn">
-      <Badge variant="error" className="flex items-center gap-2 shrink-0">
+      <Badge variant="error" className="flex items-center gap-1.5 text-[11px] font-semibold">
         <WifiOff className="h-3 w-3 animate-pulse" />
-        <span className="font-semibold">{t('connection.disconnected')}</span>
+        <span>{t('connection.disconnected')}</span>
       </Badge>
       {error && (
-        <span className="w-full break-words rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive sm:inline-flex sm:w-auto sm:items-center">
+        <span className="console-microcopy w-full break-words rounded border border-destructive/20 bg-destructive/5 px-2 py-1 text-destructive sm:w-auto">
           {error}
         </span>
       )}

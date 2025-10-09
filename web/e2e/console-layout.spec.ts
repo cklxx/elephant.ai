@@ -12,9 +12,9 @@ test.describe('ALEX console layout', () => {
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
 
     await expect(page.getByText('No sessions yet.')).toBeVisible();
-    await expect(page.getByText('Ready to take on your work')).toBeVisible();
-    await expect(page.getByText('Waiting for your task')).toBeVisible();
-    await expect(page.getByText('Disconnected')).toBeVisible();
+    await expect(page.getByText('Ready when you are')).toBeVisible();
+    await expect(page.getByText('Waiting', { exact: true })).toBeVisible();
+    await expect(page.getByText('Offline')).toBeVisible();
 
     const input = page.getByTestId('task-input');
     await expect(input).toHaveAttribute(
