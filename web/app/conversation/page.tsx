@@ -30,6 +30,7 @@ function ConversationPageContent() {
   const [isTimelineDialogOpen, setTimelineDialogOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const highlightedElementRef = useRef<HTMLElement | null>(null);
@@ -258,6 +259,21 @@ function ConversationPageContent() {
     setEditingValue('');
   };
 
+  const isSubmitting = useMockStream ? false : isPending;
+
+  const handleQuickstartSelect = (key: TranslationKey) => {
+    const suggestion = t(key);
+    if (!suggestion || isSubmitting) {
+      return;
+    }
+
+    setPrefillTask(suggestion);
+
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  };
+
   const handleTimelineStepSelect = useCallback(
     (stepId: string) => {
       setFocusedStepId(stepId);
@@ -296,7 +312,6 @@ function ConversationPageContent() {
     [setTimelineDialogOpen]
   );
 
-  const isSubmitting = useMockStream ? false : isPending;
   const getSessionBadge = (value: string) =>
     value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
   const activeSessionLabel = resolvedSessionId
@@ -535,7 +550,14 @@ function ConversationPageContent() {
                   <button
                     key={key}
                     type="button"
+                    onClick={() => handleQuickstartSelect(key)}
                     className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-600 shadow-sm transition hover:border-sky-200 hover:text-sky-600"
+                    aria-label={t('conversation.quickstart.useSuggestion', {
+                      suggestion: t(key),
+                    })}
+                    title={t('conversation.quickstart.useSuggestion', {
+                      suggestion: t(key),
+                    })}
                   >
                     <span>{t(key)}</span>
                   </button>
@@ -627,6 +649,8 @@ function ConversationPageContent() {
                           ? t('console.input.placeholder.active')
                           : t('console.input.placeholder.idle')
                       }
+                      prefill={prefillTask}
+                      onPrefillApplied={() => setPrefillTask(null)}
                     />
                   </div>
                 </div>

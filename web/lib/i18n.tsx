@@ -85,6 +85,7 @@ const translations = {
     'conversation.header.subtitle':
       'Track every user message, agent response, and tool call in one compact stream.',
     'conversation.quickstart.subtitle': 'Use these starter prompts to explore what the agent can handle.',
+    'conversation.quickstart.useSuggestion': 'Use suggestion: {suggestion}',
     'conversation.status.doing': 'Doing something…',
     'conversation.status.completed': 'Completed',
     'conversation.status.failed': 'Failed',
@@ -342,6 +343,7 @@ const translations = {
     'conversation.header.idle': '开启新的调研任务',
     'conversation.header.subtitle': '在紧凑的流中跟踪每条消息、智能体回应与工具调用。',
     'conversation.quickstart.subtitle': '参考这些示例提示，探索智能体可承担的任务。',
+    'conversation.quickstart.useSuggestion': '使用示例：{suggestion}',
     'conversation.status.doing': '正在执行…',
     'conversation.status.completed': '已完成',
     'conversation.status.failed': '失败',

@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated translations, Playwright layout spec, and documentation to reflect the lighter style
 - Split the marketing homepage from the research console so the hero CTA links directly to the dedicated conversation view
 - Added live "Doing something…" badges to tool start events so ongoing agent actions read naturally in the chat stream
+- Quickstart panel buttons now prefill the chat input and focus the composer for faster task setup
+- Tool call timelines highlight active steps with animated markers and elapsed timing metadata inside the transcript
 - Fixed event display to use correct `event_type` field
 - Updated all event formatting with proper type narrowing
 - Migrated to Zustand v5 API in `useAgentStreamStore`

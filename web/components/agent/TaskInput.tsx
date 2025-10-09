@@ -9,6 +9,8 @@ interface TaskInputProps {
   disabled?: boolean;
   loading?: boolean;
   placeholder?: string;
+  prefill?: string | null;
+  onPrefillApplied?: () => void;
 }
 
 export function TaskInput({
@@ -16,6 +18,8 @@ export function TaskInput({
   disabled = false,
   loading = false,
   placeholder,
+  prefill = null,
+  onPrefillApplied,
 }: TaskInputProps) {
   const [task, setTask] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -29,6 +33,29 @@ export function TaskInput({
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
     }
   }, [task]);
+
+  useEffect(() => {
+    if (typeof prefill !== 'string') return;
+    const nextValue = prefill.trim();
+    if (!nextValue) return;
+
+    setTask(prefill);
+
+    const focusField = () => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      const length = prefill.length;
+      textareaRef.current.setSelectionRange(length, length);
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(focusField);
+    } else {
+      setTimeout(focusField, 0);
+    }
+
+    onPrefillApplied?.();
+  }, [prefill, onPrefillApplied]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -17,7 +17,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
+import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -55,7 +55,8 @@ export function TerminalOutput({
   taskId,
 }: TerminalOutputProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const locale = getLanguageLocale(language);
 
   const displayEvents = useMemo(() => {
     const aggregated: DisplayEvent[] = [];
@@ -191,7 +192,7 @@ export function TerminalOutput({
 
       <div className="space-y-3" data-testid="conversation-events">
         {displayEvents.map((event, index) => (
-          <EventLine key={`${event.event_type}-${index}`} event={event} t={t} />
+          <EventLine key={`${event.event_type}-${index}`} event={event} t={t} locale={locale} />
         ))}
       </div>
 
@@ -209,12 +210,14 @@ export function TerminalOutput({
 function EventLine({
   event,
   t,
+  locale,
 }: {
   event: DisplayEvent;
   t: (key: TranslationKey, params?: TranslationParams) => string;
+  locale: string;
 }) {
   if (event.event_type === 'user_task') {
-    const timestamp = formatTimestamp(event.timestamp);
+    const timestamp = formatTimestamp(event.timestamp, locale);
     return (
       <div className="flex justify-end" data-testid="event-line-user">
         <div className="max-w-xl rounded-3xl bg-sky-500 px-4 py-3 text-sm font-medium text-white shadow-sm">
@@ -227,7 +230,7 @@ function EventLine({
     );
   }
 
-  const timestamp = formatTimestamp(event.timestamp);
+  const timestamp = formatTimestamp(event.timestamp, locale);
   const category = getEventCategory(event);
   const presentation = describeEvent(event);
   const meta = EVENT_STYLE_META[category];
@@ -287,7 +290,7 @@ function EventLine({
           )}
 
           {isToolCallStartDisplayEvent(event) ? (
-            <ToolCallContent event={event} statusLabel={statusLabel} t={t} />
+            <ToolCallContent event={event} statusLabel={statusLabel} t={t} locale={locale} />
           ) : (
             <>
               {presentation.summary && (
@@ -319,16 +322,19 @@ interface ToolTimelineItem {
   description?: string;
   status: ToolTimelineStatus;
   content?: ReactNode;
+  elapsed?: string | null;
 }
 
 function ToolCallContent({
   event,
   statusLabel,
   t,
+  locale,
 }: {
   event: ToolCallStartDisplayEvent;
   statusLabel?: string;
   t: (key: TranslationKey, params?: TranslationParams) => string;
+  locale: string;
 }) {
   const argsPreview = formatArgumentsPreview(event.arguments);
   const hasArgsPreview = Boolean(argsPreview);
@@ -338,6 +344,7 @@ function ToolCallContent({
   const hasDuration = Boolean(event.completion_duration);
 
   const timelineItems: ToolTimelineItem[] = [];
+  const baseTimestamp = event.timestamp;
 
   timelineItems.push({
     id: 'start',
@@ -349,11 +356,13 @@ function ToolCallContent({
   });
 
   if (hasStream) {
+    const streamTimestamp = event.last_stream_timestamp ?? event.timestamp;
     timelineItems.push({
       id: 'stream',
       title: t('conversation.tool.timeline.streaming'),
-      timestamp: event.last_stream_timestamp ?? event.timestamp,
+      timestamp: streamTimestamp,
       status: event.call_status === 'running' ? 'active' : 'default',
+      elapsed: calculateElapsedLabel(baseTimestamp, streamTimestamp),
       content: (
         <ContentBlock title={t('conversation.tool.timeline.liveOutput')} dataTestId={`tool-call-stream-${event.call_id}`}>
           <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
@@ -365,12 +374,13 @@ function ToolCallContent({
   }
 
   if (hasResult || hasError) {
+    const completionTimestamp = event.completion_timestamp ?? event.timestamp;
     timelineItems.push({
       id: 'completion',
       title: hasError
         ? t('conversation.tool.timeline.errored')
         : t('conversation.tool.timeline.completed'),
-      timestamp: event.completion_timestamp ?? event.timestamp,
+      timestamp: completionTimestamp,
       status: hasError ? 'error' : 'success',
       description:
         hasDuration && event.completion_duration
@@ -378,6 +388,7 @@ function ToolCallContent({
               duration: formatDuration(event.completion_duration),
             })
           : undefined,
+      elapsed: calculateElapsedLabel(baseTimestamp, completionTimestamp),
       content: (
         <ToolResult
           result={event.completion_result}
@@ -403,14 +414,14 @@ function ToolCallContent({
         </p>
       )}
 
-      <ToolCallTimeline items={timelineItems} />
+      <ToolCallTimeline items={timelineItems} locale={locale} />
 
       <EventMetadata event={event} />
     </div>
   );
 }
 
-function ToolCallTimeline({ items }: { items: ToolTimelineItem[] }) {
+function ToolCallTimeline({ items, locale }: { items: ToolTimelineItem[]; locale: string }) {
   return (
     <ol className="relative space-y-4 border-l border-slate-200/70 pl-4">
       {items.map((item, index) => (
@@ -421,11 +432,23 @@ function ToolCallTimeline({ items }: { items: ToolTimelineItem[] }) {
               TOOL_TIMELINE_STATUS[item.status]
             )}
           />
-          <div className="space-y-2">
+          <div
+            className={cn(
+              'space-y-2 rounded-2xl border border-transparent px-3 py-2 transition',
+              TOOL_TIMELINE_ITEM_WRAPPER[item.status]
+            )}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-semibold text-slate-700">{item.title}</p>
               {item.timestamp && (
-                <time className="console-microcopy text-slate-300">{formatTimestamp(item.timestamp)}</time>
+                <time className="console-microcopy text-slate-300">
+                  {formatTimestamp(item.timestamp, locale)}
+                </time>
+              )}
+              {item.elapsed && (
+                <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-300">
+                  {item.elapsed}
+                </span>
               )}
             </div>
             {item.description && <p className="console-microcopy text-slate-400">{item.description}</p>}
@@ -439,9 +462,16 @@ function ToolCallTimeline({ items }: { items: ToolTimelineItem[] }) {
 
 const TOOL_TIMELINE_STATUS: Record<ToolTimelineStatus, string> = {
   default: 'bg-slate-200',
-  active: 'bg-sky-400',
-  success: 'bg-emerald-400',
-  error: 'bg-destructive',
+  active: 'bg-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.25)] animate-pulse',
+  success: 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.2)]',
+  error: 'bg-destructive shadow-[0_0_0_4px_rgba(248,113,113,0.2)]',
+};
+
+const TOOL_TIMELINE_ITEM_WRAPPER: Record<ToolTimelineStatus, string> = {
+  default: 'bg-white/80',
+  active: 'border-sky-200/70 bg-sky-50/80 shadow-inner',
+  success: 'border-emerald-200/70 bg-emerald-50/80 shadow-inner',
+  error: 'border-destructive/20 bg-destructive/10',
 };
 
 function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
@@ -938,9 +968,13 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
   );
 }
 
-function formatTimestamp(timestamp?: string) {
+function formatTimestamp(timestamp?: string, locale = 'en-US') {
   const value = timestamp ? new Date(timestamp) : new Date();
-  return value.toLocaleTimeString('en-US', {
+  if (Number.isNaN(value.getTime())) {
+    return '';
+  }
+
+  return value.toLocaleTimeString(locale, {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
@@ -985,6 +1019,45 @@ function formatArgumentsPreview(args: Record<string, any> | string | undefined) 
 
   const entries = Object.entries(args).map(([key, value]) => `${key}: ${String(value)}`);
   return truncateText(entries.join(', '), 120);
+}
+
+function calculateElapsedLabel(startTimestamp?: string, targetTimestamp?: string): string | null {
+  if (!startTimestamp || !targetTimestamp) return null;
+
+  const start = Date.parse(startTimestamp);
+  const target = Date.parse(targetTimestamp);
+  if (Number.isNaN(start) || Number.isNaN(target)) return null;
+
+  const diff = target - start;
+  if (diff <= 0) {
+    return '+0s';
+  }
+
+  if (diff < 1000) {
+    return `+${Math.round(diff)}ms`;
+  }
+
+  if (diff < 60_000) {
+    const seconds = diff / 1000;
+    const precision = seconds < 10 ? 1 : 0;
+    return `+${seconds.toFixed(precision)}s`;
+  }
+
+  if (diff < 3_600_000) {
+    const minutes = Math.floor(diff / 60_000);
+    const seconds = Math.round((diff % 60_000) / 1000);
+    if (seconds === 0) {
+      return `+${minutes}m`;
+    }
+    return `+${minutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(diff / 3_600_000);
+  const minutes = Math.round((diff % 3_600_000) / 60_000);
+  if (minutes === 0) {
+    return `+${hours}h`;
+  }
+  return `+${hours}h ${minutes}m`;
 }
 
 function formatResultPreview(result: any) {
