@@ -6,20 +6,20 @@ test.describe('ALEX console layout', () => {
   test('renders console shell with empty state', async ({ page }) => {
     await page.goto('/conversation');
 
-    await expect(page.getByText('Live conversation')).toBeVisible();
-    await expect(page.getByText('Start a new research run')).toBeVisible();
+    await expect(page.getByText('Conversation')).toBeVisible();
+    await expect(page.getByText('Start new run')).toBeVisible();
     await expect(page.getByText('Session history', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
 
-    await expect(page.getByText('No sessions yet.')).toBeVisible();
-    await expect(page.getByText('Ready when you are')).toBeVisible();
+    await expect(page.getByText('No sessions')).toBeVisible();
+    await expect(page.getByText('Ready to start')).toBeVisible();
     await expect(page.getByText('Waiting', { exact: true })).toBeVisible();
     await expect(page.getByText('Offline')).toBeVisible();
 
     const input = page.getByTestId('task-input');
     await expect(input).toHaveAttribute(
       'placeholder',
-      'Type your task…'
+      'Describe your task…'
     );
   });
 

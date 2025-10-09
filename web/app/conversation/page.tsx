@@ -45,7 +45,6 @@ function ConversationPageContent() {
   const pinnedHistoryKey: TranslationKey = 'console.history.pinned';
   const recentHistoryKey: TranslationKey = 'console.history.recents';
   const emptyHistoryKey: TranslationKey = 'console.history.empty';
-  const emptyHistoryDescriptionKey: TranslationKey = 'console.history.emptyDescription';
 
   const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
 
@@ -532,19 +531,15 @@ function ConversationPageContent() {
                 ) : (
                   <div className="flex min-h-[120px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 text-center">
                     <span className="console-quiet-chip">{t(emptyHistoryKey)}</span>
-                    <p className="console-microcopy max-w-[200px]">{t(emptyHistoryDescriptionKey)}</p>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="console-panel p-5 sm:p-6">
-              <p className="text-sm font-semibold text-slate-700">
+              <span className="console-quiet-chip uppercase tracking-[0.35em] text-slate-400">
                 {t('console.quickstart.title')}
-              </p>
-              <p className="console-microcopy mt-1 text-slate-400">
-                {t('conversation.quickstart.subtitle')}
-              </p>
+              </span>
               <div className="mt-4 space-y-2">
                 {quickstartKeys.map((key) => (
                   <button
@@ -566,12 +561,9 @@ function ConversationPageContent() {
             </div>
 
             <div className="console-panel p-5 sm:p-6">
-              <p className="text-sm font-semibold text-slate-700">
+              <span className="console-quiet-chip uppercase tracking-[0.35em] text-slate-400">
                 {t('console.timeline.sidebarTitle')}
-              </p>
-              <p className="console-microcopy mt-2 text-slate-400">
-                {t('console.timeline.sidebarDescription')}
-              </p>
+              </span>
               <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
                 {hasTimeline ? timelineProgressCopy.statusLabel : t('timeline.waiting')}
               </div>
@@ -589,9 +581,6 @@ function ConversationPageContent() {
                     {resolvedSessionId
                       ? t('conversation.header.active', { id: sessionBadge ?? '' })
                       : t('conversation.header.idle')}
-                  </p>
-                  <p className="console-microcopy max-w-xl text-slate-400">
-                    {t('conversation.header.subtitle')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
