@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
+	runtimeconfig "alex/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -179,50 +181,48 @@ func (cm *ConfigManager) validateDatasetConfig(config *DatasetConfig) error {
 
 // applyEnvOverrides applies environment variable overrides to configuration
 func (cm *ConfigManager) applyEnvOverrides(config *BatchConfig) error {
-	// Model configuration
-	if modelName := os.Getenv("ALEX_MODEL_NAME"); modelName != "" {
-		config.Agent.Model.Name = modelName
+	lookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, sweBenchEnvAliases)
+
+	runtimeCfg, meta, err := runtimeconfig.Load(
+		runtimeconfig.WithEnv(lookup),
+	)
+	if err != nil {
+		return fmt.Errorf("load runtime configuration: %w", err)
 	}
 
-	if tempStr := os.Getenv("ALEX_MODEL_TEMPERATURE"); tempStr != "" {
-		var temp float64
-		if _, err := fmt.Sscanf(tempStr, "%f", &temp); err != nil {
-			return fmt.Errorf("invalid ALEX_MODEL_TEMPERATURE: %s", tempStr)
-		}
-		config.Agent.Model.Temperature = temp
+	if meta.Source("llm_model") != runtimeconfig.SourceDefault && runtimeCfg.LLMModel != "" {
+		config.Agent.Model.Name = runtimeCfg.LLMModel
 	}
-
-	if tokensStr := os.Getenv("ALEX_MODEL_MAX_TOKENS"); tokensStr != "" {
-		var tokens int
-		if _, err := fmt.Sscanf(tokensStr, "%d", &tokens); err != nil {
-			return fmt.Errorf("invalid ALEX_MODEL_MAX_TOKENS: %s", tokensStr)
-		}
-		config.Agent.Model.MaxTokens = tokens
+	if runtimeCfg.TemperatureProvided && meta.Source("temperature") != runtimeconfig.SourceDefault {
+		config.Agent.Model.Temperature = runtimeCfg.Temperature
+	}
+	if meta.Source("max_tokens") != runtimeconfig.SourceDefault && runtimeCfg.MaxTokens != 0 {
+		config.Agent.Model.MaxTokens = runtimeCfg.MaxTokens
 	}
 
 	// Execution configuration
-	if workersStr := os.Getenv("ALEX_NUM_WORKERS"); workersStr != "" {
-		var workers int
-		if _, err := fmt.Sscanf(workersStr, "%d", &workers); err != nil {
-			return fmt.Errorf("invalid ALEX_NUM_WORKERS: %s", workersStr)
+	if workersStr, ok := lookup("NUM_WORKERS"); ok && workersStr != "" {
+		workers, err := strconv.Atoi(workersStr)
+		if err != nil {
+			return fmt.Errorf("invalid NUM_WORKERS override %q: %w", workersStr, err)
 		}
 		config.NumWorkers = workers
 	}
 
-	if outputPath := os.Getenv("ALEX_OUTPUT_PATH"); outputPath != "" {
+	if outputPath, ok := lookup("OUTPUT_PATH"); ok && outputPath != "" {
 		config.OutputPath = outputPath
 	}
 
 	// Dataset configuration
-	if datasetType := os.Getenv("ALEX_DATASET_TYPE"); datasetType != "" {
+	if datasetType, ok := lookup("DATASET_TYPE"); ok && datasetType != "" {
 		config.Instances.Type = datasetType
 	}
 
-	if subset := os.Getenv("ALEX_DATASET_SUBSET"); subset != "" {
+	if subset, ok := lookup("DATASET_SUBSET"); ok && subset != "" {
 		config.Instances.Subset = subset
 	}
 
-	if split := os.Getenv("ALEX_DATASET_SPLIT"); split != "" {
+	if split, ok := lookup("DATASET_SPLIT"); ok && split != "" {
 		config.Instances.Split = split
 	}
 

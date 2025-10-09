@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	"alex/internal/config"
 	"alex/internal/rag"
 	"context"
 	"fmt"
@@ -85,13 +86,13 @@ func (t *codeSearch) getOrCreateRetriever(ctx context.Context, repoPath string) 
 		return t.retriever, nil
 	}
 
-	// Get API key from environment
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("OPENAI_API_KEY")
+	cfg, _, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load configuration: %w", err)
 	}
+	apiKey := cfg.APIKey
 	if apiKey == "" {
-		return nil, fmt.Errorf("OPENROUTER_API_KEY or OPENAI_API_KEY environment variable not set")
+		return nil, fmt.Errorf("no API key configured; set OPENROUTER_API_KEY or OPENAI_API_KEY")
 	}
 
 	// Create embedder

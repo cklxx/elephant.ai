@@ -161,7 +161,10 @@ func (c *CLI) handleSessions(args []string) error {
 }
 
 func (c *CLI) handleConfig() error {
-	config := loadConfig()
+	config, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("load configuration: %w", err)
+	}
 
 	fmt.Println("Current Configuration:")
 	fmt.Printf("  Provider:      %s\n", config.LLMProvider)
@@ -171,6 +174,8 @@ func (c *CLI) handleConfig() error {
 	fmt.Printf("  Max Iterations: %d\n", config.MaxIterations)
 	fmt.Printf("  Temperature:   %.2f\n", config.Temperature)
 	fmt.Printf("  Top P:         %.2f\n", config.TopP)
+	fmt.Printf("  Environment:   %s\n", config.Environment)
+	fmt.Printf("  Verbose:       %t\n", config.Verbose)
 	if len(config.StopSequences) > 0 {
 		fmt.Printf("  Stop Seqs:     %s\n", strings.Join(config.StopSequences, ", "))
 	} else {

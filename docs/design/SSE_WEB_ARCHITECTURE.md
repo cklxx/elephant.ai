@@ -323,7 +323,7 @@ func main() {
     )
 
     // Setup HTTP router
-    router := serverHTTP.NewRouter(serverCoordinator, broadcaster)
+    router := serverHTTP.NewRouter(serverCoordinator, broadcaster, runtimeCfg.Environment)
 
     // Create HTTP server
     srv := &http.Server{

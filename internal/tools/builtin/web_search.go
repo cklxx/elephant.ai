@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -16,12 +15,18 @@ import (
 
 type webSearch struct {
 	client *http.Client
+	apiKey string
 }
 
-func NewWebSearch() ports.ToolExecutor {
-	return &webSearch{
-		client: &http.Client{Timeout: 30 * time.Second},
+func NewWebSearch(apiKey string) ports.ToolExecutor {
+	return newWebSearch(apiKey, nil)
+}
+
+func newWebSearch(apiKey string, client *http.Client) *webSearch {
+	if client == nil {
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
+	return &webSearch{client: client, apiKey: apiKey}
 }
 
 func (t *webSearch) Metadata() ports.ToolMetadata {
@@ -67,16 +72,7 @@ Setup:
 }
 
 func (t *webSearch) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Get API key
-	apiKey := os.Getenv("TAVILY_API_KEY")
-	if apiKey == "" {
-		// Try config file
-		if configKey := getConfigValue("tavilyApiKey"); configKey != "" {
-			apiKey = configKey
-		}
-	}
-
-	if apiKey == "" {
+	if t.apiKey == "" {
 		return &ports.ToolResult{
 			CallID: call.ID,
 			Content: "Web search not configured. Please set Tavily API key:\n\n" +
@@ -114,7 +110,7 @@ func (t *webSearch) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 
 	// Build request
 	reqBody := map[string]any{
-		"api_key":        apiKey,
+		"api_key":        t.apiKey,
 		"query":          query,
 		"max_results":    maxResults,
 		"search_depth":   searchDepth,
@@ -212,28 +208,4 @@ func (t *webSearch) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 			"results_count": len(tavilyResp.Results),
 		},
 	}, nil
-}
-
-// getConfigValue reads a value from ~/.alex-config.json
-func getConfigValue(key string) string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-
-	configPath := homeDir + "/.alex-config.json"
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-
-	var config map[string]any
-	if err := json.Unmarshal(data, &config); err != nil {
-		return ""
-	}
-
-	if val, ok := config[key].(string); ok {
-		return val
-	}
-	return ""
 }

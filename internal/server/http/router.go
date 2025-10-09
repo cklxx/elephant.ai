@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, environment string) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
@@ -88,7 +88,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	// Apply middleware
 	var handler http.Handler = mux
 	handler = LoggingMiddleware(logger)(handler)
-	handler = CORSMiddleware(handler)
+	handler = CORSMiddleware(environment)(handler)
 
 	return handler
 }
