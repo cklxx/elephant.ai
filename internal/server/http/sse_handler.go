@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -211,23 +212,65 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 		return redactedPlaceholder
 	}
 
-	switch typed := value.(type) {
-	case map[string]interface{}:
-		return sanitizeArguments(typed)
-	case []interface{}:
-		sanitizedSlice := make([]interface{}, len(typed))
-		for i, item := range typed {
-			sanitizedSlice[i] = sanitizeValue("", item)
-		}
-		return sanitizedSlice
-	case string:
-		if looksLikeSecret(typed) {
+	if value == nil {
+		return nil
+	}
+
+	if str, ok := value.(string); ok {
+		if looksLikeSecret(str) {
 			return redactedPlaceholder
 		}
-		return typed
-	default:
-		return typed
+		return str
 	}
+
+	rv := reflect.ValueOf(value)
+	for rv.Kind() == reflect.Interface || rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+
+	switch rv.Kind() {
+	case reflect.Map:
+		return sanitizeMap(rv)
+	case reflect.Slice:
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			bytesCopy := make([]byte, rv.Len())
+			reflect.Copy(reflect.ValueOf(bytesCopy), rv)
+			str := string(bytesCopy)
+			if looksLikeSecret(str) {
+				return redactedPlaceholder
+			}
+			return str
+		}
+		fallthrough
+	case reflect.Array:
+		sanitizedSlice := make([]interface{}, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			sanitizedSlice[i] = sanitizeValue("", rv.Index(i).Interface())
+		}
+		return sanitizedSlice
+	case reflect.String:
+		str := rv.String()
+		if looksLikeSecret(str) {
+			return redactedPlaceholder
+		}
+		return str
+	default:
+		return value
+	}
+}
+
+func sanitizeMap(rv reflect.Value) map[string]interface{} {
+	sanitized := make(map[string]interface{}, rv.Len())
+	for _, key := range rv.MapKeys() {
+		keyValue := key.Interface()
+		keyString := fmt.Sprint(keyValue)
+		sanitized[keyString] = sanitizeValue(keyString, rv.MapIndex(key).Interface())
+	}
+
+	return sanitized
 }
 
 func isSensitiveKey(key string) bool {
