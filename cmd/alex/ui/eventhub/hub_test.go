@@ -194,3 +194,81 @@ func TestHubCloseStopsDelivery(t *testing.T) {
 	_, ok := <-ch
 	require.False(t, ok)
 }
+
+func TestTrySendUpdateHandlesClosedChannel(t *testing.T) {
+	closed := make(chan state.Update)
+	close(closed)
+
+	require.False(t, trySendUpdate(closed, state.MCPServerDelta{Name: "search"}))
+}
+
+func TestBroadcastSkipsClosedSubscribers(t *testing.T) {
+	hub := NewHub()
+	openCh := hub.Subscribe(1)
+	require.NotNil(t, openCh)
+
+	closed := make(chan state.Update, 1)
+
+	hub.mu.Lock()
+	hub.subscribers[closed] = struct{}{}
+	hub.mu.Unlock()
+
+	close(closed)
+
+	require.NotPanics(t, func() {
+		hub.broadcast([]state.Update{state.MCPServerDelta{Name: "delta"}})
+	})
+
+	select {
+	case <-openCh:
+	case <-time.After(time.Second):
+		t.Fatal("expected broadcast to deliver update to open subscriber")
+	}
+}
+
+func TestBroadcastWithConcurrentUnsubscribe(t *testing.T) {
+	hub := NewHub()
+	ch1 := hub.Subscribe(1)
+	ch2 := hub.Subscribe(1)
+	defer hub.Unsubscribe(ch2)
+
+	done := make(chan struct{})
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		hub.Unsubscribe(ch1)
+		close(done)
+	}()
+
+	require.NotPanics(t, func() {
+		hub.broadcast([]state.Update{state.MCPServerDelta{Name: "delta"}})
+	})
+
+	<-done
+
+	select {
+	case update := <-ch2:
+		delta, ok := update.(state.MCPServerDelta)
+		require.True(t, ok)
+		require.Equal(t, "delta", delta.Name)
+	case <-time.After(time.Second):
+		t.Fatal("expected broadcast to deliver update to remaining subscriber")
+	}
+
+	select {
+	case first, ok := <-ch1:
+		if ok {
+			// Drain any buffered update before the close notification.
+			require.IsType(t, state.MCPServerDelta{}, first)
+			select {
+			case _, ok := <-ch1:
+				require.False(t, ok)
+			case <-time.After(time.Second):
+				t.Fatal("expected unsubscribed channel to be closed")
+			}
+		} else {
+			require.False(t, ok)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected unsubscribed channel to be closed")
+	}
+}

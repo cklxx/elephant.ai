@@ -109,21 +109,51 @@ func (h *Hub) broadcast(updates []state.Update) {
 		h.mu.RUnlock()
 		return
 	}
+	defer h.mu.RUnlock()
+
 	listeners := make([]chan state.Update, 0, len(h.subscribers))
 	for ch := range h.subscribers {
 		listeners = append(listeners, ch)
 	}
-	h.mu.RUnlock()
 
+	skipped := make(map[chan state.Update]struct{}, len(listeners))
 	for _, update := range updates {
 		for _, ch := range listeners {
-			select {
-			case ch <- update:
-			default:
-				// Drop when subscriber backlog is full to avoid blocking event loop.
+			if _, skip := skipped[ch]; skip {
+				continue
+			}
+			if !trySendUpdate(ch, update) {
+				skipped[ch] = struct{}{}
 			}
 		}
 	}
+}
+
+func trySendUpdate(ch chan state.Update, update state.Update) (open bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			if isSendOnClosedChannelPanic(r) {
+				open = false
+				return
+			}
+			panic(r)
+		}
+	}()
+
+	select {
+	case ch <- update:
+	default:
+		// Drop when subscriber backlog is full to avoid blocking event loop.
+	}
+
+	return true
+}
+
+func isSendOnClosedChannelPanic(p interface{}) bool {
+	if err, ok := p.(error); ok {
+		return err.Error() == "send on closed channel"
+	}
+	return fmt.Sprint(p) == "send on closed channel"
 }
 
 func translateAgentEvent(event ports.AgentEvent) []state.Update {
