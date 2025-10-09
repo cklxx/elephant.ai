@@ -104,26 +104,61 @@ func (h *Hub) broadcast(updates []state.Update) {
 		return
 	}
 
-	h.mu.RLock()
-	if h.closed || len(h.subscribers) == 0 {
-		h.mu.RUnlock()
+	subscribers := h.snapshotSubscribers()
+	if len(subscribers) == 0 {
 		return
 	}
-	listeners := make([]chan state.Update, 0, len(h.subscribers))
-	for ch := range h.subscribers {
-		listeners = append(listeners, ch)
-	}
-	h.mu.RUnlock()
 
+	closed := make(map[chan state.Update]struct{})
 	for _, update := range updates {
-		for _, ch := range listeners {
-			select {
-			case ch <- update:
-			default:
-				// Drop when subscriber backlog is full to avoid blocking event loop.
+		for _, ch := range subscribers {
+			if _, skip := closed[ch]; skip {
+				continue
+			}
+			if !trySendUpdate(ch, update) {
+				closed[ch] = struct{}{}
 			}
 		}
 	}
+}
+
+func (h *Hub) snapshotSubscribers() []chan state.Update {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if h.closed || len(h.subscribers) == 0 {
+		return nil
+	}
+
+	subs := make([]chan state.Update, 0, len(h.subscribers))
+	for ch := range h.subscribers {
+		subs = append(subs, ch)
+	}
+	return subs
+}
+
+func trySendUpdate(ch chan state.Update, update state.Update) (ok bool) {
+	ok = true
+	defer func() {
+		if r := recover(); r != nil {
+			if !isSendOnClosedChannelPanic(r) {
+				panic(r)
+			}
+			ok = false
+		}
+	}()
+
+	select {
+	case ch <- update:
+	default:
+		// Drop when subscriber backlog is full to avoid blocking event loop.
+	}
+	return
+}
+
+func isSendOnClosedChannelPanic(p interface{}) bool {
+	msg, ok := p.(string)
+	return ok && msg == "send on closed channel"
 }
 
 func translateAgentEvent(event ports.AgentEvent) []state.Update {
