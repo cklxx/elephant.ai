@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -136,7 +137,9 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["iteration"] = e.Iteration
 		data["call_id"] = e.CallID
 		data["tool_name"] = e.ToolName
-		data["arguments"] = e.Arguments
+		if len(e.Arguments) > 0 {
+			data["arguments"] = sanitizeArguments(e.Arguments)
+		}
 
 	case *domain.ToolCallCompleteEvent:
 		data["call_id"] = e.CallID
@@ -180,4 +183,80 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 	}
 
 	return string(jsonData), nil
+}
+
+const redactedPlaceholder = "[REDACTED]"
+
+var sensitiveKeyFragments = []string{"token", "secret", "password", "key", "authorization", "cookie", "credential", "session"}
+
+var sensitiveValueIndicators = []string{"bearer ", "ghp_", "sk-", "xoxb-", "xoxp-", "-----begin", "api_key", "apikey", "access_token", "refresh_token"}
+
+// sanitizeArguments creates a deep copy of the provided arguments map and redacts any values that
+// appear to contain sensitive information such as API keys or authorization tokens.
+func sanitizeArguments(arguments map[string]interface{}) map[string]interface{} {
+	if len(arguments) == 0 {
+		return nil
+	}
+
+	sanitized := make(map[string]interface{}, len(arguments))
+	for key, value := range arguments {
+		sanitized[key] = sanitizeValue(key, value)
+	}
+
+	return sanitized
+}
+
+func sanitizeValue(parentKey string, value interface{}) interface{} {
+	if isSensitiveKey(parentKey) {
+		return redactedPlaceholder
+	}
+
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		return sanitizeArguments(typed)
+	case []interface{}:
+		sanitizedSlice := make([]interface{}, len(typed))
+		for i, item := range typed {
+			sanitizedSlice[i] = sanitizeValue("", item)
+		}
+		return sanitizedSlice
+	case string:
+		if looksLikeSecret(typed) {
+			return redactedPlaceholder
+		}
+		return typed
+	default:
+		return typed
+	}
+}
+
+func isSensitiveKey(key string) bool {
+	lowerKey := strings.ToLower(key)
+	for _, fragment := range sensitiveKeyFragments {
+		if strings.Contains(lowerKey, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeSecret(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+
+	lowerValue := strings.ToLower(trimmed)
+	for _, indicator := range sensitiveValueIndicators {
+		if strings.Contains(lowerValue, indicator) {
+			return true
+		}
+	}
+
+	// Long strings without whitespace are likely tokens or hashes.
+	if len(trimmed) >= 32 && !strings.ContainsAny(trimmed, " \n\t") {
+		return true
+	}
+
+	return false
 }

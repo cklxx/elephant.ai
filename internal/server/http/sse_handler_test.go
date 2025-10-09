@@ -56,7 +56,7 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Broadcast an event
-        event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test Action", "Test Goal", time.Now())
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test Action", "Test Goal", time.Now())
 	broadcaster.OnEvent(event)
 
 	// Wait for event to be sent
@@ -124,7 +124,7 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}{
 		{
 			name:      "TaskAnalysisEvent",
-                    event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test", "Goal", time.Now()),
+			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test", "Goal", time.Now()),
 			wantField: "action_name",
 		},
 		{
@@ -133,7 +133,14 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				BaseEvent: domain.BaseEvent{},
 				CallID:    "test-call",
 				ToolName:  "bash",
-				Arguments: map[string]interface{}{"command": "ls"},
+				Arguments: map[string]interface{}{
+					"command": "ls",
+					"apiKey":  "sk-secret",
+					"nested": map[string]interface{}{
+						"token": "abc",
+					},
+					"list": []interface{}{"Bearer token-value"},
+				},
 			},
 			wantField: "tool_name",
 		},
@@ -159,6 +166,16 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				t.Errorf("Expected field %s in JSON, got: %s", tt.wantField, json)
 			}
 
+			if _, ok := tt.event.(*domain.ToolCallStartEvent); ok {
+				if strings.Contains(json, "sk-secret") || strings.Contains(json, "Bearer token-value") {
+					t.Errorf("Sensitive values should be redacted, got: %s", json)
+				}
+
+				if !strings.Contains(json, redactedPlaceholder) {
+					t.Errorf("Expected redacted placeholder in serialized arguments, got: %s", json)
+				}
+			}
+
 			// Check common fields
 			if !strings.Contains(json, "event_type") {
 				t.Error("Expected event_type in JSON")
@@ -170,5 +187,53 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				t.Error("Expected session_id in JSON")
 			}
 		})
+	}
+}
+
+func TestSanitizeArguments(t *testing.T) {
+	original := map[string]interface{}{
+		"token":      "super-secret",
+		"name":       "example",
+		"apiKey":     "sk-example",
+		"nested":     map[string]interface{}{"password": "p4ss"},
+		"list":       []interface{}{"Bearer xyz", map[string]interface{}{"refresh_token": "abc"}},
+		"whitespace": "   ",
+	}
+
+	sanitized := sanitizeArguments(original)
+
+	if sanitized["token"] != redactedPlaceholder {
+		t.Fatalf("expected token to be redacted, got %v", sanitized["token"])
+	}
+
+	if sanitized["apiKey"] != redactedPlaceholder {
+		t.Fatalf("expected apiKey to be redacted, got %v", sanitized["apiKey"])
+	}
+
+	nested, ok := sanitized["nested"].(map[string]interface{})
+	if !ok || nested["password"] != redactedPlaceholder {
+		t.Fatalf("expected nested password to be redacted, got %v", sanitized["nested"])
+	}
+
+	list, ok := sanitized["list"].([]interface{})
+	if !ok {
+		t.Fatalf("expected list to remain a slice, got %T", sanitized["list"])
+	}
+
+	if list[0] != redactedPlaceholder {
+		t.Fatalf("expected first list element to be redacted, got %v", list[0])
+	}
+
+	nestedList, ok := list[1].(map[string]interface{})
+	if !ok || nestedList["refresh_token"] != redactedPlaceholder {
+		t.Fatalf("expected nested refresh_token to be redacted, got %v", list[1])
+	}
+
+	if original["token"].(string) != "super-secret" {
+		t.Fatalf("original map should not be mutated")
+	}
+
+	if sanitized["name"] != "example" {
+		t.Fatalf("non-sensitive value changed unexpectedly: %v", sanitized["name"])
 	}
 }

@@ -2,7 +2,9 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"alex/internal/server/app"
 	"alex/internal/utils"
 )
+
+const maxCreateTaskBodySize = 1 << 20 // 1 MiB
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
@@ -48,11 +52,42 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body size to avoid resource exhaustion attacks
+	body := http.MaxBytesReader(w, r.Body, maxCreateTaskBodySize)
+	defer body.Close()
+
 	// Parse request body
 	var req CreateTaskRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&req); err != nil {
+		var syntaxErr *json.SyntaxError
+		var typeErr *json.UnmarshalTypeError
+		var maxBytesErr *http.MaxBytesError
+		switch {
+		case errors.Is(err, io.EOF):
+			http.Error(w, "Request body is empty", http.StatusBadRequest)
+			return
+		case errors.As(err, &syntaxErr):
+			http.Error(w, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), http.StatusBadRequest)
+			return
+		case errors.As(err, &typeErr):
+			http.Error(w, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), http.StatusBadRequest)
+			return
+		case errors.As(err, &maxBytesErr):
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		default:
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Ensure there are no extra JSON tokens
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		http.Error(w, "Request body must contain a single JSON object", http.StatusBadRequest)
 		return
 	}
 
