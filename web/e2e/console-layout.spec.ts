@@ -4,10 +4,10 @@ const STORAGE_KEY = 'alex-session-storage';
 
 test.describe('ALEX console layout', () => {
   test('renders console shell with empty state', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/conversation');
 
-    await expect(page.getByText('Alex workspace')).toBeVisible();
-    await expect(page.getByText('What should we work on today?')).toBeVisible();
+    await expect(page.getByText('Live conversation')).toBeVisible();
+    await expect(page.getByText('Start a new research run')).toBeVisible();
     await expect(page.getByText('Session history', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
 
@@ -39,7 +39,7 @@ test.describe('ALEX console layout', () => {
       window.localStorage.setItem(key, JSON.stringify(payload));
     }, { key: STORAGE_KEY });
 
-    await page.goto('/');
+    await page.goto('/conversation');
 
     await expect(page.getByText('Pinned')).toBeVisible();
     await expect(page.getByText('Recent')).toBeVisible();
@@ -54,8 +54,17 @@ test.describe('ALEX console layout', () => {
   });
 
   test('shows mock indicator when enabled', async ({ page }) => {
-    await page.goto('/?mockSSE=1');
+    await page.goto('/conversation?mockSSE=1');
 
     await expect(page.getByTestId('mock-stream-indicator')).toContainText('Mock stream enabled');
+  });
+
+  test('home hero routes to conversation view', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByText('Research workspace')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Open conversation view' }).click();
+    await expect(page).toHaveURL(/\/conversation/);
   });
 });

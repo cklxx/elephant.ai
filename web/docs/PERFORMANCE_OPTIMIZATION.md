@@ -43,14 +43,14 @@ const steps = useMemo(() => {
 Create a lazy-loaded version of ConsoleAgentOutput:
 
 ```tsx
-// app/page.tsx
+// app/conversation/page.tsx
 import { lazy, Suspense } from 'react';
 
-const ConsoleAgentOutput = lazy(() => 
+const ConsoleAgentOutput = lazy(() =>
   import('@/components/agent/ConsoleAgentOutput')
 );
 
-function HomePage() {
+function ConversationPage() {
   return (
     <Suspense fallback={<LoadingSkeleton />}>
       <ConsoleAgentOutput {...props} />

@@ -1,14 +1,12 @@
 'use client';
 
-import { ReactNode, useCallback, useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AgentEvent, AnyAgentEvent, ToolCallCompleteEvent } from '@/lib/types';
+import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
 import { ResearchPlanCard } from './ResearchPlanCard';
 import { ConnectionBanner } from './ConnectionBanner';
-import { EventList } from './EventList';
 import { apiClient } from '@/lib/api';
 import {
-  AlertCircle,
   AlertTriangle,
   CheckCircle2,
   ClipboardList,
@@ -16,10 +14,10 @@ import {
   Info,
   Loader2,
   MessageSquare,
-  WifiOff,
   Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -32,26 +30,16 @@ interface TerminalOutputProps {
   taskId: string | null;
 }
 
-type DisplayEvent = AnyAgentEvent | ToolStreamCombinedEvent | ToolCallCompleteDisplayEvent;
+type DisplayEvent = AnyAgentEvent | ToolCallStartDisplayEvent;
 
-interface ToolCallCompleteDisplayEvent extends ToolCallCompleteEvent {
-  arguments?: Record<string, unknown>;
-}
+type EventCategory = 'conversation' | 'plan' | 'tools' | 'system' | 'other';
 
-const EVENT_FILTERS = [
-  { id: 'conversation', label: 'Conversation' },
-  { id: 'plan', label: 'Planning' },
-  { id: 'tools', label: 'Tools' },
-  { id: 'system', label: 'System' },
-] as const;
-
-type EventFilterId = (typeof EVENT_FILTERS)[number]['id'];
-
-interface ToolStreamCombinedEvent extends AgentEvent {
-  event_type: 'tool_stream_combined';
-  call_id: string;
-  content: string;
-  tool_name?: string;
+interface ToolCallStartDisplayEvent extends ToolCallStartEvent {
+  call_status: 'running' | 'complete' | 'error';
+  completion_result?: string;
+  completion_error?: string;
+  completion_duration?: number;
+  stream_content?: string;
 }
 
 export function TerminalOutput({
@@ -65,123 +53,59 @@ export function TerminalOutput({
   taskId,
 }: TerminalOutputProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<Set<EventFilterId>>(
-    () => new Set(EVENT_FILTERS.map((filter) => filter.id))
-  );
+  const { t } = useI18n();
 
   const displayEvents = useMemo(() => {
     const aggregated: DisplayEvent[] = [];
-    let streamBuffer: string[] = [];
-    let streamCallId: string | null = null;
-    let streamTimestamp: string | null = null;
-    let streamAgentLevel: AgentEvent['agent_level'] | null = null;
-    const callMetadata = new Map<string, { toolName?: string; arguments?: Record<string, unknown> }>();
-
-    const flushBuffer = () => {
-      if (!streamBuffer.length || !streamCallId) {
-        streamBuffer = [];
-        streamCallId = null;
-        streamTimestamp = null;
-        streamAgentLevel = null;
-        return;
-      }
-
-      aggregated.push({
-        event_type: 'tool_stream_combined',
-        agent_level: streamAgentLevel ?? 'core',
-        call_id: streamCallId,
-        content: streamBuffer.join(''),
-        timestamp: streamTimestamp ?? new Date().toISOString(),
-        tool_name: callMetadata.get(streamCallId)?.toolName,
-      });
-
-      streamBuffer = [];
-      streamCallId = null;
-      streamTimestamp = null;
-      streamAgentLevel = null;
-    };
+    const startEvents = new Map<string, ToolCallStartDisplayEvent>();
 
     events.forEach((event) => {
       if (event.event_type === 'tool_call_start') {
-        callMetadata.set(event.call_id, {
-          toolName: event.tool_name,
-          arguments: event.arguments,
-        });
-      }
-
-      if (event.event_type === 'tool_call_complete') {
-        const existing = callMetadata.get(event.call_id);
-        callMetadata.set(event.call_id, {
-          toolName: event.tool_name,
-          arguments: existing?.arguments,
-        });
+        const startEvent: ToolCallStartDisplayEvent = {
+          ...event,
+          call_status: 'running',
+          stream_content: '',
+        };
+        aggregated.push(startEvent);
+        startEvents.set(event.call_id, startEvent);
+        return;
       }
 
       if (event.event_type === 'tool_call_stream') {
-        if (!streamCallId || streamCallId !== event.call_id) {
-          flushBuffer();
-          streamCallId = event.call_id;
-        }
-
-        streamTimestamp = event.timestamp;
-        streamAgentLevel = event.agent_level;
-        streamBuffer.push(event.chunk);
-
-        if (event.is_complete) {
-          flushBuffer();
+        const startEvent = startEvents.get(event.call_id);
+        if (startEvent) {
+          startEvent.stream_content = `${startEvent.stream_content ?? ''}${event.chunk}`;
         }
         return;
       }
 
-      flushBuffer();
       if (event.event_type === 'tool_call_complete') {
-        const metadata = callMetadata.get(event.call_id);
-        aggregated.push({
-          ...event,
-          arguments: metadata?.arguments,
-        });
-        return;
+        const startEvent = startEvents.get(event.call_id);
+        if (startEvent) {
+          startEvent.call_status = event.error ? 'error' : 'complete';
+          startEvent.completion_result = event.result;
+          startEvent.completion_error = event.error;
+          startEvent.completion_duration = event.duration;
+          startEvents.delete(event.call_id);
+          return;
+        }
       }
 
       aggregated.push(event);
     });
 
-    flushBuffer();
     return aggregated;
   }, [events]);
 
-  const toggleFilter = useCallback((filterId: EventFilterId) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(filterId)) {
-        if (next.size === 1) {
-          return prev;
-        }
-        next.delete(filterId);
-      } else {
-        next.add(filterId);
+  const activeAction = useMemo(() => {
+    for (let index = displayEvents.length - 1; index >= 0; index -= 1) {
+      const candidate = displayEvents[index];
+      if (isToolCallStartDisplayEvent(candidate) && candidate.call_status === 'running') {
+        return candidate;
       }
-
-      return next;
-    });
-  }, []);
-
-  const filteredEvents = useMemo(() => {
-    if (activeFilters.size === EVENT_FILTERS.length) {
-      return displayEvents;
     }
-
-    return displayEvents.filter((event) => {
-      const category = getEventCategory(event);
-      if (category === 'conversation' || category === 'plan' || category === 'tools' || category === 'system') {
-        return activeFilters.has(category);
-      }
-
-      return true;
-    });
-  }, [displayEvents, activeFilters]);
-
-  const hiddenCount = displayEvents.length - filteredEvents.length;
+    return null;
+  }, [displayEvents]);
 
   // Simple approve plan mutation
   const { mutate: approvePlan } = useMutation({
@@ -246,79 +170,31 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-4" data-testid="terminal-output">
-      {/* Plan approval card - if awaiting */}
+    <div className="space-y-4" data-testid="conversation-stream">
       {planState === 'awaiting_approval' && currentPlan && (
-        <div className="mb-4">
-          <ResearchPlanCard
-            plan={currentPlan}
-            loading={isSubmitting}
-            onApprove={handleApprove}
-          />
+        <div className="max-w-xl">
+          <ResearchPlanCard plan={currentPlan} loading={isSubmitting} onApprove={handleApprove} />
         </div>
       )}
 
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/70 px-4 py-3 text-xs text-slate-500"
-        data-testid="event-visibility-summary"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-700 font-semibold" data-testid="event-count-visible">
-            {filteredEvents.length}
-          </span>
-          <span>events visible</span>
-          {hiddenCount > 0 && (
-            <span className="text-slate-400" data-testid="event-count-hidden">
-              ({hiddenCount} hidden)
-            </span>
-          )}
+      {activeAction && (
+        <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-600">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>{t('conversation.status.doing')}</span>
+          <span className="text-slate-500 normal-case tracking-normal">{activeAction.tool_name}</span>
         </div>
+      )}
 
-        <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/70 px-1 py-1">
-          {EVENT_FILTERS.map((filter) => {
-            const isActive = activeFilters.has(filter.id);
-            return (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => toggleFilter(filter.id)}
-                aria-pressed={isActive}
-                data-testid={`event-filter-${filter.id}`}
-                className={cn(
-                  'rounded-full px-3 py-1 text-[11px] font-medium transition-all duration-150',
-                  isActive
-                    ? 'bg-white text-sky-600 shadow-sm shadow-sky-100'
-                    : 'text-slate-400 hover:text-slate-600'
-                )}
-              >
-                {filter.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Event stream - terminal style */}
-      <div className="space-y-2.5" data-testid="event-list">
-        {filteredEvents.map((event, idx) => (
-          <EventLine key={`${event.event_type}-${idx}`} event={event} />
+      <div className="space-y-3" data-testid="conversation-events">
+        {displayEvents.map((event, index) => (
+          <EventLine key={`${event.event_type}-${index}`} event={event} t={t} />
         ))}
       </div>
 
-      {filteredEvents.length === 0 && displayEvents.length > 0 && (
-        <div
-          className="text-xs text-muted-foreground/80 italic"
-          data-testid="event-empty-filters"
-        >
-          All events are hidden by the current filters.
-        </div>
-      )}
-
-      {/* Active indicator */}
-      {isConnected && events.length > 0 && (
+      {isConnected && displayEvents.length > 0 && (
         <div className="flex items-center gap-2 pt-2 text-xs text-slate-400">
           <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-          <span>Listening for events...</span>
+          <span>{t('conversation.status.listening')}</span>
         </div>
       )}
     </div>
@@ -326,27 +202,53 @@ export function TerminalOutput({
 }
 
 // Single event line component
-function EventLine({ event }: { event: DisplayEvent }) {
-  const timestamp = new Date(event.timestamp || Date.now()).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+function EventLine({
+  event,
+  t,
+}: {
+  event: DisplayEvent;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
+}) {
+  if (event.event_type === 'user_task') {
+    const timestamp = formatTimestamp(event.timestamp);
+    return (
+      <div className="flex justify-end" data-testid="event-line-user">
+        <div className="max-w-xl rounded-3xl bg-sky-500 px-4 py-3 text-sm font-medium text-white shadow-sm">
+          <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
+          <time className="mt-2 block text-[10px] font-medium uppercase tracking-[0.3em] text-white/70">
+            {timestamp}
+          </time>
+        </div>
+      </div>
+    );
+  }
 
+  const timestamp = formatTimestamp(event.timestamp);
   const category = getEventCategory(event);
   const presentation = describeEvent(event);
   const meta = EVENT_STYLE_META[category];
   const anchorId = getAnchorId(event);
 
+  let statusLabel = presentation.statusLabel;
+  if (isToolCallStartDisplayEvent(event)) {
+    statusLabel =
+      event.call_status === 'running'
+        ? t('conversation.status.doing')
+        : event.call_status === 'error'
+          ? t('conversation.status.failed')
+          : t('conversation.status.completed');
+  }
+
+  const isRunningTool = isToolCallStartDisplayEvent(event) && event.call_status === 'running';
+
   return (
     <article
       className={cn(
-        'group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-slate-100/80 bg-white/80 px-4 py-3 shadow-sm transition-colors sm:px-5',
-        'text-slate-700',
+        'group relative max-w-3xl rounded-3xl border border-slate-100/70 bg-white/80 px-4 py-3 text-slate-700 shadow-sm transition sm:px-5',
         meta.card,
         presentation.status ? STATUS_VARIANTS[presentation.status] : null,
-        anchorId && 'scroll-mt-28 timeline-anchor-target'
+        anchorId && 'timeline-anchor-target scroll-mt-28',
+        isRunningTool && 'ring-1 ring-sky-300'
       )}
       data-testid={`event-line-${event.event_type}`}
       data-category={category}
@@ -354,20 +256,18 @@ function EventLine({ event }: { event: DisplayEvent }) {
       id={anchorId ? `event-${anchorId}` : undefined}
       tabIndex={anchorId ? -1 : undefined}
     >
-      <div className="flex w-full items-start gap-3">
+      <div className="flex items-start gap-3">
         <div
           className={cn(
-            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm text-sky-600',
+            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-white text-sky-500 shadow',
             meta.iconWrapper
           )}
         >
           <meta.icon className="h-4 w-4" />
         </div>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className={cn('text-sm font-semibold leading-tight text-slate-700', meta.headline)}>
-              {presentation.headline}
-            </p>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={cn('text-sm font-semibold text-slate-800', meta.headline)}>{presentation.headline}</p>
             <span
               className={cn(
                 'inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em]',
@@ -376,34 +276,103 @@ function EventLine({ event }: { event: DisplayEvent }) {
             >
               {meta.label}
             </span>
-            {presentation.status && <StatusBadge status={presentation.status} />}
+            {presentation.status && <StatusBadge status={presentation.status} label={statusLabel} />}
           </div>
           {presentation.subheading && (
-            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">
-              {presentation.subheading}
-            </p>
+            <p className="console-microcopy text-slate-400">{presentation.subheading}</p>
           )}
+
+          {isToolCallStartDisplayEvent(event) ? (
+            <ToolCallContent event={event} statusLabel={statusLabel} />
+          ) : (
+            <>
+              {presentation.summary && (
+                <div className="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+                  {presentation.summary}
+                </div>
+              )}
+              {presentation.supplementary}
+            </>
+          )}
+
+          {!isToolCallStartDisplayEvent(event) && <EventMetadata event={event} />}
+
+          <time className="block text-[10px] font-medium uppercase tracking-[0.3em] text-slate-300">
+            {timestamp}
+          </time>
         </div>
-        <time className="ml-auto whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.35em] text-slate-300">
-          {timestamp}
-        </time>
       </div>
-
-      {presentation.summary && (
-        <div className="min-w-0 text-xs leading-snug text-slate-500 [&_strong]:text-slate-700 [&_strong]:font-semibold">
-          {presentation.summary}
-        </div>
-      )}
-
-      {presentation.supplementary}
-
-      <EventMetadata event={event} />
     </article>
   );
 }
 
-function isCombinedStreamEvent(event: DisplayEvent): event is ToolStreamCombinedEvent {
-  return event.event_type === 'tool_stream_combined';
+function ToolCallContent({
+  event,
+  statusLabel,
+}: {
+  event: ToolCallStartDisplayEvent;
+  statusLabel?: string;
+}) {
+  const argsPreview = formatArgumentsPreview(event.arguments);
+  const hasArgsPreview = Boolean(argsPreview);
+  const hasStream = Boolean(event.stream_content && event.stream_content.trim().length > 0);
+  const hasResult = Boolean(event.completion_result && String(event.completion_result).trim().length > 0);
+  const hasError = Boolean(event.completion_error);
+  const metadata = <EventMetadata event={event} />;
+  const hasDuration = Boolean(event.completion_duration);
+
+  return (
+    <div className="space-y-2">
+      {statusLabel && (
+        <p
+          className={cn(
+            'text-sm font-medium',
+            event.call_status === 'error' ? 'text-destructive' : 'text-slate-600'
+          )}
+        >
+          {statusLabel}
+        </p>
+      )}
+
+      {hasArgsPreview && (
+        <p className="console-microcopy text-slate-400">{argsPreview}</p>
+      )}
+
+      <ToolArguments args={event.arguments} callId={event.call_id} />
+
+      {hasStream && (
+        <ContentBlock title="Live Output" dataTestId={`tool-call-stream-${event.call_id}`}>
+          <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+            {event.stream_content?.trim()}
+          </pre>
+        </ContentBlock>
+      )}
+
+      {(hasResult || hasError) && (
+        <ToolResult
+          callId={event.call_id}
+          result={event.completion_result}
+          error={event.completion_error}
+          toolName={event.tool_name}
+        />
+      )}
+
+      {(metadata || hasDuration) && (
+        <div className="space-y-2">
+          {metadata}
+          {hasDuration && (
+            <p className="console-microcopy text-slate-400">
+              {`Duration ${formatDuration(event.completion_duration!)}`}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
+  return event.event_type === 'tool_call_start';
 }
 
 function getAnchorId(event: DisplayEvent): string | null {
@@ -428,7 +397,7 @@ function getAnchorId(event: DisplayEvent): string | null {
 }
 
 // Helper functions
-function getEventCategory(event: DisplayEvent): EventFilterId | 'other' {
+function getEventCategory(event: DisplayEvent): EventCategory {
   switch (event.event_type) {
     case 'user_task':
     case 'thinking':
@@ -441,9 +410,6 @@ function getEventCategory(event: DisplayEvent): EventFilterId | 'other' {
     case 'step_completed':
       return 'plan';
     case 'tool_call_start':
-    case 'tool_call_complete':
-    case 'tool_call_stream':
-    case 'tool_stream_combined':
     case 'browser_snapshot':
       return 'tools';
     case 'iteration_start':
@@ -455,7 +421,7 @@ function getEventCategory(event: DisplayEvent): EventFilterId | 'other' {
   }
 }
 
-type EventStatus = 'success' | 'warning' | 'danger' | 'info';
+type EventStatus = 'success' | 'warning' | 'danger' | 'info' | 'pending';
 
 interface EventPresentation {
   headline: string;
@@ -463,10 +429,11 @@ interface EventPresentation {
   summary?: ReactNode;
   supplementary?: ReactNode;
   status?: EventStatus;
+  statusLabel?: string;
 }
 
 const EVENT_STYLE_META: Record<
-  EventFilterId | 'other',
+  EventCategory,
   {
     icon: typeof MessageSquare;
     card: string;
@@ -524,6 +491,7 @@ const STATUS_VARIANTS: Record<EventStatus, string> = {
   warning: 'border-amber-400/60 bg-amber-50/80 dark:border-amber-500/40 dark:bg-amber-500/10',
   danger: 'border-destructive/40 bg-destructive/10 dark:border-destructive/40 dark:bg-destructive/20',
   info: 'border-primary/40 bg-primary/10 dark:border-primary/40 dark:bg-primary/20',
+  pending: 'border-sky-300/50 bg-sky-50/80 dark:border-sky-500/40 dark:bg-sky-500/10',
 };
 
 function describeEvent(event: DisplayEvent): EventPresentation {
@@ -573,30 +541,21 @@ function describeEvent(event: DisplayEvent): EventPresentation {
         ),
       };
 
-    case 'tool_call_start':
-      return {
-        headline: `${event.tool_name} Started`,
-        subheading: `Call ${event.call_id}`,
-        summary: formatArgumentsPreview(event.arguments),
-        supplementary: <ToolArguments callId={event.call_id} args={event.arguments} />,
-      };
+    case 'tool_call_start': {
+      const startEvent = event as ToolCallStartDisplayEvent;
+      const status: EventStatus =
+        startEvent.call_status === 'running'
+          ? 'pending'
+          : startEvent.call_status === 'error'
+            ? 'danger'
+            : 'success';
 
-    case 'tool_stream_combined':
-      if (isCombinedStreamEvent(event)) {
-        return {
-          headline: `${event.tool_name ?? 'Tool'} Output`,
-          subheading: `Call ${event.call_id}`,
-          summary: truncateText(event.content.trim(), 240),
-          supplementary: (
-            <ContentBlock title="Live Output" dataTestId={`tool-call-stream-${event.call_id}`}>
-              <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
-                {event.content.trim()}
-              </pre>
-            </ContentBlock>
-          ),
-        };
-      }
-      return { headline: 'Tool Output' };
+      return {
+        headline: `${startEvent.tool_name}`,
+        subheading: `Call ${startEvent.call_id}`,
+        status,
+      };
+    }
 
     case 'tool_call_complete':
       return {
@@ -848,7 +807,7 @@ function ContentBlock({
   );
 }
 
-function StatusBadge({ status }: { status: EventStatus }) {
+function StatusBadge({ status, label }: { status: EventStatus; label?: string }) {
   const config: Record<EventStatus, { icon: typeof CheckCircle2; label: string; className: string }> = {
     success: {
       icon: CheckCircle2,
@@ -870,6 +829,11 @@ function StatusBadge({ status }: { status: EventStatus }) {
       label: 'Info',
       className: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-100',
     },
+    pending: {
+      icon: Loader2,
+      label: 'Pending',
+      className: 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-100',
+    },
   };
 
   const meta = config[status];
@@ -882,9 +846,19 @@ function StatusBadge({ status }: { status: EventStatus }) {
       )}
     >
       <Icon className="h-3 w-3" />
-      {meta.label}
+      {label ?? meta.label}
     </span>
   );
+}
+
+function formatTimestamp(timestamp?: string) {
+  const value = timestamp ? new Date(timestamp) : new Date();
+  return value.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 function formatHeadline(value: string) {

@@ -118,17 +118,21 @@ App
     ├── Header (Navigation)
     └── Main Content
         ├── HomePage (/)
-        │   ├── Hero Section
-        │   ├── TaskInput
-        │   │   └── Textarea + Submit Button
-        │   └── AgentOutput
-        │       ├── ConnectionStatus
-        │       └── Event Cards
-        │           ├── TaskAnalysisCard
-        │           ├── ThinkingIndicator
-        │           ├── ToolCallCard
-        │           ├── TaskCompleteCard
-        │           └── ErrorCard
+        │   ├── Hero Section (CTA to /conversation)
+        │   ├── Highlight Cards
+        │   └── Summary Tiles
+        │
+        ├── ConversationPage (/conversation)
+        │   ├── SessionSidebar
+        │   │   ├── ConnectionStatus
+        │   │   └── SessionHistory (pinned + recent)
+        │   ├── ConversationStream
+        │   │   ├── Header (language switch + timeline status)
+        │   │   ├── TerminalOutput
+        │   │   └── TaskInput
+        │   └── GuidanceSidebar
+        │       ├── Quickstart Buttons
+        │       └── Timeline Overview Card
         │
         ├── SessionsPage (/sessions)
         │   ├── Header + New Session Button

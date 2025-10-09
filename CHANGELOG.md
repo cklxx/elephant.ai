@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Left rail consolidates connection status, timeline progress, and pinned/recent sessions
   - Right guidance rail highlights quick starts and timeline messaging with reduced copy
   - Updated translations, Playwright layout spec, and documentation to reflect the lighter style
+- Split the marketing homepage from the research console so the hero CTA links directly to the dedicated conversation view
+- Added live "Doing something…" badges to tool start events so ongoing agent actions read naturally in the chat stream
 - Fixed event display to use correct `event_type` field
 - Updated all event formatting with proper type narrowing
 - Migrated to Zustand v5 API in `useAgentStreamStore`

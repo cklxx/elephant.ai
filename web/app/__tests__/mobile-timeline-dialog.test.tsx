@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
-import HomePage from '../page';
+import ConversationPage from '../conversation/page';
 import { AnyAgentEvent } from '@/lib/types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactElement } from 'react';
@@ -49,7 +49,7 @@ vi.mock('@/hooks/useSessionStore', () => ({
   }),
 }));
 
-describe('HomePage mobile timeline dialog', () => {
+describe('Conversation page mobile timeline dialog', () => {
   const renderWithProviders = (ui: ReactElement) => {
     const queryClient = new QueryClient();
     return render(
@@ -89,7 +89,7 @@ describe('HomePage mobile timeline dialog', () => {
       } as AnyAgentEvent,
     ];
 
-    renderWithProviders(<HomePage />);
+    renderWithProviders(<ConversationPage />);
 
     const openButton = await screen.findByTestId('mobile-timeline-trigger');
     fireEvent.click(openButton);

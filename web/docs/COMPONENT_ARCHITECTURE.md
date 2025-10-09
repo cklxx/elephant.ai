@@ -6,15 +6,25 @@ This document provides visual diagrams of the research console-style UI architec
 
 ## Component Hierarchy
 
--```
-- page.tsx (Main application shell)
-  └─ ConsoleAgentOutput (research console layout)
-     ├─ ConnectionStatus (stream health + reconnect controls)
-     ├─ ResearchPlanCard (approval, editing, rejection flows)
-     ├─ ResearchTimeline (step navigation + highlighting)
-     ├─ VirtualizedEventList (event stream rendering)
-     ├─ ToolOutputCard / WebViewport (tool completion details)
-     └─ DocumentCanvas (task result presentation)
+```
+page.tsx (Home hero landing)
+  └─ HomeContent
+     ├─ HeroSection (CTA → /conversation)
+     ├─ HighlightCards
+     └─ SummaryTiles
+
+conversation/page.tsx (Research console workspace)
+  └─ ConversationPageContent
+     ├─ SessionSidebar
+     │   ├─ ConnectionStatus
+     │   └─ SessionHistory (pinned & recent)
+     ├─ ConversationStream
+     │   ├─ Header (language switch + timeline status)
+     │   ├─ TerminalOutput (event cards, plan approval, tool statuses)
+     │   └─ TaskInput (textarea + submit button)
+     └─ GuidanceSidebar
+         ├─ QuickstartButtons
+         └─ TimelineOverview
 ```
 
 ## Data Flow
