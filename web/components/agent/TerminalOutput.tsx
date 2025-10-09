@@ -39,7 +39,9 @@ interface ToolCallStartDisplayEvent extends ToolCallStartEvent {
   completion_result?: string;
   completion_error?: string;
   completion_duration?: number;
+  completion_timestamp?: string;
   stream_content?: string;
+  last_stream_timestamp?: string;
 }
 
 export function TerminalOutput({
@@ -75,6 +77,7 @@ export function TerminalOutput({
         const startEvent = startEvents.get(event.call_id);
         if (startEvent) {
           startEvent.stream_content = `${startEvent.stream_content ?? ''}${event.chunk}`;
+          startEvent.last_stream_timestamp = event.timestamp;
         }
         return;
       }
@@ -86,6 +89,7 @@ export function TerminalOutput({
           startEvent.completion_result = event.result;
           startEvent.completion_error = event.error;
           startEvent.completion_duration = event.duration;
+          startEvent.completion_timestamp = event.timestamp;
           startEvents.delete(event.call_id);
           return;
         }
@@ -283,7 +287,7 @@ function EventLine({
           )}
 
           {isToolCallStartDisplayEvent(event) ? (
-            <ToolCallContent event={event} statusLabel={statusLabel} />
+            <ToolCallContent event={event} statusLabel={statusLabel} t={t} />
           ) : (
             <>
               {presentation.summary && (
@@ -306,20 +310,85 @@ function EventLine({
   );
 }
 
+type ToolTimelineStatus = 'default' | 'active' | 'success' | 'error';
+
+interface ToolTimelineItem {
+  id: string;
+  title: string;
+  timestamp?: string;
+  description?: string;
+  status: ToolTimelineStatus;
+  content?: ReactNode;
+}
+
 function ToolCallContent({
   event,
   statusLabel,
+  t,
 }: {
   event: ToolCallStartDisplayEvent;
   statusLabel?: string;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
 }) {
   const argsPreview = formatArgumentsPreview(event.arguments);
   const hasArgsPreview = Boolean(argsPreview);
   const hasStream = Boolean(event.stream_content && event.stream_content.trim().length > 0);
   const hasResult = Boolean(event.completion_result && String(event.completion_result).trim().length > 0);
   const hasError = Boolean(event.completion_error);
-  const metadata = <EventMetadata event={event} />;
   const hasDuration = Boolean(event.completion_duration);
+
+  const timelineItems: ToolTimelineItem[] = [];
+
+  timelineItems.push({
+    id: 'start',
+    title: t('conversation.tool.timeline.started', { tool: event.tool_name }),
+    timestamp: event.timestamp,
+    description: hasArgsPreview ? argsPreview : undefined,
+    status: event.call_status === 'running' ? 'active' : 'default',
+    content: <ToolArguments args={event.arguments} callId={event.call_id} t={t} />,
+  });
+
+  if (hasStream) {
+    timelineItems.push({
+      id: 'stream',
+      title: t('conversation.tool.timeline.streaming'),
+      timestamp: event.last_stream_timestamp ?? event.timestamp,
+      status: event.call_status === 'running' ? 'active' : 'default',
+      content: (
+        <ContentBlock title={t('conversation.tool.timeline.liveOutput')} dataTestId={`tool-call-stream-${event.call_id}`}>
+          <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+            {event.stream_content?.trim()}
+          </pre>
+        </ContentBlock>
+      ),
+    });
+  }
+
+  if (hasResult || hasError) {
+    timelineItems.push({
+      id: 'completion',
+      title: hasError
+        ? t('conversation.tool.timeline.errored')
+        : t('conversation.tool.timeline.completed'),
+      timestamp: event.completion_timestamp ?? event.timestamp,
+      status: hasError ? 'error' : 'success',
+      description:
+        hasDuration && event.completion_duration
+          ? t('conversation.tool.timeline.duration', {
+              duration: formatDuration(event.completion_duration),
+            })
+          : undefined,
+      content: (
+        <ToolResult
+          result={event.completion_result}
+          error={event.completion_error}
+          callId={event.call_id}
+          toolName={event.tool_name}
+          t={t}
+        />
+      ),
+    });
+  }
 
   return (
     <div className="space-y-2">
@@ -334,42 +403,46 @@ function ToolCallContent({
         </p>
       )}
 
-      {hasArgsPreview && (
-        <p className="console-microcopy text-slate-400">{argsPreview}</p>
-      )}
+      <ToolCallTimeline items={timelineItems} />
 
-      <ToolArguments args={event.arguments} callId={event.call_id} />
-
-      {hasStream && (
-        <ContentBlock title="Live Output" dataTestId={`tool-call-stream-${event.call_id}`}>
-          <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
-            {event.stream_content?.trim()}
-          </pre>
-        </ContentBlock>
-      )}
-
-      {(hasResult || hasError) && (
-        <ToolResult
-          callId={event.call_id}
-          result={event.completion_result}
-          error={event.completion_error}
-          toolName={event.tool_name}
-        />
-      )}
-
-      {(metadata || hasDuration) && (
-        <div className="space-y-2">
-          {metadata}
-          {hasDuration && (
-            <p className="console-microcopy text-slate-400">
-              {`Duration ${formatDuration(event.completion_duration!)}`}
-            </p>
-          )}
-        </div>
-      )}
+      <EventMetadata event={event} />
     </div>
   );
 }
+
+function ToolCallTimeline({ items }: { items: ToolTimelineItem[] }) {
+  return (
+    <ol className="relative space-y-4 border-l border-slate-200/70 pl-4">
+      {items.map((item, index) => (
+        <li key={`${item.id}-${index}`} className="relative">
+          <span
+            className={cn(
+              'absolute -left-2 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white shadow',
+              TOOL_TIMELINE_STATUS[item.status]
+            )}
+          />
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-slate-700">{item.title}</p>
+              {item.timestamp && (
+                <time className="console-microcopy text-slate-300">{formatTimestamp(item.timestamp)}</time>
+              )}
+            </div>
+            {item.description && <p className="console-microcopy text-slate-400">{item.description}</p>}
+            {item.content}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const TOOL_TIMELINE_STATUS: Record<ToolTimelineStatus, string> = {
+  default: 'bg-slate-200',
+  active: 'bg-sky-400',
+  success: 'bg-emerald-400',
+  error: 'bg-destructive',
+};
 
 function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
   return event.event_type === 'tool_call_start';
@@ -662,7 +735,7 @@ function EventMetadata({ event }: { event: DisplayEvent }) {
       {entries.map(({ label, value }) => (
         <span
           key={`${event.timestamp}-${label}`}
-          className="inline-flex items-center gap-1 rounded-full bg-slate-100/80 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.25em] text-slate-400"
+          className="console-quiet-chip inline-flex items-center gap-1 text-[9px] tracking-[0.25em]"
         >
           <span>{label}</span>
           <span className="text-slate-600 normal-case tracking-normal">{value}</span>
@@ -712,7 +785,15 @@ function getEventMetadata(event: DisplayEvent): Array<{ label: string; value: st
   }
 }
 
-function ToolArguments({ args, callId }: { args?: Record<string, any> | string; callId: string }) {
+function ToolArguments({
+  args,
+  callId,
+  t,
+}: {
+  args?: Record<string, any> | string;
+  callId: string;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
+}) {
   if (!args || (typeof args === 'object' && Object.keys(args).length === 0)) {
     return null;
   }
@@ -721,7 +802,7 @@ function ToolArguments({ args, callId }: { args?: Record<string, any> | string; 
 
   return (
     <ContentBlock
-      title="Input Arguments"
+      title={t('conversation.tool.timeline.arguments')}
       tone="emerald"
       dataTestId={`tool-call-arguments-${callId}`}
     >
@@ -737,15 +818,21 @@ function ToolResult({
   error,
   callId,
   toolName,
+  t,
 }: {
   result: any;
   error?: string;
   callId: string;
   toolName: string;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
 }) {
   if (error) {
     return (
-      <ContentBlock title="Error Output" tone="destructive" dataTestId={`tool-call-result-${callId}`}>
+      <ContentBlock
+        title={t('conversation.tool.timeline.errorOutput')}
+        tone="destructive"
+        dataTestId={`tool-call-result-${callId}`}
+      >
         <p className="text-xs font-medium text-destructive dark:text-destructive/80">{error}</p>
       </ContentBlock>
     );
@@ -757,7 +844,7 @@ function ToolResult({
 
   return (
     <ContentBlock
-      title={`${toolName} Result`}
+      title={t('conversation.tool.timeline.result', { tool: toolName })}
       tone="emerald"
       dataTestId={`tool-call-result-${callId}`}
     >
