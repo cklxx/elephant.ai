@@ -403,6 +403,7 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.DisableTUI = parsed
 		meta.sources["disable_tui"] = SourceEnv
 	}
+	followTranscriptSet := false
 	if value, ok := lookup("ALEX_TUI_FOLLOW_TRANSCRIPT"); ok && value != "" {
 		parsed, err := parseBoolEnv(value)
 		if err != nil {
@@ -410,7 +411,21 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		}
 		cfg.FollowTranscript = parsed
 		meta.sources["follow_transcript"] = SourceEnv
+		followTranscriptSet = true
 	}
+	if !followTranscriptSet {
+		if value, ok := lookup("ALEX_FOLLOW_TRANSCRIPT"); ok && value != "" {
+			parsed, err := parseBoolEnv(value)
+			if err != nil {
+				return fmt.Errorf("parse ALEX_FOLLOW_TRANSCRIPT: %w", err)
+			}
+			cfg.FollowTranscript = parsed
+			meta.sources["follow_transcript"] = SourceEnv
+			followTranscriptSet = true
+		}
+	}
+
+	followStreamSet := false
 	if value, ok := lookup("ALEX_TUI_FOLLOW_STREAM"); ok && value != "" {
 		parsed, err := parseBoolEnv(value)
 		if err != nil {
@@ -418,6 +433,18 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		}
 		cfg.FollowStream = parsed
 		meta.sources["follow_stream"] = SourceEnv
+		followStreamSet = true
+	}
+	if !followStreamSet {
+		if value, ok := lookup("ALEX_FOLLOW_STREAM"); ok && value != "" {
+			parsed, err := parseBoolEnv(value)
+			if err != nil {
+				return fmt.Errorf("parse ALEX_FOLLOW_STREAM: %w", err)
+			}
+			cfg.FollowStream = parsed
+			meta.sources["follow_stream"] = SourceEnv
+			followStreamSet = true
+		}
 	}
 	if value, ok := lookup("LLM_MAX_ITERATIONS"); ok && value != "" {
 		parsed, err := strconv.Atoi(value)

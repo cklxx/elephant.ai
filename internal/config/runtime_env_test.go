@@ -41,6 +41,8 @@ func TestRuntimeEnvLookup(t *testing.T) {
 		"ALEX_NO_TUI":                "true",
 		"ALEX_TUI_FOLLOW_TRANSCRIPT": "true",
 		"ALEX_TUI_FOLLOW_STREAM":     "false",
+		"ALEX_FOLLOW_TRANSCRIPT":     "true",
+		"ALEX_FOLLOW_STREAM":         "false",
 		"LLM_MAX_ITERATIONS":         "200",
 		"LLM_MAX_TOKENS":             "4096",
 		"LLM_TEMPERATURE":            "0.2",

@@ -54,10 +54,15 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 		set("ALEX_ENV", cfg.Environment)
 	}
 
+	followTranscript := strconv.FormatBool(cfg.FollowTranscript)
+	followStream := strconv.FormatBool(cfg.FollowStream)
+
 	set("ALEX_VERBOSE", strconv.FormatBool(cfg.Verbose))
 	set("ALEX_NO_TUI", strconv.FormatBool(cfg.DisableTUI))
-	set("ALEX_TUI_FOLLOW_TRANSCRIPT", strconv.FormatBool(cfg.FollowTranscript))
-	set("ALEX_TUI_FOLLOW_STREAM", strconv.FormatBool(cfg.FollowStream))
+	set("ALEX_TUI_FOLLOW_TRANSCRIPT", followTranscript)
+	set("ALEX_TUI_FOLLOW_STREAM", followStream)
+	set("ALEX_FOLLOW_TRANSCRIPT", followTranscript)
+	set("ALEX_FOLLOW_STREAM", followStream)
 
 	if cfg.MaxIterations > 0 {
 		set("LLM_MAX_ITERATIONS", strconv.Itoa(cfg.MaxIterations))

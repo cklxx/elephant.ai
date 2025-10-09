@@ -306,3 +306,21 @@ func TestInvalidFollowStreamReturnsError(t *testing.T) {
 		t.Fatalf("expected error mentioning ALEX_TUI_FOLLOW_STREAM, got %v", err)
 	}
 }
+
+func TestFollowAliasEnvironmentOverrides(t *testing.T) {
+	cfg, _, err := Load(
+		WithEnv(envMap{
+			"ALEX_FOLLOW_TRANSCRIPT": "false",
+			"ALEX_FOLLOW_STREAM":     "true",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.FollowTranscript {
+		t.Fatal("expected alias env to disable transcript follow")
+	}
+	if !cfg.FollowStream {
+		t.Fatal("expected alias env to enable stream follow")
+	}
+}
