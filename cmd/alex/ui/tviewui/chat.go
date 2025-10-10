@@ -955,15 +955,8 @@ func (ui *ChatUI) queueCostRefresh() {
 	go ui.refreshCostSummary(sessionID)
 }
 
-func (ui *ChatUI) refreshCostSummary(sessionID string) {
-	defer ui.costRefreshPending.Store(false)
-
-	if ui.costTracker == nil || sessionID == "" {
-		return
-	}
-
-	summary, err := ui.costTracker.GetSessionCost(ui.ctx, sessionID)
-	if err != nil || summary == nil {
+func (ui *ChatUI) applyCostSummaryMetrics(summary *ports.CostSummary) {
+	if summary == nil {
 		return
 	}
 
@@ -982,6 +975,21 @@ func (ui *ChatUI) refreshCostSummary(sessionID string) {
 		CostByModel: costByModel,
 		Timestamp:   timestamp,
 	})
+}
+
+func (ui *ChatUI) refreshCostSummary(sessionID string) {
+	defer ui.costRefreshPending.Store(false)
+
+	if ui.costTracker == nil || sessionID == "" {
+		return
+	}
+
+	summary, err := ui.costTracker.GetSessionCost(ui.ctx, sessionID)
+	if err != nil || summary == nil {
+		return
+	}
+
+	ui.applyCostSummaryMetrics(summary)
 	ui.renderSnapshot()
 }
 
@@ -1454,7 +1462,7 @@ func (ui *ChatUI) costCommand(args []string) {
 	}
 
 	ui.appendSystemMessage(formatCostSummary(sessionID, summary))
-	ui.queueCostRefresh()
+	ui.applyCostSummaryMetrics(summary)
 	ui.renderSnapshot()
 }
 
