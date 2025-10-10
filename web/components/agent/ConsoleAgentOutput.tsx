@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
-import { isTaskCompleteEvent } from '@/lib/typeGuards';
+import { isResearchPlanEvent, isTaskCompleteEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
+import { ResearchPlanCard } from './ResearchPlanCard';
 import { ResearchTimeline } from './ResearchTimeline';
 import { WebViewport } from './WebViewport';
 import { DocumentCanvas, DocumentContent, ViewMode } from './DocumentCanvas';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useToolOutputs } from '@/hooks/useToolOutputs';
+import { usePlanApproval } from '@/hooks/usePlanApproval';
+import { usePlanProgress } from '@/hooks/usePlanProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
@@ -21,6 +24,9 @@ interface ConsoleAgentOutputProps {
   error?: string | null;
   reconnectAttempts?: number;
   onReconnect?: () => void;
+  sessionId: string | null;
+  taskId: string | null;
+  autoApprovePlan?: boolean;
 }
 
 export function ConsoleAgentOutput({
@@ -30,6 +36,9 @@ export function ConsoleAgentOutput({
   error,
   reconnectAttempts,
   onReconnect,
+  sessionId,
+  taskId,
+  autoApprovePlan = false,
 }: ConsoleAgentOutputProps) {
   const t = useTranslation();
   const timelineSteps = useTimelineSteps(events);
@@ -38,6 +47,7 @@ export function ConsoleAgentOutput({
   const [documentViewMode, setDocumentViewMode] = useState<ViewMode>('default');
   const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
   const [hasUserSelectedStep, setHasUserSelectedStep] = useState(false);
+  const lastHandledPlanKeyRef = useRef<string | null>(null);
 
   const hasTimeline = timelineSteps.length > 0;
   const activeTimelineStep = useMemo(
@@ -54,8 +64,19 @@ export function ConsoleAgentOutput({
     [timelineSteps, focusedStepId]
   );
   const focusedEventIndex = focusedTimelineStep?.anchorEventIndex ?? null;
+  const planProgress = usePlanProgress(timelineSteps);
 
   // Extract research plan from events
+  const latestPlanEvent = useMemo(() => {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const candidate = events[index];
+      if (isResearchPlanEvent(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }, [events]);
+
   useEffect(() => {
     if (!hasTimeline) {
       if (focusedStepId !== null) {
@@ -86,6 +107,53 @@ export function ConsoleAgentOutput({
     hasUserSelectedStep,
     fallbackTimelineStepId,
   ]);
+
+  const researchPlan = useMemo(() => {
+    if (!latestPlanEvent) {
+      return null;
+    }
+
+    return {
+      goal: t('agent.output.plan.defaultGoal'),
+      steps: latestPlanEvent.plan_steps,
+      estimated_tools: latestPlanEvent.estimated_tools ?? [],
+      estimated_iterations: latestPlanEvent.estimated_iterations,
+      estimated_duration_minutes: latestPlanEvent.estimated_duration_minutes,
+    };
+  }, [latestPlanEvent, t]);
+
+  const {
+    state: planState,
+    currentPlan,
+    isSubmitting,
+    handlePlanGenerated,
+    handleApprove,
+    handleModify,
+    handleReject,
+  } = usePlanApproval({
+    sessionId,
+    taskId,
+  });
+
+  useEffect(() => {
+    if (!researchPlan || !latestPlanEvent) {
+      return;
+    }
+
+    const planKey = `${latestPlanEvent.timestamp}:${latestPlanEvent.plan_steps.join('|')}`;
+    if (lastHandledPlanKeyRef.current === planKey && planState !== 'idle') {
+      return;
+    }
+
+    lastHandledPlanKeyRef.current = planKey;
+    handlePlanGenerated(researchPlan);
+  }, [handlePlanGenerated, latestPlanEvent, planState, researchPlan]);
+
+  useEffect(() => {
+    if (autoApprovePlan && planState === 'awaiting_approval' && currentPlan) {
+      handleApprove();
+    }
+  }, [autoApprovePlan, currentPlan, handleApprove, planState]);
 
   // Build document from task completion
   const document = useMemo((): DocumentContent | null => {
@@ -123,6 +191,23 @@ export function ConsoleAgentOutput({
           />
         </div>
       </div>
+
+      {/* Plan approval card (if awaiting approval) */}
+      {planState === 'awaiting_approval' && currentPlan && !autoApprovePlan && (
+        <ResearchPlanCard
+          plan={currentPlan}
+          loading={isSubmitting}
+          onApprove={handleApprove}
+          onModify={handleModify}
+          onReject={handleReject}
+          progress={planProgress}
+        />
+      )}
+
+      {/* Plan summary (after approval) */}
+      {planState === 'approved' && currentPlan && (
+        <ResearchPlanCard plan={currentPlan} readonly progress={planProgress} />
+      )}
 
       {/* Main content area with tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
