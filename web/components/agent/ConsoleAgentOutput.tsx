@@ -150,10 +150,15 @@ export function ConsoleAgentOutput({
   }, [handlePlanGenerated, latestPlanEvent, planState, researchPlan]);
 
   useEffect(() => {
-    if (autoApprovePlan && planState === 'awaiting_approval' && currentPlan) {
+    if (
+      autoApprovePlan &&
+      planState === 'awaiting_approval' &&
+      currentPlan &&
+      !isSubmitting
+    ) {
       handleApprove();
     }
-  }, [autoApprovePlan, currentPlan, handleApprove, planState]);
+  }, [autoApprovePlan, currentPlan, handleApprove, isSubmitting, planState]);
 
   // Build document from task completion
   const document = useMemo((): DocumentContent | null => {
