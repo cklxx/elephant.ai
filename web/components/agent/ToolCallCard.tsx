@@ -41,6 +41,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   const durationLabel = completeEvent?.duration ? formatDuration(completeEvent.duration) : null;
 
   const hasArguments = Boolean(startEvent?.arguments && Object.keys(startEvent.arguments).length > 0);
+  const argumentsPreview = startEvent?.arguments_preview;
   const hasResult = Boolean(completeEvent?.result && String(completeEvent.result).trim().length > 0);
   const hasError = Boolean(completeEvent?.error && completeEvent.error.trim().length > 0);
   const hasStream = Boolean(startStreamContent && startStreamContent.trim().length > 0);
@@ -58,7 +59,8 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       title: t('conversation.tool.timeline.started', { tool: toolName }),
       timestamp: startEvent.timestamp,
       tone: status === 'running' ? 'active' : 'default',
-      description: hasArguments ? createPreview(startEvent.arguments) : undefined,
+      description:
+        argumentsPreview ?? (hasArguments ? createPreview(startEvent.arguments) : undefined),
       content: hasArguments && formattedArguments ? (
         <ToolArguments
           args={formattedArguments}

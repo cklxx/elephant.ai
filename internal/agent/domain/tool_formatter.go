@@ -2,7 +2,10 @@ package domain
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // ToolFormatter formats tool calls for display output
@@ -19,171 +22,284 @@ func NewToolFormatter() *ToolFormatter {
 
 // FormatToolCall formats a single tool call for display
 func (tf *ToolFormatter) FormatToolCall(name string, args map[string]any) string {
-	if len(args) == 0 {
-		return fmt.Sprintf("%s %s()", tf.colorDot, name)
+	if name == "think" {
+		return tf.formatThinkCall(args)
 	}
 
-	// Tool-specific formatting
+	presentation := tf.PrepareArgs(name, args)
+	return tf.renderToolCall(name, presentation)
+}
+
+// ToolArgsPresentation captures how arguments should be displayed in downstream renderers.
+type ToolArgsPresentation struct {
+	ShouldDisplay bool
+	InlinePreview string
+	Args          map[string]string
+}
+
+// PrepareArgs analyses tool call arguments and decides whether they should be surfaced.
+func (tf *ToolFormatter) PrepareArgs(name string, args map[string]any) ToolArgsPresentation {
+	normalized, inlineLimit := tf.visibleArgs(name, args)
+	if len(normalized) == 0 {
+		return ToolArgsPresentation{ShouldDisplay: false, Args: map[string]string{}}
+	}
+
+	inline := tf.joinArgs(normalized, inlineLimit)
+	return ToolArgsPresentation{
+		ShouldDisplay: inline != "",
+		InlinePreview: inline,
+		Args:          normalized,
+	}
+}
+
+func (tf *ToolFormatter) renderToolCall(name string, presentation ToolArgsPresentation) string {
+	if presentation.ShouldDisplay && presentation.InlinePreview != "" {
+		return fmt.Sprintf("%s %s(%s)", tf.colorDot, name, presentation.InlinePreview)
+	}
+
+	return fmt.Sprintf("%s %s", tf.colorDot, name)
+}
+
+func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[string]string, int) {
+	if len(args) == 0 {
+		return map[string]string{}, 0
+	}
+
 	switch name {
 	case "code_execute":
-		return tf.formatCodeExecuteCall(args)
+		return tf.codeExecuteArgs(args), 80
 	case "bash":
-		return tf.formatBashCall(args)
+		return tf.bashArgs(args), 160
 	case "file_read":
-		return tf.formatFileReadCall(args)
+		return tf.fileReadArgs(args), 120
 	case "file_edit":
-		return tf.formatFileEditCall(args)
+		return tf.fileEditArgs(args), 120
 	case "file_write":
-		return tf.formatFileWriteCall(args)
-	case "grep", "ripgrep":
-		return tf.formatGrepCall(args)
+		return tf.fileWriteArgs(args), 120
+	case "grep", "ripgrep", "code_search":
+		return tf.searchArgs(args), 140
 	case "find":
-		return tf.formatFindCall(args)
+		return tf.findArgs(args), 140
 	case "web_search":
-		return tf.formatWebSearchCall(args)
+		return tf.webSearchArgs(args), 140
 	case "web_fetch":
-		return tf.formatWebFetchCall(args)
-	case "think":
-		return tf.formatThinkCall(args)
+		return tf.webFetchArgs(args), 160
 	case "todo_update":
-		return fmt.Sprintf("%s %s", tf.colorDot, name)
+		return map[string]string{}, 0
 	case "todo_read", "list_files":
-		// Simple path display
-		if path, ok := args["path"].(string); ok && path != "" {
-			return fmt.Sprintf("%s %s(%s)", tf.colorDot, name, path)
-		}
-		return fmt.Sprintf("%s %s", tf.colorDot, name)
+		return tf.simplePathArgs(args), 80
 	case "subagent":
-		return tf.formatSubagentCall(args)
+		return tf.subagentArgs(args), 120
 	default:
-		return tf.formatDefaultCall(name, args)
+		if strings.HasPrefix(name, "git_") {
+			return tf.gitArgs(args), 200
+		}
+		return tf.genericArgs(args), 120
 	}
 }
 
-// formatCodeExecuteCall shows FULL code - user needs to see what's being executed
-func (tf *ToolFormatter) formatCodeExecuteCall(args map[string]any) string {
-	lang := tf.getStringArg(args, "language", "code")
-	code := tf.getStringArg(args, "code", "")
-
-	if code == "" {
-		return fmt.Sprintf("%s code_execute(language=%s)", tf.colorDot, lang)
+func (tf *ToolFormatter) joinArgs(args map[string]string, maxLen int) string {
+	if len(args) == 0 {
+		return ""
 	}
 
-	// Show FULL code with language label
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s code_execute(language=%s):\n", tf.colorDot, lang))
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
 
-	// Add code block with indentation
-	lines := strings.Split(code, "\n")
-	for _, line := range lines {
-		output.WriteString("  " + line + "\n")
+	var builder strings.Builder
+	for _, key := range keys {
+		value := strings.TrimSpace(args[key])
+		if value == "" {
+			continue
+		}
+
+		if builder.Len() > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(fmt.Sprintf("%s=%s", key, value))
+
+		if maxLen > 0 && builder.Len() > maxLen {
+			preview := builder.String()
+			if len(preview) > maxLen {
+				return preview[:maxLen] + "…"
+			}
+			return preview
+		}
 	}
 
-	return strings.TrimRight(output.String(), "\n")
+	return builder.String()
 }
 
-// formatBashCall shows FULL command - user needs to see exact command
-func (tf *ToolFormatter) formatBashCall(args map[string]any) string {
-	cmd := tf.getStringArg(args, "command", "")
-	if cmd == "" {
-		return fmt.Sprintf("%s bash", tf.colorDot)
+func (tf *ToolFormatter) codeExecuteArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if lang := tf.getStringArg(args, "language", ""); lang != "" {
+		result["language"] = lang
 	}
-
-	// Show full command without truncation
-	return fmt.Sprintf("%s bash: %s", tf.colorDot, cmd)
+	if code := tf.getStringArg(args, "code", ""); code != "" {
+		result["lines"] = strconv.Itoa(countLines(code))
+		result["chars"] = strconv.Itoa(utf8.RuneCountInString(code))
+	}
+	return result
 }
 
-// formatFileReadCall shows file path
-func (tf *ToolFormatter) formatFileReadCall(args map[string]any) string {
-	path := tf.getStringArg(args, "file_path", "")
-	offset := tf.getIntArg(args, "offset", 0)
-	limit := tf.getIntArg(args, "limit", 0)
-
-	if offset > 0 || limit > 0 {
-		return fmt.Sprintf("%s file_read(%s, lines %d-%d)", tf.colorDot, path, offset, offset+limit)
+func (tf *ToolFormatter) bashArgs(args map[string]any) map[string]string {
+	command := tf.getStringArg(args, "command", "")
+	if command == "" {
+		return map[string]string{}
 	}
-	return fmt.Sprintf("%s file_read(%s)", tf.colorDot, path)
+	return map[string]string{
+		"command": tf.summarizeString(command, 160),
+	}
 }
 
-// formatFileEditCall shows file and FULL edit - user needs to see what's changing
-func (tf *ToolFormatter) formatFileEditCall(args map[string]any) string {
-	path := tf.getStringArg(args, "file_path", "")
-	oldStr := tf.getStringArg(args, "old_string", "")
-	newStr := tf.getStringArg(args, "new_string", "")
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s file_edit(%s):\n", tf.colorDot, path))
-
-	// Show old -> new with clear separation
-	output.WriteString("  - Old:\n")
-	for _, line := range strings.Split(oldStr, "\n") {
-		output.WriteString(fmt.Sprintf("    %s\n", line))
+func (tf *ToolFormatter) fileReadArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if path := tf.getStringArg(args, "file_path", ""); path != "" {
+		result["path"] = path
 	}
-
-	output.WriteString("  + New:\n")
-	for _, line := range strings.Split(newStr, "\n") {
-		output.WriteString(fmt.Sprintf("    %s\n", line))
+	if offset := tf.getIntArg(args, "offset", 0); offset > 0 {
+		result["offset"] = strconv.Itoa(offset)
 	}
-
-	return strings.TrimRight(output.String(), "\n")
+	if limit := tf.getIntArg(args, "limit", 0); limit > 0 {
+		result["limit"] = strconv.Itoa(limit)
+	}
+	return result
 }
 
-// formatFileWriteCall shows file path
-func (tf *ToolFormatter) formatFileWriteCall(args map[string]any) string {
-	path := tf.getStringArg(args, "file_path", "")
-	content := tf.getStringArg(args, "content", "")
-
-	lines := strings.Count(content, "\n") + 1
-	return fmt.Sprintf("%s file_write(%s, %d lines)", tf.colorDot, path, lines)
+func (tf *ToolFormatter) fileEditArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if path := tf.getStringArg(args, "file_path", ""); path != "" {
+		result["path"] = path
+	}
+	if oldStr := tf.getStringArg(args, "old_string", ""); oldStr != "" {
+		result["old_lines"] = strconv.Itoa(countLines(oldStr))
+	}
+	if newStr := tf.getStringArg(args, "new_string", ""); newStr != "" {
+		result["new_lines"] = strconv.Itoa(countLines(newStr))
+	}
+	if oldStr := tf.getStringArg(args, "old_string", ""); oldStr != "" {
+		if newStr := tf.getStringArg(args, "new_string", ""); newStr != "" {
+			delta := utf8.RuneCountInString(newStr) - utf8.RuneCountInString(oldStr)
+			result["delta_chars"] = strconv.Itoa(delta)
+		}
+	}
+	return result
 }
 
-// formatGrepCall shows pattern and path
-func (tf *ToolFormatter) formatGrepCall(args map[string]any) string {
-	pattern := tf.getStringArg(args, "pattern", "")
-	path := tf.getStringArg(args, "path", ".")
-
-	if len(pattern) > 40 {
-		pattern = pattern[:40] + "..."
+func (tf *ToolFormatter) fileWriteArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if path := tf.getStringArg(args, "file_path", ""); path != "" {
+		result["path"] = path
 	}
-
-	if path != "." {
-		return fmt.Sprintf("%s grep(\"%s\", %s)", tf.colorDot, pattern, path)
+	if content := tf.getStringArg(args, "content", ""); content != "" {
+		result["lines"] = strconv.Itoa(countLines(content))
+		result["chars"] = strconv.Itoa(utf8.RuneCountInString(content))
 	}
-	return fmt.Sprintf("%s grep(\"%s\")", tf.colorDot, pattern)
+	return result
 }
 
-// formatFindCall shows pattern and path
-func (tf *ToolFormatter) formatFindCall(args map[string]any) string {
-	pattern := tf.getStringArg(args, "pattern", "")
-	path := tf.getStringArg(args, "path", ".")
-
-	if path != "." {
-		return fmt.Sprintf("%s find(\"%s\", %s)", tf.colorDot, pattern, path)
+func (tf *ToolFormatter) searchArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if pattern := tf.getStringArg(args, "pattern", ""); pattern != "" {
+		result["pattern"] = tf.summarizeString(pattern, 80)
 	}
-	return fmt.Sprintf("%s find(\"%s\")", tf.colorDot, pattern)
+	if path := tf.getStringArg(args, "path", ""); path != "" && path != "." {
+		result["path"] = path
+	}
+	return result
 }
 
-// formatWebSearchCall shows query
-func (tf *ToolFormatter) formatWebSearchCall(args map[string]any) string {
-	query := tf.getStringArg(args, "query", "")
-	maxResults := tf.getIntArg(args, "max_results", 5)
-
-	if len(query) > 60 {
-		query = query[:60] + "..."
+func (tf *ToolFormatter) findArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if pattern := tf.getStringArg(args, "pattern", ""); pattern != "" {
+		result["pattern"] = tf.summarizeString(pattern, 60)
 	}
-
-	return fmt.Sprintf("%s web_search(max_results=%d, query=%s)", tf.colorDot, maxResults, query)
+	if path := tf.getStringArg(args, "path", ""); path != "" && path != "." {
+		result["path"] = path
+	}
+	return result
 }
 
-// formatWebFetchCall shows URL
-func (tf *ToolFormatter) formatWebFetchCall(args map[string]any) string {
-	url := tf.getStringArg(args, "url", "")
+func (tf *ToolFormatter) webSearchArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if query := tf.getStringArg(args, "query", ""); query != "" {
+		result["query"] = tf.summarizeString(query, 80)
+	}
+	if maxResults := tf.getIntArg(args, "max_results", 0); maxResults > 0 {
+		result["max_results"] = strconv.Itoa(maxResults)
+	}
+	return result
+}
 
-	if len(url) > 60 {
-		url = url[:60] + "..."
+func (tf *ToolFormatter) webFetchArgs(args map[string]any) map[string]string {
+	if url := tf.getStringArg(args, "url", ""); url != "" {
+		return map[string]string{"url": tf.summarizeString(url, 120)}
+	}
+	return map[string]string{}
+}
+
+func (tf *ToolFormatter) simplePathArgs(args map[string]any) map[string]string {
+	if path := tf.getStringArg(args, "path", ""); path != "" {
+		return map[string]string{"path": path}
+	}
+	return map[string]string{}
+}
+
+func (tf *ToolFormatter) subagentArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if mode := tf.getStringArg(args, "mode", ""); mode != "" {
+		result["mode"] = mode
+	}
+	if subtasks, ok := args["subtasks"].([]any); ok {
+		result["tasks"] = strconv.Itoa(len(subtasks))
+	}
+	return result
+}
+
+func (tf *ToolFormatter) gitArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	for key, value := range args {
+		result[key] = tf.summarizeString(tf.formatValue(value), 160)
+	}
+	return result
+}
+
+func (tf *ToolFormatter) genericArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	for key, value := range args {
+		result[key] = tf.summarizeString(tf.formatValue(value), 80)
+	}
+	return result
+}
+
+func (tf *ToolFormatter) summarizeString(value string, limit int) string {
+	cleaned := strings.TrimSpace(strings.ReplaceAll(value, "\n", " "))
+	if cleaned == "" {
+		return ""
 	}
 
-	return fmt.Sprintf("%s web_fetch(%s)", tf.colorDot, url)
+	runes := []rune(cleaned)
+	if len(runes) <= limit {
+		return cleaned
+	}
+
+	truncated := string(runes[:limit])
+	remaining := len(runes) - limit
+	if remaining <= 0 {
+		return truncated
+	}
+
+	return fmt.Sprintf("%s… (+%d chars)", truncated, remaining)
+}
+
+func countLines(value string) int {
+	if value == "" {
+		return 0
+	}
+	return strings.Count(value, "\n") + 1
 }
 
 // formatThinkCall shows FULL thought - user needs to see agent's reasoning
@@ -244,34 +360,6 @@ func (tf *ToolFormatter) formatThinkCall(args map[string]any) string {
 	}
 
 	return strings.TrimRight(output.String(), "\n")
-}
-
-// formatSubagentCall shows subtask count
-func (tf *ToolFormatter) formatSubagentCall(args map[string]any) string {
-	subtasks, ok := args["subtasks"].([]any)
-	if !ok || len(subtasks) == 0 {
-		return fmt.Sprintf("%s subagent", tf.colorDot)
-	}
-
-	mode := tf.getStringArg(args, "mode", "parallel")
-	return fmt.Sprintf("%s subagent(%d tasks, %s)", tf.colorDot, len(subtasks), mode)
-}
-
-// formatDefaultCall handles unknown tools
-func (tf *ToolFormatter) formatDefaultCall(name string, args map[string]any) string {
-	var argsStr []string
-	for k, v := range args {
-		valueStr := tf.formatValue(v)
-		if len(valueStr) > 30 {
-			valueStr = valueStr[:30] + "..."
-		}
-		if len(args) > 1 {
-			argsStr = append(argsStr, fmt.Sprintf("%s=%s", k, valueStr))
-		} else {
-			argsStr = append(argsStr, valueStr)
-		}
-	}
-	return fmt.Sprintf("%s %s(%s)", tf.colorDot, name, strings.Join(argsStr, ", "))
 }
 
 // Helper functions to extract typed arguments

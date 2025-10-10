@@ -202,7 +202,13 @@ export function useEventFormatter(
 
         case 'tool_call_start':
           if ('tool_name' in event) {
-            return `▸ ${event.tool_name}(${formatArgs(event.arguments)})`;
+            const preview =
+              'arguments_preview' in event && event.arguments_preview
+                ? event.arguments_preview
+                : formatArgs(event.arguments);
+            return preview
+              ? `▸ ${event.tool_name}(${preview})`
+              : `▸ ${event.tool_name}`;
           }
           return 'Tool executing';
 

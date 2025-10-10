@@ -48,6 +48,7 @@ export const ToolCallStartEventSchema = BaseAgentEventSchema.extend({
   call_id: z.string(),
   tool_name: z.string(),
   arguments: z.record(z.string(), z.any()),
+  arguments_preview: z.string().optional(),
 });
 
 // Tool Call Stream Event
