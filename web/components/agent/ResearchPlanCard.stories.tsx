@@ -37,6 +37,7 @@ export const Default: Story = {
       ],
       estimated_tools: ['file_write', 'bash', 'npm'],
       estimated_iterations: 8,
+      estimated_duration_minutes: 180,
     },
     loading: false,
     readonly: false,
@@ -63,8 +64,21 @@ export const ReadonlyApproved: Story = {
       ],
       estimated_tools: ['file_read', 'file_edit', 'bash'],
       estimated_iterations: 6,
+      estimated_duration_minutes: 240,
     },
     readonly: true,
+    progress: {
+      totalSteps: 5,
+      completedSteps: 5,
+      completionRatio: 1,
+      activeStepTitle: null,
+      latestCompletedStepTitle: 'Add comprehensive tests',
+      totalDurationMs: 1000 * 60 * 18,
+      averageStepDurationMs: 1000 * 60 * 4,
+      totalTokensUsed: 4200,
+      uniqueToolsUsed: ['auth_audit', 'file_edit', 'bash'],
+      hasErrors: false,
+    },
   },
 };
 
@@ -79,6 +93,7 @@ export const SimplePlan: Story = {
       ],
       estimated_tools: ['file_read', 'file_edit'],
       estimated_iterations: 3,
+      estimated_duration_minutes: 90,
     },
   },
 };
@@ -101,6 +116,7 @@ export const ComplexPlan: Story = {
       ],
       estimated_tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep'],
       estimated_iterations: 25,
+      estimated_duration_minutes: 720,
     },
   },
 };
@@ -123,6 +139,7 @@ export const WithEditActions: Story = {
       ],
       estimated_tools: ['bash', 'file_edit'],
       estimated_iterations: 4,
+      estimated_duration_minutes: 150,
     },
     readonly: false,
   },
@@ -142,6 +159,7 @@ export const Collapsed: Story = {
       ],
       estimated_tools: ['bash', 'file_edit'],
       estimated_iterations: 3,
+      estimated_duration_minutes: 120,
     },
   },
   play: async ({ canvasElement }) => {

@@ -277,9 +277,6 @@ function MyPage() {
     <ConsoleAgentOutput
       events={events}
       isConnected={isConnected}
-      sessionId={sessionId}
-      taskId={taskId}
-      autoApprovePlan={false}  // Show plan approval UI
     />
   );
 }

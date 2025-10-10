@@ -1,11 +1,8 @@
 'use client';
 
-import { ReactNode, useMemo, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { ReactNode, useMemo } from 'react';
 import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
-import { ResearchPlanCard } from './ResearchPlanCard';
 import { ConnectionBanner } from './ConnectionBanner';
-import { apiClient } from '@/lib/api';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -26,8 +23,6 @@ interface TerminalOutputProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
-  sessionId: string | null;
-  taskId: string | null;
 }
 
 type DisplayEvent = AnyAgentEvent | ToolCallStartDisplayEvent;
@@ -51,10 +46,7 @@ export function TerminalOutput({
   error,
   reconnectAttempts,
   onReconnect,
-  sessionId,
-  taskId,
 }: TerminalOutputProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { t, language } = useI18n();
   const locale = getLanguageLocale(language);
 
@@ -112,55 +104,6 @@ export function TerminalOutput({
     return null;
   }, [displayEvents]);
 
-  // Simple approve plan mutation
-  const { mutate: approvePlan } = useMutation({
-    mutationFn: async ({ sessionId, taskId }: { sessionId: string; taskId: string }) => {
-      return apiClient.approvePlan({
-        session_id: sessionId,
-        task_id: taskId,
-        approved: true,
-      });
-    },
-  });
-
-  // Parse plan state from events
-  const { planState, currentPlan } = useMemo(() => {
-    const lastPlanEvent = [...events]
-      .reverse()
-      .find((e) => e.event_type === 'research_plan');
-
-    if (!lastPlanEvent || !('plan_steps' in lastPlanEvent)) {
-      return { planState: null, currentPlan: null };
-    }
-
-    return {
-      planState: 'awaiting_approval' as const,
-      currentPlan: {
-        goal: 'Research task',
-        steps: lastPlanEvent.plan_steps,
-        estimated_tools: [],
-        estimated_iterations: lastPlanEvent.estimated_iterations,
-      },
-    };
-  }, [events]);
-
-  const handleApprove = () => {
-    if (!sessionId || !taskId) return;
-
-    setIsSubmitting(true);
-    approvePlan(
-      { sessionId, taskId },
-      {
-        onSuccess: () => {
-          setIsSubmitting(false);
-        },
-        onError: () => {
-          setIsSubmitting(false);
-        },
-      }
-    );
-  };
-
   // Show connection banner if disconnected
   if (!isConnected || error) {
     return (
@@ -175,29 +118,23 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-4" data-testid="conversation-stream">
-      {planState === 'awaiting_approval' && currentPlan && (
-        <div className="max-w-xl">
-          <ResearchPlanCard plan={currentPlan} loading={isSubmitting} onApprove={handleApprove} />
-        </div>
-      )}
-
+    <div className="space-y-6" data-testid="conversation-stream">
       {activeAction && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-600">
+        <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-sky-600">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           <span>{t('conversation.status.doing')}</span>
           <span className="text-slate-500 normal-case tracking-normal">{activeAction.tool_name}</span>
         </div>
       )}
 
-      <div className="space-y-3" data-testid="conversation-events">
+      <div className="space-y-6" data-testid="conversation-events">
         {displayEvents.map((event, index) => (
           <EventLine key={`${event.event_type}-${index}`} event={event} t={t} locale={locale} />
         ))}
       </div>
 
       {isConnected && displayEvents.length > 0 && (
-        <div className="flex items-center gap-2 pt-2 text-xs text-slate-400">
+        <div className="flex items-center gap-2 pt-2 text-xs uppercase tracking-[0.3em] text-slate-400">
           <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
           <span>{t('conversation.status.listening')}</span>
         </div>
@@ -246,16 +183,13 @@ function EventLine({
           : t('conversation.status.completed');
   }
 
-  const isRunningTool = isToolCallStartDisplayEvent(event) && event.call_status === 'running';
+  const headlineSize = HEADLINE_SIZES[category];
 
   return (
     <article
       className={cn(
-        'group relative max-w-3xl rounded-3xl border border-slate-100/70 bg-white/80 px-4 py-3 text-slate-700 shadow-sm transition sm:px-5',
-        meta.card,
-        presentation.status ? STATUS_VARIANTS[presentation.status] : null,
-        anchorId && 'timeline-anchor-target scroll-mt-28',
-        isRunningTool && 'ring-1 ring-sky-300'
+        'group relative max-w-3xl space-y-3 border-l border-slate-200/70 pl-5 text-slate-700',
+        anchorId && 'timeline-anchor-target scroll-mt-28'
       )}
       data-testid={`event-line-${event.event_type}`}
       data-category={category}
@@ -263,21 +197,22 @@ function EventLine({
       id={anchorId ? `event-${anchorId}` : undefined}
       tabIndex={anchorId ? -1 : undefined}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-white text-sky-500 shadow',
-            meta.iconWrapper
-          )}
-        >
-          <meta.icon className="h-4 w-4" />
+      <span
+        aria-hidden
+        className="absolute -left-[5px] top-3 h-2 w-2 rounded-full bg-slate-300"
+      />
+      <div className="flex items-start gap-4">
+        <div className={cn('relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center', meta.iconTone)}>
+          <meta.icon className="h-5 w-5" />
         </div>
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={cn('text-sm font-semibold text-slate-800', meta.headline)}>{presentation.headline}</p>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <p className={cn('font-semibold leading-tight text-slate-900', meta.headline, headlineSize)}>
+              {presentation.headline}
+            </p>
             <span
               className={cn(
-                'inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em]',
+                'text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-400',
                 meta.pill
               )}
             >
@@ -286,7 +221,9 @@ function EventLine({
             {presentation.status && <StatusBadge status={presentation.status} label={statusLabel} />}
           </div>
           {presentation.subheading && (
-            <p className="console-microcopy text-slate-400">{presentation.subheading}</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">
+              {presentation.subheading}
+            </p>
           )}
 
           {isToolCallStartDisplayEvent(event) ? (
@@ -302,9 +239,9 @@ function EventLine({
             </>
           )}
 
-          {!isToolCallStartDisplayEvent(event) && <EventMetadata event={event} />}
+          {!isToolCallStartDisplayEvent(event) && <EventMetadata event={event} accentClass={meta.accent} />}
 
-          <time className="block text-[10px] font-medium uppercase tracking-[0.3em] text-slate-300">
+          <time className="block text-[9px] font-medium uppercase tracking-[0.3em] text-slate-300">
             {timestamp}
           </time>
         </div>
@@ -364,8 +301,12 @@ function ToolCallContent({
       status: event.call_status === 'running' ? 'active' : 'default',
       elapsed: calculateElapsedLabel(baseTimestamp, streamTimestamp),
       content: (
-        <ContentBlock title={t('conversation.tool.timeline.liveOutput')} dataTestId={`tool-call-stream-${event.call_id}`}>
-          <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+        <ContentBlock
+          title={t('conversation.tool.timeline.liveOutput')}
+          dataTestId={`tool-call-stream-${event.call_id}`}
+          variant="compact"
+        >
+          <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90 sm:text-[9px]">
             {event.stream_content?.trim()}
           </pre>
         </ContentBlock>
@@ -406,8 +347,8 @@ function ToolCallContent({
       {statusLabel && (
         <p
           className={cn(
-            'text-sm font-medium',
-            event.call_status === 'error' ? 'text-destructive' : 'text-slate-600'
+            'text-[9px] font-medium text-slate-600 sm:text-[10px]',
+            event.call_status === 'error' ? 'text-destructive' : null
           )}
         >
           {statusLabel}
@@ -416,62 +357,65 @@ function ToolCallContent({
 
       <ToolCallTimeline items={timelineItems} locale={locale} />
 
-      <EventMetadata event={event} />
+      <EventMetadata event={event} accentClass="text-slate-400" />
     </div>
   );
 }
 
 function ToolCallTimeline({ items, locale }: { items: ToolTimelineItem[]; locale: string }) {
   return (
-    <ol className="relative space-y-4 border-l border-slate-200/70 pl-4">
-      {items.map((item, index) => (
-        <li key={`${item.id}-${index}`} className="relative">
-          <span
-            className={cn(
-              'absolute -left-2 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white shadow',
-              TOOL_TIMELINE_STATUS[item.status]
-            )}
-          />
-          <div
-            className={cn(
-              'space-y-2 rounded-2xl border border-transparent px-3 py-2 transition',
-              TOOL_TIMELINE_ITEM_WRAPPER[item.status]
-            )}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-slate-700">{item.title}</p>
-              {item.timestamp && (
-                <time className="console-microcopy text-slate-300">
-                  {formatTimestamp(item.timestamp, locale)}
-                </time>
-              )}
-              {item.elapsed && (
-                <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-300">
-                  {item.elapsed}
-                </span>
-              )}
+    <ol className="pl-0.5">
+      {items.map((item, index) => {
+        const isLast = index === items.length - 1;
+        return (
+          <li key={`${item.id}-${index}`} className="relative pl-2 pb-5 last:pb-0 sm:pl-3">
+            <div className="absolute left-0 top-0 flex h-full w-2 flex-col items-center sm:w-3">
+              <span
+                aria-hidden
+                className={cn('mt-1.5 h-2 w-2 rounded-full', TOOL_TIMELINE_STATUS[item.status])}
+              />
+              {!isLast && <span aria-hidden className="mt-2 flex-1 w-px bg-slate-200/70" />}
             </div>
-            {item.description && <p className="console-microcopy text-slate-400">{item.description}</p>}
-            {item.content}
-          </div>
-        </li>
-      ))}
+            <div className="pl-1 pr-2 space-y-1.5 sm:pl-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <p
+                  className={cn(
+                    'text-[9px] font-semibold leading-tight text-slate-800 sm:text-[10px]',
+                    item.status === 'success' && 'text-emerald-600',
+                    item.status === 'error' && 'text-destructive',
+                    item.status === 'active' && 'text-sky-600'
+                  )}
+                >
+                  {item.title}
+                </p>
+                {item.timestamp && (
+                  <time className="text-[8px] font-medium uppercase tracking-[0.2em] text-slate-400 sm:text-[9px]">
+                    {formatTimestamp(item.timestamp, locale)}
+                  </time>
+                )}
+                {item.elapsed && (
+                  <span className="text-[7px] font-semibold uppercase tracking-[0.3em] text-slate-300 sm:text-[8px]">
+                    {item.elapsed}
+                  </span>
+                )}
+              </div>
+              {item.description && (
+                <p className="text-[8px] uppercase tracking-[0.3em] text-slate-400 sm:text-[9px]">{item.description}</p>
+              )}
+              {item.content}
+            </div>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
 const TOOL_TIMELINE_STATUS: Record<ToolTimelineStatus, string> = {
-  default: 'bg-slate-200',
-  active: 'bg-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.25)] animate-pulse',
-  success: 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.2)]',
-  error: 'bg-destructive shadow-[0_0_0_4px_rgba(248,113,113,0.2)]',
-};
-
-const TOOL_TIMELINE_ITEM_WRAPPER: Record<ToolTimelineStatus, string> = {
-  default: 'bg-white/80',
-  active: 'border-sky-200/70 bg-sky-50/80 shadow-inner',
-  success: 'border-emerald-200/70 bg-emerald-50/80 shadow-inner',
-  error: 'border-destructive/20 bg-destructive/10',
+  default: 'bg-slate-300',
+  active: 'bg-sky-400 animate-pulse',
+  success: 'bg-emerald-400',
+  error: 'bg-destructive',
 };
 
 function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
@@ -539,62 +483,61 @@ const EVENT_STYLE_META: Record<
   EventCategory,
   {
     icon: typeof MessageSquare;
-    card: string;
-    iconWrapper: string;
+    iconTone: string;
     pill: string;
     headline: string;
+    accent: string;
     label: string;
   }
 > = {
   conversation: {
     icon: MessageSquare,
-    card: 'border-sky-200/80 bg-sky-50/70 dark:border-sky-500/30 dark:bg-sky-500/5',
-    iconWrapper: 'border-sky-200/80 bg-sky-100 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100',
-    pill: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-100',
-    headline: 'text-sky-900 dark:text-sky-100',
+    iconTone: 'text-sky-500',
+    pill: 'text-sky-400',
+    headline: 'text-sky-900',
+    accent: 'text-sky-400',
     label: 'Conversation',
   },
   plan: {
     icon: ClipboardList,
-    card: 'border-amber-200/80 bg-amber-50/70 dark:border-amber-500/25 dark:bg-amber-500/5',
-    iconWrapper: 'border-amber-200/80 bg-amber-100 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100',
-    pill: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
-    headline: 'text-amber-900 dark:text-amber-50',
+    iconTone: 'text-amber-500',
+    pill: 'text-amber-400',
+    headline: 'text-amber-900',
+    accent: 'text-amber-400',
     label: 'Planning',
   },
   tools: {
     icon: Wrench,
-    card: 'border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-500/25 dark:bg-emerald-500/5',
-    iconWrapper:
-      'border-emerald-200/80 bg-emerald-100 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100',
-    pill: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
-    headline: 'text-emerald-900 dark:text-emerald-50',
+    iconTone: 'text-emerald-500',
+    pill: 'text-emerald-400',
+    headline: 'text-emerald-900',
+    accent: 'text-emerald-400',
     label: 'Tools',
   },
   system: {
     icon: Cpu,
-    card: 'border-slate-200/80 bg-slate-50/80 dark:border-slate-600/40 dark:bg-slate-900/40',
-    iconWrapper: 'border-slate-200/80 bg-slate-100 text-slate-700 dark:border-slate-600/40 dark:bg-slate-800/60 dark:text-slate-200',
-    pill: 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-100',
-    headline: 'text-slate-900 dark:text-slate-100',
+    iconTone: 'text-slate-500',
+    pill: 'text-slate-400',
+    headline: 'text-slate-900',
+    accent: 'text-slate-400',
     label: 'System',
   },
   other: {
     icon: Info,
-    card: 'border-border bg-card/90',
-    iconWrapper: 'border-border bg-muted text-muted-foreground',
-    pill: 'bg-muted text-muted-foreground',
-    headline: 'text-foreground',
+    iconTone: 'text-slate-400',
+    pill: 'text-slate-400',
+    headline: 'text-slate-900',
+    accent: 'text-slate-400',
     label: 'Other',
   },
 };
 
-const STATUS_VARIANTS: Record<EventStatus, string> = {
-  success: 'border-emerald-400/50 bg-emerald-50/90 dark:border-emerald-500/40 dark:bg-emerald-500/10',
-  warning: 'border-amber-400/60 bg-amber-50/80 dark:border-amber-500/40 dark:bg-amber-500/10',
-  danger: 'border-destructive/40 bg-destructive/10 dark:border-destructive/40 dark:bg-destructive/20',
-  info: 'border-primary/40 bg-primary/10 dark:border-primary/40 dark:bg-primary/20',
-  pending: 'border-sky-300/50 bg-sky-50/80 dark:border-sky-500/40 dark:bg-sky-500/10',
+const HEADLINE_SIZES: Record<EventCategory, string> = {
+  conversation: 'text-2xl sm:text-3xl',
+  plan: 'text-xl sm:text-2xl',
+  tools: 'text-base sm:text-lg',
+  system: 'text-lg sm:text-xl',
+  other: 'text-lg',
 };
 
 function describeEvent(
@@ -760,22 +703,34 @@ function describeEvent(
   }
 }
 
-function EventMetadata({ event }: { event: DisplayEvent }) {
+function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClass?: string }) {
   const entries = getEventMetadata(event);
   if (!entries.length) return null;
 
+  const isToolEvent =
+    event.event_type === 'tool_call_start' || event.event_type === 'tool_call_complete';
+
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <dl
+      className={cn(
+        'flex flex-wrap gap-x-4 gap-y-1 uppercase tracking-[0.25em] text-slate-400',
+        isToolEvent ? 'text-[9px]' : 'text-[10px]'
+      )}
+    >
       {entries.map(({ label, value }) => (
-        <span
-          key={`${event.timestamp}-${label}`}
-          className="console-quiet-chip inline-flex items-center gap-1 text-[9px] tracking-[0.25em]"
-        >
-          <span>{label}</span>
-          <span className="text-slate-600 normal-case tracking-normal">{value}</span>
-        </span>
+        <div key={`${event.timestamp}-${label}`} className="flex items-center gap-2">
+          <dt className={cn('font-semibold', accentClass)}>{label}</dt>
+          <dd
+            className={cn(
+              'font-mono tracking-normal text-slate-500',
+              isToolEvent ? 'text-[9px]' : 'text-[11px]'
+            )}
+          >
+            {value}
+          </dd>
+        </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -839,8 +794,9 @@ function ToolArguments({
       title={t('conversation.tool.timeline.arguments')}
       tone="emerald"
       dataTestId={`tool-call-arguments-${callId}`}
+      variant="compact"
     >
-      <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-emerald-700 dark:text-emerald-200">
+      <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-current sm:text-[9px]">
         {formatted}
       </pre>
     </ContentBlock>
@@ -866,8 +822,9 @@ function ToolResult({
         title={t('conversation.tool.timeline.errorOutput')}
         tone="destructive"
         dataTestId={`tool-call-result-${callId}`}
+        variant="compact"
       >
-        <p className="text-xs font-medium text-destructive dark:text-destructive/80">{error}</p>
+        <p className="text-[9px] font-medium text-destructive dark:text-destructive/80 sm:text-[10px]">{error}</p>
       </ContentBlock>
     );
   }
@@ -881,8 +838,9 @@ function ToolResult({
       title={t('conversation.tool.timeline.result', { tool: toolName })}
       tone="emerald"
       dataTestId={`tool-call-result-${callId}`}
+      variant="compact"
     >
-      <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-emerald-700 dark:text-emerald-200">
+      <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-current sm:text-[9px]">
         {formatted}
       </pre>
     </ContentBlock>
@@ -895,33 +853,42 @@ function ContentBlock({
   tone = 'slate',
   dataTestId,
   scrollable = true,
+  variant = 'default',
 }: {
   title: string;
   children: ReactNode;
   tone?: 'emerald' | 'slate' | 'destructive';
   dataTestId?: string;
   scrollable?: boolean;
+  variant?: 'default' | 'compact';
 }) {
   const toneClasses = {
-    emerald:
-      'border-emerald-300/60 bg-emerald-50/80 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100',
-    slate:
-      'border-slate-200/80 bg-slate-50/80 text-slate-900 dark:border-slate-600/40 dark:bg-slate-900/40 dark:text-slate-100',
-    destructive:
-      'border-destructive/40 bg-destructive/10 text-destructive dark:border-destructive/40 dark:bg-destructive/20 dark:text-destructive/80',
+    emerald: 'border-emerald-300 text-emerald-600',
+    slate: 'border-slate-200 text-slate-600',
+    destructive: 'border-destructive/70 text-destructive',
   } as const;
+
+  const isCompact = variant === 'compact';
 
   return (
     <div
       className={cn(
-        'mt-2 rounded-xl border px-3 py-2 text-[11px] shadow-inner transition-colors sm:px-4',
+        'mt-3 space-y-2 border-l-2 pl-3 leading-snug',
+        isCompact ? 'text-[8px] sm:text-[9px]' : 'text-[10px] sm:text-[11px]',
         toneClasses[tone],
         scrollable && 'console-scrollbar max-h-36 overflow-y-auto pr-1'
       )}
       data-testid={dataTestId}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500/80">{title}</p>
-      <div className="mt-1.5 space-y-1 text-xs leading-snug text-slate-600">
+      <p
+        className={cn(
+          'font-semibold uppercase tracking-[0.3em] opacity-70',
+          isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[9px] sm:text-[10px]'
+        )}
+      >
+        {title}
+      </p>
+      <div className={cn('space-y-1', isCompact ? 'text-[8px] sm:text-[9px]' : 'text-[11px] sm:text-xs')}>
         {children}
       </div>
     </div>
@@ -933,27 +900,27 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
     success: {
       icon: CheckCircle2,
       label: 'Success',
-      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+      className: 'text-emerald-600',
     },
     warning: {
       icon: AlertTriangle,
       label: 'Warning',
-      className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+      className: 'text-amber-500',
     },
     danger: {
       icon: AlertTriangle,
       label: 'Error',
-      className: 'bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive/80',
+      className: 'text-destructive',
     },
     info: {
       icon: Info,
       label: 'Info',
-      className: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-100',
+      className: 'text-sky-500',
     },
     pending: {
       icon: Loader2,
       label: 'Pending',
-      className: 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-100',
+      className: 'text-sky-500',
     },
   };
 
@@ -962,7 +929,7 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em]',
+        'inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.25em] sm:text-xs',
         meta.className
       )}
     >

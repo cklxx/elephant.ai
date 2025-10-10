@@ -623,8 +623,6 @@ function ConversationPageContent() {
                         error={error}
                         reconnectAttempts={reconnectAttempts}
                         onReconnect={reconnect}
-                        sessionId={resolvedSessionId}
-                        taskId={taskId}
                       />
                     )}
                   </div>

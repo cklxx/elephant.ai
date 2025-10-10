@@ -100,6 +100,8 @@ export const ResearchPlanEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('research_plan'),
   plan_steps: z.array(z.string()),
   estimated_iterations: z.number(),
+  estimated_tools: z.array(z.string()).optional(),
+  estimated_duration_minutes: z.number().optional(),
 });
 
 // Step Started Event

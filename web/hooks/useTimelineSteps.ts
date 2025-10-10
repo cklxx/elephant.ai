@@ -18,7 +18,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
     const activeIterations = new Map<number, Partial<TimelineStep>>();
     const activeSteps = new Map<number, Partial<TimelineStep>>();
 
-    events.forEach((event) => {
+    events.forEach((event, index) => {
       // Research plan steps
       if (isStepStartedEvent(event)) {
         activeSteps.set(event.step_index, {
@@ -27,6 +27,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
           description: event.step_description,
           status: 'active',
           startTime: new Date(event.timestamp).getTime(),
+          anchorEventIndex: index,
         });
       }
 
@@ -42,6 +43,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
             startTime: step.startTime,
             endTime,
             duration: step.startTime ? endTime - step.startTime : undefined,
+            anchorEventIndex: step.anchorEventIndex ?? index,
           });
           activeSteps.delete(event.step_index);
         }
@@ -55,6 +57,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
           status: 'active',
           startTime: new Date(event.timestamp).getTime(),
           toolsUsed: [],
+          anchorEventIndex: index,
         });
       }
 
@@ -72,6 +75,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
             duration: iteration.startTime ? endTime - iteration.startTime : undefined,
             toolsUsed: iteration.toolsUsed,
             tokensUsed: event.tokens_used,
+            anchorEventIndex: iteration.anchorEventIndex ?? index,
           });
           activeIterations.delete(event.iteration);
         }
@@ -81,7 +85,9 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       if (isToolCallStartEvent(event)) {
         const iteration = activeIterations.get(event.iteration);
         if (iteration && iteration.toolsUsed) {
-          iteration.toolsUsed.push(event.tool_name);
+          if (!iteration.toolsUsed.includes(event.tool_name)) {
+            iteration.toolsUsed.push(event.tool_name);
+          }
         }
       }
 
@@ -100,6 +106,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
             duration: iteration.startTime ? endTime - iteration.startTime : undefined,
             toolsUsed: iteration.toolsUsed,
             error: event.error,
+            anchorEventIndex: iteration.anchorEventIndex ?? index,
           });
           activeIterations.delete(event.iteration);
         }
@@ -116,6 +123,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
           status: 'active',
           startTime: iteration.startTime,
           toolsUsed: iteration.toolsUsed,
+          anchorEventIndex: iteration.anchorEventIndex,
         });
       }
     });
@@ -128,6 +136,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
           description: step.description,
           status: 'active',
           startTime: step.startTime,
+          anchorEventIndex: step.anchorEventIndex,
         });
       }
     });
