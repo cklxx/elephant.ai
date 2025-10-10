@@ -11,6 +11,7 @@ export interface AggregatedToolCall {
   call_id: string;
   tool_name: string;
   arguments: Record<string, any>;
+  arguments_preview?: string;
   status: 'running' | 'streaming' | 'complete' | 'error';
   stream_chunks: string[];
   result?: string;
@@ -76,6 +77,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
         call_id: startEvent.call_id,
         tool_name: startEvent.tool_name,
         arguments: startEvent.arguments,
+        arguments_preview: startEvent.arguments_preview,
         status: 'running',
         stream_chunks: [],
         timestamp: startEvent.timestamp,
@@ -103,6 +105,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
           call_id: completeEvent.call_id,
           tool_name: completeEvent.tool_name,
           arguments: {},
+          arguments_preview: undefined,
           status: completeEvent.error ? 'error' : 'complete',
           stream_chunks: [],
           result: completeEvent.result,

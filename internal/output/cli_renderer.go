@@ -20,7 +20,8 @@ type CLIRenderer struct {
 	// Note: Whether to show output at all is controlled by OutputContext.Level:
 	// - LevelCore: Always show tool calls
 	// - LevelSubagent/LevelParallel: Hide tool details, show progress summary only
-	verbose bool
+	verbose   bool
+	formatter *domain.ToolFormatter
 }
 
 // NewCLIRenderer creates a new CLI renderer
@@ -31,7 +32,8 @@ func NewCLIRenderer(verbose bool) *CLIRenderer {
 	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
 
 	return &CLIRenderer{
-		verbose: verbose,
+		verbose:   verbose,
+		formatter: domain.NewToolFormatter(),
 	}
 }
 
@@ -86,12 +88,10 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 		Bold(true)
 	toolNameStyle := lipgloss.NewStyle().Bold(true)
 
-	// In verbose mode, show args; in concise mode, just show tool name
-	if r.verbose {
-		argsStr := formatArgsInline(args)
-		if argsStr != "" {
-			return fmt.Sprintf("%s%s %s(%s)\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName), argsStr)
-		}
+	presentation := r.formatter.PrepareArgs(toolName, args)
+
+	if r.verbose && presentation.ShouldDisplay && presentation.InlinePreview != "" {
+		return fmt.Sprintf("%s%s %s(%s)\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName), presentation.InlinePreview)
 	}
 
 	return fmt.Sprintf("%s%s %s\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName))
@@ -352,27 +352,6 @@ func renderPurpleGradient(text string) string {
 	}
 
 	return result.String()
-}
-
-func formatArgsInline(args map[string]interface{}) string {
-	if len(args) == 0 {
-		return ""
-	}
-
-	var parts []string
-	for k, v := range args {
-		valStr := fmt.Sprintf("%v", v)
-		if len(valStr) > 60 {
-			valStr = valStr[:57] + "..."
-		}
-		parts = append(parts, fmt.Sprintf("%s=%s", k, valStr))
-	}
-
-	result := strings.Join(parts, ", ")
-	if len(result) > 80 {
-		result = result[:77] + "..."
-	}
-	return result
 }
 
 func renderMarkdown(content string) string {

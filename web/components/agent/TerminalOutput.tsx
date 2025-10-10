@@ -273,7 +273,7 @@ function ToolCallContent({
   t: (key: TranslationKey, params?: TranslationParams) => string;
   locale: string;
 }) {
-  const argsPreview = formatArgumentsPreview(event.arguments);
+  const argsPreview = formatArgumentsPreview(event.arguments_preview ?? event.arguments);
   const hasArgsPreview = Boolean(argsPreview);
   const hasStream = Boolean(event.stream_content && event.stream_content.trim().length > 0);
   const hasResult = Boolean(event.completion_result && String(event.completion_result).trim().length > 0);

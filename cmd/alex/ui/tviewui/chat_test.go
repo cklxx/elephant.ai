@@ -370,6 +370,7 @@ func TestCostCommandScenarios(t *testing.T) {
 		message := snapshot.Messages[len(snapshot.Messages)-1].Content
 		require.Contains(t, message, "Cost for session session-xyz")
 		require.Contains(t, message, "$0.4321")
+		require.InDelta(t, 0.4321, snapshot.Metrics.TotalCost, 1e-6)
 		require.Equal(t, 1, tracker.callCount())
 	})
 }

@@ -18,6 +18,7 @@ import (
 type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
 	logger      *utils.Logger
+	formatter   *domain.ToolFormatter
 }
 
 // NewSSEHandler creates a new SSE handler
@@ -25,6 +26,7 @@ func NewSSEHandler(broadcaster *app.EventBroadcaster) *SSEHandler {
 	return &SSEHandler{
 		broadcaster: broadcaster,
 		logger:      utils.NewComponentLogger("SSEHandler"),
+		formatter:   domain.NewToolFormatter(),
 	}
 }
 
@@ -138,8 +140,16 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["iteration"] = e.Iteration
 		data["call_id"] = e.CallID
 		data["tool_name"] = e.ToolName
-		if len(e.Arguments) > 0 {
-			data["arguments"] = sanitizeArguments(e.Arguments)
+		presentation := h.formatter.PrepareArgs(e.ToolName, e.Arguments)
+		if len(presentation.Args) > 0 {
+			sanitizedArgs := make(map[string]interface{}, len(presentation.Args))
+			for key, value := range presentation.Args {
+				sanitizedArgs[key] = value
+			}
+			data["arguments"] = sanitizeArguments(sanitizedArgs)
+		}
+		if presentation.InlinePreview != "" {
+			data["arguments_preview"] = sanitizeValue("preview", presentation.InlinePreview)
 		}
 
 	case *domain.ToolCallCompleteEvent:

@@ -46,6 +46,7 @@ export interface ToolCallStartEvent extends AgentEvent {
   call_id: string;
   tool_name: string;
   arguments: Record<string, any>;
+  arguments_preview?: string;
 }
 
 // Tool Call Stream Event - emitted during tool execution (for streaming tools)
