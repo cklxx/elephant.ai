@@ -1,40 +1,42 @@
 'use client';
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { TaskAnalysisEvent } from '@/lib/types';
 import { Target } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 interface TaskAnalysisCardProps {
   event: TaskAnalysisEvent;
 }
 
 export function TaskAnalysisCard({ event }: TaskAnalysisCardProps) {
+  const t = useTranslation();
+
   return (
-    <Card className="console-card border-l-4 border-primary animate-fadeIn overflow-hidden">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-primary rounded-md">
-            <Target className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <div>
-            <h3 className="console-heading text-lg">
-              Task Analysis
-            </h3>
-            <p className="console-caption">
-              {event.action_name}
-            </p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="console-card p-4">
-          <p className="console-subheading text-sm mb-2 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-            Goal:
-          </p>
-          <p className="console-body text-sm">{event.goal}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <section className="space-y-4 px-2 py-3" data-testid="task-analysis-event">
+      <header className="flex flex-wrap items-baseline gap-3 text-slate-900">
+        <Target className="h-6 w-6 text-slate-300" aria-hidden />
+        <h3 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
+          {t('events.taskAnalysis.title')}
+        </h3>
+        <span className="text-[10px] uppercase tracking-[0.35em] text-slate-400">
+          {t('events.taskAnalysis.label')}
+        </span>
+      </header>
+
+      {event.action_name && (
+        <p className="text-base font-medium leading-snug text-slate-700">
+          {event.action_name}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400">
+          {t('events.taskAnalysis.goal')}
+        </p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
+          {event.goal}
+        </p>
+      </div>
+    </section>
   );
 }

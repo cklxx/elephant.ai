@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -29,6 +29,7 @@ export interface TimelineStep {
   toolsUsed?: string[];
   tokensUsed?: number;
   error?: string;
+  anchorEventIndex?: number;
 }
 
 interface ResearchTimelineProps {
@@ -48,6 +49,34 @@ export function ResearchTimeline({
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const t = useTranslation();
 
+  const { completedCount, totalCount, progressPercent, overallDurationLabel } = useMemo(() => {
+    const total = steps.length;
+    const completed = steps.filter((step) => step.status === 'complete').length;
+    const progress = total === 0 ? 0 : Math.min(100, Math.max(0, Math.round((completed / total) * 100)));
+
+    const startTimes = steps
+      .map((step) => step.startTime)
+      .filter((value): value is number => typeof value === 'number');
+    const endTimes = steps
+      .map((step) => step.endTime)
+      .filter((value): value is number => typeof value === 'number');
+
+    const earliestStart = startTimes.length > 0 ? Math.min(...startTimes) : null;
+    const latestEnd = endTimes.length > 0 ? Math.max(...endTimes) : null;
+
+    const durationLabel =
+      earliestStart !== null && latestEnd !== null && latestEnd >= earliestStart
+        ? formatDuration(latestEnd - earliestStart)
+        : null;
+
+    return {
+      completedCount: completed,
+      totalCount: total,
+      progressPercent: progress,
+      overallDurationLabel: durationLabel,
+    };
+  }, [steps]);
+
   // Auto-scroll to active step
   useEffect(() => {
     if (activeStepRef.current) {
@@ -56,7 +85,7 @@ export function ResearchTimeline({
         block: 'center',
       });
     }
-  }, [steps]);
+  }, [steps, focusedStepId]);
 
   const toggleExpand = (stepId: string) => {
     setExpandedSteps((prev) => {
@@ -72,9 +101,34 @@ export function ResearchTimeline({
 
   return (
     <Card className={cn('glass-card p-6 shadow-medium', className)}>
-      <div className="mb-4">
+      <div className="mb-4 space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">{t('timeline.card.title')}</h3>
         <p className="console-microcopy mt-1">{t('timeline.card.subtitle')}</p>
+        {totalCount > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400">
+              <span>{t('timeline.card.progressLabel')}</span>
+              <span className="text-gray-500 tracking-[0.1em]">
+                {t('timeline.card.progressSummary', {
+                  completed: completedCount,
+                  total: totalCount,
+                })}
+              </span>
+            </div>
+            <div className="relative h-2 rounded-full bg-gray-100">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                style={{ width: `${progressPercent}%` }}
+                aria-hidden="true"
+              />
+            </div>
+            {overallDurationLabel && (
+              <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-gray-400">
+                {t('timeline.card.totalDuration', { duration: overallDurationLabel })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -105,7 +159,7 @@ export function ResearchTimeline({
               )}
 
               <div
-                ref={isActive ? activeStepRef : null}
+                ref={isActive || isFocused ? activeStepRef : null}
                 role="button"
                 tabIndex={0}
                 aria-pressed={isFocused || isActive}
@@ -124,6 +178,7 @@ export function ResearchTimeline({
                   'hover:bg-muted',
                   isFocused && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
                 )}
+                aria-current={isFocused ? 'step' : undefined}
               >
                 {/* Status icon */}
                 <div className="flex-shrink-0 z-10">

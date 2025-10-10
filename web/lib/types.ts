@@ -98,6 +98,8 @@ export interface ResearchPlanEvent extends AgentEvent {
   event_type: 'research_plan';
   plan_steps: string[];
   estimated_iterations: number;
+  estimated_tools?: string[];
+  estimated_duration_minutes?: number;
 }
 
 // Step Started Event - emitted when a research step begins
@@ -169,6 +171,7 @@ export interface ResearchPlan {
   steps: string[];
   estimated_tools: string[];
   estimated_iterations: number;
+  estimated_duration_minutes?: number;
 }
 
 export interface ApprovePlanRequest {

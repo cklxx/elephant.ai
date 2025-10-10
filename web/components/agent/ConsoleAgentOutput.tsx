@@ -2,16 +2,14 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
-import { isTaskCompleteEvent, isResearchPlanEvent } from '@/lib/typeGuards';
+import { isTaskCompleteEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
-import { ResearchPlanCard } from './ResearchPlanCard';
 import { ResearchTimeline } from './ResearchTimeline';
 import { WebViewport } from './WebViewport';
 import { DocumentCanvas, DocumentContent, ViewMode } from './DocumentCanvas';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useToolOutputs } from '@/hooks/useToolOutputs';
-import { usePlanApproval } from '@/hooks/usePlanApproval';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
@@ -23,9 +21,6 @@ interface ConsoleAgentOutputProps {
   error?: string | null;
   reconnectAttempts?: number;
   onReconnect?: () => void;
-  sessionId: string | null;
-  taskId: string | null;
-  autoApprovePlan?: boolean;
 }
 
 export function ConsoleAgentOutput({
@@ -35,62 +30,62 @@ export function ConsoleAgentOutput({
   error,
   reconnectAttempts,
   onReconnect,
-  sessionId,
-  taskId,
-  autoApprovePlan = false,
 }: ConsoleAgentOutputProps) {
   const t = useTranslation();
   const timelineSteps = useTimelineSteps(events);
   const toolOutputs = useToolOutputs(events);
   const [activeTab, setActiveTab] = useState<'timeline' | 'events' | 'document'>('timeline');
   const [documentViewMode, setDocumentViewMode] = useState<ViewMode>('default');
+  const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
+  const [hasUserSelectedStep, setHasUserSelectedStep] = useState(false);
+
+  const hasTimeline = timelineSteps.length > 0;
+  const activeTimelineStep = useMemo(
+    () => timelineSteps.find((step) => step.status === 'active') ?? null,
+    [timelineSteps]
+  );
+  const latestTimelineStep = useMemo(
+    () => (timelineSteps.length > 0 ? timelineSteps[timelineSteps.length - 1] : null),
+    [timelineSteps]
+  );
+  const fallbackTimelineStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
+  const focusedTimelineStep = useMemo(
+    () => (focusedStepId ? timelineSteps.find((step) => step.id === focusedStepId) ?? null : null),
+    [timelineSteps, focusedStepId]
+  );
+  const focusedEventIndex = focusedTimelineStep?.anchorEventIndex ?? null;
 
   // Extract research plan from events
-  const researchPlan = useMemo(() => {
-    const planEvent = events.find(isResearchPlanEvent);
-    if (!planEvent) return null;
-
-    return {
-      goal: t('agent.output.plan.defaultGoal'),
-      steps: planEvent.plan_steps,
-      estimated_tools: [], // Could be inferred from past events
-      estimated_iterations: planEvent.estimated_iterations,
-    };
-  }, [events, t]);
-
-  // Plan approval flow
-  const {
-    state: planState,
-    currentPlan,
-    isSubmitting,
-    handlePlanGenerated,
-    handleApprove,
-    handleModify,
-    handleReject,
-  } = usePlanApproval({
-    sessionId,
-    taskId,
-    onApproved: () => {
-      console.log('Plan approved, execution started');
-    },
-    onRejected: (reason) => {
-      console.log('Plan rejected', reason);
-    },
-  });
-
-  // Auto-generate plan when research_plan event arrives
   useEffect(() => {
-    if (researchPlan && planState === 'idle') {
-      handlePlanGenerated(researchPlan);
+    if (!hasTimeline) {
+      if (focusedStepId !== null) {
+        setFocusedStepId(null);
+      }
+      if (hasUserSelectedStep) {
+        setHasUserSelectedStep(false);
+      }
+      return;
     }
-  }, [handlePlanGenerated, researchPlan, planState]);
 
-  // Auto-approve if enabled
-  useEffect(() => {
-    if (autoApprovePlan && planState === 'awaiting_approval' && currentPlan) {
-      handleApprove();
+    if (!hasUserSelectedStep) {
+      if (fallbackTimelineStepId !== focusedStepId) {
+        setFocusedStepId(fallbackTimelineStepId);
+      }
+      return;
     }
-  }, [autoApprovePlan, currentPlan, handleApprove, planState]);
+
+    const exists = timelineSteps.some((step) => step.id === focusedStepId);
+    if (!exists) {
+      setFocusedStepId(fallbackTimelineStepId);
+      setHasUserSelectedStep(false);
+    }
+  }, [
+    hasTimeline,
+    timelineSteps,
+    focusedStepId,
+    hasUserSelectedStep,
+    fallbackTimelineStepId,
+  ]);
 
   // Build document from task completion
   const document = useMemo((): DocumentContent | null => {
@@ -129,22 +124,6 @@ export function ConsoleAgentOutput({
         </div>
       </div>
 
-      {/* Plan approval card (if awaiting approval) */}
-      {planState === 'awaiting_approval' && currentPlan && !autoApprovePlan && (
-        <ResearchPlanCard
-          plan={currentPlan}
-          loading={isSubmitting}
-          onApprove={handleApprove}
-          onModify={handleModify}
-          onReject={handleReject}
-        />
-      )}
-
-      {/* Plan summary (after approval) */}
-      {planState === 'approved' && currentPlan && (
-        <ResearchPlanCard plan={currentPlan} readonly />
-      )}
-
       {/* Main content area with tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left pane: Timeline/Events */}
@@ -168,7 +147,14 @@ export function ConsoleAgentOutput({
 
               <TabsContent value="timeline" className="mt-0">
                 {timelineSteps.length > 0 ? (
-                  <ResearchTimeline steps={timelineSteps} />
+                  <ResearchTimeline
+                    steps={timelineSteps}
+                    focusedStepId={focusedStepId}
+                    onStepSelect={(stepId) => {
+                      setFocusedStepId(stepId);
+                      setHasUserSelectedStep(true);
+                    }}
+                  />
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
                     <Activity className="h-8 w-8 mx-auto mb-2 opacity-20" />
@@ -178,7 +164,16 @@ export function ConsoleAgentOutput({
               </TabsContent>
 
               <TabsContent value="events" className="mt-0">
-                <VirtualizedEventList events={events} autoScroll={true} />
+                <VirtualizedEventList
+                  events={events}
+                  autoScroll={!hasUserSelectedStep}
+                  focusedEventIndex={focusedEventIndex}
+                  onJumpToLatest={() => {
+                    const targetStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
+                    setFocusedStepId(targetStepId);
+                    setHasUserSelectedStep(false);
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="document" className="mt-0">
