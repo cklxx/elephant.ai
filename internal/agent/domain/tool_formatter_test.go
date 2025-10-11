@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -16,91 +17,91 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 		args     map[string]any
 		wants    []string
 	}{
-                {
-                        name:     "code execute with code",
-                        toolName: "code_execute",
-                        args: map[string]any{
-                                "language": "python",
-                                "code":     "print('hello')\nprint('world')",
-                        },
-                        wants: []string{"language=python", "lines=2", "chars="},
-                },
-                {
-                        name:     "code execute without code",
-                        toolName: "code_execute",
-                        args:     map[string]any{"language": "go"},
-                        wants:    []string{"code_execute(language=go"},
-                },
-                {
-                        name:     "bash",
-                        toolName: "bash",
-                        args:     map[string]any{"command": "go test ./..."},
-                        wants:    []string{"bash(command=go test ./...)"},
-                },
-                {
-                        name:     "file_read with window",
-                        toolName: "file_read",
-                        args: map[string]any{
-                                "file_path": "README.md",
-                                "offset":    float64(10),
-                                "limit":     5,
-                        },
-                        wants: []string{"file_read(limit=5", "offset=10", "path=README.md"},
-                },
-                {
-                        name:     "file_edit",
-                        toolName: "file_edit",
-                        args: map[string]any{
-                                "file_path":  "main.go",
-                                "old_string": "fmt.Println('old')",
-                                "new_string": "fmt.Println('new')",
-                        },
-                        wants: []string{"file_edit(", "path=main.go", "old_lines=1", "new_lines=1"},
-                },
-                {
-                        name:     "file_write",
-                        toolName: "file_write",
-                        args: map[string]any{
-                                "file_path": "main.go",
-                                "content":   "line1\nline2",
-                        },
-                        wants: []string{"file_write(", "path=main.go", "lines=2"},
-                },
-                {
-                        name:     "grep",
-                        toolName: "grep",
-                        args: map[string]any{
-                                "pattern": strings.Repeat("a", 50),
-                                "path":    "./internal",
-                        },
-                        wants: []string{"grep(", "pattern="},
-                },
-                {
-                        name:     "find",
-                        toolName: "find",
-                        args: map[string]any{
-                                "pattern": "*.go",
-                                "path":    "./cmd",
-                        },
-                        wants: []string{"find(", "pattern=*.go", "path=./cmd"},
-                },
-                {
-                        name:     "web_search",
-                        toolName: "web_search",
-                        args: map[string]any{
-                                "query":       strings.Repeat("search", 15),
-                                "max_results": 3,
-                        },
-                        wants: []string{"web_search(", "max_results=3", "query="},
-                },
-                {
-                        name:     "web_fetch",
-                        toolName: "web_fetch",
-                        args: map[string]any{
-                                "url": "https://example.com/" + strings.Repeat("path", 20),
-                        },
-                        wants: []string{"web_fetch(url=https://example.com/"},
-                },
+		{
+			name:     "code execute with code",
+			toolName: "code_execute",
+			args: map[string]any{
+				"language": "python",
+				"code":     "print('hello')\nprint('world')",
+			},
+			wants: []string{"language=python", "lines=2", "chars="},
+		},
+		{
+			name:     "code execute without code",
+			toolName: "code_execute",
+			args:     map[string]any{"language": "go"},
+			wants:    []string{"code_execute(language=go"},
+		},
+		{
+			name:     "bash",
+			toolName: "bash",
+			args:     map[string]any{"command": "go test ./..."},
+			wants:    []string{"bash(command=go test ./...)"},
+		},
+		{
+			name:     "file_read with window",
+			toolName: "file_read",
+			args: map[string]any{
+				"file_path": "README.md",
+				"offset":    float64(10),
+				"limit":     5,
+			},
+			wants: []string{"file_read(limit=5", "offset=10", "path=README.md"},
+		},
+		{
+			name:     "file_edit",
+			toolName: "file_edit",
+			args: map[string]any{
+				"file_path":  "main.go",
+				"old_string": "fmt.Println('old')",
+				"new_string": "fmt.Println('new')",
+			},
+			wants: []string{"file_edit(", "path=main.go", "old_lines=1", "new_lines=1"},
+		},
+		{
+			name:     "file_write",
+			toolName: "file_write",
+			args: map[string]any{
+				"file_path": "main.go",
+				"content":   "line1\nline2",
+			},
+			wants: []string{"file_write(", "path=main.go", "lines=2"},
+		},
+		{
+			name:     "grep",
+			toolName: "grep",
+			args: map[string]any{
+				"pattern": strings.Repeat("a", 50),
+				"path":    "./internal",
+			},
+			wants: []string{"grep(", "pattern="},
+		},
+		{
+			name:     "find",
+			toolName: "find",
+			args: map[string]any{
+				"pattern": "*.go",
+				"path":    "./cmd",
+			},
+			wants: []string{"find(", "pattern=*.go", "path=./cmd"},
+		},
+		{
+			name:     "web_search",
+			toolName: "web_search",
+			args: map[string]any{
+				"query":       strings.Repeat("search", 15),
+				"max_results": 3,
+			},
+			wants: []string{"web_search(", "max_results=3", "query="},
+		},
+		{
+			name:     "web_fetch",
+			toolName: "web_fetch",
+			args: map[string]any{
+				"url": "https://example.com/" + strings.Repeat("path", 20),
+			},
+			wants: []string{"web_fetch(url=https://example.com/"},
+		},
 		{
 			name:     "think structured",
 			toolName: "think",
@@ -117,57 +118,57 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			},
 			wants: []string{"pondering"},
 		},
-                {
-                        name:     "todo_update",
-                        toolName: "todo_update",
-                        args:     map[string]any{},
-                        wants:    []string{"todo_update"},
-                },
-                {
-                        name:     "todo_read",
-                        toolName: "todo_read",
-                        args:     map[string]any{"path": "TODO.md"},
-                        wants:    []string{"todo_read(path=TODO.md)"},
-                },
-                {
-                        name:     "subagent with tasks",
-                        toolName: "subagent",
-                        args: map[string]any{
-                                "subtasks": []any{"task1", "task2"},
-                                "mode":     "sequential",
-                        },
-                        wants: []string{"subagent(mode=sequential", "tasks=2"},
-                },
-                {
-                        name:     "subagent without tasks",
-                        toolName: "subagent",
-                        args:     map[string]any{},
+		{
+			name:     "todo_update",
+			toolName: "todo_update",
+			args:     map[string]any{},
+			wants:    []string{"todo_update"},
+		},
+		{
+			name:     "todo_read",
+			toolName: "todo_read",
+			args:     map[string]any{"path": "TODO.md"},
+			wants:    []string{"todo_read(path=TODO.md)"},
+		},
+		{
+			name:     "subagent with tasks",
+			toolName: "subagent",
+			args: map[string]any{
+				"subtasks": []any{"task1", "task2"},
+				"mode":     "sequential",
+			},
+			wants: []string{"subagent(mode=sequential", "tasks=2"},
+		},
+		{
+			name:     "subagent without tasks",
+			toolName: "subagent",
+			args:     map[string]any{},
 			wants:    []string{"subagent"},
 		},
-                {
-                        name:     "git commit single arg",
-                        toolName: "git_commit",
-                        args:     map[string]any{"message": "Fix bug"},
-                        wants:    []string{"git_commit(message=Fix bug)"},
-                },
-                {
-                        name:     "git pr truncates long body",
-                        toolName: "git_pr",
-                        args: map[string]any{
-                                "title": "Update",
-                                "body":  strings.Repeat("a", 220),
-                        },
-                        wants: []string{"git_pr(", "body=", "(+"},
-                },
-                {
-                        name:     "unknown",
-                        toolName: "custom_tool",
-                        args: map[string]any{
-                                "flag":  true,
-                                "count": 10,
-                        },
-                        wants: []string{"custom_tool(", "count=10", "flag=true"},
-                },
+		{
+			name:     "git commit single arg",
+			toolName: "git_commit",
+			args:     map[string]any{"message": "Fix bug"},
+			wants:    []string{"git_commit(message=Fix bug)"},
+		},
+		{
+			name:     "git pr truncates long body",
+			toolName: "git_pr",
+			args: map[string]any{
+				"title": "Update",
+				"body":  strings.Repeat("a", 220),
+			},
+			wants: []string{"git_pr(", "body=", "(+"},
+		},
+		{
+			name:     "unknown",
+			toolName: "custom_tool",
+			args: map[string]any{
+				"flag":  true,
+				"count": 10,
+			},
+			wants: []string{"custom_tool(", "count=10", "flag=true"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -223,15 +224,22 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			name:     "bash single line",
 			toolName: "bash",
 			success:  true,
-			content:  "ok",
+			content:  bashContent("echo", "ok", "", 0),
 			wants:    []string{"→ ok"},
 		},
 		{
 			name:     "bash multi line",
 			toolName: "bash",
 			success:  true,
-			content:  "line1\nline2",
-			wants:    []string{"2 lines output"},
+			content:  bashContent("echo", "line1\nline2", "", 0),
+			wants:    []string{"stdout 2 lines"},
+		},
+		{
+			name:     "bash stderr",
+			toolName: "bash",
+			success:  true,
+			content:  bashContent("cmd", "", "permission denied", 1),
+			wants:    []string{"exit 1", "stderr: permission denied"},
 		},
 		{
 			name:     "file_read",
@@ -339,4 +347,8 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			}
 		})
 	}
+}
+
+func bashContent(command, stdout, stderr string, exitCode int) string {
+	return fmt.Sprintf(`{"command":%q,"stdout":%q,"stderr":%q,"exit_code":%d}`, command, stdout, stderr, exitCode)
 }

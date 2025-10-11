@@ -3,10 +3,12 @@ package output
 import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -264,6 +266,12 @@ func (r *CLIRenderer) formatSearchOutput(toolName, result, indent string, style 
 func (r *CLIRenderer) formatExecutionOutput(toolName, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
 
+	if toolName == "bash" {
+		if formatted, ok := r.formatBashExecutionOutput(cleaned, indent, style); ok {
+			return formatted
+		}
+	}
+
 	// Show execution output with proper indentation
 	if r.verbose {
 		// In verbose mode, show more output
@@ -288,6 +296,92 @@ func (r *CLIRenderer) formatExecutionOutput(toolName, result, indent string, sty
 		preview = preview[:97] + "..."
 	}
 	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
+}
+
+func (r *CLIRenderer) formatBashExecutionOutput(result, indent string, style lipgloss.Style) (string, bool) {
+	type bashPayload struct {
+		Command  string `json:"command"`
+		Stdout   string `json:"stdout"`
+		Stderr   string `json:"stderr"`
+		ExitCode *int   `json:"exit_code"`
+	}
+
+	var payload bashPayload
+	if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		return "", false
+	}
+
+	stdout := strings.TrimRight(payload.Stdout, "\n")
+	stderr := strings.TrimRight(payload.Stderr, "\n")
+	exitCode := 0
+	if payload.ExitCode != nil {
+		exitCode = *payload.ExitCode
+	}
+
+	var summaryParts []string
+	summaryParts = append(summaryParts, fmt.Sprintf("exit %d", exitCode))
+
+	trimmedStdout := strings.TrimSpace(stdout)
+	if trimmedStdout != "" {
+		stdoutLines := countLines(trimmedStdout)
+		if stdoutLines == 1 && utf8.RuneCountInString(trimmedStdout) <= 80 {
+			summaryParts = append(summaryParts, trimmedStdout)
+		} else {
+			summaryParts = append(summaryParts, fmt.Sprintf("stdout %d %s", stdoutLines, pluralize("line", stdoutLines)))
+		}
+	} else {
+		summaryParts = append(summaryParts, "stdout empty")
+	}
+
+	trimmedStderr := strings.TrimSpace(stderr)
+	if trimmedStderr != "" {
+		stderrLines := countLines(trimmedStderr)
+		if stderrLines == 1 && utf8.RuneCountInString(trimmedStderr) <= 80 {
+			summaryParts = append(summaryParts, fmt.Sprintf("stderr: %s", trimmedStderr))
+		} else {
+			summaryParts = append(summaryParts, fmt.Sprintf("stderr %d %s", stderrLines, pluralize("line", stderrLines)))
+		}
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", "))))
+
+	if r.verbose {
+		if stdout != "" {
+			r.writeVerboseStream(&output, indent, style, "stdout", stdout)
+		}
+		if stderr != "" {
+			r.writeVerboseStream(&output, indent, style, "stderr", stderr)
+		}
+	}
+
+	return output.String(), true
+}
+
+func (r *CLIRenderer) writeVerboseStream(builder *strings.Builder, indent string, style lipgloss.Style, label string, content string) {
+	builder.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(label+":")))
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if i >= 10 {
+			builder.WriteString(fmt.Sprintf("%s      %s\n", indent, style.Render(fmt.Sprintf("... (%d more lines)", len(lines)-10))))
+			break
+		}
+		builder.WriteString(fmt.Sprintf("%s      %s\n", indent, style.Render(line)))
+	}
+}
+
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	return strings.Count(content, "\n") + 1
+}
+
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
 }
 
 func (r *CLIRenderer) formatWebOutput(toolName, result, indent string, style lipgloss.Style) string {

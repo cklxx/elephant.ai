@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -302,6 +303,13 @@ func countLines(value string) int {
 	return strings.Count(value, "\n") + 1
 }
 
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
+}
+
 // formatThinkCall shows FULL thought - user needs to see agent's reasoning
 func (tf *ToolFormatter) formatThinkCall(args map[string]any) string {
 	thought := tf.getStringArg(args, "thought", "")
@@ -477,21 +485,74 @@ func (tf *ToolFormatter) formatCodeExecuteResult(content string) string {
 
 // formatBashResult shows command output summary
 func (tf *ToolFormatter) formatBashResult(content string) string {
-	lines := strings.Split(strings.TrimSpace(content), "\n")
+	type bashPayload struct {
+		Command  string `json:"command"`
+		Stdout   string `json:"stdout"`
+		Stderr   string `json:"stderr"`
+		ExitCode *int   `json:"exit_code"`
+	}
 
-	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+	var payload bashPayload
+	if err := json.Unmarshal([]byte(content), &payload); err != nil {
+		// Fallback to legacy behaviour when payload is plain text
+		lines := strings.Split(strings.TrimSpace(content), "\n")
+		if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+			return "  → Success (no output)"
+		}
+		if len(lines) == 1 {
+			output := lines[0]
+			if len(output) > 100 {
+				output = output[:100] + "..."
+			}
+			return fmt.Sprintf("  → %s", output)
+		}
+		return fmt.Sprintf("  → %d lines output", len(lines))
+	}
+
+	stdout := strings.TrimSpace(payload.Stdout)
+	stderr := strings.TrimSpace(payload.Stderr)
+	exitCode := 0
+	hasExit := false
+	if payload.ExitCode != nil {
+		exitCode = *payload.ExitCode
+		hasExit = true
+	}
+
+	var parts []string
+
+	if hasExit && exitCode != 0 {
+		parts = append(parts, fmt.Sprintf("exit %d", exitCode))
+	}
+
+	if stdout != "" {
+		stdoutLines := countLines(stdout)
+		if stdoutLines == 1 && utf8.RuneCountInString(stdout) <= 100 {
+			parts = append(parts, stdout)
+		} else {
+			parts = append(parts, fmt.Sprintf("stdout %d %s", stdoutLines, pluralize("line", stdoutLines)))
+		}
+	}
+
+	if stderr != "" {
+		stderrLines := countLines(stderr)
+		if stderrLines == 1 && utf8.RuneCountInString(stderr) <= 80 {
+			parts = append(parts, fmt.Sprintf("stderr: %s", stderr))
+		} else {
+			parts = append(parts, fmt.Sprintf("stderr %d %s", stderrLines, pluralize("line", stderrLines)))
+		}
+	}
+
+	if len(parts) == 0 {
+		if hasExit {
+			if exitCode == 0 {
+				return "  → Success (no output)"
+			}
+			return fmt.Sprintf("  → exit %d", exitCode)
+		}
 		return "  → Success (no output)"
 	}
 
-	if len(lines) == 1 {
-		output := lines[0]
-		if len(output) > 100 {
-			output = output[:100] + "..."
-		}
-		return fmt.Sprintf("  → %s", output)
-	}
-
-	return fmt.Sprintf("  → %d lines output", len(lines))
+	return fmt.Sprintf("  → %s", strings.Join(parts, ", "))
 }
 
 // formatFileWriteResult shows success
