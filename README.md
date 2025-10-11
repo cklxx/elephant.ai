@@ -36,6 +36,10 @@ Built with hexagonal architecture, clean separation of concerns, and focus on es
   - Interactive task management
   - Markdown rendering with syntax highlighting
 
+## Architecture Review (2025Q1)
+
+The latest end-to-end architecture assessment highlights priority work on LLM成本隔离、任务取消传播、依赖注入惰性化以及可观测性增强。查看 [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) 获取详细的改进建议与迭代路线。
+
 ## Installation
 
 ### CLI Installation
