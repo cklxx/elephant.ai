@@ -4,7 +4,6 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -98,27 +97,19 @@ func (t *gitHistory) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 }
 
 func (t *gitHistory) validateGitRepo(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--git-dir")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("not a git repository")
-	}
-	return nil
+	return ensureGitRepo(ctx)
 }
 
 func (t *gitHistory) searchCommitMessages(ctx context.Context, query string, limit int) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "log",
+	result, err := runGitCommand(ctx, "log",
 		fmt.Sprintf("--grep=%s", query),
 		"-i", // Case insensitive
 		fmt.Sprintf("-%d", limit),
 		"--pretty=format:%h - %s (%an, %ar)",
 	)
-
-	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
-
-	result := strings.TrimSpace(string(output))
 	if result == "" {
 		return "", nil
 	}
@@ -127,19 +118,15 @@ func (t *gitHistory) searchCommitMessages(ctx context.Context, query string, lim
 }
 
 func (t *gitHistory) searchCodeChanges(ctx context.Context, query string, limit int) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "log",
+	result, err := runGitCommand(ctx, "log",
 		fmt.Sprintf("-S%s", query), // Pickaxe search
 		fmt.Sprintf("-%d", limit),
 		"--pretty=format:%h - %s (%an, %ar)",
 		"--all",
 	)
-
-	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
-
-	result := strings.TrimSpace(string(output))
 	if result == "" {
 		return "", nil
 	}
@@ -162,32 +149,28 @@ func (t *gitHistory) searchCodeChanges(ctx context.Context, query string, limit 
 
 func (t *gitHistory) searchFileHistory(ctx context.Context, file string, limit int) (string, error) {
 	// First check if file exists or ever existed
-	cmd := exec.CommandContext(ctx, "git", "log",
+	result, err := runGitCommand(ctx, "log",
 		fmt.Sprintf("-%d", limit),
 		"--pretty=format:%h - %s (%an, %ar)",
 		"--follow", // Follow file renames
 		"--", file,
 	)
-
-	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
-
-	result := strings.TrimSpace(string(output))
 	if result == "" {
 		return fmt.Sprintf("No commit history found for file: %s", file), nil
 	}
 
 	// Get file stats
-	statsCmd := exec.CommandContext(ctx, "git", "log",
+	stats, statsErr := runGitCommand(ctx, "log",
 		"--numstat",
 		"--pretty=format:",
 		"--", file,
 	)
-
-	statsOutput, _ := statsCmd.CombinedOutput()
-	stats := strings.TrimSpace(string(statsOutput))
+	if statsErr != nil {
+		stats = ""
+	}
 
 	totalAdditions := 0
 	totalDeletions := 0
@@ -205,40 +188,36 @@ func (t *gitHistory) searchFileHistory(ctx context.Context, file string, limit i
 		}
 	}
 
-	output_str := fmt.Sprintf("History for file '%s':\n\n%s", file, result)
+	output := fmt.Sprintf("History for file '%s':\n\n%s", file, result)
 	if totalAdditions > 0 || totalDeletions > 0 {
-		output_str += fmt.Sprintf("\n\nTotal changes: +%d/-%d lines", totalAdditions, totalDeletions)
+		output += fmt.Sprintf("\n\nTotal changes: +%d/-%d lines", totalAdditions, totalDeletions)
 	}
 
-	return output_str, nil
+	return output, nil
 }
 
 func (t *gitHistory) searchByAuthor(ctx context.Context, author string, limit int) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "log",
+	result, err := runGitCommand(ctx, "log",
 		fmt.Sprintf("--author=%s", author),
 		fmt.Sprintf("-%d", limit),
 		"--pretty=format:%h - %s (%ar)",
 	)
-
-	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
-
-	result := strings.TrimSpace(string(output))
 	if result == "" {
 		return "", nil
 	}
 
 	// Get commit count
-	countCmd := exec.CommandContext(ctx, "git", "rev-list",
+	count, countErr := runGitCommand(ctx, "rev-list",
 		"--count",
 		fmt.Sprintf("--author=%s", author),
 		"HEAD",
 	)
-
-	countOutput, _ := countCmd.CombinedOutput()
-	count := strings.TrimSpace(string(countOutput))
+	if countErr != nil {
+		count = "unknown"
+	}
 
 	return fmt.Sprintf("Commits by '%s' (showing %d of %s total):\n\n%s", author, limit, count, result), nil
 }
@@ -254,17 +233,15 @@ func (t *gitHistory) searchByDate(ctx context.Context, dateQuery string, limit i
 		// Date range like "2024-01-01..2024-12-31"
 		parts := strings.Split(dateQuery, "..")
 		if len(parts) == 2 {
-			cmd := exec.CommandContext(ctx, "git", "log",
+			result, err := runGitCommand(ctx, "log",
 				fmt.Sprintf("--since=%s", strings.TrimSpace(parts[0])),
 				fmt.Sprintf("--until=%s", strings.TrimSpace(parts[1])),
 				fmt.Sprintf("-%d", limit),
 				"--pretty=format:%h - %s (%an, %ar)",
 			)
-			output, err := cmd.CombinedOutput()
 			if err != nil {
 				return "", err
 			}
-			result := strings.TrimSpace(string(output))
 			if result == "" {
 				return "", nil
 			}
@@ -275,18 +252,14 @@ func (t *gitHistory) searchByDate(ctx context.Context, dateQuery string, limit i
 		gitDateArg = fmt.Sprintf("--since=%s", dateQuery)
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "log",
+	result, err := runGitCommand(ctx, "log",
 		gitDateArg,
 		fmt.Sprintf("-%d", limit),
 		"--pretty=format:%h - %s (%an, %ar)",
 	)
-
-	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
-
-	result := strings.TrimSpace(string(output))
 	if result == "" {
 		return "", nil
 	}

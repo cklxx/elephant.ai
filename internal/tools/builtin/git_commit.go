@@ -4,7 +4,6 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -102,40 +101,27 @@ func (t *gitCommit) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 }
 
 func (t *gitCommit) validateGitRepo(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--git-dir")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("not a git repository")
-	}
-	return nil
+	return ensureGitRepo(ctx)
 }
 
 func (t *gitCommit) getGitStatus(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "status", "--short")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
+	return runGitCommand(ctx, "status", "--short")
 }
 
 func (t *gitCommit) getGitDiff(ctx context.Context) (string, error) {
 	// Try to get staged changes first
-	cmd := exec.CommandContext(ctx, "git", "diff", "--cached")
-	output, err := cmd.CombinedOutput()
+	staged, err := runGitCommand(ctx, "diff", "--cached")
 	if err != nil {
 		return "", err
 	}
 
-	staged := strings.TrimSpace(string(output))
-
 	// If no staged changes, get unstaged changes
 	if staged == "" {
-		cmd = exec.CommandContext(ctx, "git", "diff")
-		output, err = cmd.CombinedOutput()
+		unstaged, err := runGitCommand(ctx, "diff")
 		if err != nil {
 			return "", err
 		}
-		return strings.TrimSpace(string(output)), nil
+		return unstaged, nil
 	}
 
 	return staged, nil
@@ -241,10 +227,8 @@ func (t *gitCommit) summarizeDiff(diff string) string {
 }
 
 func (t *gitCommit) executeCommit(ctx context.Context, message string) error {
-	cmd := exec.CommandContext(ctx, "git", "commit", "-m", message)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("git commit failed: %s", string(output))
+	if _, err := runGitCommandRaw(ctx, "commit", "-m", message); err != nil {
+		return err
 	}
 	return nil
 }

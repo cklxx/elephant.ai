@@ -4,7 +4,6 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -128,76 +127,51 @@ func (t *gitPR) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRe
 }
 
 func (t *gitPR) validateGitRepo(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--git-dir")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("not a git repository")
-	}
-	return nil
+	return ensureGitRepo(ctx)
 }
 
 func (t *gitPR) validateGHCLI(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "gh", "--version")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("gh CLI not installed. Install from https://cli.github.com/")
-	}
-	return nil
+	return ensureGhCLI(ctx)
 }
 
 func (t *gitPR) getDefaultBranch(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "symbolic-ref", "refs/remotes/origin/HEAD")
-	output, err := cmd.CombinedOutput()
+	output, err := runGitCommand(ctx, "symbolic-ref", "refs/remotes/origin/HEAD")
 	if err != nil {
 		return "", err
 	}
 	// Output is like "refs/remotes/origin/main"
-	branch := strings.TrimSpace(string(output))
+	branch := strings.TrimSpace(output)
 	branch = strings.TrimPrefix(branch, "refs/remotes/origin/")
 	return branch, nil
 }
 
 func (t *gitPR) getCurrentBranch(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
-	output, err := cmd.CombinedOutput()
+	output, err := runGitCommand(ctx, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
+	return output, nil
 }
 
 func (t *gitPR) isBranchPushed(ctx context.Context, branch string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--heads", "origin", branch)
-	output, err := cmd.CombinedOutput()
+	output, err := runGitCommandRaw(ctx, "ls-remote", "--heads", "origin", branch)
 	if err != nil {
 		return false, err
 	}
-	return len(strings.TrimSpace(string(output))) > 0, nil
+	return len(strings.TrimSpace(output)) > 0, nil
 }
 
 func (t *gitPR) pushBranch(ctx context.Context, branch string) error {
-	cmd := exec.CommandContext(ctx, "git", "push", "-u", "origin", branch)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("push failed: %s", string(output))
-	}
-	return nil
+	_, err := runGitCommandRaw(ctx, "push", "-u", "origin", branch)
+	return err
 }
 
 func (t *gitPR) getCommitHistory(ctx context.Context, base, head string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "log", fmt.Sprintf("%s..%s", base, head), "--oneline")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
+	return runGitCommand(ctx, "log", fmt.Sprintf("%s..%s", base, head), "--oneline")
 }
 
 func (t *gitPR) getFullDiff(ctx context.Context, base, head string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "diff", fmt.Sprintf("%s...%s", base, head), "--stat")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
+	return runGitCommand(ctx, "diff", fmt.Sprintf("%s...%s", base, head), "--stat")
 }
 
 func (t *gitPR) generatePRDescription(ctx context.Context, commits, diff string) (string, error) {
@@ -333,18 +307,17 @@ func (t *gitPR) addFooter(description string) string {
 }
 
 func (t *gitPR) createPR(ctx context.Context, title, description, base string) (string, error) {
-	cmd := exec.CommandContext(ctx, "gh", "pr", "create",
+	output, err := runGhCommand(ctx, "pr", "create",
 		"--title", title,
 		"--body", description,
-		"--base", base)
-
-	output, err := cmd.CombinedOutput()
+		"--base", base,
+	)
 	if err != nil {
-		return "", fmt.Errorf("gh pr create failed: %s", string(output))
+		return "", err
 	}
 
 	// Extract URL from output (gh CLI returns the PR URL)
-	url := strings.TrimSpace(string(output))
+	url := strings.TrimSpace(output)
 	return url, nil
 }
 
