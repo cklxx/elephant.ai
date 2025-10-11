@@ -63,7 +63,7 @@ func TestGitIntegration_FullWorkflow(t *testing.T) {
 	}
 
 	// Stage the file
-	if err := runGitCommand(tempDir, "add", "test.txt"); err != nil {
+	if err := runGitCommandInDir(tempDir, "add", "test.txt"); err != nil {
 		t.Fatalf("failed to stage file: %v", err)
 	}
 
@@ -198,7 +198,7 @@ func TestGitIntegration_FullWorkflow(t *testing.T) {
 		}
 
 		// Create a feature branch
-		if err := runGitCommand(tempDir, "checkout", "-b", "feature-test"); err != nil {
+		if err := runGitCommandInDir(tempDir, "checkout", "-b", "feature-test"); err != nil {
 			t.Fatalf("failed to create feature branch: %v", err)
 		}
 
@@ -209,11 +209,11 @@ func TestGitIntegration_FullWorkflow(t *testing.T) {
 		}
 
 		// Commit the change
-		if err := runGitCommand(tempDir, "add", "test2.txt"); err != nil {
+		if err := runGitCommandInDir(tempDir, "add", "test2.txt"); err != nil {
 			t.Fatalf("failed to stage file: %v", err)
 		}
 
-		if err := runGitCommand(tempDir, "commit", "-m", "feat: add another feature"); err != nil {
+		if err := runGitCommandInDir(tempDir, "commit", "-m", "feat: add another feature"); err != nil {
 			t.Fatalf("failed to commit: %v", err)
 		}
 
@@ -296,7 +296,7 @@ func TestGitIntegration_CustomCommitMessage(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
-	if err := runGitCommand(tempDir, "add", "custom.txt"); err != nil {
+	if err := runGitCommandInDir(tempDir, "add", "custom.txt"); err != nil {
 		t.Fatalf("failed to stage file: %v", err)
 	}
 
@@ -352,7 +352,7 @@ func initTestRepo(t *testing.T, dir string) error {
 	}
 
 	for _, args := range commands {
-		if err := runGitCommand(dir, args...); err != nil {
+		if err := runGitCommandInDir(dir, args...); err != nil {
 			return err
 		}
 	}
@@ -360,7 +360,7 @@ func initTestRepo(t *testing.T, dir string) error {
 	return nil
 }
 
-func runGitCommand(dir string, args ...string) error {
+func runGitCommandInDir(dir string, args ...string) error {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
