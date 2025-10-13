@@ -1,39 +1,26 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { ConnectionStatus } from '@/components/agent/ConnectionStatus';
-import { ResearchTimeline } from '@/components/agent/ResearchTimeline';
 import { useTaskExecution } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
-import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { TranslationKey, useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Activity, Check, Pencil, Pin, X } from 'lucide-react';
+import { Check, Pencil, Pin, X } from 'lucide-react';
 
 function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
-  const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
-  const [isTimelineDialogOpen, setTimelineDialogOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
-  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const highlightedElementRef = useRef<HTMLElement | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const searchParams = useSearchParams();
   const { t } = useI18n();
@@ -76,50 +63,6 @@ function ConversationPageContent() {
     useMock: useMockStream,
   });
 
-  const timelineSteps = useTimelineSteps(events);
-  const hasTimeline = timelineSteps.length > 0;
-
-  const timelineProgressCopy = useMemo(() => {
-    if (!timelineSteps.length) {
-      return {
-        statusLabel: t('timeline.label'),
-        progressLabel: t('timeline.waiting'),
-      };
-    }
-
-    const completedCount = timelineSteps.filter((step) => step.status === 'complete').length;
-    const statusLabel = (() => {
-      const activeStep = timelineSteps.find((step) => step.status === 'active');
-      if (activeStep) {
-        return t('timeline.status.inProgress', { title: activeStep.title });
-      }
-
-      const erroredStep = [...timelineSteps]
-        .reverse()
-        .find((step) => step.status === 'error');
-      if (erroredStep) {
-        return t('timeline.status.attention', { title: erroredStep.title });
-      }
-
-      const latestComplete = [...timelineSteps]
-        .reverse()
-        .find((step) => step.status === 'complete');
-      if (latestComplete) {
-        return t('timeline.status.recent', { title: latestComplete.title });
-      }
-
-      return t('timeline.label');
-    })();
-
-    return {
-      statusLabel,
-      progressLabel: t('timeline.progress', {
-        completed: completedCount,
-        total: timelineSteps.length,
-      }),
-    };
-  }, [timelineSteps, t]);
-
   const recentSessions = useMemo(() => {
     const pinnedSet = new Set(pinnedSessions);
     return sessionHistory.filter((id) => !pinnedSet.has(id));
@@ -127,36 +70,6 @@ function ConversationPageContent() {
 
   const hasPinnedSessions = pinnedSessions.length > 0;
   const hasRecentSessions = recentSessions.length > 0;
-
-  // Reset focused step when available steps change
-  useEffect(() => {
-    if (!focusedStepId) {
-      const activeStep = timelineSteps.find((step) => step.status === 'active');
-      if (activeStep) {
-        setFocusedStepId(activeStep.id);
-      }
-      return;
-    }
-
-    const exists = timelineSteps.some((step) => step.id === focusedStepId);
-    if (!exists) {
-      setFocusedStepId(null);
-    }
-  }, [timelineSteps, focusedStepId]);
-
-  useEffect(() => {
-    if (!hasTimeline) {
-      setTimelineDialogOpen(false);
-    }
-  }, [hasTimeline]);
-
-  useEffect(() => {
-    return () => {
-      if (highlightTimeoutRef.current) {
-        clearTimeout(highlightTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (editingSessionId && renameInputRef.current) {
@@ -198,7 +111,6 @@ function ConversationPageContent() {
       {
         task,
         session_id: resolvedSessionId || undefined,
-        auto_approve_plan: false,
       },
       {
         onSuccess: (data) => {
@@ -221,9 +133,6 @@ function ConversationPageContent() {
     setTaskId(null);
     clearEvents();
     clearCurrentSession();
-    setFocusedStepId(null);
-    highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
-    highlightedElementRef.current = null;
     setEditingSessionId(null);
     setEditingValue('');
   };
@@ -235,9 +144,6 @@ function ConversationPageContent() {
     setTaskId(null);
     setCurrentSession(id);
     addToHistory(id);
-    setFocusedStepId(null);
-    highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
-    highlightedElementRef.current = null;
     setEditingSessionId(null);
     setEditingValue('');
   };
@@ -272,44 +178,6 @@ function ConversationPageContent() {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
   };
-
-  const handleTimelineStepSelect = useCallback(
-    (stepId: string) => {
-      setFocusedStepId(stepId);
-
-      const container = outputRef.current;
-      if (!container) return;
-
-      const safeId =
-        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-          ? CSS.escape(stepId)
-          : stepId;
-
-      const target = container.querySelector<HTMLElement>(
-        `[data-anchor-id="${safeId}"]`
-      );
-      if (!target) return;
-
-      target.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-      target.focus({ preventScroll: true });
-
-      highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
-      highlightedElementRef.current = target;
-      target.classList.add('timeline-anchor-highlight');
-
-      if (highlightTimeoutRef.current) {
-        clearTimeout(highlightTimeoutRef.current);
-      }
-
-      highlightTimeoutRef.current = setTimeout(() => {
-        highlightedElementRef.current?.classList.remove('timeline-anchor-highlight');
-        highlightedElementRef.current = null;
-      }, 1800);
-
-      setTimelineDialogOpen(false);
-    },
-    [setTimelineDialogOpen]
-  );
 
   const getSessionBadge = (value: string) =>
     value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
@@ -470,19 +338,6 @@ function ConversationPageContent() {
                     </div>
                   )}
                 </div>
-                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
-                    {t('console.settings.timelineStatus')}
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-slate-600">
-                    {hasTimeline ? timelineProgressCopy.statusLabel : t('timeline.waiting')}
-                  </p>
-                  {hasTimeline && (
-                    <p className="console-microcopy mt-1 text-slate-400">
-                      {timelineProgressCopy.progressLabel}
-                    </p>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -499,7 +354,6 @@ function ConversationPageContent() {
                       clearCurrentSession();
                       setSessionId(null);
                       setTaskId(null);
-                      setFocusedStepId(null);
                     }}
                     className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-300 transition hover:text-slate-500"
                   >
@@ -559,15 +413,6 @@ function ConversationPageContent() {
                 ))}
               </div>
             </div>
-
-            <div className="console-panel p-5 sm:p-6">
-              <span className="console-quiet-chip uppercase tracking-[0.35em] text-slate-400">
-                {t('console.timeline.sidebarTitle')}
-              </span>
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-300">
-                {hasTimeline ? timelineProgressCopy.statusLabel : t('timeline.waiting')}
-              </div>
-            </div>
           </aside>
 
           <main className="flex flex-col gap-6">
@@ -585,101 +430,53 @@ function ConversationPageContent() {
                 </div>
                 <div className="flex items-center gap-2">
                   <LanguageSwitcher variant="toolbar" showLabel={false} />
-                  {hasTimeline && (
-                    <button
-                      type="button"
-                      onClick={() => setTimelineDialogOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-sky-200 hover:text-sky-600 lg:hidden"
-                      aria-haspopup="dialog"
-                      aria-expanded={isTimelineDialogOpen}
-                      data-testid="mobile-timeline-trigger"
-                    >
-                      <Activity className="h-3.5 w-3.5" />
-                      <span>{timelineProgressCopy.statusLabel}</span>
-                    </button>
-                  )}
                 </div>
               </div>
 
-              <div className="flex flex-1 flex-col lg:flex-row">
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div
-                    ref={outputRef}
-                    className="console-scrollbar flex-1 overflow-y-auto px-5 py-6 sm:px-8"
-                  >
-                    {events.length === 0 ? (
-                      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-                        <span className="console-quiet-chip">{t('console.empty.badge')}</span>
-                        <p className="text-base font-semibold text-slate-700">{t('console.empty.title')}</p>
-                        <p className="console-microcopy max-w-sm text-slate-400">
-                          {t('console.empty.description')}
-                        </p>
-                      </div>
-                    ) : (
-                      <TerminalOutput
-                        events={events}
-                        isConnected={isConnected}
-                        isReconnecting={isReconnecting}
-                        error={error}
-                        reconnectAttempts={reconnectAttempts}
-                        onReconnect={reconnect}
-                      />
-                    )}
-                  </div>
-                  <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-8">
-                    <TaskInput
-                      onSubmit={handleTaskSubmit}
-                      disabled={isSubmitting}
-                      loading={isSubmitting}
-                      placeholder={
-                        resolvedSessionId
-                          ? t('console.input.placeholder.active')
-                          : t('console.input.placeholder.idle')
-                      }
-                      prefill={prefillTask}
-                      onPrefillApplied={() => setPrefillTask(null)}
-                    />
-                  </div>
-                </div>
-
-                {hasTimeline && (
-                  <aside className="hidden w-[260px] flex-shrink-0 border-l border-slate-100 px-5 py-6 lg:block">
-                    <div className="console-scrollbar sticky top-24 max-h-[calc(100vh-14rem)] overflow-y-auto pr-2">
-                      <ResearchTimeline
-                        steps={timelineSteps}
-                        focusedStepId={focusedStepId}
-                        onStepSelect={handleTimelineStepSelect}
-                      />
+              <div className="flex flex-1 flex-col">
+                <div
+                  ref={outputRef}
+                  className="console-scrollbar flex-1 overflow-y-auto px-5 py-6 sm:px-8"
+                >
+                  {events.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+                      <span className="console-quiet-chip">{t('console.empty.badge')}</span>
+                      <p className="text-base font-semibold text-slate-700">{t('console.empty.title')}</p>
+                      <p className="console-microcopy max-w-sm text-slate-400">
+                        {t('console.empty.description')}
+                      </p>
                     </div>
-                  </aside>
-                )}
+                  ) : (
+                    <TerminalOutput
+                      events={events}
+                      isConnected={isConnected}
+                      isReconnecting={isReconnecting}
+                      error={error}
+                      reconnectAttempts={reconnectAttempts}
+                      onReconnect={reconnect}
+                    />
+                  )}
+                </div>
+                <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-8">
+                  <TaskInput
+                    onSubmit={handleTaskSubmit}
+                    disabled={isSubmitting}
+                    loading={isSubmitting}
+                    placeholder={
+                      resolvedSessionId
+                        ? t('console.input.placeholder.active')
+                        : t('console.input.placeholder.idle')
+                    }
+                    prefill={prefillTask}
+                    onPrefillApplied={() => setPrefillTask(null)}
+                  />
+                </div>
               </div>
             </section>
           </main>
 
         </div>
       </div>
-
-      <Dialog open={isTimelineDialogOpen} onOpenChange={setTimelineDialogOpen}>
-        <DialogContent
-          className="max-w-2xl"
-          onClose={() => setTimelineDialogOpen(false)}
-        >
-          <DialogHeader>
-            <DialogTitle>{t('console.timeline.dialogTitle')}</DialogTitle>
-            <DialogDescription className="console-microcopy">
-              {t('console.timeline.dialogDescription')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="console-scrollbar max-h-[70vh] overflow-y-auto pr-2">
-            <ResearchTimeline
-              steps={timelineSteps}
-              focusedStepId={focusedStepId}
-              onStepSelect={handleTimelineStepSelect}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

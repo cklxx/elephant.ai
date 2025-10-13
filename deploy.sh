@@ -153,7 +153,7 @@ wait_for_health() {
     log_info "Waiting for $name to be ready..."
 
     for i in $(seq 1 $max_attempts); do
-        if curl -sf "$url" >/dev/null 2>&1; then
+        if curl -sf --noproxy '*' "$url" >/dev/null 2>&1; then
             log_success "$name is ready!"
             return 0
         fi
@@ -366,7 +366,7 @@ cmd_status() {
     server_pid=$(read_pid "$SERVER_PID_FILE")
     if is_process_running "$server_pid"; then
         echo -e "${C_GREEN}✓${C_RESET} Backend:   Running (PID: $server_pid)"
-        if curl -sf "http://localhost:$SERVER_PORT/health" >/dev/null 2>&1; then
+        if curl -sf --noproxy '*' "http://localhost:$SERVER_PORT/health" >/dev/null 2>&1; then
             echo -e "             Health check: ${C_GREEN}OK${C_RESET}"
         else
             echo -e "             Health check: ${C_RED}FAILED${C_RESET}"
@@ -382,7 +382,7 @@ cmd_status() {
     web_pid=$(read_pid "$WEB_PID_FILE")
     if is_process_running "$web_pid"; then
         echo -e "${C_GREEN}✓${C_RESET} Frontend:  Running (PID: $web_pid)"
-        if curl -sf "http://localhost:$WEB_PORT" >/dev/null 2>&1; then
+        if curl -sf --noproxy '*' "http://localhost:$WEB_PORT" >/dev/null 2>&1; then
             echo -e "             Accessible: ${C_GREEN}YES${C_RESET}"
         else
             echo -e "             Accessible: ${C_YELLOW}STARTING${C_RESET}"

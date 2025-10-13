@@ -55,6 +55,10 @@ export function TerminalOutput({
     const startEvents = new Map<string, ToolCallStartDisplayEvent>();
 
     events.forEach((event) => {
+      // Filter out noise events - only show meaningful results
+      if (shouldSkipEvent(event)) {
+        return;
+      }
       if (event.event_type === 'tool_call_start') {
         const startEvent: ToolCallStartDisplayEvent = {
           ...event,
@@ -444,6 +448,39 @@ function getAnchorId(event: DisplayEvent): string | null {
 }
 
 // Helper functions
+
+/**
+ * Filter out noise events that don't provide meaningful information to users
+ * Only show key results and important milestones
+ */
+function shouldSkipEvent(event: AnyAgentEvent): boolean {
+  switch (event.event_type) {
+    // Skip all system iteration events - too noisy
+    case 'iteration_start':
+    case 'iteration_complete':
+      return true;
+
+    // Skip thinking/streaming events - intermediate state
+    case 'thinking':
+    case 'think_complete':
+      return true;
+
+    // Skip task analysis - just internal planning
+    case 'task_analysis':
+      return true;
+
+    // Keep only these critical events:
+    // - user_task: User's input (important to show what was asked)
+    // - tool_call_start/complete: Tool execution results (actual work being done)
+    // - task_complete: Final answer (the result)
+    // - error: Errors (problems user needs to know about)
+    // - research_plan/step_*: Research workflow milestones
+
+    default:
+      return false;
+  }
+}
+
 function getEventCategory(event: DisplayEvent): EventCategory {
   switch (event.event_type) {
     case 'user_task':
