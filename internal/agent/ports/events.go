@@ -15,3 +15,9 @@ type AgentEvent interface {
 type EventListener interface {
 	OnEvent(event AgentEvent)
 }
+
+// NoopEventListener is an EventListener implementation that discards all events.
+type NoopEventListener struct{}
+
+// OnEvent discards the event without processing.
+func (NoopEventListener) OnEvent(event AgentEvent) {}

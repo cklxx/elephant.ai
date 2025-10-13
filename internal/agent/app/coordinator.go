@@ -83,8 +83,14 @@ func NewAgentCoordinator(
 		opt(coordinator)
 	}
 
-	coordinator.analysisService = NewTaskAnalysisService(coordinator.logger)
-	coordinator.costDecorator = NewCostTrackingDecorator(costTracker, coordinator.logger, coordinator.clock)
+	// Create services only if not provided via options
+	if coordinator.analysisService == nil {
+		coordinator.analysisService = NewTaskAnalysisService(coordinator.logger)
+	}
+	if coordinator.costDecorator == nil {
+		coordinator.costDecorator = NewCostTrackingDecorator(costTracker, coordinator.logger, coordinator.clock)
+	}
+
 	coordinator.prepService = NewExecutionPreparationService(ExecutionPreparationDeps{
 		LLMFactory:    llmFactory,
 		ToolRegistry:  toolRegistry,
@@ -111,8 +117,8 @@ func (c *AgentCoordinator) ExecuteTask(
 ) (*ports.TaskResult, error) {
 	c.logger.Info("ExecuteTask called: task='%s', sessionID='%s'", task, sessionID)
 
-	// Prepare execution environment
-	env, err := c.PrepareExecution(ctx, task, sessionID)
+	// Prepare execution environment with event listener support
+	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, listener)
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +153,29 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	result, err := reactEngine.SolveTask(ctx, task, env.State, env.Services)
 	if err != nil {
+		// Check if it's a context cancellation error
+		if ctx.Err() != nil {
+			c.logger.Info("Task execution cancelled: %v", ctx.Err())
+			return nil, ctx.Err()
+		}
 		c.logger.Error("Task execution failed: %v", err)
 		return nil, fmt.Errorf("task execution failed: %w", err)
 	}
 	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
 		result.Iterations, result.TokensUsed, result.StopReason)
+
+	// Log session-level cost/token metrics
+	if c.costTracker != nil {
+		sessionStats, err := c.costTracker.GetSessionStats(ctx, env.Session.ID)
+		if err != nil {
+			c.logger.Warn("Failed to get session stats: %v", err)
+		} else {
+			c.logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
+				sessionStats.RequestCount, sessionStats.TotalTokens,
+				sessionStats.InputTokens, sessionStats.OutputTokens,
+				sessionStats.TotalCost, sessionStats.Duration)
+		}
+	}
 
 	// Save session
 	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
@@ -195,6 +219,30 @@ func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, se
 	return c.prepService.Prepare(ctx, task, sessionID)
 }
 
+// prepareExecutionWithListener prepares execution with event emission support
+func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.ExecutionEnvironment, error) {
+	// Create a preparation service instance with the listener for this execution
+	if listener != nil {
+		prepService := NewExecutionPreparationService(ExecutionPreparationDeps{
+			LLMFactory:    c.llmFactory,
+			ToolRegistry:  c.toolRegistry,
+			SessionStore:  c.sessionStore,
+			ContextMgr:    c.contextMgr,
+			Parser:        c.parser,
+			PromptLoader:  c.promptLoader,
+			Config:        c.config,
+			Logger:        c.logger,
+			Clock:         c.clock,
+			Analysis:      c.analysisService,
+			CostDecorator: c.costDecorator,
+			EventEmitter:  listener, // Pass the listener for event emission
+		})
+		return prepService.Prepare(ctx, task, sessionID)
+	}
+	// No listener, use default prep service
+	return c.prepService.Prepare(ctx, task, sessionID)
+}
+
 // SaveSessionAfterExecution saves session state after task completion
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
 	// Update session with results
@@ -230,6 +278,11 @@ func (c *AgentCoordinator) ListSessions(ctx context.Context) ([]string, error) {
 // GetCostTracker returns the cost tracker instance
 func (c *AgentCoordinator) GetCostTracker() ports.CostTracker {
 	return c.costTracker
+}
+
+// GetToolRegistry returns the tool registry instance
+func (c *AgentCoordinator) GetToolRegistry() ports.ToolRegistry {
+	return c.toolRegistry
 }
 
 // GetToolRegistryWithoutSubagent returns a filtered registry that excludes subagent

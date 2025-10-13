@@ -75,6 +75,60 @@ func (t *costTracker) GetSessionCost(ctx context.Context, sessionID string) (*po
 	return t.aggregateRecords(records), nil
 }
 
+// GetSessionStats returns detailed statistics for a specific session
+func (t *costTracker) GetSessionStats(ctx context.Context, sessionID string) (*ports.SessionStats, error) {
+	records, err := t.store.GetBySession(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("get session records: %w", err)
+	}
+
+	if len(records) == 0 {
+		return &ports.SessionStats{
+			SessionID: sessionID,
+			ByModel:   make(map[string]float64),
+			ByProvider: make(map[string]float64),
+		}, nil
+	}
+
+	stats := &ports.SessionStats{
+		SessionID:    sessionID,
+		ByModel:      make(map[string]float64),
+		ByProvider:   make(map[string]float64),
+		FirstRequest: records[0].Timestamp,
+		LastRequest:  records[0].Timestamp,
+	}
+
+	for _, record := range records {
+		stats.TotalCost += record.TotalCost
+		stats.InputTokens += record.InputTokens
+		stats.OutputTokens += record.OutputTokens
+		stats.TotalTokens += record.TotalTokens
+		stats.RequestCount++
+
+		// Aggregate by model
+		stats.ByModel[record.Model] += record.TotalCost
+
+		// Aggregate by provider
+		stats.ByProvider[record.Provider] += record.TotalCost
+
+		// Update time range
+		if record.Timestamp.Before(stats.FirstRequest) {
+			stats.FirstRequest = record.Timestamp
+		}
+		if record.Timestamp.After(stats.LastRequest) {
+			stats.LastRequest = record.Timestamp
+		}
+	}
+
+	// Calculate duration
+	stats.Duration = stats.LastRequest.Sub(stats.FirstRequest)
+
+	t.logger.Debug("Session stats: session=%s, requests=%d, tokens=%d, cost=$%.6f, duration=%v",
+		sessionID, stats.RequestCount, stats.TotalTokens, stats.TotalCost, stats.Duration)
+
+	return stats, nil
+}
+
 // GetDailyCost returns aggregated cost for a specific day
 func (t *costTracker) GetDailyCost(ctx context.Context, date time.Time) (*ports.CostSummary, error) {
 	// Normalize to start and end of day

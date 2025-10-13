@@ -3,7 +3,6 @@ package di
 import (
 	"os"
 	"testing"
-	"time"
 )
 
 func TestResolveStorageDir(t *testing.T) {
@@ -146,18 +145,20 @@ func TestResolveStorageDir_DoesNotStripHomeIncorrectly(t *testing.T) {
 func TestBuildContainer(t *testing.T) {
 	// This is an integration test to verify the container can be built
 	t.Run("builds successfully with valid config", func(t *testing.T) {
-		// Use Ollama which doesn't require API key
+		// Use mock provider which doesn't require API key
 		config := Config{
-			LLMProvider:   "ollama",
-			LLMModel:      "llama2",
-			APIKey:        "",
-			BaseURL:       "",
-			MaxTokens:     100000,
-			MaxIterations: 20,
-			SessionDir:    "/tmp/alex-test-sessions",
-			CostDir:       "/tmp/alex-test-costs",
-			Environment:   "development",
-			Verbose:       false,
+			LLMProvider:    "mock",
+			LLMModel:       "test",
+			APIKey:         "",
+			BaseURL:        "",
+			MaxTokens:      100000,
+			MaxIterations:  20,
+			SessionDir:     "/tmp/alex-test-sessions",
+			CostDir:        "/tmp/alex-test-costs",
+			Environment:    "development",
+			Verbose:        false,
+			EnableMCP:      false, // Disable to avoid external dependencies
+			EnableGitTools: false,
 		}
 
 		container, err := BuildContainer(config)
@@ -191,35 +192,168 @@ func TestBuildContainer(t *testing.T) {
 		}
 	})
 
-	t.Run("exposes MCP initialization status", func(t *testing.T) {
+	t.Run("builds without API key when features disabled", func(t *testing.T) {
 		config := Config{
-			LLMProvider:   "ollama",
-			LLMModel:      "llama2",
-			MaxTokens:     100000,
-			MaxIterations: 20,
-			SessionDir:    "/tmp/alex-test-env-sessions",
-			CostDir:       "/tmp/alex-test-env-costs",
-			Environment:   "development",
-			Verbose:       false,
+			LLMProvider:    "mock",
+			LLMModel:       "test",
+			MaxTokens:      100000,
+			MaxIterations:  20,
+			SessionDir:     "/tmp/alex-test-noapi-sessions",
+			CostDir:        "/tmp/alex-test-noapi-costs",
+			EnableMCP:      false,
+			EnableGitTools: false,
+		}
+
+		container, err := BuildContainer(config)
+		if err != nil {
+			t.Fatalf("BuildContainer() should succeed without API key when features disabled: %v", err)
+		}
+		defer container.Cleanup()
+
+		if container == nil {
+			t.Fatal("Expected non-nil container")
+		}
+	})
+}
+
+func TestContainer_Lifecycle(t *testing.T) {
+	t.Run("Start and Shutdown with features disabled", func(t *testing.T) {
+		config := Config{
+			LLMProvider:    "mock",
+			LLMModel:       "test",
+			SessionDir:     "/tmp/alex-test-lifecycle",
+			CostDir:        "/tmp/alex-test-lifecycle-costs",
+			EnableMCP:      false,
+			EnableGitTools: false,
 		}
 
 		container, err := BuildContainer(config)
 		if err != nil {
 			t.Fatalf("BuildContainer() error = %v", err)
 		}
-		defer func() { _ = container.Cleanup() }()
+		defer container.Cleanup()
 
-		deadline := time.Now().Add(2 * time.Second)
-		for {
-			status := container.MCPInitializationStatus()
-			if status.Attempts > 0 {
-				// We don't expect readiness in tests but attempts should be recorded
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("expected MCP initialization attempts to be recorded")
-			}
-			time.Sleep(10 * time.Millisecond)
+		// Start should succeed
+		if err := container.Start(); err != nil {
+			t.Errorf("Start() error = %v", err)
+		}
+
+		// Verify MCP not started
+		if container.mcpStarted {
+			t.Error("Expected MCP to not be started when disabled")
+		}
+
+		// Shutdown should succeed
+		if err := container.Shutdown(); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+
+		// Multiple shutdowns should be safe
+		if err := container.Shutdown(); err != nil {
+			t.Errorf("Second Shutdown() error = %v", err)
 		}
 	})
+
+	t.Run("Start with Git tools enabled", func(t *testing.T) {
+		config := Config{
+			LLMProvider:    "mock",
+			LLMModel:       "test",
+			APIKey:         "test-key",
+			SessionDir:     "/tmp/alex-test-git",
+			CostDir:        "/tmp/alex-test-git-costs",
+			EnableMCP:      false,
+			EnableGitTools: true,
+		}
+
+		container, err := BuildContainer(config)
+		if err != nil {
+			t.Fatalf("BuildContainer() error = %v", err)
+		}
+		defer container.Cleanup()
+
+		// Start should initialize Git tools
+		if err := container.Start(); err != nil {
+			t.Errorf("Start() error = %v", err)
+		}
+
+		// Verify Git tools are registered
+		toolRegistry := container.AgentCoordinator.GetToolRegistry()
+		gitCommit, err := toolRegistry.Get("git_commit")
+		if err != nil {
+			t.Errorf("Expected git_commit tool to be registered: %v", err)
+		}
+		if gitCommit == nil {
+			t.Error("Expected git_commit tool to be non-nil")
+		}
+	})
+
+	t.Run("Cleanup backward compatibility", func(t *testing.T) {
+		config := Config{
+			LLMProvider:    "mock",
+			LLMModel:       "test",
+			SessionDir:     "/tmp/alex-test-cleanup",
+			CostDir:        "/tmp/alex-test-cleanup-costs",
+			EnableMCP:      false,
+			EnableGitTools: false,
+		}
+
+		container, err := BuildContainer(config)
+		if err != nil {
+			t.Fatalf("BuildContainer() error = %v", err)
+		}
+
+		// Cleanup should work (calls Shutdown internally)
+		if err := container.Cleanup(); err != nil {
+			t.Errorf("Cleanup() error = %v", err)
+		}
+	})
+}
+
+func TestMCPInitializationTracker(t *testing.T) {
+	tracker := newMCPInitializationTracker()
+
+	// Initial state
+	status := tracker.Snapshot()
+	if status.Ready {
+		t.Error("Expected Ready to be false initially")
+	}
+	if status.Attempts != 0 {
+		t.Error("Expected Attempts to be 0 initially")
+	}
+
+	// Record attempt
+	tracker.recordAttempt()
+	status = tracker.Snapshot()
+	if status.Attempts != 1 {
+		t.Errorf("Expected Attempts to be 1, got %d", status.Attempts)
+	}
+
+	// Record failure
+	testErr := &testError{msg: "test error"}
+	tracker.recordFailure(testErr)
+	status = tracker.Snapshot()
+	if status.Ready {
+		t.Error("Expected Ready to be false after failure")
+	}
+	if status.LastError == nil {
+		t.Error("Expected LastError to be set")
+	}
+
+	// Record success
+	tracker.recordSuccess()
+	status = tracker.Snapshot()
+	if !status.Ready {
+		t.Error("Expected Ready to be true after success")
+	}
+	if status.LastError != nil {
+		t.Error("Expected LastError to be nil after success")
+	}
+}
+
+type testError struct {
+	msg string
+}
+
+func (e *testError) Error() string {
+	return e.msg
 }

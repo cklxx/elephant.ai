@@ -362,3 +362,118 @@ func TestInMemoryTaskStore_Delete(t *testing.T) {
 		t.Error("Expected error when deleting non-existent task")
 	}
 }
+
+func TestInMemoryTaskStore_SetTerminationReason(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+
+	// Test setting each termination reason
+	tests := []struct {
+		name   string
+		reason serverPorts.TerminationReason
+	}{
+		{"Completed", serverPorts.TerminationReasonCompleted},
+		{"Cancelled", serverPorts.TerminationReasonCancelled},
+		{"Timeout", serverPorts.TerminationReasonTimeout},
+		{"Error", serverPorts.TerminationReasonError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			freshTask, _ := store.Create(ctx, "session-1", "Test task", "", "")
+
+			err := store.SetTerminationReason(ctx, freshTask.ID, tt.reason)
+			if err != nil {
+				t.Fatalf("Failed to set termination reason: %v", err)
+			}
+
+			updated, _ := store.Get(ctx, freshTask.ID)
+			if updated.TerminationReason != tt.reason {
+				t.Errorf("Expected termination reason '%s', got '%s'", tt.reason, updated.TerminationReason)
+			}
+		})
+	}
+}
+
+func TestInMemoryTaskStore_TerminationReasonAutoSet(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+
+	// Test that SetStatus automatically sets termination reason
+	tests := []struct {
+		name              string
+		status            serverPorts.TaskStatus
+		expectedReason    serverPorts.TerminationReason
+		shouldSetReason   bool
+	}{
+		{"Running", serverPorts.TaskStatusRunning, serverPorts.TerminationReasonNone, false},
+		{"Completed", serverPorts.TaskStatusCompleted, serverPorts.TerminationReasonCompleted, true},
+		{"Failed", serverPorts.TaskStatusFailed, serverPorts.TerminationReasonError, true},
+		{"Cancelled", serverPorts.TaskStatusCancelled, serverPorts.TerminationReasonCancelled, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task, _ := store.Create(ctx, "session-1", "Test task", "", "")
+
+			err := store.SetStatus(ctx, task.ID, tt.status)
+			if err != nil {
+				t.Fatalf("Failed to set status: %v", err)
+			}
+
+			updated, _ := store.Get(ctx, task.ID)
+			if tt.shouldSetReason {
+				if updated.TerminationReason != tt.expectedReason {
+					t.Errorf("Expected termination reason '%s', got '%s'", tt.expectedReason, updated.TerminationReason)
+				}
+			} else {
+				if updated.TerminationReason != serverPorts.TerminationReasonNone {
+					t.Errorf("Expected no termination reason, got '%s'", updated.TerminationReason)
+				}
+			}
+		})
+	}
+}
+
+func TestInMemoryTaskStore_SetError_SetsTerminationReason(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+
+	task, _ := store.Create(ctx, "session-1", "Test task", "", "")
+
+	testErr := errors.New("Test error")
+	err := store.SetError(ctx, task.ID, testErr)
+	if err != nil {
+		t.Fatalf("Failed to set error: %v", err)
+	}
+
+	updated, _ := store.Get(ctx, task.ID)
+	if updated.TerminationReason != serverPorts.TerminationReasonError {
+		t.Errorf("Expected termination reason 'error', got '%s'", updated.TerminationReason)
+	}
+}
+
+func TestInMemoryTaskStore_SetResult_SetsTerminationReason(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+
+	task, _ := store.Create(ctx, "session-1", "Test task", "", "")
+
+	result := &ports.TaskResult{
+		Answer:     "Task completed",
+		Iterations: 5,
+		TokensUsed: 1000,
+		StopReason: "final_answer",
+		SessionID:  "session-1",
+	}
+
+	err := store.SetResult(ctx, task.ID, result)
+	if err != nil {
+		t.Fatalf("Failed to set result: %v", err)
+	}
+
+	updated, _ := store.Get(ctx, task.ID)
+	if updated.TerminationReason != serverPorts.TerminationReasonCompleted {
+		t.Errorf("Expected termination reason 'completed', got '%s'", updated.TerminationReason)
+	}
+}

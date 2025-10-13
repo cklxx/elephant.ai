@@ -19,8 +19,10 @@ import (
 
 // Config holds server configuration
 type Config struct {
-	Runtime runtimeconfig.RuntimeConfig
-	Port    string
+	Runtime        runtimeconfig.RuntimeConfig
+	Port           string
+	EnableMCP      bool
+	EnableGitTools bool
 }
 
 func main() {
@@ -53,16 +55,21 @@ func main() {
 	logger.Info("Port: %s", config.Port)
 	logger.Info("===========================")
 
-	// Initialize container
+	// Initialize container (without heavy initialization)
 	container, err := buildContainer(config)
 	if err != nil {
 		log.Fatalf("Failed to initialize container: %v", err)
 	}
 	defer func() {
-		if err := container.Cleanup(); err != nil {
-			log.Printf("Failed to cleanup container: %v", err)
+		if err := container.Shutdown(); err != nil {
+			log.Printf("Failed to shutdown container: %v", err)
 		}
 	}()
+
+	// Start container lifecycle (heavy initialization)
+	if err := container.Start(); err != nil {
+		logger.Warn("Container start failed: %v (continuing with limited functionality)", err)
+	}
 
 	// Create server coordinator
 	broadcaster := serverApp.NewEventBroadcaster()
@@ -78,8 +85,14 @@ func main() {
 		taskStore,
 	)
 
+	// Setup health checker
+	healthChecker := serverApp.NewHealthChecker()
+	healthChecker.RegisterProbe(serverApp.NewGitToolsProbe(container, config.EnableGitTools))
+	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
+	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
+
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, runtimeCfg.Environment)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, runtimeCfg.Environment)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -133,6 +146,8 @@ func buildContainer(config Config) (*di.Container, error) {
 		StopSequences:  append([]string(nil), config.Runtime.StopSequences...),
 		SessionDir:     config.Runtime.SessionDir,
 		CostDir:        config.Runtime.CostDir,
+		EnableMCP:      config.EnableMCP,
+		EnableGitTools: config.EnableGitTools,
 	}
 
 	return di.BuildContainer(diConfig)
@@ -150,6 +165,8 @@ func loadConfig() (Config, error) {
 		"ALEX_ENV":           {"ENVIRONMENT", "NODE_ENV"},
 		"ALEX_VERBOSE":       {"VERBOSE"},
 		"PORT":               {"ALEX_SERVER_PORT"},
+		"ENABLE_MCP":         {"ALEX_ENABLE_MCP"},
+		"ENABLE_GIT_TOOLS":   {"ALEX_ENABLE_GIT_TOOLS"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(
@@ -160,12 +177,22 @@ func loadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Runtime: runtimeCfg,
-		Port:    "8080",
+		Runtime:        runtimeCfg,
+		Port:           "8080",
+		EnableMCP:      true,      // Default: enabled
+		EnableGitTools: true,      // Default: enabled
 	}
 
 	if port, ok := envLookup("PORT"); ok && port != "" {
 		cfg.Port = port
+	}
+
+	// Parse feature flags
+	if enableMCP, ok := envLookup("ENABLE_MCP"); ok {
+		cfg.EnableMCP = enableMCP == "true" || enableMCP == "1"
+	}
+	if enableGitTools, ok := envLookup("ENABLE_GIT_TOOLS"); ok {
+		cfg.EnableGitTools = enableGitTools == "true" || enableGitTools == "1"
 	}
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {

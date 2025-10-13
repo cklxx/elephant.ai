@@ -18,15 +18,17 @@ const maxCreateTaskBodySize = 1 << 20 // 1 MiB
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
-	coordinator *app.ServerCoordinator
-	logger      *utils.Logger
+	coordinator   *app.ServerCoordinator
+	healthChecker *app.HealthCheckerImpl
+	logger        *utils.Logger
 }
 
 // NewAPIHandler creates a new API handler
-func NewAPIHandler(coordinator *app.ServerCoordinator) *APIHandler {
+func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl) *APIHandler {
 	return &APIHandler{
-		coordinator: coordinator,
-		logger:      utils.NewComponentLogger("APIHandler"),
+		coordinator:   coordinator,
+		healthChecker: healthChecker,
+		logger:        utils.NewComponentLogger("APIHandler"),
 	}
 }
 
@@ -419,12 +421,41 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 
 // HandleHealthCheck handles GET /health
 func (h *APIHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
+	// Check all component health
+	components := h.healthChecker.CheckAll(r.Context())
+
+	// Determine overall status
+	overallStatus := "healthy"
+	allReady := true
+	for _, comp := range components {
+		// Only care about components that should be ready (not disabled)
+		if comp.Status != "disabled" && comp.Status != "ready" {
+			allReady = false
+		}
+		if comp.Status == "error" {
+			overallStatus = "unhealthy"
+			break
+		}
+	}
+
+	if !allReady && overallStatus != "unhealthy" {
+		overallStatus = "degraded"
+	}
+
 	response := map[string]interface{}{
-		"status": "ok",
+		"status":     overallStatus,
+		"components": components,
+	}
+
+	// Set HTTP status based on health
+	httpStatus := http.StatusOK
+	if overallStatus == "unhealthy" {
+		httpStatus = http.StatusServiceUnavailable
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatus)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.logger.Error("Failed to encode health check response: %v", err)
 	}
 }
