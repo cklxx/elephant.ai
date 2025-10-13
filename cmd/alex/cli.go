@@ -30,7 +30,7 @@ func (c *CLI) Run(args []string) error {
 		return nil
 
 	case "version", "-v", "--version":
-		fmt.Println("ALEX v2.0 (Hexagonal Architecture)")
+		fmt.Println(appVersion())
 		return nil
 
 	case "session", "sessions":
@@ -63,8 +63,8 @@ func (c *CLI) Run(args []string) error {
 }
 
 func (c *CLI) showUsage() {
-	fmt.Print(`
-ALEX - Agile Light Easy Xpert Code Agent (v2.0)
+	fmt.Printf(`
+ALEX - Agile Light Easy Xpert Code Agent (v%s)
 
 Usage:
   alex <task>                    Execute a task with streaming output
@@ -100,7 +100,7 @@ Features:
 
 Architecture: Hexagonal (Ports & Adapters)
 Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
-`)
+`, appVersion())
 }
 
 func (c *CLI) handleSessions(args []string) error {
