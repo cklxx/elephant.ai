@@ -92,9 +92,6 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 	case "subagent":
 		return tf.subagentArgs(args), 120
 	default:
-		if strings.HasPrefix(name, "git_") {
-			return tf.gitArgs(args), 200
-		}
 		return tf.genericArgs(args), 120
 	}
 }
@@ -256,14 +253,6 @@ func (tf *ToolFormatter) subagentArgs(args map[string]any) map[string]string {
 	}
 	if subtasks, ok := args["subtasks"].([]any); ok {
 		result["tasks"] = strconv.Itoa(len(subtasks))
-	}
-	return result
-}
-
-func (tf *ToolFormatter) gitArgs(args map[string]any) map[string]string {
-	result := make(map[string]string)
-	for key, value := range args {
-		result[key] = tf.summarizeString(tf.formatValue(value), 160)
 	}
 	return result
 }

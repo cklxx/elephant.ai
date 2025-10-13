@@ -184,21 +184,6 @@ scenario := mocks.NewTodoManagementScenario()
 scenario := mocks.NewSubagentDelegationScenario()
 ```
 
-### 9. Git Operations Scenario
-**Name:** `git_operations`
-**Description:** Agent performs git operations (history, commit, PR)
-
-**Flow:**
-1. Check git history (5 recent commits)
-2. Create commit with changes
-3. Create pull request
-4. Confirm PR creation
-
-**Usage:**
-```go
-scenario := mocks.NewGitOperationsScenario()
-```
-
 ## Scenario Structure
 
 Each scenario provides:

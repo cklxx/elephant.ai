@@ -278,35 +278,6 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 	}
 }
 
-func TestReactEngine_GitOperationsScenario(t *testing.T) {
-	scenario := mocks.NewGitOperationsScenario()
-
-	services := domain.Services{
-		LLM:          scenario.LLM,
-		ToolExecutor: scenario.Registry,
-		Parser:       &mocks.MockParser{},
-		Context:      &mocks.MockContextManager{},
-	}
-
-	engine := newReactEngineForTest(10)
-	state := &domain.TaskState{}
-
-	result, err := engine.SolveTask(context.Background(), "Commit changes and create PR", state, services)
-
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	// 4 iterations: git_history, git_commit, git_pr, final answer
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
-	}
-
-	if len(state.ToolResults) != 3 {
-		t.Errorf("Expected 3 tool results, got %d", len(state.ToolResults))
-	}
-}
-
 // TestAllScenarios runs all available scenarios
 func TestAllScenarios(t *testing.T) {
 	scenarios := mocks.GetAllScenarios()

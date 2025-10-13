@@ -165,20 +165,7 @@ func (r *Registry) registerBuiltins(config Config) {
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
 	r.static["web_fetch"] = builtin.NewWebFetch()
 
-	// Git tools (without LLM - will be registered separately if needed)
-	r.static["git_history"] = builtin.NewGitHistory()
-
 	// Note: code_search tool is not registered (feature not ready)
-}
-
-// RegisterGitTools registers Git tools that require an LLM client
-func (r *Registry) RegisterGitTools(llmClient ports.LLMClient) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if llmClient != nil {
-		r.static["git_commit"] = builtin.NewGitCommit(llmClient)
-		r.static["git_pr"] = builtin.NewGitPR(llmClient)
-	}
 }
 
 // RegisterSubAgent registers the subagent tool that requires a coordinator

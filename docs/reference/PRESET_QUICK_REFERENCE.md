@@ -15,8 +15,8 @@
 | Preset | Allowed Tools | Blocked Tools | Best For |
 |--------|---------------|---------------|----------|
 | `full` | All tools | None | Complete development workflows |
-| `read-only` | file_read, grep, ripgrep, find, list_files, web_search, web_fetch, git_history, think, todo_read, subagent | file_write, file_edit, bash, code_execute, todo_update, git_commit, git_pr | Code review, audits, analysis |
-| `code-only` | file_*, grep, ripgrep, find, code_execute, git_*, think, todo_*, subagent | web_search, web_fetch, bash | Offline development, local work |
+| `read-only` | file_read, grep, ripgrep, find, list_files, web_search, web_fetch, think, todo_read, subagent | file_write, file_edit, bash, code_execute, todo_update | Code review, audits, analysis |
+| `code-only` | file_*, grep, ripgrep, find, code_execute, think, todo_*, subagent | web_search, web_fetch, bash | Offline development, local work |
 | `web-only` | web_search, web_fetch, think, todo_read | All file and execution tools | Pure research, web lookups |
 | `safe` | All except bash and code_execute | bash, code_execute | Untrusted code, extra safety |
 
@@ -165,9 +165,6 @@ curl -X POST http://localhost:3000/api/tasks \
 | find | ✅ | ✅ | ✅ | ❌ | ✅ |
 | web_search | ✅ | ✅ | ❌ | ✅ | ✅ |
 | web_fetch | ✅ | ✅ | ❌ | ✅ | ✅ |
-| git_history | ✅ | ✅ | ✅ | ❌ | ✅ |
-| git_commit | ✅ | ❌ | ✅ | ❌ | ✅ |
-| git_pr | ✅ | ❌ | ✅ | ❌ | ✅ |
 | think | ✅ | ✅ | ✅ | ✅ | ✅ |
 | todo_read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | todo_update | ✅ | ❌ | ✅ | ❌ | ✅ |

@@ -174,7 +174,6 @@ Tool presets control which tools the agent can access.
 - `grep` - Search in files
 - `ripgrep` - Fast text search
 - `find` - Find files by name
-- `git_history` - View git history
 - `web_search` - Web search
 - `web_fetch` - Fetch web content
 - `think` - Reasoning tool
@@ -185,7 +184,6 @@ Tool presets control which tools the agent can access.
 - `file_write`, `file_edit` - No file modifications
 - `bash`, `code_execute` - No command execution
 - `todo_update` - No task modifications
-- `git_commit`, `git_pr` - No git operations
 
 **Use Cases**:
 - Code review and analysis
@@ -202,7 +200,6 @@ Tool presets control which tools the agent can access.
 - All file operations (read, write, edit)
 - All search tools (grep, ripgrep, find)
 - Code execution (`code_execute`)
-- Git tools (history, commit, PR)
 - Task management tools
 - Reasoning and subagent
 

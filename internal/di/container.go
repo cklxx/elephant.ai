@@ -82,15 +82,6 @@ func BuildContainer(config Config) (*Container, error) {
 	// Note: MessageQueue removed - not used in current architecture
 	// Tasks are processed directly through ExecuteTask, not queued
 
-	// Register Git tools with LLM client
-	llmClient, err := llmFactory.GetClient(config.LLMProvider, config.LLMModel, llm.Config{
-		APIKey:  config.APIKey,
-		BaseURL: config.BaseURL,
-	})
-	if err == nil {
-		toolRegistry.RegisterGitTools(llmClient)
-	}
-
 	// Cost tracking storage
 	costStore, err := storage.NewFileCostStore(costDir)
 	if err != nil {
