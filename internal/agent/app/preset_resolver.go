@@ -147,17 +147,16 @@ func (r *PresetResolver) ResolveToolRegistry(
 
 // extractSessionID attempts to extract session ID from context
 func (r *PresetResolver) extractSessionID(ctx context.Context) string {
-	// Try to extract from various context keys
-	if sessionID, ok := ctx.Value("sessionID").(string); ok {
+	// Use the shared SessionContextKey from ports package
+	if sessionID, ok := ctx.Value(ports.SessionContextKey{}).(string); ok {
 		return sessionID
 	}
-	if sessionID, ok := ctx.Value(sessionContextKey{}).(string); ok {
+	// Fallback to legacy string key for backward compatibility
+	if sessionID, ok := ctx.Value("sessionID").(string); ok {
 		return sessionID
 	}
 	return ""
 }
-
-type sessionContextKey struct{}
 
 // resolveAgentPreset determines the agent preset to use.
 // Returns the preset name and source ("context", "config", or "").

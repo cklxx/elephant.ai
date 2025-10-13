@@ -205,8 +205,8 @@ func (b *EventBroadcaster) GetClientCount(sessionID string) int {
 // SetSessionContext sets the session context for event extraction
 // This is called when a task is started to associate events with a session
 func (b *EventBroadcaster) SetSessionContext(ctx context.Context, sessionID string) context.Context {
-	// Store sessionID in context for later extraction
-	return context.WithValue(ctx, sessionContextKey{}, sessionID)
+	// Store sessionID in context using shared key from ports package
+	return context.WithValue(ctx, agentports.SessionContextKey{}, sessionID)
 }
 
 // RegisterTaskSession associates a taskID with a sessionID for progress tracking
@@ -226,8 +226,6 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 	delete(b.sessionToTask, sessionID)
 	b.logger.Info("Unregistered task-session mapping: sessionID=%s", sessionID)
 }
-
-type sessionContextKey struct{}
 
 // Metrics helper methods
 func (m *broadcasterMetrics) incrementEventsSent() {
