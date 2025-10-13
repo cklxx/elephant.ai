@@ -82,12 +82,12 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
 
-	// Create a context that preserves request cancellation but survives HTTP handler return
-	// This allows upstream client cancellations (e.g., browser closing tab) to propagate
-	// while still allowing the task to run independently after the HTTP response is sent
-	taskCtx, cancelFunc := context.WithCancelCause(ctx)
+	// Create a detached context so the task keeps running after the HTTP handler returns
+	// while keeping request-scoped values for logging/metrics via context.WithoutCancel
+	// Explicit cancellation still flows through the stored cancel function
+	taskCtx, cancelFunc := context.WithCancelCause(context.WithoutCancel(ctx))
 
-	// Store cancel function for later use (both for explicit cancellation and cleanup)
+	// Store cancel function to enable explicit cancellation via CancelTask API
 	s.cancelMu.Lock()
 	s.cancelFuncs[taskRecord.ID] = cancelFunc
 	s.cancelMu.Unlock()
