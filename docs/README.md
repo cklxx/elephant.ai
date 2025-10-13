@@ -12,7 +12,6 @@ Core technical references and specifications:
 - **PRESET_QUICK_REFERENCE.md** - Quick reference for preset usage
 - **PRESET_SYSTEM_SUMMARY.md** - Preset system implementation details
 - **MCP_GUIDE.md** - Model Context Protocol integration guide
-- **GIT_TOOLS.md** - Git tool integration documentation
 - **FORMATTING_GUIDE.md** - Code formatting and style guide
 - **COST_TRACKING.md** - LLM cost tracking system
 - **OBSERVABILITY.md** - Logging and monitoring

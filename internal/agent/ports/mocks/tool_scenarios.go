@@ -579,109 +579,16 @@ Estimated improvement: 3-5x performance increase`,
 	}
 }
 
-// NewGitOperationsScenario creates a scenario with git tools
-func NewGitOperationsScenario() ToolScenario {
-	callCount := 0
-	return ToolScenario{
-		Name:        "git_operations",
-		Description: "Agent performs git operations: history, commit, PR",
-		LLM: &MockLLMClient{
-			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-				callCount++
-				switch callCount {
-				case 1:
-					return &ports.CompletionResponse{
-						Content: "Let me check the git history first",
-						ToolCalls: []ports.ToolCall{
-							{ID: "call_001", Name: "git_history", Arguments: map[string]any{"max_count": 5}},
-						},
-						StopReason: "tool_calls",
-						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
-					}, nil
-				case 2:
-					return &ports.CompletionResponse{
-						Content: "Now I'll create a commit with the changes",
-						ToolCalls: []ports.ToolCall{
-							{
-								ID:   "call_002",
-								Name: "git_commit",
-								Arguments: map[string]any{
-									"message": "feat: add new feature\n\nImplemented X, Y, Z",
-									"files":   []string{"src/feature.go", "src/feature_test.go"},
-								},
-							},
-						},
-						StopReason: "tool_calls",
-						Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 55, TotalTokens: 355},
-					}, nil
-				case 3:
-					return &ports.CompletionResponse{
-						Content: "Finally, let me create a pull request",
-						ToolCalls: []ports.ToolCall{
-							{
-								ID:   "call_003",
-								Name: "git_pr",
-								Arguments: map[string]any{
-									"title": "Add new feature",
-									"body":  "This PR adds feature X with full test coverage",
-								},
-							},
-						},
-						StopReason: "tool_calls",
-						Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 50, TotalTokens: 550},
-					}, nil
-				default:
-					return &ports.CompletionResponse{
-						Content:    "Successfully committed changes and created PR #42",
-						StopReason: "stop",
-						Usage:      ports.TokenUsage{PromptTokens: 700, CompletionTokens: 45, TotalTokens: 745},
-					}, nil
-				}
-			},
-		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						switch call.Name {
-						case "git_history":
-							return &ports.ToolResult{
-								CallID: call.ID,
-								Content: `commit abc123 - feat: previous feature (2 days ago)
-commit def456 - fix: bug fix (3 days ago)
-commit ghi789 - docs: update README (5 days ago)`,
-							}, nil
-						case "git_commit":
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: "✓ Created commit: abc1234\n2 files changed, 150 insertions(+), 10 deletions(-)",
-							}, nil
-						case "git_pr":
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: "✓ Created pull request #42: https://github.com/user/repo/pull/42",
-							}, nil
-						default:
-							return nil, fmt.Errorf("unknown tool: %s", call.Name)
-						}
-					},
-				}, nil
-			},
-		},
-	}
-}
-
 // GetAllScenarios returns all available test scenarios
 func GetAllScenarios() []ToolScenario {
-	return []ToolScenario{
-		NewFileReadScenario(),
-		NewMultipleToolCallsScenario(),
+        return []ToolScenario{
+                NewFileReadScenario(),
+                NewMultipleToolCallsScenario(),
 		NewParallelToolCallsScenario(),
 		NewWebSearchScenario(),
 		NewCodeEditScenario(),
 		NewToolErrorScenario(),
 		NewTodoManagementScenario(),
-		NewSubagentDelegationScenario(),
-		NewGitOperationsScenario(),
-	}
+                NewSubagentDelegationScenario(),
+        }
 }

@@ -145,22 +145,7 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			args:     map[string]any{},
 			wants:    []string{"subagent"},
 		},
-		{
-			name:     "git commit single arg",
-			toolName: "git_commit",
-			args:     map[string]any{"message": "Fix bug"},
-			wants:    []string{"git_commit(message=Fix bug)"},
-		},
-		{
-			name:     "git pr truncates long body",
-			toolName: "git_pr",
-			args: map[string]any{
-				"title": "Update",
-				"body":  strings.Repeat("a", 220),
-			},
-			wants: []string{"git_pr(", "body=", "(+"},
-		},
-		{
+                {
 			name:     "unknown",
 			toolName: "custom_tool",
 			args: map[string]any{
