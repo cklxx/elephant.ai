@@ -10,11 +10,15 @@ import (
 
 // SSERenderer renders output for SSE (Server-Sent Events) streaming
 // Output is JSON-formatted events suitable for web clients
-type SSERenderer struct{}
+type SSERenderer struct {
+	formatter *domain.ToolFormatter
+}
 
 // NewSSERenderer creates a new SSE renderer
 func NewSSERenderer() *SSERenderer {
-	return &SSERenderer{}
+	return &SSERenderer{
+		formatter: domain.NewToolFormatter(),
+	}
 }
 
 // Target returns the output target
@@ -46,6 +50,8 @@ func (r *SSERenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain
 
 // RenderToolCallStart renders tool call start as SSE event with hierarchy
 func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
+	presentation := r.formatter.PrepareArgs(toolName, args)
+
 	sseEvent := SSEEvent{
 		Type:      "tool_call_start",
 		Timestamp: time.Now(),
@@ -57,6 +63,14 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 			"agent_id": ctx.AgentID,
 		},
 	}
+
+	if len(presentation.Args) > 0 {
+		sseEvent.Data["arguments"] = presentation.Args
+	}
+	if presentation.InlinePreview != "" {
+		sseEvent.Data["arguments_preview"] = presentation.InlinePreview
+	}
+
 	return r.toSSE(sseEvent)
 }
 

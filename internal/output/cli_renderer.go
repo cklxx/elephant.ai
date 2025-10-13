@@ -26,6 +26,8 @@ type CLIRenderer struct {
 	formatter *domain.ToolFormatter
 }
 
+const nonVerbosePreviewLimit = 80
+
 // NewCLIRenderer creates a new CLI renderer
 // verbose=true enables detailed output (full args, more content preview)
 // verbose=false shows compact output (tool name + brief summary)
@@ -92,11 +94,36 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 
 	presentation := r.formatter.PrepareArgs(toolName, args)
 
-	if r.verbose && presentation.ShouldDisplay && presentation.InlinePreview != "" {
-		return fmt.Sprintf("%s%s %s(%s)\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName), presentation.InlinePreview)
+	if presentation.ShouldDisplay && presentation.InlinePreview != "" {
+		preview := presentation.InlinePreview
+		if !r.verbose {
+			preview = truncateInlinePreview(preview, nonVerbosePreviewLimit)
+		}
+		return fmt.Sprintf("%s%s %s(%s)\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName), preview)
 	}
 
 	return fmt.Sprintf("%s%s %s\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName))
+}
+
+func truncateInlinePreview(preview string, limit int) string {
+	if limit <= 0 {
+		return preview
+	}
+
+	if utf8.RuneCountInString(preview) <= limit {
+		return preview
+	}
+
+	runes := []rune(preview)
+	if len(runes) <= limit {
+		return preview
+	}
+
+	if limit == 1 {
+		return string(runes[0])
+	}
+
+	return string(runes[:limit-1]) + "…"
 }
 
 // RenderToolCallComplete renders tool call completion with hierarchy and category awareness
