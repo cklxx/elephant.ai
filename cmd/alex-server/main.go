@@ -179,8 +179,8 @@ func loadConfig() (Config, error) {
 	cfg := Config{
 		Runtime:        runtimeCfg,
 		Port:           "8080",
-		EnableMCP:      true,      // Default: enabled
-		EnableGitTools: true,      // Default: enabled
+		EnableMCP:      true,       // Default: enabled
+		EnableGitTools: false,      // Default: disabled (not yet implemented)
 	}
 
 	if port, ok := envLookup("PORT"); ok && port != "" {
