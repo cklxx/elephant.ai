@@ -208,7 +208,7 @@ func TestBuildContainer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer() should succeed without API key when features disabled: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		if container == nil {
 			t.Fatal("Expected non-nil container")
@@ -231,7 +231,7 @@ func TestContainer_Lifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer() error = %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		// Start should succeed
 		if err := container.Start(); err != nil {
@@ -277,7 +277,7 @@ func TestContainer_Lifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer() error = %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		// Start should initialize Git tools
 		if err := container.Start(); err != nil {

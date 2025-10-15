@@ -31,7 +31,6 @@ type broadcasterMetrics struct {
 	mu sync.RWMutex
 
 	totalEventsSent   int64
-	failedEventsSent  int64
 	droppedEvents     int64 // Events dropped due to full buffers
 	totalConnections  int64 // Total connections ever made
 	activeConnections int64 // Currently active connections

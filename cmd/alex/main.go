@@ -187,11 +187,11 @@ func prepareTerminalWithLookup(envLookup config.EnvLookup, setEnv func(string, s
 	}
 
 	if err := setEnv("TERM", normalized); err != nil {
-		fmt.Fprintf(stderr, "Warning: unable to configure terminal fallback for interactive UI: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "Warning: unable to configure terminal fallback for interactive UI: %v\n", err)
 		return
 	}
 
-	fmt.Fprintf(stderr, "Detected unsupported TERM=%q; using %q for interactive chat UI.\n", originalTERM, normalized)
+	_, _ = fmt.Fprintf(stderr, "Detected unsupported TERM=%q; using %q for interactive chat UI.\n", originalTERM, normalized)
 }
 
 func normalizeTerminal(term, termProgram string, lookup func(string) error) (string, bool, error) {

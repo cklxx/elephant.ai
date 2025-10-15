@@ -68,7 +68,7 @@ func TestGitToolsProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		probe := NewGitToolsProbe(container, false)
 		health := probe.Check(context.Background())
@@ -92,7 +92,7 @@ func TestGitToolsProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		probe := NewGitToolsProbe(container, true) // Probe thinks it's enabled
 		health := probe.Check(context.Background())
@@ -121,7 +121,7 @@ func TestGitToolsProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		// Start to initialize Git tools
 		if err := container.Start(); err != nil {
@@ -152,7 +152,7 @@ func TestMCPProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		probe := NewMCPProbe(container, false)
 		health := probe.Check(context.Background())
@@ -176,7 +176,7 @@ func TestMCPProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		probe := NewMCPProbe(container, true) // Probe thinks it's enabled
 		health := probe.Check(context.Background())
@@ -197,7 +197,7 @@ func TestLLMFactoryProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer container.Cleanup()
+		defer func() { _ = container.Cleanup() }()
 
 		probe := NewLLMFactoryProbe(container)
 		health := probe.Check(context.Background())

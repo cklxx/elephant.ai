@@ -210,12 +210,6 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 	return session, err
 }
 
-// resolveSystemPrompt is deprecated - use presetResolver.ResolveSystemPrompt instead.
-// Kept for backward compatibility if any external code references it.
-func (s *ExecutionPreparationService) resolveSystemPrompt(ctx context.Context, workingDir, task string, analysis *prompts.TaskAnalysisInfo) string {
-	return s.presetResolver.ResolveSystemPrompt(ctx, task, analysis, s.config.AgentPreset)
-}
-
 func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) ports.ToolRegistry {
 	// Handle subagent context filtering first
 	registry := s.toolRegistry

@@ -640,9 +640,9 @@ func TestInferProvider(t *testing.T) {
 		{"claude-3-opus", "anthropic"},
 		{"deepseek-chat", "deepseek"},
 		{"deepseek-reasoner", "deepseek"},
-		{"unknown-model", "unknown"},
-		{"ab", "unknown"}, // too short
-		{"", "unknown"},
+		{"unknown-model", "openrouter"}, // defaults to openrouter for unknown models
+		{"ab", "openrouter"},            // defaults to openrouter
+		{"", "openrouter"},              // defaults to openrouter
 	}
 
 	for _, tt := range tests {

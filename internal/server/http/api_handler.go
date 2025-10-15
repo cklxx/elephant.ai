@@ -56,7 +56,7 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Limit request body size to avoid resource exhaustion attacks
 	body := http.MaxBytesReader(w, r.Body, maxCreateTaskBodySize)
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 
 	// Parse request body
 	var req CreateTaskRequest
