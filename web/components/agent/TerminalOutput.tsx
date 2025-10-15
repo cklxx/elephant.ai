@@ -124,8 +124,8 @@ export function TerminalOutput({
   return (
     <div className="space-y-6" data-testid="conversation-stream">
       {activeAction && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-sky-600">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
           <span>{t('conversation.status.doing')}</span>
           <span className="text-slate-500 normal-case tracking-normal">{activeAction.tool_name}</span>
         </div>
@@ -161,9 +161,9 @@ function EventLine({
     const timestamp = formatTimestamp(event.timestamp, locale);
     return (
       <div className="flex justify-end" data-testid="event-line-user">
-        <div className="max-w-xl rounded-3xl bg-sky-500 px-4 py-3 text-sm font-medium text-white shadow-sm">
+        <div className="max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-normal text-slate-800 shadow-sm">
           <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
-          <time className="mt-2 block text-[10px] font-medium uppercase tracking-[0.3em] text-white/70">
+          <time className="mt-2 block text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">
             {timestamp}
           </time>
         </div>

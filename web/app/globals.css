@@ -333,6 +333,32 @@
     background-color: hsla(var(--primary) / 0.25);
     border-radius: 9999px;
   }
+
+  /**
+   * Manus UI Layout Styles
+   * - Fixed sidebar layout
+   * - Full height content areas
+   * - Bottom input bar
+   */
+  .layout-sidebar {
+    @apply fixed left-0 top-0 h-screen w-64 border-r border-slate-200 bg-white;
+  }
+
+  .layout-main {
+    @apply ml-64 flex h-screen flex-col;
+  }
+
+  .layout-header {
+    @apply sticky top-0 z-10 border-b border-slate-200 bg-white;
+  }
+
+  .layout-content {
+    @apply flex-1 overflow-y-auto bg-gray-50/50;
+  }
+
+  .layout-input-bar {
+    @apply sticky bottom-0 border-t border-slate-200 bg-white;
+  }
 }
 
 /* ========================================================================
