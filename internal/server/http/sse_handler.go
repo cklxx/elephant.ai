@@ -185,6 +185,18 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 			data["error"] = e.Error.Error()
 		}
 		data["recoverable"] = e.Recoverable
+
+	case *domain.ContextCompressionEvent:
+		data["original_count"] = e.OriginalCount
+		data["compressed_count"] = e.CompressedCount
+		data["compression_rate"] = e.CompressionRate
+
+	case *domain.ToolFilteringEvent:
+		data["preset_name"] = e.PresetName
+		data["original_count"] = e.OriginalCount
+		data["filtered_count"] = e.FilteredCount
+		data["filtered_tools"] = e.FilteredTools
+		data["tool_filter_ratio"] = e.ToolFilterRatio
 	}
 
 	// Marshal to JSON

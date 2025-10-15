@@ -59,8 +59,21 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	}
 
 	baseURL := runtimeCfg.BaseURL
-	if baseURL == "" || meta.Source("base_url") == runtimeconfig.SourceDefault {
-		baseURL = getBaseURL(runtimeCfg.LLMModel)
+	// Auto-adjust base URL if:
+	// 1. No explicit base URL set (empty or default source), OR
+	// 2. Using default OpenRouter URL but provider is explicitly OpenAI/Anthropic/DeepSeek
+	shouldAdjustBaseURL := baseURL == "" || meta.Source("base_url") == runtimeconfig.SourceDefault
+	if !shouldAdjustBaseURL && baseURL == "https://openrouter.ai/api/v1" {
+		// Check if provider was explicitly set to something other than openrouter
+		providerSource := meta.Source("llm_provider")
+		providerLower := strings.ToLower(runtimeCfg.LLMProvider)
+		if (providerSource == runtimeconfig.SourceEnv || providerSource == runtimeconfig.SourceOverride) &&
+			(providerLower == "openai" || providerLower == "anthropic" || providerLower == "deepseek") {
+			shouldAdjustBaseURL = true
+		}
+	}
+	if shouldAdjustBaseURL {
+		baseURL = getBaseURL(runtimeCfg.LLMProvider, runtimeCfg.LLMModel)
 	}
 	runtimeCfg.BaseURL = baseURL
 
@@ -362,17 +375,32 @@ func (aa *AlexAgent) calculateCost(tokens int) float64 {
 	return float64(tokens) / 1000.0 * costPer1000Tokens
 }
 
-// getBaseURL returns the appropriate base URL for the model
-func getBaseURL(modelName string) string {
-	if strings.Contains(modelName, "deepseek") {
-		return "https://openrouter.ai/api/v1"
-	}
-	if strings.Contains(modelName, "gpt") || strings.Contains(modelName, "openai") {
+// getBaseURL returns the appropriate base URL for the provider and model
+func getBaseURL(provider, modelName string) string {
+	// Check provider first for explicit routing
+	providerLower := strings.ToLower(provider)
+	if providerLower == "openai" {
 		return "https://api.openai.com/v1"
 	}
-	if strings.Contains(modelName, "claude") {
+	if providerLower == "anthropic" {
 		return "https://api.anthropic.com/v1"
 	}
+	if providerLower == "deepseek" {
+		return "https://api.deepseek.com/v1"
+	}
+
+	// Fall back to model-based routing
+	modelLower := strings.ToLower(modelName)
+	if strings.Contains(modelLower, "gpt") || strings.Contains(modelLower, "openai") {
+		return "https://api.openai.com/v1"
+	}
+	if strings.Contains(modelLower, "claude") {
+		return "https://api.anthropic.com/v1"
+	}
+	if strings.Contains(modelLower, "deepseek") {
+		return "https://api.deepseek.com/v1"
+	}
+
 	// Default to OpenRouter for broad model support
 	return "https://openrouter.ai/api/v1"
 }

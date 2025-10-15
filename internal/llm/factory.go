@@ -42,13 +42,30 @@ func (f *Factory) DisableRetry() {
 }
 
 func (f *Factory) GetClient(provider, model string, config Config) (ports.LLMClient, error) {
+	return f.getClient(provider, model, config, true)
+}
+
+// GetIsolatedClient creates a new non-cached client instance for session isolation
+// This is useful when per-session state (like cost tracking callbacks) needs to be isolated
+func (f *Factory) GetIsolatedClient(provider, model string, config Config) (ports.LLMClient, error) {
+	return f.getClient(provider, model, config, false)
+}
+
+func (f *Factory) getClient(provider, model string, config Config, useCache bool) (ports.LLMClient, error) {
 	cacheKey := fmt.Sprintf("%s:%s", provider, model)
 
-	f.mu.RLock()
-	if client, ok := f.cache[cacheKey]; ok {
+	// Check cache if enabled
+	if useCache {
+		f.mu.RLock()
+		if client, ok := f.cache[cacheKey]; ok {
+			f.mu.RUnlock()
+			return client, nil
+		}
 		f.mu.RUnlock()
-		return client, nil
 	}
+
+	// Get retry configuration
+	f.mu.RLock()
 	enableRetry := f.enableRetry
 	retryConfig := f.retryConfig
 	circuitBreakerConfig := f.circuitBreakerConfig
@@ -77,9 +94,12 @@ func (f *Factory) GetClient(provider, model string, config Config) (ports.LLMCli
 		client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
 	}
 
-	f.mu.Lock()
-	f.cache[cacheKey] = client
-	f.mu.Unlock()
+	// Cache only if requested
+	if useCache {
+		f.mu.Lock()
+		f.cache[cacheKey] = client
+		f.mu.Unlock()
+	}
 
 	return client, nil
 }

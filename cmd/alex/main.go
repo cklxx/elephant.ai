@@ -22,6 +22,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Start the container (initializes MCP, Git tools, etc.)
+	if err := container.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start container: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Ensure cleanup on exit
 	defer func() {
 		if err := container.Cleanup(); err != nil {
@@ -181,11 +187,11 @@ func prepareTerminalWithLookup(envLookup config.EnvLookup, setEnv func(string, s
 	}
 
 	if err := setEnv("TERM", normalized); err != nil {
-		fmt.Fprintf(stderr, "Warning: unable to configure terminal fallback for interactive UI: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "Warning: unable to configure terminal fallback for interactive UI: %v\n", err)
 		return
 	}
 
-	fmt.Fprintf(stderr, "Detected unsupported TERM=%q; using %q for interactive chat UI.\n", originalTERM, normalized)
+	_, _ = fmt.Fprintf(stderr, "Detected unsupported TERM=%q; using %q for interactive chat UI.\n", originalTERM, normalized)
 }
 
 func normalizeTerminal(term, termProgram string, lookup func(string) error) (string, bool, error) {

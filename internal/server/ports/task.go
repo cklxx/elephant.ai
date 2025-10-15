@@ -18,17 +18,29 @@ const (
 	TaskStatusCancelled TaskStatus = "cancelled"
 )
 
+// TerminationReason represents why a task terminated
+type TerminationReason string
+
+const (
+	TerminationReasonCompleted TerminationReason = "completed"
+	TerminationReasonCancelled TerminationReason = "cancelled"
+	TerminationReasonTimeout   TerminationReason = "timeout"
+	TerminationReasonError     TerminationReason = "error"
+	TerminationReasonNone      TerminationReason = ""
+)
+
 // Task represents a task execution
 type Task struct {
-	ID          string                 `json:"task_id"`
-	SessionID   string                 `json:"session_id"`
-	Status      TaskStatus             `json:"status"`
-	Description string                 `json:"task"`
-	CreatedAt   time.Time              `json:"created_at"`
-	StartedAt   *time.Time             `json:"started_at,omitempty"`
-	CompletedAt *time.Time             `json:"completed_at,omitempty"`
-	Error       string                 `json:"error,omitempty"`
-	Result      *agentPorts.TaskResult `json:"result,omitempty"`
+	ID                string                 `json:"task_id"`
+	SessionID         string                 `json:"session_id"`
+	Status            TaskStatus             `json:"status"`
+	Description       string                 `json:"task"`
+	CreatedAt         time.Time              `json:"created_at"`
+	StartedAt         *time.Time             `json:"started_at,omitempty"`
+	CompletedAt       *time.Time             `json:"completed_at,omitempty"`
+	Error             string                 `json:"error,omitempty"`
+	Result            *agentPorts.TaskResult `json:"result,omitempty"`
+	TerminationReason TerminationReason      `json:"termination_reason,omitempty"`
 
 	// Progress tracking
 	CurrentIteration int `json:"current_iteration"` // Current iteration during execution (no omitempty - always show)
@@ -75,6 +87,9 @@ type TaskStore interface {
 
 	// UpdateProgress updates task execution progress
 	UpdateProgress(ctx context.Context, taskID string, iteration int, tokensUsed int) error
+
+	// SetTerminationReason sets the termination reason for a task
+	SetTerminationReason(ctx context.Context, taskID string, reason TerminationReason) error
 }
 
 // TaskListParams represents pagination and filtering parameters

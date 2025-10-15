@@ -1,18 +1,18 @@
 package builtin
 
-import "context"
+import (
+	"context"
 
-type sessionContextKey string
+	"alex/internal/agent/ports"
+)
 
-const sessionIDKey sessionContextKey = "session_id"
-
-// WithSessionID adds a session ID to the context
+// WithSessionID adds a session ID to the context using the shared SessionContextKey
 func WithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, sessionIDKey, sessionID)
+	return context.WithValue(ctx, ports.SessionContextKey{}, sessionID)
 }
 
 // GetSessionID retrieves the session ID from the context
 func GetSessionID(ctx context.Context) (string, bool) {
-	sessionID, ok := ctx.Value(sessionIDKey).(string)
+	sessionID, ok := ctx.Value(ports.SessionContextKey{}).(string)
 	return sessionID, ok
 }

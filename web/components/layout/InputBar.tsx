@@ -1,0 +1,163 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { Send, Paperclip, Mic } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
+
+interface InputBarProps {
+  onSubmit: (text: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  loading?: boolean;
+  prefill?: string | null;
+  onPrefillApplied?: () => void;
+  showAttachment?: boolean;
+  showVoice?: boolean;
+  onAttachment?: () => void;
+  onVoice?: () => void;
+}
+
+export function InputBar({
+  onSubmit,
+  placeholder,
+  disabled = false,
+  loading = false,
+  prefill = null,
+  onPrefillApplied,
+  showAttachment = false,
+  showVoice = false,
+  onAttachment,
+  onVoice,
+}: InputBarProps) {
+  const { t } = useI18n();
+  const [text, setText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resolvedPlaceholder = placeholder ?? t('inputBar.placeholder');
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [text]);
+
+  // Handle prefill
+  useEffect(() => {
+    if (typeof prefill !== 'string') return;
+    const nextValue = prefill.trim();
+    if (!nextValue) return;
+
+    setText(prefill);
+
+    const focusField = () => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      const length = prefill.length;
+      textareaRef.current.setSelectionRange(length, length);
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(focusField);
+    } else {
+      setTimeout(focusField, 0);
+    }
+
+    onPrefillApplied?.();
+  }, [prefill, onPrefillApplied]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (text.trim() && !loading && !disabled) {
+      onSubmit(text.trim());
+      setText('');
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    }
+  };
+
+  return (
+    <div className="border-t border-slate-200 bg-white px-6 py-4">
+      <form onSubmit={handleSubmit} className="flex items-end gap-3">
+        <div className="flex items-center gap-2">
+          {showAttachment && (
+            <button
+              type="button"
+              onClick={onAttachment}
+              disabled={disabled || loading}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title={t('inputBar.actions.attach')}
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+          )}
+          {showVoice && (
+            <button
+              type="button"
+              onClick={onVoice}
+              disabled={disabled || loading}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title={t('inputBar.actions.voice')}
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="relative flex-1">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
+            placeholder={resolvedPlaceholder}
+            disabled={disabled || loading}
+            rows={1}
+            className={cn(
+              'w-full resize-none overflow-y-auto rounded-lg border border-slate-200 bg-white px-4 py-3',
+              'text-sm text-slate-700 placeholder:text-slate-400',
+              'transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              'max-h-32'
+            )}
+            style={{ fieldSizing: 'content' } as any}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={disabled || loading || !text.trim()}
+          className={cn(
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
+            'bg-sky-500 text-white shadow-sm transition',
+            'hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200',
+            'disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400'
+          )}
+          title={loading ? t('inputBar.actions.sending') : t('inputBar.actions.send')}
+        >
+          {loading ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </button>
+      </form>
+
+      <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+        <span>{t('inputBar.hint.shortcut')}</span>
+        {text.length > 0 && (
+          <span className="font-mono">
+            {text.length} / 4000
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	agentPorts "alex/internal/agent/ports"
+	serverPorts "alex/internal/server/ports"
 )
 
 // Mock implementations for testing
@@ -312,4 +313,242 @@ func TestTaskStoreProgressFields(t *testing.T) {
 
 	t.Logf("✓ Progress fields updated correctly: total_iterations=%d, total_tokens=%d",
 		final.TotalIterations, final.TotalTokens)
+}
+
+// Mock agent coordinator that supports cancellation
+type MockCancellableAgentCoordinator struct {
+	sessionStore agentPorts.SessionStore
+	delay        time.Duration
+}
+
+func NewMockCancellableAgentCoordinator(sessionStore agentPorts.SessionStore, delay time.Duration) *MockCancellableAgentCoordinator {
+	return &MockCancellableAgentCoordinator{
+		sessionStore: sessionStore,
+		delay:        delay,
+	}
+}
+
+func (m *MockCancellableAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+	return m.sessionStore.Get(ctx, id)
+}
+
+func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+	// Simulate long-running task that checks for cancellation
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	deadline := time.Now().Add(m.delay)
+	for {
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+			return nil, ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				// Task completed successfully
+				return &agentPorts.TaskResult{
+					Answer:     "Mock answer",
+					Iterations: 3,
+					TokensUsed: 100,
+					StopReason: "completed",
+					SessionID:  sessionID,
+				}, nil
+			}
+		}
+	}
+}
+
+// TestTaskCancellation verifies task cancellation works correctly
+func TestTaskCancellation(t *testing.T) {
+	// Setup
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+
+	// Use a cancellable agent coordinator with 1 second delay
+	agentCoordinator := NewMockCancellableAgentCoordinator(sessionStore, 1*time.Second)
+
+	serverCoordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+	)
+
+	ctx := context.Background()
+
+	// Start a long-running task
+	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "long running task", "", "", "")
+	if err != nil {
+		t.Fatalf("ExecuteTaskAsync failed: %v", err)
+	}
+
+	// Wait a bit to ensure task is running
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify task is running
+	runningTask, err := taskStore.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("Failed to get task: %v", err)
+	}
+
+	if runningTask.Status != serverPorts.TaskStatusPending && runningTask.Status != serverPorts.TaskStatusRunning {
+		t.Logf("⚠ Task status is %s (expected pending or running)", runningTask.Status)
+	}
+
+	// Cancel the task
+	err = serverCoordinator.CancelTask(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("Failed to cancel task: %v", err)
+	}
+
+	// Wait for cancellation to propagate
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify task was cancelled
+	cancelledTask, err := taskStore.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("Failed to get cancelled task: %v", err)
+	}
+
+	if cancelledTask.Status != serverPorts.TaskStatusCancelled {
+		t.Errorf("Expected status 'cancelled', got '%s'", cancelledTask.Status)
+	}
+
+	if cancelledTask.TerminationReason != serverPorts.TerminationReasonCancelled {
+		t.Errorf("Expected termination reason 'cancelled', got '%s'", cancelledTask.TerminationReason)
+	}
+
+	t.Logf("✓ Task cancelled successfully: status=%s, reason=%s",
+		cancelledTask.Status, cancelledTask.TerminationReason)
+}
+
+// TestCancelNonExistentTask verifies error handling for non-existent task
+func TestCancelNonExistentTask(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+
+	agentCoordinator := NewMockAgentCoordinator(sessionStore)
+
+	serverCoordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+	)
+
+	ctx := context.Background()
+
+	// Try to cancel non-existent task
+	err := serverCoordinator.CancelTask(ctx, "non-existent-task-id")
+	if err == nil {
+		t.Error("Expected error when cancelling non-existent task")
+	}
+
+	t.Logf("✓ Correctly returned error for non-existent task: %v", err)
+}
+
+// TestCancelCompletedTask verifies that completed tasks cannot be cancelled
+func TestCancelCompletedTask(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+
+	agentCoordinator := NewMockAgentCoordinator(sessionStore)
+
+	serverCoordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+	)
+
+	ctx := context.Background()
+
+	// Create and complete a task
+	task, err := taskStore.Create(ctx, "session-1", "test task", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	result := &agentPorts.TaskResult{
+		Answer:     "Completed",
+		Iterations: 1,
+		TokensUsed: 50,
+		StopReason: "completed",
+		SessionID:  "session-1",
+	}
+
+	err = taskStore.SetResult(ctx, task.ID, result)
+	if err != nil {
+		t.Fatalf("Failed to set result: %v", err)
+	}
+
+	// Try to cancel completed task
+	err = serverCoordinator.CancelTask(ctx, task.ID)
+	if err == nil {
+		t.Error("Expected error when cancelling completed task")
+	}
+
+	t.Logf("✓ Correctly returned error for completed task: %v", err)
+}
+
+// TestNoCancelFunctionLeak verifies that cancel functions are cleaned up
+func TestNoCancelFunctionLeak(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+
+	// Use fast mock coordinator to quickly complete tasks
+	agentCoordinator := NewMockAgentCoordinator(sessionStore)
+
+	serverCoordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+	)
+
+	ctx := context.Background()
+
+	// Create multiple tasks
+	taskIDs := make([]string, 5)
+	for i := 0; i < 5; i++ {
+		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task", "", "", "")
+		if err != nil {
+			t.Fatalf("ExecuteTaskAsync failed: %v", err)
+		}
+		taskIDs[i] = task.ID
+	}
+
+	// Wait for tasks to complete
+	time.Sleep(300 * time.Millisecond)
+
+	// Verify all tasks completed
+	for _, taskID := range taskIDs {
+		task, err := taskStore.Get(ctx, taskID)
+		if err != nil {
+			t.Fatalf("Failed to get task %s: %v", taskID, err)
+		}
+
+		if task.Status != serverPorts.TaskStatusCompleted {
+			t.Logf("⚠ Task %s status is %s (expected completed)", taskID, task.Status)
+		}
+	}
+
+	// Check that cancel functions were cleaned up
+	serverCoordinator.cancelMu.RLock()
+	numCancelFuncs := len(serverCoordinator.cancelFuncs)
+	serverCoordinator.cancelMu.RUnlock()
+
+	if numCancelFuncs != 0 {
+		t.Errorf("Expected 0 cancel functions after tasks completed, got %d", numCancelFuncs)
+	} else {
+		t.Logf("✓ No cancel function leak: all %d tasks cleaned up", len(taskIDs))
+	}
 }

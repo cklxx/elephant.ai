@@ -13,6 +13,10 @@ type CostTracker interface {
 	// GetSessionCost returns total cost for a specific session
 	GetSessionCost(ctx context.Context, sessionID string) (*CostSummary, error)
 
+	// GetSessionStats returns detailed statistics for a specific session
+	// This includes total tokens, costs, and request counts
+	GetSessionStats(ctx context.Context, sessionID string) (*SessionStats, error)
+
 	// GetDailyCost returns aggregated cost for a specific day
 	GetDailyCost(ctx context.Context, date time.Time) (*CostSummary, error)
 
@@ -71,6 +75,21 @@ type CostSummary struct {
 	ByProvider   map[string]float64 `json:"by_provider"`
 	StartTime    time.Time          `json:"start_time"`
 	EndTime      time.Time          `json:"end_time"`
+}
+
+// SessionStats provides detailed statistics for a session
+type SessionStats struct {
+	SessionID    string             `json:"session_id"`
+	TotalCost    float64            `json:"total_cost"`
+	InputTokens  int                `json:"input_tokens"`
+	OutputTokens int                `json:"output_tokens"`
+	TotalTokens  int                `json:"total_tokens"`
+	RequestCount int                `json:"request_count"`
+	ByModel      map[string]float64 `json:"by_model,omitempty"`
+	ByProvider   map[string]float64 `json:"by_provider,omitempty"`
+	FirstRequest time.Time          `json:"first_request"`
+	LastRequest  time.Time          `json:"last_request"`
+	Duration     time.Duration      `json:"duration"`
 }
 
 // ExportFormat defines export format types

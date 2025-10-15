@@ -172,6 +172,24 @@ func (e *ReactEngine) SolveTask(
 
 	// ReAct loop: Think → Act → Observe
 	for state.Iterations < e.maxIterations {
+		// Check if context is cancelled before starting iteration
+		if ctx.Err() != nil {
+			e.logger.Info("Context cancelled, stopping execution: %v", ctx.Err())
+			finalResult := e.finalize(state, "cancelled")
+
+			// EMIT: Task complete with cancellation
+			e.emitEvent(&TaskCompleteEvent{
+				BaseEvent:       e.newBaseEvent(ctx, state.SessionID),
+				FinalAnswer:     finalResult.Answer,
+				TotalIterations: finalResult.Iterations,
+				TotalTokens:     finalResult.TokensUsed,
+				StopReason:      "cancelled",
+				Duration:        e.clock.Now().Sub(startTime),
+			})
+
+			return nil, ctx.Err()
+		}
+
 		state.Iterations++
 		e.logger.Info("=== Iteration %d/%d ===", state.Iterations, e.maxIterations)
 

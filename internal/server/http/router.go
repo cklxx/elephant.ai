@@ -9,12 +9,12 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, environment string) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, environment string) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster)
-	apiHandler := NewAPIHandler(coordinator)
+	apiHandler := NewAPIHandler(coordinator, healthChecker)
 
 	// Create mux
 	mux := http.NewServeMux()
