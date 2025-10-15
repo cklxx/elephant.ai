@@ -96,6 +96,6 @@ drained:
 	require.Equal(t, state.ToolStatusCompleted, snapshot.ToolRuns[0].Status)
 	require.Equal(t, 42, snapshot.Metrics.TotalTokens)
 
-	status := renderStatus(0, snapshot, session.ID, "", false)
+	status := renderStatus(0, snapshot, session.ID, "", false, false, false)
 	require.Contains(t, status, "Tokens: 42")
 }

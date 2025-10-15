@@ -45,7 +45,7 @@ func TestNormalizeTerminalEmptyFallsBack(t *testing.T) {
 }
 
 func TestNormalizeTerminalUnsupportedUsesFallback(t *testing.T) {
-	lookup := stubLookup(map[string]bool{defaultTERM: true})
+	lookup := stubLookup(map[string]bool{"wezterm": true})
 	got, changed, err := normalizeTerminal("wezterm-direct", "", lookup)
 	if err != nil {
 		t.Fatalf("normalizeTerminal returned error: %v", err)
@@ -53,8 +53,8 @@ func TestNormalizeTerminalUnsupportedUsesFallback(t *testing.T) {
 	if !changed {
 		t.Fatalf("expected change for unsupported TERM")
 	}
-	if got != defaultTERM {
-		t.Fatalf("expected fallback %q, got %q", defaultTERM, got)
+	if got != "wezterm" {
+		t.Fatalf("expected fallback %q, got %q", "wezterm", got)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestNormalizeTerminalUnsupportedNoFallback(t *testing.T) {
 }
 
 func TestNormalizeTerminalUsesTermProgramFallback(t *testing.T) {
-	lookup := stubLookup(map[string]bool{defaultTERM: true})
+	lookup := stubLookup(map[string]bool{"wezterm": true})
 	got, changed, err := normalizeTerminal("", "WezTerm", lookup)
 	if err != nil {
 		t.Fatalf("normalizeTerminal returned error: %v", err)
@@ -74,8 +74,22 @@ func TestNormalizeTerminalUsesTermProgramFallback(t *testing.T) {
 	if !changed {
 		t.Fatalf("expected change when deriving from TERM_PROGRAM")
 	}
-	if got != defaultTERM {
-		t.Fatalf("expected fallback %q, got %q", defaultTERM, got)
+	if got != "wezterm" {
+		t.Fatalf("expected fallback %q, got %q", "wezterm", got)
+	}
+}
+
+func TestNormalizeTerminalFallsBackToTerminfoSuffixes(t *testing.T) {
+	lookup := stubLookup(map[string]bool{"xterm-256color": true})
+	got, changed, err := normalizeTerminal("screen.xterm-256color", "", lookup)
+	if err != nil {
+		t.Fatalf("normalizeTerminal returned error: %v", err)
+	}
+	if !changed {
+		t.Fatalf("expected change for namespaced TERM")
+	}
+	if got != "xterm-256color" {
+		t.Fatalf("expected fallback %q, got %q", "xterm-256color", got)
 	}
 }
 

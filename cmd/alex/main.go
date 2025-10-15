@@ -12,6 +12,7 @@ import (
 	"alex/internal/config"
 
 	"github.com/gdamore/tcell/v2/terminfo"
+	_ "github.com/gdamore/tcell/v2/terminfo/extended"
 )
 
 func main() {
@@ -135,23 +136,23 @@ var terminalAliasFallback = map[string]string{
 	"hyper":                 defaultTERM,
 	"iterm.app":             defaultTERM,
 	"kitty":                 defaultTERM,
+	"tabby":                 defaultTERM,
 	"tmux":                  defaultTERM,
 	"tmux-256color":         defaultTERM,
 	"tmux-24bit":            defaultTERM,
+	"vscode":                defaultTERM,
+	"vscode-terminal":       defaultTERM,
 	"warp":                  defaultTERM,
 	"warpterminal":          defaultTERM,
-	"wezterm":               defaultTERM,
-	"wezterm-direct":        defaultTERM,
-	"wezterm-gui":           defaultTERM,
+	"wezterm":               "wezterm",
+	"wezterm-direct":        "wezterm",
+	"wezterm-gui":           "wezterm",
 	"xterm-ghostty":         defaultTERM,
 	"xterm-kitty":           defaultTERM,
 	"zellij":                defaultTERM,
-	"tabby":                 defaultTERM,
-	"vscode":                defaultTERM,
-	"vscode-terminal":       defaultTERM,
 	"screen":                defaultTERM,
 	"screen-256color":       defaultTERM,
-	"screen.xterm-256color": defaultTERM,
+	"screen.xterm-256color": "xterm-256color",
 }
 
 func prepareTerminalForTUI(envLookup config.EnvLookup, setEnv func(string, string) error, stderr io.Writer) {
@@ -219,22 +220,99 @@ func normalizeTerminal(term, termProgram string, lookup func(string) error) (str
 }
 
 func candidateFallbackTerms(term, termProgram string) []string {
+	seen := map[string]struct{}{}
 	var candidates []string
 
-	if fallback := fallbackTermAlias(term); fallback != "" {
-		candidates = append(candidates, fallback)
+	appendCandidate := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		seen[value] = struct{}{}
+		candidates = append(candidates, value)
 	}
-	if fallback := fallbackTermAlias(termProgram); fallback != "" {
-		candidates = append(candidates, fallback)
+
+	addCandidates := func(value string) {
+		for _, candidate := range fallbackCandidatesForValue(value) {
+			appendCandidate(candidate)
+		}
 	}
-	if fallback := fallbackForCommonNames(term); fallback != "" {
-		candidates = append(candidates, fallback)
-	}
-	if fallback := fallbackForCommonNames(termProgram); fallback != "" {
-		candidates = append(candidates, fallback)
-	}
-	candidates = append(candidates, defaultTERM)
+
+	addCandidates(term)
+	addCandidates(termProgram)
+	appendCandidate(defaultTERM)
+
 	return candidates
+}
+
+func fallbackCandidatesForValue(value string) []string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+
+	lower := strings.ToLower(trimmed)
+	var candidates []string
+
+	if alias := fallbackTermAlias(lower); alias != "" {
+		candidates = append(candidates, alias)
+	}
+
+	for _, variant := range fallbackVariants(lower) {
+		candidates = append(candidates, variant)
+	}
+
+	if fallback := fallbackForCommonNames(lower); fallback != "" {
+		candidates = append(candidates, fallback)
+	}
+
+	return candidates
+}
+
+func fallbackVariants(value string) []string {
+	key := strings.TrimSpace(value)
+	if key == "" {
+		return nil
+	}
+
+	var variants []string
+	base := key
+
+	stripSuffix := func(suffix string) {
+		if strings.HasSuffix(base, suffix) {
+			trimmed := strings.TrimSuffix(base, suffix)
+			if trimmed != "" {
+				variants = append(variants, trimmed)
+				base = trimmed
+			}
+		}
+	}
+
+	// Remove truecolor extensions before any additional derivations.
+	for _, suffix := range []string{"-direct", "-truecolor", "-24bit"} {
+		stripSuffix(suffix)
+	}
+
+	// Handle -256color specifically so we keep the colour-aware variant first.
+	if strings.HasSuffix(key, "-256color") {
+		trimmed := strings.TrimSuffix(key, "-256color")
+		if trimmed != "" {
+			variants = append(variants, trimmed)
+		}
+	}
+
+	if idx := strings.LastIndex(base, "."); idx >= 0 && idx < len(base)-1 {
+		variants = append(variants, base[idx+1:])
+	}
+
+	if idx := strings.LastIndex(base, "_"); idx >= 0 && idx < len(base)-1 {
+		variants = append(variants, strings.ReplaceAll(base, "_", "-"))
+	}
+
+	return variants
 }
 
 func fallbackTermAlias(value string) string {
