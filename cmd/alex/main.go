@@ -182,11 +182,15 @@ func prepareTerminalWithLookup(envLookup config.EnvLookup, setEnv func(string, s
 	}
 
 	if err := setEnv("TERM", normalized); err != nil {
-		fmt.Fprintf(stderr, "Warning: unable to configure terminal fallback for interactive UI: %v\n", err)
+		if _, ferr := fmt.Fprintf(stderr, "Warning: unable to configure terminal fallback for interactive UI: %v\n", err); ferr != nil {
+			_ = ferr // Best-effort warning; ignore secondary failure.
+		}
 		return
 	}
 
-	fmt.Fprintf(stderr, "Detected unsupported TERM=%q; using %q for interactive chat UI.\n", originalTERM, normalized)
+	if _, ferr := fmt.Fprintf(stderr, "Detected unsupported TERM=%q; using %q for interactive chat UI.\n", originalTERM, normalized); ferr != nil {
+		_ = ferr // Best-effort notification; ignore secondary failure.
+	}
 }
 
 func normalizeTerminal(term, termProgram string, lookup func(string) error) (string, bool, error) {
@@ -261,9 +265,7 @@ func fallbackCandidatesForValue(value string) []string {
 		candidates = append(candidates, alias)
 	}
 
-	for _, variant := range fallbackVariants(lower) {
-		candidates = append(candidates, variant)
-	}
+	candidates = append(candidates, fallbackVariants(lower)...)
 
 	if fallback := fallbackForCommonNames(lower); fallback != "" {
 		candidates = append(candidates, fallback)

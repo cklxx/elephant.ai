@@ -371,7 +371,7 @@ func (r *CLIRenderer) formatBashExecutionOutput(result, indent string, style lip
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", "))))
+	fmt.Fprintf(&output, "%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", ")))
 
 	if r.verbose {
 		if stdout != "" {
@@ -386,14 +386,14 @@ func (r *CLIRenderer) formatBashExecutionOutput(result, indent string, style lip
 }
 
 func (r *CLIRenderer) writeVerboseStream(builder *strings.Builder, indent string, style lipgloss.Style, label string, content string) {
-	builder.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(label+":")))
+	fmt.Fprintf(builder, "%s    %s\n", indent, style.Render(label+":"))
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		if i >= 10 {
-			builder.WriteString(fmt.Sprintf("%s      %s\n", indent, style.Render(fmt.Sprintf("... (%d more lines)", len(lines)-10))))
+			fmt.Fprintf(builder, "%s      %s\n", indent, style.Render(fmt.Sprintf("... (%d more lines)", len(lines)-10)))
 			break
 		}
-		builder.WriteString(fmt.Sprintf("%s      %s\n", indent, style.Render(line)))
+		fmt.Fprintf(builder, "%s      %s\n", indent, style.Render(line))
 	}
 }
 
