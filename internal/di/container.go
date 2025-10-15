@@ -29,13 +29,11 @@ type Container struct {
 	mcpInitTracker   *MCPInitializationTracker
 
 	// Lazy initialization state
-	config          Config
-	toolRegistry    *tools.Registry
-	llmFactory      *llm.Factory
-	gitToolsInit    sync.Once
-	gitToolsErr     error
-	mcpStarted      bool
-	mcpMu           sync.Mutex
+	config       Config
+	toolRegistry *tools.Registry
+	llmFactory   *llm.Factory
+	mcpStarted   bool
+	mcpMu        sync.Mutex
 }
 
 // Config holds the dependency injection configuration
@@ -127,7 +125,7 @@ func (c *Container) Cleanup() error {
 func (c *Container) initGitTools() error {
 	// TODO: Implement Git tools (git_commit, git_pr) that require LLM client
 	// For now, this is a placeholder that will be implemented when Git tools are added
-	return fmt.Errorf("Git tools not yet implemented")
+	return fmt.Errorf("git tools not yet implemented")
 }
 
 // startMCP starts MCP registry initialization

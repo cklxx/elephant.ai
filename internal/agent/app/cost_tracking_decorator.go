@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 
 	"alex/internal/agent/ports"
 )
@@ -129,16 +130,29 @@ func (w *costTrackingWrapper) Model() string {
 
 // inferProvider attempts to infer the provider from the model name
 func inferProvider(model string) string {
-	// Simple heuristic - in production, this should be more robust
-	if len(model) >= 3 {
-		switch model[:3] {
-		case "gpt":
-			return "openai"
-		case "cla":
-			return "anthropic"
-		case "dee":
-			return "deepseek"
-		}
+	// Normalize to lowercase for case-insensitive matching
+	lower := strings.ToLower(model)
+
+	// Check for provider prefixes (e.g., "openrouter/anthropic/claude", "anthropic/claude")
+	if strings.Contains(lower, "anthropic/") || strings.HasPrefix(lower, "claude") {
+		return "anthropic"
 	}
-	return "unknown"
+	if strings.Contains(lower, "openai/") || strings.HasPrefix(lower, "gpt") {
+		return "openai"
+	}
+	if strings.Contains(lower, "deepseek/") || strings.HasPrefix(lower, "deepseek") {
+		return "deepseek"
+	}
+
+	// Check for model name patterns
+	if strings.HasPrefix(lower, "gpt-") {
+		return "openai"
+	}
+	if strings.HasPrefix(lower, "claude-") {
+		return "anthropic"
+	}
+
+	// Default to openrouter if we can't determine
+	// (most unknown models are likely accessed via openrouter)
+	return "openrouter"
 }

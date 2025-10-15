@@ -363,7 +363,7 @@ func TestPresetResolver_EmitsToolFilteringEvent(t *testing.T) {
 	}
 
 	// Add session ID to context
-	ctx := context.WithValue(context.Background(), sessionContextKey{}, "test-session-123")
+	ctx := context.WithValue(context.Background(), ports.SessionContextKey{}, "test-session-123")
 
 	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, "read-only")
 
