@@ -68,6 +68,25 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher.Flush()
 
+	// Replay historical events for this session
+	history := h.broadcaster.GetEventHistory(sessionID)
+	if len(history) > 0 {
+		h.logger.Info("Replaying %d historical events for session: %s", len(history), sessionID)
+		for _, event := range history {
+			data, err := h.serializeEvent(event)
+			if err != nil {
+				h.logger.Error("Failed to serialize historical event: %v", err)
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.EventType(), data); err != nil {
+				h.logger.Error("Failed to send historical event: %v", err)
+				continue
+			}
+			flusher.Flush()
+		}
+		h.logger.Info("Completed replaying historical events for session: %s", sessionID)
+	}
+
 	// Heartbeat ticker to keep connection alive
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
