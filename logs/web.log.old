@@ -4,8 +4,27 @@
 
   ▲ Next.js 14.2.15
   - Local:        http://localhost:3000
-  - Environments: .env.local, .env.development
+  - Environments: .env.development
 
  ✓ Starting...
- ✓ Ready in 1657ms
+ ✓ Ready in 1729ms
+ ○ Compiling /conversation ...
+ ✓ Compiled /conversation in 5.3s (859 modules)
+ GET /conversation 200 in 5573ms
+ ✓ Compiled in 279ms (432 modules)
+ GET /conversation 200 in 42ms
+ ✓ Compiled in 220ms (432 modules)
+ ✓ Compiled in 165ms (432 modules)
+ ✓ Compiled in 146ms (432 modules)
+ ✓ Compiled in 147ms (432 modules)
+ ✓ Compiled in 147ms (432 modules)
+ ✓ Compiled in 187ms (432 modules)
+ ✓ Compiled in 355ms (836 modules)
+ ✓ Compiled in 161ms (836 modules)
+ ✓ Compiled in 178ms (432 modules)
+ ✓ Compiled in 347ms (870 modules)
+ ✓ Compiled in 416ms (870 modules)
+ ✓ Compiled in 759ms (870 modules)
+ ✓ Compiled in 332ms (870 modules)
+ ✓ Compiled in 573ms (870 modules)
 [?25h

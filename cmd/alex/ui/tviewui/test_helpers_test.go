@@ -56,6 +56,10 @@ func (s *stubCostTracker) GetDateRangeCost(context.Context, time.Time, time.Time
 	return nil, nil
 }
 
+func (s *stubCostTracker) GetSessionStats(context.Context, string) (*ports.SessionStats, error) {
+	return nil, nil
+}
+
 func (s *stubCostTracker) Export(context.Context, ports.ExportFormat, ports.ExportFilter) ([]byte, error) {
 	return nil, nil
 }

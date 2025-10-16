@@ -157,7 +157,8 @@ export type AnyAgentEvent =
 export interface CreateTaskRequest {
   task: string;
   session_id?: string;
-  auto_approve_plan?: boolean; // If true, skip plan approval flow
+  agent_preset?: string; // Agent persona preset (e.g., "default", "code-expert")
+  tool_preset?: string;  // Tool access preset (e.g., "full", "read-only")
 }
 
 export interface CreateTaskResponse {

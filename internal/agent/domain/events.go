@@ -134,6 +134,7 @@ type TaskCompleteEvent struct {
 	TotalTokens     int
 	StopReason      string
 	Duration        time.Duration
+	SessionStats    *ports.SessionStats // Optional: session-level cost/token accumulation
 }
 
 func (e *TaskCompleteEvent) EventType() string { return "task_complete" }
@@ -148,6 +149,58 @@ type ErrorEvent struct {
 }
 
 func (e *ErrorEvent) EventType() string { return "error" }
+
+// ContextCompressionEvent - emitted when context is compressed
+type ContextCompressionEvent struct {
+	BaseEvent
+	OriginalCount   int
+	CompressedCount int
+	CompressionRate float64 // percentage of messages retained
+}
+
+func (e *ContextCompressionEvent) EventType() string { return "context_compression" }
+
+// NewContextCompressionEvent creates a new context compression event
+func NewContextCompressionEvent(level ports.AgentLevel, sessionID string, originalCount, compressedCount int, ts time.Time) *ContextCompressionEvent {
+	compressionRate := 0.0
+	if originalCount > 0 {
+		compressionRate = float64(compressedCount) / float64(originalCount) * 100.0
+	}
+	return &ContextCompressionEvent{
+		BaseEvent:       newBaseEventWithSession(level, sessionID, ts),
+		OriginalCount:   originalCount,
+		CompressedCount: compressedCount,
+		CompressionRate: compressionRate,
+	}
+}
+
+// ToolFilteringEvent - emitted when tools are filtered by preset
+type ToolFilteringEvent struct {
+	BaseEvent
+	PresetName      string
+	OriginalCount   int
+	FilteredCount   int
+	FilteredTools   []string
+	ToolFilterRatio float64 // percentage of tools retained
+}
+
+func (e *ToolFilteringEvent) EventType() string { return "tool_filtering" }
+
+// NewToolFilteringEvent creates a new tool filtering event
+func NewToolFilteringEvent(level ports.AgentLevel, sessionID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *ToolFilteringEvent {
+	filterRatio := 0.0
+	if originalCount > 0 {
+		filterRatio = float64(filteredCount) / float64(originalCount) * 100.0
+	}
+	return &ToolFilteringEvent{
+		BaseEvent:       newBaseEventWithSession(level, sessionID, ts),
+		PresetName:      presetName,
+		OriginalCount:   originalCount,
+		FilteredCount:   filteredCount,
+		FilteredTools:   filteredTools,
+		ToolFilterRatio: filterRatio,
+	}
+}
 
 // EventListenerFunc is a function adapter for EventListener
 type EventListenerFunc func(AgentEvent)

@@ -21,6 +21,19 @@ type EventBroadcaster struct {
 	taskStore     serverports.TaskStore
 	sessionToTask map[string]string // sessionID -> taskID mapping
 	taskMu        sync.RWMutex      // separate mutex for task tracking
+
+	// Metrics tracking
+	metrics broadcasterMetrics
+}
+
+// broadcasterMetrics tracks broadcaster performance metrics
+type broadcasterMetrics struct {
+	mu sync.RWMutex
+
+	totalEventsSent   int64
+	droppedEvents     int64 // Events dropped due to full buffers
+	totalConnections  int64 // Total connections ever made
+	activeConnections int64 // Currently active connections
 }
 
 // NewEventBroadcaster creates a new event broadcaster
@@ -132,9 +145,11 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan a
 		case ch <- event:
 			// Event sent successfully
 			b.logger.Debug("[broadcastToClients] Event sent successfully to client %d/%d for session=%s", i+1, len(clients), sessionID)
+			b.metrics.incrementEventsSent()
 		default:
 			// Client buffer full, skip this event to avoid blocking
 			b.logger.Warn("Client buffer full for session %s, dropping event (client %d/%d)", sessionID, i+1, len(clients))
+			b.metrics.incrementDroppedEvents()
 		}
 	}
 }
@@ -151,6 +166,7 @@ func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.A
 	defer b.mu.Unlock()
 
 	b.clients[sessionID] = append(b.clients[sessionID], ch)
+	b.metrics.incrementConnections()
 	b.logger.Info("Client registered for session %s (total: %d)", sessionID, len(b.clients[sessionID]))
 }
 
@@ -165,6 +181,7 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports
 			// Remove client from list
 			b.clients[sessionID] = append(clients[:i], clients[i+1:]...)
 			close(ch)
+			b.metrics.decrementConnections()
 			b.logger.Info("Client unregistered from session %s (remaining: %d)", sessionID, len(b.clients[sessionID]))
 
 			// Clean up empty session entries
@@ -187,8 +204,8 @@ func (b *EventBroadcaster) GetClientCount(sessionID string) int {
 // SetSessionContext sets the session context for event extraction
 // This is called when a task is started to associate events with a session
 func (b *EventBroadcaster) SetSessionContext(ctx context.Context, sessionID string) context.Context {
-	// Store sessionID in context for later extraction
-	return context.WithValue(ctx, sessionContextKey{}, sessionID)
+	// Store sessionID in context using shared key from ports package
+	return context.WithValue(ctx, agentports.SessionContextKey{}, sessionID)
 }
 
 // RegisterTaskSession associates a taskID with a sessionID for progress tracking
@@ -209,4 +226,72 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 	b.logger.Info("Unregistered task-session mapping: sessionID=%s", sessionID)
 }
 
-type sessionContextKey struct{}
+// Metrics helper methods
+func (m *broadcasterMetrics) incrementEventsSent() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.totalEventsSent++
+}
+
+func (m *broadcasterMetrics) incrementDroppedEvents() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.droppedEvents++
+}
+
+func (m *broadcasterMetrics) incrementConnections() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.totalConnections++
+	m.activeConnections++
+}
+
+func (m *broadcasterMetrics) decrementConnections() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.activeConnections--
+}
+
+// BroadcasterMetrics represents broadcaster metrics for export
+type BroadcasterMetrics struct {
+	TotalEventsSent   int64            `json:"total_events_sent"`
+	DroppedEvents     int64            `json:"dropped_events"`
+	TotalConnections  int64            `json:"total_connections"`
+	ActiveConnections int64            `json:"active_connections"`
+	BufferDepth       map[string]int   `json:"buffer_depth"` // Per-session buffer depth
+	SessionCount      int              `json:"session_count"`
+}
+
+// GetMetrics returns current broadcaster metrics
+func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
+	b.metrics.mu.RLock()
+	totalEvents := b.metrics.totalEventsSent
+	droppedEvents := b.metrics.droppedEvents
+	totalConns := b.metrics.totalConnections
+	activeConns := b.metrics.activeConnections
+	b.metrics.mu.RUnlock()
+
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	// Calculate buffer depth per session
+	bufferDepth := make(map[string]int)
+	for sessionID, clients := range b.clients {
+		totalDepth := 0
+		for _, ch := range clients {
+			totalDepth += len(ch)
+		}
+		if totalDepth > 0 {
+			bufferDepth[sessionID] = totalDepth
+		}
+	}
+
+	return BroadcasterMetrics{
+		TotalEventsSent:   totalEvents,
+		DroppedEvents:     droppedEvents,
+		TotalConnections:  totalConns,
+		ActiveConnections: activeConns,
+		BufferDepth:       bufferDepth,
+		SessionCount:      len(b.clients),
+	}
+}

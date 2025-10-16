@@ -155,16 +155,33 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 
 	task.Status = status
 
-	// Update timestamps based on status
+	// Update timestamps and termination reason based on status
 	now := time.Now()
 	switch status {
 	case ports.TaskStatusRunning:
 		if task.StartedAt == nil {
 			task.StartedAt = &now
 		}
-	case ports.TaskStatusCompleted, ports.TaskStatusFailed, ports.TaskStatusCancelled:
+	case ports.TaskStatusCompleted:
 		if task.CompletedAt == nil {
 			task.CompletedAt = &now
+		}
+		if task.TerminationReason == ports.TerminationReasonNone {
+			task.TerminationReason = ports.TerminationReasonCompleted
+		}
+	case ports.TaskStatusCancelled:
+		if task.CompletedAt == nil {
+			task.CompletedAt = &now
+		}
+		if task.TerminationReason == ports.TerminationReasonNone {
+			task.TerminationReason = ports.TerminationReasonCancelled
+		}
+	case ports.TaskStatusFailed:
+		if task.CompletedAt == nil {
+			task.CompletedAt = &now
+		}
+		if task.TerminationReason == ports.TerminationReasonNone {
+			task.TerminationReason = ports.TerminationReasonError
 		}
 	}
 
@@ -183,6 +200,7 @@ func (s *InMemoryTaskStore) SetError(ctx context.Context, taskID string, err err
 
 	task.Error = err.Error()
 	task.Status = ports.TaskStatusFailed
+	task.TerminationReason = ports.TerminationReasonError
 	now := time.Now()
 	task.CompletedAt = &now
 
@@ -201,6 +219,7 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 
 	task.Result = result
 	task.Status = ports.TaskStatusCompleted
+	task.TerminationReason = ports.TerminationReasonCompleted
 	now := time.Now()
 	task.CompletedAt = &now
 	task.TotalIterations = result.Iterations
@@ -229,6 +248,21 @@ func (s *InMemoryTaskStore) UpdateProgress(ctx context.Context, taskID string, i
 
 	task.CurrentIteration = iteration
 	task.TokensUsed = tokensUsed
+
+	return nil
+}
+
+// SetTerminationReason sets the termination reason for a task
+func (s *InMemoryTaskStore) SetTerminationReason(ctx context.Context, taskID string, reason ports.TerminationReason) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	task, exists := s.tasks[taskID]
+	if !exists {
+		return fmt.Errorf("task not found: %s", taskID)
+	}
+
+	task.TerminationReason = reason
 
 	return nil
 }

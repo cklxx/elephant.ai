@@ -27,6 +27,13 @@ type Container struct {
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
+
+	// Lazy initialization state
+	config       Config
+	toolRegistry *tools.Registry
+	llmFactory   *llm.Factory
+	mcpStarted   bool
+	mcpMu        sync.Mutex
 }
 
 // Config holds the dependency injection configuration
@@ -52,17 +59,93 @@ type Config struct {
 	// Storage Configuration
 	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
 	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
+
+	// Feature Flags
+	EnableMCP      bool // Enable MCP tool registration (requires external dependencies)
+	EnableGitTools bool // Enable Git tools requiring LLM client (git_commit, git_pr)
 }
 
-// Cleanup gracefully shuts down all resources
-func (c *Container) Cleanup() error {
-	if c.MCPRegistry != nil {
-		return c.MCPRegistry.Shutdown()
+// Start initializes heavy dependencies (Git tools, MCP) based on feature flags
+func (c *Container) Start() error {
+	logger := utils.NewComponentLogger("DI")
+	logger.Info("Starting container lifecycle...")
+
+	// Initialize Git tools if enabled
+	if c.config.EnableGitTools {
+		if err := c.initGitTools(); err != nil {
+			logger.Warn("Failed to initialize Git tools: %v (continuing without Git tools)", err)
+		} else {
+			logger.Info("Git tools initialized successfully")
+		}
+	} else {
+		logger.Info("Git tools disabled by configuration")
 	}
+
+	// Initialize MCP if enabled
+	if c.config.EnableMCP {
+		if err := c.startMCP(); err != nil {
+			logger.Warn("Failed to start MCP: %v (continuing without MCP)", err)
+		} else {
+			logger.Info("MCP initialization started (asynchronous)")
+		}
+	} else {
+		logger.Info("MCP disabled by configuration")
+	}
+
+	logger.Info("Container lifecycle started")
+	return nil
+}
+
+// Shutdown gracefully shuts down all resources
+func (c *Container) Shutdown() error {
+	logger := utils.NewComponentLogger("DI")
+	logger.Info("Shutting down container...")
+
+	c.mcpMu.Lock()
+	defer c.mcpMu.Unlock()
+
+	if c.mcpStarted && c.MCPRegistry != nil {
+		if err := c.MCPRegistry.Shutdown(); err != nil {
+			logger.Error("Failed to shutdown MCP: %v", err)
+			return err
+		}
+		logger.Info("MCP shutdown successfully")
+	}
+
+	logger.Info("Container shutdown complete")
+	return nil
+}
+
+// Cleanup gracefully shuts down all resources (alias for Shutdown for backward compatibility)
+func (c *Container) Cleanup() error {
+	return c.Shutdown()
+}
+
+// initGitTools lazily initializes Git tools requiring LLM client
+func (c *Container) initGitTools() error {
+	// TODO: Implement Git tools (git_commit, git_pr) that require LLM client
+	// For now, this is a placeholder that will be implemented when Git tools are added
+	return fmt.Errorf("git tools not yet implemented")
+}
+
+// startMCP starts MCP registry initialization
+func (c *Container) startMCP() error {
+	c.mcpMu.Lock()
+	defer c.mcpMu.Unlock()
+
+	if c.mcpStarted {
+		return nil // Already started
+	}
+
+	logger := utils.NewComponentLogger("DI")
+	startMCPInitialization(c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
+	c.mcpStarted = true
+
 	return nil
 }
 
 // BuildContainer builds the dependency injection container with the given configuration
+// Heavy initialization (Git tools, MCP) is deferred until Start() is called
 func BuildContainer(config Config) (*Container, error) {
 	logger := utils.NewComponentLogger("DI")
 
@@ -78,9 +161,6 @@ func BuildContainer(config Config) (*Container, error) {
 	sessionStore := filestore.New(sessionDir)
 	contextMgr := ctxmgr.NewManager()
 	parserImpl := parser.New()
-
-	// Note: MessageQueue removed - not used in current architecture
-	// Tasks are processed directly through ExecuteTask, not queued
 
 	// Cost tracking storage
 	costStore, err := storage.NewFileCostStore(costDir)
@@ -110,11 +190,10 @@ func BuildContainer(config Config) (*Container, error) {
 		CostDir:             config.CostDir,
 	}
 
-	// MCP Registry - Initialize asynchronously with retry/backoff
+	// MCP Registry - Create but don't initialize yet
 	envLookup := runtimeconfig.RuntimeEnvLookup(runtimeSnapshot, runtimeconfig.DefaultEnvLookup)
 	mcpRegistry := mcp.NewRegistry(mcp.WithEnvLookup(envLookup))
 	tracker := newMCPInitializationTracker()
-	startMCPInitialization(mcpRegistry, toolRegistry, logger, tracker)
 
 	// Application Layer
 	coordinator := agentApp.NewAgentCoordinator(
@@ -141,7 +220,7 @@ func BuildContainer(config Config) (*Container, error) {
 	// Register subagent tool after coordinator is created
 	toolRegistry.RegisterSubAgent(coordinator)
 
-	logger.Info("Container built successfully")
+	logger.Info("Container built successfully (heavy initialization deferred to Start())")
 
 	return &Container{
 		AgentCoordinator: coordinator,
@@ -149,6 +228,10 @@ func BuildContainer(config Config) (*Container, error) {
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
+		config:           config,
+		toolRegistry:     toolRegistry,
+		llmFactory:       llmFactory,
+		mcpStarted:       false,
 	}, nil
 }
 

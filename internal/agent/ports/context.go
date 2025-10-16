@@ -11,3 +11,7 @@ type ContextManager interface {
 	// ShouldCompress checks if compression needed
 	ShouldCompress(messages []Message, limit int) bool
 }
+
+// SessionContextKey is the shared context key for storing session IDs across packages.
+// This ensures consistent session ID propagation from server layer to agent layer.
+type SessionContextKey struct{}

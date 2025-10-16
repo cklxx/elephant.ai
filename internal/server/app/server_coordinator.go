@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
@@ -29,6 +30,10 @@ type ServerCoordinator struct {
 	sessionStore     ports.SessionStore
 	taskStore        serverPorts.TaskStore
 	logger           *utils.Logger
+
+	// Cancel function map for task cancellation support
+	cancelFuncs map[string]context.CancelCauseFunc
+	cancelMu    sync.RWMutex
 }
 
 // NewServerCoordinator creates a new server coordinator
@@ -44,6 +49,7 @@ func NewServerCoordinator(
 		sessionStore:     sessionStore,
 		taskStore:        taskStore,
 		logger:           utils.NewComponentLogger("ServerCoordinator"),
+		cancelFuncs:      make(map[string]context.CancelCauseFunc),
 	}
 }
 
@@ -76,9 +82,18 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
 
+	// Create a detached context so the task keeps running after the HTTP handler returns
+	// while keeping request-scoped values for logging/metrics via context.WithoutCancel
+	// Explicit cancellation still flows through the stored cancel function
+	taskCtx, cancelFunc := context.WithCancelCause(context.WithoutCancel(ctx))
+
+	// Store cancel function to enable explicit cancellation via CancelTask API
+	s.cancelMu.Lock()
+	s.cancelFuncs[taskRecord.ID] = cancelFunc
+	s.cancelMu.Unlock()
+
 	// Spawn background goroutine to execute task with confirmed session ID
-	// Use detached context to prevent cancellation when HTTP request completes
-	go s.executeTaskInBackground(context.Background(), taskRecord.ID, task, confirmedSessionID, agentPreset, toolPreset)
+	go s.executeTaskInBackground(taskCtx, taskRecord.ID, task, confirmedSessionID, agentPreset, toolPreset)
 
 	// Return immediately with the task record (now has correct session_id)
 	s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskRecord.ID, taskRecord.SessionID)
@@ -88,6 +103,11 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 // executeTaskInBackground runs the actual task execution in a background goroutine
 func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID string, task string, sessionID string, agentPreset string, toolPreset string) {
 	defer func() {
+		// Clean up cancel function from map
+		s.cancelMu.Lock()
+		delete(s.cancelFuncs, taskID)
+		s.cancelMu.Unlock()
+
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("[Background] PANIC in task execution (taskID=%s, sessionID=%s): %v", taskID, sessionID, r)
 
@@ -135,6 +155,34 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Execute task with broadcaster as event listener
 	s.logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
 	result, err := s.agentCoordinator.ExecuteTask(ctx, task, sessionID, s.broadcaster)
+
+	// Check if context was cancelled
+	if ctx.Err() != nil {
+		s.logger.Info("[Background] Task cancelled: taskID=%s, sessionID=%s, reason=%v", taskID, sessionID, context.Cause(ctx))
+
+		// Determine termination reason from context
+		cause := context.Cause(ctx)
+		var terminationReason serverPorts.TerminationReason
+		if cause != nil {
+			switch cause {
+			case context.DeadlineExceeded:
+				terminationReason = serverPorts.TerminationReasonTimeout
+			case context.Canceled:
+				terminationReason = serverPorts.TerminationReasonCancelled
+			default:
+				// Check if it's a custom cancellation reason
+				terminationReason = serverPorts.TerminationReasonCancelled
+			}
+		} else {
+			terminationReason = serverPorts.TerminationReasonCancelled
+		}
+
+		// Update task status to cancelled with termination reason
+		_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
+		_ = s.taskStore.SetTerminationReason(context.Background(), taskID, terminationReason)
+		return
+	}
+
 	if err != nil {
 		errMsg := fmt.Sprintf("[Background] Task execution failed (taskID=%s, sessionID=%s): %v", taskID, sessionID, err)
 
@@ -204,7 +252,21 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 		return fmt.Errorf("cannot cancel task in status: %s", task.Status)
 	}
 
-	return s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
+	// Call the cancel function if it exists
+	s.cancelMu.RLock()
+	cancelFunc, exists := s.cancelFuncs[taskID]
+	s.cancelMu.RUnlock()
+
+	if exists && cancelFunc != nil {
+		s.logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
+		cancelFunc(fmt.Errorf("task cancelled by user"))
+	} else {
+		s.logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
+		// If no cancel function exists (task not started yet or already completed), just update status
+		return s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
+	}
+
+	return nil
 }
 
 // ForkSession creates a new session as a fork of an existing one
