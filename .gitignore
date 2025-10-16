@@ -1,81 +1,123 @@
-# Binaries for programs and plugins
+# deps
+# Node.js dependencies
+node_modules
+.pnpm-store
+.pnpm-debug.log
+
+# Keep pnpm-lock.yaml
+!pnpm-lock.yaml
+
+# build
+dist/
+build/
+out/
+storybook-static/
+
+# ignore README for publishing
+codex-cli/README.md
+
+# ignore Nix derivation results
+result
+
+# editor
+.vscode/
+.idea/
+.history/
+.zed/
+*.swp
+*~
+
+# cli tools
+CLAUDE.md
+.claude/
+
+# caches
+.cache/
+.turbo/
+.parcel-cache/
+.eslintcache
+.nyc_output/
+.jest/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env
+.env*
+!.env.example
+
+# package
+*.tgz
+
+# ci
+.vercel/
+.netlify/
+
+# patches
+apply_patch/
+
+# coverage
+coverage/
+
+# os
+.DS_Store
+Thumbs.db
+Icon?
+.Spotlight-V100/
+
+# Unwanted package managers
+.yarn/
+yarn.lock
+
+# release
+package.json-e
+session.ts-e
+CHANGELOG.ignore.md
+
+# nix related
+.direnv
+.envrc
+
+# Go binaries and build outputs
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+build/
+alex
+alex-server
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
+# Go workspace files
 go.work
 
-# Build directory
-build/
-
-# Deep Coding Agent binary
-/alex
-
-# NPM package binaries
+# Project local binaries
 npm/*/bin/alex
 npm/*/bin/alex.exe
 
-# Configuration files (may contain sensitive information)
+# Local configuration and runtime artifacts
 .deep-coding-config.json
-.env
 .env.local
 .env*.local
-
-# Server binaries
-alex-server
-
-# Process ID files
 *.pid
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Backup files
-*.backup
-
-# Log files
-*.log
-
-# Temporary files
 tmp/
 temp/
+test_results/
+verified_test_results/
+debug-logs
+*.backup
 
 # Legacy files
 legacy-sample.js
 old_cmd/
 old_internal/
 
-# Test results
-test_results/
-verified_test_results/
-
+# Backup and tooling remnants
 .git-backup-*
-
 ast_viewr
-
-debug-logs

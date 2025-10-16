@@ -371,7 +371,7 @@ func (r *CLIRenderer) formatBashExecutionOutput(result, indent string, style lip
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", "))))
+	fmt.Fprintf(&output, "%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", ")))
 
 	if r.verbose {
 		if stdout != "" {

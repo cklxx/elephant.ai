@@ -68,6 +68,7 @@ type ChatUI struct {
 	costTracker ports.CostTracker
 
 	app         *tview.Application
+	header      *tview.TextView
 	transcript  *tview.TextView
 	liveStream  *tview.TextView
 	tools       *tview.TextView
@@ -174,6 +175,7 @@ func NewChatUI(cfg Config) (*ChatUI, error) {
 		registry:                cfg.Registry,
 		costTracker:             tracker,
 		app:                     tview.NewApplication(),
+		header:                  buildHeaderView(),
 		transcript:              buildTranscriptView(),
 		liveStream:              buildLiveStreamView(),
 		tools:                   buildToolRunsView(),
@@ -236,10 +238,16 @@ func (ui *ChatUI) shutdown() {
 }
 
 func (ui *ChatUI) composeLayout() {
-	header := tview.NewTextView().
-		SetDynamicColors(true).
-		SetText("[::b]Alex Interactive Chat[-]  •  Press Ctrl+C or type /quit to exit")
-	header.SetBorder(false)
+	if ui.layout == nil {
+		ui.layout = tview.NewFlex().SetDirection(tview.FlexRow)
+	}
+	ui.layout.Clear()
+
+	header := ui.header
+	if header == nil {
+		header = buildHeaderView()
+		ui.header = header
+	}
 
 	leftColumn := tview.NewFlex().SetDirection(tview.FlexRow)
 	leftColumn.AddItem(ui.transcript, 0, 3, false)
@@ -254,14 +262,24 @@ func (ui *ChatUI) composeLayout() {
 	body.AddItem(leftColumn, 0, 2, false)
 	body.AddItem(rightColumn, 0, 1, false)
 
-	ui.input.SetLabel("» ")
+	legend := buildLegendView()
+
+	ui.input.SetLabel("❯ ")
 	ui.input.SetFieldBackgroundColor(tcell.ColorDefault)
 
+	inputFrame := tview.NewFlex().SetDirection(tview.FlexRow)
+	inputFrame.SetBorder(true).SetTitle("Prompt")
+	inputFrame.AddItem(ui.input, 0, 1, true)
+
+	statusBar := tview.NewFlex().SetDirection(tview.FlexColumn)
+	statusBar.AddItem(ui.status, 0, 3, false)
+	statusBar.AddItem(legend, 0, 1, false)
+
 	ui.layout.
-		AddItem(header, 1, 0, false).
+		AddItem(header, 3, 0, false).
 		AddItem(body, 0, 1, true).
-		AddItem(ui.status, 1, 0, false).
-		AddItem(ui.input, 3, 0, true)
+		AddItem(statusBar, 4, 0, false).
+		AddItem(inputFrame, 3, 0, true)
 
 	ui.pages = tview.NewPages()
 	ui.pages.AddPage("main", ui.layout, true, true)
@@ -783,7 +801,7 @@ func (ui *ChatUI) refreshStatusFromStore() {
 		return
 	}
 	snapshot := ui.store.Snapshot()
-	status := renderStatus(int(ui.pending.Load()), snapshot, ui.activeSessionID(), ui.currentSearchSummary(), ui.verbose)
+	status := renderStatus(int(ui.pending.Load()), snapshot, ui.activeSessionID(), ui.currentSearchSummary(), ui.verbose, ui.followTranscript.Load(), ui.followStream.Load())
 	ui.app.QueueUpdateDraw(func() {
 		ui.status.SetText(status)
 	})
@@ -867,6 +885,7 @@ func buildTranscriptView() *tview.TextView {
 	view := tview.NewTextView()
 	view.SetBorder(true)
 	view.SetTitle("Conversation")
+	view.SetTitleAlign(tview.AlignLeft)
 	view.SetDynamicColors(true)
 	view.SetWrap(true)
 	view.SetWordWrap(true)
@@ -877,6 +896,7 @@ func buildLiveStreamView() *tview.TextView {
 	view := tview.NewTextView()
 	view.SetBorder(true)
 	view.SetTitle("Live Stream")
+	view.SetTitleAlign(tview.AlignLeft)
 	view.SetDynamicColors(true)
 	view.SetWrap(true)
 	view.SetWordWrap(true)
@@ -887,6 +907,7 @@ func buildToolRunsView() *tview.TextView {
 	view := tview.NewTextView()
 	view.SetBorder(true)
 	view.SetTitle("Tools")
+	view.SetTitleAlign(tview.AlignLeft)
 	view.SetDynamicColors(true)
 	view.SetWrap(true)
 	view.SetWordWrap(true)
@@ -897,6 +918,7 @@ func buildSubagentView() *tview.TextView {
 	view := tview.NewTextView()
 	view.SetBorder(true)
 	view.SetTitle("Subagents")
+	view.SetTitleAlign(tview.AlignLeft)
 	view.SetDynamicColors(true)
 	view.SetWrap(true)
 	view.SetWordWrap(true)
@@ -907,6 +929,7 @@ func buildMCPView() *tview.TextView {
 	view := tview.NewTextView()
 	view.SetBorder(true)
 	view.SetTitle("MCP Servers")
+	view.SetTitleAlign(tview.AlignLeft)
 	view.SetDynamicColors(true)
 	view.SetWrap(true)
 	view.SetWordWrap(true)
@@ -916,7 +939,9 @@ func buildMCPView() *tview.TextView {
 func buildStatusView() *tview.TextView {
 	view := tview.NewTextView()
 	view.SetDynamicColors(true)
-	view.SetBorder(false)
+	view.SetBorder(true)
+	view.SetTitle("Status")
+	view.SetTitleAlign(tview.AlignLeft)
 	return view
 }
 
@@ -925,6 +950,29 @@ func buildInputField() *tview.InputField {
 	field.SetPlaceholder("Ask Alex anything…")
 	field.SetFieldWidth(0)
 	return field
+}
+
+func buildHeaderView() *tview.TextView {
+	view := tview.NewTextView()
+	view.SetBorder(true)
+	view.SetTitle("Alex CLI")
+	view.SetTitleAlign(tview.AlignLeft)
+	view.SetDynamicColors(true)
+	view.SetWrap(true)
+	view.SetWordWrap(true)
+	return view
+}
+
+func buildLegendView() *tview.TextView {
+	view := tview.NewTextView()
+	view.SetDynamicColors(true)
+	view.SetBorder(true)
+	view.SetTitle("Shortcuts")
+	view.SetTitleAlign(tview.AlignLeft)
+	view.SetWrap(true)
+	view.SetWordWrap(true)
+	view.SetText("[gray]Ctrl+C exit  •  Tab/Shift+Tab focus  •  Ctrl+L latest  •  / search  •  n/N navigate  •  ? help[-]")
+	return view
 }
 
 func (ui *ChatUI) consumeUpdates() {
@@ -1631,6 +1679,7 @@ func (ui *ChatUI) renderSnapshot() {
 	}
 	snapshot := ui.store.Snapshot()
 	pending := ui.pending.Load()
+	sessionID := ui.activeSessionID()
 
 	transcript := renderTranscript(snapshot.Messages)
 	stream := renderLiveStream(snapshot.ToolRuns)
@@ -1638,9 +1687,13 @@ func (ui *ChatUI) renderSnapshot() {
 	subagents := renderSubagents(snapshot.SubagentRuns)
 	spinner := ui.currentSpinnerChar()
 	mcp := renderMCPServers(snapshot.MCPServers, spinner)
-	status := renderStatus(int(pending), snapshot, ui.activeSessionID(), ui.currentSearchSummary(), ui.verbose)
+	status := renderStatus(int(pending), snapshot, sessionID, ui.currentSearchSummary(), ui.verbose, ui.followTranscript.Load(), ui.followStream.Load())
+	header := renderHeader(int(pending), snapshot, sessionID)
 
 	ui.app.QueueUpdateDraw(func() {
+		if ui.header != nil {
+			ui.header.SetText(header)
+		}
 		ui.transcript.SetText(transcript)
 		ui.liveStream.SetText(stream)
 		ui.tools.SetText(toolRuns)
@@ -1778,7 +1831,7 @@ func (ui *ChatUI) animateMCP() {
 			}
 			spinner := ui.nextSpinnerChar()
 			mcp := renderMCPServers(snapshot.MCPServers, spinner)
-			status := renderStatus(int(ui.pending.Load()), snapshot, ui.activeSessionID(), ui.currentSearchSummary(), ui.verbose)
+			status := renderStatus(int(ui.pending.Load()), snapshot, ui.activeSessionID(), ui.currentSearchSummary(), ui.verbose, ui.followTranscript.Load(), ui.followStream.Load())
 			ui.app.QueueUpdateDraw(func() {
 				ui.mcp.SetText(mcp)
 				ui.status.SetText(status)
@@ -1838,30 +1891,44 @@ func renderTranscript(messages []state.ChatMessage) string {
 }
 
 func formatMessage(msg state.ChatMessage) string {
-	var role string
+	var label string
+	var color string
+
 	switch msg.Role {
 	case state.RoleUser:
-		role = "[yellow::b]You[-]"
+		label = "You"
+		color = "yellow"
 	case state.RoleAssistant:
-		role = "[cyan::b]Alex[-]"
+		label = "Alex"
+		color = "cyan"
 	case state.RoleSystem:
-		role = "[red::b]System[-]"
+		label = "System"
+		color = "red"
 	case state.RoleTool:
-		role = "[magenta::b]Tool[-]"
+		label = "Tool"
+		color = "magenta"
 	default:
-		role = fmt.Sprintf("[%s]", strings.ToUpper(string(msg.Role)))
+		label = strings.ToUpper(string(msg.Role))
+		color = "white"
 	}
 
+	headerParts := []string{fmt.Sprintf("[%s::b]%s[-]", color, label)}
 	if msg.AgentID != "" && msg.Role != state.RoleUser {
-		role = fmt.Sprintf("%s [gray](%s)[-]", role, msg.AgentID)
+		headerParts = append(headerParts, fmt.Sprintf("[gray](%s)[-]", msg.AgentID))
+	}
+	if !msg.CreatedAt.IsZero() {
+		headerParts = append(headerParts, fmt.Sprintf("[gray]%s[-]", msg.CreatedAt.Format("15:04:05")))
 	}
 
 	content := strings.TrimRight(msg.Content, "\r\n")
-	if content == "" {
-		content = msg.Content
+	var body string
+	if strings.TrimSpace(content) == "" {
+		body = "  [gray]<no content>[-]"
+	} else {
+		body = indentBlock(content, "  ")
 	}
 
-	return fmt.Sprintf("%s\n%s", role, content)
+	return strings.Join(headerParts, "  ") + "\n" + body
 }
 
 func renderLiveStream(runs []*state.ToolRun) string {
@@ -2058,73 +2125,146 @@ func formatMCPServerList(instances []*mcp.ServerInstance) string {
 	return b.String()
 }
 
-func renderStatus(pending int, snapshot state.Snapshot, sessionID, searchSummary string, verbose bool) string {
-	var sections []string
+func renderHeader(pending int, snapshot state.Snapshot, sessionID string) string {
+	session := formatSessionLabel(sessionID)
+	badge := statusBadge(pending)
+	messages := len(snapshot.Messages)
+	tokens := snapshot.Metrics.TotalTokens
+	cost := snapshot.Metrics.TotalCost
 
-	switch {
-	case pending <= 0:
-		sections = append(sections, "[green::b]Ready[-]")
-	case pending == 1:
-		sections = append(sections, "[yellow::b]Running task…[-]")
-	default:
-		sections = append(sections, fmt.Sprintf("[yellow::b]Running %d tasks…[-]", pending))
-	}
+	sections := []string{badge, fmt.Sprintf("[white]Session:[-] %s", session)}
+	sections = append(sections, fmt.Sprintf("[white]Messages:[-] %d", messages))
+	sections = append(sections, fmt.Sprintf("[white]Tokens:[-] %d", tokens))
+	sections = append(sections, fmt.Sprintf("[white]Cost:[-] %s", formatCost(cost)))
 
-	trimmedSession := strings.TrimSpace(sessionID)
-	if trimmedSession == "" {
-		sections = append(sections, "[white]Session: (new)[-]")
-	} else {
-		sections = append(sections, fmt.Sprintf("[white]Session: %s[-]", trimmedSession))
-	}
+	return strings.Join(sections, "  [gray]•[-]  ")
+}
+
+func renderStatus(pending int, snapshot state.Snapshot, sessionID, searchSummary string, verbose bool, followTranscript, followStream bool) string {
+	session := formatSessionLabel(sessionID)
+
+	firstLine := []string{statusBadge(pending), fmt.Sprintf("[white]Session:[-] %s", session)}
 
 	runningTools := 0
+	totalTools := 0
 	for _, run := range snapshot.ToolRuns {
-		if run != nil && run.Status == state.ToolStatusRunning {
+		if run == nil {
+			continue
+		}
+		totalTools++
+		if run.Status == state.ToolStatusRunning {
 			runningTools++
 		}
 	}
-	sections = append(sections, fmt.Sprintf("[cyan]Tools: %d active[-]", runningTools))
+	firstLine = append(firstLine, fmt.Sprintf("[cyan]Tools:[-] %d/%d active", runningTools, totalTools))
 
 	readyMCP := 0
+	totalMCP := 0
 	for _, server := range snapshot.MCPServers {
-		if server != nil && server.Status == state.MCPStatusReady {
+		if server == nil {
+			continue
+		}
+		totalMCP++
+		if server.Status == state.MCPStatusReady {
 			readyMCP++
 		}
 	}
-	if len(snapshot.MCPServers) > 0 {
-		sections = append(sections, fmt.Sprintf("[magenta]MCP: %d/%d ready[-]", readyMCP, len(snapshot.MCPServers)))
+	if totalMCP > 0 {
+		firstLine = append(firstLine, fmt.Sprintf("[magenta]MCP:[-] %d/%d ready", readyMCP, totalMCP))
 	} else {
-		sections = append(sections, "[magenta]MCP: none[-]")
+		firstLine = append(firstLine, "[magenta]MCP:[-] none")
 	}
 
-	activeSubagents := 0
+	runningSubagents := 0
+	totalSubagents := 0
 	for _, task := range snapshot.SubagentRuns {
-		if task != nil && task.Status == state.SubtaskStatusRunning {
-			activeSubagents++
+		if task == nil {
+			continue
+		}
+		totalSubagents++
+		if task.Status == state.SubtaskStatusRunning {
+			runningSubagents++
 		}
 	}
-	sections = append(sections, fmt.Sprintf("[blue]Subagents: %d running[-]", activeSubagents))
+	if totalSubagents > 0 {
+		firstLine = append(firstLine, fmt.Sprintf("[blue]Subagents:[-] %d/%d running", runningSubagents, totalSubagents))
+	} else {
+		firstLine = append(firstLine, "[blue]Subagents:[-] none")
+	}
 
 	if tokenSection := renderTokenSummary(snapshot.Metrics); tokenSection != "" {
-		sections = append(sections, tokenSection)
+		firstLine = append(firstLine, tokenSection)
 	}
 	if costSection := renderCostSummary(snapshot.Metrics); costSection != "" {
-		sections = append(sections, costSection)
+		firstLine = append(firstLine, costSection)
 	}
 
-	if strings.TrimSpace(searchSummary) != "" {
-		sections = append(sections, fmt.Sprintf("[white]%s[-]", searchSummary))
+	if trimmed := strings.TrimSpace(searchSummary); trimmed != "" {
+		firstLine = append(firstLine, fmt.Sprintf("[white]%s[-]", trimmed))
 	}
 
 	if verbose {
-		sections = append(sections, "[gray]Verbose: on[-]")
+		firstLine = append(firstLine, "[gray]Verbose: on[-]")
 	} else {
-		sections = append(sections, "[gray]Verbose: off[-]")
+		firstLine = append(firstLine, "[gray]Verbose: off[-]")
 	}
 
-	sections = append(sections, "[gray]? Help  Tab focus  End follow  / search  n/N next[-]")
+	followLine := []string{
+		fmt.Sprintf("[gray]Follow transcript:[-] %s", formatToggleState(followTranscript)),
+		fmt.Sprintf("[gray]Follow stream:[-] %s", formatToggleState(followStream)),
+		"[gray]Ctrl+C exit[-]",
+		"[gray]Tab/Shift+Tab focus[-]",
+		"[gray]Ctrl+L latest[-]",
+		"[gray]/ search[-]",
+		"[gray]n/N navigate[-]",
+		"[gray]? help[-]",
+	}
 
-	return strings.Join(sections, "  •  ")
+	line1 := strings.Join(firstLine, "  [gray]•[-]  ")
+	line2 := strings.Join(followLine, "  [gray]•[-]  ")
+
+	return line1 + "\n" + line2
+}
+
+func statusBadge(pending int) string {
+	switch {
+	case pending <= 0:
+		return "[black:green::b] READY [-]"
+	case pending == 1:
+		return "[black:yellow::b] RUNNING [-]"
+	default:
+		return fmt.Sprintf("[black:yellow::b] RUNNING %d [-]", pending)
+	}
+}
+
+func formatSessionLabel(sessionID string) string {
+	trimmed := strings.TrimSpace(sessionID)
+	if trimmed == "" {
+		return "(new)"
+	}
+	return trimmed
+}
+
+func formatToggleState(enabled bool) string {
+	if enabled {
+		return "[green::b]on[-]"
+	}
+	return "[gray]off[-]"
+}
+
+func formatCost(cost float64) string {
+	return fmt.Sprintf("$%.4f", cost)
+}
+
+func indentBlock(text, prefix string) string {
+	if text == "" {
+		return ""
+	}
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func renderTokenSummary(metrics state.Metrics) string {

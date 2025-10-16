@@ -3,6 +3,7 @@ package tviewui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func TestFormatMessage_UserAssistantSystem(t *testing.T) {
 				Content:   "Hello",
 				CreatedAt: ts,
 			},
-			expected: "[yellow::b]You[-]\nHello",
+			expected: fmt.Sprintf("[yellow::b]You[-]  [gray]%s[-]\n  Hello", ts.Format("15:04:05")),
 		},
 		{
 			name: "assistant",
@@ -43,7 +44,7 @@ func TestFormatMessage_UserAssistantSystem(t *testing.T) {
 				Content:   "Hi there",
 				CreatedAt: ts,
 			},
-			expected: "[cyan::b]Alex[-] [gray](planner)[-]\nHi there",
+			expected: fmt.Sprintf("[cyan::b]Alex[-]  [gray](planner)[-]  [gray]%s[-]\n  Hi there", ts.Format("15:04:05")),
 		},
 		{
 			name: "system",
@@ -52,7 +53,7 @@ func TestFormatMessage_UserAssistantSystem(t *testing.T) {
 				Content:   "Notice",
 				CreatedAt: ts,
 			},
-			expected: "[red::b]System[-]\nNotice",
+			expected: fmt.Sprintf("[red::b]System[-]  [gray]%s[-]\n  Notice", ts.Format("15:04:05")),
 		},
 	}
 
@@ -82,9 +83,16 @@ func TestRenderTranscript(t *testing.T) {
 		},
 	})
 
-	expected := "[yellow::b]You[-]\nFirst\n\n[cyan::b]Alex[-] [gray](core)[-]\nSecond"
+	expected := strings.Join([]string{
+		fmt.Sprintf("[yellow::b]You[-]  [gray]%s[-]", now.Format("15:04:05")),
+		"  First",
+		"",
+		fmt.Sprintf("[cyan::b]Alex[-]  [gray](core)[-]  [gray]%s[-]", now.Format("15:04:05")),
+		"  Second",
+	}, "\n")
+
 	if transcript != expected {
-		t.Fatalf("unexpected transcript: %q", transcript)
+		t.Fatalf("unexpected transcript:\nexpected: %q\nactual:   %q", expected, transcript)
 	}
 }
 
@@ -148,6 +156,10 @@ func TestChatUIApplySessionSnapshotRestoresFollowDefaults(t *testing.T) {
 }
 
 func TestRenderStatus(t *testing.T) {
+	join := func(parts ...string) string {
+		return strings.Join(parts, "  [gray]•[-]  ")
+	}
+
 	baseSnapshot := state.Snapshot{}
 	tests := []struct {
 		name     string
@@ -156,12 +168,32 @@ func TestRenderStatus(t *testing.T) {
 		session  string
 		search   string
 		verbose  bool
-		expected string
+		followT  bool
+		followS  bool
+		line1    []string
+		line2    []string
 	}{
 		{
 			name:     "ready",
 			snapshot: baseSnapshot,
-			expected: "[green::b]Ready[-]  •  [white]Session: (new)[-]  •  [cyan]Tools: 0 active[-]  •  [magenta]MCP: none[-]  •  [blue]Subagents: 0 running[-]  •  [gray]Verbose: off[-]  •  [gray]? Help  Tab focus  End follow  / search  n/N next[-]",
+			line1: []string{
+				"[black:green::b] READY [-]",
+				"[white]Session:[-] (new)",
+				"[cyan]Tools:[-] 0/0 active",
+				"[magenta]MCP:[-] none",
+				"[blue]Subagents:[-] none",
+				"[gray]Verbose: off[-]",
+			},
+			line2: []string{
+				"[gray]Follow transcript:[-] [gray]off[-]",
+				"[gray]Follow stream:[-] [gray]off[-]",
+				"[gray]Ctrl+C exit[-]",
+				"[gray]Tab/Shift+Tab focus[-]",
+				"[gray]Ctrl+L latest[-]",
+				"[gray]/ search[-]",
+				"[gray]n/N navigate[-]",
+				"[gray]? help[-]",
+			},
 		},
 		{
 			name:    "one task",
@@ -171,9 +203,28 @@ func TestRenderStatus(t *testing.T) {
 				MCPServers:   []*state.MCPServer{{Status: state.MCPStatusReady}},
 				SubagentRuns: []*state.SubagentTask{{Status: state.SubtaskStatusRunning}},
 			},
-			session:  "session-123",
-			verbose:  true,
-			expected: "[yellow::b]Running task…[-]  •  [white]Session: session-123[-]  •  [cyan]Tools: 1 active[-]  •  [magenta]MCP: 1/1 ready[-]  •  [blue]Subagents: 1 running[-]  •  [gray]Verbose: on[-]  •  [gray]? Help  Tab focus  End follow  / search  n/N next[-]",
+			session: "session-123",
+			verbose: true,
+			followT: true,
+			followS: true,
+			line1: []string{
+				"[black:yellow::b] RUNNING [-]",
+				"[white]Session:[-] session-123",
+				"[cyan]Tools:[-] 1/1 active",
+				"[magenta]MCP:[-] 1/1 ready",
+				"[blue]Subagents:[-] 1/1 running",
+				"[gray]Verbose: on[-]",
+			},
+			line2: []string{
+				"[gray]Follow transcript:[-] [green::b]on[-]",
+				"[gray]Follow stream:[-] [green::b]on[-]",
+				"[gray]Ctrl+C exit[-]",
+				"[gray]Tab/Shift+Tab focus[-]",
+				"[gray]Ctrl+L latest[-]",
+				"[gray]/ search[-]",
+				"[gray]n/N navigate[-]",
+				"[gray]? help[-]",
+			},
 		},
 		{
 			name:    "with search",
@@ -182,7 +233,25 @@ func TestRenderStatus(t *testing.T) {
 			snapshot: state.Snapshot{
 				ToolRuns: []*state.ToolRun{{Status: state.ToolStatusRunning}, {Status: state.ToolStatusRunning}},
 			},
-			expected: "[yellow::b]Running 2 tasks…[-]  •  [white]Session: (new)[-]  •  [cyan]Tools: 2 active[-]  •  [magenta]MCP: none[-]  •  [blue]Subagents: 0 running[-]  •  [white]Search \"foo\": 2/5[-]  •  [gray]Verbose: off[-]  •  [gray]? Help  Tab focus  End follow  / search  n/N next[-]",
+			line1: []string{
+				"[black:yellow::b] RUNNING 2 [-]",
+				"[white]Session:[-] (new)",
+				"[cyan]Tools:[-] 2/2 active",
+				"[magenta]MCP:[-] none",
+				"[blue]Subagents:[-] none",
+				"[white]Search \"foo\": 2/5[-]",
+				"[gray]Verbose: off[-]",
+			},
+			line2: []string{
+				"[gray]Follow transcript:[-] [gray]off[-]",
+				"[gray]Follow stream:[-] [gray]off[-]",
+				"[gray]Ctrl+C exit[-]",
+				"[gray]Tab/Shift+Tab focus[-]",
+				"[gray]Ctrl+L latest[-]",
+				"[gray]/ search[-]",
+				"[gray]n/N navigate[-]",
+				"[gray]? help[-]",
+			},
 		},
 		{
 			name: "with tokens",
@@ -192,7 +261,25 @@ func TestRenderStatus(t *testing.T) {
 					TokensByAgent: map[string]int{"core": 150, "subagent": 30},
 				},
 			},
-			expected: "[green::b]Ready[-]  •  [white]Session: (new)[-]  •  [cyan]Tools: 0 active[-]  •  [magenta]MCP: none[-]  •  [blue]Subagents: 0 running[-]  •  [white]Tokens: 180 (core=150, subagent=30)[-]  •  [gray]Verbose: off[-]  •  [gray]? Help  Tab focus  End follow  / search  n/N next[-]",
+			line1: []string{
+				"[black:green::b] READY [-]",
+				"[white]Session:[-] (new)",
+				"[cyan]Tools:[-] 0/0 active",
+				"[magenta]MCP:[-] none",
+				"[blue]Subagents:[-] none",
+				"[white]Tokens: 180 (core=150, subagent=30)[-]",
+				"[gray]Verbose: off[-]",
+			},
+			line2: []string{
+				"[gray]Follow transcript:[-] [gray]off[-]",
+				"[gray]Follow stream:[-] [gray]off[-]",
+				"[gray]Ctrl+C exit[-]",
+				"[gray]Tab/Shift+Tab focus[-]",
+				"[gray]Ctrl+L latest[-]",
+				"[gray]/ search[-]",
+				"[gray]n/N navigate[-]",
+				"[gray]? help[-]",
+			},
 		},
 		{
 			name: "with cost",
@@ -202,20 +289,38 @@ func TestRenderStatus(t *testing.T) {
 					CostByModel: map[string]float64{"gpt-4": 0.3, "gpt-4o": 0.1321},
 				},
 			},
-			expected: "[green::b]Ready[-]  •  [white]Session: (new)[-]  •  [cyan]Tools: 0 active[-]  •  [magenta]MCP: none[-]  •  [blue]Subagents: 0 running[-]  •  [white]Cost: $0.4321 (gpt-4=$0.3000, gpt-4o=$0.1321)[-]  •  [gray]Verbose: off[-]  •  [gray]? Help  Tab focus  End follow  / search  n/N next[-]",
+			line1: []string{
+				"[black:green::b] READY [-]",
+				"[white]Session:[-] (new)",
+				"[cyan]Tools:[-] 0/0 active",
+				"[magenta]MCP:[-] none",
+				"[blue]Subagents:[-] none",
+				"[white]Cost: $0.4321 (gpt-4=$0.3000, gpt-4o=$0.1321)[-]",
+				"[gray]Verbose: off[-]",
+			},
+			line2: []string{
+				"[gray]Follow transcript:[-] [gray]off[-]",
+				"[gray]Follow stream:[-] [gray]off[-]",
+				"[gray]Ctrl+C exit[-]",
+				"[gray]Tab/Shift+Tab focus[-]",
+				"[gray]Ctrl+L latest[-]",
+				"[gray]/ search[-]",
+				"[gray]n/N navigate[-]",
+				"[gray]? help[-]",
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := renderStatus(tc.pending, tc.snapshot, tc.session, tc.search, tc.verbose)
-			if got != tc.expected {
-				t.Fatalf("expected %q got %q", tc.expected, got)
+			got := renderStatus(tc.pending, tc.snapshot, tc.session, tc.search, tc.verbose, tc.followT, tc.followS)
+			expected := join(tc.line1...) + "\n" + join(tc.line2...)
+			if got != expected {
+				t.Fatalf("expected %q got %q", expected, got)
 			}
 		})
 	}
 }
-
 func TestRenderLiveStream(t *testing.T) {
 	stream := renderLiveStream([]*state.ToolRun{{
 		ToolName:  "search",
