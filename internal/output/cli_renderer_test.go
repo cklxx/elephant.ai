@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
 )
 
@@ -45,5 +46,29 @@ func TestRenderToolCallStartKeepsFullArgsInVerboseMode(t *testing.T) {
 
 	if !strings.Contains(rendered, longCommand) {
 		t.Fatalf("expected verbose mode to include full command, got %q", rendered)
+	}
+}
+
+func TestRenderTaskCompleteRendersMarkdown(t *testing.T) {
+	renderer := NewCLIRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := &domain.TaskResult{
+		Answer:     "# Title\n\n- item",
+		Iterations: 1,
+		TokensUsed: 10,
+	}
+
+	rendered := renderer.RenderTaskComplete(ctx, result)
+
+	if strings.Contains(rendered, "# Title") {
+		t.Fatalf("expected markdown heading to be rendered, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, "Title") {
+		t.Fatalf("expected rendered output to include heading text, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, "•") {
+		t.Fatalf("expected rendered output to include bullet glyph, got %q", rendered)
 	}
 }

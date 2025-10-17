@@ -3,6 +3,7 @@ package output
 import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
+	"alex/internal/config"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +11,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 // CLIRenderer renders output for CLI display with hierarchical context awareness
@@ -22,8 +25,9 @@ type CLIRenderer struct {
 	// Note: Whether to show output at all is controlled by OutputContext.Level:
 	// - LevelCore: Always show tool calls
 	// - LevelSubagent/LevelParallel: Hide tool details, show progress summary only
-	verbose   bool
-	formatter *domain.ToolFormatter
+	verbose    bool
+	formatter  *domain.ToolFormatter
+	mdRenderer *glamour.TermRenderer
 }
 
 const nonVerbosePreviewLimit = 80
@@ -35,10 +39,30 @@ func NewCLIRenderer(verbose bool) *CLIRenderer {
 	// Set lipgloss to use stdout for color detection
 	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
 
-	return &CLIRenderer{
+	renderer := &CLIRenderer{
 		verbose:   verbose,
 		formatter: domain.NewToolFormatter(),
 	}
+
+	options := []glamour.TermRendererOption{
+		glamour.WithWordWrap(100),
+		glamour.WithPreservedNewLines(),
+	}
+
+	if value, ok := config.DefaultEnvLookup("GLAMOUR_STYLE"); ok && value != "" {
+		options = append(options, glamour.WithEnvironmentConfig())
+	} else if term.IsTerminal(int(os.Stdout.Fd())) {
+		options = append(options, glamour.WithAutoStyle())
+	} else {
+		options = append(options, glamour.WithStandardStyle("dark"))
+	}
+
+	mdRenderer, err := glamour.NewTermRenderer(options...)
+	if err == nil {
+		renderer.mdRenderer = mdRenderer
+	}
+
+	return renderer
 }
 
 // Target returns the output target
@@ -169,7 +193,7 @@ func (r *CLIRenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 
 	// Render markdown answer
 	if result.Answer != "" {
-		rendered := renderMarkdown(result.Answer)
+		rendered := r.renderMarkdown(result.Answer)
 		output.WriteString(rendered)
 		if !strings.HasSuffix(rendered, "\n") {
 			output.WriteString("\n")
@@ -475,9 +499,21 @@ func renderPurpleGradient(text string) string {
 	return result.String()
 }
 
-func renderMarkdown(content string) string {
-	// Simple markdown rendering (can be enhanced)
-	return content
+func (r *CLIRenderer) renderMarkdown(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return ""
+	}
+
+	if r.mdRenderer == nil {
+		return content
+	}
+
+	rendered, err := r.mdRenderer.Render(content)
+	if err != nil {
+		return content
+	}
+
+	return strings.TrimRight(rendered, "\n") + "\n"
 }
 
 func max(a, b int) int {
