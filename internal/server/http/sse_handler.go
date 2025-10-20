@@ -68,24 +68,50 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher.Flush()
 
+	sendEvent := func(event ports.AgentEvent) bool {
+		data, err := h.serializeEvent(event)
+		if err != nil {
+			h.logger.Error("Failed to serialize event: %v", err)
+			return false
+		}
+
+		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.EventType(), data); err != nil {
+			h.logger.Error("Failed to send SSE message: %v", err)
+			return false
+		}
+
+		flusher.Flush()
+		return true
+	}
+
 	// Replay historical events for this session
 	history := h.broadcaster.GetEventHistory(sessionID)
+	var lastHistoryTime time.Time
 	if len(history) > 0 {
 		h.logger.Info("Replaying %d historical events for session: %s", len(history), sessionID)
 		for _, event := range history {
-			data, err := h.serializeEvent(event)
-			if err != nil {
-				h.logger.Error("Failed to serialize historical event: %v", err)
-				continue
+			if sendEvent(event) {
+				lastHistoryTime = event.Timestamp()
 			}
-			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.EventType(), data); err != nil {
-				h.logger.Error("Failed to send historical event: %v", err)
-				continue
-			}
-			flusher.Flush()
 		}
 		h.logger.Info("Completed replaying historical events for session: %s", sessionID)
 	}
+
+	// Drain any duplicates that were queued while replaying history
+	for {
+		select {
+		case event := <-clientChan:
+			if lastHistoryTime.IsZero() || event.Timestamp().After(lastHistoryTime) {
+				if sendEvent(event) {
+					lastHistoryTime = event.Timestamp()
+				}
+			}
+		default:
+			goto drainComplete
+		}
+	}
+
+drainComplete:
 
 	// Heartbeat ticker to keep connection alive
 	ticker := time.NewTicker(30 * time.Second)
@@ -95,20 +121,9 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case event := <-clientChan:
-			// Serialize event to JSON
-			data, err := h.serializeEvent(event)
-			if err != nil {
-				h.logger.Error("Failed to serialize event: %v", err)
+			if !sendEvent(event) {
 				continue
 			}
-
-			// Send SSE message
-			// Format: event: <event_type>\ndata: <json>\n\n
-			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.EventType(), data); err != nil {
-				h.logger.Error("Failed to send SSE message: %v", err)
-				continue
-			}
-			flusher.Flush()
 
 		case <-ticker.C:
 			// Send heartbeat to keep connection alive
