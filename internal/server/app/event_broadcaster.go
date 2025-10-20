@@ -22,6 +22,11 @@ type EventBroadcaster struct {
 	sessionToTask map[string]string // sessionID -> taskID mapping
 	taskMu        sync.RWMutex      // separate mutex for task tracking
 
+	// Event history for session replay
+	eventHistory map[string][]agentports.AgentEvent // sessionID -> events
+	historyMu    sync.RWMutex
+	maxHistory   int // Maximum events to keep per session
+
 	// Metrics tracking
 	metrics broadcasterMetrics
 }
@@ -41,6 +46,8 @@ func NewEventBroadcaster() *EventBroadcaster {
 	return &EventBroadcaster{
 		clients:       make(map[string][]chan agentports.AgentEvent),
 		sessionToTask: make(map[string]string),
+		eventHistory:  make(map[string][]agentports.AgentEvent),
+		maxHistory:    1000, // Keep up to 1000 events per session
 		logger:        utils.NewComponentLogger("EventBroadcaster"),
 	}
 }
@@ -54,16 +61,17 @@ func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
 func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
 
+	// Store event in history for session replay
+	sessionID := event.GetSessionID()
+	if sessionID != "" {
+		b.storeEventHistory(sessionID, event)
+	}
+
 	// Update task progress before broadcasting
 	b.updateTaskProgress(event)
 
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
-	// Extract sessionID from event context
-	// For now, we'll broadcast to all clients - in production, you'd extract sessionID
-	// from the event's context or metadata
-	sessionID := b.extractSessionID(event)
 
 	b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, len(b.clients))
 
@@ -224,6 +232,49 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 
 	delete(b.sessionToTask, sessionID)
 	b.logger.Info("Unregistered task-session mapping: sessionID=%s", sessionID)
+}
+
+// storeEventHistory stores an event in the session's history
+func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.AgentEvent) {
+	b.historyMu.Lock()
+	defer b.historyMu.Unlock()
+
+	history := b.eventHistory[sessionID]
+	history = append(history, event)
+
+	// Trim history if it exceeds max size
+	if len(history) > b.maxHistory {
+		// Keep only the most recent maxHistory events
+		history = history[len(history)-b.maxHistory:]
+	}
+
+	b.eventHistory[sessionID] = history
+	b.logger.Debug("Stored event in history: sessionID=%s, type=%s, total=%d", sessionID, event.EventType(), len(history))
+}
+
+// GetEventHistory returns all stored events for a session
+func (b *EventBroadcaster) GetEventHistory(sessionID string) []agentports.AgentEvent {
+	b.historyMu.RLock()
+	defer b.historyMu.RUnlock()
+
+	history := b.eventHistory[sessionID]
+	if len(history) == 0 {
+		return nil
+	}
+
+	// Return a copy to prevent concurrent modification
+	historyCopy := make([]agentports.AgentEvent, len(history))
+	copy(historyCopy, history)
+	return historyCopy
+}
+
+// ClearEventHistory clears the event history for a session
+func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
+	b.historyMu.Lock()
+	defer b.historyMu.Unlock()
+
+	delete(b.eventHistory, sessionID)
+	b.logger.Info("Cleared event history for session: %s", sessionID)
 }
 
 // Metrics helper methods
