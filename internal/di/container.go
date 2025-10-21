@@ -1,6 +1,7 @@
 package di
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
