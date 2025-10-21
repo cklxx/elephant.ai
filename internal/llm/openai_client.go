@@ -279,6 +279,10 @@ func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]a
 }
 
 func (c *openaiClient) wrapRequestError(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return alexerrors.NewPermanentError(err, "Request canceled by caller.")
+	}
+
 	if errors.Is(err, context.DeadlineExceeded) {
 		return alexerrors.NewTransientError(err, "Request to LLM provider timed out. Please retry.")
 	}
