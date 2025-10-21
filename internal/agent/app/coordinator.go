@@ -7,19 +7,17 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/llm"
-	"alex/internal/prompts"
 	"alex/internal/utils"
 )
 
 // AgentCoordinator manages session lifecycle and delegates to domain
 type AgentCoordinator struct {
-	llmFactory   *llm.Factory
+	llmFactory   ports.LLMClientFactory
 	toolRegistry ports.ToolRegistry
 	sessionStore ports.SessionStore
 	contextMgr   ports.ContextManager
 	parser       ports.FunctionCallParser
-	promptLoader *prompts.Loader
+	promptLoader ports.PromptLoader
 	costTracker  ports.CostTracker
 	config       Config
 	logger       ports.Logger
@@ -46,11 +44,12 @@ type Config struct {
 }
 
 func NewAgentCoordinator(
-	llmFactory *llm.Factory,
+	llmFactory ports.LLMClientFactory,
 	toolRegistry ports.ToolRegistry,
 	sessionStore ports.SessionStore,
 	contextMgr ports.ContextManager,
 	parser ports.FunctionCallParser,
+	promptLoader ports.PromptLoader,
 	costTracker ports.CostTracker,
 	config Config,
 	opts ...CoordinatorOption,
@@ -72,7 +71,7 @@ func NewAgentCoordinator(
 		sessionStore: sessionStore,
 		contextMgr:   contextMgr,
 		parser:       parser,
-		promptLoader: prompts.New(),
+		promptLoader: promptLoader,
 		costTracker:  costTracker,
 		config:       config,
 		logger:       utils.NewComponentLogger("Coordinator"),
@@ -318,7 +317,7 @@ func (c *AgentCoordinator) GetConfig() ports.AgentConfig {
 
 // GetLLMClient returns an LLM client
 func (c *AgentCoordinator) GetLLMClient() (ports.LLMClient, error) {
-	client, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, llm.Config{
+	client, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, ports.LLMConfig{
 		APIKey:  c.config.APIKey,
 		BaseURL: c.config.BaseURL,
 	})

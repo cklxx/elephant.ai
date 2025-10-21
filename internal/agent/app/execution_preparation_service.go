@@ -6,18 +6,16 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/llm"
-	"alex/internal/prompts"
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
-	LLMFactory      *llm.Factory
+	LLMFactory      ports.LLMClientFactory
 	ToolRegistry    ports.ToolRegistry
 	SessionStore    ports.SessionStore
 	ContextMgr      ports.ContextManager
 	Parser          ports.FunctionCallParser
-	PromptLoader    *prompts.Loader
+	PromptLoader    ports.PromptLoader
 	Config          Config
 	Logger          ports.Logger
 	Clock           ports.Clock
@@ -29,12 +27,12 @@ type ExecutionPreparationDeps struct {
 
 // ExecutionPreparationService prepares everything needed before executing a task.
 type ExecutionPreparationService struct {
-	llmFactory     *llm.Factory
+	llmFactory     ports.LLMClientFactory
 	toolRegistry   ports.ToolRegistry
 	sessionStore   ports.SessionStore
 	contextMgr     ports.ContextManager
 	parser         ports.FunctionCallParser
-	promptLoader   *prompts.Loader
+	promptLoader   ports.PromptLoader
 	config         Config
 	logger         ports.Logger
 	clock          ports.Clock
@@ -56,9 +54,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	}
 
 	promptLoader := deps.PromptLoader
-	if promptLoader == nil {
-		promptLoader = prompts.New()
-	}
+	// PromptLoader is now a required dependency - must be provided by caller
 
 	analysis := deps.Analysis
 	if analysis == nil {
@@ -137,7 +133,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, s.config.LLMModel)
 	// Use GetIsolatedClient to ensure session-level cost tracking isolation
-	llmClient, err := s.llmFactory.GetIsolatedClient(s.config.LLMProvider, s.config.LLMModel, llm.Config{
+	llmClient, err := s.llmFactory.GetIsolatedClient(s.config.LLMProvider, s.config.LLMModel, ports.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
 	})
@@ -150,11 +146,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
 
 	analysis := s.analysis.Analyze(ctx, task, llmClient)
-	var analysisInfo *prompts.TaskAnalysisInfo
+	var analysisInfo *ports.TaskAnalysisInfo
 	var taskAnalysis *ports.TaskAnalysis
 	if analysis != nil && analysis.ActionName != "" {
 		s.logger.Debug("Task pre-analysis: action=%s, goal=%s", analysis.ActionName, analysis.Goal)
-		analysisInfo = &prompts.TaskAnalysisInfo{
+		analysisInfo = &ports.TaskAnalysisInfo{
 			Action:   analysis.ActionName,
 			Goal:     analysis.Goal,
 			Approach: analysis.Approach,

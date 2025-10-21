@@ -7,13 +7,12 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
-	"alex/internal/prompts"
 )
 
 // PresetResolver handles preset resolution for both agent and tool presets.
 // It resolves presets from context (highest priority), config (fallback), or defaults.
 type PresetResolver struct {
-	promptLoader *prompts.Loader
+	promptLoader ports.PromptLoader
 	logger       ports.Logger
 	clock        ports.Clock
 	eventEmitter ports.EventListener
@@ -21,14 +20,14 @@ type PresetResolver struct {
 
 // PresetResolverDeps enumerates dependencies for PresetResolver
 type PresetResolverDeps struct {
-	PromptLoader *prompts.Loader
+	PromptLoader ports.PromptLoader
 	Logger       ports.Logger
 	Clock        ports.Clock
 	EventEmitter ports.EventListener
 }
 
 // NewPresetResolver creates a new preset resolver instance.
-func NewPresetResolver(promptLoader *prompts.Loader, logger ports.Logger) *PresetResolver {
+func NewPresetResolver(promptLoader ports.PromptLoader, logger ports.Logger) *PresetResolver {
 	return NewPresetResolverWithDeps(PresetResolverDeps{
 		PromptLoader: promptLoader,
 		Logger:       logger,
@@ -42,9 +41,7 @@ func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
 		logger = ports.NoopLogger{}
 	}
 	promptLoader := deps.PromptLoader
-	if promptLoader == nil {
-		promptLoader = prompts.New()
-	}
+	// PromptLoader is now a required dependency - must be provided by caller
 	clock := deps.Clock
 	if clock == nil {
 		clock = ports.SystemClock{}
@@ -67,7 +64,7 @@ func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
 func (r *PresetResolver) ResolveSystemPrompt(
 	ctx context.Context,
 	task string,
-	analysis *prompts.TaskAnalysisInfo,
+	analysis *ports.TaskAnalysisInfo,
 	configPreset string,
 ) string {
 	agentPreset, source := r.resolveAgentPreset(ctx, configPreset)
@@ -195,7 +192,7 @@ func (r *PresetResolver) resolveToolPreset(ctx context.Context, configPreset str
 }
 
 // loadDefaultPrompt loads the default system prompt using the prompt loader.
-func (r *PresetResolver) loadDefaultPrompt(task string, analysis *prompts.TaskAnalysisInfo) string {
+func (r *PresetResolver) loadDefaultPrompt(task string, analysis *ports.TaskAnalysisInfo) string {
 	workingDir, err := os.Getwd()
 	if err != nil {
 		workingDir = "."

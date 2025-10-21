@@ -11,6 +11,28 @@ type LLMClient interface {
 	Model() string
 }
 
+// LLMClientFactory creates LLM clients for different providers
+// This interface abstracts the concrete llm.Factory implementation
+type LLMClientFactory interface {
+	// GetClient creates or retrieves a cached LLM client
+	GetClient(provider, model string, config LLMConfig) (LLMClient, error)
+
+	// GetIsolatedClient creates a new non-cached client for session isolation
+	GetIsolatedClient(provider, model string, config LLMConfig) (LLMClient, error)
+
+	// DisableRetry disables retry logic for all clients created by this factory
+	DisableRetry()
+}
+
+// LLMConfig contains configuration for LLM client creation
+type LLMConfig struct {
+	APIKey     string
+	BaseURL    string
+	Timeout    int
+	MaxRetries int
+	Headers    map[string]string
+}
+
 // UsageTrackingClient extends LLMClient with usage tracking
 type UsageTrackingClient interface {
 	LLMClient

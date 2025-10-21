@@ -39,7 +39,7 @@ make npm-publish             # Publish to npm
 
 ## Architecture Index
 
-**See detailed docs in:** `docs/architecture/ALEX_DETAILED_ARCHITECTURE.md`
+**See detailed docs in:** `docs/architecture/SPRINT_1-4_ARCHITECTURE.md`
 
 ### Key Directories
 - `internal/agent/domain/` - Pure business logic (ReactEngine, ToolFormatter)

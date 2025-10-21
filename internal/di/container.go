@@ -14,6 +14,7 @@ import (
 	"alex/internal/llm"
 	"alex/internal/mcp"
 	"alex/internal/parser"
+	"alex/internal/prompts"
 	"alex/internal/session/filestore"
 	"alex/internal/storage"
 	"alex/internal/tools"
@@ -195,6 +196,9 @@ func BuildContainer(config Config) (*Container, error) {
 	mcpRegistry := mcp.NewRegistry(mcp.WithEnvLookup(envLookup))
 	tracker := newMCPInitializationTracker()
 
+	// Prompt Loader - implements ports.PromptLoader interface
+	promptLoader := prompts.New()
+
 	// Application Layer
 	coordinator := agentApp.NewAgentCoordinator(
 		llmFactory,
@@ -202,6 +206,7 @@ func BuildContainer(config Config) (*Container, error) {
 		sessionStore,
 		contextMgr,
 		parserImpl,
+		promptLoader,
 		costTracker,
 		agentApp.Config{
 			LLMProvider:         config.LLMProvider,
