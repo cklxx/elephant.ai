@@ -211,7 +211,6 @@ export ALEX_TUI_FOLLOW_STREAM="0"        # Disable live stream auto-follow
 
 # Feature Flags (v0.6.0+)
 export ALEX_ENABLE_MCP="true"            # Enable Model Context Protocol (default: true)
-export ALEX_ENABLE_GIT_TOOLS="true"      # Enable Git tools (default: true)
 ```
 
 Set the same defaults persistently by adding `"follow_transcript"` / `"follow_stream"` entries to `~/.alex-config.json`.
@@ -223,13 +222,11 @@ Control optional features via environment variables or config:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ALEX_ENABLE_MCP` | `true` | Enable/disable Model Context Protocol integration |
-| `ALEX_ENABLE_GIT_TOOLS` | `true` | Enable/disable Git tools (git_commit, git_pr) |
 
 **Minimal Configuration for Testing/Offline Mode**:
 ```json
 {
-  "enable_mcp": false,
-  "enable_git_tools": false
+  "enable_mcp": false
 }
 ```
 
@@ -252,11 +249,6 @@ curl http://localhost:8080/health
       "name": "llm_factory",
       "status": "ready",
       "message": "LLM factory initialized"
-    },
-    {
-      "name": "git_tools",
-      "status": "ready",
-      "message": "Git tools available (2 tools registered)"
     },
     {
       "name": "mcp",
@@ -399,7 +391,6 @@ make release-npm
 - [docs/reference/OBSERVABILITY.md](docs/reference/OBSERVABILITY.md) - 🆕 Observability Guide (v0.6.0)
 - [docs/reference/PRESET_QUICK_REFERENCE.md](docs/reference/PRESET_QUICK_REFERENCE.md) - 🆕 Agent Presets (v0.6.0)
 - [docs/reference/PRESET_SYSTEM_SUMMARY.md](docs/reference/PRESET_SYSTEM_SUMMARY.md) - 🆕 Preset System Details (v0.6.0)
-- [docs/reference/GIT_TOOLS.md](docs/reference/GIT_TOOLS.md) - Git Tools Documentation
 - [docs/reference/MCP_GUIDE.md](docs/reference/MCP_GUIDE.md) - Model Context Protocol Guide
 
 ### Architecture & Design

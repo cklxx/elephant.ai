@@ -134,8 +134,8 @@ All planned improvements from Sprints 1-4 have been implemented successfully:
 - `cmd/alex-server/main.go` - Integrated lifecycle
 
 **Changes**:
-- Added `EnableMCP` and `EnableGitTools` config flags
-- Moved Git/MCP registration from `BuildContainer()` to `Start()` method
+- Added `EnableMCP` config flag
+- Moved MCP registration from `BuildContainer()` to `Start()` method
 - `BuildContainer()` now lightweight (no external API calls)
 - Heavy initialization deferred to `Start()`
 
@@ -152,8 +152,8 @@ All planned improvements from Sprints 1-4 have been implemented successfully:
 #### 2.3 Health Probe Interface
 **Files Created**:
 - `internal/server/ports/health.go` - Health probe interfaces
-- `internal/server/app/health.go` - Probe implementations (GitToolsProbe, MCPProbe, LLMFactoryProbe)
-- `internal/server/app/health_test.go` - Health probe tests (3 tests)
+- `internal/server/app/health.go` - Probe implementations (MCPProbe, LLMFactoryProbe)
+- `internal/server/app/health_test.go` - Health probe tests (2 tests)
 
 **Changes**:
 - Created `HealthProbe` and `HealthChecker` interfaces
@@ -371,7 +371,6 @@ All planned improvements from Sprints 1-4 have been implemented successfully:
 1. **Enable Feature Flags** (recommended for production):
    ```bash
    export ALEX_ENABLE_MCP=true
-   export ALEX_ENABLE_GIT_TOOLS=true
    ```
 
 2. **Use Health Endpoint**:
@@ -396,7 +395,6 @@ All planned improvements from Sprints 1-4 have been implemented successfully:
 Use minimal configuration for offline/testing:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 make test  # Works without API keys
 ```
 

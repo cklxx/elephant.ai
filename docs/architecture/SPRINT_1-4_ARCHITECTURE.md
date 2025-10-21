@@ -153,7 +153,6 @@ type Task struct {
 ### Problem Statement
 
 **Issue**: Heavy dependencies initialized eagerly at container construction
-- Git tools attempted LLM client initialization
 - MCP tried to connect to external servers
 - Tests failed without API keys
 - Slow startup time
@@ -178,9 +177,6 @@ type Task struct {
 │ Start()                  │
 │ (heavy, optional)        │
 │                          │
-│ if EnableGitTools:       │
-│   → initGitTools()       │
-│                          │
 │ if EnableMCP:            │
 │   → startMCP()           │
 └──────────────────────────┘
@@ -201,22 +197,19 @@ type Config struct {
     // ... existing fields ...
 
     // Feature Flags (Sprint 2)
-    EnableMCP      bool  // Enable MCP tool registration
-    EnableGitTools bool  // Enable Git tools requiring LLM
+    EnableMCP bool  // Enable MCP tool registration
 }
 ```
 
 **Environment Variables**:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 ```
 
 **Config File**:
 ```json
 {
-  "enable_mcp": false,
-  "enable_git_tools": false
+  "enable_mcp": false
 }
 ```
 
@@ -263,11 +256,6 @@ GET /health
       "name": "llm_factory",
       "status": "ready",
       "message": "LLM factory initialized"
-    },
-    {
-      "name": "git_tools",
-      "status": "disabled",
-      "message": "Git tools disabled by configuration"
     },
     {
       "name": "mcp",
@@ -328,25 +316,22 @@ GET /health
 **Minimal (Testing/Offline)**:
 ```go
 di.Config{
-    EnableMCP:      false,
-    EnableGitTools: false,
+    EnableMCP: false,
 }
 ```
 
 **Development**:
 ```go
 di.Config{
-    EnableMCP:      true,
-    EnableGitTools: false,  // If no API key
+    EnableMCP: true,
 }
 ```
 
 **Production**:
 ```go
 di.Config{
-    EnableMCP:      true,
-    EnableGitTools: true,
-    APIKey:         os.Getenv("OPENAI_API_KEY"),
+    EnableMCP: true,
+    APIKey:    os.Getenv("OPENAI_API_KEY"),
 }
 ```
 
@@ -622,12 +607,7 @@ type ComponentHealth struct {
    - Reports `ready` when factory is available
    - No external API calls (lightweight check)
 
-2. **GitToolsProbe**:
-   - Checks Git tools registration status
-   - Reports `disabled` when `ALEX_ENABLE_GIT_TOOLS=false`
-   - Reports `ready` when Git tools registered successfully
-
-3. **MCPProbe**:
+2. **MCPProbe**:
    - Monitors MCP initialization state
    - Reports server count and tool count when ready
    - Shows initialization attempts and errors when not ready
@@ -650,11 +630,6 @@ type ComponentHealth struct {
       "name": "llm_factory",
       "status": "ready",
       "message": "LLM factory initialized"
-    },
-    {
-      "name": "git_tools",
-      "status": "ready",
-      "message": "Git tools available (2 tools registered)"
     },
     {
       "name": "mcp",
@@ -800,11 +775,6 @@ if err := context.Cause(ctx); err != nil {
 ┌─────────────────────────────────┐
 │ container.Start()               │
 │                                 │
-│ if EnableGitTools:              │
-│   • Create LLM client           │
-│   • Register git_commit         │
-│   • Register git_pr             │
-│                                 │
 │ if EnableMCP:                   │
 │   • Start MCP goroutine         │
 │   • Initialize with backoff     │
@@ -932,14 +902,6 @@ if err := context.Cause(ctx); err != nil {
   }
   ```
 
-**GitToolsProbe** (`internal/server/app/health.go`)
-- **Purpose**: Monitor Git tools availability
-- **Status Logic**:
-  - `disabled`: When `ALEX_ENABLE_GIT_TOOLS=false`
-  - `ready`: Git tools registered successfully
-  - `not_ready`: Git tools initialization failed
-- **Reports**: Number of Git tools registered
-
 **MCPProbe** (`internal/server/app/health.go`)
 - **Purpose**: Track MCP integration health
 - **Status Logic**:
@@ -1030,7 +992,6 @@ if err := context.Cause(ctx); err != nil {
 **Offline Mode**:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 make test  # Should pass without API keys
 ```
 

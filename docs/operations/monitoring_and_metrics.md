@@ -49,11 +49,6 @@ GET /health
       "message": "LLM factory initialized"
     },
     {
-      "name": "git_tools",
-      "status": "disabled",
-      "message": "Git tools disabled by configuration"
-    },
-    {
       "name": "mcp",
       "status": "not_ready",
       "message": "MCP initialization in progress",
@@ -91,25 +86,7 @@ GET /health
 # No specific configuration needed
 ```
 
-#### 2. Git Tools Probe
-
-**Purpose**: Check Git tools availability
-
-**Status Conditions**:
-- `ready`: Git tools registered and available
-- `disabled`: `ALEX_ENABLE_GIT_TOOLS=false`
-- `not_ready`: Git tools initialization failed
-
-**Configuration**:
-```bash
-export ALEX_ENABLE_GIT_TOOLS=true  # Enable Git tools
-```
-
-**Dependencies**:
-- Requires valid LLM client for prompt generation
-- Needs Git binary in PATH
-
-#### 3. MCP Probe
+#### 2. MCP Probe
 
 **Purpose**: Monitor Model Context Protocol integration
 
@@ -502,8 +479,6 @@ sum by (agent_preset, tool_preset) (alex_preset_usage)
 | grep | ✅ | ✅ | ✅ | ❌ | ✅ |
 | web_search | ✅ | ✅ | ❌ | ✅ | ✅ |
 | web_fetch | ✅ | ✅ | ❌ | ✅ | ✅ |
-| git_commit | ✅ | ❌ | ✅ | ❌ | ❌ |
-| git_pr | ✅ | ❌ | ✅ | ❌ | ❌ |
 
 Reference: `internal/agent/presets/tools.go`
 
@@ -519,7 +494,6 @@ up{job="alex"}
 
 # Component health
 alex_health_component_status{component="llm_factory"}
-alex_health_component_status{component="git_tools"}
 alex_health_component_status{component="mcp"}
 
 # Active sessions
@@ -613,7 +587,6 @@ rate(alex_auth_failures_total[5m])
 
 **Resolution**:
 - **LLM factory not ready**: Verify API key is set
-- **Git tools not ready**: Check `ALEX_ENABLE_GIT_TOOLS` and LLM client
 - **MCP not ready**: Check MCP server configuration and network connectivity
 
 ### Issue: Cost Tracking Incorrect

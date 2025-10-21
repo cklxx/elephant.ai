@@ -401,7 +401,6 @@ Binary: ./alex
 1. **Enable feature flags for better control**:
 ```bash
 export ALEX_ENABLE_MCP=true
-export ALEX_ENABLE_GIT_TOOLS=true
 ```
 
 2. **Add health check monitoring**:
@@ -434,14 +433,12 @@ if metrics.DroppedEvents > 100 {
 **Minimal configuration for testing**:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 make test  # Works without API keys
 ```
 
 **Production configuration**:
 ```bash
 export ALEX_ENABLE_MCP=true
-export ALEX_ENABLE_GIT_TOOLS=true
 export ALEX_LLM_PROVIDER=openai
 export ALEX_LLM_MODEL=gpt-4o
 export OPENAI_API_KEY=your-key

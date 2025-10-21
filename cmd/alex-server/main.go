@@ -19,10 +19,9 @@ import (
 
 // Config holds server configuration
 type Config struct {
-	Runtime        runtimeconfig.RuntimeConfig
-	Port           string
-	EnableMCP      bool
-	EnableGitTools bool
+	Runtime   runtimeconfig.RuntimeConfig
+	Port      string
+	EnableMCP bool
 }
 
 func main() {
@@ -87,7 +86,6 @@ func main() {
 
 	// Setup health checker
 	healthChecker := serverApp.NewHealthChecker()
-	healthChecker.RegisterProbe(serverApp.NewGitToolsProbe(container, config.EnableGitTools))
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 
@@ -147,7 +145,6 @@ func buildContainer(config Config) (*di.Container, error) {
 		SessionDir:     config.Runtime.SessionDir,
 		CostDir:        config.Runtime.CostDir,
 		EnableMCP:      config.EnableMCP,
-		EnableGitTools: config.EnableGitTools,
 	}
 
 	return di.BuildContainer(diConfig)
@@ -166,7 +163,6 @@ func loadConfig() (Config, error) {
 		"ALEX_VERBOSE":       {"VERBOSE"},
 		"PORT":               {"ALEX_SERVER_PORT"},
 		"ENABLE_MCP":         {"ALEX_ENABLE_MCP"},
-		"ENABLE_GIT_TOOLS":   {"ALEX_ENABLE_GIT_TOOLS"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(
@@ -177,10 +173,9 @@ func loadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Runtime:        runtimeCfg,
-		Port:           "8080",
-		EnableMCP:      true,       // Default: enabled
-		EnableGitTools: false,      // Default: disabled (not yet implemented)
+		Runtime:   runtimeCfg,
+		Port:      "8080",
+		EnableMCP: true, // Default: enabled
 	}
 
 	if port, ok := envLookup("PORT"); ok && port != "" {
@@ -190,9 +185,6 @@ func loadConfig() (Config, error) {
 	// Parse feature flags
 	if enableMCP, ok := envLookup("ENABLE_MCP"); ok {
 		cfg.EnableMCP = enableMCP == "true" || enableMCP == "1"
-	}
-	if enableGitTools, ok := envLookup("ENABLE_GIT_TOOLS"); ok {
-		cfg.EnableGitTools = enableGitTools == "true" || enableGitTools == "1"
 	}
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
