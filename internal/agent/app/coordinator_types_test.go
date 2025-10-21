@@ -85,6 +85,17 @@ type stubParser struct{}
 func (stubParser) Parse(content string) ([]ports.ToolCall, error)                      { return nil, nil }
 func (stubParser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error { return nil }
 
+type stubPromptLoader struct{}
+
+func (stubPromptLoader) Get(name string) (string, error) { return "", nil }
+func (stubPromptLoader) Render(name string, variables map[string]string) (string, error) {
+	return "", nil
+}
+func (stubPromptLoader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+	return "System prompt", nil
+}
+func (stubPromptLoader) List() []string { return nil }
+
 func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
@@ -94,6 +105,7 @@ func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
 		sessionStore,
 		stubContextManager{},
 		stubParser{},
+		stubPromptLoader{},
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 5},
 	)
@@ -133,6 +145,7 @@ func TestCoordinatorGetConfigIncludesCompletionDefaults(t *testing.T) {
 		sessionStore,
 		stubContextManager{},
 		stubParser{},
+		stubPromptLoader{},
 		nil,
 		Config{
 			LLMProvider:         "mock",
@@ -176,6 +189,7 @@ func TestNewAgentCoordinatorHonorsZeroTemperature(t *testing.T) {
 		sessionStore,
 		stubContextManager{},
 		stubParser{},
+		stubPromptLoader{},
 		nil,
 		Config{
 			LLMProvider:         "mock",

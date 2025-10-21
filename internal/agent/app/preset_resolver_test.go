@@ -63,7 +63,7 @@ func TestPresetResolver_ResolveSystemPrompt_WithContextPreset(t *testing.T) {
 func TestPresetResolver_ResolveSystemPrompt_WithAnalysis(t *testing.T) {
 	resolver := NewPresetResolver(prompts.New(), &testLogger{})
 
-	analysis := &prompts.TaskAnalysisInfo{
+	analysis := &ports.TaskAnalysisInfo{
 		Action:   "Analyzing codebase",
 		Goal:     "Find performance issues",
 		Approach: "Use profiling tools",
@@ -230,17 +230,18 @@ func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 }
 
 func TestPresetResolver_NilDependencies(t *testing.T) {
-	// Should create resolver with defaults when nil dependencies provided
-	resolver := NewPresetResolver(nil, nil)
+	// Should create resolver with defaults when optional dependencies are nil
+	// PromptLoader is required, but logger can be nil
+	resolver := NewPresetResolver(prompts.New(), nil)
 
 	if resolver == nil {
-		t.Fatal("expected resolver to be created with nil dependencies")
+		t.Fatal("expected resolver to be created")
 	}
 
-	// Should work with default dependencies
+	// Should work with default logger (nil becomes NoopLogger)
 	prompt := resolver.ResolveSystemPrompt(context.Background(), "test", nil, "")
 	if prompt == "" {
-		t.Fatal("expected resolver to work with default dependencies")
+		t.Fatal("expected resolver to work with default logger")
 	}
 }
 
