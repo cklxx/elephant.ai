@@ -2,13 +2,17 @@ package llm
 
 import (
 	"alex/internal/agent/ports"
+	alexerrors "alex/internal/errors"
 	"alex/internal/utils"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +24,8 @@ type openaiClient struct {
 	baseURL       string
 	httpClient    *http.Client
 	logger        *utils.Logger
+	headers       map[string]string
+	maxRetries    int
 	usageCallback func(usage ports.TokenUsage, model string, provider string)
 }
 
@@ -28,14 +34,21 @@ func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
 		config.BaseURL = "https://openrouter.ai/api/v1"
 	}
 
+	timeout := 120 * time.Second
+	if config.Timeout > 0 {
+		timeout = time.Duration(config.Timeout) * time.Second
+	}
+
 	return &openaiClient{
 		model:   model,
 		apiKey:  config.APIKey,
-		baseURL: config.BaseURL,
+		baseURL: strings.TrimRight(config.BaseURL, "/"),
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: timeout,
 		},
-		logger: utils.NewComponentLogger("llm"),
+		logger:     utils.NewComponentLogger("llm"),
+		headers:    config.Headers,
+		maxRetries: config.MaxRetries,
 	}, nil
 }
 
@@ -64,13 +77,22 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	c.logger.Debug("URL: POST %s/chat/completions", c.baseURL)
 	c.logger.Debug("Model: %s", c.model)
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/chat/completions", bytes.NewReader(body))
+	endpoint := c.baseURL + "/chat/completions"
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.maxRetries > 0 {
+		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
+	}
+
+	for k, v := range c.headers {
+		httpReq.Header.Set(k, v)
+	}
 
 	// Debug log: Request headers
 	c.logger.Debug("Request Headers:")
@@ -94,7 +116,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Debug("HTTP request failed: %v", err)
-		return nil, fmt.Errorf("http request: %w", err)
+		return nil, c.wrapRequestError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -108,10 +130,15 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		c.logger.Debug("  %s: %s", k, strings.Join(v, ", "))
 	}
 
-	if resp.StatusCode != 200 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		c.logger.Debug("Error Response Body: %s", string(bodyBytes))
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(bodyBytes))
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Debug("Failed to read response body: %v", err)
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		c.logger.Debug("Error Response Body: %s", string(respBody))
+		return nil, c.mapHTTPError(resp.StatusCode, respBody, resp.Header)
 	}
 
 	var oaiResp struct {
@@ -134,13 +161,11 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			CompletionTokens int `json:"completion_tokens"`
 			TotalTokens      int `json:"total_tokens"`
 		} `json:"usage"`
-	}
-
-	// Read response body for both decoding and logging
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Debug("Failed to read response body: %v", err)
-		return nil, fmt.Errorf("read response: %w", err)
+		Error *struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+			Code    string `json:"code"`
+		} `json:"error"`
 	}
 
 	// Debug log: Response body (pretty print)
@@ -156,9 +181,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
+	if oaiResp.Error != nil && oaiResp.Error.Message != "" {
+		errMsg := oaiResp.Error.Message
+		if oaiResp.Error.Type != "" {
+			errMsg = fmt.Sprintf("%s: %s", oaiResp.Error.Type, oaiResp.Error.Message)
+		}
+		return nil, c.mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+	}
+
 	if len(oaiResp.Choices) == 0 {
 		c.logger.Debug("No choices in response")
-		return nil, fmt.Errorf("no choices in response")
+		return nil, alexerrors.NewTransientError(errors.New("no choices in response"), "LLM returned an empty response. Please retry.")
 	}
 
 	result := &ports.CompletionResponse{
@@ -243,4 +276,79 @@ func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]a
 		}
 	}
 	return result
+}
+
+func (c *openaiClient) wrapRequestError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return alexerrors.NewTransientError(err, "Request to LLM provider timed out. Please retry.")
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return alexerrors.NewTransientError(err, "Request to LLM provider timed out. Please retry.")
+	}
+
+	return alexerrors.NewTransientError(err, "Failed to reach LLM provider. Please retry shortly.")
+}
+
+func (c *openaiClient) mapHTTPError(status int, body []byte, headers http.Header) error {
+	message := strings.TrimSpace(string(body))
+	if message == "" {
+		message = http.StatusText(status)
+	}
+
+	baseErr := fmt.Errorf("status %d: %s", status, message)
+
+	switch {
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		perr := alexerrors.NewPermanentError(baseErr, "Authentication failed. Please verify your API key.")
+		perr.StatusCode = status
+		return perr
+	case status == http.StatusTooManyRequests:
+		terr := alexerrors.NewTransientError(baseErr, "Rate limit reached. The system will retry automatically.")
+		terr.StatusCode = status
+		if retryAfter := parseRetryAfter(headers.Get("Retry-After")); retryAfter > 0 {
+			terr.RetryAfter = retryAfter
+		}
+		return terr
+	case status == http.StatusRequestTimeout || status == http.StatusGatewayTimeout:
+		terr := alexerrors.NewTransientError(baseErr, "Upstream service timed out. Please retry.")
+		terr.StatusCode = status
+		return terr
+	case status >= 500:
+		terr := alexerrors.NewTransientError(baseErr, "Upstream service temporarily unavailable. Please retry.")
+		terr.StatusCode = status
+		return terr
+	case status >= 400:
+		perr := alexerrors.NewPermanentError(baseErr, "Request was rejected by the upstream service.")
+		perr.StatusCode = status
+		return perr
+	default:
+		terr := alexerrors.NewTransientError(baseErr, "Unexpected response from upstream service. Please retry.")
+		terr.StatusCode = status
+		return terr
+	}
+}
+
+func parseRetryAfter(value string) int {
+	if value == "" {
+		return 0
+	}
+
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds < 0 {
+			return 0
+		}
+		return seconds
+	}
+
+	if t, err := http.ParseTime(value); err == nil {
+		delta := int(time.Until(t).Seconds())
+		if delta < 0 {
+			return 0
+		}
+		return delta
+	}
+
+	return 0
 }
