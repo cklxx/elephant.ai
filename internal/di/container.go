@@ -1,7 +1,6 @@
 package di
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -61,25 +60,13 @@ type Config struct {
 	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
 
 	// Feature Flags
-	EnableMCP      bool // Enable MCP tool registration (requires external dependencies)
-	EnableGitTools bool // Enable Git tools requiring LLM client (git_commit, git_pr)
+	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
 }
 
-// Start initializes heavy dependencies (Git tools, MCP) based on feature flags
+// Start initializes heavy dependencies (MCP) based on feature flags
 func (c *Container) Start() error {
 	logger := utils.NewComponentLogger("DI")
 	logger.Info("Starting container lifecycle...")
-
-	// Initialize Git tools if enabled
-	if c.config.EnableGitTools {
-		if err := c.initGitTools(); err != nil {
-			logger.Warn("Failed to initialize Git tools: %v (continuing without Git tools)", err)
-		} else {
-			logger.Info("Git tools initialized successfully")
-		}
-	} else {
-		logger.Info("Git tools disabled by configuration")
-	}
 
 	// Initialize MCP if enabled
 	if c.config.EnableMCP {
@@ -121,13 +108,6 @@ func (c *Container) Cleanup() error {
 	return c.Shutdown()
 }
 
-// initGitTools lazily initializes Git tools requiring LLM client
-func (c *Container) initGitTools() error {
-	// TODO: Implement Git tools (git_commit, git_pr) that require LLM client
-	// For now, this is a placeholder that will be implemented when Git tools are added
-	return fmt.Errorf("git tools not yet implemented")
-}
-
 // startMCP starts MCP registry initialization
 func (c *Container) startMCP() error {
 	c.mcpMu.Lock()
@@ -145,7 +125,7 @@ func (c *Container) startMCP() error {
 }
 
 // BuildContainer builds the dependency injection container with the given configuration
-// Heavy initialization (Git tools, MCP) is deferred until Start() is called
+// Heavy initialization (MCP) is deferred until Start() is called
 func BuildContainer(config Config) (*Container, error) {
 	logger := utils.NewComponentLogger("DI")
 

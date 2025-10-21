@@ -40,58 +40,6 @@ func (h *HealthCheckerImpl) CheckAll(ctx context.Context) []ports.ComponentHealt
 	return results
 }
 
-// GitToolsProbe checks Git tools health
-type GitToolsProbe struct {
-	container *di.Container
-	enabled   bool
-}
-
-// NewGitToolsProbe creates a new Git tools health probe
-func NewGitToolsProbe(container *di.Container, enabled bool) *GitToolsProbe {
-	return &GitToolsProbe{
-		container: container,
-		enabled:   enabled,
-	}
-}
-
-// Check returns the health status of Git tools
-func (p *GitToolsProbe) Check(ctx context.Context) ports.ComponentHealth {
-	if !p.enabled {
-		return ports.ComponentHealth{
-			Name:    "git_tools",
-			Status:  ports.HealthStatusDisabled,
-			Message: "Git tools disabled by configuration",
-		}
-	}
-
-	// Try to get a Git tool to verify it's registered
-	gitCommitTool, err := p.container.AgentCoordinator.GetToolRegistry().Get("git_commit")
-	if err != nil {
-		return ports.ComponentHealth{
-			Name:    "git_tools",
-			Status:  ports.HealthStatusNotReady,
-			Message: "Git tools not initialized",
-		}
-	}
-
-	if gitCommitTool == nil {
-		return ports.ComponentHealth{
-			Name:    "git_tools",
-			Status:  ports.HealthStatusNotReady,
-			Message: "Git tools not available",
-		}
-	}
-
-	return ports.ComponentHealth{
-		Name:    "git_tools",
-		Status:  ports.HealthStatusReady,
-		Message: "Git tools available",
-		Details: map[string]interface{}{
-			"tools": []string{"git_commit", "git_pr", "git_history"},
-		},
-	}
-}
-
 // MCPProbe checks MCP registry health
 type MCPProbe struct {
 	container *di.Container
@@ -127,10 +75,10 @@ func (p *MCPProbe) Check(ctx context.Context) ports.ComponentHealth {
 			Status:  ports.HealthStatusReady,
 			Message: "MCP initialized successfully",
 			Details: map[string]interface{}{
-				"servers":        len(servers),
-				"tools":          len(tools),
-				"attempts":       status.Attempts,
-				"last_success":   status.LastSuccess,
+				"servers":      len(servers),
+				"tools":        len(tools),
+				"attempts":     status.Attempts,
+				"last_success": status.LastSuccess,
 			},
 		}
 	}
