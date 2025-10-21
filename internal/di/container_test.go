@@ -147,18 +147,17 @@ func TestBuildContainer(t *testing.T) {
 	t.Run("builds successfully with valid config", func(t *testing.T) {
 		// Use mock provider which doesn't require API key
 		config := Config{
-			LLMProvider:    "mock",
-			LLMModel:       "test",
-			APIKey:         "",
-			BaseURL:        "",
-			MaxTokens:      100000,
-			MaxIterations:  20,
-			SessionDir:     "/tmp/alex-test-sessions",
-			CostDir:        "/tmp/alex-test-costs",
-			Environment:    "development",
-			Verbose:        false,
-			EnableMCP:      false, // Disable to avoid external dependencies
-			EnableGitTools: false,
+			LLMProvider:   "mock",
+			LLMModel:      "test",
+			APIKey:        "",
+			BaseURL:       "",
+			MaxTokens:     100000,
+			MaxIterations: 20,
+			SessionDir:    "/tmp/alex-test-sessions",
+			CostDir:       "/tmp/alex-test-costs",
+			Environment:   "development",
+			Verbose:       false,
+			EnableMCP:     false, // Disable to avoid external dependencies
 		}
 
 		container, err := BuildContainer(config)
@@ -194,14 +193,13 @@ func TestBuildContainer(t *testing.T) {
 
 	t.Run("builds without API key when features disabled", func(t *testing.T) {
 		config := Config{
-			LLMProvider:    "mock",
-			LLMModel:       "test",
-			MaxTokens:      100000,
-			MaxIterations:  20,
-			SessionDir:     "/tmp/alex-test-noapi-sessions",
-			CostDir:        "/tmp/alex-test-noapi-costs",
-			EnableMCP:      false,
-			EnableGitTools: false,
+			LLMProvider:   "mock",
+			LLMModel:      "test",
+			MaxTokens:     100000,
+			MaxIterations: 20,
+			SessionDir:    "/tmp/alex-test-noapi-sessions",
+			CostDir:       "/tmp/alex-test-noapi-costs",
+			EnableMCP:     false,
 		}
 
 		container, err := BuildContainer(config)
@@ -219,12 +217,11 @@ func TestBuildContainer(t *testing.T) {
 func TestContainer_Lifecycle(t *testing.T) {
 	t.Run("Start and Shutdown with features disabled", func(t *testing.T) {
 		config := Config{
-			LLMProvider:    "mock",
-			LLMModel:       "test",
-			SessionDir:     "/tmp/alex-test-lifecycle",
-			CostDir:        "/tmp/alex-test-lifecycle-costs",
-			EnableMCP:      false,
-			EnableGitTools: false,
+			LLMProvider: "mock",
+			LLMModel:    "test",
+			SessionDir:  "/tmp/alex-test-lifecycle",
+			CostDir:     "/tmp/alex-test-lifecycle-costs",
+			EnableMCP:   false,
 		}
 
 		container, err := BuildContainer(config)
@@ -254,55 +251,13 @@ func TestContainer_Lifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Start with Git tools enabled", func(t *testing.T) {
-		t.Skip("TODO: Git tools not yet implemented - see commit 37c1190")
-		// Skipped until Git tools implementation is complete
-		// Requirements:
-		// 1. Create git_commit/git_pr tool implementations
-		// 2. Update initGitTools() to actually register tools
-		// 3. Remove placeholder "not yet implemented" error
-		// 4. Unskip this test
-
-		config := Config{
-			LLMProvider:    "mock",
-			LLMModel:       "test",
-			APIKey:         "test-key",
-			SessionDir:     "/tmp/alex-test-git",
-			CostDir:        "/tmp/alex-test-git-costs",
-			EnableMCP:      false,
-			EnableGitTools: true,
-		}
-
-		container, err := BuildContainer(config)
-		if err != nil {
-			t.Fatalf("BuildContainer() error = %v", err)
-		}
-		defer func() { _ = container.Cleanup() }()
-
-		// Start should initialize Git tools
-		if err := container.Start(); err != nil {
-			t.Errorf("Start() error = %v", err)
-		}
-
-		// Verify Git tools are registered
-		toolRegistry := container.AgentCoordinator.GetToolRegistry()
-		gitCommit, err := toolRegistry.Get("git_commit")
-		if err != nil {
-			t.Errorf("Expected git_commit tool to be registered: %v", err)
-		}
-		if gitCommit == nil {
-			t.Error("Expected git_commit tool to be non-nil")
-		}
-	})
-
 	t.Run("Cleanup backward compatibility", func(t *testing.T) {
 		config := Config{
-			LLMProvider:    "mock",
-			LLMModel:       "test",
-			SessionDir:     "/tmp/alex-test-cleanup",
-			CostDir:        "/tmp/alex-test-cleanup-costs",
-			EnableMCP:      false,
-			EnableGitTools: false,
+			LLMProvider: "mock",
+			LLMModel:    "test",
+			SessionDir:  "/tmp/alex-test-cleanup",
+			CostDir:     "/tmp/alex-test-cleanup-costs",
+			EnableMCP:   false,
 		}
 
 		container, err := BuildContainer(config)

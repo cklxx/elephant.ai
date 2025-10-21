@@ -21,15 +21,13 @@ For local development without external dependencies:
 ```json
 {
   "api_key": "",
-  "enable_mcp": false,
-  "enable_git_tools": false
+  "enable_mcp": false
 }
 ```
 
 Or via environment:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 ```
 
 This configuration allows:
@@ -48,7 +46,6 @@ Full-featured production setup:
   "base_url": "https://api.openai.com/v1",
   "model": "gpt-4",
   "enable_mcp": true,
-  "enable_git_tools": true,
   "tavily_api_key": "tvly-your-key",
   "max_tokens": 4096,
   "max_iterations": 10
@@ -60,7 +57,6 @@ Environment variables:
 export OPENAI_API_KEY="sk-your-key"
 export TAVILY_API_KEY="tvly-your-key"
 export ALEX_ENABLE_MCP=true
-export ALEX_ENABLE_GIT_TOOLS=true
 ```
 
 ### Deployment
@@ -116,14 +112,6 @@ curl http://localhost:8080/health
       "message": "LLM factory initialized"
     },
     {
-      "name": "git_tools",
-      "status": "ready",
-      "message": "Git tools available",
-      "details": {
-        "tools": ["git_commit", "git_pr", "git_history"]
-      }
-    },
-    {
       "name": "mcp",
       "status": "ready",
       "message": "MCP initialized successfully",
@@ -173,11 +161,6 @@ services:
 curl -s http://localhost:8080/health | jq '.components[] | select(.name=="mcp")'
 ```
 
-**Check if Git tools are enabled**:
-```bash
-curl -s http://localhost:8080/health | jq '.components[] | select(.name=="git_tools") | .status'
-```
-
 **Alert on unhealthy components**:
 ```bash
 STATUS=$(curl -s http://localhost:8080/health | jq -r '.status')
@@ -197,19 +180,12 @@ fi
 - Testing scenarios requiring isolated execution
 - Reducing startup time in development
 
-**When to disable Git tools**:
-- Running without LLM access (offline mode)
-- Testing file and search tools only
-- Reducing initialization overhead
-- Environments without git installed
-
 ### Environment-Specific Configs
 
 **Development** (`dev.json`):
 ```json
 {
   "enable_mcp": false,
-  "enable_git_tools": false,
   "verbose": true,
   "max_iterations": 5
 }
@@ -219,7 +195,6 @@ fi
 ```json
 {
   "enable_mcp": true,
-  "enable_git_tools": true,
   "verbose": true,
   "max_iterations": 10
 }
@@ -229,7 +204,6 @@ fi
 ```json
 {
   "enable_mcp": true,
-  "enable_git_tools": true,
   "verbose": false,
   "max_iterations": 10,
   "max_tokens": 4096
@@ -327,19 +301,17 @@ curl -N -H "Accept: text/event-stream" \
 
 **Symptom**: `make test` or server startup fails with initialization errors
 
-**Cause**: MCP or Git tools trying to initialize without dependencies
+**Cause**: MCP initialization attempting to start without required dependencies
 
 **Solution**:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 ```
 
 Or in config:
 ```json
 {
-  "enable_mcp": false,
-  "enable_git_tools": false
+  "enable_mcp": false
 }
 ```
 
@@ -363,26 +335,7 @@ curl -s http://localhost:8080/health | jq '.components[] | select(.name=="mcp")'
 3. Check logs for MCP initialization errors
 4. Disable MCP if not needed: `export ALEX_ENABLE_MCP=false`
 
-#### 3. Git tools unavailable
-
-**Symptom**: Health check shows git_tools as `disabled` or `not_ready`
-
-**Diagnosis**:
-```bash
-curl -s http://localhost:8080/health | jq '.components[] | select(.name=="git_tools")'
-```
-
-**Possible causes**:
-- Git tools disabled in configuration
-- LLM client initialization failed
-- No API key provided
-
-**Solution**:
-1. Enable Git tools: `export ALEX_ENABLE_GIT_TOOLS=true`
-2. Ensure API key is set: `export OPENAI_API_KEY=sk-your-key`
-3. Check LLM factory initialization in logs
-
-#### 4. Task cancellation not working
+#### 3. Task cancellation not working
 
 **Symptom**: Task continues running after cancellation request
 
@@ -402,7 +355,7 @@ curl http://localhost:8080/api/tasks/task-id
 - Check task status before cancelling
 - If task is stuck, restart the server
 
-#### 5. High memory usage
+#### 4. High memory usage
 
 **Symptom**: Server memory usage grows over time
 
@@ -461,7 +414,6 @@ journalctl -u alex-server -f
 - `[ServerCoordinator]` - Task execution
 - `[HealthChecker]` - Health probe results
 - `[MCP]` - MCP initialization and errors
-- `[GitTools]` - Git tool registration
 
 ## Performance Tuning
 
@@ -470,12 +422,10 @@ journalctl -u alex-server -f
 **Fast startup (disable heavy dependencies)**:
 ```bash
 export ALEX_ENABLE_MCP=false
-export ALEX_ENABLE_GIT_TOOLS=false
 ```
 
 **Expected startup time**:
 - Minimal config: < 1 second
-- With Git tools: 1-2 seconds
 - With MCP: 2-5 seconds (depends on MCP servers)
 
 ### Task Execution

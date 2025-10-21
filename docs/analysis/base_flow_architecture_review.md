@@ -37,10 +37,10 @@
   3. 扩展任务存储与 SSE 事件负载，记录终止原因（完成/取消/超时/失败），便于 UI 呈现与运维排障。
 
 ### 3.3 依赖注入阶段副作用过重
-- **症状**：容器启动时即尝试初始化 Git/MCP 工具并访问外部模型提供商；缺少 feature flag 控制，导致本地/CI 若未配置 API Key 即直接失败。【F:internal/di/container.go†L72-L154】
+  - **症状**：容器启动时即尝试初始化 MCP 并访问外部模型提供商；缺少 feature flag 控制，导致本地/CI 若未配置 API Key 即直接失败。【F:internal/di/container.go†L72-L154】
 - **最佳实践参照**：DI 构造应可在离线/测试模式下运行，副作用应延迟到显式 `Start()` 调用。
 - **改进计划**：
-  1. 将 Git/MCP 注册挪到惰性初始化流程（例如工具首次被请求时）；提供 `EnableMCP`、`EnableGitTools` 配置开关。
+  1. 将 MCP 注册挪到惰性初始化流程（例如工具首次被请求时）；提供 `EnableMCP` 配置开关。
   2. 在 `cmd/alex-server` 中引入 `Start()`/`Shutdown()` 生命周期，方便在测试里跳过重型外部依赖。
   3. 为工具注册与 MCP 初始化添加健康探针接口，暴露给运维和 UI。
 

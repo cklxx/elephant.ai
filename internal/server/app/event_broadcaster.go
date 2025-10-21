@@ -162,12 +162,6 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan a
 	}
 }
 
-// extractSessionID extracts session ID from event
-func (b *EventBroadcaster) extractSessionID(event agentports.AgentEvent) string {
-	// Events now carry session ID directly
-	return event.GetSessionID()
-}
-
 // RegisterClient registers a new client for a session
 func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.AgentEvent) {
 	b.mu.Lock()
@@ -305,12 +299,12 @@ func (m *broadcasterMetrics) decrementConnections() {
 
 // BroadcasterMetrics represents broadcaster metrics for export
 type BroadcasterMetrics struct {
-	TotalEventsSent   int64            `json:"total_events_sent"`
-	DroppedEvents     int64            `json:"dropped_events"`
-	TotalConnections  int64            `json:"total_connections"`
-	ActiveConnections int64            `json:"active_connections"`
-	BufferDepth       map[string]int   `json:"buffer_depth"` // Per-session buffer depth
-	SessionCount      int              `json:"session_count"`
+	TotalEventsSent   int64          `json:"total_events_sent"`
+	DroppedEvents     int64          `json:"dropped_events"`
+	TotalConnections  int64          `json:"total_connections"`
+	ActiveConnections int64          `json:"active_connections"`
+	BufferDepth       map[string]int `json:"buffer_depth"` // Per-session buffer depth
+	SessionCount      int            `json:"session_count"`
 }
 
 // GetMetrics returns current broadcaster metrics

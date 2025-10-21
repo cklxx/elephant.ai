@@ -19,11 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cost tracking isolation per session to prevent concurrent session interference
 
 **Sprint 2: Dependency Injection Decoupling & Configuration Flags**
-- Feature flags: `EnableMCP` and `EnableGitTools` for selective dependency initialization
-- Lazy initialization of Git tools and MCP registry (deferred to first use or explicit Start())
+- Feature flag: `EnableMCP` for selective dependency initialization
+- Lazy initialization of the MCP registry (deferred to first use or explicit Start())
 - Container lifecycle management with `Start()` and `Shutdown()` methods
 - Health check system with pluggable probes (`/health` endpoint)
-- Health probes for Git tools, MCP registry, and LLM factory
+- Health probes for MCP registry and LLM factory
 - Health status types: Ready, NotReady, Disabled
 - Offline/testing mode support - tests run without API keys
 - MCP initialization status tracking with retry logic and exponential backoff
@@ -95,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Sprint 1-4 Fixes**
 - Fixed cost tracking interference between concurrent sessions
 - Fixed task context loss in background execution
-- Fixed health check failures when MCP/Git tools are disabled
+- Fixed health check failures when MCP is disabled
 - Fixed container initialization failures in offline/test environments
 - Fixed cancel function memory leaks after task completion
 
@@ -136,7 +136,6 @@ New feature flags in `internal/di/container.go`:
 ```go
 Config{
     EnableMCP:      true,  // Enable Model Context Protocol integration
-    EnableGitTools: true,  // Enable Git tools (requires LLM client)
 }
 ```
 
@@ -159,7 +158,6 @@ if err := container.Start(); err != nil {
 ```go
 config := di.Config{
     EnableMCP:      false,  // Disable MCP to avoid external dependencies
-    EnableGitTools: false,  // Disable Git tools that require LLM
 }
 container, _ := di.BuildContainer(config)
 // No API keys needed, tests will pass
@@ -178,7 +176,6 @@ Returns component health status:
   "status": "healthy",
   "components": [
     {"name": "llm_factory", "status": "ready"},
-    {"name": "git_tools", "status": "disabled"},
     {"name": "mcp", "status": "not_ready", "message": "..."}
   ]
 }

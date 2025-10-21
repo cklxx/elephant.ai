@@ -227,7 +227,6 @@ Tool presets control which tools the agent can access.
 **Blocked Tools**:
 - All file operations
 - All execution tools
-- All git tools
 - Task modifications
 
 **Use Cases**:
@@ -244,7 +243,6 @@ Tool presets control which tools the agent can access.
 **Available Tools**:
 - All file operations
 - All search tools
-- Git tools
 - Web tools
 - Task management
 - Subagent
