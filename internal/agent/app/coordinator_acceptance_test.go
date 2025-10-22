@@ -27,6 +27,7 @@ func TestAgentCoordinatorEndToEndExecutionPerformance(t *testing.T) {
 		sessionStore,
 		stubContextManager{},
 		stubParser{},
+		stubPromptLoader{},
 		nil,
 		Config{
 			LLMProvider:   "mock",

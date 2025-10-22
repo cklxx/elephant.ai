@@ -1,6 +1,7 @@
 package prompts
 
 import (
+	"alex/internal/agent/ports"
 	"embed"
 	"fmt"
 	"os"
@@ -11,6 +12,9 @@ import (
 
 //go:embed *.md
 var promptFS embed.FS
+
+// Ensure Loader implements ports.PromptLoader interface
+var _ ports.PromptLoader = (*Loader)(nil)
 
 // Loader handles loading and rendering prompt templates
 type Loader struct {
@@ -86,14 +90,7 @@ func (l *Loader) List() []string {
 }
 
 // GetSystemPrompt returns the system prompt with context
-// TaskAnalysisInfo contains task analysis data for prompt injection
-type TaskAnalysisInfo struct {
-	Action   string
-	Goal     string
-	Approach string
-}
-
-func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *TaskAnalysisInfo) (string, error) {
+func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
 	// Load project memory (ALEX.md or CLAUDE.md)
 	memory := l.loadProjectMemory(workingDir)
 

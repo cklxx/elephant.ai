@@ -7,6 +7,9 @@ import (
 	"sync"
 )
 
+// Ensure Factory implements ports.LLMClientFactory interface
+var _ ports.LLMClientFactory = (*Factory)(nil)
+
 type Factory struct {
 	cache                map[string]ports.LLMClient
 	mu                   sync.RWMutex
@@ -41,14 +44,28 @@ func (f *Factory) DisableRetry() {
 	f.enableRetry = false
 }
 
-func (f *Factory) GetClient(provider, model string, config Config) (ports.LLMClient, error) {
-	return f.getClient(provider, model, config, true)
+// GetClient implements ports.LLMClientFactory interface
+// Creates or retrieves a cached LLM client
+func (f *Factory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+	return f.getClient(provider, model, adaptConfig(config), true)
 }
 
-// GetIsolatedClient creates a new non-cached client instance for session isolation
+// GetIsolatedClient implements ports.LLMClientFactory interface
+// Creates a new non-cached client instance for session isolation
 // This is useful when per-session state (like cost tracking callbacks) needs to be isolated
-func (f *Factory) GetIsolatedClient(provider, model string, config Config) (ports.LLMClient, error) {
-	return f.getClient(provider, model, config, false)
+func (f *Factory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+	return f.getClient(provider, model, adaptConfig(config), false)
+}
+
+// adaptConfig converts ports.LLMConfig to internal Config
+func adaptConfig(config ports.LLMConfig) Config {
+	return Config{
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		Timeout:    config.Timeout,
+		MaxRetries: config.MaxRetries,
+		Headers:    config.Headers,
+	}
 }
 
 func (f *Factory) getClient(provider, model string, config Config, useCache bool) (ports.LLMClient, error) {
