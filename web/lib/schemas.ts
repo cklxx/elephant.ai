@@ -130,6 +130,14 @@ export const BrowserSnapshotEventSchema = BaseAgentEventSchema.extend({
   html_preview: z.string().optional(),
 });
 
+// Connected Event
+export const ConnectedEventSchema = z.object({
+  event_type: z.literal('connected'),
+  session_id: z.string(),
+  timestamp: z.string().optional(),
+  agent_level: AgentLevelSchema.optional(),
+});
+
 // User Task Event (client-side only)
 export const UserTaskEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('user_task'),
@@ -152,6 +160,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   StepStartedEventSchema,
   StepCompletedEventSchema,
   BrowserSnapshotEventSchema,
+  ConnectedEventSchema,
   UserTaskEventSchema,
 ]);
 

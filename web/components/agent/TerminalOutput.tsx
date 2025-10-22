@@ -460,16 +460,16 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     case 'iteration_complete':
       return true;
 
-    // Skip thinking/streaming events - intermediate state
-    case 'thinking':
-    case 'think_complete':
-      return true;
-
     // Skip task analysis - just internal planning
     case 'task_analysis':
       return true;
 
-    // Keep only these critical events:
+    // Skip connected event - just connection status
+    case 'connected':
+      return true;
+
+    // Keep these events for now to debug:
+    // - thinking/think_complete: Show what agent is thinking
     // - user_task: User's input (important to show what was asked)
     // - tool_call_start/complete: Tool execution results (actual work being done)
     // - task_complete: Final answer (the result)
