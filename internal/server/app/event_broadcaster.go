@@ -162,12 +162,6 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan a
 	}
 }
 
-// extractSessionID extracts session ID from event
-func (b *EventBroadcaster) extractSessionID(event agentports.AgentEvent) string {
-	// Events now carry session ID directly
-	return event.GetSessionID()
-}
-
 // RegisterClient registers a new client for a session
 func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.AgentEvent) {
 	b.mu.Lock()
