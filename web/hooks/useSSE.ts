@@ -151,6 +151,7 @@ export function useSSE(
 
       // All supported event types from the agent
       const eventTypes = [
+        'connected',
         'task_analysis',
         'iteration_start',
         'thinking',

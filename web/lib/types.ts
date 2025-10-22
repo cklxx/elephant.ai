@@ -128,6 +128,14 @@ export interface BrowserSnapshotEvent extends AgentEvent {
   html_preview?: string; // truncated HTML for preview
 }
 
+// Connected Event - emitted when SSE connection is established
+export interface ConnectedEvent {
+  event_type: 'connected';
+  session_id: string;
+  timestamp?: string;
+  agent_level?: AgentLevel;
+}
+
 // User Task Event - client-side only event to display user's task
 export interface UserTaskEvent extends AgentEvent {
   event_type: 'user_task';
@@ -150,6 +158,7 @@ export type AnyAgentEvent =
   | StepStartedEvent
   | StepCompletedEvent
   | BrowserSnapshotEvent
+  | ConnectedEvent
   | UserTaskEvent;
 
 // API Request/Response Types
