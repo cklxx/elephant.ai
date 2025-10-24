@@ -11,6 +11,7 @@ import (
 	"alex/cmd/alex/ui/tviewui"
 	"alex/internal/config"
 
+	// Only used for tcell-based TUI terminal verification (deprecated path)
 	"github.com/gdamore/tcell/v2/terminfo"
 	_ "github.com/gdamore/tcell/v2/terminfo/extended"
 )
@@ -68,10 +69,10 @@ func main() {
 	}
 }
 
-// RunInteractiveChatTUI starts the interactive chat interface
+// RunInteractiveChatTUI starts the interactive chat interface (deprecated - uses tview/tcell)
+// NOTE: This mode has compatibility issues with many terminal types. Consider using
+// RunNativeChatUI instead, which works on all terminals and uses Lipgloss for styling.
 func RunInteractiveChatTUI(container *Container) error {
-	prepareTerminalForTUI(config.DefaultEnvLookup, os.Setenv, os.Stderr)
-
 	followTranscript := container.Runtime.FollowTranscript
 	followStream := container.Runtime.FollowStream
 
