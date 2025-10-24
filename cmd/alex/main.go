@@ -88,11 +88,14 @@ func RunInteractiveChatTUI(container *Container) error {
 
 	ui, err := tviewui.NewChatUI(cfg)
 	if err != nil {
-		return err
+		// Fallback to native UI if TUI initialization fails
+		fmt.Fprintf(os.Stderr, "TUI initialization failed: %v\nFalling back to native UI...\n", err)
+		return RunNativeChatUI(container)
 	}
 
 	if err := ui.Run(); err != nil {
 		// Fallback to native UI if the tview app cannot start
+		fmt.Fprintf(os.Stderr, "TUI startup failed: %v\nFalling back to native UI...\n", err)
 		return RunNativeChatUI(container)
 	}
 	return nil
