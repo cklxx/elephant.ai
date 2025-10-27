@@ -10,7 +10,7 @@ import (
 )
 
 func TestCodeExecute_Python(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	tests := []struct {
 		name        string
@@ -78,7 +78,7 @@ func TestCodeExecute_Python(t *testing.T) {
 }
 
 func TestCodeExecute_Go(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	tests := []struct {
 		name        string
@@ -153,7 +153,7 @@ func main() {
 }
 
 func TestCodeExecute_JavaScript(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	tests := []struct {
 		name        string
@@ -216,7 +216,7 @@ func TestCodeExecute_JavaScript(t *testing.T) {
 }
 
 func TestCodeExecute_Bash(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	tests := []struct {
 		name        string
@@ -279,7 +279,7 @@ func TestCodeExecute_Bash(t *testing.T) {
 }
 
 func TestCodeExecute_Timeout(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	// Python infinite loop with short timeout
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
@@ -307,7 +307,7 @@ func TestCodeExecute_Timeout(t *testing.T) {
 }
 
 func TestCodeExecute_MissingParameters(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	tests := []struct {
 		name      string
@@ -366,7 +366,7 @@ func TestCodeExecute_MissingParameters(t *testing.T) {
 }
 
 func TestCodeExecute_UnsupportedLanguage(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID:   "test-1",
@@ -391,7 +391,7 @@ func TestCodeExecute_UnsupportedLanguage(t *testing.T) {
 }
 
 func TestCodeExecute_TimeoutBounds(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	tests := []struct {
 		name            string
@@ -444,7 +444,7 @@ func TestCodeExecute_TimeoutBounds(t *testing.T) {
 }
 
 func TestCodeExecute_Definition(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 	def := tool.Definition()
 
 	if def.Name != "code_execute" {
@@ -479,7 +479,7 @@ func TestCodeExecute_Definition(t *testing.T) {
 }
 
 func TestCodeExecute_Metadata(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 	meta := tool.Metadata()
 
 	if meta.Name != "code_execute" {
@@ -504,7 +504,7 @@ func TestCodeExecute_Metadata(t *testing.T) {
 }
 
 func TestCodeExecute_ConcurrentExecution(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	// Run multiple code executions concurrently
 	const numGoroutines = 5
@@ -541,7 +541,7 @@ func TestCodeExecute_ConcurrentExecution(t *testing.T) {
 }
 
 func TestCodeExecute_ContextCancellation(t *testing.T) {
-	tool := NewCodeExecute()
+	tool := NewCodeExecute(CodeExecuteConfig{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()

@@ -23,7 +23,8 @@ type filteredRegistry struct {
 }
 
 type Config struct {
-	TavilyAPIKey string
+	TavilyAPIKey   string
+	SandboxBaseURL string
 }
 
 func NewRegistry(config Config) *Registry {
@@ -158,7 +159,9 @@ func (r *Registry) registerBuiltins(config Config) {
 	r.static["todo_update"] = builtin.NewTodoUpdate()
 
 	// Execution & reasoning
-	r.static["code_execute"] = builtin.NewCodeExecute()
+	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{
+		BaseURL: config.SandboxBaseURL,
+	})
 	r.static["think"] = builtin.NewThink()
 
 	// Web tools

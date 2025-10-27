@@ -47,6 +47,9 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("LLM_BASE_URL", cfg.BaseURL)
 	set("ALEX_BASE_URL", cfg.BaseURL)
 
+	set("SANDBOX_BASE_URL", cfg.SandboxBaseURL)
+	set("ALEX_SANDBOX_BASE_URL", cfg.SandboxBaseURL)
+
 	set("TAVILY_API_KEY", cfg.TavilyAPIKey)
 	set("ALEX_TAVILY_API_KEY", cfg.TavilyAPIKey)
 

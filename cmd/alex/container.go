@@ -29,6 +29,7 @@ func buildContainer() (*Container, error) {
 		APIKey:           cfg.APIKey,
 		BaseURL:          cfg.BaseURL,
 		TavilyAPIKey:     cfg.TavilyAPIKey,
+		SandboxBaseURL:   cfg.SandboxBaseURL,
 		MaxTokens:        cfg.MaxTokens,
 		MaxIterations:    cfg.MaxIterations,
 		Temperature:      cfg.Temperature,

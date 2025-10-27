@@ -45,6 +45,7 @@ type Config struct {
 	APIKey           string
 	BaseURL          string
 	TavilyAPIKey     string
+	SandboxBaseURL   string
 	MaxTokens        int
 	MaxIterations    int
 	Temperature      float64
@@ -139,7 +140,10 @@ func BuildContainer(config Config) (*Container, error) {
 
 	// Infrastructure Layer
 	llmFactory := llm.NewFactory()
-	toolRegistry := tools.NewRegistry(tools.Config{TavilyAPIKey: config.TavilyAPIKey})
+	toolRegistry := tools.NewRegistry(tools.Config{
+		TavilyAPIKey:   config.TavilyAPIKey,
+		SandboxBaseURL: config.SandboxBaseURL,
+	})
 	sessionStore := filestore.New(sessionDir)
 	contextMgr := ctxmgr.NewManager()
 	parserImpl := parser.New()
@@ -157,6 +161,7 @@ func BuildContainer(config Config) (*Container, error) {
 		APIKey:              config.APIKey,
 		BaseURL:             config.BaseURL,
 		TavilyAPIKey:        config.TavilyAPIKey,
+		SandboxBaseURL:      config.SandboxBaseURL,
 		Environment:         config.Environment,
 		Verbose:             config.Verbose,
 		DisableTUI:          config.DisableTUI,
