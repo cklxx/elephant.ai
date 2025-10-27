@@ -28,6 +28,7 @@ type RuntimeConfig struct {
 	APIKey              string
 	BaseURL             string
 	TavilyAPIKey        string
+	SandboxBaseURL      string
 	Environment         string
 	Verbose             bool
 	DisableTUI          bool
@@ -72,6 +73,7 @@ type Overrides struct {
 	APIKey           *string
 	BaseURL          *string
 	TavilyAPIKey     *string
+	SandboxBaseURL   *string
 	Environment      *string
 	Verbose          *bool
 	DisableTUI       *bool
@@ -222,6 +224,7 @@ type fileConfig struct {
 	APIKey           string                 `json:"api_key"`
 	BaseURL          string                 `json:"base_url"`
 	TavilyAPIKey     string                 `json:"tavilyApiKey"`
+	SandboxBaseURL   string                 `json:"sandbox_base_url"`
 	Environment      string                 `json:"environment"`
 	Verbose          *bool                  `json:"verbose"`
 	FollowTranscript *bool                  `json:"follow_transcript"`
@@ -283,6 +286,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.BaseURL != "" {
 		cfg.BaseURL = parsed.BaseURL
 		meta.sources["base_url"] = SourceFile
+	}
+	if parsed.SandboxBaseURL != "" {
+		cfg.SandboxBaseURL = parsed.SandboxBaseURL
+		meta.sources["sandbox_base_url"] = SourceFile
 	}
 	if parsed.TavilyAPIKey != "" {
 		cfg.TavilyAPIKey = parsed.TavilyAPIKey
@@ -378,6 +385,10 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("LLM_BASE_URL"); ok && value != "" {
 		cfg.BaseURL = value
 		meta.sources["base_url"] = SourceEnv
+	}
+	if value, ok := lookup("SANDBOX_BASE_URL"); ok && value != "" {
+		cfg.SandboxBaseURL = value
+		meta.sources["sandbox_base_url"] = SourceEnv
 	}
 	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
 		cfg.TavilyAPIKey = value
@@ -514,6 +525,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.BaseURL != nil {
 		cfg.BaseURL = *overrides.BaseURL
 		meta.sources["base_url"] = SourceOverride
+	}
+	if overrides.SandboxBaseURL != nil {
+		cfg.SandboxBaseURL = *overrides.SandboxBaseURL
+		meta.sources["sandbox_base_url"] = SourceOverride
 	}
 	if overrides.TavilyAPIKey != nil {
 		cfg.TavilyAPIKey = *overrides.TavilyAPIKey

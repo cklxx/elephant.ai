@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,12 +11,30 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+
+	api "github.com/agent-infra/sandbox-sdk-go"
+	sandboxclient "github.com/agent-infra/sandbox-sdk-go/client"
+	"github.com/agent-infra/sandbox-sdk-go/option"
 )
 
-type codeExecute struct{}
+// CodeExecuteConfig configures the sandbox integration for the code_execute tool.
+type CodeExecuteConfig struct {
+	BaseURL string
+}
 
-func NewCodeExecute() ports.ToolExecutor {
-	return &codeExecute{}
+type codeExecute struct {
+	client *sandboxclient.Client
+	config CodeExecuteConfig
+}
+
+func NewCodeExecute(cfg CodeExecuteConfig) ports.ToolExecutor {
+	tool := &codeExecute{config: cfg}
+	if cfg.BaseURL == "" {
+		return tool
+	}
+
+	tool.client = sandboxclient.NewClient(option.WithBaseURL(cfg.BaseURL))
+	return tool
 }
 
 func (t *codeExecute) Metadata() ports.ToolMetadata {
@@ -103,6 +122,38 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		language = "javascript"
 	}
 
+	// Route to remote sandbox when configured.
+	if t.client != nil {
+		execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+
+		switch language {
+		case "python":
+			return t.executePythonRemote(execCtx, call.ID, code, timeout)
+		case "javascript", "js":
+			return t.executeNodeRemote(execCtx, call.ID, code, timeout)
+		case "bash":
+			return t.executeBashRemote(execCtx, call.ID, code, timeout)
+		case "go":
+			return t.executeGoRemote(execCtx, call.ID, code, timeout)
+		default:
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: fmt.Sprintf("Error: unsupported language '%s'", language),
+				Error:   fmt.Errorf("unsupported language: %s", language),
+				Metadata: map[string]interface{}{
+					"success":  false,
+					"language": language,
+					"error":    "unsupported language",
+				},
+			}, nil
+		}
+	}
+
+	return executeLocally(ctx, call, language, code, timeout)
+}
+
+func executeLocally(ctx context.Context, call ports.ToolCall, language, code string, timeout int) (*ports.ToolResult, error) {
 	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
@@ -194,4 +245,302 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 			"duration_ms": duration.Milliseconds(),
 		},
 	}, nil
+}
+
+func (t *codeExecute) executePythonRemote(ctx context.Context, callID, code string, timeout int) (*ports.ToolResult, error) {
+	start := time.Now()
+	req := &api.JupyterExecuteRequest{Code: code}
+	if timeout > 0 {
+		req.Timeout = intPtr(timeout)
+	}
+
+	resp, err := t.client.Jupyter.ExecuteJupyterCode(ctx, req)
+	if err != nil {
+		return sandboxError(callID, "python", err), nil
+	}
+
+	data := resp.GetData()
+	status := ""
+	if data != nil {
+		status = data.GetStatus()
+	}
+
+	success := strings.EqualFold(status, "ok")
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "Status: %s\n", status)
+	if message := resp.GetMessage(); message != nil && *message != "" {
+		fmt.Fprintf(&builder, "Message: %s\n", *message)
+	}
+	if data != nil {
+		if session := data.GetSessionId(); session != "" {
+			fmt.Fprintf(&builder, "Session: %s\n", session)
+		}
+		if count := data.GetExecutionCount(); count != nil {
+			fmt.Fprintf(&builder, "Execution Count: %d\n", *count)
+		}
+		outputs := data.GetOutputs()
+		if len(outputs) > 0 {
+			builder.WriteString("Outputs:\n")
+			for idx, output := range outputs {
+				fmt.Fprintf(&builder, "  [%d] %s\n", idx+1, strings.ToUpper(output.GetOutputType()))
+				appendJupyterOutput(&builder, output)
+			}
+		}
+	}
+
+	metadata := map[string]any{
+		"success":     success,
+		"language":    "python",
+		"duration_ms": time.Since(start).Milliseconds(),
+		"remote":      true,
+		"status":      status,
+	}
+	if data != nil {
+		if session := data.GetSessionId(); session != "" {
+			metadata["session_id"] = session
+		}
+	}
+
+	return &ports.ToolResult{
+		CallID:   callID,
+		Content:  strings.TrimSpace(builder.String()),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *codeExecute) executeNodeRemote(ctx context.Context, callID, code string, timeout int) (*ports.ToolResult, error) {
+	start := time.Now()
+	req := &api.NodeJsExecuteRequest{Code: code}
+	if timeout > 0 {
+		req.Timeout = intPtr(timeout)
+	}
+
+	resp, err := t.client.Nodejs.ExecuteNodejsCode(ctx, req)
+	if err != nil {
+		return sandboxError(callID, "javascript", err), nil
+	}
+
+	data := resp.GetData()
+	status := ""
+	if data != nil {
+		status = data.GetStatus()
+	}
+	success := strings.EqualFold(status, "ok")
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "Status: %s\n", status)
+	if message := resp.GetMessage(); message != nil && *message != "" {
+		fmt.Fprintf(&builder, "Message: %s\n", *message)
+	}
+	if data != nil {
+		if stdout := data.GetStdout(); stdout != nil && *stdout != "" {
+			builder.WriteString("Stdout:\n")
+			builder.WriteString(strings.TrimSpace(*stdout))
+			builder.WriteString("\n")
+		}
+		if stderr := data.GetStderr(); stderr != nil && *stderr != "" {
+			builder.WriteString("Stderr:\n")
+			builder.WriteString(strings.TrimSpace(*stderr))
+			builder.WriteString("\n")
+		}
+		builder.WriteString(fmt.Sprintf("Exit Code: %d\n", data.GetExitCode()))
+	}
+
+	metadata := map[string]any{
+		"success":     success,
+		"language":    "javascript",
+		"duration_ms": time.Since(start).Milliseconds(),
+		"remote":      true,
+		"status":      status,
+	}
+
+	return &ports.ToolResult{
+		CallID:   callID,
+		Content:  strings.TrimSpace(builder.String()),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *codeExecute) executeBashRemote(ctx context.Context, callID, code string, timeout int) (*ports.ToolResult, error) {
+	start := time.Now()
+	req := &api.ShellExecRequest{Command: code}
+
+	resp, err := t.client.Shell.ExecCommand(ctx, req)
+	if err != nil {
+		return sandboxError(callID, "bash", err), nil
+	}
+
+	data := resp.GetData()
+	status := ""
+	output := ""
+	exitCode := 0
+	sessionID := ""
+	if data != nil {
+		status = string(data.GetStatus())
+		if out := data.GetOutput(); out != nil {
+			output = *out
+		}
+		if codePtr := data.GetExitCode(); codePtr != nil {
+			exitCode = *codePtr
+		}
+		sessionID = data.GetSessionId()
+	}
+	success := strings.EqualFold(status, string(api.BashCommandStatusCompleted))
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "Status: %s\n", status)
+	if sessionID != "" {
+		fmt.Fprintf(&builder, "Session: %s\n", sessionID)
+	}
+	builder.WriteString("Output:\n")
+	builder.WriteString(strings.TrimSpace(output))
+	builder.WriteString("\n")
+	builder.WriteString(fmt.Sprintf("Exit Code: %d\n", exitCode))
+
+	metadata := map[string]any{
+		"success":     success,
+		"language":    "bash",
+		"duration_ms": time.Since(start).Milliseconds(),
+		"remote":      true,
+		"status":      status,
+		"exit_code":   exitCode,
+	}
+	if sessionID != "" {
+		metadata["session_id"] = sessionID
+	}
+
+	return &ports.ToolResult{
+		CallID:   callID,
+		Content:  strings.TrimSpace(builder.String()),
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *codeExecute) executeGoRemote(ctx context.Context, callID, code string, timeout int) (*ports.ToolResult, error) {
+	start := time.Now()
+	tempDir := fmt.Sprintf("/tmp/alex-go-%d", time.Now().UnixNano())
+	cleanupCmd := fmt.Sprintf("rm -rf %s", tempDir)
+
+	// Create workspace directory.
+	if _, err := t.client.Shell.ExecCommand(ctx, &api.ShellExecRequest{Command: fmt.Sprintf("mkdir -p %s", tempDir)}); err != nil {
+		return sandboxError(callID, "go", err), nil
+	}
+	defer func() {
+		_, _ = t.client.Shell.ExecCommand(context.Background(), &api.ShellExecRequest{Command: cleanupCmd})
+	}()
+
+	filePath := tempDir + "/main.go"
+	if _, err := t.client.File.WriteFile(ctx, &api.FileWriteRequest{File: filePath, Content: code}); err != nil {
+		return sandboxError(callID, "go", err), nil
+	}
+
+	execDir := tempDir
+	resp, err := t.client.Shell.ExecCommand(ctx, &api.ShellExecRequest{
+		ExecDir: &execDir,
+		Command: "go run main.go",
+	})
+	if err != nil {
+		return sandboxError(callID, "go", err), nil
+	}
+
+	data := resp.GetData()
+	status := ""
+	output := ""
+	exitCode := 0
+	sessionID := ""
+	if data != nil {
+		status = string(data.GetStatus())
+		if out := data.GetOutput(); out != nil {
+			output = *out
+		}
+		if codePtr := data.GetExitCode(); codePtr != nil {
+			exitCode = *codePtr
+		}
+		sessionID = data.GetSessionId()
+	}
+	success := strings.EqualFold(status, string(api.BashCommandStatusCompleted))
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "Status: %s\n", status)
+	if sessionID != "" {
+		fmt.Fprintf(&builder, "Session: %s\n", sessionID)
+	}
+	builder.WriteString("Output:\n")
+	builder.WriteString(strings.TrimSpace(output))
+	builder.WriteString("\n")
+	builder.WriteString(fmt.Sprintf("Exit Code: %d\n", exitCode))
+
+	metadata := map[string]any{
+		"success":     success,
+		"language":    "go",
+		"duration_ms": time.Since(start).Milliseconds(),
+		"remote":      true,
+		"status":      status,
+		"exit_code":   exitCode,
+	}
+	if sessionID != "" {
+		metadata["session_id"] = sessionID
+	}
+
+	return &ports.ToolResult{
+		CallID:   callID,
+		Content:  strings.TrimSpace(builder.String()),
+		Metadata: metadata,
+	}, nil
+}
+
+func appendJupyterOutput(builder *strings.Builder, output *api.JupyterOutput) {
+	switch output.GetOutputType() {
+	case "stream":
+		name := "stream"
+		if output.GetName() != nil {
+			name = *output.GetName()
+		}
+		text := ""
+		if output.GetText() != nil {
+			text = *output.GetText()
+		}
+		builder.WriteString(fmt.Sprintf("    (%s) %s\n", name, strings.TrimSpace(text)))
+	case "error":
+		builder.WriteString("    Error:\n")
+		if output.GetEname() != nil {
+			builder.WriteString(fmt.Sprintf("      Name: %s\n", *output.GetEname()))
+		}
+		if output.GetEvalue() != nil {
+			builder.WriteString(fmt.Sprintf("      Value: %s\n", *output.GetEvalue()))
+		}
+		if trace := output.GetTraceback(); len(trace) > 0 {
+			builder.WriteString("      Traceback:\n")
+			for _, line := range trace {
+				builder.WriteString("        " + line + "\n")
+			}
+		}
+	default:
+		if data := output.GetData(); len(data) > 0 {
+			encoded, err := json.MarshalIndent(data, "      ", "  ")
+			if err == nil {
+				builder.WriteString("      Data:\n")
+				builder.WriteString(string(encoded))
+				builder.WriteString("\n")
+			}
+		}
+	}
+}
+
+func sandboxError(callID, language string, err error) *ports.ToolResult {
+	return &ports.ToolResult{
+		CallID:  callID,
+		Content: fmt.Sprintf("Sandbox request failed: %v", err),
+		Metadata: map[string]any{
+			"success":  false,
+			"language": language,
+			"remote":   true,
+			"error":    err.Error(),
+		},
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
 }

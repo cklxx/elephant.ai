@@ -40,6 +40,11 @@ func main() {
 	logger.Info("LLM Provider: %s", runtimeCfg.LLMProvider)
 	logger.Info("LLM Model: %s", runtimeCfg.LLMModel)
 	logger.Info("Base URL: %s", runtimeCfg.BaseURL)
+	if runtimeCfg.SandboxBaseURL != "" {
+		logger.Info("Sandbox Base URL: %s", runtimeCfg.SandboxBaseURL)
+	} else {
+		logger.Info("Sandbox Base URL: (not set)")
+	}
 	if keyLen := len(runtimeCfg.APIKey); keyLen > 10 {
 		logger.Info("API Key: %s...%s", runtimeCfg.APIKey[:10], runtimeCfg.APIKey[keyLen-10:])
 	} else if keyLen > 0 {
@@ -136,6 +141,7 @@ func buildContainer(config Config) (*di.Container, error) {
 		APIKey:         config.Runtime.APIKey,
 		BaseURL:        config.Runtime.BaseURL,
 		TavilyAPIKey:   config.Runtime.TavilyAPIKey,
+		SandboxBaseURL: config.Runtime.SandboxBaseURL,
 		MaxTokens:      config.Runtime.MaxTokens,
 		MaxIterations:  config.Runtime.MaxIterations,
 		Temperature:    config.Runtime.Temperature,
@@ -163,6 +169,7 @@ func loadConfig() (Config, error) {
 		"ALEX_VERBOSE":       {"VERBOSE"},
 		"PORT":               {"ALEX_SERVER_PORT"},
 		"ENABLE_MCP":         {"ALEX_ENABLE_MCP"},
+		"SANDBOX_BASE_URL":   {"ALEX_SANDBOX_BASE_URL"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(
