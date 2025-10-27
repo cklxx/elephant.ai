@@ -14,7 +14,25 @@ import (
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
 
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
+)
+
+// Style definitions for consistent terminal output
+var (
+	// Color styles
+	styleGray       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	styleGreen      = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	styleYellow     = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	styleBold       = lipgloss.NewStyle().Bold(true)
+	styleBoldGreen  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
+	styleBoldCyan   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
+	styleError      = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	styleSystem     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+
+	// Combined styles for elements
+	promptArrow = styleBoldGreen.Render(">")
+	userArrow   = styleGreen.Render("➤")
 )
 
 // NativeChatUI implements a chat interface using native terminal control
@@ -103,7 +121,7 @@ func (ui *NativeChatUI) runLineMode() error {
 	return scanner.Err()
 }
 
-// printPrompt prints an enhanced prompt with context information
+// printPrompt prints an enhanced prompt with context information using Lipgloss
 func (ui *NativeChatUI) printPrompt(messageCount int) {
 	// Calculate session duration
 	duration := time.Since(ui.startTime)
@@ -123,23 +141,17 @@ func (ui *NativeChatUI) printPrompt(messageCount int) {
 	// Get terminal width for separator line
 	width := getTerminalWidth()
 
-	// ANSI color codes
-	grayStyle := "\033[90m"     // Gray
-	resetStyle := "\033[0m"     // Reset
-	greenStyle := "\033[32m"    // Green
-	dimWhiteStyle := "\033[37m" // White
-
 	// Print top separator line
-	separator := strings.Repeat("─", width)
-	fmt.Printf("\n%s%s%s\n", grayStyle, separator, resetStyle)
+	separatorLine := strings.Repeat("─", width)
+	fmt.Printf("\n%s\n", styleGray.Render(separatorLine))
 
 	// Print prompt line with session info
 	sessionInfo := fmt.Sprintf("[%s] [msgs:%d] [%s]", sessionShort, messageCount, durationStr)
-	fmt.Printf("%s>%s %s%s%s\n", greenStyle, resetStyle, grayStyle, sessionInfo, resetStyle)
+	fmt.Printf("%s %s\n", promptArrow, styleGray.Render(sessionInfo))
 
 	// Print bottom hint line
 	hint := "▸▸ Type your request (Ctrl+C to exit)"
-	fmt.Printf("%s%s%s\n", dimWhiteStyle, hint, resetStyle)
+	fmt.Printf("%s\n", styleGray.Render(hint))
 
 	// Print input indicator
 	fmt.Print("  ")
@@ -203,28 +215,20 @@ func (ui *NativeChatUI) addMessage(role, content string) {
 	ui.displayMessage(msg)
 }
 
-// displayMessage displays a single message
+// displayMessage displays a single message using Lipgloss styles
 func (ui *NativeChatUI) displayMessage(msg DisplayMessage) {
 	switch msg.Role {
 	case "user":
-		fmt.Printf("\n\033[32m➤\033[0m %s\n", msg.Content)
+		fmt.Printf("\n%s %s\n", userArrow, msg.Content)
 	case "assistant":
 		fmt.Printf("\n%s\n", msg.Content)
 	case "system":
-		fmt.Printf("\033[90m%s\033[0m\n", msg.Content)
+		fmt.Printf("%s\n", styleSystem.Render(msg.Content))
 	}
 }
 
-// printWelcome prints the welcome message
+// printWelcome prints the welcome message using Lipgloss for styling
 func (ui *NativeChatUI) printWelcome() {
-	// Color codes
-	cyan := "\033[36m"
-	green := "\033[32m"
-	yellow := "\033[33m"
-	gray := "\033[90m"
-	reset := "\033[0m"
-	bold := "\033[1m"
-
 	// Get current directory
 	cwd, _ := os.Getwd()
 	if len(cwd) > 35 {
@@ -233,34 +237,54 @@ func (ui *NativeChatUI) printWelcome() {
 
 	// Get git branch if in git repo
 	gitBranch := ui.getGitBranch()
-	gitInfo := ""
+
+	// Build welcome message with Lipgloss styles
+	topBorder := styleBoldCyan.Render("┌─────────────────────────────────────────┐")
+	botBorder := styleBoldCyan.Render("└─────────────────────────────────────────┘")
+	verticalBar := styleBoldCyan.Render("│")
+
+	// Title line
+	titleContent := fmt.Sprintf("  %s %s",
+		styleBold.Render(styleGreen.Render("ALEX")),
+		styleYellow.Render("- AI Coding Agent"))
+	titleLine := fmt.Sprintf("%s%s%-37s%s",
+		verticalBar,
+		titleContent,
+		"",
+		verticalBar)
+
+	// Path line
+	pathLine := fmt.Sprintf("%s  %s%-35s  %s",
+		verticalBar,
+		styleGray.Render(""),
+		cwd,
+		verticalBar)
+
+	// Git branch line (if available)
+	var gitLine string
 	if gitBranch != "" {
-		gitInfo = fmt.Sprintf("%sgit:%s%s%s%s", gray, reset, green, gitBranch, reset)
-	}
-
-	// Print colorful welcome banner
-	fmt.Printf("%s%s┌─────────────────────────────────────────┐%s\n", cyan, bold, reset)
-	fmt.Printf("%s%s│%s  %s%sALEX%s %s- AI Coding Agent%s                %s%s│%s\n",
-		cyan, bold, reset,
-		green, bold, reset,
-		yellow, reset,
-		cyan, bold, reset)
-	fmt.Printf("%s%s│%s  %s%s%-35s%s  %s%s│%s\n",
-		cyan, bold, reset,
-		gray, reset, cwd, gray,
-		cyan, bold, reset)
-
-	if gitInfo != "" {
-		fmt.Printf("%s%s│%s  %s                                    %s%s│%s\n",
-			cyan, bold, reset,
+		gitInfo := fmt.Sprintf("git:%s", styleGreen.Render(gitBranch))
+		gitLine = fmt.Sprintf("%s  %s%-39s%s\n",
+			verticalBar,
 			gitInfo,
-			cyan, bold, reset)
+			"",
+			verticalBar)
 	}
 
-	fmt.Printf("%s%s│%s  Type your request, /quit to exit      %s%s│%s\n",
-		cyan, bold, reset,
-		cyan, bold, reset)
-	fmt.Printf("%s%s└─────────────────────────────────────────┘%s\n", cyan, bold, reset)
+	// Instructions line
+	instrLine := fmt.Sprintf("%s  Type your request, /quit to exit      %s",
+		verticalBar,
+		verticalBar)
+
+	// Print the welcome banner
+	fmt.Printf("%s\n", topBorder)
+	fmt.Printf("%s\n", titleLine)
+	fmt.Printf("%s\n", pathLine)
+	if gitLine != "" {
+		fmt.Printf("%s", gitLine)
+	}
+	fmt.Printf("%s\n", instrLine)
+	fmt.Printf("%s\n", botBorder)
 }
 
 // getGitBranch returns the current git branch name, or empty if not in a git repo
@@ -358,7 +382,7 @@ func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
 	case *domain.TaskCompleteEvent:
 		// Optional: show completion stats
 	case *domain.ErrorEvent:
-		fmt.Printf("\033[91m✗ Error: %v\033[0m\n", e.Error)
+		fmt.Printf("%s\n", styleError.Render(fmt.Sprintf("✗ Error: %v", e.Error)))
 	}
 }
 
