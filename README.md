@@ -8,173 +8,202 @@ Terminal-native AI programming agent
 
 ## Philosophy
 
-**保持简洁清晰，如无需求勿增实体**
+**Keep it simple and explicit—no new entities unless the problem demands it.**
 
-Built with hexagonal architecture, clean separation of concerns, and focus on essential complexity only.
+ALEX embraces a hexagonal architecture with clear boundaries between the core domain, ports, and adapters. Every subsystem is designed to minimize accidental complexity so that contributors can focus on the essential behaviour of an AI coding agent.
 
-## Features
+## System Overview
 
-- **Interactive Modes**
-  - Terminal CLI with streaming output
-  - Web UI with real-time SSE events
-  - Command-line one-shot execution
+| Interface | Description |
+|-----------|-------------|
+| CLI (TUI + legacy line mode) | Native terminal experience with streaming output, pane navigation, and session management. |
+| Web UI | Real-time interface backed by Server-Sent Events (SSE) for managing tasks, tools, and session history. |
+| HTTP API | Public endpoints for task submission, session control, and health checks. |
 
-- **15+ Built-in Tools**
-  - File ops, shell, search, git, web
-  - Think, subagent for complex reasoning
+Core services are written in Go with a modular toolkit, while the web interface is powered by a separate Node/React application.
 
-- **Multi-Model Support**
-  - OpenAI, DeepSeek, OpenRouter, Ollama
+## Highlights
 
-- **Session Management**
-  - Persistence and resumption
-  - Session forking and branching
+- **Rich Interaction Modes**
+  - Terminal UI with panes for transcript, tool output, and subagents
+  - One-shot command execution from the shell
+  - Web dashboard that mirrors streaming events
 
-- **Agent Presets** 🆕 (v0.6.0)
-  - 5 specialized agent personas (default, code-expert, researcher, devops, security-analyst)
-  - 5 tool access levels (full, read-only, code-only, web-only, safe)
-  - Context-based preset configuration per task
+- **Tooling Ecosystem (15+ tools)**
+  - File operations, shell execution, search, git, reasoning, and web utilities
+  - "Think" and "subagent" helpers for complex multi-step tasks
 
-- **Observability & Operations** 🆕 (v0.6.0)
-  - Health check endpoint with component status
-  - Task cancellation API
-  - Structured logging with context propagation
-  - Minimal configuration for offline/testing
+- **Model Flexibility**
+  - Providers: OpenAI, DeepSeek, OpenRouter, Ollama, and custom endpoints via configuration
+  - Configurable per-session presets for agent persona and tool access level (v0.6.0+)
 
-- **Web Interface**
-  - Real-time event streaming (SSE)
-  - Visual tool execution display
-  - Interactive task management
-  - Markdown rendering with syntax highlighting
+- **Operational Resilience**
+  - Persisted sessions with fork/resume support
+  - Task cancellation API with end-to-end propagation
+  - Structured logging, health checks, and cost tracking
 
-## Architecture Review (2025Q1)
+- **Observability (v0.6.0+)**
+  - Health endpoints for readiness/liveness
+  - Session cost isolation and live spend tracking
+  - Metrics around SSE broadcasting, context compression, and tool filtering
 
-The latest end-to-end architecture assessment highlights priority work on LLM成本隔离、任务取消传播、依赖注入惰性化以及可观测性增强。查看 [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) 获取详细的改进建议与迭代路线。
+## Architecture (2025 Q1 review)
+
+ALEX follows a hexagonal architecture that keeps domain logic independent from infrastructure concerns.
+
+```
+Domain (pure business logic)
+  ↓ depends on
+Ports (interfaces/contracts)
+  ↑ implemented by
+Adapters (infrastructure and delivery)
+```
+
+```
+internal/
+├── agent/
+│   ├── domain/       # core reasoning engine, tool formatter
+│   ├── app/          # coordinators and orchestrators
+│   └── ports/        # interfaces consumed by adapters
+├── llm/              # integrations for OpenAI, DeepSeek, Ollama, OpenRouter, etc.
+├── session/          # persistence, repositories, serialization
+├── tools/
+│   ├── builtin/      # file, shell, git, search, think, subagent tools
+│   └── registry.go   # tool registration and discovery
+└── server/           # HTTP/SSE server, handlers, routing
+```
+
+The latest architecture assessment prioritises work on cost isolation, cancellation propagation, lazy dependency injection, and deeper observability. See [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) for recommendations and roadmap notes.
 
 ## Installation
 
-### CLI Installation
+### CLI via npm
 
-**NPM**
 ```bash
 npm install -g alex-code
 ```
 
-**From Source**
+### Build from source
+
 ```bash
 git clone https://github.com/cklxx/Alex-Code.git
-cd Alex-Code && make build
+cd Alex-Code
+make build
 ```
 
-**Releases**
-[github.com/cklxx/Alex-Code/releases](https://github.com/cklxx/Alex-Code/releases)
+Releases are published at [github.com/cklxx/Alex-Code/releases](https://github.com/cklxx/Alex-Code/releases).
 
-### Web Server + UI (Docker Compose) 🆕
+### Web Server + UI (Docker Compose)
 
 ```bash
 # Clone repository
 git clone https://github.com/cklxx/Alex-Code.git
 cd Alex-Code
 
-# Set API key
+# Provide model credentials
 echo "OPENAI_API_KEY=sk-your-key" > .env
 
-# Start all services
+# Start services
 docker-compose up -d
 
-# Access Web UI at http://localhost:3000
+# Web UI available at http://localhost:3000
 ```
 
-See [QUICKSTART_SSE.md](QUICKSTART_SSE.md) for details.
+Refer to [QUICKSTART_SSE.md](QUICKSTART_SSE.md) for detailed instructions on the streaming stack.
 
 ## Usage
 
-### CLI Mode
+### CLI (TUI)
 
-**Interactive Mode**
 ```bash
 alex
 ```
 
-Key shortcuts:
+Key bindings:
 
-- `Tab` / `Shift+Tab` – move focus between transcript, stream, tools, subagents, MCP, and input panes.
-- `PgUp` / `PgDn`, arrow keys – scroll the focused pane; `End` jumps back to live updates.
-- `?` – toggle an in-terminal help overlay with all shortcuts.
-- `/` – search within the focused pane; `n`/`N` moves to the next/previous match.
-- Slash commands:
-  - `/new` – start a fresh session and clear the transcript.
-  - `/sessions` – list saved sessions with the active one highlighted.
-  - `/load <id>` – load a prior session into the UI.
-  - `/mcp [list|refresh|restart <name>]` – inspect or restart MCP servers without leaving the chat.
-  - `/cost [session_id]` – display the latest cost totals for the active (or specified) session directly in the transcript.
-  - `/export [path]` – write the visible transcript to a Markdown file (defaults to `session-…-transcript-<timestamp>.md`).
-  - `/follow <transcript|stream|both> <on|off|toggle>` – inspect or persist the default auto-follow behaviour from inside the TUI.
-- `/verbose [on|off|toggle]` – inspect or change the CLI verbose flag that controls tool logging detail.
-- `/quit` – exit the session (or press `Ctrl+C`).
-- The Subagents pane now highlights each worker's agent level, start/finish times, and run duration so you can spot slow or failing subtasks at a glance.
-- The status bar shows live token totals alongside per-model LLM spend so you can keep an eye on usage costs during long sessions.
-- Configure default auto-follow behaviour either via the `/follow` command in the TUI, by editing `follow_transcript` / `follow_stream` in `~/.alex-config.json`, or by setting the `ALEX_TUI_FOLLOW_TRANSCRIPT` / `ALEX_TUI_FOLLOW_STREAM` environment variables if you prefer panes to stay pinned after session resets.
+- `Tab` / `Shift+Tab` — cycle focus between panes (transcript, stream, tools, subagents, MCP, input)
+- `PgUp` / `PgDn`, arrow keys — scroll focused pane; `End` jumps to live output
+- `?` — toggle the in-terminal help overlay
+- `/` — search within the focused pane; `n`/`N` navigates results
 
-Need the legacy line UI? Launch with:
+Slash commands:
+
+- `/new` — start a fresh session
+- `/sessions` — list saved sessions (current session highlighted)
+- `/load <id>` — load a previous session
+- `/mcp [list|refresh|restart <name>]` — inspect or restart MCP servers
+- `/cost [session_id]` — print the latest spend totals
+- `/export [path]` — write the transcript to Markdown (default naming included)
+- `/follow <transcript|stream|both> <on|off|toggle>` — control auto-follow behaviour
+- `/verbose [on|off|toggle]` — adjust CLI verbosity
+- `/quit` — exit (equivalent to `Ctrl+C`)
+
+The Subagents pane highlights agent level, start/finish timestamps, and duration for each worker. The status bar displays live token totals and spend per model so you can monitor usage during long sessions.
+
+Enable the legacy line UI by launching:
 
 ```bash
 alex --no-tui
 ```
 
-or set `ALEX_NO_TUI=1` before running `alex`.
+or setting `ALEX_NO_TUI=1` before running `alex`.
 
-**Command Mode**
+### CLI Command Mode
+
 ```bash
 alex "analyze this codebase"
 ```
 
-**Session Management**
+Resume or list sessions:
+
 ```bash
-alex -r session_id -i    # resume
-alex session list        # list all
+alex -r <session_id> -i   # resume
+alex session list         # list all sessions
 ```
 
-Launching the TUI without arguments automatically restores your most recent session so you can continue the previous conversation immediately.
+Starting the TUI with no arguments automatically restores the most recent session.
 
-### Web Server Mode 🆕
+### Web Server Mode
 
-**Start Server**
+Start the server:
+
 ```bash
-# Option 1: Docker Compose
+# Docker Compose
 docker-compose up -d
 
-# Option 2: From source
+# From source
 make server-run
 cd web && npm run dev
 ```
 
-**Access**
+Endpoints:
+
 - Web UI: http://localhost:3000
 - API: http://localhost:8080
-- SSE Events: http://localhost:8080/api/sse?session_id=xxx
+- SSE stream: http://localhost:8080/api/sse?session_id=<id>
 
-**API Examples**
+Sample API calls:
+
 ```bash
-# Submit task
+# Submit a task
 curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{"task": "What is 2+2?", "session_id": "demo"}'
 
-# Submit task with agent preset (v0.6.0+)
+# Submit with presets (v0.6.0+)
 curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "task": "Review code for security issues",
-    "agent_preset": "security-analyst",
-    "tool_preset": "read-only",
-    "session_id": "demo"
-  }'
+        "task": "Review code for security issues",
+        "agent_preset": "security-analyst",
+        "tool_preset": "read-only",
+        "session_id": "demo"
+      }'
 
-# Cancel running task (v0.6.0+)
+# Cancel a running task
 curl -X POST http://localhost:8080/api/tasks/task-abc123/cancel
 
-# Check health (v0.6.0+)
+# Health check
 curl http://localhost:8080/health
 
 # Watch SSE events
@@ -184,7 +213,7 @@ curl -N -H "Accept: text/event-stream" \
 
 ## Configuration
 
-Alex creates `~/.alex-config.json` on first run:
+The first CLI launch creates `~/.alex-config.json`:
 
 ```json
 {
@@ -194,53 +223,51 @@ Alex creates `~/.alex-config.json` on first run:
 }
 ```
 
-### Environment Variables
-
-Override configuration with environment variables:
+Override values with environment variables:
 
 ```bash
-# LLM Configuration
+# LLM configuration
 export OPENAI_API_KEY="your-key"
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 export OPENAI_MODEL="gpt-4"
 
-# CLI Behavior
-export ALEX_VERBOSE="1"                  # Enable verbose logging
-export ALEX_TUI_FOLLOW_TRANSCRIPT="0"    # Disable transcript auto-follow
-export ALEX_TUI_FOLLOW_STREAM="0"        # Disable live stream auto-follow
+# CLI behaviour
+export ALEX_VERBOSE="1"
+export ALEX_TUI_FOLLOW_TRANSCRIPT="0"
+export ALEX_TUI_FOLLOW_STREAM="0"
 
-# Feature Flags (v0.6.0+)
-export ALEX_ENABLE_MCP="true"            # Enable Model Context Protocol (default: true)
+# Feature flags (v0.6.0+)
+export ALEX_ENABLE_MCP="true"
 ```
 
-Set the same defaults persistently by adding `"follow_transcript"` / `"follow_stream"` entries to `~/.alex-config.json`.
+Persist defaults by setting `"follow_transcript"` and `"follow_stream"` inside `~/.alex-config.json`.
 
 ### Feature Flags (v0.6.0+)
 
-Control optional features via environment variables or config:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ALEX_ENABLE_MCP` | `true` | Enable/disable Model Context Protocol integration |
+| `ALEX_ENABLE_MCP` | `true` | Toggle Model Context Protocol integration |
 
-**Minimal Configuration for Testing/Offline Mode**:
+Minimal configuration for offline/testing environments:
+
 ```json
 {
   "enable_mcp": false
 }
 ```
 
-This allows running tests and development without external dependencies or API keys.
+This allows development without external API dependencies.
 
-## Health Check (v0.6.0+)
+## Health & Observability
 
-ALEX server exposes a health check endpoint for monitoring system status:
+### Health Checks
 
 ```bash
 curl http://localhost:8080/health
 ```
 
-**Example Response**:
+Example response:
+
 ```json
 {
   "status": "healthy",
@@ -259,33 +286,24 @@ curl http://localhost:8080/health
 }
 ```
 
-**Component Status Types**:
-- `ready`: Component operational
-- `not_ready`: Component initializing or temporarily unavailable
-- `disabled`: Component disabled by configuration
+Component status values:
 
-Use this endpoint for:
-- Kubernetes liveness/readiness probes
-- Load balancer health checks
-- Monitoring and alerting
+- `ready` — component is operational
+- `not_ready` — initializing or temporarily unavailable
+- `disabled` — turned off via configuration
 
-## Observability (v0.6.0+)
-
-ALEX provides comprehensive observability features for monitoring and debugging:
+Use this endpoint for Kubernetes probes, load balancer checks, and monitoring pipelines.
 
 ### Cost Tracking
 
-Every session tracks LLM costs independently:
-- Per-session cost isolation (no interference between concurrent sessions)
-- Real-time cost accumulation during task execution
-- Cost breakdown by model and operation type
+Each session tracks LLM spend separately and accumulates totals in real time.
 
-View session costs via CLI:
 ```bash
 alex session cost <session_id>
 ```
 
 Or query via API:
+
 ```bash
 curl http://localhost:8080/api/sessions/<session_id>/cost
 ```
@@ -293,116 +311,72 @@ curl http://localhost:8080/api/sessions/<session_id>/cost
 ### Task Cancellation
 
 Cancel running tasks gracefully:
+
 ```bash
 curl -X POST http://localhost:8080/api/tasks/<task_id>/cancel
 ```
 
-Cancellation propagates through the execution chain with proper cleanup:
-- Context cancellation signals to all components
-- Graceful shutdown of in-progress operations
-- Task status updated with cancellation reason
+Cancellation signals propagate through the orchestrator, tooling layer, and LLM requests to ensure proper cleanup.
 
-### Metrics & Monitoring
+### Metrics & Logging
 
-Available metrics for production monitoring:
-- **Event Broadcaster**: SSE connection counts, event delivery rates
-- **Context Compression**: Token reduction statistics, compression ratios
-- **Tool Filtering**: Preset-based access control metrics
-- **Session Lifecycle**: Active sessions, task completion rates
+- Event broadcaster metrics track SSE connections and delivery rates
+- Context compression reports token reduction ratios
+- Tool filtering metrics surface preset-based access control decisions
+- Session lifecycle metrics reveal active sessions and completion rates
 
-See [Observability Guide](docs/reference/OBSERVABILITY.md) for comprehensive monitoring setup and [Operations Guide](docs/operations/monitoring_and_metrics.md) for troubleshooting.
+Structured logging propagates session IDs and trace IDs with API key sanitisation. Enable verbose logging during development:
 
-### Structured Logging
-
-Context-aware logging with automatic API key sanitization:
-- Session ID and trace ID propagation
-- Component-scoped loggers
-- JSON output for production environments
-
-Enable verbose logging:
 ```bash
 export ALEX_VERBOSE=1
 alex --verbose
 ```
 
-## Tools
+## Development Workflow
 
-File: `read` `write` `edit` `replace` `list`
-Shell: `bash` `code_execute`
-Search: `grep` `ripgrep` `find` `code_search`
-Task: `todo_read` `todo_update`
-Web: `web_search` `web_fetch`
-Git: `commit` `pr` `history`
-Reasoning: `think` `subagent`
-
-## Architecture
-
-```
-Domain (Pure Logic)
-  ↓ depends on
-Ports (Interfaces)
-  ↑ implemented by
-Adapters (Infrastructure)
-```
-
-**Structure**
-```
-internal/
-├── agent/
-│   ├── domain/     # react_engine, tool_formatter
-│   ├── app/        # coordinator
-│   └── ports/      # interfaces
-├── llm/            # openai, deepseek, ollama
-├── tools/
-│   ├── builtin/    # 15+ tools
-│   └── registry.go
-└── session/        # persistence
-```
-
-## Development
-
-**Workflow**
 ```bash
 make dev     # format, vet, build
-make test    # all tests
+go test ./...  # run all Go tests
 ```
 
-**Testing**
+Focused test examples:
+
 ```bash
 go test ./internal/agent/domain/ -v
 go test ./internal/tools/builtin/ -v
 ```
 
-**Release**
+Release automation:
+
 ```bash
 node scripts/update-version.js 0.x.x
 make release-npm
 ```
 
-## Documentation
+## Documentation Map
 
 ### User Guides
-- [QUICKSTART_SSE.md](QUICKSTART_SSE.md) - Web UI Quick Start (3 minutes)
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Production Deployment Guide
-- [CLAUDE.md](CLAUDE.md) - Claude Code Integration Guide
-- [docs/operations/README.md](docs/operations/README.md) - 🆕 Operations & Troubleshooting (v0.6.0)
+- [QUICKSTART_SSE.md](QUICKSTART_SSE.md) — Web UI quick start (≈3 minutes)
+- [DEPLOYMENT.md](DEPLOYMENT.md) — Production deployment
+- [CLAUDE.md](CLAUDE.md) — Claude Code integration
+- [docs/operations/README.md](docs/operations/README.md) — Operations & troubleshooting (v0.6.0)
 
 ### Reference
-- [docs/reference/OBSERVABILITY.md](docs/reference/OBSERVABILITY.md) - 🆕 Observability Guide (v0.6.0)
-- [docs/reference/PRESET_QUICK_REFERENCE.md](docs/reference/PRESET_QUICK_REFERENCE.md) - 🆕 Agent Presets (v0.6.0)
-- [docs/reference/PRESET_SYSTEM_SUMMARY.md](docs/reference/PRESET_SYSTEM_SUMMARY.md) - 🆕 Preset System Details (v0.6.0)
-- [docs/reference/MCP_GUIDE.md](docs/reference/MCP_GUIDE.md) - Model Context Protocol Guide
+- [docs/reference/OBSERVABILITY.md](docs/reference/OBSERVABILITY.md) — Observability guide (v0.6.0)
+- [docs/reference/PRESET_QUICK_REFERENCE.md](docs/reference/PRESET_QUICK_REFERENCE.md) — Agent preset quick reference (v0.6.0)
+- [docs/reference/PRESET_SYSTEM_SUMMARY.md](docs/reference/PRESET_SYSTEM_SUMMARY.md) — Preset system internals (v0.6.0)
+- [docs/reference/MCP_GUIDE.md](docs/reference/MCP_GUIDE.md) — Model Context Protocol usage
 
 ### Architecture & Design
-- [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) - 🆕 2025Q1 Architecture Review
-- [docs/design/SSE_WEB_ARCHITECTURE.md](docs/design/SSE_WEB_ARCHITECTURE.md) - SSE Architecture Design
-- [SSE_IMPLEMENTATION_SUMMARY.md](SSE_IMPLEMENTATION_SUMMARY.md) - Implementation Summary
-- [docs/architecture/](docs/architecture/) - System Architecture
+- [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) — 2025 Q1 architecture review
+- [docs/design/SSE_WEB_ARCHITECTURE.md](docs/design/SSE_WEB_ARCHITECTURE.md) — SSE web architecture
+- [SSE_IMPLEMENTATION_SUMMARY.md](SSE_IMPLEMENTATION_SUMMARY.md) — Implementation summary
+- [docs/architecture/](docs/architecture/) — System diagrams and notes
 
-### Development
-- [internal/server/README.md](internal/server/README.md) - Server Development
-- [web/README.md](web/README.md) - Web Frontend Development
-- [evaluation/swe_bench/](evaluation/swe_bench/) - SWE-Bench Evaluation
+### Development References
+- [internal/server/README.md](internal/server/README.md) — Server development guide
+- [web/README.md](web/README.md) — Frontend development guide
+- [evaluation/swe_bench/](evaluation/swe_bench/) — SWE-Bench evaluation suite
 
 ## License
 
