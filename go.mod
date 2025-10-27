@@ -5,8 +5,8 @@ go 1.24.0
 toolchain go1.24.6
 
 require (
-        github.com/PuerkitoBio/goquery v1.10.3
-        github.com/agent-infra/sandbox-sdk-go v0.0.1
+	github.com/PuerkitoBio/goquery v1.10.3
+	github.com/agent-infra/sandbox-sdk-go v0.0.1
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/fatih/color v1.18.0
