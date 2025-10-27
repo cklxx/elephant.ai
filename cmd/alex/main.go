@@ -10,10 +10,6 @@ import (
 	"alex/cmd/alex/ui/state"
 	"alex/cmd/alex/ui/tviewui"
 	"alex/internal/config"
-
-	// Only used for tcell-based TUI terminal verification (deprecated path)
-	"github.com/gdamore/tcell/v2/terminfo"
-	_ "github.com/gdamore/tcell/v2/terminfo/extended"
 )
 
 func main() {
@@ -163,16 +159,6 @@ var terminalAliasFallback = map[string]string{
 	"screen":                defaultTERM,
 	"screen-256color":       defaultTERM,
 	"screen.xterm-256color": "xterm-256color",
-}
-
-func prepareTerminalForTUI(envLookup config.EnvLookup, setEnv func(string, string) error, stderr io.Writer) {
-	prepareTerminalWithLookup(envLookup, setEnv, stderr, func(name string) error {
-		if name == "" {
-			return fmt.Errorf("empty terminal type")
-		}
-		_, err := terminfo.LookupTerminfo(name)
-		return err
-	})
 }
 
 func prepareTerminalWithLookup(envLookup config.EnvLookup, setEnv func(string, string) error, stderr io.Writer, lookup func(string) error) {

@@ -24,7 +24,6 @@ var (
 	styleGray       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	styleGreen      = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
 	styleYellow     = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
-	styleCyan       = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
 	styleBold       = lipgloss.NewStyle().Bold(true)
 	styleBoldGreen  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
 	styleBoldCyan   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
@@ -32,10 +31,8 @@ var (
 	styleSystem     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	// Combined styles for elements
-	promptArrow     = styleBoldGreen.Render(">")
-	userArrow       = styleGreen.Render("➤")
-	separator       = styleCyan.Render("┌─────────────────────────────────────────┐")
-	separatorBottom = styleCyan.Render("└─────────────────────────────────────────┘")
+	promptArrow = styleBoldGreen.Render(">")
+	userArrow   = styleGreen.Render("➤")
 )
 
 // NativeChatUI implements a chat interface using native terminal control
