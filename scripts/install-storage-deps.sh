@@ -1,13 +1,20 @@
 #!/bin/bash
 
-# Deep Coding Agent - Storage Dependencies Installation Script
+# Alex - Storage Dependencies Installation Script
 # 网络恢复后运行此脚本安装存储依赖
 
 set -e
 
-echo "🚀 Deep Coding Agent - Installing Storage Dependencies"
+echo "🚀 Alex - Installing Storage Dependencies"
 echo "=================================================="
 echo
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+export GOMODCACHE="${PROJECT_ROOT}/.cache/go/pkg/mod"
+export GOCACHE="${PROJECT_ROOT}/.cache/go/build"
+mkdir -p "${GOMODCACHE}" "${GOCACHE}"
 
 # 检查Go环境
 if ! command -v go &> /dev/null; then
@@ -137,9 +144,9 @@ echo
 
 # 测试编译
 echo "🔨 Testing compilation..."
-if go build -o /tmp/deep-coding-agent-test ./cmd/; then
-    echo "✅ Project compiles successfully with new dependencies"
-    rm -f /tmp/deep-coding-agent-test
+if go build -o /tmp/alex-test ./cmd/alex; then
+    echo "✅ Alex CLI compiles successfully with new dependencies"
+    rm -f /tmp/alex-test
 else
     echo "❌ Compilation failed"
     echo "💡 Please check the error messages above"
@@ -203,4 +210,4 @@ echo "  - Storage Interfaces: internal/context/storage/interfaces.go"
 
 echo
 echo "🎉 Installation completed!"
-echo "Deep Coding Agent now supports enterprise-grade storage backends."
+echo "Alex now supports enterprise-grade storage backends."

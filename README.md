@@ -93,7 +93,7 @@ make build
 
 Releases are published at [github.com/cklxx/Alex-Code/releases](https://github.com/cklxx/Alex-Code/releases).
 
-### Web Server + UI (Docker Compose)
+### Web Server + UI (Local Script)
 
 ```bash
 # Clone repository
@@ -103,10 +103,14 @@ cd Alex-Code
 # Provide model credentials
 echo "OPENAI_API_KEY=sk-your-key" > .env
 
-# Start services
-docker-compose up -d
+# Start services (backend + web UI)
+./deploy.sh
 
 # Web UI available at http://localhost:3000
+# API available at http://localhost:8080
+
+# Stop services
+./deploy.sh down
 ```
 
 Refer to [QUICKSTART_SSE.md](QUICKSTART_SSE.md) for detailed instructions on the streaming stack.
@@ -168,12 +172,13 @@ Starting the TUI with no arguments automatically restores the most recent sessio
 Start the server:
 
 ```bash
-# Docker Compose
-docker-compose up -d
+# Scripted (launches backend + web UI)
+./deploy.sh
 
-# From source
+# Manual fallback
 make server-run
-cd web && npm run dev
+cd web && npm install
+npm run dev
 ```
 
 Endpoints:

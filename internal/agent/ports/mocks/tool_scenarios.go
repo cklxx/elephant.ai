@@ -581,14 +581,14 @@ Estimated improvement: 3-5x performance increase`,
 
 // GetAllScenarios returns all available test scenarios
 func GetAllScenarios() []ToolScenario {
-        return []ToolScenario{
-                NewFileReadScenario(),
-                NewMultipleToolCallsScenario(),
+	return []ToolScenario{
+		NewFileReadScenario(),
+		NewMultipleToolCallsScenario(),
 		NewParallelToolCallsScenario(),
 		NewWebSearchScenario(),
 		NewCodeEditScenario(),
 		NewToolErrorScenario(),
 		NewTodoManagementScenario(),
-                NewSubagentDelegationScenario(),
-        }
+		NewSubagentDelegationScenario(),
+	}
 }

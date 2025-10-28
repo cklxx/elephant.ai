@@ -35,7 +35,6 @@ func (c *testClock) Now() time.Time {
 	return c.fixedTime
 }
 
-
 func TestWithLogger(t *testing.T) {
 	logger := &testLogger{}
 	coordinator := NewAgentCoordinator(

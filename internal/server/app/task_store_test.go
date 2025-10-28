@@ -401,10 +401,10 @@ func TestInMemoryTaskStore_TerminationReasonAutoSet(t *testing.T) {
 
 	// Test that SetStatus automatically sets termination reason
 	tests := []struct {
-		name              string
-		status            serverPorts.TaskStatus
-		expectedReason    serverPorts.TerminationReason
-		shouldSetReason   bool
+		name            string
+		status          serverPorts.TaskStatus
+		expectedReason  serverPorts.TerminationReason
+		shouldSetReason bool
 	}{
 		{"Running", serverPorts.TaskStatusRunning, serverPorts.TerminationReasonNone, false},
 		{"Completed", serverPorts.TaskStatusCompleted, serverPorts.TerminationReasonCompleted, true},

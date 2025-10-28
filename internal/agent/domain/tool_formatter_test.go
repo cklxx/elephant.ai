@@ -145,7 +145,7 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			args:     map[string]any{},
 			wants:    []string{"subagent"},
 		},
-                {
+		{
 			name:     "unknown",
 			toolName: "custom_tool",
 			args: map[string]any{

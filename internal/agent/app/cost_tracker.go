@@ -84,8 +84,8 @@ func (t *costTracker) GetSessionStats(ctx context.Context, sessionID string) (*p
 
 	if len(records) == 0 {
 		return &ports.SessionStats{
-			SessionID: sessionID,
-			ByModel:   make(map[string]float64),
+			SessionID:  sessionID,
+			ByModel:    make(map[string]float64),
 			ByProvider: make(map[string]float64),
 		}, nil
 	}

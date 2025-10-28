@@ -1,58 +1,33 @@
-# Development Dockerfile for Deep Coding Agent
-FROM golang:1.21-alpine AS base
+FROM golang:1.24-alpine AS base
 
-# Install development tools
 RUN apk add --no-cache \
-    git \
-    make \
-    curl \
     bash \
     ca-certificates \
-    tzdata \
+    curl \
     gcc \
-    musl-dev
+    git \
+    make \
+    musl-dev \
+    tzdata
 
-# Install development Go tools
-RUN go install golang.org/x/tools/cmd/goimports@latest && \
-    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
-    go install golang.org/x/vuln/cmd/govulncheck@latest && \
-    go install github.com/air-verse/air@latest
-
-# Development stage
-FROM base AS development
+RUN go install golang.org/x/tools/cmd/goimports@latest \
+    github.com/golangci/golangci-lint/cmd/golangci-lint@latest \
+    golang.org/x/vuln/cmd/govulncheck@latest \
+    github.com/air-verse/air@latest
 
 WORKDIR /app
 
-# Copy go mod files
 COPY go.mod go.sum ./
-
-# Download dependencies
 RUN go mod download
 
-# Copy source code
 COPY . .
-
-# Make scripts executable
 RUN chmod +x scripts/*.sh
 
-# Set up hot reload
-RUN echo '#!/bin/bash\nair -c .air.toml' > /usr/local/bin/dev && \
-    chmod +x /usr/local/bin/dev
+FROM base AS development
+ENV GO_ENV=development
+CMD ["air", "-c", ".air.toml"]
 
-# Default command for development
-CMD ["dev"]
-
-# Testing stage
-FROM development AS testing
-
-# Install additional testing tools
+FROM base AS testing
 RUN go install gotest.tools/gotestsum@latest
-
-# Create test results directory
-RUN mkdir -p /app/test-results
-
-# Set testing environment
 ENV GO_ENV=test
-
-# Default command for testing
 CMD ["./scripts/test.sh", "all"]

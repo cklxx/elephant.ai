@@ -278,8 +278,8 @@ Location: `~/.alex-config.json`
 For development and testing:
 
 ```bash
-# Start with hot reload
-./scripts/run.sh dev
+# Start the local stack (server + web UI)
+./deploy.sh
 
 # Run development workflow (format, vet, build, test)
 make dev
