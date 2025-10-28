@@ -9,6 +9,7 @@ This document describes the migration of file/shell/code tools to sandbox execut
 - ✅ All tools execute locally when running in CLI mode
 - ✅ Tool definitions remain unchanged (transparent to LLM)
 - ✅ Sandbox initialized at web server startup
+- ✅ Host + sandbox environment snapshots captured at startup, injected into the agent system prompt, and surfaced in the web UI header
 - ✅ Zero impact on CLI user experience
 
 ---
@@ -64,6 +65,7 @@ func (t *FileReadTool) Execute(ctx context.Context, call ToolCall) (*ToolResult,
 2. **Transparent Routing**: Mode determined at initialization, not runtime
 3. **Shared Interface**: Both modes return *ToolResult with same schema
 4. **Graceful Degradation**: Sandbox failures can optionally fall back to local
+5. **Explicit Validation**: Execution mode must be validated during startup to avoid undefined behavior
 
 ---
 
@@ -77,18 +79,37 @@ func (t *FileReadTool) Execute(ctx context.Context, call ToolCall) (*ToolResult,
 ```go
 package tools
 
+import "fmt"
+
 type ExecutionMode int
 
 const (
+    // ExecutionModeUnknown guards against misconfiguration.
+    ExecutionModeUnknown ExecutionMode = iota
+
     // ExecutionModeLocal uses local filesystem and shell
-    ExecutionModeLocal ExecutionMode = iota
+    ExecutionModeLocal
 
     // ExecutionModeSandbox uses remote sandbox via SDK
     ExecutionModeSandbox
 )
 
 func (m ExecutionMode) String() string {
-    return [...]string{"local", "sandbox"}[m]
+    switch m {
+    case ExecutionModeLocal:
+        return "local"
+    case ExecutionModeSandbox:
+        return "sandbox"
+    default:
+        return "unknown"
+    }
+}
+
+func (m ExecutionMode) Validate() error {
+    if m != ExecutionModeLocal && m != ExecutionModeSandbox {
+        return fmt.Errorf("invalid execution mode: %d", m)
+    }
+    return nil
 }
 ```
 
@@ -99,9 +120,12 @@ func (m ExecutionMode) String() string {
 package tools
 
 import (
+    "bufio"
     "context"
     "fmt"
+    "strings"
     "sync"
+    "time"
 
     "github.com/agent-infra/sandbox-sdk-go/file"
     "github.com/agent-infra/sandbox-sdk-go/jupyter"
@@ -115,6 +139,8 @@ type SandboxManager struct {
     shellClient *shell.Client
     jupyterClient *jupyter.Client
 
+    envSnapshot map[string]string
+
     initOnce sync.Once
     initErr  error
 }
@@ -125,6 +151,11 @@ func NewSandboxManager(baseURL string) *SandboxManager {
 
 func (m *SandboxManager) Initialize(ctx context.Context) error {
     m.initOnce.Do(func() {
+        if m.baseURL == "" {
+            m.initErr = fmt.Errorf("sandbox base URL is required")
+            return
+        }
+
         // Initialize all sandbox clients
         m.fileClient = file.NewClient(m.baseURL)
         m.shellClient = shell.NewClient(m.baseURL)
@@ -140,7 +171,7 @@ func (m *SandboxManager) healthCheck(ctx context.Context) error {
     // Verify sandbox is reachable
     _, err := m.shellClient.Exec(ctx, shell.ExecRequest{
         Command: "echo 'health_check'",
-        Timeout: 5,
+        Timeout: 5 * time.Second,
     })
     return err
 }
@@ -148,7 +179,53 @@ func (m *SandboxManager) healthCheck(ctx context.Context) error {
 func (m *SandboxManager) File() *file.Client { return m.fileClient }
 func (m *SandboxManager) Shell() *shell.Client { return m.shellClient }
 func (m *SandboxManager) Jupyter() *jupyter.Client { return m.jupyterClient }
+
+func (m *SandboxManager) Environment(ctx context.Context) (map[string]string, error) {
+    if err := m.Initialize(ctx); err != nil {
+        return nil, err
+    }
+
+    if m.envSnapshot != nil {
+        return m.envSnapshot, nil
+    }
+
+    resp, err := m.shellClient.Exec(ctx, shell.ExecRequest{
+        Command: "printenv",
+        Timeout: 5 * time.Second,
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    m.envSnapshot = parseEnv(resp.Stdout)
+    return m.envSnapshot, nil
+}
+
+func parseEnv(stdout string) map[string]string {
+    vars := map[string]string{}
+    scanner := bufio.NewScanner(strings.NewReader(stdout))
+    for scanner.Scan() {
+        line := scanner.Text()
+        if strings.TrimSpace(line) == "" {
+            continue
+        }
+        parts := strings.SplitN(line, "=", 2)
+        if len(parts) == 2 {
+            vars[parts[0]] = parts[1]
+        }
+    }
+    return vars
+}
+
+func (m *SandboxManager) HealthCheck(ctx context.Context) error {
+    if err := m.Initialize(ctx); err != nil {
+        return err
+    }
+    return m.healthCheck(ctx)
+}
 ```
+
+The `Environment` helper lazily hydrates and caches the sandbox's environment variables, ensuring we only pay the `printenv` cost once per process lifetime unless the background refresh invalidates the snapshot.
 
 #### 2.1.3 Registry Configuration Update
 **File**: `internal/tools/registry.go` (MODIFY)
@@ -166,7 +243,11 @@ type Config struct {
     SandboxManager *SandboxManager
 }
 
-func (r *Registry) registerBuiltins(config Config) {
+func (r *Registry) registerBuiltins(config Config) error {
+    if err := config.ExecutionMode.Validate(); err != nil {
+        return err
+    }
+
     // File tools
     r.static["file_read"] = builtin.NewFileRead(builtin.FileReadConfig{
         Mode:           config.ExecutionMode,
@@ -211,6 +292,8 @@ func (r *Registry) registerBuiltins(config Config) {
     })
 
     // ... other tools remain unchanged
+
+    return nil
 }
 ```
 
@@ -229,6 +312,8 @@ package builtin
 
 import (
     "context"
+    "fmt"
+
     "github.com/agent-infra/sandbox-sdk-go/file"
     "github.com/yourusername/alex/internal/agent/ports"
     "github.com/yourusername/alex/internal/tools"
@@ -253,9 +338,16 @@ func NewFileRead(cfg FileReadConfig) *FileRead {
 
 func (t *FileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
     if t.mode == tools.ExecutionModeSandbox {
+        if t.sandbox == nil {
+            return nil, fmt.Errorf("sandbox manager is required in sandbox mode")
+        }
         return t.executeSandbox(ctx, call)
     }
     return t.executeLocal(ctx, call)
+}
+
+func (t *FileRead) Mode() tools.ExecutionMode {
+    return t.mode
 }
 
 func (t *FileRead) executeLocal(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -324,12 +416,15 @@ func (t *FileRead) Definition() ports.ToolDefinition {
 func BuildCLIContainer(config Config) (*Container, error) {
     // ... existing code ...
 
-    toolRegistry := tools.NewRegistry(tools.Config{
+    toolRegistry, err := tools.NewRegistry(tools.Config{
         TavilyAPIKey:   config.TavilyAPIKey,
         SandboxBaseURL: config.SandboxBaseURL,
         ExecutionMode:  tools.ExecutionModeLocal,  // NEW: Force local mode
         SandboxManager: nil,                       // NEW: No sandbox in CLI
     })
+    if err != nil {
+        return nil, err
+    }
 
     // ... rest unchanged ...
 }
@@ -358,16 +453,21 @@ func BuildServerContainer(config Config) (*Container, error) {
         log.Printf("✓ Sandbox initialized successfully at %s", config.SandboxBaseURL)
     }
 
-    toolRegistry := tools.NewRegistry(tools.Config{
+    toolRegistry, err := tools.NewRegistry(tools.Config{
         TavilyAPIKey:   config.TavilyAPIKey,
         SandboxBaseURL: config.SandboxBaseURL,
         ExecutionMode:  tools.ExecutionModeSandbox,  // NEW: Force sandbox mode
         SandboxManager: sandboxManager,               // NEW: Shared sandbox clients
     })
+    if err != nil {
+        return nil, err
+    }
 
     // ... rest unchanged ...
 }
 ```
+
+The container struct gains a `SandboxManager *tools.SandboxManager` field so downstream boot code and diagnostics can reuse the initialized clients without recomputing them.
 
 #### 2.3.3 Server Startup Update
 **File**: `cmd/alex-server/main.go` (MODIFY)
@@ -376,6 +476,9 @@ func BuildServerContainer(config Config) (*Container, error) {
 func main() {
     // Load configuration
     cfg := config.LoadFromEnv()
+
+    // Capture host environment snapshot for diagnostics
+    hostEnv := config.SnapshotProcessEnv()
 
     // Validate sandbox configuration for server mode
     if cfg.SandboxBaseURL == "" {
@@ -388,10 +491,54 @@ func main() {
         log.Fatalf("Failed to build container: %v", err)
     }
 
+    // Retrieve sandbox environment variables for downstream consumers
+    sandboxEnv, err := container.SandboxManager.Environment(context.Background())
+    if err != nil {
+        log.Fatalf("Failed to read sandbox environment: %v", err)
+    }
+
+    diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
+        Host:     hostEnv,
+        Sandbox:  sandboxEnv,
+        Captured: time.Now(),
+    })
+
+    // Inject the merged environment snapshot into the agent system prompt
+    promptEnvSummary := prompts.FormatEnvironmentSummary(hostEnv, sandboxEnv)
+    agent := conversation.New(conversation.Config{
+        SystemPrompts: []string{
+            prompts.BaseSystemPrompt(),
+            promptEnvSummary,
+        },
+    })
+    agent.RegisterSandboxManager(container.SandboxManager)
+
     // ... rest of server startup ...
     log.Printf("Server starting in SANDBOX mode (sandbox: %s)", cfg.SandboxBaseURL)
 }
 ```
+
+#### 2.3.4 Environment Metadata Publication
+**File**: `internal/diagnostics/environment.go` (NEW)
+
+```go
+package diagnostics
+
+import "time"
+
+type EnvironmentPayload struct {
+    Host     map[string]string
+    Sandbox  map[string]string
+    Captured time.Time
+}
+
+func PublishEnvironments(payload EnvironmentPayload) {
+    // Fan out to logging, telemetry, and web UI caches.
+    // Implementation will inject this payload into the SSE status stream.
+}
+```
+
+The diagnostics package exposes a subscribe-able feed so that the web layer can render both host and sandbox environments. The payload is stored in-memory with periodic refreshes (default 15 minutes) triggered by a background cron using the same `SandboxManager.Environment` helper to keep the snapshot current.
 
 ---
 
@@ -459,6 +606,56 @@ func formatSandboxError(err error) string {
 }
 ```
 
+### 2.5 Web UI Environment Banner (Priority: MEDIUM)
+
+The web console should surface the captured environment details so operators can confirm the sandbox context. The banner renders in muted, small-type text beneath the session header to avoid distracting end-users while still surfacing critical debugging metadata.
+
+**File**: `web/src/components/status/EnvironmentStrip.tsx` (NEW)
+
+```tsx
+import { useDiagnostics } from "@/hooks/useDiagnostics";
+
+export function EnvironmentStrip() {
+  const { environments } = useDiagnostics();
+  if (!environments) {
+    return null;
+  }
+
+  return (
+    <div className="text-xs text-muted-foreground truncate" data-testid="environment-strip">
+      Host: {formatEnv(environments.host)} | Sandbox: {formatEnv(environments.sandbox)}
+    </div>
+  );
+}
+
+function formatEnv(env: Record<string, string>): string {
+  const whitelist = ["HOSTNAME", "USER", "SANDBOX_BASE_URL"];
+  return whitelist
+    .map((key) => (env[key] ? `${key}=${env[key]}` : null))
+    .filter(Boolean)
+    .join(" · ");
+}
+```
+
+**File**: `web/src/components/layout/AppHeader.tsx` (MODIFY)
+
+```tsx
+import { EnvironmentStrip } from "@/components/status/EnvironmentStrip";
+
+export function AppHeader() {
+  return (
+    <header className="border-b bg-background">
+      <div className="flex flex-col gap-1 px-6 py-3">
+        <AppBreadcrumbs />
+        <EnvironmentStrip />
+      </div>
+    </header>
+  );
+}
+```
+
+The diagnostics hook reuses the SSE feed populated by `PublishEnvironments`, ensuring the UI stays current without additional API calls. Typography leverages the existing `text-xs` Tailwind utility to satisfy the "small text" display requirement.
+
 ---
 
 ## 3. Configuration Management
@@ -484,6 +681,13 @@ ALEX_EXECUTION_MODE=auto|local|sandbox  # auto = detect from process type
 **File**: `internal/config/runtime_env.go` (MODIFY)
 
 ```go
+import (
+    "fmt"
+    "net/url"
+    "os"
+    "strings"
+)
+
 func LoadFromEnv() Config {
     cfg := Config{
         // ... existing fields ...
@@ -491,6 +695,17 @@ func LoadFromEnv() Config {
     }
 
     return cfg
+}
+
+func SnapshotProcessEnv() map[string]string {
+    vars := map[string]string{}
+    for _, kv := range os.Environ() {
+        parts := strings.SplitN(kv, "=", 2)
+        if len(parts) == 2 {
+            vars[parts[0]] = parts[1]
+        }
+    }
+    return vars
 }
 
 func ValidateServerConfig(cfg Config) error {
@@ -506,6 +721,81 @@ func ValidateServerConfig(cfg Config) error {
     return nil
 }
 ```
+
+#### 2.3.5 System Prompt Environment Injection
+**Files**: `internal/prompts/environment_summary.go` (NEW), `internal/conversation/agent.go` (MODIFY)
+
+```go
+// internal/prompts/environment_summary.go
+package prompts
+
+import (
+    "fmt"
+    "sort"
+    "strings"
+)
+
+func FormatEnvironmentSummary(hostEnv, sandboxEnv map[string]string) string {
+    keys := make([]string, 0, len(hostEnv)+len(sandboxEnv))
+    seen := map[string]struct{}{}
+
+    for k := range hostEnv {
+        if _, ok := seen[k]; !ok {
+            seen[k] = struct{}{}
+            keys = append(keys, k)
+        }
+    }
+
+    for k := range sandboxEnv {
+        if _, ok := seen[k]; !ok {
+            seen[k] = struct{}{}
+            keys = append(keys, k)
+        }
+    }
+
+    sort.Strings(keys)
+
+    var builder strings.Builder
+    builder.WriteString("Environment context:\n")
+    for _, k := range keys {
+        hostVal := hostEnv[k]
+        sandboxVal := sandboxEnv[k]
+
+        switch {
+        case hostVal != "" && sandboxVal != "":
+            builder.WriteString(fmt.Sprintf("- %s: host=%q, sandbox=%q\n", k, hostVal, sandboxVal))
+        case sandboxVal != "":
+            builder.WriteString(fmt.Sprintf("- %s: sandbox=%q\n", k, sandboxVal))
+        default:
+            builder.WriteString(fmt.Sprintf("- %s: host=%q\n", k, hostVal))
+        }
+    }
+
+    return builder.String()
+}
+
+// internal/conversation/agent.go
+func New(config Config) *Agent {
+    agent := &Agent{
+        systemPrompts: append([]string{}, config.SystemPrompts...),
+        // ... existing fields ...
+    }
+
+    agent.systemPrompts = append(agent.systemPrompts, config.EnvironmentPrompt)
+    return agent
+}
+
+func (a *Agent) BootstrapEnvironmentPrompt(summary string) {
+    if summary == "" {
+        return
+    }
+    a.systemPrompts = append(a.systemPrompts, summary)
+}
+```
+
+The agent boot logic appends the formatted environment summary as a dedicated system prompt so every conversation reflects the
+currently captured host and sandbox metadata. The helper consolidates duplicate keys across environments, ensuring deterministic
+output for caching and tests.
 
 ---
 
@@ -1050,6 +1340,19 @@ func determineExecutionMode(config Config, processType string) tools.ExecutionMo
 
 4. **Q**: Should CLI support optional sandbox mode for testing?
    **A**: Yes, add `--sandbox` flag for advanced users (optional feature)
+
+---
+
+## TODO Checklist
+
+- [ ] Implement the `ExecutionMode` validation helper and ensure all constructors fail fast on invalid values.
+- [ ] Update the tool registry and DI wiring to propagate errors from `NewRegistry` instead of panicking.
+- [ ] Extend `SandboxManager` with the exported `HealthCheck` helper and ensure timeouts are expressed with `time.Duration`.
+- [ ] Guard sandbox-mode tool execution paths against missing managers and add corresponding unit tests.
+- [ ] Refresh integration tests to cover the new `Mode()` accessor used by diagnostics.
+- [ ] Document the health-check usage in server observability docs once implementation lands.
+- [ ] Wire up environment snapshots at startup (host + sandbox), inject them into the system prompt, and expose them through the diagnostics publisher.
+- [ ] Render the environment strip in the web header with `text-xs` styling and integration tests covering the banner.
 
 ---
 
