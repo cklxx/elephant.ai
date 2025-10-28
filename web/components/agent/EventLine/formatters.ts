@@ -38,35 +38,30 @@ export function formatContent(event: AnyAgentEvent): string {
   switch (event.event_type) {
     case 'user_task':
       if ('task' in event) {
-        return `👤 User: ${event.task}`;
+        return event.task;
       }
       return 'User task';
 
     case 'task_analysis':
       if ('action_name' in event) {
-        return `📋 ${event.action_name} - ${event.goal}`;
+        return `${event.action_name} - ${event.goal}`;
       }
       return 'Task analysis';
 
     case 'iteration_start':
       if ('iteration' in event) {
-        return `→ Iteration ${event.iteration}/${event.total_iters}`;
+        return `Iteration ${event.iteration}/${event.total_iters}`;
       }
       return 'Iteration started';
 
     case 'thinking':
-      if ('iteration' in event) {
-        return `💭 Thinking... (iteration ${event.iteration})`;
-      }
-      return '💭 Thinking...';
+      return 'Thinking...';
 
     case 'think_complete':
       if ('content' in event) {
-        const preview = event.content.slice(0, 100);
-        const suffix = event.content.length > 100 ? '...' : '';
-        return `✓ Response: ${preview}${suffix}`;
+        return event.content;
       }
-      return '✓ Response received';
+      return 'Response received';
 
     case 'tool_call_start':
       if ('tool_name' in event) {
@@ -145,7 +140,7 @@ export function formatContent(event: AnyAgentEvent): string {
  * Format timestamp for display
  * Returns HH:MM:SS format
  */
-export function formatTimestamp(timestamp: string | number): string {
+export function formatTimestamp(timestamp?: string | number): string {
   return new Date(timestamp || Date.now()).toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',

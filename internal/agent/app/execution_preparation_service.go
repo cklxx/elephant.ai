@@ -10,19 +10,19 @@ import (
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
-	LLMFactory      ports.LLMClientFactory
-	ToolRegistry    ports.ToolRegistry
-	SessionStore    ports.SessionStore
-	ContextMgr      ports.ContextManager
-	Parser          ports.FunctionCallParser
-	PromptLoader    ports.PromptLoader
-	Config          Config
-	Logger          ports.Logger
-	Clock           ports.Clock
-	Analysis        *TaskAnalysisService
-	CostDecorator   *CostTrackingDecorator
-	PresetResolver  *PresetResolver // Optional: if nil, one will be created
-	EventEmitter    ports.EventListener
+	LLMFactory     ports.LLMClientFactory
+	ToolRegistry   ports.ToolRegistry
+	SessionStore   ports.SessionStore
+	ContextMgr     ports.ContextManager
+	Parser         ports.FunctionCallParser
+	PromptLoader   ports.PromptLoader
+	Config         Config
+	Logger         ports.Logger
+	Clock          ports.Clock
+	Analysis       *TaskAnalysisService
+	CostDecorator  *CostTrackingDecorator
+	PresetResolver *PresetResolver // Optional: if nil, one will be created
+	EventEmitter   ports.EventListener
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.

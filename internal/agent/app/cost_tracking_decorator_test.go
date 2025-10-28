@@ -519,8 +519,8 @@ func TestCostRecordFields(t *testing.T) {
 	}
 
 	// Verify cost calculation for gpt-4o
-	expectedInputCost := float64(100) / 1000.0 * 0.005  // $0.005 per 1K input tokens
-	expectedOutputCost := float64(50) / 1000.0 * 0.015  // $0.015 per 1K output tokens
+	expectedInputCost := float64(100) / 1000.0 * 0.005 // $0.005 per 1K input tokens
+	expectedOutputCost := float64(50) / 1000.0 * 0.015 // $0.015 per 1K output tokens
 	expectedTotalCost := expectedInputCost + expectedOutputCost
 
 	tolerance := 0.000001

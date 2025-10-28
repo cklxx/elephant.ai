@@ -21,14 +21,14 @@ import (
 // Style definitions for consistent terminal output
 var (
 	// Color styles
-	styleGray       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	styleGreen      = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
-	styleYellow     = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
-	styleBold       = lipgloss.NewStyle().Bold(true)
-	styleBoldGreen  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
-	styleBoldCyan   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
-	styleError      = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	styleSystem     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	styleGray      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	styleGreen     = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	styleYellow    = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	styleBold      = lipgloss.NewStyle().Bold(true)
+	styleBoldGreen = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
+	styleBoldCyan  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
+	styleError     = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	styleSystem    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	// Combined styles for elements
 	promptArrow = styleBoldGreen.Render(">")

@@ -184,19 +184,19 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				t.Errorf("Expected field %s in JSON, got: %s", tt.wantField, json)
 			}
 
-                        if _, ok := tt.event.(*domain.ToolCallStartEvent); ok {
-                                if strings.Contains(json, "sk-secret") || strings.Contains(json, "Bearer token-value") {
-                                        t.Errorf("Sensitive values should be redacted, got: %s", json)
-                                }
+			if _, ok := tt.event.(*domain.ToolCallStartEvent); ok {
+				if strings.Contains(json, "sk-secret") || strings.Contains(json, "Bearer token-value") {
+					t.Errorf("Sensitive values should be redacted, got: %s", json)
+				}
 
-                                if !strings.Contains(json, "arguments_preview") {
-                                        t.Errorf("Expected arguments_preview in serialized start event, got: %s", json)
-                                }
+				if !strings.Contains(json, "arguments_preview") {
+					t.Errorf("Expected arguments_preview in serialized start event, got: %s", json)
+				}
 
-                                if !strings.Contains(json, "command") {
-                                        t.Errorf("Expected sanitized command argument, got: %s", json)
-                                }
-                        }
+				if !strings.Contains(json, "command") {
+					t.Errorf("Expected sanitized command argument, got: %s", json)
+				}
+			}
 
 			// Check common fields
 			if !strings.Contains(json, "event_type") {

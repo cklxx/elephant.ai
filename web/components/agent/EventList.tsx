@@ -112,13 +112,6 @@ export function EventList({ events, isConnected }: EventListProps) {
         </div>
       </div>
 
-      {/* Active indicator */}
-      {isConnected && events.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Listening for events...</span>
-        </div>
-      )}
     </div>
   );
 }

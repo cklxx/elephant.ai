@@ -103,5 +103,10 @@ func (s *store) List(ctx context.Context) ([]string, error) {
 
 func (s *store) Delete(ctx context.Context, id string) error {
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
-	return os.Remove(path)
+	err := os.Remove(path)
+	// Ignore error if file doesn't exist - deletion goal achieved
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

@@ -2,22 +2,22 @@
 > alex-web@0.1.0 dev
 > next dev
 
-  ▲ Next.js 14.2.15
-  - Local:        http://localhost:3000
-  - Environments: .env.local, .env.development
-
- ✓ Starting...
- ✓ Ready in 2.6s
- ○ Compiling / ...
- ✓ Compiled / in 3.9s (649 modules)
- GET / 200 in 4203ms
- ✓ Compiled in 255ms (327 modules)
- ○ Compiling /conversation ...
- ✓ Compiled /conversation in 891ms (868 modules)
- GET /conversation 200 in 1058ms
- ✓ Compiled /_not-found in 256ms (871 modules)
- GET /.well-known/appspecific/com.chrome.devtools.json 404 in 385ms
- GET /conversation 200 in 80ms
- GET /.well-known/appspecific/com.chrome.devtools.json 404 in 49ms
- GET /conversation 200 in 65ms
- ✓ Compiled in 643ms (875 modules)
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+    at listenInCluster (node:net:1920:12)
+    at Server.listen (node:net:2008:7)
+    at /Users/bytedance/code/learn/Alex-Code/web/node_modules/next/dist/server/lib/start-server.js:280:16
+    at new Promise (<anonymous>)
+    at startServer (/Users/bytedance/code/learn/Alex-Code/web/node_modules/next/dist/server/lib/start-server.js:191:11)
+    at /Users/bytedance/code/learn/Alex-Code/web/node_modules/next/dist/server/lib/start-server.js:310:52
+    at Span.traceAsyncFn (/Users/bytedance/code/learn/Alex-Code/web/node_modules/next/dist/trace/trace.js:154:26)
+    at process.<anonymous> (/Users/bytedance/code/learn/Alex-Code/web/node_modules/next/dist/server/lib/start-server.js:310:35)
+    at process.emit (node:events:518:28) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3000
+}
+[?25h

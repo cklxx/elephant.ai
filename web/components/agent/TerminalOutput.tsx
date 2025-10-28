@@ -1,11 +1,15 @@
 'use client';
 
-import { ReactNode, useMemo } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
 import { ConnectionBanner } from './ConnectionBanner';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   Cpu,
   Info,
@@ -129,20 +133,15 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-6" data-testid="conversation-stream">
+    <div className="space-y-3 max-w-4xl" data-testid="conversation-stream">
       {activeAction && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
-          <span>{t('conversation.status.doing')}</span>
-          <span className="text-slate-500 normal-case tracking-normal">{activeAction.tool_name}</span>
+          <span>{activeAction.tool_name}</span>
         </div>
       )}
 
-      {toolSummaries.length > 0 && (
-        <SimpleToolSummaryList summaries={toolSummaries} t={t} locale={locale} />
-      )}
-
-      <div className="space-y-6" data-testid="conversation-events">
+      <div className="space-y-0" data-testid="conversation-events">
         {displayEvents.map((event, index) => (
           <EventLine
             key={`${event.event_type}-${index}`}
@@ -155,7 +154,7 @@ export function TerminalOutput({
       </div>
 
       {isConnected && displayEvents.length > 0 && (
-        <div className="flex items-center gap-2 pt-2 text-xs uppercase tracking-[0.3em] text-slate-400">
+        <div className="flex items-center gap-2 pt-1 text-xs text-slate-400">
           <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
           <span>{t('conversation.status.listening')}</span>
         </div>
@@ -253,6 +252,57 @@ function describeSandboxPolicy(
   }
 }
 
+// Collapsible tool call component
+function CollapsibleToolCall({ event }: { event: ToolCallStartDisplayEvent }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const timestamp = formatTimestamp(event.timestamp);
+  const hasResult = event.call_status === 'complete' && event.completion_result;
+  const hasError = event.call_status === 'error';
+
+  return (
+    <div className="flex gap-3 py-1" data-testid="event-line-tool">
+      <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
+        {timestamp}
+      </span>
+      <div className="flex-1 text-sm">
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors w-full text-left"
+        >
+          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+          <span className="font-mono">
+            {event.call_status === 'running' && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
+            {hasError && <span className="text-red-600">✗</span>}
+            {event.call_status === 'complete' && !hasError && <span className="text-emerald-600">✓</span>}
+            {' '}{event.tool_name}
+          </span>
+          {event.arguments_preview && (
+            <span className="text-xs text-slate-500">({event.arguments_preview})</span>
+          )}
+        </button>
+
+        {isExpanded && (hasResult || hasError) && (
+          <div className="mt-2 ml-6 space-y-2">
+            {hasError && event.completion_error && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                <div className="font-semibold mb-1">Error:</div>
+                <pre className="whitespace-pre-wrap">{event.completion_error}</pre>
+              </div>
+            )}
+            {hasResult && (
+              <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded p-2 max-h-60 overflow-y-auto">
+                <div className="font-semibold text-slate-600 mb-1">Result:</div>
+                <pre className="whitespace-pre-wrap">{formatResultPreview(event.completion_result)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Single event line component
 function EventLine({
   event,
@@ -265,15 +315,20 @@ function EventLine({
   locale: string;
   toolSummariesById: Map<string, ToolCallSummary>;
 }) {
+  // Handle tool calls with collapsible component
+  if (event.event_type === 'tool_call_start' || isToolCallStartDisplayEvent(event)) {
+    return <CollapsibleToolCall event={event as ToolCallStartDisplayEvent} />;
+  }
+
   if (event.event_type === 'user_task') {
     const timestamp = formatTimestamp(event.timestamp, locale);
     return (
-        <div className="flex justify-end" data-testid="event-line-user">
-          <div className="max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-normal text-slate-800 shadow-sm">
-            <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
-            <time className="mt-2 block text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
-              {timestamp}
-            </time>
+        <div className="flex gap-3 py-2" data-testid="event-line-user">
+          <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
+            {timestamp}
+          </span>
+          <div className="text-slate-700 font-semibold text-sm leading-normal flex-1 whitespace-pre-wrap">
+            {event.task}
           </div>
         </div>
     );
@@ -282,6 +337,16 @@ function EventLine({
   const timestamp = formatTimestamp(event.timestamp, locale);
   const category = getEventCategory(event);
   const presentation = describeEvent(event, t);
+
+  if (
+    !presentation.headline &&
+    !presentation.summary &&
+    !presentation.supplementary &&
+    !presentation.subheading
+  ) {
+    return null;
+  }
+
   const meta = EVENT_STYLE_META[category];
   const anchorId = getAnchorId(event);
 
@@ -300,7 +365,7 @@ function EventLine({
   return (
     <article
       className={cn(
-        'group relative max-w-3xl space-y-3 border-l border-slate-200/70 pl-5 text-slate-700',
+        'group relative max-w-3xl space-y-1.5 border-l border-slate-200/70 pl-3 text-slate-700',
         anchorId && 'timeline-anchor-target scroll-mt-28'
       )}
       data-testid={`event-line-${event.event_type}`}
@@ -311,26 +376,22 @@ function EventLine({
     >
       <span
         aria-hidden
-        className="absolute -left-[5px] top-3 h-2 w-2 rounded-full bg-slate-300"
+        className="absolute -left-[3px] top-2 h-1.5 w-1.5 rounded-full bg-slate-300"
       />
-      <div className="flex items-start gap-4">
-        <div className={cn('relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center', meta.iconTone)}>
-          <meta.icon className="h-4 w-4" />
+      <div className="flex items-start gap-2">
+        <div className={cn('relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center', meta.iconTone)}>
+          <meta.icon className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
-            <p className={cn('font-semibold leading-tight text-slate-900', meta.headline, headlineSize)}>
-              {presentation.headline}
-            </p>
-            <span
-              className={cn(
-                'text-[8px] font-semibold uppercase tracking-[0.3em] text-slate-400',
-                meta.pill
-              )}
-            >
-              {meta.label}
-            </span>
-            {presentation.status && <StatusBadge status={presentation.status} label={statusLabel} />}
+            {presentation.headline && (
+              <p className={cn('font-semibold leading-tight text-slate-900', meta.headline, headlineSize)}>
+                {presentation.headline}
+              </p>
+            )}
+            {presentation.status && !isToolCallStartDisplayEvent(event) && (
+              <StatusBadge status={presentation.status} label={statusLabel} />
+            )}
           </div>
           {presentation.subheading && (
             <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
@@ -341,9 +402,7 @@ function EventLine({
           {isToolCallStartDisplayEvent(event) ? (
             <ToolCallContent
               event={event}
-              statusLabel={statusLabel}
               t={t}
-              locale={locale}
               summary={toolSummariesById.get(event.call_id)}
             />
           ) : (
@@ -357,11 +416,15 @@ function EventLine({
             </>
           )}
 
-          {!isToolCallStartDisplayEvent(event) && <EventMetadata event={event} accentClass={meta.accent} />}
+          {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
+            <EventMetadata event={event} accentClass={meta.accent} />
+          )}
 
-          <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
-            {timestamp}
-          </time>
+          {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
+            <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
+              {timestamp}
+            </time>
+          )}
         </div>
       </div>
     </article>
@@ -370,15 +433,11 @@ function EventLine({
 
 function ToolCallContent({
   event,
-  statusLabel,
   t,
-  locale,
   summary,
 }: {
   event: ToolCallStartDisplayEvent;
-  statusLabel?: string;
   t: (key: TranslationKey, params?: TranslationParams) => string;
-  locale: string;
   summary?: ToolCallSummary;
 }) {
   const effectiveStatus = summary?.status
@@ -388,67 +447,28 @@ function ToolCallContent({
         ? 'completed'
         : 'running');
 
-  const statusText =
-    effectiveStatus === 'running'
-      ? t('conversation.status.doing')
-      : effectiveStatus === 'error'
-        ? t('conversation.status.failed')
-        : t('conversation.status.completed');
-
-  const durationLabel = summary?.durationMs
-    ? formatDuration(summary.durationMs)
-    : event.completion_duration
-      ? formatDuration(event.completion_duration)
-      : null;
-
-  const timestampLabel = summary?.completedAt
-    ? formatTimestamp(summary.completedAt, locale)
-    : formatTimestamp(event.timestamp, locale);
-
-  const argsPreview = summary?.argumentsPreview ?? formatArgumentsPreview(event.arguments_preview ?? event.arguments);
+  const isError = effectiveStatus === 'error';
   const resultPreview = summary?.resultPreview ?? formatResultPreview(event.completion_result);
   const errorText = summary?.errorMessage ?? event.completion_error;
 
+  if (!resultPreview && !errorText) {
+    return null;
+  }
+
   return (
-    <div className="space-y-2 text-[9px] leading-relaxed text-slate-600">
-      <p className="font-semibold text-slate-700">
-        {event.tool_name} · {statusText}
-        {durationLabel ? ` · ${durationLabel}` : ''}
-      </p>
-      <p className="text-[8px] uppercase tracking-[0.3em] text-slate-400">{timestampLabel}</p>
-      {statusLabel && (
-        <p className="text-[8px] uppercase tracking-[0.3em] text-slate-500">{statusLabel}</p>
-      )}
-      {argsPreview && (
-        <p>
-          <span className="font-semibold uppercase tracking-[0.25em] text-slate-500">
-            {t('conversation.tool.timeline.arguments')}:
-          </span>{' '}
-          <span>{argsPreview}</span>
-        </p>
-      )}
+    <div className="space-y-3 text-slate-700">
       {resultPreview && (
-        <p>
-          <span className="font-semibold uppercase tracking-[0.25em] text-slate-500">
-            {t('conversation.tool.timeline.result', { tool: event.tool_name })}:
-          </span>{' '}
-          <span>{resultPreview}</span>
-        </p>
+        <div className="rounded-md border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 sm:text-base">
+            {resultPreview}
+          </pre>
+        </div>
       )}
-      {errorText && (
-        <p className="text-destructive">
-          <span className="font-semibold uppercase tracking-[0.25em] text-destructive">
-            {t('conversation.tool.timeline.errorOutput')}:
-          </span>{' '}
-          <span>{errorText}</span>
-        </p>
+      {errorText && isError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+          <pre className="whitespace-pre-wrap text-sm leading-relaxed sm:text-base">{errorText}</pre>
+        </div>
       )}
-      {summary?.requiresSandbox && (
-        <p className="text-[8px] uppercase tracking-[0.25em] text-slate-400">
-          {t('conversation.environment.sandbox.inlineNotice')}
-        </p>
-      )}
-      <EventMetadata event={event} accentClass="text-slate-400" />
     </div>
   );
 }
@@ -486,29 +506,21 @@ function getAnchorId(event: DisplayEvent): string | null {
  */
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
   switch (event.event_type) {
-    // Skip all system iteration events - too noisy
-    case 'iteration_start':
-    case 'iteration_complete':
-      return true;
-
-    // Skip task analysis - just internal planning
-    case 'task_analysis':
-      return true;
-
-    // Skip connected event - just connection status
-    case 'connected':
-      return true;
-
-    // Keep these events for now to debug:
-    // - thinking/think_complete: Show what agent is thinking
-    // - user_task: User's input (important to show what was asked)
-    // - tool_call_start/complete: Tool execution results (actual work being done)
-    // - task_complete: Final answer (the result)
-    // - error: Errors (problems user needs to know about)
-    // - research_plan/step_*: Research workflow milestones
-
-    default:
+    // Show user input
+    case 'user_task':
+    // Show thinking process
+    case 'thinking':
+    case 'think_complete':
+    // Show task completion
+    case 'task_complete':
+    // Allow tool calls for aggregation (needed for loading tip)
+    case 'tool_call_start':
+    case 'tool_call_complete':
+    case 'tool_call_stream':
       return false;
+    // Skip everything else
+    default:
+      return true;
   }
 }
 
@@ -539,7 +551,7 @@ function getEventCategory(event: DisplayEvent): EventCategory {
 type EventStatus = 'success' | 'warning' | 'danger' | 'info' | 'pending';
 
 interface EventPresentation {
-  headline: string;
+  headline?: string;
   subheading?: string;
   summary?: ReactNode;
   supplementary?: ReactNode;
@@ -601,11 +613,11 @@ const EVENT_STYLE_META: Record<
 };
 
 const HEADLINE_SIZES: Record<EventCategory, string> = {
-  conversation: 'text-xl sm:text-2xl',
-  plan: 'text-lg sm:text-xl',
-  tools: 'text-sm sm:text-base',
-  system: 'text-base sm:text-lg',
-  other: 'text-base',
+  conversation: 'text-base sm:text-lg',
+  plan: 'text-sm sm:text-base',
+  tools: 'text-xs sm:text-sm',
+  system: 'text-sm',
+  other: 'text-sm',
 };
 
 function describeEvent(
@@ -638,22 +650,43 @@ function describeEvent(
       };
 
     case 'thinking':
-      return {
-        headline: 'Model Thinking',
-        subheading: `Iteration ${event.iteration}`,
-        summary: `Streaming response chunk ${event.message_count}`,
-      };
+      return {};
 
     case 'think_complete':
       return {
-        headline: 'Response Ready',
-        subheading: `Iteration ${event.iteration}`,
         supplementary: (
-          <ContentBlock title="Model Response">
-            <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
+          <div className="prose prose-slate max-w-none text-slate-900 leading-relaxed">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code: ({ node, inline, className, children, ...props }) => {
+                  if (inline) {
+                    return (
+                      <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+                  return (
+                    <code className="block bg-slate-50 text-slate-800 p-4 rounded-md overflow-x-auto font-mono text-sm leading-relaxed border border-slate-200" {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                pre: ({ children }) => <div className="my-4">{children}</div>,
+                p: ({ children }) => <p className="mb-4 leading-relaxed">{children}</p>,
+                ul: ({ children }) => <ul className="mb-4 space-y-2 leading-relaxed">{children}</ul>,
+                ol: ({ children }) => <ol className="mb-4 space-y-2 leading-relaxed">{children}</ol>,
+                li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-5 leading-tight">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-lg font-bold mb-2 mt-4 leading-tight">{children}</h3>,
+                strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
+              }}
+            >
               {event.content}
-            </pre>
-          </ContentBlock>
+            </ReactMarkdown>
+          </div>
         ),
       };
 
@@ -674,21 +707,7 @@ function describeEvent(
     }
 
     case 'tool_call_complete':
-      return {
-        headline: event.error ? `${event.tool_name} Failed` : `${event.tool_name} Completed`,
-        subheading: `Call ${event.call_id} • ${formatDuration(event.duration)}`,
-        status: event.error ? 'danger' : 'success',
-        summary: event.error ? event.error : formatResultPreview(event.result),
-        supplementary: (
-          <ToolResult
-            callId={event.call_id}
-            result={event.result}
-            error={event.error}
-            toolName={event.tool_name}
-            t={t}
-          />
-        ),
-      };
+      return {};
 
     case 'iteration_complete':
       return {
@@ -699,16 +718,12 @@ function describeEvent(
 
     case 'task_complete':
       return {
-        headline: 'Task Complete',
-        subheading: `Duration ${formatDuration(event.duration)} • ${event.total_iterations} iterations`,
-        status: 'success',
-        supplementary: (
-          <ContentBlock title="Final Answer" scrollable={false}>
-            <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
-              {event.final_answer}
-            </pre>
-          </ContentBlock>
-        ),
+        headline: 'Final Result',
+        supplementary: event.final_answer ? (
+          <div className="prose prose-sm max-w-none text-slate-700">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.final_answer}</ReactMarkdown>
+          </div>
+        ) : undefined,
       };
 
     case 'error':
@@ -840,79 +855,6 @@ function getEventMetadata(event: DisplayEvent): Array<{ label: string; value: st
   }
 }
 
-function ToolArguments({
-  args,
-  callId,
-  t,
-}: {
-  args?: Record<string, any> | string;
-  callId: string;
-  t: (key: TranslationKey, params?: TranslationParams) => string;
-}) {
-  if (!args || (typeof args === 'object' && Object.keys(args).length === 0)) {
-    return null;
-  }
-
-  const formatted = typeof args === 'string' ? args : JSON.stringify(args, null, 2);
-
-  return (
-    <ContentBlock
-      title={t('conversation.tool.timeline.arguments')}
-      tone="emerald"
-      dataTestId={`tool-call-arguments-${callId}`}
-      variant="compact"
-    >
-      <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-current sm:text-[9px]">
-        {formatted}
-      </pre>
-    </ContentBlock>
-  );
-}
-
-function ToolResult({
-  result,
-  error,
-  callId,
-  toolName,
-  t,
-}: {
-  result: any;
-  error?: string;
-  callId: string;
-  toolName: string;
-  t: (key: TranslationKey, params?: TranslationParams) => string;
-}) {
-  if (error) {
-    return (
-      <ContentBlock
-        title={t('conversation.tool.timeline.errorOutput')}
-        tone="destructive"
-        dataTestId={`tool-call-result-${callId}`}
-        variant="compact"
-      >
-        <p className="text-[8px] font-medium text-destructive dark:text-destructive/80 sm:text-[9px]">{error}</p>
-      </ContentBlock>
-    );
-  }
-
-  if (!result) return null;
-
-  const formatted = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-
-  return (
-    <ContentBlock
-      title={t('conversation.tool.timeline.result', { tool: toolName })}
-      tone="emerald"
-      dataTestId={`tool-call-result-${callId}`}
-      variant="compact"
-    >
-      <pre className="whitespace-pre-wrap font-mono text-[7px] leading-snug text-current sm:text-[8px]">
-        {formatted}
-      </pre>
-    </ContentBlock>
-  );
-}
-
 function ContentBlock({
   title,
   children,
@@ -1019,9 +961,15 @@ function formatTimestamp(timestamp?: string, locale = 'en-US') {
   });
 }
 
-function formatHeadline(value: string) {
-  return value
+function formatHeadline(value?: string) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return 'Event';
+  }
+
+  return normalized
     .split('_')
+    .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 }

@@ -8,21 +8,21 @@ import { AnyAgentEvent } from '@/lib/types';
  * Uses the research console design system color palette
  */
 const EVENT_STYLE_MAP: Record<string, string> = {
-  user_task: 'text-primary font-semibold',
-  task_analysis: 'text-primary',
-  task_complete: 'text-emerald-600 font-semibold',
-  error: 'text-destructive font-semibold',
-  research_plan: 'text-primary',
-  tool_call_start: 'text-primary',
-  tool_call_complete: 'text-primary',
-  thinking: 'text-muted-foreground',
-  think_complete: 'text-muted-foreground',
-  step_started: 'text-primary',
-  step_completed: 'text-emerald-600 font-medium',
-  iteration_start: 'text-muted-foreground',
-  iteration_complete: 'text-muted-foreground',
-  tool_call_stream: 'text-primary',
-  browser_snapshot: 'text-primary',
+  user_task: 'text-slate-700 font-semibold',
+  task_analysis: 'text-slate-700',
+  task_complete: 'text-emerald-700 font-semibold',
+  error: 'text-red-600 font-semibold',
+  research_plan: 'text-slate-700',
+  tool_call_start: 'text-slate-700',
+  tool_call_complete: 'text-slate-700',
+  thinking: 'text-slate-500 italic',
+  think_complete: 'text-slate-900',
+  step_started: 'text-slate-700',
+  step_completed: 'text-emerald-700 font-medium',
+  iteration_start: 'text-slate-500',
+  iteration_complete: 'text-slate-500',
+  tool_call_stream: 'text-slate-700',
+  browser_snapshot: 'text-slate-700',
 };
 
 /**

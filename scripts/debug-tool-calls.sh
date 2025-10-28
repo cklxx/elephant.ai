@@ -8,6 +8,13 @@ set -e
 echo "🔧 工具调用问题诊断脚本"
 echo "=========================="
 
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+export GOMODCACHE="${PROJECT_ROOT}/.cache/go/pkg/mod"
+export GOCACHE="${PROJECT_ROOT}/.cache/go/build"
+mkdir -p "${GOMODCACHE}" "${GOCACHE}"
+
 # 检查Go环境
 if ! command -v go &> /dev/null; then
     echo "❌ Go环境未安装"
@@ -17,8 +24,8 @@ fi
 echo "✅ Go环境检查通过"
 
 # 编译项目
-echo "🔄 编译项目..."
-go build -o alex-debug ./cmd
+echo "🔄 编译 alex CLI..."
+go build -o alex-debug ./cmd/alex
 
 if [ $? -ne 0 ]; then
     echo "❌ 编译失败"
