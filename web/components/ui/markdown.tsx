@@ -1,8 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import "@uiw/react-markdown-preview/markdown.css";
-
 import MarkdownPreview from "@uiw/react-markdown-preview";
 import remarkGfm from "remark-gfm";
 import { Highlight, Language, themes } from "prism-react-renderer";
