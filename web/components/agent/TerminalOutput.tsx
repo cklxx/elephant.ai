@@ -24,7 +24,7 @@ interface TerminalOutputProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
-  toolSummaries: ToolCallSummary[];
+  toolSummaries?: ToolCallSummary[];
 }
 
 type DisplayEvent = AnyAgentEvent | ToolCallStartDisplayEvent;
@@ -48,7 +48,7 @@ export function TerminalOutput({
   error,
   reconnectAttempts,
   onReconnect,
-  toolSummaries,
+  toolSummaries = [],
 }: TerminalOutputProps) {
   const { t, language } = useI18n();
   const locale = getLanguageLocale(language);
