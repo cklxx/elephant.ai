@@ -9,7 +9,6 @@ import { useTaskExecution } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { TranslationKey, useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Check, Pencil, Pin, X } from 'lucide-react';
@@ -427,9 +426,6 @@ function ConversationPageContent() {
                       ? t('conversation.header.active', { id: sessionBadge ?? '' })
                       : t('conversation.header.idle')}
                   </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <LanguageSwitcher variant="toolbar" showLabel={false} />
                 </div>
               </div>
 

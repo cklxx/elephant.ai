@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { ArrowRight, MessageSquare, Sparkles } from 'lucide-react';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { TranslationKey, useI18n } from '@/lib/i18n';
 
 const highlightIcons = {
@@ -54,7 +53,6 @@ function HomeContent() {
           <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500 shadow-sm">
             {t('console.brand')}
           </span>
-          <LanguageSwitcher variant="toolbar" showLabel />
         </header>
 
         <section className="mt-16 grid gap-12 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 export default function SessionsPage() {
   const { t } = useI18n();
@@ -22,7 +21,6 @@ export default function SessionsPage() {
                   <h1 className="text-3xl font-semibold text-slate-900">{t('sessions.title')}</h1>
                   <p className="mt-1 text-sm text-slate-500">{t('sessions.description')}</p>
                 </div>
-                <LanguageSwitcher variant="toolbar" />
               </div>
               <Link href="/" className="inline-flex w-full sm:w-auto">
                 <Button className="w-full rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600 sm:w-auto">
