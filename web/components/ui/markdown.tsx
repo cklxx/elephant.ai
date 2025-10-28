@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
-import "@uiw/react-markdown-preview/dist/markdown.css";
+import "@uiw/react-markdown-preview/markdown.css";
 
 import MarkdownPreview from "@uiw/react-markdown-preview";
 import remarkGfm from "remark-gfm";
@@ -10,6 +11,15 @@ import { ComponentType } from "react";
 
 type MarkdownRendererProps = {
   content: string;
+  /**
+   * Optional classes applied to the rendered markdown container. This is
+   * typically where padding or layout adjustments should live.
+   */
+  containerClassName?: string;
+  /**
+   * Optional classes applied to the markdown content itself. Use this for
+   * typography utilities such as `prose` modifiers.
+   */
   className?: string;
   showLineNumbers?: boolean;
   components?: Record<string, ComponentType<any>>;
@@ -17,6 +27,7 @@ type MarkdownRendererProps = {
 
 export function MarkdownRenderer({
   content,
+  containerClassName,
   className,
   showLineNumbers = false,
   components,
@@ -38,16 +49,24 @@ export function MarkdownRenderer({
     }
 
     return (
-      <Highlight theme={themes.vsDark} code={String(children).replace(/\n$/, "")} language={language}>
+      <Highlight
+        theme={themes.vsDark}
+        code={String(children).replace(/\n$/, "")}
+        language={language}
+      >
         {({ className: resolvedClassName, style, tokens, getLineProps, getTokenProps }) => (
-          <pre className={cn(resolvedClassName, "rounded-lg overflow-auto border border-border bg-gray-950/95")}
-               style={style}
-               {...props}
+          <pre
+            className={cn(
+              resolvedClassName,
+              "markdown-code-block rounded-xl border border-border bg-gray-950/95 p-4 text-sm leading-relaxed text-gray-100 shadow-sm",
+            )}
+            style={style}
+            {...props}
           >
             {tokens.map((line, index) => (
               <div key={index} {...getLineProps({ line })}>
                 {showLineNumbers && (
-                  <span className="inline-block w-8 select-none text-right pr-3 text-xs text-gray-500">
+                  <span className="inline-block w-10 select-none text-right pr-4 text-xs text-gray-500">
                     {index + 1}
                   </span>
                 )}
@@ -62,7 +81,60 @@ export function MarkdownRenderer({
     );
   };
 
+  const defaultComponents: Record<string, ComponentType<any>> = {
+    hr: (props: any) => <hr className="my-6 border-border" {...props} />,
+    a: ({ className: linkClassName, ...props }: any) => (
+      <a
+        className={cn(
+          "text-primary underline decoration-2 underline-offset-4 transition-colors hover:text-primary/80",
+          linkClassName,
+        )}
+        {...props}
+      />
+    ),
+    blockquote: ({ className: blockquoteClass, ...props }: any) => (
+      <blockquote
+        className={cn(
+          "border-l-4 border-primary/40 bg-primary/5 py-2 pl-4 pr-3 text-sm italic text-muted-foreground",
+          blockquoteClass,
+        )}
+        {...props}
+      />
+    ),
+    table: ({ className: tableClass, ...props }: any) => (
+      <div className="my-4 overflow-x-auto rounded-xl border border-border">
+        <table className={cn("w-full border-collapse text-sm", tableClass)} {...props} />
+      </div>
+    ),
+    th: ({ className: thClass, ...props }: any) => (
+      <th
+        className={cn(
+          "bg-muted/60 px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground",
+          thClass,
+        )}
+        {...props}
+      />
+    ),
+    td: ({ className: tdClass, ...props }: any) => (
+      <td className={cn("border-t border-border px-4 py-2 align-top text-sm", tdClass)} {...props} />
+    ),
+    ul: ({ className: ulClass, ...props }: any) => (
+      <ul className={cn("my-4 list-disc space-y-2 pl-6", ulClass)} {...props} />
+    ),
+    ol: ({ className: olClass, ...props }: any) => (
+      <ol className={cn("my-4 list-decimal space-y-2 pl-6", olClass)} {...props} />
+    ),
+    img: ({ className: imgClass, alt, ...props }: any) => (
+      <img
+        className={cn("my-4 rounded-lg border border-border shadow-sm", imgClass)}
+        alt={typeof alt === "string" ? alt : ""}
+        {...props}
+      />
+    ),
+  };
+
   const mergedComponents = {
+    ...defaultComponents,
     ...components,
   };
 
@@ -71,13 +143,15 @@ export function MarkdownRenderer({
   }
 
   return (
-    <MarkdownPreview
-      className={cn("prose prose-sm max-w-none text-foreground", className)}
-      source={content}
-      remarkPlugins={[remarkGfm]}
-      wrapperElement={{ "data-color-mode": "light" }}
-      components={mergedComponents as any}
-    />
+    <div className={cn("markdown-body", containerClassName)}>
+      <MarkdownPreview
+        className={cn("markdown-body__content prose prose-sm max-w-none text-foreground", className)}
+        source={content}
+        remarkPlugins={[remarkGfm]}
+        wrapperElement={{ "data-color-mode": "light" }}
+        components={mergedComponents as any}
+      />
+    </div>
   );
 }
 

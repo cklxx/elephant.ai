@@ -466,6 +466,37 @@
   @apply bg-gray-950 border-gray-800;
 }
 
+.markdown-body {
+  @apply text-foreground;
+}
+
+.markdown-body .markdown-body__content {
+  @apply max-w-none;
+}
+
+.markdown-body .wmde-markdown {
+  background: transparent !important;
+  color: inherit;
+  font-family: inherit;
+}
+
+.markdown-body .wmde-markdown p,
+.markdown-body .wmde-markdown li {
+  @apply leading-relaxed;
+}
+
+.markdown-body .markdown-body__content > :first-child {
+  @apply mt-0;
+}
+
+.markdown-body .markdown-body__content > :last-child {
+  @apply mb-0;
+}
+
+.markdown-body .markdown-code-block {
+  @apply font-mono;
+}
+
 /* ========================================================================
    LOADING/SKELETON STATES
    ======================================================================== */

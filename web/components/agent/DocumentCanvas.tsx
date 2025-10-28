@@ -230,17 +230,19 @@ function DocumentRenderer({
   showLineNumbers?: boolean;
   cleanMode?: boolean;
 }) {
-  const containerClass = cn(
-    "prose prose-sm max-w-none",
-    cleanMode && "prose-lg leading-relaxed",
-    !cleanMode && "px-4 py-3",
+  const typographyClass = cn(
+    "prose max-w-none text-foreground",
+    cleanMode ? "prose-lg leading-relaxed" : "prose-sm",
   );
+
+  const containerClass = cn(!cleanMode && "px-4 py-3");
 
   if (document.type === "markdown") {
     return (
       <MarkdownRenderer
         content={document.content}
-        className={containerClass}
+        containerClassName={containerClass}
+        className={typographyClass}
         showLineNumbers={showLineNumbers}
       />
     );
