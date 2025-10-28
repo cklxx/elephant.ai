@@ -55,6 +55,23 @@ function ConversationPageContent() {
     useMock: useMockStream,
   });
 
+  // Auto-set session name from first task_analysis event
+  const hasSetSessionNameRef = useRef(false);
+  useEffect(() => {
+    if (!resolvedSessionId || hasSetSessionNameRef.current) return;
+
+    const taskAnalysisEvent = events.find((e) => e.event_type === 'task_analysis');
+    if (taskAnalysisEvent && 'action_name' in taskAnalysisEvent) {
+      renameSession(resolvedSessionId, taskAnalysisEvent.action_name);
+      hasSetSessionNameRef.current = true;
+    }
+  }, [events, resolvedSessionId, renameSession]);
+
+  // Reset flag when session changes
+  useEffect(() => {
+    hasSetSessionNameRef.current = false;
+  }, [resolvedSessionId]);
+
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
     if (contentRef.current) {
