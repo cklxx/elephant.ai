@@ -1,392 +1,166 @@
 # ALEX
 
-Terminal-native AI programming agent
+Terminal-native AI programming agent built in Go with a modern web companion UI.
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Philosophy
+## Overview
 
-**Keep it simple and explicit—no new entities unless the problem demands it.**
+ALEX (Agile Light Easy Xpert) is a privacy-first coding copilot focused on terminal workflows. The Go backend drives a ReAct
+agent that can stream its reasoning, invoke a rich tool suite, persist context, and expose capabilities through a CLI, HTTP API,
+and a real-time web dashboard. The frontend (Next.js + Tailwind CSS) mirrors task execution and session history while staying
+synchronized via Server-Sent Events (SSE).
 
-ALEX embraces a hexagonal architecture with clear boundaries between the core domain, ports, and adapters. Every subsystem is designed to minimize accidental complexity so that contributors can focus on the essential behaviour of an AI coding agent.
+Key goals:
 
-## System Overview
+- Keep domain logic independent from delivery concerns with a layered, hexagonal architecture.
+- Provide first-class ergonomics for terminal users through an interactive TUI and CLI commands.
+- Support multiple LLM providers, cost tracking, Model Context Protocol (MCP) integrations, and reproducible evaluations.
 
-| Interface | Description |
+## Capabilities
+
+- **Terminal experience** – bubbletea-based TUI, session management, transcript export, and legacy non-TUI CLI support (`cmd/alex`).
+- **HTTP & SSE API** – streaming task execution, cancellation, health checks, and cost inspection (`cmd/alex-server`,
+  `internal/server`).
+- **Modern web dashboard** – Next.js 14 application with live SSE updates, task submission, and session history (`web/`).
+- **Tooling ecosystem** – 15+ built-in tools for file operations, shell execution, search, TODO management, reasoning helpers,
+  and web retrieval (`internal/tools/builtin`).
+- **MCP integration** – JSON-RPC 2.0 client, process supervisor, and registry for external MCP servers (`internal/mcp`).
+- **Session & memory** – compressed transcript storage, resumable sessions, and RAG pipelines for long-term recall
+  (`internal/session`, `internal/context`, `internal/rag`).
+- **Observability & cost controls** – Prometheus metrics, OpenTelemetry tracing, structured logging, per-session spend tracking,
+  and exportable cost reports (`internal/observability`, `internal/output`, `internal/storage`).
+- **Evaluation harness** – SWE-Bench runner, batch execution helpers, and reporting utilities (`evaluation/`).
+
+## Architecture
+
+ALEX keeps its core reasoning loop isolated from infrastructure via clear interfaces. Delivery layers (CLI, HTTP/SSE, web) call
+into application services that coordinate the agent, tools, and state management.
+
+### High-level components
+
+| Component | Description |
 |-----------|-------------|
-| CLI (TUI + legacy line mode) | Native terminal experience with streaming output, pane navigation, and session management. |
-| Web UI | Real-time interface backed by Server-Sent Events (SSE) for managing tasks, tools, and session history. |
-| HTTP API | Public endpoints for task submission, session control, and health checks. |
-
-Core services are written in Go with a modular toolkit, while the web interface is powered by a separate Node/React application.
-
-## Highlights
-
-- **Rich Interaction Modes**
-  - Terminal UI with panes for transcript, tool output, and subagents
-  - One-shot command execution from the shell
-  - Web dashboard that mirrors streaming events
-
-- **Tooling Ecosystem (15+ tools)**
-  - File operations, shell execution, search, git, reasoning, and web utilities
-  - "Think" and "subagent" helpers for complex multi-step tasks
-
-- **Model Flexibility**
-  - Providers: OpenAI, DeepSeek, OpenRouter, Ollama, and custom endpoints via configuration
-  - Configurable per-session presets for agent persona and tool access level (v0.6.0+)
-
-- **Operational Resilience**
-  - Persisted sessions with fork/resume support
-  - Task cancellation API with end-to-end propagation
-  - Structured logging, health checks, and cost tracking
-
-- **Observability (v0.6.0+)**
-  - Health endpoints for readiness/liveness
-  - Session cost isolation and live spend tracking
-  - Metrics around SSE broadcasting, context compression, and tool filtering
-
-## Architecture (2025 Q1 review)
-
-ALEX follows a hexagonal architecture that keeps domain logic independent from infrastructure concerns.
-
-```
-Domain (pure business logic)
-  ↓ depends on
-Ports (interfaces/contracts)
-  ↑ implemented by
-Adapters (infrastructure and delivery)
-```
+| `cmd/alex` | Entry point for the interactive CLI and terminal UI. Wires configuration, builds the DI container, and renders agent output. |
+| `cmd/alex-server` | Minimal binary exposing the HTTP + SSE API used by the web frontend and automations. |
+| `internal/agent` | Domain logic for the ReAct agent, presets, iteration orchestration, and typed events streamed to renderers. |
+| `internal/tools` | Built-in tool implementations and registry (`builtin/`), including safe wrappers for shell, file, search, and reasoning actions. |
+| `internal/llm` | Multi-provider clients with pricing metadata, retry logic, and cost decorators. |
+| `internal/mcp` | Model Context Protocol client, JSON-RPC transport, and tool adapters for external capability providers. |
+| `internal/session` | Persistent transcript storage (file-backed) with compression and indexing helpers. |
+| `internal/rag` | Chunking, embedding, retrieval, and store abstractions for retrieval-augmented workflows. |
+| `internal/output` | Renderers for CLI, SSE, and LLM-friendly output streams. |
+| `internal/observability` | Logging, metrics, tracing, and instrumentation configuration. |
+| `internal/config` | Loading, validation, and persistence for `~/.alex-config.json`, environment overrides, and feature flags. |
+| `internal/di` | Dependency injection container that builds and starts subsystems lazily based on configuration. |
+| `internal/server` | Application coordinators, HTTP handlers, and ports used by `alex-server`. |
+| `evaluation/` | SWE-Bench and agent benchmarking harnesses. |
+| `web/` | Next.js application providing the real-time dashboard. |
 
 ```
 internal/
-├── agent/
-│   ├── domain/       # core reasoning engine, tool formatter
-│   ├── app/          # coordinators and orchestrators
-│   └── ports/        # interfaces consumed by adapters
-├── llm/              # integrations for OpenAI, DeepSeek, Ollama, OpenRouter, etc.
-├── session/          # persistence, repositories, serialization
-├── tools/
-│   ├── builtin/      # file, shell, git, search, think, subagent tools
-│   └── registry.go   # tool registration and discovery
-└── server/           # HTTP/SSE server, handlers, routing
+├── agent/           # domain entities, application coordinators, and ports
+├── config/          # runtime configuration loaders and savers
+├── context/         # session-scoped context manager
+├── di/              # container wiring and feature flag toggles
+├── llm/             # provider clients, pricing, retry/cost middleware
+├── mcp/             # MCP client, registry, and JSON-RPC infrastructure
+├── observability/   # logging, metrics, tracing setup
+├── output/          # CLI + SSE renderers and formatting utilities
+├── rag/             # chunking, embedding, retrieval interfaces
+├── server/          # HTTP/SSE coordinators, handlers, and ports
+├── session/         # file-backed session persistence
+├── storage/         # cost tracking persistence adapters
+├── tools/           # builtin tool implementations & registry
+└── utils/           # shared helpers (paths, errors, validation)
 ```
 
-The latest architecture assessment prioritises work on cost isolation, cancellation propagation, lazy dependency injection, and deeper observability. See [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) for recommendations and roadmap notes.
+The dependency direction flows inward: delivery layers depend on `internal/agent` ports and coordinators, which depend on
+provider interfaces defined in `internal/agent/ports`. Infrastructure packages implement those interfaces and are registered
+via the DI container.
 
-## Installation
+Additional design documentation lives under `docs/architecture/` and `docs/reference/` for deeper context (architecture review,
+foundational components, MCP guide, etc.).
 
-### CLI via npm
+## Repository Layout
+
+| Path | Purpose |
+|------|---------|
+| `cmd/` | Go entrypoints (`alex`, `alex-server`). |
+| `internal/` | Core backend implementation (agent, tools, llm, session, observability, etc.). |
+| `evaluation/` | Benchmarks, SWE-Bench runner, and experiment tooling. |
+| `web/` | Next.js frontend with SSE dashboard and Playwright/Vitest tests. |
+| `docs/` | Architecture notes, ADRs, design specs, and operational guides. |
+| `tests/` | End-to-end and integration test suites (Go). |
+| `scripts/` | Developer and CI automation helpers. |
+| `npm/` | Pre-built binaries packaged for npm distribution. |
+
+## Getting Started
+
+### Prerequisites
+
+- Go **1.24+** (toolchain pinned in `go.mod`)
+- Node.js **20+** for the web UI (optional if using CLI only)
+- Docker (optional) for containerized deployment
+
+### Build and run the CLI
 
 ```bash
-npm install -g alex-code
+make build           # build ./alex
+./alex               # launch interactive TUI
+./alex --no-tui      # legacy line-mode CLI
+./alex session list  # inspect stored sessions
 ```
 
-### Build from source
+Configuration is stored in `~/.alex-config.json`. Use `./alex config show` to inspect, or export overrides via environment
+variables (e.g. `OPENAI_API_KEY`, `ALEX_ENABLE_MCP`).
+
+### Run the server + web dashboard
 
 ```bash
-git clone https://github.com/cklxx/Alex-Code.git
-cd Alex-Code
-make build
+make server-run                 # start alex-server on :8080
+(cd web && npm install)
+(cd web && npm run dev)         # start Next.js dev server on :3000
 ```
 
-Releases are published at [github.com/cklxx/Alex-Code/releases](https://github.com/cklxx/Alex-Code/releases).
+The server exposes:
 
-### Web Server + UI (Local Script)
+- `POST /api/tasks` – submit work to the agent (supports presets and MCP flags)
+- `POST /api/tasks/{id}/cancel` – cancel a running task
+- `GET /api/sessions/{id}/cost` – retrieve per-session spend
+- `GET /api/sse?session_id=<id>` – stream events for a session
+- `GET /health` – readiness and liveness checks
+
+### Docker Compose
 
 ```bash
-# Clone repository
-git clone https://github.com/cklxx/Alex-Code.git
-cd Alex-Code
-
-# Provide model credentials
-echo "OPENAI_API_KEY=sk-your-key" > .env
-
-# Start services (backend + web UI)
-./deploy.sh
-
-# Web UI available at http://localhost:3000
-# API available at http://localhost:8080
-
-# Stop services
-./deploy.sh down
+docker-compose up -d            # start Go backend + Next.js frontend
 ```
 
-Refer to [QUICKSTART_SSE.md](QUICKSTART_SSE.md) for detailed instructions on the streaming stack.
+Set credentials in `.env` (e.g. `OPENAI_API_KEY`, provider endpoints) before starting containers.
 
-## Usage
-
-### CLI (TUI)
+### Testing
 
 ```bash
-alex
+make test                       # run Go unit tests
+npm --prefix web test           # run Vitest suite for the web app
+npm --prefix web run test:e2e   # execute Playwright end-to-end tests
 ```
 
-Key bindings:
-
-- `Tab` / `Shift+Tab` — cycle focus between panes (transcript, stream, tools, subagents, MCP, input)
-- `PgUp` / `PgDn`, arrow keys — scroll focused pane; `End` jumps to live output
-- `?` — toggle the in-terminal help overlay
-- `/` — search within the focused pane; `n`/`N` navigates results
-
-Slash commands:
-
-- `/new` — start a fresh session
-- `/sessions` — list saved sessions (current session highlighted)
-- `/load <id>` — load a previous session
-- `/mcp [list|refresh|restart <name>]` — inspect or restart MCP servers
-- `/cost [session_id]` — print the latest spend totals
-- `/export [path]` — write the transcript to Markdown (default naming included)
-- `/follow <transcript|stream|both> <on|off|toggle>` — control auto-follow behaviour
-- `/verbose [on|off|toggle]` — adjust CLI verbosity
-- `/quit` — exit (equivalent to `Ctrl+C`)
-
-The Subagents pane highlights agent level, start/finish timestamps, and duration for each worker. The status bar displays live token totals and spend per model so you can monitor usage during long sessions.
-
-Enable the legacy line UI by launching:
+Evaluation jobs can be executed via:
 
 ```bash
-alex --no-tui
+./alex run-batch --dataset.subset lite --workers 4 --output ./results
 ```
 
-or setting `ALEX_NO_TUI=1` before running `alex`.
-
-### CLI Command Mode
-
-```bash
-alex "analyze this codebase"
-```
-
-Resume or list sessions:
-
-```bash
-alex -r <session_id> -i   # resume
-alex session list         # list all sessions
-```
-
-Starting the TUI with no arguments automatically restores the most recent session.
-
-### Web Server Mode
-
-Start the server:
-
-```bash
-# Scripted (launches backend + web UI)
-./deploy.sh
-
-# Manual fallback
-make server-run
-cd web && npm install
-npm run dev
-```
-
-Endpoints:
-
-- Web UI: http://localhost:3000
-- API: http://localhost:8080
-- SSE stream: http://localhost:8080/api/sse?session_id=<id>
-
-Sample API calls:
-
-```bash
-# Submit a task
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"task": "What is 2+2?", "session_id": "demo"}'
-
-# Submit with presets (v0.6.0+)
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-        "task": "Review code for security issues",
-        "agent_preset": "security-analyst",
-        "tool_preset": "read-only",
-        "session_id": "demo"
-      }'
-
-# Cancel a running task
-curl -X POST http://localhost:8080/api/tasks/task-abc123/cancel
-
-# Health check
-curl http://localhost:8080/health
-
-# Watch SSE events
-curl -N -H "Accept: text/event-stream" \
-  "http://localhost:8080/api/sse?session_id=demo"
-```
-
-## Configuration
-
-The first CLI launch creates `~/.alex-config.json`:
-
-```json
-{
-  "api_key": "sk-or-xxx",
-  "base_url": "https://openrouter.ai/api/v1",
-  "model": "deepseek/deepseek-chat-v3-0324:free"
-}
-```
-
-Override values with environment variables:
-
-```bash
-# LLM configuration
-export OPENAI_API_KEY="your-key"
-export OPENAI_BASE_URL="https://api.openai.com/v1"
-export OPENAI_MODEL="gpt-4"
-
-# CLI behaviour
-export ALEX_VERBOSE="1"
-export ALEX_TUI_FOLLOW_TRANSCRIPT="0"
-export ALEX_TUI_FOLLOW_STREAM="0"
-
-# Feature flags (v0.6.0+)
-export ALEX_ENABLE_MCP="true"
-```
-
-Persist defaults by setting `"follow_transcript"` and `"follow_stream"` inside `~/.alex-config.json`.
-
-### Feature Flags (v0.6.0+)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ALEX_ENABLE_MCP` | `true` | Toggle Model Context Protocol integration |
-
-Minimal configuration for offline/testing environments:
-
-```json
-{
-  "enable_mcp": false
-}
-```
-
-This allows development without external API dependencies.
-
-## Health & Observability
-
-### Health Checks
-
-```bash
-curl http://localhost:8080/health
-```
-
-Example response:
-
-```json
-{
-  "status": "healthy",
-  "components": [
-    {
-      "name": "llm_factory",
-      "status": "ready",
-      "message": "LLM factory initialized"
-    },
-    {
-      "name": "mcp",
-      "status": "ready",
-      "message": "MCP initialized with 3 servers, 12 tools registered"
-    }
-  ]
-}
-```
-
-Component status values:
-
-- `ready` — component is operational
-- `not_ready` — initializing or temporarily unavailable
-- `disabled` — turned off via configuration
-
-Use this endpoint for Kubernetes probes, load balancer checks, and monitoring pipelines.
-
-### Cost Tracking
-
-Each session tracks LLM spend separately and accumulates totals in real time.
-
-```bash
-alex session cost <session_id>
-```
-
-Or query via API:
-
-```bash
-curl http://localhost:8080/api/sessions/<session_id>/cost
-```
-
-### Task Cancellation
-
-Cancel running tasks gracefully:
-
-```bash
-curl -X POST http://localhost:8080/api/tasks/<task_id>/cancel
-```
-
-Cancellation signals propagate through the orchestrator, tooling layer, and LLM requests to ensure proper cleanup.
-
-### Metrics & Logging
-
-- Event broadcaster metrics track SSE connections and delivery rates
-- Context compression reports token reduction ratios
-- Tool filtering metrics surface preset-based access control decisions
-- Session lifecycle metrics reveal active sessions and completion rates
-
-Structured logging propagates session IDs and trace IDs with API key sanitisation. Enable verbose logging during development:
-
-```bash
-export ALEX_VERBOSE=1
-alex --verbose
-```
-
-## Development Workflow
-
-```bash
-make dev     # format, vet, build
-go test ./...  # run all Go tests
-```
-
-Focused test examples:
-
-```bash
-go test ./internal/agent/domain/ -v
-go test ./internal/tools/builtin/ -v
-```
-
-Release automation:
-
-```bash
-node scripts/update-version.js 0.x.x
-make release-npm
-```
-
-## Documentation Map
-
-### User Guides
-- [QUICKSTART_SSE.md](QUICKSTART_SSE.md) — Web UI quick start (≈3 minutes)
-- [DEPLOYMENT.md](DEPLOYMENT.md) — Production deployment
-- [CLAUDE.md](CLAUDE.md) — Claude Code integration
-- [docs/operations/README.md](docs/operations/README.md) — Operations & troubleshooting (v0.6.0)
-
-### Reference
-- [docs/reference/OBSERVABILITY.md](docs/reference/OBSERVABILITY.md) — Observability guide (v0.6.0)
-- [docs/reference/PRESET_QUICK_REFERENCE.md](docs/reference/PRESET_QUICK_REFERENCE.md) — Agent preset quick reference (v0.6.0)
-- [docs/reference/PRESET_SYSTEM_SUMMARY.md](docs/reference/PRESET_SYSTEM_SUMMARY.md) — Preset system internals (v0.6.0)
-- [docs/reference/MCP_GUIDE.md](docs/reference/MCP_GUIDE.md) — Model Context Protocol usage
-
-### Architecture & Design
-- [docs/analysis/base_flow_architecture_review.md](docs/analysis/base_flow_architecture_review.md) — 2025 Q1 architecture review
-- [docs/design/SSE_WEB_ARCHITECTURE.md](docs/design/SSE_WEB_ARCHITECTURE.md) — SSE web architecture
-- [SSE_IMPLEMENTATION_SUMMARY.md](SSE_IMPLEMENTATION_SUMMARY.md) — Implementation summary
-- [docs/architecture/](docs/architecture/) — System diagrams and notes
-
-### Development References
-- [internal/server/README.md](internal/server/README.md) — Server development guide
-- [web/README.md](web/README.md) — Frontend development guide
-- [evaluation/swe_bench/](evaluation/swe_bench/) — SWE-Bench evaluation suite
-
-## License
-
-MIT
-
----
-
-Built with Go · [github.com/cklxx/Alex-Code](https://github.com/cklxx/Alex-Code)
+## Further Reading
+
+- [`docs/reference/ALEX.md`](docs/reference/ALEX.md) – comprehensive project reference (architecture, development, operations).
+- [`docs/architecture/SPRINT_1-4_ARCHITECTURE.md`](docs/architecture/SPRINT_1-4_ARCHITECTURE.md) – architecture review and sprint outcomes.
+- [`web/README.md`](web/README.md) – details on the Next.js dashboard.
+- [`docs/reference/MCP_GUIDE.md`](docs/reference/MCP_GUIDE.md) – integrating external MCP tools.
+
+Contributions are welcome! Please check the docs and tests for guidance on extending tools, adding providers, or improving the
+TUI/web experiences.
