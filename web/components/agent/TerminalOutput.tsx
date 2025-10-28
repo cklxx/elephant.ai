@@ -1,8 +1,6 @@
 'use client';
 
 import { ReactNode, useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
 import { ConnectionBanner } from './ConnectionBanner';
 import {
@@ -20,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
 import { SandboxLevel, ToolCallSummary } from '@/lib/eventAggregation';
+import { MarkdownRenderer } from '@/components/ui/markdown';
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -655,38 +654,41 @@ function describeEvent(
     case 'think_complete':
       return {
         supplementary: (
-          <div className="prose prose-slate max-w-none text-slate-900 leading-relaxed">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code: ({ node, inline, className, children, ...props }) => {
-                  if (inline) {
-                    return (
-                      <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
-                        {children}
-                      </code>
-                    );
-                  }
+          <MarkdownRenderer
+            content={event.content}
+            className="prose prose-slate max-w-none text-slate-900 leading-relaxed"
+            components={{
+              code: ({ inline, className, children, ...props }: any) => {
+                if (inline) {
                   return (
-                    <code className="block bg-slate-50 text-slate-800 p-4 rounded-md overflow-x-auto font-mono text-sm leading-relaxed border border-slate-200" {...props}>
+                    <code
+                      className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono whitespace-nowrap"
+                      {...props}
+                    >
                       {children}
                     </code>
                   );
-                },
-                pre: ({ children }) => <div className="my-4">{children}</div>,
-                p: ({ children }) => <p className="mb-4 leading-relaxed">{children}</p>,
-                ul: ({ children }) => <ul className="mb-4 space-y-2 leading-relaxed">{children}</ul>,
-                ol: ({ children }) => <ol className="mb-4 space-y-2 leading-relaxed">{children}</ol>,
-                li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-5 leading-tight">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-lg font-bold mb-2 mt-4 leading-tight">{children}</h3>,
-                strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
-              }}
-            >
-              {event.content}
-            </ReactMarkdown>
-          </div>
+                }
+                return (
+                  <code
+                    className="block bg-slate-50 text-slate-800 p-4 rounded-md overflow-x-auto font-mono text-sm leading-relaxed border border-slate-200"
+                    {...props}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+              pre: ({ children }: any) => <div className="my-4">{children}</div>,
+              p: ({ children }: any) => <p className="mb-4 leading-relaxed">{children}</p>,
+              ul: ({ children }: any) => <ul className="mb-4 space-y-2 leading-relaxed">{children}</ul>,
+              ol: ({ children }: any) => <ol className="mb-4 space-y-2 leading-relaxed">{children}</ol>,
+              li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
+              h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight">{children}</h1>,
+              h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5 leading-tight">{children}</h2>,
+              h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4 leading-tight">{children}</h3>,
+              strong: ({ children }: any) => <strong className="font-bold text-slate-900">{children}</strong>,
+            }}
+          />
         ),
       };
 
@@ -720,9 +722,10 @@ function describeEvent(
       return {
         headline: 'Final Result',
         supplementary: event.final_answer ? (
-          <div className="prose prose-sm max-w-none text-slate-700">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.final_answer}</ReactMarkdown>
-          </div>
+          <MarkdownRenderer
+            content={event.final_answer}
+            className="prose prose-sm max-w-none text-slate-700"
+          />
         ) : undefined,
       };
 
