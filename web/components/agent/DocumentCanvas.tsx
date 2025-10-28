@@ -14,9 +14,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Highlight, themes, Language } from "prism-react-renderer";
+import { MarkdownRenderer } from "@/components/ui/markdown";
 
 export type ViewMode = "default" | "reading" | "compare";
 
@@ -231,73 +230,21 @@ function DocumentRenderer({
   showLineNumbers?: boolean;
   cleanMode?: boolean;
 }) {
-  const containerClass = cn(
-    "prose prose-sm max-w-none",
-    cleanMode && "prose-lg leading-relaxed",
-    !cleanMode && "px-4 py-3",
+  const typographyClass = cn(
+    "prose max-w-none text-foreground",
+    cleanMode ? "prose-lg leading-relaxed" : "prose-sm",
   );
+
+  const containerClass = cn(!cleanMode && "px-4 py-3");
 
   if (document.type === "markdown") {
     return (
-      <div className={containerClass}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            code({ node, className, children, ...props }: any) {
-              const match = /language-(\w+)/.exec(className || "");
-              const language = match ? match[1] : "text";
-              const inline = !className; // Inline code doesn't have language class
-
-              if (inline) {
-                return (
-                  <code
-                    className="bg-gray-100 text-gray-900 px-1.5 py-0.5 rounded text-sm font-mono"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              }
-
-              return (
-                <Highlight
-                  theme={themes.vsDark}
-                  code={String(children).replace(/\n$/, "")}
-                  language={language as Language}
-                >
-                  {({
-                    className,
-                    style,
-                    tokens,
-                    getLineProps,
-                    getTokenProps,
-                  }) => (
-                    <pre
-                      className={cn(className, "rounded-lg overflow-auto")}
-                      style={style}
-                    >
-                      {tokens.map((line, i) => (
-                        <div key={i} {...getLineProps({ line })}>
-                          {showLineNumbers && (
-                            <span className="inline-block w-8 text-gray-500 select-none text-right pr-3">
-                              {i + 1}
-                            </span>
-                          )}
-                          {line.map((token, key) => (
-                            <span key={key} {...getTokenProps({ token })} />
-                          ))}
-                        </div>
-                      ))}
-                    </pre>
-                  )}
-                </Highlight>
-              );
-            },
-          }}
-        >
-          {document.content}
-        </ReactMarkdown>
-      </div>
+      <MarkdownRenderer
+        content={document.content}
+        containerClassName={containerClass}
+        className={typographyClass}
+        showLineNumbers={showLineNumbers}
+      />
     );
   }
 

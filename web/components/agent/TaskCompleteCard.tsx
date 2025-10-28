@@ -3,9 +3,8 @@
 import { TaskCompleteEvent } from '@/lib/types';
 import { CheckCircle2 } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useTranslation } from '@/lib/i18n';
+import { MarkdownRenderer } from '@/components/ui/markdown';
 
 interface TaskCompleteCardProps {
   event: TaskCompleteEvent;
@@ -54,9 +53,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           {t('events.taskComplete.finalAnswer')}
         </p>
         {event.final_answer ? (
-          <div className="prose prose-sm max-w-none text-slate-700">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.final_answer}</ReactMarkdown>
-          </div>
+          <MarkdownRenderer
+            content={event.final_answer}
+            className="prose prose-sm max-w-none text-slate-700"
+          />
         ) : (
           <p className="text-sm text-slate-500">{t('events.taskComplete.empty')}</p>
         )}
