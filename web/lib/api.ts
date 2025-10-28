@@ -47,6 +47,11 @@ async function fetchAPI<T>(
       );
     }
 
+    // Handle 204 No Content and other responses without body
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return undefined as T;
+    }
+
     return await response.json();
   } catch (error) {
     if (error instanceof APIError) {

@@ -72,7 +72,7 @@ export function VirtualizedEventList({
       isAutoScrollingRef.current = true;
       virtualizer.scrollToIndex(events.length - 1, {
         align: 'end',
-        behavior,
+        behavior: behavior as 'auto' | 'smooth' | undefined,
       });
 
       const timeout = setTimeout(() => {

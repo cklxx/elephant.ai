@@ -39,13 +39,13 @@ export const EventLine = React.memo(function EventLine({ event }: EventLineProps
   const style = getEventStyle(event);
 
   return (
-    <div className="flex gap-3 group hover:bg-muted/30 -mx-2 px-2 py-1 rounded transition-colors">
-      <span className="text-muted-foreground/50 flex-shrink-0 select-none">
+    <div className="flex gap-3 group hover:bg-slate-50/50 -mx-2 px-2 py-2 rounded transition-colors">
+      <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
         {timestamp}
       </span>
-      <span className={style}>
+      <div className={`${style} text-sm leading-normal flex-1 whitespace-pre-wrap`}>
         {content}
-      </span>
+      </div>
     </div>
   );
 });
