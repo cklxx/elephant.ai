@@ -7,9 +7,6 @@ export type Language = 'en';
 const translations = {
   en: {
     'app.loading': 'Loading console…',
-    'language.label': 'Language',
-    'language.option.en': 'English',
-    'language.option.en.short': 'EN',
     'timeline.label': 'Execution timeline',
     'timeline.waiting': 'Waiting for execution to begin',
     'timeline.status.inProgress': 'In progress: {title}',
