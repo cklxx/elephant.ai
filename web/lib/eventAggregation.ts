@@ -17,6 +17,8 @@ export interface AggregatedToolCall {
   result?: string;
   error?: string;
   duration?: number;
+  completed_at?: string;
+  last_stream_at?: string;
   timestamp: string;
   iteration: number;
 }
@@ -89,6 +91,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
       if (existing) {
         existing.status = 'streaming';
         existing.stream_chunks.push(streamEvent.chunk);
+        existing.last_stream_at = streamEvent.timestamp;
       }
     } else if (event.event_type === 'tool_call_complete') {
       const completeEvent = event as ToolCallCompleteEvent;
@@ -98,6 +101,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
         existing.result = completeEvent.result;
         existing.error = completeEvent.error;
         existing.duration = completeEvent.duration;
+        existing.completed_at = completeEvent.timestamp;
       } else {
         // Handle case where complete arrives before start
         toolCallMap.set(completeEvent.call_id, {
@@ -111,6 +115,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
           result: completeEvent.result,
           error: completeEvent.error,
           duration: completeEvent.duration,
+          completed_at: completeEvent.timestamp,
           timestamp: completeEvent.timestamp,
           iteration: 0, // Unknown iteration
         });
@@ -119,6 +124,97 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
   }
 
   return toolCallMap;
+}
+
+export type SandboxLevel = 'standard' | 'filesystem' | 'system';
+
+export interface ToolCallSummary {
+  callId: string;
+  toolName: string;
+  status: 'running' | 'completed' | 'error';
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  argumentsPreview?: string;
+  resultPreview?: string;
+  errorMessage?: string;
+  requiresSandbox: boolean;
+  sandboxLevel: SandboxLevel;
+}
+
+export const FILE_TOOL_HINTS = ['file', 'fs', 'write', 'read', 'download', 'upload'];
+export const SYSTEM_TOOL_HINTS = ['shell', 'bash', 'system', 'process', 'exec', 'command'];
+
+function truncatePreview(value: string, length: number) {
+  if (value.length <= length) {
+    return value;
+  }
+  return `${value.slice(0, length)}…`;
+}
+
+function buildArgumentsPreview(args: Record<string, any> | undefined, fallback?: string) {
+  if (fallback) {
+    return fallback;
+  }
+  if (!args) {
+    return undefined;
+  }
+  const entries = Object.entries(args).map(([key, value]) => `${key}: ${String(value)}`);
+  if (entries.length === 0) {
+    return undefined;
+  }
+  return truncatePreview(entries.join(', '), 140);
+}
+
+function buildResultPreview(result: string | undefined) {
+  if (!result) {
+    return undefined;
+  }
+  return truncatePreview(result, 160);
+}
+
+function inferSandboxLevel(toolName: string): SandboxLevel {
+  const normalized = toolName.toLowerCase();
+
+  if (SYSTEM_TOOL_HINTS.some((hint) => normalized.includes(hint))) {
+    return 'system';
+  }
+
+  if (FILE_TOOL_HINTS.some((hint) => normalized.includes(hint))) {
+    return 'filesystem';
+  }
+
+  return 'standard';
+}
+
+export function buildToolCallSummaries(events: AnyAgentEvent[]): ToolCallSummary[] {
+  const aggregated = Array.from(aggregateToolCalls(events).values());
+  const sorted = aggregated.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+
+  return sorted.map((call) => {
+    const status: ToolCallSummary['status'] =
+      call.status === 'error'
+        ? 'error'
+        : call.status === 'complete'
+          ? 'completed'
+          : 'running';
+
+    const sandboxLevel = inferSandboxLevel(call.tool_name);
+
+    return {
+      callId: call.call_id,
+      toolName: call.tool_name,
+      status,
+      startedAt: call.timestamp,
+      completedAt: call.completed_at,
+      durationMs: call.duration,
+      argumentsPreview: buildArgumentsPreview(call.arguments, call.arguments_preview),
+      resultPreview: buildResultPreview(call.result),
+      errorMessage: call.error,
+      requiresSandbox: true,
+      sandboxLevel,
+    };
+  });
 }
 
 /**

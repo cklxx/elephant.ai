@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
+import { SandboxLevel, ToolCallSummary } from '@/lib/eventAggregation';
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -23,6 +24,7 @@ interface TerminalOutputProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
+  toolSummaries: ToolCallSummary[];
 }
 
 type DisplayEvent = AnyAgentEvent | ToolCallStartDisplayEvent;
@@ -46,9 +48,14 @@ export function TerminalOutput({
   error,
   reconnectAttempts,
   onReconnect,
+  toolSummaries,
 }: TerminalOutputProps) {
   const { t, language } = useI18n();
   const locale = getLanguageLocale(language);
+  const toolSummariesById = useMemo(
+    () => new Map(toolSummaries.map((summary) => [summary.callId, summary])),
+    [toolSummaries]
+  );
 
   const displayEvents = useMemo(() => {
     const aggregated: DisplayEvent[] = [];
@@ -131,9 +138,19 @@ export function TerminalOutput({
         </div>
       )}
 
+      {toolSummaries.length > 0 && (
+        <SimpleToolSummaryList summaries={toolSummaries} t={t} locale={locale} />
+      )}
+
       <div className="space-y-6" data-testid="conversation-events">
         {displayEvents.map((event, index) => (
-          <EventLine key={`${event.event_type}-${index}`} event={event} t={t} locale={locale} />
+          <EventLine
+            key={`${event.event_type}-${index}`}
+            event={event}
+            t={t}
+            locale={locale}
+            toolSummariesById={toolSummariesById}
+          />
         ))}
       </div>
 
@@ -147,15 +164,106 @@ export function TerminalOutput({
   );
 }
 
+function SimpleToolSummaryList({
+  summaries,
+  t,
+  locale,
+}: {
+  summaries: ToolCallSummary[];
+  t: (key: TranslationKey, params?: TranslationParams) => string;
+  locale: string;
+}) {
+  return (
+    <section
+      className="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600"
+      data-testid="tool-summary-list"
+    >
+      <p className="text-xs font-semibold text-slate-700">
+        {t('conversation.tools.simpleSummary.heading')}
+      </p>
+      <p className="mt-1 text-[11px] text-slate-500">
+        {t('conversation.tools.simpleSummary.sandboxNote')}
+      </p>
+      <ol className="mt-3 space-y-3 text-[11px] leading-relaxed">
+        {summaries.map((summary) => {
+          const statusLabel =
+            summary.status === 'running'
+              ? t('conversation.status.doing')
+              : summary.status === 'completed'
+                ? t('conversation.status.completed')
+                : t('conversation.status.failed');
+          const timestamp = formatTimestamp(summary.completedAt ?? summary.startedAt, locale);
+          const duration = summary.durationMs ? formatDuration(summary.durationMs) : null;
+
+          const details: Array<{ label: string; value: string }> = [];
+          if (summary.argumentsPreview) {
+            details.push({
+              label: t('conversation.tools.simpleSummary.inputsLabel'),
+              value: summary.argumentsPreview,
+            });
+          }
+          if (summary.resultPreview) {
+            details.push({
+              label: t('conversation.tools.simpleSummary.outputLabel'),
+              value: summary.resultPreview,
+            });
+          }
+          if (summary.errorMessage) {
+            details.push({
+              label: t('conversation.tools.simpleSummary.errorLabel'),
+              value: summary.errorMessage,
+            });
+          }
+
+          const sandboxPolicy = describeSandboxPolicy(summary.sandboxLevel, t);
+
+          return (
+            <li key={summary.callId} className="space-y-1 text-slate-600">
+              <p className="text-[11px] text-slate-700">
+                {timestamp} · {summary.toolName} · {statusLabel}
+                {duration ? ` · ${duration}` : ''}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {t('conversation.tools.simpleSummary.sandboxLine', { policy: sandboxPolicy })}
+              </p>
+              {details.map(({ label, value }, index) => (
+                <p key={`${summary.callId}-detail-${index}`} className="text-[11px] text-slate-500">
+                  - {label}: {value}
+                </p>
+              ))}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function describeSandboxPolicy(
+  level: SandboxLevel,
+  t: (key: TranslationKey, params?: TranslationParams) => string
+) {
+  switch (level) {
+    case 'filesystem':
+      return t('conversation.tools.simpleSummary.policy.filesystem');
+    case 'system':
+      return t('conversation.tools.simpleSummary.policy.system');
+    default:
+      return t('conversation.tools.simpleSummary.policy.standard');
+  }
+}
+
 // Single event line component
 function EventLine({
   event,
   t,
   locale,
+  toolSummariesById,
 }: {
   event: DisplayEvent;
   t: (key: TranslationKey, params?: TranslationParams) => string;
   locale: string;
+  toolSummariesById: Map<string, ToolCallSummary>;
 }) {
   if (event.event_type === 'user_task') {
     const timestamp = formatTimestamp(event.timestamp, locale);
@@ -231,7 +339,13 @@ function EventLine({
           )}
 
           {isToolCallStartDisplayEvent(event) ? (
-            <ToolCallContent event={event} statusLabel={statusLabel} t={t} locale={locale} />
+            <ToolCallContent
+              event={event}
+              statusLabel={statusLabel}
+              t={t}
+              locale={locale}
+              summary={toolSummariesById.get(event.call_id)}
+            />
           ) : (
             <>
               {presentation.summary && (
@@ -254,173 +368,90 @@ function EventLine({
   );
 }
 
-type ToolTimelineStatus = 'default' | 'active' | 'success' | 'error';
-
-interface ToolTimelineItem {
-  id: string;
-  title: string;
-  timestamp?: string;
-  description?: string;
-  status: ToolTimelineStatus;
-  content?: ReactNode;
-  elapsed?: string | null;
-}
-
 function ToolCallContent({
   event,
   statusLabel,
   t,
   locale,
+  summary,
 }: {
   event: ToolCallStartDisplayEvent;
   statusLabel?: string;
   t: (key: TranslationKey, params?: TranslationParams) => string;
   locale: string;
+  summary?: ToolCallSummary;
 }) {
-  const argsPreview = formatArgumentsPreview(event.arguments_preview ?? event.arguments);
-  const hasArgsPreview = Boolean(argsPreview);
-  const hasStream = Boolean(event.stream_content && event.stream_content.trim().length > 0);
-  const hasResult = Boolean(event.completion_result && String(event.completion_result).trim().length > 0);
-  const hasError = Boolean(event.completion_error);
-  const hasDuration = Boolean(event.completion_duration);
+  const effectiveStatus = summary?.status
+    ?? (event.call_status === 'error'
+      ? 'error'
+      : event.call_status === 'complete'
+        ? 'completed'
+        : 'running');
 
-  const timelineItems: ToolTimelineItem[] = [];
-  const baseTimestamp = event.timestamp;
+  const statusText =
+    effectiveStatus === 'running'
+      ? t('conversation.status.doing')
+      : effectiveStatus === 'error'
+        ? t('conversation.status.failed')
+        : t('conversation.status.completed');
 
-  timelineItems.push({
-    id: 'start',
-    title: t('conversation.tool.timeline.started', { tool: event.tool_name }),
-    timestamp: event.timestamp,
-    description: hasArgsPreview ? argsPreview : undefined,
-    status: event.call_status === 'running' ? 'active' : 'default',
-    content: <ToolArguments args={event.arguments} callId={event.call_id} t={t} />,
-  });
+  const durationLabel = summary?.durationMs
+    ? formatDuration(summary.durationMs)
+    : event.completion_duration
+      ? formatDuration(event.completion_duration)
+      : null;
 
-  if (hasStream) {
-    const streamTimestamp = event.last_stream_timestamp ?? event.timestamp;
-    timelineItems.push({
-      id: 'stream',
-      title: t('conversation.tool.timeline.streaming'),
-      timestamp: streamTimestamp,
-      status: event.call_status === 'running' ? 'active' : 'default',
-      elapsed: calculateElapsedLabel(baseTimestamp, streamTimestamp),
-      content: (
-        <ContentBlock
-          title={t('conversation.tool.timeline.liveOutput')}
-          dataTestId={`tool-call-stream-${event.call_id}`}
-          variant="compact"
-        >
-          <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90 sm:text-[9px]">
-            {event.stream_content?.trim()}
-          </pre>
-        </ContentBlock>
-      ),
-    });
-  }
+  const timestampLabel = summary?.completedAt
+    ? formatTimestamp(summary.completedAt, locale)
+    : formatTimestamp(event.timestamp, locale);
 
-  if (hasResult || hasError) {
-    const completionTimestamp = event.completion_timestamp ?? event.timestamp;
-    timelineItems.push({
-      id: 'completion',
-      title: hasError
-        ? t('conversation.tool.timeline.errored')
-        : t('conversation.tool.timeline.completed'),
-      timestamp: completionTimestamp,
-      status: hasError ? 'error' : 'success',
-      description:
-        hasDuration && event.completion_duration
-          ? t('conversation.tool.timeline.duration', {
-              duration: formatDuration(event.completion_duration),
-            })
-          : undefined,
-      elapsed: calculateElapsedLabel(baseTimestamp, completionTimestamp),
-      content: (
-        <ToolResult
-          result={event.completion_result}
-          error={event.completion_error}
-          callId={event.call_id}
-          toolName={event.tool_name}
-          t={t}
-        />
-      ),
-    });
-  }
+  const argsPreview = summary?.argumentsPreview ?? formatArgumentsPreview(event.arguments_preview ?? event.arguments);
+  const resultPreview = summary?.resultPreview ?? formatResultPreview(event.completion_result);
+  const errorText = summary?.errorMessage ?? event.completion_error;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 text-[12px] leading-relaxed text-slate-600">
+      <p className="font-semibold text-slate-700">
+        {event.tool_name} · {statusText}
+        {durationLabel ? ` · ${durationLabel}` : ''}
+      </p>
+      <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{timestampLabel}</p>
       {statusLabel && (
-        <p
-          className={cn(
-            'text-[9px] font-medium text-slate-600 sm:text-[10px]',
-            event.call_status === 'error' ? 'text-destructive' : null
-          )}
-        >
-          {statusLabel}
+        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{statusLabel}</p>
+      )}
+      {argsPreview && (
+        <p>
+          <span className="font-semibold uppercase tracking-[0.25em] text-slate-500">
+            {t('conversation.tool.timeline.arguments')}:
+          </span>{' '}
+          <span>{argsPreview}</span>
         </p>
       )}
-
-      <ToolCallTimeline items={timelineItems} locale={locale} />
-
+      {resultPreview && (
+        <p>
+          <span className="font-semibold uppercase tracking-[0.25em] text-slate-500">
+            {t('conversation.tool.timeline.result', { tool: event.tool_name })}:
+          </span>{' '}
+          <span>{resultPreview}</span>
+        </p>
+      )}
+      {errorText && (
+        <p className="text-destructive">
+          <span className="font-semibold uppercase tracking-[0.25em] text-destructive">
+            {t('conversation.tool.timeline.errorOutput')}:
+          </span>{' '}
+          <span>{errorText}</span>
+        </p>
+      )}
+      {summary?.requiresSandbox && (
+        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">
+          {t('conversation.environment.sandbox.inlineNotice')}
+        </p>
+      )}
       <EventMetadata event={event} accentClass="text-slate-400" />
     </div>
   );
 }
-
-function ToolCallTimeline({ items, locale }: { items: ToolTimelineItem[]; locale: string }) {
-  return (
-    <ol className="pl-0.5">
-      {items.map((item, index) => {
-        const isLast = index === items.length - 1;
-        return (
-          <li key={`${item.id}-${index}`} className="relative pl-2 pb-5 last:pb-0 sm:pl-3">
-            <div className="absolute left-0 top-0 flex h-full w-2 flex-col items-center sm:w-3">
-              <span
-                aria-hidden
-                className={cn('mt-1.5 h-2 w-2 rounded-full', TOOL_TIMELINE_STATUS[item.status])}
-              />
-              {!isLast && <span aria-hidden className="mt-2 flex-1 w-px bg-slate-200/70" />}
-            </div>
-            <div className="pl-1 pr-2 space-y-1.5 sm:pl-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <p
-                  className={cn(
-                    'text-[9px] font-semibold leading-tight text-slate-800 sm:text-[10px]',
-                    item.status === 'success' && 'text-emerald-600',
-                    item.status === 'error' && 'text-destructive',
-                    item.status === 'active' && 'text-sky-600'
-                  )}
-                >
-                  {item.title}
-                </p>
-                {item.timestamp && (
-                  <time className="text-[8px] font-medium uppercase tracking-[0.2em] text-slate-400 sm:text-[9px]">
-                    {formatTimestamp(item.timestamp, locale)}
-                  </time>
-                )}
-                {item.elapsed && (
-                  <span className="text-[7px] font-semibold uppercase tracking-[0.3em] text-slate-300 sm:text-[8px]">
-                    {item.elapsed}
-                  </span>
-                )}
-              </div>
-              {item.description && (
-                <p className="text-[8px] uppercase tracking-[0.3em] text-slate-400 sm:text-[9px]">{item.description}</p>
-              )}
-              {item.content}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-const TOOL_TIMELINE_STATUS: Record<ToolTimelineStatus, string> = {
-  default: 'bg-slate-300',
-  active: 'bg-sky-400 animate-pulse',
-  success: 'bg-emerald-400',
-  error: 'bg-destructive',
-};
 
 function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
   return event.event_type === 'tool_call_start';
@@ -1027,45 +1058,6 @@ function formatArgumentsPreview(args: Record<string, any> | string | undefined) 
 
   const entries = Object.entries(args).map(([key, value]) => `${key}: ${String(value)}`);
   return truncateText(entries.join(', '), 120);
-}
-
-function calculateElapsedLabel(startTimestamp?: string, targetTimestamp?: string): string | null {
-  if (!startTimestamp || !targetTimestamp) return null;
-
-  const start = Date.parse(startTimestamp);
-  const target = Date.parse(targetTimestamp);
-  if (Number.isNaN(start) || Number.isNaN(target)) return null;
-
-  const diff = target - start;
-  if (diff <= 0) {
-    return '+0s';
-  }
-
-  if (diff < 1000) {
-    return `+${Math.round(diff)}ms`;
-  }
-
-  if (diff < 60_000) {
-    const seconds = diff / 1000;
-    const precision = seconds < 10 ? 1 : 0;
-    return `+${seconds.toFixed(precision)}s`;
-  }
-
-  if (diff < 3_600_000) {
-    const minutes = Math.floor(diff / 60_000);
-    const seconds = Math.round((diff % 60_000) / 1000);
-    if (seconds === 0) {
-      return `+${minutes}m`;
-    }
-    return `+${minutes}m ${seconds}s`;
-  }
-
-  const hours = Math.floor(diff / 3_600_000);
-  const minutes = Math.round((diff % 3_600_000) / 60_000);
-  if (minutes === 0) {
-    return `+${hours}h`;
-  }
-  return `+${hours}h ${minutes}m`;
 }
 
 function formatResultPreview(result: any) {
