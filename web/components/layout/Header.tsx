@@ -1,7 +1,6 @@
 'use client';
 
 import { Share2, MoreVertical, Download, Trash2 } from 'lucide-react';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
@@ -61,8 +60,6 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-2">
-        <LanguageSwitcher variant="toolbar" showLabel={false} />
-
         {onShare && (
           <button
             onClick={onShare}

@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { SessionEnvironmentPlan } from '@/lib/environmentPlan';
 
 const MAX_HISTORY = 10;
 const MAX_PINNED = 5;
@@ -11,11 +12,15 @@ interface SessionState {
   sessionHistory: string[];
   pinnedSessions: string[];
   sessionLabels: Record<string, string>;
+  environmentPlans: Record<string, SessionEnvironmentPlan>;
   setCurrentSession: (sessionId: string) => void;
   clearCurrentSession: () => void;
   addToHistory: (sessionId: string) => void;
   renameSession: (sessionId: string, label: string) => void;
   togglePinSession: (sessionId: string) => void;
+  saveEnvironmentPlan: (sessionId: string, plan: SessionEnvironmentPlan) => void;
+  toggleEnvironmentTodo: (sessionId: string, todoId: string) => void;
+  clearEnvironmentPlan: (sessionId: string) => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -25,6 +30,7 @@ export const useSessionStore = create<SessionState>()(
       sessionHistory: [],
       pinnedSessions: [],
       sessionLabels: {},
+      environmentPlans: {},
 
       setCurrentSession: (sessionId: string) =>
         set({ currentSessionId: sessionId }),
@@ -106,6 +112,71 @@ export const useSessionStore = create<SessionState>()(
           return {
             pinnedSessions: nextPinned,
             sessionHistory: [...overflow, ...filteredHistory].slice(0, MAX_HISTORY),
+          };
+        }),
+
+      saveEnvironmentPlan: (sessionId: string, plan: SessionEnvironmentPlan) =>
+        set((state) => {
+          const existingPlan = state.environmentPlans?.[sessionId];
+          if (existingPlan && JSON.stringify(existingPlan) === JSON.stringify(plan)) {
+            return state;
+          }
+
+          return {
+            environmentPlans: {
+              ...(state.environmentPlans ?? {}),
+              [sessionId]: plan,
+            },
+          };
+        }),
+
+      toggleEnvironmentTodo: (sessionId: string, todoId: string) =>
+        set((state) => {
+          const plans = state.environmentPlans ?? {};
+          const plan = plans[sessionId];
+
+          if (!plan) {
+            return state;
+          }
+
+          const nextTodos = plan.todos.map((todo) => {
+            if (todo.id !== todoId) {
+              return todo;
+            }
+
+            return {
+              ...todo,
+              completed: !todo.completed,
+              manuallySet: true,
+            };
+          });
+
+          const nextPlan: SessionEnvironmentPlan = {
+            ...plan,
+            todos: nextTodos,
+            lastUpdatedAt: new Date().toISOString(),
+          };
+
+          return {
+            environmentPlans: {
+              ...plans,
+              [sessionId]: nextPlan,
+            },
+          };
+        }),
+
+      clearEnvironmentPlan: (sessionId: string) =>
+        set((state) => {
+          const plans = state.environmentPlans ?? {};
+          if (!plans[sessionId]) {
+            return state;
+          }
+
+          const nextPlans = { ...plans };
+          delete nextPlans[sessionId];
+
+          return {
+            environmentPlans: nextPlans,
           };
         }),
     }),

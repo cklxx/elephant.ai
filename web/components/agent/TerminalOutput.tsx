@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
+import { SandboxLevel, ToolCallSummary } from '@/lib/eventAggregation';
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -23,6 +24,7 @@ interface TerminalOutputProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
+  toolSummaries?: ToolCallSummary[];
 }
 
 type DisplayEvent = AnyAgentEvent | ToolCallStartDisplayEvent;
@@ -46,9 +48,14 @@ export function TerminalOutput({
   error,
   reconnectAttempts,
   onReconnect,
+  toolSummaries = [],
 }: TerminalOutputProps) {
   const { t, language } = useI18n();
   const locale = getLanguageLocale(language);
+  const toolSummariesById = useMemo(
+    () => new Map(toolSummaries.map((summary) => [summary.callId, summary])),
+    [toolSummaries]
+  );
 
   const displayEvents = useMemo(() => {
     const aggregated: DisplayEvent[] = [];
@@ -124,16 +131,26 @@ export function TerminalOutput({
   return (
     <div className="space-y-6" data-testid="conversation-stream">
       {activeAction && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
           <span>{t('conversation.status.doing')}</span>
           <span className="text-slate-500 normal-case tracking-normal">{activeAction.tool_name}</span>
         </div>
       )}
 
+      {toolSummaries.length > 0 && (
+        <SimpleToolSummaryList summaries={toolSummaries} t={t} locale={locale} />
+      )}
+
       <div className="space-y-6" data-testid="conversation-events">
         {displayEvents.map((event, index) => (
-          <EventLine key={`${event.event_type}-${index}`} event={event} t={t} locale={locale} />
+          <EventLine
+            key={`${event.event_type}-${index}`}
+            event={event}
+            t={t}
+            locale={locale}
+            toolSummariesById={toolSummariesById}
+          />
         ))}
       </div>
 
@@ -147,27 +164,118 @@ export function TerminalOutput({
   );
 }
 
+function SimpleToolSummaryList({
+  summaries,
+  t,
+  locale,
+}: {
+  summaries: ToolCallSummary[];
+  t: (key: TranslationKey, params?: TranslationParams) => string;
+  locale: string;
+}) {
+  return (
+      <section
+        className="rounded-md border border-slate-200 bg-white p-3 text-[10px] text-slate-600"
+        data-testid="tool-summary-list"
+      >
+        <p className="text-[10px] font-semibold text-slate-700">
+          {t('conversation.tools.simpleSummary.heading')}
+        </p>
+        <p className="mt-1 text-[10px] text-slate-500">
+          {t('conversation.tools.simpleSummary.sandboxNote')}
+        </p>
+        <ol className="mt-3 space-y-3 text-[9px] leading-relaxed">
+        {summaries.map((summary) => {
+          const statusLabel =
+            summary.status === 'running'
+              ? t('conversation.status.doing')
+              : summary.status === 'completed'
+                ? t('conversation.status.completed')
+                : t('conversation.status.failed');
+          const timestamp = formatTimestamp(summary.completedAt ?? summary.startedAt, locale);
+          const duration = summary.durationMs ? formatDuration(summary.durationMs) : null;
+
+          const details: Array<{ label: string; value: string }> = [];
+          if (summary.argumentsPreview) {
+            details.push({
+              label: t('conversation.tools.simpleSummary.inputsLabel'),
+              value: summary.argumentsPreview,
+            });
+          }
+          if (summary.resultPreview) {
+            details.push({
+              label: t('conversation.tools.simpleSummary.outputLabel'),
+              value: summary.resultPreview,
+            });
+          }
+          if (summary.errorMessage) {
+            details.push({
+              label: t('conversation.tools.simpleSummary.errorLabel'),
+              value: summary.errorMessage,
+            });
+          }
+
+          const sandboxPolicy = describeSandboxPolicy(summary.sandboxLevel, t);
+
+          return (
+            <li key={summary.callId} className="space-y-1 text-slate-600">
+              <p className="text-[9px] text-slate-700">
+                {timestamp} · {summary.toolName} · {statusLabel}
+                {duration ? ` · ${duration}` : ''}
+              </p>
+              <p className="text-[8px] text-slate-500">
+                {t('conversation.tools.simpleSummary.sandboxLine', { policy: sandboxPolicy })}
+              </p>
+              {details.map(({ label, value }, index) => (
+                <p key={`${summary.callId}-detail-${index}`} className="text-[8px] text-slate-500">
+                  - {label}: {value}
+                </p>
+              ))}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function describeSandboxPolicy(
+  level: SandboxLevel,
+  t: (key: TranslationKey, params?: TranslationParams) => string
+) {
+  switch (level) {
+    case 'filesystem':
+      return t('conversation.tools.simpleSummary.policy.filesystem');
+    case 'system':
+      return t('conversation.tools.simpleSummary.policy.system');
+    default:
+      return t('conversation.tools.simpleSummary.policy.standard');
+  }
+}
+
 // Single event line component
 function EventLine({
   event,
   t,
   locale,
+  toolSummariesById,
 }: {
   event: DisplayEvent;
   t: (key: TranslationKey, params?: TranslationParams) => string;
   locale: string;
+  toolSummariesById: Map<string, ToolCallSummary>;
 }) {
   if (event.event_type === 'user_task') {
     const timestamp = formatTimestamp(event.timestamp, locale);
     return (
-      <div className="flex justify-end" data-testid="event-line-user">
-        <div className="max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-normal text-slate-800 shadow-sm">
-          <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
-          <time className="mt-2 block text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">
-            {timestamp}
-          </time>
+        <div className="flex justify-end" data-testid="event-line-user">
+          <div className="max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-normal text-slate-800 shadow-sm">
+            <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
+            <time className="mt-2 block text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
+              {timestamp}
+            </time>
+          </div>
         </div>
-      </div>
     );
   }
 
@@ -207,16 +315,16 @@ function EventLine({
       />
       <div className="flex items-start gap-4">
         <div className={cn('relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center', meta.iconTone)}>
-          <meta.icon className="h-5 w-5" />
+          <meta.icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
             <p className={cn('font-semibold leading-tight text-slate-900', meta.headline, headlineSize)}>
               {presentation.headline}
             </p>
             <span
               className={cn(
-                'text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-400',
+                'text-[8px] font-semibold uppercase tracking-[0.3em] text-slate-400',
                 meta.pill
               )}
             >
@@ -225,17 +333,23 @@ function EventLine({
             {presentation.status && <StatusBadge status={presentation.status} label={statusLabel} />}
           </div>
           {presentation.subheading && (
-            <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">
+            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
               {presentation.subheading}
             </p>
           )}
 
           {isToolCallStartDisplayEvent(event) ? (
-            <ToolCallContent event={event} statusLabel={statusLabel} t={t} locale={locale} />
+            <ToolCallContent
+              event={event}
+              statusLabel={statusLabel}
+              t={t}
+              locale={locale}
+              summary={toolSummariesById.get(event.call_id)}
+            />
           ) : (
             <>
               {presentation.summary && (
-                <div className="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+                <div className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
                   {presentation.summary}
                 </div>
               )}
@@ -245,7 +359,7 @@ function EventLine({
 
           {!isToolCallStartDisplayEvent(event) && <EventMetadata event={event} accentClass={meta.accent} />}
 
-          <time className="block text-[9px] font-medium uppercase tracking-[0.3em] text-slate-300">
+          <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
             {timestamp}
           </time>
         </div>
@@ -254,173 +368,90 @@ function EventLine({
   );
 }
 
-type ToolTimelineStatus = 'default' | 'active' | 'success' | 'error';
-
-interface ToolTimelineItem {
-  id: string;
-  title: string;
-  timestamp?: string;
-  description?: string;
-  status: ToolTimelineStatus;
-  content?: ReactNode;
-  elapsed?: string | null;
-}
-
 function ToolCallContent({
   event,
   statusLabel,
   t,
   locale,
+  summary,
 }: {
   event: ToolCallStartDisplayEvent;
   statusLabel?: string;
   t: (key: TranslationKey, params?: TranslationParams) => string;
   locale: string;
+  summary?: ToolCallSummary;
 }) {
-  const argsPreview = formatArgumentsPreview(event.arguments_preview ?? event.arguments);
-  const hasArgsPreview = Boolean(argsPreview);
-  const hasStream = Boolean(event.stream_content && event.stream_content.trim().length > 0);
-  const hasResult = Boolean(event.completion_result && String(event.completion_result).trim().length > 0);
-  const hasError = Boolean(event.completion_error);
-  const hasDuration = Boolean(event.completion_duration);
+  const effectiveStatus = summary?.status
+    ?? (event.call_status === 'error'
+      ? 'error'
+      : event.call_status === 'complete'
+        ? 'completed'
+        : 'running');
 
-  const timelineItems: ToolTimelineItem[] = [];
-  const baseTimestamp = event.timestamp;
+  const statusText =
+    effectiveStatus === 'running'
+      ? t('conversation.status.doing')
+      : effectiveStatus === 'error'
+        ? t('conversation.status.failed')
+        : t('conversation.status.completed');
 
-  timelineItems.push({
-    id: 'start',
-    title: t('conversation.tool.timeline.started', { tool: event.tool_name }),
-    timestamp: event.timestamp,
-    description: hasArgsPreview ? argsPreview : undefined,
-    status: event.call_status === 'running' ? 'active' : 'default',
-    content: <ToolArguments args={event.arguments} callId={event.call_id} t={t} />,
-  });
+  const durationLabel = summary?.durationMs
+    ? formatDuration(summary.durationMs)
+    : event.completion_duration
+      ? formatDuration(event.completion_duration)
+      : null;
 
-  if (hasStream) {
-    const streamTimestamp = event.last_stream_timestamp ?? event.timestamp;
-    timelineItems.push({
-      id: 'stream',
-      title: t('conversation.tool.timeline.streaming'),
-      timestamp: streamTimestamp,
-      status: event.call_status === 'running' ? 'active' : 'default',
-      elapsed: calculateElapsedLabel(baseTimestamp, streamTimestamp),
-      content: (
-        <ContentBlock
-          title={t('conversation.tool.timeline.liveOutput')}
-          dataTestId={`tool-call-stream-${event.call_id}`}
-          variant="compact"
-        >
-          <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90 sm:text-[9px]">
-            {event.stream_content?.trim()}
-          </pre>
-        </ContentBlock>
-      ),
-    });
-  }
+  const timestampLabel = summary?.completedAt
+    ? formatTimestamp(summary.completedAt, locale)
+    : formatTimestamp(event.timestamp, locale);
 
-  if (hasResult || hasError) {
-    const completionTimestamp = event.completion_timestamp ?? event.timestamp;
-    timelineItems.push({
-      id: 'completion',
-      title: hasError
-        ? t('conversation.tool.timeline.errored')
-        : t('conversation.tool.timeline.completed'),
-      timestamp: completionTimestamp,
-      status: hasError ? 'error' : 'success',
-      description:
-        hasDuration && event.completion_duration
-          ? t('conversation.tool.timeline.duration', {
-              duration: formatDuration(event.completion_duration),
-            })
-          : undefined,
-      elapsed: calculateElapsedLabel(baseTimestamp, completionTimestamp),
-      content: (
-        <ToolResult
-          result={event.completion_result}
-          error={event.completion_error}
-          callId={event.call_id}
-          toolName={event.tool_name}
-          t={t}
-        />
-      ),
-    });
-  }
+  const argsPreview = summary?.argumentsPreview ?? formatArgumentsPreview(event.arguments_preview ?? event.arguments);
+  const resultPreview = summary?.resultPreview ?? formatResultPreview(event.completion_result);
+  const errorText = summary?.errorMessage ?? event.completion_error;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 text-[9px] leading-relaxed text-slate-600">
+      <p className="font-semibold text-slate-700">
+        {event.tool_name} · {statusText}
+        {durationLabel ? ` · ${durationLabel}` : ''}
+      </p>
+      <p className="text-[8px] uppercase tracking-[0.3em] text-slate-400">{timestampLabel}</p>
       {statusLabel && (
-        <p
-          className={cn(
-            'text-[9px] font-medium text-slate-600 sm:text-[10px]',
-            event.call_status === 'error' ? 'text-destructive' : null
-          )}
-        >
-          {statusLabel}
+        <p className="text-[8px] uppercase tracking-[0.3em] text-slate-500">{statusLabel}</p>
+      )}
+      {argsPreview && (
+        <p>
+          <span className="font-semibold uppercase tracking-[0.25em] text-slate-500">
+            {t('conversation.tool.timeline.arguments')}:
+          </span>{' '}
+          <span>{argsPreview}</span>
         </p>
       )}
-
-      <ToolCallTimeline items={timelineItems} locale={locale} />
-
+      {resultPreview && (
+        <p>
+          <span className="font-semibold uppercase tracking-[0.25em] text-slate-500">
+            {t('conversation.tool.timeline.result', { tool: event.tool_name })}:
+          </span>{' '}
+          <span>{resultPreview}</span>
+        </p>
+      )}
+      {errorText && (
+        <p className="text-destructive">
+          <span className="font-semibold uppercase tracking-[0.25em] text-destructive">
+            {t('conversation.tool.timeline.errorOutput')}:
+          </span>{' '}
+          <span>{errorText}</span>
+        </p>
+      )}
+      {summary?.requiresSandbox && (
+        <p className="text-[8px] uppercase tracking-[0.25em] text-slate-400">
+          {t('conversation.environment.sandbox.inlineNotice')}
+        </p>
+      )}
       <EventMetadata event={event} accentClass="text-slate-400" />
     </div>
   );
 }
-
-function ToolCallTimeline({ items, locale }: { items: ToolTimelineItem[]; locale: string }) {
-  return (
-    <ol className="pl-0.5">
-      {items.map((item, index) => {
-        const isLast = index === items.length - 1;
-        return (
-          <li key={`${item.id}-${index}`} className="relative pl-2 pb-5 last:pb-0 sm:pl-3">
-            <div className="absolute left-0 top-0 flex h-full w-2 flex-col items-center sm:w-3">
-              <span
-                aria-hidden
-                className={cn('mt-1.5 h-2 w-2 rounded-full', TOOL_TIMELINE_STATUS[item.status])}
-              />
-              {!isLast && <span aria-hidden className="mt-2 flex-1 w-px bg-slate-200/70" />}
-            </div>
-            <div className="pl-1 pr-2 space-y-1.5 sm:pl-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <p
-                  className={cn(
-                    'text-[9px] font-semibold leading-tight text-slate-800 sm:text-[10px]',
-                    item.status === 'success' && 'text-emerald-600',
-                    item.status === 'error' && 'text-destructive',
-                    item.status === 'active' && 'text-sky-600'
-                  )}
-                >
-                  {item.title}
-                </p>
-                {item.timestamp && (
-                  <time className="text-[8px] font-medium uppercase tracking-[0.2em] text-slate-400 sm:text-[9px]">
-                    {formatTimestamp(item.timestamp, locale)}
-                  </time>
-                )}
-                {item.elapsed && (
-                  <span className="text-[7px] font-semibold uppercase tracking-[0.3em] text-slate-300 sm:text-[8px]">
-                    {item.elapsed}
-                  </span>
-                )}
-              </div>
-              {item.description && (
-                <p className="text-[8px] uppercase tracking-[0.3em] text-slate-400 sm:text-[9px]">{item.description}</p>
-              )}
-              {item.content}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-const TOOL_TIMELINE_STATUS: Record<ToolTimelineStatus, string> = {
-  default: 'bg-slate-300',
-  active: 'bg-sky-400 animate-pulse',
-  success: 'bg-emerald-400',
-  error: 'bg-destructive',
-};
 
 function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
   return event.event_type === 'tool_call_start';
@@ -570,11 +601,11 @@ const EVENT_STYLE_META: Record<
 };
 
 const HEADLINE_SIZES: Record<EventCategory, string> = {
-  conversation: 'text-2xl sm:text-3xl',
-  plan: 'text-xl sm:text-2xl',
-  tools: 'text-base sm:text-lg',
-  system: 'text-lg sm:text-xl',
-  other: 'text-lg',
+  conversation: 'text-xl sm:text-2xl',
+  plan: 'text-lg sm:text-xl',
+  tools: 'text-sm sm:text-base',
+  system: 'text-base sm:text-lg',
+  other: 'text-base',
 };
 
 function describeEvent(
@@ -617,10 +648,9 @@ function describeEvent(
       return {
         headline: 'Response Ready',
         subheading: `Iteration ${event.iteration}`,
-        summary: truncateText(event.content, 220),
         supplementary: (
           <ContentBlock title="Model Response">
-            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+            <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
               {event.content}
             </pre>
           </ContentBlock>
@@ -672,10 +702,9 @@ function describeEvent(
         headline: 'Task Complete',
         subheading: `Duration ${formatDuration(event.duration)} • ${event.total_iterations} iterations`,
         status: 'success',
-        summary: truncateText(event.final_answer, 240),
         supplementary: (
           <ContentBlock title="Final Answer" scrollable={false}>
-            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+            <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
               {event.final_answer}
             </pre>
           </ContentBlock>
@@ -722,14 +751,14 @@ function describeEvent(
       return {
         headline: 'Browser Snapshot',
         subheading: event.url,
-        supplementary:
-          event.html_preview ? (
-            <ContentBlock title="HTML Preview">
-              <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
-                {event.html_preview}
-              </pre>
-            </ContentBlock>
-          ) : undefined,
+          supplementary:
+            event.html_preview ? (
+              <ContentBlock title="HTML Preview">
+                <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
+                  {event.html_preview}
+                </pre>
+              </ContentBlock>
+            ) : undefined,
       };
 
     default:
@@ -751,7 +780,7 @@ function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClas
     <dl
       className={cn(
         'flex flex-wrap gap-x-4 gap-y-1 uppercase tracking-[0.25em] text-slate-400',
-        isToolEvent ? 'text-[9px]' : 'text-[10px]'
+        isToolEvent ? 'text-[8px]' : 'text-[9px]'
       )}
     >
       {entries.map(({ label, value }) => (
@@ -760,7 +789,7 @@ function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClas
           <dd
             className={cn(
               'font-mono tracking-normal text-slate-500',
-              isToolEvent ? 'text-[9px]' : 'text-[11px]'
+              isToolEvent ? 'text-[8px]' : 'text-[10px]'
             )}
           >
             {value}
@@ -861,7 +890,7 @@ function ToolResult({
         dataTestId={`tool-call-result-${callId}`}
         variant="compact"
       >
-        <p className="text-[9px] font-medium text-destructive dark:text-destructive/80 sm:text-[10px]">{error}</p>
+        <p className="text-[8px] font-medium text-destructive dark:text-destructive/80 sm:text-[9px]">{error}</p>
       </ContentBlock>
     );
   }
@@ -877,7 +906,7 @@ function ToolResult({
       dataTestId={`tool-call-result-${callId}`}
       variant="compact"
     >
-      <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-current sm:text-[9px]">
+      <pre className="whitespace-pre-wrap font-mono text-[7px] leading-snug text-current sm:text-[8px]">
         {formatted}
       </pre>
     </ContentBlock>
@@ -911,7 +940,7 @@ function ContentBlock({
     <div
       className={cn(
         'mt-3 space-y-2 border-l-2 pl-3 leading-snug',
-        isCompact ? 'text-[8px] sm:text-[9px]' : 'text-[10px] sm:text-[11px]',
+        isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[9px] sm:text-[10px]',
         toneClasses[tone],
         scrollable && 'console-scrollbar max-h-36 overflow-y-auto pr-1'
       )}
@@ -920,12 +949,12 @@ function ContentBlock({
       <p
         className={cn(
           'font-semibold uppercase tracking-[0.3em] opacity-70',
-          isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[9px] sm:text-[10px]'
+          isCompact ? 'text-[6px] sm:text-[7px]' : 'text-[8px] sm:text-[9px]'
         )}
       >
         {title}
       </p>
-      <div className={cn('space-y-1', isCompact ? 'text-[8px] sm:text-[9px]' : 'text-[11px] sm:text-xs')}>
+      <div className={cn('space-y-1', isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[10px] sm:text-[11px]')}>
         {children}
       </div>
     </div>
@@ -966,7 +995,7 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.25em] sm:text-xs',
+        'inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.25em] sm:text-[10px]',
         meta.className
       )}
     >
@@ -1027,45 +1056,6 @@ function formatArgumentsPreview(args: Record<string, any> | string | undefined) 
 
   const entries = Object.entries(args).map(([key, value]) => `${key}: ${String(value)}`);
   return truncateText(entries.join(', '), 120);
-}
-
-function calculateElapsedLabel(startTimestamp?: string, targetTimestamp?: string): string | null {
-  if (!startTimestamp || !targetTimestamp) return null;
-
-  const start = Date.parse(startTimestamp);
-  const target = Date.parse(targetTimestamp);
-  if (Number.isNaN(start) || Number.isNaN(target)) return null;
-
-  const diff = target - start;
-  if (diff <= 0) {
-    return '+0s';
-  }
-
-  if (diff < 1000) {
-    return `+${Math.round(diff)}ms`;
-  }
-
-  if (diff < 60_000) {
-    const seconds = diff / 1000;
-    const precision = seconds < 10 ? 1 : 0;
-    return `+${seconds.toFixed(precision)}s`;
-  }
-
-  if (diff < 3_600_000) {
-    const minutes = Math.floor(diff / 60_000);
-    const seconds = Math.round((diff % 60_000) / 1000);
-    if (seconds === 0) {
-      return `+${minutes}m`;
-    }
-    return `+${minutes}m ${seconds}s`;
-  }
-
-  const hours = Math.floor(diff / 3_600_000);
-  const minutes = Math.round((diff % 3_600_000) / 60_000);
-  if (minutes === 0) {
-    return `+${hours}h`;
-  }
-  return `+${hours}h ${minutes}m`;
 }
 
 function formatResultPreview(result: any) {

@@ -5,6 +5,7 @@ import {
   groupByIteration,
   extractResearchSteps,
   extractBrowserSnapshots,
+  buildToolCallSummaries,
 } from '../eventAggregation';
 import { AnyAgentEvent } from '../types';
 
@@ -219,6 +220,7 @@ describe('aggregateToolCalls', () => {
     const toolCall = result.get('call-1');
     expect(toolCall?.status).toBe('streaming');
     expect(toolCall?.stream_chunks).toEqual(['file1.txt\n', 'file2.txt\n']);
+    expect(toolCall?.last_stream_at).toBe('2025-01-01T10:00:02Z');
   });
 
   it('should complete tool calls', () => {
@@ -252,6 +254,7 @@ describe('aggregateToolCalls', () => {
     expect(toolCall?.status).toBe('complete');
     expect(toolCall?.result).toBe('file1.txt\nfile2.txt');
     expect(toolCall?.duration).toBe(5000);
+    expect(toolCall?.completed_at).toBe('2025-01-01T10:00:05Z');
   });
 
   it('should handle tool call errors', () => {
@@ -285,6 +288,7 @@ describe('aggregateToolCalls', () => {
     const toolCall = result.get('call-1');
     expect(toolCall?.status).toBe('error');
     expect(toolCall?.error).toBe('Command not found');
+    expect(toolCall?.completed_at).toBe('2025-01-01T10:00:01Z');
   });
 
   it('should handle complete without start (orphaned complete)', () => {
@@ -309,6 +313,109 @@ describe('aggregateToolCalls', () => {
     expect(toolCall?.status).toBe('complete');
     expect(toolCall?.result).toBe('orphan result');
     expect(toolCall?.arguments).toEqual({});
+    expect(toolCall?.completed_at).toBe('2025-01-01T10:00:01Z');
+  });
+});
+
+describe('buildToolCallSummaries', () => {
+  it('creates summaries with sandbox recommendations', () => {
+    const events: AnyAgentEvent[] = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'call-1',
+        tool_name: 'code_execute',
+        arguments: { language: 'python', source: 'print("hi")' },
+      },
+      {
+        event_type: 'tool_call_complete',
+        timestamp: '2025-01-01T10:00:02Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'call-1',
+        tool_name: 'code_execute',
+        result: 'hi\n',
+        duration: 2000,
+      },
+    ];
+
+    const summaries = buildToolCallSummaries(events);
+    expect(summaries).toHaveLength(1);
+    const summary = summaries[0];
+    expect(summary.status).toBe('completed');
+    expect(summary.requiresSandbox).toBe(true);
+    expect(summary.sandboxLevel).toBe('system');
+    expect(summary.durationMs).toBe(2000);
+    expect(summary.resultPreview).toContain('hi');
+    expect(summary.argumentsPreview).toContain('language');
+  });
+
+  it('marks running tools without completion', () => {
+    const events: AnyAgentEvent[] = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'call-2',
+        tool_name: 'search_docs',
+        arguments: { query: 'sandbox' },
+      },
+    ];
+
+    const summaries = buildToolCallSummaries(events);
+    expect(summaries).toHaveLength(1);
+    const summary = summaries[0];
+    expect(summary.status).toBe('running');
+    expect(summary.requiresSandbox).toBe(true);
+    expect(summary.sandboxLevel).toBe('standard');
+    expect(summary.completedAt).toBeUndefined();
+  });
+
+  it('elevates sandbox level for system and filesystem tools', () => {
+    const events: AnyAgentEvent[] = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'call-3',
+        tool_name: 'shell_exec',
+        arguments: { command: 'ls' },
+      },
+      {
+        event_type: 'tool_call_complete',
+        timestamp: '2025-01-01T10:00:03Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'call-3',
+        tool_name: 'shell_exec',
+        result: 'file.txt',
+        duration: 3000,
+      },
+      {
+        event_type: 'tool_call_start',
+        timestamp: '2025-01-01T11:00:00Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 2,
+        call_id: 'call-4',
+        tool_name: 'file_write',
+        arguments: { path: 'notes.md' },
+      },
+    ];
+
+    const summaries = buildToolCallSummaries(events);
+    expect(summaries).toHaveLength(2);
+    expect(summaries[0].sandboxLevel).toBe('system');
+    expect(summaries[1].sandboxLevel).toBe('filesystem');
   });
 });
 
