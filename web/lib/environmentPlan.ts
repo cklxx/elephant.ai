@@ -29,6 +29,17 @@ export interface SessionEnvironmentPlan {
   todos: EnvironmentTodo[];
 }
 
+export interface SerializedEnvironmentPlan {
+  sessionId: string;
+  sandboxStrategy: SandboxStrategy;
+  toolsUsed: string[];
+  generatedAt: string;
+  lastUpdatedAt: string;
+  notes: string;
+  blueprint: EnvironmentBlueprint;
+  todos: Array<Pick<EnvironmentTodo, 'id' | 'label' | 'completed'>>;
+}
+
 function snapshotPlan(plan: SessionEnvironmentPlan) {
   const { lastUpdatedAt, ...rest } = plan;
   return rest;
@@ -251,4 +262,41 @@ export function buildEnvironmentPlan(
   }
 
   return plan;
+}
+
+export function formatEnvironmentPlanShareText(plan: SessionEnvironmentPlan): string {
+  const tools = plan.toolsUsed.length ? plan.toolsUsed.join(', ') : 'none';
+  const capabilityLine = plan.blueprint.recommendedCapabilities.join(', ');
+  const todos = plan.todos.map((todo) => `- [${todo.completed ? 'x' : ' '}] ${todo.label}`);
+
+  const lines = [
+    `Sandbox plan for session ${plan.sessionId}`,
+    `Strategy: ${plan.sandboxStrategy}`,
+    `Generated: ${plan.generatedAt}`,
+    `Updated: ${plan.lastUpdatedAt}`,
+    `Tools: ${tools}`,
+    '',
+    plan.blueprint.title,
+    plan.blueprint.description,
+    `Capabilities: ${capabilityLine}`,
+    `Persistence: ${plan.blueprint.persistenceHint}`,
+    '',
+    'Todos:',
+    ...todos,
+  ];
+
+  return lines.join('\n');
+}
+
+export function serializeEnvironmentPlan(plan: SessionEnvironmentPlan): SerializedEnvironmentPlan {
+  return {
+    sessionId: plan.sessionId,
+    sandboxStrategy: plan.sandboxStrategy,
+    toolsUsed: plan.toolsUsed,
+    generatedAt: plan.generatedAt,
+    lastUpdatedAt: plan.lastUpdatedAt,
+    notes: plan.notes,
+    blueprint: plan.blueprint,
+    todos: plan.todos.map(({ id, label, completed }) => ({ id, label, completed })),
+  };
 }

@@ -10,7 +10,11 @@ import { toast } from '@/components/ui/toast';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea, InputBar } from '@/components/layout';
 import { buildToolCallSummaries } from '@/lib/eventAggregation';
-import { buildEnvironmentPlan } from '@/lib/environmentPlan';
+import {
+  buildEnvironmentPlan,
+  formatEnvironmentPlanShareText,
+  serializeEnvironmentPlan,
+} from '@/lib/environmentPlan';
 import { EnvironmentSummaryCard } from '@/components/environment/EnvironmentSummaryCard';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 
@@ -39,6 +43,7 @@ function ConversationPageContent() {
     environmentPlans = {},
     saveEnvironmentPlan,
     toggleEnvironmentTodo,
+    clearEnvironmentPlan,
   } = useSessionStore();
 
   const resolvedSessionId = sessionId || currentSessionId;
@@ -122,20 +127,105 @@ function ConversationPageContent() {
     addToHistory(id);
   };
 
-  const handleShare = () => {
-    // TODO: Implement share functionality
-    console.log('Share clicked');
-  };
+  const toolSummaries = useMemo(() => buildToolCallSummaries(events), [events]);
+  const existingPlan = resolvedSessionId ? environmentPlans[resolvedSessionId] : undefined;
+  const environmentPlan = useMemo(() => {
+    if (!resolvedSessionId) {
+      return null;
+    }
+    return existingPlan ?? buildEnvironmentPlan(resolvedSessionId, toolSummaries);
+  }, [resolvedSessionId, existingPlan, toolSummaries]);
 
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export clicked');
-  };
+  const handleSharePlan = useCallback(async () => {
+    if (!environmentPlan) {
+      toast.error(t('conversation.environment.actions.noPlan'));
+      return;
+    }
 
-  const handleDelete = () => {
-    // TODO: Implement delete functionality
-    console.log('Delete clicked');
-  };
+    const shareText = formatEnvironmentPlanShareText(environmentPlan);
+    const title = t('conversation.environment.actions.shareTitle', {
+      session: environmentPlan.sessionId,
+    });
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text: shareText });
+        toast.success(t('conversation.environment.actions.shareSuccess'));
+        return;
+      }
+    } catch (error) {
+      console.error('ConversationPage share via Web Share API failed', error);
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+        toast.success(t('conversation.environment.actions.shareCopied'));
+        return;
+      }
+    } catch (error) {
+      console.error('ConversationPage share copy failed', error);
+    }
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = shareText;
+      textarea.setAttribute('readonly', 'true');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      toast.success(t('conversation.environment.actions.shareCopied'));
+    } catch (error) {
+      console.error('ConversationPage share fallback failed', error);
+      toast.error(t('conversation.environment.actions.shareFailure'));
+    }
+  }, [environmentPlan, t]);
+
+  const handleExportPlan = useCallback(() => {
+    if (!environmentPlan) {
+      toast.error(t('conversation.environment.actions.noPlan'));
+      return;
+    }
+
+    try {
+      const serialized = serializeEnvironmentPlan(environmentPlan);
+      const json = JSON.stringify(serialized, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `sandbox-plan-${environmentPlan.sessionId}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast.success(t('conversation.environment.actions.exportSuccess'));
+    } catch (error) {
+      console.error('ConversationPage export failed', error);
+      toast.error(t('conversation.environment.actions.exportFailure'));
+    }
+  }, [environmentPlan, t]);
+
+  const handleDeletePlan = useCallback(() => {
+    if (!resolvedSessionId) {
+      toast.error(t('conversation.environment.actions.noPlan'));
+      return;
+    }
+
+    clearEnvironmentPlan(resolvedSessionId);
+    setSessionId(null);
+    setTaskId(null);
+    clearEvents();
+    clearCurrentSession();
+    toast.success(t('conversation.environment.actions.deleteSuccess'));
+  }, [
+    clearCurrentSession,
+    clearEnvironmentPlan,
+    clearEvents,
+    resolvedSessionId,
+    t,
+  ]);
 
   const isSubmitting = useMockStream ? false : isPending;
 
@@ -163,15 +253,6 @@ function ConversationPageContent() {
       setShowTimelineDialog(false);
     }
   }, [timelineSteps, showTimelineDialog]);
-
-  const toolSummaries = useMemo(() => buildToolCallSummaries(events), [events]);
-  const existingPlan = resolvedSessionId ? environmentPlans[resolvedSessionId] : undefined;
-  const environmentPlan = useMemo(() => {
-    if (!resolvedSessionId) {
-      return null;
-    }
-    return existingPlan ?? buildEnvironmentPlan(resolvedSessionId, toolSummaries);
-  }, [resolvedSessionId, existingPlan, toolSummaries]);
 
   const handleTodoToggle = useCallback(
     (todoId: string) => {
@@ -211,9 +292,9 @@ function ConversationPageContent() {
         <Header
           title={sessionBadge || t('conversation.header.idle')}
           subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
-          onShare={handleShare}
-          onExport={handleExport}
-          onDelete={handleDelete}
+          onShare={environmentPlan ? handleSharePlan : undefined}
+          onExport={environmentPlan ? handleExportPlan : undefined}
+          onDelete={resolvedSessionId ? handleDeletePlan : undefined}
         />
 
         {/* Content Area */}

@@ -20,6 +20,7 @@ interface SessionState {
   togglePinSession: (sessionId: string) => void;
   saveEnvironmentPlan: (sessionId: string, plan: SessionEnvironmentPlan) => void;
   toggleEnvironmentTodo: (sessionId: string, todoId: string) => void;
+  clearEnvironmentPlan: (sessionId: string) => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -161,6 +162,21 @@ export const useSessionStore = create<SessionState>()(
               ...plans,
               [sessionId]: nextPlan,
             },
+          };
+        }),
+
+      clearEnvironmentPlan: (sessionId: string) =>
+        set((state) => {
+          const plans = state.environmentPlans ?? {};
+          if (!plans[sessionId]) {
+            return state;
+          }
+
+          const nextPlans = { ...plans };
+          delete nextPlans[sessionId];
+
+          return {
+            environmentPlans: nextPlans,
           };
         }),
     }),

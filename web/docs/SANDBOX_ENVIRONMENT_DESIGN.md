@@ -14,8 +14,13 @@ This document outlines the web-console side design for running every tool invoca
 - [x] Automatic sandbox enforcement messaging across the conversation stream and summary list.
 - [x] Session-scoped environment plan generation with persisted blueprints and todo completion heuristics.
 - [x] UI indicators for todo completion status, including an "all done" state banner in the environment summary card.
-- [ ] Share/export actions for distributing sandbox blueprints outside the web console.
+- [x] Share/export actions for distributing sandbox blueprints outside the web console.
 - [ ] Backend orchestration hook to consume the generated sandbox blueprints and launch managed environments.
+
+## Remaining Work
+
+- [ ] Integrate with backend orchestration to automatically spin up sandbox containers from saved blueprints.
+- [ ] Capture audit logs from exported plans so the server can reason about historical sandbox guarantees.
 
 ## Architecture Overview
 
@@ -29,6 +34,7 @@ This document outlines the web-console side design for running every tool invoca
   - A compact “tool calls this session” list with text-only entries and an inline reminder that every tool runs inside the sandbox runtime.
   - A sandbox environment card detailing capabilities, timestamps, notes, and a persisted assurance banner that highlights sandbox-only execution.
   - A todo checklist derived from tool activity so operators can track sandbox follow-ups per session, with automatic check marks when items are satisfied (e.g. no active tools, blueprint saved) and manual overrides preserved per item.
+  - Header actions for sharing (clipboard/Web Share API) and exporting (JSON download) the current sandbox blueprint for collaboration.
 
 ## Sandbox Usage Guidance
 

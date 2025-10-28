@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildEnvironmentPlan } from '../environmentPlan';
+import {
+  buildEnvironmentPlan,
+  formatEnvironmentPlanShareText,
+  serializeEnvironmentPlan,
+} from '../environmentPlan';
 import { ToolCallSummary } from '../eventAggregation';
 
 describe('buildEnvironmentPlan', () => {
@@ -90,5 +94,56 @@ describe('buildEnvironmentPlan', () => {
     expect(
       updatedPlan.todos.find((todo) => todo.id === 'persist-blueprint')?.completed
     ).toBe(true);
+  });
+});
+
+describe('formatEnvironmentPlanShareText', () => {
+  it('produces a readable checklist with sandbox details', () => {
+    const summaries: ToolCallSummary[] = [
+      {
+        callId: 'c1',
+        toolName: 'shell_exec',
+        status: 'completed',
+        startedAt: '2025-01-02T00:00:00Z',
+        completedAt: '2025-01-02T00:00:10Z',
+        durationMs: 10000,
+        requiresSandbox: true,
+        sandboxLevel: 'system',
+      } as ToolCallSummary,
+    ];
+
+    const plan = buildEnvironmentPlan('session-share', summaries);
+    const text = formatEnvironmentPlanShareText(plan);
+
+    expect(text).toContain('Sandbox plan for session session-share');
+    expect(text).toContain('shell_exec');
+    expect(text).toContain('Todos:');
+    expect(text).toContain('- [x]');
+  });
+});
+
+describe('serializeEnvironmentPlan', () => {
+  it('omits tool summaries and keeps essential fields', () => {
+    const summaries: ToolCallSummary[] = [
+      {
+        callId: 'c2',
+        toolName: 'file_writer',
+        status: 'completed',
+        startedAt: '2025-01-03T00:00:00Z',
+        completedAt: '2025-01-03T00:00:05Z',
+        durationMs: 5000,
+        requiresSandbox: true,
+        sandboxLevel: 'filesystem',
+        resultPreview: 'ok',
+      } as ToolCallSummary,
+    ];
+
+    const plan = buildEnvironmentPlan('session-export', summaries);
+    const serialized = serializeEnvironmentPlan(plan);
+
+    expect(serialized.sessionId).toBe('session-export');
+    expect(serialized.blueprint.title).toBeDefined();
+    expect(serialized.todos.length).toBeGreaterThan(0);
+    expect(serialized as any).not.toHaveProperty('toolSummaries');
   });
 });
