@@ -44,12 +44,10 @@ observability:
     sample_rate: 1.0
 ```
 
-### 2. Start Observability Stack
+### 2. Connect to Observability Backends
 
-```bash
-cd deployments/observability
-docker-compose up -d
-```
+Provision or connect to your preferred observability infrastructure (for example Prometheus, Grafana, Jaeger, or any OTLP-compatible platform).
+Ensure the endpoints referenced in your configuration are reachable from ALEX.
 
 ### 3. Run ALEX
 
@@ -59,9 +57,7 @@ alex
 
 ### 4. View Observability Data
 
-- **Grafana Dashboard**: http://localhost:3000 (admin/admin)
-- **Jaeger Traces**: http://localhost:16686
-- **Prometheus Metrics**: http://localhost:9091
+Use the dashboards and interfaces provided by your observability tooling (for example Grafana, Jaeger, or Prometheus) to inspect metrics, traces, and logs exposed by ALEX.
 
 ## Configuration
 
