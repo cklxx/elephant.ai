@@ -131,7 +131,7 @@ export function TerminalOutput({
   return (
     <div className="space-y-6" data-testid="conversation-stream">
       {activeAction && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
           <span>{t('conversation.status.doing')}</span>
           <span className="text-slate-500 normal-case tracking-normal">{activeAction.tool_name}</span>
@@ -174,17 +174,17 @@ function SimpleToolSummaryList({
   locale: string;
 }) {
   return (
-    <section
-      className="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600"
-      data-testid="tool-summary-list"
-    >
-      <p className="text-xs font-semibold text-slate-700">
-        {t('conversation.tools.simpleSummary.heading')}
-      </p>
-      <p className="mt-1 text-[11px] text-slate-500">
-        {t('conversation.tools.simpleSummary.sandboxNote')}
-      </p>
-      <ol className="mt-3 space-y-3 text-[11px] leading-relaxed">
+      <section
+        className="rounded-md border border-slate-200 bg-white p-3 text-[10px] text-slate-600"
+        data-testid="tool-summary-list"
+      >
+        <p className="text-[10px] font-semibold text-slate-700">
+          {t('conversation.tools.simpleSummary.heading')}
+        </p>
+        <p className="mt-1 text-[10px] text-slate-500">
+          {t('conversation.tools.simpleSummary.sandboxNote')}
+        </p>
+        <ol className="mt-3 space-y-3 text-[9px] leading-relaxed">
         {summaries.map((summary) => {
           const statusLabel =
             summary.status === 'running'
@@ -219,15 +219,15 @@ function SimpleToolSummaryList({
 
           return (
             <li key={summary.callId} className="space-y-1 text-slate-600">
-              <p className="text-[11px] text-slate-700">
+              <p className="text-[9px] text-slate-700">
                 {timestamp} · {summary.toolName} · {statusLabel}
                 {duration ? ` · ${duration}` : ''}
               </p>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[8px] text-slate-500">
                 {t('conversation.tools.simpleSummary.sandboxLine', { policy: sandboxPolicy })}
               </p>
               {details.map(({ label, value }, index) => (
-                <p key={`${summary.callId}-detail-${index}`} className="text-[11px] text-slate-500">
+                <p key={`${summary.callId}-detail-${index}`} className="text-[8px] text-slate-500">
                   - {label}: {value}
                 </p>
               ))}
@@ -268,14 +268,14 @@ function EventLine({
   if (event.event_type === 'user_task') {
     const timestamp = formatTimestamp(event.timestamp, locale);
     return (
-      <div className="flex justify-end" data-testid="event-line-user">
-        <div className="max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-normal text-slate-800 shadow-sm">
-          <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
-          <time className="mt-2 block text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">
-            {timestamp}
-          </time>
+        <div className="flex justify-end" data-testid="event-line-user">
+          <div className="max-w-xl rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-normal text-slate-800 shadow-sm">
+            <p className="whitespace-pre-wrap leading-relaxed">{event.task}</p>
+            <time className="mt-2 block text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
+              {timestamp}
+            </time>
+          </div>
         </div>
-      </div>
     );
   }
 
@@ -315,16 +315,16 @@ function EventLine({
       />
       <div className="flex items-start gap-4">
         <div className={cn('relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center', meta.iconTone)}>
-          <meta.icon className="h-5 w-5" />
+          <meta.icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
             <p className={cn('font-semibold leading-tight text-slate-900', meta.headline, headlineSize)}>
               {presentation.headline}
             </p>
             <span
               className={cn(
-                'text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-400',
+                'text-[8px] font-semibold uppercase tracking-[0.3em] text-slate-400',
                 meta.pill
               )}
             >
@@ -333,7 +333,7 @@ function EventLine({
             {presentation.status && <StatusBadge status={presentation.status} label={statusLabel} />}
           </div>
           {presentation.subheading && (
-            <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">
+            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
               {presentation.subheading}
             </p>
           )}
@@ -349,7 +349,7 @@ function EventLine({
           ) : (
             <>
               {presentation.summary && (
-                <div className="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+                <div className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
                   {presentation.summary}
                 </div>
               )}
@@ -359,7 +359,7 @@ function EventLine({
 
           {!isToolCallStartDisplayEvent(event) && <EventMetadata event={event} accentClass={meta.accent} />}
 
-          <time className="block text-[9px] font-medium uppercase tracking-[0.3em] text-slate-300">
+          <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
             {timestamp}
           </time>
         </div>
@@ -410,14 +410,14 @@ function ToolCallContent({
   const errorText = summary?.errorMessage ?? event.completion_error;
 
   return (
-    <div className="space-y-2 text-[12px] leading-relaxed text-slate-600">
+    <div className="space-y-2 text-[9px] leading-relaxed text-slate-600">
       <p className="font-semibold text-slate-700">
         {event.tool_name} · {statusText}
         {durationLabel ? ` · ${durationLabel}` : ''}
       </p>
-      <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{timestampLabel}</p>
+      <p className="text-[8px] uppercase tracking-[0.3em] text-slate-400">{timestampLabel}</p>
       {statusLabel && (
-        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{statusLabel}</p>
+        <p className="text-[8px] uppercase tracking-[0.3em] text-slate-500">{statusLabel}</p>
       )}
       {argsPreview && (
         <p>
@@ -444,7 +444,7 @@ function ToolCallContent({
         </p>
       )}
       {summary?.requiresSandbox && (
-        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">
+        <p className="text-[8px] uppercase tracking-[0.25em] text-slate-400">
           {t('conversation.environment.sandbox.inlineNotice')}
         </p>
       )}
@@ -601,11 +601,11 @@ const EVENT_STYLE_META: Record<
 };
 
 const HEADLINE_SIZES: Record<EventCategory, string> = {
-  conversation: 'text-2xl sm:text-3xl',
-  plan: 'text-xl sm:text-2xl',
-  tools: 'text-base sm:text-lg',
-  system: 'text-lg sm:text-xl',
-  other: 'text-lg',
+  conversation: 'text-xl sm:text-2xl',
+  plan: 'text-lg sm:text-xl',
+  tools: 'text-sm sm:text-base',
+  system: 'text-base sm:text-lg',
+  other: 'text-base',
 };
 
 function describeEvent(
@@ -648,10 +648,9 @@ function describeEvent(
       return {
         headline: 'Response Ready',
         subheading: `Iteration ${event.iteration}`,
-        summary: truncateText(event.content, 220),
         supplementary: (
           <ContentBlock title="Model Response">
-            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+            <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
               {event.content}
             </pre>
           </ContentBlock>
@@ -703,10 +702,9 @@ function describeEvent(
         headline: 'Task Complete',
         subheading: `Duration ${formatDuration(event.duration)} • ${event.total_iterations} iterations`,
         status: 'success',
-        summary: truncateText(event.final_answer, 240),
         supplementary: (
           <ContentBlock title="Final Answer" scrollable={false}>
-            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+            <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
               {event.final_answer}
             </pre>
           </ContentBlock>
@@ -753,14 +751,14 @@ function describeEvent(
       return {
         headline: 'Browser Snapshot',
         subheading: event.url,
-        supplementary:
-          event.html_preview ? (
-            <ContentBlock title="HTML Preview">
-              <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
-                {event.html_preview}
-              </pre>
-            </ContentBlock>
-          ) : undefined,
+          supplementary:
+            event.html_preview ? (
+              <ContentBlock title="HTML Preview">
+                <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
+                  {event.html_preview}
+                </pre>
+              </ContentBlock>
+            ) : undefined,
       };
 
     default:
@@ -782,7 +780,7 @@ function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClas
     <dl
       className={cn(
         'flex flex-wrap gap-x-4 gap-y-1 uppercase tracking-[0.25em] text-slate-400',
-        isToolEvent ? 'text-[9px]' : 'text-[10px]'
+        isToolEvent ? 'text-[8px]' : 'text-[9px]'
       )}
     >
       {entries.map(({ label, value }) => (
@@ -791,7 +789,7 @@ function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClas
           <dd
             className={cn(
               'font-mono tracking-normal text-slate-500',
-              isToolEvent ? 'text-[9px]' : 'text-[11px]'
+              isToolEvent ? 'text-[8px]' : 'text-[10px]'
             )}
           >
             {value}
@@ -892,7 +890,7 @@ function ToolResult({
         dataTestId={`tool-call-result-${callId}`}
         variant="compact"
       >
-        <p className="text-[9px] font-medium text-destructive dark:text-destructive/80 sm:text-[10px]">{error}</p>
+        <p className="text-[8px] font-medium text-destructive dark:text-destructive/80 sm:text-[9px]">{error}</p>
       </ContentBlock>
     );
   }
@@ -908,7 +906,7 @@ function ToolResult({
       dataTestId={`tool-call-result-${callId}`}
       variant="compact"
     >
-      <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-current sm:text-[9px]">
+      <pre className="whitespace-pre-wrap font-mono text-[7px] leading-snug text-current sm:text-[8px]">
         {formatted}
       </pre>
     </ContentBlock>
@@ -942,7 +940,7 @@ function ContentBlock({
     <div
       className={cn(
         'mt-3 space-y-2 border-l-2 pl-3 leading-snug',
-        isCompact ? 'text-[8px] sm:text-[9px]' : 'text-[10px] sm:text-[11px]',
+        isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[9px] sm:text-[10px]',
         toneClasses[tone],
         scrollable && 'console-scrollbar max-h-36 overflow-y-auto pr-1'
       )}
@@ -951,12 +949,12 @@ function ContentBlock({
       <p
         className={cn(
           'font-semibold uppercase tracking-[0.3em] opacity-70',
-          isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[9px] sm:text-[10px]'
+          isCompact ? 'text-[6px] sm:text-[7px]' : 'text-[8px] sm:text-[9px]'
         )}
       >
         {title}
       </p>
-      <div className={cn('space-y-1', isCompact ? 'text-[8px] sm:text-[9px]' : 'text-[11px] sm:text-xs')}>
+      <div className={cn('space-y-1', isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[10px] sm:text-[11px]')}>
         {children}
       </div>
     </div>
@@ -997,7 +995,7 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.25em] sm:text-xs',
+        'inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.25em] sm:text-[10px]',
         meta.className
       )}
     >
