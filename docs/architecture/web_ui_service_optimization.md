@@ -119,9 +119,9 @@
   - **代码执行计划**：在 `internal/session`、`internal/workflow`、`internal/notification` 之间引入接口定义（例如 `internal/session/service.go` 提供 `SessionService` 接口）；在 `cmd/alex-server/main.go` 注入依赖；将 http handler 拆分到 `internal/server/http/session`、`internal/server/http/notification`。  
   - **验收方案**：运行 `go test ./internal/... ./tests/server/...`；架构师 Review 依赖图（生成脚本 `scripts/dev/print-deps.sh` 输出结果）；在 `docs/architecture/adr/adr-003-service-boundary.md` 更新记录。
 
-- **应用内事件通知（同步 -> 异步封装）**  
-  - **代码执行计划**：在 `internal/events/bus.go` 定义轻量接口，提供 `internal/events/inmemory` 实现；在 `internal/notification/service.go` 中改为订阅事件；将现有同步调用改为事件发布。  
-  - **验收方案**：`go test ./internal/events/...`；Staging 运行一周监控延迟，并记录与竞品（如 o1 Workspace）类似场景下的延迟目标对比于 `docs/ops/event-bus-runbook.md`；在同一文档记录使用方式。
+- **应用内事件通知（同步 -> 异步封装）**
+  - **代码执行计划**：在 `internal/events/bus.go` 定义轻量接口，提供 `internal/events/inmemory` 实现；在 `internal/notification/service.go` 中改为订阅事件；将现有同步调用改为事件发布。
+  - **验收方案**：`go test ./internal/events/...`；Staging 运行一周监控延迟，并记录与竞品（如 o1 Workspace）类似场景下的延迟目标对比于 `docs/operations/README.md`；在同一文档记录使用方式。
 
 - **HTTP 层与任务执行解耦**  
   - **代码执行计划**：引入 `internal/workflow/queue/simple_queue.go`（基于 channel + goroutine）实现基础异步执行；在 `cmd/alex-server/main.go` 将耗时任务投递到队列；保留 Redis/Asynq 作为后续选项并记录在 ADR。  
@@ -136,8 +136,8 @@
   - **代码执行计划**：在 `internal/realtime/manager.go` 整合 SSE/WebSocket 逻辑，提供自动降级；前端 `web/lib/api.ts` 引入降级判定；复用现有心跳机制。  
   - **验收方案**：`go test ./internal/realtime/...`；Playwright 用例 `web/e2e/realtime-fallback.spec.ts` 验证断网重连；QA 在弱网环境手测并记录。
 
-- **可观测性补强（不引入新集群）**  
-  - **代码执行计划**：扩展 `internal/observability/metrics.go` 增加任务耗时与通知失败指标；在 `deployments/docker-compose.yml` 添加 Prometheus Job；更新 `docs/ops/observability.md` 提供 Dashboard 配置。  
+- **可观测性补强（不引入新集群）**
+  - **代码执行计划**：扩展 `internal/observability/metrics.go` 增加任务耗时与通知失败指标；在根目录的 `docker-compose.yml` 添加 Prometheus Job；更新 `docs/operations/monitoring_and_metrics.md` 提供 Dashboard 配置。
   - **验收方案**：`go test ./internal/observability/...`；Grafana Dashboard 截图记录；SRE 确认告警阈值。
 
 ### 5.3 数据与权限（轻量方案）
@@ -145,21 +145,21 @@
   - **代码执行计划**：在 `internal/session/model.go` 添加 `TenantID` 字段及索引；编写迁移 `internal/session/migrations/2024XXXX_add_tenant.sql`；更新 `internal/session/repository.go` 的查询条件；前端在 `web/lib/api.ts` 通过 header 传递 `X-Tenant-ID`。  
   - **验收方案**：执行 `make migrate-up` 于影子环境并完成回滚；`go test ./tests/session/...` 覆盖跨租户访问；灰度租户验证无越权。
 
-- **审计日志增强（沿用数据库存储）**  
-  - **代码执行计划**：在 `internal/audit/logger.go` 定义统一写入接口；在现有 handler 中调用；新增导出 CLI `cmd/audit-exporter/main.go`；配置 `deployments/cronjobs/audit-export.yaml` 定期导出。  
-  - **验收方案**：`go test ./internal/audit/...`；演练一次导出流程并记录到 `docs/ops/audit-export.md`；安全团队确认日志留存要求。
+- **审计日志增强（沿用数据库存储）**
+  - **代码执行计划**：在 `internal/audit/logger.go` 定义统一写入接口；在现有 handler 中调用；新增导出 CLI `cmd/audit-exporter/main.go`；为集群或 CI 增加审计导出计划任务清单。
+  - **验收方案**：`go test ./internal/audit/...`；演练一次导出流程并记录到 `docs/operations/README.md`；安全团队确认日志留存要求。
 
-- **缓存策略优化**  
-  - **代码执行计划**：复用 Redis，引入 `internal/cache/redis/client.go` 封装；在 `internal/session/service.go` 为热点数据添加缓存并使用 `singleflight`；在 `deployments/docker-compose.yml` 中补充 Redis 健康检查。  
+- **缓存策略优化**
+  - **代码执行计划**：复用 Redis，引入 `internal/cache/redis/client.go` 封装；在 `internal/session/service.go` 为热点数据添加缓存并使用 `singleflight`；在 `docker-compose.yml` 中补充 Redis 健康检查。
   - **验收方案**：`go test ./internal/cache/...`；压测报告记录命中率；运维确认 Redis 监控指标稳定。
 
 ### 5.4 DevOps 与交付
-- **部署脚本整合**  
-  - **代码执行计划**：整理 `deploy.sh`、`scripts/cd/*`，统一入口为 `make deploy ENV=staging`; 在 `docs/ops/deploy-playbook.md` 更新流程；CI 中新增 `scripts/ci/check-deploy.sh` 做干跑。  
+- **部署脚本整合**
+  - **代码执行计划**：整理 `deploy.sh`、`scripts/cd/*`，统一入口为 `make deploy ENV=staging`; 在 `docs/operations/DEPLOYMENT.md` 更新流程；CI 中新增 `scripts/ci/check-deploy.sh` 做干跑。
   - **验收方案**：CI 执行干跑脚本并通过；运维按新脚本完成一次 Staging 部署并记录反馈。
 
-- **回滚策略标准化**  
-  - **代码执行计划**：在 `docs/ops/rollback-checklist.md` 明确回滚步骤；在 `deployments/docker-compose.yml` 和 `k8s/overlays/staging/` 增加旧版本镜像回滚配置；更新 `scripts/cd/rollback.sh` 触发自动健康检查。  
+- **回滚策略标准化**
+  - **代码执行计划**：在 `docs/operations/DEPLOYMENT.md` 明确回滚步骤；在 `docker-compose.yml` 和 `k8s/deployment.yaml` 增加旧版本镜像回滚配置；更新 `scripts/cd/rollback.sh` 触发自动健康检查。
   - **验收方案**：演练一次回滚并在日志中记录耗时；SRE 确认健康检查脚本输出；复盘纪要归档。
 
 - **基础测试矩阵（逐项落地）**  

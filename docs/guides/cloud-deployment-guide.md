@@ -364,22 +364,25 @@ data:
 ```
 
 ### Grafana仪表板
+> 提示：ALEX 不再提供预置的 Prometheus/Grafana 资产，请复用你现有的监控基础设施，并参考
+> `docs/operations/monitoring_and_metrics.md` 中的指标说明编写自己的配置文件。
+
 ```bash
 #!/bin/bash
 # setup-monitoring.sh
 
-# 1. 安装Prometheus Operator
+# 1. 安装 Prometheus Operator（使用你的自定义 values 文件）
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm install prometheus prometheus-community/kube-prometheus-stack \
   --namespace alex-monitoring \
   --create-namespace \
-  --values prometheus-values.yaml
+  --values /path/to/your-prometheus-values.yaml
 
-# 2. 导入Alex专用仪表板
-kubectl apply -f alex-grafana-dashboards.yaml
+# 2. 导入你的 Grafana 仪表板
+kubectl apply -f /path/to/your-grafana-dashboards.yaml
 
-# 3. 配置告警规则
-kubectl apply -f alex-alert-rules.yaml
+# 3. 配置自定义告警规则
+kubectl apply -f /path/to/your-alert-rules.yaml
 ```
 
 ## ✅ 部署验证
