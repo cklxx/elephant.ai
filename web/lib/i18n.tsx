@@ -376,6 +376,8 @@ const translations = {
     'sidebar.session.confirmDelete.cancel': 'Cancel',
     'sidebar.session.toast.deleteSuccess': 'Session deleted successfully',
     'sidebar.session.toast.deleteError': 'Failed to delete session',
+    'sidebar.toggle.open': 'Open session list',
+    'sidebar.toggle.close': 'Close session list',
     'header.actions.share': 'Share',
     'header.actions.more': 'More actions',
     'header.actions.export': 'Export',

@@ -3,7 +3,7 @@
 import { Share2, MoreVertical, Download, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { useState, useRef, useEffect } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 import { EnvironmentStrip } from "@/components/status/EnvironmentStrip";
 
 interface HeaderProps {
@@ -13,6 +13,7 @@ interface HeaderProps {
   onExport?: () => void;
   onDelete?: () => void;
   className?: string;
+  leadingSlot?: ReactNode;
 }
 
 export function Header({
@@ -22,6 +23,7 @@ export function Header({
   onExport,
   onDelete,
   className,
+  leadingSlot,
 }: HeaderProps) {
   const { t } = useI18n();
   const [showMenu, setShowMenu] = useState(false);
@@ -48,18 +50,23 @@ export function Header({
         className,
       )}
     >
-      <div className="flex-1">
-        {title && (
-          <h1 className="text-lg font-semibold text-foreground uppercase tracking-[0.14em]">
-            {title}
-          </h1>
+      <div className="flex flex-1 items-center gap-4">
+        {leadingSlot && (
+          <div className="flex items-center">{leadingSlot}</div>
         )}
-        {subtitle && (
-          <p className="mt-0.5 text-sm text-gray-600 uppercase tracking-[0.12em]">
-            {subtitle}
-          </p>
-        )}
-        <EnvironmentStrip />
+        <div className="flex-1">
+          {title && (
+            <h1 className="text-lg font-semibold text-foreground uppercase tracking-[0.14em]">
+              {title}
+            </h1>
+          )}
+          {subtitle && (
+            <p className="mt-0.5 text-sm text-gray-600 uppercase tracking-[0.12em]">
+              {subtitle}
+            </p>
+          )}
+          <EnvironmentStrip />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

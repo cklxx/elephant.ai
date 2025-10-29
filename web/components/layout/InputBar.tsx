@@ -80,8 +80,11 @@ export function InputBar({
 
   return (
     <div className="border-t border-slate-200 bg-white px-6 py-4">
-      <form onSubmit={handleSubmit} className="flex items-end gap-3">
-        <div className="flex items-center gap-2">
+      <form
+        onSubmit={handleSubmit}
+        className="grid grid-cols-[auto,1fr,auto] items-start gap-3"
+      >
+        <div className="flex items-center gap-2 self-start">
           {showAttachment && (
             <button
               type="button"
@@ -142,7 +145,7 @@ export function InputBar({
           disabled={disabled || loading || !text.trim()}
           className={cn(
             'console-icon-button console-icon-button-primary h-10 w-10 !rounded-lg',
-            'flex-shrink-0'
+            'flex-shrink-0 self-start'
           )}
           title={loading ? t('inputBar.actions.sending') : t('inputBar.actions.send')}
         >
