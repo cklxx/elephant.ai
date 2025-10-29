@@ -12,11 +12,14 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-class APIError extends Error {
+export class APIError extends Error {
   constructor(
     public status: number,
     public statusText: string,
-    message: string
+    message: string,
+    public details?: string,
+    public payload?: unknown,
+    public rawBody?: string
   ) {
     super(message);
     this.name = 'APIError';
@@ -40,10 +43,48 @@ async function fetchAPI<T>(
 
     if (!response.ok) {
       const errorText = await response.text();
+      const contentType = response.headers.get('content-type') ?? '';
+
+      let parsedBody: unknown;
+      if (errorText && contentType.includes('application/json')) {
+        try {
+          parsedBody = JSON.parse(errorText);
+        } catch (parseError) {
+          console.warn(
+            '[apiClient] Failed to parse error JSON response',
+            parseError
+          );
+        }
+      }
+
+      const defaultMessage = `HTTP ${response.status}: ${response.statusText || 'Unknown Status'}`;
+      let message = defaultMessage;
+      let details: string | undefined;
+
+      if (parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)) {
+        const body = parsedBody as Record<string, unknown>;
+        const errorMessage = body.error;
+        const errorDetails = body.details ?? body.message;
+
+        if (typeof errorMessage === 'string' && errorMessage.trim().length > 0) {
+          message = errorMessage.trim();
+        }
+
+        if (typeof errorDetails === 'string' && errorDetails.trim().length > 0) {
+          const trimmedDetails = errorDetails.trim();
+          details = trimmedDetails !== message ? trimmedDetails : undefined;
+        }
+      } else if (errorText.trim().length > 0) {
+        message = errorText.trim();
+      }
+
       throw new APIError(
         response.status,
         response.statusText,
-        errorText || `HTTP ${response.status}: ${response.statusText}`
+        message,
+        details,
+        parsedBody,
+        errorText || undefined
       );
     }
 
@@ -139,3 +180,5 @@ export const apiClient = {
   createSSEConnection,
   healthCheck,
 };
+
+export type { APIError };

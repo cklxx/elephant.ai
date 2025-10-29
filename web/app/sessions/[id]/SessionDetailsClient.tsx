@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatRelativeTime } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
+import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
 
 const statusLabels: Record<string, TranslationKey> = {
   completed: 'sessions.details.history.status.completed',
@@ -56,9 +57,16 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
           );
         },
         onError: (submitError) => {
+          console.error(
+            '[SessionDetails] Task execution error:',
+            getErrorLogPayload(submitError)
+          );
+          const parsed = parseError(submitError, t('common.error.unknown'));
           toast.error(
             t('sessions.details.toast.taskError.title'),
-            t('sessions.details.toast.taskError.description', { message: submitError.message })
+            t('sessions.details.toast.taskError.description', {
+              message: formatParsedError(parsed),
+            })
           );
         },
       }
@@ -75,9 +83,10 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   }
 
   if (error) {
+    const parsed = parseError(error, t('common.error.unknown'));
     return (
       <div className="flex items-center justify-center h-64 text-destructive">
-        <p>{t('sessions.details.error', { message: error.message })}</p>
+        <p>{t('sessions.details.error', { message: formatParsedError(parsed) })}</p>
       </div>
     );
   }

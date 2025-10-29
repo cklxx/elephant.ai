@@ -18,6 +18,7 @@
 
 import { useMutation, useQuery, UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { getErrorLogPayload, isAPIError } from '@/lib/errors';
 import { CreateTaskRequest, CreateTaskResponse, TaskStatusResponse } from '@/lib/types';
 
 /**
@@ -77,7 +78,12 @@ export function useTaskExecution(options: UseTaskExecutionOptions = {}) {
     onMutate,
     onSuccess,
     onError: (error, variables, context, mutation) => {
-      console.error('Task execution failed:', error);
+      const prefix = '[useTaskExecution] Task execution failed:';
+      if (isAPIError(error)) {
+        console.error(prefix, getErrorLogPayload(error));
+      } else {
+        console.error(prefix, error);
+      }
       onError?.(error, variables, context, mutation);
     },
     onSettled,

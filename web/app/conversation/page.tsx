@@ -11,6 +11,7 @@ import { useConfirmDialog } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea, InputBar } from '@/components/layout';
 import { buildToolCallSummaries } from '@/lib/eventAggregation';
+import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 
 function ConversationPageContent() {
@@ -115,8 +116,15 @@ function ConversationPageContent() {
           addToHistory(data.session_id);
         },
         onError: (error) => {
-          console.error('[ConversationPage] Task execution error:', error);
-          toast.error(t('console.toast.taskFailed'), error.message);
+          console.error(
+            '[ConversationPage] Task execution error:',
+            getErrorLogPayload(error)
+          );
+          const parsed = parseError(error, t('common.error.unknown'));
+          toast.error(
+            t('console.toast.taskFailed'),
+            formatParsedError(parsed)
+          );
         },
       }
     );
@@ -156,9 +164,14 @@ function ConversationPageContent() {
         }
         toast.success(t('sidebar.session.toast.deleteSuccess'));
       } catch (err) {
+        console.error(
+          '[ConversationPage] Failed to delete session:',
+          getErrorLogPayload(err)
+        );
+        const parsed = parseError(err, t('common.error.unknown'));
         toast.error(
           t('sidebar.session.toast.deleteError'),
-          err instanceof Error ? err.message : t('common.error.unknown')
+          formatParsedError(parsed)
         );
       }
     }

@@ -2,6 +2,7 @@ package filestore
 
 import (
 	"alex/internal/agent/ports"
+	"alex/internal/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 type store struct {
 	baseDir string
+	logger  *utils.Logger
 }
 
 func New(baseDir string) ports.SessionStore {
@@ -23,7 +25,10 @@ func New(baseDir string) ports.SessionStore {
 		baseDir = filepath.Join(home, baseDir[2:])
 	}
 	_ = os.MkdirAll(baseDir, 0755) // Ignore error - directory may already exist
-	return &store{baseDir: baseDir}
+	return &store{
+		baseDir: baseDir,
+		logger:  utils.NewComponentLogger("SessionFileStore"),
+	}
 }
 
 func (s *store) Create(ctx context.Context) (*ports.Session, error) {
@@ -72,7 +77,10 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	}
 	var session ports.Session
 	if err := json.Unmarshal(data, &session); err != nil {
-		return nil, err
+		if s.logger != nil {
+			s.logger.Error("Failed to decode session file %s: %v. Preview: %s", path, err, previewJSON(data))
+		}
+		return nil, fmt.Errorf("failed to decode session %s: %w", id, err)
 	}
 	return &session, nil
 }
@@ -109,4 +117,15 @@ func (s *store) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	return nil
+}
+
+func previewJSON(data []byte) string {
+	const maxPreview = 512
+	preview := strings.TrimSpace(string(data))
+	preview = strings.ReplaceAll(preview, "\n", " ")
+	preview = strings.ReplaceAll(preview, "\t", " ")
+	if len(preview) > maxPreview {
+		preview = preview[:maxPreview] + "... (truncated)"
+	}
+	return preview
 }
