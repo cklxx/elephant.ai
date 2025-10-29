@@ -35,10 +35,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       ? ((startEvent as any).last_stream_timestamp as string)
       : undefined;
 
-  const startedAt = startEvent?.timestamp;
-  const completedAt = completeEvent?.timestamp;
   const callId = completeEvent?.call_id ?? startEvent?.call_id ?? event.call_id;
-  const durationLabel = completeEvent?.duration ? formatDuration(completeEvent.duration) : null;
 
   const hasArguments = Boolean(startEvent?.arguments && Object.keys(startEvent.arguments).length > 0);
   const argumentsPreview = startEvent?.arguments_preview;
@@ -145,19 +142,6 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         ))}
       </ul>
 
-      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
-        {startedAt && (
-          <time className="font-mono text-[10px] tracking-normal text-foreground/70">
-            {t('events.toolCall.start')}: {formatTimestamp(startedAt)}
-          </time>
-        )}
-        {completedAt && (
-          <time className="font-mono text-[10px] tracking-normal text-foreground/70">
-            {t('events.toolCall.end')}: {formatTimestamp(completedAt)}
-          </time>
-        )}
-        {durationLabel && <span>{durationLabel}</span>}
-      </footer>
     </section>
   );
 }
