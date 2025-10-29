@@ -4,6 +4,7 @@ import { Share2, MoreVertical, Download, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
+import { EnvironmentStrip } from "@/components/status/EnvironmentStrip";
 
 interface HeaderProps {
   title?: string;
@@ -43,23 +44,28 @@ export function Header({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4",
+        "flex items-center justify-between border-b-4 border-border bg-card px-6 py-4 shadow-[6px_6px_0_rgba(0,0,0,0.55)]",
         className,
       )}
     >
       <div className="flex-1">
         {title && (
-          <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
+          <h1 className="text-lg font-semibold text-foreground uppercase tracking-[0.14em]">
+            {title}
+          </h1>
         )}
         {subtitle && (
-          <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>
+          <p className="mt-0.5 text-sm text-gray-600 uppercase tracking-[0.12em]">
+            {subtitle}
+          </p>
         )}
+        <EnvironmentStrip />
       </div>
 
       <div className="flex items-center gap-2">
         <div className="relative" ref={menuRef}>
           {showMenu && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-slate-200 bg-white shadow-lg">
+            <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border-2 border-border bg-card shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
               <div className="py-1">
                 {onExport && (
                   <button
@@ -67,7 +73,7 @@ export function Header({
                       onExport();
                       setShowMenu(false);
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-200"
                   >
                     <Download className="h-4 w-4" />
                     <span>{t("header.actions.export")}</span>
@@ -79,7 +85,7 @@ export function Header({
                       onDelete();
                       setShowMenu(false);
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-300"
                   >
                     <Trash2 className="h-4 w-4" />
                     <span>{t("header.actions.delete")}</span>

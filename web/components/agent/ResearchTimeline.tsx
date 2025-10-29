@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import {
   Circle,
   CheckCircle2,
@@ -100,30 +99,32 @@ export function ResearchTimeline({
   };
 
   return (
-    <Card className={cn('glass-card p-6 shadow-medium', className)}>
+    <Card className={cn('console-card px-6 py-6', className)}>
       <div className="mb-4 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">{t('timeline.card.title')}</h3>
-        <p className="console-microcopy mt-1">{t('timeline.card.subtitle')}</p>
+        <h3 className="text-base font-semibold uppercase tracking-[0.22em] text-foreground">
+          {t('timeline.card.title')}
+        </h3>
+        <p className="console-microcopy mt-1 text-muted-foreground">{t('timeline.card.subtitle')}</p>
         {totalCount > 0 && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.3em] text-gray-400">
+            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
               <span>{t('timeline.card.progressLabel')}</span>
-              <span className="text-gray-500 tracking-[0.1em]">
+              <span className="text-foreground/70 tracking-[0.1em]">
                 {t('timeline.card.progressSummary', {
                   completed: completedCount,
                   total: totalCount,
                 })}
               </span>
             </div>
-            <div className="relative h-2 rounded-full bg-gray-100">
+            <div className="relative h-2 rounded-full border border-border bg-background">
               <div
-                className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                className="absolute inset-y-0 left-0 rounded-full bg-foreground"
                 style={{ width: `${progressPercent}%` }}
                 aria-hidden="true"
               />
             </div>
             {overallDurationLabel && (
-              <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-gray-400">
+              <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
                 {t('timeline.card.totalDuration', { duration: overallDurationLabel })}
               </div>
             )}
@@ -148,12 +149,12 @@ export function ResearchTimeline({
               {idx < steps.length - 1 && (
                 <div
                   className={cn(
-                    'absolute left-4 top-10 w-0.5 h-full transition-colors duration-300',
+                    'absolute left-4 top-10 h-full w-px transition-colors duration-300',
                     step.status === 'complete'
-                      ? 'bg-emerald-300'
+                      ? 'bg-foreground'
                       : step.status === 'error'
-                      ? 'bg-destructive/60'
-                      : 'bg-primary/30'
+                        ? 'bg-destructive/70'
+                        : 'bg-border'
                   )}
                 />
               )}
@@ -172,11 +173,10 @@ export function ResearchTimeline({
                   }
                 }}
                 className={cn(
-                  'relative flex items-start gap-3 rounded-xl p-4 text-left transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                  isActive && 'bg-primary/10 border-2 border-primary/40 shadow-md animate-pulse-soft',
-                  isComplete && !isExpanded && 'opacity-70 hover:opacity-100',
-                  'hover:bg-muted',
-                  isFocused && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                  'relative flex items-start gap-3 rounded-2xl border-2 border-border bg-card/92 p-4 text-left shadow-[10px_10px_0_rgba(0,0,0,0.55)] transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                  isActive && 'bg-accent/30',
+                  isComplete && !isExpanded && 'opacity-80 hover:opacity-100',
+                  isFocused && 'ring-2 ring-foreground ring-offset-2 ring-offset-background'
                 )}
                 aria-current={isFocused ? 'step' : undefined}
               >
@@ -189,12 +189,12 @@ export function ResearchTimeline({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-gray-900">{step.title}</h4>
+                      <div className="mb-2 flex items-center gap-2">
+                        <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{step.title}</h4>
                         <StepStatusBadge status={step.status} />
                       </div>
                       {step.description && (
-                        <p className="console-microcopy">
+                        <p className="console-microcopy text-foreground/75">
                           {step.description}
                         </p>
                       )}
@@ -204,7 +204,7 @@ export function ResearchTimeline({
                     {hasDetails && (
                       <button
                         onClick={() => toggleExpand(step.id)}
-                        className="flex-shrink-0 p-1 rounded-lg hover:bg-muted transition-colors"
+                        className="console-button console-button-ghost text-[11px] uppercase"
                         aria-label={
                           isExpanded
                             ? t('timeline.card.collapse')
@@ -214,9 +214,9 @@ export function ResearchTimeline({
                         onKeyDownCapture={(event) => event.stopPropagation()}
                       >
                         {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-gray-500" />
+                          <ChevronUp className="h-4 w-4" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                          <ChevronDown className="h-4 w-4" />
                         )}
                       </button>
                     )}
@@ -224,7 +224,7 @@ export function ResearchTimeline({
 
                   {/* Duration/timestamp */}
                   {step.duration !== undefined && (
-                    <div className="flex items-center gap-1 mt-2 text-[11px] text-gray-400">
+                    <div className="mt-2 flex items-center gap-1 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>{formatDuration(step.duration)}</span>
                     </div>
@@ -236,14 +236,14 @@ export function ResearchTimeline({
                       {/* Tools used */}
                       {step.toolsUsed && step.toolsUsed.length > 0 && (
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                          <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                             {t('timeline.card.toolsUsed')}
                           </p>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-2">
                             {step.toolsUsed.map((tool, toolIdx) => (
                               <span
                                 key={toolIdx}
-                                className="text-[11px] px-2 py-1 rounded border border-primary/20 bg-primary/5 text-primary"
+                                className="console-quiet-chip text-[10px] uppercase"
                               >
                                 {tool}
                               </span>
@@ -255,22 +255,22 @@ export function ResearchTimeline({
                       {/* Tokens used */}
                       {step.tokensUsed !== undefined && (
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                          <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                             {t('timeline.card.tokensUsed')}
                           </p>
-                          <Badge variant="info" className="text-[11px] px-2 py-0.5">
+                          <span className="console-quiet-chip text-[10px] uppercase">
                             {step.tokensUsed.toLocaleString()}
-                          </Badge>
+                          </span>
                         </div>
                       )}
 
                       {/* Error details */}
                       {step.error && (
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-destructive mb-1">
+                          <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-destructive">
                             {t('timeline.card.error')}
                           </p>
-                          <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-2">
+                          <div className="console-card bg-destructive/10 border-destructive/30 p-3 text-left shadow-none">
                             <pre className="console-microcopy whitespace-pre-wrap font-mono text-destructive">
                               {step.error}
                             </pre>
@@ -290,31 +290,31 @@ export function ResearchTimeline({
 }
 
 function StepIcon({ status }: { status: StepStatus }) {
-  const iconClasses = 'h-8 w-8';
+  const base = 'inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-border bg-card shadow-[4px_4px_0_rgba(0,0,0,0.45)]';
 
   switch (status) {
     case 'pending':
       return (
-        <div className="p-1 rounded-full bg-muted">
-          <Circle className={cn(iconClasses, 'text-muted-foreground')} />
+        <div className={base}>
+          <Circle className={cn('h-5 w-5 text-muted-foreground')} />
         </div>
       );
     case 'active':
       return (
-        <div className="p-1 rounded-full bg-primary/10 animate-pulse">
-          <Loader2 className={cn(iconClasses, 'text-primary animate-spin')} />
+        <div className={cn(base, 'bg-accent/30 animate-pulse')}>
+          <Loader2 className="h-5 w-5 animate-spin text-foreground" />
         </div>
       );
     case 'complete':
       return (
-        <div className="p-1 rounded-full bg-emerald-50">
-          <CheckCircle2 className={cn(iconClasses, 'text-emerald-600')} />
+        <div className={cn(base, 'bg-foreground text-background')}>
+          <CheckCircle2 className="h-5 w-5 text-background" />
         </div>
       );
     case 'error':
       return (
-        <div className="p-1 rounded-full bg-destructive/10">
-          <XCircle className={cn(iconClasses, 'text-destructive')} />
+        <div className={cn(base, 'border-destructive bg-destructive/10 text-destructive')}>
+          <XCircle className="h-5 w-5" />
         </div>
       );
   }
@@ -324,28 +324,16 @@ function StepStatusBadge({ status }: { status: StepStatus }) {
   const t = useTranslation();
   switch (status) {
     case 'pending':
-      return (
-        <Badge variant="default" className="text-xs">
-          {t('timeline.card.badge.pending')}
-        </Badge>
-      );
+      return <span className="console-quiet-chip text-[10px] uppercase">{t('timeline.card.badge.pending')}</span>;
     case 'active':
-      return (
-        <Badge variant="info" className="text-xs animate-pulse-soft">
-          {t('timeline.card.badge.active')}
-        </Badge>
-      );
+      return <span className="console-quiet-chip text-[10px] uppercase animate-pulse">{t('timeline.card.badge.active')}</span>;
     case 'complete':
-      return (
-        <Badge variant="success" className="text-xs">
-          {t('timeline.card.badge.complete')}
-        </Badge>
-      );
+      return <span className="console-quiet-chip text-[10px] uppercase">{t('timeline.card.badge.complete')}</span>;
     case 'error':
       return (
-        <Badge variant="error" className="text-xs">
+        <span className="console-quiet-chip border-destructive bg-destructive/10 text-[10px] uppercase text-destructive">
           {t('timeline.card.badge.error')}
-        </Badge>
+        </span>
       );
   }
 }

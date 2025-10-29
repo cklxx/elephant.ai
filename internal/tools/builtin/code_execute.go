@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/tools"
 
 	api "github.com/agent-infra/sandbox-sdk-go"
 	sandboxclient "github.com/agent-infra/sandbox-sdk-go/client"
@@ -19,22 +20,49 @@ import (
 
 // CodeExecuteConfig configures the sandbox integration for the code_execute tool.
 type CodeExecuteConfig struct {
-	BaseURL string
+	BaseURL        string
+	Mode           tools.ExecutionMode
+	SandboxManager *tools.SandboxManager
 }
 
 type codeExecute struct {
-	client *sandboxclient.Client
-	config CodeExecuteConfig
+	client  *sandboxclient.Client
+	sandbox *tools.SandboxManager
+	config  CodeExecuteConfig
 }
 
 func NewCodeExecute(cfg CodeExecuteConfig) ports.ToolExecutor {
-	tool := &codeExecute{config: cfg}
-	if cfg.BaseURL == "" {
-		return tool
+        mode := cfg.Mode
+        if mode == tools.ExecutionModeUnknown {
+                if cfg.SandboxManager != nil {
+                        mode = tools.ExecutionModeSandbox
+		} else {
+			mode = tools.ExecutionModeLocal
+		}
 	}
 
-	tool.client = sandboxclient.NewClient(option.WithBaseURL(cfg.BaseURL))
-	return tool
+	tool := &codeExecute{
+		config: CodeExecuteConfig{
+			BaseURL:        cfg.BaseURL,
+			Mode:           mode,
+			SandboxManager: cfg.SandboxManager,
+		},
+		sandbox: cfg.SandboxManager,
+	}
+
+	if cfg.BaseURL != "" {
+		tool.client = sandboxclient.NewClient(option.WithBaseURL(cfg.BaseURL))
+	} else if mode == tools.ExecutionModeSandbox && cfg.SandboxManager != nil {
+		if err := cfg.SandboxManager.Initialize(context.Background()); err == nil {
+			tool.client = cfg.SandboxManager.Client()
+		}
+	}
+
+        return tool
+}
+
+func (t *codeExecute) Mode() tools.ExecutionMode {
+        return t.config.Mode
 }
 
 func (t *codeExecute) Metadata() ports.ToolMetadata {
@@ -123,7 +151,16 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}
 
 	// Route to remote sandbox when configured.
-	if t.client != nil {
+	if t.config.Mode == tools.ExecutionModeSandbox {
+		if t.client == nil && t.sandbox != nil {
+			if err := t.sandbox.Initialize(ctx); err != nil {
+				return &ports.ToolResult{CallID: call.ID, Content: "Sandbox unavailable", Error: tools.FormatSandboxError(err)}, nil
+			}
+			t.client = t.sandbox.Client()
+		}
+		if t.client == nil {
+			return &ports.ToolResult{CallID: call.ID, Content: "Sandbox client not initialised", Error: fmt.Errorf("sandbox client not available")}, nil
+		}
 		execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 

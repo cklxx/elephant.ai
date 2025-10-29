@@ -28,38 +28,40 @@ export function ConnectionBanner({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full space-y-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="console-card mx-auto flex h-full max-w-md flex-col items-center justify-center gap-4 px-6 py-6 text-center">
+      <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
         {isReconnecting ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin" />
             <span>
-              Reconnecting…
+              Reconnecting
               {typeof reconnectAttempts === 'number' && reconnectAttempts > 0 && (
-                <span className="ml-1 text-muted-foreground/80">
-                  (attempt {reconnectAttempts})
+                <span className="ml-1 text-xs font-medium text-muted-foreground">
+                  ({reconnectAttempts})
                 </span>
               )}
             </span>
           </>
         ) : (
           <>
-            <WifiOff className="h-4 w-4" />
+            <WifiOff className="h-5 w-5" />
             <span>Offline</span>
           </>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-xs text-destructive">
-          <AlertCircle className="h-3 w-3" />
-          <span>{error}</span>
+        <div className="console-card bg-destructive/10 border-destructive/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-destructive shadow-none">
+          <div className="flex items-center justify-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>{error}</span>
+          </div>
         </div>
       )}
 
       <button
         onClick={onReconnect}
-        className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+        className="console-button console-button-primary text-xs uppercase"
       >
         Retry
       </button>

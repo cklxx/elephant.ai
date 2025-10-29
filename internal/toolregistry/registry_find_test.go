@@ -1,11 +1,14 @@
-package tools
+package toolregistry
 
 import (
 	"testing"
 )
 
 func TestRegistry_FindToolRegistered(t *testing.T) {
-	registry := NewRegistry(Config{})
+	registry, err := NewRegistry(Config{})
+	if err != nil {
+		t.Fatalf("failed to build registry: %v", err)
+	}
 
 	// Test that find tool is registered
 	tool, err := registry.Get("find")

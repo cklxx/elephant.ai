@@ -380,26 +380,26 @@ describe('useAgentStreamStore', () => {
     });
   });
 
-  describe('Browser Snapshot Tracking', () => {
-    it('should track browser snapshots', () => {
-      const snapshotEvent: AnyAgentEvent = {
-        event_type: 'browser_snapshot',
+  describe('Browser Diagnostics Tracking', () => {
+    it('should track browser diagnostics events', () => {
+      const diagnosticsEvent: AnyAgentEvent = {
+        event_type: 'browser_info',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
         iteration: 1,
-        url: 'https://example.com',
-        screenshot_data: 'base64-encoded-data',
-        html_preview: '<html>...</html>',
+        captured: new Date().toISOString(),
+        success: true,
+        message: 'Browser ready',
       };
 
       act(() => {
-        useAgentStreamStore.getState().addEvent(snapshotEvent);
+        useAgentStreamStore.getState().addEvent(diagnosticsEvent);
       });
 
       const state = useAgentStreamStore.getState();
-      expect(state.browserSnapshots).toHaveLength(1);
-      expect(state.browserSnapshots[0].url).toBe('https://example.com');
+      expect(state.browserDiagnostics).toHaveLength(1);
+      expect(state.browserDiagnostics[0].success).toBe(true);
     });
   });
 });

@@ -16,7 +16,7 @@ type bashResult struct {
 }
 
 func TestBashExecuteSuccess(t *testing.T) {
-	tool := NewBash()
+	tool := NewBash(ShellToolConfig{})
 	call := ports.ToolCall{ID: "call-1", Arguments: map[string]any{"command": "printf 'hello'"}}
 
 	result, err := tool.Execute(context.Background(), call)
@@ -51,7 +51,7 @@ func TestBashExecuteSuccess(t *testing.T) {
 }
 
 func TestBashExecuteFailure(t *testing.T) {
-	tool := NewBash()
+	tool := NewBash(ShellToolConfig{})
 	call := ports.ToolCall{ID: "call-2", Arguments: map[string]any{"command": "echo error 1>&2; exit 3"}}
 
 	result, err := tool.Execute(context.Background(), call)

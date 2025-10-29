@@ -118,10 +118,16 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
     {
       delay: 2750,
       event: {
-        event_type: 'browser_snapshot',
+        event_type: 'browser_info',
         agent_level: 'core',
-        url: 'http://localhost:3000/',
-        html_preview: '<main>Mock Research Console</main>',
+        success: true,
+        message: 'Sandbox browser ready',
+        user_agent: 'MockBrowser/1.0',
+        cdp_url: 'ws://sandbox.example.com/devtools',
+        vnc_url: 'vnc://sandbox.example.com',
+        viewport_width: 1280,
+        viewport_height: 720,
+        captured: '2024-01-01T00:00:00Z',
       },
     },
     {

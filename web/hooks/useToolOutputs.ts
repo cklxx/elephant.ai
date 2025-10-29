@@ -5,7 +5,7 @@ import {
   AnyAgentEvent,
   ToolCallStartEvent,
   ToolCallCompleteEvent,
-  BrowserSnapshotEvent,
+  BrowserInfoEvent,
 } from '@/lib/types';
 import { ToolOutput, ToolOutputType } from '@/components/agent/WebViewport';
 
@@ -45,17 +45,35 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
         }
       }
 
-      // Browser snapshots
-      if (event.event_type === 'browser_snapshot') {
-        const e = event as BrowserSnapshotEvent;
+      // Browser diagnostics
+      if (event.event_type === 'browser_info') {
+        const e = event as BrowserInfoEvent;
+        const details: string[] = [];
+        if (typeof e.success === 'boolean') {
+          details.push(`Status: ${e.success ? 'available' : 'unavailable'}`);
+        }
+        if (e.message) {
+          details.push(`Message: ${e.message}`);
+        }
+        if (e.user_agent) {
+          details.push(`User-Agent: ${e.user_agent}`);
+        }
+        if (e.cdp_url) {
+          details.push(`CDP URL: ${e.cdp_url}`);
+        }
+        if (e.vnc_url) {
+          details.push(`VNC URL: ${e.vnc_url}`);
+        }
+        if (e.viewport_width && e.viewport_height) {
+          details.push(`Viewport: ${e.viewport_width}x${e.viewport_height}`);
+        }
+
         outputs.push({
-          id: `snapshot-${event.timestamp}`,
-          type: 'web_fetch',
-          toolName: 'browser_snapshot',
+          id: `browser-info-${event.timestamp}`,
+          type: 'generic',
+          toolName: 'browser_info',
           timestamp: new Date(event.timestamp).getTime(),
-          url: e.url,
-          screenshot: e.screenshot_data,
-          htmlPreview: e.html_preview,
+          result: details.length > 0 ? details.join('\n') : 'No browser diagnostics available.',
         });
       }
     });

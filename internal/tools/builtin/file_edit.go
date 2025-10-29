@@ -2,17 +2,31 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	"alex/internal/tools"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	api "github.com/agent-infra/sandbox-sdk-go"
 )
 
-type fileEdit struct{}
+type fileEdit struct {
+        mode    tools.ExecutionMode
+        sandbox *tools.SandboxManager
+}
 
-func NewFileEdit() ports.ToolExecutor {
-	return &fileEdit{}
+func NewFileEdit(cfg FileToolConfig) ports.ToolExecutor {
+        mode := cfg.Mode
+        if mode == tools.ExecutionModeUnknown {
+                mode = tools.ExecutionModeLocal
+        }
+        return &fileEdit{mode: mode, sandbox: cfg.SandboxManager}
+}
+
+func (t *fileEdit) Mode() tools.ExecutionMode {
+        return t.mode
 }
 
 func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -35,6 +49,10 @@ func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// Resolve path (handle relative paths)
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
+
+	if t.mode == tools.ExecutionModeSandbox {
+		return t.executeSandbox(ctx, call.ID, filePath, resolvedPath, oldString, newString)
+	}
 
 	// Handle new file creation case (empty old_string)
 	if oldString == "" {
@@ -138,6 +156,122 @@ func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, n
 			"content":       newContent,
 		},
 	}, nil
+}
+
+func (t *fileEdit) executeSandbox(ctx context.Context, callID, filePath, resolvedPath, oldString, newString string) (*ports.ToolResult, error) {
+	if t.sandbox == nil {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("sandbox manager is required")}, nil
+	}
+	if err := t.sandbox.Initialize(ctx); err != nil {
+		return &ports.ToolResult{CallID: callID, Error: tools.FormatSandboxError(err)}, nil
+	}
+
+	sandboxPath := resolvedPath
+
+	if oldString == "" {
+		return t.createSandboxFile(ctx, callID, filePath, sandboxPath, newString)
+	}
+	return t.editSandboxFile(ctx, callID, filePath, sandboxPath, oldString, newString)
+}
+
+func (t *fileEdit) createSandboxFile(ctx context.Context, callID, filePath, sandboxPath, content string) (*ports.ToolResult, error) {
+	dir := filepath.Dir(sandboxPath)
+	if err := t.ensureSandboxDirectory(ctx, dir); err != nil {
+		return &ports.ToolResult{CallID: callID, Error: err}, nil
+	}
+
+	if _, err := t.sandbox.File().ReadFile(ctx, &api.FileReadRequest{File: sandboxPath}); err == nil {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("file already exists: %s", filePath)}, nil
+	} else if !isSandboxNotFound(err) {
+		return &ports.ToolResult{CallID: callID, Error: tools.FormatSandboxError(err)}, nil
+	}
+
+	if _, err := t.sandbox.File().WriteFile(ctx, &api.FileWriteRequest{File: sandboxPath, Content: content}); err != nil {
+		return &ports.ToolResult{CallID: callID, Error: tools.FormatSandboxError(err)}, nil
+	}
+
+	lineCount := len(strings.Split(content, "\n"))
+	diff := generateUnifiedDiff("", content, filePath)
+
+	return &ports.ToolResult{
+		CallID:  callID,
+		Content: fmt.Sprintf("Created %s (%d lines)", filePath, lineCount),
+		Metadata: map[string]any{
+			"file_path":     filePath,
+			"resolved_path": sandboxPath,
+			"operation":     "created",
+			"bytes_written": len(content),
+			"lines_total":   lineCount,
+			"diff":          diff,
+		},
+	}, nil
+}
+
+func (t *fileEdit) editSandboxFile(ctx context.Context, callID, filePath, sandboxPath, oldString, newString string) (*ports.ToolResult, error) {
+	resp, err := t.sandbox.File().ReadFile(ctx, &api.FileReadRequest{File: sandboxPath})
+	if err != nil {
+		return &ports.ToolResult{CallID: callID, Error: tools.FormatSandboxError(err)}, nil
+	}
+	data := resp.GetData()
+	if data == nil {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to read file: empty response")}, nil
+	}
+	originalContent := data.GetContent()
+
+	occurrences := strings.Count(originalContent, oldString)
+	if occurrences == 0 {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("old_string not found in file")}, nil
+	}
+	if occurrences > 1 {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("old_string appears %d times in file. Please include more context to make it unique", occurrences)}, nil
+	}
+
+	newContent := strings.Replace(originalContent, oldString, newString, 1)
+	diff := generateUnifiedDiff(originalContent, newContent, filePath)
+
+	if _, err := t.sandbox.File().WriteFile(ctx, &api.FileWriteRequest{File: sandboxPath, Content: newContent}); err != nil {
+		return &ports.ToolResult{CallID: callID, Error: tools.FormatSandboxError(err)}, nil
+	}
+
+	newLineCount := len(strings.Split(newContent, "\n"))
+
+	return &ports.ToolResult{
+		CallID:  callID,
+		Content: fmt.Sprintf("Updated %s (%d lines)", filePath, newLineCount),
+		Metadata: map[string]any{
+			"file_path":     filePath,
+			"resolved_path": sandboxPath,
+			"operation":     "edited",
+			"lines_total":   newLineCount,
+			"diff":          diff,
+			"content":       newContent,
+		},
+	}, nil
+}
+
+func (t *fileEdit) ensureSandboxDirectory(ctx context.Context, dir string) error {
+	if dir == "" || dir == "." || dir == "/" {
+		return nil
+	}
+	req := &api.ShellExecRequest{Command: fmt.Sprintf("mkdir -p %s", shellQuote(dir))}
+	if _, err := t.sandbox.Shell().ExecCommand(ctx, req); err != nil {
+		return tools.FormatSandboxError(err)
+	}
+	return nil
+}
+
+func shellQuote(path string) string {
+	if !strings.ContainsRune(path, '\'') {
+		return fmt.Sprintf("'%s'", path)
+	}
+	return "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+}
+
+func isSandboxNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "not found")
 }
 
 func (t *fileEdit) Definition() ports.ToolDefinition {

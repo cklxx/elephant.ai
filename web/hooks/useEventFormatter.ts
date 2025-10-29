@@ -258,11 +258,11 @@ export function useEventFormatter(
           }
           return 'Step completed';
 
-        case 'browser_snapshot':
-          if ('url' in event) {
-            return `📸 Browser snapshot: ${event.url}`;
+        case 'browser_info':
+          if ('message' in event && event.message) {
+            return `🧭 Browser diagnostics: ${event.message}`;
           }
-          return 'Browser snapshot';
+          return '🧭 Browser diagnostics captured';
 
         case 'tool_call_stream':
           if ('chunk' in event) {

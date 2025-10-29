@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"alex/internal/agent/ports"
 )
@@ -470,6 +471,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				Result:    result.Content,
 				Error:     result.Error,
 				Duration:  e.clock.Now().Sub(startTime),
+				Metadata:  result.Metadata,
 			})
 
 			results[idx] = ToolResult{
@@ -477,6 +479,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 				Content:  result.Content,
 				Error:    result.Error,
 				Metadata: result.Metadata,
+			}
+
+			if result.Metadata != nil {
+				if info, ok := result.Metadata["browser_info"].(map[string]any); ok {
+					e.emitBrowserInfoEvent(ctx, sessionID, info)
+				}
 			}
 		}(i, call)
 	}
@@ -527,6 +535,59 @@ func (e *ReactEngine) buildObservation(results []ToolResult) Message {
 		Content:     content,
 		ToolResults: results,
 	}
+}
+
+func coerceToInt(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case uint:
+		return int(v)
+	case uint32:
+		return int(v)
+	case uint64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID string, metadata map[string]any) {
+	level := ports.GetOutputContext(ctx).Level
+	captured := e.clock.Now()
+	if tsRaw, ok := metadata["captured_at"].(string); ok {
+		if ts, err := time.Parse(time.RFC3339, tsRaw); err == nil {
+			captured = ts
+		}
+	}
+
+	var successPtr *bool
+	switch v := metadata["success"].(type) {
+	case bool:
+		success := v
+		successPtr = &success
+	case *bool:
+		successPtr = v
+	}
+
+	message, _ := metadata["message"].(string)
+	userAgent, _ := metadata["user_agent"].(string)
+	cdpURL, _ := metadata["cdp_url"].(string)
+	vncURL, _ := metadata["vnc_url"].(string)
+
+	viewportWidth := coerceToInt(metadata["viewport_width"])
+	viewportHeight := coerceToInt(metadata["viewport_height"])
+
+	event := NewBrowserInfoEvent(level, sessionID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
+	e.emitEvent(event)
 }
 
 // finalize creates the final task result

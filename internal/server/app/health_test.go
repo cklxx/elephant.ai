@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"alex/internal/di"
@@ -53,6 +54,48 @@ func TestHealthChecker(t *testing.T) {
 		results := checker.CheckAll(context.Background())
 		if len(results) != 2 {
 			t.Errorf("Expected 2 results, got %d", len(results))
+		}
+	})
+}
+
+func TestSandboxProbe(t *testing.T) {
+	t.Run("disabled when manager missing", func(t *testing.T) {
+		probe := NewSandboxProbe(nil)
+		health := probe.Check(context.Background())
+
+		if health.Name != "sandbox" {
+			t.Fatalf("expected component name 'sandbox', got %q", health.Name)
+		}
+		if health.Status != ports.HealthStatusDisabled {
+			t.Fatalf("expected disabled status, got %s", health.Status)
+		}
+	})
+
+	t.Run("reports ready when health check passes", func(t *testing.T) {
+		stub := &stubSandboxManager{}
+		probe := &SandboxProbe{manager: stub}
+
+		health := probe.Check(context.Background())
+
+		if !stub.called {
+			t.Fatalf("expected health check to invoke sandbox manager")
+		}
+		if health.Status != ports.HealthStatusReady {
+			t.Fatalf("expected ready status, got %s", health.Status)
+		}
+	})
+
+	t.Run("reports not ready when health check fails", func(t *testing.T) {
+		stub := &stubSandboxManager{err: errors.New("connection refused")}
+		probe := &SandboxProbe{manager: stub}
+
+		health := probe.Check(context.Background())
+
+		if health.Status != ports.HealthStatusNotReady {
+			t.Fatalf("expected not_ready status, got %s", health.Status)
+		}
+		if health.Message == "" {
+			t.Fatalf("expected error message to be populated")
 		}
 	})
 }
@@ -135,4 +178,14 @@ type mockHealthProbe struct {
 
 func (m *mockHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
 	return m.health
+}
+
+type stubSandboxManager struct {
+	called bool
+	err    error
+}
+
+func (s *stubSandboxManager) HealthCheck(ctx context.Context) error {
+	s.called = true
+	return s.err
 }

@@ -21,6 +21,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
 import { apiClient } from '@/lib/api';
 import { safeValidateEvent } from '@/lib/schemas';
+import { handleEnvironmentSnapshot } from './useDiagnostics';
 
 export interface UseSSEOptions {
   enabled?: boolean;
@@ -165,7 +166,8 @@ export function useSSE(
         'research_plan',
         'step_started',
         'step_completed',
-        'browser_snapshot',
+        'browser_info',
+        'environment_snapshot',
       ];
 
       eventTypes.forEach((type) => {
@@ -186,6 +188,9 @@ export function useSSE(
 
             // Validated event
             const event = validationResult.data;
+            if (event.event_type === 'environment_snapshot') {
+              handleEnvironmentSnapshot(event);
+            }
             setEvents((prev) => [...prev, event]);
             onEventRef.current?.(event);
           } catch (err) {

@@ -120,12 +120,25 @@ export interface StepCompletedEvent extends AgentEvent {
   step_description?: string;
 }
 
-// Browser Snapshot Event - emitted when capturing browser state (for web automation tools)
-export interface BrowserSnapshotEvent extends AgentEvent {
-  event_type: 'browser_snapshot';
-  url: string;
-  screenshot_data?: string; // base64 encoded image
-  html_preview?: string; // truncated HTML for preview
+// Browser Info Event - emitted when sandbox browser diagnostics are captured
+export interface BrowserInfoEvent extends AgentEvent {
+  event_type: 'browser_info';
+  success?: boolean;
+  message?: string;
+  user_agent?: string;
+  cdp_url?: string;
+  vnc_url?: string;
+  viewport_width?: number;
+  viewport_height?: number;
+  captured: string;
+}
+
+// Environment Snapshot Event - emitted when host/sandbox environments are captured
+export interface EnvironmentSnapshotEvent extends AgentEvent {
+  event_type: 'environment_snapshot';
+  host?: Record<string, string> | null;
+  sandbox?: Record<string, string> | null;
+  captured: string;
 }
 
 // Connected Event - emitted when SSE connection is established
@@ -157,7 +170,8 @@ export type AnyAgentEvent =
   | ResearchPlanEvent
   | StepStartedEvent
   | StepCompletedEvent
-  | BrowserSnapshotEvent
+  | BrowserInfoEvent
+  | EnvironmentSnapshotEvent
   | ConnectedEvent
   | UserTaskEvent;
 

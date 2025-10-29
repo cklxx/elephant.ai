@@ -31,7 +31,7 @@ export function AgentOutput({
     toolCallCount: number;
     iterationCount: number;
     researchStepCount: number;
-    browserSnapshotCount: number;
+    browserDiagnosticsCount: number;
   };
   const timelineSteps = useTimelineSteps(events);
   const hasTimeline = timelineSteps.length > 0;
@@ -87,14 +87,17 @@ export function AgentOutput({
   return (
     <div className="space-y-6">
       {/* Connection status */}
-      <div className="glass-card p-4 rounded-xl shadow-soft flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            Agent Output
-          </h2>
-          {/* Memory usage indicator */}
-          <div className="text-xs text-gray-500 font-mono">
-            {memoryStats.eventCount} events ({Math.round(memoryStats.estimatedBytes / 1024)}KB)
+      <section className="console-card flex items-center justify-between gap-6 px-6 py-5">
+        <div className="space-y-2">
+          <h2 className="console-pane-title">Agent Output</h2>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">
+            <span className="console-quiet-chip text-[11px] uppercase">
+              {memoryStats.eventCount.toLocaleString()} EVENTS
+            </span>
+            <span>
+              {Math.round(memoryStats.estimatedBytes / 1024)} KB · {memoryStats.toolCallCount} TOOL CALLS · {memoryStats.iterationCount}{' '}
+              ITERATIONS
+            </span>
           </div>
         </div>
         <ConnectionStatus
@@ -104,7 +107,7 @@ export function AgentOutput({
           reconnectAttempts={reconnectAttempts}
           onReconnect={onReconnect}
         />
-      </div>
+      </section>
 
       {hasTimeline && (
         <ResearchTimeline
@@ -127,6 +130,7 @@ export function AgentOutput({
           setFocusedStepId(targetStepId);
           setHasUserSelectedStep(false);
         }}
+        className="bg-card/90"
       />
     </div>
   );

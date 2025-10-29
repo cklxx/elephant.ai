@@ -8,12 +8,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  ClipboardList,
-  Cpu,
   Info,
   Loader2,
-  MessageSquare,
-  Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
@@ -132,15 +128,15 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="space-y-3 max-w-4xl" data-testid="conversation-stream">
+    <div className="console-card space-y-5 px-6 py-5" data-testid="conversation-stream">
       {activeAction && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
+        <div className="console-quiet-chip text-xs uppercase">
+          <Loader2 className="h-4 w-4 animate-spin" />
           <span>{activeAction.tool_name}</span>
         </div>
       )}
 
-      <div className="space-y-0" data-testid="conversation-events">
+      <div className="space-y-2" data-testid="conversation-events">
         {displayEvents.map((event, index) => (
           <EventLine
             key={`${event.event_type}-${index}`}
@@ -153,8 +149,8 @@ export function TerminalOutput({
       </div>
 
       {isConnected && displayEvents.length > 0 && (
-        <div className="flex items-center gap-2 pt-1 text-xs text-slate-400">
-          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+        <div className="flex items-center gap-2 pt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
           <span>{t('conversation.status.listening')}</span>
         </div>
       )}
@@ -377,54 +373,49 @@ function EventLine({
         aria-hidden
         className="absolute -left-[3px] top-2 h-1.5 w-1.5 rounded-full bg-slate-300"
       />
-      <div className="flex items-start gap-2">
-        <div className={cn('relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center', meta.iconTone)}>
-          <meta.icon className="h-3.5 w-3.5" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
-            {presentation.headline && (
-              <p className={cn('font-semibold leading-tight text-slate-900', meta.headline, headlineSize)}>
-                {presentation.headline}
-              </p>
-            )}
-            {presentation.status && !isToolCallStartDisplayEvent(event) && (
-              <StatusBadge status={presentation.status} label={statusLabel} />
-            )}
-          </div>
-          {presentation.subheading && (
-            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
-              {presentation.subheading}
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
+          {presentation.headline && (
+            <p className={cn('font-semibold leading-tight text-foreground', meta.headline, headlineSize)}>
+              {presentation.headline}
             </p>
           )}
-
-          {isToolCallStartDisplayEvent(event) ? (
-            <ToolCallContent
-              event={event}
-              t={t}
-              summary={toolSummariesById.get(event.call_id)}
-            />
-          ) : (
-            <>
-              {presentation.summary && (
-                <div className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
-                  {presentation.summary}
-                </div>
-              )}
-              {presentation.supplementary}
-            </>
-          )}
-
-          {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
-            <EventMetadata event={event} accentClass={meta.accent} />
-          )}
-
-          {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
-            <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
-              {timestamp}
-            </time>
+          {presentation.status && !isToolCallStartDisplayEvent(event) && (
+            <StatusBadge status={presentation.status} label={statusLabel} />
           )}
         </div>
+        {presentation.subheading && (
+          <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-slate-400">
+            {presentation.subheading}
+          </p>
+        )}
+
+        {isToolCallStartDisplayEvent(event) ? (
+          <ToolCallContent
+            event={event}
+            t={t}
+            summary={toolSummariesById.get(event.call_id)}
+          />
+        ) : (
+          <>
+            {presentation.summary && (
+              <div className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
+                {presentation.summary}
+              </div>
+            )}
+            {presentation.supplementary}
+          </>
+        )}
+
+        {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
+          <EventMetadata event={event} accentClass={meta.accent} />
+        )}
+
+        {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
+          <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
+            {timestamp}
+          </time>
+        )}
       </div>
     </article>
   );
@@ -536,7 +527,7 @@ function getEventCategory(event: DisplayEvent): EventCategory {
     case 'step_completed':
       return 'plan';
     case 'tool_call_start':
-    case 'browser_snapshot':
+    case 'browser_info':
       return 'tools';
     case 'iteration_start':
     case 'iteration_complete':
@@ -561,52 +552,34 @@ interface EventPresentation {
 const EVENT_STYLE_META: Record<
   EventCategory,
   {
-    icon: typeof MessageSquare;
-    iconTone: string;
-    pill: string;
     headline: string;
     accent: string;
     label: string;
   }
 > = {
   conversation: {
-    icon: MessageSquare,
-    iconTone: 'text-sky-500',
-    pill: 'text-sky-400',
-    headline: 'text-sky-900',
-    accent: 'text-sky-400',
+    headline: 'text-foreground',
+    accent: 'text-muted-foreground',
     label: 'Conversation',
   },
   plan: {
-    icon: ClipboardList,
-    iconTone: 'text-amber-500',
-    pill: 'text-amber-400',
-    headline: 'text-amber-900',
-    accent: 'text-amber-400',
+    headline: 'text-foreground',
+    accent: 'text-muted-foreground',
     label: 'Planning',
   },
   tools: {
-    icon: Wrench,
-    iconTone: 'text-emerald-500',
-    pill: 'text-emerald-400',
-    headline: 'text-emerald-900',
-    accent: 'text-emerald-400',
+    headline: 'text-foreground',
+    accent: 'text-muted-foreground',
     label: 'Tools',
   },
   system: {
-    icon: Cpu,
-    iconTone: 'text-slate-500',
-    pill: 'text-slate-400',
-    headline: 'text-slate-900',
-    accent: 'text-slate-400',
+    headline: 'text-foreground',
+    accent: 'text-muted-foreground',
     label: 'System',
   },
   other: {
-    icon: Info,
-    iconTone: 'text-slate-400',
-    pill: 'text-slate-400',
-    headline: 'text-slate-900',
-    accent: 'text-slate-400',
+    headline: 'text-foreground',
+    accent: 'text-muted-foreground',
     label: 'Other',
   },
 };
@@ -720,7 +693,6 @@ function describeEvent(
 
     case 'task_complete':
       return {
-        headline: 'Final Result',
         supplementary: event.final_answer ? (
           <MarkdownRenderer
             content={event.final_answer}
@@ -765,19 +737,55 @@ function describeEvent(
         summary: truncateText(event.step_result, 200),
       };
 
-    case 'browser_snapshot':
+    case 'browser_info': {
+      const status =
+        typeof event.success === 'boolean'
+          ? event.success
+            ? 'info'
+            : 'warning'
+          : 'info';
+      const details: Array<[string, string]> = [];
+      if (event.user_agent) {
+        details.push(['User Agent', event.user_agent]);
+      }
+      if (event.cdp_url) {
+        details.push(['CDP URL', event.cdp_url]);
+      }
+      if (event.vnc_url) {
+        details.push(['VNC URL', event.vnc_url]);
+      }
+      if (event.viewport_width && event.viewport_height) {
+        details.push(['Viewport', `${event.viewport_width} × ${event.viewport_height}`]);
+      }
+
+      const summaryParts: string[] = [];
+      if (typeof event.success === 'boolean') {
+        summaryParts.push(event.success ? 'Browser ready' : 'Browser unavailable');
+      }
+      if (event.message) {
+        summaryParts.push(event.message);
+      }
+
       return {
-        headline: 'Browser Snapshot',
-        subheading: event.url,
-          supplementary:
-            event.html_preview ? (
-              <ContentBlock title="HTML Preview">
-                <pre className="whitespace-pre-wrap font-mono text-[8px] leading-snug text-foreground/90">
-                  {event.html_preview}
-                </pre>
-              </ContentBlock>
-            ) : undefined,
+        headline: 'Browser Diagnostics',
+        subheading: `Captured ${new Date(event.captured).toLocaleString()}`,
+        status,
+        summary: summaryParts.length ? summaryParts.join(' • ') : undefined,
+        supplementary:
+          details.length > 0 ? (
+            <ContentBlock title="Details">
+              <dl className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {details.map(([label, value]) => (
+                  <div key={label} className="flex flex-col">
+                    <dt className="font-semibold text-slate-600">{label}</dt>
+                    <dd className="break-words text-slate-500">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </ContentBlock>
+          ) : undefined,
       };
+    }
 
     default:
       return {
@@ -844,15 +852,16 @@ function getEventMetadata(event: DisplayEvent): Array<{ label: string; value: st
       return [
         { label: 'Recoverable', value: event.recoverable ? 'Yes' : 'No' },
       ];
-    case 'browser_snapshot':
-      return event.url
-        ? [
-            {
-              label: 'URL',
-              value: event.url,
-            },
-          ]
-        : [];
+    case 'browser_info': {
+      const entries: Array<{ label: string; value: string }> = [];
+      if (typeof event.success === 'boolean') {
+        entries.push({ label: 'Status', value: event.success ? 'Available' : 'Unavailable' });
+      }
+      if (event.captured) {
+        entries.push({ label: 'Captured', value: new Date(event.captured).toLocaleString() });
+      }
+      return entries;
+    }
     default:
       return [];
   }

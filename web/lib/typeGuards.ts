@@ -16,7 +16,7 @@ import {
   ResearchPlanEvent,
   StepStartedEvent,
   StepCompletedEvent,
-  BrowserSnapshotEvent,
+  BrowserInfoEvent,
   UserTaskEvent,
 } from '@/lib/types';
 
@@ -96,9 +96,9 @@ export function isStepCompletedEvent(event: AnyAgentEvent): event is StepComplet
   return event.event_type === 'step_completed';
 }
 
-// Browser Snapshot Event
-export function isBrowserSnapshotEvent(event: AnyAgentEvent): event is BrowserSnapshotEvent {
-  return event.event_type === 'browser_snapshot';
+// Browser Info Event
+export function isBrowserInfoEvent(event: AnyAgentEvent): event is BrowserInfoEvent {
+  return event.event_type === 'browser_info';
 }
 
 // User Task Event

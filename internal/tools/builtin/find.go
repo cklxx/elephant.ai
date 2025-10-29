@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	"alex/internal/tools"
 	"context"
 	"fmt"
 	"os/exec"
@@ -9,20 +10,29 @@ import (
 	"strings"
 )
 
-type find struct{}
+type find struct {
+        mode    tools.ExecutionMode
+        sandbox *tools.SandboxManager
+}
 
-func NewFind() ports.ToolExecutor {
-	return &find{}
+func NewFind(cfg ShellToolConfig) ports.ToolExecutor {
+        mode := cfg.Mode
+        if mode == tools.ExecutionModeUnknown {
+                mode = tools.ExecutionModeLocal
+        }
+        return &find{mode: mode, sandbox: cfg.SandboxManager}
+}
+
+func (t *find) Mode() tools.ExecutionMode {
+        return t.mode
 }
 
 func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Extract parameters
 	name, ok := call.Arguments["name"].(string)
 	if !ok {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'name'")}, nil
 	}
 
-	// Optional parameters with defaults
 	path := "."
 	if p, ok := call.Arguments["path"].(string); ok && p != "" {
 		path = p
@@ -33,82 +43,63 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		maxDepth = int(md)
 	}
 
-	// Build find command
-	cmdArgs := []string{path}
+	cmdArgs := t.buildArgs(call, path, maxDepth, name)
 
-	// Add max depth
-	cmdArgs = append(cmdArgs, "-maxdepth", fmt.Sprintf("%d", maxDepth))
-
-	// Add type filter if specified
-	if fileType, ok := call.Arguments["type"].(string); ok && fileType != "" {
-		cmdArgs = append(cmdArgs, "-type", fileType)
+	if t.mode == tools.ExecutionModeSandbox {
+		return t.executeSandbox(ctx, call, cmdArgs, name, path, maxDepth)
 	}
 
-	// Add name pattern
-	cmdArgs = append(cmdArgs, "-name", name)
-
-	// Execute find command
 	cmd := exec.CommandContext(ctx, "find", cmdArgs...)
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
-		// find returns exit code 1 when no matches found
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return &ports.ToolResult{
-				CallID:  call.ID,
-				Content: "No matches found",
-				Metadata: map[string]any{
-					"pattern":   name,
-					"path":      path,
-					"matches":   0,
-					"max_depth": maxDepth,
-				},
-			}, nil
+			return t.noMatchesResult(call, name, path, maxDepth)
 		}
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: string(output),
-			Error:   fmt.Errorf("find command failed: %w", err),
-		}, nil
+		return &ports.ToolResult{CallID: call.ID, Content: string(output), Error: fmt.Errorf("find command failed: %w", err)}, nil
 	}
 
-	// Process output
-	lines := strings.Split(string(output), "\n")
-	// Remove empty lines and convert to relative paths
+	return t.processOutput(call, string(output), name, path, maxDepth)
+}
+
+func (t *find) executeSandbox(ctx context.Context, call ports.ToolCall, cmdArgs []string, name, path string, maxDepth int) (*ports.ToolResult, error) {
+	command := "find " + strings.Join(quoteArgs(cmdArgs), " ")
+	output, exitCode, err := runSandboxCommandRaw(ctx, t.sandbox, command)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+	if exitCode == 1 {
+		return t.noMatchesResult(call, name, path, maxDepth)
+	}
+	if exitCode != 0 {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("find command failed with exit code %d", exitCode)}, nil
+	}
+	return t.processOutput(call, output, name, path, maxDepth)
+}
+
+func (t *find) processOutput(call ports.ToolCall, output, name, path string, maxDepth int) (*ports.ToolResult, error) {
+	lines := strings.Split(output, "\n")
 	var results []string
 	for _, line := range lines {
-		if line != "" {
-			// Convert to relative path if possible
-			if relPath, err := filepath.Rel(path, line); err == nil && !strings.HasPrefix(relPath, "..") {
-				results = append(results, relPath)
-			} else {
-				results = append(results, line)
-			}
+		if line == "" {
+			continue
+		}
+		if relPath, err := filepath.Rel(path, line); err == nil && !strings.HasPrefix(relPath, "..") {
+			results = append(results, relPath)
+		} else {
+			results = append(results, line)
 		}
 	}
 
-	// Handle no matches case
 	if len(results) == 0 {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "No matches found",
-			Metadata: map[string]any{
-				"pattern":   name,
-				"path":      path,
-				"matches":   0,
-				"max_depth": maxDepth,
-			},
-		}, nil
+		return t.noMatchesResult(call, name, path, maxDepth)
 	}
 
-	// Limit results to 100 matches
 	truncated := false
 	if len(results) > 100 {
 		results = results[:100]
 		truncated = true
 	}
 
-	// Build content message
 	content := fmt.Sprintf("Found %d matches", len(results))
 	if truncated {
 		content += " (showing first 100)"
@@ -127,6 +118,28 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 			"results":   results,
 		},
 	}, nil
+}
+
+func (t *find) noMatchesResult(call ports.ToolCall, name, path string, maxDepth int) (*ports.ToolResult, error) {
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "No matches found",
+		Metadata: map[string]any{
+			"pattern":   name,
+			"path":      path,
+			"matches":   0,
+			"max_depth": maxDepth,
+		},
+	}, nil
+}
+
+func (t *find) buildArgs(call ports.ToolCall, path string, maxDepth int, name string) []string {
+	args := []string{path, "-maxdepth", fmt.Sprintf("%d", maxDepth)}
+	if fileType, ok := call.Arguments["type"].(string); ok && fileType != "" {
+		args = append(args, "-type", fileType)
+	}
+	args = append(args, "-name", name)
+	return args
 }
 
 func (t *find) Definition() ports.ToolDefinition {

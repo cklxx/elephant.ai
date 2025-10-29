@@ -55,14 +55,19 @@ export interface ResearchStep {
 }
 
 /**
- * Browser snapshot data
+ * Browser diagnostics data
  */
-export interface BrowserSnapshot {
+export interface BrowserDiagnostics {
   id: string;
-  url: string;
-  screenshot_data?: string;
-  html_preview?: string;
   timestamp: string;
+  captured: string;
+  success?: boolean;
+  message?: string;
+  user_agent?: string;
+  cdp_url?: string;
+  vnc_url?: string;
+  viewport_width?: number;
+  viewport_height?: number;
 }
 
 /**
@@ -340,17 +345,22 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
 }
 
 /**
- * Extract browser snapshots from events
+ * Extract browser diagnostics events from the stream
  */
-export function extractBrowserSnapshots(events: AnyAgentEvent[]): BrowserSnapshot[] {
+export function extractBrowserDiagnostics(events: AnyAgentEvent[]): BrowserDiagnostics[] {
   return events
-    .filter((e): e is import('./types').BrowserSnapshotEvent => e.event_type === 'browser_snapshot')
+    .filter((e): e is import('./types').BrowserInfoEvent => e.event_type === 'browser_info')
     .map((e) => ({
-      id: `snapshot-${e.timestamp}`,
-      url: e.url,
-      screenshot_data: e.screenshot_data,
-      html_preview: e.html_preview,
+      id: `browser-info-${e.timestamp}`,
       timestamp: e.timestamp,
+      captured: e.captured,
+      success: e.success,
+      message: e.message,
+      user_agent: e.user_agent,
+      cdp_url: e.cdp_url,
+      vnc_url: e.vnc_url,
+      viewport_width: e.viewport_width,
+      viewport_height: e.viewport_height,
     }));
 }
 

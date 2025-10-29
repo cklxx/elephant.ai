@@ -87,7 +87,10 @@ export function InputBar({
               type="button"
               onClick={onAttachment}
               disabled={disabled || loading}
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className={cn(
+                'console-icon-button h-10 w-10 !rounded-lg',
+                'disabled:opacity-50'
+              )}
               title={t('inputBar.actions.attach')}
             >
               <Paperclip className="h-4 w-4" />
@@ -98,7 +101,10 @@ export function InputBar({
               type="button"
               onClick={onVoice}
               disabled={disabled || loading}
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className={cn(
+                'console-icon-button h-10 w-10 !rounded-lg',
+                'disabled:opacity-50'
+              )}
               title={t('inputBar.actions.voice')}
             >
               <Mic className="h-4 w-4" />
@@ -121,10 +127,10 @@ export function InputBar({
             disabled={disabled || loading}
             rows={1}
             className={cn(
-              'w-full resize-none overflow-y-auto rounded-lg border border-slate-200 bg-white px-4 py-3',
+              'w-full resize-none overflow-y-auto rounded-lg border border-slate-300 bg-white px-4 py-3',
               'text-sm text-slate-700 placeholder:text-slate-400',
-              'transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200',
-              'disabled:cursor-not-allowed disabled:opacity-50',
+              'transition focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/30',
+              'disabled:cursor-not-allowed disabled:opacity-60',
               'max-h-32'
             )}
             style={{ fieldSizing: 'content' } as any}
@@ -135,10 +141,8 @@ export function InputBar({
           type="submit"
           disabled={disabled || loading || !text.trim()}
           className={cn(
-            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
-            'bg-sky-500 text-white shadow-sm transition',
-            'hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200',
-            'disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400'
+            'console-icon-button console-icon-button-primary h-10 w-10 !rounded-lg',
+            'flex-shrink-0'
           )}
           title={loading ? t('inputBar.actions.sending') : t('inputBar.actions.send')}
         >

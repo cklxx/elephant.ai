@@ -103,7 +103,7 @@ function EventStream({ sessionId }) {
 | `useErrorStates()` | `{ hasError, errorMessage, ... }` | Error tracking |
 | `useTaskSummary()` | `{ actionName, goal, status, ... }` | Task metadata |
 | `useMemoryStats()` | `{ eventCount, estimatedBytes, ... }` | Memory usage |
-| `useLatestBrowserSnapshot()` | `BrowserSnapshot \| null` | Latest browser screenshot |
+| `useLatestBrowserDiagnostics()` | `BrowserDiagnostics \| null` | Latest browser diagnostics |
 | `useIterationsArray()` | `IterationGroup[]` | Sorted iterations (for virtualizer) |
 | `useRawEvents()` | `AnyAgentEvent[]` | Raw event array (debug/export) |
 

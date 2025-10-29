@@ -1,11 +1,12 @@
 package app
 
 import (
-	"context"
-	"fmt"
+        "context"
+        "fmt"
+        "strings"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+        "alex/internal/agent/domain"
+        "alex/internal/agent/ports"
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -164,7 +165,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		s.logger.Debug("Task pre-analysis skipped or failed")
 	}
 
-	systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
+        systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
+        summary := strings.TrimSpace(s.config.EnvironmentSummary)
+        if summary != "" {
+                if trimmed := strings.TrimSpace(systemPrompt); trimmed != "" {
+                        systemPrompt = trimmed + "\n\n" + summary
+                } else {
+                        systemPrompt = summary
+                }
+        }
 	state := &domain.TaskState{
 		SystemPrompt: systemPrompt,
 		Messages:     append([]domain.Message(nil), session.Messages...),
@@ -181,13 +190,18 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	s.logger.Info("Execution environment prepared successfully")
 
-	return &ports.ExecutionEnvironment{
-		State:        state,
-		Services:     services,
-		Session:      session,
-		SystemPrompt: systemPrompt,
-		TaskAnalysis: taskAnalysis,
-	}, nil
+        return &ports.ExecutionEnvironment{
+                State:        state,
+                Services:     services,
+                Session:      session,
+                SystemPrompt: systemPrompt,
+                TaskAnalysis: taskAnalysis,
+        }, nil
+}
+
+// SetEnvironmentSummary updates the environment summary used when preparing prompts.
+func (s *ExecutionPreparationService) SetEnvironmentSummary(summary string) {
+        s.config.EnvironmentSummary = summary
 }
 
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*ports.Session, error) {

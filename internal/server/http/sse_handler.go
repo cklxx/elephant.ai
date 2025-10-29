@@ -84,9 +84,20 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
+	var lastHistoryTime time.Time
+
+	globalHistory := h.broadcaster.GetGlobalHistory()
+	if len(globalHistory) > 0 {
+		h.logger.Info("Replaying %d global events", len(globalHistory))
+		for _, event := range globalHistory {
+			if sendEvent(event) {
+				lastHistoryTime = event.Timestamp()
+			}
+		}
+	}
+
 	// Replay historical events for this session
 	history := h.broadcaster.GetEventHistory(sessionID)
-	var lastHistoryTime time.Time
 	if len(history) > 0 {
 		h.logger.Info("Replaying %d historical events for session: %s", len(history), sessionID)
 		for _, event := range history {
@@ -194,6 +205,9 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 			data["error"] = e.Error.Error()
 		}
 		data["duration"] = e.Duration.Milliseconds()
+		if len(e.Metadata) > 0 {
+			data["metadata"] = e.Metadata
+		}
 
 	case *domain.ToolCallStreamEvent:
 		data["call_id"] = e.CallID
@@ -219,6 +233,35 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 			data["error"] = e.Error.Error()
 		}
 		data["recoverable"] = e.Recoverable
+
+	case *domain.BrowserInfoEvent:
+		if e.Success != nil {
+			data["success"] = *e.Success
+		}
+		if e.Message != "" {
+			data["message"] = e.Message
+		}
+		if e.UserAgent != "" {
+			data["user_agent"] = e.UserAgent
+		}
+		if e.CDPURL != "" {
+			data["cdp_url"] = e.CDPURL
+		}
+		if e.VNCURL != "" {
+			data["vnc_url"] = e.VNCURL
+		}
+		if e.ViewportWidth != 0 {
+			data["viewport_width"] = e.ViewportWidth
+		}
+		if e.ViewportHeight != 0 {
+			data["viewport_height"] = e.ViewportHeight
+		}
+		data["captured"] = e.Captured.Format(time.RFC3339)
+
+	case *domain.EnvironmentSnapshotEvent:
+		data["host"] = e.Host
+		data["sandbox"] = e.Sandbox
+		data["captured"] = e.Captured.Format(time.RFC3339)
 
 	case *domain.ContextCompressionEvent:
 		data["original_count"] = e.OriginalCount
