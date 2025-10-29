@@ -261,6 +261,34 @@ func NewEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.
 	}
 }
 
+// SandboxProgressEvent captures initialization progress for the shared sandbox runtime.
+type SandboxProgressEvent struct {
+	BaseEvent
+	Status     string
+	Stage      string
+	Message    string
+	Step       int
+	TotalSteps int
+	Error      string
+	Updated    time.Time
+}
+
+func (e *SandboxProgressEvent) EventType() string { return "sandbox_progress" }
+
+// NewSandboxProgressEvent constructs a sandbox progress event.
+func NewSandboxProgressEvent(status, stage, message string, step, totalSteps int, errMessage string, updated time.Time) *SandboxProgressEvent {
+	return &SandboxProgressEvent{
+		BaseEvent:  newBaseEventWithSession(ports.LevelCore, "", updated),
+		Status:     status,
+		Stage:      stage,
+		Message:    message,
+		Step:       step,
+		TotalSteps: totalSteps,
+		Error:      errMessage,
+		Updated:    updated,
+	}
+}
+
 func cloneStringMap(values map[string]string) map[string]string {
 	if values == nil {
 		return nil

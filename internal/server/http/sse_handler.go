@@ -264,6 +264,19 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["sandbox"] = e.Sandbox
 		data["captured"] = e.Captured.Format(time.RFC3339)
 
+	case *domain.SandboxProgressEvent:
+		data["status"] = e.Status
+		data["stage"] = e.Stage
+		if e.Message != "" {
+			data["message"] = e.Message
+		}
+		data["step"] = e.Step
+		data["total_steps"] = e.TotalSteps
+		if e.Error != "" {
+			data["error"] = e.Error
+		}
+		data["updated"] = e.Updated.Format(time.RFC3339)
+
 	case *domain.ContextCompressionEvent:
 		data["original_count"] = e.OriginalCount
 		data["compressed_count"] = e.CompressedCount

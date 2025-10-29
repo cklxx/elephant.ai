@@ -22,6 +22,7 @@ import { AnyAgentEvent } from '@/lib/types';
 import { apiClient } from '@/lib/api';
 import { safeValidateEvent } from '@/lib/schemas';
 import { handleEnvironmentSnapshot } from './useDiagnostics';
+import { handleSandboxProgress } from './useSandboxProgress';
 
 export interface UseSSEOptions {
   enabled?: boolean;
@@ -168,6 +169,7 @@ export function useSSE(
         'step_completed',
         'browser_info',
         'environment_snapshot',
+        'sandbox_progress',
       ];
 
       eventTypes.forEach((type) => {
@@ -190,6 +192,9 @@ export function useSSE(
             const event = validationResult.data;
             if (event.event_type === 'environment_snapshot') {
               handleEnvironmentSnapshot(event);
+            }
+            if (event.event_type === 'sandbox_progress') {
+              handleSandboxProgress(event);
             }
             setEvents((prev) => [...prev, event]);
             onEventRef.current?.(event);
