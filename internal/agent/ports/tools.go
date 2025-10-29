@@ -1,6 +1,11 @@
 package ports
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+)
 
 // ToolExecutor executes a single tool call
 type ToolExecutor interface {
@@ -147,6 +152,80 @@ type ToolResult struct {
 	Content  string         `json:"content"`
 	Error    error          `json:"error,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// MarshalJSON customizes ToolResult JSON encoding to support the error interface.
+func (r ToolResult) MarshalJSON() ([]byte, error) {
+	type Alias struct {
+		CallID   string         `json:"call_id"`
+		Content  string         `json:"content"`
+		Error    any            `json:"error,omitempty"`
+		Metadata map[string]any `json:"metadata,omitempty"`
+	}
+
+	alias := Alias{
+		CallID:   r.CallID,
+		Content:  r.Content,
+		Metadata: r.Metadata,
+	}
+
+	if r.Error != nil {
+		alias.Error = r.Error.Error()
+	}
+
+	return json.Marshal(alias)
+}
+
+// UnmarshalJSON customizes ToolResult decoding to accept both string and object error representations.
+func (r *ToolResult) UnmarshalJSON(data []byte) error {
+	type Alias struct {
+		CallID   string          `json:"call_id"`
+		Content  string          `json:"content"`
+		Error    json.RawMessage `json:"error"`
+		Metadata map[string]any  `json:"metadata,omitempty"`
+	}
+
+	var aux Alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	r.CallID = aux.CallID
+	r.Content = aux.Content
+	r.Metadata = aux.Metadata
+	r.Error = nil
+
+	raw := strings.TrimSpace(string(aux.Error))
+	if raw == "" || raw == "null" {
+		return nil
+	}
+
+	var errStr string
+	if err := json.Unmarshal(aux.Error, &errStr); err == nil {
+		if errStr != "" {
+			r.Error = errors.New(errStr)
+		}
+		return nil
+	}
+
+	var errObj map[string]any
+	if err := json.Unmarshal(aux.Error, &errObj); err == nil {
+		if msg, ok := errObj["message"].(string); ok && msg != "" {
+			r.Error = errors.New(msg)
+			return nil
+		}
+		if msg, ok := errObj["error"].(string); ok && msg != "" {
+			r.Error = errors.New(msg)
+			return nil
+		}
+	}
+
+	// Fallback: use the raw JSON string as the error message
+	if raw != "" {
+		r.Error = errors.New(raw)
+	}
+
+	return nil
 }
 
 // ToolDefinition describes a tool for the LLM

@@ -47,10 +47,15 @@ type CreateTaskResponse struct {
 	Status    string `json:"status"`
 }
 
+type apiErrorResponse struct {
+	Error   string `json:"error"`
+	Details string `json:"details,omitempty"`
+}
+
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
@@ -72,37 +77,37 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 		var maxBytesErr *http.MaxBytesError
 		switch {
 		case errors.Is(err, io.EOF):
-			http.Error(w, "Request body is empty", http.StatusBadRequest)
+			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
 			return
 		case errors.As(err, &syntaxErr):
-			http.Error(w, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), http.StatusBadRequest)
+			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
 			return
 		case errors.As(err, &typeErr):
-			http.Error(w, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), http.StatusBadRequest)
+			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
 			return
 		case errors.As(err, &maxBytesErr):
-			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
 			return
 		default:
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
 			return
 		}
 	}
 
 	// Ensure there are no extra JSON tokens
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		http.Error(w, "Request body must contain a single JSON object", http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
 		return
 	}
 
 	if req.Task == "" {
-		http.Error(w, "Task is required", http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Task is required", fmt.Errorf("task field empty"))
 		return
 	}
 
 	sessionID, err := isValidOptionalSessionID(req.SessionID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 	req.SessionID = sessionID
@@ -113,8 +118,7 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	// Background goroutine will handle actual execution and update status
 	task, err := h.coordinator.ExecuteTaskAsync(r.Context(), req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
 	if err != nil {
-		h.logger.Error("Failed to create task: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to create task: %v", err), http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create task", err)
 		return
 	}
 
@@ -130,14 +134,14 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
 // HandleGetSession handles GET /api/sessions/:id
 func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
@@ -145,19 +149,19 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	sessionID = strings.TrimSpace(sessionID)
 	if err := validateSessionID(sessionID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
 	session, err := h.coordinator.GetSession(r.Context(), sessionID)
 	if err != nil {
-		http.Error(w, "Session not found", http.StatusNotFound)
+		h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(session); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
@@ -179,13 +183,13 @@ type SessionListResponse struct {
 // HandleListSessions handles GET /api/sessions
 func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
 	sessionIDs, err := h.coordinator.ListSessions(r.Context())
 	if err != nil {
-		http.Error(w, "Failed to list sessions", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list sessions", err)
 		return
 	}
 
@@ -222,14 +226,14 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
 // HandleDeleteSession handles DELETE /api/sessions/:id
 func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
@@ -237,12 +241,12 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	sessionID = strings.TrimSpace(sessionID)
 	if err := validateSessionID(sessionID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
 	if err := h.coordinator.DeleteSession(r.Context(), sessionID); err != nil {
-		http.Error(w, "Failed to delete session", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to delete session", err)
 		return
 	}
 
@@ -262,20 +266,20 @@ type TaskStatusResponse struct {
 // HandleGetTask handles GET /api/tasks/:id
 func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
 	// Extract task ID from URL path
 	taskID := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	if taskID == "" || strings.Contains(taskID, "/") {
-		http.Error(w, "Task ID required", http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Task ID required", fmt.Errorf("invalid task id '%s'", taskID))
 		return
 	}
 
 	task, err := h.coordinator.GetTask(r.Context(), taskID)
 	if err != nil {
-		http.Error(w, "Task not found", http.StatusNotFound)
+		h.writeJSONError(w, http.StatusNotFound, "Task not found", err)
 		return
 	}
 
@@ -295,14 +299,14 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
 // HandleListTasks handles GET /api/tasks
 func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
@@ -324,7 +328,7 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 
 	tasks, total, err := h.coordinator.ListTasks(r.Context(), limit, offset)
 	if err != nil {
-		http.Error(w, "Failed to list tasks", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list tasks", err)
 		return
 	}
 
@@ -353,14 +357,14 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
 // HandleCancelTask handles POST /api/tasks/:id/cancel
 func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
@@ -368,12 +372,12 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	taskID := strings.TrimSuffix(path, "/cancel")
 	if taskID == "" || taskID == path {
-		http.Error(w, "Task ID required", http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Task ID required", fmt.Errorf("invalid task id '%s'", taskID))
 		return
 	}
 
 	if err := h.coordinator.CancelTask(r.Context(), taskID); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to cancel task: %v", err), http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Failed to cancel task", err)
 		return
 	}
 
@@ -390,7 +394,7 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 // HandleForkSession handles POST /api/sessions/:id/fork
 func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
 		return
 	}
 
@@ -398,26 +402,26 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	sessionID := strings.TrimSuffix(path, "/fork")
 	if sessionID == "" || sessionID == path {
-		http.Error(w, "Session ID required", http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Session ID required", fmt.Errorf("invalid session id '%s'", sessionID))
 		return
 	}
 
 	sessionID = strings.TrimSpace(sessionID)
 	if err := validateSessionID(sessionID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
 	newSession, err := h.coordinator.ForkSession(r.Context(), sessionID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to fork session: %v", err), http.StatusBadRequest)
+		h.writeJSONError(w, http.StatusBadRequest, "Failed to fork session", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(newSession); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
@@ -459,5 +463,24 @@ func (h *APIHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(httpStatus)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("Failed to encode health check response: %v", err)
+	}
+}
+
+func (h *APIHandler) writeJSONError(w http.ResponseWriter, status int, message string, err error) {
+	if err != nil {
+		h.logger.Error("HTTP %d - %s: %v", status, message, err)
+	} else {
+		h.logger.Warn("HTTP %d - %s", status, message)
+	}
+
+	resp := apiErrorResponse{Error: message}
+	if err != nil {
+		resp.Details = err.Error()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
+		h.logger.Error("Failed to encode error response: %v", encodeErr)
 	}
 }
