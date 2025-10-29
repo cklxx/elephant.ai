@@ -4,6 +4,8 @@
 
 # Documentation
 *.md
+!skills/
+!skills/*.md
 docs/
 changelog/
 evaluation/
