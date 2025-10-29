@@ -130,6 +130,21 @@ func main() {
 	})
 	defer unsubscribeEnv()
 
+	// Broadcast sandbox initialization progress so the UI can surface long-running steps.
+	unsubscribeSandboxProgress := diagnostics.SubscribeSandboxProgress(func(payload diagnostics.SandboxProgressPayload) {
+		event := domain.NewSandboxProgressEvent(
+			string(payload.Status),
+			payload.Stage,
+			payload.Message,
+			payload.Step,
+			payload.TotalSteps,
+			payload.Error,
+			payload.Updated,
+		)
+		broadcaster.OnEvent(event)
+	})
+	defer unsubscribeSandboxProgress()
+
 	// Set task store on broadcaster for progress tracking
 	broadcaster.SetTaskStore(taskStore)
 

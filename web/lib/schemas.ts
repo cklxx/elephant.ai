@@ -143,6 +143,18 @@ export const EnvironmentSnapshotEventSchema = BaseAgentEventSchema.extend({
   captured: z.string(),
 });
 
+// Sandbox Progress Event
+export const SandboxProgressEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('sandbox_progress'),
+  status: z.enum(['pending', 'running', 'ready', 'error']),
+  stage: z.string(),
+  message: z.string().optional(),
+  step: z.number(),
+  total_steps: z.number(),
+  error: z.string().optional(),
+  updated: z.string(),
+});
+
 // Connected Event
 export const ConnectedEventSchema = z.object({
   event_type: z.literal('connected'),
@@ -174,6 +186,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   StepCompletedEventSchema,
   BrowserInfoEventSchema,
   EnvironmentSnapshotEventSchema,
+  SandboxProgressEventSchema,
   ConnectedEventSchema,
   UserTaskEventSchema,
 ]);

@@ -141,6 +141,20 @@ export interface EnvironmentSnapshotEvent extends AgentEvent {
   captured: string;
 }
 
+export type SandboxProgressStatus = 'pending' | 'running' | 'ready' | 'error';
+
+// Sandbox Progress Event - emitted during sandbox initialization lifecycle
+export interface SandboxProgressEvent extends AgentEvent {
+  event_type: 'sandbox_progress';
+  status: SandboxProgressStatus;
+  stage: string;
+  message?: string;
+  step: number;
+  total_steps: number;
+  error?: string;
+  updated: string;
+}
+
 // Connected Event - emitted when SSE connection is established
 export interface ConnectedEvent {
   event_type: 'connected';
@@ -172,6 +186,7 @@ export type AnyAgentEvent =
   | StepCompletedEvent
   | BrowserInfoEvent
   | EnvironmentSnapshotEvent
+  | SandboxProgressEvent
   | ConnectedEvent
   | UserTaskEvent;
 

@@ -1,20 +1,22 @@
 package tools
 
 import (
-        "bufio"
-        "context"
-        "fmt"
-        "strings"
-        "sync"
-        "time"
+	"bufio"
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
 
-        api "github.com/agent-infra/sandbox-sdk-go"
-        "github.com/agent-infra/sandbox-sdk-go/browser"
-        sandboxclient "github.com/agent-infra/sandbox-sdk-go/client"
-        "github.com/agent-infra/sandbox-sdk-go/file"
-        "github.com/agent-infra/sandbox-sdk-go/jupyter"
-        "github.com/agent-infra/sandbox-sdk-go/option"
-        "github.com/agent-infra/sandbox-sdk-go/shell"
+	api "github.com/agent-infra/sandbox-sdk-go"
+	"github.com/agent-infra/sandbox-sdk-go/browser"
+	sandboxclient "github.com/agent-infra/sandbox-sdk-go/client"
+	"github.com/agent-infra/sandbox-sdk-go/file"
+	"github.com/agent-infra/sandbox-sdk-go/jupyter"
+	"github.com/agent-infra/sandbox-sdk-go/option"
+	"github.com/agent-infra/sandbox-sdk-go/shell"
+
+	"alex/internal/diagnostics"
 )
 
 // SandboxManager lazily initialises and shares sandbox SDK clients across tools.
@@ -35,14 +37,67 @@ func NewSandboxManager(baseURL string) *SandboxManager {
 
 // Initialize ensures the underlying SDK clients are ready for use.
 func (m *SandboxManager) Initialize(ctx context.Context) error {
+	const totalSteps = 2
+
 	m.initOnce.Do(func() {
+		diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+			Status:     diagnostics.SandboxProgressRunning,
+			Stage:      "configure_client",
+			Message:    "Configuring sandbox client",
+			Step:       1,
+			TotalSteps: totalSteps,
+			Updated:    time.Now(),
+		})
+
 		if strings.TrimSpace(m.baseURL) == "" {
-			m.initErr = fmt.Errorf("sandbox base URL is required")
+			err := fmt.Errorf("sandbox base URL is required")
+			diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+				Status:     diagnostics.SandboxProgressError,
+				Stage:      "configure_client",
+				Message:    err.Error(),
+				Step:       1,
+				TotalSteps: totalSteps,
+				Error:      err.Error(),
+				Updated:    time.Now(),
+			})
+			m.initErr = err
 			return
 		}
 
 		m.client = sandboxclient.NewClient(option.WithBaseURL(m.baseURL))
-		m.initErr = m.healthCheck(ctx)
+		diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+			Status:     diagnostics.SandboxProgressRunning,
+			Stage:      "health_check",
+			Message:    "Verifying sandbox connectivity",
+			Step:       2,
+			TotalSteps: totalSteps,
+			Updated:    time.Now(),
+		})
+
+		if err := m.healthCheck(ctx); err != nil {
+			formatted := FormatSandboxError(err)
+			diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+				Status:     diagnostics.SandboxProgressError,
+				Stage:      "health_check",
+				Message:    formatted.Error(),
+				Step:       2,
+				TotalSteps: totalSteps,
+				Error:      formatted.Error(),
+				Updated:    time.Now(),
+			})
+			m.initErr = err
+			return
+		}
+
+		diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+			Status:     diagnostics.SandboxProgressReady,
+			Stage:      "complete",
+			Message:    "Sandbox ready",
+			Step:       totalSteps,
+			TotalSteps: totalSteps,
+			Updated:    time.Now(),
+		})
+		m.initErr = nil
 	})
 	return m.initErr
 }
@@ -80,23 +135,23 @@ func (m *SandboxManager) File() *file.Client {
 
 // Shell returns the shared sandbox shell client. Initialize must be called first.
 func (m *SandboxManager) Shell() *shell.Client {
-        if m.client == nil {
-                return nil
-        }
-        return m.client.Shell
+	if m.client == nil {
+		return nil
+	}
+	return m.client.Shell
 }
 
 // Client exposes the underlying aggregate sandbox client for advanced scenarios.
 func (m *SandboxManager) Client() *sandboxclient.Client {
-        return m.client
+	return m.client
 }
 
 // Browser returns the shared sandbox browser client. Initialize must be called first.
 func (m *SandboxManager) Browser() *browser.Client {
-        if m.client == nil {
-                return nil
-        }
-        return m.client.Browser
+	if m.client == nil {
+		return nil
+	}
+	return m.client.Browser
 }
 
 // Jupyter returns the shared sandbox jupyter client. Initialize must be called first.

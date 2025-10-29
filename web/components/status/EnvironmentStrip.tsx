@@ -1,6 +1,7 @@
 'use client';
 
 import { useDiagnostics } from '@/hooks/useDiagnostics';
+import { useSandboxProgress } from '@/hooks/useSandboxProgress';
 
 const KEY_WHITELIST = ['HOSTNAME', 'USER', 'SANDBOX_BASE_URL'];
 
@@ -20,9 +21,40 @@ function formatEnv(env?: Record<string, string>) {
 
 export function EnvironmentStrip() {
   const { environments } = useDiagnostics();
+  const { progress } = useSandboxProgress();
+
+  const progressMessage = (() => {
+    if (!progress) {
+      return '';
+    }
+
+    const label = progress.message || progress.stage.replace(/_/g, ' ');
+    const stepInfo = progress.total_steps > 0 ? `${progress.step}/${progress.total_steps}` : '';
+
+    switch (progress.status) {
+      case 'running':
+      case 'pending':
+        return stepInfo ? `Sandbox initializing (${stepInfo}): ${label}` : `Sandbox initializing: ${label}`;
+      case 'error':
+        return `Sandbox error: ${label}`;
+      default:
+        return '';
+    }
+  })();
 
   if (!environments) {
-    return null;
+    if (!progressMessage) {
+      return null;
+    }
+    return (
+      <div
+        className="mt-1 text-xs text-muted-foreground truncate"
+        data-testid="environment-strip"
+        aria-live="polite"
+      >
+        {progressMessage}
+      </div>
+    );
   }
 
   const hostSummary = formatEnv(environments.host);
@@ -36,7 +68,7 @@ export function EnvironmentStrip() {
     parts.push(`Sandbox: ${sandboxSummary}`);
   }
 
-  if (parts.length === 0) {
+  if (!progressMessage && parts.length === 0) {
     return null;
   }
 
@@ -46,6 +78,7 @@ export function EnvironmentStrip() {
       data-testid="environment-strip"
       aria-live="polite"
     >
+      {progressMessage && <span>{progressMessage}{parts.length > 0 ? ' · ' : ''}</span>}
       {parts.join(' | ')}
     </div>
   );
