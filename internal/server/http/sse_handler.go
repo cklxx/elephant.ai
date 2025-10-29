@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/security/redaction"
 	"alex/internal/server/app"
 	"alex/internal/utils"
 )
@@ -285,11 +286,7 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 	return string(jsonData), nil
 }
 
-const redactedPlaceholder = "[REDACTED]"
-
-var sensitiveKeyFragments = []string{"token", "secret", "password", "key", "authorization", "cookie", "credential", "session"}
-
-var sensitiveValueIndicators = []string{"bearer ", "ghp_", "sk-", "xoxb-", "xoxp-", "-----begin", "api_key", "apikey", "access_token", "refresh_token"}
+const redactedPlaceholder = redaction.Placeholder
 
 // sanitizeArguments creates a deep copy of the provided arguments map and redacts any values that
 // appear to contain sensitive information such as API keys or authorization tokens.
@@ -307,7 +304,7 @@ func sanitizeArguments(arguments map[string]interface{}) map[string]interface{} 
 }
 
 func sanitizeValue(parentKey string, value interface{}) interface{} {
-	if isSensitiveKey(parentKey) {
+	if redaction.IsSensitiveKey(parentKey) {
 		return redactedPlaceholder
 	}
 
@@ -316,7 +313,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 	}
 
 	if str, ok := value.(string); ok {
-		if looksLikeSecret(str) {
+		if redaction.LooksLikeSecret(str) {
 			return redactedPlaceholder
 		}
 		return str
@@ -338,7 +335,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 			bytesCopy := make([]byte, rv.Len())
 			reflect.Copy(reflect.ValueOf(bytesCopy), rv)
 			str := string(bytesCopy)
-			if looksLikeSecret(str) {
+			if redaction.LooksLikeSecret(str) {
 				return redactedPlaceholder
 			}
 			return str
@@ -352,7 +349,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 		return sanitizedSlice
 	case reflect.String:
 		str := rv.String()
-		if looksLikeSecret(str) {
+		if redaction.LooksLikeSecret(str) {
 			return redactedPlaceholder
 		}
 		return str
@@ -370,35 +367,4 @@ func sanitizeMap(rv reflect.Value) map[string]interface{} {
 	}
 
 	return sanitized
-}
-
-func isSensitiveKey(key string) bool {
-	lowerKey := strings.ToLower(key)
-	for _, fragment := range sensitiveKeyFragments {
-		if strings.Contains(lowerKey, fragment) {
-			return true
-		}
-	}
-	return false
-}
-
-func looksLikeSecret(value string) bool {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return false
-	}
-
-	lowerValue := strings.ToLower(trimmed)
-	for _, indicator := range sensitiveValueIndicators {
-		if strings.Contains(lowerValue, indicator) {
-			return true
-		}
-	}
-
-	// Long strings without whitespace are likely tokens or hashes.
-	if len(trimmed) >= 32 && !strings.ContainsAny(trimmed, " \n\t") {
-		return true
-	}
-
-	return false
 }

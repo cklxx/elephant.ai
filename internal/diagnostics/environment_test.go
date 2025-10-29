@@ -4,6 +4,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"alex/internal/security/redaction"
 )
 
 func TestPublishAndLatestEnvironment(t *testing.T) {
@@ -42,5 +44,57 @@ func TestSubscribeEnvironmentsReceivesUpdates(t *testing.T) {
 	PublishEnvironments(EnvironmentPayload{Captured: time.Now()})
 	if count.Load() != 1 {
 		t.Fatalf("expected listener to receive update, got %d", count.Load())
+	}
+}
+
+func TestPublishEnvironmentsRedactsSensitiveValues(t *testing.T) {
+	payload := EnvironmentPayload{
+		Host: map[string]string{
+			"API_KEY": "sk-secret-value",
+			"PATH":    "/usr/bin",
+		},
+		Sandbox: map[string]string{
+			"token": "my-token",
+			"LANG":  "en_US.UTF-8",
+		},
+		Captured: time.Now(),
+	}
+
+	ch := make(chan EnvironmentPayload, 1)
+	unsubscribe := SubscribeEnvironments(func(p EnvironmentPayload) {
+		ch <- p
+	})
+	defer unsubscribe()
+
+	PublishEnvironments(payload)
+
+	select {
+	case received := <-ch:
+		if received.Host["API_KEY"] != redaction.Placeholder {
+			t.Fatalf("expected host API_KEY to be redacted, got %q", received.Host["API_KEY"])
+		}
+		if received.Sandbox["token"] != redaction.Placeholder {
+			t.Fatalf("expected sandbox token to be redacted, got %q", received.Sandbox["token"])
+		}
+		if received.Host["PATH"] != "/usr/bin" {
+			t.Fatalf("expected non-sensitive host value to remain, got %q", received.Host["PATH"])
+		}
+		if received.Sandbox["LANG"] != "en_US.UTF-8" {
+			t.Fatalf("expected non-sensitive sandbox value to remain, got %q", received.Sandbox["LANG"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for redacted payload")
+	}
+
+	latest, ok := LatestEnvironments()
+	if !ok {
+		t.Fatal("expected redacted payload to be stored")
+	}
+
+	if latest.Host["API_KEY"] != redaction.Placeholder {
+		t.Fatalf("expected stored host API_KEY to be redacted, got %q", latest.Host["API_KEY"])
+	}
+	if latest.Sandbox["token"] != redaction.Placeholder {
+		t.Fatalf("expected stored sandbox token to be redacted, got %q", latest.Sandbox["token"])
 	}
 }

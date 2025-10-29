@@ -3,6 +3,8 @@ package diagnostics
 import (
 	"sync"
 	"time"
+
+	"alex/internal/security/redaction"
 )
 
 type EnvironmentPayload struct {
@@ -23,7 +25,8 @@ var (
 
 // PublishEnvironments stores the latest environment payload and notifies subscribers.
 func PublishEnvironments(payload EnvironmentPayload) {
-	clone := clonePayload(payload)
+	sanitized := sanitizeEnvironmentPayload(payload)
+	clone := clonePayload(sanitized)
 
 	envMu.Lock()
 	latestEnv = clone
@@ -73,6 +76,14 @@ func clonePayload(payload EnvironmentPayload) EnvironmentPayload {
 	return EnvironmentPayload{
 		Host:     cloneMap(payload.Host),
 		Sandbox:  cloneMap(payload.Sandbox),
+		Captured: payload.Captured,
+	}
+}
+
+func sanitizeEnvironmentPayload(payload EnvironmentPayload) EnvironmentPayload {
+	return EnvironmentPayload{
+		Host:     redaction.RedactStringMap(payload.Host),
+		Sandbox:  redaction.RedactStringMap(payload.Sandbox),
 		Captured: payload.Captured,
 	}
 }
