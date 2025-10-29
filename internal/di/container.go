@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,13 +26,13 @@ import (
 
 // Container holds all application dependencies
 type Container struct {
-        AgentCoordinator *agentApp.AgentCoordinator
-        SessionStore     ports.SessionStore
-        CostTracker      ports.CostTracker
-        MCPRegistry      *mcp.Registry
-        mcpInitTracker   *MCPInitializationTracker
+	AgentCoordinator *agentApp.AgentCoordinator
+	SessionStore     ports.SessionStore
+	CostTracker      ports.CostTracker
+	MCPRegistry      *mcp.Registry
+	mcpInitTracker   *MCPInitializationTracker
 
-        SandboxManager *tools.SandboxManager
+	SandboxManager *tools.SandboxManager
 
 	// Lazy initialization state
 	config       Config
@@ -60,9 +61,9 @@ type Config struct {
 	Verbose          bool
 	DisableTUI       bool
 	FollowTranscript bool
-        FollowStream     bool
+	FollowStream     bool
 
-        EnvironmentSummary string
+	EnvironmentSummary string
 
 	// Storage Configuration
 	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
@@ -148,17 +149,22 @@ func BuildContainer(config Config) (*Container, error) {
 	llmFactory := llm.NewFactory()
 	executionMode := tools.ExecutionModeLocal
 	var sandboxManager *tools.SandboxManager
-	if config.SandboxBaseURL != "" {
+	sandboxBaseURL := strings.TrimSpace(config.SandboxBaseURL)
+	if sandboxBaseURL != "" {
 		executionMode = tools.ExecutionModeSandbox
-		sandboxManager = tools.NewSandboxManager(config.SandboxBaseURL)
+		sandboxManager = tools.NewSandboxManager(sandboxBaseURL)
 		if err := sandboxManager.Initialize(context.Background()); err != nil {
-			return nil, fmt.Errorf("failed to initialize sandbox manager: %w", err)
+			formatted := tools.FormatSandboxError(err)
+			logger.Warn("Sandbox initialization failed for %s: %v (falling back to local execution)", sandboxBaseURL, formatted)
+			sandboxManager = nil
+			executionMode = tools.ExecutionModeLocal
+			sandboxBaseURL = ""
 		}
 	}
 
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:   config.TavilyAPIKey,
-		SandboxBaseURL: config.SandboxBaseURL,
+		SandboxBaseURL: sandboxBaseURL,
 		ExecutionMode:  executionMode,
 		SandboxManager: sandboxManager,
 	})
@@ -176,13 +182,15 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	costTracker := agentApp.NewCostTracker(costStore)
 
+	config.SandboxBaseURL = sandboxBaseURL
+
 	runtimeSnapshot := runtimeconfig.RuntimeConfig{
 		LLMProvider:         config.LLMProvider,
 		LLMModel:            config.LLMModel,
 		APIKey:              config.APIKey,
 		BaseURL:             config.BaseURL,
 		TavilyAPIKey:        config.TavilyAPIKey,
-		SandboxBaseURL:      config.SandboxBaseURL,
+		SandboxBaseURL:      sandboxBaseURL,
 		Environment:         config.Environment,
 		Verbose:             config.Verbose,
 		DisableTUI:          config.DisableTUI,
@@ -215,38 +223,38 @@ func BuildContainer(config Config) (*Container, error) {
 		parserImpl,
 		promptLoader,
 		costTracker,
-                agentApp.Config{
-                        LLMProvider:         config.LLMProvider,
-                        LLMModel:            config.LLMModel,
-                        APIKey:              config.APIKey,
-                        BaseURL:             config.BaseURL,
-                        MaxTokens:           config.MaxTokens,
-                        MaxIterations:       config.MaxIterations,
-                        Temperature:         config.Temperature,
-                        TemperatureProvided: config.TemperatureSet,
-                        TopP:                config.TopP,
-                        StopSequences:       append([]string(nil), config.StopSequences...),
-                        EnvironmentSummary:  config.EnvironmentSummary,
-                },
-        )
+		agentApp.Config{
+			LLMProvider:         config.LLMProvider,
+			LLMModel:            config.LLMModel,
+			APIKey:              config.APIKey,
+			BaseURL:             config.BaseURL,
+			MaxTokens:           config.MaxTokens,
+			MaxIterations:       config.MaxIterations,
+			Temperature:         config.Temperature,
+			TemperatureProvided: config.TemperatureSet,
+			TopP:                config.TopP,
+			StopSequences:       append([]string(nil), config.StopSequences...),
+			EnvironmentSummary:  config.EnvironmentSummary,
+		},
+	)
 
 	// Register subagent tool after coordinator is created
 	toolRegistry.RegisterSubAgent(coordinator)
 
 	logger.Info("Container built successfully (heavy initialization deferred to Start())")
 
-        return &Container{
-                AgentCoordinator: coordinator,
-                SessionStore:     sessionStore,
-                CostTracker:      costTracker,
-                MCPRegistry:      mcpRegistry,
-                mcpInitTracker:   tracker,
-                SandboxManager:   sandboxManager,
-                config:           config,
-                toolRegistry:     toolRegistry,
-                llmFactory:       llmFactory,
-                mcpStarted:       false,
-        }, nil
+	return &Container{
+		AgentCoordinator: coordinator,
+		SessionStore:     sessionStore,
+		CostTracker:      costTracker,
+		MCPRegistry:      mcpRegistry,
+		mcpInitTracker:   tracker,
+		SandboxManager:   sandboxManager,
+		config:           config,
+		toolRegistry:     toolRegistry,
+		llmFactory:       llmFactory,
+		mcpStarted:       false,
+	}, nil
 }
 
 // MCPInitializationStatus captures the asynchronous MCP bootstrap status.
