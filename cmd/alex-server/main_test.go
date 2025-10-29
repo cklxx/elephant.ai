@@ -1,18 +1,21 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	runtimeconfig "alex/internal/config"
+)
 
 func TestLoadConfigDefaultsSandboxBaseURL(t *testing.T) {
 	t.Setenv("LLM_PROVIDER", "mock")
-	t.Setenv("SANDBOX_BASE_URL", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if cfg.Runtime.SandboxBaseURL != defaultSandboxBaseURL {
-		t.Fatalf("expected default sandbox URL %q, got %q", defaultSandboxBaseURL, cfg.Runtime.SandboxBaseURL)
+	if cfg.Runtime.SandboxBaseURL != runtimeconfig.DefaultSandboxBaseURL {
+		t.Fatalf("expected default sandbox URL %q, got %q", runtimeconfig.DefaultSandboxBaseURL, cfg.Runtime.SandboxBaseURL)
 	}
 }
 

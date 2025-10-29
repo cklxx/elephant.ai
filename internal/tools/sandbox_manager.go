@@ -28,23 +28,82 @@ type SandboxManager struct {
 	initOnce      sync.Once
 	initErr       error
 	environmentMu sync.Mutex
+
+	docker SandboxDockerController
 }
 
 // NewSandboxManager constructs a manager for a given sandbox endpoint.
 func NewSandboxManager(baseURL string) *SandboxManager {
-	return &SandboxManager{baseURL: baseURL}
+	return newSandboxManager(baseURL, newExecSandboxDockerController())
+}
+
+func newSandboxManager(baseURL string, docker SandboxDockerController) *SandboxManager {
+	return &SandboxManager{baseURL: baseURL, docker: docker}
 }
 
 // Initialize ensures the underlying SDK clients are ready for use.
 func (m *SandboxManager) Initialize(ctx context.Context) error {
-	const totalSteps = 2
+	manageDocker := m.docker != nil && shouldManageSandboxDocker(m.baseURL)
+	totalSteps := 2
+	if manageDocker {
+		totalSteps++
+	}
 
 	m.initOnce.Do(func() {
+		step := 1
+
+		if manageDocker {
+			diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+				Status:     diagnostics.SandboxProgressRunning,
+				Stage:      "ensure_docker",
+				Message:    "Ensuring sandbox Docker container is running",
+				Step:       step,
+				TotalSteps: totalSteps,
+				Updated:    time.Now(),
+			})
+
+			result, err := m.docker.EnsureRunning(ctx, m.baseURL)
+			if err != nil {
+				diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+					Status:     diagnostics.SandboxProgressError,
+					Stage:      "ensure_docker",
+					Message:    err.Error(),
+					Step:       step,
+					TotalSteps: totalSteps,
+					Error:      err.Error(),
+					Updated:    time.Now(),
+				})
+				m.initErr = err
+				return
+			}
+
+			message := "Sandbox Docker management skipped"
+			if result.Started {
+				message = "Started sandbox Docker container"
+			} else if result.Reused {
+				message = "Sandbox Docker container already running"
+			}
+			if result.Image != "" {
+				message = fmt.Sprintf("%s (image: %s)", message, result.Image)
+			}
+
+			diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
+				Status:     diagnostics.SandboxProgressRunning,
+				Stage:      "ensure_docker",
+				Message:    message,
+				Step:       step,
+				TotalSteps: totalSteps,
+				Updated:    time.Now(),
+			})
+
+			step++
+		}
+
 		diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
 			Status:     diagnostics.SandboxProgressRunning,
 			Stage:      "configure_client",
 			Message:    "Configuring sandbox client",
-			Step:       1,
+			Step:       step,
 			TotalSteps: totalSteps,
 			Updated:    time.Now(),
 		})
@@ -55,7 +114,7 @@ func (m *SandboxManager) Initialize(ctx context.Context) error {
 				Status:     diagnostics.SandboxProgressError,
 				Stage:      "configure_client",
 				Message:    err.Error(),
-				Step:       1,
+				Step:       step,
 				TotalSteps: totalSteps,
 				Error:      err.Error(),
 				Updated:    time.Now(),
@@ -65,11 +124,12 @@ func (m *SandboxManager) Initialize(ctx context.Context) error {
 		}
 
 		m.client = sandboxclient.NewClient(option.WithBaseURL(m.baseURL))
+		step++
 		diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
 			Status:     diagnostics.SandboxProgressRunning,
 			Stage:      "health_check",
 			Message:    "Verifying sandbox connectivity",
-			Step:       2,
+			Step:       step,
 			TotalSteps: totalSteps,
 			Updated:    time.Now(),
 		})
@@ -80,7 +140,7 @@ func (m *SandboxManager) Initialize(ctx context.Context) error {
 				Status:     diagnostics.SandboxProgressError,
 				Stage:      "health_check",
 				Message:    formatted.Error(),
-				Step:       2,
+				Step:       step,
 				TotalSteps: totalSteps,
 				Error:      formatted.Error(),
 				Updated:    time.Now(),

@@ -231,9 +231,6 @@ func buildContainer(config Config) (*di.Container, error) {
 	return di.BuildContainer(diConfig)
 }
 
-// loadConfig loads configuration from environment variables
-const defaultSandboxBaseURL = "http://localhost:8888"
-
 func loadConfig() (Config, error) {
 	envLookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, map[string][]string{
 		"LLM_PROVIDER":       {"ALEX_LLM_PROVIDER"},
@@ -277,7 +274,7 @@ func loadConfig() (Config, error) {
 
 	sandboxBaseURL := strings.TrimSpace(cfg.Runtime.SandboxBaseURL)
 	if sandboxBaseURL == "" {
-		sandboxBaseURL = defaultSandboxBaseURL
+		sandboxBaseURL = runtimeconfig.DefaultSandboxBaseURL
 	}
 	cfg.Runtime.SandboxBaseURL = sandboxBaseURL
 

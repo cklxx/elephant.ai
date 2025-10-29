@@ -21,6 +21,9 @@ const (
 	SourceOverride ValueSource = "override"
 )
 
+// DefaultSandboxBaseURL provides the local sandbox endpoint used when no value is configured.
+const DefaultSandboxBaseURL = "http://localhost:8888"
+
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
 	LLMProvider         string
@@ -179,6 +182,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMProvider:      "openrouter",
 		LLMModel:         "deepseek/deepseek-chat",
 		BaseURL:          "https://openrouter.ai/api/v1",
+		SandboxBaseURL:   DefaultSandboxBaseURL,
 		Environment:      "development",
 		FollowTranscript: true,
 		FollowStream:     true,
