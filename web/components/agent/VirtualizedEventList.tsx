@@ -27,16 +27,53 @@ export function VirtualizedEventList({
   className,
 }: VirtualizedEventListProps) {
   const t = useTranslation();
+  const { visibleEvents, indexMap } = useMemo(() => {
+    const filtered: AnyAgentEvent[] = [];
+    const mapping = new Map<number, number>();
+    let lastTaskAnalysisIndex = -1;
+
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      if (events[index]?.event_type === 'task_analysis') {
+        lastTaskAnalysisIndex = index;
+        break;
+      }
+    }
+
+    events.forEach((event, index) => {
+      if (event.event_type === 'task_analysis' && index !== lastTaskAnalysisIndex) {
+        return;
+      }
+
+      mapping.set(index, filtered.length);
+      filtered.push(event);
+    });
+
+    return { visibleEvents: filtered, indexMap: mapping };
+  }, [events]);
+
   const parentRef = useRef<HTMLDivElement>(null);
   const isAutoScrollingRef = useRef(false);
   const [isPinnedToLatest, setIsPinnedToLatest] = useState(true);
   const [liveMessage, setLiveMessage] = useState('');
-  const previousCountRef = useRef(events.length);
+  const previousSnapshotRef = useRef<{
+    count: number;
+    lastEvent: AnyAgentEvent | null;
+  }>({
+    count: visibleEvents.length,
+    lastEvent: visibleEvents.length > 0 ? visibleEvents[visibleEvents.length - 1] : null,
+  });
   const descriptionId = useId();
+  const effectiveFocusedEventIndex = useMemo(() => {
+    if (focusedEventIndex == null) {
+      return null;
+    }
+
+    return indexMap.get(focusedEventIndex) ?? null;
+  }, [focusedEventIndex, indexMap]);
 
   // Create virtualizer instance
   const virtualizer = useVirtualizer({
-    count: events.length,
+    count: visibleEvents.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 200, // Estimated height per item in pixels
     overscan: 5, // Render 5 extra items above/below viewport
@@ -66,12 +103,12 @@ export function VirtualizedEventList({
 
   const scrollToLatest = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
-      if (!parentRef.current || events.length === 0) {
+      if (!parentRef.current || visibleEvents.length === 0) {
         return;
       }
 
       isAutoScrollingRef.current = true;
-      virtualizer.scrollToIndex(events.length - 1, {
+      virtualizer.scrollToIndex(visibleEvents.length - 1, {
         align: 'end',
         behavior: behavior as 'auto' | 'smooth' | undefined,
       });
@@ -86,12 +123,12 @@ export function VirtualizedEventList({
         isAutoScrollingRef.current = false;
       };
     },
-    [events.length, virtualizer]
+    [visibleEvents.length, virtualizer]
   );
 
   // Auto-scroll to bottom when new events arrive if the user hasn't scrolled away
   useEffect(() => {
-    if (!autoScroll || events.length === 0 || !isPinnedToLatest) {
+    if (!autoScroll || visibleEvents.length === 0 || !isPinnedToLatest) {
       return;
     }
 
@@ -101,30 +138,30 @@ export function VirtualizedEventList({
         cancel();
       }
     };
-  }, [events.length, autoScroll, isPinnedToLatest, scrollToLatest]);
+  }, [visibleEvents.length, autoScroll, isPinnedToLatest, scrollToLatest]);
 
   useEffect(() => {
     if (!parentRef.current) return;
-    if (autoScroll && events.length > 0) {
+    if (autoScroll && visibleEvents.length > 0) {
       return scrollToLatest('auto') || undefined;
     }
-  }, [autoScroll, events.length, scrollToLatest]);
+  }, [autoScroll, visibleEvents.length, scrollToLatest]);
 
   useEffect(() => {
     if (
-      focusedEventIndex == null ||
-      Number.isNaN(focusedEventIndex) ||
-      focusedEventIndex < 0 ||
-      focusedEventIndex >= events.length
+      effectiveFocusedEventIndex == null ||
+      Number.isNaN(effectiveFocusedEventIndex) ||
+      effectiveFocusedEventIndex < 0 ||
+      effectiveFocusedEventIndex >= visibleEvents.length
     ) {
       return;
     }
 
-    const isLatest = focusedEventIndex >= events.length - 1;
+    const isLatest = effectiveFocusedEventIndex >= visibleEvents.length - 1;
     setIsPinnedToLatest(isLatest);
 
     isAutoScrollingRef.current = true;
-    virtualizer.scrollToIndex(focusedEventIndex, {
+    virtualizer.scrollToIndex(effectiveFocusedEventIndex, {
       align: isLatest ? 'end' : 'center',
       behavior: 'smooth',
     });
@@ -137,16 +174,26 @@ export function VirtualizedEventList({
       clearTimeout(timeout);
       isAutoScrollingRef.current = false;
     };
-  }, [focusedEventIndex, events.length, virtualizer]);
+  }, [effectiveFocusedEventIndex, visibleEvents.length, virtualizer]);
 
   useEffect(() => {
-    if (events.length <= previousCountRef.current) {
-      previousCountRef.current = events.length;
+    const previous = previousSnapshotRef.current;
+    const lastEvent = visibleEvents.length > 0 ? visibleEvents[visibleEvents.length - 1] : null;
+
+    let diff = visibleEvents.length - previous.count;
+    if (diff <= 0 && lastEvent && lastEvent !== previous.lastEvent) {
+      diff = 1;
+    }
+
+    previousSnapshotRef.current = {
+      count: visibleEvents.length,
+      lastEvent,
+    };
+
+    if (diff <= 0) {
       return;
     }
 
-    const diff = events.length - previousCountRef.current;
-    previousCountRef.current = events.length;
     const message =
       diff === 1
         ? t('events.stream.newEventSingular')
@@ -155,17 +202,17 @@ export function VirtualizedEventList({
 
     const timeout = setTimeout(() => setLiveMessage(''), 2000);
     return () => clearTimeout(timeout);
-  }, [events.length, t]);
+  }, [visibleEvents, t]);
 
   const toolCallStartEvents = useMemo(() => {
     const map = new Map<string, ToolCallStartEvent>();
-    for (const event of events) {
+    for (const event of visibleEvents) {
       if (event.event_type === 'tool_call_start') {
         map.set(event.call_id, event);
       }
     }
     return map;
-  }, [events]);
+  }, [visibleEvents]);
 
   return (
     <div
@@ -192,7 +239,7 @@ export function VirtualizedEventList({
           scrollbarColor: '#cbd5e1 #f1f5f9',
         }}
       >
-        {events.length === 0 ? (
+        {visibleEvents.length === 0 ? (
           <div className="console-empty-state h-[320px]">
             <span className="text-3xl" aria-hidden>
               💭
@@ -211,8 +258,8 @@ export function VirtualizedEventList({
             }}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
-              const event = events[virtualItem.index];
-              const isFocused = focusedEventIndex === virtualItem.index;
+              const event = visibleEvents[virtualItem.index];
+              const isFocused = effectiveFocusedEventIndex === virtualItem.index;
               return (
                 <div
                   key={virtualItem.key}
@@ -256,7 +303,7 @@ export function VirtualizedEventList({
         )}
       </div>
 
-      {!isPinnedToLatest && events.length > 0 && (
+      {!isPinnedToLatest && visibleEvents.length > 0 && (
         <button
           type="button"
           onClick={() => {

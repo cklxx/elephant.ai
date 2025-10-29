@@ -5,11 +5,9 @@ import {
   Search,
   Library,
   ListChecks,
-  Pin,
-  Pencil,
-  Check,
-  X,
   Trash2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TranslationKey, useI18n } from "@/lib/i18n";
@@ -44,84 +42,20 @@ export function Sidebar({
   sessionLabels = {},
   currentSessionId = null,
   onSessionSelect,
-  onSessionRename,
-  onSessionPin,
   onSessionDelete,
   onNewSession,
 }: SidebarProps) {
   const { t } = useI18n();
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState("");
-
-  const handleRenameOpen = (id: string) => {
-    setEditingSessionId(id);
-    setEditingValue(sessionLabels[id] ?? "");
-  };
-
-  const handleRenameSubmit = (id: string) => {
-    onSessionRename?.(id, editingValue);
-    setEditingSessionId(null);
-    setEditingValue("");
-  };
-
-  const handleRenameCancel = () => {
-    setEditingSessionId(null);
-    setEditingValue("");
-  };
+  const [isPinnedCollapsed, setIsPinnedCollapsed] = useState(false);
+  const [isRecentCollapsed, setIsRecentCollapsed] = useState(false);
 
   const getSessionBadge = (value: string) =>
     value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
 
-  const renderSessionItem = (id: string, pinned = false) => {
+  const renderSessionItem = (id: string) => {
     const isActive = id === currentSessionId;
     const label = sessionLabels[id]?.trim();
     const suffix = id.length > 4 ? id.slice(-4) : id;
-    const isEditing = editingSessionId === id;
-    const isPinned = pinned || pinnedSessions.includes(id);
-
-    if (isEditing) {
-      return (
-        <li key={id}>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleRenameSubmit(id);
-            }}
-            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2"
-          >
-            <input
-              value={editingValue}
-              onChange={(event) => setEditingValue(event.target.value)}
-              placeholder={t("sidebar.session.renamePlaceholder")}
-              className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none"
-              maxLength={48}
-              autoFocus
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  handleRenameCancel();
-                }
-              }}
-            />
-            <button
-              type="submit"
-              className="console-icon-button console-icon-button-primary"
-              title={t("sidebar.session.confirmRename")}
-            >
-              <Check className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleRenameCancel}
-              className="console-icon-button console-icon-button-ghost"
-              title={t("sidebar.session.cancelRename")}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </form>
-        </li>
-      );
-    }
 
     return (
       <li key={id}>
@@ -135,53 +69,28 @@ export function Sidebar({
         >
           <button
             onClick={() => onSessionSelect?.(id)}
-            className="flex flex-1 flex-col items-start gap-0.5 text-left focus-visible:outline-none"
+            className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left focus-visible:outline-none"
           >
-            <span className="text-sm font-medium">
+            <span className="w-full truncate text-sm font-medium">
               {label || getSessionBadge(id)}
             </span>
             {label && (
-              <span className="text-[10px] font-mono text-slate-400">
+              <span className="w-full truncate text-[10px] font-mono text-slate-400">
                 …{suffix}
               </span>
             )}
           </button>
-          <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+          {onSessionDelete && (
             <button
               type="button"
-              onClick={() => onSessionPin?.(id)}
-              className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
-              title={t(
-                isPinned ? "sidebar.session.unpin" : "sidebar.session.pin",
-              )}
+              onClick={() => onSessionDelete(id)}
+              className="rounded-full p-1 text-slate-400 opacity-0 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
+              title={t("sidebar.session.delete")}
+              aria-label={t("sidebar.session.delete")}
             >
-              <Pin
-                className={cn(
-                  "h-3.5 w-3.5",
-                  isPinned && "-rotate-45 text-slate-900",
-                )}
-                fill={isPinned ? "currentColor" : "none"}
-              />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
-            <button
-              type="button"
-              onClick={() => handleRenameOpen(id)}
-              className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
-              title={t("sidebar.session.rename")}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            {onSessionDelete && (
-              <button
-                type="button"
-                onClick={() => onSessionDelete(id)}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-                title={t("sidebar.session.delete")}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </li>
     );
@@ -198,23 +107,47 @@ export function Sidebar({
         <div className="space-y-4">
           {pinnedSessions.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                {t("sidebar.session.pinned")}
-              </p>
-              <ul className="space-y-1">
-                {pinnedSessions.map((id) => renderSessionItem(id, true))}
-              </ul>
+              <button
+                type="button"
+                onClick={() => setIsPinnedCollapsed((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                aria-expanded={!isPinnedCollapsed}
+              >
+                <span>{t("sidebar.session.pinned")}</span>
+                {isPinnedCollapsed ? (
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                ) : (
+                  <ChevronDown className="h-3 w-3" aria-hidden />
+                )}
+              </button>
+              {!isPinnedCollapsed && (
+                <ul className="space-y-1">
+                  {pinnedSessions.map((id) => renderSessionItem(id))}
+                </ul>
+              )}
             </div>
           )}
 
           {recentSessions.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                {t("sidebar.session.recent")}
-              </p>
-              <ul className="space-y-1">
-                {recentSessions.map((id) => renderSessionItem(id))}
-              </ul>
+              <button
+                type="button"
+                onClick={() => setIsRecentCollapsed((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                aria-expanded={!isRecentCollapsed}
+              >
+                <span>{t("sidebar.session.recent")}</span>
+                {isRecentCollapsed ? (
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                ) : (
+                  <ChevronDown className="h-3 w-3" aria-hidden />
+                )}
+              </button>
+              {!isRecentCollapsed && (
+                <ul className="space-y-1">
+                  {recentSessions.map((id) => renderSessionItem(id))}
+                </ul>
+              )}
             </div>
           )}
 
