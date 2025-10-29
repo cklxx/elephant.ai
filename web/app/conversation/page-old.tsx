@@ -10,6 +10,7 @@ import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
 import { TranslationKey, useI18n } from '@/lib/i18n';
+import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
 import { cn } from '@/lib/utils';
 import { Check, Pencil, Pin, X } from 'lucide-react';
 
@@ -120,8 +121,15 @@ function ConversationPageContent() {
           addToHistory(data.session_id);
         },
         onError: (error) => {
-          console.error('[ConversationPage] Task execution error:', error);
-          toast.error(t('console.toast.taskFailed'), error.message);
+          console.error(
+            '[ConversationPage] Task execution error:',
+            getErrorLogPayload(error)
+          );
+          const parsed = parseError(error, t('common.error.unknown'));
+          toast.error(
+            t('console.toast.taskFailed'),
+            formatParsedError(parsed)
+          );
         },
       }
     );

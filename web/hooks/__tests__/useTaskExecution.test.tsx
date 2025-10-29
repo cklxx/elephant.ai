@@ -79,7 +79,10 @@ describe('useTaskExecution', () => {
         expect(result.current.isError).toBe(true);
       });
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Task execution failed:', mockError);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[useTaskExecution] Task execution failed:',
+        mockError
+      );
       expect(result.current.error).toBe(mockError);
 
       consoleErrorSpy.mockRestore();

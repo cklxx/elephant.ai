@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { useConfirmDialog } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
+import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
 
 export function SessionList() {
   const { data, isLoading, error } = useSessions();
@@ -31,11 +32,16 @@ export function SessionList() {
           t('sessions.list.toast.deleteSuccess.description')
         );
       } catch (err) {
+        console.error(
+          '[SessionList] Failed to delete session:',
+          getErrorLogPayload(err)
+        );
+        const parsed = parseError(err, t('common.error.unknown'));
         toast.error(
           t('sessions.list.toast.deleteError.title'),
-          err instanceof Error
-            ? t('sessions.list.toast.deleteError.description', { message: err.message })
-            : t('sessions.list.toast.deleteError.description', { message: t('common.error.unknown') })
+          t('sessions.list.toast.deleteError.description', {
+            message: formatParsedError(parsed),
+          })
         );
       }
     }
@@ -53,11 +59,16 @@ export function SessionList() {
         );
       }
     } catch (err) {
+      console.error(
+        '[SessionList] Failed to fork session:',
+        getErrorLogPayload(err)
+      );
+      const parsed = parseError(err, t('common.error.unknown'));
       toast.error(
         t('sessions.list.toast.forkError.title'),
-        err instanceof Error
-          ? t('sessions.list.toast.forkError.description', { message: err.message })
-          : t('sessions.list.toast.forkError.description', { message: t('common.error.unknown') })
+        t('sessions.list.toast.forkError.description', {
+          message: formatParsedError(parsed),
+        })
       );
     }
   };
@@ -72,9 +83,10 @@ export function SessionList() {
   }
 
   if (error) {
+    const parsed = parseError(error, t('common.error.unknown'));
     return (
       <div className="flex items-center justify-center h-64 text-destructive">
-        <p>{t('sessions.list.error', { message: error.message })}</p>
+        <p>{t('sessions.list.error', { message: formatParsedError(parsed) })}</p>
       </div>
     );
   }
