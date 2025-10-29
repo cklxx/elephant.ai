@@ -63,6 +63,10 @@ func (c *CLI) Run(args []string) error {
 }
 
 func (c *CLI) showUsage() {
+	printUsage()
+}
+
+func printUsage() {
 	fmt.Printf(`
 ALEX - Agile Light Easy Xpert Code Agent (v%s)
 
@@ -161,6 +165,10 @@ func (c *CLI) handleSessions(args []string) error {
 }
 
 func (c *CLI) handleConfig() error {
+	return runConfigCommand()
+}
+
+func runConfigCommand() error {
 	config, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
