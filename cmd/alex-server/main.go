@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -216,6 +217,8 @@ func buildContainer(config Config) (*di.Container, error) {
 }
 
 // loadConfig loads configuration from environment variables
+const defaultSandboxBaseURL = "http://localhost:8888"
+
 func loadConfig() (Config, error) {
 	envLookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, map[string][]string{
 		"LLM_PROVIDER":       {"ALEX_LLM_PROVIDER"},
@@ -256,6 +259,12 @@ func loadConfig() (Config, error) {
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
 		return Config{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
+
+	sandboxBaseURL := strings.TrimSpace(cfg.Runtime.SandboxBaseURL)
+	if sandboxBaseURL == "" {
+		sandboxBaseURL = defaultSandboxBaseURL
+	}
+	cfg.Runtime.SandboxBaseURL = sandboxBaseURL
 
 	return cfg, nil
 }
