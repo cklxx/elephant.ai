@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -104,6 +105,8 @@ func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAn
 			analysis.Action, analysis.Goal, analysis.Approach)
 	}
 
+	skillsInfo := l.loadSkillsInfo(workingDir)
+
 	variables := map[string]string{
 		"WorkingDir":   workingDir,
 		"Goal":         goal,
@@ -112,7 +115,16 @@ func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAn
 		"TaskAnalysis": taskAnalysis,
 	}
 
-	return l.Render("coder", variables)
+	prompt, err := l.Render("coder", variables)
+	if err != nil {
+		return "", err
+	}
+
+	if skillsInfo != "" {
+		prompt = fmt.Sprintf("%s\n\n---\n# Custom Skills\n%s", prompt, skillsInfo)
+	}
+
+	return prompt, nil
 }
 
 // loadProjectMemory loads project memory from ALEX.md file with CLAUDE.md fallback
@@ -202,4 +214,81 @@ func (l *Loader) tryReadFile(filePath string) string {
 	}
 
 	return strings.TrimSpace(string(content))
+}
+
+func (l *Loader) loadSkillsInfo(workingDir string) string {
+	if workingDir == "" {
+		return ""
+	}
+
+	skillsDir := filepath.Join(workingDir, "skills")
+	entries, err := os.ReadDir(skillsDir)
+	if err != nil {
+		return ""
+	}
+
+	var lines []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".md") {
+			continue
+		}
+
+		title, summary := l.extractSkillSummary(filepath.Join(skillsDir, name))
+		if title == "" {
+			title = strings.TrimSuffix(name, filepath.Ext(name))
+		}
+		display := fmt.Sprintf("- %s — 使用 `file_read(\"skills/%s\")` 查看完整指南", title, name)
+		if summary != "" {
+			display = fmt.Sprintf("%s。%s", display, summary)
+		}
+		lines = append(lines, display)
+	}
+
+	if len(lines) == 0 {
+		return ""
+	}
+
+	sort.Strings(lines)
+
+	return fmt.Sprintf("在项目根目录检测到自定义技能：\n%s", strings.Join(lines, "\n"))
+}
+
+func (l *Loader) extractSkillSummary(path string) (string, string) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", ""
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var title string
+	var summary string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "<!--") {
+			continue
+		}
+
+		normalized := strings.TrimSpace(trimmed)
+		if strings.HasPrefix(normalized, "#") {
+			normalized = strings.TrimSpace(strings.TrimLeft(normalized, "#"))
+		}
+
+		if title == "" {
+			title = normalized
+			continue
+		}
+
+		summary = strings.TrimSpace(strings.TrimLeft(normalized, "-* "))
+		if summary != "" {
+			break
+		}
+	}
+
+	return title, summary
 }
