@@ -21,10 +21,13 @@ Key goals:
 
 ## Capabilities
 
-- **Terminal experience** – bubbletea-based TUI, session management, transcript export, and legacy non-TUI CLI support (`cmd/alex`).
+- **Terminal experience** – bubbletea-based TUI, session management, transcript export, and legacy non-TUI CLI support
+  (`cmd/alex`).
 - **HTTP & SSE API** – streaming task execution, cancellation, health checks, and cost inspection (`cmd/alex-server`,
   `internal/server`).
 - **Modern web dashboard** – Next.js 14 application with live SSE updates, task submission, and session history (`web/`).
+- **Secure sandbox execution** – remote filesystem, shell, browser, and notebook operations routed through a managed sandbox
+  runtime (`internal/tools`, `internal/di`, `internal/server/app`).
 - **Tooling ecosystem** – 15+ built-in tools for file operations, shell execution, search, TODO management, reasoning helpers,
   and web retrieval (`internal/tools/builtin`).
 - **MCP integration** – JSON-RPC 2.0 client, process supervisor, and registry for external MCP servers (`internal/mcp`).
@@ -33,6 +36,45 @@ Key goals:
 - **Observability & cost controls** – Prometheus metrics, OpenTelemetry tracing, structured logging, per-session spend tracking,
   and exportable cost reports (`internal/observability`, `internal/output`, `internal/storage`).
 - **Evaluation harness** – SWE-Bench runner, batch execution helpers, and reporting utilities (`evaluation/`).
+
+## Sandbox Execution Environment
+
+ALEX now ships with a fully managed sandbox runtime that isolates agent actions from the host machine while preserving the
+rich toolset developers expect. When a sandbox endpoint is configured, the backend negotiates a shared `SandboxManager`
+and transparently routes file, shell, browser, and Jupyter traffic through the remote execution service.
+
+### Highlights
+
+- **Isolated compute** – Commands are executed remotely with per-session namespaces and guardrails enforced by the sandbox
+  SDK (`internal/tools/builtin/bash.go`, `internal/tools/builtin/file_edit.go`).
+- **Full tool coverage** – All filesystem and search helpers understand sandbox mode, including `find`, `ripgrep`,
+  multi-file edits, and binary uploads (`internal/tools/builtin`, `third_party/sandbox-sdk-go`).
+- **Environment snapshots** – Host and sandbox environment variables are captured and streamed to clients to aid debugging
+  (`internal/prompts/environment_summary.go`, `internal/agent/domain/events.go`).
+- **Health & telemetry** – A dedicated probe verifies connectivity and surfaces availability alongside LLM and MCP status
+  in health checks and metrics (`internal/server/app/health.go`).
+- **Graceful fallback** – If initialization fails the runtime automatically reverts to local execution while warning the user
+  (`internal/di/container.go`).
+
+### Enable the sandbox
+
+Set the sandbox endpoint once and every delivery surface (CLI, HTTP API, and web dashboard) will use remote execution:
+
+```bash
+export SANDBOX_BASE_URL="https://sandbox.example.com"
+./alex-server            # automatically boots in sandbox mode
+./alex --config show     # confirms execution_mode: sandbox
+```
+
+The same value can be persisted in `~/.alex-config.json` under `sandbox_base_url`. The dependency injection container wires
+the shared manager during startup, performs a connectivity check, and exposes the configured URL to downstream packages for
+tool registry, observability, and diagnostics (`internal/di/container.go`, `internal/toolregistry/registry.go`).
+
+### Operating the sandbox
+
+- Use `GET /health` (or `make server-health`) to verify the sandbox component status advertised by the probe.
+- Monitor latency and failure counters exported via the sandbox Prometheus metrics (`docs/operations/monitoring_and_metrics.md`).
+- Capture environment differentials inside transcripts to reproduce sandbox-only issues from the CLI or dashboard.
 
 ## Architecture
 
