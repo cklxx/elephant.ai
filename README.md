@@ -178,10 +178,13 @@ The server exposes:
 ### Docker Compose
 
 ```bash
-docker-compose up -d            # start Go backend + Next.js frontend
+docker-compose up -d            # start Go backend, sandbox runtime, and Next.js frontend
 ```
 
 Set credentials in `.env` (e.g. `OPENAI_API_KEY`, provider endpoints) before starting containers.
+The compose stack now launches a dedicated `alex-sandbox` container and configures the
+server with `ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080` so file/shell/code tools use the
+isolated sandbox runtime while retaining the shared `skills/` guides inside that container.
 
 ### Testing
 

@@ -6,15 +6,19 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	sandboxDockerImage           = "ghcr.io/agent-infra/sandbox:latest"
 	sandboxDockerImageChina      = "enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest"
+	customSandboxDockerImage     = "alex-sandbox:latest"
 	sandboxChinaRegistryEndpoint = "enterprise-public-cn-beijing.cr.volces.com:443"
 	sandboxContainerName         = "alex-sandbox"
 	sandboxManagedLabel          = "alex.sandbox.managed=true"
@@ -47,6 +51,9 @@ type dialContextFunc func(ctx context.Context, network, address string) (net.Con
 type execSandboxDockerController struct {
 	cli    dockerCLI
 	dialFn dialContextFunc
+
+	chinaNetworkOnce sync.Once
+	chinaNetwork     bool
 }
 
 // newExecSandboxDockerController constructs a Docker-backed controller for production use.
@@ -97,6 +104,7 @@ func (c *execSandboxDockerController) EnsureRunning(ctx context.Context, baseURL
 	}
 
 	image := c.resolveSandboxImage(ctx)
+	skillsMount := sandboxSkillsMountArgs()
 
 	if output, err := c.runDocker(ctx, dockerListTimeout, "ps", "--filter", managedLabelFilter(), "--format", "{{.ID}}"); err == nil && strings.TrimSpace(output) != "" {
 		return SandboxDockerResult{Reused: true, Image: image}, nil
@@ -117,8 +125,13 @@ func (c *execSandboxDockerController) EnsureRunning(ctx context.Context, baseURL
 		"--restart", "unless-stopped",
 		"--security-opt", "seccomp=unconfined",
 		"-p", fmt.Sprintf("%d:8080", portValue),
-		image,
 	}
+
+	if len(skillsMount) > 0 {
+		runArgs = append(runArgs, skillsMount...)
+	}
+
+	runArgs = append(runArgs, image)
 
 	output, err := c.runDocker(ctx, dockerRunTimeout, runArgs...)
 	if err != nil {
@@ -158,13 +171,83 @@ func (c *execSandboxDockerController) portOpen(ctx context.Context, port int) bo
 }
 
 func (c *execSandboxDockerController) resolveSandboxImage(ctx context.Context) string {
-	if c.canReachHost(ctx, "ghcr.io:443") {
+	if custom := strings.TrimSpace(os.Getenv("ALEX_SANDBOX_IMAGE")); custom != "" {
+		return custom
+	}
+
+	if c.imageAvailable(ctx, customSandboxDockerImage) {
+		return customSandboxDockerImage
+	}
+
+	inChina := c.isChinaNetwork(ctx)
+	if !inChina && c.canReachHost(ctx, "ghcr.io:443") {
 		return sandboxDockerImage
 	}
 	if c.canReachHost(ctx, sandboxChinaRegistryEndpoint) {
 		return sandboxDockerImageChina
 	}
+	if inChina {
+		return sandboxDockerImageChina
+	}
 	return sandboxDockerImage
+}
+
+func (c *execSandboxDockerController) imageAvailable(ctx context.Context, image string) bool {
+	image = strings.TrimSpace(image)
+	if image == "" || c.cli == nil {
+		return false
+	}
+
+	if _, err := c.runDocker(ctx, dockerListTimeout, "image", "inspect", image); err != nil {
+		return false
+	}
+	return true
+}
+
+func sandboxSkillsMountArgs() []string {
+	dir := sandboxSkillsDir()
+	if dir == "" {
+		return nil
+	}
+	if strings.ContainsAny(dir, " \t\n") {
+		return nil
+	}
+	mount := fmt.Sprintf("type=bind,source=%s,destination=/workspace/skills,readonly", dir)
+	return []string{"--mount", mount}
+}
+
+func sandboxSkillsDir() string {
+	if value, ok := os.LookupEnv("ALEX_SKILLS_DIR"); ok {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return ""
+		}
+		return validateSkillsDir(value)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return validateSkillsDir(filepath.Join(wd, "skills"))
+}
+
+func validateSkillsDir(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return ""
+	}
+
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+
+	return abs
 }
 
 func (c *execSandboxDockerController) canReachHost(ctx context.Context, address string) bool {
@@ -181,6 +264,14 @@ func (c *execSandboxDockerController) canReachHost(ctx context.Context, address 
 	}
 	_ = conn.Close()
 	return true
+}
+
+func (c *execSandboxDockerController) isChinaNetwork(ctx context.Context) bool {
+	c.chinaNetworkOnce.Do(func() {
+		c.chinaNetwork = detectChinaNetwork(ctx, c.dialFn)
+		applyChinaNetworkEnv(c.chinaNetwork)
+	})
+	return c.chinaNetwork
 }
 
 func managedLabelFilter() string {
@@ -218,6 +309,102 @@ func defaultPort(scheme string) string {
 	default:
 		return ""
 	}
+}
+
+func detectChinaNetwork(ctx context.Context, dialFn dialContextFunc) bool {
+	if value, ok := chinaNetworkEnvOverride(); ok {
+		return value
+	}
+
+	if dialFn == nil {
+		return false
+	}
+
+	if probeHost(ctx, dialFn, "ghcr.io:443") || probeHost(ctx, dialFn, "api.openai.com:443") {
+		return false
+	}
+
+	chinaEndpoints := []string{
+		sandboxChinaRegistryEndpoint,
+		"aliyun.com:443",
+		"baidu.com:443",
+	}
+	for _, endpoint := range chinaEndpoints {
+		if probeHost(ctx, dialFn, endpoint) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func probeHost(ctx context.Context, dialFn dialContextFunc, address string) bool {
+	if dialFn == nil || address == "" {
+		return false
+	}
+
+	dialCtx, cancel := context.WithTimeout(ctx, dockerHostProbeDeadline)
+	defer cancel()
+
+	conn, err := dialFn(dialCtx, "tcp", address)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+func chinaNetworkEnvOverride() (bool, bool) {
+	if value, ok := os.LookupEnv("ALEX_IN_CHINA"); ok {
+		if parsed, valid := parseBoolEnv(value); valid {
+			return parsed, true
+		}
+	}
+
+	if value, ok := os.LookupEnv("ALEX_NETWORK_REGION"); ok {
+		lower := strings.ToLower(strings.TrimSpace(value))
+		switch lower {
+		case "china", "cn", "zh", "zh-cn":
+			return true, true
+		case "global", "intl", "international", "world":
+			return false, true
+		}
+	}
+
+	return false, false
+}
+
+func parseBoolEnv(value string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "t", "true", "yes", "y", "on":
+		return true, true
+	case "0", "f", "false", "no", "n", "off":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func applyChinaNetworkEnv(inChina bool) {
+	region := "global"
+	chinaValue := "false"
+	if inChina {
+		region = "china"
+		chinaValue = "true"
+	}
+
+	setEnvIfUnset("ALEX_NETWORK_REGION", region)
+	setEnvIfUnset("ALEX_IN_CHINA", chinaValue)
+}
+
+func setEnvIfUnset(key, value string) {
+	if value == "" {
+		return
+	}
+	if _, ok := os.LookupEnv(key); ok {
+		return
+	}
+	_ = os.Setenv(key, value)
 }
 
 func shouldManageSandboxDocker(baseURL string) bool {
