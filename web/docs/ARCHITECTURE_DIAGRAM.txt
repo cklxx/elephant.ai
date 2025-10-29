@@ -15,7 +15,7 @@
 │  • task_analysis            • iteration_start          /api/sessions/       │
 │  • thinking                 • tool_call_start          {id}/events          │
 │  • tool_call_complete       • task_complete                                 │
-│  • research_plan (future)   • browser_snapshot (future)                     │
+│  • research_plan (future)   • browser_info (future)                        │
 └──────────────────────────────────────────────────────────────────────────────┘
                                        │
                                        │ SSE Stream (HTTP)
@@ -62,9 +62,9 @@
 │  │  │    • Build step timeline from research_plan events               │  │  │
 │  │  │    • Track status: pending → in_progress → completed             │  │  │
 │  │  │                                                                   │  │  │
-│  │  │  extractBrowserSnapshots() ─────▶ BrowserSnapshot[]              │  │  │
-│  │  │    • Extract browser state captures                              │  │  │
-│  │  │    • Include URL, screenshot (base64), HTML preview              │  │  │
+│  │  │  extractBrowserDiagnostics() ─────▶ BrowserDiagnostics[]         │  │  │
+│  │  │    • Extract sandbox browser diagnostics                         │  │  │
+│  │  │    • Include availability, connection endpoints, viewport       │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  │                            │                                            │  │
 │  │                            │ Computed State                              │  │
@@ -75,7 +75,7 @@
 │  │  │  • toolCalls: Map<string, AggregatedToolCall>                    │  │  │
 │  │  │  • iterations: Map<number, IterationGroup>                       │  │  │
 │  │  │  • researchSteps: ResearchStep[]                                 │  │  │
-│  │  │  • browserSnapshots: BrowserSnapshot[]                           │  │  │
+│  │  │  • browserDiagnostics: BrowserDiagnostics[]                      │  │  │
 │  │  │  • currentIteration: number | null                               │  │  │
 │  │  │  • currentResearchStep: number | null                            │  │  │
 │  │  │  • activeToolCall: string | null                                 │  │  │
@@ -95,7 +95,7 @@
 │  │  • useInProgressResearchSteps()                      • useErrorStates()│  │
 │  │                                                       • useMemoryStats()│  │
 │  │  Iterations:                  Browser:               Debug:             │  │
-│  │  • useCurrentIteration()      • useLatestBrowserSnapshot()             │  │
+│  │  • useCurrentIteration()      • useLatestBrowserDiagnostics()          │  │
 │  │  • useCompletedIterations()                         • useRawEvents()   │  │
 │  │  • useIterationsArray()                                                │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
@@ -136,7 +136,7 @@
 │  │  │  • ThinkingIndicator     • ResearchPlanCard (new)               │  │  │
 │  │  │  • TaskCompleteCard      • StepStartedBanner (new)              │  │  │
 │  │  │  • ErrorCard             • StepCompletedCard (new)              │  │  │
-│  │  │                          • BrowserSnapshotCard (new)            │  │  │
+│  │  │                          • BrowserDiagnosticsCard (new)         │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────────┘

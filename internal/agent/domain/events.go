@@ -112,6 +112,7 @@ type ToolCallCompleteEvent struct {
 	Result   string
 	Error    error
 	Duration time.Duration
+	Metadata map[string]any
 }
 
 func (e *ToolCallCompleteEvent) EventType() string { return "tool_call_complete" }
@@ -200,6 +201,75 @@ func NewToolFilteringEvent(level ports.AgentLevel, sessionID, presetName string,
 		FilteredTools:   filteredTools,
 		ToolFilterRatio: filterRatio,
 	}
+}
+
+// BrowserInfoEvent - emitted when sandbox browser diagnostics are captured
+type BrowserInfoEvent struct {
+	BaseEvent
+	Success        *bool
+	Message        string
+	UserAgent      string
+	CDPURL         string
+	VNCURL         string
+	ViewportWidth  int
+	ViewportHeight int
+	Captured       time.Time
+}
+
+func (e *BrowserInfoEvent) EventType() string { return "browser_info" }
+
+// NewBrowserInfoEvent creates a new browser diagnostics event
+func NewBrowserInfoEvent(
+	level ports.AgentLevel,
+	sessionID string,
+	captured time.Time,
+	success *bool,
+	message, userAgent, cdpURL, vncURL string,
+	viewportWidth, viewportHeight int,
+) *BrowserInfoEvent {
+	event := &BrowserInfoEvent{
+		BaseEvent:      newBaseEventWithSession(level, sessionID, captured),
+		Success:        success,
+		Message:        message,
+		UserAgent:      userAgent,
+		CDPURL:         cdpURL,
+		VNCURL:         vncURL,
+		ViewportWidth:  viewportWidth,
+		ViewportHeight: viewportHeight,
+		Captured:       captured,
+	}
+	return event
+}
+
+// EnvironmentSnapshotEvent - emitted when host/sandbox environments are captured
+type EnvironmentSnapshotEvent struct {
+	BaseEvent
+	Host     map[string]string
+	Sandbox  map[string]string
+	Captured time.Time
+}
+
+func (e *EnvironmentSnapshotEvent) EventType() string { return "environment_snapshot" }
+
+// NewEnvironmentSnapshotEvent constructs a new environment snapshot event.
+func NewEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.Time) *EnvironmentSnapshotEvent {
+	return &EnvironmentSnapshotEvent{
+		BaseEvent: newBaseEventWithSession(ports.LevelCore, "", captured),
+		Host:      cloneStringMap(host),
+		Sandbox:   cloneStringMap(sandbox),
+		Captured:  captured,
+	}
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+	clone := make(map[string]string, len(values))
+	for k, v := range values {
+		clone[k] = v
+	}
+	return clone
 }
 
 // EventListenerFunc is a function adapter for EventListener

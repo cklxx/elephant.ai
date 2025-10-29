@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/security/redaction"
 	"alex/internal/server/app"
 	"alex/internal/utils"
 )
@@ -84,9 +85,20 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
+	var lastHistoryTime time.Time
+
+	globalHistory := h.broadcaster.GetGlobalHistory()
+	if len(globalHistory) > 0 {
+		h.logger.Info("Replaying %d global events", len(globalHistory))
+		for _, event := range globalHistory {
+			if sendEvent(event) {
+				lastHistoryTime = event.Timestamp()
+			}
+		}
+	}
+
 	// Replay historical events for this session
 	history := h.broadcaster.GetEventHistory(sessionID)
-	var lastHistoryTime time.Time
 	if len(history) > 0 {
 		h.logger.Info("Replaying %d historical events for session: %s", len(history), sessionID)
 		for _, event := range history {
@@ -194,6 +206,9 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 			data["error"] = e.Error.Error()
 		}
 		data["duration"] = e.Duration.Milliseconds()
+		if len(e.Metadata) > 0 {
+			data["metadata"] = e.Metadata
+		}
 
 	case *domain.ToolCallStreamEvent:
 		data["call_id"] = e.CallID
@@ -220,6 +235,35 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		}
 		data["recoverable"] = e.Recoverable
 
+	case *domain.BrowserInfoEvent:
+		if e.Success != nil {
+			data["success"] = *e.Success
+		}
+		if e.Message != "" {
+			data["message"] = e.Message
+		}
+		if e.UserAgent != "" {
+			data["user_agent"] = e.UserAgent
+		}
+		if e.CDPURL != "" {
+			data["cdp_url"] = e.CDPURL
+		}
+		if e.VNCURL != "" {
+			data["vnc_url"] = e.VNCURL
+		}
+		if e.ViewportWidth != 0 {
+			data["viewport_width"] = e.ViewportWidth
+		}
+		if e.ViewportHeight != 0 {
+			data["viewport_height"] = e.ViewportHeight
+		}
+		data["captured"] = e.Captured.Format(time.RFC3339)
+
+	case *domain.EnvironmentSnapshotEvent:
+		data["host"] = e.Host
+		data["sandbox"] = e.Sandbox
+		data["captured"] = e.Captured.Format(time.RFC3339)
+
 	case *domain.ContextCompressionEvent:
 		data["original_count"] = e.OriginalCount
 		data["compressed_count"] = e.CompressedCount
@@ -242,11 +286,7 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 	return string(jsonData), nil
 }
 
-const redactedPlaceholder = "[REDACTED]"
-
-var sensitiveKeyFragments = []string{"token", "secret", "password", "key", "authorization", "cookie", "credential", "session"}
-
-var sensitiveValueIndicators = []string{"bearer ", "ghp_", "sk-", "xoxb-", "xoxp-", "-----begin", "api_key", "apikey", "access_token", "refresh_token"}
+const redactedPlaceholder = redaction.Placeholder
 
 // sanitizeArguments creates a deep copy of the provided arguments map and redacts any values that
 // appear to contain sensitive information such as API keys or authorization tokens.
@@ -264,7 +304,7 @@ func sanitizeArguments(arguments map[string]interface{}) map[string]interface{} 
 }
 
 func sanitizeValue(parentKey string, value interface{}) interface{} {
-	if isSensitiveKey(parentKey) {
+	if redaction.IsSensitiveKey(parentKey) {
 		return redactedPlaceholder
 	}
 
@@ -273,7 +313,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 	}
 
 	if str, ok := value.(string); ok {
-		if looksLikeSecret(str) {
+		if redaction.LooksLikeSecret(str) {
 			return redactedPlaceholder
 		}
 		return str
@@ -295,7 +335,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 			bytesCopy := make([]byte, rv.Len())
 			reflect.Copy(reflect.ValueOf(bytesCopy), rv)
 			str := string(bytesCopy)
-			if looksLikeSecret(str) {
+			if redaction.LooksLikeSecret(str) {
 				return redactedPlaceholder
 			}
 			return str
@@ -309,7 +349,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 		return sanitizedSlice
 	case reflect.String:
 		str := rv.String()
-		if looksLikeSecret(str) {
+		if redaction.LooksLikeSecret(str) {
 			return redactedPlaceholder
 		}
 		return str
@@ -327,35 +367,4 @@ func sanitizeMap(rv reflect.Value) map[string]interface{} {
 	}
 
 	return sanitized
-}
-
-func isSensitiveKey(key string) bool {
-	lowerKey := strings.ToLower(key)
-	for _, fragment := range sensitiveKeyFragments {
-		if strings.Contains(lowerKey, fragment) {
-			return true
-		}
-	}
-	return false
-}
-
-func looksLikeSecret(value string) bool {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return false
-	}
-
-	lowerValue := strings.ToLower(trimmed)
-	for _, indicator := range sensitiveValueIndicators {
-		if strings.Contains(lowerValue, indicator) {
-			return true
-		}
-	}
-
-	// Long strings without whitespace are likely tokens or hashes.
-	if len(trimmed) >= 32 && !strings.ContainsAny(trimmed, " \n\t") {
-		return true
-	}
-
-	return false
 }

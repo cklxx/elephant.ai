@@ -14,13 +14,13 @@ A complete event stream state management system has been implemented for the ALE
   - `ResearchPlanEvent` - Research plan with steps and estimated iterations
   - `StepStartedEvent` - Research step start tracking
   - `StepCompletedEvent` - Research step completion with result
-  - `BrowserSnapshotEvent` - Browser state capture (URL, screenshot, HTML)
+- `BrowserInfoEvent` - Sandbox browser diagnostics (status, endpoints, viewport)
 
 - ✅ **web/lib/eventAggregation.ts** - Event processing logic (260 lines):
   - `aggregateToolCalls()` - Merges tool_call_start/stream/complete into single objects
   - `groupByIteration()` - Groups events by ReAct iteration
   - `extractResearchSteps()` - Builds research step timeline
-  - `extractBrowserSnapshots()` - Extracts browser snapshot data
+- `extractBrowserDiagnostics()` - Extracts sandbox browser diagnostics
   - `EventLRUCache` - LRU cache with 1000 event hard limit
 
 - ✅ **web/hooks/useAgentStreamStore.ts** - Zustand + Immer store (280 lines):
@@ -141,7 +141,7 @@ useErrorStates()               // All errors
 useMemoryStats()               // Memory usage stats
 
 // Browser automation
-useLatestBrowserSnapshot()     // Latest screenshot
+useLatestBrowserDiagnostics()  // Latest browser diagnostics event
 
 // Debug
 useRawEvents()                 // Raw event array
@@ -204,11 +204,16 @@ type StepCompletedEvent struct {
     StepResult string `json:"step_result"`
 }
 
-type BrowserSnapshotEvent struct {
+type BrowserInfoEvent struct {
     BaseEvent
-    URL            string `json:"url"`
-    ScreenshotData string `json:"screenshot_data,omitempty"`
-    HTMLPreview    string `json:"html_preview,omitempty"`
+    Success        *bool  `json:"success,omitempty"`
+    Message        string `json:"message,omitempty"`
+    UserAgent      string `json:"user_agent,omitempty"`
+    CDPURL         string `json:"cdp_url,omitempty"`
+    VNCURL         string `json:"vnc_url,omitempty"`
+    ViewportWidth  int    `json:"viewport_width,omitempty"`
+    ViewportHeight int    `json:"viewport_height,omitempty"`
+    Captured       time.Time `json:"captured"`
 }
 ```
 
@@ -219,7 +224,7 @@ eventTypes := []string{
     "research_plan",
     "step_started",
     "step_completed",
-    "browser_snapshot",
+    "browser_info",
 }
 ```
 
@@ -354,7 +359,7 @@ useEffect(() => {
 6. **Backend Emission** (Priority: High)
    - Implement new event types in Go backend
    - Add research plan generation
-   - Browser snapshot capture
+   - Browser diagnostics emission
 
 ## Files Summary
 

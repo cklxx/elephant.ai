@@ -87,11 +87,14 @@ const mockEvents: AnyAgentEvent[] = [
     duration: 4800,
   },
   {
-    event_type: 'browser_snapshot',
+    event_type: 'browser_info',
     timestamp: atOffset(50),
     agent_level: 'core',
-    url: 'https://console.example.com/dashboard',
-    html_preview: '<article>Live timeline with streaming tool output...</article>',
+    captured: new Date(Date.now() + 5000).toISOString(),
+    success: true,
+    message: 'Sandbox browser ready',
+    user_agent: 'ConsolePreview/1.0',
+    cdp_url: 'ws://console.example.com/devtools',
   },
   {
     event_type: 'tool_call_start',

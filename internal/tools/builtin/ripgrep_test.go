@@ -9,7 +9,7 @@ import (
 )
 
 func TestRipgrepMetadata(t *testing.T) {
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	meta := tool.Metadata()
 
 	if meta.Name != "ripgrep" {
@@ -21,7 +21,7 @@ func TestRipgrepMetadata(t *testing.T) {
 }
 
 func TestRipgrepDefinition(t *testing.T) {
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	def := tool.Definition()
 
 	if def.Name != "ripgrep" {
@@ -46,7 +46,7 @@ func TestRipgrepDefinition(t *testing.T) {
 }
 
 func TestRipgrepMissingPattern(t *testing.T) {
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -75,7 +75,7 @@ func TestRipgrepNotInstalled(t *testing.T) {
 		t.Skip("Skipping test: ripgrep is installed")
 	}
 
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -106,7 +106,7 @@ func TestRipgrepBasicSearch(t *testing.T) {
 		t.Skip("Skipping test: ripgrep is not installed")
 	}
 
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -140,7 +140,7 @@ func TestRipgrepWithFileType(t *testing.T) {
 		t.Skip("Skipping test: ripgrep is not installed")
 	}
 
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -177,7 +177,7 @@ func TestRipgrepNoMatches(t *testing.T) {
 		t.Skip("Skipping test: ripgrep is not installed")
 	}
 
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
 	// Use a very unique string that won't be in the code
@@ -219,7 +219,7 @@ func TestRipgrepIgnoreCase(t *testing.T) {
 		t.Skip("Skipping test: ripgrep is not installed")
 	}
 
-	tool := NewRipgrep()
+	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{

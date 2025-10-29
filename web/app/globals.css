@@ -6,11 +6,11 @@
  * ALEX Visual Language - Global Styles
  *
  * Design Philosophy:
- * - Low-saturation grayscale foundation
- * - Minimal visual decoration
+ * - High-contrast monochrome foundation inspired by black & white stickers
+ * - Bold outlines, offset shadows, and tactile hover states
  * - High information density with generous spacing
  * - Bold typography hierarchy
- * - Subtle transitions (fast, low-key)
+ * - Fast transitions that preserve the cutout feel
  */
 
 /* ========================================================================
@@ -20,112 +20,112 @@
 @layer base {
   /**
    * Light Theme (Default)
-   * - Low-saturation grays with desaturated tones
+   * - High-contrast grayscale tuned for sticker aesthetics
    * - WCAG AA compliant contrast ratios
    */
   :root {
     /* Base colors */
-    --background: 210 40% 98%;
-    --foreground: 213 19% 18%;
+    --background: 0 0% 97%;
+    --foreground: 0 0% 10%;
 
     /* Card backgrounds */
     --card: 0 0% 100%;
-    --card-foreground: 213 19% 18%;
+    --card-foreground: 0 0% 10%;
 
     /* Primary accent */
-    --primary: 199 89% 48%;
-    --primary-foreground: 199 100% 97%;
+    --primary: 0 0% 10%;
+    --primary-foreground: 0 0% 96%;
 
     /* Secondary elements */
-    --secondary: 213 27% 93%;
-    --secondary-foreground: 213 19% 26%;
+    --secondary: 0 0% 90%;
+    --secondary-foreground: 0 0% 10%;
 
     /* Muted elements */
-    --muted: 213 33% 94%;
-    --muted-foreground: 215 16% 45%;
+    --muted: 0 0% 85%;
+    --muted-foreground: 0 0% 35%;
 
-    /* Accent (subtle neutral) */
+    /* Accent (neutral highlight) */
     --accent: 0 0% 100%;
-    --accent-foreground: 213 19% 18%;
+    --accent-foreground: 0 0% 10%;
 
     /* Destructive */
-    --destructive: 6 84% 58%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 0% 20%;
+    --destructive-foreground: 0 0% 96%;
 
     /* Borders and inputs */
-    --border: 214 32% 92%;
-    --input: 214 32% 90%;
+    --border: 0 0% 18%;
+    --input: 0 0% 22%;
 
     /* Focus ring */
-    --ring: 199 89% 48%;
+    --ring: 0 0% 15%;
 
     /* Grayscale palette */
-    --gray-50: 210 40% 98%;
-    --gray-100: 214 32% 94%;
-    --gray-200: 213 27% 90%;
-    --gray-300: 213 22% 84%;
-    --gray-400: 215 17% 65%;
-    --gray-500: 214 17% 45%;
-    --gray-600: 216 15% 34%;
-    --gray-700: 218 17% 24%;
-    --gray-800: 220 18% 16%;
-    --gray-900: 222 19% 12%;
-    --gray-950: 225 24% 9%;
+    --gray-50: 0 0% 98%;
+    --gray-100: 0 0% 94%;
+    --gray-200: 0 0% 88%;
+    --gray-300: 0 0% 80%;
+    --gray-400: 0 0% 65%;
+    --gray-500: 0 0% 45%;
+    --gray-600: 0 0% 35%;
+    --gray-700: 0 0% 25%;
+    --gray-800: 0 0% 15%;
+    --gray-900: 0 0% 10%;
+    --gray-950: 0 0% 5%;
   }
 
   /**
    * Dark Theme
-   * - Maintains low-saturation principle
-   * - Inverted hierarchy with subtle warm gray base
+   * - Preserves monochrome contrast for nighttime readability
+   * - Inverted hierarchy with luminous neutrals
    */
   .dark {
     /* Base colors */
-    --background: 220 26% 8%;
-    --foreground: 213 31% 88%;
+    --background: 0 0% 5%;
+    --foreground: 0 0% 92%;
 
     /* Card backgrounds */
-    --card: 220 21% 12%;
-    --card-foreground: 213 31% 88%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 92%;
 
     /* Primary accent */
-    --primary: 199 92% 68%;
-    --primary-foreground: 215 33% 14%;
+    --primary: 0 0% 92%;
+    --primary-foreground: 0 0% 8%;
 
     /* Secondary elements */
-    --secondary: 220 18% 18%;
-    --secondary-foreground: 213 31% 88%;
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 0 0% 92%;
 
     /* Muted elements */
-    --muted: 220 19% 20%;
-    --muted-foreground: 215 19% 65%;
+    --muted: 0 0% 22%;
+    --muted-foreground: 0 0% 70%;
 
     /* Accent */
-    --accent: 220 20% 22%;
-    --accent-foreground: 210 40% 95%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 92%;
 
     /* Destructive */
-    --destructive: 5 78% 61%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 0% 85%;
+    --destructive-foreground: 0 0% 6%;
 
     /* Borders and inputs */
-    --border: 220 18% 28%;
-    --input: 220 18% 24%;
+    --border: 0 0% 40%;
+    --input: 0 0% 32%;
 
     /* Focus ring */
-    --ring: 199 92% 68%;
+    --ring: 0 0% 85%;
 
     /* Grayscale palette (dark) */
-    --gray-50: 220 26% 8%;
-    --gray-100: 218 24% 12%;
-    --gray-200: 220 21% 18%;
-    --gray-300: 220 20% 26%;
-    --gray-400: 220 18% 38%;
-    --gray-500: 218 17% 48%;
-    --gray-600: 218 17% 58%;
-    --gray-700: 219 15% 68%;
-    --gray-800: 216 18% 78%;
-    --gray-900: 214 32% 88%;
-    --gray-950: 213 45% 94%;
+    --gray-50: 0 0% 6%;
+    --gray-100: 0 0% 12%;
+    --gray-200: 0 0% 18%;
+    --gray-300: 0 0% 26%;
+    --gray-400: 0 0% 38%;
+    --gray-500: 0 0% 52%;
+    --gray-600: 0 0% 64%;
+    --gray-700: 0 0% 74%;
+    --gray-800: 0 0% 84%;
+    --gray-900: 0 0% 92%;
+    --gray-950: 0 0% 96%;
   }
 }
 
@@ -161,35 +161,47 @@
    ======================================================================== */
 
 @layer components {
-  /**
-   * Card Styles
-   * - Clean borders, no shadows or blur
-   * - Subtle background differentiation
-   */
-  .console-card {
-    @apply bg-card border border-border rounded-md;
-  }
+    /**
+     * Card Styles
+     * - Bold borders and offset drop shadows for sticker feel
+     * - Subtle hover lift on interactive cards
+     */
+    .console-card {
+      background: hsl(var(--card));
+      border: 3px solid hsl(var(--foreground));
+      border-radius: 12px;
+      box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.75);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
 
-  .console-card-interactive {
-    @apply console-card transition-colors duration-150;
-  }
+    .console-card-interactive {
+      background: hsl(var(--card));
+      border: 3px solid hsl(var(--foreground));
+      border-radius: 12px;
+      box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.75);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    }
 
-  .console-card-interactive:hover {
-    @apply bg-accent;
-  }
+    .console-card-interactive:hover {
+      background: hsla(var(--foreground) / 0.08);
+      transform: translate(-4px, -4px);
+      box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.7);
+    }
 
   /**
    * Section Styles
    * - Clear visual hierarchy through borders
    * - Generous padding for readability
    */
-  .console-section {
-    @apply border-b border-border py-6;
-  }
+    .console-section {
+      border-bottom: 3px solid hsl(var(--foreground));
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
 
-  .console-section:last-child {
-    @apply border-b-0;
-  }
+    .console-section:last-child {
+      border-bottom: 0;
+    }
 
   /**
    * Typography Utilities
@@ -213,45 +225,157 @@
   }
 
   .timeline-anchor-target {
-    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
   .timeline-anchor-highlight {
-    @apply ring-2 ring-sky-400 ring-offset-2 ring-offset-background bg-sky-50 dark:bg-sky-500/20;
+    @apply ring-2 ring-foreground ring-offset-2 ring-offset-background bg-gray-100 dark:bg-gray-800;
   }
 
-  /**
-   * Button Styles
-   * - Minimal decoration
-   * - Clear states without heavy effects
-   */
+    /**
+     * Button Styles
+     * - Thick borders and shadows to match sticker treatment
+     * - Animated hover/focus offsets for tactile feedback
+     */
   .console-button {
-    @apply px-4 py-2 rounded-md font-medium transition-colors duration-150;
-    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold uppercase tracking-[0.12em] transition-transform duration-150 cursor-pointer select-none;
+    color: hsl(var(--foreground));
+    background: hsl(var(--card));
+    border: 2px solid hsl(var(--foreground));
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.85);
+  }
+
+  .console-button:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.75);
+  }
+
+  .console-button:active {
+    transform: translate(0, 0);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.75);
+  }
+
+  .console-button:focus-visible {
+    outline: 3px solid hsl(var(--foreground));
+    outline-offset: 4px;
+  }
+
+  .console-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  .console-button:disabled:hover,
+  .console-button:disabled:active {
+    transform: none;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
   }
 
   .console-button-primary {
-    @apply console-button bg-primary text-primary-foreground;
-  }
-
-  .console-button-primary:hover {
-    @apply opacity-90;
+    background: hsl(var(--foreground));
+    color: hsl(var(--primary-foreground));
   }
 
   .console-button-secondary {
-    @apply console-button bg-secondary text-secondary-foreground;
-  }
-
-  .console-button-secondary:hover {
-    @apply bg-accent;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
   }
 
   .console-button-ghost {
-    @apply console-button bg-transparent;
+    background: transparent;
   }
 
   .console-button-ghost:hover {
-    @apply bg-accent;
+    background: hsla(var(--foreground) / 0.08);
+  }
+
+  .console-primary-action {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-transform duration-150;
+    background: hsl(var(--foreground));
+    color: hsl(var(--primary-foreground));
+    border: 2px solid hsl(var(--foreground));
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.85);
+  }
+
+  .console-primary-action:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.75);
+  }
+
+  .console-primary-action:active {
+    transform: translate(0, 0);
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75);
+  }
+
+  .console-primary-action:focus-visible {
+    outline: 3px solid hsl(var(--foreground));
+    outline-offset: 4px;
+  }
+
+  .console-primary-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    transform: none;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  .console-primary-action:disabled:hover,
+  .console-primary-action:disabled:active {
+    transform: none;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  .console-icon-button {
+    @apply inline-flex items-center justify-center rounded-full border-2 transition-transform duration-150;
+    border-color: hsl(var(--foreground));
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    padding: 0.4rem;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75);
+  }
+
+  .console-icon-button:hover {
+    transform: translate(-1.5px, -1.5px);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.65);
+  }
+
+  .console-icon-button:active {
+    transform: translate(0, 0);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.65);
+  }
+
+  .console-icon-button:focus-visible {
+    outline: 2px solid hsl(var(--foreground));
+    outline-offset: 3px;
+  }
+
+  .console-icon-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  .console-icon-button:disabled:hover,
+  .console-icon-button:disabled:active {
+    transform: none;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  .console-icon-button-primary {
+    background: hsl(var(--foreground));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .console-icon-button-ghost {
+    background: transparent;
+  }
+
+  .console-icon-button-danger {
+    background: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
   }
 
   /**
@@ -272,25 +396,31 @@
    * - Clear text hierarchy
    */
   .console-badge {
-    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium;
-    @apply bg-secondary text-secondary-foreground;
+    @apply inline-flex items-center rounded px-2 py-1 text-xs font-semibold uppercase tracking-[0.18em];
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    border: 2px solid hsl(var(--foreground));
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.75);
   }
 
   .console-badge-primary {
-    @apply console-badge bg-primary text-primary-foreground;
+    @apply console-badge;
+    background: hsl(var(--foreground));
+    color: hsl(var(--primary-foreground));
   }
 
   .console-badge-outline {
-    @apply console-badge bg-transparent border border-border;
+    @apply console-badge;
+    background: transparent;
   }
 }
 
 @layer utilities {
   .bg-app-canvas {
     background-image:
-      radial-gradient(circle at 20% -10%, hsla(210, 40%, 96%, 0.6), transparent 52%),
-      radial-gradient(circle at 90% 10%, hsla(199, 88%, 85%, 0.18), transparent 55%),
-      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(210 32% 96%) 100%);
+      radial-gradient(circle at 20% -10%, hsla(0, 0%, 96%, 0.7), transparent 52%),
+      radial-gradient(circle at 90% 10%, hsla(0, 0%, 82%, 0.28), transparent 55%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(0 0% 92%) 100%);
   }
 
   .console-shell {
@@ -298,31 +428,113 @@
   }
 
   .console-panel {
-    @apply rounded-[28px] border border-slate-200 bg-white shadow-[0px_20px_60px_rgba(15,23,42,0.04)];
+    border-radius: 28px;
+    background: hsl(var(--card));
+    border: 3px solid hsl(var(--foreground));
+    box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.75);
   }
 
   .console-pane-title {
-    @apply text-[13px] font-semibold uppercase tracking-[0.2em] text-slate-500;
+    @apply text-[13px] font-semibold uppercase tracking-[0.2em];
+    color: hsl(var(--foreground));
   }
 
   .console-section-title {
-    @apply text-lg font-semibold text-slate-800;
+    @apply text-lg font-semibold;
+    color: hsl(var(--foreground));
   }
 
   .console-subtle {
-    @apply text-sm text-slate-500;
+    @apply text-sm;
+    color: hsl(var(--gray-600));
   }
 
   .console-microcopy {
-    @apply text-xs leading-relaxed text-slate-400;
+    @apply text-xs leading-relaxed;
+    color: hsl(var(--gray-500));
   }
 
   .console-quiet-chip {
-    @apply inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    border: 2px solid hsl(var(--foreground));
+    background: hsl(var(--card));
+    padding: 0.25rem 0.75rem;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: hsl(var(--foreground));
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75);
+  }
+
+  .console-event-line {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 0.75rem;
+    margin: 0.25rem 0;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    background: hsla(var(--foreground) / 0.02);
+    transition:
+      background-color 0.16s ease,
+      border-color 0.16s ease,
+      box-shadow 0.16s ease,
+      transform 0.16s ease;
+  }
+
+  .console-event-line:hover {
+    border-color: hsl(var(--foreground));
+    background: hsla(var(--foreground) / 0.08);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
+    transform: translate(-2px, -2px);
+  }
+
+  .console-event-line.is-highlighted {
+    border-color: hsl(var(--foreground));
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+    background: hsla(var(--foreground) / 0.1);
+  }
+
+  .console-event-timestamp {
+    @apply font-mono text-[11px] uppercase tracking-[0.22em];
+    color: hsl(var(--gray-500));
+    line-height: 1.4;
+  }
+
+  .console-event-content {
+    @apply text-sm leading-relaxed whitespace-pre-wrap;
+    color: hsl(var(--foreground));
+  }
+
+  .console-event-content em {
+    @apply not-italic;
+    color: hsl(var(--gray-500));
+  }
+
+  .console-event-content strong {
+    @apply font-semibold;
+    color: hsl(var(--foreground));
+  }
+
+  .console-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    border-radius: 16px;
+    border: 3px dashed hsla(var(--foreground) / 0.4);
+    background: hsla(var(--foreground) / 0.03);
+    padding: 3rem 1.5rem;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
   }
 
   .console-scrollbar {
-    scrollbar-color: hsla(var(--primary) / 0.25) transparent;
+    scrollbar-color: hsla(var(--foreground) / 0.3) transparent;
   }
 
   .console-scrollbar::-webkit-scrollbar {
@@ -330,7 +542,7 @@
   }
 
   .console-scrollbar::-webkit-scrollbar-thumb {
-    background-color: hsla(var(--primary) / 0.25);
+    background-color: hsla(var(--foreground) / 0.3);
     border-radius: 9999px;
   }
 
@@ -341,23 +553,45 @@
    * - Bottom input bar
    */
   .layout-sidebar {
-    @apply fixed left-0 top-0 h-screen w-64 border-r border-slate-200 bg-white;
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 16rem;
+    background: hsl(var(--card));
+    border-right: 3px solid hsl(var(--foreground));
+    box-shadow: 12px 0 0 rgba(0, 0, 0, 0.15);
   }
 
   .layout-main {
-    @apply ml-64 flex h-screen flex-col;
+    margin-left: 16rem;
+    display: flex;
+    height: 100vh;
+    flex-direction: column;
+    background: hsl(var(--background));
   }
 
   .layout-header {
-    @apply sticky top-0 z-10 border-b border-slate-200 bg-white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: hsl(var(--card));
+    border-bottom: 3px solid hsl(var(--foreground));
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.55);
   }
 
   .layout-content {
-    @apply flex-1 overflow-y-auto bg-gray-50/50;
+    flex: 1;
+    overflow-y: auto;
+    background: hsl(var(--background));
   }
 
   .layout-input-bar {
-    @apply sticky bottom-0 border-t border-slate-200 bg-white;
+    position: sticky;
+    bottom: 0;
+    background: hsl(var(--card));
+    border-top: 3px solid hsl(var(--foreground));
+    box-shadow: 0 -6px 0 rgba(0, 0, 0, 0.15);
   }
 }
 

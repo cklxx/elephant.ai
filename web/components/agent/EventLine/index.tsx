@@ -6,6 +6,7 @@ import { AnyAgentEvent, ToolCallCompleteEvent } from '@/lib/types';
 import { formatContent, formatTimestamp } from './formatters';
 import { getEventStyle } from './styles';
 import { ToolOutputCard } from '../ToolOutputCard';
+import { cn } from '@/lib/utils';
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -39,13 +40,9 @@ export const EventLine = React.memo(function EventLine({ event }: EventLineProps
   const style = getEventStyle(event);
 
   return (
-    <div className="flex gap-3 group hover:bg-slate-50/50 -mx-2 px-2 py-2 rounded transition-colors">
-      <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
-        {timestamp}
-      </span>
-      <div className={`${style} text-sm leading-normal flex-1 whitespace-pre-wrap`}>
-        {content}
-      </div>
+    <div className={cn('console-event-line', style.line)}>
+      <span className="console-event-timestamp">{timestamp}</span>
+      <div className={cn('console-event-content', style.content)}>{content}</div>
     </div>
   );
 });

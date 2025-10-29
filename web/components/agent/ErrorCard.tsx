@@ -14,31 +14,33 @@ export function ErrorCard({ event }: ErrorCardProps) {
   const phaseLabel = event.phase && event.phase.trim().length > 0 ? event.phase : '—';
 
   return (
-    <section className="space-y-4 px-2 py-3" data-testid="error-event">
-      <header className="flex flex-wrap items-baseline gap-3 text-destructive">
-        <AlertCircle className="h-6 w-6" aria-hidden />
-        <h3 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
+    <section className="space-y-4" data-testid="error-event">
+      <header className="flex flex-wrap items-center gap-3 text-destructive">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-destructive bg-destructive/5 shadow-[3px_3px_0_rgba(0,0,0,0.6)]">
+          <AlertCircle className="h-4 w-4" aria-hidden />
+        </span>
+        <h3 className="text-lg font-semibold uppercase tracking-[0.2em]">
           {t('events.error.title')}
         </h3>
-        <span className="text-[10px] uppercase tracking-[0.35em] text-destructive/70">
+        <span className="console-microcopy uppercase tracking-[0.28em] text-destructive/70">
           {t('events.error.label')}
         </span>
         {event.recoverable && (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-500">
+          <span className="console-microcopy font-semibold uppercase tracking-[0.28em] text-foreground">
             {t('events.error.recoverable')}
           </span>
         )}
       </header>
 
-      <p className="text-base font-medium leading-snug text-destructive/80">
+      <p className="text-sm font-semibold leading-snug text-destructive">
         {t('events.error.context', { phase: phaseLabel, iteration: iterationLabel })}
       </p>
 
       <div className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400">
+        <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-muted-foreground">
           {t('events.error.details')}
         </p>
-        <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-destructive">
+        <pre className="console-card bg-destructive/10 border-destructive/40 p-3 font-mono text-xs leading-relaxed text-destructive shadow-none">
           {event.error}
         </pre>
       </div>

@@ -85,6 +85,6 @@ New SSE events needed:
 - research_plan
 - step_started
 - step_completed
-- browser_snapshot
+- browser_info
 
 See full API spec in this document.

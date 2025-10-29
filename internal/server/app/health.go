@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"sync"
+	"time"
 
 	"alex/internal/di"
 	"alex/internal/server/ports"
+	"alex/internal/tools"
 )
 
 // HealthCheckerImpl aggregates health probes for all components
@@ -38,6 +40,57 @@ func (h *HealthCheckerImpl) CheckAll(ctx context.Context) []ports.ComponentHealt
 		results = append(results, probe.Check(ctx))
 	}
 	return results
+}
+
+type sandboxHealthChecker interface {
+	HealthCheck(ctx context.Context) error
+}
+
+// SandboxProbe checks sandbox connectivity via the shared manager.
+type SandboxProbe struct {
+	manager sandboxHealthChecker
+}
+
+// NewSandboxProbe constructs a sandbox health probe using the shared manager.
+func NewSandboxProbe(manager *tools.SandboxManager) *SandboxProbe {
+	return &SandboxProbe{manager: manager}
+}
+
+// Check returns the health status of the sandbox endpoint.
+func (p *SandboxProbe) Check(ctx context.Context) ports.ComponentHealth {
+	if p == nil || p.manager == nil {
+		return ports.ComponentHealth{
+			Name:    "sandbox",
+			Status:  ports.HealthStatusDisabled,
+			Message: "Sandbox disabled by configuration",
+		}
+	}
+
+	if real, ok := p.manager.(*tools.SandboxManager); ok && real == nil {
+		return ports.ComponentHealth{
+			Name:    "sandbox",
+			Status:  ports.HealthStatusDisabled,
+			Message: "Sandbox disabled by configuration",
+		}
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := p.manager.HealthCheck(checkCtx); err != nil {
+		formatted := tools.FormatSandboxError(err)
+		return ports.ComponentHealth{
+			Name:    "sandbox",
+			Status:  ports.HealthStatusNotReady,
+			Message: formatted.Error(),
+		}
+	}
+
+	return ports.ComponentHealth{
+		Name:    "sandbox",
+		Status:  ports.HealthStatusReady,
+		Message: "Sandbox reachable",
+	}
 }
 
 // MCPProbe checks MCP registry health

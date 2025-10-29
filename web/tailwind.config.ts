@@ -4,10 +4,10 @@ import type { Config } from "tailwindcss";
  * Tailwind Config - ALEX Visual Language
  *
  * Design Principles:
- * - Low-saturation grayscale palette
- * - Minimal accent colors (used sparingly)
+ * - High-contrast monochrome palette with a black & white sticker aesthetic
+ * - Bold outlines and offset shadows to evoke printed cutouts
  * - Clean typography with Inter font family
- * - Subtle borders and minimal shadows
+ * - Subtle rounding paired with pronounced borders
  * - High information density with maintained readability
  */
 
@@ -58,6 +58,19 @@ const config: Config = {
         },
         // Extended grayscale palette tuned for the console UI
         gray: {
+          50: "hsl(var(--gray-50))",
+          100: "hsl(var(--gray-100))",
+          200: "hsl(var(--gray-200))",
+          300: "hsl(var(--gray-300))",
+          400: "hsl(var(--gray-400))",
+          500: "hsl(var(--gray-500))",
+          600: "hsl(var(--gray-600))",
+          700: "hsl(var(--gray-700))",
+          800: "hsl(var(--gray-800))",
+          900: "hsl(var(--gray-900))",
+          950: "hsl(var(--gray-950))",
+        },
+        slate: {
           50: "hsl(var(--gray-50))",
           100: "hsl(var(--gray-100))",
           200: "hsl(var(--gray-200))",
@@ -122,16 +135,16 @@ const config: Config = {
         full: '9999px',
       },
       /**
-       * Subtle Shadow System
-       * - Minimal elevation changes
-       * - Low opacity, small blur radius
-       * - Used sparingly for depth hierarchy
+       * Sticker Shadow System
+       * - Directional hard shadows for cutout effect
+       * - Uses opaque offsets instead of blur
+       * - Reinforces the monochrome sticker aesthetic
        */
       boxShadow: {
-        sm: '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
-        DEFAULT: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
-        md: '0 2px 4px 0 rgba(0, 0, 0, 0.06)',
-        lg: '0 4px 6px 0 rgba(0, 0, 0, 0.07)',
+        sm: '3px 3px 0 rgba(0, 0, 0, 0.35)',
+        DEFAULT: '6px 6px 0 rgba(0, 0, 0, 0.45)',
+        md: '9px 9px 0 rgba(0, 0, 0, 0.55)',
+        lg: '12px 12px 0 rgba(0, 0, 0, 0.65)',
         none: 'none',
       },
       /**

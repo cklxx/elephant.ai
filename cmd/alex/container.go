@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"alex/internal/agent/app"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
+	"alex/internal/prompts"
 )
 
 // Container wraps the DI container for CLI use
@@ -23,26 +25,30 @@ func buildContainer() (*Container, error) {
 	}
 
 	// Build DI container with configurable storage
+	hostEnv := runtimeconfig.SnapshotProcessEnv()
+	environmentSummary := prompts.FormatEnvironmentSummary(hostEnv, nil)
+
 	diConfig := di.Config{
-		LLMProvider:      cfg.LLMProvider,
-		LLMModel:         cfg.LLMModel,
-		APIKey:           cfg.APIKey,
-		BaseURL:          cfg.BaseURL,
-		TavilyAPIKey:     cfg.TavilyAPIKey,
-		SandboxBaseURL:   cfg.SandboxBaseURL,
-		MaxTokens:        cfg.MaxTokens,
-		MaxIterations:    cfg.MaxIterations,
-		Temperature:      cfg.Temperature,
-		TemperatureSet:   cfg.TemperatureProvided,
-		TopP:             cfg.TopP,
-		StopSequences:    append([]string(nil), cfg.StopSequences...),
-		SessionDir:       cfg.SessionDir,
-		CostDir:          cfg.CostDir,
-		Environment:      cfg.Environment,
-		Verbose:          cfg.Verbose,
-		DisableTUI:       cfg.DisableTUI,
-		FollowTranscript: cfg.FollowTranscript,
-		FollowStream:     cfg.FollowStream,
+		LLMProvider:        cfg.LLMProvider,
+		LLMModel:           cfg.LLMModel,
+		APIKey:             cfg.APIKey,
+		BaseURL:            cfg.BaseURL,
+		TavilyAPIKey:       cfg.TavilyAPIKey,
+		SandboxBaseURL:     cfg.SandboxBaseURL,
+		MaxTokens:          cfg.MaxTokens,
+		MaxIterations:      cfg.MaxIterations,
+		Temperature:        cfg.Temperature,
+		TemperatureSet:     cfg.TemperatureProvided,
+		TopP:               cfg.TopP,
+		StopSequences:      append([]string(nil), cfg.StopSequences...),
+		SessionDir:         cfg.SessionDir,
+		CostDir:            cfg.CostDir,
+		Environment:        cfg.Environment,
+		Verbose:            cfg.Verbose,
+		DisableTUI:         cfg.DisableTUI,
+		FollowTranscript:   cfg.FollowTranscript,
+		FollowStream:       cfg.FollowStream,
+		EnvironmentSummary: environmentSummary,
 	}
 
 	container, err := di.BuildContainer(diConfig)

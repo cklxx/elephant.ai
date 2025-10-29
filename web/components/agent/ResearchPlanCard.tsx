@@ -324,7 +324,7 @@ export function ResearchPlanCard({
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={handleSaveEdit}
-                    className="flex-1 console-button-primary"
+                    className="flex-1 console-button console-button-primary"
                     disabled={!canSave}
                   >
                     <Check className="h-4 w-4 mr-2" />
@@ -333,7 +333,7 @@ export function ResearchPlanCard({
                   <Button
                     onClick={handleCancelEdit}
                     variant="outline"
-                    className="flex-1 console-button-secondary"
+                    className="flex-1 console-button console-button-secondary"
                   >
                     <X className="h-4 w-4 mr-2" />
                     {t('plan.actions.cancel')}
@@ -343,7 +343,7 @@ export function ResearchPlanCard({
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={onApprove}
-                    className="flex-1 console-button-primary"
+                    className="flex-1 console-button console-button-primary"
                     disabled={loading}
                   >
                     <Check className="h-4 w-4 mr-2" />
@@ -352,7 +352,7 @@ export function ResearchPlanCard({
                   <Button
                     onClick={handleStartEditing}
                     variant="outline"
-                    className="flex-1 console-button-secondary"
+                    className="flex-1 console-button console-button-secondary"
                   >
                     <Edit3 className="h-4 w-4 mr-2" />
                     {t('plan.actions.modify')}
@@ -387,7 +387,7 @@ export function ResearchPlanCard({
                   <div className="flex flex-wrap items-center gap-3">
                     <Button
                       onClick={handleRejectConfirm}
-                      className="flex-1 console-button-secondary"
+                      className="flex-1 console-button console-button-secondary"
                       disabled={!rejectReason.trim()}
                     >
                       <Ban className="h-4 w-4 mr-2" />

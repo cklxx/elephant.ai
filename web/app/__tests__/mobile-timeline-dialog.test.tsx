@@ -38,6 +38,10 @@ vi.mock('@/hooks/useAgentEventStream', () => ({
 const mockSetCurrentSession = vi.fn();
 const mockAddToHistory = vi.fn();
 const mockClearCurrentSession = vi.fn();
+const mockRemoveSession = vi.fn();
+const mockRenameSession = vi.fn();
+const mockTogglePinSession = vi.fn();
+const mockDeleteSession = vi.fn();
 
 vi.mock('@/hooks/useSessionStore', () => ({
   useSessionStore: () => ({
@@ -45,7 +49,17 @@ vi.mock('@/hooks/useSessionStore', () => ({
     setCurrentSession: mockSetCurrentSession,
     addToHistory: mockAddToHistory,
     clearCurrentSession: mockClearCurrentSession,
+    removeSession: mockRemoveSession,
+    renameSession: mockRenameSession,
+    togglePinSession: mockTogglePinSession,
     sessionHistory: [],
+    pinnedSessions: [],
+    sessionLabels: {},
+  }),
+  useDeleteSession: () => ({
+    mutateAsync: mockDeleteSession,
+    mutate: mockDeleteSession,
+    isPending: false,
   }),
 }));
 

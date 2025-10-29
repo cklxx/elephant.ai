@@ -29,18 +29,19 @@ type AgentCoordinator struct {
 }
 
 type Config struct {
-	LLMProvider         string
-	LLMModel            string
-	APIKey              string
-	BaseURL             string
-	MaxTokens           int
-	MaxIterations       int
-	Temperature         float64
-	TemperatureProvided bool
-	TopP                float64
-	StopSequences       []string
-	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
-	ToolPreset          string // Tool access preset (full, read-only, etc.)
+        LLMProvider         string
+        LLMModel            string
+        APIKey              string
+        BaseURL             string
+        MaxTokens           int
+        MaxIterations       int
+        Temperature         float64
+        TemperatureProvided bool
+        TopP                float64
+        StopSequences       []string
+        AgentPreset         string // Agent persona preset (default, code-expert, etc.)
+        ToolPreset          string // Tool access preset (full, read-only, etc.)
+        EnvironmentSummary  string
 }
 
 func NewAgentCoordinator(
@@ -302,17 +303,25 @@ func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
 
 // GetConfig returns the coordinator configuration
 func (c *AgentCoordinator) GetConfig() ports.AgentConfig {
-	return ports.AgentConfig{
-		LLMProvider:   c.config.LLMProvider,
-		LLMModel:      c.config.LLMModel,
-		MaxTokens:     c.config.MaxTokens,
-		MaxIterations: c.config.MaxIterations,
-		Temperature:   c.config.Temperature,
-		TopP:          c.config.TopP,
-		StopSequences: append([]string(nil), c.config.StopSequences...),
-		AgentPreset:   c.config.AgentPreset,
-		ToolPreset:    c.config.ToolPreset,
-	}
+        return ports.AgentConfig{
+                LLMProvider:   c.config.LLMProvider,
+                LLMModel:      c.config.LLMModel,
+                MaxTokens:     c.config.MaxTokens,
+                MaxIterations: c.config.MaxIterations,
+                Temperature:   c.config.Temperature,
+                TopP:          c.config.TopP,
+                StopSequences: append([]string(nil), c.config.StopSequences...),
+                AgentPreset:   c.config.AgentPreset,
+                ToolPreset:    c.config.ToolPreset,
+        }
+}
+
+// SetEnvironmentSummary updates the environment context appended to system prompts.
+func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
+        c.config.EnvironmentSummary = summary
+        if c.prepService != nil {
+                c.prepService.SetEnvironmentSummary(summary)
+        }
 }
 
 // GetLLMClient returns an LLM client

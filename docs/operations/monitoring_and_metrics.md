@@ -106,6 +106,35 @@ export ALEX_ENABLE_MCP=true  # Enable MCP
 - Error messages from failed attempts
 - Server count and tool count when ready
 
+#### 3. Sandbox Connectivity Probe
+
+**Purpose**: Validate that the remote execution sandbox is reachable and responsive.
+
+**Status Conditions**:
+- `ready`: `SandboxManager.HealthCheck` command succeeds.
+- `not_ready`: Health check returns an error (network failure, auth issue, or unexpected output).
+- `disabled`: No sandbox base URL configured.
+
+**Configuration**:
+```bash
+export ALEX_SANDBOX_BASE_URL="https://sandbox.example.com"  # Enable sandbox-aware tools
+```
+
+**Manual Verification**:
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+
+if err := container.SandboxManager.HealthCheck(ctx); err != nil {
+    log.Fatalf("sandbox unhealthy: %v", err)
+}
+log.Println("sandbox reachable")
+```
+
+**Notes**:
+- The server health endpoint invokes this probe automatically and surfaces the result as the `sandbox` component in `/health` responses.
+- Failures are normalized via `tools.FormatSandboxError` to highlight common misconfigurations (timeouts, connection refusals, etc.).
+
 ### Using Health Checks
 
 #### Kubernetes Liveness Probe

@@ -2,7 +2,7 @@
 // Features:
 // - LRU event caching (max 1000 events)
 // - Event aggregation (tool calls, iterations, research steps)
-// - Browser snapshot tracking
+// - Browser diagnostics tracking
 // - Performant selectors for UI components
 
 import { create } from 'zustand';
@@ -12,11 +12,11 @@ import {
   aggregateToolCalls,
   groupByIteration,
   extractResearchSteps,
-  extractBrowserSnapshots,
+  extractBrowserDiagnostics,
   AggregatedToolCall,
   IterationGroup,
   ResearchStep,
-  BrowserSnapshot,
+  BrowserDiagnostics,
 } from '@/lib/eventAggregation';
 
 const MAX_EVENT_COUNT = 1000;
@@ -32,7 +32,7 @@ interface AgentStreamState {
   toolCalls: Map<string, AggregatedToolCall>;
   iterations: Map<number, IterationGroup>;
   researchSteps: ResearchStep[];
-  browserSnapshots: BrowserSnapshot[];
+  browserDiagnostics: BrowserDiagnostics[];
 
   // Current context tracking
   currentIteration: number | null;
@@ -64,7 +64,7 @@ const createInitialState = (): AgentStreamBaseState => ({
   toolCalls: new Map(),
   iterations: new Map(),
   researchSteps: [],
-  browserSnapshots: [],
+  browserDiagnostics: [],
   currentIteration: null,
   currentResearchStep: null,
   activeToolCall: null,
@@ -170,14 +170,14 @@ const buildStateFromEvents = (events: AnyAgentEvent[]): Partial<AgentStreamBaseS
   const toolCalls = aggregateToolCalls(events);
   const iterations = groupByIteration(events);
   const allSteps = extractResearchSteps(events);
-  const browserSnapshots = extractBrowserSnapshots(events);
+  const browserDiagnostics = extractBrowserDiagnostics(events);
   const taskMetadata = deriveTaskMetadata(events);
 
   return {
     toolCalls,
     iterations,
     researchSteps: allSteps.filter((step) => step.status !== 'pending'),
-    browserSnapshots,
+    browserDiagnostics,
     ...taskMetadata,
   };
 };
@@ -304,16 +304,18 @@ export const useMemoryStats = () => {
       toolCallCount: state.toolCalls.size,
       iterationCount: state.iterations.size,
       researchStepCount: state.researchSteps.length,
-      browserSnapshotCount: state.browserSnapshots.length,
+      browserDiagnosticsCount: state.browserDiagnostics.length,
     };
   });
 };
 
-// Get latest browser snapshot
-export const useLatestBrowserSnapshot = () => {
+// Get latest browser diagnostics event
+export const useLatestBrowserDiagnostics = () => {
   return useAgentStreamStore((state) => {
-    const snapshots = state.browserSnapshots;
-    return snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+    const diagnostics = state.browserDiagnostics;
+    return diagnostics.length > 0
+      ? diagnostics[diagnostics.length - 1]
+      : null;
   });
 };
 

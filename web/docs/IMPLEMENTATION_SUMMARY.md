@@ -181,12 +181,14 @@ Response: { "success": true, "message": "..." }
   "step_result": "Found 5 files"
 }
 
-// Browser snapshot (for web automation)
+// Browser diagnostics (for sandbox visibility)
 {
-  "event_type": "browser_snapshot",
-  "url": "https://example.com",
-  "screenshot_data": "base64...",
-  "html_preview": "<html>..."
+  "event_type": "browser_info",
+  "captured": "2025-01-01T10:00:00Z",
+  "success": true,
+  "message": "Browser ready",
+  "user_agent": "AgentBrowser/1.0",
+  "cdp_url": "ws://example.com/devtools"
 }
 ```
 
@@ -309,7 +311,7 @@ const [useResearch ConsoleUI, setUseResearch ConsoleUI] = useState(true);
    - `research_plan` - Generated plan
    - `step_started` - Research step begins
    - `step_completed` - Research step ends
-   - `browser_snapshot` - Web automation snapshots
+  - `browser_info` - Sandbox browser diagnostics
 
 3. **Update Task Creation**
    - Add `auto_approve_plan` field

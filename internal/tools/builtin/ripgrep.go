@@ -2,20 +2,31 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	"alex/internal/tools"
 	"context"
 	"fmt"
 	"os/exec"
 	"strings"
 )
 
-type ripgrep struct{}
+type ripgrep struct {
+        mode    tools.ExecutionMode
+        sandbox *tools.SandboxManager
+}
 
-func NewRipgrep() ports.ToolExecutor {
-	return &ripgrep{}
+func NewRipgrep(cfg ShellToolConfig) ports.ToolExecutor {
+        mode := cfg.Mode
+        if mode == tools.ExecutionModeUnknown {
+                mode = tools.ExecutionModeLocal
+        }
+        return &ripgrep{mode: mode, sandbox: cfg.SandboxManager}
+}
+
+func (t *ripgrep) Mode() tools.ExecutionMode {
+        return t.mode
 }
 
 func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Validate and extract pattern first (before checking installation)
 	pattern, ok := call.Arguments["pattern"].(string)
 	if !ok || pattern == "" {
 		return &ports.ToolResult{
@@ -24,15 +35,6 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		}, nil
 	}
 
-	// Check if ripgrep is available
-	if !t.hasRipgrep() {
-		return &ports.ToolResult{
-			CallID: call.ID,
-			Error:  fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation"),
-		}, nil
-	}
-
-	// Extract optional parameters with defaults
 	path := "."
 	if p, ok := call.Arguments["path"].(string); ok && p != "" {
 		path = p
@@ -48,39 +50,24 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		maxResults = int(mr)
 	}
 
-	// Build ripgrep command
-	cmdArgs := []string{}
+	cmdArgs := t.buildArgs(call, pattern, path, ignoreCase)
 
-	if ignoreCase {
-		cmdArgs = append(cmdArgs, "-i")
+	if t.mode == tools.ExecutionModeSandbox {
+		return t.executeSandbox(ctx, call, cmdArgs, pattern, path, ignoreCase, maxResults)
 	}
 
-	cmdArgs = append(cmdArgs, "-n") // Always show line numbers
-
-	if fileType, ok := call.Arguments["file_type"].(string); ok && fileType != "" {
-		cmdArgs = append(cmdArgs, "-t", fileType)
+	if !t.hasRipgrep() {
+		return &ports.ToolResult{
+			CallID: call.ID,
+			Error:  fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation"),
+		}, nil
 	}
 
-	cmdArgs = append(cmdArgs, pattern, path)
-
-	// Execute ripgrep command
 	cmd := exec.CommandContext(ctx, "rg", cmdArgs...)
 	output, err := cmd.Output()
-
 	if err != nil {
-		// ripgrep returns exit code 1 when no matches found
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return &ports.ToolResult{
-				CallID:  call.ID,
-				Content: "No matches found",
-				Metadata: map[string]any{
-					"pattern":     pattern,
-					"path":        path,
-					"matches":     0,
-					"ignore_case": ignoreCase,
-					"file_type":   call.Arguments["file_type"],
-				},
-			}, nil
+			return t.noMatchesResult(call, pattern, path, ignoreCase)
 		}
 		return &ports.ToolResult{
 			CallID: call.ID,
@@ -88,38 +75,55 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		}, nil
 	}
 
-	// Process output
-	lines := strings.Split(string(output), "\n")
+	return t.processOutput(call, string(output), pattern, path, ignoreCase, maxResults)
+}
+
+func (t *ripgrep) executeSandbox(ctx context.Context, call ports.ToolCall, cmdArgs []string, pattern, path string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
+	command := "rg " + strings.Join(quoteArgs(cmdArgs), " ")
+	output, exitCode, err := runSandboxCommandRaw(ctx, t.sandbox, command)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	if exitCode == 1 {
+		return t.noMatchesResult(call, pattern, path, ignoreCase)
+	}
+	if exitCode != 0 {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("ripgrep command failed with exit code %d", exitCode)}, nil
+	}
+
+	return t.processOutput(call, output, pattern, path, ignoreCase, maxResults)
+}
+
+func (t *ripgrep) processOutput(call ports.ToolCall, output string, pattern, path string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
+	lines := strings.Split(output, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1] // Remove last empty line
+		lines = lines[:len(lines)-1]
 	}
 
 	const maxLineChars = 200
 	originalMatchCount := len(lines)
 	truncatedByMatches := false
-	linesToruncated := 0
+	linesTruncated := 0
 
-	// Limit results to maxResults matches
 	if len(lines) > maxResults {
 		lines = lines[:maxResults]
 		truncatedByMatches = true
 	}
 
-	// Truncate each line to maxLineChars
 	for i, line := range lines {
 		if len(line) > maxLineChars {
 			lines[i] = line[:maxLineChars] + "..."
-			linesToruncated++
+			linesTruncated++
 		}
 	}
 
-	// Build warning message
 	var warnings []string
 	if truncatedByMatches {
 		warnings = append(warnings, fmt.Sprintf("Results truncated: showing %d of %d total matches (limit: %d matches)", len(lines), originalMatchCount, maxResults))
 	}
-	if linesToruncated > 0 {
-		warnings = append(warnings, fmt.Sprintf("%d match lines were truncated to %d characters", linesToruncated, maxLineChars))
+	if linesTruncated > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d match lines were truncated to %d characters", linesTruncated, maxLineChars))
 	}
 
 	warningMsg := ""
@@ -141,10 +145,36 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 			"file_type":            call.Arguments["file_type"],
 			"results":              lines,
 			"truncated_by_matches": truncatedByMatches,
-			"lines_truncated":      linesToruncated,
+			"lines_truncated":      linesTruncated,
 			"max_line_chars":       maxLineChars,
 		},
 	}, nil
+}
+
+func (t *ripgrep) noMatchesResult(call ports.ToolCall, pattern, path string, ignoreCase bool) (*ports.ToolResult, error) {
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "No matches found",
+		Metadata: map[string]any{
+			"pattern":     pattern,
+			"path":        path,
+			"matches":     0,
+			"ignore_case": ignoreCase,
+		},
+	}, nil
+}
+
+func (t *ripgrep) buildArgs(call ports.ToolCall, pattern, path string, ignoreCase bool) []string {
+	args := []string{}
+	if ignoreCase {
+		args = append(args, "-i")
+	}
+	args = append(args, "-n")
+	if fileType, ok := call.Arguments["file_type"].(string); ok && fileType != "" {
+		args = append(args, "-t", fileType)
+	}
+	args = append(args, pattern, path)
+	return args
 }
 
 func (t *ripgrep) Definition() ports.ToolDefinition {
@@ -192,4 +222,12 @@ func (t *ripgrep) Metadata() ports.ToolMetadata {
 func (t *ripgrep) hasRipgrep() bool {
 	_, err := exec.LookPath("rg")
 	return err == nil
+}
+
+func quoteArgs(args []string) []string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, shellQuote(arg))
+	}
+	return quoted
 }

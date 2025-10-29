@@ -141,7 +141,7 @@ export function ToolOutputCard({
                   <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
                     {t('tool.section.error')}
                   </p>
-                  <pre className="console-card bg-destructive/10 border border-destructive/30 p-3 text-xs font-mono text-destructive overflow-x-auto">
+                  <pre className="console-card bg-destructive/10 border-destructive/30 p-3 text-xs font-mono text-destructive overflow-x-auto">
                     {error}
                   </pre>
               </div>

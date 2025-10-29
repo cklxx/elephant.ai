@@ -87,7 +87,7 @@ export function Sidebar({
               event.preventDefault();
               handleRenameSubmit(id);
             }}
-            className="flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2"
+            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2"
           >
             <input
               value={editingValue}
@@ -105,7 +105,7 @@ export function Sidebar({
             />
             <button
               type="submit"
-              className="rounded-full bg-sky-500 p-1 text-white hover:bg-sky-600"
+              className="console-icon-button console-icon-button-primary"
               title={t("sidebar.session.confirmRename")}
             >
               <Check className="h-3.5 w-3.5" />
@@ -113,7 +113,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={handleRenameCancel}
-              className="rounded-full bg-slate-100 p-1 text-slate-500 hover:bg-slate-200"
+              className="console-icon-button console-icon-button-ghost"
               title={t("sidebar.session.cancelRename")}
             >
               <X className="h-3.5 w-3.5" />
@@ -129,8 +129,8 @@ export function Sidebar({
           className={cn(
             "group flex items-center gap-2 rounded-lg px-3 py-2 transition",
             isActive
-              ? "bg-sky-500/10 text-sky-700 ring-1 ring-inset ring-sky-400/50"
-              : "text-slate-600 hover:bg-slate-50",
+              ? "bg-slate-900/5 text-slate-900 ring-1 ring-inset ring-slate-900/20"
+              : "text-slate-600 hover:bg-slate-100",
           )}
         >
           <button
@@ -158,7 +158,7 @@ export function Sidebar({
               <Pin
                 className={cn(
                   "h-3.5 w-3.5",
-                  isPinned && "-rotate-45 text-sky-500",
+                  isPinned && "-rotate-45 text-slate-900",
                 )}
                 fill={isPinned ? "currentColor" : "none"}
               />
@@ -175,7 +175,7 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => onSessionDelete(id)}
-                className="rounded-full p-1 text-slate-400 hover:bg-red-100 hover:text-red-600"
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                 title={t("sidebar.session.delete")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -232,7 +232,7 @@ export function Sidebar({
       <div className="border-t border-slate-200 p-4">
         <button
           onClick={onNewSession}
-          className="w-full rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+          className="console-button console-button-primary w-full !normal-case tracking-normal"
         >
           {t("sidebar.session.new")}
         </button>

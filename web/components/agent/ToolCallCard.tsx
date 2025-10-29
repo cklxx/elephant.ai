@@ -114,49 +114,45 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   }
 
   return (
-    <section
-      className={cn(
-        'relative space-y-3 py-2.5 pl-1 pr-1 sm:pl-2 sm:pr-2 transition',
-        isFocused ? 'pl-2 sm:pl-3' : null
-      )}
-      data-testid="tool-call-card"
-    >
+    <section className="relative space-y-4" data-testid="tool-call-card">
       {isFocused && (
         <span
           aria-hidden
-          className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-sky-300"
+          className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-foreground"
         />
       )}
-      <header className="flex flex-wrap items-baseline gap-2.5 text-slate-900 text-[9px] sm:text-[10px]">
-        {toolGlyph && <span className="text-[14px] text-slate-500 sm:text-[15px]">{toolGlyph}</span>}
-        <h3 className="text-[10px] font-semibold tracking-tight text-slate-900 sm:text-[11px]">{toolName}</h3>
-        <span className="text-[8px] uppercase tracking-[0.32em] text-slate-400 sm:text-[9px]">
+      <header className="flex flex-wrap items-center gap-2 text-foreground text-[10px] uppercase tracking-[0.24em]">
+        {toolGlyph && <span className="text-sm text-muted-foreground">{toolGlyph}</span>}
+        <h3 className="text-[11px] font-semibold tracking-[0.2em] text-foreground">
+          {toolName}
+        </h3>
+        <span className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
           {t('events.toolCall.label')}
         </span>
         <StatusText status={status} label={statusLabel} />
       </header>
 
       {callId && (
-        <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400">
+        <p className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
           {t('events.toolCall.id')} ·{' '}
-          <span className="font-mono text-[8px] tracking-normal text-slate-500">{callId}</span>
+          <span className="font-mono text-[10px] tracking-normal text-foreground/70">{callId}</span>
         </p>
       )}
 
-      <ul className="space-y-0">
+      <ul className="space-y-4">
         {stages.map((stage, index) => (
           <TimelineStageItem key={stage.id} stage={stage} isLast={index === stages.length - 1} />
         ))}
       </ul>
 
-      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] uppercase tracking-[0.25em] text-slate-400 sm:text-[9px]">
+      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
         {startedAt && (
-          <time className="font-mono text-[9px] tracking-normal text-slate-500">
+          <time className="font-mono text-[10px] tracking-normal text-foreground/70">
             {t('events.toolCall.start')}: {formatTimestamp(startedAt)}
           </time>
         )}
         {completedAt && (
-          <time className="font-mono text-[9px] tracking-normal text-slate-500">
+          <time className="font-mono text-[10px] tracking-normal text-foreground/70">
             {t('events.toolCall.end')}: {formatTimestamp(completedAt)}
           </time>
         )}
@@ -180,29 +176,29 @@ interface TimelineStage {
 
 function TimelineStageItem({ stage, isLast }: { stage: TimelineStage; isLast: boolean }) {
   return (
-    <li className="relative pl-2 pb-5 last:pb-0 sm:pl-3">
+    <li className="relative pl-3 pb-5 last:pb-0 sm:pl-4">
       <div className="absolute left-0 top-0 flex h-full w-2 flex-col items-center sm:w-3">
         <span
           aria-hidden
-          className={cn('mt-1.5 h-2 w-2 rounded-full', TIMELINE_TONES[stage.tone])}
+          className={cn('mt-1.5 h-2 w-2 rounded-full border border-border bg-card', TIMELINE_TONES[stage.tone])}
         />
-        {!isLast && <span aria-hidden className="mt-2 flex-1 w-px bg-slate-200/70" />}
+        {!isLast && <span aria-hidden className="mt-2 flex-1 w-px bg-border/60" />}
       </div>
       <div className="pl-1 pr-2 sm:pl-2">
         <div className="space-y-1.5">
-          <div className="flex flex-wrap items-baseline gap-2 text-[9px] sm:text-[10px]">
-            <p className="font-medium text-slate-800">{stage.title}</p>
+          <div className="flex flex-wrap items-baseline gap-2 text-[10px]">
+            <p className="font-medium text-foreground">{stage.title}</p>
             {stage.timestamp && (
-              <time className="text-[8px] font-medium text-slate-400 sm:text-[9px]">
+              <time className="text-[9px] font-medium text-muted-foreground">
                 {formatTimestamp(stage.timestamp)}
               </time>
             )}
             {stage.meta && (
-              <span className="text-[8px] font-medium text-slate-400 sm:text-[9px]">{stage.meta}</span>
+              <span className="text-[9px] font-medium text-muted-foreground">{stage.meta}</span>
             )}
           </div>
           {stage.description && (
-            <p className="text-[9px] text-slate-500 sm:text-[10px]">{stage.description}</p>
+            <p className="text-[10px] text-muted-foreground">{stage.description}</p>
           )}
           {stage.content}
         </div>
@@ -212,9 +208,9 @@ function TimelineStageItem({ stage, isLast }: { stage: TimelineStage; isLast: bo
 }
 
 const TIMELINE_TONES: Record<TimelineTone, string> = {
-  default: 'bg-slate-300',
-  active: 'bg-sky-400',
-  success: 'bg-emerald-400',
+  default: 'bg-foreground/30',
+  active: 'bg-foreground',
+  success: 'bg-foreground',
   error: 'bg-destructive',
 };
 
@@ -224,11 +220,11 @@ function StatusText({ status, label }: { status: 'running' | 'complete' | 'error
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 text-[8px] font-medium sm:text-[9px]',
+        'inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[9px] font-semibold tracking-[0.2em]',
         meta.className
       )}
     >
-      <Icon className={cn('h-2.5 w-2.5 sm:h-3 sm:w-3', status === 'running' && 'animate-spin')} />
+      <Icon className={cn('h-3 w-3', status === 'running' && 'animate-spin')} />
       {label}
     </span>
   );
@@ -237,15 +233,15 @@ function StatusText({ status, label }: { status: 'running' | 'complete' | 'error
 const STATUS_META = {
   running: {
     icon: Loader2,
-    className: 'text-sky-600',
+    className: 'bg-muted text-foreground',
   },
   complete: {
     icon: CheckCircle2,
-    className: 'text-emerald-600',
+    className: 'bg-muted text-foreground',
   },
   error: {
     icon: XCircle,
-    className: 'text-destructive',
+    className: 'bg-destructive/20 text-destructive',
   },
 } as const;
 
@@ -272,7 +268,7 @@ function ToolArguments({
         title={label}
         action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={args} />}
       />
-      <pre className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[8px] leading-snug text-slate-600 sm:text-[9px]">
+      <pre className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80">
         {args}
       </pre>
     </SimplePanel>
@@ -303,7 +299,7 @@ function ToolResult({
           title={errorTitle}
           action={<CopyButton label={copyErrorLabel} successLabel={copiedLabel} value={error} />}
         />
-        <p className="text-[9px] font-medium text-destructive sm:text-[10px]">{error}</p>
+        <p className="console-microcopy font-semibold text-destructive">{error}</p>
       </SimplePanel>
     );
   }
@@ -318,7 +314,7 @@ function ToolResult({
         title={resultTitle}
         action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={formatted} />}
       />
-      <pre className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[8px] leading-snug text-slate-600 sm:text-[9px]">
+      <pre className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80">
         {formatted}
       </pre>
     </SimplePanel>
@@ -327,7 +323,7 @@ function ToolResult({
 
 function SimplePanel({ children }: { children: ReactNode }) {
   return (
-    <div className="space-y-2 rounded-none bg-transparent text-[9px] text-slate-600 sm:text-[10px]">
+    <div className="space-y-2 rounded-xl border-2 border-border bg-card/90 p-3 text-[11px] text-foreground/80 shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
       {children}
     </div>
   );
@@ -336,7 +332,7 @@ function SimplePanel({ children }: { children: ReactNode }) {
 function PanelHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <p className="text-[8px] font-semibold uppercase tracking-[0.25em] text-slate-400 sm:text-[9px]">{title}</p>
+      <p className="console-microcopy font-semibold uppercase tracking-[0.3em] text-muted-foreground">{title}</p>
       {action}
     </div>
   );
@@ -375,15 +371,15 @@ function CopyButton({
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 text-[9px] font-medium text-sky-600 transition hover:text-sky-700 sm:text-[10px]"
+      className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground transition hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-[6px_6px_0_rgba(0,0,0,0.55)]"
       aria-label={copied ? successLabel : label}
     >
       {copied ? (
-        <ClipboardCheck className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+        <ClipboardCheck className="h-3 w-3" />
       ) : (
-        <Clipboard className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+        <Clipboard className="h-3 w-3" />
       )}
-      <span className="tracking-[0.1em]">{copied ? successLabel : label}</span>
+      <span>{copied ? successLabel : label}</span>
     </button>
   );
 }

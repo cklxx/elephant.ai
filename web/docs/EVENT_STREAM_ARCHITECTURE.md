@@ -35,7 +35,7 @@ This document describes the robust event stream state management system for the 
 │  │  • aggregateToolCalls()                          │           │
 │  │  • groupByIteration()                            │           │
 │  │  • extractResearchSteps()                        │           │
-│  │  • extractBrowserSnapshots()                     │           │
+│  │  • extractBrowserDiagnostics()                   │           │
 │  └───────────────────────────────────────────────────┘           │
 │                            │                                      │
 │                            ▼                                      │
@@ -44,7 +44,7 @@ This document describes the robust event stream state management system for the 
 │  │  • toolCalls: Map<string, AggregatedToolCall>   │           │
 │  │  • iterations: Map<number, IterationGroup>      │           │
 │  │  • researchSteps: ResearchStep[]                │           │
-│  │  • browserSnapshots: BrowserSnapshot[]          │           │
+│  │  • browserDiagnostics: BrowserDiagnostics[]     │           │
 │  └───────────────────────────────────────────────────┘           │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
@@ -222,7 +222,7 @@ class EventLRUCache {
 | **Aggregated Tool Calls** | ~300 bytes | ~30 KB (100 calls) |
 | **Iteration Groups** | ~1 KB | ~10 KB (10 iterations) |
 | **Research Steps** | ~200 bytes | ~2 KB (10 steps) |
-| **Browser Snapshots** | ~10 KB (with base64 image) | ~100 KB (10 snapshots) |
+| **Browser Diagnostics** | ~1 KB (connection metadata) | ~10 KB (10 diagnostics) |
 | **Total Estimated** | - | **~650 KB** |
 
 ### Eviction Strategy
@@ -364,11 +364,16 @@ type StepCompletedEvent struct {
     Iteration       int    `json:"iteration,omitempty"`
 }
 
-type BrowserSnapshotEvent struct {
+type BrowserInfoEvent struct {
     BaseEvent
-    URL            string `json:"url"`
-    ScreenshotData string `json:"screenshot_data,omitempty"` // base64
-    HTMLPreview    string `json:"html_preview,omitempty"`
+    Success        *bool  `json:"success,omitempty"`
+    Message        string `json:"message,omitempty"`
+    UserAgent      string `json:"user_agent,omitempty"`
+    CDPURL         string `json:"cdp_url,omitempty"`
+    VNCURL         string `json:"vnc_url,omitempty"`
+    ViewportWidth  int    `json:"viewport_width,omitempty"`
+    ViewportHeight int    `json:"viewport_height,omitempty"`
+    Captured       time.Time `json:"captured"`
 }
 ```
 
@@ -422,7 +427,7 @@ eventTypes := []string{
     "research_plan",
     "step_started",
     "step_completed",
-    "browser_snapshot",
+    "browser_info",
 }
 ```
 

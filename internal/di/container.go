@@ -1,6 +1,7 @@
 package di
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,21 +18,24 @@ import (
 	"alex/internal/prompts"
 	"alex/internal/session/filestore"
 	"alex/internal/storage"
+	toolregistry "alex/internal/toolregistry"
 	"alex/internal/tools"
 	"alex/internal/utils"
 )
 
 // Container holds all application dependencies
 type Container struct {
-	AgentCoordinator *agentApp.AgentCoordinator
-	SessionStore     ports.SessionStore
-	CostTracker      ports.CostTracker
-	MCPRegistry      *mcp.Registry
-	mcpInitTracker   *MCPInitializationTracker
+        AgentCoordinator *agentApp.AgentCoordinator
+        SessionStore     ports.SessionStore
+        CostTracker      ports.CostTracker
+        MCPRegistry      *mcp.Registry
+        mcpInitTracker   *MCPInitializationTracker
+
+        SandboxManager *tools.SandboxManager
 
 	// Lazy initialization state
 	config       Config
-	toolRegistry *tools.Registry
+	toolRegistry *toolregistry.Registry
 	llmFactory   *llm.Factory
 	mcpStarted   bool
 	mcpMu        sync.Mutex
@@ -56,7 +60,9 @@ type Config struct {
 	Verbose          bool
 	DisableTUI       bool
 	FollowTranscript bool
-	FollowStream     bool
+        FollowStream     bool
+
+        EnvironmentSummary string
 
 	// Storage Configuration
 	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
@@ -140,10 +146,25 @@ func BuildContainer(config Config) (*Container, error) {
 
 	// Infrastructure Layer
 	llmFactory := llm.NewFactory()
-	toolRegistry := tools.NewRegistry(tools.Config{
+	executionMode := tools.ExecutionModeLocal
+	var sandboxManager *tools.SandboxManager
+	if config.SandboxBaseURL != "" {
+		executionMode = tools.ExecutionModeSandbox
+		sandboxManager = tools.NewSandboxManager(config.SandboxBaseURL)
+		if err := sandboxManager.Initialize(context.Background()); err != nil {
+			return nil, fmt.Errorf("failed to initialize sandbox manager: %w", err)
+		}
+	}
+
+	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:   config.TavilyAPIKey,
 		SandboxBaseURL: config.SandboxBaseURL,
+		ExecutionMode:  executionMode,
+		SandboxManager: sandboxManager,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool registry: %w", err)
+	}
 	sessionStore := filestore.New(sessionDir)
 	contextMgr := ctxmgr.NewManager()
 	parserImpl := parser.New()
@@ -194,36 +215,38 @@ func BuildContainer(config Config) (*Container, error) {
 		parserImpl,
 		promptLoader,
 		costTracker,
-		agentApp.Config{
-			LLMProvider:         config.LLMProvider,
-			LLMModel:            config.LLMModel,
-			APIKey:              config.APIKey,
-			BaseURL:             config.BaseURL,
-			MaxTokens:           config.MaxTokens,
-			MaxIterations:       config.MaxIterations,
-			Temperature:         config.Temperature,
-			TemperatureProvided: config.TemperatureSet,
-			TopP:                config.TopP,
-			StopSequences:       append([]string(nil), config.StopSequences...),
-		},
-	)
+                agentApp.Config{
+                        LLMProvider:         config.LLMProvider,
+                        LLMModel:            config.LLMModel,
+                        APIKey:              config.APIKey,
+                        BaseURL:             config.BaseURL,
+                        MaxTokens:           config.MaxTokens,
+                        MaxIterations:       config.MaxIterations,
+                        Temperature:         config.Temperature,
+                        TemperatureProvided: config.TemperatureSet,
+                        TopP:                config.TopP,
+                        StopSequences:       append([]string(nil), config.StopSequences...),
+                        EnvironmentSummary:  config.EnvironmentSummary,
+                },
+        )
 
 	// Register subagent tool after coordinator is created
 	toolRegistry.RegisterSubAgent(coordinator)
 
 	logger.Info("Container built successfully (heavy initialization deferred to Start())")
 
-	return &Container{
-		AgentCoordinator: coordinator,
-		SessionStore:     sessionStore,
-		CostTracker:      costTracker,
-		MCPRegistry:      mcpRegistry,
-		mcpInitTracker:   tracker,
-		config:           config,
-		toolRegistry:     toolRegistry,
-		llmFactory:       llmFactory,
-		mcpStarted:       false,
-	}, nil
+        return &Container{
+                AgentCoordinator: coordinator,
+                SessionStore:     sessionStore,
+                CostTracker:      costTracker,
+                MCPRegistry:      mcpRegistry,
+                mcpInitTracker:   tracker,
+                SandboxManager:   sandboxManager,
+                config:           config,
+                toolRegistry:     toolRegistry,
+                llmFactory:       llmFactory,
+                mcpStarted:       false,
+        }, nil
 }
 
 // MCPInitializationStatus captures the asynchronous MCP bootstrap status.

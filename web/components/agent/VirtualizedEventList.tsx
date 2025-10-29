@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
-import Image from 'next/image';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
 import { TaskAnalysisCard } from './TaskAnalysisCard';
@@ -17,6 +16,7 @@ interface VirtualizedEventListProps {
   autoScroll?: boolean;
   focusedEventIndex?: number | null;
   onJumpToLatest?: () => void;
+  className?: string;
 }
 
 export function VirtualizedEventList({
@@ -24,6 +24,7 @@ export function VirtualizedEventList({
   autoScroll = true,
   focusedEventIndex = null,
   onJumpToLatest,
+  className,
 }: VirtualizedEventListProps) {
   const t = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
@@ -167,13 +168,18 @@ export function VirtualizedEventList({
   }, [events]);
 
   return (
-    <div className="relative">
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-[28px] border-4 border-border bg-card/95 shadow-[14px_14px_0_rgba(0,0,0,0.72)]',
+        className,
+      )}
+    >
       <span id={descriptionId} className="sr-only">
         {t('events.stream.ariaDescription')}
       </span>
       <div
         ref={parentRef}
-        className="min-h-[400px] max-h-[800px] overflow-y-auto pr-2 scroll-smooth"
+        className="console-scrollbar min-h-[420px] max-h-[820px] overflow-y-auto px-5 pb-10 pt-8 scroll-smooth"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
@@ -187,12 +193,14 @@ export function VirtualizedEventList({
         }}
       >
         {events.length === 0 ? (
-          <div className="flex h-60 flex-col items-center justify-center gap-2 text-center text-slate-500">
-            <span className="text-2xl" aria-hidden>
+          <div className="console-empty-state h-[320px]">
+            <span className="text-3xl" aria-hidden>
               💭
             </span>
-            <p className="text-sm font-semibold text-slate-600">{t('events.emptyTitle')}</p>
-            <p className="text-xs text-slate-400">{t('events.emptyHint')}</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground">
+              {t('events.emptyTitle')}
+            </p>
+            <p className="console-microcopy max-w-xs">{t('events.emptyHint')}</p>
           </div>
         ) : (
           <div
@@ -219,18 +227,27 @@ export function VirtualizedEventList({
                   ref={virtualizer.measureElement}
                 >
                   <div
-                    className={cn('pb-4', isFocused && 'scroll-mt-32')}
+                    className={cn('pb-6', isFocused && 'scroll-mt-40')}
                     data-focused={isFocused ? 'true' : undefined}
                   >
-                    <EventCard
-                      event={event}
-                      pairedStart={
-                        event.event_type === 'tool_call_complete'
-                          ? toolCallStartEvents.get(event.call_id)
-                          : undefined
-                      }
-                      isFocused={isFocused}
-                    />
+                    <div
+                      className={cn(
+                        'console-card bg-card/98 px-5 py-4 transition-all duration-150 ease-out',
+                        'hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[12px_12px_0_rgba(0,0,0,0.68)]',
+                        isFocused &&
+                          'outline outline-2 outline-offset-4 outline-foreground shadow-[14px_14px_0_rgba(0,0,0,0.68)]',
+                      )}
+                    >
+                      <EventCard
+                        event={event}
+                        pairedStart={
+                          event.event_type === 'tool_call_complete'
+                            ? toolCallStartEvents.get(event.call_id)
+                            : undefined
+                        }
+                        isFocused={isFocused}
+                      />
+                    </div>
                   </div>
                 </div>
               );
@@ -246,7 +263,7 @@ export function VirtualizedEventList({
             scrollToLatest('smooth');
             onJumpToLatest?.();
           }}
-          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-lg shadow-slate-900/5 transition hover:border-slate-300 hover:bg-white"
+          className="console-button console-button-secondary absolute bottom-5 right-5 inline-flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           {t('events.scrollToLatest') ?? 'View latest'}
@@ -300,26 +317,27 @@ function EventCard({
 
     case 'iteration_start':
       return (
-        <div className="relative pl-4 text-lg font-semibold leading-tight text-slate-700">
-          <span className="absolute left-0 top-2 h-2 w-2 rounded-full bg-primary/70 animate-pulse" />
-          {t('events.iteration.progress', {
-            iteration: event.iteration,
-            total: event.total_iters,
-          })}
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
+          <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+            {t('events.iteration.progress', {
+              iteration: event.iteration,
+              total: event.total_iters,
+            })}
+          </span>
         </div>
       );
 
     case 'iteration_complete':
       return (
-        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-          <span className="inline-flex items-center gap-2 text-base font-semibold text-slate-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="console-quiet-chip text-xs uppercase">
             {t('events.iteration.complete', { iteration: event.iteration })}
           </span>
-          <span className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">
+          <span className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
             {t('events.iteration.tokens', { count: event.tokens_used })}
           </span>
-          <span className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">
+          <span className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
             {t('events.iteration.tools', { count: event.tools_run })}
           </span>
         </div>
@@ -328,11 +346,11 @@ function EventCard({
     // New event types (backend not yet emitting, but ready for when they do)
     case 'research_plan':
       return (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-slate-800">
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
             {t('events.researchPlan.title', { count: event.estimated_iterations })}
           </h3>
-          <ol className="space-y-1 pl-4 text-sm text-slate-600 list-decimal">
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/75">
             {event.plan_steps.map((step, idx) => (
               <li key={idx}>{step}</li>
             ))}
@@ -342,55 +360,77 @@ function EventCard({
 
     case 'step_started':
       return (
-        <div className="relative pl-4 text-base font-semibold leading-tight text-slate-700">
-          <span className="absolute left-0 top-2 h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
-          {t('events.step.started', {
-            index: event.step_index + 1,
-            description: event.step_description,
-          })}
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
+          <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+            {t('events.step.started', {
+              index: event.step_index + 1,
+              description: event.step_description,
+            })}
+          </span>
         </div>
       );
 
     case 'step_completed':
       return (
         <div className="space-y-2">
-          <p className="text-lg font-semibold leading-tight text-emerald-600">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
             {t('events.step.completed', { index: event.step_index + 1 })}
           </p>
-          <p className="text-sm text-slate-600">{event.step_result}</p>
+          <p className="text-sm text-foreground/75">{event.step_result}</p>
         </div>
       );
 
-    case 'browser_snapshot':
+    case 'browser_info': {
+      const details: Array<[string, string]> = [];
+      if (typeof event.success === 'boolean') {
+        details.push([
+          t('events.browserInfo.statusLabel'),
+          event.success ? t('events.browserInfo.statusAvailable') : t('events.browserInfo.statusUnavailable'),
+        ]);
+      }
+      if (event.message) {
+        details.push([t('events.browserInfo.messageLabel'), event.message]);
+      }
+      if (event.user_agent) {
+        details.push([t('events.browserInfo.userAgentLabel'), event.user_agent]);
+      }
+      if (event.cdp_url) {
+        details.push([t('events.browserInfo.cdpLabel'), event.cdp_url]);
+      }
+      if (event.vnc_url) {
+        details.push([t('events.browserInfo.vncLabel'), event.vnc_url]);
+      }
+      if (event.viewport_width && event.viewport_height) {
+        details.push([
+          t('events.browserInfo.viewportLabel'),
+          `${event.viewport_width} × ${event.viewport_height}`,
+        ]);
+      }
+
       return (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-slate-800">{t('events.browserSnapshot.title')}</h3>
-          <p className="text-xs font-mono text-slate-400">{event.url}</p>
-          {event.screenshot_data && (
-            <div className="relative w-full overflow-hidden rounded-lg">
-              <Image
-                src={`data:image/png;base64,${event.screenshot_data}`}
-                alt={t('events.browserSnapshot.alt')}
-                width={1280}
-                height={720}
-                className="h-auto w-full"
-                unoptimized
-                sizes="(max-width: 768px) 100vw, 720px"
-              />
-            </div>
-          )}
-          {event.html_preview && (
-            <details className="text-xs text-slate-500">
-              <summary className="cursor-pointer hover:text-slate-700">
-                {t('events.browserSnapshot.preview')}
-              </summary>
-              <pre className="mt-2 max-h-40 overflow-x-auto whitespace-pre-wrap rounded bg-slate-100 p-2 text-xs text-slate-600">
-                {event.html_preview}
-              </pre>
-            </details>
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{t('events.browserInfo.title')}</h3>
+          <p className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
+            {t('events.browserInfo.captured', {
+              timestamp: new Date(event.captured).toLocaleString(),
+            })}
+          </p>
+          {details.length > 0 ? (
+            <dl className="space-y-2 text-sm text-foreground/80">
+              {details.map(([label, value]) => (
+                <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2 shadow-[4px_4px_0_rgba(0,0,0,0.35)]">
+                  <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
+                  <dd className="break-words text-sm text-foreground">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="console-microcopy text-muted-foreground">{t('events.browserInfo.noData')}</p>
           )}
         </div>
       );
+    }
 
     default:
       return null;

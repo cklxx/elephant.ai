@@ -1,10 +1,11 @@
-package tools
+package toolregistry
 
 import (
 	"fmt"
 	"sync"
 
 	"alex/internal/agent/ports"
+	"alex/internal/tools"
 	"alex/internal/tools/builtin"
 )
 
@@ -25,16 +26,44 @@ type filteredRegistry struct {
 type Config struct {
 	TavilyAPIKey   string
 	SandboxBaseURL string
+
+	ExecutionMode  tools.ExecutionMode
+	SandboxManager *tools.SandboxManager
 }
 
-func NewRegistry(config Config) *Registry {
+func NewRegistry(config Config) (*Registry, error) {
+	mode := config.ExecutionMode
+	if mode == tools.ExecutionModeUnknown {
+		if config.SandboxManager != nil {
+			mode = tools.ExecutionModeSandbox
+		} else {
+			mode = tools.ExecutionModeLocal
+		}
+	}
+
+	if err := mode.Validate(); err != nil {
+		return nil, err
+	}
+	if mode == tools.ExecutionModeSandbox && config.SandboxManager == nil {
+		return nil, fmt.Errorf("sandbox manager is required in sandbox mode")
+	}
+
 	r := &Registry{
 		static:  make(map[string]ports.ToolExecutor),
 		dynamic: make(map[string]ports.ToolExecutor),
 		mcp:     make(map[string]ports.ToolExecutor),
 	}
-	r.registerBuiltins(config)
-	return r
+
+	if err := r.registerBuiltins(Config{
+		TavilyAPIKey:   config.TavilyAPIKey,
+		SandboxBaseURL: config.SandboxBaseURL,
+		ExecutionMode:  mode,
+		SandboxManager: config.SandboxManager,
+	}); err != nil {
+		return nil, err
+	}
+
+	return r, nil
 }
 
 func (r *Registry) Register(tool ports.ToolExecutor) error {
@@ -141,18 +170,27 @@ func (r *Registry) Unregister(name string) error {
 	return nil
 }
 
-func (r *Registry) registerBuiltins(config Config) {
+func (r *Registry) registerBuiltins(config Config) error {
+	fileConfig := builtin.FileToolConfig{
+		Mode:           config.ExecutionMode,
+		SandboxManager: config.SandboxManager,
+	}
+	shellConfig := builtin.ShellToolConfig{
+		Mode:           config.ExecutionMode,
+		SandboxManager: config.SandboxManager,
+	}
+
 	// File operations
-	r.static["file_read"] = builtin.NewFileRead()
-	r.static["file_write"] = builtin.NewFileWrite()
-	r.static["file_edit"] = builtin.NewFileEdit()
-	r.static["list_files"] = builtin.NewListFiles()
+	r.static["file_read"] = builtin.NewFileRead(fileConfig)
+	r.static["file_write"] = builtin.NewFileWrite(fileConfig)
+	r.static["file_edit"] = builtin.NewFileEdit(fileConfig)
+	r.static["list_files"] = builtin.NewListFiles(fileConfig)
 
 	// Shell & search
-	r.static["bash"] = builtin.NewBash()
-	r.static["grep"] = builtin.NewGrep()
-	r.static["ripgrep"] = builtin.NewRipgrep()
-	r.static["find"] = builtin.NewFind()
+	r.static["bash"] = builtin.NewBash(shellConfig)
+	r.static["grep"] = builtin.NewGrep(shellConfig)
+	r.static["ripgrep"] = builtin.NewRipgrep(shellConfig)
+	r.static["find"] = builtin.NewFind(shellConfig)
 
 	// Task management
 	r.static["todo_read"] = builtin.NewTodoRead()
@@ -160,7 +198,9 @@ func (r *Registry) registerBuiltins(config Config) {
 
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{
-		BaseURL: config.SandboxBaseURL,
+		BaseURL:        config.SandboxBaseURL,
+		Mode:           config.ExecutionMode,
+		SandboxManager: config.SandboxManager,
 	})
 	r.static["think"] = builtin.NewThink()
 
@@ -168,7 +208,15 @@ func (r *Registry) registerBuiltins(config Config) {
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
 	r.static["web_fetch"] = builtin.NewWebFetch()
 
+	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
+		r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
+			Mode:           config.ExecutionMode,
+			SandboxManager: config.SandboxManager,
+		})
+	}
+
 	// Note: code_search tool is not registered (feature not ready)
+	return nil
 }
 
 // RegisterSubAgent registers the subagent tool that requires a coordinator

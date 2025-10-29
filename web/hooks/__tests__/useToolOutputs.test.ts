@@ -263,18 +263,19 @@ describe('useToolOutputs', () => {
     });
   });
 
-  describe('Browser Snapshots', () => {
-    it('should extract browser snapshots', () => {
+  describe('Browser Diagnostics', () => {
+    it('should extract browser diagnostics', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'browser_snapshot',
+          event_type: 'browser_info',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
-          url: 'https://example.com',
-          screenshot_data: 'base64-image-data',
-          html_preview: '<html>...</html>',
+          captured: '2025-01-01T10:00:00Z',
+          success: true,
+          message: 'Browser ready',
+          user_agent: 'AgentBrowser/1.0',
         },
       ];
 
@@ -282,11 +283,9 @@ describe('useToolOutputs', () => {
 
       expect(result.current).toHaveLength(1);
       expect(result.current[0]).toMatchObject({
-        type: 'web_fetch',
-        toolName: 'browser_snapshot',
-        url: 'https://example.com',
-        screenshot: 'base64-image-data',
-        htmlPreview: '<html>...</html>',
+        type: 'generic',
+        toolName: 'browser_info',
+        result: expect.stringContaining('Browser ready'),
       });
     });
   });

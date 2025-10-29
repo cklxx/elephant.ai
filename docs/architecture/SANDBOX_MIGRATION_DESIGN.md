@@ -1345,14 +1345,14 @@ func determineExecutionMode(config Config, processType string) tools.ExecutionMo
 
 ## TODO Checklist
 
-- [ ] Implement the `ExecutionMode` validation helper and ensure all constructors fail fast on invalid values.
-- [ ] Update the tool registry and DI wiring to propagate errors from `NewRegistry` instead of panicking.
-- [ ] Extend `SandboxManager` with the exported `HealthCheck` helper and ensure timeouts are expressed with `time.Duration`.
-- [ ] Guard sandbox-mode tool execution paths against missing managers and add corresponding unit tests.
-- [ ] Refresh integration tests to cover the new `Mode()` accessor used by diagnostics.
-- [ ] Document the health-check usage in server observability docs once implementation lands.
-- [ ] Wire up environment snapshots at startup (host + sandbox), inject them into the system prompt, and expose them through the diagnostics publisher.
-- [ ] Render the environment strip in the web header with `text-xs` styling and integration tests covering the banner.
+- [x] Implement the `ExecutionMode` validation helper and ensure all constructors fail fast on invalid values.
+- [x] Update the tool registry and DI wiring to propagate errors from `NewRegistry` instead of panicking.
+- [x] Extend `SandboxManager` with the exported `HealthCheck` helper and ensure timeouts are expressed with `time.Duration`.
+- [x] Guard sandbox-mode tool execution paths against missing managers and add corresponding unit tests.
+- [x] Refresh integration tests to cover the new `Mode()` accessor used by diagnostics.
+- [x] Document the health-check usage in server observability docs once implementation lands. Added guidance for invoking `SandboxManager.HealthCheck` within `docs/operations/monitoring_and_metrics.md`.
+- [x] Wire up environment snapshots at startup (host + sandbox), inject them into the system prompt, and expose them through the diagnostics publisher.
+- [x] Render the environment strip in the web header with `text-xs` styling and integration tests covering the banner.
 
 ---
 

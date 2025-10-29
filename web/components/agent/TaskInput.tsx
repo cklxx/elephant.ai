@@ -84,7 +84,7 @@ export function TaskInput({
             rows={1}
             aria-label={t('task.input.ariaLabel')}
             data-testid="task-input"
-            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-slate-200/80 bg-white/90 px-3.5 py-2.5 text-[13px] text-slate-700 shadow-sm transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-slate-300 bg-white/90 px-3.5 py-2.5 text-[13px] text-slate-700 shadow-sm transition focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ fieldSizing: 'content' } as any}
           />
         </div>
@@ -92,7 +92,7 @@ export function TaskInput({
         <button
           type="submit"
           disabled={disabled || loading || !task.trim()}
-          className="inline-flex h-[2.75rem] flex-shrink-0 items-center justify-center gap-2 rounded-2xl bg-sky-500 px-4 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="console-primary-action h-[2.75rem]"
           title={loading ? t('task.submit.title.running') : t('task.submit.title.default')}
           data-testid="task-submit"
         >

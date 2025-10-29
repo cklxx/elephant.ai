@@ -122,12 +122,25 @@ export const StepCompletedEventSchema = BaseAgentEventSchema.extend({
   step_description: z.string().optional(),
 });
 
-// Browser Snapshot Event
-export const BrowserSnapshotEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('browser_snapshot'),
-  url: z.string(),
-  screenshot_data: z.string().optional(),
-  html_preview: z.string().optional(),
+// Browser Info Event
+export const BrowserInfoEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('browser_info'),
+  success: z.boolean().optional(),
+  message: z.string().optional(),
+  user_agent: z.string().optional(),
+  cdp_url: z.string().optional(),
+  vnc_url: z.string().optional(),
+  viewport_width: z.number().optional(),
+  viewport_height: z.number().optional(),
+  captured: z.string(),
+});
+
+// Environment Snapshot Event
+export const EnvironmentSnapshotEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('environment_snapshot'),
+  host: z.record(z.string(), z.string()).nullable().optional(),
+  sandbox: z.record(z.string(), z.string()).nullable().optional(),
+  captured: z.string(),
 });
 
 // Connected Event
@@ -159,7 +172,8 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   ResearchPlanEventSchema,
   StepStartedEventSchema,
   StepCompletedEventSchema,
-  BrowserSnapshotEventSchema,
+  BrowserInfoEventSchema,
+  EnvironmentSnapshotEventSchema,
   ConnectedEventSchema,
   UserTaskEventSchema,
 ]);
