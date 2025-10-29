@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { useTaskExecution } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
@@ -19,6 +20,7 @@ function ConversationPageContent() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const { t } = useI18n();
@@ -210,24 +212,55 @@ function ConversationPageContent() {
     <div className="flex h-screen bg-white">
       <ConfirmDialog />
       {/* Left Sidebar */}
-      <Sidebar
-        sessionHistory={sessionHistory}
-        pinnedSessions={pinnedSessions}
-        sessionLabels={sessionLabels}
-        currentSessionId={resolvedSessionId}
-        onSessionSelect={handleSessionSelect}
-        onSessionRename={renameSession}
-        onSessionPin={togglePinSession}
-        onSessionDelete={handleSessionDelete}
-        onNewSession={handleNewSession}
-      />
+      <div
+        id="conversation-sidebar"
+        className={`relative z-30 h-full overflow-hidden border-r border-slate-200 transition-[width] duration-300 ease-in-out ${
+          isSidebarOpen ? 'w-64' : 'w-0 border-r-0'
+        }`}
+      >
+        <div
+          className={`h-full ${isSidebarOpen ? '' : 'pointer-events-none opacity-0'}`}
+          aria-hidden={!isSidebarOpen}
+        >
+          <Sidebar
+            sessionHistory={sessionHistory}
+            pinnedSessions={pinnedSessions}
+            sessionLabels={sessionLabels}
+            currentSessionId={resolvedSessionId}
+            onSessionSelect={handleSessionSelect}
+            onSessionRename={renameSession}
+            onSessionPin={togglePinSession}
+            onSessionDelete={handleSessionDelete}
+            onNewSession={handleNewSession}
+          />
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
         <Header
           title={sessionBadge || t('conversation.header.idle')}
           subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
+          leadingSlot={
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              className="console-button console-button-secondary flex items-center justify-center !px-3 !py-2"
+              aria-expanded={isSidebarOpen}
+              aria-controls="conversation-sidebar"
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+              <span className="sr-only">
+                {isSidebarOpen
+                  ? t('sidebar.toggle.close')
+                  : t('sidebar.toggle.open')}
+              </span>
+            </button>
+          }
         />
 
         {/* Content Area */}
