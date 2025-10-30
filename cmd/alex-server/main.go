@@ -175,8 +175,8 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":" + config.Port,
 		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 0, // No timeout for SSE
+		ReadTimeout:  5 * time.Minute, // Allow long-running commands (npm install, vite create, etc.)
+		WriteTimeout: 0,                // No timeout for SSE
 		IdleTimeout:  120 * time.Second,
 	}
 

@@ -3,6 +3,7 @@ package builtin
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -42,6 +43,16 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 }
 
 func (t *bash) executeLocal(ctx context.Context, call ports.ToolCall, command string) (*ports.ToolResult, error) {
+	// Auto-prepend working directory if command doesn't start with 'cd'
+	// This ensures commands execute in the current working directory
+	if !strings.HasPrefix(strings.TrimSpace(command), "cd ") {
+		// Get current working directory
+		pwd, err := os.Getwd()
+		if err == nil && pwd != "" {
+			command = fmt.Sprintf("cd %q && %s", pwd, command)
+		}
+	}
+
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
 
 	var stdoutBuf, stderrBuf bytes.Buffer

@@ -50,6 +50,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"think":        true,
 				"todo_read":    true,
 				"subagent":     true,
+				"explore":      true,
 			},
 			DeniedTools: map[string]bool{
 				"file_write":   true,
@@ -76,6 +77,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"todo_read":    true,
 				"todo_update":  true,
 				"subagent":     true,
+				"explore":      true,
 			},
 			DeniedTools: map[string]bool{
 				"web_search": true,
@@ -127,6 +129,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"todo_read":    true,
 				"todo_update":  true,
 				"subagent":     true,
+				"explore":      true,
 			},
 			DeniedTools: map[string]bool{
 				"bash":         true,

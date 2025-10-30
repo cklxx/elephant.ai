@@ -8,3 +8,94 @@ COPY skills /workspace/skills
 
 # Ensure permissions are readable for the sandbox user (if present)
 RUN chmod -R a+r /workspace/skills || true
+
+###############################################################################
+# Pre-initialize Node.js Environment
+###############################################################################
+
+# Install common Node.js development packages globally
+RUN npm install -g --quiet \
+    typescript@latest \
+    ts-node@latest \
+    @types/node@latest \
+    prettier@latest \
+    eslint@latest \
+    nodemon@latest \
+    pm2@latest \
+    pnpm@latest \
+    yarn@latest \
+    && npm cache clean --force
+
+# Configure npm for faster installs
+RUN npm config set registry https://registry.npmjs.org/ \
+    && npm config set fetch-retries 3 \
+    && npm config set fetch-retry-mintimeout 10000
+
+###############################################################################
+# Pre-initialize Python Environment
+###############################################################################
+
+# Upgrade pip and install build tools
+RUN pip3 install --no-cache-dir --upgrade \
+    pip \
+    setuptools \
+    wheel \
+    build
+
+# Install common Python development and data science packages
+# Use --ignore-installed to avoid conflicts with system packages
+RUN pip3 install --no-cache-dir --ignore-installed \
+    # Web & API
+    requests \
+    httpx \
+    aiohttp \
+    fastapi \
+    uvicorn \
+    flask \
+    # Data Science
+    numpy \
+    pandas \
+    matplotlib \
+    scipy \
+    scikit-learn \
+    # Development Tools
+    pytest \
+    pytest-asyncio \
+    black \
+    flake8 \
+    mypy \
+    ipython \
+    jupyter \
+    # Utilities
+    python-dotenv \
+    pyyaml \
+    rich \
+    tqdm
+
+# Configure pip for faster installs
+RUN pip3 config set global.index-url https://pypi.org/simple \
+    && pip3 config set global.timeout 15
+
+###############################################################################
+# Environment Variables
+###############################################################################
+
+# Set Python to unbuffered mode for better logging
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    # Node environment
+    NODE_ENV=development \
+    # Ensure tools are in PATH
+    PATH="/usr/local/bin:/usr/bin:${PATH}"
+
+# Verify installations
+RUN echo "=== Verifying Node.js Environment ===" \
+    && node --version \
+    && npm --version \
+    && npx --version \
+    && tsc --version || true \
+    && echo "=== Verifying Python Environment ===" \
+    && python3 --version \
+    && pip3 --version \
+    && python3 -c "import numpy, pandas, requests; print('Core packages: OK')" \
+    && echo "=== Environment Ready ==="
