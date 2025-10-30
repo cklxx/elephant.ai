@@ -165,6 +165,9 @@ function ConversationPageContent() {
         removeSession(id);
         if (resolvedSessionId === id) {
           clearEvents();
+          setSessionId(null);
+          setTaskId(null);
+          clearCurrentSession();
         }
         toast.success(t('sidebar.session.toast.deleteSuccess'));
       } catch (err) {
