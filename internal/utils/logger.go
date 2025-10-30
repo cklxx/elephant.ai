@@ -235,6 +235,11 @@ func sanitizeLogLine(line string) string {
 		return parts[1] + redaction.Placeholder
 	})
 
+	// Redact any strings that look like APIKey: XXXXX, api_key: XXXXX, etc (struct field dumps, etc)
+	sanitized = regexp.MustCompile(`(?i)(APIKey|api_key|apikey|key)["']?\s*[:=]\s*["']?[A-Za-z0-9\-\._]{20,}["']?`).ReplaceAllStringFunc(sanitized, func(match string) string {
+		return regexp.MustCompile(`(["']?\s*[:=]\s*)["']?[A-Za-z0-9\-\._]{20,}["']?`).ReplaceAllString(match, redaction.Placeholder)
+	})
+
 	sanitized = standaloneSecretPattern.ReplaceAllString(sanitized, redaction.Placeholder)
 	return sanitized
 }
