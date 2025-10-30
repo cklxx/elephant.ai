@@ -1,10 +1,14 @@
 package prompts
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/agent-infra/sandbox-sdk-go/file"
+	"github.com/agent-infra/sandbox-sdk-go/shell"
 )
 
 func TestGetSystemPromptIncludesSkillsInfo(t *testing.T) {
@@ -20,7 +24,19 @@ func TestGetSystemPromptIncludesSkillsInfo(t *testing.T) {
 	}
 
 	loader := New()
-	prompt, err := loader.GetSystemPrompt(tmpDir, "Generate a deck", nil)
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWD)
+	})
+
+	prompt, err := loader.GetSystemPrompt("Generate a deck", nil)
 	if err != nil {
 		t.Fatalf("GetSystemPrompt returned error: %v", err)
 	}
@@ -37,3 +53,22 @@ func TestGetSystemPromptIncludesSkillsInfo(t *testing.T) {
 		t.Fatalf("expected skill access guidance in prompt, got: %s", prompt)
 	}
 }
+
+func TestWithSandboxIgnoresNilImplementation(t *testing.T) {
+	var sandbox *stubSandbox
+	loader := New(WithSandbox(sandbox))
+
+	if loader.sandbox != nil {
+		t.Fatalf("expected sandbox to remain nil when provided implementation is nil")
+	}
+
+	if _, err := loader.GetSystemPrompt("goal", nil); err != nil {
+		t.Fatalf("GetSystemPrompt should not fail without sandbox: %v", err)
+	}
+}
+
+type stubSandbox struct{}
+
+func (*stubSandbox) Initialize(context.Context) error { return nil }
+func (*stubSandbox) Shell() *shell.Client             { return nil }
+func (*stubSandbox) File() *file.Client               { return nil }

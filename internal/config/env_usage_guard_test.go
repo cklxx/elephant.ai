@@ -18,12 +18,13 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"internal/tools/sandbox_docker.go": {},
 	}
 
-	skipDirs := map[string]struct{}{
-		".git":         {},
-		"node_modules": {},
-		"vendor":       {},
-		"logs":         {},
-	}
+    skipDirs := map[string]struct{}{
+            ".git":         {},
+            "node_modules": {},
+            "vendor":       {},
+            "logs":         {},
+            ".cache":       {},
+    }
 
 	var violations []string
 

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
@@ -383,11 +382,7 @@ func (c *AgentCoordinator) GetContextManager() ports.ContextManager {
 
 // GetSystemPrompt returns the system prompt
 func (c *AgentCoordinator) GetSystemPrompt() string {
-	workingDir, _ := os.Getwd()
-	if workingDir == "" {
-		workingDir = "."
-	}
-	prompt, _ := c.promptLoader.GetSystemPrompt(workingDir, "", nil)
+	prompt, _ := c.promptLoader.GetSystemPrompt("", nil)
 	return prompt
 }
 
