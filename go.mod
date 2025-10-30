@@ -15,6 +15,7 @@ require (
 	github.com/philippgille/chromem-go v0.7.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/prometheus/client_golang v1.23.2
+	github.com/segmentio/ksuid v1.0.4
 	github.com/sergi/go-diff v1.0.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.38.0
@@ -67,7 +68,6 @@ require (
 	github.com/prometheus/otlptranslator v0.0.2 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
