@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -43,9 +44,19 @@ type Sandbox interface {
 // WithSandbox configures the loader to source project context from the sandbox when available.
 func WithSandbox(sandbox Sandbox) LoaderOption {
 	return func(loader *Loader) {
-		if sandbox != nil {
-			loader.sandbox = sandbox
+		if sandbox == nil {
+			return
 		}
+
+		value := reflect.ValueOf(sandbox)
+		switch value.Kind() {
+		case reflect.Pointer, reflect.Interface:
+			if value.IsNil() {
+				return
+			}
+		}
+
+		loader.sandbox = sandbox
 	}
 }
 
@@ -124,8 +135,10 @@ func (l *Loader) List() []string {
 // GetSystemPrompt returns the system prompt with context
 func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
 	if l.sandbox != nil {
-		if prompt, err := l.getSandboxPrompt(goal, analysis); err == nil {
-			return prompt, nil
+		if value := reflect.ValueOf(l.sandbox); value.Kind() != reflect.Pointer || !value.IsNil() {
+			if prompt, err := l.getSandboxPrompt(goal, analysis); err == nil {
+				return prompt, nil
+			}
 		}
 	}
 
