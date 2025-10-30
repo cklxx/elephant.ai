@@ -15,7 +15,7 @@ import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
-	"alex/internal/prompts"
+	"alex/internal/environment"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
@@ -65,25 +65,26 @@ func main() {
 	logger.Info("Port: %s", config.Port)
 	logger.Info("===========================")
 
-	// Capture environment diagnostics before bootstrapping the container so the
-	// DI layer can inject the summary during coordinator construction.
-	hostEnv := runtimeconfig.SnapshotProcessEnv()
+	hostSummary := environment.CollectLocalSummary(20)
+	hostEnv := environment.SummaryMap(hostSummary)
+	config.EnvironmentSummary = environment.FormatSummary(hostSummary)
+
 	sandboxEnv := map[string]string{}
 	envCapturedAt := time.Now().UTC()
 
 	if runtimeCfg.SandboxBaseURL != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		manager := tools.NewSandboxManager(runtimeCfg.SandboxBaseURL)
-		if env, err := manager.Environment(ctx); err != nil {
-			logger.Warn("Failed to capture sandbox environment snapshot: %v", err)
-		} else if env != nil {
-			sandboxEnv = env
+		summary, err := environment.CollectSandboxSummary(ctx, manager, 20)
+		if err != nil {
+			logger.Warn("Failed to capture sandbox environment summary: %v", err)
+		} else {
+			sandboxEnv = environment.SummaryMap(summary)
+			config.EnvironmentSummary = environment.FormatSummary(summary)
 			envCapturedAt = time.Now().UTC()
 		}
 		cancel()
 	}
-
-	config.EnvironmentSummary = prompts.FormatEnvironmentSummary(hostEnv, sandboxEnv)
 
 	// Initialize container (without heavy initialization)
 	container, err := buildContainer(config)
@@ -104,13 +105,14 @@ func main() {
 	// Refresh sandbox environment snapshot using the shared manager if available so
 	// downstream consumers operate on the same cached state.
 	if container.SandboxManager != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if env, err := container.SandboxManager.Environment(ctx); err != nil {
-			logger.Warn("Failed to refresh sandbox environment snapshot: %v", err)
-		} else if env != nil {
-			sandboxEnv = env
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		summary, err := environment.CollectSandboxSummary(ctx, container.SandboxManager, 20)
+		if err != nil {
+			logger.Warn("Failed to refresh sandbox environment summary: %v", err)
+		} else {
+			sandboxEnv = environment.SummaryMap(summary)
 			envCapturedAt = time.Now().UTC()
-			config.EnvironmentSummary = prompts.FormatEnvironmentSummary(hostEnv, sandboxEnv)
+			config.EnvironmentSummary = environment.FormatSummary(summary)
 		}
 		cancel()
 	}
@@ -176,7 +178,7 @@ func main() {
 		Addr:         ":" + config.Port,
 		Handler:      router,
 		ReadTimeout:  5 * time.Minute, // Allow long-running commands (npm install, vite create, etc.)
-		WriteTimeout: 0,                // No timeout for SSE
+		WriteTimeout: 0,               // No timeout for SSE
 		IdleTimeout:  120 * time.Second,
 	}
 
