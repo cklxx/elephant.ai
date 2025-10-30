@@ -92,8 +92,12 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	if ids.ParentTaskID != "" {
 		contextLine += fmt.Sprintf(" · Parent: %s", ids.ParentTaskID)
 	}
-	fmt.Fprintln(handler.out, contextLine)
-	fmt.Fprintln(handler.out)
+	if _, err := fmt.Fprintln(handler.out, contextLine); err != nil {
+		return fmt.Errorf("write execution context: %w", err)
+	}
+	if _, err := fmt.Fprintln(handler.out); err != nil {
+		return fmt.Errorf("write execution spacing: %w", err)
+	}
 
 	// Create event bridge
 	bridge := NewStreamEventBridge(handler)
@@ -255,25 +259,6 @@ func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.Subtas
 	lines := h.subagentDisplay.Handle(subtaskEvent)
 	for _, line := range lines {
 		h.write(line)
-	}
-}
-
-// getOutputContext retrieves OutputContext from coordinator context
-func (h *StreamingOutputHandler) getOutputContext() *types.OutputContext {
-	// Try to get from context first (will be set by subagent)
-	if h.ctx != nil {
-		if outCtx := types.GetOutputContext(h.ctx); outCtx != nil {
-			// Update verbose flag from handler
-			outCtx.Verbose = h.verbose
-			return outCtx
-		}
-	}
-
-	// Default: core agent context
-	return &types.OutputContext{
-		Level:   types.LevelCore,
-		AgentID: "core",
-		Verbose: h.verbose,
 	}
 }
 
