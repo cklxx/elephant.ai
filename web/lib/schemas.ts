@@ -70,6 +70,7 @@ export const ToolCallCompleteEventSchema = BaseAgentEventSchema.extend({
   result: z.string(),
   error: z.string().optional(),
   duration: z.number(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Iteration Complete Event
