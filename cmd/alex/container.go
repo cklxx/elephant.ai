@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"alex/internal/agent/app"
 	runtimeconfig "alex/internal/config"
@@ -56,9 +58,23 @@ func buildContainer() (*Container, error) {
 		return nil, err
 	}
 
-	return &Container{
+	result := &Container{
 		Container:   container,
 		Coordinator: container.AgentCoordinator,
 		Runtime:     cfg,
-	}, nil
+	}
+
+	if container.SandboxManager != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if sandboxEnv, err := container.SandboxManager.Environment(ctx); err != nil {
+			fmt.Printf("warning: failed to fetch sandbox environment: %v\n", err)
+		} else {
+			environmentSummary = prompts.FormatEnvironmentSummary(hostEnv, sandboxEnv)
+			result.Coordinator.SetEnvironmentSummary(environmentSummary)
+		}
+	}
+
+	return result, nil
 }
