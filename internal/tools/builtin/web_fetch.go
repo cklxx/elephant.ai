@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	neturl "net/url"
 	"strings"
 	"sync"
 	"time"
@@ -36,12 +36,13 @@ type cacheEntry struct {
 	url       string
 }
 
-func NewWebFetch() ports.ToolExecutor {
-	return NewWebFetchWithLLM(nil)
+func NewWebFetch(cfg WebFetchConfig) ports.ToolExecutor {
+	return NewWebFetchWithLLM(nil, cfg)
 }
 
 // NewWebFetchWithLLM creates web_fetch with optional LLM client for analysis
-func NewWebFetchWithLLM(llmClient ports.LLMClient) ports.ToolExecutor {
+func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.ToolExecutor {
+	_ = cfg
 	cache := &fetchCache{
 		entries: make(map[string]*cacheEntry),
 		ttl:     15 * time.Minute,
@@ -120,7 +121,7 @@ func (t *webFetch) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	// Validate URL
-	parsedURL, err := url.Parse(urlStr)
+	parsedURL, err := neturl.Parse(urlStr)
 	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
@@ -189,7 +190,7 @@ func (t *webFetch) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 // fetchContent fetches and processes HTML content
 func (t *webFetch) fetchContent(ctx context.Context, urlStr string) (string, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("create request: %w", err)
 	}
@@ -294,15 +295,23 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 				prompt,
 				analysis)
 
+			metadata := map[string]any{
+				"url":          url,
+				"cached":       cached,
+				"analyzed":     true,
+				"content_size": len(content),
+			}
+			metadata["web"] = map[string]any{
+				"url":      url,
+				"content":  content,
+				"prompt":   prompt,
+				"analysis": analysis,
+			}
+
 			return &ports.ToolResult{
-				CallID:  callID,
-				Content: output,
-				Metadata: map[string]any{
-					"url":          url,
-					"cached":       cached,
-					"analyzed":     true,
-					"content_size": len(content),
-				},
+				CallID:   callID,
+				Content:  output,
+				Metadata: metadata,
 			}, nil
 		}
 	}
@@ -313,15 +322,21 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 		cacheStatus(cached),
 		content)
 
+	metadata := map[string]any{
+		"url":          url,
+		"cached":       cached,
+		"analyzed":     false,
+		"content_size": len(content),
+	}
+	metadata["web"] = map[string]any{
+		"url":     url,
+		"content": content,
+	}
+
 	return &ports.ToolResult{
-		CallID:  callID,
-		Content: output,
-		Metadata: map[string]any{
-			"url":          url,
-			"cached":       cached,
-			"analyzed":     false,
-			"content_size": len(content),
-		},
+		CallID:   callID,
+		Content:  output,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -353,7 +368,7 @@ func (t *webFetch) isDifferentHost(url1, url2 string) bool {
 }
 
 func (t *webFetch) getHost(urlStr string) string {
-	u, _ := url.Parse(urlStr)
+	u, _ := neturl.Parse(urlStr)
 	return u.Host
 }
 

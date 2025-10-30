@@ -37,7 +37,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
             toolName: e.tool_name,
             timestamp: existing.timestamp || new Date(event.timestamp).getTime(),
             type: existing.type || mapToolNameToType(e.tool_name),
-            ...parseToolResult(e.tool_name, e.result, e.error),
+            ...parseToolResult(e.tool_name, e.result, e.error, e.metadata),
           };
 
           outputs.push(output);
@@ -83,7 +83,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
 }
 
 function mapToolNameToType(toolName: string): ToolOutputType {
-  if (toolName.includes('web_fetch') || toolName.includes('browser')) {
+  if (toolName.includes('web_fetch') || toolName === 'browser') {
     return 'web_fetch';
   }
   if (toolName.includes('bash') || toolName.includes('shell') || toolName.includes('execute')) {
@@ -104,7 +104,8 @@ function mapToolNameToType(toolName: string): ToolOutputType {
 function parseToolResult(
   toolName: string,
   result: string,
-  error?: string
+  error?: string,
+  metadata?: Record<string, any>
 ): Partial<ToolOutput> {
   // Try to parse JSON result
   try {
@@ -126,6 +127,15 @@ function parseToolResult(
         url: parsed.url,
         screenshot: parsed.screenshot,
         htmlPreview: parsed.html || parsed.content,
+      };
+    }
+
+    if (toolName === 'browser') {
+      return {
+        url: parsed.url,
+        screenshot: parsed.screenshot,
+        htmlPreview: parsed.html || parsed.content,
+        result: parsed.message || parsed.status,
       };
     }
 
@@ -154,11 +164,41 @@ function parseToolResult(
       };
     }
   } catch {
-    // Not JSON or parsing failed, treat as plain text
+    // Not JSON or parsing failed, try metadata or treat as plain text
+  }
+
+  // Fallback to metadata when JSON result is unavailable
+  if (metadata && (toolName.includes('web_fetch') || toolName === 'browser')) {
+    const web = extractWebMetadata(metadata);
+    if (web) {
+      return {
+        url: web.url,
+        screenshot: web.screenshot,
+        htmlPreview: web.html ?? web.content,
+        result: error || result,
+      };
+    }
   }
 
   // Fallback to generic result
   return {
     result: error || result,
+  };
+}
+
+function extractWebMetadata(metadata: Record<string, any>):
+  | { url?: string; screenshot?: string; html?: string; content?: string }
+  | null {
+  const candidate = metadata.browser ?? metadata.web ?? metadata.result ?? metadata;
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+  return {
+    url: typeof candidate.url === 'string' ? candidate.url : undefined,
+    screenshot:
+      typeof candidate.screenshot === 'string' ? candidate.screenshot : undefined,
+    html: typeof candidate.html === 'string' ? candidate.html : undefined,
+    content:
+      typeof candidate.content === 'string' ? candidate.content : undefined,
   };
 }

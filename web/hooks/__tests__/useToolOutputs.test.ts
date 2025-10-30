@@ -125,6 +125,45 @@ describe('useToolOutputs', () => {
       expect(result.current[0].url).toBe('https://example.com');
     });
 
+    it('should map browser tool type and parse screenshot', () => {
+      const events: AnyAgentEvent[] = [
+        {
+          event_type: 'tool_call_start',
+          timestamp: '2025-01-01T10:00:00Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          iteration: 1,
+          call_id: 'call-browser',
+          tool_name: 'browser',
+          arguments: { url: 'https://example.com' },
+        },
+        {
+          event_type: 'tool_call_complete',
+          timestamp: '2025-01-01T10:00:04Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          iteration: 1,
+          call_id: 'call-browser',
+          tool_name: 'browser',
+          result: JSON.stringify({
+            url: 'https://example.com',
+            screenshot: 'data:image/png;base64,AAA',
+            html: '<html>Example</html>',
+          }),
+          duration: 4000,
+        },
+      ];
+
+      const { result } = renderHook(() => useToolOutputs(events));
+
+      expect(result.current[0]).toMatchObject({
+        type: 'web_fetch',
+        url: 'https://example.com',
+        screenshot: 'data:image/png;base64,AAA',
+        htmlPreview: '<html>Example</html>',
+      });
+    });
+
     it('should map file_read tool type', () => {
       const events: AnyAgentEvent[] = [
         {
@@ -158,6 +197,89 @@ describe('useToolOutputs', () => {
       expect(result.current[0].type).toBe('file_read');
       expect(result.current[0].filePath).toBe('/test/file.txt');
       expect(result.current[0].content).toBe('File contents here');
+    });
+
+    it('should extract web metadata when JSON parsing fails', () => {
+      const events: AnyAgentEvent[] = [
+        {
+          event_type: 'tool_call_start',
+          timestamp: '2025-01-01T10:00:00Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          iteration: 1,
+          call_id: 'call-1',
+          tool_name: 'web_fetch',
+          arguments: { url: 'https://example.com' },
+        },
+        {
+          event_type: 'tool_call_complete',
+          timestamp: '2025-01-01T10:00:05Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          iteration: 1,
+          call_id: 'call-1',
+          tool_name: 'web_fetch',
+          result: 'Source: https://example.com',
+          duration: 5000,
+          metadata: {
+            web: {
+              url: 'https://example.com',
+              screenshot: 'data:image/png;base64,AAA',
+              html: '<html></html>',
+            },
+          },
+        },
+      ];
+
+      const { result } = renderHook(() => useToolOutputs(events));
+
+      expect(result.current[0]).toMatchObject({
+        url: 'https://example.com',
+        screenshot: 'data:image/png;base64,AAA',
+        htmlPreview: '<html></html>',
+      });
+    });
+
+    it('should extract browser metadata when JSON parsing fails', () => {
+      const events: AnyAgentEvent[] = [
+        {
+          event_type: 'tool_call_start',
+          timestamp: '2025-01-01T10:00:00Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          iteration: 1,
+          call_id: 'call-browser',
+          tool_name: 'browser',
+          arguments: { url: 'https://example.com' },
+        },
+        {
+          event_type: 'tool_call_complete',
+          timestamp: '2025-01-01T10:00:03Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          iteration: 1,
+          call_id: 'call-browser',
+          tool_name: 'browser',
+          result: 'Visit complete',
+          duration: 3000,
+          metadata: {
+            browser: {
+              url: 'https://example.com',
+              screenshot: 'data:image/png;base64,BBB',
+              html: '<html>Example</html>',
+            },
+          },
+        },
+      ];
+
+      const { result } = renderHook(() => useToolOutputs(events));
+
+      expect(result.current[0]).toMatchObject({
+        url: 'https://example.com',
+        screenshot: 'data:image/png;base64,BBB',
+        htmlPreview: '<html>Example</html>',
+        result: 'Visit complete',
+      });
     });
 
     it('should map file_write tool type', () => {
