@@ -8,6 +8,9 @@ export interface AgentEvent {
   event_type: string;
   timestamp: string;
   agent_level: AgentLevel;
+  session_id: string;
+  task_id?: string;
+  parent_task_id?: string;
 }
 
 // Task Analysis Event - emitted after task pre-analysis
@@ -159,6 +162,8 @@ export interface SandboxProgressEvent extends AgentEvent {
 export interface ConnectedEvent {
   event_type: 'connected';
   session_id: string;
+  task_id?: string;
+  parent_task_id?: string;
   timestamp?: string;
   agent_level?: AgentLevel;
 }
@@ -230,6 +235,7 @@ export interface ApprovePlanResponse {
 export interface TaskStatusResponse {
   task_id: string;
   session_id: string;
+  parent_task_id?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   created_at: string;
   completed_at?: string;

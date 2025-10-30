@@ -177,6 +177,10 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                           time: formatRelativeTime(task.created_at, locale),
                         })}
                       </p>
+                      <p className="text-xs text-gray-500 mt-1 font-mono">
+                        {`Task: ${task.task_id}`}
+                        {task.parent_task_id ? ` · Parent: ${task.parent_task_id}` : ''}
+                      </p>
                     </div>
                     <Badge variant={task.status === 'completed' ? 'success' : 'info'}>
                       {translatedStatus}

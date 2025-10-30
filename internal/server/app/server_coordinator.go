@@ -10,6 +10,7 @@ import (
 	"alex/internal/agent/ports"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 // AgentExecutor defines the interface for agent task execution
@@ -74,6 +75,13 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		s.logger.Error("[ServerCoordinator] Failed to create task: %v", err)
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
+
+	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	if parentTaskID != "" {
+		taskRecord.ParentTaskID = parentTaskID
+	}
+
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskRecord.ID, ParentTaskID: parentTaskID})
 
 	// Verify broadcaster is initialized
 	if s.broadcaster == nil {

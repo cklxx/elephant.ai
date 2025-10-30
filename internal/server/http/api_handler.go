@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/agent/types"
 	"alex/internal/server/app"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 const maxCreateTaskBodySize = 1 << 20 // 1 MiB
@@ -42,9 +44,10 @@ type CreateTaskRequest struct {
 
 // CreateTaskResponse matches TypeScript CreateTaskResponse interface
 type CreateTaskResponse struct {
-	TaskID    string `json:"task_id"`
-	SessionID string `json:"session_id"`
-	Status    string `json:"status"`
+	TaskID       string `json:"task_id"`
+	SessionID    string `json:"session_id"`
+	Status       string `json:"status"`
+	ParentTaskID string `json:"parent_task_id,omitempty"`
 }
 
 type apiErrorResponse struct {
@@ -114,9 +117,11 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("Creating task: task='%s', sessionID='%s'", req.Task, req.SessionID)
 
+	ctx := id.WithSessionID(r.Context(), req.SessionID)
+
 	// Execute task asynchronously - coordinator returns immediately after creating task record
 	// Background goroutine will handle actual execution and update status
-	task, err := h.coordinator.ExecuteTaskAsync(r.Context(), req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
+	task, err := h.coordinator.ExecuteTaskAsync(ctx, req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
 	if err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create task", err)
 		return
@@ -126,9 +131,10 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Return task response matching TypeScript interface
 	response := CreateTaskResponse{
-		TaskID:    task.ID,
-		SessionID: task.SessionID,
-		Status:    string(task.Status),
+		TaskID:       task.ID,
+		SessionID:    task.SessionID,
+		Status:       string(task.Status),
+		ParentTaskID: task.ParentTaskID,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -254,14 +260,7 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 }
 
 // TaskStatusResponse matches TypeScript TaskStatusResponse interface
-type TaskStatusResponse struct {
-	TaskID      string  `json:"task_id"`
-	SessionID   string  `json:"session_id"`
-	Status      string  `json:"status"`
-	CreatedAt   string  `json:"created_at"`
-	CompletedAt *string `json:"completed_at,omitempty"`
-	Error       string  `json:"error,omitempty"`
-}
+type TaskStatusResponse = types.AgentTask
 
 // HandleGetTask handles GET /api/tasks/:id
 func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
@@ -285,11 +284,12 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	// Convert to TaskStatusResponse
 	response := TaskStatusResponse{
-		TaskID:    task.ID,
-		SessionID: task.SessionID,
-		Status:    string(task.Status),
-		CreatedAt: task.CreatedAt.Format(time.RFC3339),
-		Error:     task.Error,
+		TaskID:       task.ID,
+		SessionID:    task.SessionID,
+		ParentTaskID: task.ParentTaskID,
+		Status:       string(task.Status),
+		CreatedAt:    task.CreatedAt.Format(time.RFC3339),
+		Error:        task.Error,
 	}
 
 	if task.CompletedAt != nil {
@@ -336,11 +336,12 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	taskResponses := make([]TaskStatusResponse, len(tasks))
 	for i, task := range tasks {
 		taskResponses[i] = TaskStatusResponse{
-			TaskID:    task.ID,
-			SessionID: task.SessionID,
-			Status:    string(task.Status),
-			CreatedAt: task.CreatedAt.Format(time.RFC3339),
-			Error:     task.Error,
+			TaskID:       task.ID,
+			SessionID:    task.SessionID,
+			ParentTaskID: task.ParentTaskID,
+			Status:       string(task.Status),
+			CreatedAt:    task.CreatedAt.Format(time.RFC3339),
+			Error:        task.Error,
 		}
 		if task.CompletedAt != nil {
 			completedStr := task.CompletedAt.Format(time.RFC3339)

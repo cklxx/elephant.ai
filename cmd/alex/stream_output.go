@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
+	id "alex/internal/utils/id"
 )
 
 // ToolInfo stores information about an active tool call
@@ -58,18 +59,45 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	// Start execution with stream handler
 	ctx := context.Background()
 
+	if sessionID == "" {
+		session, err := container.SessionStore.Create(ctx)
+		if err != nil {
+			return fmt.Errorf("create session: %w", err)
+		}
+		sessionID = session.ID
+	}
+
+	ctx = id.WithSessionID(ctx, sessionID)
+	ctx = id.WithTaskID(ctx, id.NewTaskID())
+
 	verbose := container.Runtime.Verbose
 
 	// Set core agent output context
+	ids := id.IDsFromContext(ctx)
 	coreOutCtx := &types.OutputContext{
-		Level:   types.LevelCore,
-		AgentID: "core",
-		Verbose: verbose,
+		Level:        types.LevelCore,
+		AgentID:      "core",
+		Verbose:      verbose,
+		SessionID:    ids.SessionID,
+		TaskID:       ids.TaskID,
+		ParentTaskID: ids.ParentTaskID,
 	}
 	ctx = types.WithOutputContext(ctx, coreOutCtx)
 
 	handler := NewStreamingOutputHandler(container, verbose)
 	handler.ctx = ctx // Store context for OutputContext lookup
+
+	// Announce execution context for easy correlation in the terminal
+	contextLine := fmt.Sprintf("Session: %s · Task: %s", ids.SessionID, ids.TaskID)
+	if ids.ParentTaskID != "" {
+		contextLine += fmt.Sprintf(" · Parent: %s", ids.ParentTaskID)
+	}
+	if _, err := fmt.Fprintln(handler.out, contextLine); err != nil {
+		return fmt.Errorf("write execution context: %w", err)
+	}
+	if _, err := fmt.Fprintln(handler.out); err != nil {
+		return fmt.Errorf("write execution spacing: %w", err)
+	}
 
 	// Create event bridge
 	bridge := NewStreamEventBridge(handler)
@@ -131,9 +159,12 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 func (h *StreamingOutputHandler) onTaskAnalysis(event *domain.TaskAnalysisEvent) {
 	// Use agent level from event (events now carry their source info)
 	outCtx := &types.OutputContext{
-		Level:   event.GetAgentLevel(),
-		AgentID: string(event.GetAgentLevel()),
-		Verbose: h.verbose,
+		Level:        event.GetAgentLevel(),
+		AgentID:      string(event.GetAgentLevel()),
+		Verbose:      h.verbose,
+		SessionID:    event.GetSessionID(),
+		TaskID:       event.GetTaskID(),
+		ParentTaskID: event.GetParentTaskID(),
 	}
 	rendered := h.renderer.RenderTaskAnalysis(outCtx, event)
 	h.write(rendered)
@@ -160,10 +191,13 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEven
 
 	// Use agent level from event
 	outCtx := &types.OutputContext{
-		Level:    event.GetAgentLevel(),
-		Category: output.CategorizeToolName(event.ToolName),
-		AgentID:  string(event.GetAgentLevel()),
-		Verbose:  h.verbose,
+		Level:        event.GetAgentLevel(),
+		Category:     output.CategorizeToolName(event.ToolName),
+		AgentID:      string(event.GetAgentLevel()),
+		Verbose:      h.verbose,
+		SessionID:    event.GetSessionID(),
+		TaskID:       event.GetTaskID(),
+		ParentTaskID: event.GetParentTaskID(),
 	}
 
 	rendered := h.renderer.RenderToolCallStart(outCtx, event.ToolName, event.Arguments)
@@ -178,10 +212,13 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallComple
 
 	// Use agent level from event
 	outCtx := &types.OutputContext{
-		Level:    event.GetAgentLevel(),
-		Category: output.CategorizeToolName(info.Name),
-		AgentID:  string(event.GetAgentLevel()),
-		Verbose:  h.verbose,
+		Level:        event.GetAgentLevel(),
+		Category:     output.CategorizeToolName(info.Name),
+		AgentID:      string(event.GetAgentLevel()),
+		Verbose:      h.verbose,
+		SessionID:    event.GetSessionID(),
+		TaskID:       event.GetTaskID(),
+		ParentTaskID: event.GetParentTaskID(),
 	}
 
 	duration := time.Since(info.StartTime)
@@ -192,13 +229,27 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallComple
 }
 
 func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
-	outCtx := h.getOutputContext()
+	outCtx := &types.OutputContext{
+		Level:        event.GetAgentLevel(),
+		AgentID:      string(event.GetAgentLevel()),
+		Verbose:      h.verbose,
+		SessionID:    event.GetSessionID(),
+		TaskID:       event.GetTaskID(),
+		ParentTaskID: event.GetParentTaskID(),
+	}
 	rendered := h.renderer.RenderError(outCtx, event.Phase, event.Error)
 	h.write(rendered)
 }
 
 func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
-	outCtx := h.getOutputContext()
+	outCtx := &types.OutputContext{
+		Level:        types.LevelCore,
+		AgentID:      "core",
+		Verbose:      h.verbose,
+		SessionID:    result.SessionID,
+		TaskID:       result.TaskID,
+		ParentTaskID: result.ParentTaskID,
+	}
 	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(result))
 	h.write(rendered)
 }
@@ -208,25 +259,6 @@ func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.Subtas
 	lines := h.subagentDisplay.Handle(subtaskEvent)
 	for _, line := range lines {
 		h.write(line)
-	}
-}
-
-// getOutputContext retrieves OutputContext from coordinator context
-func (h *StreamingOutputHandler) getOutputContext() *types.OutputContext {
-	// Try to get from context first (will be set by subagent)
-	if h.ctx != nil {
-		if outCtx := types.GetOutputContext(h.ctx); outCtx != nil {
-			// Update verbose flag from handler
-			outCtx.Verbose = h.verbose
-			return outCtx
-		}
-	}
-
-	// Default: core agent context
-	return &types.OutputContext{
-		Level:   types.LevelCore,
-		AgentID: "core",
-		Verbose: h.verbose,
 	}
 }
 

@@ -3,6 +3,7 @@ package filestore
 import (
 	"alex/internal/agent/ports"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type store struct {
@@ -32,8 +31,7 @@ func New(baseDir string) ports.SessionStore {
 }
 
 func (s *store) Create(ctx context.Context) (*ports.Session, error) {
-	// Generate unique UUID for session
-	sessionID := fmt.Sprintf("session-%s", uuid.New().String())
+	sessionID := id.NewSessionID()
 
 	session := &ports.Session{
 		ID:        sessionID,

@@ -10,6 +10,9 @@ export const BaseAgentEventSchema = z.object({
   event_type: z.string(),
   timestamp: z.string(),
   agent_level: AgentLevelSchema,
+  session_id: z.string(),
+  task_id: z.string().optional(),
+  parent_task_id: z.string().optional(),
 });
 
 // Task Analysis Event
@@ -159,6 +162,8 @@ export const SandboxProgressEventSchema = BaseAgentEventSchema.extend({
 export const ConnectedEventSchema = z.object({
   event_type: z.literal('connected'),
   session_id: z.string(),
+  task_id: z.string().optional(),
+  parent_task_id: z.string().optional(),
   timestamp: z.string().optional(),
   agent_level: AgentLevelSchema.optional(),
 });
@@ -202,6 +207,7 @@ export const CreateTaskRequestSchema = z.object({
 export const CreateTaskResponseSchema = z.object({
   task_id: z.string(),
   session_id: z.string(),
+  parent_task_id: z.string().optional(),
   status: z.enum(['pending', 'running', 'completed', 'failed']),
   requires_plan_approval: z.boolean().optional(),
 });
@@ -228,6 +234,7 @@ export const ApprovePlanResponseSchema = z.object({
 export const TaskStatusResponseSchema = z.object({
   task_id: z.string(),
   session_id: z.string(),
+  parent_task_id: z.string().optional(),
   status: z.enum(['pending', 'running', 'completed', 'failed']),
   created_at: z.string(),
   completed_at: z.string().optional(),

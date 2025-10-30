@@ -182,6 +182,51 @@ wait_for_health() {
     done
 }
 
+wait_for_docker_health() {
+    local container_name=$1
+    local max_attempts=${2:-30}
+
+    log_info "Waiting for $container_name to be healthy..."
+
+    for i in $(seq 1 $max_attempts); do
+        local health_status
+        health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container_name" 2>/dev/null || echo "none")
+
+        case "$health_status" in
+            healthy)
+                log_success "$container_name is healthy!"
+                return 0
+                ;;
+            none)
+                # Container has no health check, check if it's running
+                if docker ps --filter "name=^${container_name}$" --format '{{.Names}}' | grep -q "^${container_name}$"; then
+                    log_success "$container_name is running!"
+                    return 0
+                fi
+                ;;
+            starting)
+                # Still starting, continue waiting
+                ;;
+            unhealthy)
+                log_error "$container_name is unhealthy"
+                return 1
+                ;;
+            *)
+                # Container doesn't exist or is not running
+                if [[ $i -eq $max_attempts ]]; then
+                    log_error "$container_name failed to start within ${max_attempts}s"
+                    return 1
+                fi
+                ;;
+        esac
+
+        sleep 1
+    done
+
+    log_error "$container_name failed to become healthy within ${max_attempts}s"
+    return 1
+}
+
 ###############################################################################
 # Environment Setup
 ###############################################################################
@@ -356,8 +401,8 @@ start_sandbox() {
     log_info "Starting sandbox container via docker-compose..."
     run_docker_compose -f "$SANDBOX_COMPOSE_FILE" up -d "$SANDBOX_SERVICE_NAME"
 
-    local health_url="${base_url%/}/health"
-    if ! wait_for_health "$health_url" "Sandbox"; then
+    # Wait for container to be healthy using Docker's built-in health check
+    if ! wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 30; then
         log_error "Sandbox failed to become healthy"
         run_docker_compose -f "$SANDBOX_COMPOSE_FILE" logs --tail 50 "$SANDBOX_SERVICE_NAME" || true
         return 1

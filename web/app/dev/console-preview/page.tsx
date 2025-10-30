@@ -9,14 +9,20 @@ function atOffset(seconds: number) {
   return new Date(baseTime + seconds * 1000).toISOString();
 }
 
+const previewSessionId = 'preview-session';
+const previewTaskId = 'preview-task';
+const baseEventContext = { session_id: previewSessionId, task_id: previewTaskId } as const;
+
 const mockEvents: AnyAgentEvent[] = [
   {
+    ...baseEventContext,
     event_type: 'user_task',
     timestamp: atOffset(0),
     agent_level: 'core',
     task: '调研自动化代理的实时回传方案，并输出总结报告。',
   },
   {
+    ...baseEventContext,
     event_type: 'task_analysis',
     timestamp: atOffset(8),
     agent_level: 'core',
@@ -24,6 +30,7 @@ const mockEvents: AnyAgentEvent[] = [
     goal: '了解现有链路瓶颈，确认可复用的事件与指标。',
   },
   {
+    ...baseEventContext,
     event_type: 'research_plan',
     timestamp: atOffset(12),
     agent_level: 'core',
@@ -37,6 +44,7 @@ const mockEvents: AnyAgentEvent[] = [
     estimated_duration_minutes: 32,
   },
   {
+    ...baseEventContext,
     event_type: 'iteration_start',
     timestamp: atOffset(18),
     agent_level: 'core',
@@ -44,6 +52,7 @@ const mockEvents: AnyAgentEvent[] = [
     total_iters: 3,
   },
   {
+    ...baseEventContext,
     event_type: 'thinking',
     timestamp: atOffset(22),
     agent_level: 'core',
@@ -51,6 +60,7 @@ const mockEvents: AnyAgentEvent[] = [
     message_count: 1,
   },
   {
+    ...baseEventContext,
     event_type: 'think_complete',
     timestamp: atOffset(30),
     agent_level: 'core',
@@ -59,6 +69,7 @@ const mockEvents: AnyAgentEvent[] = [
     tool_call_count: 2,
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_start',
     timestamp: atOffset(35),
     agent_level: 'core',
@@ -70,6 +81,7 @@ const mockEvents: AnyAgentEvent[] = [
     },
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_stream',
     timestamp: atOffset(40),
     agent_level: 'core',
@@ -78,6 +90,7 @@ const mockEvents: AnyAgentEvent[] = [
     is_complete: false,
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_complete',
     timestamp: atOffset(46),
     agent_level: 'core',
@@ -87,6 +100,7 @@ const mockEvents: AnyAgentEvent[] = [
     duration: 4800,
   },
   {
+    ...baseEventContext,
     event_type: 'browser_info',
     timestamp: atOffset(50),
     agent_level: 'core',
@@ -97,6 +111,7 @@ const mockEvents: AnyAgentEvent[] = [
     cdp_url: 'ws://console.example.com/devtools',
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_start',
     timestamp: atOffset(54),
     agent_level: 'core',
@@ -108,6 +123,7 @@ const mockEvents: AnyAgentEvent[] = [
     },
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_stream',
     timestamp: atOffset(58),
     agent_level: 'core',
@@ -116,6 +132,7 @@ const mockEvents: AnyAgentEvent[] = [
     is_complete: false,
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_complete',
     timestamp: atOffset(63),
     agent_level: 'core',
@@ -126,6 +143,7 @@ const mockEvents: AnyAgentEvent[] = [
     duration: 6200,
   },
   {
+    ...baseEventContext,
     event_type: 'iteration_complete',
     timestamp: atOffset(70),
     agent_level: 'core',
@@ -134,6 +152,7 @@ const mockEvents: AnyAgentEvent[] = [
     tools_run: 2,
   },
   {
+    ...baseEventContext,
     event_type: 'iteration_start',
     timestamp: atOffset(78),
     agent_level: 'core',
@@ -141,6 +160,7 @@ const mockEvents: AnyAgentEvent[] = [
     total_iters: 3,
   },
   {
+    ...baseEventContext,
     event_type: 'thinking',
     timestamp: atOffset(82),
     agent_level: 'core',
@@ -148,6 +168,7 @@ const mockEvents: AnyAgentEvent[] = [
     message_count: 1,
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_start',
     timestamp: atOffset(88),
     agent_level: 'core',
@@ -160,6 +181,7 @@ const mockEvents: AnyAgentEvent[] = [
     },
   },
   {
+    ...baseEventContext,
     event_type: 'tool_call_stream',
     timestamp: atOffset(94),
     agent_level: 'core',
@@ -168,6 +190,7 @@ const mockEvents: AnyAgentEvent[] = [
     is_complete: false,
   },
   {
+    ...baseEventContext,
     event_type: 'error',
     timestamp: atOffset(102),
     agent_level: 'core',
@@ -177,6 +200,7 @@ const mockEvents: AnyAgentEvent[] = [
     recoverable: true,
   },
   {
+    ...baseEventContext,
     event_type: 'iteration_complete',
     timestamp: atOffset(112),
     agent_level: 'core',
@@ -185,6 +209,7 @@ const mockEvents: AnyAgentEvent[] = [
     tools_run: 1,
   },
   {
+    ...baseEventContext,
     event_type: 'task_complete',
     timestamp: atOffset(150),
     agent_level: 'core',

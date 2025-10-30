@@ -10,6 +10,7 @@ import (
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	id "alex/internal/utils/id"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -187,7 +188,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	// Format results
-	return t.formatResults(call.ID, subtasks, results, mode)
+	return t.formatResults(call, subtasks, results, mode)
 }
 
 // SubtaskResult holds the result of a single subtask execution
@@ -248,12 +249,22 @@ func (t *subagent) executeSubtask(ctx context.Context, task string, index int, t
 	// Create a listener that wraps events with subtask context
 	listener := newSubtaskListener(index, totalTasks, task, parentListener, maxParallel)
 
+	ids := id.IDsFromContext(ctx)
+	subtaskCtx := ctx
+	if ids.TaskID != "" {
+		subtaskCtx = id.WithParentTaskID(subtaskCtx, ids.TaskID)
+	}
+	if ids.SessionID != "" {
+		subtaskCtx = id.WithSessionID(subtaskCtx, ids.SessionID)
+	}
+	subtaskCtx = id.WithTaskID(subtaskCtx, id.NewTaskID())
+
 	// Delegate to coordinator - it handles all the domain logic
 	// The coordinator's ExecutionPreparationService will:
 	// 1. Detect marked context via agentApp.IsSubagentContext()
 	// 2. Use GetToolRegistryWithoutSubagent() to get filtered registry
 	// 3. This prevents nested subagent calls (recursion prevention)
-	taskResult, err := t.coordinator.ExecuteTask(ctx, task, "", listener)
+	taskResult, err := t.coordinator.ExecuteTask(subtaskCtx, task, "", listener)
 
 	if err != nil {
 		return SubtaskResult{
@@ -273,7 +284,7 @@ func (t *subagent) executeSubtask(ctx context.Context, task string, index int, t
 }
 
 // formatResults formats subtask results for the LLM
-func (t *subagent) formatResults(callID string, subtasks []string, results []SubtaskResult, mode string) (*ports.ToolResult, error) {
+func (t *subagent) formatResults(call ports.ToolCall, subtasks []string, results []SubtaskResult, mode string) (*ports.ToolResult, error) {
 	var output strings.Builder
 
 	// Calculate summary statistics
@@ -318,9 +329,12 @@ func (t *subagent) formatResults(callID string, subtasks []string, results []Sub
 	metadata["results"] = string(resultsJSON)
 
 	return &ports.ToolResult{
-		CallID:   callID,
-		Content:  output.String(),
-		Metadata: metadata,
+		CallID:       call.ID,
+		Content:      output.String(),
+		Metadata:     metadata,
+		SessionID:    call.SessionID,
+		TaskID:       call.TaskID,
+		ParentTaskID: call.ParentTaskID,
 	}, nil
 }
 
@@ -390,4 +404,12 @@ func (e *SubtaskEvent) GetAgentLevel() ports.AgentLevel {
 
 func (e *SubtaskEvent) GetSessionID() string {
 	return e.OriginalEvent.GetSessionID()
+}
+
+func (e *SubtaskEvent) GetTaskID() string {
+	return e.OriginalEvent.GetTaskID()
+}
+
+func (e *SubtaskEvent) GetParentTaskID() string {
+	return e.OriginalEvent.GetParentTaskID()
 }

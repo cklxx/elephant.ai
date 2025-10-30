@@ -1,6 +1,7 @@
 package toolregistry
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -87,15 +88,64 @@ func (r *Registry) Get(name string) (ports.ToolExecutor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if tool, ok := r.static[name]; ok {
-		return tool, nil
+		return wrapWithIDPropagation(tool), nil
 	}
 	if tool, ok := r.dynamic[name]; ok {
-		return tool, nil
+		return wrapWithIDPropagation(tool), nil
 	}
 	if tool, ok := r.mcp[name]; ok {
-		return tool, nil
+		return wrapWithIDPropagation(tool), nil
 	}
 	return nil, fmt.Errorf("tool not found: %s", name)
+}
+
+// wrapWithIDPropagation ensures that tool results always include the originating call's lineage identifiers.
+func wrapWithIDPropagation(tool ports.ToolExecutor) ports.ToolExecutor {
+	if tool == nil {
+		return nil
+	}
+	if _, ok := tool.(*idAwareExecutor); ok {
+		return tool
+	}
+	return &idAwareExecutor{delegate: tool}
+}
+
+type idAwareExecutor struct {
+	delegate ports.ToolExecutor
+}
+
+func (w *idAwareExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	result, err := w.delegate.Execute(ctx, call)
+	if result != nil {
+		if result.CallID == "" {
+			result.CallID = call.ID
+		}
+		if result.SessionID == "" {
+			result.SessionID = call.SessionID
+		}
+		if result.TaskID == "" {
+			result.TaskID = call.TaskID
+		}
+		if result.ParentTaskID == "" {
+			result.ParentTaskID = call.ParentTaskID
+		}
+	}
+	return result, err
+}
+
+func (w *idAwareExecutor) Definition() ports.ToolDefinition {
+	return w.delegate.Definition()
+}
+
+func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
+	return w.delegate.Metadata()
+}
+
+func (w *idAwareExecutor) Mode() tools.ExecutionMode {
+	if modeAware, ok := w.delegate.(interface{ Mode() tools.ExecutionMode }); ok {
+		return modeAware.Mode()
+	}
+	return tools.ExecutionModeUnknown
 }
 
 // WithoutSubagent returns a filtered registry that excludes the subagent tool
@@ -223,7 +273,18 @@ func (r *Registry) registerBuiltins(config Config) error {
 func (r *Registry) RegisterSubAgent(coordinator ports.AgentCoordinator) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if coordinator != nil {
-		r.static["subagent"] = builtin.NewSubAgent(coordinator, 3)
+	if coordinator == nil {
+		return
 	}
+
+	if _, exists := r.static["subagent"]; exists {
+		if _, ok := r.static["explore"]; !ok {
+			r.static["explore"] = builtin.NewExplore(r.static["subagent"])
+		}
+		return
+	}
+
+	subTool := builtin.NewSubAgent(coordinator, 3)
+	r.static["subagent"] = subTool
+	r.static["explore"] = builtin.NewExplore(subTool)
 }

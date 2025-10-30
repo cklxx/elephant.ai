@@ -62,11 +62,14 @@ const (
 
 // OutputContext provides hierarchical context for rendering.
 type OutputContext struct {
-	Level    AgentLevel
-	Category ToolCategory
-	AgentID  string
-	ParentID string
-	Verbose  bool
+	Level        AgentLevel
+	Category     ToolCategory
+	AgentID      string
+	ParentID     string
+	Verbose      bool
+	SessionID    string
+	TaskID       string
+	ParentTaskID string
 }
 
 type outputContextKey struct{}
@@ -84,9 +87,12 @@ func GetOutputContext(ctx context.Context) *OutputContext {
 		return val
 	}
 	return &OutputContext{
-		Level:   LevelCore,
-		AgentID: "core",
-		Verbose: false,
+		Level:        LevelCore,
+		AgentID:      "core",
+		Verbose:      false,
+		SessionID:    "",
+		TaskID:       "",
+		ParentTaskID: "",
 	}
 }
 

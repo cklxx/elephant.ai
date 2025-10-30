@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	id "alex/internal/utils/id"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -122,6 +124,17 @@ func (tp *TracerProvider) Tracer() trace.Tracer {
 
 // StartSpan starts a new span
 func (tp *TracerProvider) StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
+	ids := id.IDsFromContext(ctx)
+	if ids.SessionID != "" {
+		attrs = append(attrs, attribute.String(AttrSessionID, ids.SessionID))
+	}
+	if ids.TaskID != "" {
+		attrs = append(attrs, attribute.String(AttrTaskID, ids.TaskID))
+	}
+	if ids.ParentTaskID != "" {
+		attrs = append(attrs, attribute.String(AttrParentTaskID, ids.ParentTaskID))
+	}
+
 	return tp.tracer.Start(ctx, name, trace.WithAttributes(attrs...))
 }
 
@@ -136,6 +149,8 @@ const (
 // Common attribute keys
 const (
 	AttrSessionID    = "alex.session_id"
+	AttrTaskID       = "alex.task_id"
+	AttrParentTaskID = "alex.parent_task_id"
 	AttrToolName     = "alex.tool_name"
 	AttrModel        = "alex.llm.model"
 	AttrTokenCount   = "alex.llm.token_count"

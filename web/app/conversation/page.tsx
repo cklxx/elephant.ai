@@ -12,10 +12,10 @@ import { useConfirmDialog } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea, InputBar } from '@/components/layout';
 import { buildToolCallSummaries } from '@/lib/eventAggregation';
-import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
+import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 
-function ConversationPageContent() {
+export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
@@ -90,6 +90,8 @@ function ConversationPageContent() {
       event_type: 'user_task' as const,
       timestamp: new Date().toISOString(),
       agent_level: 'core' as const,
+      session_id: resolvedSessionId ?? 'pending-session',
+      task_id: taskId ?? undefined,
       task,
     };
     addEvent(userEvent);
@@ -104,32 +106,61 @@ function ConversationPageContent() {
       return;
     }
 
-    executeTask(
-      {
-        task,
-        session_id: resolvedSessionId || undefined,
-      },
-      {
-        onSuccess: (data) => {
-          console.log('[ConversationPage] Task execution started:', data);
-          setSessionId(data.session_id);
-          setTaskId(data.task_id);
-          setCurrentSession(data.session_id);
-          addToHistory(data.session_id);
+    const initialSessionId = resolvedSessionId;
+    let retriedWithoutSession = false;
+
+    const runExecution = (requestedSessionId: string | null) => {
+      executeTask(
+        {
+          task,
+          session_id: requestedSessionId ?? undefined,
         },
-        onError: (error) => {
-          console.error(
-            '[ConversationPage] Task execution error:',
-            getErrorLogPayload(error)
-          );
-          const parsed = parseError(error, t('common.error.unknown'));
-          toast.error(
-            t('console.toast.taskFailed'),
-            formatParsedError(parsed)
-          );
-        },
-      }
-    );
+        {
+          onSuccess: (data) => {
+            console.log('[ConversationPage] Task execution started:', data);
+            setSessionId(data.session_id);
+            setTaskId(data.task_id);
+            setCurrentSession(data.session_id);
+            addToHistory(data.session_id);
+          },
+          onError: (error) => {
+            const isStaleSession =
+              !retriedWithoutSession &&
+              !!requestedSessionId &&
+              isAPIError(error) &&
+              error.status === 404;
+
+            if (isStaleSession) {
+              retriedWithoutSession = true;
+              console.warn('[ConversationPage] Session not found, retrying without session_id', {
+                sessionId: requestedSessionId,
+                error: getErrorLogPayload(error),
+              });
+
+              setSessionId(null);
+              setTaskId(null);
+              clearCurrentSession();
+              removeSession(requestedSessionId);
+
+              runExecution(null);
+              return;
+            }
+
+            console.error(
+              '[ConversationPage] Task execution error:',
+              getErrorLogPayload(error)
+            );
+            const parsed = parseError(error, t('common.error.unknown'));
+            toast.error(
+              t('console.toast.taskFailed'),
+              formatParsedError(parsed)
+            );
+          },
+        }
+      );
+    };
+
+    runExecution(initialSessionId ?? null);
   };
 
   const handleNewSession = () => {
@@ -163,6 +194,9 @@ function ConversationPageContent() {
         removeSession(id);
         if (resolvedSessionId === id) {
           clearEvents();
+          setSessionId(null);
+          setTaskId(null);
+          clearCurrentSession();
         }
         toast.success(t('sidebar.session.toast.deleteSuccess'));
       } catch (err) {

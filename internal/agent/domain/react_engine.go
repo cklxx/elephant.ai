@@ -139,8 +139,8 @@ func (e *ReactEngine) emitEvent(event AgentEvent) {
 	}
 }
 
-func (e *ReactEngine) newBaseEvent(ctx context.Context, sessionID string) BaseEvent {
-	return newBaseEventWithSession(e.getAgentLevel(ctx), sessionID, e.clock.Now())
+func (e *ReactEngine) newBaseEvent(ctx context.Context, sessionID, taskID, parentTaskID string) BaseEvent {
+	return newBaseEventWithIDs(e.getAgentLevel(ctx), sessionID, taskID, parentTaskID, e.clock.Now())
 }
 
 // SolveTask is the main ReAct loop - pure business logic
@@ -180,7 +180,7 @@ func (e *ReactEngine) SolveTask(
 
 			// EMIT: Task complete with cancellation
 			e.emitEvent(&TaskCompleteEvent{
-				BaseEvent:       e.newBaseEvent(ctx, state.SessionID),
+				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 				FinalAnswer:     finalResult.Answer,
 				TotalIterations: finalResult.Iterations,
 				TotalTokens:     finalResult.TokensUsed,
@@ -196,7 +196,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Iteration started
 		e.emitEvent(&IterationStartEvent{
-			BaseEvent:  e.newBaseEvent(ctx, state.SessionID),
+			BaseEvent:  e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration:  state.Iterations,
 			TotalIters: e.maxIterations,
 		})
@@ -206,7 +206,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Thinking
 		e.emitEvent(&ThinkingEvent{
-			BaseEvent:    e.newBaseEvent(ctx, state.SessionID),
+			BaseEvent:    e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration:    state.Iterations,
 			MessageCount: len(state.Messages),
 		})
@@ -216,7 +216,7 @@ func (e *ReactEngine) SolveTask(
 			e.logger.Error("Think step failed: %v", err)
 			// EMIT: Error
 			e.emitEvent(&ErrorEvent{
-				BaseEvent:   e.newBaseEvent(ctx, state.SessionID),
+				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 				Iteration:   state.Iterations,
 				Phase:       "think",
 				Error:       err,
@@ -232,7 +232,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Think complete
 		e.emitEvent(&ThinkCompleteEvent{
-			BaseEvent:     e.newBaseEvent(ctx, state.SessionID),
+			BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration:     state.Iterations,
 			Content:       thought.Content,
 			ToolCallCount: len(thought.ToolCalls),
@@ -280,9 +280,10 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
 
 		// EMIT: Tool calls starting
-		for _, call := range validCalls {
+		for idx := range validCalls {
+			call := validCalls[idx]
 			e.emitEvent(&ToolCallStartEvent{
-				BaseEvent: e.newBaseEvent(ctx, state.SessionID),
+				BaseEvent: e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 				Iteration: state.Iterations,
 				CallID:    call.ID,
 				ToolName:  call.Name,
@@ -290,7 +291,7 @@ func (e *ReactEngine) SolveTask(
 			})
 		}
 
-		results := e.executeToolsWithEvents(ctx, state.SessionID, state.Iterations, validCalls, services.ToolExecutor)
+		results := e.executeToolsWithEvents(ctx, state.SessionID, state.TaskID, state.ParentTaskID, state.Iterations, validCalls, services.ToolExecutor)
 		state.ToolResults = append(state.ToolResults, results...)
 
 		// Log results (no stdout printing - let TUI handle display)
@@ -314,7 +315,7 @@ func (e *ReactEngine) SolveTask(
 
 		// EMIT: Iteration complete
 		e.emitEvent(&IterationCompleteEvent{
-			BaseEvent:  e.newBaseEvent(ctx, state.SessionID),
+			BaseEvent:  e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration:  state.Iterations,
 			TokensUsed: state.TokenCount,
 			ToolsRun:   len(results),
@@ -346,7 +347,7 @@ func (e *ReactEngine) SolveTask(
 
 	// EMIT: Task complete
 	e.emitEvent(&TaskCompleteEvent{
-		BaseEvent:       e.newBaseEvent(ctx, state.SessionID),
+		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		FinalAnswer:     finalResult.Answer,
 		TotalIterations: finalResult.Iterations,
 		TotalTokens:     finalResult.TokensUsed,
@@ -401,7 +402,7 @@ func (e *ReactEngine) think(
 // executeToolsWithEvents runs all tool calls in parallel and emits completion events
 func (e *ReactEngine) executeToolsWithEvents(
 	ctx context.Context,
-	sessionID string,
+	sessionID, taskID, parentTaskID string,
 	iteration int,
 	calls []ToolCall,
 	registry ports.ToolRegistry,
@@ -416,6 +417,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 		go func(idx int, tc ToolCall) {
 			defer wg.Done()
 
+			tc.SessionID = sessionID
+			tc.TaskID = taskID
+			tc.ParentTaskID = parentTaskID
+
 			startTime := e.clock.Now()
 
 			e.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
@@ -424,7 +429,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: e.newBaseEvent(ctx, sessionID),
+					BaseEvent: e.newBaseEvent(ctx, sessionID, taskID, parentTaskID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -432,9 +437,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 					Duration:  e.clock.Now().Sub(startTime),
 				})
 				results[idx] = ToolResult{
-					CallID:  tc.ID,
-					Content: "",
-					Error:   fmt.Errorf("tool not found: %s", tc.Name),
+					CallID:       tc.ID,
+					Content:      "",
+					Error:        fmt.Errorf("tool not found: %s", tc.Name),
+					SessionID:    sessionID,
+					TaskID:       taskID,
+					ParentTaskID: parentTaskID,
 				}
 				return
 			}
@@ -446,7 +454,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: e.newBaseEvent(ctx, sessionID),
+					BaseEvent: e.newBaseEvent(ctx, sessionID, taskID, parentTaskID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -454,9 +462,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 					Duration:  e.clock.Now().Sub(startTime),
 				})
 				results[idx] = ToolResult{
-					CallID:  tc.ID,
-					Content: "",
-					Error:   err,
+					CallID:       tc.ID,
+					Content:      "",
+					Error:        err,
+					SessionID:    sessionID,
+					TaskID:       taskID,
+					ParentTaskID: parentTaskID,
 				}
 				return
 			}
@@ -465,7 +476,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 
 			// EMIT: Tool success
 			e.emitEvent(&ToolCallCompleteEvent{
-				BaseEvent: e.newBaseEvent(ctx, sessionID),
+				BaseEvent: e.newBaseEvent(ctx, sessionID, taskID, parentTaskID),
 				CallID:    result.CallID,
 				ToolName:  tc.Name,
 				Result:    result.Content,
@@ -474,16 +485,32 @@ func (e *ReactEngine) executeToolsWithEvents(
 				Metadata:  result.Metadata,
 			})
 
+			if result.CallID == "" {
+				result.CallID = tc.ID
+			}
+			if result.SessionID == "" {
+				result.SessionID = sessionID
+			}
+			if result.TaskID == "" {
+				result.TaskID = taskID
+			}
+			if result.ParentTaskID == "" {
+				result.ParentTaskID = parentTaskID
+			}
+
 			results[idx] = ToolResult{
-				CallID:   result.CallID,
-				Content:  result.Content,
-				Error:    result.Error,
-				Metadata: result.Metadata,
+				CallID:       result.CallID,
+				Content:      result.Content,
+				Error:        result.Error,
+				Metadata:     result.Metadata,
+				SessionID:    result.SessionID,
+				TaskID:       result.TaskID,
+				ParentTaskID: result.ParentTaskID,
 			}
 
 			if result.Metadata != nil {
 				if info, ok := result.Metadata["browser_info"].(map[string]any); ok {
-					e.emitBrowserInfoEvent(ctx, sessionID, info)
+					e.emitBrowserInfoEvent(ctx, sessionID, taskID, parentTaskID, info)
 				}
 			}
 		}(i, call)
@@ -560,7 +587,7 @@ func coerceToInt(value any) int {
 	}
 }
 
-func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID string, metadata map[string]any) {
+func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID, taskID, parentTaskID string, metadata map[string]any) {
 	level := ports.GetOutputContext(ctx).Level
 	captured := e.clock.Now()
 	if tsRaw, ok := metadata["captured_at"].(string); ok {
@@ -586,7 +613,7 @@ func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID string
 	viewportWidth := coerceToInt(metadata["viewport_width"])
 	viewportHeight := coerceToInt(metadata["viewport_height"])
 
-	event := NewBrowserInfoEvent(level, sessionID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
+	event := NewBrowserInfoEvent(level, sessionID, taskID, parentTaskID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
 	e.emitEvent(event)
 }
 
@@ -602,11 +629,14 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult 
 	}
 
 	return &TaskResult{
-		Answer:     finalAnswer,
-		Messages:   state.Messages,
-		Iterations: state.Iterations,
-		TokensUsed: state.TokenCount,
-		StopReason: stopReason,
+		Answer:       finalAnswer,
+		Messages:     state.Messages,
+		Iterations:   state.Iterations,
+		TokensUsed:   state.TokenCount,
+		StopReason:   stopReason,
+		SessionID:    state.SessionID,
+		TaskID:       state.TaskID,
+		ParentTaskID: state.ParentTaskID,
 	}
 }
 

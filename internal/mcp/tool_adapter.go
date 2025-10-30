@@ -41,8 +41,11 @@ func (t *ToolAdapter) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if err != nil {
 		t.logger.Error("MCP tool call failed: %v", err)
 		return &ports.ToolResult{
-			CallID: call.ID,
-			Error:  fmt.Errorf("MCP tool call failed: %w", err),
+			CallID:       call.ID,
+			Error:        fmt.Errorf("MCP tool call failed: %w", err),
+			SessionID:    call.SessionID,
+			TaskID:       call.TaskID,
+			ParentTaskID: call.ParentTaskID,
 		}, nil
 	}
 
@@ -51,8 +54,11 @@ func (t *ToolAdapter) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		errMsg := t.formatContent(result.Content)
 		t.logger.Warn("MCP tool returned error: %s", errMsg)
 		return &ports.ToolResult{
-			CallID: call.ID,
-			Error:  fmt.Errorf("MCP tool error: %s", errMsg),
+			CallID:       call.ID,
+			Error:        fmt.Errorf("MCP tool error: %s", errMsg),
+			SessionID:    call.SessionID,
+			TaskID:       call.TaskID,
+			ParentTaskID: call.ParentTaskID,
 		}, nil
 	}
 
@@ -61,8 +67,11 @@ func (t *ToolAdapter) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	t.logger.Debug("MCP tool succeeded: content_length=%d", len(content))
 
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: content,
+		CallID:       call.ID,
+		Content:      content,
+		SessionID:    call.SessionID,
+		TaskID:       call.TaskID,
+		ParentTaskID: call.ParentTaskID,
 		Metadata: map[string]any{
 			"mcp_server": t.serverName,
 			"tool_name":  t.toolSchema.Name,

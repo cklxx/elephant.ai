@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -123,7 +124,14 @@ func (m *SandboxManager) Initialize(ctx context.Context) error {
 			return
 		}
 
-		m.client = sandboxclient.NewClient(option.WithBaseURL(m.baseURL))
+		// Create HTTP client with generous timeout for long-running commands (npm install, vite create, etc.)
+		httpClient := &http.Client{
+			Timeout: 10 * time.Minute,
+		}
+		m.client = sandboxclient.NewClient(
+			option.WithBaseURL(m.baseURL),
+			option.WithHTTPClient(httpClient),
+		)
 		step++
 		diagnostics.PublishSandboxProgress(diagnostics.SandboxProgressPayload{
 			Status:     diagnostics.SandboxProgressRunning,

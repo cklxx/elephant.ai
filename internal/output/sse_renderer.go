@@ -39,10 +39,13 @@ func (r *SSERenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain
 		Type:      "task_analysis",
 		Timestamp: event.Timestamp(),
 		Data: map[string]interface{}{
-			"action":   event.ActionName,
-			"goal":     event.Goal,
-			"level":    string(ctx.Level),
-			"agent_id": ctx.AgentID,
+			"action":         event.ActionName,
+			"goal":           event.Goal,
+			"level":          string(ctx.Level),
+			"agent_id":       ctx.AgentID,
+			"session_id":     ctx.SessionID,
+			"task_id":        event.GetTaskID(),
+			"parent_task_id": event.GetParentTaskID(),
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -56,11 +59,14 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 		Type:      "tool_call_start",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"tool":     toolName,
-			"args":     args,
-			"category": string(CategorizeToolName(toolName)),
-			"level":    string(ctx.Level),
-			"agent_id": ctx.AgentID,
+			"tool":           toolName,
+			"args":           args,
+			"category":       string(CategorizeToolName(toolName)),
+			"level":          string(ctx.Level),
+			"agent_id":       ctx.AgentID,
+			"session_id":     ctx.SessionID,
+			"task_id":        ctx.TaskID,
+			"parent_task_id": ctx.ParentTaskID,
 		},
 	}
 
@@ -77,11 +83,14 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 // RenderToolCallComplete renders tool call completion as SSE event with hierarchy
 func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
 	data := map[string]interface{}{
-		"tool":     toolName,
-		"category": string(CategorizeToolName(toolName)),
-		"duration": duration.Milliseconds(),
-		"level":    string(ctx.Level),
-		"agent_id": ctx.AgentID,
+		"tool":           toolName,
+		"category":       string(CategorizeToolName(toolName)),
+		"duration":       duration.Milliseconds(),
+		"level":          string(ctx.Level),
+		"agent_id":       ctx.AgentID,
+		"session_id":     ctx.SessionID,
+		"task_id":        ctx.TaskID,
+		"parent_task_id": ctx.ParentTaskID,
 	}
 
 	if err != nil {
@@ -104,12 +113,15 @@ func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 		Type:      "task_complete",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"answer":      result.Answer,
-			"iterations":  result.Iterations,
-			"tokens":      result.TokensUsed,
-			"stop_reason": result.StopReason,
-			"level":       string(ctx.Level),
-			"agent_id":    ctx.AgentID,
+			"answer":         result.Answer,
+			"iterations":     result.Iterations,
+			"tokens":         result.TokensUsed,
+			"stop_reason":    result.StopReason,
+			"level":          string(ctx.Level),
+			"agent_id":       ctx.AgentID,
+			"session_id":     ctx.SessionID,
+			"task_id":        ctx.TaskID,
+			"parent_task_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -121,10 +133,13 @@ func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err er
 		Type:      "error",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"phase":    phase,
-			"error":    err.Error(),
-			"level":    string(ctx.Level),
-			"agent_id": ctx.AgentID,
+			"phase":          phase,
+			"error":          err.Error(),
+			"level":          string(ctx.Level),
+			"agent_id":       ctx.AgentID,
+			"session_id":     ctx.SessionID,
+			"task_id":        ctx.TaskID,
+			"parent_task_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -136,11 +151,14 @@ func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed
 		Type:      "subagent_progress",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"completed":  completed,
-			"total":      total,
-			"tokens":     tokens,
-			"tool_calls": toolCalls,
-			"agent_id":   ctx.AgentID,
+			"completed":      completed,
+			"total":          total,
+			"tokens":         tokens,
+			"tool_calls":     toolCalls,
+			"agent_id":       ctx.AgentID,
+			"session_id":     ctx.SessionID,
+			"task_id":        ctx.TaskID,
+			"parent_task_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -152,12 +170,15 @@ func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 		Type:      "subagent_complete",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"total":      total,
-			"success":    success,
-			"failed":     failed,
-			"tokens":     tokens,
-			"tool_calls": toolCalls,
-			"agent_id":   ctx.AgentID,
+			"total":          total,
+			"success":        success,
+			"failed":         failed,
+			"tokens":         tokens,
+			"tool_calls":     toolCalls,
+			"agent_id":       ctx.AgentID,
+			"session_id":     ctx.SessionID,
+			"task_id":        ctx.TaskID,
+			"parent_task_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
