@@ -42,9 +42,18 @@ RUN pip3 install --no-cache-dir --upgrade \
     wheel \
     build
 
+# Remove system-installed packages that cause conflicts
+RUN apt-get update && apt-get remove -y python3-blinker python3-click 2>/dev/null || true
+
+# Force reinstall conflicting packages first to avoid distutils issues
+RUN pip3 install --no-cache-dir --force-reinstall --no-deps \
+    blinker \
+    click \
+    itsdangerous \
+    werkzeug
+
 # Install common Python development and data science packages
-# Use --ignore-installed to avoid conflicts with system packages
-RUN pip3 install --no-cache-dir --ignore-installed \
+RUN pip3 install --no-cache-dir \
     # Web & API
     requests \
     httpx \
