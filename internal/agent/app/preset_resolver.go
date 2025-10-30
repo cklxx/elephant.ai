@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"os"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
@@ -202,12 +201,7 @@ func (r *PresetResolver) resolveToolPreset(ctx context.Context, configPreset str
 
 // loadDefaultPrompt loads the default system prompt using the prompt loader.
 func (r *PresetResolver) loadDefaultPrompt(task string, analysis *ports.TaskAnalysisInfo) string {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		workingDir = "."
-	}
-
-	prompt, err := r.promptLoader.GetSystemPrompt(workingDir, task, analysis)
+	prompt, err := r.promptLoader.GetSystemPrompt("", task, analysis)
 	if err != nil {
 		r.logger.Warn("Failed to load system prompt: %v, using fallback", err)
 		return "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."

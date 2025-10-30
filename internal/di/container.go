@@ -212,7 +212,7 @@ func BuildContainer(config Config) (*Container, error) {
 	tracker := newMCPInitializationTracker()
 
 	// Prompt Loader - implements ports.PromptLoader interface
-	promptLoader := prompts.New()
+	promptLoader := prompts.New(prompts.WithSandbox(sandboxManager))
 
 	// Application Layer
 	coordinator := agentApp.NewAgentCoordinator(

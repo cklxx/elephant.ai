@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"alex/internal/agent/app"
-	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
-	"alex/internal/prompts"
+	"alex/internal/environment"
 )
 
 // Container wraps the DI container for CLI use
@@ -27,8 +26,8 @@ func buildContainer() (*Container, error) {
 	}
 
 	// Build DI container with configurable storage
-	hostEnv := runtimeconfig.SnapshotProcessEnv()
-	environmentSummary := prompts.FormatEnvironmentSummary(hostEnv, nil)
+	localSummary := environment.CollectLocalSummary(20)
+	environmentSummary := environment.FormatSummary(localSummary)
 
 	diConfig := di.Config{
 		LLMProvider:        cfg.LLMProvider,
@@ -64,15 +63,21 @@ func buildContainer() (*Container, error) {
 		Runtime:     cfg,
 	}
 
+	if environmentSummary != "" {
+		result.Coordinator.SetEnvironmentSummary(environmentSummary)
+	}
+
 	if container.SandboxManager != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if sandboxEnv, err := container.SandboxManager.Environment(ctx); err != nil {
-			fmt.Printf("warning: failed to fetch sandbox environment: %v\n", err)
+		if sandboxSummary, err := environment.CollectSandboxSummary(ctx, container.SandboxManager, 20); err != nil {
+			fmt.Printf("warning: failed to describe sandbox environment: %v\n", err)
 		} else {
-			environmentSummary = prompts.FormatEnvironmentSummary(hostEnv, sandboxEnv)
-			result.Coordinator.SetEnvironmentSummary(environmentSummary)
+			environmentSummary = environment.FormatSummary(sandboxSummary)
+			if environmentSummary != "" {
+				result.Coordinator.SetEnvironmentSummary(environmentSummary)
+			}
 		}
 	}
 
