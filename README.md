@@ -165,6 +165,9 @@ variables (e.g. `OPENAI_API_KEY`, `ALEX_ENABLE_MCP`).
 make server-run                 # start alex-server on :8080
 (cd web && npm install)
 (cd web && npm run dev)         # start Next.js dev server on :3000
+# or run ./deploy.sh to build the backend, launch the web dev server locally,
+# and automatically start the sandbox container in Docker
+./deploy.sh
 ```
 
 The server exposes:
@@ -178,18 +181,27 @@ The server exposes:
 ### Docker Compose
 
 ```bash
-docker-compose up -d            # start Go backend + Next.js frontend
+docker-compose up -d            # start Go backend, sandbox runtime, and Next.js frontend
+./deploy.sh docker up           # auto-detect docker compose and start the stack
 ```
 
 Set credentials in `.env` (e.g. `OPENAI_API_KEY`, provider endpoints) before starting containers.
+The compose stack now launches a dedicated `alex-sandbox` container and configures the
+server with `ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080` so file/shell/code tools use the
+isolated sandbox runtime while retaining the shared `skills/` guides inside that container.
 
 ### Testing
 
 ```bash
 make test                       # run Go unit tests
-npm --prefix web test           # run Vitest suite for the web app
-npm --prefix web run test:e2e   # execute Playwright end-to-end tests
+npm --prefix web test -- --run  # run Vitest suite for the web app (non-watch mode)
+npm --prefix web run e2e        # execute Playwright end-to-end tests
+./deploy.sh test                # run all of the above sequentially
 ```
+
+> **Note:** On a fresh machine, install Playwright browsers once via
+> `npx --prefix web playwright install` (add `--with-deps` on Linux if system
+> libraries are missing).
 
 Evaluation jobs can be executed via:
 

@@ -16,12 +16,14 @@ services:
       - ALEX_VERBOSE=${ALEX_VERBOSE:-false}
       - SESSION_STORE_PATH=/data/sessions
       - REDIS_URL=${REDIS_URL:-}
+      - ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
     volumes:
       - alex-sessions:/data/sessions
       - ./:/workspace:cached  # Mount workspace for development
     restart: unless-stopped
     depends_on:
       - redis
+      - sandbox
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -69,6 +71,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - alex-network
+
+  sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    container_name: alex-sandbox
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./skills:/workspace/skills:ro
+    restart: unless-stopped
     networks:
       - alex-network
 

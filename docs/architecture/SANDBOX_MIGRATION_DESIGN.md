@@ -664,7 +664,7 @@ The diagnostics hook reuses the SSE feed populated by `PublishEnvironments`, ens
 
 ```bash
 # Existing (used by both CLI and server)
-ALEX_SANDBOX_BASE_URL=http://localhost:8888
+ALEX_SANDBOX_BASE_URL=http://localhost:8090
 
 # New (optional - for explicit mode override)
 ALEX_EXECUTION_MODE=auto|local|sandbox  # auto = detect from process type
@@ -869,7 +869,7 @@ func TestFileRead_SandboxMode(t *testing.T) {
 ```go
 func TestSandboxManager_Initialize(t *testing.T) {
     // Test initialization with valid URL
-    mgr := NewSandboxManager("http://localhost:8888")
+    mgr := NewSandboxManager("http://localhost:8090")
     err := mgr.Initialize(context.Background())
     assert.NoError(t, err)
     assert.NotNil(t, mgr.File())
@@ -878,7 +878,7 @@ func TestSandboxManager_Initialize(t *testing.T) {
 
 func TestSandboxManager_InitializeOnce(t *testing.T) {
     // Test singleton pattern
-    mgr := NewSandboxManager("http://localhost:8888")
+    mgr := NewSandboxManager("http://localhost:8090")
 
     var wg sync.WaitGroup
     for i := 0; i < 10; i++ {
@@ -959,7 +959,7 @@ hello world
 #### 4.3.2 Server E2E Test
 ```bash
 # Start server with sandbox
-$ ALEX_SANDBOX_BASE_URL=http://localhost:8888 ./alex-server
+$ ALEX_SANDBOX_BASE_URL=http://localhost:8090 ./alex-server
 
 # Submit task via API
 $ curl -X POST http://localhost:8080/api/tasks \
@@ -1092,7 +1092,7 @@ $ ./alex "Find all occurrences of 'func main' in this directory"
 **Server Mode (Sandbox Execution):**
 ```bash
 # Test 1: Start server with sandbox
-$ ALEX_SANDBOX_BASE_URL=http://localhost:8888 ./alex-server
+$ ALEX_SANDBOX_BASE_URL=http://localhost:8090 ./alex-server
 ✓ Server starts successfully
 ✓ Logs show "Sandbox initialized successfully"
 ✓ Health check passes

@@ -1,0 +1,10 @@
+# Sandbox runtime image with bundled skills
+FROM ghcr.io/agent-infra/sandbox:latest
+
+WORKDIR /workspace
+
+# Copy skills into sandbox runtime so file tools can access them without host mounts
+COPY skills /workspace/skills
+
+# Ensure permissions are readable for the sandbox user (if present)
+RUN chmod -R a+r /workspace/skills || true

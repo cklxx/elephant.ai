@@ -22,7 +22,7 @@ const (
 )
 
 // DefaultSandboxBaseURL provides the local sandbox endpoint used when no value is configured.
-const DefaultSandboxBaseURL = "http://localhost:8888"
+const DefaultSandboxBaseURL = "http://localhost:8090"
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {

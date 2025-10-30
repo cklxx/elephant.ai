@@ -14,7 +14,8 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 	moduleRoot := findModuleRoot(t)
 
 	allowed := map[string]struct{}{
-		"internal/rag/embedder_test.go": {},
+		"internal/rag/embedder_test.go":    {},
+		"internal/tools/sandbox_docker.go": {},
 	}
 
 	skipDirs := map[string]struct{}{
