@@ -143,7 +143,16 @@ func BuildContainer(config Config) (*Container, error) {
 	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex-sessions")
 	costDir := resolveStorageDir(config.CostDir, "~/.alex-costs")
 
-	logger.Debug("Building container with session_dir=%s, cost_dir=%s", sessionDir, costDir)
+	// Mask secrets before logging
+	var apiKeyMasked, tavilyKeyMasked string
+	if config.APIKey != "" {
+		apiKeyMasked = redaction.Placeholder
+	}
+	if config.TavilyAPIKey != "" {
+		tavilyKeyMasked = redaction.Placeholder
+	}
+	logger.Debug("Building container with session_dir=%s, cost_dir=%s, api_key=%s, tavily_api_key=%s",
+		sessionDir, costDir, apiKeyMasked, tavilyKeyMasked)
 
 	// Infrastructure Layer
 	llmFactory := llm.NewFactory()
