@@ -27,6 +27,12 @@ readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
 readonly WEB_PID_FILE="${PID_DIR}/web.pid"
 readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
+readonly BIN_DIR="${SCRIPT_DIR}/.bin"
+readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
+
+readonly DEFAULT_DOCKER_COMPOSE_VERSION="v2.29.7"
+DOCKER_COMPOSE_VERSION="${DOCKER_COMPOSE_VERSION:-${DEFAULT_DOCKER_COMPOSE_VERSION}}"
+DOCKER_COMPOSE_CMD=()
 
 # Colors
 readonly C_RED='\033[0;31m'
@@ -54,6 +60,10 @@ log_error() {
 
 log_warn() {
     echo -e "${C_YELLOW}⚠${C_RESET} $*"
+}
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
 banner() {
@@ -208,6 +218,94 @@ EOF
         echo "NEXT_PUBLIC_API_URL=http://localhost:$SERVER_PORT" > web/.env.development
         log_success "Created web/.env.development"
     fi
+}
+
+ensure_docker_compose() {
+    if [[ ${#DOCKER_COMPOSE_CMD[@]} -gt 0 ]]; then
+        return
+    fi
+
+    if ! command_exists docker; then
+        die "Docker is required for docker-compose deployments"
+    fi
+
+    if docker compose version >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD=(docker compose)
+        return
+    fi
+
+    if command_exists docker-compose; then
+        DOCKER_COMPOSE_CMD=("$(command -v docker-compose)")
+        return
+    fi
+
+    if [[ -x "$DOCKER_COMPOSE_BIN" ]]; then
+        DOCKER_COMPOSE_CMD=("$DOCKER_COMPOSE_BIN")
+        return
+    fi
+
+    download_docker_compose
+}
+
+download_docker_compose() {
+    local os
+    local arch
+    local url
+
+    case "$(uname -s)" in
+        Linux*)
+            os="Linux"
+            ;;
+        Darwin*)
+            os="Darwin"
+            ;;
+        *)
+            die "Unsupported OS for automatic docker-compose installation"
+            ;;
+    esac
+
+    case "$(uname -m)" in
+        x86_64|amd64)
+            arch="x86_64"
+            ;;
+        arm64|aarch64)
+            arch="aarch64"
+            ;;
+        *)
+            die "Unsupported architecture for automatic docker-compose installation"
+            ;;
+    esac
+
+    url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-${os}-${arch}"
+
+    log_info "Downloading docker-compose ${DOCKER_COMPOSE_VERSION}..."
+    mkdir -p "$BIN_DIR"
+
+    if command_exists curl; then
+        if ! curl -fsSL "$url" -o "$DOCKER_COMPOSE_BIN"; then
+            die "Failed to download docker-compose with curl from $url"
+        fi
+    elif command_exists wget; then
+        if ! wget -q "$url" -O "$DOCKER_COMPOSE_BIN"; then
+            die "Failed to download docker-compose with wget from $url"
+        fi
+    else
+        die "Neither curl nor wget is available to download docker-compose"
+    fi
+
+    chmod +x "$DOCKER_COMPOSE_BIN"
+
+    if ! "$DOCKER_COMPOSE_BIN" version >/dev/null 2>&1; then
+        die "Downloaded docker-compose binary failed to execute"
+    fi
+
+    log_success "docker-compose installed at $DOCKER_COMPOSE_BIN"
+    DOCKER_COMPOSE_CMD=("$DOCKER_COMPOSE_BIN")
+}
+
+run_docker_compose() {
+    ensure_docker_compose
+    "${DOCKER_COMPOSE_CMD[@]}" "$@"
 }
 
 ###############################################################################
@@ -421,6 +519,72 @@ cmd_logs() {
     esac
 }
 
+cmd_docker() {
+    local action=${1:-up}
+    if (($# > 0)); then
+        shift
+    fi
+
+    case $action in
+        up|start)
+            log_info "Starting docker-compose services..."
+            run_docker_compose up -d
+            log_success "Docker services are running"
+            ;;
+        down|stop)
+            log_info "Stopping docker-compose services..."
+            run_docker_compose down
+            log_success "Docker services stopped"
+            ;;
+        logs)
+            local target=${1:-}
+            if [[ -n "$target" ]]; then
+                log_info "Tailing logs for service: $target"
+                run_docker_compose logs -f "$target"
+            else
+                log_info "Tailing logs for all services"
+                run_docker_compose logs -f
+            fi
+            ;;
+        ps|status)
+            log_info "Listing docker-compose services"
+            run_docker_compose ps
+            ;;
+        pull)
+            log_info "Pulling docker images..."
+            run_docker_compose pull
+            log_success "Images updated"
+            ;;
+        help|-h|--help)
+            cmd_docker_help
+            ;;
+        *)
+            log_error "Unknown docker command: $action"
+            cmd_docker_help
+            exit 1
+            ;;
+    esac
+}
+
+cmd_docker_help() {
+    cat << EOF
+
+${C_CYAN}Docker Compose Deployment${C_RESET}
+
+${C_YELLOW}Usage:${C_RESET}
+  ./deploy.sh docker [command]
+
+${C_YELLOW}Commands:${C_RESET}
+  ${C_GREEN}up|start${C_RESET}          Start services (default)
+  ${C_GREEN}down|stop${C_RESET}         Stop services
+  ${C_GREEN}logs [service]${C_RESET}    Tail logs (all if omitted)
+  ${C_GREEN}ps|status${C_RESET}         Show running services
+  ${C_GREEN}pull${C_RESET}              Pull latest images
+  ${C_GREEN}help${C_RESET}              Show this help
+
+EOF
+}
+
 cmd_help() {
     cat << EOF
 
@@ -434,6 +598,7 @@ ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}down, stop${C_RESET}         Stop all services
   ${C_GREEN}status${C_RESET}             Show service status
   ${C_GREEN}logs [service]${C_RESET}     Tail logs (all/server/web)
+  ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
   ${C_GREEN}help${C_RESET}               Show this help
 
 ${C_YELLOW}Examples:${C_RESET}
@@ -461,6 +626,9 @@ main() {
     cd "$SCRIPT_DIR"
 
     local cmd=${1:-start}
+    if (($# > 0)); then
+        shift
+    fi
 
     case $cmd in
         start|up|run)
@@ -473,7 +641,10 @@ main() {
             cmd_status
             ;;
         logs|log|tail)
-            cmd_logs "${2:-all}"
+            cmd_logs "${1:-all}"
+            ;;
+        docker)
+            cmd_docker "$@"
             ;;
         help|-h|--help)
             cmd_help

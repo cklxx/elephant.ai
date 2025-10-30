@@ -179,6 +179,7 @@ The server exposes:
 
 ```bash
 docker-compose up -d            # start Go backend, sandbox runtime, and Next.js frontend
+./deploy.sh docker up           # auto-detect docker compose and start the stack
 ```
 
 Set credentials in `.env` (e.g. `OPENAI_API_KEY`, provider endpoints) before starting containers.
