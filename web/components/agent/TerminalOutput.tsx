@@ -94,25 +94,29 @@ export function TerminalOutput({
       aggregated.push(event);
     });
 
-    const latestToolIndex = (() => {
-      for (let index = aggregated.length - 1; index >= 0; index -= 1) {
-        if (isToolCallStartDisplayEvent(aggregated[index])) {
-          return index;
-        }
-      }
-      return -1;
-    })();
+    const toolEventsToKeep = new Set<number>();
+    let hasSettledToolCall = false;
 
-    if (latestToolIndex === -1) {
-      return aggregated;
+    for (let index = aggregated.length - 1; index >= 0; index -= 1) {
+      const event = aggregated[index];
+
+      if (!isToolCallStartDisplayEvent(event)) {
+        toolEventsToKeep.add(index);
+        continue;
+      }
+
+      if (event.call_status === 'running') {
+        toolEventsToKeep.add(index);
+        continue;
+      }
+
+      if (!hasSettledToolCall) {
+        toolEventsToKeep.add(index);
+        hasSettledToolCall = true;
+      }
     }
 
-    return aggregated.filter((event, index) => {
-      if (!isToolCallStartDisplayEvent(event)) {
-        return true;
-      }
-      return index === latestToolIndex;
-    });
+    return aggregated.filter((_, index) => toolEventsToKeep.has(index));
   }, [events]);
 
   const activeAction = useMemo(() => {
