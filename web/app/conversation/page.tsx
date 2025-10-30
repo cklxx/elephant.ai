@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
@@ -19,6 +19,7 @@ export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
+  const [isInputManuallyOpened, setIsInputManuallyOpened] = useState(false);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -169,6 +170,7 @@ export function ConversationPageContent() {
     setTaskId(null);
     clearEvents();
     clearCurrentSession();
+    setIsInputManuallyOpened(true);
   };
 
   const handleSessionSelect = (id: string) => {
@@ -218,6 +220,22 @@ export function ConversationPageContent() {
 
   const isSubmitting = useMockStream ? false : isPending;
 
+  const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
+
+  useEffect(() => {
+    if (hasConversation && isInputManuallyOpened) {
+      setIsInputManuallyOpened(false);
+    }
+  }, [hasConversation, isInputManuallyOpened]);
+
+  const shouldShowInputBar = hasConversation || isInputManuallyOpened;
+
+  useEffect(() => {
+    if (prefillTask && !shouldShowInputBar) {
+      setIsInputManuallyOpened(true);
+    }
+  }, [prefillTask, shouldShowInputBar]);
+
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
     : null;
@@ -232,6 +250,15 @@ export function ConversationPageContent() {
       <p className="console-microcopy max-w-sm text-slate-400">
         {t('console.empty.description')}
       </p>
+      {!shouldShowInputBar && (
+        <button
+          type="button"
+          onClick={handleNewSession}
+          className="console-button console-button-primary"
+        >
+          {t('console.connection.newConversation')}
+        </button>
+      )}
     </div>
   );
 
@@ -373,18 +400,20 @@ export function ConversationPageContent() {
         )}
 
         {/* Input Bar */}
-        <InputBar
-          onSubmit={handleTaskSubmit}
-          placeholder={
-            resolvedSessionId
-              ? t('console.input.placeholder.active')
-              : t('console.input.placeholder.idle')
-          }
-          disabled={isSubmitting}
-          loading={isSubmitting}
-          prefill={prefillTask}
-          onPrefillApplied={() => setPrefillTask(null)}
-        />
+        {shouldShowInputBar && (
+          <InputBar
+            onSubmit={handleTaskSubmit}
+            placeholder={
+              resolvedSessionId
+                ? t('console.input.placeholder.active')
+                : t('console.input.placeholder.idle')
+            }
+            disabled={isSubmitting}
+            loading={isSubmitting}
+            prefill={prefillTask}
+            onPrefillApplied={() => setPrefillTask(null)}
+          />
+        )}
       </div>
     </div>
   );
