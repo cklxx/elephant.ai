@@ -94,7 +94,29 @@ export function TerminalOutput({
       aggregated.push(event);
     });
 
-    return aggregated;
+    const toolEventsToKeep = new Set<number>();
+    let hasSettledToolCall = false;
+
+    for (let index = aggregated.length - 1; index >= 0; index -= 1) {
+      const event = aggregated[index];
+
+      if (!isToolCallStartDisplayEvent(event)) {
+        toolEventsToKeep.add(index);
+        continue;
+      }
+
+      if (event.call_status === 'running') {
+        toolEventsToKeep.add(index);
+        continue;
+      }
+
+      if (!hasSettledToolCall) {
+        toolEventsToKeep.add(index);
+        hasSettledToolCall = true;
+      }
+    }
+
+    return aggregated.filter((_, index) => toolEventsToKeep.has(index));
   }, [events]);
 
   const activeAction = useMemo(() => {
@@ -621,13 +643,13 @@ function describeEvent(
         supplementary: (
           <MarkdownRenderer
             content={event.content}
-            className="prose prose-slate max-w-none text-slate-900 leading-relaxed"
+            className="prose prose-slate max-w-none text-slate-500 leading-relaxed"
             components={{
               code: ({ inline, className, children, ...props }: any) => {
                 if (inline) {
                   return (
                     <code
-                      className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono whitespace-nowrap"
+                      className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-sm font-mono whitespace-nowrap"
                       {...props}
                     >
                       {children}
@@ -636,7 +658,7 @@ function describeEvent(
                 }
                 return (
                   <code
-                    className="block bg-slate-50 text-slate-800 p-4 rounded-md overflow-x-auto font-mono text-sm leading-relaxed border border-slate-200"
+                    className="block bg-slate-50 text-slate-600 p-4 rounded-md overflow-x-auto font-mono text-sm leading-relaxed border border-slate-200"
                     {...props}
                   >
                     {children}
@@ -644,14 +666,14 @@ function describeEvent(
                 );
               },
               pre: ({ children }: any) => <div className="my-4">{children}</div>,
-              p: ({ children }: any) => <p className="mb-4 leading-relaxed">{children}</p>,
-              ul: ({ children }: any) => <ul className="mb-4 space-y-2 leading-relaxed">{children}</ul>,
-              ol: ({ children }: any) => <ol className="mb-4 space-y-2 leading-relaxed">{children}</ol>,
-              li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
-              h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight">{children}</h1>,
-              h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5 leading-tight">{children}</h2>,
-              h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4 leading-tight">{children}</h3>,
-              strong: ({ children }: any) => <strong className="font-bold text-slate-900">{children}</strong>,
+              p: ({ children }: any) => <p className="mb-4 leading-relaxed text-slate-500">{children}</p>,
+              ul: ({ children }: any) => <ul className="mb-4 space-y-2 leading-relaxed text-slate-500">{children}</ul>,
+              ol: ({ children }: any) => <ol className="mb-4 space-y-2 leading-relaxed text-slate-500">{children}</ol>,
+              li: ({ children }: any) => <li className="leading-relaxed text-slate-500">{children}</li>,
+              h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight text-slate-600">{children}</h1>,
+              h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5 leading-tight text-slate-600">{children}</h2>,
+              h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4 leading-tight text-slate-600">{children}</h3>,
+              strong: ({ children }: any) => <strong className="font-bold text-slate-600">{children}</strong>,
             }}
           />
         ),
