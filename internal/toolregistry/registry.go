@@ -223,7 +223,18 @@ func (r *Registry) registerBuiltins(config Config) error {
 func (r *Registry) RegisterSubAgent(coordinator ports.AgentCoordinator) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if coordinator != nil {
-		r.static["subagent"] = builtin.NewSubAgent(coordinator, 3)
+	if coordinator == nil {
+		return
 	}
+
+	if _, exists := r.static["subagent"]; exists {
+		if _, ok := r.static["explore"]; !ok {
+			r.static["explore"] = builtin.NewExplore(r.static["subagent"])
+		}
+		return
+	}
+
+	subTool := builtin.NewSubAgent(coordinator, 3)
+	r.static["subagent"] = subTool
+	r.static["explore"] = builtin.NewExplore(subTool)
 }
