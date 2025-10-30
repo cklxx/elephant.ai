@@ -106,6 +106,7 @@ npm/*/bin/alex.exe
 .env.local
 .env*.local
 *.pid
+.bin/
 tmp/
 temp/
 test_results/

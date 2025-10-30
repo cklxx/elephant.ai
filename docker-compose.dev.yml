@@ -15,12 +15,15 @@ services:
       - ALEX_MODEL=${ALEX_MODEL:-gpt-4}
       - ALEX_VERBOSE=true
       - SESSION_STORE_PATH=/data/sessions
+      - ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
     volumes:
       - ./:/app:cached
       - alex-sessions-dev:/data/sessions
     working_dir: /app
     command: go run ./cmd/alex-server
     restart: unless-stopped
+    depends_on:
+      - sandbox
     networks:
       - alex-dev-network
 
@@ -56,6 +59,19 @@ services:
     networks:
       - alex-dev-network
 
+  sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    container_name: alex-sandbox-dev
+    ports:
+      - "8091:8080"
+    volumes:
+      - ./skills:/workspace/skills:ro
+    restart: unless-stopped
+    networks:
+      - alex-dev-network
+
 volumes:
   alex-sessions-dev:
   redis-data-dev:
@@ -63,3 +79,4 @@ volumes:
 networks:
   alex-dev-network:
     driver: bridge
+

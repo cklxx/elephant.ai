@@ -13,6 +13,7 @@
 #   ./deploy.sh down     # Stop services
 #   ./deploy.sh status   # Check status
 #   ./deploy.sh logs     # Tail logs
+#   ./deploy.sh test     # Run full test suite
 ###############################################################################
 
 set -euo pipefail
@@ -21,12 +22,22 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SERVER_PORT=8080
 readonly WEB_PORT=3000
+readonly SANDBOX_DEFAULT_URL="http://localhost:8090"
+readonly SANDBOX_COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
+readonly SANDBOX_SERVICE_NAME="sandbox"
+readonly SANDBOX_CONTAINER_NAME="alex-sandbox"
 readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
 readonly WEB_PID_FILE="${PID_DIR}/web.pid"
 readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
+readonly BIN_DIR="${SCRIPT_DIR}/.bin"
+readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
+
+readonly DEFAULT_DOCKER_COMPOSE_VERSION="v2.29.7"
+DOCKER_COMPOSE_VERSION="${DOCKER_COMPOSE_VERSION:-${DEFAULT_DOCKER_COMPOSE_VERSION}}"
+DOCKER_COMPOSE_CMD=()
 
 # Colors
 readonly C_RED='\033[0;31m'
@@ -54,6 +65,10 @@ log_error() {
 
 log_warn() {
     echo -e "${C_YELLOW}⚠${C_RESET} $*"
+}
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
 banner() {
@@ -188,6 +203,7 @@ OPENAI_API_KEY=
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 ALEX_MODEL=anthropic/claude-3.5-sonnet
 ALEX_VERBOSE=false
+ALEX_SANDBOX_BASE_URL=http://localhost:8090
 EOF
     fi
 
@@ -202,12 +218,173 @@ EOF
         log_success "API key configured: ${OPENAI_API_KEY:0:12}..."
     fi
 
+    if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
+        ALEX_SANDBOX_BASE_URL="${SANDBOX_DEFAULT_URL}"
+        export ALEX_SANDBOX_BASE_URL
+        log_warn "ALEX_SANDBOX_BASE_URL not set, defaulting to ${ALEX_SANDBOX_BASE_URL}"
+    else
+        log_success "Sandbox URL configured: ${ALEX_SANDBOX_BASE_URL}"
+    fi
+
     # Verify .env.development exists
     if [[ ! -f web/.env.development ]]; then
         log_warn ".env.development not found, creating it"
         echo "NEXT_PUBLIC_API_URL=http://localhost:$SERVER_PORT" > web/.env.development
         log_success "Created web/.env.development"
     fi
+}
+
+ensure_docker_compose() {
+    if [[ ${#DOCKER_COMPOSE_CMD[@]} -gt 0 ]]; then
+        return
+    fi
+
+    if ! command_exists docker; then
+        die "Docker is required for docker-compose deployments"
+    fi
+
+    if docker compose version >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD=(docker compose)
+        return
+    fi
+
+    if command_exists docker-compose; then
+        DOCKER_COMPOSE_CMD=("$(command -v docker-compose)")
+        return
+    fi
+
+    if [[ -x "$DOCKER_COMPOSE_BIN" ]]; then
+        DOCKER_COMPOSE_CMD=("$DOCKER_COMPOSE_BIN")
+        return
+    fi
+
+    download_docker_compose
+}
+
+download_docker_compose() {
+    local os
+    local arch
+    local url
+
+    case "$(uname -s)" in
+        Linux*)
+            os="Linux"
+            ;;
+        Darwin*)
+            os="Darwin"
+            ;;
+        *)
+            die "Unsupported OS for automatic docker-compose installation"
+            ;;
+    esac
+
+    case "$(uname -m)" in
+        x86_64|amd64)
+            arch="x86_64"
+            ;;
+        arm64|aarch64)
+            arch="aarch64"
+            ;;
+        *)
+            die "Unsupported architecture for automatic docker-compose installation"
+            ;;
+    esac
+
+    url="https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-${os}-${arch}"
+
+    log_info "Downloading docker-compose ${DOCKER_COMPOSE_VERSION}..."
+    mkdir -p "$BIN_DIR"
+
+    if command_exists curl; then
+        if ! curl -fsSL "$url" -o "$DOCKER_COMPOSE_BIN"; then
+            die "Failed to download docker-compose with curl from $url"
+        fi
+    elif command_exists wget; then
+        if ! wget -q "$url" -O "$DOCKER_COMPOSE_BIN"; then
+            die "Failed to download docker-compose with wget from $url"
+        fi
+    else
+        die "Neither curl nor wget is available to download docker-compose"
+    fi
+
+    chmod +x "$DOCKER_COMPOSE_BIN"
+
+    if ! "$DOCKER_COMPOSE_BIN" version >/dev/null 2>&1; then
+        die "Downloaded docker-compose binary failed to execute"
+    fi
+
+    log_success "docker-compose installed at $DOCKER_COMPOSE_BIN"
+    DOCKER_COMPOSE_CMD=("$DOCKER_COMPOSE_BIN")
+}
+
+run_docker_compose() {
+    ensure_docker_compose
+    "${DOCKER_COMPOSE_CMD[@]}" "$@"
+}
+
+is_local_sandbox_url() {
+    local url=$1
+
+    [[ -z "$url" ]] && return 1
+
+    case "$url" in
+        http://localhost*|https://localhost*|http://127.0.0.1*|https://127.0.0.1*|http://0.0.0.0*|https://0.0.0.0*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+start_sandbox() {
+    local base_url=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
+
+    if ! is_local_sandbox_url "$base_url"; then
+        log_info "ALEX_SANDBOX_BASE_URL=${base_url} is not local; skipping sandbox container startup"
+        return 0
+    fi
+
+    if [[ ! -f "$SANDBOX_COMPOSE_FILE" ]]; then
+        die "Sandbox compose file not found at $SANDBOX_COMPOSE_FILE"
+    fi
+
+    if ! command_exists docker; then
+        die "Docker is required to run the sandbox locally. Install Docker or point ALEX_SANDBOX_BASE_URL to a remote sandbox."
+    fi
+
+    log_info "Starting sandbox container via docker-compose..."
+    run_docker_compose -f "$SANDBOX_COMPOSE_FILE" up -d "$SANDBOX_SERVICE_NAME"
+
+    local health_url="${base_url%/}/health"
+    if ! wait_for_health "$health_url" "Sandbox"; then
+        log_error "Sandbox failed to become healthy"
+        run_docker_compose -f "$SANDBOX_COMPOSE_FILE" logs --tail 50 "$SANDBOX_SERVICE_NAME" || true
+        return 1
+    fi
+
+    log_success "Sandbox running at $base_url"
+}
+
+stop_sandbox() {
+    local base_url=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
+
+    if ! is_local_sandbox_url "$base_url"; then
+        return 0
+    fi
+
+    if ! command_exists docker; then
+        return 0
+    fi
+
+    if ! docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${SANDBOX_CONTAINER_NAME}$"; then
+        return 0
+    fi
+
+    log_info "Stopping sandbox container..."
+    run_docker_compose -f "$SANDBOX_COMPOSE_FILE" stop "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
+    run_docker_compose -f "$SANDBOX_COMPOSE_FILE" rm -f "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
+    log_success "Sandbox container stopped"
 }
 
 ###############################################################################
@@ -243,6 +420,62 @@ install_frontend_deps() {
     cd ..
 
     log_success "Frontend dependencies installed"
+}
+
+run_go_tests() {
+    log_info "Running Go tests..."
+
+    if ! make test 2>&1 | tee "$LOG_DIR/go-test.log"; then
+        log_error "Go tests failed, check logs/go-test.log"
+        tail -20 "$LOG_DIR/go-test.log"
+        return 1
+    fi
+
+    log_success "Go tests passed"
+}
+
+run_web_unit_tests() {
+    log_info "Running web unit tests..."
+
+    if ! npm --prefix web test -- --run 2>&1 | tee "$LOG_DIR/web-test.log"; then
+        log_error "Web unit tests failed, check logs/web-test.log"
+        tail -20 "$LOG_DIR/web-test.log"
+        return 1
+    fi
+
+    log_success "Web unit tests passed"
+}
+
+ensure_playwright_browsers() {
+    local cache_dir="${SCRIPT_DIR}/web/node_modules/.cache/ms-playwright"
+
+    if [[ -d "$cache_dir" ]]; then
+        return 0
+    fi
+
+    log_info "Installing Playwright browsers (first run may take a while)..."
+
+    if ! (cd web && npx playwright install 2>&1 | tee "$LOG_DIR/playwright-install.log"); then
+        log_error "Playwright browser install failed, check logs/playwright-install.log"
+        tail -20 "$LOG_DIR/playwright-install.log"
+        return 1
+    fi
+
+    log_success "Playwright browsers installed"
+}
+
+run_web_e2e_tests() {
+    log_info "Running web end-to-end tests..."
+
+    ensure_playwright_browsers || return 1
+
+    if ! npm --prefix web run e2e 2>&1 | tee "$LOG_DIR/web-e2e.log"; then
+        log_error "Web end-to-end tests failed, check logs/web-e2e.log"
+        tail -20 "$LOG_DIR/web-e2e.log"
+        return 1
+    fi
+
+    log_success "Web end-to-end tests passed"
 }
 
 start_backend() {
@@ -320,6 +553,7 @@ cmd_start() {
     # Build & start
     build_backend || die "Backend build failed"
     install_frontend_deps || die "Frontend dependency installation failed"
+    start_sandbox || die "Sandbox failed to start"
     start_backend || die "Backend failed to start"
     start_frontend || die "Frontend failed to start"
 
@@ -340,12 +574,26 @@ cmd_start() {
     echo ""
 }
 
+cmd_test() {
+    banner
+
+    setup_environment
+
+    run_go_tests || die "Go tests failed"
+    install_frontend_deps || die "Frontend dependency installation failed"
+    run_web_unit_tests || die "Web unit tests failed"
+    run_web_e2e_tests || die "Web end-to-end tests failed"
+
+    log_success "All tests passed"
+}
+
 cmd_stop() {
     log_info "Stopping all services..."
     echo ""
 
     stop_service "Backend" "$SERVER_PID_FILE"
     stop_service "Frontend" "$WEB_PID_FILE"
+    stop_sandbox
 
     # Clean up port bindings
     kill_process_on_port "$SERVER_PORT" || true
@@ -392,6 +640,44 @@ cmd_status() {
     fi
 
     echo ""
+
+    # Sandbox
+    local sandbox_base=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
+    if ! is_local_sandbox_url "$sandbox_base"; then
+        echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Using external sandbox at ${sandbox_base}"
+    else
+        local sandbox_status
+        local sandbox_container
+        sandbox_container=$(
+            if command_exists docker; then
+                docker ps --filter "name=${SANDBOX_CONTAINER_NAME}" --format '{{.Names}}' 2>/dev/null | head -n1 || true
+            fi
+        )
+        if [[ -n "$sandbox_container" ]]; then
+            sandbox_status=$(docker ps --filter "name=${SANDBOX_CONTAINER_NAME}" --format '{{.Status}}' 2>/dev/null | head -n1 || true)
+            echo -e "${C_GREEN}✓${C_RESET} Sandbox:   Running (${sandbox_status})"
+            echo -e "             URL: ${sandbox_base}"
+        else
+            local sandbox_known
+            sandbox_known=$(
+                if command_exists docker; then
+                    docker ps -a --filter "name=${SANDBOX_CONTAINER_NAME}" --format '{{.Status}}' 2>/dev/null | head -n1 || true
+                fi
+            )
+            if [[ -n "$sandbox_known" ]]; then
+                echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Stopped (${sandbox_known})"
+                echo -e "             URL: ${sandbox_base}"
+            else
+                if command_exists docker; then
+                    echo -e "${C_RED}✗${C_RESET} Sandbox:   Not running"
+                else
+                    echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Docker not available"
+                fi
+            fi
+        fi
+    fi
+
+    echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Port status
@@ -414,11 +700,92 @@ cmd_logs() {
             log_info "Tailing frontend logs (Ctrl+C to stop)"
             tail -f "$WEB_LOG"
             ;;
+        sandbox)
+            local base_url=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
+            if ! is_local_sandbox_url "$base_url"; then
+                log_warn "Sandbox logs are managed externally at ${base_url}"
+                return 0
+            fi
+
+            if command_exists docker; then
+                log_info "Tailing sandbox logs (Ctrl+C to stop)"
+                run_docker_compose -f "$SANDBOX_COMPOSE_FILE" logs -f "$SANDBOX_SERVICE_NAME"
+            else
+                log_error "Docker is not available; cannot tail sandbox logs"
+                return 1
+            fi
+            ;;
         all|*)
             log_info "Tailing all logs (Ctrl+C to stop)"
             tail -f "$SERVER_LOG" "$WEB_LOG"
             ;;
     esac
+}
+
+cmd_docker() {
+    local action=${1:-up}
+    if (($# > 0)); then
+        shift
+    fi
+
+    case $action in
+        up|start)
+            log_info "Starting docker-compose services..."
+            run_docker_compose up -d
+            log_success "Docker services are running"
+            ;;
+        down|stop)
+            log_info "Stopping docker-compose services..."
+            run_docker_compose down
+            log_success "Docker services stopped"
+            ;;
+        logs)
+            local target=${1:-}
+            if [[ -n "$target" ]]; then
+                log_info "Tailing logs for service: $target"
+                run_docker_compose logs -f "$target"
+            else
+                log_info "Tailing logs for all services"
+                run_docker_compose logs -f
+            fi
+            ;;
+        ps|status)
+            log_info "Listing docker-compose services"
+            run_docker_compose ps
+            ;;
+        pull)
+            log_info "Pulling docker images..."
+            run_docker_compose pull
+            log_success "Images updated"
+            ;;
+        help|-h|--help)
+            cmd_docker_help
+            ;;
+        *)
+            log_error "Unknown docker command: $action"
+            cmd_docker_help
+            exit 1
+            ;;
+    esac
+}
+
+cmd_docker_help() {
+    cat << EOF
+
+${C_CYAN}Docker Compose Deployment${C_RESET}
+
+${C_YELLOW}Usage:${C_RESET}
+  ./deploy.sh docker [command]
+
+${C_YELLOW}Commands:${C_RESET}
+  ${C_GREEN}up|start${C_RESET}          Start services (default)
+  ${C_GREEN}down|stop${C_RESET}         Stop services
+  ${C_GREEN}logs [service]${C_RESET}    Tail logs (all if omitted)
+  ${C_GREEN}ps|status${C_RESET}         Show running services
+  ${C_GREEN}pull${C_RESET}              Pull latest images
+  ${C_GREEN}help${C_RESET}              Show this help
+
+EOF
 }
 
 cmd_help() {
@@ -432,8 +799,10 @@ ${C_YELLOW}Usage:${C_RESET}
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}start${C_RESET}              Start all services (default)
   ${C_GREEN}down, stop${C_RESET}         Stop all services
+  ${C_GREEN}test${C_RESET}               Run Go, web unit, and Playwright tests
   ${C_GREEN}status${C_RESET}             Show service status
-  ${C_GREEN}logs [service]${C_RESET}     Tail logs (all/server/web)
+  ${C_GREEN}logs [service]${C_RESET}     Tail logs (all/server/web/sandbox)
+  ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
   ${C_GREEN}help${C_RESET}               Show this help
 
 ${C_YELLOW}Examples:${C_RESET}
@@ -461,6 +830,9 @@ main() {
     cd "$SCRIPT_DIR"
 
     local cmd=${1:-start}
+    if (($# > 0)); then
+        shift
+    fi
 
     case $cmd in
         start|up|run)
@@ -469,11 +841,17 @@ main() {
         stop|down|kill)
             cmd_stop
             ;;
+        test)
+            cmd_test
+            ;;
         status|ps)
             cmd_status
             ;;
         logs|log|tail)
-            cmd_logs "${2:-all}"
+            cmd_logs "${1:-all}"
+            ;;
+        docker)
+            cmd_docker "$@"
             ;;
         help|-h|--help)
             cmd_help

@@ -4,67 +4,96 @@ const STORAGE_KEY = 'alex-session-storage';
 
 test.describe('ALEX console layout', () => {
   test('renders console shell with empty state', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.clear());
     await page.goto('/conversation');
 
-    await expect(page.getByText('Conversation')).toBeVisible();
-    await expect(page.getByText('Start new run')).toBeVisible();
-    await expect(page.getByText('Session history', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Start new run', level: 1 })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New Session', exact: true })
+    ).toBeVisible();
 
-    await expect(page.getByText('No sessions')).toBeVisible();
+    await expect(page.getByText('No sessions yet')).toBeVisible();
     await expect(page.getByText('Ready to start')).toBeVisible();
+    await expect(page.getByText('Send a task to begin.')).toBeVisible();
     await expect(page.getByText('Waiting', { exact: true })).toBeVisible();
-    await expect(page.getByText('Offline')).toBeVisible();
 
-    const input = page.getByTestId('task-input');
-    await expect(input).toHaveAttribute(
-      'placeholder',
-      'Describe your task…'
-    );
+    const input = page.locator('textarea[placeholder="Describe your task…"]');
+    await expect(input).toBeVisible();
   });
 
   test('supports persisted sessions and selection', async ({ page }) => {
-    await page.addInitScript(({ key }) => {
-      const payload = {
-        state: {
-          currentSessionId: 'session-123456',
-          sessionHistory: ['session-abcdef'],
-          pinnedSessions: ['session-123456'],
-          sessionLabels: {
-            'session-123456': 'Primary workflow',
-          },
+    await page.addInitScript(() => window.localStorage.clear());
+    const storagePayload = JSON.stringify({
+      state: {
+        currentSessionId: 'session-123456',
+        sessionHistory: ['session-abcdef'],
+        pinnedSessions: ['session-123456'],
+        sessionLabels: {
+          'session-123456': 'Primary workflow',
         },
-        version: 0,
-      };
-      window.localStorage.setItem(key, JSON.stringify(payload));
-    }, { key: STORAGE_KEY });
+      },
+      version: 0,
+    });
+    await page.addInitScript(
+      ({ key, payload }) => {
+        window.localStorage.setItem(key, payload);
+      },
+      { key: STORAGE_KEY, payload: storagePayload }
+    );
 
     await page.goto('/conversation');
 
     await expect(page.getByText('Pinned')).toBeVisible();
     await expect(page.getByText('Recent')).toBeVisible();
-    await expect(page.getByTestId('session-history-session-123456')).toContainText(
-      'Primary workflow'
-    );
-    await expect(page.getByTestId('session-history-session-123456')).toBeVisible();
 
-    await page.getByTestId('session-history-session-abcdef').click();
+    const pinnedSession = page.getByRole('button', { name: /Primary workflow/ });
+    await expect(pinnedSession).toBeVisible();
 
-    await expect(page.getByTestId('session-history-session-abcdef')).toHaveAttribute('aria-current', 'true');
+    const recentSession = page.getByRole('button', { name: 'sess…cdef' });
+    await expect(recentSession).toBeVisible();
+
+    await recentSession.click();
+
+    await expect(
+      page.getByRole('heading', { level: 1 })
+    ).toHaveText(/sess…cdef/i);
   });
 
-  test('shows mock indicator when enabled', async ({ page }) => {
+  test('supports mock stream mode', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.clear());
     await page.goto('/conversation?mockSSE=1');
 
-    await expect(page.getByTestId('mock-stream-indicator')).toContainText('Mock stream enabled');
+    await expect(
+      page.getByRole('heading', { name: 'Start new run', level: 1 })
+    ).toBeVisible();
+    await expect(page.getByText('No sessions yet')).toBeVisible();
+
+    const input = page.locator('textarea[placeholder="Describe your task…"]');
+    await input.click();
+    await page.keyboard.type('Mock stream task');
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByText('Recent')).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole('button', { name: /Understanding task requirements/i })
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole('heading', { level: 1, name: /Understanding task requirements/i })
+    ).toBeVisible();
+    await expect(
+      page.locator('textarea[placeholder="Add detail…"]')
+    ).toBeVisible();
   });
 
-  test('home hero routes to conversation view', async ({ page }) => {
+  test('home route redirects to conversation view', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.clear());
     await page.goto('/');
 
-    await expect(page.getByText('Research workspace')).toBeVisible();
-
-    await page.getByRole('link', { name: 'Open conversation view' }).click();
-    await expect(page).toHaveURL(/\/conversation/);
+    await expect(page).toHaveURL(/\/conversation$/);
+    await expect(
+      page.getByRole('heading', { name: 'Start new run', level: 1 })
+    ).toBeVisible();
   });
 });
