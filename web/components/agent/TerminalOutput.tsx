@@ -3,14 +3,7 @@
 import { ReactNode, useMemo, useState } from 'react';
 import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
 import { ConnectionBanner } from './ConnectionBanner';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Info,
-  Loader2,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
 import { SandboxLevel, ToolCallSummary } from '@/lib/eventAggregation';
@@ -265,7 +258,6 @@ function CollapsibleToolCall({ event }: { event: ToolCallStartDisplayEvent }) {
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors w-full text-left"
         >
-          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
           <span className="font-mono">
             {event.call_status === 'running' && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
             {hasError && <span className="text-red-600">✗</span>}
