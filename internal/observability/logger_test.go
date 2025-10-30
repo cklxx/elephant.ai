@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	id "alex/internal/utils/id"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,6 +83,8 @@ func TestLoggerWithContext(t *testing.T) {
 	ctx := context.Background()
 	ctx = ContextWithTraceID(ctx, "trace-123")
 	ctx = ContextWithSessionID(ctx, "session-456")
+	ctx = id.WithTaskID(ctx, "task-789")
+	ctx = id.WithParentTaskID(ctx, "parent-000")
 
 	logger.InfoContext(ctx, "test message")
 
@@ -96,6 +99,8 @@ func TestLoggerWithContext(t *testing.T) {
 
 	assert.Contains(t, output, "trace-123")
 	assert.Contains(t, output, "session-456")
+	assert.Contains(t, output, "task-789")
+	assert.Contains(t, output, "parent-000")
 }
 
 func TestSanitizeAPIKey(t *testing.T) {

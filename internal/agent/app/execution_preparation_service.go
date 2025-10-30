@@ -1,12 +1,13 @@
 package app
 
 import (
-        "context"
-        "fmt"
-        "strings"
+	"context"
+	"fmt"
+	"strings"
 
-        "alex/internal/agent/domain"
-        "alex/internal/agent/ports"
+	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
+	id "alex/internal/utils/id"
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -108,6 +109,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
+	ids := id.IDsFromContext(ctx)
+	if session != nil {
+		ids.SessionID = session.ID
+	}
+
 	if s.contextMgr.ShouldCompress(session.Messages, s.config.MaxTokens) {
 		s.logger.Info("Context limit reached, compressing...")
 		originalCount := len(session.Messages)
@@ -123,6 +129,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		compressionEvent := domain.NewContextCompressionEvent(
 			ports.LevelCore,
 			session.ID,
+			ids.TaskID,
+			ids.ParentTaskID,
 			originalCount,
 			compressedCount,
 			s.clock.Now(),
@@ -165,19 +173,21 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		s.logger.Debug("Task pre-analysis skipped or failed")
 	}
 
-        systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
-        summary := strings.TrimSpace(s.config.EnvironmentSummary)
-        if summary != "" {
-                if trimmed := strings.TrimSpace(systemPrompt); trimmed != "" {
-                        systemPrompt = trimmed + "\n\n" + summary
-                } else {
-                        systemPrompt = summary
-                }
-        }
+	systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
+	summary := strings.TrimSpace(s.config.EnvironmentSummary)
+	if summary != "" {
+		if trimmed := strings.TrimSpace(systemPrompt); trimmed != "" {
+			systemPrompt = trimmed + "\n\n" + summary
+		} else {
+			systemPrompt = summary
+		}
+	}
 	state := &domain.TaskState{
 		SystemPrompt: systemPrompt,
 		Messages:     append([]domain.Message(nil), session.Messages...),
 		SessionID:    session.ID,
+		TaskID:       ids.TaskID,
+		ParentTaskID: ids.ParentTaskID,
 	}
 
 	toolRegistry := s.selectToolRegistry(ctx)
@@ -190,18 +200,18 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	s.logger.Info("Execution environment prepared successfully")
 
-        return &ports.ExecutionEnvironment{
-                State:        state,
-                Services:     services,
-                Session:      session,
-                SystemPrompt: systemPrompt,
-                TaskAnalysis: taskAnalysis,
-        }, nil
+	return &ports.ExecutionEnvironment{
+		State:        state,
+		Services:     services,
+		Session:      session,
+		SystemPrompt: systemPrompt,
+		TaskAnalysis: taskAnalysis,
+	}, nil
 }
 
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.
 func (s *ExecutionPreparationService) SetEnvironmentSummary(summary string) {
-        s.config.EnvironmentSummary = summary
+	s.config.EnvironmentSummary = summary
 }
 
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*ports.Session, error) {

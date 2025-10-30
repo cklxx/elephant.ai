@@ -239,6 +239,7 @@ SSE stream to browser (JSON format)
 5. **Heartbeat:** 30-second interval to prevent connection timeout
 6. **Graceful Degradation:** System continues if client disconnects
 7. **CORS Enabled:** Supports web client connections
+8. **Identifier Propagation:** Every event payload includes `session_id`, `task_id`, and (when applicable) `parent_task_id` for lineage tracing.
 
 ## Testing
 
@@ -263,19 +264,19 @@ curl -X POST http://localhost:8080/api/tasks \
 **Expected SSE Output:**
 ```
 event: connected
-data: {"session_id":"test-123"}
+data: {"session_id":"test-123","task_id":"","parent_task_id":""}
 
 event: task_analysis
-data: {"event_type":"task_analysis","timestamp":"2025-10-02T10:00:00Z","action_name":"Listing files","goal":"Find all Go source files"}
+data: {"event_type":"task_analysis","timestamp":"2025-10-02T10:00:00Z","action_name":"Listing files","goal":"Find all Go source files","session_id":"test-123","task_id":"task-test-001","parent_task_id":""}
 
 event: tool_call_start
-data: {"event_type":"tool_call_start","tool_name":"bash","arguments":{"command":"find . -name '*.go'"}}
+data: {"event_type":"tool_call_start","tool_name":"bash","arguments":{"command":"find . -name '*.go'"},"session_id":"test-123","task_id":"task-test-001","parent_task_id":""}
 
 event: tool_call_complete
-data: {"event_type":"tool_call_complete","tool_name":"bash","result":"./main.go\n./internal/agent.go","duration":125}
+data: {"event_type":"tool_call_complete","tool_name":"bash","result":"./main.go\n./internal/agent.go","duration":125,"session_id":"test-123","task_id":"task-test-001","parent_task_id":""}
 
 event: task_complete
-data: {"event_type":"task_complete","final_answer":"Found 2 Go files: main.go, internal/agent.go","total_iterations":1}
+data: {"event_type":"task_complete","final_answer":"Found 2 Go files: main.go, internal/agent.go","total_iterations":1,"session_id":"test-123","task_id":"task-test-001","parent_task_id":""}
 ```
 
 ## Files Created

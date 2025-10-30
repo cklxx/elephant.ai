@@ -119,7 +119,9 @@ func newSandboxHealthServer(t *testing.T) *httptest.Server {
 			return
 		}
 
-		defer r.Body.Close()
+		defer func() {
+			_ = r.Body.Close()
+		}()
 		var req struct {
 			Command string `json:"command"`
 		}

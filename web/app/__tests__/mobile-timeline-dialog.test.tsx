@@ -100,6 +100,8 @@ describe('Conversation page mobile timeline dialog', () => {
         step_description: 'Research existing implementations',
         timestamp: baseTimestamp,
         agent_level: 'core',
+        session_id: 'test-session',
+        task_id: 'test-task',
       } as AnyAgentEvent,
     ];
 

@@ -8,6 +8,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 // AgentCoordinator manages session lifecycle and delegates to domain
@@ -29,19 +30,19 @@ type AgentCoordinator struct {
 }
 
 type Config struct {
-        LLMProvider         string
-        LLMModel            string
-        APIKey              string
-        BaseURL             string
-        MaxTokens           int
-        MaxIterations       int
-        Temperature         float64
-        TemperatureProvided bool
-        TopP                float64
-        StopSequences       []string
-        AgentPreset         string // Agent persona preset (default, code-expert, etc.)
-        ToolPreset          string // Tool access preset (full, read-only, etc.)
-        EnvironmentSummary  string
+	LLMProvider         string
+	LLMModel            string
+	APIKey              string
+	BaseURL             string
+	MaxTokens           int
+	MaxIterations       int
+	Temperature         float64
+	TemperatureProvided bool
+	TopP                float64
+	StopSequences       []string
+	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
+	ToolPreset          string // Tool access preset (full, read-only, etc.)
+	EnvironmentSummary  string
 }
 
 func NewAgentCoordinator(
@@ -115,6 +116,12 @@ func (c *AgentCoordinator) ExecuteTask(
 	sessionID string,
 	listener ports.EventListener,
 ) (*ports.TaskResult, error) {
+	ctx = id.WithSessionID(ctx, sessionID)
+	ctx, ensuredTaskID := id.EnsureTaskID(ctx, id.NewTaskID)
+	if ensuredTaskID == "" {
+		ensuredTaskID = id.TaskIDFromContext(ctx)
+	}
+	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	c.logger.Info("ExecuteTask called: task='%s', sessionID='%s'", task, sessionID)
 
 	// Prepare execution environment with event listener support
@@ -122,6 +129,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	if err != nil {
 		return nil, err
 	}
+
+	ctx = id.WithSessionID(ctx, env.Session.ID)
 
 	// Create ReactEngine and configure listener
 	c.logger.Info("Delegating to ReactEngine...")
@@ -147,7 +156,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		// Get agent level from context
 		agentLevel := ports.GetOutputContext(ctx).Level
 
-		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal, c.clock.Now())
+		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, ensuredTaskID, parentTaskID, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal, c.clock.Now())
 		listener.OnEvent(event)
 	}
 
@@ -182,13 +191,24 @@ func (c *AgentCoordinator) ExecuteTask(
 		return nil, err
 	}
 
+	taskResultTaskID := result.TaskID
+	if taskResultTaskID == "" {
+		taskResultTaskID = ensuredTaskID
+	}
+	parentResultID := result.ParentTaskID
+	if parentResultID == "" {
+		parentResultID = parentTaskID
+	}
+
 	return &ports.TaskResult{
-		Answer:     result.Answer,
-		Messages:   result.Messages,
-		Iterations: result.Iterations,
-		TokensUsed: result.TokensUsed,
-		StopReason: result.StopReason,
-		SessionID:  env.Session.ID,
+		Answer:       result.Answer,
+		Messages:     result.Messages,
+		Iterations:   result.Iterations,
+		TokensUsed:   result.TokensUsed,
+		StopReason:   result.StopReason,
+		SessionID:    env.Session.ID,
+		TaskID:       taskResultTaskID,
+		ParentTaskID: parentResultID,
 	}, nil
 }
 
@@ -249,6 +269,21 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	session.Messages = append([]ports.Message(nil), result.Messages...)
 	session.UpdatedAt = c.clock.Now()
 
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]string)
+	}
+	if result.SessionID != "" {
+		session.Metadata["session_id"] = result.SessionID
+	}
+	if result.TaskID != "" {
+		session.Metadata["last_task_id"] = result.TaskID
+	}
+	if result.ParentTaskID != "" {
+		session.Metadata["last_parent_task_id"] = result.ParentTaskID
+	} else {
+		delete(session.Metadata, "last_parent_task_id")
+	}
+
 	c.logger.Debug("Saving session...")
 	if err := c.sessionStore.Save(ctx, session); err != nil {
 		c.logger.Error("Failed to save session: %v", err)
@@ -303,25 +338,25 @@ func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
 
 // GetConfig returns the coordinator configuration
 func (c *AgentCoordinator) GetConfig() ports.AgentConfig {
-        return ports.AgentConfig{
-                LLMProvider:   c.config.LLMProvider,
-                LLMModel:      c.config.LLMModel,
-                MaxTokens:     c.config.MaxTokens,
-                MaxIterations: c.config.MaxIterations,
-                Temperature:   c.config.Temperature,
-                TopP:          c.config.TopP,
-                StopSequences: append([]string(nil), c.config.StopSequences...),
-                AgentPreset:   c.config.AgentPreset,
-                ToolPreset:    c.config.ToolPreset,
-        }
+	return ports.AgentConfig{
+		LLMProvider:   c.config.LLMProvider,
+		LLMModel:      c.config.LLMModel,
+		MaxTokens:     c.config.MaxTokens,
+		MaxIterations: c.config.MaxIterations,
+		Temperature:   c.config.Temperature,
+		TopP:          c.config.TopP,
+		StopSequences: append([]string(nil), c.config.StopSequences...),
+		AgentPreset:   c.config.AgentPreset,
+		ToolPreset:    c.config.ToolPreset,
+	}
 }
 
 // SetEnvironmentSummary updates the environment context appended to system prompts.
 func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
-        c.config.EnvironmentSummary = summary
-        if c.prepService != nil {
-                c.prepService.SetEnvironmentSummary(summary)
-        }
+	c.config.EnvironmentSummary = summary
+	if c.prepService != nil {
+		c.prepService.SetEnvironmentSummary(summary)
+	}
 }
 
 // GetLLMClient returns an LLM client

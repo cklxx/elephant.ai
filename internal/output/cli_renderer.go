@@ -184,6 +184,22 @@ func (r *CLIRenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 
 	var output strings.Builder
 
+	if ctx.SessionID != "" || ctx.TaskID != "" {
+		contextParts := []string{}
+		if ctx.SessionID != "" {
+			contextParts = append(contextParts, fmt.Sprintf("Session %s", ctx.SessionID))
+		}
+		if ctx.TaskID != "" {
+			contextParts = append(contextParts, fmt.Sprintf("Task %s", ctx.TaskID))
+		}
+		if ctx.ParentTaskID != "" {
+			contextParts = append(contextParts, fmt.Sprintf("Parent %s", ctx.ParentTaskID))
+		}
+		contextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080")).Italic(true)
+		output.WriteString(contextStyle.Render(strings.Join(contextParts, " · ")))
+		output.WriteString("\n")
+	}
+
 	if r.verbose {
 		output.WriteString(fmt.Sprintf("\n%s\n", statsStyle.Render(fmt.Sprintf("✓ Task completed in %d iterations", result.Iterations))))
 		output.WriteString(fmt.Sprintf("%s\n\n", lipgloss.NewStyle().Foreground(lipgloss.Color("#808080")).Render(fmt.Sprintf("Tokens used: %d", result.TokensUsed))))

@@ -456,6 +456,8 @@ func TestToolFilteringEventImplementation(t *testing.T) {
 	event := domain.NewToolFilteringEvent(
 		ports.LevelCore,
 		"test-session",
+		"task-1",
+		"parent-task",
 		"Read-Only Access",
 		10,
 		5,
@@ -471,6 +473,14 @@ func TestToolFilteringEventImplementation(t *testing.T) {
 	// Verify session ID
 	if event.GetSessionID() != "test-session" {
 		t.Errorf("Expected session ID 'test-session', got '%s'", event.GetSessionID())
+	}
+
+	if event.GetTaskID() != "task-1" {
+		t.Errorf("Expected task ID 'task-1', got '%s'", event.GetTaskID())
+	}
+
+	if event.GetParentTaskID() != "parent-task" {
+		t.Errorf("Expected parent task ID 'parent-task', got '%s'", event.GetParentTaskID())
 	}
 
 	// Verify agent level

@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -32,8 +33,11 @@ func TestBashExecuteSuccess(t *testing.T) {
 		t.Fatalf("failed to parse payload: %v", err)
 	}
 
-	if payload.Command != "printf 'hello'" {
-		t.Fatalf("expected command to be preserved, got %q", payload.Command)
+	if !strings.HasSuffix(payload.Command, "printf 'hello'") {
+		t.Fatalf("expected command to include original payload, got %q", payload.Command)
+	}
+	if !strings.HasPrefix(payload.Command, "cd ") {
+		t.Fatalf("expected command to include working directory prefix, got %q", payload.Command)
 	}
 	if payload.Stdout != "hello" {
 		t.Fatalf("expected stdout 'hello', got %q", payload.Stdout)

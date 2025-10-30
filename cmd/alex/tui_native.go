@@ -13,6 +13,7 @@ import (
 	"alex/internal/agent/types"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
+	id "alex/internal/utils/id"
 
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
@@ -191,8 +192,11 @@ func (ui *NativeChatUI) executeTask(task string) error {
 	// Create event listener with unified renderer
 	listener := newNativeEventListener(ui)
 
+	taskCtx := id.WithSessionID(ui.ctx, ui.sessionID)
+	taskCtx = id.WithTaskID(taskCtx, id.NewTaskID())
+
 	// Execute task using coordinator's method
-	result, err := ui.container.Coordinator.ExecuteTask(ui.ctx, task, ui.sessionID, listener)
+	result, err := ui.container.Coordinator.ExecuteTask(taskCtx, task, ui.sessionID, listener)
 	if err != nil {
 		return fmt.Errorf("task execution failed: %w", err)
 	}

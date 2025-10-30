@@ -33,6 +33,7 @@ const (
 type Task struct {
 	ID                string                 `json:"task_id"`
 	SessionID         string                 `json:"session_id"`
+	ParentTaskID      string                 `json:"parent_task_id,omitempty"`
 	Status            TaskStatus             `json:"status"`
 	Description       string                 `json:"task"`
 	CreatedAt         time.Time              `json:"created_at"`

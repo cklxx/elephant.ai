@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	id "alex/internal/utils/id"
 )
 
 // Logger wraps slog for structured logging
@@ -67,8 +69,19 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 		args = append(args, "trace_id", traceID)
 	}
 
-	if sessionID := SessionIDFromContext(ctx); sessionID != "" {
+	ids := id.IDsFromContext(ctx)
+	if ids.SessionID != "" {
+		args = append(args, "session_id", ids.SessionID)
+	} else if sessionID := SessionIDFromContext(ctx); sessionID != "" {
 		args = append(args, "session_id", sessionID)
+	}
+
+	if ids.TaskID != "" {
+		args = append(args, "task_id", ids.TaskID)
+	}
+
+	if ids.ParentTaskID != "" {
+		args = append(args, "parent_task_id", ids.ParentTaskID)
 	}
 
 	if len(args) == 0 {
@@ -158,7 +171,8 @@ func TraceIDFromContext(ctx context.Context) string {
 
 // ContextWithSessionID adds session ID to context
 func ContextWithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, sessionIDKey, sessionID)
+	ctx = context.WithValue(ctx, sessionIDKey, sessionID)
+	return id.WithSessionID(ctx, sessionID)
 }
 
 // SessionIDFromContext extracts session ID from context
@@ -166,5 +180,5 @@ func SessionIDFromContext(ctx context.Context) string {
 	if sessionID, ok := ctx.Value(sessionIDKey).(string); ok {
 		return sessionID
 	}
-	return ""
+	return id.SessionIDFromContext(ctx)
 }

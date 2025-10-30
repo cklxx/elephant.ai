@@ -12,9 +12,11 @@ type EventListener = ports.EventListener
 
 // BaseEvent provides common fields for all events
 type BaseEvent struct {
-	timestamp  time.Time
-	agentLevel ports.AgentLevel
-	sessionID  string
+	timestamp    time.Time
+	agentLevel   ports.AgentLevel
+	sessionID    string
+	taskID       string
+	parentTaskID string
 }
 
 func (e *BaseEvent) Timestamp() time.Time {
@@ -29,11 +31,21 @@ func (e *BaseEvent) GetSessionID() string {
 	return e.sessionID
 }
 
-func newBaseEventWithSession(level ports.AgentLevel, sessionID string, ts time.Time) BaseEvent {
+func (e *BaseEvent) GetTaskID() string {
+	return e.taskID
+}
+
+func (e *BaseEvent) GetParentTaskID() string {
+	return e.parentTaskID
+}
+
+func newBaseEventWithIDs(level ports.AgentLevel, sessionID, taskID, parentTaskID string, ts time.Time) BaseEvent {
 	return BaseEvent{
-		timestamp:  ts,
-		agentLevel: level,
-		sessionID:  sessionID,
+		timestamp:    ts,
+		agentLevel:   level,
+		sessionID:    sessionID,
+		taskID:       taskID,
+		parentTaskID: parentTaskID,
 	}
 }
 
@@ -47,9 +59,9 @@ type TaskAnalysisEvent struct {
 func (e *TaskAnalysisEvent) EventType() string { return "task_analysis" }
 
 // NewTaskAnalysisEvent creates a new task analysis event
-func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, actionName, goal string, ts time.Time) *TaskAnalysisEvent {
+func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID, actionName, goal string, ts time.Time) *TaskAnalysisEvent {
 	return &TaskAnalysisEvent{
-		BaseEvent:  newBaseEventWithSession(level, sessionID, ts),
+		BaseEvent:  newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		ActionName: actionName,
 		Goal:       goal,
 	}
@@ -162,13 +174,13 @@ type ContextCompressionEvent struct {
 func (e *ContextCompressionEvent) EventType() string { return "context_compression" }
 
 // NewContextCompressionEvent creates a new context compression event
-func NewContextCompressionEvent(level ports.AgentLevel, sessionID string, originalCount, compressedCount int, ts time.Time) *ContextCompressionEvent {
+func NewContextCompressionEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID string, originalCount, compressedCount int, ts time.Time) *ContextCompressionEvent {
 	compressionRate := 0.0
 	if originalCount > 0 {
 		compressionRate = float64(compressedCount) / float64(originalCount) * 100.0
 	}
 	return &ContextCompressionEvent{
-		BaseEvent:       newBaseEventWithSession(level, sessionID, ts),
+		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		OriginalCount:   originalCount,
 		CompressedCount: compressedCount,
 		CompressionRate: compressionRate,
@@ -188,13 +200,13 @@ type ToolFilteringEvent struct {
 func (e *ToolFilteringEvent) EventType() string { return "tool_filtering" }
 
 // NewToolFilteringEvent creates a new tool filtering event
-func NewToolFilteringEvent(level ports.AgentLevel, sessionID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *ToolFilteringEvent {
+func NewToolFilteringEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *ToolFilteringEvent {
 	filterRatio := 0.0
 	if originalCount > 0 {
 		filterRatio = float64(filteredCount) / float64(originalCount) * 100.0
 	}
 	return &ToolFilteringEvent{
-		BaseEvent:       newBaseEventWithSession(level, sessionID, ts),
+		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		PresetName:      presetName,
 		OriginalCount:   originalCount,
 		FilteredCount:   filteredCount,
@@ -221,14 +233,14 @@ func (e *BrowserInfoEvent) EventType() string { return "browser_info" }
 // NewBrowserInfoEvent creates a new browser diagnostics event
 func NewBrowserInfoEvent(
 	level ports.AgentLevel,
-	sessionID string,
+	sessionID, taskID, parentTaskID string,
 	captured time.Time,
 	success *bool,
 	message, userAgent, cdpURL, vncURL string,
 	viewportWidth, viewportHeight int,
 ) *BrowserInfoEvent {
 	event := &BrowserInfoEvent{
-		BaseEvent:      newBaseEventWithSession(level, sessionID, captured),
+		BaseEvent:      newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, captured),
 		Success:        success,
 		Message:        message,
 		UserAgent:      userAgent,
@@ -254,7 +266,7 @@ func (e *EnvironmentSnapshotEvent) EventType() string { return "environment_snap
 // NewEnvironmentSnapshotEvent constructs a new environment snapshot event.
 func NewEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.Time) *EnvironmentSnapshotEvent {
 	return &EnvironmentSnapshotEvent{
-		BaseEvent: newBaseEventWithSession(ports.LevelCore, "", captured),
+		BaseEvent: newBaseEventWithIDs(ports.LevelCore, "", "", "", captured),
 		Host:      cloneStringMap(host),
 		Sandbox:   cloneStringMap(sandbox),
 		Captured:  captured,
@@ -278,7 +290,7 @@ func (e *SandboxProgressEvent) EventType() string { return "sandbox_progress" }
 // NewSandboxProgressEvent constructs a sandbox progress event.
 func NewSandboxProgressEvent(status, stage, message string, step, totalSteps int, errMessage string, updated time.Time) *SandboxProgressEvent {
 	return &SandboxProgressEvent{
-		BaseEvent:  newBaseEventWithSession(ports.LevelCore, "", updated),
+		BaseEvent:  newBaseEventWithIDs(ports.LevelCore, "", "", "", updated),
 		Status:     status,
 		Stage:      stage,
 		Message:    message,

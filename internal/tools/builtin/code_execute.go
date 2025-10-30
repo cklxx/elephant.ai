@@ -32,10 +32,10 @@ type codeExecute struct {
 }
 
 func NewCodeExecute(cfg CodeExecuteConfig) ports.ToolExecutor {
-        mode := cfg.Mode
-        if mode == tools.ExecutionModeUnknown {
-                if cfg.SandboxManager != nil {
-                        mode = tools.ExecutionModeSandbox
+	mode := cfg.Mode
+	if mode == tools.ExecutionModeUnknown {
+		if cfg.SandboxManager != nil {
+			mode = tools.ExecutionModeSandbox
 		} else {
 			mode = tools.ExecutionModeLocal
 		}
@@ -58,11 +58,11 @@ func NewCodeExecute(cfg CodeExecuteConfig) ports.ToolExecutor {
 		}
 	}
 
-        return tool
+	return tool
 }
 
 func (t *codeExecute) Mode() tools.ExecutionMode {
-        return t.config.Mode
+	return t.config.Mode
 }
 
 func (t *codeExecute) Metadata() ports.ToolMetadata {
@@ -381,7 +381,7 @@ func (t *codeExecute) executeNodeRemote(ctx context.Context, callID, code string
 			builder.WriteString(strings.TrimSpace(*stderr))
 			builder.WriteString("\n")
 		}
-		builder.WriteString(fmt.Sprintf("Exit Code: %d\n", data.GetExitCode()))
+		fmt.Fprintf(&builder, "Exit Code: %d\n", data.GetExitCode())
 	}
 
 	metadata := map[string]any{
@@ -433,7 +433,7 @@ func (t *codeExecute) executeBashRemote(ctx context.Context, callID, code string
 	builder.WriteString("Output:\n")
 	builder.WriteString(strings.TrimSpace(output))
 	builder.WriteString("\n")
-	builder.WriteString(fmt.Sprintf("Exit Code: %d\n", exitCode))
+	fmt.Fprintf(&builder, "Exit Code: %d\n", exitCode)
 
 	metadata := map[string]any{
 		"success":     success,
@@ -506,7 +506,7 @@ func (t *codeExecute) executeGoRemote(ctx context.Context, callID, code string, 
 	builder.WriteString("Output:\n")
 	builder.WriteString(strings.TrimSpace(output))
 	builder.WriteString("\n")
-	builder.WriteString(fmt.Sprintf("Exit Code: %d\n", exitCode))
+	fmt.Fprintf(&builder, "Exit Code: %d\n", exitCode)
 
 	metadata := map[string]any{
 		"success":     success,
@@ -538,14 +538,14 @@ func appendJupyterOutput(builder *strings.Builder, output *api.JupyterOutput) {
 		if output.GetText() != nil {
 			text = *output.GetText()
 		}
-		builder.WriteString(fmt.Sprintf("    (%s) %s\n", name, strings.TrimSpace(text)))
+		fmt.Fprintf(builder, "    (%s) %s\n", name, strings.TrimSpace(text))
 	case "error":
 		builder.WriteString("    Error:\n")
 		if output.GetEname() != nil {
-			builder.WriteString(fmt.Sprintf("      Name: %s\n", *output.GetEname()))
+			fmt.Fprintf(builder, "      Name: %s\n", *output.GetEname())
 		}
 		if output.GetEvalue() != nil {
-			builder.WriteString(fmt.Sprintf("      Value: %s\n", *output.GetEvalue()))
+			fmt.Fprintf(builder, "      Value: %s\n", *output.GetEvalue())
 		}
 		if trace := output.GetTraceback(); len(trace) > 0 {
 			builder.WriteString("      Traceback:\n")

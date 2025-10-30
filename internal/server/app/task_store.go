@@ -9,7 +9,7 @@ import (
 
 	agentPorts "alex/internal/agent/ports"
 	"alex/internal/server/ports"
-	"github.com/google/uuid"
+	id "alex/internal/utils/id"
 )
 
 // InMemoryTaskStore implements TaskStore with in-memory storage
@@ -30,18 +30,19 @@ func (s *InMemoryTaskStore) Create(ctx context.Context, sessionID string, descri
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	taskID := fmt.Sprintf("task-%s", uuid.New().String())
+	taskID := id.NewTaskID()
 	now := time.Now()
 
 	task := &ports.Task{
-		ID:          taskID,
-		SessionID:   sessionID,
-		Status:      ports.TaskStatusPending,
-		Description: description,
-		CreatedAt:   now,
-		Metadata:    make(map[string]string),
-		AgentPreset: agentPreset,
-		ToolPreset:  toolPreset,
+		ID:           taskID,
+		SessionID:    sessionID,
+		ParentTaskID: id.ParentTaskIDFromContext(ctx),
+		Status:       ports.TaskStatusPending,
+		Description:  description,
+		CreatedAt:    now,
+		Metadata:     make(map[string]string),
+		AgentPreset:  agentPreset,
+		ToolPreset:   toolPreset,
 	}
 
 	s.tasks[taskID] = task
@@ -231,6 +232,10 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 	// but kept for backward compatibility
 	if result.SessionID != "" {
 		task.SessionID = result.SessionID
+	}
+
+	if result.ParentTaskID != "" {
+		task.ParentTaskID = result.ParentTaskID
 	}
 
 	return nil

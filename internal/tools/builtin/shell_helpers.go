@@ -41,6 +41,12 @@ func runSandboxCommandRaw(ctx context.Context, sandbox *tools.SandboxManager, co
 }
 
 func executeSandboxCommand(ctx context.Context, sandbox *tools.SandboxManager, call ports.ToolCall, command string) (*ports.ToolResult, error) {
+	// Auto-prepend working directory if command doesn't start with 'cd'
+	// This allows commands to work in /workspace by default
+	if !strings.HasPrefix(strings.TrimSpace(command), "cd ") {
+		command = "cd /workspace && " + command
+	}
+
 	output, exitCode, err := runSandboxCommandRaw(ctx, sandbox, command)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
