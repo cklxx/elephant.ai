@@ -129,9 +129,13 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	logLine := fmt.Sprintf("%s [%s] [%s] %s:%d - %s\n",
 		timestamp, levelStr, component, file, line, message)
 
+	// Write to file if available
 	if l.logger != nil {
 		l.logger.Print(logLine)
 	}
+
+	// Also write to stdout for deploy.sh log redirection
+	fmt.Print(logLine)
 }
 
 // Debug logs a debug message
