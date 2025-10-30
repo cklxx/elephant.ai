@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/agent/ports"
 	serverPorts "alex/internal/server/ports"
+	id "alex/internal/utils/id"
 )
 
 func TestInMemoryTaskStore_Create(t *testing.T) {
@@ -36,6 +37,20 @@ func TestInMemoryTaskStore_Create(t *testing.T) {
 
 	if task.CreatedAt.IsZero() {
 		t.Error("CreatedAt should be set")
+	}
+}
+
+func TestInMemoryTaskStore_CreateCapturesParentTaskID(t *testing.T) {
+	ctx := id.WithParentTaskID(context.Background(), "parent-123")
+	store := NewInMemoryTaskStore()
+
+	task, err := store.Create(ctx, "session-1", "Test task", "", "")
+	if err != nil {
+		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	if task.ParentTaskID != "parent-123" {
+		t.Errorf("Expected parent task ID 'parent-123', got '%s'", task.ParentTaskID)
 	}
 }
 
@@ -142,11 +157,12 @@ func TestInMemoryTaskStore_SetResult(t *testing.T) {
 	task, _ := store.Create(ctx, "session-1", "Test task", "", "")
 
 	result := &ports.TaskResult{
-		Answer:     "Task completed",
-		Iterations: 5,
-		TokensUsed: 1000,
-		StopReason: "final_answer",
-		SessionID:  "session-1",
+		Answer:       "Task completed",
+		Iterations:   5,
+		TokensUsed:   1000,
+		StopReason:   "final_answer",
+		SessionID:    "session-1",
+		ParentTaskID: "parent-xyz",
 	}
 
 	err := store.SetResult(ctx, task.ID, result)
@@ -173,6 +189,10 @@ func TestInMemoryTaskStore_SetResult(t *testing.T) {
 
 	if updated.TokensUsed != 1000 {
 		t.Errorf("Expected 1000 tokens, got %d", updated.TokensUsed)
+	}
+
+	if updated.ParentTaskID != "parent-xyz" {
+		t.Errorf("Expected parent task ID 'parent-xyz', got '%s'", updated.ParentTaskID)
 	}
 }
 

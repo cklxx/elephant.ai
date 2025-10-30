@@ -93,6 +93,8 @@ function ConversationPageContent() {
       event_type: 'user_task' as const,
       timestamp: new Date().toISOString(),
       agent_level: 'core' as const,
+      session_id: resolvedSessionId ?? sessionId ?? 'pending-session',
+      task_id: taskId ?? undefined,
       task,
     };
     addEvent(userEvent);

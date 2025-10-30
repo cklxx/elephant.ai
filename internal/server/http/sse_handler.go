@@ -13,6 +13,7 @@ import (
 	"alex/internal/security/redaction"
 	"alex/internal/server/app"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 // SSEHandler handles Server-Sent Events connections
@@ -63,7 +64,13 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial connection message
-	if _, err := fmt.Fprintf(w, "event: connected\ndata: {\"session_id\":\"%s\"}\n\n", sessionID); err != nil {
+	if _, err := fmt.Fprintf(
+		w,
+		"event: connected\ndata: {\"session_id\":\"%s\",\"task_id\":\"%s\",\"parent_task_id\":\"%s\"}\n\n",
+		sessionID,
+		id.TaskIDFromContext(r.Context()),
+		id.ParentTaskIDFromContext(r.Context()),
+	); err != nil {
 		h.logger.Error("Failed to send connection message: %v", err)
 		return
 	}
@@ -157,10 +164,12 @@ drainComplete:
 func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 	// Create a map with common fields
 	data := map[string]interface{}{
-		"event_type":  event.EventType(),
-		"timestamp":   event.Timestamp().Format(time.RFC3339),
-		"agent_level": event.GetAgentLevel(),
-		"session_id":  event.GetSessionID(),
+		"event_type":     event.EventType(),
+		"timestamp":      event.Timestamp().Format(time.RFC3339),
+		"agent_level":    event.GetAgentLevel(),
+		"session_id":     event.GetSessionID(),
+		"task_id":        event.GetTaskID(),
+		"parent_task_id": event.GetParentTaskID(),
 	}
 
 	// Add event-specific fields based on type

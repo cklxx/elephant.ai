@@ -9,6 +9,8 @@ type AgentEvent interface {
 	Timestamp() time.Time
 	GetAgentLevel() AgentLevel
 	GetSessionID() string
+	GetTaskID() string
+	GetParentTaskID() string
 }
 
 // EventListener consumes agent events (used by TUI/streaming layers)

@@ -10,6 +10,7 @@ import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { ReactNode } from 'react';
 
 interface VirtualizedEventListProps {
   events: AnyAgentEvent[];
@@ -335,19 +336,29 @@ function EventCard({
   isFocused?: boolean;
 }) {
   const t = useTranslation();
+
+  const wrapWithContext = (content: ReactNode) => (
+    <div className="space-y-3">
+      <EventContextMeta event={event} />
+      {content}
+    </div>
+  );
+
   switch (event.event_type) {
     case 'task_analysis':
-      return <TaskAnalysisCard event={event} />;
+      return wrapWithContext(<TaskAnalysisCard event={event} />);
 
     case 'thinking':
       return <ThinkingIndicator />;
 
     case 'tool_call_start':
-      return <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />;
+      return wrapWithContext(
+        <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />
+      );
 
     case 'tool_call_complete':
       const hasError = 'error' in event && event.error;
-      return (
+      return wrapWithContext(
         <ToolCallCard
           event={event}
           status={hasError ? 'error' : 'complete'}
@@ -357,10 +368,10 @@ function EventCard({
       );
 
     case 'task_complete':
-      return <TaskCompleteCard event={event} />;
+      return wrapWithContext(<TaskCompleteCard event={event} />);
 
     case 'error':
-      return <ErrorCard event={event} />;
+      return wrapWithContext(<ErrorCard event={event} />);
 
     case 'iteration_start':
       return (
@@ -376,7 +387,7 @@ function EventCard({
       );
 
     case 'iteration_complete':
-      return (
+      return wrapWithContext(
         <div className="flex flex-wrap items-center gap-3">
           <span className="console-quiet-chip text-xs uppercase">
             {t('events.iteration.complete', { iteration: event.iteration })}
@@ -392,7 +403,7 @@ function EventCard({
 
     // New event types (backend not yet emitting, but ready for when they do)
     case 'research_plan':
-      return (
+      return wrapWithContext(
         <div className="space-y-3">
           <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
             {t('events.researchPlan.title', { count: event.estimated_iterations })}
@@ -406,7 +417,7 @@ function EventCard({
       );
 
     case 'step_started':
-      return (
+      return wrapWithContext(
         <div className="flex items-center gap-3">
           <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
           <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
@@ -482,4 +493,27 @@ function EventCard({
     default:
       return null;
   }
+}
+
+function EventContextMeta({ event }: { event: AnyAgentEvent }) {
+  const parts: string[] = [];
+  if (event.session_id) {
+    parts.push(`Session ${event.session_id}`);
+  }
+  if (event.task_id) {
+    parts.push(`Task ${event.task_id}`);
+  }
+  if (event.parent_task_id) {
+    parts.push(`Parent ${event.parent_task_id}`);
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return (
+    <p className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
+      {parts.join(' · ')}
+    </p>
+  );
 }

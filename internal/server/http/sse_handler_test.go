@@ -74,7 +74,7 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test Action", "Test Goal", time.Now())
+	event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "sse-task", "", "Test Action", "Test Goal", time.Now())
 	broadcaster.OnEvent(event)
 
 	// Wait for event to be sent
@@ -88,6 +88,10 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	// Should contain SSE format
 	if !strings.Contains(body, "event: connected") {
 		t.Error("Expected connected event in response")
+	}
+
+	if !strings.Contains(body, "parent_task_id") {
+		t.Error("Expected connected event payload to include parent_task_id")
 	}
 
 	// Check headers (read safely after they're set)
@@ -142,7 +146,7 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}{
 		{
 			name:      "TaskAnalysisEvent",
-			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "Test", "Goal", time.Now()),
+			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "sse-task", "", "Test", "Goal", time.Now()),
 			wantField: "action_name",
 		},
 		{
@@ -182,6 +186,14 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 			if !strings.Contains(json, tt.wantField) {
 				t.Errorf("Expected field %s in JSON, got: %s", tt.wantField, json)
+			}
+
+			if !strings.Contains(json, "\"task_id\"") {
+				t.Errorf("Expected serialized event to include task_id, got: %s", json)
+			}
+
+			if !strings.Contains(json, "\"parent_task_id\"") {
+				t.Errorf("Expected serialized event to include parent_task_id, got: %s", json)
 			}
 
 			if _, ok := tt.event.(*domain.ToolCallStartEvent); ok {

@@ -12,7 +12,9 @@ func TestBaseEventAccessors(t *testing.T) {
 	level := ports.LevelSubagent
 	sessionID := "session-123"
 
-	event := NewTaskAnalysisEvent(level, sessionID, "analyze", "goal", ts)
+	taskID := "task-123"
+	parentTaskID := ""
+	event := NewTaskAnalysisEvent(level, sessionID, taskID, parentTaskID, "analyze", "goal", ts)
 	if got := event.Timestamp(); !got.Equal(ts) {
 		t.Fatalf("expected timestamp %v, got %v", ts, got)
 	}
@@ -22,10 +24,16 @@ func TestBaseEventAccessors(t *testing.T) {
 	if event.GetSessionID() != sessionID {
 		t.Fatalf("expected sessionID %s, got %s", sessionID, event.GetSessionID())
 	}
+	if event.GetTaskID() != taskID {
+		t.Fatalf("expected taskID %s, got %s", taskID, event.GetTaskID())
+	}
+	if event.GetParentTaskID() != parentTaskID {
+		t.Fatalf("expected parentTaskID %s, got %s", parentTaskID, event.GetParentTaskID())
+	}
 }
 
 func TestEventTypeImplementations(t *testing.T) {
-	base := newBaseEventWithSession(ports.LevelCore, "sess", time.Now())
+	base := newBaseEventWithIDs(ports.LevelCore, "sess", "task", "parent", time.Now())
 
 	cases := []struct {
 		name string
@@ -59,7 +67,7 @@ func TestEventListenerFunc(t *testing.T) {
 		captured = evt
 	})
 
-	evt := &ThinkingEvent{BaseEvent: newBaseEventWithSession(ports.LevelCore, "sess", time.Now())}
+	evt := &ThinkingEvent{BaseEvent: newBaseEventWithIDs(ports.LevelCore, "sess", "task", "parent", time.Now())}
 	listener.OnEvent(evt)
 
 	if captured != evt {

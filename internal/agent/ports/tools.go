@@ -53,6 +53,8 @@ type TaskState struct {
 	Complete     bool
 	FinalAnswer  string
 	SessionID    string
+	TaskID       string
+	ParentTaskID string
 }
 
 // AgentCoordinator represents the main agent coordinator for subagent delegation
@@ -103,12 +105,14 @@ type AgentConfig struct {
 
 // TaskResult represents the result of task execution
 type TaskResult struct {
-	Answer     string
-	Messages   []Message
-	Iterations int
-	TokensUsed int
-	StopReason string
-	SessionID  string // The session ID used for this task
+	Answer       string
+	Messages     []Message
+	Iterations   int
+	TokensUsed   int
+	StopReason   string
+	SessionID    string // The session ID used for this task
+	TaskID       string // The unique task identifier for this execution
+	ParentTaskID string // The parent task identifier when invoked as a subtask
 }
 
 // StreamCallback is called during task execution to stream events
@@ -141,17 +145,23 @@ type ToolRegistry interface {
 
 // ToolCall represents a request to execute a tool
 type ToolCall struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Arguments    map[string]any `json:"arguments"`
+	SessionID    string         `json:"session_id,omitempty"`
+	TaskID       string         `json:"task_id,omitempty"`
+	ParentTaskID string         `json:"parent_task_id,omitempty"`
 }
 
 // ToolResult is the execution result
 type ToolResult struct {
-	CallID   string         `json:"call_id"`
-	Content  string         `json:"content"`
-	Error    error          `json:"error,omitempty"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	CallID       string         `json:"call_id"`
+	Content      string         `json:"content"`
+	Error        error          `json:"error,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	SessionID    string         `json:"session_id,omitempty"`
+	TaskID       string         `json:"task_id,omitempty"`
+	ParentTaskID string         `json:"parent_task_id,omitempty"`
 }
 
 // MarshalJSON customizes ToolResult JSON encoding to support the error interface.

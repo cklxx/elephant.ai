@@ -7,6 +7,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
+	id "alex/internal/utils/id"
 )
 
 // PresetResolver handles preset resolution for both agent and tool presets.
@@ -116,8 +117,14 @@ func (r *PresetResolver) ResolveToolRegistry(
 			toolConfig.Name, originalCount, filteredCount, retainedPercent)
 		r.logger.Info("Using tool preset: %s (source=%s, tool_count=%d/%d)", toolConfig.Name, source, filteredCount, originalCount)
 
-		// Extract session ID from context if available
+		// Extract identifiers from context for event emission
+		ids := id.IDsFromContext(ctx)
 		sessionID := r.extractSessionID(ctx)
+		if sessionID == "" {
+			sessionID = ids.SessionID
+		} else {
+			ids.SessionID = sessionID
+		}
 
 		// Emit tool filtering metrics event
 		toolNames := make([]string, 0, filteredCount)
@@ -127,6 +134,8 @@ func (r *PresetResolver) ResolveToolRegistry(
 		filterEvent := domain.NewToolFilteringEvent(
 			ports.LevelCore,
 			sessionID,
+			ids.TaskID,
+			ids.ParentTaskID,
 			toolConfig.Name,
 			originalCount,
 			filteredCount,
