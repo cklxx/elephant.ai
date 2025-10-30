@@ -22,7 +22,7 @@ on:
 
 env:
   NODE_VERSION: '18'
-  GO_VERSION: '1.24.6'
+  GO_VERSION: '1.24.9'
 
 jobs:
   # Job 1: Build Go binaries for all platforms
