@@ -78,53 +78,58 @@ tool registry, observability, and diagnostics (`internal/di/container.go`, `inte
 
 ## Architecture
 
-ALEX keeps its core reasoning loop isolated from infrastructure via clear interfaces. Delivery layers (CLI, HTTP/SSE, web) call
-into application services that coordinate the agent, tools, and state management.
+ALEX is built as a layered system so the core reasoning loop can evolve independently from delivery surfaces or infrastructure. Command binaries and the web dashboard depend on the agent application services, which in turn orchestrate infrastructure packages through clearly defined ports.
 
 ### High-level components
 
-| Component | Description |
-|-----------|-------------|
-| `cmd/alex` | Entry point for the interactive CLI and terminal UI. Wires configuration, builds the DI container, and renders agent output. |
-| `cmd/alex-server` | Minimal binary exposing the HTTP + SSE API used by the web frontend and automations. |
-| `internal/agent` | Domain logic for the ReAct agent, presets, iteration orchestration, and typed events streamed to renderers. |
-| `internal/tools` | Built-in tool implementations and registry (`builtin/`), including safe wrappers for shell, file, search, and reasoning actions. |
-| `internal/llm` | Multi-provider clients with pricing metadata, retry logic, and cost decorators. |
-| `internal/mcp` | Model Context Protocol client, JSON-RPC transport, and tool adapters for external capability providers. |
-| `internal/session` | Persistent transcript storage (file-backed) with compression and indexing helpers. |
-| `internal/rag` | Chunking, embedding, retrieval, and store abstractions for retrieval-augmented workflows. |
-| `internal/output` | Renderers for CLI, SSE, and LLM-friendly output streams. |
-| `internal/observability` | Logging, metrics, tracing, and instrumentation configuration. |
-| `internal/config` | Loading, validation, and persistence for `~/.alex-config.json`, environment overrides, and feature flags. |
-| `internal/di` | Dependency injection container that builds and starts subsystems lazily based on configuration. |
-| `internal/server` | Application coordinators, HTTP handlers, and ports used by `alex-server`. |
-| `evaluation/` | SWE-Bench and agent benchmarking harnesses. |
-| `web/` | Next.js application providing the real-time dashboard. |
+| Area | Component | Description |
+|------|-----------|-------------|
+| Delivery | `cmd/alex` | Interactive CLI + terminal UI entrypoint. Loads configuration, builds the DI container, and streams agent output. |
+| Delivery | `cmd/alex-server` | HTTP + SSE server used by the dashboard and automations. Shares the same container wiring as the CLI. |
+| Agent core | `internal/agent/app` | Coordinators that drive task execution, schedule tool calls, and surface typed events for renderers. |
+| Agent core | `internal/agent/domain` | Pure ReAct loop, iteration policies, and domain entities used across delivery layers. |
+| Agent core | `internal/agent/ports` | Interfaces consumed by the domain layer for LLMs, tools, storage, approvals, and streaming output. |
+| Infrastructure | `internal/di` | Dependency injection container that lazily wires infrastructure (LLMs, tool registry, sandbox manager, storage). |
+| Infrastructure | `internal/tools` + `internal/toolregistry` | Built-in tool implementations, sandbox-aware execution mode abstractions, and metadata registry. |
+| Infrastructure | `internal/llm` | Provider clients with retry logic, streaming support, pricing metadata, and cost decorators. |
+| Infrastructure | `internal/mcp` | Model Context Protocol process supervisor, registry, and JSON-RPC transport. |
+| Infrastructure | `internal/session` + `internal/storage` | Transcript persistence, compression, and cost tracking stores. |
+| Infrastructure | `internal/output` + `internal/observability` | Renderers, logging, metrics, tracing, and telemetry helpers. |
+| Infrastructure | `internal/prompts`, `internal/parser`, `internal/environment`, `internal/diagnostics` | Prompt assembly, structured tool-call parsing, environment summaries, and health probes shared by the agent surfaces. |
+| Frontend | `web/` | Next.js dashboard subscribing to SSE streams with task submission UI and history views. |
+| Tooling | `evaluation/` | SWE-Bench runner and automated evaluation harnesses. |
 
 ```
 internal/
-├── agent/           # domain entities, application coordinators, and ports
+├── agent/           # domain entities, presets, application coordinators, and ports
+├── approval/        # user confirmation + guardrail prompts
 ├── config/          # runtime configuration loaders and savers
 ├── context/         # session-scoped context manager
-├── di/              # container wiring and feature flag toggles
-├── llm/             # provider clients, pricing, retry/cost middleware
+├── diagnostics/     # health probes and sandbox progress reporting
+├── diff/            # diff rendering utilities for file patches
+├── di/              # container wiring and lifecycle management
+├── environment/     # environment capture + summarization helpers
+├── errors/          # shared error helpers and sentinels
+├── integration/     # cross-cutting integration tests and adapters
+├── llm/             # provider clients, retry/cost middleware, factories
 ├── mcp/             # MCP client, registry, and JSON-RPC infrastructure
 ├── observability/   # logging, metrics, tracing setup
 ├── output/          # CLI + SSE renderers and formatting utilities
-├── rag/             # chunking, embedding, retrieval interfaces
+├── parser/          # structured tool/function call parsing helpers
+├── prompts/         # system prompt construction and templates
+├── rag/             # retrieval augmented generation components
+├── security/        # redaction and safety policies
 ├── server/          # HTTP/SSE coordinators, handlers, and ports
 ├── session/         # file-backed session persistence
 ├── storage/         # cost tracking persistence adapters
-├── tools/           # builtin tool implementations & registry
-└── utils/           # shared helpers (paths, errors, validation)
+├── toolregistry/    # tool registry metadata and filtering
+├── tools/           # builtin tool implementations & sandbox clients
+└── utils/           # shared helpers (paths, formatting, validation)
 ```
 
-The dependency direction flows inward: delivery layers depend on `internal/agent` ports and coordinators, which depend on
-provider interfaces defined in `internal/agent/ports`. Infrastructure packages implement those interfaces and are registered
-via the DI container.
+The dependency direction flows inward: delivery layers depend on `internal/agent` ports and coordinators, which depend on provider interfaces defined in `internal/agent/ports`. Infrastructure packages implement those interfaces and are registered via the DI container when the binaries start up.
 
-Additional design documentation lives under `docs/architecture/` and `docs/reference/` for deeper context (architecture review,
-foundational components, MCP guide, etc.).
+For additional diagrams and deep dives see the curated docs in `docs/architecture/` (sandbox migration, web UI service design) and reference material in `docs/reference/`.
 
 ## Repository Layout
 
