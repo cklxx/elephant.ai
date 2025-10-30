@@ -385,7 +385,7 @@ func hasDelegationError(err interface{}) bool {
 	case bool:
 		return v
 	case map[string]any:
-		return len(v) > 0
+		return true
 	case []any:
 		return len(v) > 0
 	default:

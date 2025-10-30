@@ -250,3 +250,24 @@ func TestExploreValidatesScopeTypes(t *testing.T) {
 		t.Fatalf("expected message mentioning local_scope, got %q", result.Content)
 	}
 }
+
+func TestExploreCountsFailuresForEmptyErrorObject(t *testing.T) {
+	results := []delegationSubtask{{
+		Index: 0,
+		Task:  "[LOCAL] Inspect",
+		Error: map[string]any{},
+	}}
+
+	success, failure := countDelegationOutcomes(results, map[string]any{"failure_count": 1})
+	if success != 0 || failure != 1 {
+		t.Fatalf("expected 0 success/1 failure, got %d/%d", success, failure)
+	}
+
+	highlights := buildDelegationHighlights(results)
+	if len(highlights) != 1 {
+		t.Fatalf("expected single highlight, got %d", len(highlights))
+	}
+	if !strings.Contains(highlights[0], "Task 1 failed") {
+		t.Fatalf("expected failure highlight, got %q", highlights[0])
+	}
+}
