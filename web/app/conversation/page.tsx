@@ -141,6 +141,7 @@ export function ConversationPageContent() {
               setTaskId(null);
               clearCurrentSession();
               removeSession(requestedSessionId);
+              clearEvents();
 
               runExecution(null);
               return;
