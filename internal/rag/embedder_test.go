@@ -7,10 +7,15 @@ import (
 )
 
 func TestEmbedder_Integration(t *testing.T) {
-	// Skip if no API key
+	// Skip if no API key or invalid OpenAI key format
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("OPENAI_API_KEY not set, skipping integration test")
+	}
+	// OpenAI API keys typically start with "sk-"
+	// Skip if this looks like a different provider's key (e.g., ByteDance Ark uses UUIDs)
+	if len(apiKey) < 20 || apiKey[0:3] != "sk-" {
+		t.Skip("OPENAI_API_KEY does not appear to be a valid OpenAI key, skipping integration test")
 	}
 
 	embedder, err := NewEmbedder(EmbedderConfig{
