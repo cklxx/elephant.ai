@@ -536,8 +536,8 @@ start_backend() {
         mv "$SERVER_LOG" "$SERVER_LOG.old"
     fi
 
-    # Start server in background
-    ./alex-server > "$SERVER_LOG" 2>&1 &
+    # Start server in background with deploy mode flag
+    ALEX_SERVER_MODE=deploy ./alex-server > "$SERVER_LOG" 2>&1 &
     local pid=$!
     echo "$pid" > "$SERVER_PID_FILE"
 

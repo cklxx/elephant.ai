@@ -27,8 +27,7 @@ var capabilityChecks = []struct {
 	{Program: "npm", Args: []string{"--version"}},
 	{Program: "python3", Args: []string{"--version"}},
 	{Program: "pip3", Args: []string{"--version"}},
-	{Program: "deno", Args: []string{"--version"}},
-	{Program: "cargo", Args: []string{"--version"}},
+	// Removed deno and cargo - uncommon tools that add startup overhead
 }
 
 // CollectLocalSummary inspects the current host process environment to produce a summary.
@@ -179,14 +178,46 @@ func trimQuotes(value string) string {
 }
 
 func collectLocalCapabilities() []string {
-	results := make([]string, 0, len(capabilityChecks))
-	for _, check := range capabilityChecks {
-		output := runLocalCommand(check.Program, check.Args...)
-		if output == "" {
-			continue
-		}
-		results = append(results, normalizeCapabilityOutput(check.Program, check.Args, output))
+	// Use a channel to collect results from parallel goroutines
+	type capabilityResult struct {
+		output string
+		index  int
 	}
+	resultChan := make(chan capabilityResult, len(capabilityChecks))
+
+	// Launch parallel capability checks
+	for i, check := range capabilityChecks {
+		go func(idx int, c struct {
+			Program string
+			Args    []string
+		}) {
+			output := runLocalCommand(c.Program, c.Args...)
+			resultChan <- capabilityResult{output: output, index: idx}
+		}(i, check)
+	}
+
+	// Collect results in order
+	resultMap := make(map[int]string)
+	for i := 0; i < len(capabilityChecks); i++ {
+		result := <-resultChan
+		if result.output != "" {
+			normalized := normalizeCapabilityOutput(
+				capabilityChecks[result.index].Program,
+				capabilityChecks[result.index].Args,
+				result.output,
+			)
+			resultMap[result.index] = normalized
+		}
+	}
+
+	// Build ordered results list
+	results := make([]string, 0, len(resultMap))
+	for i := 0; i < len(capabilityChecks); i++ {
+		if output, exists := resultMap[i]; exists {
+			results = append(results, output)
+		}
+	}
+
 	return results
 }
 

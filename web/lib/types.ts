@@ -208,6 +208,7 @@ export interface CreateTaskRequest {
 export interface CreateTaskResponse {
   task_id: string;
   session_id: string;
+  parent_task_id?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   requires_plan_approval?: boolean; // If true, wait for plan approval before execution
 }

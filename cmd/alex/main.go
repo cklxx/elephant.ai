@@ -15,7 +15,10 @@ func main() {
 		return
 	}
 
-	container, err := buildContainer()
+	// Determine if this is a single CLI command (disable sandbox for faster startup)
+	isCLIMode := len(args) > 0
+
+	container, err := buildContainerWithOptions(isCLIMode)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize: %v\n", err)
 		os.Exit(1)

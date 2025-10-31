@@ -19,6 +19,10 @@ type Container struct {
 }
 
 func buildContainer() (*Container, error) {
+	return buildContainerWithOptions(false)
+}
+
+func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 	// Load configuration
 	cfg, err := loadConfig()
 	if err != nil {
@@ -50,6 +54,7 @@ func buildContainer() (*Container, error) {
 		FollowTranscript:   cfg.FollowTranscript,
 		FollowStream:       cfg.FollowStream,
 		EnvironmentSummary: environmentSummary,
+		DisableSandbox:     disableSandbox,
 	}
 
 	container, err := di.BuildContainer(diConfig)

@@ -87,18 +87,6 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	handler := NewStreamingOutputHandler(container, verbose)
 	handler.ctx = ctx // Store context for OutputContext lookup
 
-	// Announce execution context for easy correlation in the terminal
-	contextLine := fmt.Sprintf("Session: %s · Task: %s", ids.SessionID, ids.TaskID)
-	if ids.ParentTaskID != "" {
-		contextLine += fmt.Sprintf(" · Parent: %s", ids.ParentTaskID)
-	}
-	if _, err := fmt.Fprintln(handler.out, contextLine); err != nil {
-		return fmt.Errorf("write execution context: %w", err)
-	}
-	if _, err := fmt.Fprintln(handler.out); err != nil {
-		return fmt.Errorf("write execution spacing: %w", err)
-	}
-
 	// Create event bridge
 	bridge := NewStreamEventBridge(handler)
 

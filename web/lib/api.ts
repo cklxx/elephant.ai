@@ -181,4 +181,3 @@ export const apiClient = {
   healthCheck,
 };
 
-export type { APIError };

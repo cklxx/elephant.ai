@@ -1,13 +1,25 @@
-'use client';
+"use client";
 
-import { ReactNode, useMemo, useState } from 'react';
-import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
-import { ConnectionBanner } from './ConnectionBanner';
-import { AlertTriangle, CheckCircle2, Info, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { getLanguageLocale, TranslationKey, TranslationParams, useI18n } from '@/lib/i18n';
-import { SandboxLevel, ToolCallSummary } from '@/lib/eventAggregation';
-import { MarkdownRenderer } from '@/components/ui/markdown';
+import { ReactNode, useMemo, useState } from "react";
+import { AnyAgentEvent, ToolCallStartEvent } from "@/lib/types";
+import { ConnectionBanner } from "./ConnectionBanner";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Info,
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  getLanguageLocale,
+  TranslationKey,
+  TranslationParams,
+  useI18n,
+} from "@/lib/i18n";
+import { SandboxLevel, ToolCallSummary } from "@/lib/eventAggregation";
+import { MarkdownRenderer } from "@/components/ui/markdown";
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -21,10 +33,10 @@ interface TerminalOutputProps {
 
 type DisplayEvent = AnyAgentEvent | ToolCallStartDisplayEvent;
 
-type EventCategory = 'conversation' | 'plan' | 'tools' | 'system' | 'other';
+type EventCategory = "conversation" | "plan" | "tools" | "system" | "other";
 
 interface ToolCallStartDisplayEvent extends ToolCallStartEvent {
-  call_status: 'running' | 'complete' | 'error';
+  call_status: "running" | "complete" | "error";
   completion_result?: string;
   completion_error?: string;
   completion_duration?: number;
@@ -46,7 +58,7 @@ export function TerminalOutput({
   const locale = getLanguageLocale(language);
   const toolSummariesById = useMemo(
     () => new Map(toolSummaries.map((summary) => [summary.callId, summary])),
-    [toolSummaries]
+    [toolSummaries],
   );
 
   const displayEvents = useMemo(() => {
@@ -58,30 +70,30 @@ export function TerminalOutput({
       if (shouldSkipEvent(event)) {
         return;
       }
-      if (event.event_type === 'tool_call_start') {
+      if (event.event_type === "tool_call_start") {
         const startEvent: ToolCallStartDisplayEvent = {
           ...event,
-          call_status: 'running',
-          stream_content: '',
+          call_status: "running",
+          stream_content: "",
         };
         aggregated.push(startEvent);
         startEvents.set(event.call_id, startEvent);
         return;
       }
 
-      if (event.event_type === 'tool_call_stream') {
+      if (event.event_type === "tool_call_stream") {
         const startEvent = startEvents.get(event.call_id);
         if (startEvent) {
-          startEvent.stream_content = `${startEvent.stream_content ?? ''}${event.chunk}`;
+          startEvent.stream_content = `${startEvent.stream_content ?? ""}${event.chunk}`;
           startEvent.last_stream_timestamp = event.timestamp;
         }
         return;
       }
 
-      if (event.event_type === 'tool_call_complete') {
+      if (event.event_type === "tool_call_complete") {
         const startEvent = startEvents.get(event.call_id);
         if (startEvent) {
-          startEvent.call_status = event.error ? 'error' : 'complete';
+          startEvent.call_status = event.error ? "error" : "complete";
           startEvent.completion_result = event.result;
           startEvent.completion_error = event.error;
           startEvent.completion_duration = event.duration;
@@ -105,7 +117,7 @@ export function TerminalOutput({
         continue;
       }
 
-      if (event.call_status === 'running') {
+      if (event.call_status === "running") {
         toolEventsToKeep.add(index);
         continue;
       }
@@ -122,7 +134,10 @@ export function TerminalOutput({
   const activeAction = useMemo(() => {
     for (let index = displayEvents.length - 1; index >= 0; index -= 1) {
       const candidate = displayEvents[index];
-      if (isToolCallStartDisplayEvent(candidate) && candidate.call_status === 'running') {
+      if (
+        isToolCallStartDisplayEvent(candidate) &&
+        candidate.call_status === "running"
+      ) {
         return candidate;
       }
     }
@@ -143,7 +158,10 @@ export function TerminalOutput({
   }
 
   return (
-    <div className="console-card space-y-5 px-6 py-5" data-testid="conversation-stream">
+    <div
+      className="console-card space-y-5 px-6 py-5"
+      data-testid="conversation-stream"
+    >
       {activeAction && (
         <div className="console-quiet-chip text-xs uppercase">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -152,21 +170,45 @@ export function TerminalOutput({
       )}
 
       <div className="space-y-2" data-testid="conversation-events">
-        {displayEvents.map((event, index) => (
-          <EventLine
-            key={`${event.event_type}-${index}`}
-            event={event}
-            t={t}
-            locale={locale}
-            toolSummariesById={toolSummariesById}
-          />
-        ))}
+        {displayEvents.map((event, index) => {
+          // Find the last completed tool call to auto-expand it
+          const isLastCompletedToolCall = (() => {
+            if (
+              !isToolCallStartDisplayEvent(event) ||
+              event.call_status === "running"
+            ) {
+              return false;
+            }
+            // Check if this is the last completed tool call
+            for (let i = displayEvents.length - 1; i > index; i--) {
+              const laterEvent = displayEvents[i];
+              if (
+                isToolCallStartDisplayEvent(laterEvent) &&
+                laterEvent.call_status !== "running"
+              ) {
+                return false;
+              }
+            }
+            return true;
+          })();
+
+          return (
+            <EventLine
+              key={`${event.event_type}-${index}`}
+              event={event}
+              t={t}
+              locale={locale}
+              toolSummariesById={toolSummariesById}
+              isLastCompletedToolCall={isLastCompletedToolCall}
+            />
+          );
+        })}
       </div>
 
       {isConnected && displayEvents.length > 0 && (
         <div className="flex items-center gap-2 pt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
           <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
-          <span>{t('conversation.status.listening')}</span>
+          <span>{t("conversation.status.listening")}</span>
         </div>
       )}
     </div>
@@ -183,43 +225,48 @@ function SimpleToolSummaryList({
   locale: string;
 }) {
   return (
-      <section
-        className="rounded-md border border-slate-200 bg-white p-3 text-[10px] text-slate-600"
-        data-testid="tool-summary-list"
-      >
-        <p className="text-[10px] font-semibold text-slate-700">
-          {t('conversation.tools.simpleSummary.heading')}
-        </p>
-        <p className="mt-1 text-[10px] text-slate-500">
-          {t('conversation.tools.simpleSummary.sandboxNote')}
-        </p>
-        <ol className="mt-3 space-y-3 text-[9px] leading-relaxed">
+    <section
+      className="rounded-md border border-slate-200 bg-white p-3 text-[10px] text-slate-600"
+      data-testid="tool-summary-list"
+    >
+      <p className="text-[10px] font-semibold text-slate-700">
+        {t("conversation.tools.simpleSummary.heading")}
+      </p>
+      <p className="mt-1 text-[10px] text-slate-500">
+        {t("conversation.tools.simpleSummary.sandboxNote")}
+      </p>
+      <ol className="mt-3 space-y-3 text-[9px] leading-relaxed">
         {summaries.map((summary) => {
           const statusLabel =
-            summary.status === 'running'
-              ? t('conversation.status.doing')
-              : summary.status === 'completed'
-                ? t('conversation.status.completed')
-                : t('conversation.status.failed');
-          const timestamp = formatTimestamp(summary.completedAt ?? summary.startedAt, locale);
-          const duration = summary.durationMs ? formatDuration(summary.durationMs) : null;
+            summary.status === "running"
+              ? t("conversation.status.doing")
+              : summary.status === "completed"
+                ? t("conversation.status.completed")
+                : t("conversation.status.failed");
+          const timestamp = formatTimestamp(
+            summary.completedAt ?? summary.startedAt,
+            locale,
+          );
+          const duration = summary.durationMs
+            ? formatDuration(summary.durationMs)
+            : null;
 
           const details: Array<{ label: string; value: string }> = [];
           if (summary.argumentsPreview) {
             details.push({
-              label: t('conversation.tools.simpleSummary.inputsLabel'),
+              label: t("conversation.tools.simpleSummary.inputsLabel"),
               value: summary.argumentsPreview,
             });
           }
           if (summary.resultPreview) {
             details.push({
-              label: t('conversation.tools.simpleSummary.outputLabel'),
+              label: t("conversation.tools.simpleSummary.outputLabel"),
               value: summary.resultPreview,
             });
           }
           if (summary.errorMessage) {
             details.push({
-              label: t('conversation.tools.simpleSummary.errorLabel'),
+              label: t("conversation.tools.simpleSummary.errorLabel"),
               value: summary.errorMessage,
             });
           }
@@ -230,13 +277,18 @@ function SimpleToolSummaryList({
             <li key={summary.callId} className="space-y-1 text-slate-600">
               <p className="text-[9px] text-slate-700">
                 {timestamp} · {summary.toolName} · {statusLabel}
-                {duration ? ` · ${duration}` : ''}
+                {duration ? ` · ${duration}` : ""}
               </p>
               <p className="text-[8px] text-slate-500">
-                {t('conversation.tools.simpleSummary.sandboxLine', { policy: sandboxPolicy })}
+                {t("conversation.tools.simpleSummary.sandboxLine", {
+                  policy: sandboxPolicy,
+                })}
               </p>
               {details.map(({ label, value }, index) => (
-                <p key={`${summary.callId}-detail-${index}`} className="text-[8px] text-slate-500">
+                <p
+                  key={`${summary.callId}-detail-${index}`}
+                  className="text-[8px] text-slate-500"
+                >
                   - {label}: {value}
                 </p>
               ))}
@@ -250,59 +302,118 @@ function SimpleToolSummaryList({
 
 function describeSandboxPolicy(
   level: SandboxLevel,
-  t: (key: TranslationKey, params?: TranslationParams) => string
+  t: (key: TranslationKey, params?: TranslationParams) => string,
 ) {
   switch (level) {
-    case 'filesystem':
-      return t('conversation.tools.simpleSummary.policy.filesystem');
-    case 'system':
-      return t('conversation.tools.simpleSummary.policy.system');
+    case "filesystem":
+      return t("conversation.tools.simpleSummary.policy.filesystem");
+    case "system":
+      return t("conversation.tools.simpleSummary.policy.system");
     default:
-      return t('conversation.tools.simpleSummary.policy.standard');
+      return t("conversation.tools.simpleSummary.policy.standard");
   }
 }
 
 // Collapsible tool call component
-function CollapsibleToolCall({ event }: { event: ToolCallStartDisplayEvent }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function CollapsibleToolCall({
+  event,
+  isLatest = false,
+}: {
+  event: ToolCallStartDisplayEvent;
+  isLatest?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(isLatest);
   const timestamp = formatTimestamp(event.timestamp);
-  const hasResult = event.call_status === 'complete' && event.completion_result;
-  const hasError = event.call_status === 'error';
+  const hasResult = event.call_status === "complete" && event.completion_result;
+  const hasError = event.call_status === "error";
+  const isRunning = event.call_status === "running";
+  const hasDetails = hasResult || hasError;
 
   return (
-    <div className="flex gap-3 py-1" data-testid="event-line-tool">
-      <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
-        {timestamp}
-      </span>
+    <div className="flex gap-3 py-1.5 group" data-testid="event-line-tool">
       <div className="flex-1 text-sm">
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors w-full text-left"
+          disabled={!hasDetails && !isRunning}
+          className={cn(
+            "flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 transition-all",
+            hasDetails && "hover:bg-slate-50 cursor-pointer",
+            !hasDetails && !isRunning && "cursor-default",
+          )}
         >
-          <span className="font-mono">
-            {event.call_status === 'running' && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
-            {hasError && <span className="text-red-600">✗</span>}
-            {event.call_status === 'complete' && !hasError && <span className="text-emerald-600">✓</span>}
-            {' '}{event.tool_name}
+          {/* Expand/Collapse Icon */}
+          {hasDetails && (
+            <span className="text-slate-400 group-hover:text-slate-600 transition-colors">
+              {isExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+            </span>
+          )}
+
+          {/* Status Icon */}
+          <span className="flex-shrink-0">
+            {isRunning && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+            )}
+            {hasError && <span className="text-red-600 text-sm">✗</span>}
+            {event.call_status === "complete" && !hasError && (
+              <span className="text-emerald-600 text-sm">✓</span>
+            )}
           </span>
+
+          {/* Tool Name */}
+          <span
+            className={cn(
+              "font-mono font-medium",
+              hasError && "text-red-700",
+              !hasError && event.call_status === "complete" && "text-slate-700",
+              isRunning && "text-blue-700",
+            )}
+          >
+            {event.tool_name}
+          </span>
+
+          {/* Arguments Preview */}
           {event.arguments_preview && (
-            <span className="text-xs text-slate-500">({event.arguments_preview})</span>
+            <span className="text-xs text-slate-500 truncate">
+              ({event.arguments_preview})
+            </span>
+          )}
+
+          {/* Duration Badge */}
+          {event.completion_duration && (
+            <span className="ml-auto text-[10px] text-slate-400 font-mono">
+              {formatDuration(event.completion_duration)}
+            </span>
           )}
         </button>
 
-        {isExpanded && (hasResult || hasError) && (
-          <div className="mt-2 ml-6 space-y-2">
+        {/* Expanded Details */}
+        {isExpanded && hasDetails && (
+          <div className="mt-2 ml-6 space-y-2 animate-in fade-in-0 slide-in-from-top-1 duration-200">
             {hasError && event.completion_error && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
-                <div className="font-semibold mb-1">Error:</div>
-                <pre className="whitespace-pre-wrap">{event.completion_error}</pre>
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+                <div className="font-semibold mb-1.5 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Error Details
+                </div>
+                <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed">
+                  {event.completion_error}
+                </pre>
               </div>
             )}
             {hasResult && (
-              <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded p-2 max-h-60 overflow-y-auto">
-                <div className="font-semibold text-slate-600 mb-1">Result:</div>
-                <pre className="whitespace-pre-wrap">{formatResultPreview(event.completion_result)}</pre>
+              <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-md p-3 max-h-80 overflow-y-auto console-scrollbar">
+                <div className="font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  Result
+                </div>
+                <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-800">
+                  {event.completion_result}
+                </pre>
               </div>
             )}
           </div>
@@ -318,28 +429,38 @@ function EventLine({
   t,
   locale,
   toolSummariesById,
+  isLastCompletedToolCall = false,
 }: {
   event: DisplayEvent;
   t: (key: TranslationKey, params?: TranslationParams) => string;
   locale: string;
   toolSummariesById: Map<string, ToolCallSummary>;
+  isLastCompletedToolCall?: boolean;
 }) {
   // Handle tool calls with collapsible component
-  if (event.event_type === 'tool_call_start' || isToolCallStartDisplayEvent(event)) {
-    return <CollapsibleToolCall event={event as ToolCallStartDisplayEvent} />;
+  if (
+    event.event_type === "tool_call_start" ||
+    isToolCallStartDisplayEvent(event)
+  ) {
+    return (
+      <CollapsibleToolCall
+        event={event as ToolCallStartDisplayEvent}
+        isLatest={isLastCompletedToolCall}
+      />
+    );
   }
 
-  if (event.event_type === 'user_task') {
+  if (event.event_type === "user_task") {
     const timestamp = formatTimestamp(event.timestamp, locale);
     return (
-        <div className="flex gap-3 py-2" data-testid="event-line-user">
-          <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
-            {timestamp}
-          </span>
-          <div className="text-slate-700 font-semibold text-sm leading-normal flex-1 whitespace-pre-wrap">
-            {event.task}
-          </div>
+      <div className="flex gap-3 py-2" data-testid="event-line-user">
+        <span className="text-slate-400 text-xs flex-shrink-0 select-none font-mono">
+          {timestamp}
+        </span>
+        <div className="text-slate-700 font-semibold text-sm leading-normal flex-1 whitespace-pre-wrap">
+          {event.task}
         </div>
+      </div>
     );
   }
 
@@ -358,24 +479,14 @@ function EventLine({
 
   const meta = EVENT_STYLE_META[category];
   const anchorId = getAnchorId(event);
-
-  let statusLabel = presentation.statusLabel;
-  if (isToolCallStartDisplayEvent(event)) {
-    statusLabel =
-      event.call_status === 'running'
-        ? t('conversation.status.doing')
-        : event.call_status === 'error'
-          ? t('conversation.status.failed')
-          : t('conversation.status.completed');
-  }
-
+  const statusLabel = presentation.statusLabel;
   const headlineSize = HEADLINE_SIZES[category];
 
   return (
     <article
       className={cn(
-        'group relative max-w-3xl space-y-1.5 border-l border-slate-200/70 pl-3 text-slate-700',
-        anchorId && 'timeline-anchor-target scroll-mt-28'
+        "group relative max-w-3xl space-y-1.5 border-l border-slate-200/70 pl-3 text-slate-700",
+        anchorId && "timeline-anchor-target scroll-mt-28",
       )}
       data-testid={`event-line-${event.event_type}`}
       data-category={category}
@@ -390,11 +501,17 @@ function EventLine({
       <div className="min-w-0 space-y-1.5">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
           {presentation.headline && (
-            <p className={cn('font-semibold leading-tight text-foreground', meta.headline, headlineSize)}>
+            <p
+              className={cn(
+                "font-semibold leading-tight text-foreground",
+                meta.headline,
+                headlineSize,
+              )}
+            >
               {presentation.headline}
             </p>
           )}
-          {presentation.status && !isToolCallStartDisplayEvent(event) && (
+          {presentation.status && (
             <StatusBadge status={presentation.status} label={statusLabel} />
           )}
         </div>
@@ -404,28 +521,18 @@ function EventLine({
           </p>
         )}
 
-        {isToolCallStartDisplayEvent(event) ? (
-          <ToolCallContent
-            event={event}
-            t={t}
-            summary={toolSummariesById.get(event.call_id)}
-          />
-        ) : (
-          <>
-            {presentation.summary && (
-              <div className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
-                {presentation.summary}
-              </div>
-            )}
-            {presentation.supplementary}
-          </>
+        {presentation.summary && (
+          <div className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
+            {presentation.summary}
+          </div>
         )}
+        {presentation.supplementary}
 
-        {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
+        {event.event_type !== "task_complete" && (
           <EventMetadata event={event} accentClass={meta.accent} />
         )}
 
-        {!isToolCallStartDisplayEvent(event) && event.event_type !== 'task_complete' && (
+        {event.event_type !== "task_complete" && (
           <time className="block text-[8px] font-medium uppercase tracking-[0.3em] text-slate-300">
             {timestamp}
           </time>
@@ -444,15 +551,17 @@ function ToolCallContent({
   t: (key: TranslationKey, params?: TranslationParams) => string;
   summary?: ToolCallSummary;
 }) {
-  const effectiveStatus = summary?.status
-    ?? (event.call_status === 'error'
-      ? 'error'
-      : event.call_status === 'complete'
-        ? 'completed'
-        : 'running');
+  const effectiveStatus =
+    summary?.status ??
+    (event.call_status === "error"
+      ? "error"
+      : event.call_status === "complete"
+        ? "completed"
+        : "running");
 
-  const isError = effectiveStatus === 'error';
-  const resultPreview = summary?.resultPreview ?? formatResultPreview(event.completion_result);
+  const isError = effectiveStatus === "error";
+  const resultPreview =
+    summary?.resultPreview ?? formatResultPreview(event.completion_result);
   const errorText = summary?.errorMessage ?? event.completion_error;
 
   if (!resultPreview && !errorText) {
@@ -470,31 +579,35 @@ function ToolCallContent({
       )}
       {errorText && isError && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
-          <pre className="whitespace-pre-wrap text-sm leading-relaxed sm:text-base">{errorText}</pre>
+          <pre className="whitespace-pre-wrap text-sm leading-relaxed sm:text-base">
+            {errorText}
+          </pre>
         </div>
       )}
     </div>
   );
 }
 
-function isToolCallStartDisplayEvent(event: DisplayEvent): event is ToolCallStartDisplayEvent {
-  return event.event_type === 'tool_call_start';
+function isToolCallStartDisplayEvent(
+  event: DisplayEvent,
+): event is ToolCallStartDisplayEvent {
+  return event.event_type === "tool_call_start";
 }
 
 function getAnchorId(event: DisplayEvent): string | null {
   switch (event.event_type) {
-    case 'step_started':
-    case 'step_completed':
-      return typeof event.step_index === 'number'
+    case "step_started":
+    case "step_completed":
+      return typeof event.step_index === "number"
         ? `step-${event.step_index}`
         : null;
-    case 'iteration_start':
-    case 'iteration_complete':
-      return typeof (event as any).iteration === 'number'
+    case "iteration_start":
+    case "iteration_complete":
+      return typeof (event as any).iteration === "number"
         ? `iteration-${(event as any).iteration}`
         : null;
-    case 'error':
-      return typeof (event as any).iteration === 'number'
+    case "error":
+      return typeof (event as any).iteration === "number"
         ? `iteration-${(event as any).iteration}`
         : null;
     default:
@@ -511,16 +624,16 @@ function getAnchorId(event: DisplayEvent): string | null {
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
   switch (event.event_type) {
     // Show user input
-    case 'user_task':
+    case "user_task":
     // Show thinking process
-    case 'thinking':
-    case 'think_complete':
+    case "thinking":
+    case "think_complete":
     // Show task completion
-    case 'task_complete':
+    case "task_complete":
     // Allow tool calls for aggregation (needed for loading tip)
-    case 'tool_call_start':
-    case 'tool_call_complete':
-    case 'tool_call_stream':
+    case "tool_call_start":
+    case "tool_call_complete":
+    case "tool_call_stream":
       return false;
     // Skip everything else
     default:
@@ -530,29 +643,29 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
 
 function getEventCategory(event: DisplayEvent): EventCategory {
   switch (event.event_type) {
-    case 'user_task':
-    case 'thinking':
-    case 'think_complete':
-    case 'task_complete':
-      return 'conversation';
-    case 'task_analysis':
-    case 'research_plan':
-    case 'step_started':
-    case 'step_completed':
-      return 'plan';
-    case 'tool_call_start':
-    case 'browser_info':
-      return 'tools';
-    case 'iteration_start':
-    case 'iteration_complete':
-    case 'error':
-      return 'system';
+    case "user_task":
+    case "thinking":
+    case "think_complete":
+    case "task_complete":
+      return "conversation";
+    case "task_analysis":
+    case "research_plan":
+    case "step_started":
+    case "step_completed":
+      return "plan";
+    case "tool_call_start":
+    case "browser_info":
+      return "tools";
+    case "iteration_start":
+    case "iteration_complete":
+    case "error":
+      return "system";
     default:
-      return 'other';
+      return "other";
   }
 }
 
-type EventStatus = 'success' | 'warning' | 'danger' | 'info' | 'pending';
+type EventStatus = "success" | "warning" | "danger" | "info" | "pending";
 
 interface EventPresentation {
   headline?: string;
@@ -572,73 +685,77 @@ const EVENT_STYLE_META: Record<
   }
 > = {
   conversation: {
-    headline: 'text-foreground',
-    accent: 'text-muted-foreground',
-    label: 'Conversation',
+    headline: "text-foreground",
+    accent: "text-muted-foreground",
+    label: "Conversation",
   },
   plan: {
-    headline: 'text-foreground',
-    accent: 'text-muted-foreground',
-    label: 'Planning',
+    headline: "text-foreground",
+    accent: "text-muted-foreground",
+    label: "Planning",
   },
   tools: {
-    headline: 'text-foreground',
-    accent: 'text-muted-foreground',
-    label: 'Tools',
+    headline: "text-foreground",
+    accent: "text-muted-foreground",
+    label: "Tools",
   },
   system: {
-    headline: 'text-foreground',
-    accent: 'text-muted-foreground',
-    label: 'System',
+    headline: "text-foreground",
+    accent: "text-muted-foreground",
+    label: "System",
   },
   other: {
-    headline: 'text-foreground',
-    accent: 'text-muted-foreground',
-    label: 'Other',
+    headline: "text-foreground",
+    accent: "text-muted-foreground",
+    label: "Other",
   },
 };
 
 const HEADLINE_SIZES: Record<EventCategory, string> = {
-  conversation: 'text-base sm:text-lg',
-  plan: 'text-sm sm:text-base',
-  tools: 'text-xs sm:text-sm',
-  system: 'text-sm',
-  other: 'text-sm',
+  conversation: "text-base sm:text-lg",
+  plan: "text-sm sm:text-base",
+  tools: "text-xs sm:text-sm",
+  system: "text-sm",
+  other: "text-sm",
 };
 
 function describeEvent(
   event: DisplayEvent,
-  t: (key: TranslationKey, params?: TranslationParams) => string
+  t: (key: TranslationKey, params?: TranslationParams) => string,
 ): EventPresentation {
   switch (event.event_type) {
-    case 'user_task':
-      if ('task' in event) {
+    case "user_task":
+      if ("task" in event) {
         return {
-          headline: 'User Task',
-          subheading: 'Initiated by you',
-          summary: <strong className="font-semibold text-foreground">{event.task}</strong>,
+          headline: "User Task",
+          subheading: "Initiated by you",
+          summary: (
+            <strong className="font-semibold text-foreground">
+              {event.task}
+            </strong>
+          ),
         };
       }
-      return { headline: 'User Task' };
+      return { headline: "User Task" };
 
-    case 'task_analysis':
+    case "task_analysis":
       return {
         headline: event.action_name,
-        subheading: 'Task Analysis',
+        subheading: "Task Analysis",
         summary: event.goal,
       };
 
-    case 'iteration_start':
+    case "iteration_start":
       return {
         headline: `Iteration ${event.iteration} Started`,
         subheading: `Total iterations: ${event.total_iters}`,
-        status: 'info',
+        status: "info",
       };
 
-    case 'thinking':
+    case "thinking":
       return {};
 
-    case 'think_complete':
+    case "think_complete":
       return {
         supplementary: (
           <MarkdownRenderer
@@ -665,28 +782,58 @@ function describeEvent(
                   </code>
                 );
               },
-              pre: ({ children }: any) => <div className="my-4">{children}</div>,
-              p: ({ children }: any) => <p className="mb-4 leading-relaxed text-slate-500">{children}</p>,
-              ul: ({ children }: any) => <ul className="mb-4 space-y-2 leading-relaxed text-slate-500">{children}</ul>,
-              ol: ({ children }: any) => <ol className="mb-4 space-y-2 leading-relaxed text-slate-500">{children}</ol>,
-              li: ({ children }: any) => <li className="leading-relaxed text-slate-500">{children}</li>,
-              h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight text-slate-600">{children}</h1>,
-              h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5 leading-tight text-slate-600">{children}</h2>,
-              h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4 leading-tight text-slate-600">{children}</h3>,
-              strong: ({ children }: any) => <strong className="font-bold text-slate-600">{children}</strong>,
+              pre: ({ children }: any) => (
+                <div className="my-4">{children}</div>
+              ),
+              p: ({ children }: any) => (
+                <p className="mb-4 leading-relaxed text-slate-500">
+                  {children}
+                </p>
+              ),
+              ul: ({ children }: any) => (
+                <ul className="mb-4 space-y-2 leading-relaxed text-slate-500">
+                  {children}
+                </ul>
+              ),
+              ol: ({ children }: any) => (
+                <ol className="mb-4 space-y-2 leading-relaxed text-slate-500">
+                  {children}
+                </ol>
+              ),
+              li: ({ children }: any) => (
+                <li className="leading-relaxed text-slate-500">{children}</li>
+              ),
+              h1: ({ children }: any) => (
+                <h1 className="text-2xl font-bold mb-4 mt-6 leading-tight text-slate-600">
+                  {children}
+                </h1>
+              ),
+              h2: ({ children }: any) => (
+                <h2 className="text-xl font-bold mb-3 mt-5 leading-tight text-slate-600">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }: any) => (
+                <h3 className="text-lg font-bold mb-2 mt-4 leading-tight text-slate-600">
+                  {children}
+                </h3>
+              ),
+              strong: ({ children }: any) => (
+                <strong className="font-bold text-slate-600">{children}</strong>
+              ),
             }}
           />
         ),
       };
 
-    case 'tool_call_start': {
+    case "tool_call_start": {
       const startEvent = event as ToolCallStartDisplayEvent;
       const status: EventStatus =
-        startEvent.call_status === 'running'
-          ? 'pending'
-          : startEvent.call_status === 'error'
-            ? 'danger'
-            : 'success';
+        startEvent.call_status === "running"
+          ? "pending"
+          : startEvent.call_status === "error"
+            ? "danger"
+            : "success";
 
       return {
         headline: `${startEvent.tool_name}`,
@@ -695,17 +842,17 @@ function describeEvent(
       };
     }
 
-    case 'tool_call_complete':
+    case "tool_call_complete":
       return {};
 
-    case 'iteration_complete':
+    case "iteration_complete":
       return {
         headline: `Iteration ${event.iteration} Complete`,
         subheading: `${event.tools_run} tools • ${event.tokens_used.toLocaleString()} tokens`,
-        status: 'info',
+        status: "info",
       };
 
-    case 'task_complete':
+    case "task_complete":
       return {
         supplementary: event.final_answer ? (
           <MarkdownRenderer
@@ -715,17 +862,17 @@ function describeEvent(
         ) : undefined,
       };
 
-    case 'error':
+    case "error":
       return {
-        headline: 'Execution Error',
+        headline: "Execution Error",
         subheading: `Phase: ${event.phase} • Iteration ${event.iteration}`,
-        status: 'danger',
+        status: "danger",
         summary: event.error,
       };
 
-    case 'research_plan':
+    case "research_plan":
       return {
-        headline: 'Research Plan Drafted',
+        headline: "Research Plan Drafted",
         subheading: `${event.plan_steps.length} steps • ≈${event.estimated_iterations} iterations`,
         supplementary: (
           <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs text-muted-foreground/90">
@@ -736,55 +883,60 @@ function describeEvent(
         ),
       };
 
-    case 'step_started':
+    case "step_started":
       return {
         headline: `Step ${event.step_index + 1} Started`,
-        subheading: 'Execution Plan',
+        subheading: "Execution Plan",
         summary: event.step_description,
       };
 
-    case 'step_completed':
+    case "step_completed":
       return {
         headline: `Step ${event.step_index + 1} Completed`,
-        subheading: 'Execution Plan',
-        status: 'info',
+        subheading: "Execution Plan",
+        status: "info",
         summary: truncateText(event.step_result, 200),
       };
 
-    case 'browser_info': {
+    case "browser_info": {
       const status =
-        typeof event.success === 'boolean'
+        typeof event.success === "boolean"
           ? event.success
-            ? 'info'
-            : 'warning'
-          : 'info';
+            ? "info"
+            : "warning"
+          : "info";
       const details: Array<[string, string]> = [];
       if (event.user_agent) {
-        details.push(['User Agent', event.user_agent]);
+        details.push(["User Agent", event.user_agent]);
       }
       if (event.cdp_url) {
-        details.push(['CDP URL', event.cdp_url]);
+        details.push(["CDP URL", event.cdp_url]);
       }
       if (event.vnc_url) {
-        details.push(['VNC URL', event.vnc_url]);
+        details.push(["VNC URL", event.vnc_url]);
       }
       if (event.viewport_width && event.viewport_height) {
-        details.push(['Viewport', `${event.viewport_width} × ${event.viewport_height}`]);
+        details.push([
+          "Viewport",
+          `${event.viewport_width} × ${event.viewport_height}`,
+        ]);
       }
 
       const summaryParts: string[] = [];
-      if (typeof event.success === 'boolean') {
-        summaryParts.push(event.success ? 'Browser ready' : 'Browser unavailable');
+      if (typeof event.success === "boolean") {
+        summaryParts.push(
+          event.success ? "Browser ready" : "Browser unavailable",
+        );
       }
       if (event.message) {
         summaryParts.push(event.message);
       }
 
       return {
-        headline: 'Browser Diagnostics',
+        headline: "Browser Diagnostics",
         subheading: `Captured ${new Date(event.captured).toLocaleString()}`,
         status,
-        summary: summaryParts.length ? summaryParts.join(' • ') : undefined,
+        summary: summaryParts.length ? summaryParts.join(" • ") : undefined,
         supplementary:
           details.length > 0 ? (
             <ContentBlock title="Details">
@@ -809,27 +961,37 @@ function describeEvent(
   }
 }
 
-function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClass?: string }) {
+function EventMetadata({
+  event,
+  accentClass,
+}: {
+  event: DisplayEvent;
+  accentClass?: string;
+}) {
   const entries = getEventMetadata(event);
   if (!entries.length) return null;
 
   const isToolEvent =
-    event.event_type === 'tool_call_start' || event.event_type === 'tool_call_complete';
+    event.event_type === "tool_call_start" ||
+    event.event_type === "tool_call_complete";
 
   return (
     <dl
       className={cn(
-        'flex flex-wrap gap-x-4 gap-y-1 uppercase tracking-[0.25em] text-slate-400',
-        isToolEvent ? 'text-[8px]' : 'text-[9px]'
+        "flex flex-wrap gap-x-4 gap-y-1 uppercase tracking-[0.25em] text-slate-400",
+        isToolEvent ? "text-[8px]" : "text-[9px]",
       )}
     >
       {entries.map(({ label, value }) => (
-        <div key={`${event.timestamp}-${label}`} className="flex items-center gap-2">
-          <dt className={cn('font-semibold', accentClass)}>{label}</dt>
+        <div
+          key={`${event.timestamp}-${label}`}
+          className="flex items-center gap-2"
+        >
+          <dt className={cn("font-semibold", accentClass)}>{label}</dt>
           <dd
             className={cn(
-              'font-mono tracking-normal text-slate-500',
-              isToolEvent ? 'text-[8px]' : 'text-[10px]'
+              "font-mono tracking-normal text-slate-500",
+              isToolEvent ? "text-[8px]" : "text-[10px]",
             )}
           >
             {value}
@@ -840,39 +1002,47 @@ function EventMetadata({ event, accentClass }: { event: DisplayEvent; accentClas
   );
 }
 
-function getEventMetadata(event: DisplayEvent): Array<{ label: string; value: string }> {
+function getEventMetadata(
+  event: DisplayEvent,
+): Array<{ label: string; value: string }> {
   switch (event.event_type) {
-    case 'tool_call_start':
+    case "tool_call_start":
       return [
-        { label: 'Call ID', value: event.call_id },
-        { label: 'Tool', value: event.tool_name },
+        { label: "Call ID", value: event.call_id },
+        { label: "Tool", value: event.tool_name },
       ];
-    case 'tool_call_complete':
+    case "tool_call_complete":
       return [
-        { label: 'Call ID', value: event.call_id },
-        { label: 'Duration', value: formatDuration(event.duration) },
+        { label: "Call ID", value: event.call_id },
+        { label: "Duration", value: formatDuration(event.duration) },
       ];
-    case 'iteration_complete':
+    case "iteration_complete":
       return [
-        { label: 'Tokens Used', value: event.tokens_used.toLocaleString() },
-        { label: 'Tools Run', value: event.tools_run.toString() },
+        { label: "Tokens Used", value: event.tokens_used.toLocaleString() },
+        { label: "Tools Run", value: event.tools_run.toString() },
       ];
-    case 'task_complete':
+    case "task_complete":
       return [
-        { label: 'Total Tokens', value: event.total_tokens.toLocaleString() },
-        { label: 'Stop Reason', value: event.stop_reason },
+        { label: "Total Tokens", value: event.total_tokens.toLocaleString() },
+        { label: "Stop Reason", value: event.stop_reason },
       ];
-    case 'error':
+    case "error":
       return [
-        { label: 'Recoverable', value: event.recoverable ? 'Yes' : 'No' },
+        { label: "Recoverable", value: event.recoverable ? "Yes" : "No" },
       ];
-    case 'browser_info': {
+    case "browser_info": {
       const entries: Array<{ label: string; value: string }> = [];
-      if (typeof event.success === 'boolean') {
-        entries.push({ label: 'Status', value: event.success ? 'Available' : 'Unavailable' });
+      if (typeof event.success === "boolean") {
+        entries.push({
+          label: "Status",
+          value: event.success ? "Available" : "Unavailable",
+        });
       }
       if (event.captured) {
-        entries.push({ label: 'Captured', value: new Date(event.captured).toLocaleString() });
+        entries.push({
+          label: "Captured",
+          value: new Date(event.captured).toLocaleString(),
+        });
       }
       return entries;
     }
@@ -884,77 +1054,91 @@ function getEventMetadata(event: DisplayEvent): Array<{ label: string; value: st
 function ContentBlock({
   title,
   children,
-  tone = 'slate',
+  tone = "slate",
   dataTestId,
   scrollable = true,
-  variant = 'default',
+  variant = "default",
 }: {
   title: string;
   children: ReactNode;
-  tone?: 'emerald' | 'slate' | 'destructive';
+  tone?: "emerald" | "slate" | "destructive";
   dataTestId?: string;
   scrollable?: boolean;
-  variant?: 'default' | 'compact';
+  variant?: "default" | "compact";
 }) {
   const toneClasses = {
-    emerald: 'border-emerald-300 text-emerald-600',
-    slate: 'border-slate-200 text-slate-600',
-    destructive: 'border-destructive/70 text-destructive',
+    emerald: "border-emerald-300 text-emerald-600",
+    slate: "border-slate-200 text-slate-600",
+    destructive: "border-destructive/70 text-destructive",
   } as const;
 
-  const isCompact = variant === 'compact';
+  const isCompact = variant === "compact";
 
   return (
     <div
       className={cn(
-        'mt-3 space-y-2 border-l-2 pl-3 leading-snug',
-        isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[9px] sm:text-[10px]',
+        "mt-3 space-y-2 border-l-2 pl-3 leading-snug",
+        isCompact ? "text-[7px] sm:text-[8px]" : "text-[9px] sm:text-[10px]",
         toneClasses[tone],
-        scrollable && 'console-scrollbar max-h-36 overflow-y-auto pr-1'
+        scrollable && "console-scrollbar max-h-36 overflow-y-auto pr-1",
       )}
       data-testid={dataTestId}
     >
       <p
         className={cn(
-          'font-semibold uppercase tracking-[0.3em] opacity-70',
-          isCompact ? 'text-[6px] sm:text-[7px]' : 'text-[8px] sm:text-[9px]'
+          "font-semibold uppercase tracking-[0.3em] opacity-70",
+          isCompact ? "text-[6px] sm:text-[7px]" : "text-[8px] sm:text-[9px]",
         )}
       >
         {title}
       </p>
-      <div className={cn('space-y-1', isCompact ? 'text-[7px] sm:text-[8px]' : 'text-[10px] sm:text-[11px]')}>
+      <div
+        className={cn(
+          "space-y-1",
+          isCompact ? "text-[7px] sm:text-[8px]" : "text-[10px] sm:text-[11px]",
+        )}
+      >
         {children}
       </div>
     </div>
   );
 }
 
-function StatusBadge({ status, label }: { status: EventStatus; label?: string }) {
-  const config: Record<EventStatus, { icon: typeof CheckCircle2; label: string; className: string }> = {
+function StatusBadge({
+  status,
+  label,
+}: {
+  status: EventStatus;
+  label?: string;
+}) {
+  const config: Record<
+    EventStatus,
+    { icon: typeof CheckCircle2; label: string; className: string }
+  > = {
     success: {
       icon: CheckCircle2,
-      label: 'Success',
-      className: 'text-emerald-600',
+      label: "Success",
+      className: "text-emerald-600",
     },
     warning: {
       icon: AlertTriangle,
-      label: 'Warning',
-      className: 'text-amber-500',
+      label: "Warning",
+      className: "text-amber-500",
     },
     danger: {
       icon: AlertTriangle,
-      label: 'Error',
-      className: 'text-destructive',
+      label: "Error",
+      className: "text-destructive",
     },
     info: {
       icon: Info,
-      label: 'Info',
-      className: 'text-sky-500',
+      label: "Info",
+      className: "text-sky-500",
     },
     pending: {
       icon: Loader2,
-      label: 'Pending',
-      className: 'text-sky-500',
+      label: "Pending",
+      className: "text-sky-500",
     },
   };
 
@@ -963,8 +1147,8 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.25em] sm:text-[10px]',
-        meta.className
+        "inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.25em] sm:text-[10px]",
+        meta.className,
       )}
     >
       <Icon className="h-3 w-3" />
@@ -973,31 +1157,31 @@ function StatusBadge({ status, label }: { status: EventStatus; label?: string })
   );
 }
 
-function formatTimestamp(timestamp?: string, locale = 'en-US') {
+function formatTimestamp(timestamp?: string, locale = "en-US") {
   const value = timestamp ? new Date(timestamp) : new Date();
   if (Number.isNaN(value.getTime())) {
-    return '';
+    return "";
   }
 
   return value.toLocaleTimeString(locale, {
     hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
 }
 
 function formatHeadline(value?: string) {
   const normalized = value?.trim();
   if (!normalized) {
-    return 'Event';
+    return "Event";
   }
 
   return normalized
-    .split('_')
+    .split("_")
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ');
+    .join(" ");
 }
 
 function truncateText(value: string, length: number) {
@@ -1006,7 +1190,7 @@ function truncateText(value: string, length: number) {
 }
 
 function formatDuration(durationMs: number) {
-  if (!Number.isFinite(durationMs)) return '—';
+  if (!Number.isFinite(durationMs)) return "—";
   if (durationMs < 1000) {
     return `${Math.round(durationMs)} ms`;
   }
@@ -1019,27 +1203,31 @@ function formatDuration(durationMs: number) {
   return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
 }
 
-function formatArgumentsPreview(args: Record<string, any> | string | undefined) {
+function formatArgumentsPreview(
+  args: Record<string, any> | string | undefined,
+) {
   if (!args) {
     return undefined;
   }
 
-  if (typeof args === 'string') {
+  if (typeof args === "string") {
     return truncateText(args, 120);
   }
 
-  const entries = Object.entries(args).map(([key, value]) => `${key}: ${String(value)}`);
-  return truncateText(entries.join(', '), 120);
+  const entries = Object.entries(args).map(
+    ([key, value]) => `${key}: ${String(value)}`,
+  );
+  return truncateText(entries.join(", "), 120);
 }
 
 function formatResultPreview(result: any) {
   if (!result) return undefined;
-  if (typeof result === 'string') return truncateText(result, 160);
-  if (typeof result === 'object') {
-    if ('output' in result) {
+  if (typeof result === "string") return truncateText(result, 160);
+  if (typeof result === "object") {
+    if ("output" in result) {
       return truncateText(String(result.output), 160);
     }
-    if ('content' in result) {
+    if ("content" in result) {
       return truncateText(String(result.content), 160);
     }
   }

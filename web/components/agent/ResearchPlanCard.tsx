@@ -163,16 +163,16 @@ export function ResearchPlanCard({
   );
 }
 
-function toneToVariant(tone: StatusMeta['tone']): 'secondary' | 'info' | 'success' | 'destructive' {
+function toneToVariant(tone: StatusMeta['tone']): 'default' | 'info' | 'success' | 'error' {
   switch (tone) {
     case 'info':
       return 'info';
     case 'success':
       return 'success';
     case 'danger':
-      return 'destructive';
+      return 'error';
     default:
-      return 'secondary';
+      return 'default';
   }
 }
 

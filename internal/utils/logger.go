@@ -134,13 +134,15 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 
 	sanitizedLine := sanitizeLogLine(logLine)
 
-	// Write to file if available
+	// Write to debug log file if available
 	if l.logger != nil {
 		l.logger.Print(sanitizedLine)
 	}
 
-	// Also write to stdout for deploy.sh log redirection
-	fmt.Print(sanitizedLine)
+	// Only write to stdout when running via deploy.sh (for log redirection)
+	if os.Getenv("ALEX_SERVER_MODE") == "deploy" {
+		fmt.Print(sanitizedLine)
+	}
 }
 
 // Debug logs a debug message
