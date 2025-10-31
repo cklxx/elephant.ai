@@ -70,7 +70,8 @@ type Config struct {
 	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
 
 	// Feature Flags
-	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
+	EnableMCP      bool // Enable MCP tool registration (requires external dependencies)
+	DisableSandbox bool // Disable sandbox initialization for faster startup in CLI mode
 }
 
 // Start initializes heavy dependencies (MCP) based on feature flags
@@ -150,7 +151,12 @@ func BuildContainer(config Config) (*Container, error) {
 	executionMode := tools.ExecutionModeLocal
 	var sandboxManager *tools.SandboxManager
 	sandboxBaseURL := strings.TrimSpace(config.SandboxBaseURL)
-	if sandboxBaseURL != "" {
+
+	// Skip sandbox initialization if explicitly disabled (e.g., in CLI single-command mode)
+	if config.DisableSandbox {
+		logger.Debug("Sandbox disabled by configuration (CLI mode optimization)")
+		sandboxBaseURL = ""
+	} else if sandboxBaseURL != "" {
 		executionMode = tools.ExecutionModeSandbox
 		sandboxManager = tools.NewSandboxManager(sandboxBaseURL)
 		if err := sandboxManager.Initialize(context.Background()); err != nil {

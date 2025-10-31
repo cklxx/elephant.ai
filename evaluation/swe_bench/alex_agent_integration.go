@@ -61,17 +61,20 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	baseURL := runtimeCfg.BaseURL
 	// Auto-adjust base URL if:
 	// 1. No explicit base URL set (empty or default source), OR
-	// 2. Using default OpenRouter URL but provider is explicitly OpenAI/Anthropic/DeepSeek
+	// 2. Provider is explicitly set (env/override) to openai/anthropic/deepseek but base URL is not explicitly set
 	shouldAdjustBaseURL := baseURL == "" || meta.Source("base_url") == runtimeconfig.SourceDefault
-	if !shouldAdjustBaseURL && baseURL == "https://openrouter.ai/api/v1" {
-		// Check if provider was explicitly set to something other than openrouter
-		providerSource := meta.Source("llm_provider")
-		providerLower := strings.ToLower(runtimeCfg.LLMProvider)
-		if (providerSource == runtimeconfig.SourceEnv || providerSource == runtimeconfig.SourceOverride) &&
-			(providerLower == "openai" || providerLower == "anthropic" || providerLower == "deepseek") {
-			shouldAdjustBaseURL = true
-		}
+
+	// If provider was explicitly set but base URL was not, adjust base URL to match provider
+	providerSource := meta.Source("llm_provider")
+	baseURLSource := meta.Source("base_url")
+	providerLower := strings.ToLower(runtimeCfg.LLMProvider)
+
+	if (providerSource == runtimeconfig.SourceEnv || providerSource == runtimeconfig.SourceOverride) &&
+		(baseURLSource != runtimeconfig.SourceEnv && baseURLSource != runtimeconfig.SourceOverride) &&
+		(providerLower == "openai" || providerLower == "anthropic" || providerLower == "deepseek") {
+		shouldAdjustBaseURL = true
 	}
+
 	if shouldAdjustBaseURL {
 		baseURL = getBaseURL(runtimeCfg.LLMProvider, runtimeCfg.LLMModel)
 	}
