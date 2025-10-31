@@ -91,7 +91,7 @@ func (stubPromptLoader) Get(name string) (string, error) { return "", nil }
 func (stubPromptLoader) Render(name string, variables map[string]string) (string, error) {
 	return "", nil
 }
-func (stubPromptLoader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+func (stubPromptLoader) GetSystemPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
 	return "System prompt", nil
 }
 func (stubPromptLoader) List() []string { return nil }

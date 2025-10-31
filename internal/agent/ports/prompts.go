@@ -10,7 +10,7 @@ type PromptLoader interface {
 	Render(name string, variables map[string]string) (string, error)
 
 	// GetSystemPrompt returns the system prompt with context
-	GetSystemPrompt(workingDir, goal string, analysis *TaskAnalysisInfo) (string, error)
+	GetSystemPrompt(goal string, analysis *TaskAnalysisInfo) (string, error)
 
 	// List returns all available prompt template names
 	List() []string

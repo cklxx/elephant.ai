@@ -133,7 +133,7 @@ func (l *Loader) List() []string {
 }
 
 // GetSystemPrompt returns the system prompt with context
-func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+func (l *Loader) GetSystemPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
 	if l.sandbox != nil {
 		if value := reflect.ValueOf(l.sandbox); value.Kind() != reflect.Pointer || !value.IsNil() {
 			if prompt, err := l.getSandboxPrompt(goal, analysis); err == nil {
@@ -142,17 +142,11 @@ func (l *Loader) GetSystemPrompt(workingDir, goal string, analysis *ports.TaskAn
 		}
 	}
 
-	return l.getLocalPrompt(workingDir, goal, analysis)
+	return l.getLocalPrompt(goal, analysis)
 }
 
-func (l *Loader) getLocalPrompt(workingDir, goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
-	if strings.TrimSpace(workingDir) == "" {
-		if wd, err := os.Getwd(); err == nil {
-			workingDir = wd
-		} else {
-			workingDir = "."
-		}
-	}
+func (l *Loader) getLocalPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+	workingDir := l.resolveWorkingDirectory()
 
 	memory := l.loadProjectMemory(workingDir)
 	gitInfo := l.loadGitInfo(workingDir)
@@ -170,6 +164,14 @@ func (l *Loader) getLocalPrompt(workingDir, goal string, analysis *ports.TaskAna
 	}
 
 	return prompt, nil
+}
+
+func (l *Loader) resolveWorkingDirectory() string {
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+
+	return "."
 }
 
 func (l *Loader) getSandboxPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
