@@ -9,22 +9,40 @@ import {
   isIterationCompleteEvent,
   isErrorEvent,
   isToolCallStartEvent,
+  isResearchPlanEvent,
 } from '@/lib/typeGuards';
 import { TimelineStep } from '@/components/agent/ResearchTimeline';
 
 export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
   return useMemo(() => {
-    const steps: TimelineStep[] = [];
-    const activeIterations = new Map<number, Partial<TimelineStep>>();
-    const activeSteps = new Map<number, Partial<TimelineStep>>();
+    const steps = new Map<string, TimelineStep>();
+    const iterationFallback = new Map<number, TimelineStep>();
 
     events.forEach((event, index) => {
-      // Research plan steps
+      if (isResearchPlanEvent(event)) {
+        event.plan_steps.forEach((description, idx) => {
+          const id = `step-${idx}`;
+          if (!steps.has(id)) {
+            steps.set(id, {
+              id,
+              title: `Step ${idx + 1}`,
+              description,
+              status: 'planned',
+            });
+          }
+        });
+      }
+
       if (isStepStartedEvent(event)) {
-        activeSteps.set(event.step_index, {
-          id: `step-${event.step_index}`,
+        const id = `step-${event.step_index}`;
+        const step = steps.get(id) ?? {
+          id,
           title: `Step ${event.step_index + 1}`,
-          description: event.step_description,
+          status: 'planned',
+        };
+        steps.set(id, {
+          ...step,
+          description: event.step_description ?? step.description,
           status: 'active',
           startTime: new Date(event.timestamp).getTime(),
           anchorEventIndex: index,
@@ -32,27 +50,26 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       }
 
       if (isStepCompletedEvent(event)) {
-        const step = activeSteps.get(event.step_index);
-        if (step) {
-          const endTime = new Date(event.timestamp).getTime();
-          steps.push({
-            id: step.id!,
-            title: step.title!,
-            description: step.description,
-            status: 'complete',
-            startTime: step.startTime,
-            endTime,
-            duration: step.startTime ? endTime - step.startTime : undefined,
-            anchorEventIndex: step.anchorEventIndex ?? index,
-          });
-          activeSteps.delete(event.step_index);
-        }
+        const id = `step-${event.step_index}`;
+        const prev = steps.get(id);
+        const endTime = new Date(event.timestamp).getTime();
+        steps.set(id, {
+          id,
+          title: prev?.title ?? `Step ${event.step_index + 1}`,
+          description: event.step_description ?? prev?.description,
+          status: 'done',
+          startTime: prev?.startTime,
+          endTime,
+          duration: prev?.startTime ? endTime - prev.startTime : undefined,
+          result: event.step_result,
+          anchorEventIndex: prev?.anchorEventIndex ?? index,
+        });
       }
 
-      // Iteration-based steps (fallback when no explicit steps)
       if (isIterationStartEvent(event)) {
-        activeIterations.set(event.iteration, {
-          id: `iteration-${event.iteration}`,
+        const id = `iteration-${event.iteration}`;
+        iterationFallback.set(event.iteration, {
+          id,
           title: `Iteration ${event.iteration}/${event.total_iters}`,
           status: 'active',
           startTime: new Date(event.timestamp).getTime(),
@@ -61,86 +78,56 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         });
       }
 
-      if (isIterationCompleteEvent(event)) {
-        const iteration = activeIterations.get(event.iteration);
-        if (iteration) {
-          const endTime = new Date(event.timestamp).getTime();
-          steps.push({
-            id: iteration.id!,
-            title: iteration.title!,
-            description: iteration.description,
-            status: 'complete',
-            startTime: iteration.startTime,
-            endTime,
-            duration: iteration.startTime ? endTime - iteration.startTime : undefined,
-            toolsUsed: iteration.toolsUsed,
-            tokensUsed: event.tokens_used,
-            anchorEventIndex: iteration.anchorEventIndex ?? index,
-          });
-          activeIterations.delete(event.iteration);
-        }
-      }
-
-      // Track tools used in iterations
       if (isToolCallStartEvent(event)) {
-        const iteration = activeIterations.get(event.iteration);
-        if (iteration && iteration.toolsUsed) {
-          if (!iteration.toolsUsed.includes(event.tool_name)) {
-            iteration.toolsUsed.push(event.tool_name);
+        const iteration = iterationFallback.get(event.iteration);
+        if (iteration) {
+          const tools = iteration.toolsUsed ?? [];
+          if (!tools.includes(event.tool_name)) {
+            tools.push(event.tool_name);
           }
+          iterationFallback.set(event.iteration, {
+            ...iteration,
+            toolsUsed: tools,
+          });
         }
       }
 
-      // Handle errors
-      if (isErrorEvent(event)) {
-        const iteration = activeIterations.get(event.iteration);
+      if (isIterationCompleteEvent(event)) {
+        const iteration = iterationFallback.get(event.iteration);
         if (iteration) {
           const endTime = new Date(event.timestamp).getTime();
-          steps.push({
-            id: iteration.id!,
-            title: iteration.title!,
-            description: iteration.description,
-            status: 'error',
-            startTime: iteration.startTime,
+          iterationFallback.set(event.iteration, {
+            ...iteration,
+            status: 'done',
             endTime,
             duration: iteration.startTime ? endTime - iteration.startTime : undefined,
-            toolsUsed: iteration.toolsUsed,
-            error: event.error,
-            anchorEventIndex: iteration.anchorEventIndex ?? index,
+            tokensUsed: event.tokens_used,
           });
-          activeIterations.delete(event.iteration);
+        }
+      }
+
+      if (isErrorEvent(event)) {
+        const iteration = iterationFallback.get(event.iteration);
+        if (iteration) {
+          const endTime = new Date(event.timestamp).getTime();
+          iterationFallback.set(event.iteration, {
+            ...iteration,
+            status: 'failed',
+            endTime,
+            duration: iteration.startTime ? endTime - iteration.startTime : undefined,
+            error: event.error,
+          });
         }
       }
     });
 
-    // Add pending active iterations/steps at the end
-    activeIterations.forEach((iteration) => {
-      if (iteration.id) {
-        steps.push({
-          id: iteration.id,
-          title: iteration.title!,
-          description: iteration.description,
-          status: 'active',
-          startTime: iteration.startTime,
-          toolsUsed: iteration.toolsUsed,
-          anchorEventIndex: iteration.anchorEventIndex,
-        });
-      }
-    });
+    // Promote iteration fallback entries if no explicit steps exist
+    if (steps.size === 0 && iterationFallback.size > 0) {
+      iterationFallback.forEach((iteration, key) => {
+        steps.set(`iteration-${key}`, iteration);
+      });
+    }
 
-    activeSteps.forEach((step) => {
-      if (step.id) {
-        steps.push({
-          id: step.id,
-          title: step.title!,
-          description: step.description,
-          status: 'active',
-          startTime: step.startTime,
-          anchorEventIndex: step.anchorEventIndex,
-        });
-      }
-    });
-
-    return steps.sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+    return Array.from(steps.values()).sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
   }, [events]);
 }
