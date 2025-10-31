@@ -146,7 +146,7 @@ func (l *Loader) GetSystemPrompt(goal string, analysis *ports.TaskAnalysisInfo) 
 }
 
 func (l *Loader) getLocalPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
-	workingDir := l.localWorkingDirectory()
+	workingDir := l.resolveWorkingDirectory()
 
 	memory := l.loadProjectMemory(workingDir)
 	gitInfo := l.loadGitInfo(workingDir)
@@ -166,10 +166,11 @@ func (l *Loader) getLocalPrompt(goal string, analysis *ports.TaskAnalysisInfo) (
 	return prompt, nil
 }
 
-func (l *Loader) localWorkingDirectory() string {
-	if wd, err := os.Getwd(); err == nil && strings.TrimSpace(wd) != "" {
+func (l *Loader) resolveWorkingDirectory() string {
+	if wd, err := os.Getwd(); err == nil {
 		return wd
 	}
+
 	return "."
 }
 

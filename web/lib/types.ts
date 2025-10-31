@@ -68,6 +68,7 @@ export interface ToolCallCompleteEvent extends AgentEvent {
   result: string;
   error?: string;
   duration: number; // milliseconds
+  metadata?: Record<string, any>;
 }
 
 // Iteration Complete Event - emitted at end of iteration

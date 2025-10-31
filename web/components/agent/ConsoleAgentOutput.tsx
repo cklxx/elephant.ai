@@ -6,6 +6,7 @@ import { isResearchPlanEvent, isTaskCompleteEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
 import { ResearchPlanCard } from './ResearchPlanCard';
+import { ResearchPlanManager } from './plan/ResearchPlanManager';
 import { ResearchTimeline } from './ResearchTimeline';
 import { WebViewport } from './WebViewport';
 import { DocumentCanvas, DocumentContent, ViewMode } from './DocumentCanvas';
@@ -199,7 +200,7 @@ export function ConsoleAgentOutput({
 
       {/* Plan approval card (if awaiting approval) */}
       {planState === 'awaiting_approval' && currentPlan && !autoApprovePlan && (
-        <ResearchPlanCard
+        <ResearchPlanManager
           plan={currentPlan}
           loading={isSubmitting}
           onApprove={handleApprove}
@@ -211,7 +212,16 @@ export function ConsoleAgentOutput({
 
       {/* Plan summary (after approval) */}
       {planState === 'approved' && currentPlan && (
-        <ResearchPlanCard plan={currentPlan} readonly progress={planProgress} />
+        <ResearchPlanCard
+          plan={currentPlan}
+          progress={planProgress}
+          focusedStepId={focusedStepId}
+          onStepFocus={(stepId) => {
+            setFocusedStepId(stepId);
+            setHasUserSelectedStep(true);
+            setActiveTab('timeline');
+          }}
+        />
       )}
 
       {/* Main content area with tabs */}

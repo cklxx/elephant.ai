@@ -10,12 +10,18 @@ type FileToolConfig struct {
 
 // ShellToolConfig propagates execution mode settings to shell-based tools.
 type ShellToolConfig struct {
-        Mode           tools.ExecutionMode
-        SandboxManager *tools.SandboxManager
+	Mode           tools.ExecutionMode
+	SandboxManager *tools.SandboxManager
 }
 
 // BrowserToolConfig propagates execution mode settings to browser automation tools.
 type BrowserToolConfig struct {
-        Mode           tools.ExecutionMode
-        SandboxManager *tools.SandboxManager
+	Mode           tools.ExecutionMode
+	SandboxManager *tools.SandboxManager
+}
+
+// WebFetchConfig propagates execution mode settings to the web_fetch tool.
+type WebFetchConfig struct {
+	Mode           tools.ExecutionMode
+	SandboxManager *tools.SandboxManager
 }

@@ -256,14 +256,21 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
-	r.static["web_fetch"] = builtin.NewWebFetch()
+	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
+		Mode:           config.ExecutionMode,
+		SandboxManager: config.SandboxManager,
+	})
 
-	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
-		r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
-			Mode:           config.ExecutionMode,
-			SandboxManager: config.SandboxManager,
-		})
-	}
+        if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
+                r.static["browser"] = builtin.NewBrowser(builtin.BrowserToolConfig{
+                        Mode:           config.ExecutionMode,
+                        SandboxManager: config.SandboxManager,
+                })
+                r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
+                        Mode:           config.ExecutionMode,
+                        SandboxManager: config.SandboxManager,
+                })
+        }
 
 	// Note: code_search tool is not registered (feature not ready)
 	return nil

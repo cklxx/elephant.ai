@@ -58,7 +58,7 @@ describe('useTimelineSteps', () => {
         id: 'step-0',
         title: 'Step 1',
         description: 'Analyze the codebase',
-        status: 'complete',
+        status: 'done',
       });
       expect(result.current[0].duration).toBe(5 * 60 * 1000); // 5 minutes
     });
@@ -97,7 +97,7 @@ describe('useTimelineSteps', () => {
       const { result } = renderHook(() => useTimelineSteps(events));
 
       expect(result.current).toHaveLength(2);
-      expect(result.current[0].status).toBe('complete');
+      expect(result.current[0].status).toBe('done');
       expect(result.current[1].status).toBe('active');
     });
   });
@@ -152,7 +152,7 @@ describe('useTimelineSteps', () => {
       expect(result.current[0]).toMatchObject({
         id: 'iteration-1',
         title: 'Iteration 1/5',
-        status: 'complete',
+        status: 'done',
         tokensUsed: 500,
       });
       expect(result.current[0].duration).toBe(60 * 1000); // 1 minute
@@ -235,7 +235,7 @@ describe('useTimelineSteps', () => {
       expect(result.current[0]).toMatchObject({
         id: 'iteration-1',
         title: 'Iteration 1/5',
-        status: 'error',
+        status: 'failed',
         error: 'Tool execution failed',
       });
     });
@@ -312,10 +312,9 @@ describe('useTimelineSteps', () => {
 
       const { result } = renderHook(() => useTimelineSteps(events));
 
-      // Should have both research step (active) and iteration step (complete)
-      expect(result.current).toHaveLength(2);
-      expect(result.current.some(s => s.id === 'step-0')).toBe(true);
-      expect(result.current.some(s => s.id === 'iteration-1')).toBe(true);
+      // Plan steps should take precedence over fallback iteration entries
+      expect(result.current).toHaveLength(1);
+      expect(result.current[0].id).toBe('step-0');
     });
   });
 
@@ -390,7 +389,7 @@ describe('useTimelineSteps', () => {
 
       expect(result.current).not.toBe(firstResult); // Should be new reference
       expect(result.current).toHaveLength(1);
-      expect(result.current[0].status).toBe('complete');
+      expect(result.current[0].status).toBe('done');
     });
   });
 });

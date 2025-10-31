@@ -1,45 +1,97 @@
 // Agent event stream state management with Zustand + Immer
-// Features:
-// - LRU event caching (max 1000 events)
-// - Event aggregation (tool calls, iterations, research steps)
-// - Browser diagnostics tracking
-// - Performant selectors for UI components
+// New store focuses on incremental aggregation with normalized data structures.
 
 import { create } from 'zustand';
-import { AnyAgentEvent } from '@/lib/types';
+import { produce } from 'immer';
 import {
-  EventLRUCache,
-  aggregateToolCalls,
-  groupByIteration,
-  extractResearchSteps,
-  extractBrowserDiagnostics,
-  AggregatedToolCall,
-  IterationGroup,
-  ResearchStep,
-  BrowserDiagnostics,
-} from '@/lib/eventAggregation';
+  AnyAgentEvent,
+  ToolCallStartEvent,
+  ToolCallStreamEvent,
+  ToolCallCompleteEvent,
+  ResearchPlanEvent,
+  StepStartedEvent,
+  StepCompletedEvent,
+  IterationStartEvent,
+  IterationCompleteEvent,
+  TaskAnalysisEvent,
+  TaskCompleteEvent,
+  ErrorEvent,
+  BrowserInfoEvent,
+} from '@/lib/types';
+import { EventLRUCache } from '@/lib/eventAggregation';
 
 const MAX_EVENT_COUNT = 1000;
 
-/**
- * Store state shape
- */
+type ToolCallStatus = 'pending' | 'running' | 'streaming' | 'done' | 'error';
+
+type UnifiedStepStatus = 'planned' | 'active' | 'done' | 'failed';
+
+interface ToolCallState {
+  id: string;
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, any>;
+  arguments_preview?: string;
+  status: ToolCallStatus;
+  stream_chunks: string[];
+  result?: string;
+  error?: string;
+  duration?: number;
+  started_at: string;
+  completed_at?: string;
+  last_stream_at?: string;
+  iteration?: number;
+}
+
+interface IterationState {
+  id: string;
+  iteration: number;
+  total_iters?: number;
+  status: 'running' | 'done';
+  started_at: string;
+  completed_at?: string;
+  tokens_used?: number;
+  tools_run?: number;
+  errors: string[];
+}
+
+export interface NormalizedResearchStep {
+  id: string;
+  step_index: number;
+  description: string;
+  status: UnifiedStepStatus;
+  started_at?: string;
+  completed_at?: string;
+  result?: string;
+  iteration?: number;
+  last_event_at?: string;
+  error?: string;
+}
+
+interface BrowserDiagnosticsEntry {
+  id: string;
+  timestamp: string;
+  captured: string;
+  success?: boolean;
+  message?: string;
+  user_agent?: string;
+  cdp_url?: string;
+  vnc_url?: string;
+  viewport_width?: number;
+  viewport_height?: number;
+}
+
 interface AgentStreamState {
-  // Raw event storage with LRU eviction
   eventCache: EventLRUCache;
-
-  // Aggregated data structures (computed from events)
-  toolCalls: Map<string, AggregatedToolCall>;
-  iterations: Map<number, IterationGroup>;
-  researchSteps: ResearchStep[];
-  browserDiagnostics: BrowserDiagnostics[];
-
-  // Current context tracking
+  toolCalls: Map<string, ToolCallState>;
+  iterations: Map<number, IterationState>;
+  steps: Map<string, NormalizedResearchStep>;
+  stepOrder: string[];
+  researchSteps: NormalizedResearchStep[];
+  browserDiagnostics: BrowserDiagnosticsEntry[];
   currentIteration: number | null;
-  currentResearchStep: number | null;
-  activeToolCall: string | null;
-
-  // Task metadata
+  activeToolCallId: string | null;
+  activeResearchStepId: string | null;
   taskAnalysis: {
     action_name?: string;
     goal?: string;
@@ -49,25 +101,25 @@ interface AgentStreamState {
   totalIterations?: number;
   totalTokens?: number;
   errorMessage?: string;
-
-  // Actions
   addEvent: (event: AnyAgentEvent) => void;
   addEvents: (events: AnyAgentEvent[]) => void;
   clearEvents: () => void;
   recomputeAggregations: () => void;
 }
 
-type AgentStreamBaseState = Omit<AgentStreamState, 'addEvent' | 'addEvents' | 'clearEvents' | 'recomputeAggregations'>;
+type AgentStreamDraft = AgentStreamState;
 
-const createInitialState = (): AgentStreamBaseState => ({
+const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' | 'clearEvents' | 'recomputeAggregations'> => ({
   eventCache: new EventLRUCache(MAX_EVENT_COUNT),
   toolCalls: new Map(),
   iterations: new Map(),
+  steps: new Map(),
+  stepOrder: [],
   researchSteps: [],
   browserDiagnostics: [],
   currentIteration: null,
-  currentResearchStep: null,
-  activeToolCall: null,
+  activeToolCallId: null,
+  activeResearchStepId: null,
   taskAnalysis: {},
   taskStatus: 'idle',
   finalAnswer: undefined,
@@ -76,201 +128,359 @@ const createInitialState = (): AgentStreamBaseState => ({
   errorMessage: undefined,
 });
 
-const deriveTaskMetadata = (events: AnyAgentEvent[]): Pick<
-  AgentStreamBaseState,
-  | 'taskAnalysis'
-  | 'taskStatus'
-  | 'currentIteration'
-  | 'currentResearchStep'
-  | 'activeToolCall'
-  | 'finalAnswer'
-  | 'totalIterations'
-  | 'totalTokens'
-  | 'errorMessage'
-> => {
-  let taskStatus: AgentStreamState['taskStatus'] = 'idle';
-  let taskAnalysis: AgentStreamState['taskAnalysis'] = {};
-  let currentIteration: number | null = null;
-  let currentResearchStep: number | null = null;
-  let activeToolCall: string | null = null;
-  let finalAnswer: string | undefined;
-  let totalIterations: number | undefined;
-  let totalTokens: number | undefined;
-  let errorMessage: string | undefined;
+const syncResearchSteps = (draft: AgentStreamDraft) => {
+  draft.researchSteps = draft.stepOrder
+    .map((id) => draft.steps.get(id))
+    .filter((step): step is NormalizedResearchStep => Boolean(step));
+};
 
-  for (const event of events) {
-    switch (event.event_type) {
-      case 'task_analysis':
-        taskStatus = 'analyzing';
-        taskAnalysis = {
-          action_name: event.action_name,
-          goal: event.goal,
-        };
-        break;
-      case 'iteration_start':
-        taskStatus = 'running';
-        currentIteration = event.iteration ?? currentIteration;
-        if (typeof event.total_iters === 'number') {
-          totalIterations = event.total_iters;
-        }
-        break;
-      case 'iteration_complete':
-        if (currentIteration === event.iteration) {
-          currentIteration = null;
-        }
-        if (typeof event.tokens_used === 'number') {
-          totalTokens = event.tokens_used;
-        }
-        break;
-      case 'tool_call_start':
-        activeToolCall = event.call_id;
-        break;
-      case 'tool_call_complete':
-        if (activeToolCall === event.call_id) {
-          activeToolCall = null;
-        }
-        break;
-      case 'task_complete':
-        taskStatus = 'completed';
-        finalAnswer = event.final_answer;
-        totalIterations = event.total_iterations ?? totalIterations;
-        totalTokens = event.total_tokens ?? totalTokens;
-        currentIteration = null;
-        activeToolCall = null;
-        break;
-      case 'error':
-        taskStatus = 'error';
-        errorMessage = event.error;
-        break;
-      case 'step_started':
-        currentResearchStep = event.step_index ?? currentResearchStep;
-        break;
-      case 'step_completed':
-        if (currentResearchStep === event.step_index) {
-          currentResearchStep = null;
-        }
-        break;
-    }
+const ensureIteration = (draft: AgentStreamDraft, event: IterationStartEvent): IterationState => {
+  const existing = draft.iterations.get(event.iteration);
+  if (existing) {
+    existing.total_iters = event.total_iters ?? existing.total_iters;
+    return existing;
   }
 
-  return {
-    taskAnalysis,
-    taskStatus,
-    currentIteration,
-    currentResearchStep,
-    activeToolCall,
-    finalAnswer,
-    totalIterations,
-    totalTokens,
-    errorMessage,
+  const iteration: IterationState = {
+    id: `iteration-${event.iteration}`,
+    iteration: event.iteration,
+    total_iters: event.total_iters,
+    status: 'running',
+    started_at: event.timestamp,
+    errors: [],
   };
+  draft.iterations.set(event.iteration, iteration);
+  return iteration;
 };
 
-const buildStateFromEvents = (events: AnyAgentEvent[]): Partial<AgentStreamBaseState> => {
-  const toolCalls = aggregateToolCalls(events);
-  const iterations = groupByIteration(events);
-  const allSteps = extractResearchSteps(events);
-  const browserDiagnostics = extractBrowserDiagnostics(events);
-  const taskMetadata = deriveTaskMetadata(events);
+const ensureStep = (draft: AgentStreamDraft, index: number, description?: string): NormalizedResearchStep => {
+  const id = String(index);
+  if (!draft.steps.has(id)) {
+    const newStep: NormalizedResearchStep = {
+      id,
+      step_index: index,
+      description: description ?? `Step ${index + 1}`,
+      status: 'planned',
+    };
+    draft.steps.set(id, newStep);
+    if (!draft.stepOrder.includes(id)) {
+      draft.stepOrder.push(id);
+    }
+    return newStep;
+  }
 
-  return {
-    toolCalls,
-    iterations,
-    researchSteps: allSteps.filter((step) => step.status !== 'pending'),
-    browserDiagnostics,
-    ...taskMetadata,
-  };
+  const existing = draft.steps.get(id)!;
+  if (description) {
+    existing.description = description;
+  }
+  return existing;
 };
 
-export const useAgentStreamStore = create<AgentStreamState>()((set) => ({
+const applyResearchPlan = (draft: AgentStreamDraft, event: ResearchPlanEvent) => {
+  draft.steps.clear();
+  draft.stepOrder = [];
+  event.plan_steps.forEach((description, index) => {
+    const id = String(index);
+    draft.stepOrder.push(id);
+    draft.steps.set(id, {
+      id,
+      step_index: index,
+      description,
+      status: 'planned',
+    });
+  });
+  draft.activeResearchStepId = null;
+  syncResearchSteps(draft);
+};
+
+const applyStepStarted = (draft: AgentStreamDraft, event: StepStartedEvent) => {
+  const step = ensureStep(draft, event.step_index, event.step_description);
+  step.status = 'active';
+  step.started_at = event.timestamp;
+  step.iteration = event.iteration ?? step.iteration;
+  step.last_event_at = event.timestamp;
+  draft.activeResearchStepId = step.id;
+  syncResearchSteps(draft);
+};
+
+const applyStepCompleted = (draft: AgentStreamDraft, event: StepCompletedEvent) => {
+  const step = ensureStep(draft, event.step_index, event.step_description);
+  step.status = 'done';
+  step.completed_at = event.timestamp;
+  step.result = event.step_result;
+  step.iteration = event.iteration ?? step.iteration;
+  step.last_event_at = event.timestamp;
+  step.error = undefined;
+  if (draft.activeResearchStepId === step.id) {
+    draft.activeResearchStepId = null;
+  }
+  syncResearchSteps(draft);
+};
+
+const applyErrorEvent = (draft: AgentStreamDraft, event: ErrorEvent) => {
+  draft.taskStatus = 'error';
+  draft.errorMessage = event.error;
+  if (draft.currentIteration !== null) {
+    const iteration = draft.iterations.get(draft.currentIteration);
+    iteration?.errors.push(event.error);
+  }
+  if (draft.activeResearchStepId) {
+    const step = draft.steps.get(draft.activeResearchStepId);
+    if (step) {
+      step.status = 'failed';
+      step.error = event.error;
+      step.last_event_at = event.timestamp;
+    }
+  }
+  if (draft.activeToolCallId) {
+    const toolCall = draft.toolCalls.get(draft.activeToolCallId);
+    if (toolCall) {
+      toolCall.status = 'error';
+      toolCall.error = event.error;
+      toolCall.completed_at = event.timestamp;
+    }
+  }
+  syncResearchSteps(draft);
+};
+
+const applyToolCallStart = (draft: AgentStreamDraft, event: ToolCallStartEvent) => {
+  const toolCall: ToolCallState = {
+    id: event.call_id,
+    call_id: event.call_id,
+    tool_name: event.tool_name,
+    arguments: event.arguments,
+    arguments_preview: event.arguments_preview,
+    status: 'running',
+    stream_chunks: [],
+    started_at: event.timestamp,
+    iteration: event.iteration,
+  };
+  draft.toolCalls.set(event.call_id, toolCall);
+  draft.activeToolCallId = event.call_id;
+};
+
+const applyToolCallStream = (draft: AgentStreamDraft, event: ToolCallStreamEvent) => {
+  const existing = draft.toolCalls.get(event.call_id);
+  if (!existing) return;
+  existing.status = 'streaming';
+  existing.stream_chunks.push(event.chunk);
+  existing.last_stream_at = event.timestamp;
+};
+
+const applyToolCallComplete = (draft: AgentStreamDraft, event: ToolCallCompleteEvent) => {
+  const existing = draft.toolCalls.get(event.call_id);
+  if (!existing) {
+    draft.toolCalls.set(event.call_id, {
+      id: event.call_id,
+      call_id: event.call_id,
+      tool_name: event.tool_name,
+      arguments: {},
+      status: event.error ? 'error' : 'done',
+      stream_chunks: [],
+      result: event.result,
+      error: event.error,
+      duration: event.duration,
+      started_at: event.timestamp,
+      completed_at: event.timestamp,
+    });
+    return;
+  }
+  existing.status = event.error ? 'error' : 'done';
+  existing.result = event.result;
+  existing.error = event.error;
+  existing.duration = event.duration;
+  existing.completed_at = event.timestamp;
+  draft.activeToolCallId = existing.status === 'error' ? existing.call_id : null;
+};
+
+const applyIterationComplete = (draft: AgentStreamDraft, event: IterationCompleteEvent) => {
+  const iteration = draft.iterations.get(event.iteration);
+  if (iteration) {
+    iteration.status = 'done';
+    iteration.completed_at = event.timestamp;
+    iteration.tokens_used = event.tokens_used;
+    iteration.tools_run = event.tools_run;
+  }
+  if (draft.currentIteration === event.iteration) {
+    draft.currentIteration = null;
+  }
+};
+
+const applyBrowserInfo = (draft: AgentStreamDraft, event: BrowserInfoEvent) => {
+  draft.browserDiagnostics = [
+    ...draft.browserDiagnostics,
+    {
+      id: `browser-${event.timestamp}`,
+      timestamp: event.timestamp,
+      captured: event.captured,
+      success: event.success,
+      message: event.message,
+      user_agent: event.user_agent,
+      cdp_url: event.cdp_url,
+      vnc_url: event.vnc_url,
+      viewport_width: event.viewport_width,
+      viewport_height: event.viewport_height,
+    },
+  ];
+};
+
+const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
+  switch (event.event_type) {
+    case 'task_analysis': {
+      const task = event as TaskAnalysisEvent;
+      draft.taskStatus = 'analyzing';
+      draft.taskAnalysis = {
+        action_name: task.action_name,
+        goal: task.goal,
+      };
+      break;
+    }
+    case 'iteration_start': {
+      const iterationEvent = event as IterationStartEvent;
+      ensureIteration(draft, iterationEvent);
+      draft.currentIteration = iterationEvent.iteration;
+      draft.taskStatus = 'running';
+      break;
+    }
+    case 'tool_call_start':
+      applyToolCallStart(draft, event as ToolCallStartEvent);
+      break;
+    case 'tool_call_stream':
+      applyToolCallStream(draft, event as ToolCallStreamEvent);
+      break;
+    case 'tool_call_complete':
+      applyToolCallComplete(draft, event as ToolCallCompleteEvent);
+      if (draft.activeToolCallId === (event as ToolCallCompleteEvent).call_id) {
+        draft.activeToolCallId = null;
+      }
+      break;
+    case 'iteration_complete':
+      applyIterationComplete(draft, event as IterationCompleteEvent);
+      draft.totalTokens = (event as IterationCompleteEvent).tokens_used ?? draft.totalTokens;
+      break;
+    case 'task_complete': {
+      const complete = event as TaskCompleteEvent;
+      draft.taskStatus = 'completed';
+      draft.finalAnswer = complete.final_answer;
+      draft.totalIterations = complete.total_iterations;
+      draft.totalTokens = complete.total_tokens;
+      draft.currentIteration = null;
+      draft.activeToolCallId = null;
+      break;
+    }
+    case 'error':
+      applyErrorEvent(draft, event as ErrorEvent);
+      break;
+    case 'research_plan':
+      applyResearchPlan(draft, event as ResearchPlanEvent);
+      break;
+    case 'step_started':
+      applyStepStarted(draft, event as StepStartedEvent);
+      break;
+    case 'step_completed':
+      applyStepCompleted(draft, event as StepCompletedEvent);
+      break;
+    case 'browser_info':
+      applyBrowserInfo(draft, event as BrowserInfoEvent);
+      break;
+    default:
+      break;
+  }
+};
+
+export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   ...createInitialState(),
 
   addEvent: (event: AnyAgentEvent) => {
-    set((state) => {
-      state.eventCache.add(event);
-      const events = state.eventCache.getAll();
-      return buildStateFromEvents(events);
-    });
+    set((state) =>
+      produce(state, (draft: AgentStreamDraft) => {
+        draft.eventCache.add(event);
+        applyEventToDraft(draft, event);
+      }),
+    );
   },
 
   addEvents: (events: AnyAgentEvent[]) => {
-    set((state) => {
-      events.forEach((event) => state.eventCache.add(event));
-      const allEvents = state.eventCache.getAll();
-      return buildStateFromEvents(allEvents);
-    });
+    set((state) =>
+      produce(state, (draft: AgentStreamDraft) => {
+        draft.eventCache.addMany(events);
+        events.forEach((event) => {
+          applyEventToDraft(draft, event);
+        });
+      }),
+    );
   },
 
   clearEvents: () => {
     set(() => ({
       ...createInitialState(),
+      eventCache: new EventLRUCache(MAX_EVENT_COUNT),
     }));
   },
 
   recomputeAggregations: () => {
-    set((state) => {
-      const events = state.eventCache.getAll();
-      return buildStateFromEvents(events);
-    });
+    const events = get().eventCache.getAll();
+    set(() =>
+      produce(createInitialState(), (draft: AgentStreamDraft) => {
+        draft.eventCache.addMany(events);
+        events.forEach((event) => applyEventToDraft(draft, event));
+      }),
+    );
   },
 }));
 
-/**
- * Selectors for efficient component access
- */
-
-// Get current research step (if any)
 export const useCurrentResearchStep = () => {
   return useAgentStreamStore((state) => {
-    if (state.currentResearchStep === null) return null;
-    return state.researchSteps.find((s) => s.step_index === state.currentResearchStep);
+    if (!state.activeResearchStepId) return null;
+    return state.steps.get(state.activeResearchStepId) ?? null;
   });
 };
 
-// Get completed research steps
 export const useCompletedResearchSteps = () => {
-  return useAgentStreamStore((state) => state.researchSteps.filter((s) => s.status === 'completed'));
+  return useAgentStreamStore((state) => state.researchSteps.filter((step) => step.status === 'done'));
 };
 
-// Get in-progress research steps
-export const useInProgressResearchSteps = () => {
-  return useAgentStreamStore((state) => state.researchSteps.filter((s) => s.status === 'in_progress'));
+export const useActiveResearchSteps = () => {
+  return useAgentStreamStore((state) => state.researchSteps.filter((step) => step.status === 'active'));
 };
 
-// Get active tool call (currently executing)
+export const usePlannedResearchSteps = () => {
+  return useAgentStreamStore((state) => state.researchSteps.filter((step) => step.status === 'planned'));
+};
+
+export const useFailedResearchSteps = () => {
+  return useAgentStreamStore((state) => state.researchSteps.filter((step) => step.status === 'failed'));
+};
+
 export const useActiveToolCall = () => {
   return useAgentStreamStore((state) => {
-    if (!state.activeToolCall) return null;
-    return state.toolCalls.get(state.activeToolCall);
+    if (!state.activeToolCallId) return null;
+    return state.toolCalls.get(state.activeToolCallId) ?? null;
   });
 };
 
-// Get all tool calls for an iteration
 export const useIterationToolCalls = (iteration: number) => {
   return useAgentStreamStore((state) => {
-    const iterGroup = state.iterations.get(iteration);
-    return iterGroup?.tool_calls || [];
+    const calls = Array.from(state.toolCalls.values()).filter((toolCall) => toolCall.iteration === iteration);
+    return calls.sort((a, b) => a.started_at.localeCompare(b.started_at));
   });
 };
 
-// Get current iteration data
 export const useCurrentIteration = () => {
   return useAgentStreamStore((state) => {
     if (state.currentIteration === null) return null;
-    return state.iterations.get(state.currentIteration);
+    return state.iterations.get(state.currentIteration) ?? null;
   });
 };
 
-// Get all completed iterations
 export const useCompletedIterations = () => {
-  return useAgentStreamStore((state) => {
-    return Array.from(state.iterations.values())
-      .filter((iter) => iter.status === 'complete')
-      .sort((a, b) => a.iteration - b.iteration);
-  });
+  return useAgentStreamStore((state) =>
+    Array.from(state.iterations.values())
+      .filter((iter) => iter.status === 'done')
+      .sort((a, b) => a.iteration - b.iteration),
+  );
 };
 
-// Get error states
 export const useErrorStates = () => {
   return useAgentStreamStore((state) => ({
     hasError: state.taskStatus === 'error',
@@ -281,7 +491,6 @@ export const useErrorStates = () => {
   }));
 };
 
-// Get task summary for header display
 export const useTaskSummary = () => {
   return useAgentStreamStore((state) => ({
     actionName: state.taskAnalysis.action_name,
@@ -294,7 +503,6 @@ export const useTaskSummary = () => {
   }));
 };
 
-// Get memory usage stats
 export const useMemoryStats = () => {
   return useAgentStreamStore((state) => {
     const memUsage = state.eventCache.getMemoryUsage();
@@ -309,24 +517,19 @@ export const useMemoryStats = () => {
   });
 };
 
-// Get latest browser diagnostics event
 export const useLatestBrowserDiagnostics = () => {
   return useAgentStreamStore((state) => {
     const diagnostics = state.browserDiagnostics;
-    return diagnostics.length > 0
-      ? diagnostics[diagnostics.length - 1]
-      : null;
+    return diagnostics.length > 0 ? diagnostics[diagnostics.length - 1] : null;
   });
 };
 
-// Get all iterations as sorted array (for virtualized list)
 export const useIterationsArray = () => {
-  return useAgentStreamStore((state) => {
-    return Array.from(state.iterations.values()).sort((a, b) => a.iteration - b.iteration);
-  });
+  return useAgentStreamStore((state) =>
+    Array.from(state.iterations.values()).sort((a, b) => a.iteration - b.iteration),
+  );
 };
 
-// Get raw events (for debugging or export)
 export const useRawEvents = () => {
   const eventCache = useAgentStreamStore((state) => state.eventCache);
   return eventCache.getAll();

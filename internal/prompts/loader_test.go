@@ -25,16 +25,17 @@ func TestGetSystemPromptIncludesSkillsInfo(t *testing.T) {
 
 	loader := New()
 
-	originalWD, err := os.Getwd()
+	oldWd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+
 	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
+		t.Fatalf("failed to change working directory: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = os.Chdir(originalWD)
-	})
 
 	prompt, err := loader.GetSystemPrompt("Generate a deck", nil)
 	if err != nil {

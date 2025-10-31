@@ -117,7 +117,7 @@ describe('useAgentStreamStore', () => {
       const updatedState = useAgentStreamStore.getState();
       expect(updatedState.toolCalls.size).toBe(1);
       const toolCall = updatedState.toolCalls.get('call-123');
-      expect(toolCall?.status).toBe('complete');
+      expect(toolCall?.status).toBe('done');
       expect(toolCall?.stream_chunks).toHaveLength(1);
     });
   });
@@ -162,9 +162,10 @@ describe('useAgentStreamStore', () => {
       });
 
       const state = useAgentStreamStore.getState();
-      expect(state.researchSteps).toHaveLength(1);
-      expect(state.researchSteps[0].status).toBe('completed');
-      expect(state.researchSteps[0].result).toBe('Research completed successfully');
+      expect(state.researchSteps).toHaveLength(3);
+      const firstStep = state.researchSteps.find((step) => step.id === '0');
+      expect(firstStep?.status).toBe('done');
+      expect(firstStep?.result).toBe('Research completed successfully');
     });
 
     it('should group events by iteration', () => {
@@ -205,7 +206,7 @@ describe('useAgentStreamStore', () => {
       const state = useAgentStreamStore.getState();
       expect(state.iterations.size).toBe(1);
       const iteration = state.iterations.get(1);
-      expect(iteration?.status).toBe('complete');
+      expect(iteration?.status).toBe('done');
       expect(iteration?.tokens_used).toBe(500);
     });
   });
@@ -317,7 +318,7 @@ describe('useAgentStreamStore', () => {
         useAgentStreamStore.getState().addEvent(startEvent);
       });
 
-      expect(useAgentStreamStore.getState().activeToolCall).toBe('call-456');
+      expect(useAgentStreamStore.getState().activeToolCallId).toBe('call-456');
 
       const completeEvent: AnyAgentEvent = {
         event_type: 'tool_call_complete',
@@ -334,7 +335,7 @@ describe('useAgentStreamStore', () => {
         useAgentStreamStore.getState().addEvent(completeEvent);
       });
 
-      expect(useAgentStreamStore.getState().activeToolCall).toBe(null);
+      expect(useAgentStreamStore.getState().activeToolCallId).toBe(null);
     });
   });
 
@@ -376,7 +377,7 @@ describe('useAgentStreamStore', () => {
       expect(state.toolCalls.size).toBe(0);
       expect(state.iterations.size).toBe(0);
       expect(state.currentIteration).toBe(null);
-      expect(state.activeToolCall).toBe(null);
+      expect(state.activeToolCallId).toBe(null);
     });
   });
 

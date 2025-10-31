@@ -1,17 +1,20 @@
 import { useMemo } from 'react';
-import { TimelineStep } from '@/components/agent/ResearchTimeline';
+import { TimelineStep, StepStatus } from '@/components/agent/ResearchTimeline';
 
 export interface PlanProgressMetrics {
   totalSteps: number;
   completedSteps: number;
   completionRatio: number;
+  activeStepId?: string | null;
   activeStepTitle?: string | null;
+  latestCompletedStepId?: string | null;
   latestCompletedStepTitle?: string | null;
   totalDurationMs?: number;
   averageStepDurationMs?: number;
   totalTokensUsed?: number;
   uniqueToolsUsed: string[];
   hasErrors: boolean;
+  stepStatuses: Record<string, StepStatus>;
 }
 
 export function usePlanProgress(steps: TimelineStep[]): PlanProgressMetrics | null {
@@ -21,12 +24,12 @@ export function usePlanProgress(steps: TimelineStep[]): PlanProgressMetrics | nu
     }
 
     const totalSteps = steps.length;
-    const completedSteps = steps.filter((step) => step.status === 'complete').length;
+    const completedSteps = steps.filter((step) => step.status === 'done').length;
     const completionRatio = totalSteps === 0 ? 0 : Math.min(1, Math.max(0, completedSteps / totalSteps));
 
     const activeStep = steps.find((step) => step.status === 'active') ?? null;
     const latestCompleted = [...steps]
-      .filter((step) => step.status === 'complete')
+      .filter((step) => step.status === 'done')
       .sort((a, b) => (b.endTime ?? 0) - (a.endTime ?? 0))[0] ?? null;
 
     const durationTotals = steps.reduce(
@@ -45,7 +48,7 @@ export function usePlanProgress(steps: TimelineStep[]): PlanProgressMetrics | nu
             }
           });
         }
-        if (step.status === 'error') {
+        if (step.status === 'failed') {
           acc.hasErrors = true;
         }
         return acc;
@@ -64,17 +67,25 @@ export function usePlanProgress(steps: TimelineStep[]): PlanProgressMetrics | nu
 
     const uniqueToolsUsed = Array.from(durationTotals.uniqueTools).sort((a, b) => a.localeCompare(b));
 
+    const stepStatuses = steps.reduce<Record<string, StepStatus>>((acc, step) => {
+      acc[step.id] = step.status;
+      return acc;
+    }, {});
+
     return {
       totalSteps,
       completedSteps,
       completionRatio,
+      activeStepId: activeStep?.id ?? null,
       activeStepTitle: activeStep?.title ?? null,
+      latestCompletedStepId: latestCompleted?.id ?? null,
       latestCompletedStepTitle: latestCompleted?.title ?? null,
       totalDurationMs: durationTotals.totalDuration > 0 ? durationTotals.totalDuration : undefined,
       averageStepDurationMs,
       totalTokensUsed: durationTotals.totalTokens > 0 ? durationTotals.totalTokens : undefined,
       uniqueToolsUsed,
       hasErrors: durationTotals.hasErrors,
+      stepStatuses,
     };
   }, [steps]);
 }
