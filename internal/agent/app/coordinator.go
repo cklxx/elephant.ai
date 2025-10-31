@@ -382,7 +382,7 @@ func (c *AgentCoordinator) GetContextManager() ports.ContextManager {
 
 // GetSystemPrompt returns the system prompt
 func (c *AgentCoordinator) GetSystemPrompt() string {
-	prompt, _ := c.promptLoader.GetSystemPrompt("", "", nil)
+	prompt, _ := c.promptLoader.GetSystemPrompt("", nil)
 	return prompt
 }
 

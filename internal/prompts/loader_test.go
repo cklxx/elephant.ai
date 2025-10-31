@@ -24,7 +24,20 @@ func TestGetSystemPromptIncludesSkillsInfo(t *testing.T) {
 	}
 
 	loader := New()
-	prompt, err := loader.GetSystemPrompt(tmpDir, "Generate a deck", nil)
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWd)
+	}()
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+
+	prompt, err := loader.GetSystemPrompt("Generate a deck", nil)
 	if err != nil {
 		t.Fatalf("GetSystemPrompt returned error: %v", err)
 	}
@@ -50,7 +63,7 @@ func TestWithSandboxIgnoresNilImplementation(t *testing.T) {
 		t.Fatalf("expected sandbox to remain nil when provided implementation is nil")
 	}
 
-	if _, err := loader.GetSystemPrompt("", "goal", nil); err != nil {
+	if _, err := loader.GetSystemPrompt("goal", nil); err != nil {
 		t.Fatalf("GetSystemPrompt should not fail without sandbox: %v", err)
 	}
 }
