@@ -361,7 +361,7 @@ function EventCard({
       return wrapWithContext(
         <ToolCallCard
           event={event}
-          status={hasError ? 'error' : 'complete'}
+          status={hasError ? 'error' : 'done'}
           pairedStart={pairedStart}
           isFocused={isFocused}
         />

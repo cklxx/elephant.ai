@@ -1,64 +1,44 @@
 /**
- * SSE Connection Hook with Automatic Reconnection
+ * SSE Connection Hook built on top of a dedicated SSE client and
+ * event pipeline.
  *
- * Manages Server-Sent Events (SSE) connection lifecycle with:
- * - Automatic reconnection with exponential backoff
- * - Event stream management and parsing
- * - Connection state tracking
- * - Memory leak prevention through proper cleanup
- *
- * @example
- * ```tsx
- * const { events, isConnected, reconnect } = useSSE(sessionId, {
- *   enabled: true,
- *   maxReconnectAttempts: 5,
- *   onEvent: (event) => console.log('Event received:', event)
- * });
- * ```
+ * Responsibilities are split as follows:
+ * - `SSEClient` manages the browser EventSource connection.
+ * - `EventPipeline` validates raw payloads, triggers side effects via
+ *   the registry and emits events on the shared bus.
+ * - This hook only manages connection state for React consumers and
+ *   subscribes to the bus for event updates.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
-import { apiClient } from '@/lib/api';
-import { safeValidateEvent } from '@/lib/schemas';
-import { handleEnvironmentSnapshot } from './useDiagnostics';
-import { handleSandboxProgress } from './useSandboxProgress';
+import { agentEventBus } from '@/lib/events/eventBus';
+import { defaultEventRegistry } from '@/lib/events/eventRegistry';
+import { EventPipeline } from '@/lib/events/eventPipeline';
+import { SSEClient } from '@/lib/events/sseClient';
 
 export interface UseSSEOptions {
   enabled?: boolean;
-  /** Callback fired when an event is received */
   onEvent?: (event: AnyAgentEvent) => void;
-  /** Maximum number of reconnection attempts before giving up */
   maxReconnectAttempts?: number;
 }
 
 export interface UseSSEReturn {
   events: AnyAgentEvent[];
-  /** Whether the SSE connection is currently active */
   isConnected: boolean;
-  /** Whether a reconnection attempt is in progress */
   isReconnecting: boolean;
-  /** Current error message, if any */
   error: string | null;
-  /** Number of reconnection attempts made */
   reconnectAttempts: number;
-  /** Clear all accumulated events */
   clearEvents: () => void;
-  /** Manually trigger a reconnection */
   reconnect: () => void;
-  /** Manually add an event to the stream */
   addEvent: (event: AnyAgentEvent) => void;
 }
 
 export function useSSE(
   sessionId: string | null,
-  options: UseSSEOptions = {}
+  options: UseSSEOptions = {},
 ): UseSSEReturn {
-  const {
-    enabled = true,
-    onEvent,
-    maxReconnectAttempts = 5,
-  } = options;
+  const { enabled = true, onEvent, maxReconnectAttempts = 5 } = options;
 
   const [events, setEvents] = useState<AnyAgentEvent[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -66,248 +46,151 @@ export function useSSE(
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  // Refs for connection management
-  const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
-  const pendingReconnectRef = useRef(false);
+  const clientRef = useRef<SSEClient | null>(null);
+  const pipelineRef = useRef<EventPipeline | null>(null);
   const sessionIdRef = useRef(sessionId);
 
-  // Update session ID ref
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
-  }, [sessionId]);
-
-  // Store onEvent callback in ref to avoid dependency issues
   const onEventRef = useRef(onEvent);
   useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
 
-  /**
-   * Clear all accumulated events
-   */
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
   const clearEvents = useCallback(() => {
     setEvents([]);
   }, []);
 
-  /**
-   * Manually add an event to the event stream
-   */
-  const addEvent = useCallback((event: AnyAgentEvent) => {
-    setEvents((prev) => [...prev, event]);
-  }, []);
-
-  /**
-   * Cleanup function - closes connection and clears timeouts
-   * Note: This is NOT used in useEffect dependencies to avoid circular deps
-   */
   const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+    if (clientRef.current) {
+      clientRef.current.dispose();
+      clientRef.current = null;
     }
     isConnectingRef.current = false;
   }, []);
 
-  /**
-   * Internal connection function - uses refs for stable dependencies
-   * This function is wrapped in useCallback with minimal deps to prevent unnecessary re-creation
-   */
   const connectInternal = useCallback(() => {
     const currentSessionId = sessionIdRef.current;
     const currentEnabled = enabled;
-    const currentMaxAttempts = maxReconnectAttempts;
+    const pipeline = pipelineRef.current;
 
-    if (!currentSessionId || !currentEnabled) {
-      pendingReconnectRef.current = false;
+    if (!currentSessionId || !currentEnabled || !pipeline) {
       return;
     }
 
-    // Prevent double connections
-    if (isConnectingRef.current || eventSourceRef.current) {
-      pendingReconnectRef.current = false;
+    if (isConnectingRef.current || clientRef.current) {
       return;
     }
 
     isConnectingRef.current = true;
 
-    try {
-      const eventSource = apiClient.createSSEConnection(currentSessionId);
-      eventSourceRef.current = eventSource;
-
-      eventSource.onopen = () => {
-        console.log('[SSE] Connected to session:', currentSessionId);
+    const client = new SSEClient(currentSessionId, pipeline, {
+      onOpen: () => {
         isConnectingRef.current = false;
         setIsConnected(true);
         setIsReconnecting(false);
         setError(null);
         reconnectAttemptsRef.current = 0;
         setReconnectAttempts(0);
-      };
-
-      // All supported event types from the agent
-      const eventTypes = [
-        'connected',
-        'task_analysis',
-        'iteration_start',
-        'thinking',
-        'think_complete',
-        'tool_call_start',
-        'tool_call_stream',
-        'tool_call_complete',
-        'iteration_complete',
-        'task_complete',
-        'error',
-        'research_plan',
-        'step_started',
-        'step_completed',
-        'browser_info',
-        'environment_snapshot',
-        'sandbox_progress',
-      ];
-
-      eventTypes.forEach((type) => {
-        eventSource.addEventListener(type, (e: MessageEvent) => {
-          try {
-            const parsed = JSON.parse(e.data);
-            const validationResult = safeValidateEvent(parsed);
-
-            if (!validationResult.success) {
-              console.error(`[SSE] Event validation failed for ${type}:`, validationResult.error.format());
-              // Still add the event but log the validation error
-              // This allows graceful degradation if backend sends unexpected data
-              const event = parsed as AnyAgentEvent;
-              setEvents((prev) => [...prev, event]);
-              onEventRef.current?.(event);
-              return;
-            }
-
-            // Validated event
-            const event = validationResult.data;
-            if (event.event_type === 'environment_snapshot') {
-              handleEnvironmentSnapshot(event);
-            }
-            if (event.event_type === 'sandbox_progress') {
-              handleSandboxProgress(event);
-            }
-            setEvents((prev) => [...prev, event]);
-            onEventRef.current?.(event);
-          } catch (err) {
-            console.error(`[SSE] Failed to parse event ${type}:`, err);
-          }
-        });
-      });
-
-      eventSource.onerror = () => {
-        console.error('[SSE] Connection error');
+      },
+      onError: (err) => {
+        console.error('[SSE] Connection error:', err);
+        if (clientRef.current) {
+          clientRef.current.dispose();
+          clientRef.current = null;
+        }
         isConnectingRef.current = false;
         setIsConnected(false);
-        eventSource.close();
-        eventSourceRef.current = null;
+        setIsReconnecting(true);
+        const nextAttempts = reconnectAttemptsRef.current + 1;
+        reconnectAttemptsRef.current = nextAttempts;
+        const clampedAttempts = Math.min(nextAttempts, maxReconnectAttempts);
+        setReconnectAttempts(clampedAttempts);
 
-        const currentAttempts = reconnectAttemptsRef.current;
-
-        if (currentAttempts < currentMaxAttempts) {
-          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
-          const delay = Math.min(1000 * Math.pow(2, currentAttempts), 30000);
-          console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${currentAttempts + 1}/${currentMaxAttempts})`);
-
-          setIsReconnecting(true);
-          reconnectAttemptsRef.current = currentAttempts + 1;
-          setReconnectAttempts(currentAttempts + 1);
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectTimeoutRef.current = null;
-            isConnectingRef.current = false;
-            // Recursive call for retry
-            connectInternal();
-          }, delay);
-        } else {
-          setError('Max reconnection attempts reached');
+        if (nextAttempts > maxReconnectAttempts) {
+          setError('Maximum reconnection attempts exceeded');
           setIsReconnecting(false);
+          reconnectAttemptsRef.current = maxReconnectAttempts;
+          return;
         }
-      };
+
+        const delay = Math.min(1000 * 2 ** nextAttempts, 15000);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectInternal();
+        }, delay);
+      },
+      onClose: () => {
+        setIsConnected(false);
+      },
+    });
+
+    clientRef.current = client;
+    try {
+      client.connect();
     } catch (err) {
-      console.error('[SSE] Failed to create connection:', err);
+      console.error('[SSE] Failed to connect:', err);
       isConnectingRef.current = false;
-      setError(err instanceof Error ? err.message : 'Failed to connect');
-    } finally {
-      pendingReconnectRef.current = false;
+      setIsConnected(false);
+      setError(err instanceof Error ? err.message : 'Unknown connection error');
     }
   }, [enabled, maxReconnectAttempts]);
 
-  /**
-   * Manually trigger a reconnection
-   * Resets reconnection counter and immediately attempts to connect
-   */
-  const reconnect = useCallback(() => {
-    if (isConnectingRef.current || pendingReconnectRef.current) {
-      return;
-    }
+  useEffect(() => {
+    pipelineRef.current = new EventPipeline({
+      bus: agentEventBus,
+      registry: defaultEventRegistry,
+      onInvalidEvent: (raw, validationError) => {
+        console.error('[SSE] Event validation failed:', raw, validationError);
+      },
+    });
 
-    pendingReconnectRef.current = true;
+    const unsubscribe = agentEventBus.subscribe((event) => {
+      setEvents((prev) => [...prev, event]);
+      onEventRef.current?.(event);
+    });
+
+    return () => {
+      unsubscribe();
+      pipelineRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    cleanup();
+    setEvents([]);
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
     setError(null);
-    setIsReconnecting(false);
+
+    if (sessionId && enabled) {
+      connectInternal();
+    }
+
+    return () => {
+      cleanup();
+    };
+  }, [sessionId, enabled, connectInternal, cleanup]);
+
+  const reconnect = useCallback(() => {
     cleanup();
+    reconnectAttemptsRef.current = 0;
+    setReconnectAttempts(0);
     connectInternal();
   }, [cleanup, connectInternal]);
 
-  /**
-   * Main connection effect
-   *
-   * IMPORTANT: This effect is intentionally simple with minimal dependencies
-   * to avoid the circular dependency issue that existed before (lines 182-195).
-   *
-   * Previous issue: Including cleanup and connectInternal in deps caused:
-   * 1. Effect runs → creates new cleanup/connect functions
-   * 2. New functions trigger effect again
-   * 3. Unnecessary reconnections on every render
-   *
-   * Solution: Use refs for dynamic values and keep deps minimal (sessionId, enabled only)
-   */
-  useEffect(() => {
-    if (!sessionId || !enabled) {
-      // Inline cleanup to avoid dependency
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      isConnectingRef.current = false;
-      setIsConnected(false);
-      setIsReconnecting(false);
-      return;
-    }
-
-    // Initial connection
-    connectInternal();
-
-    // Cleanup on unmount or when sessionId/enabled changes
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      isConnectingRef.current = false;
-    };
-    // Only depend on sessionId and enabled - connectInternal is stable via refs
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, enabled]);
+  const addEvent = useCallback((event: AnyAgentEvent) => {
+    defaultEventRegistry.run(event);
+    agentEventBus.emit(event);
+  }, []);
 
   return {
     events,
