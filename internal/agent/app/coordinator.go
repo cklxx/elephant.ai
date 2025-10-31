@@ -143,7 +143,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	})
 
 	if listener != nil {
-		c.logger.Debug("Listener provided: type=%T", listener)
+		// DO NOT log listener objects to avoid leaking sensitive information.
+		c.logger.Debug("Listener provided")
 		reactEngine.SetEventListener(listener)
 		c.logger.Info("Event listener successfully set on ReactEngine")
 	} else {
