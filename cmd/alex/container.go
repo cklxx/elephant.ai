@@ -18,10 +18,6 @@ type Container struct {
 	Runtime     appConfig
 }
 
-func buildContainer() (*Container, error) {
-	return buildContainerWithOptions(false)
-}
-
 func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 	// Load configuration
 	cfg, err := loadConfig()
