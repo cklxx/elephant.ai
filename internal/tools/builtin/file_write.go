@@ -48,9 +48,27 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, content string) *por
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}
 	}
+
+	// Count lines in content
+	lines := 0
+	for _, ch := range content {
+		if ch == '\n' {
+			lines++
+		}
+	}
+	if len(content) > 0 && content[len(content)-1] != '\n' {
+		lines++ // Count last line if it doesn't end with newline
+	}
+
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), path),
+		Metadata: map[string]any{
+			"path":    path,
+			"chars":   len(content),
+			"lines":   lines,
+			"content": content,
+		},
 	}
 }
 
@@ -71,9 +89,27 @@ func (t *fileWrite) executeSandbox(ctx context.Context, call ports.ToolCall, pat
 	if data := resp.GetData(); data != nil && data.GetBytesWritten() != nil {
 		bytesWritten = *data.GetBytesWritten()
 	}
+
+	// Count lines in content
+	lines := 0
+	for _, ch := range content {
+		if ch == '\n' {
+			lines++
+		}
+	}
+	if len(content) > 0 && content[len(content)-1] != '\n' {
+		lines++ // Count last line if it doesn't end with newline
+	}
+
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Wrote %d bytes to %s", bytesWritten, path),
+		Metadata: map[string]any{
+			"path":    path,
+			"chars":   bytesWritten,
+			"lines":   lines,
+			"content": content,
+		},
 	}, nil
 }
 

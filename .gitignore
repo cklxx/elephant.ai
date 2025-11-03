@@ -123,3 +123,4 @@ old_internal/
 # Backup and tooling remnants
 .git-backup-*
 ast_viewr
+*.old

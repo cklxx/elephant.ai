@@ -14,20 +14,20 @@ import (
 )
 
 type bash struct {
-        mode    tools.ExecutionMode
-        sandbox *tools.SandboxManager
+	mode    tools.ExecutionMode
+	sandbox *tools.SandboxManager
 }
 
 func NewBash(cfg ShellToolConfig) ports.ToolExecutor {
-        mode := cfg.Mode
-        if mode == tools.ExecutionModeUnknown {
-                mode = tools.ExecutionModeLocal
-        }
-        return &bash{mode: mode, sandbox: cfg.SandboxManager}
+	mode := cfg.Mode
+	if mode == tools.ExecutionModeUnknown {
+		mode = tools.ExecutionModeLocal
+	}
+	return &bash{mode: mode, sandbox: cfg.SandboxManager}
 }
 
 func (t *bash) Mode() tools.ExecutionMode {
-        return t.mode
+	return t.mode
 }
 
 func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -70,11 +70,25 @@ func (t *bash) executeLocal(ctx context.Context, call ports.ToolCall, command st
 		}
 	}
 
+	// Build result payload in logical order
 	resultPayload := map[string]any{
 		"command":   command,
+		"exit_code": exitCode,
 		"stdout":    stdoutBuf.String(),
 		"stderr":    stderrBuf.String(),
-		"exit_code": exitCode,
+	}
+
+	// Add combined text field if there's any output
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+	if stdout != "" || stderr != "" {
+		text := strings.TrimSpace(stdout)
+		if text == "" {
+			text = strings.TrimSpace(stderr)
+		} else if stderr != "" {
+			text = text + "\n" + strings.TrimSpace(stderr)
+		}
+		resultPayload["text"] = text
 	}
 
 	contentBytes, err := json.Marshal(resultPayload)
