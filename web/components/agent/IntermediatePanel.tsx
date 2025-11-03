@@ -88,7 +88,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   }
 
   return (
-    <div className="px-6 py-4">
+    <div className="pt-6 pb-6 py-4">
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
