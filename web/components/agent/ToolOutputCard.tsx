@@ -66,7 +66,7 @@ export function ToolOutputCard({
   }, [error, result]);
 
   return (
-    <Card className="console-card border-l-4 border-primary/50 animate-fadeIn overflow-hidden">
+    <Card className="console-card border-primary/50 animate-fadeIn overflow-hidden">
       <CardHeader className="px-5 py-4 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
