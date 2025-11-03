@@ -3,7 +3,6 @@ package builtin
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -102,49 +101,35 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	screenshot, screenshotErr := t.captureScreenshot(ctx, finalURL)
 	html, htmlErr := t.fetchHTML(ctx, finalURL)
 
-	payload := map[string]any{
-		"url": finalURL,
-	}
-	if screenshot != "" {
-		payload["screenshot"] = screenshot
-	}
-	if screenshotErr != nil {
-		payload["screenshot_error"] = screenshotErr.Error()
-	}
-	if html != "" {
-		payload["html"] = html
-	}
+	// Build text content for LLM (success status + HTML)
+	var textContent strings.Builder
+	textContent.WriteString(fmt.Sprintf("Browser visited: %s\n", finalURL))
+
 	if htmlErr != nil {
-		payload["html_error"] = htmlErr.Error()
+		textContent.WriteString(fmt.Sprintf("Failed to fetch HTML: %s\n", htmlErr.Error()))
+	} else if html != "" {
+		textContent.WriteString(fmt.Sprintf("HTML content:\n%s", html))
+	} else {
+		textContent.WriteString("No HTML content retrieved\n")
 	}
 
-	content, err := json.Marshal(payload)
+	// Build metadata for frontend (screenshot info)
 	metadata := map[string]any{
-		"browser": payload,
 		"url":     finalURL,
+		"success": htmlErr == nil,
 	}
 	if screenshot != "" {
-		metadata["has_screenshot"] = true
+		metadata["screenshot"] = screenshot
 	}
 	if screenshotErr != nil {
 		metadata["screenshot_error"] = screenshotErr.Error()
 	}
-	if htmlErr != nil {
-		metadata["html_error"] = htmlErr.Error()
-	}
 
-	if err != nil {
-		fallback := fmt.Sprintf("Browser visit: %s", finalURL)
-		if screenshotErr != nil {
-			fallback = fmt.Sprintf("%s\nScreenshot error: %s", fallback, screenshotErr.Error())
-		}
-		if htmlErr != nil {
-			fallback = fmt.Sprintf("%s\nHTML error: %s", fallback, htmlErr.Error())
-		}
-		return &ports.ToolResult{CallID: call.ID, Content: fallback, Metadata: metadata}, nil
-	}
-
-	return &ports.ToolResult{CallID: call.ID, Content: string(content), Metadata: metadata}, nil
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  textContent.String(),
+		Metadata: metadata,
+	}, nil
 }
 
 func (t *browserTool) captureScreenshot(ctx context.Context, url string) (string, error) {

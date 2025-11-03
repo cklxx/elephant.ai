@@ -159,6 +159,24 @@ export const SandboxProgressEventSchema = BaseAgentEventSchema.extend({
   updated: z.string(),
 });
 
+// Context Compression Event
+export const ContextCompressionEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('context_compression'),
+  original_count: z.number(),
+  compressed_count: z.number(),
+  compression_rate: z.number(),
+});
+
+// Tool Filtering Event
+export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('tool_filtering'),
+  preset_name: z.string(),
+  original_count: z.number(),
+  filtered_count: z.number(),
+  filtered_tools: z.array(z.string()),
+  tool_filter_ratio: z.number(),
+});
+
 // Connected Event
 export const ConnectedEventSchema = z.object({
   event_type: z.literal('connected'),
@@ -193,6 +211,8 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   BrowserInfoEventSchema,
   EnvironmentSnapshotEventSchema,
   SandboxProgressEventSchema,
+  ContextCompressionEventSchema,
+  ToolFilteringEventSchema,
   ConnectedEventSchema,
   UserTaskEventSchema,
 ]);
@@ -260,21 +280,125 @@ export const SessionDetailsResponseSchema = z.object({
   tasks: z.array(TaskStatusResponseSchema),
 });
 
+// Helper function to normalize and complete event data
+function normalizeEventData(data: unknown): unknown {
+  if (typeof data !== 'object' || data === null) {
+    return data;
+  }
+
+  const event = data as Record<string, any>;
+  const normalized: Record<string, any> = { ...event };
+
+  // Ensure timestamp exists
+  if (!normalized.timestamp) {
+    normalized.timestamp = new Date().toISOString();
+  }
+
+  // Ensure agent_level exists
+  if (!normalized.agent_level) {
+    normalized.agent_level = 'core';
+  }
+
+  // Ensure session_id exists
+  if (!normalized.session_id) {
+    normalized.session_id = '';
+  }
+
+  // For tool_call_start events, ensure arguments exists
+  if (normalized.event_type === 'tool_call_start' && !normalized.arguments) {
+    normalized.arguments = {};
+  }
+
+  // Handle missing event_type - try to infer or skip
+  if (!normalized.event_type || typeof normalized.event_type !== 'string') {
+    // Try to infer event type from available fields
+    if ('final_answer' in normalized && 'total_iterations' in normalized) {
+      normalized.event_type = 'task_complete';
+    } else if ('tool_name' in normalized && 'result' in normalized && 'call_id' in normalized) {
+      normalized.event_type = 'tool_call_complete';
+    } else if ('tool_name' in normalized && 'call_id' in normalized && !('result' in normalized)) {
+      normalized.event_type = 'tool_call_start';
+    } else if ('call_id' in normalized && 'chunk' in normalized) {
+      normalized.event_type = 'tool_call_stream';
+    } else if ('content' in normalized && 'tool_call_count' in normalized) {
+      normalized.event_type = 'think_complete';
+    } else if ('iteration' in normalized && 'tokens_used' in normalized) {
+      normalized.event_type = 'iteration_complete';
+    } else if ('iteration' in normalized && 'message_count' in normalized) {
+      normalized.event_type = 'thinking';
+    } else if ('iteration' in normalized && 'total_iters' in normalized) {
+      normalized.event_type = 'iteration_start';
+    } else if ('action_name' in normalized && 'goal' in normalized) {
+      normalized.event_type = 'task_analysis';
+    } else if ('plan_steps' in normalized) {
+      normalized.event_type = 'research_plan';
+    } else if ('step_index' in normalized && 'step_description' in normalized && !('step_result' in normalized)) {
+      normalized.event_type = 'step_started';
+    } else if ('step_index' in normalized && 'step_result' in normalized) {
+      normalized.event_type = 'step_completed';
+    } else if ('phase' in normalized && 'recoverable' in normalized) {
+      normalized.event_type = 'error';
+    } else if ('status' in normalized && 'stage' in normalized && 'step' in normalized) {
+      normalized.event_type = 'sandbox_progress';
+    } else if ('user_agent' in normalized || 'cdp_url' in normalized) {
+      normalized.event_type = 'browser_info';
+    } else if ('host' in normalized || 'sandbox' in normalized) {
+      normalized.event_type = 'environment_snapshot';
+    } else if ('original_count' in normalized && 'compressed_count' in normalized) {
+      normalized.event_type = 'context_compression';
+    } else if ('preset_name' in normalized && 'filtered_tools' in normalized) {
+      normalized.event_type = 'tool_filtering';
+    } else {
+      // Cannot infer - log and skip this event
+      console.debug('[Schema Normalization] Cannot infer event_type, available fields:', Object.keys(normalized));
+      return null;
+    }
+  }
+
+  return normalized;
+}
+
 // Helper function to validate and parse events
 export function validateEvent(data: unknown): z.infer<typeof AnyAgentEventSchema> | null {
   try {
-    return AnyAgentEventSchema.parse(data);
+    // First try to normalize the data
+    const normalized = normalizeEventData(data);
+    if (normalized === null) {
+      console.warn('[Schema Validation] Could not normalize event, skipping:', data);
+      return null;
+    }
+
+    return AnyAgentEventSchema.parse(normalized);
   } catch (error) {
     console.error('[Schema Validation] Failed to validate event:', error);
+    console.debug('[Schema Validation] Raw event data:', data);
     return null;
   }
 }
 
 // Helper function to safely validate without throwing
-export function safeValidateEvent(data: unknown): { success: true; data: z.infer<typeof AnyAgentEventSchema> } | { success: false; error: z.ZodError } {
-  const result = AnyAgentEventSchema.safeParse(data);
+export function safeValidateEvent(data: unknown): { success: true; data: z.infer<typeof AnyAgentEventSchema> } | { success: false; error: z.ZodError; raw: unknown } {
+  // First try to normalize the data
+  const normalized = normalizeEventData(data);
+
+  if (normalized === null) {
+    console.warn('[Schema Validation] Could not normalize event, skipping:', data);
+    // Return a synthetic error for skipped events
+    return {
+      success: false,
+      error: new z.ZodError([{
+        code: 'custom',
+        path: ['event_type'],
+        message: 'Event type could not be inferred',
+      }]),
+      raw: data
+    };
+  }
+
+  const result = AnyAgentEventSchema.safeParse(normalized);
   if (result.success) {
     return { success: true, data: result.data };
   }
-  return { success: false, error: result.error };
+
+  return { success: false, error: result.error, raw: data };
 }

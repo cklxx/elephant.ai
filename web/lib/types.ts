@@ -159,6 +159,24 @@ export interface SandboxProgressEvent extends AgentEvent {
   updated: string;
 }
 
+// Context Compression Event - emitted when context is compressed
+export interface ContextCompressionEvent extends AgentEvent {
+  event_type: 'context_compression';
+  original_count: number;
+  compressed_count: number;
+  compression_rate: number;
+}
+
+// Tool Filtering Event - emitted when tools are filtered by preset
+export interface ToolFilteringEvent extends AgentEvent {
+  event_type: 'tool_filtering';
+  preset_name: string;
+  original_count: number;
+  filtered_count: number;
+  filtered_tools: string[];
+  tool_filter_ratio: number;
+}
+
 // Connected Event - emitted when SSE connection is established
 export interface ConnectedEvent {
   event_type: 'connected';
@@ -193,6 +211,8 @@ export type AnyAgentEvent =
   | BrowserInfoEvent
   | EnvironmentSnapshotEvent
   | SandboxProgressEvent
+  | ContextCompressionEvent
+  | ToolFilteringEvent
   | ConnectedEvent
   | UserTaskEvent;
 
