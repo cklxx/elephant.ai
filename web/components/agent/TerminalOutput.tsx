@@ -70,7 +70,7 @@ export function TerminalOutput({
       </div>
 
       {isConnected && filteredEvents.length > 0 && (
-        <div className="flex items-center gap-2 pt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+        <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
           <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
           <span>{t("conversation.status.listening")}</span>
         </div>
