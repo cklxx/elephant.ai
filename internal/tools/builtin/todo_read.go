@@ -71,24 +71,42 @@ func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}, nil
 	}
 
-	// Count tasks by status
+	// Parse tasks by status
 	lines := strings.Split(string(content), "\n")
 	totalCount := 0
 	inProgressCount := 0
 	pendingCount := 0
 	completedCount := 0
 
+	var todosData []map[string]interface{}
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "→") {
+		var taskContent string
+		var status string
+
+		if strings.HasPrefix(trimmed, "→ ") {
+			taskContent = strings.TrimSpace(trimmed[len("→ "):])
+			status = "in_progress"
 			inProgressCount++
 			totalCount++
-		} else if strings.HasPrefix(trimmed, "☐") {
+		} else if strings.HasPrefix(trimmed, "☐ ") {
+			taskContent = strings.TrimSpace(trimmed[len("☐ "):])
+			status = "pending"
 			pendingCount++
 			totalCount++
-		} else if strings.HasPrefix(trimmed, "✓") {
+		} else if strings.HasPrefix(trimmed, "✓ ") {
+			taskContent = strings.TrimSpace(trimmed[len("✓ "):])
+			status = "completed"
 			completedCount++
 			totalCount++
+		}
+
+		if taskContent != "" && status != "" {
+			todosData = append(todosData, map[string]interface{}{
+				"content": taskContent,
+				"status":  status,
+			})
 		}
 	}
 
@@ -101,6 +119,7 @@ func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 			"in_progress_count": inProgressCount,
 			"pending_count":     pendingCount,
 			"completed_count":   completedCount,
+			"todos":             todosData,
 		},
 	}, nil
 }

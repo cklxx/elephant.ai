@@ -35,6 +35,7 @@ export class SSEClient {
   private options: SSEClientOptions;
   private pipeline: EventPipeline;
   private eventSource: EventSource | null = null;
+  private isDisposed: boolean = false;
 
   constructor(sessionId: string, pipeline: EventPipeline, options: Partial<SSEClientOptions> = {}) {
     this.sessionId = sessionId;
@@ -50,19 +51,29 @@ export class SSEClient {
 
   connect() {
     this.dispose();
+    this.isDisposed = false;
     this.eventSource = apiClient.createSSEConnection(this.sessionId);
     const eventSource = this.eventSource;
 
     eventSource.onopen = () => {
+      if (this.isDisposed) return;
       this.options.onOpen?.();
     };
 
     eventSource.onerror = (error) => {
-      this.options.onError?.(error);
+      if (this.isDisposed) return;
+
+      // Only trigger error callback if connection is actually broken
+      // EventSource.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
+      if (eventSource.readyState === EventSource.CLOSED) {
+        this.options.onError?.(error);
+      }
     };
 
     this.options.eventTypes.forEach((type) => {
       eventSource.addEventListener(type, (rawEvent: MessageEvent) => {
+        if (this.isDisposed) return;
+
         try {
           const payload = JSON.parse(rawEvent.data);
           this.pipeline.process(payload);
@@ -74,6 +85,7 @@ export class SSEClient {
   }
 
   dispose() {
+    this.isDisposed = true;
     if (this.eventSource) {
       this.eventSource.close();
       this.options.onClose?.();

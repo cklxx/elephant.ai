@@ -196,13 +196,18 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["call_id"] = e.CallID
 		data["tool_name"] = e.ToolName
 		presentation := h.formatter.PrepareArgs(e.ToolName, e.Arguments)
+
+		// Always include arguments field, even if empty
 		if len(presentation.Args) > 0 {
 			sanitizedArgs := make(map[string]interface{}, len(presentation.Args))
 			for key, value := range presentation.Args {
 				sanitizedArgs[key] = value
 			}
 			data["arguments"] = sanitizeArguments(sanitizedArgs)
+		} else {
+			data["arguments"] = map[string]interface{}{}
 		}
+
 		if presentation.InlinePreview != "" {
 			data["arguments_preview"] = sanitizeValue("preview", presentation.InlinePreview)
 		}

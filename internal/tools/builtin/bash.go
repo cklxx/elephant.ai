@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"strings"
 
@@ -14,20 +13,20 @@ import (
 )
 
 type bash struct {
-        mode    tools.ExecutionMode
-        sandbox *tools.SandboxManager
+	mode    tools.ExecutionMode
+	sandbox *tools.SandboxManager
 }
 
 func NewBash(cfg ShellToolConfig) ports.ToolExecutor {
-        mode := cfg.Mode
-        if mode == tools.ExecutionModeUnknown {
-                mode = tools.ExecutionModeLocal
-        }
-        return &bash{mode: mode, sandbox: cfg.SandboxManager}
+	mode := cfg.Mode
+	if mode == tools.ExecutionModeUnknown {
+		mode = tools.ExecutionModeLocal
+	}
+	return &bash{mode: mode, sandbox: cfg.SandboxManager}
 }
 
 func (t *bash) Mode() tools.ExecutionMode {
-        return t.mode
+	return t.mode
 }
 
 func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -70,38 +69,52 @@ func (t *bash) executeLocal(ctx context.Context, call ports.ToolCall, command st
 		}
 	}
 
-	resultPayload := map[string]any{
-		"command":   command,
-		"stdout":    stdoutBuf.String(),
-		"stderr":    stderrBuf.String(),
-		"exit_code": exitCode,
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	// Build combined text output prioritizing stdout
+	text := strings.TrimSpace(stdout)
+	if text == "" {
+		text = strings.TrimSpace(stderr)
+	} else if stderr != "" {
+		text = text + "\n" + strings.TrimSpace(stderr)
+	}
+	if text == "" {
+		if runErr != nil {
+			text = fmt.Sprintf("exit code %d (no output)", exitCode)
+		} else {
+			text = "command completed with no output"
+		}
 	}
 
-	contentBytes, err := json.Marshal(resultPayload)
-	if err != nil {
-		plain := strings.TrimSpace(stdoutBuf.String())
-		if plain == "" {
-			plain = strings.TrimSpace(stderrBuf.String())
-		}
-		if plain == "" {
-			plain = fmt.Sprintf("command %q completed", command)
-		}
-		return &ports.ToolResult{CallID: call.ID, Content: plain, Error: runErr}, nil
+	resultPayload := map[string]any{
+		"command":   command,
+		"exit_code": exitCode,
+		"stdout":    stdout,
+		"stderr":    stderr,
+		"text":      text,
 	}
 
 	metadata := map[string]any{
 		"command":      command,
 		"exit_code":    exitCode,
+		"stdout":       stdout,
+		"stderr":       stderr,
+		"text":         text,
 		"stdout_bytes": stdoutBuf.Len(),
 		"stderr_bytes": stderrBuf.Len(),
 		"stdout_lines": countLines(stdoutBuf.String()),
 		"stderr_lines": countLines(stderrBuf.String()),
 		"success":      runErr == nil,
+		"payload":      resultPayload,
+	}
+	if runErr != nil {
+		metadata["error"] = runErr.Error()
 	}
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  string(contentBytes),
+		Content:  text,
 		Error:    runErr,
 		Metadata: metadata,
 	}, nil

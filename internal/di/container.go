@@ -45,23 +45,31 @@ type Container struct {
 // Config holds the dependency injection configuration
 type Config struct {
 	// LLM Configuration
-	LLMProvider      string
-	LLMModel         string
-	APIKey           string
-	BaseURL          string
-	TavilyAPIKey     string
-	SandboxBaseURL   string
-	MaxTokens        int
-	MaxIterations    int
-	Temperature      float64
-	TemperatureSet   bool
-	TopP             float64
-	StopSequences    []string
-	Environment      string
-	Verbose          bool
-	DisableTUI       bool
-	FollowTranscript bool
-	FollowStream     bool
+	LLMProvider             string
+	LLMModel                string
+	APIKey                  string
+	BaseURL                 string
+	TavilyAPIKey            string
+	VolcAccessKey           string
+	VolcSecretKey           string
+	SeedreamHost            string
+	SeedreamRegion          string
+	SeedreamTextEndpointID  string
+	SeedreamImageEndpointID string
+	SandboxBaseURL          string
+	MaxTokens               int
+	MaxIterations           int
+	Temperature             float64
+	TemperatureSet          bool
+	TopP                    float64
+	StopSequences           []string
+	AgentPreset             string
+	ToolPreset              string
+	Environment             string
+	Verbose                 bool
+	DisableTUI              bool
+	FollowTranscript        bool
+	FollowStream            bool
 
 	EnvironmentSummary string
 
@@ -169,10 +177,16 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
-		TavilyAPIKey:   config.TavilyAPIKey,
-		SandboxBaseURL: sandboxBaseURL,
-		ExecutionMode:  executionMode,
-		SandboxManager: sandboxManager,
+		TavilyAPIKey:            config.TavilyAPIKey,
+		SandboxBaseURL:          sandboxBaseURL,
+		VolcAccessKey:           config.VolcAccessKey,
+		VolcSecretKey:           config.VolcSecretKey,
+		SeedreamHost:            config.SeedreamHost,
+		SeedreamRegion:          config.SeedreamRegion,
+		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		ExecutionMode:           executionMode,
+		SandboxManager:          sandboxManager,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
@@ -191,25 +205,31 @@ func BuildContainer(config Config) (*Container, error) {
 	config.SandboxBaseURL = sandboxBaseURL
 
 	runtimeSnapshot := runtimeconfig.RuntimeConfig{
-		LLMProvider:         config.LLMProvider,
-		LLMModel:            config.LLMModel,
-		APIKey:              config.APIKey,
-		BaseURL:             config.BaseURL,
-		TavilyAPIKey:        config.TavilyAPIKey,
-		SandboxBaseURL:      sandboxBaseURL,
-		Environment:         config.Environment,
-		Verbose:             config.Verbose,
-		DisableTUI:          config.DisableTUI,
-		FollowTranscript:    config.FollowTranscript,
-		FollowStream:        config.FollowStream,
-		MaxIterations:       config.MaxIterations,
-		MaxTokens:           config.MaxTokens,
-		Temperature:         config.Temperature,
-		TemperatureProvided: config.TemperatureSet,
-		TopP:                config.TopP,
-		StopSequences:       append([]string(nil), config.StopSequences...),
-		SessionDir:          config.SessionDir,
-		CostDir:             config.CostDir,
+		LLMProvider:             config.LLMProvider,
+		LLMModel:                config.LLMModel,
+		APIKey:                  config.APIKey,
+		BaseURL:                 config.BaseURL,
+		TavilyAPIKey:            config.TavilyAPIKey,
+		VolcAccessKey:           config.VolcAccessKey,
+		VolcSecretKey:           config.VolcSecretKey,
+		SeedreamHost:            config.SeedreamHost,
+		SeedreamRegion:          config.SeedreamRegion,
+		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		SandboxBaseURL:          sandboxBaseURL,
+		Environment:             config.Environment,
+		Verbose:                 config.Verbose,
+		DisableTUI:              config.DisableTUI,
+		FollowTranscript:        config.FollowTranscript,
+		FollowStream:            config.FollowStream,
+		MaxIterations:           config.MaxIterations,
+		MaxTokens:               config.MaxTokens,
+		Temperature:             config.Temperature,
+		TemperatureProvided:     config.TemperatureSet,
+		TopP:                    config.TopP,
+		StopSequences:           append([]string(nil), config.StopSequences...),
+		SessionDir:              config.SessionDir,
+		CostDir:                 config.CostDir,
 	}
 
 	// MCP Registry - Create but don't initialize yet
@@ -240,6 +260,8 @@ func BuildContainer(config Config) (*Container, error) {
 			TemperatureProvided: config.TemperatureSet,
 			TopP:                config.TopP,
 			StopSequences:       append([]string(nil), config.StopSequences...),
+			AgentPreset:         config.AgentPreset,
+			ToolPreset:          config.ToolPreset,
 			EnvironmentSummary:  config.EnvironmentSummary,
 		},
 	)

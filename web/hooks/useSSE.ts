@@ -91,6 +91,13 @@ export function useSSE(
       return;
     }
 
+    // Check if we've exceeded max attempts - stop reconnecting
+    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+      console.warn('[SSE] Max reconnection attempts reached, stopping auto-reconnect');
+      setIsReconnecting(false);
+      return;
+    }
+
     isConnectingRef.current = true;
 
     const client = new SSEClient(currentSessionId, pipeline, {
@@ -104,26 +111,32 @@ export function useSSE(
       },
       onError: (err) => {
         console.error('[SSE] Connection error:', err);
+
+        // Clean up current client
         if (clientRef.current) {
           clientRef.current.dispose();
           clientRef.current = null;
         }
         isConnectingRef.current = false;
         setIsConnected(false);
-        setIsReconnecting(true);
+
         const nextAttempts = reconnectAttemptsRef.current + 1;
         reconnectAttemptsRef.current = nextAttempts;
         const clampedAttempts = Math.min(nextAttempts, maxReconnectAttempts);
         setReconnectAttempts(clampedAttempts);
 
         if (nextAttempts > maxReconnectAttempts) {
-          setError('Maximum reconnection attempts exceeded');
+          console.warn('[SSE] Maximum reconnection attempts exceeded');
+          setError('Maximum reconnection attempts exceeded. Please refresh the page or click Reconnect.');
           setIsReconnecting(false);
-          reconnectAttemptsRef.current = maxReconnectAttempts;
           return;
         }
 
-        const delay = Math.min(1000 * 2 ** nextAttempts, 15000);
+        // Exponential backoff: 2s, 4s, 8s, 16s, 32s, capped at 60s
+        const delay = Math.min(1000 * 2 ** nextAttempts, 60000);
+        console.log(`[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`);
+        setIsReconnecting(true);
+
         reconnectTimeoutRef.current = setTimeout(() => {
           connectInternal();
         }, delay);
@@ -149,7 +162,13 @@ export function useSSE(
       bus: agentEventBus,
       registry: defaultEventRegistry,
       onInvalidEvent: (raw, validationError) => {
-        console.error('[SSE] Event validation failed:', raw, validationError);
+        // Log as warning instead of error for better UX
+        // Unknown/invalid events should not break the application
+        console.warn('[SSE] Event validation failed (skipping):', {
+          raw,
+          error: validationError,
+          note: 'This event will be skipped. This is usually harmless.',
+        });
       },
     });
 

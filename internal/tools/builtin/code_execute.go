@@ -310,12 +310,6 @@ func (t *codeExecute) executePythonRemote(ctx context.Context, callID, code stri
 		fmt.Fprintf(&builder, "Message: %s\n", *message)
 	}
 	if data != nil {
-		if session := data.GetSessionId(); session != "" {
-			fmt.Fprintf(&builder, "Session: %s\n", session)
-		}
-		if count := data.GetExecutionCount(); count != nil {
-			fmt.Fprintf(&builder, "Execution Count: %d\n", *count)
-		}
 		outputs := data.GetOutputs()
 		if len(outputs) > 0 {
 			builder.WriteString("Outputs:\n")

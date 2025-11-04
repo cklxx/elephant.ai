@@ -268,8 +268,8 @@ func TestToolPresetBlocking(t *testing.T) {
 
 func TestGetAllPresets(t *testing.T) {
 	presets := GetAllPresets()
-	if len(presets) != 5 {
-		t.Errorf("GetAllPresets() returned %d presets, want 5", len(presets))
+	if len(presets) != 6 {
+		t.Errorf("GetAllPresets() returned %d presets, want 6", len(presets))
 	}
 
 	// Check all expected presets are present
@@ -279,6 +279,7 @@ func TestGetAllPresets(t *testing.T) {
 		PresetResearcher:      false,
 		PresetDevOps:          false,
 		PresetSecurityAnalyst: false,
+		PresetDesigner:        false,
 	}
 
 	for _, preset := range presets {

@@ -53,6 +53,19 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("TAVILY_API_KEY", cfg.TavilyAPIKey)
 	set("ALEX_TAVILY_API_KEY", cfg.TavilyAPIKey)
 
+	set("VOLC_ACCESSKEY", cfg.VolcAccessKey)
+	set("ALEX_VOLC_ACCESSKEY", cfg.VolcAccessKey)
+	set("VOLC_SECRETKEY", cfg.VolcSecretKey)
+	set("ALEX_VOLC_SECRETKEY", cfg.VolcSecretKey)
+	set("SEEDREAM_HOST", cfg.SeedreamHost)
+	set("ALEX_SEEDREAM_HOST", cfg.SeedreamHost)
+	set("SEEDREAM_REGION", cfg.SeedreamRegion)
+	set("ALEX_SEEDREAM_REGION", cfg.SeedreamRegion)
+	set("SEEDREAM_TEXT_ENDPOINT_ID", cfg.SeedreamTextEndpointID)
+	set("ALEX_SEEDREAM_TEXT_ENDPOINT_ID", cfg.SeedreamTextEndpointID)
+	set("SEEDREAM_IMAGE_ENDPOINT_ID", cfg.SeedreamImageEndpointID)
+	set("ALEX_SEEDREAM_IMAGE_ENDPOINT_ID", cfg.SeedreamImageEndpointID)
+
 	if cfg.Environment != "" {
 		set("ALEX_ENV", cfg.Environment)
 	}
@@ -92,6 +105,11 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 
 	set("ALEX_SESSION_DIR", cfg.SessionDir)
 	set("ALEX_COST_DIR", cfg.CostDir)
+
+	set("AGENT_PRESET", cfg.AgentPreset)
+	set("ALEX_AGENT_PRESET", cfg.AgentPreset)
+	set("TOOL_PRESET", cfg.ToolPreset)
+	set("ALEX_TOOL_PRESET", cfg.ToolPreset)
 
 	return values
 }
