@@ -379,13 +379,59 @@ interface BashResult {
   text?: string;
 }
 
-function parseBashResult(result: string): BashResult | null {
-  try {
-    const parsed = JSON.parse(result);
-    return parsed as BashResult;
-  } catch {
+function parseBashResult(
+  result: string | undefined,
+  metadata?: Record<string, any>,
+): BashResult | null {
+  if (typeof result === "string" && result.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(result);
+      return parsed as BashResult;
+    } catch {
+      // fall through to metadata fallback
+    }
+  }
+
+  if (!metadata) {
     return null;
   }
+
+  const command =
+    typeof metadata.command === "string" ? metadata.command : undefined;
+  const stdout =
+    typeof metadata.stdout === "string" ? metadata.stdout : undefined;
+  const stderr =
+    typeof metadata.stderr === "string" ? metadata.stderr : undefined;
+  const text = typeof metadata.text === "string" ? metadata.text : undefined;
+
+  let exitCode: number | undefined;
+  const rawExit = metadata.exit_code;
+  if (typeof rawExit === "number") {
+    exitCode = rawExit;
+  } else if (typeof rawExit === "string") {
+    const parsedExit = Number(rawExit);
+    if (!Number.isNaN(parsedExit)) {
+      exitCode = parsedExit;
+    }
+  }
+
+  if (
+    command === undefined &&
+    stdout === undefined &&
+    stderr === undefined &&
+    text === undefined &&
+    exitCode === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    command,
+    stdout,
+    stderr,
+    text,
+    exit_code: exitCode,
+  };
 }
 
 // Parse file_write tool result
@@ -417,7 +463,7 @@ function renderToolResult(
 
   // Bash tool - show command and output separately
   if (toolName === "bash" || toolName === "shell") {
-    const bashResult = parseBashResult(result);
+    const bashResult = parseBashResult(result, metadata);
     if (bashResult) {
       return (
         <div className="space-y-3">

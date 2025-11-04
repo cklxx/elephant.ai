@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Square } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 
 interface TaskInputProps {
   onSubmit: (task: string) => void;
@@ -11,6 +12,10 @@ interface TaskInputProps {
   placeholder?: string;
   prefill?: string | null;
   onPrefillApplied?: () => void;
+  onStop?: () => void;
+  isRunning?: boolean;
+  stopPending?: boolean;
+  stopDisabled?: boolean;
 }
 
 export function TaskInput({
@@ -20,6 +25,10 @@ export function TaskInput({
   placeholder,
   prefill = null,
   onPrefillApplied,
+  onStop,
+  isRunning = false,
+  stopPending = false,
+  stopDisabled = false,
 }: TaskInputProps) {
   const [task, setTask] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -59,11 +68,15 @@ export function TaskInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (task.trim() && !loading && !disabled) {
+    if (task.trim() && !loading && !disabled && !isRunning) {
       onSubmit(task.trim());
       setTask('');
     }
   };
+
+  const isInputDisabled = disabled || loading || isRunning;
+  const showStopButton = (loading || isRunning) && typeof onStop === 'function';
+  const stopButtonDisabled = stopDisabled || stopPending;
 
   return (
     <form onSubmit={handleSubmit} className="w-full" data-testid="task-input-form">
@@ -80,7 +93,7 @@ export function TaskInput({
               }
             }}
             placeholder={resolvedPlaceholder}
-            disabled={disabled || loading}
+            disabled={isInputDisabled}
             rows={1}
             aria-label={t('task.input.ariaLabel')}
             data-testid="task-input"
@@ -89,25 +102,52 @@ export function TaskInput({
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={disabled || loading || !task.trim()}
-          className="console-primary-action h-[2.75rem]"
-          title={loading ? t('task.submit.title.running') : t('task.submit.title.default')}
-          data-testid="task-submit"
-        >
-          {loading ? (
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-white/80 animate-pulse" />
-              {t('task.submit.running')}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <Send className="h-3.5 w-3.5" />
-              {t('task.submit.label')}
-            </span>
-          )}
-        </button>
+        {showStopButton ? (
+          <button
+            type="button"
+            onClick={onStop}
+            disabled={stopButtonDisabled}
+            className={cn(
+              'console-primary-action h-[2.75rem]',
+              'bg-destructive text-destructive-foreground border-destructive hover:bg-destructive/90',
+              'disabled:bg-destructive disabled:text-destructive-foreground'
+            )}
+            title={t('task.stop.title')}
+            data-testid="task-stop"
+          >
+            {stopPending ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-white/80 animate-pulse" />
+                {t('task.stop.pending')}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <Square className="h-3.5 w-3.5" />
+                {t('task.stop.label')}
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={isInputDisabled || !task.trim()}
+            className="console-primary-action h-[2.75rem]"
+            title={loading ? t('task.submit.title.running') : t('task.submit.title.default')}
+            data-testid="task-submit"
+          >
+            {loading ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-white/80 animate-pulse" />
+                {t('task.submit.running')}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <Send className="h-3.5 w-3.5" />
+                {t('task.submit.label')}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="mt-1 flex justify-end text-[10px] font-medium uppercase tracking-[0.35em] text-slate-300">

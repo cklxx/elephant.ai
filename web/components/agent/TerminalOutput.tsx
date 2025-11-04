@@ -55,10 +55,26 @@ export function TerminalOutput({
         {filteredEvents.map((event, index) => {
           // Show IntermediatePanel after user_task event
           if (event.event_type === "task_analysis") {
+            let taskIndexs: number[] = [];
+            let taskRank =
+              filteredEvents
+                .slice(0, index + 1)
+                .filter((event) => event.event_type === "task_analysis")
+                .length - 1;
+            events.forEach((event, eIdx) => {
+              if (event.event_type === "task_analysis") {
+                taskIndexs.push(eIdx);
+              }
+            });
+            const [taskIndex, nextTaskIndex = -1] = taskIndexs.slice(
+              taskRank,
+              taskRank + 2,
+            );
+            const taskToolCalls = events.slice(taskIndex, nextTaskIndex);
             return (
               <div key={`${event.event_type}-${index}`} className="space-y-4">
                 <EventLine event={event} />
-                <IntermediatePanel events={events} />
+                <IntermediatePanel events={taskToolCalls} />
               </div>
             );
           }

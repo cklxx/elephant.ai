@@ -39,6 +39,7 @@ CLAUDE.md
 .nyc_output/
 .jest/
 *.tsbuildinfo
+.gocache/
 
 # logs
 *.log

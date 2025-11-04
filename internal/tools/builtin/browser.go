@@ -93,9 +93,6 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("unsupported url scheme: %s", parsed.Scheme)}, nil
 	}
-	if parsed.Scheme == "http" {
-		parsed.Scheme = "https"
-	}
 	finalURL := parsed.String()
 
 	screenshot, screenshotErr := t.captureScreenshot(ctx, finalURL)

@@ -1,12 +1,13 @@
 'use client';
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useSessionDetails } from '@/hooks/useSessionStore';
 import { useSSE } from '@/hooks/useSSE';
 import { AgentOutput } from '@/components/agent/AgentOutput';
 import { TaskInput } from '@/components/agent/TaskInput';
-import { useTaskExecution } from '@/hooks/useTaskExecution';
+import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ import { formatRelativeTime } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
 import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
+import type { AnyAgentEvent } from '@/lib/types';
 
 const statusLabels: Record<string, TranslationKey> = {
   completed: 'sessions.details.history.status.completed',
@@ -30,9 +32,118 @@ type SessionDetailsClientProps = {
 
 export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const { data: sessionData, isLoading, error } = useSessionDetails(sessionId);
-  const { mutate: executeTask, isPending } = useTaskExecution();
   const { t, language } = useI18n();
   const locale = getLanguageLocale(language);
+
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [cancelRequested, setCancelRequested] = useState(false);
+  const cancelIntentRef = useRef(false);
+  const activeTaskIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeTaskIdRef.current = activeTaskId;
+  }, [activeTaskId]);
+
+  const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
+
+  const performCancellation = useCallback(
+    (taskId: string) => {
+      cancelIntentRef.current = false;
+      cancelTask(taskId, {
+        onSuccess: () => {
+          setActiveTaskId(null);
+          setCancelRequested(false);
+          toast.success(
+            t('sessions.details.toast.taskCancelRequested.title'),
+            t('sessions.details.toast.taskCancelRequested.description')
+          );
+        },
+        onError: (cancelError) => {
+          console.error(
+            '[SessionDetails] Task cancellation error:',
+            getErrorLogPayload(cancelError)
+          );
+          setCancelRequested(false);
+          const parsed = parseError(cancelError, t('common.error.unknown'));
+          toast.error(
+            t('sessions.details.toast.taskCancelError.title'),
+            t('sessions.details.toast.taskCancelError.description', {
+              message: formatParsedError(parsed),
+            })
+          );
+        },
+      });
+    },
+    [cancelTask, t]
+  );
+
+  const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution({
+    onSuccess: (response) => {
+      setActiveTaskId(response.task_id);
+      toast.success(
+        t('sessions.details.toast.taskStarted.title'),
+        t('sessions.details.toast.taskStarted.description')
+      );
+      if (cancelIntentRef.current) {
+        setCancelRequested(true);
+        performCancellation(response.task_id);
+      }
+    },
+    onError: (submitError) => {
+      cancelIntentRef.current = false;
+      setCancelRequested(false);
+      console.error(
+        '[SessionDetails] Task execution error:',
+        getErrorLogPayload(submitError)
+      );
+      const parsed = parseError(submitError, t('common.error.unknown'));
+      toast.error(
+        t('sessions.details.toast.taskError.title'),
+        t('sessions.details.toast.taskError.description', {
+          message: formatParsedError(parsed),
+        })
+      );
+    },
+  });
+
+  const handleTaskSubmit = useCallback(
+    (task: string) => {
+      cancelIntentRef.current = false;
+      setCancelRequested(false);
+      executeTask({
+        task,
+        session_id: sessionId,
+      });
+    },
+    [executeTask, sessionId]
+  );
+
+  const handleStop = useCallback(() => {
+    if (isCancelPending) {
+      return;
+    }
+    setCancelRequested(true);
+    if (activeTaskId) {
+      performCancellation(activeTaskId);
+    } else {
+      cancelIntentRef.current = true;
+    }
+  }, [activeTaskId, isCancelPending, performCancellation]);
+
+  const handleAgentEvent = useCallback(
+    (event: AnyAgentEvent) => {
+      const currentId = activeTaskIdRef.current;
+      if (!currentId || !event.task_id || event.task_id !== currentId) {
+        return;
+      }
+      if (event.event_type === 'task_complete' || event.event_type === 'error') {
+        setActiveTaskId(null);
+        setCancelRequested(false);
+        cancelIntentRef.current = false;
+      }
+    },
+    [setActiveTaskId, setCancelRequested]
+  );
 
   const {
     events,
@@ -41,37 +152,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
     error: sseError,
     reconnectAttempts,
     reconnect,
-  } = useSSE(sessionId);
-
-  const handleTaskSubmit = (task: string) => {
-    executeTask(
-      {
-        task,
-        session_id: sessionId,
-      },
-      {
-        onSuccess: () => {
-          toast.success(
-            t('sessions.details.toast.taskStarted.title'),
-            t('sessions.details.toast.taskStarted.description')
-          );
-        },
-        onError: (submitError) => {
-          console.error(
-            '[SessionDetails] Task execution error:',
-            getErrorLogPayload(submitError)
-          );
-          const parsed = parseError(submitError, t('common.error.unknown'));
-          toast.error(
-            t('sessions.details.toast.taskError.title'),
-            t('sessions.details.toast.taskError.description', {
-              message: formatParsedError(parsed),
-            })
-          );
-        },
-      }
-    );
-  };
+  } = useSSE(sessionId, { onEvent: handleAgentEvent });
 
   if (isLoading) {
     return (
@@ -98,6 +179,11 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       </div>
     );
   }
+
+  const isTaskRunning = Boolean(activeTaskId);
+  const inputDisabled =
+    isCreatePending || isTaskRunning || cancelRequested || isCancelPending;
+  const stopPending = cancelRequested || isCancelPending;
 
   return (
     <div className="space-y-8">
@@ -144,7 +230,15 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       <Card className="p-6">
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900">{t('sessions.details.newTask')}</h2>
-          <TaskInput onSubmit={handleTaskSubmit} disabled={isPending} loading={isPending} />
+          <TaskInput
+            onSubmit={handleTaskSubmit}
+            disabled={inputDisabled}
+            loading={isCreatePending}
+            isRunning={isTaskRunning}
+            onStop={handleStop}
+            stopPending={stopPending}
+            stopDisabled={isCancelPending}
+          />
         </div>
       </Card>
 
