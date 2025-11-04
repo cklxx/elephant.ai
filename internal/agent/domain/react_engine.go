@@ -230,14 +230,6 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Debug("LLM response: content_length=%d, tool_calls=%d",
 			len(thought.Content), len(thought.ToolCalls))
 
-		// EMIT: Think complete
-		e.emitEvent(&ThinkCompleteEvent{
-			BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-			Iteration:     state.Iterations,
-			Content:       thought.Content,
-			ToolCallCount: len(thought.ToolCalls),
-		})
-
 		// 2. ACT: Parse and execute tool calls
 		toolCalls := e.parseToolCalls(thought, services.Parser)
 		e.logger.Info("Parsed %d tool calls", len(toolCalls))
@@ -246,11 +238,27 @@ func (e *ReactEngine) SolveTask(
 			// No tool calls - check if this is a final answer
 			if len(strings.TrimSpace(thought.Content)) > 0 {
 				e.logger.Info("No tool calls and has content - treating as final answer")
+				e.emitEvent(&TaskCompleteEvent{
+					BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+					FinalAnswer:     thought.Content,
+					TotalIterations: state.Iterations,
+					TotalTokens:     state.TokenCount,
+					StopReason:      "final_answer",
+					Duration:        e.clock.Now().Sub(startTime),
+				})
 				return e.finalize(state, "final_answer"), nil
 			}
 			// Empty response - continue loop
 			e.logger.Warn("No tool calls and empty content - continuing loop")
 			continue
+		} else {
+			// EMIT: Think complete
+			e.emitEvent(&ThinkCompleteEvent{
+				BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				Iteration:     state.Iterations,
+				Content:       thought.Content,
+				ToolCallCount: len(thought.ToolCalls),
+			})
 		}
 
 		// Filter valid tool calls (no stdout printing)

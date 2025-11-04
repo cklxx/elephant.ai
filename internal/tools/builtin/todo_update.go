@@ -190,6 +190,27 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		}
 	}
 
+	// Build structured todos array for frontend
+	var todosData []map[string]any
+	for _, task := range inProgress {
+		todosData = append(todosData, map[string]any{
+			"content": task,
+			"status":  "in_progress",
+		})
+	}
+	for _, task := range pending {
+		todosData = append(todosData, map[string]any{
+			"content": task,
+			"status":  "pending",
+		})
+	}
+	for _, task := range completed {
+		todosData = append(todosData, map[string]any{
+			"content": task,
+			"status":  "completed",
+		})
+	}
+
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: result.String(),
@@ -198,6 +219,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 			"in_progress_count": len(inProgress),
 			"pending_count":     len(pending),
 			"completed_count":   len(completed),
+			"todos":             todosData,
 		},
 	}, nil
 }

@@ -39,6 +39,7 @@ CLAUDE.md
 .nyc_output/
 .jest/
 *.tsbuildinfo
+.gocache/
 
 # logs
 *.log
@@ -123,3 +124,4 @@ old_internal/
 # Backup and tooling remnants
 .git-backup-*
 ast_viewr
+*.old

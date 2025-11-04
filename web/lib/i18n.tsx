@@ -133,8 +133,8 @@ const translations = {
     'console.empty.badge': 'Waiting',
     'console.empty.title': 'Ready to start',
     'console.empty.description': 'Send a task to begin.',
-    'console.input.placeholder.active': 'Add detail…',
-    'console.input.placeholder.idle': 'Describe your task…',
+    'console.input.placeholder.active': '建立一个小猫网站并给到网站ip',
+    'console.input.placeholder.idle': '建立一个小猫网站并给到网站ip',
     'console.input.hotkeyHint': 'Enter sends · Shift+Enter newline',
     'console.toast.taskFailed': 'Task execution failed',
     'agent.output.heading': 'Agent output',
@@ -231,6 +231,9 @@ const translations = {
     'task.submit.title.default': 'Submit (Enter)',
     'task.submit.running': 'Running',
     'task.submit.label': 'Send',
+    'task.stop.title': 'Stop current task',
+    'task.stop.label': 'Stop',
+    'task.stop.pending': 'Stopping…',
     'task.input.ariaLabel': 'Task input',
     'tool.status.failed': 'Failed',
     'tool.status.completed': 'Completed',
@@ -366,6 +369,10 @@ const translations = {
     'sessions.details.toast.taskStarted.description': 'Execution has begun in this session.',
     'sessions.details.toast.taskError.title': 'Failed to execute task',
     'sessions.details.toast.taskError.description': 'Reason: {message}',
+    'sessions.details.toast.taskCancelRequested.title': 'Cancellation requested',
+    'sessions.details.toast.taskCancelRequested.description': 'Attempting to stop the running task.',
+    'sessions.details.toast.taskCancelError.title': 'Failed to cancel task',
+    'sessions.details.toast.taskCancelError.description': 'Reason: {message}',
     'sessions.details.error': 'Error loading session: {message}',
     'sessions.details.notFound': 'Session not found',
     'sessions.details.loading': 'Loading session…',
@@ -467,4 +474,3 @@ export function useTranslation() {
   const { t } = useI18n();
   return t;
 }
-
