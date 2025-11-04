@@ -54,9 +54,7 @@ export function Header({
         {leadingSlot && <div className="flex items-center">{leadingSlot}</div>}
         <div className="flex-1">
           {title && (
-            <h1 className="text-lg font-semibold text-foreground tracking-[0.14em]">
-              {title}
-            </h1>
+            <h1 className="text-lg font-semibold text-foreground">{title}</h1>
           )}
           {subtitle && (
             <p className="mt-0.5 text-sm text-gray-600">{subtitle}</p>
