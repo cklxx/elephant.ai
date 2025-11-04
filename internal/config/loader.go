@@ -24,27 +24,41 @@ const (
 // DefaultSandboxBaseURL provides the local sandbox endpoint used when no value is configured.
 const DefaultSandboxBaseURL = "http://localhost:8090"
 
+// Seedream defaults target the public Volcano Engine MaaS deployment in mainland China.
+const (
+	DefaultSeedreamHost   = "maas-api.ml-platform-cn-beijing.volces.com"
+	DefaultSeedreamRegion = "cn-beijing"
+)
+
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider         string
-	LLMModel            string
-	APIKey              string
-	BaseURL             string
-	TavilyAPIKey        string
-	SandboxBaseURL      string
-	Environment         string
-	Verbose             bool
-	DisableTUI          bool
-	FollowTranscript    bool
-	FollowStream        bool
-	MaxIterations       int
-	MaxTokens           int
-	Temperature         float64
-	TemperatureProvided bool
-	TopP                float64
-	StopSequences       []string
-	SessionDir          string
-	CostDir             string
+	LLMProvider             string
+	LLMModel                string
+	APIKey                  string
+	BaseURL                 string
+	TavilyAPIKey            string
+	VolcAccessKey           string
+	VolcSecretKey           string
+	SeedreamHost            string
+	SeedreamRegion          string
+	SeedreamTextEndpointID  string
+	SeedreamImageEndpointID string
+	SandboxBaseURL          string
+	Environment             string
+	Verbose                 bool
+	DisableTUI              bool
+	FollowTranscript        bool
+	FollowStream            bool
+	MaxIterations           int
+	MaxTokens               int
+	Temperature             float64
+	TemperatureProvided     bool
+	TopP                    float64
+	StopSequences           []string
+	SessionDir              string
+	CostDir                 string
+	AgentPreset             string
+	ToolPreset              string
 }
 
 // Metadata contains provenance details for loaded configuration.
@@ -71,24 +85,32 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider      *string
-	LLMModel         *string
-	APIKey           *string
-	BaseURL          *string
-	TavilyAPIKey     *string
-	SandboxBaseURL   *string
-	Environment      *string
-	Verbose          *bool
-	DisableTUI       *bool
-	FollowTranscript *bool
-	FollowStream     *bool
-	MaxIterations    *int
-	MaxTokens        *int
-	Temperature      *float64
-	TopP             *float64
-	StopSequences    *[]string
-	SessionDir       *string
-	CostDir          *string
+	LLMProvider             *string
+	LLMModel                *string
+	APIKey                  *string
+	BaseURL                 *string
+	TavilyAPIKey            *string
+	VolcAccessKey           *string
+	VolcSecretKey           *string
+	SeedreamHost            *string
+	SeedreamRegion          *string
+	SeedreamTextEndpointID  *string
+	SeedreamImageEndpointID *string
+	SandboxBaseURL          *string
+	Environment             *string
+	Verbose                 *bool
+	DisableTUI              *bool
+	FollowTranscript        *bool
+	FollowStream            *bool
+	MaxIterations           *int
+	MaxTokens               *int
+	Temperature             *float64
+	TopP                    *float64
+	StopSequences           *[]string
+	SessionDir              *string
+	CostDir                 *string
+	AgentPreset             *string
+	ToolPreset              *string
 }
 
 // EnvLookup resolves the value for an environment variable.
@@ -183,6 +205,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMModel:         "deepseek/deepseek-chat",
 		BaseURL:          "https://openrouter.ai/api/v1",
 		SandboxBaseURL:   DefaultSandboxBaseURL,
+		SeedreamHost:     DefaultSeedreamHost,
+		SeedreamRegion:   DefaultSeedreamRegion,
 		Environment:      "development",
 		FollowTranscript: true,
 		FollowStream:     true,
@@ -222,25 +246,33 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 }
 
 type fileConfig struct {
-	LLMProvider      string                 `json:"llm_provider"`
-	LLMModel         string                 `json:"llm_model"`
-	Model            string                 `json:"model"`
-	APIKey           string                 `json:"api_key"`
-	BaseURL          string                 `json:"base_url"`
-	TavilyAPIKey     string                 `json:"tavilyApiKey"`
-	SandboxBaseURL   string                 `json:"sandbox_base_url"`
-	Environment      string                 `json:"environment"`
-	Verbose          *bool                  `json:"verbose"`
-	FollowTranscript *bool                  `json:"follow_transcript"`
-	FollowStream     *bool                  `json:"follow_stream"`
-	MaxIterations    *int                   `json:"max_iterations"`
-	MaxTokens        *int                   `json:"max_tokens"`
-	Temperature      *float64               `json:"temperature"`
-	TopP             *float64               `json:"top_p"`
-	StopSequences    []string               `json:"stop_sequences"`
-	SessionDir       string                 `json:"session_dir"`
-	CostDir          string                 `json:"cost_dir"`
-	Models           map[string]modelConfig `json:"models"`
+	LLMProvider             string                 `json:"llm_provider"`
+	LLMModel                string                 `json:"llm_model"`
+	Model                   string                 `json:"model"`
+	APIKey                  string                 `json:"api_key"`
+	BaseURL                 string                 `json:"base_url"`
+	TavilyAPIKey            string                 `json:"tavilyApiKey"`
+	VolcAccessKey           string                 `json:"volcAccessKey"`
+	VolcSecretKey           string                 `json:"volcSecretKey"`
+	SeedreamHost            string                 `json:"seedreamHost"`
+	SeedreamRegion          string                 `json:"seedreamRegion"`
+	SeedreamTextEndpointID  string                 `json:"seedreamTextEndpointId"`
+	SeedreamImageEndpointID string                 `json:"seedreamImageEndpointId"`
+	SandboxBaseURL          string                 `json:"sandbox_base_url"`
+	Environment             string                 `json:"environment"`
+	Verbose                 *bool                  `json:"verbose"`
+	FollowTranscript        *bool                  `json:"follow_transcript"`
+	FollowStream            *bool                  `json:"follow_stream"`
+	MaxIterations           *int                   `json:"max_iterations"`
+	MaxTokens               *int                   `json:"max_tokens"`
+	Temperature             *float64               `json:"temperature"`
+	TopP                    *float64               `json:"top_p"`
+	StopSequences           []string               `json:"stop_sequences"`
+	SessionDir              string                 `json:"session_dir"`
+	CostDir                 string                 `json:"cost_dir"`
+	Models                  map[string]modelConfig `json:"models"`
+	AgentPreset             string                 `json:"agent_preset"`
+	ToolPreset              string                 `json:"tool_preset"`
 }
 
 type modelConfig struct {
@@ -299,6 +331,30 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.TavilyAPIKey = parsed.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceFile
 	}
+	if parsed.VolcAccessKey != "" {
+		cfg.VolcAccessKey = parsed.VolcAccessKey
+		meta.sources["volc_access_key"] = SourceFile
+	}
+	if parsed.VolcSecretKey != "" {
+		cfg.VolcSecretKey = parsed.VolcSecretKey
+		meta.sources["volc_secret_key"] = SourceFile
+	}
+	if parsed.SeedreamHost != "" {
+		cfg.SeedreamHost = parsed.SeedreamHost
+		meta.sources["seedream_host"] = SourceFile
+	}
+	if parsed.SeedreamRegion != "" {
+		cfg.SeedreamRegion = parsed.SeedreamRegion
+		meta.sources["seedream_region"] = SourceFile
+	}
+	if parsed.SeedreamTextEndpointID != "" {
+		cfg.SeedreamTextEndpointID = parsed.SeedreamTextEndpointID
+		meta.sources["seedream_text_endpoint_id"] = SourceFile
+	}
+	if parsed.SeedreamImageEndpointID != "" {
+		cfg.SeedreamImageEndpointID = parsed.SeedreamImageEndpointID
+		meta.sources["seedream_image_endpoint_id"] = SourceFile
+	}
 	if parsed.Environment != "" {
 		cfg.Environment = parsed.Environment
 		meta.sources["environment"] = SourceFile
@@ -343,6 +399,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.CostDir != "" {
 		cfg.CostDir = parsed.CostDir
 		meta.sources["cost_dir"] = SourceFile
+	}
+	if parsed.AgentPreset != "" {
+		cfg.AgentPreset = parsed.AgentPreset
+		meta.sources["agent_preset"] = SourceFile
+	}
+	if parsed.ToolPreset != "" {
+		cfg.ToolPreset = parsed.ToolPreset
+		meta.sources["tool_preset"] = SourceFile
 	}
 	if parsed.Models != nil {
 		if basic, ok := parsed.Models["basic"]; ok {
@@ -397,6 +461,62 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
 		cfg.TavilyAPIKey = value
 		meta.sources["tavily_api_key"] = SourceEnv
+	}
+	if value, ok := lookup("VOLC_ACCESSKEY"); ok && value != "" {
+		cfg.VolcAccessKey = value
+		meta.sources["volc_access_key"] = SourceEnv
+	} else if value, ok := lookup("ALEX_VOLC_ACCESSKEY"); ok && value != "" {
+		cfg.VolcAccessKey = value
+		meta.sources["volc_access_key"] = SourceEnv
+	}
+	if value, ok := lookup("VOLC_SECRETKEY"); ok && value != "" {
+		cfg.VolcSecretKey = value
+		meta.sources["volc_secret_key"] = SourceEnv
+	} else if value, ok := lookup("ALEX_VOLC_SECRETKEY"); ok && value != "" {
+		cfg.VolcSecretKey = value
+		meta.sources["volc_secret_key"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_HOST"); ok && value != "" {
+		cfg.SeedreamHost = value
+		meta.sources["seedream_host"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_HOST"); ok && value != "" {
+		cfg.SeedreamHost = value
+		meta.sources["seedream_host"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_REGION"); ok && value != "" {
+		cfg.SeedreamRegion = value
+		meta.sources["seedream_region"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_REGION"); ok && value != "" {
+		cfg.SeedreamRegion = value
+		meta.sources["seedream_region"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_TEXT_ENDPOINT_ID"); ok && value != "" {
+		cfg.SeedreamTextEndpointID = value
+		meta.sources["seedream_text_endpoint_id"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_TEXT_ENDPOINT_ID"); ok && value != "" {
+		cfg.SeedreamTextEndpointID = value
+		meta.sources["seedream_text_endpoint_id"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_IMAGE_ENDPOINT_ID"); ok && value != "" {
+		cfg.SeedreamImageEndpointID = value
+		meta.sources["seedream_image_endpoint_id"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_IMAGE_ENDPOINT_ID"); ok && value != "" {
+		cfg.SeedreamImageEndpointID = value
+		meta.sources["seedream_image_endpoint_id"] = SourceEnv
+	}
+	if value, ok := lookup("AGENT_PRESET"); ok && value != "" {
+		cfg.AgentPreset = value
+		meta.sources["agent_preset"] = SourceEnv
+	} else if value, ok := lookup("ALEX_AGENT_PRESET"); ok && value != "" {
+		cfg.AgentPreset = value
+		meta.sources["agent_preset"] = SourceEnv
+	}
+	if value, ok := lookup("TOOL_PRESET"); ok && value != "" {
+		cfg.ToolPreset = value
+		meta.sources["tool_preset"] = SourceEnv
+	} else if value, ok := lookup("ALEX_TOOL_PRESET"); ok && value != "" {
+		cfg.ToolPreset = value
+		meta.sources["tool_preset"] = SourceEnv
 	}
 	if value, ok := lookup("ALEX_ENV"); ok && value != "" {
 		cfg.Environment = value
@@ -538,6 +658,30 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.TavilyAPIKey = *overrides.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceOverride
 	}
+	if overrides.VolcAccessKey != nil {
+		cfg.VolcAccessKey = *overrides.VolcAccessKey
+		meta.sources["volc_access_key"] = SourceOverride
+	}
+	if overrides.VolcSecretKey != nil {
+		cfg.VolcSecretKey = *overrides.VolcSecretKey
+		meta.sources["volc_secret_key"] = SourceOverride
+	}
+	if overrides.SeedreamHost != nil {
+		cfg.SeedreamHost = *overrides.SeedreamHost
+		meta.sources["seedream_host"] = SourceOverride
+	}
+	if overrides.SeedreamRegion != nil {
+		cfg.SeedreamRegion = *overrides.SeedreamRegion
+		meta.sources["seedream_region"] = SourceOverride
+	}
+	if overrides.SeedreamTextEndpointID != nil {
+		cfg.SeedreamTextEndpointID = *overrides.SeedreamTextEndpointID
+		meta.sources["seedream_text_endpoint_id"] = SourceOverride
+	}
+	if overrides.SeedreamImageEndpointID != nil {
+		cfg.SeedreamImageEndpointID = *overrides.SeedreamImageEndpointID
+		meta.sources["seedream_image_endpoint_id"] = SourceOverride
+	}
 	if overrides.Environment != nil {
 		cfg.Environment = *overrides.Environment
 		meta.sources["environment"] = SourceOverride
@@ -586,6 +730,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.CostDir != nil {
 		cfg.CostDir = *overrides.CostDir
 		meta.sources["cost_dir"] = SourceOverride
+	}
+	if overrides.AgentPreset != nil {
+		cfg.AgentPreset = *overrides.AgentPreset
+		meta.sources["agent_preset"] = SourceOverride
+	}
+	if overrides.ToolPreset != nil {
+		cfg.ToolPreset = *overrides.ToolPreset
+		meta.sources["tool_preset"] = SourceOverride
 	}
 }
 

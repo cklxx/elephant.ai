@@ -9,6 +9,7 @@
 | `researcher` | Information gathering, analysis, documentation | Research, codebase analysis, docs |
 | `devops` | Deployment, infrastructure, CI/CD | Infrastructure, automation, deployment |
 | `security-analyst` | Security audits, vulnerability detection | Security reviews, threat analysis |
+| `designer` | Visual ideation and Seedream prompt engineering | Creative briefs, concept art, marketing visuals |
 
 ## Tool Presets (Access Levels)
 
@@ -75,6 +76,15 @@
 }
 ```
 **Use**: Analyze code and create documentation
+
+### Creative Concepting
+```json
+{
+  "agent_preset": "designer",
+  "tool_preset": "safe"
+}
+```
+**Use**: Generate and refine Seedream imagery while avoiding risky execution tools
 
 ### Safe Refactoring
 ```json

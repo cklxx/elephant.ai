@@ -184,7 +184,7 @@ func TestPresetResolver_ResolveToolRegistry_InvalidPreset(t *testing.T) {
 func TestPresetResolver_AllValidAgentPresets(t *testing.T) {
 	resolver := NewPresetResolver(prompts.New(), &testLogger{})
 
-	validPresets := []string{"default", "code-expert", "researcher", "devops", "security-analyst"}
+	validPresets := []string{"default", "code-expert", "researcher", "devops", "security-analyst", "designer"}
 
 	for _, preset := range validPresets {
 		t.Run(preset, func(t *testing.T) {

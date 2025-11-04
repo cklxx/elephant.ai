@@ -37,6 +37,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Environment != "development" {
 		t.Fatalf("expected default environment 'development', got %q", cfg.Environment)
 	}
+	if cfg.SeedreamHost != DefaultSeedreamHost || cfg.SeedreamRegion != DefaultSeedreamRegion {
+		t.Fatalf("expected default seedream host/region, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
+	}
 	if cfg.Verbose {
 		t.Fatal("expected verbose default to be false")
 	}
@@ -51,6 +54,12 @@ func TestLoadFromFile(t *testing.T) {
                 "llm_model": "gpt-4o",
                 "api_key": "sk-test",
                 "tavilyApiKey": "file-tavily",
+                "volcAccessKey": "file-ak",
+                "volcSecretKey": "file-sk",
+                "seedreamHost": "file-host",
+                "seedreamRegion": "file-region",
+                "seedreamTextEndpointId": "file-text-id",
+                "seedreamImageEndpointId": "file-image-id",
                 "environment": "staging",
                 "verbose": true,
                 "follow_transcript": false,
@@ -58,7 +67,9 @@ func TestLoadFromFile(t *testing.T) {
                 "temperature": 0,
                 "max_iterations": 200,
                 "stop_sequences": ["DONE"],
-                "session_dir": "~/sessions"
+                "session_dir": "~/sessions",
+                "agent_preset": "designer",
+                "tool_preset": "safe"
         }`)
 	cfg, meta, err := Load(
 		WithEnv(envMap{}.Lookup),
@@ -86,6 +97,15 @@ func TestLoadFromFile(t *testing.T) {
 	if cfg.TavilyAPIKey != "file-tavily" {
 		t.Fatalf("expected tavily key from file, got %q", cfg.TavilyAPIKey)
 	}
+	if cfg.VolcAccessKey != "file-ak" || cfg.VolcSecretKey != "file-sk" {
+		t.Fatalf("expected volc credentials from file, got %q/%q", cfg.VolcAccessKey, cfg.VolcSecretKey)
+	}
+	if cfg.SeedreamHost != "file-host" || cfg.SeedreamRegion != "file-region" {
+		t.Fatalf("expected seedream host/region from file, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
+	}
+	if cfg.SeedreamTextEndpointID != "file-text-id" || cfg.SeedreamImageEndpointID != "file-image-id" {
+		t.Fatalf("expected seedream endpoints from file, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	}
 	if cfg.Environment != "staging" {
 		t.Fatalf("expected environment from file, got %q", cfg.Environment)
 	}
@@ -95,8 +115,23 @@ func TestLoadFromFile(t *testing.T) {
 	if cfg.FollowTranscript || cfg.FollowStream {
 		t.Fatalf("expected follow defaults overridden to false, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
 	}
+	if cfg.AgentPreset != "designer" {
+		t.Fatalf("expected agent preset from file, got %q", cfg.AgentPreset)
+	}
+	if cfg.ToolPreset != "safe" {
+		t.Fatalf("expected tool preset from file, got %q", cfg.ToolPreset)
+	}
 	if meta.Source("tavily_api_key") != SourceFile {
 		t.Fatalf("expected tavily key source from file, got %s", meta.Source("tavily_api_key"))
+	}
+	if meta.Source("volc_access_key") != SourceFile || meta.Source("volc_secret_key") != SourceFile {
+		t.Fatalf("expected volc credentials source from file")
+	}
+	if meta.Source("seedream_text_endpoint_id") != SourceFile || meta.Source("seedream_image_endpoint_id") != SourceFile {
+		t.Fatalf("expected seedream endpoints source from file")
+	}
+	if meta.Source("agent_preset") != SourceFile || meta.Source("tool_preset") != SourceFile {
+		t.Fatalf("expected preset sources from file")
 	}
 	if meta.Source("temperature") != SourceFile {
 		t.Fatalf("expected temperature source to be file, got %s", meta.Source("temperature"))
@@ -117,11 +152,19 @@ func TestEnvOverridesFile(t *testing.T) {
 			"LLM_TEMPERATURE":            "0",
 			"LLM_MODEL":                  "env-model",
 			"TAVILY_API_KEY":             "env-tavily",
+			"VOLC_ACCESSKEY":             "env-ak",
+			"VOLC_SECRETKEY":             "env-sk",
+			"SEEDREAM_HOST":              "env-host",
+			"SEEDREAM_REGION":            "env-region",
+			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
+			"SEEDREAM_IMAGE_ENDPOINT_ID": "env-image",
 			"ALEX_ENV":                   "production",
 			"ALEX_VERBOSE":               "yes",
 			"ALEX_NO_TUI":                "true",
 			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
 			"ALEX_TUI_FOLLOW_STREAM":     "false",
+			"AGENT_PRESET":               "designer",
+			"TOOL_PRESET":                "full",
 		}.Lookup),
 	)
 	if err != nil {
@@ -136,6 +179,15 @@ func TestEnvOverridesFile(t *testing.T) {
 	if cfg.TavilyAPIKey != "env-tavily" {
 		t.Fatalf("expected tavily key from env, got %q", cfg.TavilyAPIKey)
 	}
+	if cfg.VolcAccessKey != "env-ak" || cfg.VolcSecretKey != "env-sk" {
+		t.Fatalf("expected volc credentials from env, got %q/%q", cfg.VolcAccessKey, cfg.VolcSecretKey)
+	}
+	if cfg.SeedreamHost != "env-host" || cfg.SeedreamRegion != "env-region" {
+		t.Fatalf("expected seedream host/region from env, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
+	}
+	if cfg.SeedreamTextEndpointID != "env-text" || cfg.SeedreamImageEndpointID != "env-image" {
+		t.Fatalf("expected seedream endpoints from env, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	}
 	if cfg.Environment != "production" {
 		t.Fatalf("expected environment from env, got %q", cfg.Environment)
 	}
@@ -148,8 +200,17 @@ func TestEnvOverridesFile(t *testing.T) {
 	if cfg.FollowTranscript || cfg.FollowStream {
 		t.Fatalf("expected follow toggles false from env override, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
 	}
+	if cfg.AgentPreset != "designer" || cfg.ToolPreset != "full" {
+		t.Fatalf("expected presets from env, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
+	}
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
+	}
+	if meta.Source("volc_access_key") != SourceEnv || meta.Source("volc_secret_key") != SourceEnv {
+		t.Fatalf("expected env source for volc credentials")
+	}
+	if meta.Source("seedream_text_endpoint_id") != SourceEnv || meta.Source("seedream_image_endpoint_id") != SourceEnv {
+		t.Fatalf("expected env source for seedream endpoints")
 	}
 	if meta.Source("temperature") != SourceEnv {
 		t.Fatalf("expected env source for temperature, got %s", meta.Source("temperature"))
@@ -169,26 +230,45 @@ func TestEnvOverridesFile(t *testing.T) {
 	if meta.Source("follow_stream") != SourceEnv {
 		t.Fatalf("expected env source for follow_stream, got %s", meta.Source("follow_stream"))
 	}
+	if meta.Source("agent_preset") != SourceEnv || meta.Source("tool_preset") != SourceEnv {
+		t.Fatalf("expected env source for presets")
+	}
 }
 
 func TestOverridesTakePriority(t *testing.T) {
 	overrideTemp := 1.0
 	overrideModel := "override-model"
 	overrideTavily := "override-tavily"
+	overrideVolcAK := "override-ak"
+	overrideVolcSK := "override-sk"
+	overrideSeedreamHost := "override-host"
+	overrideSeedreamRegion := "override-region"
+	overrideSeedreamText := "override-text"
+	overrideSeedreamImage := "override-image"
 	overrideEnv := "qa"
 	overrideVerbose := true
 	overrideFollowTranscript := false
 	overrideFollowStream := false
+	overrideAgentPreset := "designer"
+	overrideToolPreset := "web-only"
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
-			LLMModel:         &overrideModel,
-			Temperature:      &overrideTemp,
-			TavilyAPIKey:     &overrideTavily,
-			Environment:      &overrideEnv,
-			Verbose:          &overrideVerbose,
-			FollowTranscript: &overrideFollowTranscript,
-			FollowStream:     &overrideFollowStream,
+			LLMModel:                &overrideModel,
+			Temperature:             &overrideTemp,
+			TavilyAPIKey:            &overrideTavily,
+			VolcAccessKey:           &overrideVolcAK,
+			VolcSecretKey:           &overrideVolcSK,
+			SeedreamHost:            &overrideSeedreamHost,
+			SeedreamRegion:          &overrideSeedreamRegion,
+			SeedreamTextEndpointID:  &overrideSeedreamText,
+			SeedreamImageEndpointID: &overrideSeedreamImage,
+			Environment:             &overrideEnv,
+			Verbose:                 &overrideVerbose,
+			FollowTranscript:        &overrideFollowTranscript,
+			FollowStream:            &overrideFollowStream,
+			AgentPreset:             &overrideAgentPreset,
+			ToolPreset:              &overrideToolPreset,
 		}),
 	)
 	if err != nil {
@@ -203,6 +283,15 @@ func TestOverridesTakePriority(t *testing.T) {
 	if cfg.TavilyAPIKey != "override-tavily" {
 		t.Fatalf("expected override tavily key, got %q", cfg.TavilyAPIKey)
 	}
+	if cfg.VolcAccessKey != overrideVolcAK || cfg.VolcSecretKey != overrideVolcSK {
+		t.Fatalf("expected override volc credentials, got %q/%q", cfg.VolcAccessKey, cfg.VolcSecretKey)
+	}
+	if cfg.SeedreamHost != overrideSeedreamHost || cfg.SeedreamRegion != overrideSeedreamRegion {
+		t.Fatalf("expected override seedream host/region, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
+	}
+	if cfg.SeedreamTextEndpointID != overrideSeedreamText || cfg.SeedreamImageEndpointID != overrideSeedreamImage {
+		t.Fatalf("expected override seedream endpoints, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	}
 	if cfg.Environment != "qa" {
 		t.Fatalf("expected override environment, got %q", cfg.Environment)
 	}
@@ -211,6 +300,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if cfg.FollowTranscript || cfg.FollowStream {
 		t.Fatalf("expected override follow toggles false, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
+	}
+	if cfg.AgentPreset != overrideAgentPreset || cfg.ToolPreset != overrideToolPreset {
+		t.Fatalf("expected override presets, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
 	}
 	if meta.Source("tavily_api_key") != SourceOverride {
 		t.Fatalf("expected override source for tavily key, got %s", meta.Source("tavily_api_key"))
@@ -229,6 +321,15 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("follow_stream") != SourceOverride {
 		t.Fatalf("expected override source for follow_stream, got %s", meta.Source("follow_stream"))
+	}
+	if meta.Source("volc_access_key") != SourceOverride || meta.Source("volc_secret_key") != SourceOverride {
+		t.Fatalf("expected override source for volc credentials")
+	}
+	if meta.Source("seedream_text_endpoint_id") != SourceOverride || meta.Source("seedream_image_endpoint_id") != SourceOverride {
+		t.Fatalf("expected override source for seedream endpoints")
+	}
+	if meta.Source("agent_preset") != SourceOverride || meta.Source("tool_preset") != SourceOverride {
+		t.Fatalf("expected override source for presets")
 	}
 }
 
