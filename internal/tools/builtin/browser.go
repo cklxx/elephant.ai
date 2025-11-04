@@ -139,13 +139,10 @@ func (t *browserTool) captureScreenshot(ctx context.Context, url string) (string
 		return "", fmt.Errorf("sandbox browser client unavailable")
 	}
 
-	query := neturl.Values{}
-	query.Set("url", url)
-
 	screenshotCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	reader, err := browserClient.TakeScreenshot(screenshotCtx, option.WithQueryParameters(query))
+	reader, err := browserClient.TakeScreenshot(screenshotCtx, option.WithBaseURL(url))
 	if err != nil {
 		return "", err
 	}
