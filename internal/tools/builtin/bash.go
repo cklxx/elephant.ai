@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"strings"
 
@@ -70,52 +69,52 @@ func (t *bash) executeLocal(ctx context.Context, call ports.ToolCall, command st
 		}
 	}
 
-	// Build result payload in logical order
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	// Build combined text output prioritizing stdout
+	text := strings.TrimSpace(stdout)
+	if text == "" {
+		text = strings.TrimSpace(stderr)
+	} else if stderr != "" {
+		text = text + "\n" + strings.TrimSpace(stderr)
+	}
+	if text == "" {
+		if runErr != nil {
+			text = fmt.Sprintf("exit code %d (no output)", exitCode)
+		} else {
+			text = "command completed with no output"
+		}
+	}
+
 	resultPayload := map[string]any{
 		"command":   command,
 		"exit_code": exitCode,
-		"stdout":    stdoutBuf.String(),
-		"stderr":    stderrBuf.String(),
-	}
-
-	// Add combined text field if there's any output
-	stdout := stdoutBuf.String()
-	stderr := stderrBuf.String()
-	if stdout != "" || stderr != "" {
-		text := strings.TrimSpace(stdout)
-		if text == "" {
-			text = strings.TrimSpace(stderr)
-		} else if stderr != "" {
-			text = text + "\n" + strings.TrimSpace(stderr)
-		}
-		resultPayload["text"] = text
-	}
-
-	contentBytes, err := json.Marshal(resultPayload)
-	if err != nil {
-		plain := strings.TrimSpace(stdoutBuf.String())
-		if plain == "" {
-			plain = strings.TrimSpace(stderrBuf.String())
-		}
-		if plain == "" {
-			plain = fmt.Sprintf("command %q completed", command)
-		}
-		return &ports.ToolResult{CallID: call.ID, Content: plain, Error: runErr}, nil
+		"stdout":    stdout,
+		"stderr":    stderr,
+		"text":      text,
 	}
 
 	metadata := map[string]any{
 		"command":      command,
 		"exit_code":    exitCode,
+		"stdout":       stdout,
+		"stderr":       stderr,
+		"text":         text,
 		"stdout_bytes": stdoutBuf.Len(),
 		"stderr_bytes": stderrBuf.Len(),
 		"stdout_lines": countLines(stdoutBuf.String()),
 		"stderr_lines": countLines(stderrBuf.String()),
 		"success":      runErr == nil,
+		"payload":      resultPayload,
+	}
+	if runErr != nil {
+		metadata["error"] = runErr.Error()
 	}
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  string(contentBytes),
+		Content:  text,
 		Error:    runErr,
 		Metadata: metadata,
 	}, nil

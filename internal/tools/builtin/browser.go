@@ -13,12 +13,14 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/tools"
 
-	"github.com/agent-infra/sandbox-sdk-go/option"
+	sandboxbrowser "github.com/agent-infra/sandbox-sdk-go/browser"
+	"github.com/chromedp/chromedp"
 )
 
 type browserTool struct {
 	config     BrowserToolConfig
 	httpClient *http.Client
+	navigateFn func(ctx context.Context, client *sandboxbrowser.Client, url string) error
 }
 
 // NewBrowser creates the sandbox-only browser tool for capturing screenshots.
@@ -34,6 +36,7 @@ func NewBrowser(cfg BrowserToolConfig) ports.ToolExecutor {
 			SandboxManager: cfg.SandboxManager,
 		},
 		httpClient: &http.Client{Timeout: 30 * time.Second},
+		navigateFn: navigateSandboxBrowser,
 	}
 }
 
@@ -93,9 +96,6 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("unsupported url scheme: %s", parsed.Scheme)}, nil
 	}
-	if parsed.Scheme == "http" {
-		parsed.Scheme = "https"
-	}
 	finalURL := parsed.String()
 
 	screenshot, screenshotErr := t.captureScreenshot(ctx, finalURL)
@@ -142,13 +142,16 @@ func (t *browserTool) captureScreenshot(ctx context.Context, url string) (string
 		return "", fmt.Errorf("sandbox browser client unavailable")
 	}
 
-	query := neturl.Values{}
-	query.Set("url", url)
+	if t.navigateFn != nil {
+		if err := t.navigateFn(ctx, browserClient, url); err != nil {
+			return "", fmt.Errorf("navigate browser: %w", err)
+		}
+	}
 
 	screenshotCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	reader, err := browserClient.TakeScreenshot(screenshotCtx, option.WithQueryParameters(query))
+	reader, err := browserClient.TakeScreenshot(screenshotCtx)
 	if err != nil {
 		return "", err
 	}
@@ -187,4 +190,49 @@ func (t *browserTool) fetchHTML(ctx context.Context, url string) (string, error)
 		return "", fmt.Errorf("read body: %w", err)
 	}
 	return string(body), nil
+}
+
+func navigateSandboxBrowser(ctx context.Context, client *sandboxbrowser.Client, targetURL string) error {
+	if client == nil {
+		return fmt.Errorf("sandbox browser client unavailable")
+	}
+
+	infoCtx, cancelInfo := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelInfo()
+
+	info, err := client.GetBrowserInfo(infoCtx)
+	if err != nil {
+		return fmt.Errorf("browser info: %w", err)
+	}
+	if info == nil || info.GetData() == nil {
+		return fmt.Errorf("browser info missing data")
+	}
+
+	cdpURL := info.GetData().GetCdpUrl()
+	if strings.TrimSpace(cdpURL) == "" {
+		return fmt.Errorf("browser info missing cdp url")
+	}
+
+	allocCtx, cancelAlloc := chromedp.NewRemoteAllocator(ctx, cdpURL)
+	defer cancelAlloc()
+
+	chromeCtx, cancelChrome := chromedp.NewContext(allocCtx)
+	defer cancelChrome()
+
+	navigateCtx, cancelNavigate := context.WithTimeout(chromeCtx, 15*time.Second)
+	defer cancelNavigate()
+
+	if err := chromedp.Run(navigateCtx,
+		chromedp.Navigate(targetURL),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+	); err != nil {
+		return fmt.Errorf("navigate to %s: %w", targetURL, err)
+	}
+
+	select {
+	case <-time.After(750 * time.Millisecond):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

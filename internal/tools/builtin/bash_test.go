@@ -2,19 +2,11 @@ package builtin
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"alex/internal/agent/ports"
 )
-
-type bashResult struct {
-	Command  string `json:"command"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-	ExitCode int    `json:"exit_code"`
-}
 
 func TestBashExecuteSuccess(t *testing.T) {
 	tool := NewBash(ShellToolConfig{})
@@ -28,25 +20,29 @@ func TestBashExecuteSuccess(t *testing.T) {
 		t.Fatalf("expected no tool error, got: %v", result.Error)
 	}
 
-	var payload bashResult
-	if err := json.Unmarshal([]byte(result.Content), &payload); err != nil {
-		t.Fatalf("failed to parse payload: %v", err)
+	if result.Content != "hello" {
+		t.Fatalf("expected content 'hello', got %q", result.Content)
 	}
 
-	if !strings.HasSuffix(payload.Command, "printf 'hello'") {
-		t.Fatalf("expected command to include original payload, got %q", payload.Command)
+	command, ok := result.Metadata["command"].(string)
+	if !ok {
+		t.Fatalf("expected command metadata, got %T", result.Metadata["command"])
 	}
-	if !strings.HasPrefix(payload.Command, "cd ") {
-		t.Fatalf("expected command to include working directory prefix, got %q", payload.Command)
+	if !strings.HasSuffix(command, "printf 'hello'") {
+		t.Fatalf("expected command to include original payload, got %q", command)
 	}
-	if payload.Stdout != "hello" {
-		t.Fatalf("expected stdout 'hello', got %q", payload.Stdout)
+	if !strings.HasPrefix(command, "cd ") {
+		t.Fatalf("expected command to include working directory prefix, got %q", command)
 	}
-	if payload.Stderr != "" {
-		t.Fatalf("expected empty stderr, got %q", payload.Stderr)
+
+	if stdout, ok := result.Metadata["stdout"].(string); !ok || stdout != "hello" {
+		t.Fatalf("expected stdout metadata 'hello', got %v", result.Metadata["stdout"])
 	}
-	if payload.ExitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", payload.ExitCode)
+	if stderr, ok := result.Metadata["stderr"].(string); !ok || stderr != "" {
+		t.Fatalf("expected empty stderr metadata, got %v", result.Metadata["stderr"])
+	}
+	if text, ok := result.Metadata["text"].(string); !ok || text != "hello" {
+		t.Fatalf("expected text metadata 'hello', got %v", result.Metadata["text"])
 	}
 
 	if result.Metadata["exit_code"] != 0 {
@@ -66,15 +62,17 @@ func TestBashExecuteFailure(t *testing.T) {
 		t.Fatal("expected tool error for non-zero exit code")
 	}
 
-	var payload bashResult
-	if err := json.Unmarshal([]byte(result.Content), &payload); err != nil {
-		t.Fatalf("failed to parse payload: %v", err)
+	if result.Content != "error" {
+		t.Fatalf("expected content 'error', got %q", result.Content)
 	}
-
-	if payload.ExitCode != 3 {
-		t.Fatalf("expected exit code 3, got %d", payload.ExitCode)
+	if result.Metadata["exit_code"] != 3 {
+		t.Fatalf("expected exit code 3, got %v", result.Metadata["exit_code"])
 	}
-	if payload.Stderr == "" {
+	stderr, ok := result.Metadata["stderr"].(string)
+	if !ok || strings.TrimSpace(stderr) == "" {
 		t.Fatal("expected stderr to be captured")
+	}
+	if text, ok := result.Metadata["text"].(string); !ok || strings.TrimSpace(text) == "" {
+		t.Fatal("expected text metadata to include stderr output")
 	}
 }

@@ -51,4 +51,41 @@ describe('TaskInput', () => {
     });
     expect(onPrefillApplied).toHaveBeenCalledTimes(2);
   });
+
+  it('renders stop button while loading and triggers onStop', async () => {
+    const onStop = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <LanguageProvider>
+        <TaskInput
+          onSubmit={vi.fn()}
+          loading
+          onStop={onStop}
+        />
+      </LanguageProvider>
+    );
+
+    const stopButton = await screen.findByTestId('task-stop');
+    expect(stopButton).toBeInTheDocument();
+
+    await user.click(stopButton);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows pending label when cancellation is in progress', async () => {
+    render(
+      <LanguageProvider>
+        <TaskInput
+          onSubmit={vi.fn()}
+          loading
+          onStop={vi.fn()}
+          stopPending
+        />
+      </LanguageProvider>
+    );
+
+    const stopButton = await screen.findByTestId('task-stop');
+    expect(stopButton).toHaveTextContent(/Stopping/i);
+  });
 });
