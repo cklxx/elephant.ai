@@ -28,6 +28,13 @@ type Config struct {
 	TavilyAPIKey   string
 	SandboxBaseURL string
 
+	VolcAccessKey           string
+	VolcSecretKey           string
+	SeedreamHost            string
+	SeedreamRegion          string
+	SeedreamTextEndpointID  string
+	SeedreamImageEndpointID string
+
 	ExecutionMode  tools.ExecutionMode
 	SandboxManager *tools.SandboxManager
 }
@@ -56,10 +63,16 @@ func NewRegistry(config Config) (*Registry, error) {
 	}
 
 	if err := r.registerBuiltins(Config{
-		TavilyAPIKey:   config.TavilyAPIKey,
-		SandboxBaseURL: config.SandboxBaseURL,
-		ExecutionMode:  mode,
-		SandboxManager: config.SandboxManager,
+		TavilyAPIKey:            config.TavilyAPIKey,
+		SandboxBaseURL:          config.SandboxBaseURL,
+		VolcAccessKey:           config.VolcAccessKey,
+		VolcSecretKey:           config.VolcSecretKey,
+		SeedreamHost:            config.SeedreamHost,
+		SeedreamRegion:          config.SeedreamRegion,
+		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		ExecutionMode:           mode,
+		SandboxManager:          config.SandboxManager,
 	}); err != nil {
 		return nil, err
 	}
@@ -261,16 +274,34 @@ func (r *Registry) registerBuiltins(config Config) error {
 		SandboxManager: config.SandboxManager,
 	})
 
-        if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
-                r.static["browser"] = builtin.NewBrowser(builtin.BrowserToolConfig{
-                        Mode:           config.ExecutionMode,
-                        SandboxManager: config.SandboxManager,
-                })
-                r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
-                        Mode:           config.ExecutionMode,
-                        SandboxManager: config.SandboxManager,
-                })
-        }
+	seedreamBase := builtin.SeedreamConfig{
+		AccessKey: config.VolcAccessKey,
+		SecretKey: config.VolcSecretKey,
+		Host:      config.SeedreamHost,
+		Region:    config.SeedreamRegion,
+	}
+	textConfig := seedreamBase
+	textConfig.EndpointID = config.SeedreamTextEndpointID
+	textConfig.ModelDescriptor = "Seedream 3.0 text-to-image"
+	textConfig.EndpointEnvVar = "SEEDREAM_TEXT_ENDPOINT_ID"
+	r.static["seedream_text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
+
+	imageConfig := seedreamBase
+	imageConfig.EndpointID = config.SeedreamImageEndpointID
+	imageConfig.ModelDescriptor = "Seedream 4.0 image-to-image"
+	imageConfig.EndpointEnvVar = "SEEDREAM_IMAGE_ENDPOINT_ID"
+	r.static["seedream_image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
+
+	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
+		r.static["browser"] = builtin.NewBrowser(builtin.BrowserToolConfig{
+			Mode:           config.ExecutionMode,
+			SandboxManager: config.SandboxManager,
+		})
+		r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
+			Mode:           config.ExecutionMode,
+			SandboxManager: config.SandboxManager,
+		})
+	}
 
 	// Note: code_search tool is not registered (feature not ready)
 	return nil

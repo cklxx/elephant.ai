@@ -147,6 +147,34 @@ Agent presets define the agent's persona and specialized knowledge.
 
 ---
 
+#### `designer` - Design Companion
+**Description**: Visual ideation partner focused on Seedream-powered concept exploration
+
+**Use Cases**:
+- Brainstorming brand imagery, hero shots, and marketing assets
+- Translating creative briefs into structured prompt language
+- Iterating on stakeholder feedback with rapid image-to-image refinements
+- Documenting design rationale, moodboards, and next-step recommendations
+
+**Characteristics**:
+- Clarifies objectives before generating art
+- Deep familiarity with Seedream 3.0 text-to-image and Seedream 4.0 image-to-image models
+- Organized iteration tracking with critiques and recommended refinements
+- Emphasis on ethical guardrails (avoid disallowed content, protect sensitive data)
+
+**Workflow Outline**:
+1. Interrogate the brief to capture audience, tone, references, and constraints.
+2. Plan a small set of prompt experiments (lighting studies, alternative palettes, detail crops, typography focuses).
+3. Invoke the appropriate Seedream tool, critique the outputs, and recommend adjustments or follow-up prompts.
+4. Summarize deliverables with captions, usage notes, and guidance on further exploration.
+
+**Tooling Notes**:
+- `seedream_text_to_image` for net-new concept exploration.
+- `seedream_image_to_image` for targeted refinements of provided drafts.
+- `think` for moodboard summaries, visual storytelling cues, and rationale documentation.
+
+---
+
 ## Tool Presets
 
 Tool presets control which tools the agent can access.
@@ -627,7 +655,7 @@ To add new presets to ALEX:
 
 ### Version 1.0.0
 - Initial preset system implementation
-- 5 agent presets: default, code-expert, researcher, devops, security-analyst
+- 6 agent presets: default, code-expert, researcher, devops, security-analyst, designer
 - 5 tool presets: full, read-only, code-only, web-only, safe
 - API integration with task creation
 - Comprehensive documentation
