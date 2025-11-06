@@ -467,7 +467,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 	e.logger.Debug("Executing %d tools in parallel", len(calls))
 
 	// Execute in parallel using goroutines
-	var wg sync.WaitGroup
+	var (
+		wg            sync.WaitGroup
+		attachmentsMu sync.Mutex
+	)
 	for i, call := range calls {
 		wg.Add(1)
 		go func(idx int, tc ToolCall) {
@@ -558,6 +561,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 			}
 
 			if len(result.Attachments) > 0 {
+				attachmentsMu.Lock()
 				ensureAttachmentStore(state)
 				for key, att := range result.Attachments {
 					if att.Name == "" {
@@ -572,6 +576,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 					}
 					state.Attachments[placeholder] = att
 				}
+				attachmentsMu.Unlock()
 			}
 
 			results[idx] = ToolResult{
