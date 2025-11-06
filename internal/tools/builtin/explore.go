@@ -21,7 +21,7 @@ func NewExplore(subagent ports.ToolExecutor) ports.ToolExecutor {
 func (e *explore) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "explore",
-		Description: "Plan and delegate multi-scope investigations via the subagent tool. Automatically prepares local, web, and custom subtasks and synthesizes a concise summary of findings.",
+		Description: "Plan and delegate multi-scope investigations while orchestrating the platform's complete exploration toolset. Automatically prepares local, web, and custom subtasks and synthesizes a concise summary of findings.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -61,7 +61,7 @@ func (e *explore) Metadata() ports.ToolMetadata {
 		Name:     "explore",
 		Version:  "1.0.0",
 		Category: "orchestration",
-		Tags:     []string{"planning", "delegation", "subagent"},
+		Tags:     []string{"planning", "delegation", "discovery"},
 	}
 }
 
