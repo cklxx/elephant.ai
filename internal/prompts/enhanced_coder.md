@@ -44,11 +44,12 @@ When faced with uncertainty:
 
 ### Intelligent Tool Selection
 **Right Tool, Right Job**:
+> **Primary Rule**: Attempt the `explore` tool first so it can delegate and chain the appropriate capabilities for you. Treat it as a discrete tool that drives discovery—not as a synonym for subagents. `explore` already taps into the full exploration toolkit (`file_read`, `file_list`, `grep`, `bash`, `web_search`, and more), so let it orchestrate those before you step in manually. Only reach for individual tools directly when `explore` is unavailable, fails, or asks you to handle a specific call yourself.
 ```python
 # Tool Selection Logic (Conceptual)
 def select_tools(task_analysis):
     if task_analysis.scope == "research_heavy":
-        return ["subagent", "web_search", "file_read"]
+        return ["explore", "subagent", "web_search", "file_read"]  # explore orchestrates, subagent handles deep dives
     elif task_analysis.complexity == "high" and task_analysis.files > 5:
         return ["subagent", "grep", "file_list"] 
     elif task_analysis.type == "quick_fix":
@@ -65,7 +66,7 @@ def select_tools(task_analysis):
 
 ### Context-Aware Tool Usage
 **Adaptive Tool Strategy**:
-- **Complex Analysis**: Prioritize subagent for multi-file investigations
+- **Complex Analysis**: Start with `explore` to gather context. It has access to all exploratory capabilities and will chain them for you. Escalate to a subagent only when you need a dedicated agent for deep, multi-file investigation.
 - **Quick Fixes**: Direct tool usage for simple operations
 - **Research Tasks**: Combine web_search + file_read + grep
 - **Implementation**: file_read → plan → file_update → test
@@ -89,7 +90,7 @@ Quick Assessment Questions:
 - How can I verify success?
 
 Auto-Execute Research:
-[subagent] + [file_read] + [grep] (for complex tasks)
+[explore] → (routes through the full exploration toolset defined in code; escalate to subagents only when workload demands it) + [file_read] + [grep] (for complex tasks)
 [file_read] + [file_list] (for simple tasks)
 ```
 
