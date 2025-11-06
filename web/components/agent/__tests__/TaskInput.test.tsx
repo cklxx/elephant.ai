@@ -1,8 +1,28 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TaskInput } from '../TaskInput';
 import { LanguageProvider } from '@/lib/i18n';
+
+class MockFileReader {
+  public result: string | ArrayBuffer | null = 'data:image/png;base64,Zm9v';
+  public onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+  public onerror: ((event: ProgressEvent<FileReader>) => void) | null = null;
+
+  readAsDataURL(_: Blob) {
+    if (typeof this.onload === 'function') {
+      this.onload(new ProgressEvent('load'));
+    }
+  }
+}
+
+beforeAll(() => {
+  vi.stubGlobal('FileReader', MockFileReader as unknown as typeof FileReader);
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('TaskInput', () => {
   beforeEach(() => {
@@ -36,7 +56,7 @@ describe('TaskInput', () => {
     await userEvent.click(screen.getByTestId('task-submit'));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('Summarize the latest repo changes');
+      expect(onSubmit).toHaveBeenCalledWith('Summarize the latest repo changes', []);
     });
 
     await waitFor(() => {
@@ -63,7 +83,7 @@ describe('TaskInput', () => {
           loading
           onStop={onStop}
         />
-      </LanguageProvider>
+      </LanguageProvider>,
     );
 
     const stopButton = await screen.findByTestId('task-stop');
@@ -82,10 +102,51 @@ describe('TaskInput', () => {
           onStop={vi.fn()}
           stopPending
         />
-      </LanguageProvider>
+      </LanguageProvider>,
     );
 
     const stopButton = await screen.findByTestId('task-stop');
     expect(stopButton).toHaveTextContent(/Stopping/i);
+  });
+
+  it('allows adding image attachments and includes them on submit', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <LanguageProvider>
+        <TaskInput onSubmit={onSubmit} />
+      </LanguageProvider>,
+    );
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['foo'], 'diagram.png', { type: 'image/png' });
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      writable: false,
+    });
+
+    await user.click(screen.getByTestId('task-attach-image'));
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('task-attachments')).toBeInTheDocument();
+    });
+
+    const textarea = await screen.findByTestId('task-input');
+    expect(textarea).toHaveValue('[diagram.png]');
+
+    await user.click(screen.getByTestId('task-submit'));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('[diagram.png]', [
+        expect.objectContaining({
+          name: 'diagram.png',
+          media_type: 'image/png',
+          data: 'Zm9v',
+          source: 'user_upload',
+        }),
+      ]);
+    });
   });
 });

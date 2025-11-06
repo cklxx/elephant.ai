@@ -15,10 +15,8 @@ func main() {
 		return
 	}
 
-	// Determine if we should disable sandbox for faster startup
-	// Only disable for short-lived read-only commands
-	// Task execution commands (default case) should respect sandbox config
-	shouldDisableSandbox := shouldDisableSandboxForCommand(args)
+	// Always disable sandbox execution in CLI mode to ensure tools run locally.
+	shouldDisableSandbox := true
 
 	container, err := buildContainerWithOptions(shouldDisableSandbox)
 	if err != nil {
@@ -77,29 +75,4 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 	}
 
 	return false, 0
-}
-
-// shouldDisableSandboxForCommand determines if sandbox should be disabled for a command.
-// Returns true only for short-lived read-only commands that don't need sandbox.
-// Task execution commands (default case) return false to respect sandbox configuration.
-func shouldDisableSandboxForCommand(args []string) bool {
-	// No args means TUI mode - respect sandbox config
-	if len(args) == 0 {
-		return false
-	}
-
-	cmd := args[0]
-	switch cmd {
-	// Short-lived read-only commands - disable sandbox for faster startup
-	case "sessions", "session":
-		return true
-	case "cost", "costs":
-		return true
-	case "mcp":
-		return true
-
-	// Task execution (default case) and other commands - respect sandbox config
-	default:
-		return false
-	}
 }

@@ -67,6 +67,35 @@ func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, taskID, parentTaskI
 	}
 }
 
+// UserTaskEvent - emitted when a user submits a new task
+type UserTaskEvent struct {
+	BaseEvent
+	Task        string
+	Attachments map[string]ports.Attachment
+}
+
+func (e *UserTaskEvent) EventType() string { return "user_task" }
+
+// NewUserTaskEvent constructs a user task event with the provided metadata.
+func NewUserTaskEvent(
+	level ports.AgentLevel,
+	sessionID, taskID, parentTaskID string,
+	task string,
+	attachments map[string]ports.Attachment,
+	ts time.Time,
+) *UserTaskEvent {
+	var cloned map[string]ports.Attachment
+	if len(attachments) > 0 {
+		cloned = cloneAttachmentMap(attachments)
+	}
+
+	return &UserTaskEvent{
+		BaseEvent:   newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		Task:        task,
+		Attachments: cloned,
+	}
+}
+
 // IterationStartEvent - emitted at start of each ReAct iteration
 type IterationStartEvent struct {
 	BaseEvent
@@ -119,12 +148,13 @@ func (e *ToolCallStreamEvent) EventType() string { return "tool_call_stream" }
 // ToolCallCompleteEvent - emitted when tool execution finishes
 type ToolCallCompleteEvent struct {
 	BaseEvent
-	CallID   string
-	ToolName string
-	Result   string
-	Error    error
-	Duration time.Duration
-	Metadata map[string]any
+	CallID      string
+	ToolName    string
+	Result      string
+	Error       error
+	Duration    time.Duration
+	Metadata    map[string]any
+	Attachments map[string]ports.Attachment
 }
 
 func (e *ToolCallCompleteEvent) EventType() string { return "tool_call_complete" }
@@ -148,6 +178,7 @@ type TaskCompleteEvent struct {
 	StopReason      string
 	Duration        time.Duration
 	SessionStats    *ports.SessionStats // Optional: session-level cost/token accumulation
+	Attachments     map[string]ports.Attachment
 }
 
 func (e *TaskCompleteEvent) EventType() string { return "task_complete" }
@@ -306,6 +337,17 @@ func cloneStringMap(values map[string]string) map[string]string {
 		return nil
 	}
 	clone := make(map[string]string, len(values))
+	for k, v := range values {
+		clone[k] = v
+	}
+	return clone
+}
+
+func cloneAttachmentMap(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if values == nil {
+		return nil
+	}
+	clone := make(map[string]ports.Attachment, len(values))
 	for k, v := range values {
 		clone[k] = v
 	}

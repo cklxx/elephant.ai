@@ -188,6 +188,29 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		SessionID:    session.ID,
 		TaskID:       ids.TaskID,
 		ParentTaskID: ids.ParentTaskID,
+		Attachments:  collectSessionAttachments(session.Messages),
+	}
+
+	if userAttachments := GetUserAttachments(ctx); len(userAttachments) > 0 {
+		if state.Attachments == nil {
+			state.Attachments = make(map[string]ports.Attachment)
+		}
+		pending := make(map[string]ports.Attachment)
+		for _, att := range userAttachments {
+			name := strings.TrimSpace(att.Name)
+			if name == "" {
+				continue
+			}
+			att.Name = name
+			if att.Source == "" {
+				att.Source = "user_upload"
+			}
+			state.Attachments[name] = att
+			pending[name] = att
+		}
+		if len(pending) > 0 {
+			state.PendingUserAttachments = pending
+		}
 	}
 
 	toolRegistry := s.selectToolRegistry(ctx)
@@ -207,6 +230,26 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		SystemPrompt: systemPrompt,
 		TaskAnalysis: taskAnalysis,
 	}, nil
+}
+
+func collectSessionAttachments(messages []ports.Message) map[string]ports.Attachment {
+	if len(messages) == 0 {
+		return make(map[string]ports.Attachment)
+	}
+
+	attachments := make(map[string]ports.Attachment)
+	for _, msg := range messages {
+		for key, att := range msg.Attachments {
+			if key == "" {
+				key = att.Name
+			}
+			if key == "" {
+				continue
+			}
+			attachments[key] = att
+		}
+	}
+	return attachments
 }
 
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.

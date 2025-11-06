@@ -15,7 +15,7 @@ import { formatRelativeTime } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
 import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
-import type { AnyAgentEvent } from '@/lib/types';
+import type { AnyAgentEvent, AttachmentUpload } from '@/lib/types';
 
 const statusLabels: Record<string, TranslationKey> = {
   completed: 'sessions.details.history.status.completed',
@@ -107,12 +107,13 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   });
 
   const handleTaskSubmit = useCallback(
-    (task: string) => {
+    (task: string, attachments: AttachmentUpload[]) => {
       cancelIntentRef.current = false;
       setCancelRequested(false);
       executeTask({
         task,
         session_id: sessionId,
+        attachments: attachments.length ? attachments : undefined,
       });
     },
     [executeTask, sessionId]

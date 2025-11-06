@@ -69,9 +69,32 @@ type TokenUsage struct {
 
 // Message represents a conversation message
 type Message struct {
-	Role        string         `json:"role"`
-	Content     string         `json:"content"`
-	ToolCalls   []ToolCall     `json:"tool_calls,omitempty"`
-	ToolResults []ToolResult   `json:"tool_results,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+        Role        string         `json:"role"`
+        Content     string         `json:"content"`
+        ToolCalls   []ToolCall     `json:"tool_calls,omitempty"`
+        ToolResults []ToolResult   `json:"tool_results,omitempty"`
+        Metadata    map[string]any `json:"metadata,omitempty"`
+        Attachments map[string]Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment represents a binary asset (image, audio, etc.) referenced within a
+// message or tool result using a placeholder such as `[filename.ext]`.
+type Attachment struct {
+        // Name is the canonical filename (without surrounding brackets) used in
+        // the placeholder, e.g. `diagram.png` for `[diagram.png]`.
+        Name string `json:"name"`
+        // MediaType is the MIME type (e.g. image/png).
+        MediaType string `json:"media_type"`
+        // Data is a base64-encoded payload. It is optional when URI is
+        // populated (for CDN hosted assets).
+        Data string `json:"data,omitempty"`
+        // URI is an absolute or data URI that can be used by clients to render
+        // the attachment without additional decoding.
+        URI string `json:"uri,omitempty"`
+        // Source identifies where the attachment originated (tool name,
+        // `user_upload`, etc.).
+        Source string `json:"source,omitempty"`
+        // Description provides optional human readable context about the
+        // attachment contents.
+        Description string `json:"description,omitempty"`
 }

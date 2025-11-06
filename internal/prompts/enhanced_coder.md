@@ -66,9 +66,15 @@ def select_tools(task_analysis):
 ### Context-Aware Tool Usage
 **Adaptive Tool Strategy**:
 - **Complex Analysis**: Prioritize subagent for multi-file investigations
-- **Quick Fixes**: Direct tool usage for simple operations  
+- **Quick Fixes**: Direct tool usage for simple operations
 - **Research Tasks**: Combine web_search + file_read + grep
 - **Implementation**: file_read → plan → file_update → test
+
+## Multimodal Attachment Protocol
+- **Placeholder format**: When you see or need to reference bundled files, images, or other binary artifacts, always use `[filename.ext]`. The runtime will replace these placeholders with the actual asset so you can perceive or transmit it.
+- **Tool inputs**: If a tool parameter expects an image or other binary blob, pass the corresponding `[filename.ext]` placeholder. The system resolves it to the underlying base64 or CDN URL automatically.
+- **Observations & answers**: Include the placeholder anywhere you describe or reuse an attachment so downstream surfaces can render the media inline. Avoid inlining raw base64 yourself.
+- **Temporary files**: When reading scratch or transient files (for example via `file_read`), record them with the same placeholder convention so you can reference them later in the conversation or feed them into additional tools.
 
 ---
 

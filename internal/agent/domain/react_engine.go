@@ -153,6 +153,13 @@ func (e *ReactEngine) SolveTask(
 	e.logger.Info("Starting ReAct loop for task: %s", task)
 	startTime := e.clock.Now()
 
+	ensureAttachmentStore(state)
+	// Register attachments from preloaded messages so they are available for
+	// placeholder substitution and multimodal requests.
+	for _, existing := range state.Messages {
+		registerMessageAttachments(state, existing)
+	}
+
 	// Initialize state if empty
 	if len(state.Messages) == 0 {
 		// Add system prompt first if available
@@ -165,13 +172,32 @@ func (e *ReactEngine) SolveTask(
 	}
 
 	// ALWAYS append the new user task to messages (even if history exists)
-	state.Messages = append(state.Messages, Message{
+	userMessage := Message{
 		Role:    "user",
 		Content: task,
-	})
+	}
+	if len(state.PendingUserAttachments) > 0 {
+		attachments := make(map[string]ports.Attachment, len(state.PendingUserAttachments))
+		for key, att := range state.PendingUserAttachments {
+			attachments[key] = att
+		}
+		userMessage.Attachments = attachments
+		ensureAttachmentStore(state)
+		for key, att := range attachments {
+			state.Attachments[key] = att
+		}
+		state.PendingUserAttachments = nil
+	}
+
+	state.Messages = append(state.Messages, userMessage)
+	registerMessageAttachments(state, userMessage)
+	if len(userMessage.Attachments) > 0 {
+		e.logger.Debug("Registered %d user attachments", len(userMessage.Attachments))
+	}
 	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
 
 	// ReAct loop: Think → Act → Observe
+	consecutiveNoToolCalls := 0
 	for state.Iterations < e.maxIterations {
 		// Check if context is cancelled before starting iteration
 		if ctx.Err() != nil {
@@ -226,7 +252,13 @@ func (e *ReactEngine) SolveTask(
 		}
 
 		// Add thought to state
-		state.Messages = append(state.Messages, thought)
+		if att := resolveContentAttachments(thought.Content, state.Attachments); len(att) > 0 {
+			thought.Attachments = att
+		}
+		trimmedThought := strings.TrimSpace(thought.Content)
+		if trimmedThought != "" || len(thought.ToolCalls) > 0 {
+			state.Messages = append(state.Messages, thought)
+		}
 		e.logger.Debug("LLM response: content_length=%d, tool_calls=%d",
 			len(thought.Content), len(thought.ToolCalls))
 
@@ -235,23 +267,31 @@ func (e *ReactEngine) SolveTask(
 		e.logger.Info("Parsed %d tool calls", len(toolCalls))
 
 		if len(toolCalls) == 0 {
-			// No tool calls - check if this is a final answer
-			if len(strings.TrimSpace(thought.Content)) > 0 {
-				e.logger.Info("No tool calls and has content - treating as final answer")
-				e.emitEvent(&TaskCompleteEvent{
-					BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-					FinalAnswer:     thought.Content,
-					TotalIterations: state.Iterations,
-					TotalTokens:     state.TokenCount,
-					StopReason:      "final_answer",
-					Duration:        e.clock.Now().Sub(startTime),
-				})
-				return e.finalize(state, "final_answer"), nil
+			trimmed := strings.TrimSpace(thought.Content)
+			if trimmed != "" {
+				consecutiveNoToolCalls++
+				e.logger.Info("No tool calls with content - streak=%d", consecutiveNoToolCalls)
+				if consecutiveNoToolCalls >= 2 {
+					e.logger.Info("Confirming final answer after consecutive no-tool iterations")
+					attachments := resolveContentAttachments(thought.Content, state.Attachments)
+					e.emitEvent(&TaskCompleteEvent{
+						BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+						FinalAnswer:     thought.Content,
+						TotalIterations: state.Iterations,
+						TotalTokens:     state.TokenCount,
+						StopReason:      "final_answer",
+						Duration:        e.clock.Now().Sub(startTime),
+						Attachments:     attachments,
+					})
+					return e.finalize(state, "final_answer"), nil
+				}
+				continue
 			}
-			// Empty response - continue loop
+			consecutiveNoToolCalls = 0
 			e.logger.Warn("No tool calls and empty content - continuing loop")
 			continue
 		} else {
+			consecutiveNoToolCalls = 0
 			// EMIT: Think complete
 			e.emitEvent(&ThinkCompleteEvent{
 				BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
@@ -299,7 +339,7 @@ func (e *ReactEngine) SolveTask(
 			})
 		}
 
-		results := e.executeToolsWithEvents(ctx, state.SessionID, state.TaskID, state.ParentTaskID, state.Iterations, validCalls, services.ToolExecutor)
+		results := e.executeToolsWithEvents(ctx, state, state.Iterations, validCalls, services.ToolExecutor)
 		state.ToolResults = append(state.ToolResults, results...)
 
 		// Log results (no stdout printing - let TUI handle display)
@@ -312,8 +352,9 @@ func (e *ReactEngine) SolveTask(
 		}
 
 		// 3. OBSERVE: Add results to conversation
-		observation := e.buildObservation(results)
+		observation := e.buildObservation(state, results)
 		state.Messages = append(state.Messages, observation)
+		registerMessageAttachments(state, observation)
 		e.logger.Debug("OBSERVE phase: Added observation to state")
 
 		// 4. Check context limits
@@ -348,12 +389,18 @@ func (e *ReactEngine) SolveTask(
 		// One final LLM call for answer
 		finalThought, err := e.think(ctx, state, services)
 		if err == nil && finalThought.Content != "" {
+			if att := resolveContentAttachments(finalThought.Content, state.Attachments); len(att) > 0 {
+				finalThought.Attachments = att
+			}
+			state.Messages = append(state.Messages, finalThought)
+			registerMessageAttachments(state, finalThought)
 			finalResult.Answer = finalThought.Content
 			e.logger.Info("Got final answer from retry: %d chars", len(finalResult.Answer))
 		}
 	}
 
 	// EMIT: Task complete
+	attachments := resolveContentAttachments(finalResult.Answer, state.Attachments)
 	e.emitEvent(&TaskCompleteEvent{
 		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		FinalAnswer:     finalResult.Answer,
@@ -361,6 +408,7 @@ func (e *ReactEngine) SolveTask(
 		TotalTokens:     finalResult.TokensUsed,
 		StopReason:      finalResult.StopReason,
 		Duration:        e.clock.Now().Sub(startTime),
+		Attachments:     attachments,
 	})
 
 	return finalResult, nil
@@ -410,7 +458,7 @@ func (e *ReactEngine) think(
 // executeToolsWithEvents runs all tool calls in parallel and emits completion events
 func (e *ReactEngine) executeToolsWithEvents(
 	ctx context.Context,
-	sessionID, taskID, parentTaskID string,
+	state *TaskState,
 	iteration int,
 	calls []ToolCall,
 	registry ports.ToolRegistry,
@@ -425,9 +473,11 @@ func (e *ReactEngine) executeToolsWithEvents(
 		go func(idx int, tc ToolCall) {
 			defer wg.Done()
 
-			tc.SessionID = sessionID
-			tc.TaskID = taskID
-			tc.ParentTaskID = parentTaskID
+			tc.SessionID = state.SessionID
+			tc.TaskID = state.TaskID
+			tc.ParentTaskID = state.ParentTaskID
+
+			tc.Arguments = expandPlaceholders(tc.Arguments, state.Attachments)
 
 			startTime := e.clock.Now()
 
@@ -437,7 +487,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: e.newBaseEvent(ctx, sessionID, taskID, parentTaskID),
+					BaseEvent: e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -448,9 +498,9 @@ func (e *ReactEngine) executeToolsWithEvents(
 					CallID:       tc.ID,
 					Content:      "",
 					Error:        fmt.Errorf("tool not found: %s", tc.Name),
-					SessionID:    sessionID,
-					TaskID:       taskID,
-					ParentTaskID: parentTaskID,
+					SessionID:    state.SessionID,
+					TaskID:       state.TaskID,
+					ParentTaskID: state.ParentTaskID,
 				}
 				return
 			}
@@ -462,7 +512,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
 				// EMIT: Tool error
 				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: e.newBaseEvent(ctx, sessionID, taskID, parentTaskID),
+					BaseEvent: e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 					CallID:    tc.ID,
 					ToolName:  tc.Name,
 					Result:    "",
@@ -473,9 +523,9 @@ func (e *ReactEngine) executeToolsWithEvents(
 					CallID:       tc.ID,
 					Content:      "",
 					Error:        err,
-					SessionID:    sessionID,
-					TaskID:       taskID,
-					ParentTaskID: parentTaskID,
+					SessionID:    state.SessionID,
+					TaskID:       state.TaskID,
+					ParentTaskID: state.ParentTaskID,
 				}
 				return
 			}
@@ -484,26 +534,44 @@ func (e *ReactEngine) executeToolsWithEvents(
 
 			// EMIT: Tool success
 			e.emitEvent(&ToolCallCompleteEvent{
-				BaseEvent: e.newBaseEvent(ctx, sessionID, taskID, parentTaskID),
-				CallID:    result.CallID,
-				ToolName:  tc.Name,
-				Result:    result.Content,
-				Error:     result.Error,
-				Duration:  e.clock.Now().Sub(startTime),
-				Metadata:  result.Metadata,
+				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				CallID:      result.CallID,
+				ToolName:    tc.Name,
+				Result:      result.Content,
+				Error:       result.Error,
+				Duration:    e.clock.Now().Sub(startTime),
+				Metadata:    result.Metadata,
+				Attachments: result.Attachments,
 			})
 
 			if result.CallID == "" {
 				result.CallID = tc.ID
 			}
 			if result.SessionID == "" {
-				result.SessionID = sessionID
+				result.SessionID = state.SessionID
 			}
 			if result.TaskID == "" {
-				result.TaskID = taskID
+				result.TaskID = state.TaskID
 			}
 			if result.ParentTaskID == "" {
-				result.ParentTaskID = parentTaskID
+				result.ParentTaskID = state.ParentTaskID
+			}
+
+			if len(result.Attachments) > 0 {
+				ensureAttachmentStore(state)
+				for key, att := range result.Attachments {
+					if att.Name == "" {
+						att.Name = key
+					}
+					placeholder := key
+					if placeholder == "" {
+						placeholder = att.Name
+					}
+					if placeholder == "" {
+						continue
+					}
+					state.Attachments[placeholder] = att
+				}
 			}
 
 			results[idx] = ToolResult{
@@ -514,11 +582,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 				SessionID:    result.SessionID,
 				TaskID:       result.TaskID,
 				ParentTaskID: result.ParentTaskID,
+				Attachments:  result.Attachments,
 			}
 
 			if result.Metadata != nil {
 				if info, ok := result.Metadata["browser_info"].(map[string]any); ok {
-					e.emitBrowserInfoEvent(ctx, sessionID, taskID, parentTaskID, info)
+					e.emitBrowserInfoEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID, info)
 				}
 			}
 		}(i, call)
@@ -554,22 +623,37 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParse
 }
 
 // buildObservation creates a message with tool results
-func (e *ReactEngine) buildObservation(results []ToolResult) Message {
-	var content string
+func (e *ReactEngine) buildObservation(state *TaskState, results []ToolResult) Message {
+	var builder strings.Builder
+	attachments := make(map[string]ports.Attachment)
 
 	for _, result := range results {
 		if result.Error != nil {
-			content += fmt.Sprintf("Tool %s failed: %v\n", result.CallID, result.Error)
+			builder.WriteString(fmt.Sprintf("Tool %s failed: %v\n", result.CallID, result.Error))
 		} else {
-			content += fmt.Sprintf("Tool %s result:\n%s\n", result.CallID, result.Content)
+			builder.WriteString(fmt.Sprintf("Tool %s result:\n%s\n", result.CallID, result.Content))
+		}
+		for key, att := range result.Attachments {
+			placeholder := key
+			if placeholder == "" {
+				placeholder = att.Name
+			}
+			if placeholder == "" {
+				continue
+			}
+			attachments[placeholder] = att
 		}
 	}
 
-	return Message{
+	message := Message{
 		Role:        "user", // Observations come back as user messages
-		Content:     content,
+		Content:     builder.String(),
 		ToolResults: results,
 	}
+	if len(attachments) > 0 {
+		message.Attachments = attachments
+	}
+	return message
 }
 
 func coerceToInt(value any) int {
@@ -665,4 +749,159 @@ func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 	}
 
 	return strings.TrimSpace(cleaned)
+}
+
+func ensureAttachmentStore(state *TaskState) {
+	if state.Attachments == nil {
+		state.Attachments = make(map[string]ports.Attachment)
+	}
+}
+
+func registerMessageAttachments(state *TaskState, msg Message) {
+	if len(msg.Attachments) == 0 {
+		return
+	}
+	ensureAttachmentStore(state)
+	for key, att := range msg.Attachments {
+		placeholder := key
+		if placeholder == "" {
+			placeholder = att.Name
+		}
+		if placeholder == "" {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = placeholder
+		}
+		state.Attachments[placeholder] = att
+	}
+}
+
+func expandPlaceholders(args map[string]any, attachments map[string]ports.Attachment) map[string]any {
+	if len(args) == 0 {
+		return args
+	}
+	expanded := make(map[string]any, len(args))
+	for key, value := range args {
+		expanded[key] = expandPlaceholderValue(value, attachments)
+	}
+	return expanded
+}
+
+func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) any {
+	switch v := value.(type) {
+	case string:
+		name, ok := extractPlaceholderName(v)
+		if !ok || attachments == nil {
+			return v
+		}
+		if att, found := attachments[name]; found {
+			if att.Data != "" {
+				return att.Data
+			}
+			if att.URI != "" {
+				return att.URI
+			}
+		}
+		return v
+	case []any:
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = expandPlaceholderValue(item, attachments)
+		}
+		return out
+	case []string:
+		out := make([]string, len(v))
+		for i, item := range v {
+			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
+				if att, found := attachments[name]; found {
+					if att.Data != "" {
+						out[i] = att.Data
+						continue
+					}
+					if att.URI != "" {
+						out[i] = att.URI
+						continue
+					}
+				}
+			}
+			out[i] = item
+		}
+		return out
+	case map[string]any:
+		nested := make(map[string]any, len(v))
+		for key, item := range v {
+			nested[key] = expandPlaceholderValue(item, attachments)
+		}
+		return nested
+	case map[string]string:
+		nested := make(map[string]string, len(v))
+		for key, item := range v {
+			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
+				if att, found := attachments[name]; found {
+					if att.Data != "" {
+						nested[key] = att.Data
+						continue
+					}
+					if att.URI != "" {
+						nested[key] = att.URI
+						continue
+					}
+				}
+			}
+			nested[key] = item
+		}
+		return nested
+	default:
+		return value
+	}
+}
+
+func extractPlaceholderName(value string) (string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < 3 {
+		return "", false
+	}
+	if !strings.HasPrefix(trimmed, "[") || !strings.HasSuffix(trimmed, "]") {
+		return "", false
+	}
+	name := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+var contentPlaceholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
+
+func resolveContentAttachments(content string, store map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(store) == 0 || strings.TrimSpace(content) == "" {
+		return nil
+	}
+	matches := contentPlaceholderPattern.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	resolved := make(map[string]ports.Attachment)
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		name := strings.TrimSpace(match[1])
+		if name == "" {
+			continue
+		}
+		att, ok := store[name]
+		if !ok {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = name
+		}
+		resolved[name] = att
+	}
+	if len(resolved) == 0 {
+		return nil
+	}
+	return resolved
 }

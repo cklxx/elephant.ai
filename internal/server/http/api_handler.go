@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	agentapp "alex/internal/agent/app"
+	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/server/app"
 	"alex/internal/utils"
@@ -36,10 +38,11 @@ func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.Health
 
 // CreateTaskRequest matches TypeScript CreateTaskRequest interface
 type CreateTaskRequest struct {
-	Task        string `json:"task"`
-	SessionID   string `json:"session_id,omitempty"`
-	AgentPreset string `json:"agent_preset,omitempty"` // Agent persona preset
-	ToolPreset  string `json:"tool_preset,omitempty"`  // Tool access preset
+	Task        string              `json:"task"`
+	SessionID   string              `json:"session_id,omitempty"`
+	AgentPreset string              `json:"agent_preset,omitempty"` // Agent persona preset
+	ToolPreset  string              `json:"tool_preset,omitempty"`  // Tool access preset
+	Attachments []AttachmentPayload `json:"attachments,omitempty"`
 }
 
 // CreateTaskResponse matches TypeScript CreateTaskResponse interface
@@ -53,6 +56,15 @@ type CreateTaskResponse struct {
 type apiErrorResponse struct {
 	Error   string `json:"error"`
 	Details string `json:"details,omitempty"`
+}
+
+// AttachmentPayload represents an attachment sent from the client.
+type AttachmentPayload struct {
+	Name        string `json:"name"`
+	MediaType   string `json:"media_type"`
+	Data        string `json:"data,omitempty"`
+	URI         string `json:"uri,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
@@ -115,9 +127,18 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SessionID = sessionID
 
+	attachments, err := h.parseAttachments(req.Attachments)
+	if err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
 	h.logger.Info("Creating task: task='%s', sessionID='%s'", req.Task, req.SessionID)
 
 	ctx := id.WithSessionID(r.Context(), req.SessionID)
+	if len(attachments) > 0 {
+		ctx = agentapp.WithUserAttachments(ctx, attachments)
+	}
 
 	// Execute task asynchronously - coordinator returns immediately after creating task record
 	// Background goroutine will handle actual execution and update status
@@ -142,6 +163,43 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
+}
+
+func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentports.Attachment, error) {
+	if len(payloads) == 0 {
+		return nil, nil
+	}
+
+	attachments := make([]agentports.Attachment, 0, len(payloads))
+	for _, incoming := range payloads {
+		name := strings.TrimSpace(incoming.Name)
+		if name == "" {
+			return nil, fmt.Errorf("attachment name is required")
+		}
+
+		mediaType := strings.TrimSpace(incoming.MediaType)
+		if mediaType == "" {
+			return nil, fmt.Errorf("attachment media_type is required")
+		}
+
+		data := strings.TrimSpace(incoming.Data)
+		uri := strings.TrimSpace(incoming.URI)
+		if data == "" && uri == "" {
+			return nil, fmt.Errorf("attachment '%s' must include data or uri", name)
+		}
+
+		attachment := agentports.Attachment{
+			Name:        name,
+			MediaType:   mediaType,
+			Data:        data,
+			URI:         uri,
+			Description: strings.TrimSpace(incoming.Description),
+			Source:      "user_upload",
+		}
+		attachments = append(attachments, attachment)
+	}
+
+	return attachments, nil
 }
 
 // HandleGetSession handles GET /api/sessions/:id

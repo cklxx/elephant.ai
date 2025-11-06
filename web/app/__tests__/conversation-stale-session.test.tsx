@@ -189,14 +189,6 @@ describe('ConversationPageContent - stale session handling', () => {
 
     await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
 
-    expect(addEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event_type: 'user_task',
-        session_id: 'stale-session',
-        task: 'Fix the stale session bug',
-      })
-    );
-
     expect(removeSessionSpy).toHaveBeenCalledWith('stale-session');
     expect(clearCurrentSessionSpy).toHaveBeenCalledTimes(1);
     expect(setCurrentSessionSpy).toHaveBeenCalledWith('new-session');

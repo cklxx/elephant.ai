@@ -14,6 +14,7 @@ import { Sidebar, Header, ContentArea, InputBar } from '@/components/layout';
 import { buildToolCallSummaries } from '@/lib/eventAggregation';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
+import type { AttachmentPayload, AttachmentUpload } from '@/lib/types';
 
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -83,21 +84,32 @@ export function ConversationPageContent() {
     }
   }, [events]);
 
-  const handleTaskSubmit = (task: string) => {
-    console.log('[ConversationPage] Task submitted:', task);
-
-    // Add user task message to events
-    const userEvent = {
-      event_type: 'user_task' as const,
-      timestamp: new Date().toISOString(),
-      agent_level: 'core' as const,
-      session_id: resolvedSessionId ?? 'pending-session',
-      task_id: taskId ?? undefined,
-      task,
-    };
-    addEvent(userEvent);
+  const handleTaskSubmit = (task: string, attachments: AttachmentUpload[]) => {
+    console.log('[ConversationPage] Task submitted:', { task, attachments });
 
     if (useMockStream) {
+      const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
+        acc[att.name] = {
+          name: att.name,
+          media_type: att.media_type,
+          data: att.data,
+          uri: att.uri,
+          source: att.source,
+          description: att.description,
+        };
+        return acc;
+      }, {});
+
+      addEvent({
+        event_type: 'user_task',
+        timestamp: new Date().toISOString(),
+        agent_level: 'core',
+        session_id: resolvedSessionId ?? 'pending-session',
+        task_id: taskId ?? undefined,
+        task,
+        attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
+      });
+
       const mockSessionId = sessionId || currentSessionId || `mock-${Date.now().toString(36)}`;
       const mockTaskId = `mock-task-${Date.now().toString(36)}`;
       setSessionId(mockSessionId);
@@ -115,6 +127,7 @@ export function ConversationPageContent() {
         {
           task,
           session_id: requestedSessionId ?? undefined,
+          attachments: attachments.length ? attachments : undefined,
         },
         {
           onSuccess: (data) => {

@@ -95,6 +95,7 @@ export function useSSE(
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
       console.warn('[SSE] Max reconnection attempts reached, stopping auto-reconnect');
       setIsReconnecting(false);
+      setError('Maximum reconnection attempts exceeded');
       return;
     }
 
@@ -127,13 +128,13 @@ export function useSSE(
 
         if (nextAttempts > maxReconnectAttempts) {
           console.warn('[SSE] Maximum reconnection attempts exceeded');
-          setError('Maximum reconnection attempts exceeded. Please refresh the page or click Reconnect.');
+          setError('Maximum reconnection attempts exceeded');
           setIsReconnecting(false);
           return;
         }
 
-        // Exponential backoff: 2s, 4s, 8s, 16s, 32s, capped at 60s
-        const delay = Math.min(1000 * 2 ** nextAttempts, 60000);
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s
+        const delay = Math.min(1000 * 2 ** (nextAttempts - 1), 30000);
         console.log(`[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`);
         setIsReconnecting(true);
 

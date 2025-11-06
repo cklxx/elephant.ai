@@ -19,6 +19,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Highlight, themes } from 'prism-react-renderer';
 import { useTranslation } from '@/lib/i18n';
+import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
+import { AttachmentPayload } from '@/lib/types';
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -43,6 +45,7 @@ export interface ToolOutput {
   newContent?: string; // for edits/diffs
   // Generic
   result?: string;
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 interface WebViewportProps {
@@ -242,7 +245,11 @@ function OutputRenderer({
       )}
 
       {output.type === 'generic' && (
-        <GenericOutput result={output.result} fullscreen={fullscreen} />
+        <GenericOutput
+          result={output.result}
+          attachments={output.attachments}
+          fullscreen={fullscreen}
+        />
       )}
     </div>
   );
@@ -516,19 +523,58 @@ function FileDiffOutput({
 
 function GenericOutput({
   result,
+  attachments,
   fullscreen,
 }: {
   result?: string;
+  attachments?: Record<string, AttachmentPayload>;
   fullscreen: boolean;
 }) {
+  const segments = parseContentSegments(result ?? '', attachments);
   return (
     <div
       className={cn(
-        'bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-auto font-mono text-xs',
+        'bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-auto font-mono text-xs space-y-3',
         fullscreen ? 'max-h-none' : 'max-h-96'
       )}
     >
-      <pre className="whitespace-pre-wrap">{result}</pre>
+      {segments.map((segment, index) => {
+        if (segment.type === 'image' && segment.attachment) {
+          const uri = buildAttachmentUri(segment.attachment);
+          if (!uri) {
+            return (
+              <span key={`segment-${index}`}>{segment.placeholder ?? ''}</span>
+            );
+          }
+          return (
+            <figure
+              key={`segment-${index}`}
+              className="flex flex-col items-start gap-1"
+            >
+              <div
+                className="relative w-full overflow-hidden rounded border border-gray-200 bg-white"
+                style={{ minHeight: "10rem", maxHeight: fullscreen ? "24rem" : "18rem" }}
+              >
+                <Image
+                  src={uri}
+                  alt={segment.attachment.description || segment.attachment.name}
+                  fill
+                  className="object-contain"
+                  sizes="(min-width: 1280px) 50vw, (min-width: 768px) 66vw, 100vw"
+                  unoptimized
+                />
+              </div>
+              <figcaption className="text-[10px] uppercase tracking-wide text-gray-500">
+                {segment.attachment.description || segment.attachment.name}
+              </figcaption>
+            </figure>
+          );
+        }
+
+        return (
+          <span key={`segment-${index}`}>{segment.text}</span>
+        );
+      })}
     </div>
   );
 }

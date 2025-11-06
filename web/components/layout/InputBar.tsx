@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
+import type { AttachmentUpload } from '@/lib/types';
 
 interface InputBarProps {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, attachments: AttachmentUpload[]) => void;
   placeholder?: string;
   disabled?: boolean;
   loading?: boolean;
@@ -70,7 +71,7 @@ export function InputBar({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (text.trim() && !loading && !disabled) {
-      onSubmit(text.trim());
+      onSubmit(text.trim(), []);
       setText('');
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';

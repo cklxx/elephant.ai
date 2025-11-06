@@ -174,6 +174,11 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 
 	// Add event-specific fields based on type
 	switch e := event.(type) {
+	case *domain.UserTaskEvent:
+		data["task"] = e.Task
+		if len(e.Attachments) > 0 {
+			data["attachments"] = e.Attachments
+		}
 	case *domain.TaskAnalysisEvent:
 		data["action_name"] = e.ActionName
 		data["goal"] = e.Goal
@@ -223,6 +228,9 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		if len(e.Metadata) > 0 {
 			data["metadata"] = e.Metadata
 		}
+		if len(e.Attachments) > 0 {
+			data["attachments"] = e.Attachments
+		}
 
 	case *domain.ToolCallStreamEvent:
 		data["call_id"] = e.CallID
@@ -240,6 +248,9 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["total_tokens"] = e.TotalTokens
 		data["stop_reason"] = e.StopReason
 		data["duration"] = e.Duration.Milliseconds()
+		if len(e.Attachments) > 0 {
+			data["attachments"] = e.Attachments
+		}
 
 	case *domain.ErrorEvent:
 		data["iteration"] = e.Iteration

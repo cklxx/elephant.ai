@@ -60,6 +60,24 @@ export interface ToolCallStreamEvent extends AgentEvent {
   is_complete: boolean;
 }
 
+export interface AttachmentPayload {
+  name: string;
+  media_type: string;
+  data?: string;
+  uri?: string;
+  source?: string;
+  description?: string;
+}
+
+export interface AttachmentUpload {
+  name: string;
+  media_type: string;
+  data?: string;
+  uri?: string;
+  source?: string;
+  description?: string;
+}
+
 // Tool Call Complete Event - emitted when tool execution finishes
 export interface ToolCallCompleteEvent extends AgentEvent {
   event_type: 'tool_call_complete';
@@ -69,6 +87,7 @@ export interface ToolCallCompleteEvent extends AgentEvent {
   error?: string;
   duration: number; // milliseconds
   metadata?: Record<string, any>;
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 // Iteration Complete Event - emitted at end of iteration
@@ -87,6 +106,7 @@ export interface TaskCompleteEvent extends AgentEvent {
   total_tokens: number;
   stop_reason: string;
   duration: number; // milliseconds
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 // Error Event - emitted on errors
@@ -191,6 +211,7 @@ export interface ConnectedEvent {
 export interface UserTaskEvent extends AgentEvent {
   event_type: 'user_task';
   task: string;
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 // Union type for all agent events
@@ -223,6 +244,7 @@ export interface CreateTaskRequest {
   session_id?: string;
   agent_preset?: string; // Agent persona preset (e.g., "default", "code-expert")
   tool_preset?: string;  // Tool access preset (e.g., "full", "read-only")
+  attachments?: AttachmentUpload[];
 }
 
 export interface CreateTaskResponse {

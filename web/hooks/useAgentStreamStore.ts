@@ -17,6 +17,7 @@ import {
   TaskCompleteEvent,
   ErrorEvent,
   BrowserInfoEvent,
+  AttachmentPayload,
 } from '@/lib/types';
 import { EventLRUCache } from '@/lib/eventAggregation';
 
@@ -98,6 +99,7 @@ interface AgentStreamState {
   };
   taskStatus: 'idle' | 'analyzing' | 'running' | 'completed' | 'error';
   finalAnswer?: string;
+  finalAnswerAttachments?: Record<string, AttachmentPayload>;
   totalIterations?: number;
   totalTokens?: number;
   errorMessage?: string;
@@ -123,6 +125,7 @@ const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' |
   taskAnalysis: {},
   taskStatus: 'idle',
   finalAnswer: undefined,
+  finalAnswerAttachments: undefined,
   totalIterations: undefined,
   totalTokens: undefined,
   errorMessage: undefined,
@@ -362,6 +365,9 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       const complete = event as TaskCompleteEvent;
       draft.taskStatus = 'completed';
       draft.finalAnswer = complete.final_answer;
+      draft.finalAnswerAttachments = complete.attachments as
+        | Record<string, AttachmentPayload>
+        | undefined;
       draft.totalIterations = complete.total_iterations;
       draft.totalTokens = complete.total_tokens;
       draft.currentIteration = null;
@@ -500,6 +506,7 @@ export const useTaskSummary = () => {
     totalIterations: state.totalIterations,
     totalTokens: state.totalTokens,
     finalAnswer: state.finalAnswer,
+    finalAnswerAttachments: state.finalAnswerAttachments,
   }));
 };
 
