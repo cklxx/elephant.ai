@@ -1,21 +1,21 @@
 package llm
 
 import (
-        "alex/internal/agent/ports"
-        alexerrors "alex/internal/errors"
-        "alex/internal/utils"
-        "bytes"
-        "context"
-        "encoding/json"
-        "errors"
-        "fmt"
-        "io"
-        "net"
-        "net/http"
-        "regexp"
-        "strconv"
-        "strings"
-        "time"
+	"alex/internal/agent/ports"
+	alexerrors "alex/internal/errors"
+	"alex/internal/utils"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // OpenAI API compatible client
@@ -256,92 +256,96 @@ func (c *openaiClient) SetUsageCallback(callback func(usage ports.TokenUsage, mo
 }
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
-        result := make([]map[string]any, len(msgs))
-        for i, msg := range msgs {
-                entry := map[string]any{"role": msg.Role}
-                entry["content"] = buildMessageContent(msg)
-                if len(msg.ToolCalls) > 0 {
-                        entry["tool_calls"] = msg.ToolCalls
-                }
-                result[i] = entry
-        }
-        return result
+	result := make([]map[string]any, len(msgs))
+	for i, msg := range msgs {
+		entry := map[string]any{"role": msg.Role}
+		entry["content"] = buildMessageContent(msg)
+		if len(msg.ToolCalls) > 0 {
+			entry["tool_calls"] = msg.ToolCalls
+		}
+		result[i] = entry
+	}
+	return result
 }
 
 var placeholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
 
 func buildMessageContent(msg ports.Message) any {
-        if len(msg.Attachments) == 0 {
-                return msg.Content
-        }
+	if len(msg.Attachments) == 0 {
+		return msg.Content
+	}
 
-        matches := placeholderPattern.FindAllStringSubmatchIndex(msg.Content, -1)
-        if len(matches) == 0 {
-                return msg.Content
-        }
+	matches := placeholderPattern.FindAllStringSubmatchIndex(msg.Content, -1)
+	if len(matches) == 0 {
+		return msg.Content
+	}
 
-        parts := make([]map[string]any, 0, len(matches)*2+1)
-        lastIndex := 0
-        for _, match := range matches {
-                start := match[0]
-                end := match[1]
-                nameStart := match[2]
-                nameEnd := match[3]
+	parts := make([]map[string]any, 0, len(matches)*2+1)
+	lastIndex := 0
+	for _, match := range matches {
+		start := match[0]
+		end := match[1]
+		nameStart := match[2]
+		nameEnd := match[3]
 
-                if start > lastIndex {
-                        text := msg.Content[lastIndex:start]
-                        parts = append(parts, map[string]any{"type": "input_text", "text": text})
-                }
+		if start > lastIndex {
+			text := msg.Content[lastIndex:start]
+			parts = append(parts, map[string]any{"type": "input_text", "text": text})
+		}
 
-                name := strings.TrimSpace(msg.Content[nameStart:nameEnd])
-                if att, ok := msg.Attachments[name]; ok {
-                        if imagePart := buildImageContentPart(att); imagePart != nil {
-                                parts = append(parts, imagePart)
-                        } else {
-                                parts = append(parts, map[string]any{"type": "input_text", "text": msg.Content[start:end]})
-                        }
-                } else {
-                        parts = append(parts, map[string]any{"type": "input_text", "text": msg.Content[start:end]})
-                }
+		name := strings.TrimSpace(msg.Content[nameStart:nameEnd])
+		if att, ok := msg.Attachments[name]; ok {
+			if imageParts := buildImageContentParts(att); len(imageParts) > 0 {
+				parts = append(parts, imageParts...)
+			} else {
+				parts = append(parts, map[string]any{"type": "input_text", "text": msg.Content[start:end]})
+			}
+		} else {
+			parts = append(parts, map[string]any{"type": "input_text", "text": msg.Content[start:end]})
+		}
 
-                lastIndex = end
-        }
+		lastIndex = end
+	}
 
-        if lastIndex < len(msg.Content) {
-                text := msg.Content[lastIndex:]
-                parts = append(parts, map[string]any{"type": "input_text", "text": text})
-        }
+	if lastIndex < len(msg.Content) {
+		text := msg.Content[lastIndex:]
+		parts = append(parts, map[string]any{"type": "input_text", "text": text})
+	}
 
-        if len(parts) == 0 {
-                return msg.Content
-        }
+	if len(parts) == 0 {
+		return msg.Content
+	}
 
-        return parts
+	return parts
 }
 
-func buildImageContentPart(att ports.Attachment) map[string]any {
-        url := strings.TrimSpace(att.URI)
-        if url == "" {
-                if att.Data == "" {
-                        return nil
-                }
-                mediaType := strings.TrimSpace(att.MediaType)
-                if mediaType == "" {
-                        mediaType = "application/octet-stream"
-                }
-                url = fmt.Sprintf("data:%s;base64,%s", mediaType, att.Data)
-        }
+func buildImageContentParts(att ports.Attachment) []map[string]any {
+	url := strings.TrimSpace(att.URI)
+	if url == "" {
+		if att.Data == "" {
+			return nil
+		}
+		mediaType := strings.TrimSpace(att.MediaType)
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+		}
+		url = fmt.Sprintf("data:%s;base64,%s", mediaType, att.Data)
+	}
 
-        payload := map[string]any{
-                "type": "input_image",
-                "image_url": map[string]any{
-                        "url": url,
-                },
-        }
-        if att.Description != "" {
-                payload["image_url"].(map[string]any)["detail"] = att.Description
-        }
-        return payload
+	payload := map[string]any{
+		"type": "input_image",
+		"image_url": map[string]any{
+			"url": url,
+		},
+	}
+	parts := []map[string]any{payload}
+
+	description := strings.TrimSpace(att.Description)
+	if description != "" {
+		parts = append(parts, map[string]any{"type": "input_text", "text": description})
+	}
+
+	return parts
 }
 
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
