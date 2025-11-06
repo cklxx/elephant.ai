@@ -358,10 +358,12 @@ func TestUserTaskEventEmission(t *testing.T) {
 		t.Fatalf("ExecuteTaskAsync failed: %v", err)
 	}
 
+	sessionID := task.SessionID
+
 	var userTaskEvent *domain.UserTaskEvent
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		history := broadcaster.GetEventHistory(task.SessionID)
+		history := broadcaster.GetEventHistory(sessionID)
 		for _, event := range history {
 			if typed, ok := event.(*domain.UserTaskEvent); ok {
 				userTaskEvent = typed
@@ -375,7 +377,7 @@ func TestUserTaskEventEmission(t *testing.T) {
 	}
 
 	if userTaskEvent == nil {
-		t.Fatalf("expected user_task event to be emitted, but none was recorded for session %s", task.SessionID)
+		t.Fatalf("expected user_task event to be emitted, but none was recorded for session %s", sessionID)
 	}
 
 	if userTaskEvent.Task != "展示占位符 [sketch.png] 和 [diagram.svg]" {
