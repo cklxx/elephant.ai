@@ -177,6 +177,7 @@ export function ConsoleAgentOutput({
         tokens: taskComplete.total_tokens,
         stop_reason: taskComplete.stop_reason,
       },
+      attachments: taskComplete.attachments,
     };
   }, [events, t]);
 

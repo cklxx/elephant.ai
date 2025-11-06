@@ -10,6 +10,8 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { formatTimestamp } from "./EventLine/formatters";
+import { AttachmentPayload } from "@/lib/types";
+import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 
 interface ToolOutputCardProps {
   toolName: string;
@@ -20,6 +22,7 @@ interface ToolOutputCardProps {
   timestamp: string;
   callId?: string;
   metadata?: Record<string, any>;
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 export function ToolOutputCard({
@@ -29,6 +32,7 @@ export function ToolOutputCard({
   error,
   duration,
   metadata,
+  attachments,
 }: ToolOutputCardProps) {
   const hasResult = Boolean(result && result.trim().length > 0);
   const hasParameters = Boolean(
@@ -244,6 +248,7 @@ export function ToolOutputCard({
                   metadata,
                   language,
                   t,
+                  attachments,
                 )}
 
               {metadata?.screenshot && (
@@ -458,6 +463,7 @@ function renderToolResult(
   metadata: Record<string, any> | undefined,
   language: string,
   t: any,
+  attachments?: Record<string, AttachmentPayload>,
 ): React.ReactNode {
   if (!result) return null;
 
@@ -610,21 +616,65 @@ function renderToolResult(
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t("tool.section.output")}
       </p>
-      <div className="rounded-lg border border-border/60 overflow-auto">
-        <SyntaxHighlighter
-          language={language}
-          style={vscDarkPlus}
-          customStyle={{
-            margin: 0,
-            borderRadius: "0.5rem",
-            fontSize: "0.75rem",
-            maxHeight: 400,
-          }}
-          showLineNumbers={language !== "text"}
-        >
-          {result}
-        </SyntaxHighlighter>
-      </div>
+      {attachments && Object.keys(attachments).length > 0 ? (
+        <div className="rounded-lg border border-border/60 overflow-auto p-3 bg-background">
+          <div className="whitespace-pre-wrap font-mono text-xs space-y-3">
+            {parseContentSegments(result ?? "", attachments).map((segment, index) => {
+              if (segment.type === "image" && segment.attachment) {
+                const uri = buildAttachmentUri(segment.attachment);
+                if (!uri) {
+                  return (
+                    <span key={`segment-${index}`}>{segment.placeholder ?? ""}</span>
+                  );
+                }
+                return (
+                  <figure
+                    key={`segment-${index}`}
+                    className="flex flex-col items-start gap-1"
+                  >
+                    <div
+                      className="relative w-full overflow-hidden rounded border border-border/60 bg-white"
+                      style={{ minHeight: "10rem", maxHeight: "16rem" }}
+                    >
+                      <Image
+                        src={uri}
+                        alt={segment.attachment.description || segment.attachment.name}
+                        fill
+                        className="object-contain"
+                        sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
+                        unoptimized
+                      />
+                    </div>
+                    <figcaption className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {segment.attachment.description || segment.attachment.name}
+                    </figcaption>
+                  </figure>
+                );
+              }
+
+              return (
+                <span key={`segment-${index}`}>{segment.text}</span>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border/60 overflow-auto">
+          <SyntaxHighlighter
+            language={language}
+            style={vscDarkPlus}
+            customStyle={{
+              margin: 0,
+              borderRadius: "0.5rem",
+              fontSize: "0.75rem",
+              maxHeight: 400,
+            }}
+            showLineNumbers={language !== "text"}
+          >
+            {result}
+          </SyntaxHighlighter>
+        </div>
+      )}
     </div>
   );
 }

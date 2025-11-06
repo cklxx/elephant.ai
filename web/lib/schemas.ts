@@ -15,6 +15,15 @@ export const BaseAgentEventSchema = z.object({
   parent_task_id: z.string().optional(),
 });
 
+export const AttachmentPayloadSchema = z.object({
+  name: z.string(),
+  media_type: z.string(),
+  data: z.string().optional(),
+  uri: z.string().optional(),
+  source: z.string().optional(),
+  description: z.string().optional(),
+});
+
 // Task Analysis Event
 export const TaskAnalysisEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_analysis'),
@@ -71,6 +80,7 @@ export const ToolCallCompleteEventSchema = BaseAgentEventSchema.extend({
   error: z.string().optional(),
   duration: z.number(),
   metadata: z.record(z.string(), z.any()).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
 // Iteration Complete Event
@@ -89,6 +99,7 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   total_tokens: z.number(),
   stop_reason: z.string(),
   duration: z.number(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
 // Error Event
@@ -187,10 +198,11 @@ export const ConnectedEventSchema = z.object({
   agent_level: AgentLevelSchema.optional(),
 });
 
-// User Task Event (client-side only)
+// User Task Event (emitted when user submits a task)
 export const UserTaskEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('user_task'),
   task: z.string(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
 // Union schema for all agent events
@@ -223,6 +235,7 @@ export const CreateTaskRequestSchema = z.object({
   task: z.string(),
   session_id: z.string().optional(),
   auto_approve_plan: z.boolean().optional(),
+  attachments: z.array(AttachmentPayloadSchema).optional(),
 });
 
 export const CreateTaskResponseSchema = z.object({

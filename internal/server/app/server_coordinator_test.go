@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	agentapp "alex/internal/agent/app"
+	"alex/internal/agent/domain"
 	agentPorts "alex/internal/agent/ports"
 	serverPorts "alex/internal/server/ports"
 )
@@ -313,6 +315,121 @@ func TestTaskStoreProgressFields(t *testing.T) {
 
 	t.Logf("✓ Progress fields updated correctly: total_iterations=%d, total_tokens=%d",
 		final.TotalIterations, final.TotalTokens)
+}
+
+// TestUserTaskEventEmission verifies that user-submitted attachments are emitted via SSE.
+func TestUserTaskEventEmission(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+
+	agentCoordinator := NewMockAgentCoordinator(sessionStore)
+	serverCoordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+	)
+
+	original := []agentPorts.Attachment{
+		{
+			Name:        " sketch.png ",
+			MediaType:   "image/png",
+			Data:        "dGVzdC1pbWFnZS1iYXNlNjQ=",
+			Description: "hand-drawn sketch",
+		},
+		{
+			Name:      "diagram.svg",
+			MediaType: "image/svg+xml",
+			URI:       "https://example.com/diagram.svg",
+		},
+		{
+			Name:      "   ",
+			MediaType: "image/jpeg",
+			Data:      "ignored",
+		},
+	}
+
+	ctx := agentapp.WithUserAttachments(context.Background(), original)
+
+	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "展示占位符 [sketch.png] 和 [diagram.svg]", "", "", "")
+	if err != nil {
+		t.Fatalf("ExecuteTaskAsync failed: %v", err)
+	}
+
+	sessionID := task.SessionID
+
+	var userTaskEvent *domain.UserTaskEvent
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		history := broadcaster.GetEventHistory(sessionID)
+		for _, event := range history {
+			if typed, ok := event.(*domain.UserTaskEvent); ok {
+				userTaskEvent = typed
+				break
+			}
+		}
+		if userTaskEvent != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if userTaskEvent == nil {
+		t.Fatalf("expected user_task event to be emitted, but none was recorded for session %s", sessionID)
+	}
+
+	if userTaskEvent.Task != "展示占位符 [sketch.png] 和 [diagram.svg]" {
+		t.Fatalf("unexpected task content: %q", userTaskEvent.Task)
+	}
+
+	if len(userTaskEvent.Attachments) != 2 {
+		t.Fatalf("expected 2 attachments, got %d", len(userTaskEvent.Attachments))
+	}
+
+	if _, exists := userTaskEvent.Attachments[""]; exists {
+		t.Fatal("blank attachment key should have been filtered out")
+	}
+
+	sketch, ok := userTaskEvent.Attachments["sketch.png"]
+	if !ok {
+		t.Fatalf("missing sanitized attachment key 'sketch.png': %+v", userTaskEvent.Attachments)
+	}
+	if sketch.Name != "sketch.png" {
+		t.Fatalf("expected trimmed name 'sketch.png', got %q", sketch.Name)
+	}
+	if sketch.Source != "user_upload" {
+		t.Fatalf("expected user_upload source, got %q", sketch.Source)
+	}
+	if sketch.MediaType != "image/png" {
+		t.Fatalf("unexpected media type: %s", sketch.MediaType)
+	}
+	if sketch.Data == "" {
+		t.Fatal("expected base64 data for sketch attachment")
+	}
+	if sketch.URI != "" {
+		t.Fatalf("expected empty URI when data is provided, got %q", sketch.URI)
+	}
+
+	diagram, ok := userTaskEvent.Attachments["diagram.svg"]
+	if !ok {
+		t.Fatalf("missing attachment 'diagram.svg': %+v", userTaskEvent.Attachments)
+	}
+	if diagram.URI != "https://example.com/diagram.svg" {
+		t.Fatalf("unexpected diagram URI: %q", diagram.URI)
+	}
+	if diagram.Source != "user_upload" {
+		t.Fatalf("expected diagram source to be user_upload, got %q", diagram.Source)
+	}
+
+	// Ensure original slice data wasn't mutated by context helpers.
+	if original[0].Name != " sketch.png " {
+		t.Fatalf("expected original attachment name to remain trimmed only externally, got %q", original[0].Name)
+	}
+	if original[0].Source != "" {
+		t.Fatalf("unexpected source mutation on original attachment: %q", original[0].Source)
+	}
 }
 
 // Mock agent coordinator that supports cancellation

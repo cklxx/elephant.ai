@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AnyAgentEvent } from "@/lib/types";
+import { AnyAgentEvent, AttachmentPayload } from "@/lib/types";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { TaskCompleteCard } from "./TaskCompleteCard";
@@ -28,6 +28,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     duration?: number;
     parameters?: Record<string, unknown>;
     metadata?: Record<string, unknown>;
+    attachments?: Record<string, AttachmentPayload>;
   }
 
   // Aggregate tool calls and model outputs
@@ -52,6 +53,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           toolCall.error = event.error;
           toolCall.duration = event.duration;
           toolCall.metadata = event.metadata as Record<string, unknown>;
+          toolCall.attachments = event.attachments as Record<string, AttachmentPayload>;
         } else {
           // If no start event, create from complete event directly
           toolCallsMap.set(event.call_id, {
@@ -62,6 +64,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             error: event.error,
             duration: event.duration,
             metadata: event.metadata as Record<string, unknown>,
+            attachments: event.attachments as Record<string, AttachmentPayload>,
           });
         }
       } else if (event.event_type === "think_complete") {
@@ -121,6 +124,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             timestamp={lastToolCall.timestamp}
             callId={lastToolCall.callId}
             metadata={lastToolCall.metadata}
+            attachments={lastToolCall.attachments}
           />
         </div>
       )}
@@ -157,6 +161,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                     timestamp={item.timestamp}
                     callId={item.callId}
                     metadata={item.metadata}
+                    attachments={item.attachments}
                   />
                 );
               }

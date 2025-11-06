@@ -65,7 +65,10 @@ export class SSEClient {
 
       // Only trigger error callback if connection is actually broken
       // EventSource.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
-      if (eventSource.readyState === EventSource.CLOSED) {
+      const closedState =
+        (eventSource as unknown as { CLOSED?: number }).CLOSED ??
+        (typeof EventSource !== 'undefined' ? EventSource.CLOSED : undefined);
+      if (closedState === undefined || eventSource.readyState === closedState) {
         this.options.onError?.(error);
       }
     };

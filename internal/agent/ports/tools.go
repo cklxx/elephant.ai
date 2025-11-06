@@ -45,16 +45,18 @@ type TaskAnalysis struct {
 
 // TaskState tracks execution state during ReAct loop
 type TaskState struct {
-	SystemPrompt string
-	Messages     []Message
-	Iterations   int
-	TokenCount   int
-	ToolResults  []ToolResult
-	Complete     bool
-	FinalAnswer  string
-	SessionID    string
-	TaskID       string
-	ParentTaskID string
+	SystemPrompt           string
+	Messages               []Message
+	Iterations             int
+	TokenCount             int
+	ToolResults            []ToolResult
+	Complete               bool
+	FinalAnswer            string
+	SessionID              string
+	TaskID                 string
+	ParentTaskID           string
+	Attachments            map[string]Attachment
+	PendingUserAttachments map[string]Attachment
 }
 
 // AgentCoordinator represents the main agent coordinator for subagent delegation
@@ -155,28 +157,31 @@ type ToolCall struct {
 
 // ToolResult is the execution result
 type ToolResult struct {
-	CallID       string         `json:"call_id"`
-	Content      string         `json:"content"`
-	Error        error          `json:"error,omitempty"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
-	SessionID    string         `json:"session_id,omitempty"`
-	TaskID       string         `json:"task_id,omitempty"`
-	ParentTaskID string         `json:"parent_task_id,omitempty"`
+	CallID       string                `json:"call_id"`
+	Content      string                `json:"content"`
+	Error        error                 `json:"error,omitempty"`
+	Metadata     map[string]any        `json:"metadata,omitempty"`
+	SessionID    string                `json:"session_id,omitempty"`
+	TaskID       string                `json:"task_id,omitempty"`
+	ParentTaskID string                `json:"parent_task_id,omitempty"`
+	Attachments  map[string]Attachment `json:"attachments,omitempty"`
 }
 
 // MarshalJSON customizes ToolResult JSON encoding to support the error interface.
 func (r ToolResult) MarshalJSON() ([]byte, error) {
 	type Alias struct {
-		CallID   string         `json:"call_id"`
-		Content  string         `json:"content"`
-		Error    any            `json:"error,omitempty"`
-		Metadata map[string]any `json:"metadata,omitempty"`
+		CallID      string                `json:"call_id"`
+		Content     string                `json:"content"`
+		Error       any                   `json:"error,omitempty"`
+		Metadata    map[string]any        `json:"metadata,omitempty"`
+		Attachments map[string]Attachment `json:"attachments,omitempty"`
 	}
 
 	alias := Alias{
-		CallID:   r.CallID,
-		Content:  r.Content,
-		Metadata: r.Metadata,
+		CallID:      r.CallID,
+		Content:     r.Content,
+		Metadata:    r.Metadata,
+		Attachments: r.Attachments,
 	}
 
 	if r.Error != nil {
@@ -189,10 +194,11 @@ func (r ToolResult) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON customizes ToolResult decoding to accept both string and object error representations.
 func (r *ToolResult) UnmarshalJSON(data []byte) error {
 	type Alias struct {
-		CallID   string          `json:"call_id"`
-		Content  string          `json:"content"`
-		Error    json.RawMessage `json:"error"`
-		Metadata map[string]any  `json:"metadata,omitempty"`
+		CallID      string                `json:"call_id"`
+		Content     string                `json:"content"`
+		Error       json.RawMessage       `json:"error"`
+		Metadata    map[string]any        `json:"metadata,omitempty"`
+		Attachments map[string]Attachment `json:"attachments,omitempty"`
 	}
 
 	var aux Alias
@@ -203,6 +209,7 @@ func (r *ToolResult) UnmarshalJSON(data []byte) error {
 	r.CallID = aux.CallID
 	r.Content = aux.Content
 	r.Metadata = aux.Metadata
+	r.Attachments = aux.Attachments
 	r.Error = nil
 
 	raw := strings.TrimSpace(string(aux.Error))

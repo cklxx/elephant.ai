@@ -25,6 +25,10 @@ func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
 
+	if disableSandbox {
+		cfg.SandboxBaseURL = ""
+	}
+
 	// Build DI container with configurable storage
 	localSummary := environment.CollectLocalSummary(20)
 	environmentSummary := environment.FormatSummary(localSummary)

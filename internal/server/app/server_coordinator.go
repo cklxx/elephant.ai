@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	agentApp "alex/internal/agent/app"
+	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/utils"
@@ -162,6 +165,8 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	// Execute task with broadcaster as event listener
 	s.logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
+	s.emitUserTaskEvent(ctx, sessionID, taskID, task)
+
 	result, err := s.agentCoordinator.ExecuteTask(ctx, task, sessionID, s.broadcaster)
 
 	// Check if context was cancelled
@@ -209,6 +214,36 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	_ = s.taskStore.SetResult(ctx, taskID, result)
 
 	s.logger.Info("[Background] Task execution completed: taskID=%s, sessionID=%s, iterations=%d", taskID, result.SessionID, result.Iterations)
+}
+
+func (s *ServerCoordinator) emitUserTaskEvent(ctx context.Context, sessionID, taskID, task string) {
+	if s.broadcaster == nil {
+		return
+	}
+
+	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	level := ports.GetOutputContext(ctx).Level
+	attachments := agentApp.GetUserAttachments(ctx)
+	var attachmentMap map[string]ports.Attachment
+	if len(attachments) > 0 {
+		attachmentMap = make(map[string]ports.Attachment, len(attachments))
+		for _, att := range attachments {
+			name := strings.TrimSpace(att.Name)
+			if name == "" {
+				continue
+			}
+			sanitized := att
+			sanitized.Name = name
+			if sanitized.Source == "" {
+				sanitized.Source = "user_upload"
+			}
+			attachmentMap[name] = sanitized
+		}
+	}
+
+	event := domain.NewUserTaskEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
+	s.logger.Debug("[Background] Emitting user_task event for session=%s task=%s", sessionID, taskID)
+	s.broadcaster.OnEvent(event)
 }
 
 // GetSession retrieves a session by ID

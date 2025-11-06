@@ -1,13 +1,14 @@
 package builtin
 
 import (
-	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"strings"
-	"sync"
+        "context"
+        "encoding/base64"
+        "encoding/json"
+        "errors"
+        "fmt"
+        "strings"
+        "sync"
+        "time"
 
 	"alex/internal/agent/ports"
 
@@ -231,8 +232,8 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	content, metadata := formatSeedreamResponse(resp.ReqId, status, t.config.ModelDescriptor, resp.Data)
-	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata}, nil
+        content, metadata, attachments := formatSeedreamResponse(resp.ReqId, status, t.config.ModelDescriptor, resp.Data)
+        return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
 func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
@@ -367,8 +368,8 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	content, metadata := formatSeedreamResponse(resp.ReqId, status, t.config.ModelDescriptor, resp.Data)
-	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata}, nil
+        content, metadata, attachments := formatSeedreamResponse(resp.ReqId, status, t.config.ModelDescriptor, resp.Data)
+        return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
 func seedreamMissingConfigMessage(config SeedreamConfig) string {
@@ -382,7 +383,7 @@ func seedreamMissingConfigMessage(config SeedreamConfig) string {
 	if strings.TrimSpace(config.EndpointID) == "" {
 		label := "Seedream endpoint ID"
 		if config.EndpointEnvVar != "" {
-			label = fmt.Sprintf("%s", strings.ToUpper(config.EndpointEnvVar))
+			label = strings.ToUpper(config.EndpointEnvVar)
 		}
 		missing = append(missing, label)
 	}
@@ -396,11 +397,11 @@ func seedreamMissingConfigMessage(config SeedreamConfig) string {
 	}
 
 	builder := &strings.Builder{}
-	builder.WriteString(fmt.Sprintf("%s is not configured. Missing values: %s.\n\n", toolName, strings.Join(missing, ", ")))
+	fmt.Fprintf(builder, "%s is not configured. Missing values: %s.\n\n", toolName, strings.Join(missing, ", "))
 	builder.WriteString("Provide the following settings via environment variables or ~/.alex-config.json:\n\n")
 	builder.WriteString("- VOLC_ACCESSKEY and VOLC_SECRETKEY from the Volcano Engine console\n")
 	if config.EndpointEnvVar != "" {
-		builder.WriteString(fmt.Sprintf("- %s for the desired endpoint\n", strings.ToUpper(config.EndpointEnvVar)))
+		fmt.Fprintf(builder, "- %s for the desired endpoint\n", strings.ToUpper(config.EndpointEnvVar))
 	} else {
 		builder.WriteString("- Seedream endpoint identifier for the selected model\n")
 	}
@@ -422,54 +423,75 @@ func describeSeedreamError(err error, status int) string {
 	return fmt.Sprintf("Seedream request failed: %v", err)
 }
 
-func formatSeedreamResponse(reqID string, status int, model string, data []*maasapi.ImageUrl) (string, map[string]any) {
-	images := make([]map[string]any, 0, len(data))
-	for idx, item := range data {
-		entry := map[string]any{"index": idx}
-		if item.Url != "" {
-			entry["url"] = item.Url
-		}
-		if len(item.ImageBytes) > 0 {
-			encoded := base64.StdEncoding.EncodeToString(item.ImageBytes)
-			entry["base64"] = encoded
-			entry["data_uri"] = "data:image/png;base64," + encoded
-		}
-		if item.Detail != "" {
-			entry["detail"] = item.Detail
-		}
-		images = append(images, entry)
-	}
+func formatSeedreamResponse(reqID string, status int, model string, data []*maasapi.ImageUrl) (string, map[string]any, map[string]ports.Attachment) {
+        images := make([]map[string]any, 0, len(data))
+        attachments := make(map[string]ports.Attachment)
 
-	metadata := map[string]any{
-		"req_id": reqID,
-		"images": images,
-	}
-	if status != 0 {
-		metadata["status"] = status
-	}
-	if model != "" {
-		metadata["model"] = model
-	}
+        normalizedReqID := strings.ReplaceAll(strings.TrimSpace(reqID), "-", "")
+        if normalizedReqID == "" {
+                normalizedReqID = fmt.Sprintf("seedream_%d", time.Now().Unix())
+        }
 
-	var sb strings.Builder
-	if model != "" {
-		sb.WriteString(fmt.Sprintf("Seedream %s response", model))
-	} else {
-		sb.WriteString("Seedream response")
-	}
-	if reqID != "" {
-		sb.WriteString(fmt.Sprintf(" (req_id: %s)", reqID))
-	}
-	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("Generated %d image(s). Base64 payloads are available in metadata.\n", len(images)))
-	if len(images) > 0 {
-		for i, img := range images {
-			if url, ok := img["url"]; ok && url != "" {
-				sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, url))
-			}
-		}
-	}
-	return sb.String(), metadata
+        for idx, item := range data {
+                entry := map[string]any{"index": idx}
+                if item.Url != "" {
+                        entry["url"] = item.Url
+                }
+                var encoded string
+                if len(item.ImageBytes) > 0 {
+                        encoded = base64.StdEncoding.EncodeToString(item.ImageBytes)
+                        entry["base64"] = encoded
+                        entry["data_uri"] = "data:image/png;base64," + encoded
+                }
+                if item.Detail != "" {
+                        entry["detail"] = item.Detail
+                }
+                placeholder := fmt.Sprintf("%s_%d.png", normalizedReqID, idx)
+                entry["placeholder"] = placeholder
+                attachments[placeholder] = ports.Attachment{
+                        Name:        placeholder,
+                        MediaType:   "image/png",
+                        Data:        encoded,
+                        URI:         item.Url,
+                        Source:      "seedream",
+                        Description: item.Detail,
+                }
+                images = append(images, entry)
+        }
+
+        metadata := map[string]any{
+                "req_id": reqID,
+                "images": images,
+        }
+        if status != 0 {
+                metadata["status"] = status
+        }
+        if model != "" {
+                metadata["model"] = model
+        }
+
+        var sb strings.Builder
+        if model != "" {
+                sb.WriteString(fmt.Sprintf("Seedream %s response", model))
+        } else {
+                sb.WriteString("Seedream response")
+        }
+        if reqID != "" {
+                sb.WriteString(fmt.Sprintf(" (req_id: %s)", reqID))
+        }
+        sb.WriteString("\n")
+        sb.WriteString(fmt.Sprintf("Generated %d image(s). Use the placeholders below for multimodal references.\n", len(images)))
+        if len(images) > 0 {
+                for i, img := range images {
+                        placeholder, _ := img["placeholder"].(string)
+                        sb.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
+                        if url, ok := img["url"].(string); ok && url != "" {
+                                sb.WriteString(fmt.Sprintf(" (url: %s)", url))
+                        }
+                        sb.WriteString("\n")
+                }
+        }
+        return sb.String(), metadata, attachments
 }
 
 func readInt(args map[string]any, key string) (int, bool) {

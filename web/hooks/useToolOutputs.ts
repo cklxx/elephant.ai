@@ -6,6 +6,7 @@ import {
   ToolCallStartEvent,
   ToolCallCompleteEvent,
   BrowserInfoEvent,
+  AttachmentPayload,
 } from '@/lib/types';
 import { ToolOutput, ToolOutputType } from '@/components/agent/WebViewport';
 
@@ -32,11 +33,15 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
         const existing = toolCalls.get(e.call_id);
 
         if (existing) {
+          const attachments = e.attachments as
+            | Record<string, AttachmentPayload>
+            | undefined;
           const output: ToolOutput = {
             id: e.call_id,
             toolName: e.tool_name,
             timestamp: existing.timestamp || new Date(event.timestamp).getTime(),
             type: existing.type || mapToolNameToType(e.tool_name),
+            attachments,
             ...parseToolResult(e.tool_name, e.result, e.error, e.metadata),
           };
 

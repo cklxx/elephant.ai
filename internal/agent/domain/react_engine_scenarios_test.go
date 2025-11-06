@@ -26,8 +26,8 @@ func TestReactEngine_FileReadScenario(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 2 {
-		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
+	if result.Iterations != 3 {
+		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
 	}
 	if len(state.ToolResults) != 1 {
 		t.Errorf("Expected 1 tool result, got %d", len(state.ToolResults))
@@ -60,9 +60,9 @@ func TestReactEngine_MultipleToolCallsScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Should have 4 iterations: 3 tool calls + 1 final answer
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	// Should have 5 iterations: 3 tool calls + 2 final answer confirmations
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
 	// Should have 3 tool results: file_read, ripgrep, bash
@@ -103,9 +103,9 @@ func TestReactEngine_ParallelToolCallsScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 2 iterations: parallel tools + final answer
-	if result.Iterations != 2 {
-		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
+	// 3 iterations: parallel tools + double-confirmed final answer
+	if result.Iterations != 3 {
+		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
 	}
 
 	// Should have 3 parallel tool results
@@ -136,9 +136,9 @@ func TestReactEngine_WebSearchScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 3 iterations: web_search, web_fetch, final answer
-	if result.Iterations != 3 {
-		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
+	// 4 iterations: web_search, web_fetch, final confirmation loop
+	if result.Iterations != 4 {
+		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 2 {
@@ -165,9 +165,9 @@ func TestReactEngine_CodeEditScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 4 iterations: file_read, file_edit, bash (test), final answer
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	// 5 iterations: file_read, file_edit, bash (test), double-confirmed final answer
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 3 {
@@ -234,9 +234,9 @@ func TestReactEngine_TodoManagementScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 4 iterations: todo_read, todo_update (add), todo_update (complete), final
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	// 5 iterations: todo_read, todo_update (add), todo_update (complete), double-confirmed final answer
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 3 {
@@ -263,9 +263,9 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 2 iterations: subagent call, final answer
-	if result.Iterations != 2 {
-		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
+	// 3 iterations: subagent call, double-confirmed final answer
+	if result.Iterations != 3 {
+		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 1 {
