@@ -28,6 +28,9 @@ const DEFAULT_EVENTS: AnyAgentEvent['event_type'][] = [
   'browser_info',
   'environment_snapshot',
   'sandbox_progress',
+  'context_compression',
+  'tool_filtering',
+  'user_task',
 ];
 
 export class SSEClient {
