@@ -10,7 +10,37 @@ import {
   ApprovePlanResponse,
 } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+function resolveApiBaseUrl(): string {
+  const value = RAW_API_BASE_URL;
+
+  if (!value || value.toLowerCase() === 'auto') {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin.replace(/\/$/, '');
+    }
+
+    return process.env.NODE_ENV === 'production'
+      ? 'http://localhost'
+      : 'http://localhost:8080';
+  }
+
+  return value.replace(/\/$/, '');
+}
+
+function buildApiUrl(endpoint: string): string {
+  const baseUrl = resolveApiBaseUrl();
+
+  if (!baseUrl) {
+    return endpoint;
+  }
+
+  if (endpoint.startsWith('/')) {
+    return `${baseUrl}${endpoint}`;
+  }
+
+  return `${baseUrl}/${endpoint}`;
+}
 
 export class APIError extends Error {
   constructor(
@@ -30,7 +60,7 @@ async function fetchAPI<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = buildApiUrl(endpoint);
 
   try {
     const response = await fetch(url, {
@@ -157,7 +187,7 @@ export async function forkSession(sessionId: string): Promise<{ new_session_id: 
 // SSE Connection
 
 export function createSSEConnection(sessionId: string): EventSource {
-  const url = `${API_BASE_URL}/api/sse?session_id=${sessionId}`;
+  const url = `${buildApiUrl('/api/sse')}?session_id=${sessionId}`;
   return new EventSource(url);
 }
 

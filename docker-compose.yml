@@ -38,11 +38,13 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-auto}
     container_name: alex-web
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://alex-server:8080
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-auto}
       - NODE_ENV=production
     depends_on:
       - alex-server
