@@ -11,21 +11,27 @@ import {
 } from './types';
 
 const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
+const DEFAULT_INTERNAL_PRODUCTION_API_BASE = 'http://alex-server:8080';
+const DEFAULT_DEVELOPMENT_API_BASE = 'http://localhost:8080';
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/$/, '');
+}
 
 function resolveApiBaseUrl(): string {
   const value = RAW_API_BASE_URL;
 
   if (!value || value.toLowerCase() === 'auto') {
     if (typeof window !== 'undefined' && window.location?.origin) {
-      return window.location.origin.replace(/\/$/, '');
+      return normalizeBaseUrl(window.location.origin);
     }
 
     return process.env.NODE_ENV === 'production'
-      ? 'http://localhost'
-      : 'http://localhost:8080';
+      ? normalizeBaseUrl(DEFAULT_INTERNAL_PRODUCTION_API_BASE)
+      : normalizeBaseUrl(DEFAULT_DEVELOPMENT_API_BASE);
   }
 
-  return value.replace(/\/$/, '');
+  return normalizeBaseUrl(value);
 }
 
 function buildApiUrl(endpoint: string): string {
