@@ -29,15 +29,26 @@ export const EventLine = React.memo(function EventLine({
 }: EventLineProps) {
   if (event.event_type === "user_task") {
     const segments = parseContentSegments(event.task, event.attachments);
+    const style = getEventStyle(event);
     return (
-      <div className="console-event-line flex flex-col gap-3">
-        <div className="console-event-content font-semibold text-foreground">
+      <div className={cn("console-event-line", style.line)}>
+        <div className="console-event-timestamp">
+          {formatTimestamp(event.timestamp)}
+        </div>
+        <div
+          className={cn(
+            "console-event-content flex flex-col gap-3",
+            style.content,
+          )}
+        >
           {segments.map((segment, index) => {
             if (segment.type === "image" && segment.attachment) {
               const uri = buildAttachmentUri(segment.attachment);
               if (!uri) {
                 return (
-                  <span key={`segment-${index}`}>{segment.placeholder ?? ""}</span>
+                  <span key={`segment-${index}`}>
+                    {segment.placeholder ?? ""}
+                  </span>
                 );
               }
               return (
@@ -48,7 +59,10 @@ export const EventLine = React.memo(function EventLine({
                   <div className="relative h-48 w-full overflow-hidden rounded-md bg-slate-50">
                     <Image
                       src={uri}
-                      alt={segment.attachment.description || segment.attachment.name}
+                      alt={
+                        segment.attachment.description ||
+                        segment.attachment.name
+                      }
                       fill
                       className="object-contain"
                       sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
