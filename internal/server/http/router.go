@@ -5,16 +5,17 @@ import (
 	"strings"
 
 	"alex/internal/server/app"
+	"alex/internal/server/http/auth"
 	"alex/internal/utils"
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, environment string) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, craftService *app.CraftService, workbenchService *app.WorkbenchService, environment string) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster)
-	apiHandler := NewAPIHandler(coordinator, healthChecker)
+	apiHandler := NewAPIHandler(coordinator, healthChecker, craftService, workbenchService)
 
 	// Create mux
 	mux := http.NewServeMux()
@@ -82,6 +83,90 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 	})
 
+	// Crafts endpoints
+	mux.HandleFunc("/api/crafts", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			apiHandler.HandleListCrafts(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/crafts/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/crafts/")
+		if strings.HasSuffix(path, "/download") {
+			apiHandler.HandleDownloadCraft(w, r)
+			return
+		}
+		switch r.Method {
+		case http.MethodDelete:
+			apiHandler.HandleDeleteCraft(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/workbench/image/concepts", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			apiHandler.HandleGenerateImageConcepts(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/workbench/web/blueprint", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			apiHandler.HandleGenerateWebBlueprint(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/workbench/code/plan", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			apiHandler.HandleGenerateCodePlan(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/workbench/article/insights", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			apiHandler.HandleGenerateArticleInsights(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/workbench/article/crafts", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			apiHandler.HandleListArticleDrafts(w, r)
+		case http.MethodPost:
+			apiHandler.HandleSaveArticleDraft(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/workbench/article/crafts/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(strings.TrimPrefix(r.URL.Path, "/api/workbench/article/crafts/"), "/") {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		switch r.Method {
+		case http.MethodDelete:
+			apiHandler.HandleDeleteArticleDraft(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// Health check endpoint
 	mux.HandleFunc("/health", apiHandler.HandleHealthCheck)
 
@@ -89,6 +174,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	var handler http.Handler = mux
 	handler = LoggingMiddleware(logger)(handler)
 	handler = CORSMiddleware(environment)(handler)
+	handler = auth.Middleware(handler)
 
 	return handler
 }

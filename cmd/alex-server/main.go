@@ -19,6 +19,7 @@ import (
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
+	builtin "alex/internal/tools/builtin"
 	"alex/internal/utils"
 )
 
@@ -164,7 +165,25 @@ func main() {
 	healthChecker.RegisterProbe(serverApp.NewSandboxProbe(container.SandboxManager))
 
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, runtimeCfg.Environment)
+	craftService := serverApp.NewCraftService(container.SessionStore, container.BlobStore, container.CraftMirror)
+	seedreamConfig := builtin.SeedreamConfig{
+		AccessKey:       runtimeCfg.VolcAccessKey,
+		SecretKey:       runtimeCfg.VolcSecretKey,
+		EndpointID:      runtimeCfg.SeedreamTextEndpointID,
+		Host:            runtimeCfg.SeedreamHost,
+		Region:          runtimeCfg.SeedreamRegion,
+		ModelDescriptor: "Seedream 3.0 text-to-image",
+		EndpointEnvVar:  "SEEDREAM_TEXT_ENDPOINT_ID",
+	}
+	illustrationGenerator := serverApp.NewSeedreamIllustrationGenerator(seedreamConfig)
+	workbenchService := serverApp.NewWorkbenchService(
+		container.AgentCoordinator,
+		container.SessionStore,
+		container.BlobStore,
+		serverApp.WithCraftMirror(container.CraftMirror),
+		serverApp.WithIllustrationGenerator(illustrationGenerator),
+	)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, craftService, workbenchService, runtimeCfg.Environment)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -232,6 +251,7 @@ func buildContainer(config Config) (*di.Container, error) {
 		StopSequences:           append([]string(nil), config.Runtime.StopSequences...),
 		SessionDir:              config.Runtime.SessionDir,
 		CostDir:                 config.Runtime.CostDir,
+		CraftMirrorDir:          config.Runtime.CraftMirrorDir,
 		AgentPreset:             config.Runtime.AgentPreset,
 		ToolPreset:              config.Runtime.ToolPreset,
 		EnableMCP:               config.EnableMCP,
@@ -262,6 +282,7 @@ func loadConfig() (Config, error) {
 		"PORT":                       {"ALEX_SERVER_PORT"},
 		"ENABLE_MCP":                 {"ALEX_ENABLE_MCP"},
 		"SANDBOX_BASE_URL":           {"ALEX_SANDBOX_BASE_URL"},
+		"CRAFT_MIRROR_DIR":           {"ALEX_CRAFT_MIRROR_DIR"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(

@@ -15,6 +15,7 @@ import (
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/session/filestore"
 	"alex/internal/storage"
+	id "alex/internal/utils/id"
 )
 
 // TestConcurrentCostIsolation verifies that cost tracking is properly isolated
@@ -67,7 +68,8 @@ func TestConcurrentCostIsolation(t *testing.T) {
 			)
 
 			// Execute task
-			ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+			ctx := id.WithUserID(context.Background(), fmt.Sprintf("user-%d", idx))
+			ctx = ports.WithOutputContext(ctx, &ports.OutputContext{Level: ports.LevelCore})
 			result, err := coordinator.ExecuteTask(ctx, fmt.Sprintf("Task %d", idx), "", nil)
 			if err != nil {
 				results[idx].err = err
@@ -183,7 +185,7 @@ func TestTaskCancellation(t *testing.T) {
 	)
 
 	// Create and start a long-running task
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "Long running task", "", "", "")
 	if err != nil {
 		t.Fatalf("failed to start task: %v", err)
@@ -277,7 +279,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	)
 
 	// Get or create session
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 	session, err := agentCoordinator.GetSession(ctx, "")
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
