@@ -293,6 +293,9 @@ func (s *WorkbenchService) GenerateArticleInsights(ctx context.Context, content 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare session: %w", err)
 	}
+	if session == nil {
+		return nil, errors.New("executor returned nil session")
+	}
 
 	prompt := buildArticleInsightPrompt(truncated)
 
