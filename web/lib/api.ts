@@ -39,7 +39,9 @@ import {
   buildMockCodePlan,
 } from './mock-data';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
+const DEFAULT_INTERNAL_PRODUCTION_API_BASE = 'http://alex-server:8080';
+const DEFAULT_DEVELOPMENT_API_BASE = 'http://localhost:8080';
 const MOCK_FLAG = process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
 const ENABLE_MOCK_DATA =
   MOCK_FLAG === '1' ||
@@ -64,6 +66,40 @@ function logMockUsage(key: string, error?: unknown) {
   if (error) {
     console.warn(`${prefix} (fallback due to error)`, error);
   }
+}
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/$/, '');
+}
+
+function resolveApiBaseUrl(): string {
+  const value = RAW_API_BASE_URL;
+
+  if (!value || value.toLowerCase() === 'auto') {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return normalizeBaseUrl(window.location.origin);
+    }
+
+    return process.env.NODE_ENV === 'production'
+      ? normalizeBaseUrl(DEFAULT_INTERNAL_PRODUCTION_API_BASE)
+      : normalizeBaseUrl(DEFAULT_DEVELOPMENT_API_BASE);
+  }
+
+  return normalizeBaseUrl(value);
+}
+
+function buildApiUrl(endpoint: string): string {
+  const baseUrl = resolveApiBaseUrl();
+
+  if (!baseUrl) {
+    return endpoint;
+  }
+
+  if (endpoint.startsWith('/')) {
+    return `${baseUrl}${endpoint}`;
+  }
+
+  return `${baseUrl}/${endpoint}`;
 }
 
 function shouldFallbackToMock(error: unknown): boolean {
@@ -112,7 +148,7 @@ async function fetchAPI<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = buildApiUrl(endpoint);
 
   try {
     const headers = new Headers(options?.headers || {});
@@ -263,7 +299,7 @@ export function createSSEConnection(sessionId: string): EventSource {
   if (token) {
     params.set('auth_token', token);
   }
-  const url = `${API_BASE_URL}/api/sse?${params.toString()}`;
+  const url = `${buildApiUrl('/api/sse')}?${params.toString()}`;
   return new EventSource(url);
 }
 
@@ -406,4 +442,3 @@ export const apiClient = {
   listArticleDrafts,
   deleteArticleDraft,
 };
-
