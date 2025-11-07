@@ -10,11 +10,12 @@ import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
 import { useConfirmDialog } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
-import { Sidebar, Header, ContentArea, InputBar } from '@/components/layout';
+import { Sidebar, Header, ContentArea } from '@/components/layout';
 import { buildToolCallSummaries } from '@/lib/eventAggregation';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AttachmentPayload, AttachmentUpload } from '@/lib/types';
+import { TaskInput } from '@/components/agent/TaskInput';
 
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -414,18 +415,20 @@ export function ConversationPageContent() {
 
         {/* Input Bar */}
         {shouldShowInputBar && (
-          <InputBar
-            onSubmit={handleTaskSubmit}
-            placeholder={
-              resolvedSessionId
-                ? t('console.input.placeholder.active')
-                : t('console.input.placeholder.idle')
-            }
-            disabled={isSubmitting}
-            loading={isSubmitting}
-            prefill={prefillTask}
-            onPrefillApplied={() => setPrefillTask(null)}
-          />
+          <div className="border-t border-slate-200 bg-white px-6 py-4">
+            <TaskInput
+              onSubmit={handleTaskSubmit}
+              placeholder={
+                resolvedSessionId
+                  ? t('console.input.placeholder.active')
+                  : t('console.input.placeholder.idle')
+              }
+              disabled={isSubmitting}
+              loading={isSubmitting}
+              prefill={prefillTask}
+              onPrefillApplied={() => setPrefillTask(null)}
+            />
+          </div>
         )}
       </div>
     </div>
