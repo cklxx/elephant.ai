@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-import { ConversationPageContent } from '../conversation/page';
+import { ConversationPageContent } from '../conversation/ConversationPageContent';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { APIError } from '@/lib/api';
 import { useTaskExecution } from '@/hooks/useTaskExecution';
