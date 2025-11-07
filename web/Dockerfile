@@ -14,6 +14,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Allow overriding API base URL at build time (used by Next.js static config)
+ARG NEXT_PUBLIC_API_URL=auto
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
@@ -33,6 +37,10 @@ WORKDIR /app
 
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+
+# Propagate public API URL to runtime (useful for health checks and debugging)
+ARG NEXT_PUBLIC_API_URL=auto
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
