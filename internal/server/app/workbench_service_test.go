@@ -47,6 +47,16 @@ func (s *stubAgentExecutor) ExecuteTask(ctx context.Context, task string, sessio
 	return s.result, nil
 }
 
+type nilSessionExecutor struct{}
+
+func (n *nilSessionExecutor) GetSession(ctx context.Context, id string) (*agentports.Session, error) {
+	return nil, nil
+}
+
+func (n *nilSessionExecutor) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentports.EventListener) (*agentports.TaskResult, error) {
+	return nil, errors.New("unexpected task execution")
+}
+
 type stubIllustrationGenerator struct {
 	prompts []string
 	result  *GeneratedIllustration
@@ -315,6 +325,19 @@ func TestGenerateArticleInsightsValidatesInput(t *testing.T) {
 	executor.err = errors.New("boom")
 	if _, err := service.GenerateArticleInsights(ctx, "hello"); err == nil {
 		t.Fatal("expected executor error")
+	}
+}
+
+func TestGenerateArticleInsightsFailsWhenSessionMissing(t *testing.T) {
+	service := NewWorkbenchService(&nilSessionExecutor{}, nil, nil)
+	ctx := id.WithUserID(context.Background(), "user-3")
+
+	_, err := service.GenerateArticleInsights(ctx, "<p>content</p>")
+	if err == nil {
+		t.Fatal("expected error when executor returns nil session")
+	}
+	if !strings.Contains(err.Error(), "nil session") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

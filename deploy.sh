@@ -367,6 +367,17 @@ run_docker_compose() {
     "${DOCKER_COMPOSE_CMD[@]}" "$@"
 }
 
+ensure_pro_defaults() {
+    if [[ -z "${NEXT_PUBLIC_API_URL:-}" ]]; then
+        export NEXT_PUBLIC_API_URL=auto
+    fi
+
+    # Ensure sandbox requests inside docker use internal service URL when not explicitly set
+    if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
+        export ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
+    fi
+}
+
 is_local_sandbox_url() {
     local url=$1
 
@@ -814,6 +825,76 @@ cmd_docker() {
     esac
 }
 
+cmd_pro() {
+    local action=${1:-up}
+    if (($# > 0)); then
+        shift
+    fi
+
+    ensure_pro_defaults
+
+    case $action in
+        up|start|deploy)
+            log_info "Starting production stack (nginx reverse proxy on :80)..."
+            run_docker_compose up -d --build nginx
+            log_success "Production services are running at http://localhost"
+            ;;
+        down|stop)
+            log_info "Stopping production stack..."
+            run_docker_compose down
+            log_success "Production services stopped"
+            ;;
+        restart)
+            log_info "Restarting production stack..."
+            run_docker_compose down
+            ensure_pro_defaults
+            run_docker_compose up -d --build nginx
+            log_success "Production services restarted"
+            ;;
+        logs)
+            local target=${1:-nginx}
+            log_info "Tailing production logs for service: $target (Ctrl+C to stop)"
+            run_docker_compose logs -f "$target"
+            ;;
+        status|ps)
+            log_info "Listing production services..."
+            run_docker_compose ps
+            ;;
+        help|-h|--help)
+            cmd_pro_help
+            ;;
+        *)
+            log_error "Unknown pro command: $action"
+            cmd_pro_help
+            exit 1
+            ;;
+    esac
+}
+
+cmd_pro_help() {
+    cat << EOF
+
+${C_CYAN}Production Deployment (nginx reverse proxy)${C_RESET}
+
+${C_YELLOW}Usage:${C_RESET}
+  ./deploy.sh pro [command]
+
+${C_YELLOW}Commands:${C_RESET}
+  ${C_GREEN}up|start|deploy${C_RESET}   Build and start the production stack (default)
+  ${C_GREEN}down|stop${C_RESET}        Stop and remove production containers
+  ${C_GREEN}restart${C_RESET}          Recreate the production stack
+  ${C_GREEN}logs [service]${C_RESET}   Tail logs (defaults to nginx)
+  ${C_GREEN}status|ps${C_RESET}        Show running containers
+  ${C_GREEN}help${C_RESET}             Show this help
+
+${C_YELLOW}Notes:${C_RESET}
+  • Frontend is exposed via nginx on http://localhost (port 80)
+  • API requests are proxied through nginx to the Go backend
+  • Set NEXT_PUBLIC_API_URL=auto to use same-origin API access (default)
+
+EOF
+}
+
 cmd_docker_help() {
     cat << EOF
 
@@ -848,6 +929,7 @@ ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}status${C_RESET}             Show service status
   ${C_GREEN}logs [service]${C_RESET}     Tail logs (all/server/web/sandbox)
   ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
+  ${C_GREEN}pro [command]${C_RESET}      Run production stack behind nginx
   ${C_GREEN}help${C_RESET}               Show this help
 
 ${C_YELLOW}Examples:${C_RESET}
@@ -897,6 +979,9 @@ main() {
             ;;
         docker)
             cmd_docker "$@"
+            ;;
+        pro)
+            cmd_pro "${1:-up}" "${@:2}"
             ;;
         help|-h|--help)
             cmd_help
