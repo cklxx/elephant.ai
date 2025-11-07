@@ -72,7 +72,7 @@ export function TerminalOutput({
             );
             const taskToolCalls = events.slice(taskIndex, nextTaskIndex);
             return (
-              <div key={`${event.event_type}-${index}`} className="space-y-4">
+              <div key={`${event.event_type}-${index}`} className="space-y-2">
                 <EventLine event={event} />
                 <IntermediatePanel events={taskToolCalls} />
               </div>

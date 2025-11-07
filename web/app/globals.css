@@ -534,6 +534,21 @@
         background: hsla(var(--foreground) / 0.1);
     }
 
+    .console-event-line.is-task-analysis {
+        margin-bottom: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0.5rem 1rem 0.25rem 0rem;
+    }
+
+    .console-event-line.is-task-analysis:hover {
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        transform: none;
+    }
+
     .console-event-timestamp {
         @apply font-mono text-[11px] uppercase tracking-[0.22em];
         color: hsl(var(--gray-500));
