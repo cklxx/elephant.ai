@@ -46,11 +46,13 @@ vi.mock('@/lib/eventAggregation', () => ({
   buildToolCallSummaries: () => [],
 }));
 
-vi.mock('@/lib/i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key,
-  }),
-}));
+vi.mock('@/lib/i18n', () => {
+  const t = (key: string) => key;
+  return {
+    useI18n: () => ({ t }),
+    useTranslation: () => t,
+  };
+});
 
 vi.mock('@/components/layout', async () => {
   const ReactModule = await vi.importActual<typeof import('react')>('react');
@@ -182,9 +184,7 @@ describe('ConversationPageContent - stale session handling', () => {
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'Fix the stale session bug' } });
 
-    const submitButton = screen.getByRole('button', {
-      name: 'inputBar.actions.send',
-    });
+    const submitButton = screen.getByTestId('task-submit');
     fireEvent.click(submitButton);
 
     await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
