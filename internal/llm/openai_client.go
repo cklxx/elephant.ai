@@ -259,11 +259,7 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, len(msgs))
 	for i, msg := range msgs {
 		entry := map[string]any{"role": msg.Role}
-		if msg.Role == "tool" {
-			entry["content"] = msg.Content
-		} else {
-			entry["content"] = buildMessageContent(msg)
-		}
+		entry["content"] = buildMessageContent(msg)
 		if msg.ToolCallID != "" {
 			entry["tool_call_id"] = msg.ToolCallID
 		}
