@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { AnyAgentEvent } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
-import { getLanguageLocale, useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 import { ToolCallSummary } from "@/lib/eventAggregation";
 import { EventLine } from "./EventLine";
 
@@ -26,14 +26,51 @@ export function TerminalOutput({
   reconnectAttempts,
   onReconnect,
 }: TerminalOutputProps) {
-  const { t, language } = useI18n();
-  const locale = getLanguageLocale(language);
+  const { t } = useI18n();
 
   // Filter events to show only user input and final results
   const filteredEvents = useMemo(() => {
     return events.filter((event) => !shouldSkipEvent(event));
   }, [events]);
-  console.log(filteredEvents, events);
+
+  const panelAnchors = useMemo(() => {
+    const anchorMap = new WeakMap<AnyAgentEvent, AnyAgentEvent[]>();
+    if (events.length === 0) {
+      return anchorMap;
+    }
+
+    const userTaskIndices: number[] = [];
+    events.forEach((event, index) => {
+      if (event.event_type === "user_task") {
+        userTaskIndices.push(index);
+      }
+    });
+
+    if (userTaskIndices.length === 0) {
+      const anchor =
+        events.find((event) => event.event_type === "task_analysis") ??
+        events[0];
+      if (anchor) {
+        anchorMap.set(anchor, events);
+      }
+      return anchorMap;
+    }
+
+    userTaskIndices.forEach((startIdx, idx) => {
+      const endIdx = userTaskIndices[idx + 1] ?? events.length;
+      const segmentEvents = events.slice(startIdx, endIdx);
+      const analysisAnchor = segmentEvents.find(
+        (event) => event.event_type === "task_analysis",
+      );
+      const anchorEvent = analysisAnchor ?? events[startIdx];
+      if (anchorEvent) {
+        anchorMap.set(anchorEvent, segmentEvents);
+      }
+    });
+
+    return anchorMap;
+  }, [events]);
+
   // Show connection banner if disconnected
   if (!isConnected || error) {
     return (
@@ -53,35 +90,18 @@ export function TerminalOutput({
     >
       <div className="space-y-4" data-testid="conversation-events">
         {filteredEvents.map((event, index) => {
-          // Show IntermediatePanel after user_task event
-          if (event.event_type === "task_analysis") {
-            let taskIndexs: number[] = [];
-            let taskRank =
-              filteredEvents
-                .slice(0, index + 1)
-                .filter((event) => event.event_type === "task_analysis")
-                .length - 1;
-            events.forEach((event, eIdx) => {
-              if (event.event_type === "task_analysis") {
-                taskIndexs.push(eIdx);
-              }
-            });
-            const [taskIndex, nextTaskIndex = -1] = taskIndexs.slice(
-              taskRank,
-              taskRank + 2,
-            );
-            const taskToolCalls = events.slice(taskIndex, nextTaskIndex);
+          const key = `${event.event_type}-${event.timestamp}-${index}`;
+          const panelEvents = panelAnchors.get(event);
+          if (panelEvents) {
             return (
-              <div key={`${event.event_type}-${index}`} className="space-y-2">
+              <div key={key} className="space-y-2">
                 <EventLine event={event} />
-                <IntermediatePanel events={taskToolCalls} />
+                <IntermediatePanel events={panelEvents} />
               </div>
             );
           }
 
-          return (
-            <EventLine key={`${event.event_type}-${index}`} event={event} />
-          );
+          return <EventLine key={key} event={event} />;
         })}
       </div>
 

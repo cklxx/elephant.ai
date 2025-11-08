@@ -53,53 +53,75 @@ export function parseContentSegments(
   content: string,
   attachments?: Record<string, AttachmentPayload>,
 ): ContentSegment[] {
-  if (!content) {
-    return attachments && Object.keys(attachments).length > 0
-      ? []
-      : [{ type: 'text', text: '' }];
-  }
-
-  if (!attachments || Object.keys(attachments).length === 0) {
-    return [{ type: 'text', text: content }];
-  }
-
+  const normalizedContent = typeof content === 'string' ? content : '';
+  const attachmentEntries = attachments ? Object.entries(attachments) : [];
   const segments: ContentSegment[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+  const usedAttachments = new Set<string>();
 
-  while ((match = PLACEHOLDER_REGEX.exec(content)) !== null) {
-    const start = match.index;
-    const end = start + match[0].length;
-    const name = String(match[1]).trim();
+  if (normalizedContent.length > 0) {
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
 
-    if (start > lastIndex) {
-      segments.push({ type: 'text', text: content.slice(lastIndex, start) });
+    while ((match = PLACEHOLDER_REGEX.exec(normalizedContent)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      const name = String(match[1]).trim();
+
+      if (start > lastIndex) {
+        segments.push({
+          type: 'text',
+          text: normalizedContent.slice(lastIndex, start),
+        });
+      }
+
+      const attachment = attachments?.[name];
+      if (attachment) {
+        usedAttachments.add(name);
+        segments.push({
+          type: 'image',
+          placeholder: match[0],
+          attachment: {
+            ...attachment,
+            name: attachment.name || name,
+          },
+        });
+      } else {
+        segments.push({ type: 'text', text: match[0] });
+      }
+
+      lastIndex = end;
     }
 
-    const attachment = attachments[name];
-    if (attachment) {
+    if (lastIndex < normalizedContent.length) {
+      segments.push({
+        type: 'text',
+        text: normalizedContent.slice(lastIndex),
+      });
+    }
+
+    if (segments.length === 0) {
+      segments.push({ type: 'text', text: normalizedContent });
+    }
+  } else if (attachmentEntries.length === 0) {
+    return [{ type: 'text', text: '' }];
+  }
+
+  if (attachmentEntries.length > 0) {
+    attachmentEntries.forEach(([key, attachment]) => {
+      const normalizedKey = key.trim();
+      if (!normalizedKey || usedAttachments.has(normalizedKey)) {
+        return;
+      }
       segments.push({
         type: 'image',
-        placeholder: match[0],
+        placeholder: `[${normalizedKey}]`,
         attachment: {
           ...attachment,
-          name: attachment.name || name,
+          name: attachment.name || normalizedKey,
         },
       });
-    } else {
-      segments.push({ type: 'text', text: match[0] });
-    }
-
-    lastIndex = end;
+    });
   }
 
-  if (lastIndex < content.length) {
-    segments.push({ type: 'text', text: content.slice(lastIndex) });
-  }
-
-  if (segments.length === 0) {
-    segments.push({ type: 'text', text: content });
-  }
-
-  return segments;
+  return segments.length > 0 ? segments : [{ type: 'text', text: normalizedContent }];
 }

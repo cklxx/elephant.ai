@@ -60,11 +60,22 @@ export function ImagePreview({
           showCloseButton={false}
           unstyled
         >
-          <img
-            src={src}
-            alt={altText}
-            className="h-auto w-full"
-          />
+          <div className="relative mx-auto w-full max-w-5xl">
+            <div
+              className="relative w-full"
+              style={{ minHeight: "40vh", maxHeight: "85vh" }}
+            >
+              <Image
+                src={src}
+                alt={altText}
+                fill
+                className="object-contain"
+                sizes="100vw"
+                priority
+                unoptimized
+              />
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

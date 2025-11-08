@@ -155,6 +155,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
 
 	analysis := s.analysis.Analyze(ctx, task, llmClient)
+	if (analysis == nil || strings.TrimSpace(analysis.ActionName) == "") && strings.TrimSpace(task) != "" {
+		if fallback := fallbackTaskAnalysis(task); fallback != nil {
+			s.logger.Debug("Task pre-analysis fallback used")
+			analysis = fallback
+		}
+	}
 	var analysisInfo *ports.TaskAnalysisInfo
 	var taskAnalysis *ports.TaskAnalysis
 	if analysis != nil && analysis.ActionName != "" {

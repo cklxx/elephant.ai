@@ -250,6 +250,19 @@ export function ConversationPageContent() {
     }
   }, [prefillTask, shouldShowInputBar]);
 
+  const firstTaskAnalysis = useMemo(
+    () => events.find((event) => event.event_type === "task_analysis"),
+    [events],
+  );
+  const analysisTitle =
+    firstTaskAnalysis && "action_name" in firstTaskAnalysis
+      ? firstTaskAnalysis.action_name
+      : null;
+  const analysisSubtitle =
+    firstTaskAnalysis && "goal" in firstTaskAnalysis
+      ? firstTaskAnalysis.goal
+      : null;
+
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
     : null;
@@ -315,8 +328,14 @@ export function ConversationPageContent() {
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
-          title={sessionBadge || t('conversation.header.idle')}
-          subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
+          title={analysisTitle || sessionBadge || t('conversation.header.idle')}
+          subtitle={
+            analysisTitle
+              ? analysisSubtitle || sessionBadge || undefined
+              : resolvedSessionId
+                ? t('conversation.header.subtitle')
+                : undefined
+          }
           leadingSlot={
             <button
               type="button"

@@ -123,50 +123,7 @@ export function MarkdownRenderer({
     ol: ({ className: olClass, ...props }: any) => (
       <ol className={cn("my-4 list-decimal space-y-2 pl-6", olClass)} {...props} />
     ),
-    img: ({ className: imgClass, alt, src, style, ...props }: any) => {
-      const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-
-      if (!src) {
-        return null;
-      }
-
-      const altText = typeof alt === "string" ? alt : "";
-      const thumbnailStyle = { ...(style || {}), width: "100px", height: "auto" };
-
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => setIsPreviewOpen(true)}
-            className="my-4 block overflow-hidden rounded-2xl bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-zoom-in"
-            aria-label={altText ? `查看 ${altText} 大图` : "查看大图"}
-          >
-            <img
-              className={cn("h-auto max-w-full object-contain transition-transform duration-300 hover:scale-[1.02]", imgClass)}
-              alt={altText}
-              src={src}
-              style={thumbnailStyle}
-              {...props}
-            />
-          </button>
-          <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-            <DialogContent
-              className="bg-transparent p-0"
-              onClose={() => setIsPreviewOpen(false)}
-              showCloseButton={false}
-              unstyled
-            >
-              <img
-                className="h-auto w-full rounded-lg"
-                alt={altText}
-                src={src}
-                {...props}
-              />
-            </DialogContent>
-          </Dialog>
-        </>
-      );
-    },
+    img: (props: any) => <MarkdownImage {...props} />,
   };
 
   const mergedComponents = {
@@ -188,5 +145,52 @@ export function MarkdownRenderer({
         components={mergedComponents as any}
       />
     </div>
+  );
+}
+
+type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
+
+function MarkdownImage({ className, alt, src, style, ...props }: MarkdownImageProps) {
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  if (!src) {
+    return null;
+  }
+
+  const altText = typeof alt === "string" ? alt : "";
+  const thumbnailStyle = { ...(style || {}), width: "100px", height: "auto" };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setIsPreviewOpen(true)}
+        className="my-4 block overflow-hidden rounded-2xl bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-zoom-in"
+        aria-label={altText ? `查看 ${altText} 大图` : "查看大图"}
+      >
+        <img
+          className={cn("h-auto max-w-full object-contain transition-transform duration-300 hover:scale-[1.02]", className)}
+          alt={altText}
+          src={src}
+          style={thumbnailStyle}
+          {...props}
+        />
+      </button>
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent
+          className="bg-transparent p-0"
+          onClose={() => setIsPreviewOpen(false)}
+          showCloseButton={false}
+          unstyled
+        >
+          <img
+            className="h-auto w-full rounded-lg"
+            alt={altText}
+            src={src}
+            {...props}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
