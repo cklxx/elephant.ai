@@ -813,11 +813,8 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 			return v
 		}
 		if att, found := attachments[name]; found {
-			if att.Data != "" {
-				return att.Data
-			}
-			if att.URI != "" {
-				return att.URI
+			if replacement := attachmentReferenceValue(att); replacement != "" {
+				return replacement
 			}
 		}
 		return v
@@ -832,12 +829,8 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 		for i, item := range v {
 			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
 				if att, found := attachments[name]; found {
-					if att.Data != "" {
-						out[i] = att.Data
-						continue
-					}
-					if att.URI != "" {
-						out[i] = att.URI
+					if replacement := attachmentReferenceValue(att); replacement != "" {
+						out[i] = replacement
 						continue
 					}
 				}
@@ -856,12 +849,8 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 		for key, item := range v {
 			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
 				if att, found := attachments[name]; found {
-					if att.Data != "" {
-						nested[key] = att.Data
-						continue
-					}
-					if att.URI != "" {
-						nested[key] = att.URI
+					if replacement := attachmentReferenceValue(att); replacement != "" {
+						nested[key] = replacement
 						continue
 					}
 				}
@@ -872,6 +861,24 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 	default:
 		return value
 	}
+}
+
+func attachmentReferenceValue(att ports.Attachment) string {
+	if uri := strings.TrimSpace(att.URI); uri != "" {
+		return uri
+	}
+	data := strings.TrimSpace(att.Data)
+	if data == "" {
+		return ""
+	}
+	if strings.HasPrefix(data, "data:") {
+		return data
+	}
+	mediaType := strings.TrimSpace(att.MediaType)
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+	return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
 }
 
 func extractPlaceholderName(value string) (string, bool) {
