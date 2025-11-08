@@ -469,6 +469,8 @@ function renderToolResult(
   t: any,
   attachments?: Record<string, AttachmentPayload>,
 ): React.ReactNode {
+  const normalizedToolName = toolName.toLowerCase();
+  const isSeedream = normalizedToolName.includes("seedream");
   const hasResultText = typeof result === "string" && result.trim().length > 0;
 
   // Code execute - show executed code and output
