@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"strings"
 )
@@ -37,10 +36,16 @@ func (c *CLI) Run(args []string) error {
 		return c.handleSessions(cmdArgs)
 
 	case "config":
-		return c.handleConfig()
+		return c.handleConfig(cmdArgs)
 
 	case "cost", "costs":
 		return c.handleCostCommand(cmdArgs)
+
+	case "-i", "--interactive", "interactive":
+		if len(cmdArgs) > 0 {
+			return fmt.Errorf("interactive mode does not accept additional arguments")
+		}
+		return RunNativeChatUI(c.container)
 
 	case "index":
 		return c.handleIndex(cmdArgs)
@@ -108,7 +113,7 @@ Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
 }
 
 func (c *CLI) handleSessions(args []string) error {
-	ctx := context.Background()
+	ctx := c.container.BackgroundContext()
 
 	sessionIDs, err := c.container.Coordinator.ListSessions(ctx)
 	if err != nil {
@@ -164,8 +169,18 @@ func (c *CLI) handleSessions(args []string) error {
 	return nil
 }
 
-func (c *CLI) handleConfig() error {
-	return runConfigCommand()
+func (c *CLI) handleConfig(args []string) error {
+	switch len(args) {
+	case 0:
+		return runConfigCommand()
+	case 1:
+		if args[0] != "show" {
+			return fmt.Errorf("unknown config subcommand %q", args[0])
+		}
+		return runConfigCommand()
+	default:
+		return fmt.Errorf("usage: alex config [show]")
+	}
 }
 
 func runConfigCommand() error {

@@ -74,7 +74,11 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 }
 
 func (s *store) Get(ctx context.Context, sessionID string) (*ports.Session, error) {
-	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", sessionID))
+	safeID, err := normalizeSessionID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid session id: %w", err)
+	}
+	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", safeID))
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("session not found: %s", sessionID)
@@ -113,7 +117,11 @@ func (s *store) Save(ctx context.Context, session *ports.Session) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))
+	safeID, err := normalizeSessionID(session.ID)
+	if err != nil {
+		return fmt.Errorf("invalid session id: %w", err)
+	}
+	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", safeID))
 	return os.WriteFile(path, data, 0644)
 }
 
@@ -169,13 +177,34 @@ func (s *store) Delete(ctx context.Context, sessionID string) error {
 			return fmt.Errorf("session belongs to different user")
 		}
 	}
-	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", sessionID))
-	err := os.Remove(path)
+	safeID, err := normalizeSessionID(sessionID)
+	if err != nil {
+		return fmt.Errorf("invalid session id: %w", err)
+	}
+	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", safeID))
+	err = os.Remove(path)
 	// Ignore error if file doesn't exist - deletion goal achieved
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
+}
+
+func normalizeSessionID(sessionID string) (string, error) {
+	trimmed := strings.TrimSpace(sessionID)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty session id")
+	}
+	if strings.ContainsAny(trimmed, "/\\") {
+		return "", fmt.Errorf("path separators are not allowed")
+	}
+	if strings.Contains(trimmed, "..") {
+		return "", fmt.Errorf("parent directory sequences are not allowed")
+	}
+	if filepath.Base(trimmed) != trimmed {
+		return "", fmt.Errorf("invalid path component")
+	}
+	return trimmed, nil
 }
 
 func previewJSON(data []byte) string {
