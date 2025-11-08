@@ -62,12 +62,6 @@ func NewServerCoordinator(
 func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
 	s.logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
 
-	userID := strings.TrimSpace(id.UserIDFromContext(ctx))
-	if userID == "" {
-		return nil, fmt.Errorf("missing user context")
-	}
-	ctx = id.WithUserID(ctx, userID)
-
 	// CRITICAL FIX: Get or create session SYNCHRONOUSLY before creating task
 	// This ensures we have a confirmed session ID for the task record and broadcaster mapping
 	session, err := s.agentCoordinator.GetSession(ctx, sessionID)
@@ -276,37 +270,12 @@ func (s *ServerCoordinator) GetBroadcaster() *EventBroadcaster {
 
 // GetTask retrieves a task by ID
 func (s *ServerCoordinator) GetTask(ctx context.Context, taskID string) (*serverPorts.Task, error) {
-	task, err := s.taskStore.Get(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-	if task.SessionID != "" {
-		if _, err := s.sessionStore.Get(ctx, task.SessionID); err != nil {
-			return nil, fmt.Errorf("task not found")
-		}
-	}
-	return task, nil
+	return s.taskStore.Get(ctx, taskID)
 }
 
 // ListTasks returns all tasks with pagination
 func (s *ServerCoordinator) ListTasks(ctx context.Context, limit int, offset int) ([]*serverPorts.Task, int, error) {
-	tasks, _, err := s.taskStore.List(ctx, limit, offset)
-	if err != nil {
-		return nil, 0, err
-	}
-	filtered := make([]*serverPorts.Task, 0, len(tasks))
-	for _, task := range tasks {
-		if task == nil {
-			continue
-		}
-		if task.SessionID != "" {
-			if _, err := s.sessionStore.Get(ctx, task.SessionID); err != nil {
-				continue
-			}
-		}
-		filtered = append(filtered, task)
-	}
-	return filtered, len(filtered), nil
+	return s.taskStore.List(ctx, limit, offset)
 }
 
 // ListSessionTasks returns all tasks for a session
@@ -319,12 +288,6 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 	task, err := s.taskStore.Get(ctx, taskID)
 	if err != nil {
 		return err
-	}
-
-	if task.SessionID != "" {
-		if _, err := s.sessionStore.Get(ctx, task.SessionID); err != nil {
-			return fmt.Errorf("task not found")
-		}
 	}
 
 	// Only allow cancelling pending or running tasks
