@@ -8,9 +8,128 @@ import {
   SessionDetailsResponse,
   ApprovePlanRequest,
   ApprovePlanResponse,
+  CraftListResponse,
+  CraftDownloadResponse,
+  ArticleInsightResponse,
+  ArticleCraftResponse,
+  ArticleCraftListResponse,
+  ImageConceptResponse,
+  WebBlueprintResponse,
+  CodePlanResponse,
+  SaveArticleDraftPayload,
+  GenerateImageConceptsPayload,
+  GenerateWebBlueprintPayload,
+  GenerateCodePlanPayload,
 } from './types';
+import { getAuthToken } from './auth';
+import {
+  getMockSessionList,
+  getMockSessionDetails,
+  deleteMockSession,
+  forkMockSession,
+  getMockCraftList,
+  deleteMockCraft,
+  getMockCraftDownloadUrl,
+  buildMockArticleInsights,
+  saveMockArticleDraft,
+  getMockArticleDrafts,
+  deleteMockArticleDraft,
+  buildMockImageConcepts,
+  buildMockWebBlueprint,
+  buildMockCodePlan,
+} from './mock-data';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
+const DEFAULT_INTERNAL_PRODUCTION_API_BASE = 'http://alex-server:8080';
+const DEFAULT_DEVELOPMENT_API_BASE = 'http://localhost:8080';
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/$/, '');
+}
+
+function resolveApiBaseUrl(): string {
+  const value = RAW_API_BASE_URL;
+
+  if (!value || value.toLowerCase() === 'auto') {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return normalizeBaseUrl(window.location.origin);
+    }
+
+    return process.env.NODE_ENV === 'production'
+      ? normalizeBaseUrl(DEFAULT_INTERNAL_PRODUCTION_API_BASE)
+      : normalizeBaseUrl(DEFAULT_DEVELOPMENT_API_BASE);
+  }
+
+  return normalizeBaseUrl(value);
+}
+
+function buildApiUrl(endpoint: string): string {
+  const baseUrl = resolveApiBaseUrl();
+
+  if (!baseUrl) {
+    return endpoint;
+  }
+
+  if (endpoint.startsWith('/')) {
+    return `${baseUrl}${endpoint}`;
+  }
+
+  return `${baseUrl}/${endpoint}`;
+}
+
+const MOCK_FLAG = process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
+const ENABLE_MOCK_DATA =
+  MOCK_FLAG === '1' ||
+  (typeof MOCK_FLAG === 'string' && MOCK_FLAG.toLowerCase() === 'true') ||
+  (MOCK_FLAG === undefined && process.env.NODE_ENV === 'development');
+
+const loggedMockKeys = new Set<string>();
+
+function logMockUsage(key: string, error?: unknown) {
+  if (typeof console === 'undefined') return;
+  const prefix = `[apiClient] Using mock data for ${key}`;
+  if (!loggedMockKeys.has(key)) {
+    loggedMockKeys.add(key);
+    if (error) {
+      console.warn(`${prefix} (fallback due to error)`, error);
+    } else {
+      console.info(prefix);
+    }
+    return;
+  }
+
+  if (error) {
+    console.warn(`${prefix} (fallback due to error)`, error);
+  }
+}
+
+function shouldFallbackToMock(error: unknown): boolean {
+  if (error instanceof APIError) {
+    return error.status >= 500;
+  }
+  return error instanceof Error && error.message.includes('Network error');
+}
+
+async function withMock<T>(
+  key: string,
+  fallback: () => T | Promise<T>,
+  request?: () => Promise<T>
+): Promise<T> {
+  if (ENABLE_MOCK_DATA || !request) {
+    logMockUsage(key);
+    return await fallback();
+  }
+
+  try {
+    return await request();
+  } catch (error) {
+    if (ENABLE_MOCK_DATA || shouldFallbackToMock(error)) {
+      logMockUsage(key, error);
+      return await fallback();
+    }
+    throw error;
+  }
+}
 
 export class APIError extends Error {
   constructor(
@@ -30,15 +149,21 @@ async function fetchAPI<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = buildApiUrl(endpoint);
 
   try {
+    const headers = new Headers(options?.headers || {});
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    const token = getAuthToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -135,30 +260,53 @@ export async function approvePlan(
 // Session APIs
 
 export async function listSessions(): Promise<SessionListResponse> {
-  return fetchAPI<SessionListResponse>('/api/sessions');
+  return withMock('listSessions', getMockSessionList, () =>
+    fetchAPI<SessionListResponse>('/api/sessions')
+  );
 }
 
 export async function getSessionDetails(sessionId: string): Promise<SessionDetailsResponse> {
-  return fetchAPI<SessionDetailsResponse>(`/api/sessions/${sessionId}`);
+  return withMock('getSessionDetails', () => getMockSessionDetails(sessionId), () =>
+    fetchAPI<SessionDetailsResponse>(`/api/sessions/${sessionId}`)
+  );
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await fetchAPI(`/api/sessions/${sessionId}`, {
-    method: 'DELETE',
-  });
+  await withMock<void>(
+    'deleteSession',
+    () => {
+      deleteMockSession(sessionId);
+    },
+    () =>
+      fetchAPI(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+      })
+  );
 }
 
 export async function forkSession(sessionId: string): Promise<{ new_session_id: string }> {
-  return fetchAPI<{ new_session_id: string }>(`/api/sessions/${sessionId}/fork`, {
-    method: 'POST',
-  });
+  return withMock('forkSession', () => forkMockSession(sessionId), () =>
+    fetchAPI<{ new_session_id: string }>(`/api/sessions/${sessionId}/fork`, {
+      method: 'POST',
+    })
+  );
 }
 
 // SSE Connection
 
 export function createSSEConnection(sessionId: string): EventSource {
-  const url = `${API_BASE_URL}/api/sse?session_id=${sessionId}`;
-  return new EventSource(url);
+  const token = getAuthToken();
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost';
+  const url = new URL(buildApiUrl('/api/sse'), origin);
+  url.searchParams.set('session_id', sessionId);
+  if (token) {
+    url.searchParams.set('auth_token', token);
+  }
+
+  return new EventSource(url.toString());
 }
 
 // Health check
@@ -167,7 +315,117 @@ export async function healthCheck(): Promise<{ status: string }> {
   return fetchAPI<{ status: string }>('/health');
 }
 
+// Craft APIs
+
+export async function listCrafts(): Promise<CraftListResponse> {
+  return withMock('listCrafts', getMockCraftList, () =>
+    fetchAPI<CraftListResponse>('/api/crafts')
+  );
+}
+
+export async function deleteCraft(craftId: string): Promise<void> {
+  await withMock<void>(
+    'deleteCraft',
+    () => {
+      deleteMockCraft(craftId);
+    },
+    () =>
+      fetchAPI(`/api/crafts/${craftId}`, {
+        method: 'DELETE',
+      })
+  );
+}
+
+export async function getCraftDownloadUrl(
+  craftId: string
+): Promise<CraftDownloadResponse> {
+  return withMock('getCraftDownloadUrl', () => getMockCraftDownloadUrl(craftId), () =>
+    fetchAPI<CraftDownloadResponse>(`/api/crafts/${craftId}/download`)
+  );
+}
+
+export async function generateArticleInsights(
+  content: string
+): Promise<ArticleInsightResponse> {
+  return withMock('generateArticleInsights', () => buildMockArticleInsights(content), () =>
+    fetchAPI<ArticleInsightResponse>('/api/workbench/article/insights', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    })
+  );
+}
+
+export async function generateImageConcepts(
+  payload: GenerateImageConceptsPayload
+): Promise<ImageConceptResponse> {
+  return withMock('generateImageConcepts', () => buildMockImageConcepts(payload), () =>
+    fetchAPI<ImageConceptResponse>('/api/workbench/image/concepts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+export async function generateWebBlueprint(
+  payload: GenerateWebBlueprintPayload
+): Promise<WebBlueprintResponse> {
+  return withMock('generateWebBlueprint', () => buildMockWebBlueprint(payload), () =>
+    fetchAPI<WebBlueprintResponse>('/api/workbench/web/blueprint', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+export async function generateCodePlan(
+  payload: GenerateCodePlanPayload
+): Promise<CodePlanResponse> {
+  return withMock('generateCodePlan', () => buildMockCodePlan(payload), () =>
+    fetchAPI<CodePlanResponse>('/api/workbench/code/plan', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+export async function saveArticleDraft(
+  payload: SaveArticleDraftPayload
+): Promise<ArticleCraftResponse> {
+  return withMock('saveArticleDraft', () => saveMockArticleDraft(payload), () =>
+    fetchAPI<ArticleCraftResponse>('/api/workbench/article/crafts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+export async function listArticleDrafts(): Promise<ArticleCraftListResponse> {
+  return withMock('listArticleDrafts', getMockArticleDrafts, () =>
+    fetchAPI<ArticleCraftListResponse>('/api/workbench/article/crafts')
+  );
+}
+
+export async function deleteArticleDraft(craftId: string): Promise<void> {
+  await withMock<void>(
+    'deleteArticleDraft',
+    () => {
+      deleteMockArticleDraft(craftId);
+    },
+    () =>
+      fetchAPI(`/api/workbench/article/crafts/${craftId}`, {
+        method: 'DELETE',
+      })
+  );
+}
+
 // Export API client object
+export type {
+  GenerateImageConceptsPayload,
+  GenerateWebBlueprintPayload,
+  GenerateCodePlanPayload,
+  SaveArticleDraftPayload,
+};
+
 export const apiClient = {
   createTask,
   getTaskStatus,
@@ -179,5 +437,15 @@ export const apiClient = {
   forkSession,
   createSSEConnection,
   healthCheck,
+  listCrafts,
+  deleteCraft,
+  getCraftDownloadUrl,
+  generateArticleInsights,
+  generateImageConcepts,
+  generateWebBlueprint,
+  generateCodePlan,
+  saveArticleDraft,
+  listArticleDrafts,
+  deleteArticleDraft,
 };
 

@@ -57,6 +57,7 @@ type RuntimeConfig struct {
 	StopSequences           []string
 	SessionDir              string
 	CostDir                 string
+	CraftMirrorDir          string
 	AgentPreset             string
 	ToolPreset              string
 }
@@ -109,6 +110,7 @@ type Overrides struct {
 	StopSequences           *[]string
 	SessionDir              *string
 	CostDir                 *string
+	CraftMirrorDir          *string
 	AgentPreset             *string
 	ToolPreset              *string
 }
@@ -216,6 +218,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		TopP:             1.0,
 		SessionDir:       "~/.alex-sessions",
 		CostDir:          "~/.alex-costs",
+		CraftMirrorDir:   "~/.alex-crafts",
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -270,6 +273,7 @@ type fileConfig struct {
 	StopSequences           []string               `json:"stop_sequences"`
 	SessionDir              string                 `json:"session_dir"`
 	CostDir                 string                 `json:"cost_dir"`
+	CraftMirrorDir          string                 `json:"craft_mirror_dir"`
 	Models                  map[string]modelConfig `json:"models"`
 	AgentPreset             string                 `json:"agent_preset"`
 	ToolPreset              string                 `json:"tool_preset"`
@@ -399,6 +403,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.CostDir != "" {
 		cfg.CostDir = parsed.CostDir
 		meta.sources["cost_dir"] = SourceFile
+	}
+	if parsed.CraftMirrorDir != "" {
+		cfg.CraftMirrorDir = parsed.CraftMirrorDir
+		meta.sources["craft_mirror_dir"] = SourceFile
 	}
 	if parsed.AgentPreset != "" {
 		cfg.AgentPreset = parsed.AgentPreset
@@ -629,6 +637,10 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.CostDir = value
 		meta.sources["cost_dir"] = SourceEnv
 	}
+	if value, ok := lookup("ALEX_CRAFT_MIRROR_DIR"); ok && value != "" {
+		cfg.CraftMirrorDir = value
+		meta.sources["craft_mirror_dir"] = SourceEnv
+	}
 
 	return nil
 }
@@ -730,6 +742,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.CostDir != nil {
 		cfg.CostDir = *overrides.CostDir
 		meta.sources["cost_dir"] = SourceOverride
+	}
+	if overrides.CraftMirrorDir != nil {
+		cfg.CraftMirrorDir = *overrides.CraftMirrorDir
+		meta.sources["craft_mirror_dir"] = SourceOverride
 	}
 	if overrides.AgentPreset != nil {
 		cfg.AgentPreset = *overrides.AgentPreset

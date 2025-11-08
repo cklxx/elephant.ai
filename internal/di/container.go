@@ -19,6 +19,8 @@ import (
 	"alex/internal/prompts"
 	"alex/internal/session/filestore"
 	"alex/internal/storage"
+	"alex/internal/storage/blobstore"
+	"alex/internal/storage/craftsync"
 	toolregistry "alex/internal/toolregistry"
 	"alex/internal/tools"
 	"alex/internal/utils"
@@ -29,6 +31,8 @@ type Container struct {
 	AgentCoordinator *agentApp.AgentCoordinator
 	SessionStore     ports.SessionStore
 	CostTracker      ports.CostTracker
+	BlobStore        blobstore.BlobStore
+	CraftMirror      craftsync.Mirror
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
 
@@ -74,8 +78,11 @@ type Config struct {
 	EnvironmentSummary string
 
 	// Storage Configuration
-	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
-	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
+	SessionDir     string // Directory for session storage (default: ~/.alex-sessions)
+	CostDir        string // Directory for cost tracking (default: ~/.alex-costs)
+	BlobDir        string // Directory for artifact storage when using filesystem store
+	BlobPublicURL  string // Optional base URL for serving blobs (e.g. https://cdn.example.com)
+	CraftMirrorDir string // Directory for mirroring crafts into sandbox-visible filesystem
 
 	// Feature Flags
 	EnableMCP      bool // Enable MCP tool registration (requires external dependencies)
@@ -192,6 +199,17 @@ func BuildContainer(config Config) (*Container, error) {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
 	sessionStore := filestore.New(sessionDir)
+	blobDir := resolveStorageDir(config.BlobDir, "~/.alex-blobs")
+	blobStore, err := blobstore.NewFilesystemStore(blobDir, config.BlobPublicURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create blob store: %w", err)
+	}
+	craftDir := resolveStorageDir(config.CraftMirrorDir, "~/.alex-crafts")
+	craftMirror, err := craftsync.NewFilesystemMirror(craftDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create craft mirror: %w", err)
+	}
+	artifactManager := agentApp.NewArtifactManager(blobStore, nil, agentApp.WithArtifactMirror(craftMirror))
 	contextMgr := ctxmgr.NewManager()
 	parserImpl := parser.New()
 
@@ -264,6 +282,7 @@ func BuildContainer(config Config) (*Container, error) {
 			ToolPreset:          config.ToolPreset,
 			EnvironmentSummary:  config.EnvironmentSummary,
 		},
+		agentApp.WithArtifactManager(artifactManager),
 	)
 
 	// Register subagent tool after coordinator is created
@@ -275,6 +294,8 @@ func BuildContainer(config Config) (*Container, error) {
 		AgentCoordinator: coordinator,
 		SessionStore:     sessionStore,
 		CostTracker:      costTracker,
+		BlobStore:        blobStore,
+		CraftMirror:      craftMirror,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
 		SandboxManager:   sandboxManager,

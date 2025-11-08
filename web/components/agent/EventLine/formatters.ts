@@ -44,7 +44,8 @@ export function formatContent(event: AnyAgentEvent): string {
 
     case 'task_analysis':
       if ('action_name' in event) {
-        return `${event.action_name} - ${event.goal}`;
+        const goal = 'goal' in event && event.goal ? event.goal : '';
+        return goal ? `${event.action_name} · ${goal}` : event.action_name;
       }
       return 'Task analysis';
 

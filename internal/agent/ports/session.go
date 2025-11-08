@@ -26,11 +26,30 @@ type SessionStore interface {
 // Session represents an agent session
 type Session struct {
 	ID        string            `json:"id"`
+	UserID    string            `json:"user_id"`
 	Messages  []Message         `json:"messages"`
 	Todos     []Todo            `json:"todos"`
 	Metadata  map[string]string `json:"metadata"`
+	Artifacts []Artifact        `json:"artifacts,omitempty"`
 	CreatedAt time.Time         `json:"created_at"`
 	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+// Artifact represents a binary asset stored separately from the session payload.
+type Artifact struct {
+	ID          string    `json:"id"`
+	SessionID   string    `json:"session_id"`
+	UserID      string    `json:"user_id"`
+	MessageID   string    `json:"message_id,omitempty"`
+	Name        string    `json:"name"`
+	MediaType   string    `json:"media_type"`
+	StorageKey  string    `json:"storage_key"`
+	URI         string    `json:"uri,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Size        int64     `json:"size,omitempty"`
+	Checksum    string    `json:"checksum,omitempty"`
+	Source      string    `json:"source,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // Todo represents a task item
