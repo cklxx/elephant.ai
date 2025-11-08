@@ -15,12 +15,10 @@ services:
       - ALEX_MODEL=${ALEX_MODEL:-gpt-4}
       - ALEX_VERBOSE=${ALEX_VERBOSE:-false}
       - SESSION_STORE_PATH=/data/sessions
-      - ALEX_CRAFT_MIRROR_DIR=/data/crafts
       - REDIS_URL=${REDIS_URL:-}
       - ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
     volumes:
       - alex-sessions:/data/sessions
-      - alex-crafts:/data/crafts
       - ./:/workspace:cached  # Mount workspace for development
     restart: unless-stopped
     depends_on:
@@ -87,7 +85,6 @@ services:
       - "8090:8080"
     volumes:
       - ./skills:/workspace/skills:ro
-      - alex-crafts:/workspace/crafts
     restart: unless-stopped
     networks:
       - alex-network
@@ -111,8 +108,6 @@ services:
 
 volumes:
   alex-sessions:
-    driver: local
-  alex-crafts:
     driver: local
   redis-data:
     driver: local

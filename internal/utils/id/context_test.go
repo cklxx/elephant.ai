@@ -35,19 +35,6 @@ func TestWithIDsAndFromContext(t *testing.T) {
 	}
 }
 
-func TestWithUserID(t *testing.T) {
-	ctx := context.Background()
-	ctx = WithUserID(ctx, "user-123")
-	if got := UserIDFromContext(ctx); got != "user-123" {
-		t.Fatalf("expected user-123, got %s", got)
-	}
-	// empty user should be ignored
-	ctx = WithUserID(ctx, "")
-	if got := UserIDFromContext(ctx); got != "user-123" {
-		t.Fatalf("expected stored user to remain user-123, got %s", got)
-	}
-}
-
 func TestEnsureTaskID(t *testing.T) {
 	ctx := context.Background()
 	ctx, generated := EnsureTaskID(ctx, func() string { return "task-123" })
@@ -111,7 +98,6 @@ func TestGeneratedIdentifiersAreUnique(t *testing.T) {
 
 	sessionSeen := make(map[string]struct{}, total)
 	taskSeen := make(map[string]struct{}, total)
-	artifactSeen := make(map[string]struct{}, total)
 
 	for i := 0; i < total; i++ {
 		sessionID := NewSessionID()
@@ -125,12 +111,6 @@ func TestGeneratedIdentifiersAreUnique(t *testing.T) {
 			t.Fatalf("duplicate task id generated: %s", taskID)
 		}
 		taskSeen[taskID] = struct{}{}
-
-		artifactID := NewArtifactID()
-		if _, exists := artifactSeen[artifactID]; exists {
-			t.Fatalf("duplicate artifact id generated: %s", artifactID)
-		}
-		artifactSeen[artifactID] = struct{}{}
 	}
 
 	if len(sessionSeen) != total {
@@ -139,10 +119,6 @@ func TestGeneratedIdentifiersAreUnique(t *testing.T) {
 
 	if len(taskSeen) != total {
 		t.Fatalf("expected %d unique task ids, got %d", total, len(taskSeen))
-	}
-
-	if len(artifactSeen) != total {
-		t.Fatalf("expected %d unique artifact ids, got %d", total, len(artifactSeen))
 	}
 }
 
