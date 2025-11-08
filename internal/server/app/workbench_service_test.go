@@ -410,7 +410,7 @@ func TestGenerateWebBlueprintParsesResponse(t *testing.T) {
 	if len(result.Blueprint.Sections) != 2 {
 		t.Fatalf("expected 2 sections, got %d", len(result.Blueprint.Sections))
 	}
-	if result.Blueprint.CallToActions == nil || len(result.Blueprint.CallToActions) != 1 {
+	if len(result.Blueprint.CallToActions) != 1 {
 		t.Fatalf("expected one CTA, got %#v", result.Blueprint.CallToActions)
 	}
 	if result.SessionID != "session-web" || result.TaskID != "task-web" {
@@ -432,7 +432,7 @@ func TestGenerateWebBlueprintFallsBackToTemplate(t *testing.T) {
 	if len(result.Blueprint.Sections) < 4 {
 		t.Fatalf("expected fallback blueprint with sections, got %d", len(result.Blueprint.Sections))
 	}
-	if result.Blueprint.CallToActions == nil || len(result.Blueprint.CallToActions) == 0 {
+	if len(result.Blueprint.CallToActions) == 0 {
 		t.Fatalf("expected fallback CTA")
 	}
 }
