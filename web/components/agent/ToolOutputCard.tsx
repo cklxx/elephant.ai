@@ -9,7 +9,6 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import { formatTimestamp } from "./EventLine/formatters";
 import { AttachmentPayload } from "@/lib/types";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
@@ -44,6 +43,10 @@ export function ToolOutputCard({
     () => Boolean(error) || !hasResult,
   );
   const t = useTranslation();
+
+  const normalizedToolName = toolName.toLowerCase();
+  const isSeedream = normalizedToolName.includes("seedream");
+  const displayToolName = isSeedream ? "Seedream image generation" : toolName;
 
   const language = useMemo(
     () => detectLanguage(toolName, parameters, result),
@@ -83,7 +86,7 @@ export function ToolOutputCard({
                     : "text-primary font-semibold"
                 }
               >
-                {error ? "✗" : "▸"} {toolName}
+                {error ? "✗" : "▸"} {displayToolName}
               </span>
               {typeof duration === "number" && duration >= 0 && (
                 <Badge variant="info" className="font-mono text-[11px]">
@@ -466,7 +469,91 @@ function renderToolResult(
   t: any,
   attachments?: Record<string, AttachmentPayload>,
 ): React.ReactNode {
-  if (!result) return null;
+  const hasResultText = typeof result === "string" && result.trim().length > 0;
+
+  // Code execute - show executed code and output
+  if (toolName === "code_execute") {
+    const codeSnippet =
+      typeof parameters?.code === "string" ? parameters.code : undefined;
+    const langHint =
+      (typeof parameters?.language === "string"
+        ? parameters.language
+        : undefined) ||
+      (typeof metadata?.language === "string" ? metadata.language : undefined);
+    const status =
+      typeof metadata?.success === "boolean" ? metadata.success : undefined;
+    const durationMs =
+      typeof metadata?.duration_ms === "number"
+        ? metadata.duration_ms
+        : undefined;
+
+    return (
+      <div className="space-y-3">
+        {codeSnippet && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("tool.code_execute.code") ?? "Code"}
+            </p>
+            <div className="rounded-lg border border-border/60 overflow-auto">
+              <SyntaxHighlighter
+                language={mapCodeExecuteLanguage(langHint)}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: "0.5rem",
+                  fontSize: "0.75rem",
+                  maxHeight: 400,
+                }}
+                showLineNumbers={true}
+              >
+                {codeSnippet}
+              </SyntaxHighlighter>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("tool.code_execute.output") ?? "Execution Result"}
+          </p>
+          <div className="console-card bg-background border border-border/60 p-3">
+            {hasResultText ? (
+              <pre className="text-xs font-mono whitespace-pre-wrap text-foreground/90">
+                {result}
+              </pre>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {t("tool.code_execute.emptyOutput") ?? "No output captured."}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {(status !== undefined || durationMs !== undefined) && (
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            {status !== undefined && (
+              <span className="flex items-center gap-2">
+                {t("tool.code_execute.status") ?? "Status"}:
+                <Badge variant={status ? "success" : "error"}>
+                  {status
+                    ? t("tool.code_execute.success") ?? "Succeeded"
+                    : t("tool.code_execute.failed") ?? "Failed"}
+                </Badge>
+              </span>
+            )}
+            {durationMs !== undefined && (
+              <span>
+                {t("tool.code_execute.duration") ?? "Duration"}:{" "}
+                {formatDuration(durationMs)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!hasResultText) return null;
 
   // Bash tool - show command and output separately
   if (toolName === "bash" || toolName === "shell") {
@@ -612,16 +699,42 @@ function renderToolResult(
   }
 
   // Default rendering for other tools
+  const descriptor =
+    isSeedream &&
+    (typeof metadata?.description === "string"
+      ? metadata.description
+      : typeof parameters?.prompt === "string"
+        ? parameters.prompt
+        : undefined);
+  const baseResult =
+    typeof (isSeedream ? descriptor : result) === "string"
+      ? (isSeedream ? descriptor : result) ?? ""
+      : result
+        ? JSON.stringify(result, null, 2)
+        : "";
   const attachmentsAvailable =
     attachments && Object.keys(attachments).length > 0;
   const parsedSegments = attachmentsAvailable
-    ? parseContentSegments(result ?? "", attachments)
+    ? parseContentSegments(baseResult, attachments)
     : null;
+  const normalizedDescriptor =
+    typeof descriptor === "string" ? descriptor.trim() : undefined;
   const textSegments = parsedSegments
     ? parsedSegments.filter(
-        (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
+        (segment) =>
+          segment.type === "text" &&
+          segment.text &&
+          segment.text.trim().length > 0,
       )
-    : [];
+    : baseResult
+      ? [{ type: "text", text: baseResult }]
+      : [];
+  const filteredTextSegments =
+    isSeedream && normalizedDescriptor
+      ? textSegments.filter(
+          (segment) => segment.text?.trim() !== normalizedDescriptor,
+        )
+      : textSegments;
   const imageSegments = parsedSegments
     ? parsedSegments.filter(
         (segment) => segment.type === "image" && segment.attachment,
@@ -634,12 +747,24 @@ function renderToolResult(
         {t("tool.section.output")}
       </p>
       {attachmentsAvailable ? (
-        <div className="rounded-lg border border-border/60 overflow-auto p-3 bg-background">
-          <div className="whitespace-pre-wrap font-mono text-xs space-y-3">
-            {textSegments.map((segment, index) => (
-              <span key={`text-segment-${index}`}>{segment.text}</span>
-            ))}
-          </div>
+        <div className="rounded-lg border border-border/60 overflow-auto p-3 bg-background space-y-4">
+          {isSeedream && normalizedDescriptor && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                Prompt
+              </p>
+              <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
+                {normalizedDescriptor}
+              </p>
+            </div>
+          )}
+          {filteredTextSegments.length > 0 && (
+            <div className="whitespace-pre-wrap font-mono text-xs space-y-3 text-foreground/80">
+              {filteredTextSegments.map((segment, index) => (
+                <span key={`text-segment-${index}`}>{segment.text}</span>
+              ))}
+            </div>
+          )}
           {imageSegments.length > 0 && (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {imageSegments.map((segment, index) => {
@@ -654,7 +779,9 @@ function renderToolResult(
                   <ImagePreview
                     key={`image-segment-${index}`}
                     src={uri}
-                    alt={segment.attachment.description || segment.attachment.name}
+                    alt={
+                      segment.attachment.description || segment.attachment.name
+                    }
                     minHeight="10rem"
                     maxHeight="16rem"
                     sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
@@ -663,6 +790,15 @@ function renderToolResult(
               })}
             </div>
           )}
+        </div>
+      ) : isSeedream ? (
+        <div className="rounded-lg border border-border/60 bg-background p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            Prompt
+          </p>
+          <p className="mt-2 whitespace-pre-wrap font-mono text-xs text-foreground/90">
+            {baseResult}
+          </p>
         </div>
       ) : (
         <div className="rounded-lg border border-border/60 overflow-auto">
@@ -677,7 +813,7 @@ function renderToolResult(
             }}
             showLineNumbers={language !== "text"}
           >
-            {result}
+            {baseResult}
           </SyntaxHighlighter>
         </div>
       )}
@@ -713,4 +849,24 @@ function detectLanguageFromPath(path: string): string {
   };
 
   return langMap[ext] || "text";
+}
+
+function mapCodeExecuteLanguage(language?: string): string {
+  if (!language) return "text";
+  const normalized = language.toLowerCase();
+  if (normalized === "js") return "javascript";
+  if (normalized === "py") return "python";
+  if (normalized === "sh") return "bash";
+  const allowed = [
+    "python",
+    "javascript",
+    "typescript",
+    "bash",
+    "go",
+    "ruby",
+  ];
+  if (allowed.includes(normalized)) {
+    return normalized;
+  }
+  return "text";
 }

@@ -5,7 +5,6 @@ import { AnyAgentEvent } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
 import { useI18n } from "@/lib/i18n";
-import { ToolCallSummary } from "@/lib/eventAggregation";
 import { EventLine } from "./EventLine";
 
 interface TerminalOutputProps {
@@ -15,7 +14,6 @@ interface TerminalOutputProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
-  toolSummaries?: ToolCallSummary[];
 }
 
 export function TerminalOutput({
