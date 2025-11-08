@@ -11,10 +11,10 @@ const defaultCLIUserID = "cli-user"
 
 func resolveCLIUserID() string {
 	candidates := []string{
-		os.Getenv("ALEX_USER_ID"),
-		os.Getenv("ALEX_CLI_USER_ID"),
-		os.Getenv("USER"),
-		os.Getenv("USERNAME"),
+		lookupEnv("ALEX_USER_ID"),
+		lookupEnv("ALEX_CLI_USER_ID"),
+		lookupEnv("USER"),
+		lookupEnv("USERNAME"),
 	}
 
 	for _, candidate := range candidates {
@@ -69,4 +69,11 @@ func sanitizeUserID(value string) string {
 	}
 
 	return sanitized
+}
+
+func lookupEnv(key string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return ""
 }
