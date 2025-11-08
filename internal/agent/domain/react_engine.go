@@ -352,10 +352,12 @@ func (e *ReactEngine) SolveTask(
 		}
 
 		// 3. OBSERVE: Add results to conversation
-		observation := e.buildObservation(state, results)
-		state.Messages = append(state.Messages, observation)
-		registerMessageAttachments(state, observation)
-		e.logger.Debug("OBSERVE phase: Added observation to state")
+		toolMessages := e.buildToolMessages(results)
+		state.Messages = append(state.Messages, toolMessages...)
+		for _, msg := range toolMessages {
+			registerMessageAttachments(state, msg)
+		}
+		e.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
 
 		// 4. Check context limits
 		tokenCount := services.Context.EstimateTokens(state.Messages)
@@ -627,38 +629,48 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParse
 	return calls
 }
 
-// buildObservation creates a message with tool results
-func (e *ReactEngine) buildObservation(state *TaskState, results []ToolResult) Message {
-	var builder strings.Builder
-	attachments := make(map[string]ports.Attachment)
+// buildToolMessages converts tool results into messages sent back to the LLM.
+func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
+	messages := make([]Message, 0, len(results))
 
 	for _, result := range results {
+		content := ""
 		if result.Error != nil {
-			builder.WriteString(fmt.Sprintf("Tool %s failed: %v\n", result.CallID, result.Error))
+			content = fmt.Sprintf("Tool %s failed: %v", result.CallID, result.Error)
+		} else if strings.TrimSpace(result.Content) != "" {
+			content = fmt.Sprintf("Tool %s result:\n%s", result.CallID, result.Content)
 		} else {
-			builder.WriteString(fmt.Sprintf("Tool %s result:\n%s\n", result.CallID, result.Content))
+			content = fmt.Sprintf("Tool %s completed with no textual result.", result.CallID)
 		}
-		for key, att := range result.Attachments {
-			placeholder := key
-			if placeholder == "" {
-				placeholder = att.Name
-			}
-			if placeholder == "" {
-				continue
-			}
-			attachments[placeholder] = att
+
+		msg := Message{
+			Role:        "tool",
+			Content:     content,
+			ToolCallID:  result.CallID,
+			ToolResults: []ToolResult{result},
 		}
+
+		if len(result.Attachments) > 0 {
+			attachments := make(map[string]ports.Attachment)
+			for key, att := range result.Attachments {
+				placeholder := key
+				if placeholder == "" {
+					placeholder = att.Name
+				}
+				if placeholder == "" {
+					continue
+				}
+				attachments[placeholder] = att
+			}
+			if len(attachments) > 0 {
+				msg.Attachments = attachments
+			}
+		}
+
+		messages = append(messages, msg)
 	}
 
-	message := Message{
-		Role:        "user", // Observations come back as user messages
-		Content:     builder.String(),
-		ToolResults: results,
-	}
-	if len(attachments) > 0 {
-		message.Attachments = attachments
-	}
-	return message
+	return messages
 }
 
 func coerceToInt(value any) int {

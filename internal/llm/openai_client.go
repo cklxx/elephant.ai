@@ -165,9 +165,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			TotalTokens      int `json:"total_tokens"`
 		} `json:"usage"`
 		Error *struct {
-			Type    string `json:"type"`
-			Message string `json:"message"`
-			Code    string `json:"code"`
+			Type    string          `json:"type"`
+			Message string          `json:"message"`
+			Code    json.RawMessage `json:"code"`
 		} `json:"error"`
 	}
 
@@ -260,6 +260,9 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	for i, msg := range msgs {
 		entry := map[string]any{"role": msg.Role}
 		entry["content"] = buildMessageContent(msg)
+		if msg.ToolCallID != "" {
+			entry["tool_call_id"] = msg.ToolCallID
+		}
 		if len(msg.ToolCalls) > 0 {
 			entry["tool_calls"] = msg.ToolCalls
 		}
