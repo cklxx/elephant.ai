@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState } from "react";
@@ -55,26 +56,17 @@ export function ImagePreview({
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="bg-background/95 p-0"
+          className="bg-background/95 p-0 max-w-none w-screen sm:w-[90vw]"
           onClose={() => setOpen(false)}
           showCloseButton={false}
           unstyled
         >
-          <div className="relative mx-auto w-full max-w-5xl">
-            <div
-              className="relative w-full"
-              style={{ minHeight: "40vh", maxHeight: "85vh" }}
-            >
-              <Image
-                src={src}
-                alt={altText}
-                fill
-                className="object-contain"
-                sizes="100vw"
-                priority
-                unoptimized
-              />
-            </div>
+          <div className="flex max-h-[85vh] w-full items-center justify-center px-4 py-6">
+            <img
+              src={src}
+              alt={altText}
+              className="h-auto max-h-[80vh] w-auto max-w-full rounded-3xl object-contain shadow-2xl"
+            />
           </div>
         </DialogContent>
       </Dialog>

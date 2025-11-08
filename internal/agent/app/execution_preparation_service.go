@@ -188,13 +188,21 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			systemPrompt = summary
 		}
 	}
+	preloadedAttachments := collectSessionAttachments(session.Messages)
 	state := &domain.TaskState{
-		SystemPrompt: systemPrompt,
-		Messages:     append([]domain.Message(nil), session.Messages...),
-		SessionID:    session.ID,
-		TaskID:       ids.TaskID,
-		ParentTaskID: ids.ParentTaskID,
-		Attachments:  collectSessionAttachments(session.Messages),
+		SystemPrompt:         systemPrompt,
+		Messages:             append([]domain.Message(nil), session.Messages...),
+		SessionID:            session.ID,
+		TaskID:               ids.TaskID,
+		ParentTaskID:         ids.ParentTaskID,
+		Attachments:          preloadedAttachments,
+		AttachmentIterations: make(map[string]int),
+	}
+	for key := range preloadedAttachments {
+		if key == "" {
+			continue
+		}
+		state.AttachmentIterations[key] = 0
 	}
 
 	if userAttachments := GetUserAttachments(ctx); len(userAttachments) > 0 {

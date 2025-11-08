@@ -64,6 +64,7 @@ const buildResult = (ctx: RendererContext): ReactNode | null => {
       copyLabel={ctx.labels.copyResult}
       copyErrorLabel={ctx.labels.copyError}
       copiedLabel={ctx.labels.copied}
+      attachments={ctx.completeEvent?.attachments}
     />
   );
 };
@@ -106,6 +107,26 @@ const shellRenderer: ToolRenderer = (ctx) => {
   return { panels };
 };
 
+const codeExecuteRenderer: ToolRenderer = (ctx) => {
+  const panels: ReactNode[] = [];
+  const code =
+    typeof ctx.startEvent?.arguments?.code === 'string'
+      ? ctx.startEvent.arguments.code
+      : undefined;
+  if (code) {
+    panels.push(
+      <SimplePanel key="code-execute-source">
+        <PanelHeader title="Code" />
+        <pre className="console-scrollbar max-h-64 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+          {code}
+        </pre>
+      </SimplePanel>,
+    );
+  }
+  panels.push(...defaultRenderer(ctx).panels);
+  return { panels };
+};
+
 const fileRenderer: ToolRenderer = (ctx) => {
   const panels: ReactNode[] = [];
   if (ctx.startEvent?.arguments?.path) {
@@ -124,6 +145,7 @@ export const resolveToolRenderer = (toolName: string): ToolRenderer => {
   const lower = toolName.toLowerCase();
   if (lower.includes('browser')) return browserRenderer;
   if (lower.includes('shell') || lower.includes('bash') || lower.includes('terminal')) return shellRenderer;
+  if (lower.includes('code_execute')) return codeExecuteRenderer;
   if (lower.includes('file') || lower.includes('fs')) return fileRenderer;
   return defaultRenderer;
 };

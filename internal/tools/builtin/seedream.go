@@ -179,7 +179,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
 
-	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor)
+	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
 	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
@@ -275,7 +275,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
 
-	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor)
+	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
 	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
@@ -463,7 +463,7 @@ func seedreamMissingConfigMessage(config SeedreamConfig) string {
 	return builder.String()
 }
 
-func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor string) (string, map[string]any, map[string]ports.Attachment) {
+func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string) (string, map[string]any, map[string]ports.Attachment) {
 	if resp == nil {
 		return "Seedream returned an empty response.", nil, nil
 	}
@@ -474,6 +474,12 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor string) (strin
 	requestID := fmt.Sprintf("seedream_%d", time.Now().Unix())
 	if resp.Model != "" {
 		requestID = strings.ReplaceAll(resp.Model, "/", "_")
+	}
+
+	trimmedPrompt := strings.TrimSpace(prompt)
+	attachmentDescription := trimmedPrompt
+	if attachmentDescription == "" {
+		attachmentDescription = strings.TrimSpace(descriptor)
 	}
 
 	for idx, item := range resp.Data {
@@ -489,8 +495,6 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor string) (strin
 		var encoded string
 		if item.B64Json != nil && *item.B64Json != "" {
 			encoded = *item.B64Json
-			entry["base64"] = encoded
-			entry["data_uri"] = "data:image/png;base64," + encoded
 		}
 		placeholder := fmt.Sprintf("%s_%d.png", requestID, idx)
 		entry["placeholder"] = placeholder
@@ -500,7 +504,7 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor string) (strin
 			Data:        encoded,
 			URI:         urlStr,
 			Source:      "seedream",
-			Description: descriptor,
+			Description: attachmentDescription,
 		}
 		images = append(images, entry)
 	}
@@ -514,45 +518,35 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor string) (strin
 		metadata["usage"] = resp.Usage
 	}
 	if descriptor != "" {
+		metadata["model_descriptor"] = descriptor
+	}
+	if trimmedPrompt != "" {
+		metadata["prompt"] = trimmedPrompt
+		metadata["description"] = trimmedPrompt
+	} else if descriptor != "" {
 		metadata["description"] = descriptor
 	}
 
-	var sb strings.Builder
-	title := descriptor
-	if title == "" {
-		title = "Seedream"
+	content := prompt
+	if strings.TrimSpace(content) == "" {
+		content = descriptor
 	}
-	sb.WriteString(fmt.Sprintf("%s response\n", title))
-	sb.WriteString(fmt.Sprintf("Generated %d image(s). Use the placeholders below for multimodal references.\n", len(images)))
-	for i, img := range images {
-		placeholder, _ := img["placeholder"].(string)
-		sb.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
-		if url, ok := img["url"].(string); ok && url != "" {
-			sb.WriteString(fmt.Sprintf(" (url: %s)", url))
-		}
-		sb.WriteString("\n")
+	if strings.TrimSpace(content) == "" {
+		content = "Seedream image generation complete."
 	}
-	return sb.String(), metadata, attachments
+	return content, metadata, attachments
 }
 
 func buildVisionContent(images []string, prompt string, detail *responses.ContentItemImageDetail_Enum) ([]*responses.ContentItem, error) {
 	content := make([]*responses.ContentItem, 0, len(images)+1)
 	for _, raw := range images {
-		url := strings.TrimSpace(raw)
-		if url == "" {
-			continue
+		item, err := buildVisionImageItem(strings.TrimSpace(raw), detail)
+		if err != nil {
+			return nil, err
 		}
-		content = append(content, &responses.ContentItem{
-			Union: &responses.ContentItem_Image{
-				Image: &responses.ContentItemImage{
-					Type:   responses.ContentItemType_input_image,
-					Detail: detail,
-					ImageUrl: func() *string {
-						return volcengine.String(url)
-					}(),
-				},
-			},
-		})
+		if item != nil {
+			content = append(content, item)
+		}
 	}
 	if len(content) == 0 {
 		return nil, errors.New("images parameter must include at least one non-empty value")
@@ -566,6 +560,55 @@ func buildVisionContent(images []string, prompt string, detail *responses.Conten
 		},
 	})
 	return content, nil
+}
+
+func buildVisionImageItem(raw string, detail *responses.ContentItemImageDetail_Enum) (*responses.ContentItem, error) {
+	if raw == "" {
+		return nil, nil
+	}
+
+	if strings.HasPrefix(raw, "data:") {
+		if _, err := extractBase64Payload(raw); err != nil {
+			return nil, fmt.Errorf("invalid data URI: %w", err)
+		}
+		return &responses.ContentItem{
+			Union: &responses.ContentItem_Image{
+				Image: &responses.ContentItemImage{
+					Type:     responses.ContentItemType_input_image,
+					Detail:   detail,
+					ImageUrl: volcengine.String(raw),
+				},
+			},
+		}, nil
+	}
+
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		return &responses.ContentItem{
+			Union: &responses.ContentItem_Image{
+				Image: &responses.ContentItemImage{
+					Type:   responses.ContentItemType_input_image,
+					Detail: detail,
+					ImageUrl: func() *string {
+						return volcengine.String(raw)
+					}(),
+				},
+			},
+		}, nil
+	}
+
+	return nil, fmt.Errorf("image value must be an HTTPS URL or data URI")
+}
+
+func extractBase64Payload(dataURI string) (string, error) {
+	comma := strings.Index(dataURI, ",")
+	if !strings.HasPrefix(dataURI, "data:") || comma == -1 {
+		return "", errors.New("invalid data URI format")
+	}
+	payload := dataURI[comma+1:]
+	if payload == "" {
+		return "", errors.New("missing data payload")
+	}
+	return payload, nil
 }
 
 func collectVisionText(resp *responses.ResponseObject) string {

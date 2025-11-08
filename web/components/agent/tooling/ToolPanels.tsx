@@ -2,6 +2,9 @@
 
 import { ReactNode, useCallback, useState } from 'react';
 import { Clipboard, ClipboardCheck } from 'lucide-react';
+import { AttachmentPayload } from '@/lib/types';
+import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
+import { ImagePreview } from '@/components/ui/image-preview';
 
 function fallbackCopy(text: string) {
   try {
@@ -107,6 +110,7 @@ export function ToolResultPanel({
   copyLabel,
   copyErrorLabel,
   copiedLabel,
+  attachments,
 }: {
   result: any;
   error?: string | null;
@@ -115,6 +119,7 @@ export function ToolResultPanel({
   copyLabel: string;
   copyErrorLabel: string;
   copiedLabel: string;
+  attachments?: Record<string, AttachmentPayload>;
 }) {
   if (error) {
     return (
@@ -125,16 +130,69 @@ export function ToolResultPanel({
     );
   }
 
-  if (!result) return null;
+  const formatted =
+    typeof result === 'string'
+      ? result
+      : result
+        ? JSON.stringify(result, null, 2)
+        : '';
 
-  const formatted = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  const attachmentsAvailable = attachments && Object.keys(attachments).length > 0;
+  const segments = attachmentsAvailable
+    ? parseContentSegments(formatted || '', attachments)
+    : null;
+  const textSegments = segments
+    ? segments.filter((segment) => segment.type === 'text' && segment.text && segment.text.length > 0)
+    : [];
+  const imageSegments = segments
+    ? segments.filter((segment) => segment.type === 'image' && segment.attachment)
+    : [];
+
+  if (!formatted && !attachmentsAvailable) {
+    return null;
+  }
 
   return (
     <SimplePanel>
       <PanelHeader title={resultTitle} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={formatted} />} />
-      <pre className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80">
-        {formatted}
-      </pre>
+      {attachmentsAvailable ? (
+        <div className="rounded-lg border border-border/60 bg-background p-3">
+          <div className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/80">
+            {textSegments.length > 0
+              ? textSegments.map((segment, index) => (
+                  <span key={`tool-result-text-${index}`}>{segment.text}</span>
+                ))
+              : formatted}
+          </div>
+          {imageSegments.length > 0 && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {imageSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const uri = buildAttachmentUri(segment.attachment);
+                if (!uri) {
+                  return null;
+                }
+                return (
+                  <ImagePreview
+                    key={`tool-result-image-${index}`}
+                    src={uri}
+                    alt={segment.attachment.description || segment.attachment.name}
+                    minHeight="10rem"
+                    maxHeight="16rem"
+                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <pre className="console-scrollbar max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80">
+          {formatted}
+        </pre>
+      )}
     </SimplePanel>
   );
 }
