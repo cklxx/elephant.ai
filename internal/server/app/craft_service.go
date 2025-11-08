@@ -57,10 +57,16 @@ func (s *CraftService) List(ctx context.Context) ([]Craft, error) {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
 	crafts := make([]Craft, 0)
+	userID := id.UserIDFromContext(ctx)
 	for _, sessionID := range sessionIDs {
 		session, err := s.sessionStore.Get(ctx, sessionID)
 		if err != nil {
 			continue
+		}
+		if userID != "" {
+			if session.UserID == "" || session.UserID != userID {
+				continue
+			}
 		}
 		for _, artifact := range session.Artifacts {
 			crafts = append(crafts, Craft{

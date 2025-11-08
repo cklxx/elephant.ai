@@ -120,7 +120,12 @@ func (m *FilesystemMirror) Mirror(ctx context.Context, meta ArtifactMetadata, co
 		contentPath string
 	)
 	if len(content) > 0 {
-		filename = chooseFilename(meta.Name, meta.MediaType, meta.ID)
+		rawFilename := chooseFilename(meta.Name, meta.MediaType, meta.ID)
+		safeFilename, err := ensureSafeFilename(rawFilename, meta.MediaType, meta.ID)
+		if err != nil {
+			return "", fmt.Errorf("derive safe filename: %w", err)
+		}
+		filename = safeFilename
 		contentPath = filepath.Join(artifactDir, filename)
 		if err := os.WriteFile(contentPath, content, m.filePermission); err != nil {
 			return "", fmt.Errorf("write craft content: %w", err)
@@ -230,6 +235,65 @@ func sanitizeFilename(name string) string {
 		return ""
 	}
 	return sanitized
+}
+
+func ensureSafeFilename(candidate, mediaType, fallbackID string) (string, error) {
+	cleanedCandidate := collapseRepeatedDots(candidate)
+	if isSafePathComponent(cleanedCandidate) {
+		return cleanedCandidate, nil
+	}
+
+	fallback := collapseRepeatedDots(sanitizeFilename(fallbackID))
+	if fallback == "" {
+		fallback = "artifact"
+	}
+
+	ext := filepath.Ext(candidate)
+	if ext == "" {
+		ext = extensionForMediaType(mediaType)
+	}
+
+	safe := strings.Trim(fallback, ".")
+	if safe == "" {
+		safe = "artifact"
+	}
+	if ext != "" && !strings.HasSuffix(strings.ToLower(safe), strings.ToLower(ext)) {
+		safe += ext
+	}
+	safe = collapseRepeatedDots(safe)
+	safe = strings.Trim(safe, ".")
+	if ext != "" && !strings.HasSuffix(safe, ext) {
+		safe += ext
+	}
+
+	if !isSafePathComponent(safe) {
+		return "", fmt.Errorf("invalid filename %q", safe)
+	}
+
+	return safe, nil
+}
+
+func collapseRepeatedDots(name string) string {
+	for strings.Contains(name, "..") {
+		name = strings.ReplaceAll(name, "..", ".")
+	}
+	return name
+}
+
+func isSafePathComponent(name string) bool {
+	if name == "" {
+		return false
+	}
+	if strings.ContainsAny(name, "/\\") {
+		return false
+	}
+	if strings.Contains(name, "..") {
+		return false
+	}
+	if filepath.Base(name) != name {
+		return false
+	}
+	return true
 }
 
 func sanitizePathSegment(input string) string {

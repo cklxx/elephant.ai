@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,4 +177,35 @@ func TestStore_GetAdoptsLegacySession(t *testing.T) {
 	if reloaded.UserID != "user-42" {
 		t.Fatalf("expected persisted user_id to remain 'user-42', got %q", reloaded.UserID)
 	}
+}
+
+func TestStore_RejectsUnsafeSessionIDs(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store := New(baseDir)
+
+	ctx := id.WithUserID(context.Background(), "user-safe")
+
+	t.Run("get rejects traversal", func(t *testing.T) {
+		t.Parallel()
+		if _, err := store.Get(ctx, "../escape"); err == nil || !strings.Contains(err.Error(), "invalid session id") {
+			t.Fatalf("expected Get to reject unsafe session id, got %v", err)
+		}
+	})
+
+	t.Run("save rejects traversal", func(t *testing.T) {
+		t.Parallel()
+		session := &ports.Session{ID: "../escape", UserID: "user-safe", Metadata: map[string]string{}}
+		if err := store.Save(ctx, session); err == nil || !strings.Contains(err.Error(), "invalid session id") {
+			t.Fatalf("expected Save to reject unsafe session id, got %v", err)
+		}
+	})
+
+	t.Run("delete rejects traversal", func(t *testing.T) {
+		t.Parallel()
+		if err := store.Delete(ctx, "..\\escape"); err == nil || !strings.Contains(err.Error(), "invalid session id") {
+			t.Fatalf("expected Delete to reject unsafe session id, got %v", err)
+		}
+	})
 }
