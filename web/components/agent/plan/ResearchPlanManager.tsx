@@ -43,6 +43,13 @@ import { ResearchPlan } from './types';
 
 type TranslateFn = ReturnType<typeof useTranslation>;
 
+const clonePlan = (plan: ResearchPlan): ResearchPlan => ({
+  ...plan,
+  steps: [...plan.steps],
+  estimated_tools: [...plan.estimated_tools],
+  cloud_exports: plan.cloud_exports?.map((target) => ({ ...target })),
+});
+
 interface ResearchPlanManagerProps {
   plan: ResearchPlan | null;
   loading?: boolean;
@@ -96,18 +103,14 @@ export function ResearchPlanManager({
   };
 
   const handleCancelEdit = () => {
-    setDraftPlan(plan ? { ...plan, steps: [...plan.steps], estimated_tools: [...plan.estimated_tools] } : null);
+    setDraftPlan(plan ? clonePlan(plan) : null);
     setIsEditing(false);
   };
 
   const handleStartEditing = () => {
     if (!plan) return;
 
-    setDraftPlan({
-      ...plan,
-      steps: [...plan.steps],
-      estimated_tools: [...plan.estimated_tools],
-    });
+    setDraftPlan(clonePlan(plan));
     setIsEditing(true);
     setIsRejecting(false);
   };
@@ -133,7 +136,7 @@ export function ResearchPlanManager({
 
   const updateDraftPlan = (updater: (current: ResearchPlan) => ResearchPlan) => {
     setDraftPlan((current) => {
-      const source = current ?? (plan ? { ...plan, steps: [...plan.steps], estimated_tools: [...plan.estimated_tools] } : null);
+      const source = current ?? (plan ? clonePlan(plan) : null);
       if (!source) return current;
       return updater(source);
     });

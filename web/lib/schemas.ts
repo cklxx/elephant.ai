@@ -111,6 +111,16 @@ export const ErrorEventSchema = BaseAgentEventSchema.extend({
   recoverable: z.boolean(),
 });
 
+const CloudExportTargetSchema = z.object({
+  provider: z.string(),
+  bucket: z.string(),
+  path: z.string(),
+  access: z.enum(['read', 'write', 'read_write']).catch('read_write'),
+  retention_days: z.number().int().min(0).optional(),
+  region: z.string().optional(),
+  description: z.string().optional(),
+});
+
 // Research Plan Event
 export const ResearchPlanEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('research_plan'),
@@ -118,6 +128,7 @@ export const ResearchPlanEventSchema = BaseAgentEventSchema.extend({
   estimated_iterations: z.number(),
   estimated_tools: z.array(z.string()).optional(),
   estimated_duration_minutes: z.number().optional(),
+  cloud_exports: z.array(CloudExportTargetSchema).optional(),
 });
 
 // Step Started Event
@@ -251,6 +262,8 @@ export const ResearchPlanSchema = z.object({
   steps: z.array(z.string()),
   estimated_tools: z.array(z.string()),
   estimated_iterations: z.number(),
+  estimated_duration_minutes: z.number().optional(),
+  cloud_exports: z.array(CloudExportTargetSchema).optional(),
 });
 
 export const ApprovePlanRequestSchema = z.object({

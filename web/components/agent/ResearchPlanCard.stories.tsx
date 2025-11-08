@@ -13,6 +13,25 @@ const basePlan = {
   estimated_tools: ['file_read', 'bash', 'browser'],
   estimated_iterations: 6,
   estimated_duration_minutes: 210,
+  cloud_exports: [
+    {
+      provider: 's3',
+      bucket: 'alex-research-data',
+      path: 'dashboards/insights',
+      access: 'read_write',
+      retention_days: 30,
+      region: 'us-east-1',
+      description: 'Primary artifact handoff',
+    },
+    {
+      provider: 'gcs',
+      bucket: 'alex-collaboration',
+      path: 'dashboards/preview',
+      access: 'read',
+      retention_days: 14,
+      region: 'us-central1',
+    },
+  ],
 };
 
 const baseProgress: PlanProgressMetrics = {

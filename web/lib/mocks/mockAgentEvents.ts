@@ -32,6 +32,18 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
           'Prepare actionable refactor plan',
         ],
         estimated_iterations: 3,
+        estimated_tools: ['file_read', 'analysis', 'browser'],
+        estimated_duration_minutes: 120,
+        cloud_exports: [
+          {
+            provider: 's3',
+            bucket: 'alex-research-artifacts',
+            path: `sessions/${callId}`,
+            access: 'read_write',
+            retention_days: 30,
+            region: 'us-west-2',
+          },
+        ],
       },
     },
     {

@@ -1,7 +1,4 @@
-export interface ResearchPlan {
-  goal: string;
-  steps: string[];
-  estimated_tools: string[];
-  estimated_iterations: number;
-  estimated_duration_minutes?: number;
-}
+import type { ResearchPlan as SharedResearchPlan, CloudExportTarget as SharedCloudExportTarget } from '@/lib/types';
+
+export type ResearchPlan = SharedResearchPlan;
+export type CloudExportTarget = SharedCloudExportTarget;

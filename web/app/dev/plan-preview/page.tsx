@@ -15,6 +15,24 @@ const demoPlan = {
   estimated_tools: ['file_read', 'bash', 'browser'],
   estimated_iterations: 6,
   estimated_duration_minutes: 210,
+  cloud_exports: [
+    {
+      provider: 's3',
+      bucket: 'alex-insights-artifacts',
+      path: 'dashboards/v1',
+      access: 'read_write',
+      retention_days: 60,
+      region: 'us-east-2',
+    },
+    {
+      provider: 'azure_blob',
+      bucket: 'alex-analytics',
+      path: 'dashboards/archive',
+      access: 'read',
+      retention_days: 180,
+      region: 'eastus',
+    },
+  ],
 };
 
 const demoProgress: PlanProgressMetrics = {

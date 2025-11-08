@@ -12,6 +12,16 @@ const demoPlan = {
   estimated_tools: ['file_read', 'bash', 'analysis'],
   estimated_iterations: 5,
   estimated_duration_minutes: 180,
+  cloud_exports: [
+    {
+      provider: 's3',
+      bucket: 'alex-research-backups',
+      path: 'modularization/audit',
+      access: 'read_write',
+      retention_days: 45,
+      region: 'us-west-2',
+    },
+  ],
 };
 
 const demoProgress: PlanProgressMetrics = {

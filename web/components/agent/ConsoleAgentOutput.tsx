@@ -120,6 +120,7 @@ export function ConsoleAgentOutput({
       estimated_tools: latestPlanEvent.estimated_tools ?? [],
       estimated_iterations: latestPlanEvent.estimated_iterations,
       estimated_duration_minutes: latestPlanEvent.estimated_duration_minutes,
+      cloud_exports: latestPlanEvent.cloud_exports,
     };
   }, [latestPlanEvent, t]);
 

@@ -125,6 +125,7 @@ export interface ResearchPlanEvent extends AgentEvent {
   estimated_iterations: number;
   estimated_tools?: string[];
   estimated_duration_minutes?: number;
+  cloud_exports?: CloudExportTarget[];
 }
 
 // Step Started Event - emitted when a research step begins
@@ -255,12 +256,23 @@ export interface CreateTaskResponse {
   requires_plan_approval?: boolean; // If true, wait for plan approval before execution
 }
 
+export interface CloudExportTarget {
+  provider: string;
+  bucket: string;
+  path: string;
+  access: 'read' | 'write' | 'read_write';
+  retention_days?: number;
+  region?: string;
+  description?: string;
+}
+
 export interface ResearchPlan {
   goal: string;
   steps: string[];
   estimated_tools: string[];
   estimated_iterations: number;
   estimated_duration_minutes?: number;
+  cloud_exports?: CloudExportTarget[];
 }
 
 export interface ApprovePlanRequest {
