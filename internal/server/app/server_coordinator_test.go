@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/domain"
 	agentPorts "alex/internal/agent/ports"
 	serverPorts "alex/internal/server/ports"
+	id "alex/internal/utils/id"
 )
 
 // Mock implementations for testing
@@ -24,9 +25,11 @@ func NewMockSessionStore() *MockSessionStore {
 }
 
 func (m *MockSessionStore) Create(ctx context.Context) (*agentPorts.Session, error) {
+	userID := id.UserIDFromContext(ctx)
 	session := &agentPorts.Session{
 		ID:        "session-" + time.Now().Format("20060102150405.000000"),
 		Messages:  []agentPorts.Message{},
+		UserID:    userID,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Metadata:  make(map[string]string),
@@ -35,8 +38,11 @@ func (m *MockSessionStore) Create(ctx context.Context) (*agentPorts.Session, err
 	return session, nil
 }
 
-func (m *MockSessionStore) Get(ctx context.Context, id string) (*agentPorts.Session, error) {
-	if session, ok := m.sessions[id]; ok {
+func (m *MockSessionStore) Get(ctx context.Context, sessionID string) (*agentPorts.Session, error) {
+	if session, ok := m.sessions[sessionID]; ok {
+		if session.UserID == "" {
+			session.UserID = id.UserIDFromContext(ctx)
+		}
 		return session, nil
 	}
 	return m.Create(ctx)
@@ -55,8 +61,8 @@ func (m *MockSessionStore) List(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
-func (m *MockSessionStore) Delete(ctx context.Context, id string) error {
-	delete(m.sessions, id)
+func (m *MockSessionStore) Delete(ctx context.Context, sessionID string) error {
+	delete(m.sessions, sessionID)
 	return nil
 }
 
@@ -104,7 +110,7 @@ func TestSessionIDConsistency(t *testing.T) {
 
 	// Test Case 1: Task created WITHOUT session_id
 	t.Run("EmptySessionID", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := id.WithUserID(context.Background(), "user-test")
 
 		// Execute task async with empty session ID
 		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task", "", "", "")
@@ -151,13 +157,14 @@ func TestSessionIDConsistency(t *testing.T) {
 
 	// Test Case 2: Task created WITH explicit session_id
 	t.Run("ExplicitSessionID", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := id.WithUserID(context.Background(), "user-test")
 		explicitSessionID := "session-explicit-test"
 
 		// Create session first
 		session := &agentPorts.Session{
 			ID:        explicitSessionID,
 			Messages:  []agentPorts.Message{},
+			UserID:    id.UserIDFromContext(ctx),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 			Metadata:  make(map[string]string),
@@ -187,7 +194,7 @@ func TestSessionIDConsistency(t *testing.T) {
 
 	// Test Case 3: Verify progress fields are not null (no omitempty)
 	t.Run("ProgressFieldsPresent", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := id.WithUserID(context.Background(), "user-test")
 
 		task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task 3", "", "", "")
 		if err != nil {
@@ -231,7 +238,7 @@ func TestBroadcasterMapping(t *testing.T) {
 		taskStore,
 	)
 
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 
 	// Create task without session ID
 	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "test task", "", "", "")
@@ -259,7 +266,7 @@ func TestBroadcasterMapping(t *testing.T) {
 // TestTaskStoreProgressFields verifies that task store properly handles progress fields
 func TestTaskStoreProgressFields(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 
 	// Create task
 	task, err := taskStore.Create(ctx, "session-123", "test task", "", "")
@@ -351,7 +358,8 @@ func TestUserTaskEventEmission(t *testing.T) {
 		},
 	}
 
-	ctx := agentapp.WithUserAttachments(context.Background(), original)
+	ctx := id.WithUserID(context.Background(), "user-test")
+	ctx = agentapp.WithUserAttachments(ctx, original)
 
 	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "展示占位符 [sketch.png] 和 [diagram.svg]", "", "", "")
 	if err != nil {
@@ -493,7 +501,7 @@ func TestTaskCancellation(t *testing.T) {
 		taskStore,
 	)
 
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 
 	// Start a long-running task
 	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "long running task", "", "", "")
@@ -557,7 +565,7 @@ func TestCancelNonExistentTask(t *testing.T) {
 		taskStore,
 	)
 
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 
 	// Try to cancel non-existent task
 	err := serverCoordinator.CancelTask(ctx, "non-existent-task-id")
@@ -584,7 +592,7 @@ func TestCancelCompletedTask(t *testing.T) {
 		taskStore,
 	)
 
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 
 	// Create and complete a task
 	task, err := taskStore.Create(ctx, "session-1", "test task", "", "")
@@ -631,7 +639,7 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 		taskStore,
 	)
 
-	ctx := context.Background()
+	ctx := id.WithUserID(context.Background(), "user-test")
 
 	// Create multiple tasks
 	taskIDs := make([]string, 5)
