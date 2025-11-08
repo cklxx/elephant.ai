@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -182,10 +183,6 @@ func (e *ReactEngine) SolveTask(
 			attachments[key] = att
 		}
 		userMessage.Attachments = attachments
-		ensureAttachmentStore(state)
-		for key, att := range attachments {
-			state.Attachments[key] = att
-		}
 		state.PendingUserAttachments = nil
 	}
 
@@ -403,9 +400,24 @@ func (e *ReactEngine) SolveTask(
 
 	// EMIT: Task complete
 	attachments := resolveContentAttachments(finalResult.Answer, state.Attachments)
+	currentIteration := state.Iterations
+	generated := collectGeneratedAttachments(state, currentIteration)
+	if len(generated) > 0 {
+		if attachments == nil {
+			attachments = generated
+		} else {
+			for key, att := range generated {
+				if _, exists := attachments[key]; !exists {
+					attachments[key] = att
+				}
+			}
+		}
+	}
+	finalAnswer := ensureAttachmentPlaceholders(finalResult.Answer, attachments)
+	finalResult.Answer = finalAnswer
 	e.emitEvent(&TaskCompleteEvent{
 		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-		FinalAnswer:     finalResult.Answer,
+		FinalAnswer:     finalAnswer,
 		TotalIterations: finalResult.Iterations,
 		TotalTokens:     finalResult.TokensUsed,
 		StopReason:      finalResult.StopReason,
@@ -577,6 +589,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 						continue
 					}
 					state.Attachments[placeholder] = att
+					if state.AttachmentIterations == nil {
+						state.AttachmentIterations = make(map[string]int)
+					}
+					state.AttachmentIterations[placeholder] = state.Iterations
 				}
 				attachmentsMu.Unlock()
 			}
@@ -634,13 +650,13 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 	messages := make([]Message, 0, len(results))
 
 	for _, result := range results {
-		content := ""
+		var content string
 		if result.Error != nil {
 			content = fmt.Sprintf("Tool %s failed: %v", result.CallID, result.Error)
-		} else if strings.TrimSpace(result.Content) != "" {
-			content = fmt.Sprintf("Tool %s result:\n%s", result.CallID, result.Content)
+		} else if trimmed := strings.TrimSpace(result.Content); trimmed != "" {
+			content = trimmed
 		} else {
-			content = fmt.Sprintf("Tool %s completed with no textual result.", result.CallID)
+			content = fmt.Sprintf("Tool %s completed successfully.", result.CallID)
 		}
 
 		msg := Message{
@@ -772,6 +788,9 @@ func ensureAttachmentStore(state *TaskState) {
 	if state.Attachments == nil {
 		state.Attachments = make(map[string]ports.Attachment)
 	}
+	if state.AttachmentIterations == nil {
+		state.AttachmentIterations = make(map[string]int)
+	}
 }
 
 func registerMessageAttachments(state *TaskState, msg Message) {
@@ -791,6 +810,10 @@ func registerMessageAttachments(state *TaskState, msg Message) {
 			att.Name = placeholder
 		}
 		state.Attachments[placeholder] = att
+		if state.AttachmentIterations == nil {
+			state.AttachmentIterations = make(map[string]int)
+		}
+		state.AttachmentIterations[placeholder] = state.Iterations
 	}
 }
 
@@ -928,4 +951,85 @@ func resolveContentAttachments(content string, store map[string]ports.Attachment
 		return nil
 	}
 	return resolved
+}
+
+func collectGeneratedAttachments(state *TaskState, iteration int) map[string]ports.Attachment {
+	if state == nil || len(state.Attachments) == 0 {
+		return nil
+	}
+	generated := make(map[string]ports.Attachment)
+	for key, att := range state.Attachments {
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		if state.AttachmentIterations != nil {
+			if iter, ok := state.AttachmentIterations[placeholder]; ok && iter > iteration {
+				continue
+			}
+		}
+		if strings.EqualFold(strings.TrimSpace(att.Source), "user_upload") {
+			continue
+		}
+		cloned := att
+		if cloned.Name == "" {
+			cloned.Name = placeholder
+		}
+		generated[placeholder] = cloned
+	}
+	if len(generated) == 0 {
+		return nil
+	}
+	return generated
+}
+
+func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.Attachment) string {
+	if len(attachments) == 0 {
+		return strings.TrimSpace(answer)
+	}
+
+	normalized := strings.TrimSpace(answer)
+	var missing []string
+	for key := range attachments {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			continue
+		}
+		placeholder := fmt.Sprintf("[%s]", name)
+		if !strings.Contains(normalized, placeholder) {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) == 0 {
+		return normalized
+	}
+
+	sort.Strings(missing)
+	var builder strings.Builder
+	if normalized != "" {
+		builder.WriteString(normalized)
+		builder.WriteString("\n\n")
+	}
+
+	for _, name := range missing {
+		att := attachments[name]
+		display := strings.TrimSpace(att.Description)
+		if display == "" {
+			display = strings.TrimSpace(att.Name)
+		}
+		if display == "" {
+			display = name
+		}
+		if uri := attachmentReferenceValue(att); uri != "" {
+			fmt.Fprintf(&builder, "![%s](%s)\n\n", display, uri)
+		} else {
+			fmt.Fprintf(&builder, "[%s]\n\n", name)
+		}
+	}
+
+	return strings.TrimSpace(builder.String())
 }

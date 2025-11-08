@@ -6,7 +6,7 @@ import (
 	"alex/internal/agent/ports"
 )
 
-func TestCollectGeneratedAttachmentsFiltersByIteration(t *testing.T) {
+func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing.T) {
 	state := &TaskState{
 		Attachments: map[string]ports.Attachment{
 			"v1.png": {
@@ -32,14 +32,14 @@ func TestCollectGeneratedAttachmentsFiltersByIteration(t *testing.T) {
 	}
 
 	got := collectGeneratedAttachments(state, 2)
-	if len(got) != 1 {
-		t.Fatalf("expected only one attachment for iteration 2, got %d", len(got))
+	if len(got) != 2 {
+		t.Fatalf("expected two generated attachments, got %d", len(got))
+	}
+	if _, ok := got["v1.png"]; !ok {
+		t.Fatalf("expected earlier iteration attachment to be present: %+v", got)
 	}
 	if _, ok := got["v2.png"]; !ok {
-		t.Fatalf("expected attachment from iteration 2 to be present, got %+v", got)
-	}
-	if _, ok := got["v1.png"]; ok {
-		t.Fatalf("did not expect iteration 1 attachment in result: %+v", got)
+		t.Fatalf("expected latest iteration attachment to be present: %+v", got)
 	}
 	if _, ok := got["user.png"]; ok {
 		t.Fatalf("did not expect user-uploaded attachment in result: %+v", got)
