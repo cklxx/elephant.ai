@@ -159,7 +159,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 	req := arkm.GenerateImagesRequest{
 		Model:          t.config.Model,
 		Prompt:         prompt,
-		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatURL),
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
 		Watermark:      volcengine.Bool(true),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
@@ -255,7 +255,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		Model:          t.config.Model,
 		Prompt:         strings.TrimSpace(prompt),
 		Image:          imageValue,
-		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatURL),
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
 		Watermark:      volcengine.Bool(true),
 	}
 	applyImageRequestOptions(&req, call.Arguments)

@@ -259,12 +259,16 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, len(msgs))
 	for i, msg := range msgs {
 		entry := map[string]any{"role": msg.Role}
-		entry["content"] = buildMessageContent(msg)
+		if msg.Role == "tool" {
+			entry["content"] = msg.Content
+		} else {
+			entry["content"] = buildMessageContent(msg)
+		}
 		if msg.ToolCallID != "" {
 			entry["tool_call_id"] = msg.ToolCallID
 		}
 		if len(msg.ToolCalls) > 0 {
-			entry["tool_calls"] = msg.ToolCalls
+			entry["tool_calls"] = buildToolCallHistory(msg.ToolCalls)
 		}
 		result[i] = entry
 	}
@@ -349,6 +353,28 @@ func buildImageContentParts(att ports.Attachment) []map[string]any {
 	}
 
 	return parts
+}
+
+func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
+	result := make([]map[string]any, 0, len(calls))
+	for _, call := range calls {
+		args := "{}"
+		if len(call.Arguments) > 0 {
+			if data, err := json.Marshal(call.Arguments); err == nil {
+				args = string(data)
+			}
+		}
+
+		result = append(result, map[string]any{
+			"id":   call.ID,
+			"type": "function",
+			"function": map[string]any{
+				"name":      call.Name,
+				"arguments": args,
+			},
+		})
+	}
+	return result
 }
 
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {

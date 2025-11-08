@@ -12,6 +12,7 @@ import { useTranslation } from "@/lib/i18n";
 import { formatTimestamp } from "./EventLine/formatters";
 import { AttachmentPayload } from "@/lib/types";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 interface ToolOutputCardProps {
   toolName: string;
@@ -611,52 +612,57 @@ function renderToolResult(
   }
 
   // Default rendering for other tools
+  const attachmentsAvailable =
+    attachments && Object.keys(attachments).length > 0;
+  const parsedSegments = attachmentsAvailable
+    ? parseContentSegments(result ?? "", attachments)
+    : null;
+  const textSegments = parsedSegments
+    ? parsedSegments.filter(
+        (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
+      )
+    : [];
+  const imageSegments = parsedSegments
+    ? parsedSegments.filter(
+        (segment) => segment.type === "image" && segment.attachment,
+      )
+    : [];
+
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t("tool.section.output")}
       </p>
-      {attachments && Object.keys(attachments).length > 0 ? (
+      {attachmentsAvailable ? (
         <div className="rounded-lg border border-border/60 overflow-auto p-3 bg-background">
           <div className="whitespace-pre-wrap font-mono text-xs space-y-3">
-            {parseContentSegments(result ?? "", attachments).map((segment, index) => {
-              if (segment.type === "image" && segment.attachment) {
+            {textSegments.map((segment, index) => (
+              <span key={`text-segment-${index}`}>{segment.text}</span>
+            ))}
+          </div>
+          {imageSegments.length > 0 && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {imageSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
                 const uri = buildAttachmentUri(segment.attachment);
                 if (!uri) {
-                  return (
-                    <span key={`segment-${index}`}>{segment.placeholder ?? ""}</span>
-                  );
+                  return null;
                 }
                 return (
-                  <figure
-                    key={`segment-${index}`}
-                    className="flex flex-col items-start gap-1"
-                  >
-                    <div
-                      className="relative w-full overflow-hidden rounded border border-border/60 bg-white"
-                      style={{ minHeight: "10rem", maxHeight: "16rem" }}
-                    >
-                      <Image
-                        src={uri}
-                        alt={segment.attachment.description || segment.attachment.name}
-                        fill
-                        className="object-contain"
-                        sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
-                        unoptimized
-                      />
-                    </div>
-                    <figcaption className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {segment.attachment.description || segment.attachment.name}
-                    </figcaption>
-                  </figure>
+                  <ImagePreview
+                    key={`image-segment-${index}`}
+                    src={uri}
+                    alt={segment.attachment.description || segment.attachment.name}
+                    minHeight="10rem"
+                    maxHeight="16rem"
+                    sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
+                  />
                 );
-              }
-
-              return (
-                <span key={`segment-${index}`}>{segment.text}</span>
-              );
-            })}
-          </div>
+              })}
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-border/60 overflow-auto">

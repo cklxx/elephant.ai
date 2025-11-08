@@ -2,7 +2,6 @@
 // Optimized with React.memo for virtual scrolling performance
 
 import React from "react";
-import Image from "next/image";
 import {
   AnyAgentEvent,
   ToolCallCompleteEvent,
@@ -15,6 +14,7 @@ import { ToolOutputCard } from "../ToolOutputCard";
 import { TaskCompleteCard } from "../TaskCompleteCard";
 import { cn } from "@/lib/utils";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -29,6 +29,10 @@ export const EventLine = React.memo(function EventLine({
 }: EventLineProps) {
   if (event.event_type === "user_task") {
     const segments = parseContentSegments(event.task, event.attachments);
+    const textSegments = segments.filter(
+      (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
+    );
+    const imageSegments = segments.filter((segment) => segment.type === "image");
     const style = getEventStyle(event);
     return (
       <div className={cn("console-event-line", style.line)}>
@@ -41,46 +45,27 @@ export const EventLine = React.memo(function EventLine({
             style.content,
           )}
         >
-          {segments.map((segment, index) => {
-            if (segment.type === "image" && segment.attachment) {
-              const uri = buildAttachmentUri(segment.attachment);
-              if (!uri) {
-                return (
-                  <span key={`segment-${index}`}>
-                    {segment.placeholder ?? ""}
-                  </span>
-                );
-              }
-              return (
-                <figure
-                  key={`segment-${index}`}
-                  className="flex w-full flex-col gap-1 rounded-lg border border-border/60 bg-white p-2 shadow-sm"
-                >
-                  <div className="relative h-48 w-full overflow-hidden rounded-md bg-slate-50">
-                    <Image
-                      src={uri}
-                      alt={
-                        segment.attachment.description ||
-                        segment.attachment.name
-                      }
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
-                      unoptimized
-                    />
-                  </div>
-                  <figcaption className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {segment.attachment.description || segment.attachment.name}
-                  </figcaption>
-                </figure>
-              );
+          {textSegments.map((segment, index) => (
+            <span key={`text-segment-${index}`}>{segment.text}</span>
+          ))}
+          {imageSegments.map((segment, index) => {
+            if (!segment.attachment) {
+              return null;
             }
-
-            if (segment.type === "text" && segment.text) {
-              return <span key={`segment-${index}`}>{segment.text}</span>;
+            const uri = buildAttachmentUri(segment.attachment);
+            if (!uri) {
+              return null;
             }
-
-            return null;
+            return (
+              <ImagePreview
+                key={`image-segment-${index}`}
+                src={uri}
+                alt={segment.attachment.description || segment.attachment.name}
+                minHeight="12rem"
+                maxHeight="20rem"
+                sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
+              />
+            );
           })}
         </div>
       </div>
