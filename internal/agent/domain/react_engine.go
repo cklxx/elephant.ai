@@ -195,7 +195,6 @@ func (e *ReactEngine) SolveTask(
 	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
 
 	// ReAct loop: Think → Act → Observe
-	consecutiveNoToolCalls := 0
 	for state.Iterations < e.maxIterations {
 		// Check if context is cancelled before starting iteration
 		if ctx.Err() != nil {
@@ -268,31 +267,25 @@ func (e *ReactEngine) SolveTask(
 
 		if len(toolCalls) == 0 {
 			trimmed := strings.TrimSpace(thought.Content)
-			if trimmed != "" {
-				consecutiveNoToolCalls++
-				e.logger.Info("No tool calls with content - streak=%d", consecutiveNoToolCalls)
-				if consecutiveNoToolCalls >= 2 {
-					e.logger.Info("Confirming final answer after consecutive no-tool iterations")
-					finalResult := e.finalize(state, "final_answer")
-					attachments := e.decorateFinalResult(state, finalResult)
-					e.emitEvent(&TaskCompleteEvent{
-						BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-						FinalAnswer:     finalResult.Answer,
-						TotalIterations: finalResult.Iterations,
-						TotalTokens:     finalResult.TokensUsed,
-						StopReason:      "final_answer",
-						Duration:        e.clock.Now().Sub(startTime),
-						Attachments:     attachments,
-					})
-					return finalResult, nil
-				}
+			if trimmed == "" {
+				e.logger.Warn("No tool calls and empty content - continuing loop")
 				continue
 			}
-			consecutiveNoToolCalls = 0
-			e.logger.Warn("No tool calls and empty content - continuing loop")
-			continue
+
+			e.logger.Info("No tool calls with content - treating response as final answer")
+			finalResult := e.finalize(state, "final_answer")
+			attachments := e.decorateFinalResult(state, finalResult)
+			e.emitEvent(&TaskCompleteEvent{
+				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				FinalAnswer:     finalResult.Answer,
+				TotalIterations: finalResult.Iterations,
+				TotalTokens:     finalResult.TokensUsed,
+				StopReason:      "final_answer",
+				Duration:        e.clock.Now().Sub(startTime),
+				Attachments:     attachments,
+			})
+			return finalResult, nil
 		} else {
-			consecutiveNoToolCalls = 0
 			// EMIT: Think complete
 			e.emitEvent(&ThinkCompleteEvent{
 				BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
