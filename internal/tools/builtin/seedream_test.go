@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"strings"
 	"testing"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
@@ -25,8 +26,11 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 
 	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, prompt)
 
-	if content != prompt {
-		t.Fatalf("expected content to equal prompt, got %q", content)
+	if !strings.Contains(content, prompt) {
+		t.Fatalf("expected content to include prompt, got %q", content)
+	}
+	if !strings.Contains(content, "[doubao_seedream-3_0.png]") {
+		t.Fatalf("expected content to include placeholder listing, got %q", content)
 	}
 
 	if metadata["description"] != prompt {
@@ -58,7 +62,14 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 
 	descriptor := "Seedream 3.0 text-to-image"
 
-	_, metadata, attachments := formatSeedreamResponse(resp, descriptor, "")
+	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, "")
+
+	if !strings.Contains(content, descriptor) {
+		t.Fatalf("expected content to include descriptor title, got %q", content)
+	}
+	if !strings.Contains(content, "[seedream_0.png]") {
+		t.Fatalf("expected content to list placeholder names, got %q", content)
+	}
 
 	if metadata["description"] != descriptor {
 		t.Fatalf("expected metadata description to equal descriptor, got %#v", metadata["description"])
@@ -71,5 +82,30 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 	}
 	if att.Description != descriptor {
 		t.Fatalf("expected attachment description to fall back to descriptor, got %q", att.Description)
+	}
+}
+
+func TestNormalizeSeedreamInitImageDataURI(t *testing.T) {
+	base64 := "YWJjMTIz"
+	value := " data:image/png;base64," + base64 + "  "
+
+	actual, err := normalizeSeedreamInitImage(value)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if actual != base64 {
+		t.Fatalf("expected payload %q, got %q", base64, actual)
+	}
+}
+
+func TestNormalizeSeedreamInitImageRejectsBadScheme(t *testing.T) {
+	if _, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
+		t.Fatalf("expected error for unsupported scheme")
+	}
+}
+
+func TestNormalizeSeedreamInitImageRequiresPayload(t *testing.T) {
+	if _, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
+		t.Fatalf("expected error for empty payload")
 	}
 }

@@ -243,9 +243,8 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	}
 
 	imageValue, _ := call.Arguments["init_image"].(string)
-	imageValue = strings.TrimSpace(imageValue)
-	if imageValue == "" {
-		err := errors.New("init_image parameter must be provided (base64 or URL)")
+	normalizedImage, err := normalizeSeedreamInitImage(imageValue)
+	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
@@ -254,7 +253,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	req := arkm.GenerateImagesRequest{
 		Model:          t.config.Model,
 		Prompt:         strings.TrimSpace(prompt),
-		Image:          imageValue,
+		Image:          normalizedImage,
 		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
 		Watermark:      volcengine.Bool(true),
 	}
@@ -527,12 +526,30 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 		metadata["description"] = descriptor
 	}
 
-	content := prompt
-	if strings.TrimSpace(content) == "" {
-		content = descriptor
+	var builder strings.Builder
+	title := strings.TrimSpace(descriptor)
+	if title == "" {
+		title = "Seedream"
 	}
-	if strings.TrimSpace(content) == "" {
-		content = "Seedream image generation complete."
+	fmt.Fprintf(&builder, "%s response\n", title)
+	if trimmedPrompt != "" {
+		fmt.Fprintf(&builder, "Prompt:\n%s\n\n", trimmedPrompt)
+	}
+	if len(images) > 0 {
+		fmt.Fprintf(&builder, "Generated %d image(s). Use these placeholders for follow-up steps:\n", len(images))
+		for idx, img := range images {
+			placeholder, _ := img["placeholder"].(string)
+			url, _ := img["url"].(string)
+			fmt.Fprintf(&builder, "%d. [%s]", idx+1, placeholder)
+			if url != "" {
+				fmt.Fprintf(&builder, " (url: %s)", url)
+			}
+			builder.WriteString("\n")
+		}
+	}
+	content := strings.TrimSpace(builder.String())
+	if content == "" {
+		return "Seedream image generation complete.", metadata, attachments
 	}
 	return content, metadata, attachments
 }
@@ -597,6 +614,31 @@ func buildVisionImageItem(raw string, detail *responses.ContentItemImageDetail_E
 	}
 
 	return nil, fmt.Errorf("image value must be an HTTPS URL or data URI")
+}
+
+func normalizeSeedreamInitImage(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", errors.New("init_image parameter must be provided (base64 or URL)")
+	}
+
+	if strings.HasPrefix(trimmed, "data:") {
+		payload, err := extractBase64Payload(trimmed)
+		if err != nil {
+			return "", fmt.Errorf("invalid init_image data URI: %w", err)
+		}
+		return payload, nil
+	}
+
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+		return trimmed, nil
+	}
+
+	if strings.Contains(trimmed, "://") {
+		return "", fmt.Errorf("init_image must be an HTTPS URL or data URI")
+	}
+
+	return trimmed, nil
 }
 
 func extractBase64Payload(dataURI string) (string, error) {
