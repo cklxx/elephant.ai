@@ -14,7 +14,6 @@ interface TaskCompleteCardProps {
 export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
   if (!event.final_answer) return null;
-  console.log("TaskCompleteCard", event);
   const segments = parseContentSegments(event.final_answer, event.attachments);
   const textContent = segments
     .filter((segment) => segment.type === "text")

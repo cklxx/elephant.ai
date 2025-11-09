@@ -33,40 +33,36 @@ export const EventLine = React.memo(function EventLine({
       (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
     );
     const imageSegments = segments.filter((segment) => segment.type === "image");
-    const style = getEventStyle(event);
     return (
-      <div className={cn("console-event-line", style.line)}>
-        <div className="console-event-timestamp">
-          {formatTimestamp(event.timestamp)}
-        </div>
-        <div
-          className={cn(
-            "console-event-content flex flex-col gap-3",
-            style.content,
-          )}
-        >
-          {textSegments.map((segment, index) => (
-            <span key={`text-segment-${index}`}>{segment.text}</span>
-          ))}
-          {imageSegments.map((segment, index) => {
-            if (!segment.attachment) {
-              return null;
-            }
-            const uri = buildAttachmentUri(segment.attachment);
-            if (!uri) {
-              return null;
-            }
-            return (
-              <ImagePreview
-                key={`image-segment-${index}`}
-                src={uri}
-                alt={segment.attachment.description || segment.attachment.name}
-                minHeight="12rem"
-                maxHeight="20rem"
-                sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
-              />
-            );
-          })}
+      <div className="console-user-task">
+        <div className="console-user-task-bubble">
+          <div className="console-user-task-meta">
+            {formatTimestamp(event.timestamp)}
+          </div>
+          <div className="console-user-task-content">
+            {textSegments.map((segment, index) => (
+              <span key={`text-segment-${index}`}>{segment.text}</span>
+            ))}
+            {imageSegments.map((segment, index) => {
+              if (!segment.attachment) {
+                return null;
+              }
+              const uri = buildAttachmentUri(segment.attachment);
+              if (!uri) {
+                return null;
+              }
+              return (
+                <ImagePreview
+                  key={`image-segment-${index}`}
+                  src={uri}
+                  alt={segment.attachment.description || segment.attachment.name}
+                  minHeight="12rem"
+                  maxHeight="20rem"
+                  sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     );

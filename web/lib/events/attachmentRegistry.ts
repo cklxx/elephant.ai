@@ -4,19 +4,21 @@ import {
   TaskCompleteEvent,
   ToolCallCompleteEvent,
   UserTaskEvent,
-} from '@/lib/types';
+} from "@/lib/types";
 
 const PLACEHOLDER_PATTERN = /\[([^\[\]]+)\]/g;
 
 type AttachmentMap = Record<string, AttachmentPayload>;
 
-function normalizeAttachmentMap(map?: AttachmentMap): AttachmentMap | undefined {
+function normalizeAttachmentMap(
+  map?: AttachmentMap,
+): AttachmentMap | undefined {
   if (!map) {
     return undefined;
   }
   const normalized: AttachmentMap = {};
   for (const [key, attachment] of Object.entries(map)) {
-    const normalizedKey = (key || attachment.name || '').trim();
+    const normalizedKey = (key || attachment.name || "").trim();
     if (!normalizedKey) {
       continue;
     }
@@ -46,7 +48,7 @@ class AttachmentRegistry {
   }
 
   private resolveFromContent(content: string): AttachmentMap | undefined {
-    if (!content || !content.includes('[')) {
+    if (!content || !content.includes("[")) {
       return undefined;
     }
     const resolved: AttachmentMap = {};
@@ -66,15 +68,21 @@ class AttachmentRegistry {
 
   handleEvent(event: AnyAgentEvent) {
     switch (event.event_type) {
-      case 'user_task':
+      case "user_task":
         this.upsertMany((event as UserTaskEvent).attachments);
         break;
-      case 'tool_call_complete':
-        this.upsertMany((event as ToolCallCompleteEvent).attachments as AttachmentMap | undefined);
+      case "tool_call_complete":
+        this.upsertMany(
+          (event as ToolCallCompleteEvent).attachments as
+            | AttachmentMap
+            | undefined,
+        );
         break;
-      case 'task_complete': {
+      case "task_complete": {
         const taskEvent = event as TaskCompleteEvent;
-        const normalized = normalizeAttachmentMap(taskEvent.attachments as AttachmentMap | undefined);
+        const normalized = normalizeAttachmentMap(
+          taskEvent.attachments as AttachmentMap | undefined,
+        );
         if (normalized) {
           taskEvent.attachments = normalized;
           this.upsertMany(normalized);

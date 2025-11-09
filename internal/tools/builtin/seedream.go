@@ -531,7 +531,9 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 	if title == "" {
 		title = "Seedream"
 	}
-	fmt.Fprintf(&builder, "%s response\n", title)
+	if title != "" {
+		fmt.Fprintf(&builder, "%s response\n", title)
+	}
 	if trimmedPrompt != "" {
 		fmt.Fprintf(&builder, "Prompt:\n%s\n\n", trimmedPrompt)
 	}
@@ -616,29 +618,29 @@ func buildVisionImageItem(raw string, detail *responses.ContentItemImageDetail_E
 	return nil, fmt.Errorf("image value must be an HTTPS URL or data URI")
 }
 
-func normalizeSeedreamInitImage(raw string) (string, error) {
+func normalizeSeedreamInitImage(raw string) (any, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return "", errors.New("init_image parameter must be provided (base64 or URL)")
+		return nil, errors.New("init_image parameter must be provided (base64 or URL)")
 	}
 
 	if strings.HasPrefix(trimmed, "data:") {
 		payload, err := extractBase64Payload(trimmed)
 		if err != nil {
-			return "", fmt.Errorf("invalid init_image data URI: %w", err)
+			return nil, fmt.Errorf("invalid init_image data URI: %w", err)
 		}
-		return payload, nil
+		return &arkm.Image{B64Json: volcengine.String(payload)}, nil
 	}
 
 	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
-		return trimmed, nil
+		return &arkm.Image{Url: volcengine.String(trimmed)}, nil
 	}
 
 	if strings.Contains(trimmed, "://") {
-		return "", fmt.Errorf("init_image must be an HTTPS URL or data URI")
+		return nil, fmt.Errorf("init_image must be an HTTPS URL or data URI")
 	}
 
-	return trimmed, nil
+	return &arkm.Image{B64Json: volcengine.String(trimmed)}, nil
 }
 
 func extractBase64Payload(dataURI string) (string, error) {

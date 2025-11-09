@@ -93,8 +93,48 @@ func TestNormalizeSeedreamInitImageDataURI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if actual != base64 {
-		t.Fatalf("expected payload %q, got %q", base64, actual)
+	img, ok := actual.(*arkm.Image)
+	if !ok {
+		t.Fatalf("expected arkm.Image, got %T", actual)
+	}
+	if img.B64Json == nil || *img.B64Json != base64 {
+		t.Fatalf("expected payload %q, got %+v", base64, img.B64Json)
+	}
+	if img.Url != nil {
+		t.Fatalf("expected URL to be nil for data URI")
+	}
+}
+
+func TestNormalizeSeedreamInitImageHTTPURL(t *testing.T) {
+	raw := "https://example.com/seed.png"
+	actual, err := normalizeSeedreamInitImage(raw)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	img, ok := actual.(*arkm.Image)
+	if !ok {
+		t.Fatalf("expected arkm.Image, got %T", actual)
+	}
+	if img.Url == nil || *img.Url != raw {
+		t.Fatalf("expected URL %q, got %+v", raw, img.Url)
+	}
+	if img.B64Json != nil {
+		t.Fatalf("expected B64Json to be nil for URL input")
+	}
+}
+
+func TestNormalizeSeedreamInitImagePlainBase64(t *testing.T) {
+	payload := "ZXhhbXBsZQ=="
+	actual, err := normalizeSeedreamInitImage(payload)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	img, ok := actual.(*arkm.Image)
+	if !ok {
+		t.Fatalf("expected arkm.Image, got %T", actual)
+	}
+	if img.B64Json == nil || *img.B64Json != payload {
+		t.Fatalf("expected payload %q, got %+v", payload, img.B64Json)
 	}
 }
 

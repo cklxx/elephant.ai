@@ -219,6 +219,39 @@ func TestOpenAIClientCompleteQuotaExceeded(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "tool",
+			Content: "Generated 1 image: [cat.png]",
+			Attachments: map[string]ports.Attachment{
+				"cat.png": {
+					Name:      "cat.png",
+					MediaType: "image/png",
+					Data:      "ZmFrZUJhc2U2NA==",
+					Source:    "seedream",
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(converted))
+	}
+
+	content, ok := converted[0]["content"].(string)
+	if !ok {
+		t.Fatalf("expected string content, got %T", converted[0]["content"])
+	}
+	if content != msgs[0].Content {
+		t.Fatalf("expected content %q, got %q", msgs[0].Content, content)
+	}
+}
+
 func newIPv4TestServer(t *testing.T, handler http.Handler) *httptest.Server {
 	t.Helper()
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -200,6 +201,7 @@ func (e *ReactEngine) SolveTask(
 		if ctx.Err() != nil {
 			e.logger.Info("Context cancelled, stopping execution: %v", ctx.Err())
 			finalResult := e.finalize(state, "cancelled")
+			attachments := e.decorateFinalResult(state, finalResult)
 
 			// EMIT: Task complete with cancellation
 			e.emitEvent(&TaskCompleteEvent{
@@ -209,6 +211,7 @@ func (e *ReactEngine) SolveTask(
 				TotalTokens:     finalResult.TokensUsed,
 				StopReason:      "cancelled",
 				Duration:        e.clock.Now().Sub(startTime),
+				Attachments:     attachments,
 			})
 
 			return nil, ctx.Err()
@@ -270,17 +273,18 @@ func (e *ReactEngine) SolveTask(
 				e.logger.Info("No tool calls with content - streak=%d", consecutiveNoToolCalls)
 				if consecutiveNoToolCalls >= 2 {
 					e.logger.Info("Confirming final answer after consecutive no-tool iterations")
-					attachments := resolveContentAttachments(thought.Content, state.Attachments)
+					finalResult := e.finalize(state, "final_answer")
+					attachments := e.decorateFinalResult(state, finalResult)
 					e.emitEvent(&TaskCompleteEvent{
 						BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-						FinalAnswer:     thought.Content,
-						TotalIterations: state.Iterations,
-						TotalTokens:     state.TokenCount,
+						FinalAnswer:     finalResult.Answer,
+						TotalIterations: finalResult.Iterations,
+						TotalTokens:     finalResult.TokensUsed,
 						StopReason:      "final_answer",
 						Duration:        e.clock.Now().Sub(startTime),
 						Attachments:     attachments,
 					})
-					return e.finalize(state, "final_answer"), nil
+					return finalResult, nil
 				}
 				continue
 			}
@@ -399,25 +403,10 @@ func (e *ReactEngine) SolveTask(
 	}
 
 	// EMIT: Task complete
-	attachments := resolveContentAttachments(finalResult.Answer, state.Attachments)
-	currentIteration := state.Iterations
-	generated := collectGeneratedAttachments(state, currentIteration)
-	if len(generated) > 0 {
-		if attachments == nil {
-			attachments = generated
-		} else {
-			for key, att := range generated {
-				if _, exists := attachments[key]; !exists {
-					attachments[key] = att
-				}
-			}
-		}
-	}
-	finalAnswer := ensureAttachmentPlaceholders(finalResult.Answer, attachments)
-	finalResult.Answer = finalAnswer
+	attachments := e.decorateFinalResult(state, finalResult)
 	e.emitEvent(&TaskCompleteEvent{
 		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-		FinalAnswer:     finalAnswer,
+		FinalAnswer:     finalResult.Answer,
 		TotalIterations: finalResult.Iterations,
 		TotalTokens:     finalResult.TokensUsed,
 		StopReason:      finalResult.StopReason,
@@ -494,7 +483,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 			tc.TaskID = state.TaskID
 			tc.ParentTaskID = state.ParentTaskID
 
-			tc.Arguments = expandPlaceholders(tc.Arguments, state.Attachments)
+			tc.Arguments = e.expandPlaceholders(tc.Arguments, state)
 
 			startTime := e.clock.Now()
 
@@ -659,6 +648,8 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 			content = fmt.Sprintf("Tool %s completed successfully.", result.CallID)
 		}
 
+		content = ensureToolAttachmentReferences(content, result.Attachments)
+
 		msg := Message{
 			Role:        "tool",
 			Content:     content,
@@ -666,27 +657,91 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 			ToolResults: []ToolResult{result},
 		}
 
-		if len(result.Attachments) > 0 {
-			attachments := make(map[string]ports.Attachment)
-			for key, att := range result.Attachments {
-				placeholder := key
-				if placeholder == "" {
-					placeholder = att.Name
-				}
-				if placeholder == "" {
-					continue
-				}
-				attachments[placeholder] = att
-			}
-			if len(attachments) > 0 {
-				msg.Attachments = attachments
-			}
-		}
+		msg.Attachments = normalizeToolAttachments(result.Attachments)
 
 		messages = append(messages, msg)
 	}
 
 	return messages
+}
+
+func ensureToolAttachmentReferences(content string, attachments map[string]ports.Attachment) string {
+	if len(attachments) == 0 {
+		return strings.TrimSpace(content)
+	}
+
+	normalized := strings.TrimSpace(content)
+	mentioned := make(map[string]bool, len(attachments))
+
+	keys := sortedAttachmentKeys(attachments)
+	for _, name := range keys {
+		placeholder := fmt.Sprintf("[%s]", name)
+		if strings.Contains(normalized, placeholder) {
+			mentioned[name] = true
+		}
+	}
+
+	var builder strings.Builder
+	if normalized != "" {
+		builder.WriteString(normalized)
+		builder.WriteString("\n\n")
+	}
+	builder.WriteString("Attachments available for follow-up steps:\n")
+	for _, name := range keys {
+		fmt.Fprintf(&builder, "- [%s]%s\n", name, boolToStar(mentioned[name]))
+	}
+
+	return strings.TrimSpace(builder.String())
+}
+
+func boolToStar(b bool) string {
+	if b {
+		return " (referenced)"
+	}
+	return ""
+}
+
+func normalizeToolAttachments(attachments map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	normalized := make(map[string]ports.Attachment, len(attachments))
+	for _, key := range sortedAttachmentKeys(attachments) {
+		att := attachments[key]
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = placeholder
+		}
+		normalized[placeholder] = att
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {
+	if len(attachments) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(attachments))
+	seen := make(map[string]bool, len(attachments))
+	for key := range attachments {
+		name := strings.TrimSpace(key)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func coerceToInt(value any) int {
@@ -765,6 +820,29 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult 
 	}
 }
 
+func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) map[string]ports.Attachment {
+	if state == nil || result == nil {
+		return nil
+	}
+
+	attachments := resolveContentAttachments(result.Answer, state.Attachments)
+	generated := collectGeneratedAttachments(state, state.Iterations)
+	if len(generated) > 0 {
+		if attachments == nil {
+			attachments = generated
+		} else {
+			for key, att := range generated {
+				if _, exists := attachments[key]; !exists {
+					attachments[key] = att
+				}
+			}
+		}
+	}
+
+	result.Answer = ensureAttachmentPlaceholders(result.Answer, attachments)
+	return attachments
+}
+
 // cleanToolCallMarkers removes leaked tool call XML markers from content
 func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 	// Remove incomplete tool call markers that LLM might output
@@ -817,42 +895,46 @@ func registerMessageAttachments(state *TaskState, msg Message) {
 	}
 }
 
-func expandPlaceholders(args map[string]any, attachments map[string]ports.Attachment) map[string]any {
+func (e *ReactEngine) expandPlaceholders(args map[string]any, state *TaskState) map[string]any {
 	if len(args) == 0 {
 		return args
 	}
 	expanded := make(map[string]any, len(args))
 	for key, value := range args {
-		expanded[key] = expandPlaceholderValue(value, attachments)
+		expanded[key] = e.expandPlaceholderValue(value, state)
 	}
 	return expanded
 }
 
-func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) any {
+func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
 	switch v := value.(type) {
 	case string:
-		name, ok := extractPlaceholderName(v)
-		if !ok || attachments == nil {
-			return v
-		}
-		if att, found := attachments[name]; found {
-			if replacement := attachmentReferenceValue(att); replacement != "" {
-				return replacement
+		if name, ok := extractPlaceholderName(v); ok {
+			if att, canonical, ok := e.lookupAttachmentByName(name, state); ok {
+				if replacement := attachmentReferenceValue(att); replacement != "" {
+					if canonical != "" && canonical != name {
+						e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", name, canonical)
+					}
+					return replacement
+				}
 			}
 		}
 		return v
 	case []any:
 		out := make([]any, len(v))
 		for i, item := range v {
-			out[i] = expandPlaceholderValue(item, attachments)
+			out[i] = e.expandPlaceholderValue(item, state)
 		}
 		return out
 	case []string:
 		out := make([]string, len(v))
 		for i, item := range v {
-			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
-				if att, found := attachments[name]; found {
+			if name, ok := extractPlaceholderName(item); ok {
+				if att, canonical, ok := e.lookupAttachmentByName(name, state); ok {
 					if replacement := attachmentReferenceValue(att); replacement != "" {
+						if canonical != "" && canonical != name {
+							e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", name, canonical)
+						}
 						out[i] = replacement
 						continue
 					}
@@ -864,15 +946,18 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 	case map[string]any:
 		nested := make(map[string]any, len(v))
 		for key, item := range v {
-			nested[key] = expandPlaceholderValue(item, attachments)
+			nested[key] = e.expandPlaceholderValue(item, state)
 		}
 		return nested
 	case map[string]string:
 		nested := make(map[string]string, len(v))
 		for key, item := range v {
-			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
-				if att, found := attachments[name]; found {
+			if name, ok := extractPlaceholderName(item); ok {
+				if att, canonical, ok := e.lookupAttachmentByName(name, state); ok {
 					if replacement := attachmentReferenceValue(att); replacement != "" {
+						if canonical != "" && canonical != name {
+							e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", name, canonical)
+						}
 						nested[key] = replacement
 						continue
 					}
@@ -887,21 +972,115 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 }
 
 func attachmentReferenceValue(att ports.Attachment) string {
+	data := strings.TrimSpace(att.Data)
+	if data != "" {
+		if strings.HasPrefix(data, "data:") {
+			return data
+		}
+		mediaType := strings.TrimSpace(att.MediaType)
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+		}
+		return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+	}
 	if uri := strings.TrimSpace(att.URI); uri != "" {
 		return uri
 	}
-	data := strings.TrimSpace(att.Data)
-	if data == "" {
-		return ""
+	return ""
+}
+
+var genericImageAliasPattern = regexp.MustCompile(`(?i)^image(?:[_\-\s]?(\d+))?(?:\.[a-z0-9]+)?$`)
+
+func (e *ReactEngine) lookupAttachmentByName(name string, state *TaskState) (ports.Attachment, string, bool) {
+	if state == nil {
+		return ports.Attachment{}, "", false
 	}
-	if strings.HasPrefix(data, "data:") {
-		return data
+
+	if att, ok := state.Attachments[name]; ok {
+		return att, name, true
 	}
-	mediaType := strings.TrimSpace(att.MediaType)
-	if mediaType == "" {
-		mediaType = "application/octet-stream"
+
+	for key, att := range state.Attachments {
+		if strings.EqualFold(key, name) {
+			return att, key, true
+		}
 	}
-	return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+
+	if canonical, att, ok := e.resolveGenericImageAlias(name, state); ok {
+		return att, canonical, true
+	}
+
+	return ports.Attachment{}, "", false
+}
+
+func (e *ReactEngine) resolveGenericImageAlias(name string, state *TaskState) (string, ports.Attachment, bool) {
+	trimmed := strings.TrimSpace(name)
+	match := genericImageAliasPattern.FindStringSubmatch(trimmed)
+	if match == nil {
+		return "", ports.Attachment{}, false
+	}
+
+	candidates := collectImageAttachmentCandidates(state)
+	if len(candidates) == 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	index := len(candidates) - 1
+	if len(match) > 1 && match[1] != "" {
+		if parsed, err := strconv.Atoi(match[1]); err == nil && parsed > 0 {
+			idx := parsed - 1
+			if idx < len(candidates) {
+				index = idx
+			}
+		}
+	}
+
+	chosen := candidates[index]
+	e.logger.Info("Mapping generic image placeholder [%s] to latest image [%s]", name, chosen.key)
+	return chosen.key, chosen.attachment, true
+}
+
+type attachmentCandidate struct {
+	key        string
+	attachment ports.Attachment
+	iteration  int
+	generated  bool
+}
+
+func collectImageAttachmentCandidates(state *TaskState) []attachmentCandidate {
+	if state == nil || len(state.Attachments) == 0 {
+		return nil
+	}
+	candidates := make([]attachmentCandidate, 0)
+	for key, att := range state.Attachments {
+		mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
+		if !strings.HasPrefix(mediaType, "image/") {
+			continue
+		}
+		iter := 0
+		if state.AttachmentIterations != nil {
+			iter = state.AttachmentIterations[key]
+		}
+		generated := !strings.EqualFold(strings.TrimSpace(att.Source), "user_upload")
+		candidates = append(candidates, attachmentCandidate{
+			key:        key,
+			attachment: att,
+			iteration:  iter,
+			generated:  generated,
+		})
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].generated != candidates[j].generated {
+			return candidates[i].generated && !candidates[j].generated
+		}
+		if candidates[i].iteration == candidates[j].iteration {
+			return candidates[i].key < candidates[j].key
+		}
+		return candidates[i].iteration < candidates[j].iteration
+	})
+
+	return candidates
 }
 
 func extractPlaceholderName(value string) (string, bool) {
@@ -987,49 +1166,80 @@ func collectGeneratedAttachments(state *TaskState, iteration int) map[string]por
 }
 
 func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.Attachment) string {
+	normalized := strings.TrimSpace(answer)
+
+	var used map[string]bool
+	replaced := contentPlaceholderPattern.ReplaceAllStringFunc(normalized, func(match string) string {
+		name := strings.TrimSpace(match[1 : len(match)-1])
+		if name == "" {
+			return ""
+		}
+		if len(attachments) == 0 {
+			return ""
+		}
+		att, ok := attachments[name]
+		if !ok {
+			return ""
+		}
+		if used == nil {
+			used = make(map[string]bool, len(attachments))
+		}
+		used[name] = true
+		return attachmentMarkdown(name, att)
+	})
+
+	replaced = strings.TrimSpace(replaced)
 	if len(attachments) == 0 {
-		return strings.TrimSpace(answer)
+		return replaced
 	}
 
-	normalized := strings.TrimSpace(answer)
 	var missing []string
 	for key := range attachments {
 		name := strings.TrimSpace(key)
-		if name == "" {
+		if name == "" || (used != nil && used[name]) {
 			continue
 		}
-		placeholder := fmt.Sprintf("[%s]", name)
-		if !strings.Contains(normalized, placeholder) {
-			missing = append(missing, name)
-		}
+		missing = append(missing, name)
 	}
 
 	if len(missing) == 0 {
-		return normalized
+		return replaced
 	}
 
 	sort.Strings(missing)
 	var builder strings.Builder
-	if normalized != "" {
-		builder.WriteString(normalized)
+	if replaced != "" {
+		builder.WriteString(replaced)
 		builder.WriteString("\n\n")
 	}
-
 	for _, name := range missing {
-		att := attachments[name]
-		display := strings.TrimSpace(att.Description)
-		if display == "" {
-			display = strings.TrimSpace(att.Name)
-		}
-		if display == "" {
-			display = name
-		}
-		if uri := attachmentReferenceValue(att); uri != "" {
-			fmt.Fprintf(&builder, "![%s](%s)\n\n", display, uri)
-		} else {
-			fmt.Fprintf(&builder, "[%s]\n\n", name)
-		}
+		builder.WriteString(attachmentMarkdown(name, attachments[name]))
+		builder.WriteString("\n\n")
+	}
+	return strings.TrimSpace(builder.String())
+}
+
+func attachmentMarkdown(name string, att ports.Attachment) string {
+	display := strings.TrimSpace(att.Description)
+	if display == "" {
+		display = strings.TrimSpace(att.Name)
+	}
+	if display == "" {
+		display = name
 	}
 
-	return strings.TrimSpace(builder.String())
+	uri := strings.TrimSpace(att.URI)
+	if uri == "" {
+		uri = attachmentReferenceValue(att)
+	}
+
+	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
+	if uri == "" {
+		return display
+	}
+
+	if strings.HasPrefix(mediaType, "image/") || strings.HasPrefix(uri, "data:image") {
+		return fmt.Sprintf("![%s](%s)", display, uri)
+	}
+	return fmt.Sprintf("[%s](%s)", display, uri)
 }

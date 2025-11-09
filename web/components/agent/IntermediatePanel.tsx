@@ -99,10 +99,27 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     [modelOutputs, toolCalls],
   );
 
-  const hasRunningTool = useMemo(
-    () => toolCalls.some((call) => !call.isComplete),
+  const runningTools = useMemo(
+    () => toolCalls.filter((call) => !call.isComplete),
     [toolCalls],
   );
+  const hasRunningTool = runningTools.length > 0;
+  const runningSummary = useMemo(() => {
+    if (runningTools.length === 0) {
+      return "";
+    }
+    const names = runningTools.map((call) => call.toolName);
+    if (names.length === 1) {
+      return names[0];
+    }
+    if (names.length === 2) {
+      return names.join(" · ");
+    }
+    return `${names.slice(0, 2).join(" · ")} +${names.length - 2}`;
+  }, [runningTools]);
+  const runningSummaryFull = runningTools
+    .map((call) => call.toolName)
+    .join(", ");
 
   // Don't show panel if there are no tool calls or model outputs
   if (timelineItems.length === 0) {
@@ -112,34 +129,43 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const openDetails = () => setIsPanelOpen(true);
 
   return (
-    <div className="pb-2 pl-2">
+    <div className="pb-1 pl-1">
       <button
         type="button"
         onClick={openDetails}
-        className="group flex w-full items-center gap-2 overflow-hidden bg-muted/30 px-4 py-2 text-left text-sm text-foreground transition hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+        className="group inline-flex max-w-full items-center gap-2 overflow-hidden rounded-full bg-background/70 px-3 py-1.5 text-left text-xs font-medium text-foreground shadow-sm transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+        title={
+          runningSummaryFull.length > 0
+            ? `Running: ${runningSummaryFull}`
+            : undefined
+        }
       >
         {hasRunningTool && (
-          <span className="flex items-center gap-1 text-xs font-medium text-primary transition-colors group-hover:text-primary/90">
+          <span className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/90">
             <span
               className="h-2 w-2 animate-pulse rounded-full bg-primary"
               aria-hidden="true"
             />
-            loading
+            running
           </span>
         )}
         <span className="font-mono text-sm text-foreground">
           {toolCalls.length.toLocaleString()}
         </span>
-        <span>tool{toolCalls.length !== 1 ? "s" : ""}</span>
+        <span className="text-muted-foreground">
+          tool{toolCalls.length !== 1 ? "s" : ""}
+        </span>
+        {runningSummary && (
+          <span className="max-w-[9rem] truncate text-[11px] text-primary">
+            {runningSummary}
+          </span>
+        )}
         <PanelRightOpen className="ml-auto h-4 w-4 text-muted-foreground transition group-hover:text-primary" />
       </button>
 
       <ToolCallDetailsPanel
         open={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
-        title={`${toolCalls.length} tool call${
-          toolCalls.length !== 1 ? "s" : ""
-        }`}
       >
         {timelineItems.map((item) => {
           if ("iteration" in item) {
@@ -171,8 +197,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
 }
 
 function ModelOutputItem({ modelOutput }: { modelOutput: ModelOutput }) {
-  const [showContent, setShowContent] = useState(true);
-  if (!modelOutput.content) return null;
+  const content = modelOutput.content ?? "";
 
   // Convert ModelOutput to TaskCompleteEvent format for consistent rendering
   const mockEvent = {
@@ -188,35 +213,38 @@ function ModelOutputItem({ modelOutput }: { modelOutput: ModelOutput }) {
     duration: 0,
   };
 
-  return (
-    <div className="rounded-xl bg-muted/40 px-3 py-2">
-      <button
-        type="button"
-        onClick={() => setShowContent(!showContent)}
-        className="flex w-full items-start gap-2 text-left text-sm text-muted-foreground focus:outline-none focus-visible:text-foreground"
-      >
-        <span className="font-semibold text-foreground">Model Output</span>
-        <span className="text-xs text-muted-foreground">
-          iteration {modelOutput.iteration}
-        </span>
-      </button>
+  const preview = useMemo(() => {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return "";
+    }
+    const firstLine =
+      trimmed
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0) ?? trimmed;
+    if (firstLine.length <= 80) {
+      return firstLine;
+    }
+    return `${firstLine.slice(0, 80)}…`;
+  }, [content]);
 
-      {showContent && <TaskCompleteCard event={mockEvent} />}
-    </div>
-  );
+  if (!content) {
+    return null;
+  }
+
+  return <TaskCompleteCard event={mockEvent} />;
 }
 
 interface ToolCallDetailsPanelProps {
   open: boolean;
   onClose: () => void;
-  title: string;
   children: ReactNode;
 }
 
 function ToolCallDetailsPanel({
   open,
   onClose,
-  title,
   children,
 }: ToolCallDetailsPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -247,14 +275,11 @@ function ToolCallDetailsPanel({
         onClick={onClose}
         aria-hidden="true"
       />
-      <aside className="relative flex h-full w-full max-w-3xl flex-col bg-background shadow-2xl transition-transform duration-300 ease-out">
-        <header className="flex items-center justify-between border-b border-border px-6 py-5">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-              Tool Calls
-            </p>
-            <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          </div>
+      <aside
+        className="relative flex h-full w-full max-w-3xl flex-col bg-background shadow-2xl transition-transform duration-300 ease-out"
+        aria-label="Tool call activity"
+      >
+        <header className="flex items-center justify-end border-b border-border px-4 py-3">
           <button
             type="button"
             onClick={onClose}
@@ -264,7 +289,7 @@ function ToolCallDetailsPanel({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
           {children}
         </div>
       </aside>

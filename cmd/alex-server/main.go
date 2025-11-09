@@ -149,6 +149,9 @@ func main() {
 
 	// Set task store on broadcaster for progress tracking
 	broadcaster.SetTaskStore(taskStore)
+	if archiver := serverApp.NewSandboxAttachmentArchiver(container.SandboxManager, ""); archiver != nil {
+		broadcaster.SetAttachmentArchiver(archiver)
+	}
 
 	serverCoordinator := serverApp.NewServerCoordinator(
 		container.AgentCoordinator,
