@@ -8,7 +8,20 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
+func stubSeedreamNonce(t *testing.T, value string) {
+	t.Helper()
+	original := seedreamPlaceholderNonce
+	seedreamPlaceholderNonce = func() string {
+		return value
+	}
+	t.Cleanup(func() {
+		seedreamPlaceholderNonce = original
+	})
+}
+
 func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
+	stubSeedreamNonce(t, "nonce")
+
 	resp := &arkm.ImagesResponse{
 		Model:   "doubao/seedream-3",
 		Created: 123,
@@ -26,10 +39,13 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 
 	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, prompt)
 
-	if !strings.Contains(content, prompt) {
-		t.Fatalf("expected content to include prompt, got %q", content)
+	if !strings.Contains(content, descriptor) {
+		t.Fatalf("expected content to include descriptor header, got %q", content)
 	}
-	if !strings.Contains(content, "[doubao_seedream-3_0.png]") {
+	if strings.Contains(content, prompt) {
+		t.Fatalf("expected prompt to be omitted from content, got %q", content)
+	}
+	if !strings.Contains(content, "[doubao_seedream-3_nonce_0.png]") {
 		t.Fatalf("expected content to include placeholder listing, got %q", content)
 	}
 
@@ -37,7 +53,7 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 		t.Fatalf("expected metadata description to equal prompt, got %#v", metadata["description"])
 	}
 
-	placeholder := "doubao_seedream-3_0.png"
+	placeholder := "doubao_seedream-3_nonce_0.png"
 	att, ok := attachments[placeholder]
 	if !ok {
 		t.Fatalf("expected attachment %q to exist", placeholder)
@@ -48,6 +64,8 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 }
 
 func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
+	stubSeedreamNonce(t, "nonce")
+
 	resp := &arkm.ImagesResponse{
 		Model:   "seedream",
 		Created: 456,
@@ -67,7 +85,7 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 	if !strings.Contains(content, descriptor) {
 		t.Fatalf("expected content to include descriptor title, got %q", content)
 	}
-	if !strings.Contains(content, "[seedream_0.png]") {
+	if !strings.Contains(content, "[seedream_nonce_0.png]") {
 		t.Fatalf("expected content to list placeholder names, got %q", content)
 	}
 
@@ -75,7 +93,7 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 		t.Fatalf("expected metadata description to equal descriptor, got %#v", metadata["description"])
 	}
 
-	placeholder := "seedream_0.png"
+	placeholder := "seedream_nonce_0.png"
 	att, ok := attachments[placeholder]
 	if !ok {
 		t.Fatalf("expected attachment %q to exist", placeholder)

@@ -252,7 +252,7 @@ func (e *ReactEngine) SolveTask(
 		}
 
 		// Add thought to state
-		if att := resolveContentAttachments(thought.Content, state.Attachments); len(att) > 0 {
+		if att := resolveContentAttachments(thought.Content, state); len(att) > 0 {
 			thought.Attachments = att
 		}
 		trimmedThought := strings.TrimSpace(thought.Content)
@@ -392,7 +392,7 @@ func (e *ReactEngine) SolveTask(
 		// One final LLM call for answer
 		finalThought, err := e.think(ctx, state, services)
 		if err == nil && finalThought.Content != "" {
-			if att := resolveContentAttachments(finalThought.Content, state.Attachments); len(att) > 0 {
+			if att := resolveContentAttachments(finalThought.Content, state); len(att) > 0 {
 				finalThought.Attachments = att
 			}
 			state.Messages = append(state.Messages, finalThought)
@@ -825,7 +825,7 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 		return nil
 	}
 
-	attachments := resolveContentAttachments(result.Answer, state.Attachments)
+	attachments := resolveContentAttachments(result.Answer, state)
 	generated := collectGeneratedAttachments(state, state.Iterations)
 	if len(generated) > 0 {
 		if attachments == nil {
@@ -909,15 +909,8 @@ func (e *ReactEngine) expandPlaceholders(args map[string]any, state *TaskState) 
 func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
 	switch v := value.(type) {
 	case string:
-		if name, ok := extractPlaceholderName(v); ok {
-			if att, canonical, ok := e.lookupAttachmentByName(name, state); ok {
-				if replacement := attachmentReferenceValue(att); replacement != "" {
-					if canonical != "" && canonical != name {
-						e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", name, canonical)
-					}
-					return replacement
-				}
-			}
+		if replacement, ok := e.resolveStringAttachmentValue(v, state); ok {
+			return replacement
 		}
 		return v
 	case []any:
@@ -929,16 +922,9 @@ func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
 	case []string:
 		out := make([]string, len(v))
 		for i, item := range v {
-			if name, ok := extractPlaceholderName(item); ok {
-				if att, canonical, ok := e.lookupAttachmentByName(name, state); ok {
-					if replacement := attachmentReferenceValue(att); replacement != "" {
-						if canonical != "" && canonical != name {
-							e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", name, canonical)
-						}
-						out[i] = replacement
-						continue
-					}
-				}
+			if replacement, ok := e.resolveStringAttachmentValue(item, state); ok {
+				out[i] = replacement
+				continue
 			}
 			out[i] = item
 		}
@@ -952,16 +938,9 @@ func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
 	case map[string]string:
 		nested := make(map[string]string, len(v))
 		for key, item := range v {
-			if name, ok := extractPlaceholderName(item); ok {
-				if att, canonical, ok := e.lookupAttachmentByName(name, state); ok {
-					if replacement := attachmentReferenceValue(att); replacement != "" {
-						if canonical != "" && canonical != name {
-							e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", name, canonical)
-						}
-						nested[key] = replacement
-						continue
-					}
-				}
+			if replacement, ok := e.resolveStringAttachmentValue(item, state); ok {
+				nested[key] = replacement
+				continue
 			}
 			nested[key] = item
 		}
@@ -992,28 +971,129 @@ func attachmentReferenceValue(att ports.Attachment) string {
 var genericImageAliasPattern = regexp.MustCompile(`(?i)^image(?:[_\-\s]?(\d+))?(?:\.[a-z0-9]+)?$`)
 
 func (e *ReactEngine) lookupAttachmentByName(name string, state *TaskState) (ports.Attachment, string, bool) {
-	if state == nil {
+	att, canonical, kind, ok := lookupAttachmentByNameInternal(name, state)
+	if !ok {
 		return ports.Attachment{}, "", false
 	}
 
+	switch kind {
+	case attachmentMatchSeedreamAlias:
+		e.logger.Info("Resolved Seedream placeholder alias [%s] -> [%s]", name, canonical)
+	case attachmentMatchGeneric:
+		e.logger.Info("Mapping generic image placeholder [%s] to attachment [%s]", name, canonical)
+	}
+
+	return att, canonical, true
+}
+
+const (
+	attachmentMatchExact           = "exact"
+	attachmentMatchCaseInsensitive = "case_insensitive"
+	attachmentMatchSeedreamAlias   = "seedream_alias"
+	attachmentMatchGeneric         = "generic_alias"
+)
+
+func lookupAttachmentByNameInternal(name string, state *TaskState) (ports.Attachment, string, string, bool) {
+	if state == nil {
+		return ports.Attachment{}, "", "", false
+	}
+
 	if att, ok := state.Attachments[name]; ok {
-		return att, name, true
+		return att, name, attachmentMatchExact, true
 	}
 
 	for key, att := range state.Attachments {
 		if strings.EqualFold(key, name) {
-			return att, key, true
+			return att, key, attachmentMatchCaseInsensitive, true
 		}
 	}
 
-	if canonical, att, ok := e.resolveGenericImageAlias(name, state); ok {
-		return att, canonical, true
+	if canonical, att, ok := matchSeedreamPlaceholderAlias(name, state); ok {
+		return att, canonical, attachmentMatchSeedreamAlias, true
 	}
 
-	return ports.Attachment{}, "", false
+	if canonical, att, ok := matchGenericImageAlias(name, state); ok {
+		return att, canonical, attachmentMatchGeneric, true
+	}
+
+	return ports.Attachment{}, "", "", false
 }
 
-func (e *ReactEngine) resolveGenericImageAlias(name string, state *TaskState) (string, ports.Attachment, bool) {
+func matchSeedreamPlaceholderAlias(name string, state *TaskState) (string, ports.Attachment, bool) {
+	if state == nil || len(state.Attachments) == 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	trimmed := strings.TrimSpace(name)
+	dot := strings.LastIndex(trimmed, ".")
+	if dot <= 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	ext := strings.ToLower(trimmed[dot:])
+	base := trimmed[:dot]
+	underscore := strings.LastIndex(base, "_")
+	if underscore <= 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	indexPart := base[underscore+1:]
+	if _, err := strconv.Atoi(indexPart); err != nil {
+		return "", ports.Attachment{}, false
+	}
+
+	prefix := strings.ToLower(strings.TrimSpace(base[:underscore]))
+	if prefix == "" {
+		return "", ports.Attachment{}, false
+	}
+
+	prefixWithSeparator := prefix + "_"
+	suffix := fmt.Sprintf("_%s%s", indexPart, ext)
+
+	var (
+		chosenKey  string
+		chosenAtt  ports.Attachment
+		chosenIter int
+		found      bool
+	)
+
+	for key, att := range state.Attachments {
+		if !strings.EqualFold(strings.TrimSpace(att.Source), "seedream") {
+			continue
+		}
+		lowerKey := strings.ToLower(key)
+		if !strings.HasSuffix(lowerKey, suffix) {
+			continue
+		}
+		if !strings.HasPrefix(lowerKey, prefixWithSeparator) {
+			continue
+		}
+		middle := strings.TrimSuffix(strings.TrimPrefix(lowerKey, prefixWithSeparator), suffix)
+		if middle == "" {
+			continue
+		}
+
+		iter := 0
+		if state.AttachmentIterations != nil {
+			iter = state.AttachmentIterations[key]
+		}
+
+		if !found || iter > chosenIter {
+			found = true
+			chosenKey = key
+			chosenAtt = att
+			chosenIter = iter
+		}
+	}
+
+	if !found {
+		return "", ports.Attachment{}, false
+	}
+
+	return chosenKey, chosenAtt, true
+}
+
+func matchGenericImageAlias(name string, state *TaskState) (string, ports.Attachment, bool) {
 	trimmed := strings.TrimSpace(name)
 	match := genericImageAliasPattern.FindStringSubmatch(trimmed)
 	if match == nil {
@@ -1036,7 +1116,6 @@ func (e *ReactEngine) resolveGenericImageAlias(name string, state *TaskState) (s
 	}
 
 	chosen := candidates[index]
-	e.logger.Info("Mapping generic image placeholder [%s] to latest image [%s]", name, chosen.key)
 	return chosen.key, chosen.attachment, true
 }
 
@@ -1100,8 +1179,63 @@ func extractPlaceholderName(value string) (string, bool) {
 
 var contentPlaceholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
 
-func resolveContentAttachments(content string, store map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(store) == 0 || strings.TrimSpace(content) == "" {
+func (e *ReactEngine) resolveStringAttachmentValue(value string, state *TaskState) (string, bool) {
+	alias, att, canonical, ok := matchAttachmentReference(value, state)
+	if !ok {
+		return "", false
+	}
+	replacement := attachmentReferenceValue(att)
+	if replacement == "" {
+		return "", false
+	}
+	if canonical != "" && canonical != alias {
+		e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", alias, canonical)
+	}
+	return replacement, true
+}
+
+func matchAttachmentReference(raw string, state *TaskState) (string, ports.Attachment, string, bool) {
+	if name, ok := extractPlaceholderName(raw); ok {
+		att, canonical, _, resolved := lookupAttachmentByNameInternal(name, state)
+		if !resolved {
+			return "", ports.Attachment{}, "", false
+		}
+		return name, att, canonical, true
+	}
+
+	trimmed := strings.TrimSpace(raw)
+	if !looksLikeDirectAttachmentReference(trimmed) {
+		return "", ports.Attachment{}, "", false
+	}
+	att, canonical, _, ok := lookupAttachmentByNameInternal(trimmed, state)
+	if !ok {
+		return "", ports.Attachment{}, "", false
+	}
+	return trimmed, att, canonical, true
+}
+
+func looksLikeDirectAttachmentReference(value string) bool {
+	if value == "" {
+		return false
+	}
+	if strings.ContainsAny(value, "\n\r\t") {
+		return false
+	}
+	if strings.Contains(value, " ") {
+		return false
+	}
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "data:") {
+		return false
+	}
+	if strings.HasPrefix(lower, "[") && strings.HasSuffix(lower, "]") {
+		return false
+	}
+	return strings.Contains(value, ".")
+}
+
+func resolveContentAttachments(content string, state *TaskState) map[string]ports.Attachment {
+	if state == nil || len(state.Attachments) == 0 || strings.TrimSpace(content) == "" {
 		return nil
 	}
 	matches := contentPlaceholderPattern.FindAllStringSubmatch(content, -1)
@@ -1117,7 +1251,7 @@ func resolveContentAttachments(content string, store map[string]ports.Attachment
 		if name == "" {
 			continue
 		}
-		att, ok := store[name]
+		att, _, _, ok := lookupAttachmentByNameInternal(name, state)
 		if !ok {
 			continue
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +61,10 @@ type seedreamImageTool struct {
 type seedreamVisionTool struct {
 	config  SeedreamConfig
 	factory *seedreamClientFactory
+}
+
+var seedreamPlaceholderNonce = func() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 // NewSeedreamTextToImage returns a tool that generates imagery from prompts.
@@ -470,9 +475,18 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 	images := make([]map[string]any, 0, len(resp.Data))
 	attachments := make(map[string]ports.Attachment)
 
-	requestID := fmt.Sprintf("seedream_%d", time.Now().Unix())
-	if resp.Model != "" {
-		requestID = strings.ReplaceAll(resp.Model, "/", "_")
+	requestID := strings.TrimSpace(resp.Model)
+	if requestID != "" {
+		requestID = strings.ReplaceAll(requestID, "/", "_")
+	} else {
+		requestID = "seedream"
+	}
+	if suffix := strings.TrimSpace(seedreamPlaceholderNonce()); suffix != "" {
+		requestID = fmt.Sprintf("%s_%s", requestID, suffix)
+	} else if resp.Created > 0 {
+		requestID = fmt.Sprintf("%s_%d", requestID, resp.Created)
+	} else {
+		requestID = fmt.Sprintf("%s_%d", requestID, time.Now().UnixNano())
 	}
 
 	trimmedPrompt := strings.TrimSpace(prompt)
@@ -533,9 +547,6 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 	}
 	if title != "" {
 		fmt.Fprintf(&builder, "%s response\n", title)
-	}
-	if trimmedPrompt != "" {
-		fmt.Fprintf(&builder, "Prompt:\n%s\n\n", trimmedPrompt)
 	}
 	if len(images) > 0 {
 		fmt.Fprintf(&builder, "Generated %d image(s). Use these placeholders for follow-up steps:\n", len(images))

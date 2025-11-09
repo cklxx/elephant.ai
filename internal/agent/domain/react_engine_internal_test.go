@@ -152,3 +152,144 @@ func TestEnsureAttachmentPlaceholdersRemovesUnknownPlaceholders(t *testing.T) {
 		t.Fatalf("expected surrounding text to remain, got %q", result)
 	}
 }
+
+func TestLookupAttachmentByNameResolvesSeedreamAlias(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"doubao-seedream-3-0_nonce_0.png": {
+				Name:      "doubao-seedream-3-0_nonce_0.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+			},
+		},
+		AttachmentIterations: map[string]int{
+			"doubao-seedream-3-0_nonce_0.png": 2,
+		},
+	}
+
+	alias := "doubao-seedream-3-0_0.png"
+	att, canonical, ok := engine.lookupAttachmentByName(alias, state)
+	if !ok {
+		t.Fatalf("expected alias %q to resolve", alias)
+	}
+	if canonical != "doubao-seedream-3-0_nonce_0.png" {
+		t.Fatalf("expected canonical placeholder to include nonce, got %q", canonical)
+	}
+	if att.MediaType != "image/png" {
+		t.Fatalf("expected attachment metadata to be preserved")
+	}
+}
+
+func TestLookupAttachmentByNamePrefersLatestSeedreamAlias(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"doubao-seedream-3-0_old_1.png": {
+				Name:      "doubao-seedream-3-0_old_1.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+			},
+			"doubao-seedream-3-0_new_1.png": {
+				Name:      "doubao-seedream-3-0_new_1.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+			},
+		},
+		AttachmentIterations: map[string]int{
+			"doubao-seedream-3-0_old_1.png": 1,
+			"doubao-seedream-3-0_new_1.png": 5,
+		},
+	}
+
+	alias := "doubao-seedream-3-0_1.png"
+	_, canonical, ok := engine.lookupAttachmentByName(alias, state)
+	if !ok {
+		t.Fatalf("expected alias %q to resolve", alias)
+	}
+	if canonical != "doubao-seedream-3-0_new_1.png" {
+		t.Fatalf("expected latest iteration to win, got %q", canonical)
+	}
+}
+
+func TestResolveContentAttachmentsSupportsSeedreamAlias(t *testing.T) {
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"doubao-seedream-3-0_temp_2.png": {
+				Name:      "doubao-seedream-3-0_temp_2.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+			},
+		},
+		AttachmentIterations: map[string]int{
+			"doubao-seedream-3-0_temp_2.png": 3,
+		},
+	}
+
+	content := "Analyze [doubao-seedream-3-0_2.png] for details."
+	resolved := resolveContentAttachments(content, state)
+	if len(resolved) != 1 {
+		t.Fatalf("expected one attachment, got %d", len(resolved))
+	}
+	if _, ok := resolved["doubao-seedream-3-0_2.png"]; !ok {
+		t.Fatalf("expected resolved map to use alias key, got %+v", resolved)
+	}
+}
+
+func TestExpandPlaceholdersResolvesPlainSeedreamAlias(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"doubao-seedream-3-0_nonce_0.png": {
+				Name:      "doubao-seedream-3-0_nonce_0.png",
+				MediaType: "image/png",
+				Data:      "YmFzZTY0",
+				Source:    "seedream",
+			},
+		},
+	}
+	args := map[string]any{"images": []any{"doubao-seedream-3-0_0.png"}}
+	expanded := engine.expandPlaceholders(args, state)
+
+	images, ok := expanded["images"].([]any)
+	if !ok || len(images) != 1 {
+		t.Fatalf("expected expanded images slice, got %#v", expanded["images"])
+	}
+	value, ok := images[0].(string)
+	if !ok {
+		t.Fatalf("expected string payload, got %T", images[0])
+	}
+	if !strings.HasPrefix(value, "data:image/png;base64,") {
+		t.Fatalf("expected data URI payload, got %q", value)
+	}
+	if !strings.HasSuffix(value, "YmFzZTY0") {
+		t.Fatalf("expected inline base64 data, got %q", value)
+	}
+}
+
+func TestExpandPlaceholdersResolvesCanonicalSeedreamNameWithoutBrackets(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"doubao-seedream-3-0_nonce_1.png": {
+				Name:      "doubao-seedream-3-0_nonce_1.png",
+				MediaType: "image/png",
+				Data:      "ZGF0YTEyMw==",
+				Source:    "seedream",
+			},
+		},
+	}
+	args := map[string]any{"images": []string{"doubao-seedream-3-0_nonce_1.png"}}
+	expanded := engine.expandPlaceholders(args, state)
+
+	images, ok := expanded["images"].([]string)
+	if !ok || len(images) != 1 {
+		t.Fatalf("expected expanded images slice, got %#v", expanded["images"])
+	}
+	if !strings.HasPrefix(images[0], "data:image/png;base64,") {
+		t.Fatalf("expected canonical placeholder to convert to data URI, got %q", images[0])
+	}
+	if !strings.HasSuffix(images[0], "ZGF0YTEyMw==") {
+		t.Fatalf("expected appended base64 payload, got %q", images[0])
+	}
+}
