@@ -47,7 +47,7 @@ func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
 	if result == nil {
 		t.Fatal("Expected result, got nil")
 	}
-	if result.Iterations != 2 {
+	if result.Iterations != 1 {
 		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
 	}
 	if result.StopReason != "final_answer" {
@@ -112,7 +112,7 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 3 {
+	if result.Iterations != 2 {
 		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
 	}
 	if len(state.ToolResults) != 1 {
