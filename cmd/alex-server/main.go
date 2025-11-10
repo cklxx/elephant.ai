@@ -170,13 +170,10 @@ func main() {
 	// Setup HTTP router
 	craftService := serverApp.NewCraftService(container.SessionStore, container.BlobStore, container.CraftMirror)
 	seedreamConfig := builtin.SeedreamConfig{
-		AccessKey:       runtimeCfg.VolcAccessKey,
-		SecretKey:       runtimeCfg.VolcSecretKey,
-		EndpointID:      runtimeCfg.SeedreamTextEndpointID,
-		Host:            runtimeCfg.SeedreamHost,
-		Region:          runtimeCfg.SeedreamRegion,
+		APIKey:          runtimeCfg.ArkAPIKey,
+		Model:           runtimeCfg.SeedreamTextModel,
 		ModelDescriptor: "Seedream 3.0 text-to-image",
-		EndpointEnvVar:  "SEEDREAM_TEXT_ENDPOINT_ID",
+		ModelEnvVar:     "SEEDREAM_TEXT_MODEL",
 	}
 	illustrationGenerator := serverApp.NewSeedreamIllustrationGenerator(seedreamConfig)
 	workbenchService := serverApp.NewWorkbenchService(

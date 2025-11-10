@@ -35,7 +35,7 @@ type seedreamIllustrationGenerator struct {
 // NewSeedreamIllustrationGenerator constructs an IllustrationGenerator backed by the
 // Seedream text-to-image tool. Returns nil when the configuration is incomplete.
 func NewSeedreamIllustrationGenerator(config builtin.SeedreamConfig) IllustrationGenerator {
-	if strings.TrimSpace(config.AccessKey) == "" || strings.TrimSpace(config.SecretKey) == "" || strings.TrimSpace(config.EndpointID) == "" {
+	if strings.TrimSpace(config.APIKey) == "" || strings.TrimSpace(config.Model) == "" {
 		return nil
 	}
 	tool := builtin.NewSeedreamTextToImage(config)
