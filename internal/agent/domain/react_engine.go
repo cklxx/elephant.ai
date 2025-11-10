@@ -467,6 +467,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 		wg            sync.WaitGroup
 		attachmentsMu sync.Mutex
 	)
+	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
 	for i, call := range calls {
 		wg.Add(1)
 		go func(idx int, tc ToolCall) {
@@ -504,8 +505,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 				return
 			}
 
+			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
+
 			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, tc.Arguments)
-			result, err := tool.Execute(ctx, ports.ToolCall(tc))
+			result, err := tool.Execute(toolCtx, ports.ToolCall(tc))
 
 			if err != nil {
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
@@ -685,6 +688,27 @@ func ensureToolAttachmentReferences(content string, attachments map[string]ports
 	}
 
 	return strings.TrimSpace(builder.String())
+}
+
+func snapshotAttachments(state *TaskState) (map[string]ports.Attachment, map[string]int) {
+	if state == nil {
+		return nil, nil
+	}
+	var attachments map[string]ports.Attachment
+	if len(state.Attachments) > 0 {
+		attachments = make(map[string]ports.Attachment, len(state.Attachments))
+		for key, att := range state.Attachments {
+			attachments[key] = att
+		}
+	}
+	var iterations map[string]int
+	if len(state.AttachmentIterations) > 0 {
+		iterations = make(map[string]int, len(state.AttachmentIterations))
+		for key, iter := range state.AttachmentIterations {
+			iterations[key] = iter
+		}
+	}
+	return attachments, iterations
 }
 
 func boolToStar(b bool) string {

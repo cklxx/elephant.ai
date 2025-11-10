@@ -156,6 +156,8 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}
 	}
 
+	sharedAttachments, sharedIterations := ports.GetAttachmentContext(ctx)
+
 	// CRITICAL: Mark context as subagent execution
 	// This triggers ExecutionPreparationService to use filtered registry (without subagent tool)
 	// Prevents infinite recursion
@@ -174,9 +176,9 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	var err error
 
 	if mode == "parallel" {
-		results, err = t.executeParallel(ctx, subtasks, t.maxWorkers, parentListener)
+		results, err = t.executeParallel(ctx, subtasks, t.maxWorkers, parentListener, sharedAttachments, sharedIterations)
 	} else {
-		results, err = t.executeSerial(ctx, subtasks, parentListener)
+		results, err = t.executeSerial(ctx, subtasks, parentListener, sharedAttachments, sharedIterations)
 	}
 
 	if err != nil {
@@ -202,7 +204,14 @@ type SubtaskResult struct {
 }
 
 // executeParallel runs subtasks concurrently using the coordinator
-func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWorkers int, parentListener ports.EventListener) ([]SubtaskResult, error) {
+func (t *subagent) executeParallel(
+	ctx context.Context,
+	subtasks []string,
+	maxWorkers int,
+	parentListener ports.EventListener,
+	inherited map[string]ports.Attachment,
+	iterations map[string]int,
+) ([]SubtaskResult, error) {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(maxWorkers)
 
@@ -215,7 +224,7 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 		g.Go(func() error {
 			// Execute subtask via coordinator
 			// The coordinator will see marked context and use filtered registry
-			result := t.executeSubtask(ctx, task, i, len(subtasks), parentListener, maxWorkers)
+			result := t.executeSubtask(ctx, task, i, len(subtasks), parentListener, maxWorkers, inherited, iterations)
 
 			mu.Lock()
 			results[i] = result
@@ -233,11 +242,17 @@ func (t *subagent) executeParallel(ctx context.Context, subtasks []string, maxWo
 }
 
 // executeSerial runs subtasks sequentially using the coordinator
-func (t *subagent) executeSerial(ctx context.Context, subtasks []string, parentListener ports.EventListener) ([]SubtaskResult, error) {
+func (t *subagent) executeSerial(
+	ctx context.Context,
+	subtasks []string,
+	parentListener ports.EventListener,
+	inherited map[string]ports.Attachment,
+	iterations map[string]int,
+) ([]SubtaskResult, error) {
 	results := make([]SubtaskResult, len(subtasks))
 
 	for i, task := range subtasks {
-		results[i] = t.executeSubtask(ctx, task, i, len(subtasks), parentListener, 1)
+		results[i] = t.executeSubtask(ctx, task, i, len(subtasks), parentListener, 1, inherited, iterations)
 	}
 
 	return results, nil
@@ -245,7 +260,16 @@ func (t *subagent) executeSerial(ctx context.Context, subtasks []string, parentL
 
 // executeSubtask delegates a single subtask to the coordinator
 // This is the KEY METHOD that replaces direct ReactEngine creation
-func (t *subagent) executeSubtask(ctx context.Context, task string, index int, totalTasks int, parentListener ports.EventListener, maxParallel int) SubtaskResult {
+func (t *subagent) executeSubtask(
+	ctx context.Context,
+	task string,
+	index int,
+	totalTasks int,
+	parentListener ports.EventListener,
+	maxParallel int,
+	inherited map[string]ports.Attachment,
+	iterations map[string]int,
+) SubtaskResult {
 	// Create a listener that wraps events with subtask context
 	listener := newSubtaskListener(index, totalTasks, task, parentListener, maxParallel)
 
@@ -258,6 +282,9 @@ func (t *subagent) executeSubtask(ctx context.Context, task string, index int, t
 		subtaskCtx = id.WithSessionID(subtaskCtx, ids.SessionID)
 	}
 	subtaskCtx = id.WithTaskID(subtaskCtx, id.NewTaskID())
+	if len(inherited) > 0 {
+		subtaskCtx = agentApp.WithInheritedAttachments(subtaskCtx, inherited, iterations)
+	}
 
 	// Delegate to coordinator - it handles all the domain logic
 	// The coordinator's ExecutionPreparationService will:

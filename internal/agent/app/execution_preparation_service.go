@@ -189,6 +189,28 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 	preloadedAttachments := collectSessionAttachments(session.Messages)
+	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
+	if len(inheritedAttachments) > 0 {
+		if preloadedAttachments == nil {
+			preloadedAttachments = make(map[string]ports.Attachment)
+		}
+		for key, att := range inheritedAttachments {
+			name := strings.TrimSpace(key)
+			if name == "" {
+				name = strings.TrimSpace(att.Name)
+			}
+			if name == "" {
+				continue
+			}
+			if _, exists := preloadedAttachments[name]; exists {
+				continue
+			}
+			if att.Name == "" {
+				att.Name = name
+			}
+			preloadedAttachments[name] = att
+		}
+	}
 	state := &domain.TaskState{
 		SystemPrompt:         systemPrompt,
 		Messages:             append([]domain.Message(nil), session.Messages...),
@@ -203,6 +225,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			continue
 		}
 		state.AttachmentIterations[key] = 0
+	}
+	if len(inheritedIterations) > 0 {
+		for key, iter := range inheritedIterations {
+			name := strings.TrimSpace(key)
+			if name == "" {
+				continue
+			}
+			state.AttachmentIterations[name] = iter
+		}
 	}
 
 	if userAttachments := GetUserAttachments(ctx); len(userAttachments) > 0 {

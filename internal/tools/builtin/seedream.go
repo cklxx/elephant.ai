@@ -200,7 +200,7 @@ func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
 func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "seedream_image_to_image",
-		Description: "Transform or upscale reference art with Seedream image-to-image models. Provide a base64 string or URL in `init_image` along with an optional prompt.",
+		Description: "Transform or upscale reference art with Seedream image-to-image models. Provide a base64 string, HTTPS URL, or previously generated `[placeholder.png]` in `init_image` along with an optional prompt. The runtime automatically resolves placeholders into the required data URI.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
