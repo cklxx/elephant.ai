@@ -51,10 +51,8 @@ func main() {
 	} else {
 		logger.Info("Sandbox Base URL: (not set)")
 	}
-	if keyLen := len(runtimeCfg.APIKey); keyLen > 10 {
-		logger.Info("API Key: %s...%s", runtimeCfg.APIKey[:10], runtimeCfg.APIKey[keyLen-10:])
-	} else if keyLen > 0 {
-		logger.Info("API Key: %s", runtimeCfg.APIKey)
+	if keyLen := len(runtimeCfg.APIKey); keyLen > 0 {
+		logger.Info("API Key is set (length: %d)", keyLen)
 	} else {
 		logger.Info("API Key: (not set)")
 	}
