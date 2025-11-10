@@ -49,11 +49,6 @@ func NewTaskID() string {
 	return defaultGenerator.newIdentifier("task")
 }
 
-// NewArtifactID generates a unique identifier for artifacts stored in blob storage.
-func NewArtifactID() string {
-	return defaultGenerator.newIdentifier("artifact")
-}
-
 func (g *Generator) newIdentifier(prefix string) string {
 	g.mu.RLock()
 	strategy := g.strategy

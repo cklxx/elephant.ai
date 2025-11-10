@@ -4,7 +4,6 @@ import "./globals.css";
 import "@uiw/react-markdown-preview/markdown.css";
 import { Providers } from "./providers";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AppNav } from "@/components/AppNav";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"] });
@@ -29,8 +28,7 @@ export default function RootLayout({
       >
         <Providers>
           <ErrorBoundary>
-            <AppNav />
-            <main className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+            <main className="flex min-h-screen flex-col">
               {children}
             </main>
           </ErrorBoundary>

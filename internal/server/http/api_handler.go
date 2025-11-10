@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,29 +18,21 @@ import (
 	id "alex/internal/utils/id"
 )
 
-const maxCreateTaskBodySize = 1 << 20      // 1 MiB
-const maxArticleInsightsBodySize = 1 << 19 // 512 KiB
-const maxImageConceptsBodySize = 1 << 18   // 256 KiB
-const maxWebBlueprintBodySize = 1 << 18    // 256 KiB
-const maxCodePlanBodySize = 1 << 18        // 256 KiB
+const maxCreateTaskBodySize = 1 << 20 // 1 MiB
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
-	coordinator      *app.ServerCoordinator
-	healthChecker    *app.HealthCheckerImpl
-	craftService     *app.CraftService
-	workbenchService *app.WorkbenchService
-	logger           *utils.Logger
+	coordinator   *app.ServerCoordinator
+	healthChecker *app.HealthCheckerImpl
+	logger        *utils.Logger
 }
 
 // NewAPIHandler creates a new API handler
-func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl, craftService *app.CraftService, workbenchService *app.WorkbenchService) *APIHandler {
+func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl) *APIHandler {
 	return &APIHandler{
-		coordinator:      coordinator,
-		healthChecker:    healthChecker,
-		craftService:     craftService,
-		workbenchService: workbenchService,
-		logger:           utils.NewComponentLogger("APIHandler"),
+		coordinator:   coordinator,
+		healthChecker: healthChecker,
+		logger:        utils.NewComponentLogger("APIHandler"),
 	}
 }
 
@@ -76,386 +67,10 @@ type AttachmentPayload struct {
 	Description string `json:"description,omitempty"`
 }
 
-type articleInsightsRequest struct {
-	Content string `json:"content"`
-}
-
-type articleSaveRequest struct {
-	SessionID string `json:"session_id,omitempty"`
-	Title     string `json:"title,omitempty"`
-	Content   string `json:"content"`
-	Summary   string `json:"summary,omitempty"`
-}
-
-type articleDraftListResponse struct {
-	Drafts []app.ArticleDraft `json:"drafts"`
-}
-
-type imageConceptsRequest struct {
-	Brief      string   `json:"brief"`
-	Style      string   `json:"style,omitempty"`
-	References []string `json:"references,omitempty"`
-}
-
-type webBlueprintRequest struct {
-	Goal      string   `json:"goal"`
-	Audience  string   `json:"audience,omitempty"`
-	Tone      string   `json:"tone,omitempty"`
-	MustHaves []string `json:"must_haves,omitempty"`
-}
-
-type webBlueprintResponse struct {
-	Blueprint app.WebBlueprint `json:"blueprint"`
-	SessionID string           `json:"session_id,omitempty"`
-	TaskID    string           `json:"task_id,omitempty"`
-	RawAnswer string           `json:"raw_answer,omitempty"`
-}
-
-type codePlanRequest struct {
-	ServiceName  string   `json:"service_name"`
-	Objective    string   `json:"objective"`
-	Language     string   `json:"language,omitempty"`
-	Features     []string `json:"features,omitempty"`
-	Integrations []string `json:"integrations,omitempty"`
-}
-
-type codePlanResponse struct {
-	Plan      app.CodeServicePlan `json:"plan"`
-	SessionID string              `json:"session_id,omitempty"`
-	TaskID    string              `json:"task_id,omitempty"`
-	RawAnswer string              `json:"raw_answer,omitempty"`
-}
-
-// HandleDeleteArticleDraft handles DELETE /api/workbench/article/crafts/:id
-func (h *APIHandler) HandleDeleteArticleDraft(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	craftID := strings.TrimPrefix(r.URL.Path, "/api/workbench/article/crafts/")
-	craftID = strings.TrimSpace(craftID)
-	if craftID == "" || strings.Contains(craftID, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Craft ID is required", fmt.Errorf("invalid craft id"))
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	if err := h.workbenchService.DeleteArticleDraft(ctx, craftID); err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		case errors.Is(err, app.ErrWorkbenchDraftNotFound):
-			h.writeJSONError(w, http.StatusNotFound, "Draft not found", err)
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to delete draft", err)
-		}
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// HandleGenerateImageConcepts handles POST /api/workbench/image/concepts
-func (h *APIHandler) HandleGenerateImageConcepts(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	body := http.MaxBytesReader(w, r.Body, maxImageConceptsBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
-	var req imageConceptsRequest
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
-		return
-	}
-
-	if strings.TrimSpace(req.Brief) == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Brief is required", app.ErrWorkbenchContentRequired)
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	result, err := h.workbenchService.GenerateImageConcepts(ctx, app.GenerateImageConceptsRequest{
-		Brief:      req.Brief,
-		Style:      req.Style,
-		References: req.References,
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchContentRequired):
-			h.writeJSONError(w, http.StatusBadRequest, "Brief is required", err)
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to generate image concepts", err)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(result); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleGenerateWebBlueprint handles POST /api/workbench/web/blueprint
-func (h *APIHandler) HandleGenerateWebBlueprint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	body := http.MaxBytesReader(w, r.Body, maxWebBlueprintBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
-	var req webBlueprintRequest
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
-		return
-	}
-
-	if strings.TrimSpace(req.Goal) == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Goal is required", app.ErrWorkbenchContentRequired)
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	result, err := h.workbenchService.GenerateWebBlueprint(ctx, app.GenerateWebBlueprintRequest{
-		Goal:      req.Goal,
-		Audience:  req.Audience,
-		Tone:      req.Tone,
-		MustHaves: req.MustHaves,
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchContentRequired):
-			h.writeJSONError(w, http.StatusBadRequest, "Goal is required", err)
-			return
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to generate web blueprint", err)
-			return
-		}
-	}
-
-	response := webBlueprintResponse{
-		Blueprint: result.Blueprint,
-		SessionID: result.SessionID,
-		TaskID:    result.TaskID,
-		RawAnswer: result.RawAnswer,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleGenerateCodePlan handles POST /api/workbench/code/plan
-func (h *APIHandler) HandleGenerateCodePlan(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	body := http.MaxBytesReader(w, r.Body, maxCodePlanBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
-	var req codePlanRequest
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
-		return
-	}
-
-	if strings.TrimSpace(req.ServiceName) == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Service name is required", app.ErrWorkbenchServiceNameRequired)
-		return
-	}
-	if strings.TrimSpace(req.Objective) == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Objective is required", app.ErrWorkbenchContentRequired)
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	result, err := h.workbenchService.GenerateCodeServicePlan(ctx, app.GenerateCodeServicePlanRequest{
-		ServiceName:  req.ServiceName,
-		Objective:    req.Objective,
-		Language:     req.Language,
-		Features:     req.Features,
-		Integrations: req.Integrations,
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchServiceNameRequired):
-			h.writeJSONError(w, http.StatusBadRequest, "Service name is required", err)
-			return
-		case errors.Is(err, app.ErrWorkbenchContentRequired):
-			h.writeJSONError(w, http.StatusBadRequest, "Objective is required", err)
-			return
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to generate code plan", err)
-			return
-		}
-	}
-
-	response := codePlanResponse{
-		Plan:      result.Plan,
-		SessionID: result.SessionID,
-		TaskID:    result.TaskID,
-		RawAnswer: result.RawAnswer,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
@@ -590,23 +205,10 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 	return attachments, nil
 }
 
-func (h *APIHandler) ensureUser(ctx context.Context) (string, error) {
-	userID := strings.TrimSpace(id.UserIDFromContext(ctx))
-	if userID == "" {
-		return "", fmt.Errorf("missing user context")
-	}
-	return userID, nil
-}
-
 // HandleGetSession handles GET /api/sessions/:id
 func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
@@ -645,23 +247,10 @@ type SessionListResponse struct {
 	Total    int               `json:"total"`
 }
 
-type CraftListResponse struct {
-	Crafts []app.Craft `json:"crafts"`
-}
-
-type CraftDownloadResponse struct {
-	URL string `json:"url"`
-}
-
 // HandleListSessions handles GET /api/sessions
 func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
@@ -715,11 +304,6 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
 	// Extract session ID from URL path
 	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	sessionID = strings.TrimSpace(sessionID)
@@ -743,11 +327,6 @@ type TaskStatusResponse = types.AgentTask
 func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
@@ -789,11 +368,6 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
 		return
 	}
 
@@ -856,11 +430,6 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
 	// Extract task ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	taskID := strings.TrimSuffix(path, "/cancel")
@@ -891,11 +460,6 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
 	// Extract session ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	sessionID := strings.TrimSuffix(path, "/fork")
@@ -919,304 +483,6 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(newSession); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleListCrafts handles GET /api/crafts
-func (h *APIHandler) HandleListCrafts(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-	if h.craftService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Craft service unavailable", fmt.Errorf("craft service not configured"))
-		return
-	}
-
-	crafts, err := h.craftService.List(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list crafts", err)
-		return
-	}
-
-	response := CraftListResponse{Crafts: crafts}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleDeleteCraft handles DELETE /api/crafts/:id
-func (h *APIHandler) HandleDeleteCraft(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-	if h.craftService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Craft service unavailable", fmt.Errorf("craft service not configured"))
-		return
-	}
-
-	craftID := strings.TrimPrefix(r.URL.Path, "/api/crafts/")
-	craftID = strings.TrimSpace(craftID)
-	if craftID == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Craft ID required", fmt.Errorf("missing craft id"))
-		return
-	}
-
-	if err := h.craftService.Delete(r.Context(), craftID); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to delete craft", err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// HandleDownloadCraft handles GET /api/crafts/:id/download
-func (h *APIHandler) HandleDownloadCraft(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if _, err := h.ensureUser(r.Context()); err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-	if h.craftService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Craft service unavailable", fmt.Errorf("craft service not configured"))
-		return
-	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/api/crafts/")
-	path = strings.TrimSuffix(path, "/download")
-	craftID := strings.Trim(path, "/")
-	if craftID == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Craft ID required", fmt.Errorf("missing craft id"))
-		return
-	}
-
-	url, err := h.craftService.DownloadURL(r.Context(), craftID, 10*time.Minute)
-	if err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to generate download URL", err)
-		return
-	}
-
-	response := CraftDownloadResponse{URL: url}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleGenerateArticleInsights handles POST /api/workbench/article/insights
-func (h *APIHandler) HandleGenerateArticleInsights(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	body := http.MaxBytesReader(w, r.Body, maxArticleInsightsBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
-	var req articleInsightsRequest
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
-		return
-	}
-
-	if strings.TrimSpace(req.Content) == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Content is required", app.ErrWorkbenchContentRequired)
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	insights, err := h.workbenchService.GenerateArticleInsights(ctx, req.Content)
-	if err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchContentRequired):
-			h.writeJSONError(w, http.StatusBadRequest, "Content is required", err)
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to generate insights", err)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(insights); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleListArticleDrafts handles GET /api/workbench/article/crafts
-func (h *APIHandler) HandleListArticleDrafts(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	drafts, err := h.workbenchService.ListArticleDrafts(ctx)
-	if err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to list article drafts", err)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(articleDraftListResponse{Drafts: drafts}); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
-	}
-}
-
-// HandleSaveArticleDraft handles POST /api/workbench/article/crafts
-func (h *APIHandler) HandleSaveArticleDraft(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-		return
-	}
-
-	if h.workbenchService == nil {
-		h.writeJSONError(w, http.StatusServiceUnavailable, "Workbench service not configured", fmt.Errorf("workbench service unavailable"))
-		return
-	}
-
-	userID, err := h.ensureUser(r.Context())
-	if err != nil {
-		h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		return
-	}
-
-	body := http.MaxBytesReader(w, r.Body, maxArticleInsightsBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
-	var req articleSaveRequest
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
-		return
-	}
-
-	if strings.TrimSpace(req.Content) == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Content is required", app.ErrWorkbenchContentRequired)
-		return
-	}
-
-	ctx := id.WithUserID(r.Context(), userID)
-	result, err := h.workbenchService.SaveArticleDraft(ctx, app.SaveArticleDraftRequest{
-		SessionID: strings.TrimSpace(req.SessionID),
-		Title:     req.Title,
-		Content:   req.Content,
-		Summary:   req.Summary,
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, app.ErrWorkbenchContentRequired):
-			h.writeJSONError(w, http.StatusBadRequest, "Content is required", err)
-		case errors.Is(err, app.ErrWorkbenchMissingUser):
-			h.writeJSONError(w, http.StatusUnauthorized, "Unauthorized", err)
-		default:
-			h.writeJSONError(w, http.StatusInternalServerError, "Failed to save draft", err)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(result); err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }

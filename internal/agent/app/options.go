@@ -55,12 +55,3 @@ func WithCostTrackingDecorator(decorator *CostTrackingDecorator) CoordinatorOpti
 		}
 	}
 }
-
-// WithArtifactManager injects the artifact manager responsible for persisting attachments.
-func WithArtifactManager(manager *ArtifactManager) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if manager != nil {
-			c.artifactManager = manager
-		}
-	}
-}
