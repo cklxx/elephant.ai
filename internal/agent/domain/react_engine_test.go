@@ -3,6 +3,7 @@ package domain_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"alex/internal/agent/domain"
@@ -46,8 +47,8 @@ func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
 	if result == nil {
 		t.Fatal("Expected result, got nil")
 	}
-	if result.Iterations != 2 {
-		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
+	if result.Iterations != 1 {
+		t.Errorf("Expected 1 iteration, got %d", result.Iterations)
 	}
 	if result.StopReason != "final_answer" {
 		t.Errorf("Expected stop reason 'final_answer', got '%s'", result.StopReason)
@@ -111,8 +112,8 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 3 {
-		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
+	if result.Iterations != 2 {
+		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
 	}
 	if len(state.ToolResults) != 1 {
 		t.Errorf("Expected 1 tool result, got %d", len(state.ToolResults))
@@ -324,5 +325,73 @@ func TestReactEngine_EventListenerReceivesEvents(t *testing.T) {
 	}
 	if !foundTaskComplete {
 		t.Fatalf("expected task_complete event in captured events")
+	}
+}
+
+func TestReactEngine_TaskCompleteIncludesGeneratedAttachments(t *testing.T) {
+	mockLLM := &mocks.MockLLMClient{
+		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+			return &ports.CompletionResponse{
+				Content:    "All done.",
+				StopReason: "stop",
+			}, nil
+		},
+	}
+
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+
+	engine := newReactEngineForTest(1)
+	state := &domain.TaskState{
+		Attachments: map[string]ports.Attachment{
+			"cat.png": {
+				Name:      "cat.png",
+				MediaType: "image/png",
+				Data:      "YmFzZTY0",
+				Source:    "seedream",
+			},
+			"user.png": {
+				Name:      "user.png",
+				MediaType: "image/png",
+				Source:    "user_upload",
+			},
+		},
+		AttachmentIterations: map[string]int{
+			"cat.png":  1,
+			"user.png": 0,
+		},
+		Iterations: 0,
+	}
+
+	var finalEvent *domain.TaskCompleteEvent
+	engine.SetEventListener(domain.EventListenerFunc(func(evt domain.AgentEvent) {
+		if e, ok := evt.(*domain.TaskCompleteEvent); ok {
+			finalEvent = e
+		}
+	}))
+
+	if _, err := engine.SolveTask(context.Background(), "Describe the latest assets", state, services); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if finalEvent == nil {
+		t.Fatal("expected a task complete event to be emitted")
+	}
+
+	if len(finalEvent.Attachments) != 1 {
+		t.Fatalf("expected only generated attachments to be included, got %d", len(finalEvent.Attachments))
+	}
+	if _, ok := finalEvent.Attachments["cat.png"]; !ok {
+		t.Fatalf("expected generated attachment 'cat.png' to be present: %+v", finalEvent.Attachments)
+	}
+	if !strings.Contains(finalEvent.FinalAnswer, "[cat.png]") {
+		t.Fatalf("expected final answer to reference attachment placeholder, got %q", finalEvent.FinalAnswer)
+	}
+	if strings.Contains(finalEvent.FinalAnswer, "Images:") {
+		t.Fatalf("final answer should not include 'Images:' prefix, got %q", finalEvent.FinalAnswer)
 	}
 }

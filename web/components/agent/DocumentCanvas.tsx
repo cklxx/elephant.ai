@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +18,7 @@ import { Highlight, themes, Language } from "prism-react-renderer";
 import { MarkdownRenderer } from "@/components/ui/markdown";
 import { replacePlaceholdersWithMarkdown, buildAttachmentUri } from "@/lib/attachments";
 import { AttachmentPayload } from "@/lib/types";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 export type ViewMode = "default" | "reading" | "compare";
 
@@ -261,27 +261,14 @@ function DocumentRenderer({
                 return null;
               }
               return (
-                <figure
+                <ImagePreview
                   key={key}
-                  className="rounded-lg border border-slate-200 bg-white p-3"
-                >
-                  <div
-                    className="relative w-full overflow-hidden rounded bg-slate-50"
-                    style={{ minHeight: "12rem", maxHeight: "20rem" }}
-                  >
-                    <Image
-                      src={uri}
-                      alt={attachment.description || attachment.name || key}
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-                      unoptimized
-                    />
-                  </div>
-                  <figcaption className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">
-                    {attachment.description || attachment.name || key}
-                  </figcaption>
-                </figure>
+                  src={uri}
+                  alt={attachment.description || attachment.name || key}
+                  minHeight="12rem"
+                  maxHeight="20rem"
+                  sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+                />
               );
             })}
           </div>

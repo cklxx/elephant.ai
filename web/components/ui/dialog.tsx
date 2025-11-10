@@ -66,20 +66,26 @@ export interface DialogContentProps {
   children: React.ReactNode;
   onClose?: () => void;
   showCloseButton?: boolean;
+  unstyled?: boolean;
 }
 
 export function DialogContent({
   className,
   children,
   onClose,
-  showCloseButton = true
+  showCloseButton = true,
+  unstyled = false
 }: DialogContentProps) {
+  const contentClassName = unstyled
+    ? cn('relative mx-4 w-full max-w-5xl overflow-hidden rounded-2xl', className)
+    : cn(
+        'glass-card p-6 rounded-2xl shadow-strong max-w-lg w-full mx-4',
+        'border border-gray-200/50',
+        className
+      );
+
   return (
-    <div className={cn(
-      'glass-card p-6 rounded-2xl shadow-strong max-w-lg w-full mx-4',
-      'border border-gray-200/50',
-      className
-    )}>
+    <div className={contentClassName}>
       {showCloseButton && onClose && (
         <button
           onClick={onClose}

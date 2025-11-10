@@ -1,6 +1,7 @@
 import { AnyAgentEvent } from '@/lib/types';
 import { handleEnvironmentSnapshot } from '@/hooks/useDiagnostics';
 import { handleSandboxProgress } from '@/hooks/useSandboxProgress';
+import { handleAttachmentEvent } from './attachmentRegistry';
 
 type EventSideEffect = (event: AnyAgentEvent) => void;
 
@@ -31,3 +32,7 @@ export const defaultEventRegistry = new EventRegistry();
 defaultEventRegistry.register('environment_snapshot', handleEnvironmentSnapshot as EventSideEffect);
 
 defaultEventRegistry.register('sandbox_progress', handleSandboxProgress as EventSideEffect);
+
+defaultEventRegistry.register('user_task', handleAttachmentEvent as EventSideEffect);
+defaultEventRegistry.register('tool_call_complete', handleAttachmentEvent as EventSideEffect);
+defaultEventRegistry.register('task_complete', handleAttachmentEvent as EventSideEffect);

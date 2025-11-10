@@ -21,6 +21,7 @@ import { Highlight, themes } from 'prism-react-renderer';
 import { useTranslation } from '@/lib/i18n';
 import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
 import { AttachmentPayload } from '@/lib/types';
+import { ImagePreview } from '@/components/ui/image-preview';
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -531,6 +532,10 @@ function GenericOutput({
   fullscreen: boolean;
 }) {
   const segments = parseContentSegments(result ?? '', attachments);
+  const textSegments = segments.filter(
+    (segment) => segment.type === 'text' && segment.text && segment.text.length > 0,
+  );
+  const imageSegments = segments.filter((segment) => segment.type === 'image');
   return (
     <div
       className={cn(
@@ -538,43 +543,32 @@ function GenericOutput({
         fullscreen ? 'max-h-none' : 'max-h-96'
       )}
     >
-      {segments.map((segment, index) => {
-        if (segment.type === 'image' && segment.attachment) {
-          const uri = buildAttachmentUri(segment.attachment);
-          if (!uri) {
+      {textSegments.map((segment, index) => (
+        <span key={`text-segment-${index}`}>{segment.text}</span>
+      ))}
+      {imageSegments.length > 0 && (
+        <div className="grid gap-4">
+          {imageSegments.map((segment, index) => {
+            if (!segment.attachment) {
+              return null;
+            }
+            const uri = buildAttachmentUri(segment.attachment);
+            if (!uri) {
+              return null;
+            }
             return (
-              <span key={`segment-${index}`}>{segment.placeholder ?? ''}</span>
+              <ImagePreview
+                key={`image-segment-${index}`}
+                src={uri}
+                alt={segment.attachment.description || segment.attachment.name}
+                minHeight={fullscreen ? "18rem" : "12rem"}
+                maxHeight={fullscreen ? "28rem" : "18rem"}
+                sizes="(min-width: 1280px) 50vw, (min-width: 768px) 66vw, 100vw"
+              />
             );
-          }
-          return (
-            <figure
-              key={`segment-${index}`}
-              className="flex flex-col items-start gap-1"
-            >
-              <div
-                className="relative w-full overflow-hidden rounded border border-gray-200 bg-white"
-                style={{ minHeight: "10rem", maxHeight: fullscreen ? "24rem" : "18rem" }}
-              >
-                <Image
-                  src={uri}
-                  alt={segment.attachment.description || segment.attachment.name}
-                  fill
-                  className="object-contain"
-                  sizes="(min-width: 1280px) 50vw, (min-width: 768px) 66vw, 100vw"
-                  unoptimized
-                />
-              </div>
-              <figcaption className="text-[10px] uppercase tracking-wide text-gray-500">
-                {segment.attachment.description || segment.attachment.name}
-              </figcaption>
-            </figure>
-          );
-        }
-
-        return (
-          <span key={`segment-${index}`}>{segment.text}</span>
-        );
-      })}
+          })}
+        </div>
+      )}
     </div>
   );
 }

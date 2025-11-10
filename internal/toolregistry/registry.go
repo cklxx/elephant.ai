@@ -28,12 +28,12 @@ type Config struct {
 	TavilyAPIKey   string
 	SandboxBaseURL string
 
-	VolcAccessKey           string
-	VolcSecretKey           string
-	SeedreamHost            string
-	SeedreamRegion          string
+	ArkAPIKey               string
 	SeedreamTextEndpointID  string
 	SeedreamImageEndpointID string
+	SeedreamTextModel       string
+	SeedreamImageModel      string
+	SeedreamVisionModel     string
 
 	ExecutionMode  tools.ExecutionMode
 	SandboxManager *tools.SandboxManager
@@ -65,12 +65,12 @@ func NewRegistry(config Config) (*Registry, error) {
 	if err := r.registerBuiltins(Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
 		SandboxBaseURL:          config.SandboxBaseURL,
-		VolcAccessKey:           config.VolcAccessKey,
-		VolcSecretKey:           config.VolcSecretKey,
-		SeedreamHost:            config.SeedreamHost,
-		SeedreamRegion:          config.SeedreamRegion,
+		ArkAPIKey:               config.ArkAPIKey,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		SeedreamTextModel:       config.SeedreamTextModel,
+		SeedreamImageModel:      config.SeedreamImageModel,
+		SeedreamVisionModel:     config.SeedreamVisionModel,
 		ExecutionMode:           mode,
 		SandboxManager:          config.SandboxManager,
 	}); err != nil {
@@ -275,22 +275,29 @@ func (r *Registry) registerBuiltins(config Config) error {
 	})
 
 	seedreamBase := builtin.SeedreamConfig{
-		AccessKey: config.VolcAccessKey,
-		SecretKey: config.VolcSecretKey,
-		Host:      config.SeedreamHost,
-		Region:    config.SeedreamRegion,
+		APIKey: config.ArkAPIKey,
 	}
-	textConfig := seedreamBase
-	textConfig.EndpointID = config.SeedreamTextEndpointID
-	textConfig.ModelDescriptor = "Seedream 3.0 text-to-image"
-	textConfig.EndpointEnvVar = "SEEDREAM_TEXT_ENDPOINT_ID"
-	r.static["seedream_text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
-
-	imageConfig := seedreamBase
-	imageConfig.EndpointID = config.SeedreamImageEndpointID
-	imageConfig.ModelDescriptor = "Seedream 4.0 image-to-image"
-	imageConfig.EndpointEnvVar = "SEEDREAM_IMAGE_ENDPOINT_ID"
-	r.static["seedream_image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
+	if config.SeedreamTextModel != "" {
+		textConfig := seedreamBase
+		textConfig.Model = config.SeedreamTextModel
+		textConfig.ModelDescriptor = "Seedream 3.0 text-to-image"
+		textConfig.ModelEnvVar = "SEEDREAM_TEXT_MODEL"
+		r.static["seedream_text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
+	}
+	if config.SeedreamImageModel != "" {
+		imageConfig := seedreamBase
+		imageConfig.Model = config.SeedreamImageModel
+		imageConfig.ModelDescriptor = "Seedream 4.0 image-to-image"
+		imageConfig.ModelEnvVar = "SEEDREAM_IMAGE_MODEL"
+		r.static["seedream_image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
+	}
+	if config.SeedreamVisionModel != "" {
+		visionConfig := seedreamBase
+		visionConfig.Model = config.SeedreamVisionModel
+		visionConfig.ModelDescriptor = "Seedream vision analysis"
+		visionConfig.ModelEnvVar = "SEEDREAM_VISION_MODEL"
+		r.static["seedream_vision_analyze"] = builtin.NewSeedreamVisionAnalyze(visionConfig)
+	}
 
 	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
 		r.static["browser"] = builtin.NewBrowser(builtin.BrowserToolConfig{

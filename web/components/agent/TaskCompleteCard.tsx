@@ -1,14 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { TaskCompleteEvent } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { MarkdownRenderer } from "@/components/ui/markdown";
-import {
-  replacePlaceholdersWithMarkdown,
-  buildAttachmentUri,
-} from "@/lib/attachments";
+import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 interface TaskCompleteCardProps {
   event: TaskCompleteEvent;
@@ -16,8 +13,15 @@ interface TaskCompleteCardProps {
 
 export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
-
   if (!event.final_answer) return null;
+  const segments = parseContentSegments(event.final_answer, event.attachments);
+  const textContent = segments
+    .filter((segment) => segment.type === "text")
+    .map((segment) => segment.text ?? "")
+    .join("");
+  const imageSegments = segments.filter(
+    (segment) => segment.type === "image" && segment.attachment,
+  );
 
   // Build metrics string
   const metrics: string[] = [];
@@ -39,10 +43,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       {event.final_answer && (
         <div className="mt-2">
           <MarkdownRenderer
-            content={replacePlaceholdersWithMarkdown(
-              event.final_answer,
-              event.attachments,
-            )}
+            content={textContent}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-600"
             components={{
               code: ({ inline, className, children, ...props }: any) => {
@@ -91,40 +92,33 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               ),
             }}
           />
-        </div>
-      )}
-
-      {event.attachments && Object.keys(event.attachments).length > 0 && (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {Object.entries(event.attachments).map(([key, attachment]) => {
-            const uri = buildAttachmentUri(attachment);
-            if (!uri) {
-              return null;
-            }
-            return (
-              <figure
-                key={key}
-                className="rounded-lg border border-slate-200 bg-white p-2"
-              >
-                <div
-                  className="relative w-full overflow-hidden rounded bg-slate-50"
-                  style={{ minHeight: "10rem", maxHeight: "18rem" }}
-                >
-                  <Image
+          {imageSegments.length > 0 && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {imageSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const uri = buildAttachmentUri(segment.attachment);
+                if (!uri) {
+                  return null;
+                }
+                const caption =
+                  segment.attachment.description ||
+                  segment.attachment.name ||
+                  `image-${index + 1}`;
+                return (
+                  <ImagePreview
+                    key={`image-segment-${index}`}
                     src={uri}
-                    alt={attachment.description || attachment.name || key}
-                    fill
-                    className="object-contain"
-                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                    unoptimized
+                    alt={caption}
+                    minHeight="12rem"
+                    maxHeight="20rem"
+                    sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 100vw"
                   />
-                </div>
-                <figcaption className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">
-                  {attachment.description || attachment.name || key}
-                </figcaption>
-              </figure>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

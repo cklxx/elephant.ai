@@ -1,6 +1,10 @@
 # Sandbox runtime image with bundled skills
 FROM ghcr.io/agent-infra/sandbox:latest
 
+# Build arguments for China mirrors (can be overridden at build time)
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG PIP_INDEX_URL=https://pypi.org/simple
+
 WORKDIR /workspace
 
 # Copy skills into sandbox runtime so file tools can access them without host mounts
@@ -26,8 +30,8 @@ RUN npm install -g --quiet \
     yarn@latest \
     && npm cache clean --force
 
-# Configure npm for faster installs
-RUN npm config set registry https://registry.npmjs.org/ \
+# Configure npm registry (supports China mirror via build arg)
+RUN npm config set registry ${NPM_REGISTRY} \
     && npm config set fetch-retries 3 \
     && npm config set fetch-retry-mintimeout 10000
 
@@ -81,8 +85,8 @@ RUN pip3 install --no-cache-dir \
     rich \
     tqdm
 
-# Configure pip for faster installs
-RUN pip3 config set global.index-url https://pypi.org/simple \
+# Configure pip index (supports China mirror via build arg)
+RUN pip3 config set global.index-url ${PIP_INDEX_URL} \
     && pip3 config set global.timeout 15
 
 ###############################################################################

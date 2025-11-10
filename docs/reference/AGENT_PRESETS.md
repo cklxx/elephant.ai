@@ -171,6 +171,7 @@ Agent presets define the agent's persona and specialized knowledge.
 **Tooling Notes**:
 - `seedream_text_to_image` for net-new concept exploration.
 - `seedream_image_to_image` for targeted refinements of provided drafts.
+- `seedream_vision_analyze` to interpret stakeholder-provided reference images or screenshots before iterating.
 - `think` for moodboard summaries, visual storytelling cues, and rationale documentation.
 
 ---

@@ -136,6 +136,9 @@ func (tf *ToolFormatter) codeExecuteArgs(args map[string]any) map[string]string 
 	if lang := tf.getStringArg(args, "language", ""); lang != "" {
 		result["language"] = lang
 	}
+	if path := tf.getStringArg(args, "code_path", ""); path != "" {
+		result["code_path"] = path
+	}
 	if code := tf.getStringArg(args, "code", ""); code != "" {
 		result["lines"] = strconv.Itoa(countLines(code))
 		result["chars"] = strconv.Itoa(utf8.RuneCountInString(code))

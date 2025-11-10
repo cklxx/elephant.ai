@@ -36,6 +36,8 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 
 	set("OPENAI_API_KEY", cfg.APIKey)
 	set("OPENROUTER_API_KEY", cfg.APIKey)
+	set("ARK_API_KEY", cfg.ArkAPIKey)
+	set("ALEX_ARK_API_KEY", cfg.ArkAPIKey)
 
 	set("LLM_PROVIDER", cfg.LLMProvider)
 	set("ALEX_LLM_PROVIDER", cfg.LLMProvider)
@@ -53,18 +55,16 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("TAVILY_API_KEY", cfg.TavilyAPIKey)
 	set("ALEX_TAVILY_API_KEY", cfg.TavilyAPIKey)
 
-	set("VOLC_ACCESSKEY", cfg.VolcAccessKey)
-	set("ALEX_VOLC_ACCESSKEY", cfg.VolcAccessKey)
-	set("VOLC_SECRETKEY", cfg.VolcSecretKey)
-	set("ALEX_VOLC_SECRETKEY", cfg.VolcSecretKey)
-	set("SEEDREAM_HOST", cfg.SeedreamHost)
-	set("ALEX_SEEDREAM_HOST", cfg.SeedreamHost)
-	set("SEEDREAM_REGION", cfg.SeedreamRegion)
-	set("ALEX_SEEDREAM_REGION", cfg.SeedreamRegion)
 	set("SEEDREAM_TEXT_ENDPOINT_ID", cfg.SeedreamTextEndpointID)
 	set("ALEX_SEEDREAM_TEXT_ENDPOINT_ID", cfg.SeedreamTextEndpointID)
 	set("SEEDREAM_IMAGE_ENDPOINT_ID", cfg.SeedreamImageEndpointID)
 	set("ALEX_SEEDREAM_IMAGE_ENDPOINT_ID", cfg.SeedreamImageEndpointID)
+	set("SEEDREAM_TEXT_MODEL", cfg.SeedreamTextModel)
+	set("ALEX_SEEDREAM_TEXT_MODEL", cfg.SeedreamTextModel)
+	set("SEEDREAM_IMAGE_MODEL", cfg.SeedreamImageModel)
+	set("ALEX_SEEDREAM_IMAGE_MODEL", cfg.SeedreamImageModel)
+	set("SEEDREAM_VISION_MODEL", cfg.SeedreamVisionModel)
+	set("ALEX_SEEDREAM_VISION_MODEL", cfg.SeedreamVisionModel)
 
 	if cfg.Environment != "" {
 		set("ALEX_ENV", cfg.Environment)

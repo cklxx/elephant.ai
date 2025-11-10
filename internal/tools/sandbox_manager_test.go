@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -168,7 +169,14 @@ func newSandboxHealthServer(t *testing.T) *httptest.Server {
 		}
 	})
 
-	server := httptest.NewServer(handler)
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("skipping sandbox manager test: unable to create loopback listener: %v", err)
+	}
+
+	server := httptest.NewUnstartedServer(handler)
+	server.Listener = ln
+	server.Start()
 	t.Cleanup(server.Close)
 	return server
 }
