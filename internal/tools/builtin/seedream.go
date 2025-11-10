@@ -1,66 +1,46 @@
 package builtin
 
 import (
-        "context"
-        "encoding/base64"
-        "encoding/json"
-        "errors"
-        "fmt"
-        "strings"
-        "sync"
-        "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"alex/internal/agent/ports"
 
-	maasapi "github.com/volcengine/volc-sdk-golang/service/maas/models/api/v2"
-	maasv2 "github.com/volcengine/volc-sdk-golang/service/maas/v2"
+	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
+	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
+	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
+	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
-const (
-	defaultSeedreamHost   = "maas-api.ml-platform-cn-beijing.volces.com"
-	defaultSeedreamRegion = "cn-beijing"
-)
-
-// SeedreamConfig holds shared configuration for Seedream tools.
+// SeedreamConfig captures common configuration for the Seedream tools.
 type SeedreamConfig struct {
-	AccessKey       string
-	SecretKey       string
-	EndpointID      string
-	Host            string
-	Region          string
+	APIKey          string
+	Model           string
 	ModelDescriptor string
-	EndpointEnvVar  string
+	ModelEnvVar     string
 }
 
 type seedreamClientFactory struct {
 	config SeedreamConfig
 	once   sync.Once
-	client *maasv2.MaaS
+	client *arkruntime.Client
 	err    error
 }
 
-func (f *seedreamClientFactory) instance() (*maasv2.MaaS, error) {
+func (f *seedreamClientFactory) instance() (*arkruntime.Client, error) {
 	f.once.Do(func() {
-		host := strings.TrimSpace(f.config.Host)
-		if host == "" {
-			host = defaultSeedreamHost
-		}
-		region := strings.TrimSpace(f.config.Region)
-		if region == "" {
-			region = defaultSeedreamRegion
-		}
-
-		f.client = maasv2.NewInstance(host, region)
-		if f.client == nil {
-			f.err = fmt.Errorf("failed to initialize Seedream client")
+		apiKey := strings.TrimSpace(f.config.APIKey)
+		if apiKey == "" {
+			f.err = errors.New("seedream API key missing")
 			return
 		}
-		if f.config.AccessKey != "" {
-			f.client.SetAccessKey(f.config.AccessKey)
-		}
-		if f.config.SecretKey != "" {
-			f.client.SetSecretKey(f.config.SecretKey)
-		}
+		f.client = arkruntime.NewClientWithApiKey(apiKey)
 	})
 	if f.err != nil {
 		return nil, f.err
@@ -78,22 +58,43 @@ type seedreamImageTool struct {
 	factory *seedreamClientFactory
 }
 
-// NewSeedreamTextToImage creates a Seedream text-to-image tool backed by Seedream 3.0.
-func NewSeedreamTextToImage(config SeedreamConfig) ports.ToolExecutor {
-	factory := &seedreamClientFactory{config: config}
-	return &seedreamTextTool{config: config, factory: factory}
+type seedreamVisionTool struct {
+	config  SeedreamConfig
+	factory *seedreamClientFactory
 }
 
-// NewSeedreamImageToImage creates a Seedream image-to-image tool backed by Seedream 4.0.
+var seedreamPlaceholderNonce = func() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}
+
+// NewSeedreamTextToImage returns a tool that generates imagery from prompts.
+func NewSeedreamTextToImage(config SeedreamConfig) ports.ToolExecutor {
+	return &seedreamTextTool{
+		config:  config,
+		factory: &seedreamClientFactory{config: config},
+	}
+}
+
+// NewSeedreamImageToImage returns a tool that performs image-to-image refinement.
 func NewSeedreamImageToImage(config SeedreamConfig) ports.ToolExecutor {
-	factory := &seedreamClientFactory{config: config}
-	return &seedreamImageTool{config: config, factory: factory}
+	return &seedreamImageTool{
+		config:  config,
+		factory: &seedreamClientFactory{config: config},
+	}
+}
+
+// NewSeedreamVisionAnalyze returns a tool that analyzes images with the vision model.
+func NewSeedreamVisionAnalyze(config SeedreamConfig) ports.ToolExecutor {
+	return &seedreamVisionTool{
+		config:  config,
+		factory: &seedreamClientFactory{config: config},
+	}
 }
 
 func (t *seedreamTextTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name:     "seedream_text_to_image",
-		Version:  "1.0.0",
+		Version:  "2.0.0",
 		Category: "design",
 		Tags:     []string{"image", "generation", "seedream", "text-to-image"},
 	}
@@ -101,52 +102,46 @@ func (t *seedreamTextTool) Metadata() ports.ToolMetadata {
 
 func (t *seedreamTextTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "seedream_text_to_image",
-		Description: "Generate brand-new visuals with Volcano Engine Seedream 3.0. " +
-			"Provide a descriptive prompt and optionally include negative prompts or generation controls. " +
-			"The tool returns download URLs when available and base64-encoded image payloads in metadata.",
+		Name:        "seedream_text_to_image",
+		Description: "Generate new imagery with Volcano Engine Seedream text-to-image models.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"prompt": {
 					Type:        "string",
-					Description: "Creative brief describing the desired image.",
+					Description: "Creative brief describing what to render.",
 				},
-				"negative_prompt": {
+				"response_format": {
 					Type:        "string",
-					Description: "Optional negative prompt to avoid specific traits.",
+					Description: "Set to `url` (default) or `b64_json`.",
 				},
-				"seed": {
-					Type:        "integer",
-					Description: "Random seed for reproducible outputs.",
+				"size": {
+					Type:        "string",
+					Description: "Optional WxH string (e.g. 1024x1024).",
 				},
 				"width": {
 					Type:        "integer",
-					Description: "Output width in pixels (default decided by endpoint).",
+					Description: "Alternative way to set output width in pixels.",
 				},
 				"height": {
 					Type:        "integer",
-					Description: "Output height in pixels (default decided by endpoint).",
+					Description: "Alternative way to set output height in pixels.",
 				},
-				"num_inference_steps": {
+				"seed": {
 					Type:        "integer",
-					Description: "Number of diffusion steps to run.",
+					Description: "Random seed for reproducible generations.",
 				},
 				"cfg_scale": {
 					Type:        "number",
-					Description: "Classifier-free guidance scale controlling prompt strength.",
+					Description: "Classifier-free guidance / prompt strength.",
 				},
-				"sampler_name": {
-					Type:        "string",
-					Description: "Sampler to use when the endpoint exposes multiple choices.",
+				"watermark": {
+					Type:        "boolean",
+					Description: "Whether to embed the Seedream watermark (default true).",
 				},
-				"scheduler": {
-					Type:        "string",
-					Description: "Scheduler strategy supported by the endpoint.",
-				},
-				"control_images": {
-					Type:        "array",
-					Description: "Optional list of base64-encoded control images to steer composition.",
+				"optimize_prompt": {
+					Type:        "boolean",
+					Description: "Let Seedream refine the prompt automatically.",
 				},
 			},
 			Required: []string{"prompt"},
@@ -166,56 +161,13 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	req := &maasapi.ImagesQuickGenReq{Prompt: prompt}
-	if negative, ok := call.Arguments["negative_prompt"].(string); ok {
-		req.NegativePrompt = strings.TrimSpace(negative)
+	req := arkm.GenerateImagesRequest{
+		Model:          t.config.Model,
+		Prompt:         prompt,
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
+		Watermark:      volcengine.Bool(true),
 	}
-
-	params := &maasapi.ImagesParameters{}
-	var hasParams bool
-
-	if seed, ok := readInt(call.Arguments, "seed"); ok {
-		params.Seed = seed
-		hasParams = true
-	}
-	if width, ok := readInt(call.Arguments, "width"); ok {
-		params.Width = width
-		hasParams = true
-	}
-	if height, ok := readInt(call.Arguments, "height"); ok {
-		params.Height = height
-		hasParams = true
-	}
-	if steps, ok := readInt(call.Arguments, "num_inference_steps"); ok {
-		params.NumInferenceSteps = steps
-		hasParams = true
-	}
-	if scale, ok := readFloat(call.Arguments, "cfg_scale"); ok {
-		params.CfgScale = float32(scale)
-		hasParams = true
-	}
-	if sampler, ok := call.Arguments["sampler_name"].(string); ok && strings.TrimSpace(sampler) != "" {
-		params.SamplerName = strings.TrimSpace(sampler)
-		hasParams = true
-	}
-	if scheduler, ok := call.Arguments["scheduler"].(string); ok && strings.TrimSpace(scheduler) != "" {
-		params.Scheduler = strings.TrimSpace(scheduler)
-		hasParams = true
-	}
-	if strength, ok := readFloat(call.Arguments, "strength"); ok {
-		params.Strength = float32(strength)
-		hasParams = true
-	}
-	if hasParams {
-		req.Parameters = params
-	}
-
-	if controlImages, ok := decodeImageList(call.Arguments["control_images"]); ok {
-		req.ControlImageList = controlImages
-	}
-	if initImg, ok := decodeImage(call.Arguments["init_image"]); ok {
-		req.InitImage = initImg
-	}
+	applyImageRequestOptions(&req, call.Arguments)
 
 	client, err := t.factory.instance()
 	if err != nil {
@@ -223,23 +175,23 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
-	resp, status, err := client.Images().ImagesQuickGen(t.config.EndpointID, req)
+	resp, err := client.GenerateImages(ctx, req)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: describeSeedreamError(err, status), Error: err}, nil
+		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedream request failed: %v", err), Error: err}, nil
 	}
-	if resp == nil {
-		err = fmt.Errorf("empty response from Seedream")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	if resp.Error != nil {
+		apiErr := fmt.Sprintf("Seedream API error (%s): %s", resp.Error.Code, resp.Error.Message)
+		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
 
-        content, metadata, attachments := formatSeedreamResponse(resp.ReqId, status, t.config.ModelDescriptor, resp.Data)
-        return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
+	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
+	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
 func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name:     "seedream_image_to_image",
-		Version:  "1.0.0",
+		Version:  "2.0.0",
 		Category: "design",
 		Tags:     []string{"image", "generation", "seedream", "image-to-image"},
 	}
@@ -247,59 +199,42 @@ func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
 
 func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "seedream_image_to_image",
-		Description: "Transform or upscale reference art with Volcano Engine Seedream 4.0. " +
-			"Supply a base64-encoded init_image along with the desired prompt and optional controls.",
+		Name:        "seedream_image_to_image",
+		Description: "Transform or upscale reference art with Seedream image-to-image models. Provide a base64 string, HTTPS URL, or previously generated `[placeholder.png]` in `init_image` along with an optional prompt. The runtime automatically resolves placeholders into the required data URI.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"prompt": {
-					Type:        "string",
-					Description: "Reinforcement prompt describing target adjustments.",
-				},
-				"negative_prompt": {
-					Type:        "string",
-					Description: "Optional negative prompt to suppress traits.",
-				},
 				"init_image": {
 					Type:        "string",
-					Description: "Base64-encoded source image (PNG or JPEG).",
+					Description: "Base64 data URI or URL of the source image.",
 				},
-				"control_images": {
-					Type:        "array",
-					Description: "Optional list of additional control images encoded in base64.",
+				"prompt": {
+					Type:        "string",
+					Description: "Optional guidance describing the target adjustments.",
 				},
-				"seed": {
-					Type:        "integer",
-					Description: "Random seed for reproducible refinements.",
+				"response_format": {
+					Type:        "string",
+					Description: "Set to `url` (default) or `b64_json`.",
 				},
-				"strength": {
-					Type:        "number",
-					Description: "Blend strength between the init image and the prompt (0-1).",
+				"size": {
+					Type:        "string",
+					Description: "Output WxH string (e.g. 1024x1024).",
 				},
 				"width": {
-					Type:        "integer",
-					Description: "Output width in pixels (default controlled by endpoint).",
+					Type: "integer",
 				},
 				"height": {
-					Type:        "integer",
-					Description: "Output height in pixels (default controlled by endpoint).",
+					Type: "integer",
 				},
-				"num_inference_steps": {
-					Type:        "integer",
-					Description: "Number of diffusion steps to run.",
+				"seed": {
+					Type: "integer",
 				},
 				"cfg_scale": {
-					Type:        "number",
-					Description: "Classifier-free guidance scale controlling prompt strength.",
+					Type: "number",
 				},
-				"sampler_name": {
-					Type:        "string",
-					Description: "Sampler to use when available on the endpoint.",
-				},
-				"scheduler": {
-					Type:        "string",
-					Description: "Scheduler strategy supported by the endpoint.",
+				"watermark": {
+					Type:        "boolean",
+					Description: "Whether to embed the Seedream watermark (default true).",
 				},
 			},
 			Required: []string{"init_image"},
@@ -312,45 +247,126 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: msg}, nil
 	}
 
-	initImage, ok := decodeImage(call.Arguments["init_image"])
-	if !ok || len(initImage) == 0 {
-		err := errors.New("init_image parameter must be a base64-encoded image")
+	imageValue, _ := call.Arguments["init_image"].(string)
+	normalizedImage, err := normalizeSeedreamInitImage(imageValue)
+	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	req := &maasapi.ImagesReq{InitImage: initImage}
-	if prompt, ok := call.Arguments["prompt"].(string); ok {
-		req.Prompt = strings.TrimSpace(prompt)
+	prompt, _ := call.Arguments["prompt"].(string)
+
+	req := arkm.GenerateImagesRequest{
+		Model:          t.config.Model,
+		Prompt:         strings.TrimSpace(prompt),
+		Image:          normalizedImage,
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
+		Watermark:      volcengine.Bool(true),
 	}
-	if negative, ok := call.Arguments["negative_prompt"].(string); ok {
-		req.NegativePrompt = strings.TrimSpace(negative)
+	applyImageRequestOptions(&req, call.Arguments)
+
+	client, err := t.factory.instance()
+	if err != nil {
+		wrapped := fmt.Errorf("seedream client init: %w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
-	if controlImages, ok := decodeImageList(call.Arguments["control_images"]); ok {
-		req.ControlImageList = controlImages
+
+	resp, err := client.GenerateImages(ctx, req)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedream request failed: %v", err), Error: err}, nil
 	}
-	if seed, ok := readInt(call.Arguments, "seed"); ok {
-		req.Seed = seed
+	if resp.Error != nil {
+		apiErr := fmt.Sprintf("Seedream API error (%s): %s", resp.Error.Code, resp.Error.Message)
+		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
-	if strength, ok := readFloat(call.Arguments, "strength"); ok {
-		req.Strength = float32(strength)
+
+	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
+	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
+}
+
+func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:     "seedream_vision_analyze",
+		Version:  "1.0.0",
+		Category: "analysis",
+		Tags:     []string{"vision", "analysis", "seedream", "multimodal"},
 	}
-	if width, ok := readInt(call.Arguments, "width"); ok {
-		req.Width = width
+}
+
+func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{
+		Name:        "seedream_vision_analyze",
+		Description: "Use the Doubao multimodal vision model to describe or answer questions about supplied image URLs.",
+		Parameters: ports.ParameterSchema{
+			Type: "object",
+			Properties: map[string]ports.Property{
+				"images": {
+					Type:        "array",
+					Description: "List of image URLs or data URIs to analyze.",
+				},
+				"prompt": {
+					Type:        "string",
+					Description: "Question or instruction for the vision model.",
+				},
+				"detail": {
+					Type:        "string",
+					Description: "Optional detail level: auto (default), low, or high.",
+				},
+			},
+			Required: []string{"images"},
+		},
 	}
-	if height, ok := readInt(call.Arguments, "height"); ok {
-		req.Height = height
+}
+
+func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	if msg := seedreamMissingConfigMessage(t.config); msg != "" {
+		return &ports.ToolResult{CallID: call.ID, Content: msg}, nil
 	}
-	if steps, ok := readInt(call.Arguments, "num_inference_steps"); ok {
-		req.NumInferenceSteps = steps
+
+	images := readStringSlice(call.Arguments["images"])
+	if len(images) == 0 {
+		err := errors.New("images parameter must include at least one URL or data URI")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	if scale, ok := readFloat(call.Arguments, "cfg_scale"); ok {
-		req.CfgScale = float32(scale)
+
+	prompt, _ := call.Arguments["prompt"].(string)
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		prompt = "Describe the images in detail."
 	}
-	if sampler, ok := call.Arguments["sampler_name"].(string); ok && strings.TrimSpace(sampler) != "" {
-		req.SamplerName = strings.TrimSpace(sampler)
+
+	detail := responses.ContentItemImageDetail_auto.Enum()
+	if detailStr, ok := call.Arguments["detail"].(string); ok {
+		switch strings.ToLower(strings.TrimSpace(detailStr)) {
+		case "low":
+			detail = responses.ContentItemImageDetail_low.Enum()
+		case "high":
+			detail = responses.ContentItemImageDetail_high.Enum()
+		}
 	}
-	if scheduler, ok := call.Arguments["scheduler"].(string); ok && strings.TrimSpace(scheduler) != "" {
-		req.Scheduler = strings.TrimSpace(scheduler)
+
+	contentItems, err := buildVisionContent(images, prompt, detail)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	req := &responses.ResponsesRequest{
+		Model: t.config.Model,
+		Input: &responses.ResponsesInput{
+			Union: &responses.ResponsesInput_ListValue{
+				ListValue: &responses.InputItemList{
+					ListValue: []*responses.InputItem{
+						{
+							Union: &responses.InputItem_InputMessage{
+								InputMessage: &responses.ItemInputMessage{
+									Role:    responses.MessageRole_user,
+									Content: contentItems,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	client, err := t.factory.instance()
@@ -359,31 +375,74 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
-	resp, status, err := client.Images().ImagesFlexGen(t.config.EndpointID, req)
+	resp, err := client.CreateResponses(ctx, req)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: describeSeedreamError(err, status), Error: err}, nil
+		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedream vision request failed: %v", err), Error: err}, nil
 	}
-	if resp == nil {
-		err = fmt.Errorf("empty response from Seedream")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	if resp.Error != nil {
+		apiErr := fmt.Sprintf("Seedream API error (%s): %s", resp.Error.GetCode(), resp.Error.GetMessage())
+		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
 
-        content, metadata, attachments := formatSeedreamResponse(resp.ReqId, status, t.config.ModelDescriptor, resp.Data)
-        return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
+	answer := collectVisionText(resp)
+	if answer == "" {
+		answer = "Seedream vision model returned no textual output."
+	}
+
+	metadata := map[string]any{
+		"model":        resp.GetModel(),
+		"response_id":  resp.GetId(),
+		"status":       resp.GetStatus().String(),
+		"created_at":   resp.GetCreatedAt(),
+		"usage":        resp.GetUsage(),
+		"description":  t.config.ModelDescriptor,
+		"image_count":  len(images),
+		"prompt":       prompt,
+		"detail_level": detail.String(),
+	}
+
+	return &ports.ToolResult{CallID: call.ID, Content: answer, Metadata: metadata}, nil
+}
+
+func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]any) {
+	if format, ok := args["response_format"].(string); ok {
+		switch strings.ToLower(strings.TrimSpace(format)) {
+		case "b64_json":
+			req.ResponseFormat = volcengine.String(arkm.GenerateImagesResponseFormatBase64)
+		case "url":
+			req.ResponseFormat = volcengine.String(arkm.GenerateImagesResponseFormatURL)
+		}
+	}
+	if size, ok := args["size"].(string); ok && strings.TrimSpace(size) != "" {
+		req.Size = volcengine.String(strings.TrimSpace(size))
+	} else if width, ok := readInt(args, "width"); ok {
+		if height, okh := readInt(args, "height"); okh && width > 0 && height > 0 {
+			req.Size = volcengine.String(fmt.Sprintf("%dx%d", width, height))
+		}
+	}
+	if seed, ok := readInt(args, "seed"); ok {
+		req.Seed = volcengine.Int64(int64(seed))
+	}
+	if cfgScale, ok := readFloat(args, "cfg_scale"); ok {
+		req.GuidanceScale = volcengine.Float64(cfgScale)
+	}
+	if watermark, ok := args["watermark"].(bool); ok {
+		req.Watermark = volcengine.Bool(watermark)
+	}
+	if optimize, ok := args["optimize_prompt"].(bool); ok {
+		req.OptimizePrompt = volcengine.Bool(optimize)
+	}
 }
 
 func seedreamMissingConfigMessage(config SeedreamConfig) string {
 	missing := []string{}
-	if strings.TrimSpace(config.AccessKey) == "" {
-		missing = append(missing, "VOLC_ACCESSKEY")
+	if strings.TrimSpace(config.APIKey) == "" {
+		missing = append(missing, "ARK_API_KEY")
 	}
-	if strings.TrimSpace(config.SecretKey) == "" {
-		missing = append(missing, "VOLC_SECRETKEY")
-	}
-	if strings.TrimSpace(config.EndpointID) == "" {
-		label := "Seedream endpoint ID"
-		if config.EndpointEnvVar != "" {
-			label = strings.ToUpper(config.EndpointEnvVar)
+	if strings.TrimSpace(config.Model) == "" {
+		label := "Seedream model identifier"
+		if config.ModelEnvVar != "" {
+			label = strings.ToUpper(config.ModelEnvVar)
 		}
 		missing = append(missing, label)
 	}
@@ -399,99 +458,231 @@ func seedreamMissingConfigMessage(config SeedreamConfig) string {
 	builder := &strings.Builder{}
 	fmt.Fprintf(builder, "%s is not configured. Missing values: %s.\n\n", toolName, strings.Join(missing, ", "))
 	builder.WriteString("Provide the following settings via environment variables or ~/.alex-config.json:\n\n")
-	builder.WriteString("- VOLC_ACCESSKEY and VOLC_SECRETKEY from the Volcano Engine console\n")
-	if config.EndpointEnvVar != "" {
-		fmt.Fprintf(builder, "- %s for the desired endpoint\n", strings.ToUpper(config.EndpointEnvVar))
+	builder.WriteString("- ARK_API_KEY from the Volcano Engine Ark console\n")
+	if config.ModelEnvVar != "" {
+		fmt.Fprintf(builder, "- %s to select the desired Seedream model\n", strings.ToUpper(config.ModelEnvVar))
 	} else {
-		builder.WriteString("- Seedream endpoint identifier for the selected model\n")
+		builder.WriteString("- Seedream model identifier (e.g. doubao-seedream-3-0-t2i-250415)\n")
 	}
-	builder.WriteString("Optional overrides: SEEDREAM_HOST, SEEDREAM_REGION")
 	return builder.String()
 }
 
-func describeSeedreamError(err error, status int) string {
-	var apiErr *maasapi.Error
-	if errors.As(err, &apiErr) {
-		if status != 0 {
-			return fmt.Sprintf("Seedream API error (status %d): %s", status, apiErr.Error())
+func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string) (string, map[string]any, map[string]ports.Attachment) {
+	if resp == nil {
+		return "Seedream returned an empty response.", nil, nil
+	}
+
+	images := make([]map[string]any, 0, len(resp.Data))
+	attachments := make(map[string]ports.Attachment)
+
+	requestID := strings.TrimSpace(resp.Model)
+	if requestID != "" {
+		requestID = strings.ReplaceAll(requestID, "/", "_")
+	} else {
+		requestID = "seedream"
+	}
+	if suffix := strings.TrimSpace(seedreamPlaceholderNonce()); suffix != "" {
+		requestID = fmt.Sprintf("%s_%s", requestID, suffix)
+	} else if resp.Created > 0 {
+		requestID = fmt.Sprintf("%s_%d", requestID, resp.Created)
+	} else {
+		requestID = fmt.Sprintf("%s_%d", requestID, time.Now().UnixNano())
+	}
+
+	trimmedPrompt := strings.TrimSpace(prompt)
+	attachmentDescription := trimmedPrompt
+	if attachmentDescription == "" {
+		attachmentDescription = strings.TrimSpace(descriptor)
+	}
+
+	for idx, item := range resp.Data {
+		if item == nil {
+			continue
 		}
-		return fmt.Sprintf("Seedream API error: %s", apiErr.Error())
+		entry := map[string]any{"index": idx}
+		var urlStr string
+		if item.Url != nil && *item.Url != "" {
+			urlStr = *item.Url
+			entry["url"] = urlStr
+		}
+		var encoded string
+		if item.B64Json != nil && *item.B64Json != "" {
+			encoded = *item.B64Json
+		}
+		placeholder := fmt.Sprintf("%s_%d.png", requestID, idx)
+		entry["placeholder"] = placeholder
+		attachments[placeholder] = ports.Attachment{
+			Name:        placeholder,
+			MediaType:   "image/png",
+			Data:        encoded,
+			URI:         urlStr,
+			Source:      "seedream",
+			Description: attachmentDescription,
+		}
+		images = append(images, entry)
 	}
-	if status != 0 {
-		return fmt.Sprintf("Seedream request failed with status %d: %v", status, err)
+
+	metadata := map[string]any{
+		"model":   resp.Model,
+		"created": resp.Created,
+		"images":  images,
 	}
-	return fmt.Sprintf("Seedream request failed: %v", err)
+	if resp.Usage != nil {
+		metadata["usage"] = resp.Usage
+	}
+	if descriptor != "" {
+		metadata["model_descriptor"] = descriptor
+	}
+	if trimmedPrompt != "" {
+		metadata["prompt"] = trimmedPrompt
+		metadata["description"] = trimmedPrompt
+	} else if descriptor != "" {
+		metadata["description"] = descriptor
+	}
+
+	var builder strings.Builder
+	title := strings.TrimSpace(descriptor)
+	if title == "" {
+		title = "Seedream"
+	}
+	if title != "" {
+		fmt.Fprintf(&builder, "%s response\n", title)
+	}
+	if len(images) > 0 {
+		fmt.Fprintf(&builder, "Generated %d image(s). Use these placeholders for follow-up steps:\n", len(images))
+		for idx, img := range images {
+			placeholder, _ := img["placeholder"].(string)
+			url, _ := img["url"].(string)
+			fmt.Fprintf(&builder, "%d. [%s]", idx+1, placeholder)
+			if url != "" {
+				fmt.Fprintf(&builder, " (url: %s)", url)
+			}
+			builder.WriteString("\n")
+		}
+	}
+	content := strings.TrimSpace(builder.String())
+	if content == "" {
+		return "Seedream image generation complete.", metadata, attachments
+	}
+	return content, metadata, attachments
 }
 
-func formatSeedreamResponse(reqID string, status int, model string, data []*maasapi.ImageUrl) (string, map[string]any, map[string]ports.Attachment) {
-        images := make([]map[string]any, 0, len(data))
-        attachments := make(map[string]ports.Attachment)
+func buildVisionContent(images []string, prompt string, detail *responses.ContentItemImageDetail_Enum) ([]*responses.ContentItem, error) {
+	content := make([]*responses.ContentItem, 0, len(images)+1)
+	for _, raw := range images {
+		item, err := buildVisionImageItem(strings.TrimSpace(raw), detail)
+		if err != nil {
+			return nil, err
+		}
+		if item != nil {
+			content = append(content, item)
+		}
+	}
+	if len(content) == 0 {
+		return nil, errors.New("images parameter must include at least one non-empty value")
+	}
+	content = append(content, &responses.ContentItem{
+		Union: &responses.ContentItem_Text{
+			Text: &responses.ContentItemText{
+				Type: responses.ContentItemType_input_text,
+				Text: prompt,
+			},
+		},
+	})
+	return content, nil
+}
 
-        normalizedReqID := strings.ReplaceAll(strings.TrimSpace(reqID), "-", "")
-        if normalizedReqID == "" {
-                normalizedReqID = fmt.Sprintf("seedream_%d", time.Now().Unix())
-        }
+func buildVisionImageItem(raw string, detail *responses.ContentItemImageDetail_Enum) (*responses.ContentItem, error) {
+	if raw == "" {
+		return nil, nil
+	}
 
-        for idx, item := range data {
-                entry := map[string]any{"index": idx}
-                if item.Url != "" {
-                        entry["url"] = item.Url
-                }
-                var encoded string
-                if len(item.ImageBytes) > 0 {
-                        encoded = base64.StdEncoding.EncodeToString(item.ImageBytes)
-                        entry["base64"] = encoded
-                        entry["data_uri"] = "data:image/png;base64," + encoded
-                }
-                if item.Detail != "" {
-                        entry["detail"] = item.Detail
-                }
-                placeholder := fmt.Sprintf("%s_%d.png", normalizedReqID, idx)
-                entry["placeholder"] = placeholder
-                attachments[placeholder] = ports.Attachment{
-                        Name:        placeholder,
-                        MediaType:   "image/png",
-                        Data:        encoded,
-                        URI:         item.Url,
-                        Source:      "seedream",
-                        Description: item.Detail,
-                }
-                images = append(images, entry)
-        }
+	if strings.HasPrefix(raw, "data:") {
+		if _, err := extractBase64Payload(raw); err != nil {
+			return nil, fmt.Errorf("invalid data URI: %w", err)
+		}
+		return &responses.ContentItem{
+			Union: &responses.ContentItem_Image{
+				Image: &responses.ContentItemImage{
+					Type:     responses.ContentItemType_input_image,
+					Detail:   detail,
+					ImageUrl: volcengine.String(raw),
+				},
+			},
+		}, nil
+	}
 
-        metadata := map[string]any{
-                "req_id": reqID,
-                "images": images,
-        }
-        if status != 0 {
-                metadata["status"] = status
-        }
-        if model != "" {
-                metadata["model"] = model
-        }
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		return &responses.ContentItem{
+			Union: &responses.ContentItem_Image{
+				Image: &responses.ContentItemImage{
+					Type:   responses.ContentItemType_input_image,
+					Detail: detail,
+					ImageUrl: func() *string {
+						return volcengine.String(raw)
+					}(),
+				},
+			},
+		}, nil
+	}
 
-        var sb strings.Builder
-        if model != "" {
-                sb.WriteString(fmt.Sprintf("Seedream %s response", model))
-        } else {
-                sb.WriteString("Seedream response")
-        }
-        if reqID != "" {
-                sb.WriteString(fmt.Sprintf(" (req_id: %s)", reqID))
-        }
-        sb.WriteString("\n")
-        sb.WriteString(fmt.Sprintf("Generated %d image(s). Use the placeholders below for multimodal references.\n", len(images)))
-        if len(images) > 0 {
-                for i, img := range images {
-                        placeholder, _ := img["placeholder"].(string)
-                        sb.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
-                        if url, ok := img["url"].(string); ok && url != "" {
-                                sb.WriteString(fmt.Sprintf(" (url: %s)", url))
-                        }
-                        sb.WriteString("\n")
-                }
-        }
-        return sb.String(), metadata, attachments
+	return nil, fmt.Errorf("image value must be an HTTPS URL or data URI")
+}
+
+func normalizeSeedreamInitImage(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", errors.New("init_image parameter must be provided (base64 or URL)")
+	}
+
+	if strings.HasPrefix(trimmed, "data:") {
+		payload, err := extractBase64Payload(trimmed)
+		if err != nil {
+			return "", fmt.Errorf("invalid init_image data URI: %w", err)
+		}
+		return payload, nil
+	}
+
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+		return trimmed, nil
+	}
+
+	if strings.Contains(trimmed, "://") {
+		return "", fmt.Errorf("init_image must be an HTTPS URL or data URI")
+	}
+
+	return trimmed, nil
+}
+
+func extractBase64Payload(dataURI string) (string, error) {
+	comma := strings.Index(dataURI, ",")
+	if !strings.HasPrefix(dataURI, "data:") || comma == -1 {
+		return "", errors.New("invalid data URI format")
+	}
+	payload := dataURI[comma+1:]
+	if payload == "" {
+		return "", errors.New("missing data payload")
+	}
+	return payload, nil
+}
+
+func collectVisionText(resp *responses.ResponseObject) string {
+	if resp == nil {
+		return ""
+	}
+	var parts []string
+	for _, item := range resp.GetOutput() {
+		msg := item.GetOutputMessage()
+		if msg == nil {
+			continue
+		}
+		for _, content := range msg.GetContent() {
+			if text := content.GetText(); text != nil && strings.TrimSpace(text.GetText()) != "" {
+				parts = append(parts, text.GetText())
+			}
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
 
 func readInt(args map[string]any, key string) (int, bool) {
@@ -520,8 +711,6 @@ func readFloat(args map[string]any, key string) (float64, bool) {
 		return 0, false
 	}
 	switch v := value.(type) {
-	case float32:
-		return float64(v), true
 	case float64:
 		return v, true
 	case int:
@@ -536,44 +725,19 @@ func readFloat(args map[string]any, key string) (float64, bool) {
 	return 0, false
 }
 
-// decodeImage decodes a base64 value if present.
-func decodeImage(value any) ([]byte, bool) {
-	str, ok := value.(string)
-	if !ok {
-		return nil, false
-	}
-	str = strings.TrimSpace(str)
-	if str == "" {
-		return nil, false
-	}
-	data, err := base64.StdEncoding.DecodeString(str)
-	if err != nil {
-		return nil, false
-	}
-	return data, true
-}
-
-func decodeImageList(value any) ([][]byte, bool) {
-	if value == nil {
-		return nil, false
-	}
-	list, ok := value.([]any)
-	if !ok {
-		if str, ok := value.(string); ok {
-			if data, ok := decodeImage(str); ok {
-				return [][]byte{data}, true
+func readStringSlice(value any) []string {
+	switch v := value.(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				out = append(out, str)
 			}
 		}
-		return nil, false
+		return out
+	default:
+		return nil
 	}
-	var result [][]byte
-	for _, item := range list {
-		if data, ok := decodeImage(item); ok {
-			result = append(result, data)
-		}
-	}
-	if len(result) == 0 {
-		return nil, false
-	}
-	return result, true
 }

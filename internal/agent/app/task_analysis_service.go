@@ -79,6 +79,49 @@ Keep each line under 80 characters. Be specific and actionable.`, task)
 	return analysis
 }
 
+func fallbackTaskAnalysis(task string) *TaskAnalysis {
+	trimmed := strings.TrimSpace(task)
+	if trimmed == "" {
+		return nil
+	}
+
+	goal := trimmed
+	if len(goal) > 160 {
+		goal = goal[:160] + "..."
+	}
+
+	action := inferActionFromTask(trimmed)
+	approach := "Outline a plan and execute the request step by step."
+
+	return &TaskAnalysis{
+		ActionName:  action,
+		Goal:        goal,
+		Approach:    approach,
+		RawAnalysis: fmt.Sprintf("Action: %s\nGoal: %s\nApproach: %s", action, goal, approach),
+	}
+}
+
+func inferActionFromTask(task string) string {
+	sentence := task
+	if idx := strings.IndexAny(sentence, ".!?"); idx >= 0 {
+		sentence = sentence[:idx]
+	}
+	sentence = strings.TrimSpace(sentence)
+	if sentence == "" {
+		return "Processing request"
+	}
+	if len(sentence) > 60 {
+		sentence = sentence[:60] + "..."
+	}
+	if strings.HasPrefix(strings.ToLower(sentence), "please") {
+		sentence = strings.TrimSpace(sentence[6:])
+	}
+	if sentence == "" {
+		return "Processing request"
+	}
+	return fmt.Sprintf("Working on %s", strings.ToLower(sentence))
+}
+
 func parseTaskAnalysis(content string) *TaskAnalysis {
 	analysis := &TaskAnalysis{RawAnalysis: content}
 	lines := strings.Split(content, "\n")

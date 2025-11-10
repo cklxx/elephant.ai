@@ -279,19 +279,21 @@ func TestFileCostStore_SessionIndex(t *testing.T) {
 }
 
 func TestFileCostStore_HomeDirectory(t *testing.T) {
-	// Test that home directory expansion works
+	// Use a temporary home directory so the test can run in restricted environments.
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
 	store, err := NewFileCostStore("~/.test-alex-costs")
 	if err != nil {
 		t.Fatalf("NewFileCostStore with home dir failed: %v", err)
 	}
 
-	// Store should be initialized
 	if store == nil {
-		t.Error("Store should not be nil")
+		t.Fatal("Store should not be nil")
 	}
 
-	// Clean up
-	home, _ := os.UserHomeDir()
-	testDir := filepath.Join(home, ".test-alex-costs")
-	_ = os.RemoveAll(testDir)
+	testDir := filepath.Join(tempHome, ".test-alex-costs")
+	if _, err := os.Stat(testDir); err != nil {
+		t.Fatalf("expected test directory to be created: %v", err)
+	}
 }

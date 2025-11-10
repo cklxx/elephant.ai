@@ -9,9 +9,9 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import { formatTimestamp } from "./EventLine/formatters";
 import { AttachmentPayload } from "@/lib/types";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import { ImagePreview } from "@/components/ui/image-preview";
 
 interface ToolOutputCardProps {
   toolName: string;
@@ -39,10 +39,12 @@ export function ToolOutputCard({
     parameters && Object.keys(parameters).length > 0,
   );
   const hasError = Boolean(error && error.trim().length > 0);
-  const [isExpanded, setIsExpanded] = useState(
-    () => Boolean(error) || !hasResult,
-  );
+  const [isExpanded, setIsExpanded] = useState(true);
   const t = useTranslation();
+
+  const normalizedToolName = toolName.toLowerCase();
+  const isSeedream = normalizedToolName.includes("seedream");
+  const displayToolName = isSeedream ? "Seedream image generation" : toolName;
 
   const language = useMemo(
     () => detectLanguage(toolName, parameters, result),
@@ -69,27 +71,57 @@ export function ToolOutputCard({
     return `${trimmed.slice(0, 160)}…`;
   }, [error, result]);
 
+  const showBody =
+    hasResult ||
+    hasParameters ||
+    hasError ||
+    ((toolName === "todo_read" || toolName === "todo_update") &&
+      metadata?.todos);
+
   return (
-    <Card className="console-card border-primary/50 animate-fadeIn overflow-hidden">
-      <CardHeader className="px-5 py-4 space-y-3">
+    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border/60 bg-background/80 shadow-sm">
+      <CardHeader className="px-4 py-3 space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm">
-              <span
-                className={
-                  error
-                    ? "text-destructive font-semibold"
-                    : "text-primary font-semibold"
-                }
-              >
-                {error ? "✗" : "▸"} {toolName}
-              </span>
-              {typeof duration === "number" && duration >= 0 && (
-                <Badge variant="info" className="font-mono text-[11px]">
-                  {formatDuration(duration)}
-                </Badge>
+            <div className="flex items-center gap-2">
+              {showBody && shouldShowToggle && (
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-label={isExpanded ? "折叠工具调用" : "展开工具调用"}
+                  onClick={() => setIsExpanded((prev) => !prev)}
+                  className="rounded-md border border-border/60 p-1 text-muted-foreground transition hover:bg-muted/40"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
               )}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm">
+                <span
+                  className={
+                    error
+                      ? "text-destructive font-semibold"
+                      : "text-primary font-semibold"
+                  }
+                >
+                  {error ? "✗ " : ""}
+                  {displayToolName}
+                </span>
+                {typeof duration === "number" && duration >= 0 && (
+                  <Badge variant="info" className="font-mono text-[11px]">
+                    {formatDuration(duration)}
+                  </Badge>
+                )}
+              </div>
             </div>
+            {!isExpanded && previewText && (
+              <p className="mt-1 max-w-full truncate text-xs font-sans text-muted-foreground">
+                {previewText}
+              </p>
+            )}
           </div>
           <Badge variant={error ? "error" : "success"} className="shrink-0">
             {error ? t("tool.status.failed") : t("tool.status.completed")}
@@ -97,44 +129,16 @@ export function ToolOutputCard({
         </div>
       </CardHeader>
 
-      {(hasResult ||
-        hasParameters ||
-        hasError ||
-        ((toolName === "todo_read" || toolName === "todo_update") &&
-          metadata?.todos)) && (
-        <div className="border-t border-border/60 bg-muted/40">
-          {shouldShowToggle && (
-            <button
-              type="button"
-              aria-expanded={isExpanded}
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="flex w-full items-center justify-between gap-2 px-5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60"
-            >
-              <span className="flex flex-wrap items-center gap-1">
-                {isExpanded
-                  ? t("tool.toggle.collapse")
-                  : t("tool.toggle.expand")}
-                {hasResult &&
-                  t("tool.toggle.length", {
-                    count: resultLength.toLocaleString(),
-                  })}
-              </span>
-              {isExpanded ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </button>
-          )}
-
+      {showBody && (
+        <div className="bg-muted/20">
           {(isExpanded || !shouldShowToggle) && (
-            <CardContent className="space-y-4 px-5 pb-5 pt-4">
+            <CardContent className="space-y-3 px-4 pb-4 pt-3">
               {hasError && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
                     {t("tool.section.error")}
                   </p>
-                  <pre className="console-card bg-destructive/10 border-destructive/30 p-3 text-xs font-mono text-destructive overflow-x-auto">
+                  <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 shadow-none overflow-x-auto whitespace-pre-wrap">
                     {error}
                   </pre>
                 </div>
@@ -256,7 +260,7 @@ export function ToolOutputCard({
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Screenshot
                   </p>
-                  <div className="rounded-lg border border-border/60 overflow-hidden bg-white">
+                  <div className="rounded-lg bg-muted/15 overflow-hidden">
                     <Image
                       src={metadata.screenshot}
                       alt="Browser screenshot"
@@ -375,6 +379,35 @@ function formatParamValue(value: unknown): string {
   return JSON.stringify(value).slice(0, 24);
 }
 
+const NOISE_LINE_PATTERNS = [
+  /^model output$/i,
+  /^iteration\s+\d+/i,
+  /^seedream.*response$/i,
+  /^.*text-to-image response$/i,
+];
+
+function stripNoisyLines(input: string): string {
+  if (!input) {
+    return "";
+  }
+  const lines = input.split("\n");
+  const filtered: string[] = [];
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (filtered.length > 0 && filtered[filtered.length - 1] !== "") {
+        filtered.push("");
+      }
+      return;
+    }
+    if (NOISE_LINE_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+      return;
+    }
+    filtered.push(trimmed);
+  });
+  return filtered.join("\n").trim();
+}
+
 // Parse bash tool result
 interface BashResult {
   command?: string;
@@ -465,7 +498,90 @@ function renderToolResult(
   t: any,
   attachments?: Record<string, AttachmentPayload>,
 ): React.ReactNode {
-  if (!result) return null;
+  const normalizedToolName = toolName.toLowerCase();
+  const isSeedream = normalizedToolName.includes("seedream");
+  const hasResultText = typeof result === "string" && result.trim().length > 0;
+
+  // Code execute - show executed code and output
+  if (toolName === "code_execute") {
+    const codeSnippet =
+      typeof parameters?.code === "string" ? parameters.code : undefined;
+    const langHint =
+      (typeof parameters?.language === "string"
+        ? parameters.language
+        : undefined) ||
+      (typeof metadata?.language === "string" ? metadata.language : undefined);
+    const status =
+      typeof metadata?.success === "boolean" ? metadata.success : undefined;
+    const durationMs =
+      typeof metadata?.duration_ms === "number"
+        ? metadata.duration_ms
+        : undefined;
+
+    return (
+      <div className="space-y-3">
+        {codeSnippet && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("tool.code_execute.code") ?? "Code"}
+            </p>
+            <div className="rounded-lg bg-muted/20 overflow-auto">
+              <SyntaxHighlighter
+                language={mapCodeExecuteLanguage(langHint)}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: "0.5rem",
+                  fontSize: "0.75rem",
+                  maxHeight: 400,
+                }}
+                showLineNumbers={true}
+              >
+                {codeSnippet}
+              </SyntaxHighlighter>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="rounded-lg bg-muted/15 p-3">
+            {hasResultText ? (
+              <pre className="text-xs font-mono whitespace-pre-wrap text-foreground/90">
+                {result}
+              </pre>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {t("tool.code_execute.emptyOutput") ?? "No output captured."}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {(status !== undefined || durationMs !== undefined) && (
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            {status !== undefined && (
+              <span className="flex items-center gap-2">
+                {t("tool.code_execute.status") ?? "Status"}:
+                <Badge variant={status ? "success" : "error"}>
+                  {status
+                    ? t("tool.code_execute.success") ?? "Succeeded"
+                    : t("tool.code_execute.failed") ?? "Failed"}
+                </Badge>
+              </span>
+            )}
+            {durationMs !== undefined && (
+              <span>
+                {t("tool.code_execute.duration") ?? "Duration"}:{" "}
+                {formatDuration(durationMs)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!hasResultText) return null;
 
   // Bash tool - show command and output separately
   if (toolName === "bash" || toolName === "shell") {
@@ -478,7 +594,7 @@ function renderToolResult(
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Command
               </p>
-              <div className="console-card bg-gray-900 text-emerald-400 p-3 overflow-x-auto">
+              <div className="rounded-lg bg-gray-900 text-emerald-400 p-3 overflow-x-auto">
                 <pre className="text-xs font-mono whitespace-pre-wrap">
                   <span className="text-gray-500">$</span> {bashResult.command}
                 </pre>
@@ -486,11 +602,8 @@ function renderToolResult(
             </div>
           )}
           {(bashResult.stdout || bashResult.text) && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Output
-              </p>
-              <div className="console-card bg-gray-900 text-gray-100 p-3 overflow-x-auto">
+            <div>
+              <div className="rounded-lg bg-gray-900 text-gray-100 p-3 overflow-x-auto">
                 <pre className="text-xs font-mono whitespace-pre-wrap">
                   {bashResult.text || bashResult.stdout}
                 </pre>
@@ -498,11 +611,8 @@ function renderToolResult(
             </div>
           )}
           {bashResult.stderr && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
-                Error Output
-              </p>
-              <div className="console-card bg-destructive/10 border-destructive/30 p-3 overflow-x-auto">
+            <div>
+              <div className="rounded-lg bg-destructive/10 p-3 overflow-x-auto">
                 <pre className="text-xs font-mono text-destructive whitespace-pre-wrap">
                   {bashResult.stderr}
                 </pre>
@@ -539,12 +649,9 @@ function renderToolResult(
 
     return (
       <div className="space-y-3">
-        {/* Output message */}
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Output
-          </p>
-          <div className="console-card bg-background p-3">
+        {/* Result message */}
+        <div>
+          <div className="rounded-lg bg-muted/15 p-3">
             <p className="text-xs font-mono text-foreground/90">{result}</p>
           </div>
         </div>
@@ -555,7 +662,7 @@ function renderToolResult(
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               File Path
             </p>
-            <div className="console-card bg-background p-3">
+            <div className="rounded-lg bg-muted/15 p-3">
               <p className="text-xs font-mono text-foreground/90">{filePath}</p>
             </div>
           </div>
@@ -589,7 +696,7 @@ function renderToolResult(
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Content Written
             </p>
-            <div className="rounded-lg border border-border/60 overflow-auto">
+            <div className="rounded-lg bg-muted/20 overflow-auto">
               <SyntaxHighlighter
                 language={detectLanguageFromPath(filePath || "")}
                 style={vscDarkPlus}
@@ -611,70 +718,127 @@ function renderToolResult(
   }
 
   // Default rendering for other tools
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("tool.section.output")}
-      </p>
-      {attachments && Object.keys(attachments).length > 0 ? (
-        <div className="rounded-lg border border-border/60 overflow-auto p-3 bg-background">
-          <div className="whitespace-pre-wrap font-mono text-xs space-y-3">
-            {parseContentSegments(result ?? "", attachments).map((segment, index) => {
-              if (segment.type === "image" && segment.attachment) {
-                const uri = buildAttachmentUri(segment.attachment);
-                if (!uri) {
-                  return (
-                    <span key={`segment-${index}`}>{segment.placeholder ?? ""}</span>
-                  );
-                }
-                return (
-                  <figure
-                    key={`segment-${index}`}
-                    className="flex flex-col items-start gap-1"
-                  >
-                    <div
-                      className="relative w-full overflow-hidden rounded border border-border/60 bg-white"
-                      style={{ minHeight: "10rem", maxHeight: "16rem" }}
-                    >
-                      <Image
-                        src={uri}
-                        alt={segment.attachment.description || segment.attachment.name}
-                        fill
-                        className="object-contain"
-                        sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
-                        unoptimized
-                      />
-                    </div>
-                    <figcaption className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {segment.attachment.description || segment.attachment.name}
-                    </figcaption>
-                  </figure>
-                );
-              }
+  const descriptor =
+    isSeedream &&
+    (typeof metadata?.description === "string"
+      ? metadata.description
+      : typeof parameters?.prompt === "string"
+        ? parameters.prompt
+        : undefined);
+  const baseResult =
+    typeof (isSeedream ? descriptor : result) === "string"
+      ? (isSeedream ? descriptor : result) ?? ""
+      : result
+        ? JSON.stringify(result, null, 2)
+        : "";
+  const attachmentsAvailable =
+    attachments && Object.keys(attachments).length > 0;
+  const parsedSegments = attachmentsAvailable
+    ? parseContentSegments(baseResult, attachments)
+    : null;
+  const normalizedDescriptor =
+    typeof descriptor === "string" ? descriptor.trim() : undefined;
+  const textSegments = parsedSegments
+    ? parsedSegments.filter(
+        (segment) =>
+          segment.type === "text" &&
+          segment.text &&
+          segment.text.trim().length > 0,
+      )
+    : baseResult
+      ? [{ type: "text", text: baseResult }]
+      : [];
+  const cleanedTextSegments = textSegments
+    .map((segment) => {
+      if (segment.type !== "text" || !segment.text) {
+        return segment;
+      }
+      const cleaned = stripNoisyLines(segment.text);
+      if (!cleaned) {
+        return null;
+      }
+      return { ...segment, text: cleaned };
+    })
+    .filter(Boolean) as typeof textSegments;
+  const filteredTextSegments =
+    isSeedream && normalizedDescriptor
+      ? cleanedTextSegments.filter(
+          (segment) => segment.text?.trim() !== normalizedDescriptor,
+        )
+      : cleanedTextSegments;
+  const imageSegments = parsedSegments
+    ? parsedSegments.filter(
+        (segment) => segment.type === "image" && segment.attachment,
+      )
+    : [];
 
-              return (
-                <span key={`segment-${index}`}>{segment.text}</span>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border/60 overflow-auto">
-          <SyntaxHighlighter
-            language={language}
-            style={vscDarkPlus}
-            customStyle={{
-              margin: 0,
-              borderRadius: "0.5rem",
-              fontSize: "0.75rem",
-              maxHeight: 400,
-            }}
-            showLineNumbers={language !== "text"}
-          >
-            {result}
-          </SyntaxHighlighter>
+  return attachmentsAvailable ? (
+    <div className="rounded-lg bg-muted/15 p-3 space-y-4">
+      {isSeedream && normalizedDescriptor && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            Prompt
+          </p>
+          <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
+            {normalizedDescriptor}
+          </p>
         </div>
       )}
+      {filteredTextSegments.length > 0 && (
+        <div className="whitespace-pre-wrap font-mono text-xs space-y-3 text-foreground/80">
+          {filteredTextSegments.map((segment, index) => (
+            <span key={`text-segment-${index}`}>{segment.text}</span>
+          ))}
+        </div>
+      )}
+      {imageSegments.length > 0 && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {imageSegments.map((segment, index) => {
+            if (!segment.attachment) {
+              return null;
+            }
+            const uri = buildAttachmentUri(segment.attachment);
+            if (!uri) {
+              return null;
+            }
+            return (
+              <ImagePreview
+                key={`image-segment-${index}`}
+                src={uri}
+                alt={segment.attachment.description || segment.attachment.name}
+                minHeight="10rem"
+                maxHeight="16rem"
+                sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  ) : isSeedream ? (
+    <div className="rounded-lg bg-muted/15 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+        Prompt
+      </p>
+      <p className="mt-2 whitespace-pre-wrap font-mono text-xs text-foreground/90">
+        {baseResult}
+      </p>
+    </div>
+  ) : (
+    <div className="rounded-lg bg-muted/20 overflow-auto">
+      <SyntaxHighlighter
+        language={language}
+        style={vscDarkPlus}
+        customStyle={{
+          margin: 0,
+          borderRadius: "0.5rem",
+          fontSize: "0.75rem",
+          maxHeight: 400,
+        }}
+        showLineNumbers={language !== "text"}
+      >
+        {baseResult}
+      </SyntaxHighlighter>
     </div>
   );
 }
@@ -707,4 +871,24 @@ function detectLanguageFromPath(path: string): string {
   };
 
   return langMap[ext] || "text";
+}
+
+function mapCodeExecuteLanguage(language?: string): string {
+  if (!language) return "text";
+  const normalized = language.toLowerCase();
+  if (normalized === "js") return "javascript";
+  if (normalized === "py") return "python";
+  if (normalized === "sh") return "bash";
+  const allowed = [
+    "python",
+    "javascript",
+    "typescript",
+    "bash",
+    "go",
+    "ruby",
+  ];
+  if (allowed.includes(normalized)) {
+    return normalized;
+  }
+  return "text";
 }

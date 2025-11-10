@@ -214,4 +214,3 @@ describe('ConversationPageContent - stale session handling', () => {
     expect(state.sessionHistory[0]).toBe('new-session');
   });
 });
-

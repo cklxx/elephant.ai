@@ -73,6 +73,7 @@ type Message struct {
 	Content     string                `json:"content"`
 	ToolCalls   []ToolCall            `json:"tool_calls,omitempty"`
 	ToolResults []ToolResult          `json:"tool_results,omitempty"`
+	ToolCallID  string                `json:"tool_call_id,omitempty"`
 	Metadata    map[string]any        `json:"metadata,omitempty"`
 	Attachments map[string]Attachment `json:"attachments,omitempty"`
 }

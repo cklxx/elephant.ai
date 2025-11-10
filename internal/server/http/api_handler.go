@@ -581,6 +581,9 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 			Description: strings.TrimSpace(incoming.Description),
 			Source:      "user_upload",
 		}
+		if attachment.URI == "" && attachment.Data != "" {
+			attachment.URI = fmt.Sprintf("data:%s;base64,%s", attachment.MediaType, attachment.Data)
+		}
 		attachments = append(attachments, attachment)
 	}
 

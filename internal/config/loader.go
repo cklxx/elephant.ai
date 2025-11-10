@@ -24,10 +24,13 @@ const (
 // DefaultSandboxBaseURL provides the local sandbox endpoint used when no value is configured.
 const DefaultSandboxBaseURL = "http://localhost:8090"
 
-// Seedream defaults target the public Volcano Engine MaaS deployment in mainland China.
+// Seedream defaults target the public Volcano Engine Ark deployment in mainland China.
 const (
-	DefaultSeedreamHost   = "maas-api.ml-platform-cn-beijing.volces.com"
-	DefaultSeedreamRegion = "cn-beijing"
+	DefaultSeedreamHost        = "maas-api.ml-platform-cn-beijing.volces.com"
+	DefaultSeedreamRegion      = "cn-beijing"
+	DefaultSeedreamTextModel   = "doubao-seedream-3-0-t2i-250415"
+	DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
+	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -35,6 +38,7 @@ type RuntimeConfig struct {
 	LLMProvider             string
 	LLMModel                string
 	APIKey                  string
+	ArkAPIKey               string
 	BaseURL                 string
 	TavilyAPIKey            string
 	VolcAccessKey           string
@@ -43,6 +47,9 @@ type RuntimeConfig struct {
 	SeedreamRegion          string
 	SeedreamTextEndpointID  string
 	SeedreamImageEndpointID string
+	SeedreamTextModel       string
+	SeedreamImageModel      string
+	SeedreamVisionModel     string
 	SandboxBaseURL          string
 	Environment             string
 	Verbose                 bool
@@ -89,6 +96,7 @@ type Overrides struct {
 	LLMProvider             *string
 	LLMModel                *string
 	APIKey                  *string
+	ArkAPIKey               *string
 	BaseURL                 *string
 	TavilyAPIKey            *string
 	VolcAccessKey           *string
@@ -97,6 +105,9 @@ type Overrides struct {
 	SeedreamRegion          *string
 	SeedreamTextEndpointID  *string
 	SeedreamImageEndpointID *string
+	SeedreamTextModel       *string
+	SeedreamImageModel      *string
+	SeedreamVisionModel     *string
 	SandboxBaseURL          *string
 	Environment             *string
 	Verbose                 *bool
@@ -203,22 +214,25 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:      "openrouter",
-		LLMModel:         "deepseek/deepseek-chat",
-		BaseURL:          "https://openrouter.ai/api/v1",
-		SandboxBaseURL:   DefaultSandboxBaseURL,
-		SeedreamHost:     DefaultSeedreamHost,
-		SeedreamRegion:   DefaultSeedreamRegion,
-		Environment:      "development",
-		FollowTranscript: true,
-		FollowStream:     true,
-		MaxIterations:    150,
-		MaxTokens:        100000,
-		Temperature:      0.7,
-		TopP:             1.0,
-		SessionDir:       "~/.alex-sessions",
-		CostDir:          "~/.alex-costs",
-		CraftMirrorDir:   "~/.alex-crafts",
+		LLMProvider:         "openrouter",
+		LLMModel:            "deepseek/deepseek-chat",
+		BaseURL:             "https://openrouter.ai/api/v1",
+		SandboxBaseURL:      DefaultSandboxBaseURL,
+		SeedreamHost:        DefaultSeedreamHost,
+		SeedreamRegion:      DefaultSeedreamRegion,
+		SeedreamTextModel:   DefaultSeedreamTextModel,
+		SeedreamImageModel:  DefaultSeedreamImageModel,
+		SeedreamVisionModel: DefaultSeedreamVisionModel,
+		Environment:         "development",
+		FollowTranscript:    true,
+		FollowStream:        true,
+		MaxIterations:       150,
+		MaxTokens:           100000,
+		Temperature:         0.7,
+		TopP:                1.0,
+		SessionDir:          "~/.alex-sessions",
+		CostDir:             "~/.alex-costs",
+		CraftMirrorDir:      "~/.alex-crafts",
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -253,6 +267,7 @@ type fileConfig struct {
 	LLMModel                string                 `json:"llm_model"`
 	Model                   string                 `json:"model"`
 	APIKey                  string                 `json:"api_key"`
+	ArkAPIKey               string                 `json:"arkApiKey"`
 	BaseURL                 string                 `json:"base_url"`
 	TavilyAPIKey            string                 `json:"tavilyApiKey"`
 	VolcAccessKey           string                 `json:"volcAccessKey"`
@@ -261,6 +276,9 @@ type fileConfig struct {
 	SeedreamRegion          string                 `json:"seedreamRegion"`
 	SeedreamTextEndpointID  string                 `json:"seedreamTextEndpointId"`
 	SeedreamImageEndpointID string                 `json:"seedreamImageEndpointId"`
+	SeedreamTextModel       string                 `json:"seedreamTextModel"`
+	SeedreamImageModel      string                 `json:"seedreamImageModel"`
+	SeedreamVisionModel     string                 `json:"seedreamVisionModel"`
 	SandboxBaseURL          string                 `json:"sandbox_base_url"`
 	Environment             string                 `json:"environment"`
 	Verbose                 *bool                  `json:"verbose"`
@@ -312,6 +330,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.APIKey = parsed.APIKey
 		meta.sources["api_key"] = SourceFile
 	}
+	if parsed.ArkAPIKey != "" {
+		cfg.ArkAPIKey = parsed.ArkAPIKey
+		meta.sources["ark_api_key"] = SourceFile
+	}
 	if parsed.LLMProvider != "" {
 		cfg.LLMProvider = parsed.LLMProvider
 		meta.sources["llm_provider"] = SourceFile
@@ -358,6 +380,18 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.SeedreamImageEndpointID != "" {
 		cfg.SeedreamImageEndpointID = parsed.SeedreamImageEndpointID
 		meta.sources["seedream_image_endpoint_id"] = SourceFile
+	}
+	if parsed.SeedreamTextModel != "" {
+		cfg.SeedreamTextModel = parsed.SeedreamTextModel
+		meta.sources["seedream_text_model"] = SourceFile
+	}
+	if parsed.SeedreamImageModel != "" {
+		cfg.SeedreamImageModel = parsed.SeedreamImageModel
+		meta.sources["seedream_image_model"] = SourceFile
+	}
+	if parsed.SeedreamVisionModel != "" {
+		cfg.SeedreamVisionModel = parsed.SeedreamVisionModel
+		meta.sources["seedream_vision_model"] = SourceFile
 	}
 	if parsed.Environment != "" {
 		cfg.Environment = parsed.Environment
@@ -450,6 +484,13 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.APIKey = value
 		meta.sources["api_key"] = SourceEnv
 	}
+	if value, ok := lookup("ARK_API_KEY"); ok && value != "" {
+		cfg.ArkAPIKey = value
+		meta.sources["ark_api_key"] = SourceEnv
+	} else if value, ok := lookup("ALEX_ARK_API_KEY"); ok && value != "" {
+		cfg.ArkAPIKey = value
+		meta.sources["ark_api_key"] = SourceEnv
+	}
 	if value, ok := lookup("LLM_PROVIDER"); ok && value != "" {
 		cfg.LLMProvider = value
 		meta.sources["llm_provider"] = SourceEnv
@@ -511,6 +552,27 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	} else if value, ok := lookup("ALEX_SEEDREAM_IMAGE_ENDPOINT_ID"); ok && value != "" {
 		cfg.SeedreamImageEndpointID = value
 		meta.sources["seedream_image_endpoint_id"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_TEXT_MODEL"); ok && value != "" {
+		cfg.SeedreamTextModel = value
+		meta.sources["seedream_text_model"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_TEXT_MODEL"); ok && value != "" {
+		cfg.SeedreamTextModel = value
+		meta.sources["seedream_text_model"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_IMAGE_MODEL"); ok && value != "" {
+		cfg.SeedreamImageModel = value
+		meta.sources["seedream_image_model"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_IMAGE_MODEL"); ok && value != "" {
+		cfg.SeedreamImageModel = value
+		meta.sources["seedream_image_model"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_VISION_MODEL"); ok && value != "" {
+		cfg.SeedreamVisionModel = value
+		meta.sources["seedream_vision_model"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_VISION_MODEL"); ok && value != "" {
+		cfg.SeedreamVisionModel = value
+		meta.sources["seedream_vision_model"] = SourceEnv
 	}
 	if value, ok := lookup("AGENT_PRESET"); ok && value != "" {
 		cfg.AgentPreset = value
@@ -658,6 +720,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.APIKey = *overrides.APIKey
 		meta.sources["api_key"] = SourceOverride
 	}
+	if overrides.ArkAPIKey != nil {
+		cfg.ArkAPIKey = *overrides.ArkAPIKey
+		meta.sources["ark_api_key"] = SourceOverride
+	}
 	if overrides.BaseURL != nil {
 		cfg.BaseURL = *overrides.BaseURL
 		meta.sources["base_url"] = SourceOverride
@@ -693,6 +759,18 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.SeedreamImageEndpointID != nil {
 		cfg.SeedreamImageEndpointID = *overrides.SeedreamImageEndpointID
 		meta.sources["seedream_image_endpoint_id"] = SourceOverride
+	}
+	if overrides.SeedreamTextModel != nil {
+		cfg.SeedreamTextModel = *overrides.SeedreamTextModel
+		meta.sources["seedream_text_model"] = SourceOverride
+	}
+	if overrides.SeedreamImageModel != nil {
+		cfg.SeedreamImageModel = *overrides.SeedreamImageModel
+		meta.sources["seedream_image_model"] = SourceOverride
+	}
+	if overrides.SeedreamVisionModel != nil {
+		cfg.SeedreamVisionModel = *overrides.SeedreamVisionModel
+		meta.sources["seedream_vision_model"] = SourceOverride
 	}
 	if overrides.Environment != nil {
 		cfg.Environment = *overrides.Environment

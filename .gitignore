@@ -115,6 +115,7 @@ test_results/
 verified_test_results/
 debug-logs
 *.backup
+.toolchains/
 
 # Legacy files
 legacy-sample.js

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
 import { agentEventBus } from '@/lib/events/eventBus';
 import { defaultEventRegistry } from '@/lib/events/eventRegistry';
+import { resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
 import { EventPipeline } from '@/lib/events/eventPipeline';
 import { SSEClient } from '@/lib/events/sseClient';
 
@@ -64,6 +65,7 @@ export function useSSE(
 
   const clearEvents = useCallback(() => {
     setEvents([]);
+    resetAttachmentRegistry();
   }, []);
 
   const cleanup = useCallback(() => {
@@ -187,6 +189,7 @@ export function useSSE(
   useEffect(() => {
     cleanup();
     setEvents([]);
+    resetAttachmentRegistry();
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
     setError(null);

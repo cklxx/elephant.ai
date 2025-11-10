@@ -37,9 +37,6 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Environment != "development" {
 		t.Fatalf("expected default environment 'development', got %q", cfg.Environment)
 	}
-	if cfg.SeedreamHost != DefaultSeedreamHost || cfg.SeedreamRegion != DefaultSeedreamRegion {
-		t.Fatalf("expected default seedream host/region, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
-	}
 	if cfg.Verbose {
 		t.Fatal("expected verbose default to be false")
 	}
@@ -57,12 +54,12 @@ func TestLoadFromFile(t *testing.T) {
                 "llm_model": "gpt-4o",
                 "api_key": "sk-test",
                 "tavilyApiKey": "file-tavily",
-                "volcAccessKey": "file-ak",
-                "volcSecretKey": "file-sk",
-                "seedreamHost": "file-host",
-                "seedreamRegion": "file-region",
+                "arkApiKey": "file-ark",
                 "seedreamTextEndpointId": "file-text-id",
                 "seedreamImageEndpointId": "file-image-id",
+                "seedreamTextModel": "file-text-model",
+                "seedreamImageModel": "file-image-model",
+                "seedreamVisionModel": "file-vision-model",
                 "environment": "staging",
                 "verbose": true,
                 "follow_transcript": false,
@@ -104,14 +101,14 @@ func TestLoadFromFile(t *testing.T) {
 	if cfg.TavilyAPIKey != "file-tavily" {
 		t.Fatalf("expected tavily key from file, got %q", cfg.TavilyAPIKey)
 	}
-	if cfg.VolcAccessKey != "file-ak" || cfg.VolcSecretKey != "file-sk" {
-		t.Fatalf("expected volc credentials from file, got %q/%q", cfg.VolcAccessKey, cfg.VolcSecretKey)
-	}
-	if cfg.SeedreamHost != "file-host" || cfg.SeedreamRegion != "file-region" {
-		t.Fatalf("expected seedream host/region from file, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
-	}
 	if cfg.SeedreamTextEndpointID != "file-text-id" || cfg.SeedreamImageEndpointID != "file-image-id" {
 		t.Fatalf("expected seedream endpoints from file, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	}
+	if cfg.ArkAPIKey != "file-ark" {
+		t.Fatalf("expected ark API key from file, got %q", cfg.ArkAPIKey)
+	}
+	if cfg.SeedreamTextModel != "file-text-model" || cfg.SeedreamImageModel != "file-image-model" || cfg.SeedreamVisionModel != "file-vision-model" {
+		t.Fatalf("expected seedream models from file, got %q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel)
 	}
 	if cfg.Environment != "staging" {
 		t.Fatalf("expected environment from file, got %q", cfg.Environment)
@@ -130,9 +127,6 @@ func TestLoadFromFile(t *testing.T) {
 	}
 	if meta.Source("tavily_api_key") != SourceFile {
 		t.Fatalf("expected tavily key source from file, got %s", meta.Source("tavily_api_key"))
-	}
-	if meta.Source("volc_access_key") != SourceFile || meta.Source("volc_secret_key") != SourceFile {
-		t.Fatalf("expected volc credentials source from file")
 	}
 	if meta.Source("seedream_text_endpoint_id") != SourceFile || meta.Source("seedream_image_endpoint_id") != SourceFile {
 		t.Fatalf("expected seedream endpoints source from file")
@@ -162,12 +156,12 @@ func TestEnvOverridesFile(t *testing.T) {
 			"LLM_TEMPERATURE":            "0",
 			"LLM_MODEL":                  "env-model",
 			"TAVILY_API_KEY":             "env-tavily",
-			"VOLC_ACCESSKEY":             "env-ak",
-			"VOLC_SECRETKEY":             "env-sk",
-			"SEEDREAM_HOST":              "env-host",
-			"SEEDREAM_REGION":            "env-region",
+			"ARK_API_KEY":                "env-ark",
 			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
 			"SEEDREAM_IMAGE_ENDPOINT_ID": "env-image",
+			"SEEDREAM_TEXT_MODEL":        "env-text-model",
+			"SEEDREAM_IMAGE_MODEL":       "env-image-model",
+			"SEEDREAM_VISION_MODEL":      "env-vision-model",
 			"ALEX_ENV":                   "production",
 			"ALEX_VERBOSE":               "yes",
 			"ALEX_NO_TUI":                "true",
@@ -190,14 +184,14 @@ func TestEnvOverridesFile(t *testing.T) {
 	if cfg.TavilyAPIKey != "env-tavily" {
 		t.Fatalf("expected tavily key from env, got %q", cfg.TavilyAPIKey)
 	}
-	if cfg.VolcAccessKey != "env-ak" || cfg.VolcSecretKey != "env-sk" {
-		t.Fatalf("expected volc credentials from env, got %q/%q", cfg.VolcAccessKey, cfg.VolcSecretKey)
-	}
-	if cfg.SeedreamHost != "env-host" || cfg.SeedreamRegion != "env-region" {
-		t.Fatalf("expected seedream host/region from env, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
-	}
 	if cfg.SeedreamTextEndpointID != "env-text" || cfg.SeedreamImageEndpointID != "env-image" {
 		t.Fatalf("expected seedream endpoints from env, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	}
+	if cfg.ArkAPIKey != "env-ark" {
+		t.Fatalf("expected ark api key from env, got %q", cfg.ArkAPIKey)
+	}
+	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" {
+		t.Fatalf("expected seedream models from env, got %q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel)
 	}
 	if cfg.Environment != "production" {
 		t.Fatalf("expected environment from env, got %q", cfg.Environment)
@@ -220,11 +214,14 @@ func TestEnvOverridesFile(t *testing.T) {
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
-	if meta.Source("volc_access_key") != SourceEnv || meta.Source("volc_secret_key") != SourceEnv {
-		t.Fatalf("expected env source for volc credentials")
+	if meta.Source("ark_api_key") != SourceEnv {
+		t.Fatalf("expected env source for ark api key")
 	}
 	if meta.Source("seedream_text_endpoint_id") != SourceEnv || meta.Source("seedream_image_endpoint_id") != SourceEnv {
 		t.Fatalf("expected env source for seedream endpoints")
+	}
+	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv {
+		t.Fatalf("expected env source for seedream models")
 	}
 	if meta.Source("temperature") != SourceEnv {
 		t.Fatalf("expected env source for temperature, got %s", meta.Source("temperature"))
@@ -256,12 +253,12 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideTemp := 1.0
 	overrideModel := "override-model"
 	overrideTavily := "override-tavily"
-	overrideVolcAK := "override-ak"
-	overrideVolcSK := "override-sk"
-	overrideSeedreamHost := "override-host"
-	overrideSeedreamRegion := "override-region"
+	overrideArk := "override-ark"
 	overrideSeedreamText := "override-text"
 	overrideSeedreamImage := "override-image"
+	overrideSeedreamTextModel := "override-text-model"
+	overrideSeedreamImageModel := "override-image-model"
+	overrideSeedreamVisionModel := "override-vision-model"
 	overrideEnv := "qa"
 	overrideVerbose := true
 	overrideFollowTranscript := false
@@ -275,12 +272,12 @@ func TestOverridesTakePriority(t *testing.T) {
 			LLMModel:                &overrideModel,
 			Temperature:             &overrideTemp,
 			TavilyAPIKey:            &overrideTavily,
-			VolcAccessKey:           &overrideVolcAK,
-			VolcSecretKey:           &overrideVolcSK,
-			SeedreamHost:            &overrideSeedreamHost,
-			SeedreamRegion:          &overrideSeedreamRegion,
+			ArkAPIKey:               &overrideArk,
 			SeedreamTextEndpointID:  &overrideSeedreamText,
 			SeedreamImageEndpointID: &overrideSeedreamImage,
+			SeedreamTextModel:       &overrideSeedreamTextModel,
+			SeedreamImageModel:      &overrideSeedreamImageModel,
+			SeedreamVisionModel:     &overrideSeedreamVisionModel,
 			Environment:             &overrideEnv,
 			Verbose:                 &overrideVerbose,
 			FollowTranscript:        &overrideFollowTranscript,
@@ -302,14 +299,14 @@ func TestOverridesTakePriority(t *testing.T) {
 	if cfg.TavilyAPIKey != "override-tavily" {
 		t.Fatalf("expected override tavily key, got %q", cfg.TavilyAPIKey)
 	}
-	if cfg.VolcAccessKey != overrideVolcAK || cfg.VolcSecretKey != overrideVolcSK {
-		t.Fatalf("expected override volc credentials, got %q/%q", cfg.VolcAccessKey, cfg.VolcSecretKey)
-	}
-	if cfg.SeedreamHost != overrideSeedreamHost || cfg.SeedreamRegion != overrideSeedreamRegion {
-		t.Fatalf("expected override seedream host/region, got %q/%q", cfg.SeedreamHost, cfg.SeedreamRegion)
+	if cfg.ArkAPIKey != overrideArk {
+		t.Fatalf("expected override ark api key, got %q", cfg.ArkAPIKey)
 	}
 	if cfg.SeedreamTextEndpointID != overrideSeedreamText || cfg.SeedreamImageEndpointID != overrideSeedreamImage {
 		t.Fatalf("expected override seedream endpoints, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	}
+	if cfg.SeedreamTextModel != overrideSeedreamTextModel || cfg.SeedreamImageModel != overrideSeedreamImageModel || cfg.SeedreamVisionModel != overrideSeedreamVisionModel {
+		t.Fatalf("expected override seedream models, got %q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel)
 	}
 	if cfg.Environment != "qa" {
 		t.Fatalf("expected override environment, got %q", cfg.Environment)
@@ -344,11 +341,14 @@ func TestOverridesTakePriority(t *testing.T) {
 	if meta.Source("follow_stream") != SourceOverride {
 		t.Fatalf("expected override source for follow_stream, got %s", meta.Source("follow_stream"))
 	}
-	if meta.Source("volc_access_key") != SourceOverride || meta.Source("volc_secret_key") != SourceOverride {
-		t.Fatalf("expected override source for volc credentials")
+	if meta.Source("ark_api_key") != SourceOverride {
+		t.Fatalf("expected override source for ark api key")
 	}
 	if meta.Source("seedream_text_endpoint_id") != SourceOverride || meta.Source("seedream_image_endpoint_id") != SourceOverride {
 		t.Fatalf("expected override source for seedream endpoints")
+	}
+	if meta.Source("seedream_text_model") != SourceOverride || meta.Source("seedream_image_model") != SourceOverride || meta.Source("seedream_vision_model") != SourceOverride {
+		t.Fatalf("expected override source for seedream models")
 	}
 	if meta.Source("agent_preset") != SourceOverride || meta.Source("tool_preset") != SourceOverride {
 		t.Fatalf("expected override source for presets")

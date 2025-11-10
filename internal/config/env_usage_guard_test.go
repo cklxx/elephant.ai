@@ -19,13 +19,14 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"internal/utils/logger.go":         {},
 	}
 
-    skipDirs := map[string]struct{}{
-            ".git":         {},
-            "node_modules": {},
-            "vendor":       {},
-            "logs":         {},
-            ".cache":       {},
-    }
+	skipDirs := map[string]struct{}{
+		".cache":       {},
+		".git":         {},
+		".toolchains":  {},
+		"logs":         {},
+		"node_modules": {},
+		"vendor":       {},
+	}
 
 	var violations []string
 

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
 	"alex/internal/observability"
 	builtin "alex/internal/tools/builtin"
@@ -14,11 +15,13 @@ import (
 )
 
 type recordingCoordinator struct {
-	mu           sync.Mutex
-	lastIDs      id.IDs
-	logBuffer    *bytes.Buffer
-	logger       *observability.Logger
-	receivedTask string
+	mu            sync.Mutex
+	lastIDs       id.IDs
+	logBuffer     *bytes.Buffer
+	logger        *observability.Logger
+	receivedTask  string
+	inheritedAtt  map[string]ports.Attachment
+	inheritedIter map[string]int
 }
 
 func newRecordingCoordinator(buf *bytes.Buffer) *recordingCoordinator {
@@ -28,10 +31,13 @@ func newRecordingCoordinator(buf *bytes.Buffer) *recordingCoordinator {
 
 func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
 	ids := id.IDsFromContext(ctx)
+	inheritedAtt, inheritedIter := agentApp.GetInheritedAttachments(ctx)
 
 	r.mu.Lock()
 	r.lastIDs = ids
 	r.receivedTask = task
+	r.inheritedAtt = inheritedAtt
+	r.inheritedIter = inheritedIter
 	r.mu.Unlock()
 
 	r.logger.InfoContext(ctx, "executing subtask", "task", task)
@@ -102,6 +108,12 @@ func (r *recordingCoordinator) LoggedEntries() ([]map[string]any, error) {
 		entries = append(entries, entry)
 	}
 	return entries, nil
+}
+
+func (r *recordingCoordinator) InheritedAttachments() (map[string]ports.Attachment, map[string]int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.inheritedAtt, r.inheritedIter
 }
 
 func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
@@ -177,5 +189,58 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	}
 	if entry["parent_task_id"] != rootTaskID {
 		t.Fatalf("expected log parent_task_id %s, got %v", rootTaskID, entry["parent_task_id"])
+	}
+}
+
+func TestSubagentPropagatesAttachmentsToCoordinator(t *testing.T) {
+	buf := &bytes.Buffer{}
+	coordinator := newRecordingCoordinator(buf)
+	tool := builtin.NewSubAgent(coordinator, 1)
+
+	placeholder := "doubao-seedream-3-0_nonce_0.png"
+	attachments := map[string]ports.Attachment{
+		placeholder: {
+			Name:      placeholder,
+			MediaType: "image/png",
+			Data:      "YmFzZTY0X2RhdGE=",
+			Source:    "seedream",
+			URI:       "",
+		},
+	}
+	iterations := map[string]int{placeholder: 7}
+
+	ctx := context.Background()
+	ctx = ports.WithAttachmentContext(ctx, attachments, iterations)
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: "session-1", TaskID: "root-task"})
+
+	call := ports.ToolCall{
+		ID:        "call-attachments",
+		Name:      "subagent",
+		Arguments: map[string]any{"subtasks": []any{"refine the generated art"}},
+		SessionID: "session-1",
+		TaskID:    "root-task",
+	}
+
+	if _, err := tool.Execute(ctx, call); err != nil {
+		t.Fatalf("subagent execution failed: %v", err)
+	}
+
+	gotAtt, gotIter := coordinator.InheritedAttachments()
+	if len(gotAtt) != 1 {
+		t.Fatalf("expected 1 inherited attachment, got %d", len(gotAtt))
+	}
+	got, ok := gotAtt[placeholder]
+	if !ok {
+		t.Fatalf("missing propagated attachment %q", placeholder)
+	}
+	if got.Data != attachments[placeholder].Data {
+		t.Fatalf("expected attachment data to match, got %q", got.Data)
+	}
+	iter, ok := gotIter[placeholder]
+	if !ok {
+		t.Fatalf("missing iteration entry for %q", placeholder)
+	}
+	if iter != 7 {
+		t.Fatalf("expected iteration 7, got %d", iter)
 	}
 }

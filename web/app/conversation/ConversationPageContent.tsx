@@ -12,7 +12,6 @@ import { useConfirmDialog } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea } from '@/components/layout';
 import { TaskInput } from '@/components/agent/TaskInput';
-import { buildToolCallSummaries } from '@/lib/eventAggregation';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AttachmentPayload, AttachmentUpload } from '@/lib/types';
@@ -230,8 +229,6 @@ export function ConversationPageContent() {
     }
   };
 
-  const toolSummaries = useMemo(() => buildToolCallSummaries(events), [events]);
-
   const isSubmitting = useMockStream ? false : isPending;
 
   const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
@@ -249,6 +246,19 @@ export function ConversationPageContent() {
       setIsInputManuallyOpened(true);
     }
   }, [prefillTask, shouldShowInputBar]);
+
+  const firstTaskAnalysis = useMemo(
+    () => events.find((event) => event.event_type === "task_analysis"),
+    [events],
+  );
+  const analysisTitle =
+    firstTaskAnalysis && "action_name" in firstTaskAnalysis
+      ? firstTaskAnalysis.action_name
+      : null;
+  const analysisSubtitle =
+    firstTaskAnalysis && "goal" in firstTaskAnalysis
+      ? firstTaskAnalysis.goal
+      : null;
 
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
@@ -315,8 +325,14 @@ export function ConversationPageContent() {
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
-          title={sessionBadge || t('conversation.header.idle')}
-          subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
+          title={analysisTitle || sessionBadge || t('conversation.header.idle')}
+          subtitle={
+            analysisTitle
+              ? analysisSubtitle || sessionBadge || undefined
+              : resolvedSessionId
+                ? t('conversation.header.subtitle')
+                : undefined
+          }
           leadingSlot={
             <button
               type="button"
@@ -364,7 +380,6 @@ export function ConversationPageContent() {
             error={error}
             reconnectAttempts={reconnectAttempts}
             onReconnect={reconnect}
-            toolSummaries={toolSummaries}
           />
         </ContentArea>
 
