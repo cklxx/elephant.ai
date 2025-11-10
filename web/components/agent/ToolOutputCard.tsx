@@ -718,13 +718,13 @@ function renderToolResult(
   }
 
   // Default rendering for other tools
-  const descriptor =
-    isSeedream &&
-    (typeof metadata?.description === "string"
+  const descriptor = isSeedream
+    ? typeof metadata?.description === "string"
       ? metadata.description
       : typeof parameters?.prompt === "string"
         ? parameters.prompt
-        : undefined);
+        : undefined
+    : undefined;
   const baseResult =
     typeof (isSeedream ? descriptor : result) === "string"
       ? (isSeedream ? descriptor : result) ?? ""
