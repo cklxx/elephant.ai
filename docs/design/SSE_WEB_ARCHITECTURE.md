@@ -323,11 +323,7 @@ func main() {
     )
 
     // Setup HTTP router
-    healthChecker := serverApp.NewHealthChecker()
-    craftService := serverApp.NewCraftService(container.SessionStore, container.BlobStore, container.CraftMirror)
-    workbenchService := serverApp.NewWorkbenchService(container.AgentCoordinator, container.SessionStore, container.BlobStore,
-        serverApp.WithCraftMirror(container.CraftMirror))
-    router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, craftService, workbenchService, runtimeCfg.Environment)
+    router := serverHTTP.NewRouter(serverCoordinator, broadcaster, runtimeCfg.Environment)
 
     // Create HTTP server
     srv := &http.Server{

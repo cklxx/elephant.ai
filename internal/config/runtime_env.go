@@ -105,7 +105,6 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 
 	set("ALEX_SESSION_DIR", cfg.SessionDir)
 	set("ALEX_COST_DIR", cfg.CostDir)
-	set("ALEX_CRAFT_MIRROR_DIR", cfg.CraftMirrorDir)
 
 	set("AGENT_PRESET", cfg.AgentPreset)
 	set("ALEX_AGENT_PRESET", cfg.AgentPreset)

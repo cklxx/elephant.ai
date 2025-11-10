@@ -67,12 +67,6 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		fmt.Println(appVersion())
 		return true, 0
 	case "config":
-		if len(args) > 1 {
-			if len(args) > 2 || args[1] != "show" {
-				fmt.Fprintf(os.Stderr, "Error: usage: alex config [show]\n")
-				return true, 1
-			}
-		}
 		if err := runConfigCommand(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return true, 1

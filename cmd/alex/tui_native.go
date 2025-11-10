@@ -56,7 +56,7 @@ type DisplayMessage struct {
 // NewNativeChatUI creates a new native chat UI
 func NewNativeChatUI(container *Container) *NativeChatUI {
 	// Set core agent output context
-	ctx := container.BackgroundContext()
+	ctx := context.Background()
 	coreOutCtx := &types.OutputContext{
 		Level:   types.LevelCore,
 		AgentID: "core",

@@ -57,7 +57,7 @@ func (h *StreamingOutputHandler) SetOutputWriter(w io.Writer) {
 // RunTaskWithStreamOutput executes a task with inline streaming output
 func RunTaskWithStreamOutput(container *Container, task string, sessionID string) error {
 	// Start execution with stream handler
-	ctx := container.BackgroundContext()
+	ctx := context.Background()
 
 	if sessionID == "" {
 		session, err := container.SessionStore.Create(ctx)

@@ -40,8 +40,6 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 
 **Important**: The backend server must be running and accessible at this URL.
 
-> 💡 想在没有后端的情况下演示前端？我们默认在 `.env.development` 中启用了 `NEXT_PUBLIC_ENABLE_MOCK_DATA=1`，开发模式下会自动返回精心准备的 Workbench/Conversation mock 数据。将该变量设置为 `0` 或 `false` 即可切换回真实 API。
-
 ### 3. Start Development Server
 
 ```bash
@@ -61,9 +59,9 @@ You should see:
 Navigate to: **http://localhost:3000**
 
 You should see the ALEX home page with:
-- 顶部导航（含「工作台」「对话」）
-- 默认展示 Workbench 目标选择卡片
-- 若切换到 Conversation，可看到任务输入框与空状态提示
+- Header with logo and navigation
+- Task input form
+- Empty state message
 
 ## Verify Setup
 
@@ -120,8 +118,6 @@ PORT=3001 npm run dev
 2. Check backend logs for errors
 3. Verify CORS headers on backend
 4. Try curl: `curl http://localhost:8080/api/sessions`
-
-仍然想继续浏览？保持 `NEXT_PUBLIC_ENABLE_MOCK_DATA=1`，前端会自动回退到 mock 数据，不影响页面演示。
 
 ### SSE Connection Fails
 

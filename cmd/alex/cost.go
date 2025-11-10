@@ -16,7 +16,7 @@ func (c *CLI) handleCostCommand(args []string) error {
 		return fmt.Errorf("cost tracking is not enabled")
 	}
 
-	ctx := c.container.BackgroundContext()
+	ctx := context.Background()
 
 	// Parse subcommand
 	if len(args) == 0 {

@@ -16,7 +16,6 @@ type Container struct {
 	// Coordinator is an alias for AgentCoordinator to maintain backward compatibility
 	Coordinator *app.AgentCoordinator
 	Runtime     appConfig
-	userID      string
 }
 
 func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
@@ -71,13 +70,10 @@ func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 		return nil, err
 	}
 
-	userID := resolveCLIUserID()
-
 	result := &Container{
 		Container:   container,
 		Coordinator: container.AgentCoordinator,
 		Runtime:     cfg,
-		userID:      userID,
 	}
 
 	if environmentSummary != "" {

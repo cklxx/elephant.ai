@@ -43,9 +43,6 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.FollowTranscript || !cfg.FollowStream {
 		t.Fatalf("expected follow defaults to be true, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
 	}
-	if cfg.CraftMirrorDir != "~/.alex-crafts" {
-		t.Fatalf("expected default craft mirror dir, got %q", cfg.CraftMirrorDir)
-	}
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -68,7 +65,6 @@ func TestLoadFromFile(t *testing.T) {
                 "max_iterations": 200,
                 "stop_sequences": ["DONE"],
                 "session_dir": "~/sessions",
-                "craft_mirror_dir": "~/crafts",
                 "agent_preset": "designer",
                 "tool_preset": "safe"
         }`)
@@ -94,9 +90,6 @@ func TestLoadFromFile(t *testing.T) {
 	}
 	if cfg.SessionDir != "~/sessions" {
 		t.Fatalf("unexpected session dir: %s", cfg.SessionDir)
-	}
-	if cfg.CraftMirrorDir != "~/crafts" {
-		t.Fatalf("unexpected craft mirror dir: %s", cfg.CraftMirrorDir)
 	}
 	if cfg.TavilyAPIKey != "file-tavily" {
 		t.Fatalf("expected tavily key from file, got %q", cfg.TavilyAPIKey)
@@ -143,9 +136,6 @@ func TestLoadFromFile(t *testing.T) {
 	if meta.Source("follow_stream") != SourceFile {
 		t.Fatalf("expected follow_stream source to be file, got %s", meta.Source("follow_stream"))
 	}
-	if meta.Source("craft_mirror_dir") != SourceFile {
-		t.Fatalf("expected craft mirror dir source from file")
-	}
 }
 
 func TestEnvOverridesFile(t *testing.T) {
@@ -169,7 +159,6 @@ func TestEnvOverridesFile(t *testing.T) {
 			"ALEX_TUI_FOLLOW_STREAM":     "false",
 			"AGENT_PRESET":               "designer",
 			"TOOL_PRESET":                "full",
-			"ALEX_CRAFT_MIRROR_DIR":      "/data/crafts",
 		}.Lookup),
 	)
 	if err != nil {
@@ -208,9 +197,6 @@ func TestEnvOverridesFile(t *testing.T) {
 	if cfg.AgentPreset != "designer" || cfg.ToolPreset != "full" {
 		t.Fatalf("expected presets from env, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
 	}
-	if cfg.CraftMirrorDir != "/data/crafts" {
-		t.Fatalf("expected craft mirror dir from env, got %q", cfg.CraftMirrorDir)
-	}
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -244,9 +230,6 @@ func TestEnvOverridesFile(t *testing.T) {
 	if meta.Source("agent_preset") != SourceEnv || meta.Source("tool_preset") != SourceEnv {
 		t.Fatalf("expected env source for presets")
 	}
-	if meta.Source("craft_mirror_dir") != SourceEnv {
-		t.Fatalf("expected env source for craft mirror dir")
-	}
 }
 
 func TestOverridesTakePriority(t *testing.T) {
@@ -265,7 +248,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideFollowStream := false
 	overrideAgentPreset := "designer"
 	overrideToolPreset := "web-only"
-	overrideCraftMirror := "/override/crafts"
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
@@ -284,7 +266,6 @@ func TestOverridesTakePriority(t *testing.T) {
 			FollowStream:            &overrideFollowStream,
 			AgentPreset:             &overrideAgentPreset,
 			ToolPreset:              &overrideToolPreset,
-			CraftMirrorDir:          &overrideCraftMirror,
 		}),
 	)
 	if err != nil {
@@ -320,9 +301,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	if cfg.AgentPreset != overrideAgentPreset || cfg.ToolPreset != overrideToolPreset {
 		t.Fatalf("expected override presets, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
 	}
-	if cfg.CraftMirrorDir != overrideCraftMirror {
-		t.Fatalf("expected override craft mirror dir, got %q", cfg.CraftMirrorDir)
-	}
 	if meta.Source("tavily_api_key") != SourceOverride {
 		t.Fatalf("expected override source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -352,9 +330,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("agent_preset") != SourceOverride || meta.Source("tool_preset") != SourceOverride {
 		t.Fatalf("expected override source for presets")
-	}
-	if meta.Source("craft_mirror_dir") != SourceOverride {
-		t.Fatalf("expected override source for craft mirror dir")
 	}
 }
 

@@ -26,8 +26,6 @@ const DefaultSandboxBaseURL = "http://localhost:8090"
 
 // Seedream defaults target the public Volcano Engine Ark deployment in mainland China.
 const (
-	DefaultSeedreamHost        = "maas-api.ml-platform-cn-beijing.volces.com"
-	DefaultSeedreamRegion      = "cn-beijing"
 	DefaultSeedreamTextModel   = "doubao-seedream-3-0-t2i-250415"
 	DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
 	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
@@ -41,10 +39,6 @@ type RuntimeConfig struct {
 	ArkAPIKey               string
 	BaseURL                 string
 	TavilyAPIKey            string
-	VolcAccessKey           string
-	VolcSecretKey           string
-	SeedreamHost            string
-	SeedreamRegion          string
 	SeedreamTextEndpointID  string
 	SeedreamImageEndpointID string
 	SeedreamTextModel       string
@@ -64,7 +58,6 @@ type RuntimeConfig struct {
 	StopSequences           []string
 	SessionDir              string
 	CostDir                 string
-	CraftMirrorDir          string
 	AgentPreset             string
 	ToolPreset              string
 }
@@ -99,10 +92,6 @@ type Overrides struct {
 	ArkAPIKey               *string
 	BaseURL                 *string
 	TavilyAPIKey            *string
-	VolcAccessKey           *string
-	VolcSecretKey           *string
-	SeedreamHost            *string
-	SeedreamRegion          *string
 	SeedreamTextEndpointID  *string
 	SeedreamImageEndpointID *string
 	SeedreamTextModel       *string
@@ -121,7 +110,6 @@ type Overrides struct {
 	StopSequences           *[]string
 	SessionDir              *string
 	CostDir                 *string
-	CraftMirrorDir          *string
 	AgentPreset             *string
 	ToolPreset              *string
 }
@@ -218,8 +206,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMModel:            "deepseek/deepseek-chat",
 		BaseURL:             "https://openrouter.ai/api/v1",
 		SandboxBaseURL:      DefaultSandboxBaseURL,
-		SeedreamHost:        DefaultSeedreamHost,
-		SeedreamRegion:      DefaultSeedreamRegion,
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
 		SeedreamVisionModel: DefaultSeedreamVisionModel,
@@ -232,7 +218,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		TopP:                1.0,
 		SessionDir:          "~/.alex-sessions",
 		CostDir:             "~/.alex-costs",
-		CraftMirrorDir:      "~/.alex-crafts",
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -270,10 +255,6 @@ type fileConfig struct {
 	ArkAPIKey               string                 `json:"arkApiKey"`
 	BaseURL                 string                 `json:"base_url"`
 	TavilyAPIKey            string                 `json:"tavilyApiKey"`
-	VolcAccessKey           string                 `json:"volcAccessKey"`
-	VolcSecretKey           string                 `json:"volcSecretKey"`
-	SeedreamHost            string                 `json:"seedreamHost"`
-	SeedreamRegion          string                 `json:"seedreamRegion"`
 	SeedreamTextEndpointID  string                 `json:"seedreamTextEndpointId"`
 	SeedreamImageEndpointID string                 `json:"seedreamImageEndpointId"`
 	SeedreamTextModel       string                 `json:"seedreamTextModel"`
@@ -291,7 +272,6 @@ type fileConfig struct {
 	StopSequences           []string               `json:"stop_sequences"`
 	SessionDir              string                 `json:"session_dir"`
 	CostDir                 string                 `json:"cost_dir"`
-	CraftMirrorDir          string                 `json:"craft_mirror_dir"`
 	Models                  map[string]modelConfig `json:"models"`
 	AgentPreset             string                 `json:"agent_preset"`
 	ToolPreset              string                 `json:"tool_preset"`
@@ -357,22 +337,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.TavilyAPIKey = parsed.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceFile
 	}
-	if parsed.VolcAccessKey != "" {
-		cfg.VolcAccessKey = parsed.VolcAccessKey
-		meta.sources["volc_access_key"] = SourceFile
-	}
-	if parsed.VolcSecretKey != "" {
-		cfg.VolcSecretKey = parsed.VolcSecretKey
-		meta.sources["volc_secret_key"] = SourceFile
-	}
-	if parsed.SeedreamHost != "" {
-		cfg.SeedreamHost = parsed.SeedreamHost
-		meta.sources["seedream_host"] = SourceFile
-	}
-	if parsed.SeedreamRegion != "" {
-		cfg.SeedreamRegion = parsed.SeedreamRegion
-		meta.sources["seedream_region"] = SourceFile
-	}
 	if parsed.SeedreamTextEndpointID != "" {
 		cfg.SeedreamTextEndpointID = parsed.SeedreamTextEndpointID
 		meta.sources["seedream_text_endpoint_id"] = SourceFile
@@ -437,10 +401,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.CostDir != "" {
 		cfg.CostDir = parsed.CostDir
 		meta.sources["cost_dir"] = SourceFile
-	}
-	if parsed.CraftMirrorDir != "" {
-		cfg.CraftMirrorDir = parsed.CraftMirrorDir
-		meta.sources["craft_mirror_dir"] = SourceFile
 	}
 	if parsed.AgentPreset != "" {
 		cfg.AgentPreset = parsed.AgentPreset
@@ -510,34 +470,6 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
 		cfg.TavilyAPIKey = value
 		meta.sources["tavily_api_key"] = SourceEnv
-	}
-	if value, ok := lookup("VOLC_ACCESSKEY"); ok && value != "" {
-		cfg.VolcAccessKey = value
-		meta.sources["volc_access_key"] = SourceEnv
-	} else if value, ok := lookup("ALEX_VOLC_ACCESSKEY"); ok && value != "" {
-		cfg.VolcAccessKey = value
-		meta.sources["volc_access_key"] = SourceEnv
-	}
-	if value, ok := lookup("VOLC_SECRETKEY"); ok && value != "" {
-		cfg.VolcSecretKey = value
-		meta.sources["volc_secret_key"] = SourceEnv
-	} else if value, ok := lookup("ALEX_VOLC_SECRETKEY"); ok && value != "" {
-		cfg.VolcSecretKey = value
-		meta.sources["volc_secret_key"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_HOST"); ok && value != "" {
-		cfg.SeedreamHost = value
-		meta.sources["seedream_host"] = SourceEnv
-	} else if value, ok := lookup("ALEX_SEEDREAM_HOST"); ok && value != "" {
-		cfg.SeedreamHost = value
-		meta.sources["seedream_host"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_REGION"); ok && value != "" {
-		cfg.SeedreamRegion = value
-		meta.sources["seedream_region"] = SourceEnv
-	} else if value, ok := lookup("ALEX_SEEDREAM_REGION"); ok && value != "" {
-		cfg.SeedreamRegion = value
-		meta.sources["seedream_region"] = SourceEnv
 	}
 	if value, ok := lookup("SEEDREAM_TEXT_ENDPOINT_ID"); ok && value != "" {
 		cfg.SeedreamTextEndpointID = value
@@ -699,10 +631,6 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.CostDir = value
 		meta.sources["cost_dir"] = SourceEnv
 	}
-	if value, ok := lookup("ALEX_CRAFT_MIRROR_DIR"); ok && value != "" {
-		cfg.CraftMirrorDir = value
-		meta.sources["craft_mirror_dir"] = SourceEnv
-	}
 
 	return nil
 }
@@ -735,22 +663,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.TavilyAPIKey != nil {
 		cfg.TavilyAPIKey = *overrides.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceOverride
-	}
-	if overrides.VolcAccessKey != nil {
-		cfg.VolcAccessKey = *overrides.VolcAccessKey
-		meta.sources["volc_access_key"] = SourceOverride
-	}
-	if overrides.VolcSecretKey != nil {
-		cfg.VolcSecretKey = *overrides.VolcSecretKey
-		meta.sources["volc_secret_key"] = SourceOverride
-	}
-	if overrides.SeedreamHost != nil {
-		cfg.SeedreamHost = *overrides.SeedreamHost
-		meta.sources["seedream_host"] = SourceOverride
-	}
-	if overrides.SeedreamRegion != nil {
-		cfg.SeedreamRegion = *overrides.SeedreamRegion
-		meta.sources["seedream_region"] = SourceOverride
 	}
 	if overrides.SeedreamTextEndpointID != nil {
 		cfg.SeedreamTextEndpointID = *overrides.SeedreamTextEndpointID
@@ -820,10 +732,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.CostDir != nil {
 		cfg.CostDir = *overrides.CostDir
 		meta.sources["cost_dir"] = SourceOverride
-	}
-	if overrides.CraftMirrorDir != nil {
-		cfg.CraftMirrorDir = *overrides.CraftMirrorDir
-		meta.sources["craft_mirror_dir"] = SourceOverride
 	}
 	if overrides.AgentPreset != nil {
 		cfg.AgentPreset = *overrides.AgentPreset

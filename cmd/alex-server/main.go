@@ -19,7 +19,6 @@ import (
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
-	builtin "alex/internal/tools/builtin"
 	"alex/internal/utils"
 )
 
@@ -52,8 +51,10 @@ func main() {
 	} else {
 		logger.Info("Sandbox Base URL: (not set)")
 	}
-	if keyLen := len(runtimeCfg.APIKey); keyLen > 0 {
-		logger.Info("API Key: configured (%d characters)", keyLen)
+	if keyLen := len(runtimeCfg.APIKey); keyLen > 10 {
+		logger.Info("API Key: %s...%s", runtimeCfg.APIKey[:10], runtimeCfg.APIKey[keyLen-10:])
+	} else if keyLen > 0 {
+		logger.Info("API Key: %s", runtimeCfg.APIKey)
 	} else {
 		logger.Info("API Key: (not set)")
 	}
@@ -166,22 +167,7 @@ func main() {
 	healthChecker.RegisterProbe(serverApp.NewSandboxProbe(container.SandboxManager))
 
 	// Setup HTTP router
-	craftService := serverApp.NewCraftService(container.SessionStore, container.BlobStore, container.CraftMirror)
-	seedreamConfig := builtin.SeedreamConfig{
-		APIKey:          runtimeCfg.ArkAPIKey,
-		Model:           runtimeCfg.SeedreamTextModel,
-		ModelDescriptor: "Seedream 3.0 text-to-image",
-		ModelEnvVar:     "SEEDREAM_TEXT_MODEL",
-	}
-	illustrationGenerator := serverApp.NewSeedreamIllustrationGenerator(seedreamConfig)
-	workbenchService := serverApp.NewWorkbenchService(
-		container.AgentCoordinator,
-		container.SessionStore,
-		container.BlobStore,
-		serverApp.WithCraftMirror(container.CraftMirror),
-		serverApp.WithIllustrationGenerator(illustrationGenerator),
-	)
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, craftService, workbenchService, runtimeCfg.Environment)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, runtimeCfg.Environment)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -249,7 +235,6 @@ func buildContainer(config Config) (*di.Container, error) {
 		StopSequences:           append([]string(nil), config.Runtime.StopSequences...),
 		SessionDir:              config.Runtime.SessionDir,
 		CostDir:                 config.Runtime.CostDir,
-		CraftMirrorDir:          config.Runtime.CraftMirrorDir,
 		AgentPreset:             config.Runtime.AgentPreset,
 		ToolPreset:              config.Runtime.ToolPreset,
 		EnableMCP:               config.EnableMCP,
@@ -280,7 +265,6 @@ func loadConfig() (Config, error) {
 		"PORT":                       {"ALEX_SERVER_PORT"},
 		"ENABLE_MCP":                 {"ALEX_ENABLE_MCP"},
 		"SANDBOX_BASE_URL":           {"ALEX_SANDBOX_BASE_URL"},
-		"CRAFT_MIRROR_DIR":           {"ALEX_CRAFT_MIRROR_DIR"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(
