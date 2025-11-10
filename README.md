@@ -195,6 +195,13 @@ The compose stack now launches a dedicated `alex-sandbox` container and configur
 server with `ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080` so file/shell/code tools use the
 isolated sandbox runtime while retaining the shared `skills/` guides inside that container.
 
+> **China Mirror Acceleration:** For 🚀 **instant startup** in mainland China (30s vs 15-25min):
+> ```bash
+> ./scripts/setup-china-mirrors-all.sh  # One-click setup (uses Volcengine pre-built image)
+> # Or manually add to .env: SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
+> ```
+> See [`docs/deployment/CHINA_MIRRORS.md`](docs/deployment/CHINA_MIRRORS.md) for details.
+
 ### Testing
 
 ```bash

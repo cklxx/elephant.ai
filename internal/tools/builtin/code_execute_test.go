@@ -3,7 +3,10 @@ package builtin
 import (
 	"alex/internal/agent/ports"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -212,6 +215,66 @@ func TestCodeExecute_JavaScript(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCodeExecute_CodePath(t *testing.T) {
+	tool := NewCodeExecute(CodeExecuteConfig{})
+
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "hello.py")
+	if err := os.WriteFile(scriptPath, []byte("print('hi from file')"), 0644); err != nil {
+		t.Fatalf("failed to write temp script: %v", err)
+	}
+
+	result, err := tool.Execute(context.Background(), ports.ToolCall{
+		ID:   "test-code-path",
+		Name: "code_execute",
+		Arguments: map[string]any{
+			"language":  "python",
+			"code_path": scriptPath,
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if success, ok := result.Metadata["success"].(bool); !ok || !success {
+		t.Fatalf("expected success, got metadata %v", result.Metadata)
+	}
+	if !strings.Contains(result.Content, "hi from file") {
+		t.Fatalf("expected output to contain script contents, got %q", result.Content)
+	}
+	if got := result.Metadata["code_path"]; got != scriptPath {
+		t.Fatalf("expected metadata.code_path %q, got %v", scriptPath, got)
+	}
+}
+
+func TestCodeExecute_DataURI(t *testing.T) {
+	tool := NewCodeExecute(CodeExecuteConfig{})
+	payload := base64.StdEncoding.EncodeToString([]byte("print('from data uri')"))
+	dataURI := "data:text/plain;base64," + payload
+
+	result, err := tool.Execute(context.Background(), ports.ToolCall{
+		ID:   "test-data-uri",
+		Name: "code_execute",
+		Arguments: map[string]any{
+			"language": "python",
+			"code":     dataURI,
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if success, ok := result.Metadata["success"].(bool); !ok || !success {
+		t.Fatalf("expected success, got metadata %v", result.Metadata)
+	}
+	if !strings.Contains(result.Content, "from data uri") {
+		t.Fatalf("expected decoded output, got %q", result.Content)
+	}
+	if prov, _ := result.Metadata["code_provenance"].(string); prov != "attachment" {
+		t.Fatalf("expected metadata.code_provenance to be attachment, got %v", prov)
 	}
 }
 

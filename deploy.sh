@@ -26,6 +26,7 @@ readonly SANDBOX_DEFAULT_URL="http://localhost:8090"
 readonly SANDBOX_COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
 readonly SANDBOX_SERVICE_NAME="sandbox"
 readonly SANDBOX_CONTAINER_NAME="alex-sandbox"
+readonly SANDBOX_CHINA_IMAGE="enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest"
 readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
@@ -249,6 +250,15 @@ OPENAI_BASE_URL=https://openrouter.ai/api/v1
 ALEX_MODEL=anthropic/claude-3.5-sonnet
 ALEX_VERBOSE=false
 ALEX_SANDBOX_BASE_URL=http://localhost:8090
+
+# China Mirror Configuration (uncomment to enable)
+# Use pre-built China sandbox image (recommended for China - no build required!)
+# SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
+# SANDBOX_SECURITY_OPT=seccomp=unconfined
+
+# Or use custom npm/pip mirrors for building (slower than pre-built image)
+# NPM_REGISTRY=https://registry.npmmirror.com/
+# PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 EOF
     fi
 
@@ -410,6 +420,22 @@ start_sandbox() {
     fi
 
     log_info "Starting sandbox container via docker-compose..."
+
+    # Check if using China sandbox image
+    if [[ -n "${SANDBOX_IMAGE:-}" ]]; then
+        log_info "Using pre-built sandbox image: $SANDBOX_IMAGE"
+        log_success "No build required - pulling image from registry"
+    else
+        # Show mirror configuration if set
+        if [[ -n "${NPM_REGISTRY:-}" ]] || [[ -n "${PIP_INDEX_URL:-}" ]]; then
+            log_info "Building sandbox with custom mirrors:"
+            [[ -n "${NPM_REGISTRY:-}" ]] && log_info "  NPM: ${NPM_REGISTRY}"
+            [[ -n "${PIP_INDEX_URL:-}" ]] && log_info "  PIP: ${PIP_INDEX_URL}"
+        else
+            log_info "Building sandbox from Dockerfile.sandbox..."
+        fi
+    fi
+
     run_docker_compose -f "$SANDBOX_COMPOSE_FILE" up -d "$SANDBOX_SERVICE_NAME"
 
     # Wait for container to be healthy using Docker's built-in health check
@@ -438,8 +464,8 @@ stop_sandbox() {
     fi
 
     log_info "Stopping sandbox container..."
-    run_docker_compose -f "$SANDBOX_COMPOSE_FILE" stop "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
-    run_docker_compose -f "$SANDBOX_COMPOSE_FILE" rm -f "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
+    run_docker_compose stop "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
+    run_docker_compose rm -f "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
     log_success "Sandbox container stopped"
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -182,10 +184,6 @@ func (e *ReactEngine) SolveTask(
 			attachments[key] = att
 		}
 		userMessage.Attachments = attachments
-		ensureAttachmentStore(state)
-		for key, att := range attachments {
-			state.Attachments[key] = att
-		}
 		state.PendingUserAttachments = nil
 	}
 
@@ -197,12 +195,12 @@ func (e *ReactEngine) SolveTask(
 	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
 
 	// ReAct loop: Think → Act → Observe
-	consecutiveNoToolCalls := 0
 	for state.Iterations < e.maxIterations {
 		// Check if context is cancelled before starting iteration
 		if ctx.Err() != nil {
 			e.logger.Info("Context cancelled, stopping execution: %v", ctx.Err())
 			finalResult := e.finalize(state, "cancelled")
+			attachments := e.decorateFinalResult(state, finalResult)
 
 			// EMIT: Task complete with cancellation
 			e.emitEvent(&TaskCompleteEvent{
@@ -212,6 +210,7 @@ func (e *ReactEngine) SolveTask(
 				TotalTokens:     finalResult.TokensUsed,
 				StopReason:      "cancelled",
 				Duration:        e.clock.Now().Sub(startTime),
+				Attachments:     attachments,
 			})
 
 			return nil, ctx.Err()
@@ -252,7 +251,7 @@ func (e *ReactEngine) SolveTask(
 		}
 
 		// Add thought to state
-		if att := resolveContentAttachments(thought.Content, state.Attachments); len(att) > 0 {
+		if att := resolveContentAttachments(thought.Content, state); len(att) > 0 {
 			thought.Attachments = att
 		}
 		trimmedThought := strings.TrimSpace(thought.Content)
@@ -268,30 +267,25 @@ func (e *ReactEngine) SolveTask(
 
 		if len(toolCalls) == 0 {
 			trimmed := strings.TrimSpace(thought.Content)
-			if trimmed != "" {
-				consecutiveNoToolCalls++
-				e.logger.Info("No tool calls with content - streak=%d", consecutiveNoToolCalls)
-				if consecutiveNoToolCalls >= 2 {
-					e.logger.Info("Confirming final answer after consecutive no-tool iterations")
-					attachments := resolveContentAttachments(thought.Content, state.Attachments)
-					e.emitEvent(&TaskCompleteEvent{
-						BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-						FinalAnswer:     thought.Content,
-						TotalIterations: state.Iterations,
-						TotalTokens:     state.TokenCount,
-						StopReason:      "final_answer",
-						Duration:        e.clock.Now().Sub(startTime),
-						Attachments:     attachments,
-					})
-					return e.finalize(state, "final_answer"), nil
-				}
+			if trimmed == "" {
+				e.logger.Warn("No tool calls and empty content - continuing loop")
 				continue
 			}
-			consecutiveNoToolCalls = 0
-			e.logger.Warn("No tool calls and empty content - continuing loop")
-			continue
+
+			e.logger.Info("No tool calls with content - treating response as final answer")
+			finalResult := e.finalize(state, "final_answer")
+			attachments := e.decorateFinalResult(state, finalResult)
+			e.emitEvent(&TaskCompleteEvent{
+				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				FinalAnswer:     finalResult.Answer,
+				TotalIterations: finalResult.Iterations,
+				TotalTokens:     finalResult.TokensUsed,
+				StopReason:      "final_answer",
+				Duration:        e.clock.Now().Sub(startTime),
+				Attachments:     attachments,
+			})
+			return finalResult, nil
 		} else {
-			consecutiveNoToolCalls = 0
 			// EMIT: Think complete
 			e.emitEvent(&ThinkCompleteEvent{
 				BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
@@ -352,10 +346,12 @@ func (e *ReactEngine) SolveTask(
 		}
 
 		// 3. OBSERVE: Add results to conversation
-		observation := e.buildObservation(state, results)
-		state.Messages = append(state.Messages, observation)
-		registerMessageAttachments(state, observation)
-		e.logger.Debug("OBSERVE phase: Added observation to state")
+		toolMessages := e.buildToolMessages(results)
+		state.Messages = append(state.Messages, toolMessages...)
+		for _, msg := range toolMessages {
+			registerMessageAttachments(state, msg)
+		}
+		e.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
 
 		// 4. Check context limits
 		tokenCount := services.Context.EstimateTokens(state.Messages)
@@ -389,7 +385,7 @@ func (e *ReactEngine) SolveTask(
 		// One final LLM call for answer
 		finalThought, err := e.think(ctx, state, services)
 		if err == nil && finalThought.Content != "" {
-			if att := resolveContentAttachments(finalThought.Content, state.Attachments); len(att) > 0 {
+			if att := resolveContentAttachments(finalThought.Content, state); len(att) > 0 {
 				finalThought.Attachments = att
 			}
 			state.Messages = append(state.Messages, finalThought)
@@ -400,7 +396,7 @@ func (e *ReactEngine) SolveTask(
 	}
 
 	// EMIT: Task complete
-	attachments := resolveContentAttachments(finalResult.Answer, state.Attachments)
+	attachments := e.decorateFinalResult(state, finalResult)
 	e.emitEvent(&TaskCompleteEvent{
 		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		FinalAnswer:     finalResult.Answer,
@@ -471,6 +467,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 		wg            sync.WaitGroup
 		attachmentsMu sync.Mutex
 	)
+	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
 	for i, call := range calls {
 		wg.Add(1)
 		go func(idx int, tc ToolCall) {
@@ -480,7 +477,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 			tc.TaskID = state.TaskID
 			tc.ParentTaskID = state.ParentTaskID
 
-			tc.Arguments = expandPlaceholders(tc.Arguments, state.Attachments)
+			tc.Arguments = e.expandPlaceholders(tc.Arguments, state)
 
 			startTime := e.clock.Now()
 
@@ -508,8 +505,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 				return
 			}
 
+			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
+
 			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, tc.Arguments)
-			result, err := tool.Execute(ctx, ports.ToolCall(tc))
+			result, err := tool.Execute(toolCtx, ports.ToolCall(tc))
 
 			if err != nil {
 				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
@@ -575,6 +574,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 						continue
 					}
 					state.Attachments[placeholder] = att
+					if state.AttachmentIterations == nil {
+						state.AttachmentIterations = make(map[string]int)
+					}
+					state.AttachmentIterations[placeholder] = state.Iterations
 				}
 				attachmentsMu.Unlock()
 			}
@@ -627,38 +630,135 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParse
 	return calls
 }
 
-// buildObservation creates a message with tool results
-func (e *ReactEngine) buildObservation(state *TaskState, results []ToolResult) Message {
-	var builder strings.Builder
-	attachments := make(map[string]ports.Attachment)
+// buildToolMessages converts tool results into messages sent back to the LLM.
+func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
+	messages := make([]Message, 0, len(results))
 
 	for _, result := range results {
+		var content string
 		if result.Error != nil {
-			builder.WriteString(fmt.Sprintf("Tool %s failed: %v\n", result.CallID, result.Error))
+			content = fmt.Sprintf("Tool %s failed: %v", result.CallID, result.Error)
+		} else if trimmed := strings.TrimSpace(result.Content); trimmed != "" {
+			content = trimmed
 		} else {
-			builder.WriteString(fmt.Sprintf("Tool %s result:\n%s\n", result.CallID, result.Content))
+			content = fmt.Sprintf("Tool %s completed successfully.", result.CallID)
 		}
-		for key, att := range result.Attachments {
-			placeholder := key
-			if placeholder == "" {
-				placeholder = att.Name
-			}
-			if placeholder == "" {
-				continue
-			}
-			attachments[placeholder] = att
+
+		content = ensureToolAttachmentReferences(content, result.Attachments)
+
+		msg := Message{
+			Role:        "tool",
+			Content:     content,
+			ToolCallID:  result.CallID,
+			ToolResults: []ToolResult{result},
+		}
+
+		msg.Attachments = normalizeToolAttachments(result.Attachments)
+
+		messages = append(messages, msg)
+	}
+
+	return messages
+}
+
+func ensureToolAttachmentReferences(content string, attachments map[string]ports.Attachment) string {
+	if len(attachments) == 0 {
+		return strings.TrimSpace(content)
+	}
+
+	normalized := strings.TrimSpace(content)
+	mentioned := make(map[string]bool, len(attachments))
+
+	keys := sortedAttachmentKeys(attachments)
+	for _, name := range keys {
+		placeholder := fmt.Sprintf("[%s]", name)
+		if strings.Contains(normalized, placeholder) {
+			mentioned[name] = true
 		}
 	}
 
-	message := Message{
-		Role:        "user", // Observations come back as user messages
-		Content:     builder.String(),
-		ToolResults: results,
+	var builder strings.Builder
+	if normalized != "" {
+		builder.WriteString(normalized)
+		builder.WriteString("\n\n")
 	}
-	if len(attachments) > 0 {
-		message.Attachments = attachments
+	builder.WriteString("Attachments available for follow-up steps:\n")
+	for _, name := range keys {
+		fmt.Fprintf(&builder, "- [%s]%s\n", name, boolToStar(mentioned[name]))
 	}
-	return message
+
+	return strings.TrimSpace(builder.String())
+}
+
+func snapshotAttachments(state *TaskState) (map[string]ports.Attachment, map[string]int) {
+	if state == nil {
+		return nil, nil
+	}
+	var attachments map[string]ports.Attachment
+	if len(state.Attachments) > 0 {
+		attachments = make(map[string]ports.Attachment, len(state.Attachments))
+		for key, att := range state.Attachments {
+			attachments[key] = att
+		}
+	}
+	var iterations map[string]int
+	if len(state.AttachmentIterations) > 0 {
+		iterations = make(map[string]int, len(state.AttachmentIterations))
+		for key, iter := range state.AttachmentIterations {
+			iterations[key] = iter
+		}
+	}
+	return attachments, iterations
+}
+
+func boolToStar(b bool) string {
+	if b {
+		return " (referenced)"
+	}
+	return ""
+}
+
+func normalizeToolAttachments(attachments map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	normalized := make(map[string]ports.Attachment, len(attachments))
+	for _, key := range sortedAttachmentKeys(attachments) {
+		att := attachments[key]
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = placeholder
+		}
+		normalized[placeholder] = att
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {
+	if len(attachments) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(attachments))
+	seen := make(map[string]bool, len(attachments))
+	for key := range attachments {
+		name := strings.TrimSpace(key)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func coerceToInt(value any) int {
@@ -737,6 +837,29 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult 
 	}
 }
 
+func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) map[string]ports.Attachment {
+	if state == nil || result == nil {
+		return nil
+	}
+
+	attachments := resolveContentAttachments(result.Answer, state)
+	generated := collectGeneratedAttachments(state, state.Iterations)
+	if len(generated) > 0 {
+		if attachments == nil {
+			attachments = generated
+		} else {
+			for key, att := range generated {
+				if _, exists := attachments[key]; !exists {
+					attachments[key] = att
+				}
+			}
+		}
+	}
+
+	result.Answer = ensureAttachmentPlaceholders(result.Answer, attachments)
+	return attachments
+}
+
 // cleanToolCallMarkers removes leaked tool call XML markers from content
 func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 	// Remove incomplete tool call markers that LLM might output
@@ -760,6 +883,9 @@ func ensureAttachmentStore(state *TaskState) {
 	if state.Attachments == nil {
 		state.Attachments = make(map[string]ports.Attachment)
 	}
+	if state.AttachmentIterations == nil {
+		state.AttachmentIterations = make(map[string]int)
+	}
 }
 
 func registerMessageAttachments(state *TaskState, msg Message) {
@@ -779,56 +905,43 @@ func registerMessageAttachments(state *TaskState, msg Message) {
 			att.Name = placeholder
 		}
 		state.Attachments[placeholder] = att
+		if state.AttachmentIterations == nil {
+			state.AttachmentIterations = make(map[string]int)
+		}
+		state.AttachmentIterations[placeholder] = state.Iterations
 	}
 }
 
-func expandPlaceholders(args map[string]any, attachments map[string]ports.Attachment) map[string]any {
+func (e *ReactEngine) expandPlaceholders(args map[string]any, state *TaskState) map[string]any {
 	if len(args) == 0 {
 		return args
 	}
 	expanded := make(map[string]any, len(args))
 	for key, value := range args {
-		expanded[key] = expandPlaceholderValue(value, attachments)
+		expanded[key] = e.expandPlaceholderValue(value, state)
 	}
 	return expanded
 }
 
-func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) any {
+func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
 	switch v := value.(type) {
 	case string:
-		name, ok := extractPlaceholderName(v)
-		if !ok || attachments == nil {
-			return v
-		}
-		if att, found := attachments[name]; found {
-			if att.Data != "" {
-				return att.Data
-			}
-			if att.URI != "" {
-				return att.URI
-			}
+		if replacement, ok := e.resolveStringAttachmentValue(v, state); ok {
+			return replacement
 		}
 		return v
 	case []any:
 		out := make([]any, len(v))
 		for i, item := range v {
-			out[i] = expandPlaceholderValue(item, attachments)
+			out[i] = e.expandPlaceholderValue(item, state)
 		}
 		return out
 	case []string:
 		out := make([]string, len(v))
 		for i, item := range v {
-			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
-				if att, found := attachments[name]; found {
-					if att.Data != "" {
-						out[i] = att.Data
-						continue
-					}
-					if att.URI != "" {
-						out[i] = att.URI
-						continue
-					}
-				}
+			if replacement, ok := e.resolveStringAttachmentValue(item, state); ok {
+				out[i] = replacement
+				continue
 			}
 			out[i] = item
 		}
@@ -836,23 +949,15 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 	case map[string]any:
 		nested := make(map[string]any, len(v))
 		for key, item := range v {
-			nested[key] = expandPlaceholderValue(item, attachments)
+			nested[key] = e.expandPlaceholderValue(item, state)
 		}
 		return nested
 	case map[string]string:
 		nested := make(map[string]string, len(v))
 		for key, item := range v {
-			if name, ok := extractPlaceholderName(item); ok && attachments != nil {
-				if att, found := attachments[name]; found {
-					if att.Data != "" {
-						nested[key] = att.Data
-						continue
-					}
-					if att.URI != "" {
-						nested[key] = att.URI
-						continue
-					}
-				}
+			if replacement, ok := e.resolveStringAttachmentValue(item, state); ok {
+				nested[key] = replacement
+				continue
 			}
 			nested[key] = item
 		}
@@ -860,6 +965,218 @@ func expandPlaceholderValue(value any, attachments map[string]ports.Attachment) 
 	default:
 		return value
 	}
+}
+
+func attachmentReferenceValue(att ports.Attachment) string {
+	data := strings.TrimSpace(att.Data)
+	if data != "" {
+		if strings.HasPrefix(data, "data:") {
+			return data
+		}
+		mediaType := strings.TrimSpace(att.MediaType)
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+		}
+		return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+	}
+	if uri := strings.TrimSpace(att.URI); uri != "" {
+		return uri
+	}
+	return ""
+}
+
+var genericImageAliasPattern = regexp.MustCompile(`(?i)^image(?:[_\-\s]?(\d+))?(?:\.[a-z0-9]+)?$`)
+
+func (e *ReactEngine) lookupAttachmentByName(name string, state *TaskState) (ports.Attachment, string, bool) {
+	att, canonical, kind, ok := lookupAttachmentByNameInternal(name, state)
+	if !ok {
+		return ports.Attachment{}, "", false
+	}
+
+	switch kind {
+	case attachmentMatchSeedreamAlias:
+		e.logger.Info("Resolved Seedream placeholder alias [%s] -> [%s]", name, canonical)
+	case attachmentMatchGeneric:
+		e.logger.Info("Mapping generic image placeholder [%s] to attachment [%s]", name, canonical)
+	}
+
+	return att, canonical, true
+}
+
+const (
+	attachmentMatchExact           = "exact"
+	attachmentMatchCaseInsensitive = "case_insensitive"
+	attachmentMatchSeedreamAlias   = "seedream_alias"
+	attachmentMatchGeneric         = "generic_alias"
+)
+
+func lookupAttachmentByNameInternal(name string, state *TaskState) (ports.Attachment, string, string, bool) {
+	if state == nil {
+		return ports.Attachment{}, "", "", false
+	}
+
+	if att, ok := state.Attachments[name]; ok {
+		return att, name, attachmentMatchExact, true
+	}
+
+	for key, att := range state.Attachments {
+		if strings.EqualFold(key, name) {
+			return att, key, attachmentMatchCaseInsensitive, true
+		}
+	}
+
+	if canonical, att, ok := matchSeedreamPlaceholderAlias(name, state); ok {
+		return att, canonical, attachmentMatchSeedreamAlias, true
+	}
+
+	if canonical, att, ok := matchGenericImageAlias(name, state); ok {
+		return att, canonical, attachmentMatchGeneric, true
+	}
+
+	return ports.Attachment{}, "", "", false
+}
+
+func matchSeedreamPlaceholderAlias(name string, state *TaskState) (string, ports.Attachment, bool) {
+	if state == nil || len(state.Attachments) == 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	trimmed := strings.TrimSpace(name)
+	dot := strings.LastIndex(trimmed, ".")
+	if dot <= 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	ext := strings.ToLower(trimmed[dot:])
+	base := trimmed[:dot]
+	underscore := strings.LastIndex(base, "_")
+	if underscore <= 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	indexPart := base[underscore+1:]
+	if _, err := strconv.Atoi(indexPart); err != nil {
+		return "", ports.Attachment{}, false
+	}
+
+	prefix := strings.ToLower(strings.TrimSpace(base[:underscore]))
+	if prefix == "" {
+		return "", ports.Attachment{}, false
+	}
+
+	prefixWithSeparator := prefix + "_"
+	suffix := fmt.Sprintf("_%s%s", indexPart, ext)
+
+	var (
+		chosenKey  string
+		chosenAtt  ports.Attachment
+		chosenIter int
+		found      bool
+	)
+
+	for key, att := range state.Attachments {
+		if !strings.EqualFold(strings.TrimSpace(att.Source), "seedream") {
+			continue
+		}
+		lowerKey := strings.ToLower(key)
+		if !strings.HasSuffix(lowerKey, suffix) {
+			continue
+		}
+		if !strings.HasPrefix(lowerKey, prefixWithSeparator) {
+			continue
+		}
+		middle := strings.TrimSuffix(strings.TrimPrefix(lowerKey, prefixWithSeparator), suffix)
+		if middle == "" {
+			continue
+		}
+
+		iter := 0
+		if state.AttachmentIterations != nil {
+			iter = state.AttachmentIterations[key]
+		}
+
+		if !found || iter > chosenIter {
+			found = true
+			chosenKey = key
+			chosenAtt = att
+			chosenIter = iter
+		}
+	}
+
+	if !found {
+		return "", ports.Attachment{}, false
+	}
+
+	return chosenKey, chosenAtt, true
+}
+
+func matchGenericImageAlias(name string, state *TaskState) (string, ports.Attachment, bool) {
+	trimmed := strings.TrimSpace(name)
+	match := genericImageAliasPattern.FindStringSubmatch(trimmed)
+	if match == nil {
+		return "", ports.Attachment{}, false
+	}
+
+	candidates := collectImageAttachmentCandidates(state)
+	if len(candidates) == 0 {
+		return "", ports.Attachment{}, false
+	}
+
+	index := len(candidates) - 1
+	if len(match) > 1 && match[1] != "" {
+		if parsed, err := strconv.Atoi(match[1]); err == nil && parsed > 0 {
+			idx := parsed - 1
+			if idx < len(candidates) {
+				index = idx
+			}
+		}
+	}
+
+	chosen := candidates[index]
+	return chosen.key, chosen.attachment, true
+}
+
+type attachmentCandidate struct {
+	key        string
+	attachment ports.Attachment
+	iteration  int
+	generated  bool
+}
+
+func collectImageAttachmentCandidates(state *TaskState) []attachmentCandidate {
+	if state == nil || len(state.Attachments) == 0 {
+		return nil
+	}
+	candidates := make([]attachmentCandidate, 0)
+	for key, att := range state.Attachments {
+		mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
+		if !strings.HasPrefix(mediaType, "image/") {
+			continue
+		}
+		iter := 0
+		if state.AttachmentIterations != nil {
+			iter = state.AttachmentIterations[key]
+		}
+		generated := !strings.EqualFold(strings.TrimSpace(att.Source), "user_upload")
+		candidates = append(candidates, attachmentCandidate{
+			key:        key,
+			attachment: att,
+			iteration:  iter,
+			generated:  generated,
+		})
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].generated != candidates[j].generated {
+			return candidates[i].generated && !candidates[j].generated
+		}
+		if candidates[i].iteration == candidates[j].iteration {
+			return candidates[i].key < candidates[j].key
+		}
+		return candidates[i].iteration < candidates[j].iteration
+	})
+
+	return candidates
 }
 
 func extractPlaceholderName(value string) (string, bool) {
@@ -879,8 +1196,63 @@ func extractPlaceholderName(value string) (string, bool) {
 
 var contentPlaceholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
 
-func resolveContentAttachments(content string, store map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(store) == 0 || strings.TrimSpace(content) == "" {
+func (e *ReactEngine) resolveStringAttachmentValue(value string, state *TaskState) (string, bool) {
+	alias, att, canonical, ok := matchAttachmentReference(value, state)
+	if !ok {
+		return "", false
+	}
+	replacement := attachmentReferenceValue(att)
+	if replacement == "" {
+		return "", false
+	}
+	if canonical != "" && canonical != alias {
+		e.logger.Info("Resolved placeholder [%s] as alias for attachment [%s]", alias, canonical)
+	}
+	return replacement, true
+}
+
+func matchAttachmentReference(raw string, state *TaskState) (string, ports.Attachment, string, bool) {
+	if name, ok := extractPlaceholderName(raw); ok {
+		att, canonical, _, resolved := lookupAttachmentByNameInternal(name, state)
+		if !resolved {
+			return "", ports.Attachment{}, "", false
+		}
+		return name, att, canonical, true
+	}
+
+	trimmed := strings.TrimSpace(raw)
+	if !looksLikeDirectAttachmentReference(trimmed) {
+		return "", ports.Attachment{}, "", false
+	}
+	att, canonical, _, ok := lookupAttachmentByNameInternal(trimmed, state)
+	if !ok {
+		return "", ports.Attachment{}, "", false
+	}
+	return trimmed, att, canonical, true
+}
+
+func looksLikeDirectAttachmentReference(value string) bool {
+	if value == "" {
+		return false
+	}
+	if strings.ContainsAny(value, "\n\r\t") {
+		return false
+	}
+	if strings.Contains(value, " ") {
+		return false
+	}
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "data:") {
+		return false
+	}
+	if strings.HasPrefix(lower, "[") && strings.HasSuffix(lower, "]") {
+		return false
+	}
+	return strings.Contains(value, ".")
+}
+
+func resolveContentAttachments(content string, state *TaskState) map[string]ports.Attachment {
+	if state == nil || len(state.Attachments) == 0 || strings.TrimSpace(content) == "" {
 		return nil
 	}
 	matches := contentPlaceholderPattern.FindAllStringSubmatch(content, -1)
@@ -896,7 +1268,7 @@ func resolveContentAttachments(content string, store map[string]ports.Attachment
 		if name == "" {
 			continue
 		}
-		att, ok := store[name]
+		att, _, _, ok := lookupAttachmentByNameInternal(name, state)
 		if !ok {
 			continue
 		}
@@ -909,4 +1281,116 @@ func resolveContentAttachments(content string, store map[string]ports.Attachment
 		return nil
 	}
 	return resolved
+}
+
+func collectGeneratedAttachments(state *TaskState, iteration int) map[string]ports.Attachment {
+	if state == nil || len(state.Attachments) == 0 {
+		return nil
+	}
+	generated := make(map[string]ports.Attachment)
+	for key, att := range state.Attachments {
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		if state.AttachmentIterations != nil {
+			if iter, ok := state.AttachmentIterations[placeholder]; ok && iter > iteration {
+				continue
+			}
+		}
+		if strings.EqualFold(strings.TrimSpace(att.Source), "user_upload") {
+			continue
+		}
+		cloned := att
+		if cloned.Name == "" {
+			cloned.Name = placeholder
+		}
+		generated[placeholder] = cloned
+	}
+	if len(generated) == 0 {
+		return nil
+	}
+	return generated
+}
+
+func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.Attachment) string {
+	normalized := strings.TrimSpace(answer)
+
+	var used map[string]bool
+	replaced := contentPlaceholderPattern.ReplaceAllStringFunc(normalized, func(match string) string {
+		name := strings.TrimSpace(match[1 : len(match)-1])
+		if name == "" {
+			return ""
+		}
+		if len(attachments) == 0 {
+			return ""
+		}
+		att, ok := attachments[name]
+		if !ok {
+			return ""
+		}
+		if used == nil {
+			used = make(map[string]bool, len(attachments))
+		}
+		used[name] = true
+		return attachmentMarkdown(name, att)
+	})
+
+	replaced = strings.TrimSpace(replaced)
+	if len(attachments) == 0 {
+		return replaced
+	}
+
+	var missing []string
+	for key := range attachments {
+		name := strings.TrimSpace(key)
+		if name == "" || (used != nil && used[name]) {
+			continue
+		}
+		missing = append(missing, name)
+	}
+
+	if len(missing) == 0 {
+		return replaced
+	}
+
+	sort.Strings(missing)
+	var builder strings.Builder
+	if replaced != "" {
+		builder.WriteString(replaced)
+		builder.WriteString("\n\n")
+	}
+	for _, name := range missing {
+		builder.WriteString(attachmentMarkdown(name, attachments[name]))
+		builder.WriteString("\n\n")
+	}
+	return strings.TrimSpace(builder.String())
+}
+
+func attachmentMarkdown(name string, att ports.Attachment) string {
+	display := strings.TrimSpace(att.Description)
+	if display == "" {
+		display = strings.TrimSpace(att.Name)
+	}
+	if display == "" {
+		display = name
+	}
+
+	uri := strings.TrimSpace(att.URI)
+	if uri == "" {
+		uri = attachmentReferenceValue(att)
+	}
+
+	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
+	if uri == "" {
+		return display
+	}
+
+	if strings.HasPrefix(mediaType, "image/") || strings.HasPrefix(uri, "data:image") {
+		return fmt.Sprintf("![%s](%s)", display, uri)
+	}
+	return fmt.Sprintf("[%s](%s)", display, uri)
 }

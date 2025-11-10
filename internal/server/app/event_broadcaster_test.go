@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -132,4 +133,54 @@ func TestEventBroadcaster_BufferFull(t *testing.T) {
 
 	// Cleanup
 	broadcaster.UnregisterClient(sessionID, ch)
+}
+
+func TestEventBroadcaster_AttachmentArchiver(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	stub := &stubAttachmentArchiver{calls: make(chan stubAttachmentCall, 1)}
+	broadcaster.SetAttachmentArchiver(stub)
+
+	sessionID := "session-attachments"
+	base := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "task-attachments", "", "Action", "Goal", time.Now()).BaseEvent
+	event := &domain.ToolCallCompleteEvent{
+		BaseEvent: base,
+		Attachments: map[string]ports.Attachment{
+			"image.png": {
+				Name:      "image.png",
+				Data:      "ZGF0YQ==",
+				MediaType: "image/png",
+				Source:    "seedream",
+			},
+		},
+	}
+
+	broadcaster.OnEvent(event)
+
+	select {
+	case call := <-stub.calls:
+		if call.sessionID != sessionID {
+			t.Fatalf("expected sessionID %s, got %s", sessionID, call.sessionID)
+		}
+		if len(call.attachments) != 1 {
+			t.Fatalf("expected 1 attachment, got %d", len(call.attachments))
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("attachment archiver was not invoked")
+	}
+}
+
+type stubAttachmentCall struct {
+	sessionID   string
+	attachments map[string]ports.Attachment
+}
+
+type stubAttachmentArchiver struct {
+	calls chan stubAttachmentCall
+}
+
+func (s *stubAttachmentArchiver) Persist(ctx context.Context, sessionID string, attachments map[string]ports.Attachment) {
+	s.calls <- stubAttachmentCall{
+		sessionID:   sessionID,
+		attachments: attachments,
+	}
 }

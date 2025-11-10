@@ -48,14 +48,14 @@ type Config struct {
 	LLMProvider             string
 	LLMModel                string
 	APIKey                  string
+	ArkAPIKey               string
 	BaseURL                 string
 	TavilyAPIKey            string
-	VolcAccessKey           string
-	VolcSecretKey           string
-	SeedreamHost            string
-	SeedreamRegion          string
 	SeedreamTextEndpointID  string
 	SeedreamImageEndpointID string
+	SeedreamTextModel       string
+	SeedreamImageModel      string
+	SeedreamVisionModel     string
 	SandboxBaseURL          string
 	MaxTokens               int
 	MaxIterations           int
@@ -179,12 +179,12 @@ func BuildContainer(config Config) (*Container, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
 		SandboxBaseURL:          sandboxBaseURL,
-		VolcAccessKey:           config.VolcAccessKey,
-		VolcSecretKey:           config.VolcSecretKey,
-		SeedreamHost:            config.SeedreamHost,
-		SeedreamRegion:          config.SeedreamRegion,
+		ArkAPIKey:               config.ArkAPIKey,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		SeedreamTextModel:       config.SeedreamTextModel,
+		SeedreamImageModel:      config.SeedreamImageModel,
+		SeedreamVisionModel:     config.SeedreamVisionModel,
 		ExecutionMode:           executionMode,
 		SandboxManager:          sandboxManager,
 	})
@@ -208,14 +208,14 @@ func BuildContainer(config Config) (*Container, error) {
 		LLMProvider:             config.LLMProvider,
 		LLMModel:                config.LLMModel,
 		APIKey:                  config.APIKey,
+		ArkAPIKey:               config.ArkAPIKey,
 		BaseURL:                 config.BaseURL,
 		TavilyAPIKey:            config.TavilyAPIKey,
-		VolcAccessKey:           config.VolcAccessKey,
-		VolcSecretKey:           config.VolcSecretKey,
-		SeedreamHost:            config.SeedreamHost,
-		SeedreamRegion:          config.SeedreamRegion,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		SeedreamTextModel:       config.SeedreamTextModel,
+		SeedreamImageModel:      config.SeedreamImageModel,
+		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SandboxBaseURL:          sandboxBaseURL,
 		Environment:             config.Environment,
 		Verbose:                 config.Verbose,

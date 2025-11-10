@@ -77,15 +77,22 @@ services:
       - alex-network
 
   sandbox:
+    # Use China mirror if USE_CHINA_SANDBOX=true, otherwise build locally
+    image: ${SANDBOX_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile.sandbox
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     container_name: alex-sandbox
     ports:
       - "8090:8080"
     volumes:
       - ./skills:/workspace/skills:ro
     restart: unless-stopped
+    security_opt:
+      - ${SANDBOX_SECURITY_OPT:-apparmor=unconfined}
     networks:
       - alex-network
 

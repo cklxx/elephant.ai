@@ -56,6 +56,7 @@ type TaskState struct {
 	TaskID                 string
 	ParentTaskID           string
 	Attachments            map[string]Attachment
+	AttachmentIterations   map[string]int
 	PendingUserAttachments map[string]Attachment
 }
 
