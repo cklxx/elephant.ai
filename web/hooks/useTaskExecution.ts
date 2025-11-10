@@ -184,3 +184,35 @@ export function useCancelTask(options: UseCancelTaskOptions = {}) {
     ...options,
   });
 }
+
+interface UsePauseTaskOptions extends Omit<
+  UseMutationOptions<void, Error, string, unknown>,
+  'mutationFn'
+> {}
+
+export function usePauseTask(options: UsePauseTaskOptions = {}) {
+  return useMutation({
+    mutationFn: async (taskId: string): Promise<void> => {
+      console.log('[usePauseTask] Pausing task:', taskId);
+      await apiClient.pauseTask(taskId);
+      console.log('[usePauseTask] Task paused successfully');
+    },
+    ...options,
+  });
+}
+
+interface UseResumeTaskOptions extends Omit<
+  UseMutationOptions<void, Error, string, unknown>,
+  'mutationFn'
+> {}
+
+export function useResumeTask(options: UseResumeTaskOptions = {}) {
+  return useMutation({
+    mutationFn: async (taskId: string): Promise<void> => {
+      console.log('[useResumeTask] Resuming task:', taskId);
+      await apiClient.resumeTask(taskId);
+      console.log('[useResumeTask] Task resumed successfully');
+    },
+    ...options,
+  });
+}

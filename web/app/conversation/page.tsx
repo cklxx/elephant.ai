@@ -11,7 +11,6 @@ import { toast } from '@/components/ui/toast';
 import { useConfirmDialog } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea } from '@/components/layout';
-import { buildToolCallSummaries } from '@/lib/eventAggregation';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AttachmentPayload, AttachmentUpload } from '@/lib/types';
@@ -230,8 +229,6 @@ export function ConversationPageContent() {
     }
   };
 
-  const toolSummaries = useMemo(() => buildToolCallSummaries(events), [events]);
-
   const isSubmitting = useMockStream ? false : isPending;
 
   const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
@@ -364,7 +361,6 @@ export function ConversationPageContent() {
             error={error}
             reconnectAttempts={reconnectAttempts}
             onReconnect={reconnect}
-            toolSummaries={toolSummaries}
           />
         </ContentArea>
 

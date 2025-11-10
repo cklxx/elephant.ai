@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { ImageUp, Send, Square, X } from "lucide-react";
+import { ImageUp, Pause, Play, Send, Square, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AttachmentUpload } from "@/lib/types";
@@ -18,6 +18,13 @@ interface TaskInputProps {
   isRunning?: boolean;
   stopPending?: boolean;
   stopDisabled?: boolean;
+  onPause?: () => void;
+  onResume?: () => void;
+  isPaused?: boolean;
+  pausePending?: boolean;
+  resumePending?: boolean;
+  pauseDisabled?: boolean;
+  resumeDisabled?: boolean;
 }
 
 type PendingAttachment = {
@@ -104,6 +111,13 @@ export function TaskInput({
   isRunning = false,
   stopPending = false,
   stopDisabled = false,
+  onPause,
+  onResume,
+  isPaused = false,
+  pausePending = false,
+  resumePending = false,
+  pauseDisabled = false,
+  resumeDisabled = false,
 }: TaskInputProps) {
   const [task, setTask] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -324,7 +338,7 @@ export function TaskInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (task.trim() && !loading && !disabled && !isRunning) {
+    if (task.trim() && !loading && !disabled && !isRunning && !isPaused) {
       const uploads: AttachmentUpload[] = attachments.map((attachment) => ({
         name: attachment.name,
         media_type: attachment.mediaType,
@@ -339,9 +353,24 @@ export function TaskInput({
     }
   };
 
-  const isInputDisabled = disabled || loading || isRunning;
-  const showStopButton = (loading || isRunning) && typeof onStop === "function";
+  const isInputDisabled = disabled || loading || isRunning || isPaused;
+  const pauseActionHandler = isPaused ? onResume : onPause;
+  const showStopButton = (loading || isRunning || isPaused) && typeof onStop === "function";
+  const showPauseButton = Boolean(pauseActionHandler) && (isRunning || isPaused);
+  const showSubmitButton = !showStopButton && !showPauseButton;
   const stopButtonDisabled = stopDisabled || stopPending;
+  const pauseActionPending = isPaused ? resumePending : pausePending;
+  const pauseButtonDisabledState =
+    (isPaused ? resumeDisabled : pauseDisabled) || pauseActionPending;
+  const pauseButtonTitle = isPaused
+    ? t("task.resume.title")
+    : t("task.pause.title");
+  const pauseLabel = isPaused ? t("task.resume.label") : t("task.pause.label");
+  const pausePendingLabel = isPaused
+    ? t("task.resume.pending")
+    : t("task.pause.pending");
+  const PauseIconComponent = isPaused ? Play : Pause;
+  const pauseButtonTestId = isPaused ? "task-resume" : "task-pause";
 
   const attachLabel = translateWithFallback(
     "task.input.attachImage",
@@ -408,32 +437,7 @@ export function TaskInput({
           />
         </div>
 
-        {showStopButton ? (
-          <button
-            type="button"
-            onClick={onStop}
-            disabled={stopButtonDisabled}
-            className={cn(
-              "console-primary-action h-[2.75rem]",
-              "bg-destructive text-destructive-foreground border-destructive hover:bg-destructive/90",
-              "disabled:bg-destructive disabled:text-destructive-foreground",
-            )}
-            title={t("task.stop.title")}
-            data-testid="task-stop"
-          >
-            {stopPending ? (
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
-                {t("task.stop.pending")}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <Square className="h-3.5 w-3.5" />
-                {t("task.stop.label")}
-              </span>
-            )}
-          </button>
-        ) : (
+        {showSubmitButton ? (
           <button
             type="submit"
             disabled={isInputDisabled || !task.trim()}
@@ -457,6 +461,62 @@ export function TaskInput({
               </span>
             )}
           </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            {showPauseButton && (
+              <button
+                type="button"
+                onClick={() => pauseActionHandler?.()}
+                disabled={pauseButtonDisabledState}
+                className={cn(
+                  "console-primary-action h-[2.75rem]",
+                  isPaused
+                    ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-500/90 disabled:bg-emerald-500 disabled:text-white"
+                    : "bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 disabled:bg-amber-500 disabled:text-white",
+                )}
+                title={pauseButtonTitle}
+                data-testid={pauseButtonTestId}
+              >
+                {pauseActionPending ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
+                    {pausePendingLabel}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <PauseIconComponent className="h-3.5 w-3.5" />
+                    {pauseLabel}
+                  </span>
+                )}
+              </button>
+            )}
+            {showStopButton && (
+              <button
+                type="button"
+                onClick={onStop}
+                disabled={stopButtonDisabled}
+                className={cn(
+                  "console-primary-action h-[2.75rem]",
+                  "bg-destructive text-destructive-foreground border-destructive hover:bg-destructive/90",
+                  "disabled:bg-destructive disabled:text-destructive-foreground",
+                )}
+                title={t("task.stop.title")}
+                data-testid="task-stop"
+              >
+                {stopPending ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
+                    {t("task.stop.pending")}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <Square className="h-3.5 w-3.5" />
+                    {t("task.stop.label")}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

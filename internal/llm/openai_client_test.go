@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ import (
 func TestOpenAIClientCompleteSuccess(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", r.Method)
 		}
@@ -81,7 +82,6 @@ func TestOpenAIClientCompleteSuccess(t *testing.T) {
 			t.Fatalf("write response: %v", err)
 		}
 	}))
-	defer server.Close()
 
 	client, err := NewOpenAIClient("test-model", Config{
 		APIKey:     "test-key",
@@ -133,12 +133,11 @@ func TestOpenAIClientCompleteSuccess(t *testing.T) {
 func TestOpenAIClientCompleteTimeout(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"slow"},"finish_reason":"stop"}],"usage":{}}`))
 	}))
-	defer server.Close()
 
 	clientIface, err := NewOpenAIClient("test-model", Config{BaseURL: server.URL})
 	if err != nil {
@@ -162,11 +161,10 @@ func TestOpenAIClientCompleteTimeout(t *testing.T) {
 func TestOpenAIClientCompleteInvalidAPIKey(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":{"message":"invalid api key"}}`))
 	}))
-	defer server.Close()
 
 	client, err := NewOpenAIClient("test-model", Config{APIKey: "bad", BaseURL: server.URL})
 	if err != nil {
@@ -191,12 +189,11 @@ func TestOpenAIClientCompleteInvalidAPIKey(t *testing.T) {
 func TestOpenAIClientCompleteQuotaExceeded(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "3")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"error":{"message":"quota exceeded"}}`))
 	}))
-	defer server.Close()
 
 	client, err := NewOpenAIClient("test-model", Config{APIKey: "key", BaseURL: server.URL})
 	if err != nil {
@@ -220,4 +217,53 @@ func TestOpenAIClientCompleteQuotaExceeded(t *testing.T) {
 	if terr.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, terr.StatusCode)
 	}
+}
+
+func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "tool",
+			Content: "Generated 1 image: [cat.png]",
+			Attachments: map[string]ports.Attachment{
+				"cat.png": {
+					Name:      "cat.png",
+					MediaType: "image/png",
+					Data:      "ZmFrZUJhc2U2NA==",
+					Source:    "seedream",
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(converted))
+	}
+
+	content, ok := converted[0]["content"].(string)
+	if !ok {
+		t.Fatalf("expected string content, got %T", converted[0]["content"])
+	}
+	if content != msgs[0].Content {
+		t.Fatalf("expected content %q, got %q", msgs[0].Content, content)
+	}
+}
+
+func newIPv4TestServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("skipping test: unable to create loopback listener: %v", err)
+	}
+
+	server := httptest.NewUnstartedServer(handler)
+	server.Listener = ln
+	server.Start()
+	t.Cleanup(server.Close)
+
+	return server
 }

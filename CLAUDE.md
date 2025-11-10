@@ -21,9 +21,16 @@ make build                   # Build ./alex binary
 ./deploy.sh status           # Check service status
 ./deploy.sh logs             # Tail logs
 ./deploy.sh down             # Stop all services
+./scripts/test-china-mirrors.sh  # Test China mirror configuration
 ```
 
 **Note**: Deployment script refactored to focus on local development only. Removed Docker/K8s logic.
+
+**China Mirrors**: For instant sandbox startup in China (30s vs 15-25min):
+- **Recommended**: Set `SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest` in `.env`
+- One-click setup: `./scripts/setup-china-mirrors-all.sh`
+- Alternative: Set `NPM_REGISTRY`, `PIP_INDEX_URL` in `.env` + configure Docker mirrors
+- Details: `docs/deployment/CHINA_MIRRORS.md`
 
 ### Testing
 ```bash

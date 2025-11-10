@@ -102,6 +102,15 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
+export const TaskPausedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('task_paused'),
+  reason: z.string().optional(),
+});
+
+export const TaskResumedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('task_resumed'),
+});
+
 // Error Event
 export const ErrorEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('error'),
@@ -216,6 +225,8 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   ToolCallCompleteEventSchema,
   IterationCompleteEventSchema,
   TaskCompleteEventSchema,
+  TaskPausedEventSchema,
+  TaskResumedEventSchema,
   ErrorEventSchema,
   ResearchPlanEventSchema,
   StepStartedEventSchema,
@@ -242,7 +253,7 @@ export const CreateTaskResponseSchema = z.object({
   task_id: z.string(),
   session_id: z.string(),
   parent_task_id: z.string().optional(),
-  status: z.enum(['pending', 'running', 'completed', 'failed']),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'paused']),
   requires_plan_approval: z.boolean().optional(),
 });
 
@@ -269,7 +280,7 @@ export const TaskStatusResponseSchema = z.object({
   task_id: z.string(),
   session_id: z.string(),
   parent_task_id: z.string().optional(),
-  status: z.enum(['pending', 'running', 'completed', 'failed']),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'paused']),
   created_at: z.string(),
   completed_at: z.string().optional(),
   error: z.string().optional(),

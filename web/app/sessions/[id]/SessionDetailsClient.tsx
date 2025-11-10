@@ -7,7 +7,7 @@ import { useSessionDetails } from '@/hooks/useSessionStore';
 import { useSSE } from '@/hooks/useSSE';
 import { AgentOutput } from '@/components/agent/AgentOutput';
 import { TaskInput } from '@/components/agent/TaskInput';
-import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
+import { useTaskExecution, useCancelTask, usePauseTask, useResumeTask } from '@/hooks/useTaskExecution';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ const statusLabels: Record<string, TranslationKey> = {
   failed: 'sessions.details.history.status.failed',
   in_progress: 'sessions.details.history.status.in_progress',
   error: 'sessions.details.history.status.error',
+  paused: 'sessions.details.history.status.paused',
 };
 
 type SessionDetailsClientProps = {
@@ -37,6 +38,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
+  const [isTaskPaused, setIsTaskPaused] = useState(false);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
 
@@ -45,6 +47,8 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   }, [activeTaskId]);
 
   const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
+  const { mutate: pauseTask, isPending: isPausePending } = usePauseTask();
+  const { mutate: resumeTask, isPending: isResumePending } = useResumeTask();
 
   const performCancellation = useCallback(
     (taskId: string) => {
@@ -53,6 +57,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
         onSuccess: () => {
           setActiveTaskId(null);
           setCancelRequested(false);
+          setIsTaskPaused(false);
           toast.success(
             t('sessions.details.toast.taskCancelRequested.title'),
             t('sessions.details.toast.taskCancelRequested.description')
@@ -80,6 +85,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution({
     onSuccess: (response) => {
       setActiveTaskId(response.task_id);
+      setIsTaskPaused(false);
       toast.success(
         t('sessions.details.toast.taskStarted.title'),
         t('sessions.details.toast.taskStarted.description')
@@ -110,6 +116,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
     (task: string, attachments: AttachmentUpload[]) => {
       cancelIntentRef.current = false;
       setCancelRequested(false);
+      setIsTaskPaused(false);
       executeTask({
         task,
         session_id: sessionId,
@@ -118,6 +125,92 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
     },
     [executeTask, sessionId]
   );
+
+  const handlePause = useCallback(() => {
+    const currentTaskId = activeTaskIdRef.current;
+    if (
+      !currentTaskId ||
+      cancelRequested ||
+      isCancelPending ||
+      isPausePending ||
+      isResumePending
+    ) {
+      return;
+    }
+
+    pauseTask(currentTaskId, {
+      onSuccess: () => {
+        setIsTaskPaused(true);
+        toast.success(
+          t('sessions.details.toast.taskPaused.title'),
+          t('sessions.details.toast.taskPaused.description')
+        );
+      },
+      onError: (pauseError) => {
+        console.error(
+          '[SessionDetails] Task pause error:',
+          getErrorLogPayload(pauseError)
+        );
+        const parsed = parseError(pauseError, t('common.error.unknown'));
+        toast.error(
+          t('sessions.details.toast.taskPauseError.title'),
+          t('sessions.details.toast.taskPauseError.description', {
+            message: formatParsedError(parsed),
+          })
+        );
+      },
+    });
+  }, [
+    cancelRequested,
+    isCancelPending,
+    isPausePending,
+    isResumePending,
+    pauseTask,
+    t,
+  ]);
+
+  const handleResume = useCallback(() => {
+    const currentTaskId = activeTaskIdRef.current;
+    if (
+      !currentTaskId ||
+      cancelRequested ||
+      isCancelPending ||
+      isPausePending ||
+      isResumePending
+    ) {
+      return;
+    }
+
+    resumeTask(currentTaskId, {
+      onSuccess: () => {
+        setIsTaskPaused(false);
+        toast.success(
+          t('sessions.details.toast.taskResumed.title'),
+          t('sessions.details.toast.taskResumed.description')
+        );
+      },
+      onError: (resumeError) => {
+        console.error(
+          '[SessionDetails] Task resume error:',
+          getErrorLogPayload(resumeError)
+        );
+        const parsed = parseError(resumeError, t('common.error.unknown'));
+        toast.error(
+          t('sessions.details.toast.taskResumeError.title'),
+          t('sessions.details.toast.taskResumeError.description', {
+            message: formatParsedError(parsed),
+          })
+        );
+      },
+    });
+  }, [
+    cancelRequested,
+    isCancelPending,
+    isPausePending,
+    isResumePending,
+    resumeTask,
+    t,
+  ]);
 
   const handleStop = useCallback(() => {
     if (isCancelPending) {
@@ -137,9 +230,20 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       if (!currentId || !event.task_id || event.task_id !== currentId) {
         return;
       }
+      if (event.event_type === 'task_paused') {
+        setIsTaskPaused(true);
+        cancelIntentRef.current = false;
+        return;
+      }
+      if (event.event_type === 'task_resumed') {
+        setIsTaskPaused(false);
+        cancelIntentRef.current = false;
+        return;
+      }
       if (event.event_type === 'task_complete' || event.event_type === 'error') {
         setActiveTaskId(null);
         setCancelRequested(false);
+        setIsTaskPaused(false);
         cancelIntentRef.current = false;
       }
     },
@@ -185,6 +289,13 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const inputDisabled =
     isCreatePending || isTaskRunning || cancelRequested || isCancelPending;
   const stopPending = cancelRequested || isCancelPending;
+  const disablePauseControls = cancelRequested || isCancelPending;
+
+  useEffect(() => {
+    if (!activeTaskId) {
+      setIsTaskPaused(false);
+    }
+  }, [activeTaskId]);
 
   return (
     <div className="space-y-8">
@@ -239,6 +350,13 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
             onStop={handleStop}
             stopPending={stopPending}
             stopDisabled={isCancelPending}
+            onPause={handlePause}
+            onResume={handleResume}
+            isPaused={isTaskPaused}
+            pausePending={isPausePending}
+            resumePending={isResumePending}
+            pauseDisabled={disablePauseControls}
+            resumeDisabled={disablePauseControls}
           />
         </div>
       </Card>
@@ -262,6 +380,14 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
               {sessionData.tasks.map((task) => {
                 const statusKey = statusLabels[task.status];
                 const translatedStatus = statusKey ? t(statusKey) : task.status.toUpperCase();
+                const badgeVariant =
+                  task.status === 'completed'
+                    ? 'success'
+                    : task.status === 'failed'
+                    ? 'destructive'
+                    : task.status === 'paused'
+                    ? 'warning'
+                    : 'info';
 
                 return (
                   <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -277,7 +403,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                         {task.parent_task_id ? ` · Parent: ${task.parent_task_id}` : ''}
                       </p>
                     </div>
-                    <Badge variant={task.status === 'completed' ? 'success' : 'info'}>
+                    <Badge variant={badgeVariant}>
                       {translatedStatus}
                     </Badge>
                   </div>

@@ -159,6 +159,18 @@ export async function cancelTask(taskId: string): Promise<void> {
   });
 }
 
+export async function pauseTask(taskId: string): Promise<void> {
+  await fetchAPI(`/api/tasks/${taskId}/pause`, {
+    method: 'POST',
+  });
+}
+
+export async function resumeTask(taskId: string): Promise<void> {
+  await fetchAPI(`/api/tasks/${taskId}/resume`, {
+    method: 'POST',
+  });
+}
+
 export async function approvePlan(
   request: ApprovePlanRequest
 ): Promise<ApprovePlanResponse> {
@@ -208,6 +220,8 @@ export const apiClient = {
   createTask,
   getTaskStatus,
   cancelTask,
+  pauseTask,
+  resumeTask,
   approvePlan,
   listSessions,
   getSessionDetails,

@@ -149,4 +149,34 @@ describe('TaskInput', () => {
       ]);
     });
   });
+
+  it('renders pause and resume controls when provided and triggers handlers', async () => {
+    const user = userEvent.setup();
+    const onPause = vi.fn();
+    const onResume = vi.fn();
+
+    const Wrapper = ({ isPaused }: { isPaused?: boolean }) => (
+      <LanguageProvider>
+        <TaskInput
+          onSubmit={vi.fn()}
+          isRunning
+          onPause={onPause}
+          onResume={onResume}
+          isPaused={isPaused}
+        />
+      </LanguageProvider>
+    );
+
+    const { rerender } = render(<Wrapper />);
+
+    const pauseButton = await screen.findByTestId('task-pause');
+    await user.click(pauseButton);
+    expect(onPause).toHaveBeenCalledTimes(1);
+
+    rerender(<Wrapper isPaused />);
+
+    const resumeButton = await screen.findByTestId('task-resume');
+    await user.click(resumeButton);
+    expect(onResume).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,7 +1,13 @@
 // Event aggregation logic for grouping and organizing agent events
 // Implements research console style step tracking and tool call grouping
 
-import { AnyAgentEvent, ToolCallStartEvent, ToolCallStreamEvent, ToolCallCompleteEvent } from './types';
+import {
+  AnyAgentEvent,
+  ToolCallStartEvent,
+  ToolCallStreamEvent,
+  ToolCallCompleteEvent,
+  AttachmentPayload,
+} from './types';
 
 /**
  * Aggregated tool call - combines start, stream chunks, and completion
@@ -21,6 +27,8 @@ export interface AggregatedToolCall {
   last_stream_at?: string;
   timestamp: string;
   iteration: number;
+  metadata?: Record<string, any>;
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 /**
@@ -107,6 +115,8 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
         existing.error = completeEvent.error;
         existing.duration = completeEvent.duration;
         existing.completed_at = completeEvent.timestamp;
+        existing.metadata = completeEvent.metadata as Record<string, any> | undefined;
+        existing.attachments = completeEvent.attachments as Record<string, AttachmentPayload> | undefined;
       } else {
         // Handle case where complete arrives before start
         toolCallMap.set(completeEvent.call_id, {
@@ -123,6 +133,8 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
           completed_at: completeEvent.timestamp,
           timestamp: completeEvent.timestamp,
           iteration: 0, // Unknown iteration
+          metadata: completeEvent.metadata as Record<string, any> | undefined,
+          attachments: completeEvent.attachments as Record<string, AttachmentPayload> | undefined,
         });
       }
     }
@@ -145,6 +157,11 @@ export interface ToolCallSummary {
   errorMessage?: string;
   requiresSandbox: boolean;
   sandboxLevel: SandboxLevel;
+  metadata?: Record<string, any>;
+  attachments?: Record<string, AttachmentPayload>;
+  prompt?: string;
+  arguments?: Record<string, any>;
+  streamChunks?: string[];
 }
 
 export const FILE_TOOL_HINTS = ['file', 'fs', 'write', 'read', 'download', 'upload'];
@@ -192,6 +209,25 @@ function inferSandboxLevel(toolName: string): SandboxLevel {
   return 'standard';
 }
 
+function extractPrompt(call: AggregatedToolCall): string | undefined {
+  const metadataPrompt = typeof call.metadata?.prompt === 'string' ? call.metadata.prompt : undefined;
+  if (metadataPrompt && metadataPrompt.trim().length > 0) {
+    return metadataPrompt;
+  }
+
+  const argumentPrompt = typeof call.arguments?.prompt === 'string' ? String(call.arguments.prompt) : undefined;
+  if (argumentPrompt && argumentPrompt.trim().length > 0) {
+    return argumentPrompt;
+  }
+
+  const hasAttachments = call.attachments && Object.keys(call.attachments).length > 0;
+  if (hasAttachments && typeof call.result === 'string' && call.result.trim().length > 0) {
+    return call.result;
+  }
+
+  return undefined;
+}
+
 export function buildToolCallSummaries(events: AnyAgentEvent[]): ToolCallSummary[] {
   const aggregated = Array.from(aggregateToolCalls(events).values());
   const sorted = aggregated.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
@@ -218,6 +254,11 @@ export function buildToolCallSummaries(events: AnyAgentEvent[]): ToolCallSummary
       errorMessage: call.error,
       requiresSandbox: true,
       sandboxLevel,
+      metadata: call.metadata,
+      attachments: call.attachments,
+      prompt: extractPrompt(call),
+      arguments: call.arguments,
+      streamChunks: call.stream_chunks,
     };
   });
 }

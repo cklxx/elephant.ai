@@ -175,6 +175,14 @@
     }
 }
 
+@layer base {
+    body,
+    body * {
+        letter-spacing: normal !important;
+        text-transform: none !important;
+    }
+}
+
 /* ========================================================================
    CONSOLE UTILITY CLASSES
    ======================================================================== */
@@ -511,27 +519,23 @@
         gap: 0.75rem;
         margin: 0.25rem 0;
         padding: 0.75rem 1rem;
-        border-radius: 12px;
-        border: 2px solid transparent;
+        border-radius: 14px;
+        border: none;
         background: hsla(var(--foreground) / 0.02);
-        transition:
-            background-color 0.16s ease,
-            border-color 0.16s ease,
-            box-shadow 0.16s ease,
-            transform 0.16s ease;
+        box-shadow: none;
+        transition: background-color 0.18s ease;
     }
 
     .console-event-line:hover {
-        border-color: hsl(var(--foreground));
-        background: hsla(var(--foreground) / 0.08);
-        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
-        transform: translate(-2px, -2px);
+        background: hsla(var(--foreground) / 0.06);
+        box-shadow: none;
+        transform: none;
     }
 
     .console-event-line.is-highlighted {
-        border-color: hsl(var(--foreground));
-        box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
-        background: hsla(var(--foreground) / 0.1);
+        background: hsla(var(--foreground) / 0.08);
+        box-shadow: none;
+        border: none;
     }
 
     .console-event-line.is-task-analysis {
@@ -558,6 +562,48 @@
     .console-event-content {
         @apply text-sm leading-relaxed whitespace-pre-wrap;
     }
+
+    .console-user-task {
+        display: flex;
+        justify-content: flex-end;
+        margin: 0.5rem 0;
+        padding: 0 0.5rem;
+    }
+
+    .console-user-task-bubble {
+        width: min(720px, 100%);
+        border-radius: 22px;
+        border: none;
+        background: linear-gradient(
+                180deg,
+                rgba(255, 255, 255, 0.7),
+                rgba(255, 255, 255, 0.4)
+            )
+            hsla(var(--primary) / 0.08);
+        box-shadow: none;
+        padding: 0.9rem 1.25rem 1.2rem;
+    }
+
+    .console-user-task-meta {
+        @apply font-mono text-[11px] uppercase tracking-[0.22em];
+        color: hsl(var(--gray-600));
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .console-user-task-content {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        color: hsl(var(--foreground));
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    .console-user-task-content span {
+        @apply whitespace-pre-wrap;
+    }
+
 
     .console-event-content em {
         @apply not-italic;

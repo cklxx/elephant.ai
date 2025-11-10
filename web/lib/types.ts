@@ -109,6 +109,15 @@ export interface TaskCompleteEvent extends AgentEvent {
   attachments?: Record<string, AttachmentPayload>;
 }
 
+export interface TaskPausedEvent extends AgentEvent {
+  event_type: 'task_paused';
+  reason?: string;
+}
+
+export interface TaskResumedEvent extends AgentEvent {
+  event_type: 'task_resumed';
+}
+
 // Error Event - emitted on errors
 export interface ErrorEvent extends AgentEvent {
   event_type: 'error';
@@ -225,6 +234,8 @@ export type AnyAgentEvent =
   | ToolCallCompleteEvent
   | IterationCompleteEvent
   | TaskCompleteEvent
+  | TaskPausedEvent
+  | TaskResumedEvent
   | ErrorEvent
   | ResearchPlanEvent
   | StepStartedEvent
@@ -251,7 +262,7 @@ export interface CreateTaskResponse {
   task_id: string;
   session_id: string;
   parent_task_id?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'paused';
   requires_plan_approval?: boolean; // If true, wait for plan approval before execution
 }
 
@@ -280,7 +291,7 @@ export interface TaskStatusResponse {
   task_id: string;
   session_id: string;
   parent_task_id?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'paused';
   created_at: string;
   completed_at?: string;
   error?: string;

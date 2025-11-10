@@ -5,6 +5,8 @@ import {
   createMockEventSequence,
   TimedMockEvent,
 } from '@/lib/mocks/mockAgentEvents';
+import { defaultEventRegistry } from '@/lib/events/eventRegistry';
+import { resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
 
 type MockWindowControls = {
   pushEvent: (event: Partial<AnyAgentEvent> & { event_type: AnyAgentEvent['event_type'] }) => void;
@@ -52,6 +54,7 @@ export function useMockAgentStream(
             timestamp: new Date(start + delay).toISOString(),
           } as AnyAgentEvent;
 
+          defaultEventRegistry.run(timestampedEvent);
           setEvents((prev) => [...prev, timestampedEvent]);
           onEventRef.current?.(timestampedEvent);
         }, delay);
@@ -64,12 +67,14 @@ export function useMockAgentStream(
 
   const clearEvents = useCallback(() => {
     setEvents([]);
+    resetAttachmentRegistry();
   }, []);
 
   const addEvent = useCallback((event: AnyAgentEvent) => {
     if (event.event_type === 'user_task' && 'task' in event) {
       lastUserTaskRef.current = event.task;
     }
+    defaultEventRegistry.run(event);
     setEvents((prev) => [...prev, event]);
   }, []);
 
@@ -103,6 +108,7 @@ export function useMockAgentStream(
     if (!sessionId) {
       clearTimers();
       setEvents([]);
+      resetAttachmentRegistry();
       setIsConnected(false);
       setIsReconnecting(false);
       setReconnectAttempts(0);
@@ -111,6 +117,7 @@ export function useMockAgentStream(
 
     const sequence = createMockEventSequence(lastUserTaskRef.current);
     setEvents([]);
+    resetAttachmentRegistry();
     setError(null);
     setIsConnected(true);
     setIsReconnecting(false);

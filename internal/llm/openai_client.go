@@ -165,9 +165,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			TotalTokens      int `json:"total_tokens"`
 		} `json:"usage"`
 		Error *struct {
-			Type    string `json:"type"`
-			Message string `json:"message"`
-			Code    string `json:"code"`
+			Type    string          `json:"type"`
+			Message string          `json:"message"`
+			Code    json.RawMessage `json:"code"`
 		} `json:"error"`
 	}
 
@@ -259,9 +259,12 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, len(msgs))
 	for i, msg := range msgs {
 		entry := map[string]any{"role": msg.Role}
-		entry["content"] = buildMessageContent(msg)
+		entry["content"] = buildMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
+		if msg.ToolCallID != "" {
+			entry["tool_call_id"] = msg.ToolCallID
+		}
 		if len(msg.ToolCalls) > 0 {
-			entry["tool_calls"] = msg.ToolCalls
+			entry["tool_calls"] = buildToolCallHistory(msg.ToolCalls)
 		}
 		result[i] = entry
 	}
@@ -270,8 +273,8 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 
 var placeholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
 
-func buildMessageContent(msg ports.Message) any {
-	if len(msg.Attachments) == 0 {
+func buildMessageContent(msg ports.Message, embedAttachments bool) any {
+	if len(msg.Attachments) == 0 || !embedAttachments {
 		return msg.Content
 	}
 
@@ -346,6 +349,38 @@ func buildImageContentParts(att ports.Attachment) []map[string]any {
 	}
 
 	return parts
+}
+
+func shouldEmbedAttachmentsInContent(msg ports.Message) bool {
+	if len(msg.Attachments) == 0 {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(msg.Role), "tool") {
+		return false
+	}
+	return true
+}
+
+func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
+	result := make([]map[string]any, 0, len(calls))
+	for _, call := range calls {
+		args := "{}"
+		if len(call.Arguments) > 0 {
+			if data, err := json.Marshal(call.Arguments); err == nil {
+				args = string(data)
+			}
+		}
+
+		result = append(result, map[string]any{
+			"id":   call.ID,
+			"type": "function",
+			"function": map[string]any{
+				"name":      call.Name,
+				"arguments": args,
+			},
+		})
+	}
+	return result
 }
 
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {

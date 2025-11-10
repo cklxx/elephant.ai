@@ -34,6 +34,8 @@ type EventBroadcaster struct {
 
 	// Metrics tracking
 	metrics broadcasterMetrics
+
+	attachmentArchiver AttachmentArchiver
 }
 
 // broadcasterMetrics tracks broadcaster performance metrics
@@ -62,6 +64,11 @@ func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
 	b.taskStore = store
 }
 
+// SetAttachmentArchiver configures optional sandbox persistence for generated assets.
+func (b *EventBroadcaster) SetAttachmentArchiver(archiver AttachmentArchiver) {
+	b.attachmentArchiver = archiver
+}
+
 // OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
 func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
@@ -73,6 +80,8 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	} else {
 		b.storeGlobalEvent(event)
 	}
+
+	b.archiveAttachments(event)
 
 	// Update task progress before broadcasting
 	b.updateTaskProgress(event)
@@ -149,6 +158,21 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 		// Final update is handled by SetResult, but we can update one more time
 		_ = b.taskStore.UpdateProgress(ctx, taskID, e.TotalIterations, e.TotalTokens)
 	}
+}
+
+func (b *EventBroadcaster) archiveAttachments(event agentports.AgentEvent) {
+	if b.attachmentArchiver == nil {
+		return
+	}
+	sessionID := event.GetSessionID()
+	if sessionID == "" {
+		return
+	}
+	attachments := collectEventAttachments(event)
+	if len(attachments) == 0 {
+		return
+	}
+	b.attachmentArchiver.Persist(context.Background(), sessionID, attachments)
 }
 
 // broadcastToClients sends event to all clients in the list
@@ -299,6 +323,28 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 
 	delete(b.eventHistory, sessionID)
 	b.logger.Info("Cleared event history for session: %s", sessionID)
+}
+
+func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
+	switch e := event.(type) {
+	case *domain.ToolCallCompleteEvent:
+		return cloneAttachmentPayload(e.Attachments)
+	case *domain.TaskCompleteEvent:
+		return cloneAttachmentPayload(e.Attachments)
+	default:
+		return nil
+	}
+}
+
+func cloneAttachmentPayload(values map[string]agentports.Attachment) map[string]agentports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]agentports.Attachment, len(values))
+	for key, att := range values {
+		cloned[key] = att
+	}
+	return cloned
 }
 
 // Metrics helper methods
