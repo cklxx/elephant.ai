@@ -92,10 +92,16 @@ type Attachment struct {
 	// URI is an absolute or data URI that can be used by clients to render
 	// the attachment without additional decoding.
 	URI string `json:"uri,omitempty"`
+	// StorageKey links the attachment to an artifact persisted in object storage.
+	StorageKey string `json:"storage_key,omitempty"`
 	// Source identifies where the attachment originated (tool name,
 	// `user_upload`, etc.).
 	Source string `json:"source,omitempty"`
 	// Description provides optional human readable context about the
 	// attachment contents.
 	Description string `json:"description,omitempty"`
+	// Size optionally records the attachment size in bytes.
+	Size int64 `json:"size,omitempty"`
+	// Checksum optionally stores a hash of the attachment contents.
+	Checksum string `json:"checksum,omitempty"`
 }

@@ -93,7 +93,7 @@ CHANGELOG.ignore.md
 *.test
 *.out
 build/
-alex
+/alex
 alex-server
 
 # Go workspace files

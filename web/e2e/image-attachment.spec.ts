@@ -1,7 +1,21 @@
 import { expect, test } from '@playwright/test';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
-const imageFixture = path.join(process.cwd(), 'e2e/fixtures/test-image.png');
+const imageFileName = 'mock-image.png';
+const pngBase64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAGgwJ/lzE6SAAAAABJRU5ErkJggg==';
+let imageFixturePath: string | undefined;
+
+function ensureImageFixture(): string {
+  if (!imageFixturePath) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'alex-e2e-'));
+    imageFixturePath = path.join(tempDir, imageFileName);
+    fs.writeFileSync(imageFixturePath, Buffer.from(pngBase64, 'base64'));
+  }
+  return imageFixturePath;
+}
 
 test.describe('Task input image attachments', () => {
   test('allows attaching an image and renders it in the stream (mock mode)', async ({ page }) => {
@@ -16,18 +30,21 @@ test.describe('Task input image attachments', () => {
     await expect(textarea).toBeVisible();
 
     const fileInput = page.locator('input[type="file"][accept="image/*"]');
+    const imageFixture = ensureImageFixture();
     await fileInput.setInputFiles(imageFixture);
 
     const attachmentGallery = page.getByTestId('task-attachments');
     await expect(attachmentGallery).toBeVisible();
-    await expect(attachmentGallery.getByRole('img', { name: 'test-image.png' })).toBeVisible();
-    await expect(textarea).toHaveValue(/\[test-image\.png\]/);
+    await expect(attachmentGallery.getByRole('img', { name: imageFileName })).toBeVisible();
+
+    const escapedImageName = imageFileName.replace(/\./g, '\\.');
+    await expect(textarea).toHaveValue(new RegExp(`\\[${escapedImageName}\\]`));
 
     await textarea.click();
     await textarea.press('End');
     await textarea.type(' Please review this image.');
     await textarea.press('Enter');
 
-    await expect(page.getByRole('img', { name: 'test-image.png' })).toBeVisible();
+    await expect(page.getByText(`[${imageFileName}]`)).toBeVisible();
   });
 });

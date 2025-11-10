@@ -26,6 +26,7 @@ type AgentCoordinator struct {
 	prepService     *ExecutionPreparationService
 	analysisService *TaskAnalysisService
 	costDecorator   *CostTrackingDecorator
+	artifactManager *ArtifactManager
 }
 
 type Config struct {
@@ -265,8 +266,18 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 
 // SaveSessionAfterExecution saves session state after task completion
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+	messages := result.Messages
+	if c.artifactManager != nil {
+		processed, _, err := c.artifactManager.ProcessMessages(ctx, session, result.Messages)
+		if err != nil {
+			return fmt.Errorf("persist artifacts: %w", err)
+		}
+		messages = processed
+		result.Messages = processed
+	}
+
 	// Update session with results
-	session.Messages = append([]ports.Message(nil), result.Messages...)
+	session.Messages = append([]ports.Message(nil), messages...)
 	session.UpdatedAt = c.clock.Now()
 
 	if session.Metadata == nil {

@@ -46,13 +46,26 @@ vi.mock('@/lib/eventAggregation', () => ({
   buildToolCallSummaries: () => [],
 }));
 
-vi.mock('@/lib/i18n', () => {
-  const t = (key: string) => key;
-  return {
-    useI18n: () => ({ t }),
-    useTranslation: () => t,
-  };
-});
+const translationMock: Record<string, string> = {
+  'console.input.placeholder.idle': 'Type your task…',
+  'console.input.placeholder.active': 'Type your task…',
+  'console.input.hotkeyHint': 'Enter to send, Shift+Enter for new line',
+  'task.input.ariaLabel': 'Task input',
+  'task.submit.title.default': 'Send task',
+  'task.submit.title.running': 'Stop task',
+  'task.submit.running': 'Stop',
+  'task.submit.label': 'Send',
+  'inputBar.actions.send': 'Send message',
+  'sidebar.toggle.open': 'Open session list',
+  'sidebar.toggle.close': 'Close session list',
+};
+
+vi.mock('@/lib/i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => translationMock[key] ?? key,
+  }),
+  useTranslation: () => (key: string) => translationMock[key] ?? key,
+}));
 
 vi.mock('@/components/layout', async () => {
   const ReactModule = await vi.importActual<typeof import('react')>('react');
@@ -184,7 +197,9 @@ describe('ConversationPageContent - stale session handling', () => {
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'Fix the stale session bug' } });
 
-    const submitButton = screen.getByTestId('task-submit');
+    const submitButton = screen.getByRole('button', {
+      name: /send/i,
+    });
     fireEvent.click(submitButton);
 
     await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
@@ -199,4 +214,3 @@ describe('ConversationPageContent - stale session handling', () => {
     expect(state.sessionHistory[0]).toBe('new-session');
   });
 });
-

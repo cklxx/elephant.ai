@@ -29,6 +29,7 @@ func TestRuntimeEnvLookup(t *testing.T) {
 		StopSequences:           []string{"STOP", "DONE"},
 		SessionDir:              "/tmp/sessions",
 		CostDir:                 "/tmp/costs",
+		CraftMirrorDir:          "/tmp/crafts",
 		AgentPreset:             "designer",
 		ToolPreset:              "full",
 	}
@@ -73,6 +74,7 @@ func TestRuntimeEnvLookup(t *testing.T) {
 		"LLM_STOP":                        "STOP,DONE",
 		"ALEX_SESSION_DIR":                "/tmp/sessions",
 		"ALEX_COST_DIR":                   "/tmp/costs",
+		"ALEX_CRAFT_MIRROR_DIR":           "/tmp/crafts",
 		"AGENT_PRESET":                    "designer",
 		"ALEX_AGENT_PRESET":               "designer",
 		"TOOL_PRESET":                     "full",
