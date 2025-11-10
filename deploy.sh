@@ -436,6 +436,45 @@ start_sandbox() {
         fi
     fi
 
+    local existing_id
+    existing_id=$(docker ps -aq --filter "name=^/${SANDBOX_CONTAINER_NAME}$" 2>/dev/null || true)
+
+    if [[ -n "$existing_id" ]]; then
+        local is_running
+        is_running=$(docker inspect --format='{{.State.Running}}' "$existing_id" 2>/dev/null || echo "false")
+
+        if [[ "$is_running" == "true" ]]; then
+            log_info "Sandbox container already running (ID: ${existing_id}), reusing existing instance"
+            if wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 10; then
+                log_success "Sandbox running at $base_url"
+                return 0
+            fi
+
+            log_warn "Existing sandbox container is running but unhealthy, attempting restart"
+            if docker restart "$existing_id" >/dev/null 2>&1; then
+                if wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 30; then
+                    log_success "Sandbox running at $base_url"
+                    return 0
+                fi
+            else
+                log_warn "Failed to restart existing sandbox container, will recreate"
+            fi
+        else
+            log_info "Sandbox container exists but is stopped, starting existing instance (${existing_id})"
+            if docker start "$existing_id" >/dev/null 2>&1; then
+                if wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 30; then
+                    log_success "Sandbox running at $base_url"
+                    return 0
+                fi
+            else
+                log_warn "Failed to start existing sandbox container, will recreate"
+            fi
+        fi
+
+        log_warn "Removing unhealthy sandbox container (${existing_id}) before recreation"
+        docker rm -f "$existing_id" >/dev/null 2>&1 || true
+    fi
+
     run_docker_compose -f "$SANDBOX_COMPOSE_FILE" up -d "$SANDBOX_SERVICE_NAME"
 
     # Wait for container to be healthy using Docker's built-in health check
