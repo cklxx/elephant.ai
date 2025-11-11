@@ -160,8 +160,14 @@ func (e *ReactEngine) SolveTask(
 	ensureAttachmentStore(state)
 	// Register attachments from preloaded messages so they are available for
 	// placeholder substitution and multimodal requests.
+	attachmentsChanged := false
 	for _, existing := range state.Messages {
-		registerMessageAttachments(state, existing)
+		if registerMessageAttachments(state, existing) {
+			attachmentsChanged = true
+		}
+	}
+	if attachmentsChanged {
+		e.updateAttachmentCatalogMessage(state)
 	}
 
 	// Initialize state if empty
@@ -191,7 +197,9 @@ func (e *ReactEngine) SolveTask(
 	}
 
 	state.Messages = append(state.Messages, userMessage)
-	registerMessageAttachments(state, userMessage)
+	if registerMessageAttachments(state, userMessage) {
+		e.updateAttachmentCatalogMessage(state)
+	}
 	if len(userMessage.Attachments) > 0 {
 		e.logger.Debug("Registered %d user attachments", len(userMessage.Attachments))
 	}
@@ -351,8 +359,14 @@ func (e *ReactEngine) SolveTask(
 		// 3. OBSERVE: Add results to conversation
 		toolMessages := e.buildToolMessages(results)
 		state.Messages = append(state.Messages, toolMessages...)
+		attachmentsChanged := false
 		for _, msg := range toolMessages {
-			registerMessageAttachments(state, msg)
+			if registerMessageAttachments(state, msg) {
+				attachmentsChanged = true
+			}
+		}
+		if attachmentsChanged {
+			e.updateAttachmentCatalogMessage(state)
 		}
 		e.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
 
@@ -393,7 +407,9 @@ func (e *ReactEngine) SolveTask(
 				finalThought.Attachments = att
 			}
 			state.Messages = append(state.Messages, finalThought)
-			registerMessageAttachments(state, finalThought)
+			if registerMessageAttachments(state, finalThought) {
+				e.updateAttachmentCatalogMessage(state)
+			}
 			finalResult.Answer = finalThought.Content
 			e.logger.Info("Got final answer from retry: %d chars", len(finalResult.Answer))
 		}
@@ -1130,15 +1146,16 @@ func ensureAttachmentStore(state *TaskState) {
 	}
 }
 
-func registerMessageAttachments(state *TaskState, msg Message) {
+func registerMessageAttachments(state *TaskState, msg Message) bool {
 	if len(msg.Attachments) == 0 {
-		return
+		return false
 	}
 	ensureAttachmentStore(state)
+	changed := false
 	for key, att := range msg.Attachments {
-		placeholder := key
+		placeholder := strings.TrimSpace(key)
 		if placeholder == "" {
-			placeholder = att.Name
+			placeholder = strings.TrimSpace(att.Name)
 		}
 		if placeholder == "" {
 			continue
@@ -1146,12 +1163,103 @@ func registerMessageAttachments(state *TaskState, msg Message) {
 		if att.Name == "" {
 			att.Name = placeholder
 		}
-		state.Attachments[placeholder] = att
+		if existing, ok := state.Attachments[placeholder]; !ok || existing != att {
+			state.Attachments[placeholder] = att
+			changed = true
+		}
 		if state.AttachmentIterations == nil {
 			state.AttachmentIterations = make(map[string]int)
 		}
 		state.AttachmentIterations[placeholder] = state.Iterations
 	}
+	return changed
+}
+
+const attachmentCatalogMetadataKey = "attachment_catalog"
+
+func (e *ReactEngine) updateAttachmentCatalogMessage(state *TaskState) {
+	if state == nil {
+		return
+	}
+	content := buildAttachmentCatalogContent(state)
+	if strings.TrimSpace(content) == "" {
+		removeAttachmentCatalogMessage(state)
+		return
+	}
+
+	if idx := findAttachmentCatalogMessageIndex(state); idx >= 0 {
+		state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
+	}
+	note := Message{
+		Role:    "system",
+		Content: content,
+		Source:  ports.MessageSourceSystemPrompt,
+		Metadata: map[string]any{
+			attachmentCatalogMetadataKey: true,
+		},
+	}
+	state.Messages = append(state.Messages, note)
+}
+
+func buildAttachmentCatalogContent(state *TaskState) string {
+	if state == nil || len(state.Attachments) == 0 {
+		return ""
+	}
+	keys := sortedAttachmentKeys(state.Attachments)
+	if len(keys) == 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.WriteString("Attachment catalog (for model reference only).\n")
+	builder.WriteString("Reference assets by typing their placeholders exactly as shown (e.g., [diagram.png]).\n\n")
+
+	for i, key := range keys {
+		att := state.Attachments[key]
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		builder.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
+		description := strings.TrimSpace(att.Description)
+		if description != "" {
+			builder.WriteString(" — " + description)
+		}
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("\nUse the placeholders verbatim to work with these attachments in follow-up steps.")
+
+	return strings.TrimSpace(builder.String())
+}
+
+func findAttachmentCatalogMessageIndex(state *TaskState) int {
+	if state == nil || len(state.Messages) == 0 {
+		return -1
+	}
+	for i := len(state.Messages) - 1; i >= 0; i-- {
+		msg := state.Messages[i]
+		if msg.Metadata == nil {
+			continue
+		}
+		if flag, ok := msg.Metadata[attachmentCatalogMetadataKey]; ok {
+			if enabled, ok := flag.(bool); ok && enabled {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func removeAttachmentCatalogMessage(state *TaskState) {
+	idx := findAttachmentCatalogMessageIndex(state)
+	if idx < 0 {
+		return
+	}
+	state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
 }
 
 func (e *ReactEngine) expandPlaceholders(args map[string]any, state *TaskState) map[string]any {

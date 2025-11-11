@@ -347,3 +347,92 @@ func TestDecorateFinalResultIncludesReferencedAttachments(t *testing.T) {
 		t.Fatalf("expected placeholder to be converted to markdown reference, got %q", result.Answer)
 	}
 }
+
+func TestRegisterMessageAttachmentsDetectsChanges(t *testing.T) {
+	state := &TaskState{}
+	msg := Message{
+		Attachments: map[string]ports.Attachment{
+			"diagram.png": {
+				Name:        "diagram.png",
+				Description: "Architecture plan",
+			},
+		},
+	}
+
+	if !registerMessageAttachments(state, msg) {
+		t.Fatal("expected first registration to report changes")
+	}
+	if registerMessageAttachments(state, msg) {
+		t.Fatal("expected duplicate registration to report no changes")
+	}
+}
+
+func TestUpdateAttachmentCatalogMessageAppendsSystemNote(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Messages: []Message{
+			{Role: "user", Content: "hi"},
+		},
+		Attachments: map[string]ports.Attachment{
+			"diagram.png": {
+				Name:        "diagram.png",
+				Description: "Architecture overview",
+			},
+		},
+	}
+
+	engine.updateAttachmentCatalogMessage(state)
+	if len(state.Messages) != 2 {
+		t.Fatalf("expected catalog message to be appended, got %d messages", len(state.Messages))
+	}
+
+	note := state.Messages[len(state.Messages)-1]
+	if note.Role != "system" {
+		t.Fatalf("expected catalog note to use system role, got %q", note.Role)
+	}
+	if note.Metadata == nil || note.Metadata[attachmentCatalogMetadataKey] != true {
+		t.Fatalf("expected catalog metadata flag to be set, got %+v", note.Metadata)
+	}
+	if !strings.Contains(note.Content, "[diagram.png]") {
+		t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
+	}
+	if note.Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected catalog note to use system prompt source, got %q", note.Source)
+	}
+}
+
+func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"first.png": {
+				Name: "first.png",
+			},
+		},
+	}
+
+	engine.updateAttachmentCatalogMessage(state)
+	initialLen := len(state.Messages)
+	state.Attachments["second.png"] = ports.Attachment{Name: "second.png", Description: "refined result"}
+
+	engine.updateAttachmentCatalogMessage(state)
+	if len(state.Messages) != initialLen {
+		t.Fatalf("expected catalog refresh to keep message count stable, got %d vs %d", len(state.Messages), initialLen)
+	}
+
+	note := state.Messages[len(state.Messages)-1]
+	if !strings.Contains(note.Content, "[second.png]") {
+		t.Fatalf("expected refreshed catalog to include new attachment, got %q", note.Content)
+	}
+
+	// Ensure only one catalog message exists.
+	count := 0
+	for _, msg := range state.Messages {
+		if msg.Metadata != nil && msg.Metadata[attachmentCatalogMetadataKey] == true {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected a single catalog note, found %d", count)
+	}
+}
