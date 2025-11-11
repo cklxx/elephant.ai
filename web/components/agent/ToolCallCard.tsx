@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { ToolCallStartEvent, ToolCallCompleteEvent } from '@/lib/types';
 import { getToolIcon, formatDuration } from '@/lib/utils';
-import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { ToolCallLayout } from './tooling/ToolCallLayout';
@@ -32,6 +32,8 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   const metadata = adapter.durationMs
     ? t('conversation.tool.timeline.duration', { duration: formatDuration(adapter.durationMs) })
     : undefined;
+  const showVideoWaitHint =
+    status === 'running' && VIDEO_GENERATION_TOOLS.has(toolName.toLowerCase());
 
   const panels = renderer({
     ...adapter.context,
@@ -57,6 +59,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       metadata={metadata}
       isFocused={isFocused}
     >
+      {showVideoWaitHint && <VideoWaitHint />}
       {panels.map((panel, index) => (
         <div key={index}>{panel}</div>
       ))}
@@ -100,3 +103,14 @@ const STATUS_LABELS = {
   done: (t: ReturnType<typeof useTranslation>) => t('conversation.status.completed'),
   error: (t: ReturnType<typeof useTranslation>) => t('conversation.status.failed'),
 } as const;
+
+const VIDEO_GENERATION_TOOLS = new Set(['seedream_video_generate']);
+
+function VideoWaitHint() {
+  return (
+    <div className="flex items-center gap-2 rounded-2xl border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[11px] font-medium text-amber-800">
+      <Film className="h-4 w-4 text-amber-500" aria-hidden />
+      <span>视频生成较慢，请耐心等待...</span>
+    </div>
+  );
+}

@@ -30,6 +30,8 @@ export function VideoPreview({
   preload = "metadata",
   ...videoProps
 }: VideoPreviewProps) {
+  const accessibleLabel = description ? `Video preview: ${description}` : undefined;
+
   return (
     <div className={cn("w-full space-y-2", className)}>
       <div
@@ -40,15 +42,14 @@ export function VideoPreview({
           {...videoProps}
           controls={controls}
           preload={preload}
+          aria-label={accessibleLabel}
+          title={description}
           className={cn("h-full w-full object-contain bg-black", videoClassName)}
         >
           <source src={src} type={mimeType} />
           Your browser does not support video playback.
         </video>
       </div>
-      {description && (
-        <p className="text-[11px] text-muted-foreground">{description}</p>
-      )}
     </div>
   );
 }
