@@ -175,6 +175,19 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 			},
 			wantField: "final_answer",
 		},
+		{
+			name: "TaskCancelledEvent",
+			event: domain.NewTaskCancelledEvent(
+				types.LevelCore,
+				"test-session",
+				"sse-task",
+				"",
+				"cancelled",
+				"user",
+				time.Now(),
+			),
+			wantField: "reason",
+		},
 	}
 
 	for _, tt := range tests {

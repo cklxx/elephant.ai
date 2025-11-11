@@ -333,6 +333,23 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 }
 
+func TestLoadFromFileSupportsSnakeCaseArkKey(t *testing.T) {
+	fileData := []byte(`{"ark_api_key": "snake-ark"}`)
+	cfg, meta, err := Load(
+		WithEnv(envMap{}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.ArkAPIKey != "snake-ark" {
+		t.Fatalf("expected ark api key from snake_case entry, got %q", cfg.ArkAPIKey)
+	}
+	if meta.Source("ark_api_key") != SourceFile {
+		t.Fatalf("expected ark api key source to be file, got %s", meta.Source("ark_api_key"))
+	}
+}
+
 func TestAliasLookup(t *testing.T) {
 	baseEnv := envMap{"ALEX_MODEL_NAME": "alias-model"}
 	cfg, _, err := Load(

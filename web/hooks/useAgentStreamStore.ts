@@ -14,6 +14,7 @@ import {
   IterationStartEvent,
   IterationCompleteEvent,
   TaskAnalysisEvent,
+  TaskCancelledEvent,
   TaskCompleteEvent,
   ErrorEvent,
   BrowserInfoEvent,
@@ -97,7 +98,7 @@ interface AgentStreamState {
     action_name?: string;
     goal?: string;
   };
-  taskStatus: 'idle' | 'analyzing' | 'running' | 'completed' | 'error';
+  taskStatus: 'idle' | 'analyzing' | 'running' | 'completed' | 'cancelled' | 'error';
   finalAnswer?: string;
   finalAnswerAttachments?: Record<string, AttachmentPayload>;
   totalIterations?: number;
@@ -372,6 +373,18 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       draft.totalTokens = complete.total_tokens;
       draft.currentIteration = null;
       draft.activeToolCallId = null;
+      break;
+    }
+    case 'task_cancelled': {
+      const cancelled = event as TaskCancelledEvent;
+      draft.taskStatus = 'cancelled';
+      draft.currentIteration = null;
+      draft.activeToolCallId = null;
+      draft.errorMessage = cancelled.reason && cancelled.reason !== 'cancelled' ? cancelled.reason : undefined;
+      draft.finalAnswer = undefined;
+      draft.finalAnswerAttachments = undefined;
+      draft.totalIterations = undefined;
+      draft.totalTokens = undefined;
       break;
     }
     case 'error':

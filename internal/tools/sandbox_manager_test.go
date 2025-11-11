@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -179,4 +180,21 @@ func newSandboxHealthServer(t *testing.T) *httptest.Server {
 	server.Start()
 	t.Cleanup(server.Close)
 	return server
+}
+
+func TestFormatSandboxErrorBadGateway(t *testing.T) {
+	err := errors.New(`Post "http://sandbox/v1/shell/exec": 502: <html><body><h1>502 Bad Gateway</h1></body></html>`)
+	formatted := FormatSandboxError(err)
+	if formatted.Error() != "sandbox gateway unavailable (502)" {
+		t.Fatalf("expected 502 message, got %q", formatted.Error())
+	}
+}
+
+func TestFormatSandboxErrorSanitizesHTML(t *testing.T) {
+	err := errors.New(`<html><body><p>Failure &amp; stack</p></body></html>`)
+	formatted := FormatSandboxError(err)
+	expected := "sandbox error: Failure & stack"
+	if formatted.Error() != expected {
+		t.Fatalf("expected sanitized message %q, got %q", expected, formatted.Error())
+	}
 }
