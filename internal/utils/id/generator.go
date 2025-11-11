@@ -49,6 +49,11 @@ func NewTaskID() string {
 	return defaultGenerator.newIdentifier("task")
 }
 
+// NewRequestID generates a new identifier for LLM requests and correlated logs.
+func NewRequestID() string {
+	return defaultGenerator.newIdentifier("llm")
+}
+
 func (g *Generator) newIdentifier(prefix string) string {
 	g.mu.RLock()
 	strategy := g.strategy

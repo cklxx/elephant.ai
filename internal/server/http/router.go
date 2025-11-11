@@ -14,10 +14,13 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster)
-	apiHandler := NewAPIHandler(coordinator, healthChecker)
+	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
+	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode)
 
 	// Create mux
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/internal/sessions/", apiHandler.HandleInternalSessionRequest)
 
 	// SSE endpoint
 	mux.HandleFunc("/api/sse", sseHandler.HandleSSEStream)

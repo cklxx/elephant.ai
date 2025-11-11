@@ -4,6 +4,7 @@ import (
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -49,13 +50,19 @@ func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		logger:     utils.NewComponentLogger("llm"),
+		logger:     utils.NewCategorizedLogger(utils.LogCategoryLLM, "openai"),
 		headers:    config.Headers,
 		maxRetries: config.MaxRetries,
 	}, nil
 }
 
 func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	requestID := extractRequestID(req.Metadata)
+	if requestID == "" {
+		requestID = id.NewRequestID()
+	}
+	prefix := fmt.Sprintf("[req:%s] ", requestID)
+
 	// Convert to OpenAI format
 	oaiReq := map[string]any{
 		"model":       c.model,
@@ -76,9 +83,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Request details
-	c.logger.Debug("=== LLM Request ===")
-	c.logger.Debug("URL: POST %s/chat/completions", c.baseURL)
-	c.logger.Debug("Model: %s", c.model)
+	c.logger.Debug("%s=== LLM Request ===", prefix)
+	c.logger.Debug("%sURL: POST %s/chat/completions", prefix, c.baseURL)
+	c.logger.Debug("%sModel: %s", prefix, c.model)
 
 	endpoint := c.baseURL + "/chat/completions"
 
@@ -98,49 +105,49 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Request headers
-	c.logger.Debug("Request Headers:")
+	c.logger.Debug("%sRequest Headers:", prefix)
 	for k, v := range httpReq.Header {
 		if k == "Authorization" {
 			// Mask API key for security
-			c.logger.Debug("  %s: Bearer (hidden)", k)
+			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
 		} else {
-			c.logger.Debug("  %s: %s", k, strings.Join(v, ", "))
+			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
 		}
 	}
 
 	// Debug log: Request body (pretty print)
 	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
-		c.logger.Debug("Request Body:\n%s", prettyJSON.String())
+		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
 	} else {
-		c.logger.Debug("Request Body: %s", string(body))
+		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
 	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		c.logger.Debug("HTTP request failed: %v", err)
+		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
 		return nil, c.wrapRequestError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Debug log: Response status
-	c.logger.Debug("=== LLM Response ===")
-	c.logger.Debug("Status: %d %s", resp.StatusCode, resp.Status)
+	c.logger.Debug("%s=== LLM Response ===", prefix)
+	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
 
 	// Debug log: Response headers
-	c.logger.Debug("Response Headers:")
+	c.logger.Debug("%sResponse Headers:", prefix)
 	for k, v := range resp.Header {
-		c.logger.Debug("  %s: %s", k, strings.Join(v, ", "))
+		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Debug("Failed to read response body: %v", err)
+		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Debug("Error Response Body: %s", string(respBody))
+		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
 		return nil, c.mapHTTPError(resp.StatusCode, respBody, resp.Header)
 	}
 
@@ -174,13 +181,13 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	// Debug log: Response body (pretty print)
 	var prettyResp bytes.Buffer
 	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
-		c.logger.Debug("Response Body:\n%s", prettyResp.String())
+		c.logger.Debug("%sResponse Body:\n%s", prefix, prettyResp.String())
 	} else {
-		c.logger.Debug("Response Body: %s", string(respBody))
+		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	}
 
 	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
-		c.logger.Debug("Failed to decode response: %v", err)
+		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
@@ -193,7 +200,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	if len(oaiResp.Choices) == 0 {
-		c.logger.Debug("No choices in response")
+		c.logger.Debug("%sNo choices in response", prefix)
 		return nil, alexerrors.NewTransientError(errors.New("no choices in response"), "LLM returned an empty response. Please retry.")
 	}
 
@@ -204,6 +211,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			PromptTokens:     oaiResp.Usage.PromptTokens,
 			CompletionTokens: oaiResp.Usage.CompletionTokens,
 			TotalTokens:      oaiResp.Usage.TotalTokens,
+		},
+		Metadata: map[string]any{
+			"request_id": requestID,
 		},
 	}
 
@@ -222,7 +232,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	for _, tc := range oaiResp.Choices[0].Message.ToolCalls {
 		var args map[string]any
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			c.logger.Debug("Failed to parse tool call arguments: %v", err)
+			c.logger.Debug("%sFailed to parse tool call arguments: %v", prefix, err)
 			continue
 		}
 		result.ToolCalls = append(result.ToolCalls, ports.ToolCall{
@@ -233,15 +243,16 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Summary
-	c.logger.Debug("=== LLM Response Summary ===")
-	c.logger.Debug("Stop Reason: %s", result.StopReason)
-	c.logger.Debug("Content Length: %d chars", len(result.Content))
-	c.logger.Debug("Tool Calls: %d", len(result.ToolCalls))
-	c.logger.Debug("Usage: %d prompt + %d completion = %d total tokens",
+	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
+	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
+	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
+	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
+	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
+		prefix,
 		result.Usage.PromptTokens,
 		result.Usage.CompletionTokens,
 		result.Usage.TotalTokens)
-	c.logger.Debug("==================")
+	c.logger.Debug("%s==================", prefix)
 
 	return result, nil
 }
@@ -256,8 +267,11 @@ func (c *openaiClient) SetUsageCallback(callback func(usage ports.TokenUsage, mo
 }
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
-	result := make([]map[string]any, len(msgs))
-	for i, msg := range msgs {
+	result := make([]map[string]any, 0, len(msgs))
+	for _, msg := range msgs {
+		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
+			continue
+		}
 		entry := map[string]any{"role": msg.Role}
 		entry["content"] = buildMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
 		if msg.ToolCallID != "" {
@@ -266,9 +280,24 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 		if len(msg.ToolCalls) > 0 {
 			entry["tool_calls"] = buildToolCallHistory(msg.ToolCalls)
 		}
-		result[i] = entry
+		result = append(result, entry)
 	}
 	return result
+}
+
+func extractRequestID(metadata map[string]any) string {
+	if metadata == nil {
+		return ""
+	}
+	if value, ok := metadata["request_id"]; ok {
+		switch v := value.(type) {
+		case string:
+			return strings.TrimSpace(v)
+		case fmt.Stringer:
+			return strings.TrimSpace(v.String())
+		}
+	}
+	return ""
 }
 
 var placeholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)

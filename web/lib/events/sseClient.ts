@@ -30,6 +30,7 @@ const DEFAULT_EVENTS: AnyAgentEvent['event_type'][] = [
   'sandbox_progress',
   'context_compression',
   'tool_filtering',
+  'context_snapshot',
   'user_task',
 ];
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,9 +24,18 @@ const (
 	ERROR
 )
 
+type LogCategory string
+
+const (
+	LogCategoryService LogCategory = "service"
+	LogCategoryLLM     LogCategory = "llm"
+)
+
 var (
-	loggerInstance *Logger
-	loggerOnce     sync.Once
+	loggerInstance  *Logger
+	loggerOnce      sync.Once
+	categoryMu      sync.Mutex
+	categoryLoggers = make(map[LogCategory]*Logger)
 )
 
 // Logger provides structured logging to alex-debug.log
@@ -36,34 +46,59 @@ type Logger struct {
 	mu         sync.Mutex
 	component  string
 	enableFile bool
+	category   LogCategory
 }
 
 // GetLogger returns the singleton logger instance
 func GetLogger() *Logger {
-	loggerOnce.Do(func() {
-		loggerInstance = newLogger("", DEBUG, true)
-	})
-	return loggerInstance
+	return getOrCreateCategoryLogger(LogCategoryService)
 }
 
 // NewComponentLogger creates a logger for a specific component
 func NewComponentLogger(component string) *Logger {
-	logger := GetLogger()
+	return NewCategorizedLogger(LogCategoryService, component)
+}
+
+// NewCategorizedLogger creates a logger for a specific category and component.
+func NewCategorizedLogger(category LogCategory, component string) *Logger {
+	base := getOrCreateCategoryLogger(category)
 	return &Logger{
-		file:       logger.file,
-		logger:     logger.logger,
-		level:      logger.level,
+		file:       base.file,
+		logger:     base.logger,
+		level:      base.level,
 		component:  component,
-		enableFile: logger.enableFile,
+		enableFile: base.enableFile,
+		category:   category,
 	}
 }
 
+func getOrCreateCategoryLogger(category LogCategory) *Logger {
+	if category == LogCategoryService {
+		loggerOnce.Do(func() {
+			loggerInstance = newLogger("", DEBUG, true, category)
+		})
+		return loggerInstance
+	}
+
+	categoryMu.Lock()
+	defer categoryMu.Unlock()
+
+	if logger, ok := categoryLoggers[category]; ok {
+		return logger
+	}
+
+	logger := newLogger("", DEBUG, true, category)
+	categoryLoggers[category] = logger
+	return logger
+}
+
 // newLogger creates a new Logger instance
-func newLogger(component string, level LogLevel, enableFile bool) *Logger {
+func newLogger(component string, level LogLevel, enableFile bool, category LogCategory) *Logger {
 	l := &Logger{
 		level:      level,
 		component:  component,
 		enableFile: enableFile,
+		category:   category,
 	}
 
 	if enableFile {
@@ -73,7 +108,7 @@ func newLogger(component string, level LogLevel, enableFile bool) *Logger {
 			return l
 		}
 
-		logPath := filepath.Join(home, "alex-debug.log")
+		logPath := filepath.Join(home, logFileName(category))
 		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			log.Printf("Failed to open log file: %v", err)
@@ -85,6 +120,15 @@ func newLogger(component string, level LogLevel, enableFile bool) *Logger {
 	}
 
 	return l
+}
+
+func logFileName(category LogCategory) string {
+	switch category {
+	case LogCategoryLLM:
+		return "alex-llm.log"
+	default:
+		return "alex-service.log"
+	}
 }
 
 // SetLevel sets the minimum log level
@@ -129,8 +173,12 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	}
 
 	message := fmt.Sprintf(format, args...)
-	logLine := fmt.Sprintf("%s [%s] [%s] %s:%d - %s\n",
-		timestamp, levelStr, component, file, line, message)
+	category := strings.ToUpper(string(l.category))
+	if category == "" {
+		category = "SERVICE"
+	}
+	logLine := fmt.Sprintf("%s [%s] [%s] [%s] %s:%d - %s\n",
+		timestamp, levelStr, category, component, file, line, message)
 
 	sanitizedLine := sanitizeLogLine(logLine)
 

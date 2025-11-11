@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	id "alex/internal/utils/id"
 )
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
@@ -167,7 +168,7 @@ func (e *ReactEngine) SolveTask(
 		// Add system prompt first if available
 		if state.SystemPrompt != "" {
 			state.Messages = []Message{
-				{Role: "system", Content: state.SystemPrompt},
+				{Role: "system", Content: state.SystemPrompt, Source: ports.MessageSourceSystemPrompt},
 			}
 			e.logger.Debug("Initialized state with system prompt")
 		}
@@ -177,6 +178,7 @@ func (e *ReactEngine) SolveTask(
 	userMessage := Message{
 		Role:    "user",
 		Content: task,
+		Source:  ports.MessageSourceUserInput,
 	}
 	if len(state.PendingUserAttachments) > 0 {
 		attachments := make(map[string]ports.Attachment, len(state.PendingUserAttachments))
@@ -380,6 +382,7 @@ func (e *ReactEngine) SolveTask(
 		state.Messages = append(state.Messages, Message{
 			Role:    "user",
 			Content: "Please provide your final answer to the user's question now.",
+			Source:  ports.MessageSourceSystemPrompt,
 		})
 
 		// One final LLM call for answer
@@ -418,36 +421,63 @@ func (e *ReactEngine) think(
 ) (Message, error) {
 	// Convert state to LLM request
 	tools := services.ToolExecutor.List()
-	e.logger.Debug("Preparing LLM request: messages=%d, tools=%d", len(state.Messages), len(tools))
+	requestID := id.NewRequestID()
+	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
+
+	e.logger.Debug(
+		"Preparing LLM request (request_id=%s): messages=%d (filtered=%d, excluded=%d), tools=%d",
+		requestID,
+		len(state.Messages),
+		len(filteredMessages),
+		len(excluded),
+		len(tools),
+	)
 
 	req := ports.CompletionRequest{
-		Messages:    state.Messages,
+		Messages:    filteredMessages,
 		Tools:       tools,
 		Temperature: e.completion.temperature,
 		MaxTokens:   e.completion.maxTokens,
 		TopP:        e.completion.topP,
+		Metadata: map[string]any{
+			"request_id": requestID,
+		},
 	}
 
 	if len(e.completion.stopSequences) > 0 {
 		req.StopSequences = append([]string(nil), e.completion.stopSequences...)
 	}
 
+	snapshot := NewContextSnapshotEvent(
+		e.getAgentLevel(ctx),
+		state.SessionID,
+		state.TaskID,
+		state.ParentTaskID,
+		state.Iterations,
+		requestID,
+		filteredMessages,
+		excluded,
+		e.clock.Now(),
+	)
+	e.emitEvent(snapshot)
+
 	// Call LLM
-	e.logger.Debug("Calling LLM...")
+	e.logger.Debug("Calling LLM (request_id=%s)...", requestID)
 	resp, err := services.LLM.Complete(ctx, req)
 	if err != nil {
-		e.logger.Error("LLM call failed: %v", err)
+		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
 	}
 
-	e.logger.Debug("LLM response received: content=%d bytes, tool_calls=%d",
-		len(resp.Content), len(resp.ToolCalls))
+	e.logger.Debug("LLM response received (request_id=%s): content=%d bytes, tool_calls=%d",
+		requestID, len(resp.Content), len(resp.ToolCalls))
 
 	// Convert response to domain message
 	return Message{
 		Role:      "assistant",
 		Content:   resp.Content,
 		ToolCalls: resp.ToolCalls,
+		Source:    ports.MessageSourceAssistantReply,
 	}, nil
 }
 
@@ -651,6 +681,7 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 			Content:     content,
 			ToolCallID:  result.CallID,
 			ToolResults: []ToolResult{result},
+			Source:      ports.MessageSourceToolResult,
 		}
 
 		msg.Attachments = normalizeToolAttachments(result.Attachments)
@@ -741,6 +772,74 @@ func normalizeToolAttachments(attachments map[string]ports.Attachment) map[strin
 		return nil
 	}
 	return normalized
+}
+
+func splitMessagesForLLM(messages []Message) ([]Message, []Message) {
+	if len(messages) == 0 {
+		return nil, nil
+	}
+	filtered := make([]Message, 0, len(messages))
+	excluded := make([]Message, 0)
+	for _, msg := range messages {
+		cloned := cloneMessageForLLM(msg)
+		switch msg.Source {
+		case ports.MessageSourceDebug, ports.MessageSourceEvaluation:
+			excluded = append(excluded, cloned)
+		default:
+			filtered = append(filtered, cloned)
+		}
+	}
+	return filtered, excluded
+}
+
+func cloneMessageForLLM(msg Message) Message {
+	cloned := msg
+	if len(msg.ToolCalls) > 0 {
+		cloned.ToolCalls = append([]ToolCall(nil), msg.ToolCalls...)
+	}
+	if len(msg.ToolResults) > 0 {
+		cloned.ToolResults = make([]ToolResult, len(msg.ToolResults))
+		for i, result := range msg.ToolResults {
+			cloned.ToolResults[i] = cloneToolResultForLLM(result)
+		}
+	}
+	if len(msg.Metadata) > 0 {
+		metadata := make(map[string]any, len(msg.Metadata))
+		for key, value := range msg.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(msg.Attachments) > 0 {
+		cloned.Attachments = cloneAttachmentMapForLLM(msg.Attachments)
+	}
+	return cloned
+}
+
+func cloneToolResultForLLM(result ToolResult) ToolResult {
+	cloned := result
+	if len(result.Metadata) > 0 {
+		metadata := make(map[string]any, len(result.Metadata))
+		for key, value := range result.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(result.Attachments) > 0 {
+		cloned.Attachments = cloneAttachmentMapForLLM(result.Attachments)
+	}
+	return cloned
+}
+
+func cloneAttachmentMapForLLM(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]ports.Attachment, len(values))
+	for key, att := range values {
+		cloned[key] = att
+	}
+	return cloned
 }
 
 func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {

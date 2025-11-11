@@ -40,6 +40,18 @@ type ServerCoordinator struct {
 	cancelMu    sync.RWMutex
 }
 
+// ContextSnapshotRecord captures a snapshot of the messages sent to the LLM.
+type ContextSnapshotRecord struct {
+	SessionID    string
+	TaskID       string
+	ParentTaskID string
+	RequestID    string
+	Iteration    int
+	Timestamp    time.Time
+	Messages     []ports.Message
+	Excluded     []ports.Message
+}
+
 // NewServerCoordinator creates a new server coordinator
 func NewServerCoordinator(
 	agentCoordinator AgentExecutor,
@@ -246,6 +258,38 @@ func (s *ServerCoordinator) emitUserTaskEvent(ctx context.Context, sessionID, ta
 	s.broadcaster.OnEvent(event)
 }
 
+// GetContextSnapshots retrieves context snapshots captured during LLM calls for a session.
+func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnapshotRecord {
+	if s.broadcaster == nil || sessionID == "" {
+		return nil
+	}
+
+	events := s.broadcaster.GetEventHistory(sessionID)
+	if len(events) == 0 {
+		return nil
+	}
+
+	snapshots := make([]ContextSnapshotRecord, 0)
+	for _, event := range events {
+		snapshot, ok := event.(*domain.ContextSnapshotEvent)
+		if !ok {
+			continue
+		}
+		record := ContextSnapshotRecord{
+			SessionID:    sessionID,
+			TaskID:       snapshot.GetTaskID(),
+			ParentTaskID: snapshot.GetParentTaskID(),
+			RequestID:    snapshot.RequestID,
+			Iteration:    snapshot.Iteration,
+			Timestamp:    snapshot.Timestamp(),
+			Messages:     cloneMessages(snapshot.Messages),
+			Excluded:     cloneMessages(snapshot.Excluded),
+		}
+		snapshots = append(snapshots, record)
+	}
+	return snapshots
+}
+
 // GetSession retrieves a session by ID
 func (s *ServerCoordinator) GetSession(ctx context.Context, id string) (*ports.Session, error) {
 	return s.sessionStore.Get(ctx, id)
@@ -343,4 +387,65 @@ func (s *ServerCoordinator) ForkSession(ctx context.Context, sessionID string) (
 	}
 
 	return newSession, nil
+}
+
+func cloneMessages(messages []ports.Message) []ports.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	cloned := make([]ports.Message, len(messages))
+	for i, msg := range messages {
+		cloned[i] = cloneMessage(msg)
+	}
+	return cloned
+}
+
+func cloneMessage(msg ports.Message) ports.Message {
+	cloned := msg
+	if len(msg.ToolCalls) > 0 {
+		cloned.ToolCalls = append([]ports.ToolCall(nil), msg.ToolCalls...)
+	}
+	if len(msg.ToolResults) > 0 {
+		cloned.ToolResults = make([]ports.ToolResult, len(msg.ToolResults))
+		for i, result := range msg.ToolResults {
+			cloned.ToolResults[i] = cloneToolResult(result)
+		}
+	}
+	if len(msg.Metadata) > 0 {
+		metadata := make(map[string]any, len(msg.Metadata))
+		for key, value := range msg.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(msg.Attachments) > 0 {
+		cloned.Attachments = cloneAttachmentsMap(msg.Attachments)
+	}
+	return cloned
+}
+
+func cloneToolResult(result ports.ToolResult) ports.ToolResult {
+	cloned := result
+	if len(result.Metadata) > 0 {
+		metadata := make(map[string]any, len(result.Metadata))
+		for key, value := range result.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(result.Attachments) > 0 {
+		cloned.Attachments = cloneAttachmentsMap(result.Attachments)
+	}
+	return cloned
+}
+
+func cloneAttachmentsMap(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]ports.Attachment, len(values))
+	for key, att := range values {
+		cloned[key] = att
+	}
+	return cloned
 }
