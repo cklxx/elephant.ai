@@ -535,7 +535,9 @@ function GenericOutput({
   const textSegments = segments.filter(
     (segment) => segment.type === 'text' && segment.text && segment.text.length > 0,
   );
-  const imageSegments = segments.filter((segment) => segment.type === 'image');
+  const mediaSegments = segments.filter(
+    (segment) => segment.type === 'image' || segment.type === 'video',
+  );
   return (
     <div
       className={cn(
@@ -546,9 +548,9 @@ function GenericOutput({
       {textSegments.map((segment, index) => (
         <span key={`text-segment-${index}`}>{segment.text}</span>
       ))}
-      {imageSegments.length > 0 && (
+      {mediaSegments.length > 0 && (
         <div className="grid gap-4">
-          {imageSegments.map((segment, index) => {
+          {mediaSegments.map((segment, index) => {
             if (!segment.attachment) {
               return null;
             }
@@ -556,9 +558,31 @@ function GenericOutput({
             if (!uri) {
               return null;
             }
+            const key = segment.placeholder || `${segment.type}-${index}`;
+            if (segment.type === 'video') {
+              return (
+                <div
+                  key={`generic-output-media-${key}`}
+                  className="overflow-hidden rounded-2xl bg-black"
+                >
+                  <video controls className="w-full" preload="metadata">
+                    <source
+                      src={uri}
+                      type={segment.attachment.media_type || 'video/mp4'}
+                    />
+                    Your browser does not support video playback.
+                  </video>
+                  {segment.attachment.description && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {segment.attachment.description}
+                    </p>
+                  )}
+                </div>
+              );
+            }
             return (
               <ImagePreview
-                key={`image-segment-${index}`}
+                key={`generic-output-media-${key}`}
                 src={uri}
                 alt={segment.attachment.description || segment.attachment.name}
                 minHeight={fullscreen ? "18rem" : "12rem"}

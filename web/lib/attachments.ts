@@ -4,7 +4,7 @@ const PLACEHOLDER_REGEX = /\[([^\[\]]+)\]/g;
 const IMAGE_MARKDOWN_REGEX = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
 
 export interface ContentSegment {
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'video';
   text?: string;
   placeholder?: string;
   attachment?: AttachmentPayload;
@@ -77,7 +77,16 @@ export function parseContentSegments(
     uri: buildAttachmentUri(attachment),
     description: attachment.description?.trim(),
     name: attachment.name?.trim() || key,
+    type: getAttachmentSegmentType(attachment),
   }));
+
+  const attachmentTypes = attachmentList.reduce<Record<string, ContentSegment['type']>>(
+    (acc, { key, type }) => {
+      acc[key] = type;
+      return acc;
+    },
+    {},
+  );
 
   if (normalizedContent.length > 0) {
     const tokens = tokenizeContent(normalizedContent);
@@ -87,7 +96,7 @@ export function parseContentSegments(
         if (matchedKey && normalizedAttachments[matchedKey]) {
           usedAttachments.add(matchedKey);
           segments.push({
-            type: 'image',
+            type: attachmentTypes[matchedKey] ?? 'image',
             placeholder: `[${matchedKey}]`,
             attachment: normalizedAttachments[matchedKey],
           });
@@ -100,6 +109,7 @@ export function parseContentSegments(
       const textSegments = extractPlaceholderSegments(
         token.value,
         normalizedAttachments,
+        attachmentTypes,
         usedAttachments,
       );
       if (textSegments.length === 0) {
@@ -117,12 +127,12 @@ export function parseContentSegments(
   }
 
   if (attachmentList.length > 0) {
-    attachmentList.forEach(({ key, attachment }) => {
+    attachmentList.forEach(({ key, attachment, type }) => {
       if (usedAttachments.has(key)) {
         return;
       }
       segments.push({
-        type: 'image',
+        type: type ?? 'image',
         placeholder: `[${key}]`,
         attachment,
       });
@@ -178,6 +188,7 @@ function tokenizeContent(content: string): ContentToken[] {
 function extractPlaceholderSegments(
   text: string,
   attachments: Record<string, AttachmentPayload>,
+  attachmentTypes: Record<string, ContentSegment['type']>,
   usedAttachments: Set<string>,
 ): ContentSegment[] {
   if (!text) {
@@ -205,7 +216,7 @@ function extractPlaceholderSegments(
     if (attachment) {
       usedAttachments.add(name);
       segments.push({
-        type: 'image',
+        type: attachmentTypes[name] ?? 'image',
         placeholder: match[0],
         attachment,
       });
@@ -226,12 +237,23 @@ function extractPlaceholderSegments(
   return segments;
 }
 
+function getAttachmentSegmentType(
+  attachment: AttachmentPayload,
+): ContentSegment['type'] {
+  const mediaType = attachment.media_type?.toLowerCase() ?? '';
+  if (mediaType.startsWith('video/')) {
+    return 'video';
+  }
+  return 'image';
+}
+
 interface AttachmentDetail {
   key: string;
   attachment: AttachmentPayload;
   uri: string | null;
   description?: string;
   name?: string;
+  type: ContentSegment['type'];
 }
 
 function findAttachmentKeyFromMarkdown(

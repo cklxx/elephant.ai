@@ -56,6 +56,7 @@ type Config struct {
 	SeedreamTextModel       string
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
+	SeedreamVideoModel      string
 	SandboxBaseURL          string
 	MaxTokens               int
 	MaxIterations           int
@@ -185,6 +186,7 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamTextModel:       config.SeedreamTextModel,
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
+		SeedreamVideoModel:      config.SeedreamVideoModel,
 		ExecutionMode:           executionMode,
 		SandboxManager:          sandboxManager,
 	})
@@ -216,6 +218,7 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamTextModel:       config.SeedreamTextModel,
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
+		SeedreamVideoModel:      config.SeedreamVideoModel,
 		SandboxBaseURL:          sandboxBaseURL,
 		Environment:             config.Environment,
 		Verbose:                 config.Verbose,

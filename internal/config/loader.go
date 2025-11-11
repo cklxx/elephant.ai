@@ -29,6 +29,7 @@ const (
 	DefaultSeedreamTextModel   = "doubao-seedream-3-0-t2i-250415"
 	DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
 	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
+	DefaultSeedreamVideoModel  = "doubao-seedance-1-0-pro-250528"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -44,6 +45,7 @@ type RuntimeConfig struct {
 	SeedreamTextModel       string
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
+	SeedreamVideoModel      string
 	SandboxBaseURL          string
 	Environment             string
 	Verbose                 bool
@@ -97,6 +99,7 @@ type Overrides struct {
 	SeedreamTextModel       *string
 	SeedreamImageModel      *string
 	SeedreamVisionModel     *string
+	SeedreamVideoModel      *string
 	SandboxBaseURL          *string
 	Environment             *string
 	Verbose                 *bool
@@ -209,6 +212,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
 		SeedreamVisionModel: DefaultSeedreamVisionModel,
+		SeedreamVideoModel:  DefaultSeedreamVideoModel,
 		Environment:         "development",
 		FollowTranscript:    true,
 		FollowStream:        true,
@@ -261,6 +265,7 @@ type fileConfig struct {
 	SeedreamTextModel       string                 `json:"seedreamTextModel"`
 	SeedreamImageModel      string                 `json:"seedreamImageModel"`
 	SeedreamVisionModel     string                 `json:"seedreamVisionModel"`
+	SeedreamVideoModel      string                 `json:"seedreamVideoModel"`
 	SandboxBaseURL          string                 `json:"sandbox_base_url"`
 	Environment             string                 `json:"environment"`
 	Verbose                 *bool                  `json:"verbose"`
@@ -357,6 +362,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.SeedreamVisionModel != "" {
 		cfg.SeedreamVisionModel = parsed.SeedreamVisionModel
 		meta.sources["seedream_vision_model"] = SourceFile
+	}
+	if parsed.SeedreamVideoModel != "" {
+		cfg.SeedreamVideoModel = parsed.SeedreamVideoModel
+		meta.sources["seedream_video_model"] = SourceFile
 	}
 	if parsed.Environment != "" {
 		cfg.Environment = parsed.Environment
@@ -515,6 +524,13 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	} else if value, ok := lookup("ALEX_SEEDREAM_VISION_MODEL"); ok && value != "" {
 		cfg.SeedreamVisionModel = value
 		meta.sources["seedream_vision_model"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_VIDEO_MODEL"); ok && value != "" {
+		cfg.SeedreamVideoModel = value
+		meta.sources["seedream_video_model"] = SourceEnv
+	} else if value, ok := lookup("ALEX_SEEDREAM_VIDEO_MODEL"); ok && value != "" {
+		cfg.SeedreamVideoModel = value
+		meta.sources["seedream_video_model"] = SourceEnv
 	}
 	if value, ok := lookup("AGENT_PRESET"); ok && value != "" {
 		cfg.AgentPreset = value
@@ -693,6 +709,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.SeedreamVisionModel != nil {
 		cfg.SeedreamVisionModel = *overrides.SeedreamVisionModel
 		meta.sources["seedream_vision_model"] = SourceOverride
+	}
+	if overrides.SeedreamVideoModel != nil {
+		cfg.SeedreamVideoModel = *overrides.SeedreamVideoModel
+		meta.sources["seedream_video_model"] = SourceOverride
 	}
 	if overrides.Environment != nil {
 		cfg.Environment = *overrides.Environment
