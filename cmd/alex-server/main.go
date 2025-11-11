@@ -7,11 +7,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"alex/internal/agent/domain"
+	agentdomain "alex/internal/agent/domain"
+	authAdapters "alex/internal/auth/adapters"
+	authapp "alex/internal/auth/app"
+	authdomain "alex/internal/auth/domain"
+	authports "alex/internal/auth/ports"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
@@ -28,6 +33,20 @@ type Config struct {
 	Port               string
 	EnableMCP          bool
 	EnvironmentSummary string
+	Auth               AuthConfig
+}
+
+// AuthConfig captures authentication-related environment configuration.
+type AuthConfig struct {
+	JWTSecret             string
+	AccessTokenTTLMinutes string
+	RefreshTokenTTLDays   string
+	StateTTLMinutes       string
+	RedirectBaseURL       string
+	GoogleClientID        string
+	GoogleAuthURL         string
+	WeChatAppID           string
+	WeChatAuthURL         string
 }
 
 func main() {
@@ -127,14 +146,14 @@ func main() {
 
 	// Broadcast environment diagnostics to all connected SSE clients.
 	unsubscribeEnv := diagnostics.SubscribeEnvironments(func(payload diagnostics.EnvironmentPayload) {
-		event := domain.NewEnvironmentSnapshotEvent(payload.Host, payload.Sandbox, payload.Captured)
+		event := agentdomain.NewEnvironmentSnapshotEvent(payload.Host, payload.Sandbox, payload.Captured)
 		broadcaster.OnEvent(event)
 	})
 	defer unsubscribeEnv()
 
 	// Broadcast sandbox initialization progress so the UI can surface long-running steps.
 	unsubscribeSandboxProgress := diagnostics.SubscribeSandboxProgress(func(payload diagnostics.SandboxProgressPayload) {
-		event := domain.NewSandboxProgressEvent(
+		event := agentdomain.NewSandboxProgressEvent(
 			string(payload.Status),
 			payload.Stage,
 			payload.Message,
@@ -166,8 +185,19 @@ func main() {
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	healthChecker.RegisterProbe(serverApp.NewSandboxProbe(container.SandboxManager))
 
+	authService, err := buildAuthService(config, logger)
+	if err != nil {
+		logger.Warn("Authentication disabled: %v", err)
+	}
+	var authHandler *serverHTTP.AuthHandler
+	if authService != nil {
+		secureCookies := strings.EqualFold(runtimeCfg.Environment, "production")
+		authHandler = serverHTTP.NewAuthHandler(authService, secureCookies)
+		logger.Info("Authentication module initialized")
+	}
+
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, runtimeCfg.Environment)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, runtimeCfg.Environment)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -299,5 +329,127 @@ func loadConfig() (Config, error) {
 	}
 	cfg.Runtime.SandboxBaseURL = sandboxBaseURL
 
+	authCfg := AuthConfig{}
+	if secret, ok := envLookup("AUTH_JWT_SECRET"); ok {
+		authCfg.JWTSecret = strings.TrimSpace(secret)
+	}
+	if ttl, ok := envLookup("AUTH_ACCESS_TOKEN_TTL_MINUTES"); ok {
+		authCfg.AccessTokenTTLMinutes = strings.TrimSpace(ttl)
+	}
+	if ttl, ok := envLookup("AUTH_REFRESH_TOKEN_TTL_DAYS"); ok {
+		authCfg.RefreshTokenTTLDays = strings.TrimSpace(ttl)
+	}
+	if ttl, ok := envLookup("AUTH_STATE_TTL_MINUTES"); ok {
+		authCfg.StateTTLMinutes = strings.TrimSpace(ttl)
+	}
+	if redirect, ok := envLookup("AUTH_REDIRECT_BASE_URL"); ok {
+		authCfg.RedirectBaseURL = strings.TrimSpace(redirect)
+	}
+	if clientID, ok := envLookup("GOOGLE_CLIENT_ID"); ok {
+		authCfg.GoogleClientID = strings.TrimSpace(clientID)
+	}
+	if authURL, ok := envLookup("GOOGLE_AUTH_URL"); ok {
+		authCfg.GoogleAuthURL = strings.TrimSpace(authURL)
+	}
+	if appID, ok := envLookup("WECHAT_APP_ID"); ok {
+		authCfg.WeChatAppID = strings.TrimSpace(appID)
+	}
+	if authURL, ok := envLookup("WECHAT_AUTH_URL"); ok {
+		authCfg.WeChatAuthURL = strings.TrimSpace(authURL)
+	}
+	cfg.Auth = authCfg
+
 	return cfg, nil
+}
+
+func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, error) {
+	runtimeCfg := cfg.Runtime
+	authCfg := cfg.Auth
+
+	secret := strings.TrimSpace(authCfg.JWTSecret)
+	if secret == "" {
+		return nil, fmt.Errorf("AUTH_JWT_SECRET not configured")
+	}
+
+	accessTTL := 15 * time.Minute
+	if minutes := strings.TrimSpace(authCfg.AccessTokenTTLMinutes); minutes != "" {
+		if v, err := strconv.Atoi(minutes); err == nil && v > 0 {
+			accessTTL = time.Duration(v) * time.Minute
+		} else if err != nil {
+			logger.Warn("Invalid AUTH_ACCESS_TOKEN_TTL_MINUTES value: %v", err)
+		}
+	}
+
+	refreshTTL := 30 * 24 * time.Hour
+	if days := strings.TrimSpace(authCfg.RefreshTokenTTLDays); days != "" {
+		if v, err := strconv.Atoi(days); err == nil && v > 0 {
+			refreshTTL = time.Duration(v) * 24 * time.Hour
+		} else if err != nil {
+			logger.Warn("Invalid AUTH_REFRESH_TOKEN_TTL_DAYS value: %v", err)
+		}
+	}
+
+	stateTTL := 10 * time.Minute
+	if minutes := strings.TrimSpace(authCfg.StateTTLMinutes); minutes != "" {
+		if v, err := strconv.Atoi(minutes); err == nil && v > 0 {
+			stateTTL = time.Duration(v) * time.Minute
+		} else if err != nil {
+			logger.Warn("Invalid AUTH_STATE_TTL_MINUTES value: %v", err)
+		}
+	}
+
+	users, identities, sessions, states := authAdapters.NewMemoryStores()
+	tokenManager := authAdapters.NewJWTTokenManager(secret, "alex-server", accessTTL)
+	sessions.SetVerifier(func(plain, encoded string) (bool, error) {
+		return tokenManager.VerifyRefreshToken(plain, encoded)
+	})
+
+	redirectBase := strings.TrimSpace(authCfg.RedirectBaseURL)
+	if redirectBase == "" {
+		port := strings.TrimPrefix(cfg.Port, ":")
+		redirectBase = fmt.Sprintf("http://localhost:%s", port)
+	}
+	if !strings.HasPrefix(redirectBase, "http://") && !strings.HasPrefix(redirectBase, "https://") {
+		redirectBase = "https://" + redirectBase
+	}
+	trimmedBase := strings.TrimRight(redirectBase, "/")
+
+	googleAuthURL := strings.TrimSpace(authCfg.GoogleAuthURL)
+	if googleAuthURL == "" {
+		googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
+	}
+	wechatAuthURL := strings.TrimSpace(authCfg.WeChatAuthURL)
+	if wechatAuthURL == "" {
+		wechatAuthURL = "https://open.weixin.qq.com/connect/qrconnect"
+	}
+
+	providers := []authports.OAuthProvider{}
+	if clientID := strings.TrimSpace(authCfg.GoogleClientID); clientID != "" {
+		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
+			Provider:     authdomain.ProviderGoogle,
+			ClientID:     clientID,
+			AuthURL:      googleAuthURL,
+			RedirectURL:  trimmedBase + "/api/auth/google/callback",
+			DefaultScope: []string{"openid", "email", "profile"},
+		}))
+	}
+	if appID := strings.TrimSpace(authCfg.WeChatAppID); appID != "" {
+		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
+			Provider:     authdomain.ProviderWeChat,
+			ClientID:     appID,
+			AuthURL:      wechatAuthURL,
+			RedirectURL:  trimmedBase + "/api/auth/wechat/callback",
+			DefaultScope: []string{"snsapi_login"},
+		}))
+	}
+
+	service := authapp.NewService(users, identities, sessions, tokenManager, states, providers, authapp.Config{
+		AccessTokenTTL:        accessTTL,
+		RefreshTokenTTL:       refreshTTL,
+		StateTTL:              stateTTL,
+		RedirectBaseURL:       trimmedBase,
+		SecureCookies:         strings.EqualFold(runtimeCfg.Environment, "production"),
+		AllowedCallbackDomain: runtimeCfg.Environment,
+	})
+	return service, nil
 }
