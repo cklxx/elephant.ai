@@ -130,8 +130,14 @@ export function ConversationPageContent() {
 
       cancelTask(taskId, {
         onSuccess: () => {
-          setActiveTaskId(null);
-          setCancelRequested(false);
+          const currentActiveTaskId = activeTaskIdRef.current;
+
+          if (!currentActiveTaskId || currentActiveTaskId === taskId) {
+            setActiveTaskId((prevActiveTaskId) =>
+              prevActiveTaskId === taskId ? null : prevActiveTaskId
+            );
+            setCancelRequested(false);
+          }
           toast.success(
             t('console.toast.taskCancelRequested.title'),
             t('console.toast.taskCancelRequested.description')

@@ -52,8 +52,14 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       cancelIntentRef.current = false;
       cancelTask(taskId, {
         onSuccess: () => {
-          setActiveTaskId(null);
-          setCancelRequested(false);
+          const currentActiveTaskId = activeTaskIdRef.current;
+
+          if (!currentActiveTaskId || currentActiveTaskId === taskId) {
+            setActiveTaskId((prevActiveTaskId) =>
+              prevActiveTaskId === taskId ? null : prevActiveTaskId
+            );
+            setCancelRequested(false);
+          }
           toast.success(
             t('sessions.details.toast.taskCancelRequested.title'),
             t('sessions.details.toast.taskCancelRequested.description')
