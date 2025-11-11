@@ -15,6 +15,7 @@ import { TaskCompleteCard } from "../TaskCompleteCard";
 import { cn } from "@/lib/utils";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
+import { VideoPreview } from "@/components/ui/video-preview";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -57,23 +58,15 @@ export const EventLine = React.memo(function EventLine({
               const key = segment.placeholder || `${segment.type}-${index}`;
               if (segment.type === "video") {
                 return (
-                  <div
+                  <VideoPreview
                     key={`task-media-${key}`}
-                    className="mt-3 overflow-hidden rounded-2xl bg-black"
-                  >
-                    <video controls className="w-full" preload="metadata">
-                      <source
-                        src={uri}
-                        type={segment.attachment.media_type || "video/mp4"}
-                      />
-                      Your browser does not support video playback.
-                    </video>
-                    {segment.attachment.description && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        {segment.attachment.description}
-                      </p>
-                    )}
-                  </div>
+                    src={uri}
+                    mimeType={segment.attachment.media_type || "video/mp4"}
+                    description={segment.attachment.description}
+                    className="mt-3"
+                    minHeight="12rem"
+                    maxHeight="20rem"
+                  />
                 );
               }
               return (

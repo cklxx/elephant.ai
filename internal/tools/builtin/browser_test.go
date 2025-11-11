@@ -93,6 +93,47 @@ func TestBrowserExecuteSuccess(t *testing.T) {
 		t.Errorf("expected unique identifier in HTML content, got: %q", result.Content)
 	}
 
+	if len(result.Attachments) != 2 {
+		t.Fatalf("expected screenshot and HTML attachments, got %d", len(result.Attachments))
+	}
+
+	var (
+		screenshotAttachment *ports.Attachment
+		htmlAttachment       *ports.Attachment
+	)
+	for name, att := range result.Attachments {
+		switch {
+		case strings.HasSuffix(name, ".png"):
+			copy := att
+			screenshotAttachment = &copy
+		case strings.HasSuffix(name, ".html"):
+			copy := att
+			htmlAttachment = &copy
+		}
+	}
+	if screenshotAttachment == nil {
+		t.Fatalf("expected PNG attachment in result: %+v", result.Attachments)
+	}
+	if screenshotAttachment.MediaType != "image/png" {
+		t.Fatalf("expected screenshot media type image/png, got %q", screenshotAttachment.MediaType)
+	}
+	if screenshotAttachment.URI != meta["screenshot"] {
+		t.Fatalf("expected screenshot attachment URI to match metadata, got %q vs %q", screenshotAttachment.URI, meta["screenshot"])
+	}
+	if screenshotAttachment.Data == "" {
+		t.Fatalf("expected screenshot attachment to include base64 payload")
+	}
+
+	if htmlAttachment == nil {
+		t.Fatalf("expected HTML attachment in result: %+v", result.Attachments)
+	}
+	if htmlAttachment.MediaType != "text/html" {
+		t.Fatalf("expected HTML media type, got %q", htmlAttachment.MediaType)
+	}
+	if htmlAttachment.Data == "" || !strings.HasPrefix(htmlAttachment.URI, "data:text/html;base64,") {
+		t.Fatalf("expected HTML attachment data URI, got %+v", htmlAttachment)
+	}
+
 	if stub.shellExecCalls == 0 {
 		t.Errorf("expected sandbox shell exec to be invoked")
 	}

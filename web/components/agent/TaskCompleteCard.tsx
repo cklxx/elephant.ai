@@ -6,6 +6,7 @@ import { useTranslation } from "@/lib/i18n";
 import { MarkdownRenderer } from "@/components/ui/markdown";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
+import { VideoPreview } from "@/components/ui/video-preview";
 
 interface StopReasonCopy {
   title: string;
@@ -140,23 +141,15 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               const key = segment.placeholder || `${segment.type}-${index}`;
               if (segment.type === "video") {
                 return (
-                  <div
+                  <VideoPreview
                     key={`task-complete-media-${key}`}
-                    className="overflow-hidden rounded-2xl bg-black"
-                  >
-                    <video controls className="w-full" preload="metadata">
-                      <source
-                        src={uri}
-                        type={segment.attachment.media_type || "video/mp4"}
-                      />
-                      Your browser does not support video playback.
-                    </video>
-                    {segment.attachment.description && (
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        {segment.attachment.description}
-                      </p>
-                    )}
-                  </div>
+                    src={uri}
+                    mimeType={segment.attachment.media_type || "video/mp4"}
+                    description={segment.attachment.description}
+                    className="w-full sm:w-[220px] lg:w-[260px]"
+                    minHeight="12rem"
+                    maxHeight="20rem"
+                  />
                 );
               }
               return (

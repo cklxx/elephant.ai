@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -308,10 +309,13 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 				"analysis": analysis,
 			}
 
+			attachments := t.buildContentAttachments(url, content)
+
 			return &ports.ToolResult{
-				CallID:   callID,
-				Content:  output,
-				Metadata: metadata,
+				CallID:      callID,
+				Content:     output,
+				Metadata:    metadata,
+				Attachments: attachments,
 			}, nil
 		}
 	}
@@ -333,10 +337,13 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 		"content": content,
 	}
 
+	attachments := t.buildContentAttachments(url, content)
+
 	return &ports.ToolResult{
-		CallID:   callID,
-		Content:  output,
-		Metadata: metadata,
+		CallID:      callID,
+		Content:     output,
+		Metadata:    metadata,
+		Attachments: attachments,
 	}, nil
 }
 
@@ -378,6 +385,47 @@ func cacheStatus(cached bool) string {
 		return " (cached)"
 	}
 	return ""
+}
+
+func (t *webFetch) buildContentAttachments(url, content string) map[string]ports.Attachment {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return nil
+	}
+
+	name := fmt.Sprintf("web_%s_%s.md", sanitizeHostSegment(t.getHost(url)), time.Now().UTC().Format("20060102T150405"))
+	encoded := base64.StdEncoding.EncodeToString([]byte(trimmed))
+
+	return map[string]ports.Attachment{
+		name: {
+			Name:        name,
+			MediaType:   "text/markdown",
+			Data:        encoded,
+			URI:         fmt.Sprintf("data:text/markdown;base64,%s", encoded),
+			Source:      "web_fetch",
+			Description: fmt.Sprintf("Cleaned content captured from %s", url),
+		},
+	}
+}
+
+func sanitizeHostSegment(host string) string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return "page"
+	}
+	var builder strings.Builder
+	for _, r := range host {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			builder.WriteRune(r)
+		} else {
+			builder.WriteRune('_')
+		}
+	}
+	sanitized := strings.Trim(builder.String(), "_")
+	if sanitized == "" {
+		return "page"
+	}
+	return sanitized
 }
 
 // Cache implementation

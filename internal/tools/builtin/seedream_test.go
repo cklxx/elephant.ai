@@ -1,8 +1,12 @@
 package builtin
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -104,6 +108,34 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 	}
 	if att.Description != descriptor {
 		t.Fatalf("expected attachment description to fall back to descriptor, got %q", att.Description)
+	}
+}
+
+func TestFormatSeedreamResponsePopulatesAttachmentURIFromBase64(t *testing.T) {
+	stubSeedreamNonce(t, "nonce")
+
+	resp := &arkm.ImagesResponse{
+		Model:   "seedream",
+		Created: 789,
+		Data: []*arkm.Image{
+			{
+				B64Json: volcengine.String("YWJjMTIz"),
+				Size:    "256x256",
+			},
+		},
+	}
+
+	_, _, attachments := formatSeedreamResponse(resp, "descriptor", "prompt")
+	placeholder := "seedream_nonce_0.png"
+	att, ok := attachments[placeholder]
+	if !ok {
+		t.Fatalf("expected attachment %q to exist", placeholder)
+	}
+	if att.URI == "" {
+		t.Fatalf("expected attachment URI to be populated for %q", placeholder)
+	}
+	if !strings.HasPrefix(att.URI, "data:image/png;base64,") {
+		t.Fatalf("expected attachment URI to be data URI, got %q", att.URI)
 	}
 }
 
@@ -337,6 +369,78 @@ func TestFormatSeedreamVideoResponseCreatesAttachments(t *testing.T) {
 	}
 	if capabilities["stitching"] != "planned" {
 		t.Fatalf("expected capabilities metadata to mention stitching")
+	}
+}
+
+func TestSeedreamVideoToolEmbedRemoteAttachmentDataInlinesVideo(t *testing.T) {
+	payload := bytes.Repeat([]byte{0x01, 0x02, 0x03, 0x04}, 512)
+
+	tool := &seedreamVideoTool{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewReader(payload)),
+				}
+				resp.Header.Set("Content-Type", "video/mp4")
+				return resp, nil
+			}),
+		},
+	}
+	attachments := map[string]ports.Attachment{
+		"demo.mp4": {
+			Name:      "demo.mp4",
+			MediaType: "video/mp4",
+			URI:       "https://example.com/demo.mp4",
+		},
+	}
+
+	tool.embedRemoteAttachmentData(context.Background(), attachments)
+
+	att := attachments["demo.mp4"]
+	if att.Data == "" {
+		t.Fatalf("expected video attachment to include inline data")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(att.Data)
+	if err != nil {
+		t.Fatalf("failed to decode attachment data: %v", err)
+	}
+	if !bytes.Equal(decoded, payload) {
+		t.Fatalf("expected attachment payload to match source bytes")
+	}
+	if att.MediaType != "video/mp4" {
+		t.Fatalf("expected media type to remain video/mp4, got %s", att.MediaType)
+	}
+}
+
+func TestSeedreamVideoToolEmbedRemoteAttachmentDataSkipsLargeAssets(t *testing.T) {
+	payload := bytes.Repeat([]byte{0xff}, int(seedreamMaxInlineVideoBytes)+16)
+	tool := &seedreamVideoTool{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewReader(payload)),
+				}
+				resp.Header.Set("Content-Type", "video/mp4")
+				return resp, nil
+			}),
+		},
+	}
+	attachments := map[string]ports.Attachment{
+		"large.mp4": {
+			Name:      "large.mp4",
+			MediaType: "video/mp4",
+			URI:       "https://example.com/large.mp4",
+		},
+	}
+
+	tool.embedRemoteAttachmentData(context.Background(), attachments)
+
+	if attachments["large.mp4"].Data != "" {
+		t.Fatalf("expected large asset to skip inlining due to size limit")
 	}
 }
 

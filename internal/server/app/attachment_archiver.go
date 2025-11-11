@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"path"
@@ -49,6 +51,7 @@ type sandboxAttachmentArchiver struct {
 	baseDir     string
 	logger      *utils.Logger
 	ensuredDirs sync.Map
+	digestCache sync.Map
 }
 
 func (a *sandboxAttachmentArchiver) Persist(ctx context.Context, sessionID string, attachments map[string]ports.Attachment) {
@@ -89,6 +92,8 @@ func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, a
 		return
 	}
 
+	cache := a.getSessionCache(session)
+
 	for key, attachment := range attachments {
 		if strings.EqualFold(strings.TrimSpace(attachment.Source), "user_upload") {
 			continue
@@ -100,10 +105,17 @@ func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, a
 			continue
 		}
 
+		digest := digestAttachment(payload)
+		if existing, ok := cache.HasDigest(digest); ok {
+			a.logger.Debug("Skipping duplicate attachment %s; already stored as %s", key, existing)
+			continue
+		}
+
 		filename := sanitizeFileName(key, attachment.Name, mediaType)
 		if filename == "" {
-			filename = fmt.Sprintf("attachment_%d.bin", time.Now().UnixNano())
+			filename = defaultAttachmentFilename(mediaType)
 		}
+		filename = cache.Reserve(filename)
 
 		writeCtx, cancel := context.WithTimeout(context.Background(), maxArchiveDuration)
 		_, err = fileClient.WriteFile(writeCtx, &api.FileWriteRequest{
@@ -116,11 +128,32 @@ func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, a
 		})
 		cancel()
 		if err != nil {
+			cache.Release(filename)
 			a.logger.Warn("Failed to write attachment %s/%s: %v", session, filename, err)
 			continue
 		}
+		cache.Remember(digest, filename)
 		a.logger.Debug("Archived attachment %s for session %s", filename, session)
 	}
+}
+
+func digestAttachment(payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
+}
+
+func defaultAttachmentFilename(mediaType string) string {
+	ext := inferExtension(mediaType)
+	if ext == "" {
+		ext = "bin"
+	}
+	return fmt.Sprintf("attachment_%d.%s", time.Now().UnixNano(), ext)
+}
+
+func (a *sandboxAttachmentArchiver) getSessionCache(session string) *attachmentCache {
+	value, _ := a.digestCache.LoadOrStore(session, &attachmentCache{})
+	cache, _ := value.(*attachmentCache)
+	return cache
 }
 
 func (a *sandboxAttachmentArchiver) ensureDirectory(ctx context.Context, dir string) error {
@@ -283,6 +316,10 @@ func inferExtension(mediaType string) string {
 		return "gif"
 	case "text/plain":
 		return "txt"
+	case "text/html":
+		return "html"
+	case "text/markdown":
+		return "md"
 	case "application/pdf":
 		return "pdf"
 	default:
@@ -306,4 +343,83 @@ func shellQuote(value string) string {
 		return fmt.Sprintf("'%s'", value)
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+type attachmentCache struct {
+	mu        sync.Mutex
+	digests   map[string]string
+	filenames map[string]struct{}
+}
+
+func (c *attachmentCache) HasDigest(hash string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.digests == nil {
+		return "", false
+	}
+	filename, ok := c.digests[hash]
+	return filename, ok
+}
+
+func (c *attachmentCache) Remember(hash, filename string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.digests == nil {
+		c.digests = make(map[string]string)
+	}
+	c.digests[hash] = filename
+	if c.filenames == nil {
+		c.filenames = make(map[string]struct{})
+	}
+	c.filenames[filename] = struct{}{}
+}
+
+func (c *attachmentCache) Reserve(preferred string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.filenames == nil {
+		c.filenames = make(map[string]struct{})
+	}
+
+	base, ext := splitPreferredFilename(preferred)
+	candidate := preferred
+	if candidate == "" {
+		candidate = base + ext
+	}
+
+	counter := 1
+	for {
+		if candidate == "" {
+			candidate = fmt.Sprintf("attachment_%d%s", time.Now().UnixNano(), ext)
+		}
+		if _, exists := c.filenames[candidate]; !exists {
+			c.filenames[candidate] = struct{}{}
+			return candidate
+		}
+		candidate = fmt.Sprintf("%s_%d%s", base, counter, ext)
+		counter++
+	}
+}
+
+func (c *attachmentCache) Release(filename string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.filenames != nil {
+		delete(c.filenames, filename)
+	}
+}
+
+func splitPreferredFilename(preferred string) (string, string) {
+	if strings.TrimSpace(preferred) == "" {
+		return "attachment", ".bin"
+	}
+	ext := path.Ext(preferred)
+	base := strings.TrimSuffix(preferred, ext)
+	if base == "" {
+		base = "attachment"
+	}
+	if ext == "" {
+		ext = ".bin"
+	}
+	return base, ext
 }

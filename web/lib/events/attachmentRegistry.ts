@@ -32,9 +32,11 @@ function normalizeAttachmentMap(
 
 class AttachmentRegistry {
   private store: AttachmentMap = {};
+  private displayedByTool = new Set<string>();
 
   clear() {
     this.store = {};
+    this.displayedByTool.clear();
   }
 
   private upsertMany(attachments?: AttachmentMap) {
@@ -45,6 +47,29 @@ class AttachmentRegistry {
     Object.entries(normalized).forEach(([key, attachment]) => {
       this.store[key] = attachment;
     });
+  }
+
+  private recordToolAttachments(attachments?: AttachmentMap) {
+    const normalized = normalizeAttachmentMap(attachments);
+    if (!normalized) {
+      return;
+    }
+    Object.keys(normalized).forEach((key) => this.displayedByTool.add(key));
+    this.upsertMany(normalized);
+  }
+
+  private filterUndisplayed(attachments?: AttachmentMap): AttachmentMap | undefined {
+    const normalized = normalizeAttachmentMap(attachments);
+    if (!normalized) {
+      return undefined;
+    }
+    const filteredEntries = Object.entries(normalized).filter(
+      ([key]) => !this.displayedByTool.has(key),
+    );
+    if (filteredEntries.length === 0) {
+      return undefined;
+    }
+    return Object.fromEntries(filteredEntries);
   }
 
   private resolveFromContent(content: string): AttachmentMap | undefined {
@@ -72,7 +97,7 @@ class AttachmentRegistry {
         this.upsertMany((event as UserTaskEvent).attachments);
         break;
       case "tool_call_complete":
-        this.upsertMany(
+        this.recordToolAttachments(
           (event as ToolCallCompleteEvent).attachments as
             | AttachmentMap
             | undefined,
@@ -80,7 +105,7 @@ class AttachmentRegistry {
         break;
       case "task_complete": {
         const taskEvent = event as TaskCompleteEvent;
-        const normalized = normalizeAttachmentMap(
+        const normalized = this.filterUndisplayed(
           taskEvent.attachments as AttachmentMap | undefined,
         );
         if (normalized) {
@@ -88,9 +113,12 @@ class AttachmentRegistry {
           this.upsertMany(normalized);
           break;
         }
-        const fallback = this.resolveFromContent(taskEvent.final_answer);
+        const fallback = this.filterUndisplayed(
+          this.resolveFromContent(taskEvent.final_answer),
+        );
         if (fallback) {
           taskEvent.attachments = fallback;
+          this.upsertMany(fallback);
         }
         break;
       }

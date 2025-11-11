@@ -71,3 +71,16 @@ func TestNewRegistrySandboxRegistersBrowserTools(t *testing.T) {
 		t.Fatalf("browser_info does not expose Mode accessor")
 	}
 }
+
+func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		ArkAPIKey:          "test",
+		SeedreamVideoModel: "",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+	if _, err := registry.Get("seedream_video_generate"); err != nil {
+		t.Fatalf("expected seedream_video_generate to be registered by default: %v", err)
+	}
+}

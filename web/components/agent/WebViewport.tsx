@@ -22,6 +22,7 @@ import { useTranslation } from '@/lib/i18n';
 import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
 import { AttachmentPayload } from '@/lib/types';
 import { ImagePreview } from '@/components/ui/image-preview';
+import { VideoPreview } from '@/components/ui/video-preview';
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -561,23 +562,14 @@ function GenericOutput({
             const key = segment.placeholder || `${segment.type}-${index}`;
             if (segment.type === 'video') {
               return (
-                <div
+                <VideoPreview
                   key={`generic-output-media-${key}`}
-                  className="overflow-hidden rounded-2xl bg-black"
-                >
-                  <video controls className="w-full" preload="metadata">
-                    <source
-                      src={uri}
-                      type={segment.attachment.media_type || 'video/mp4'}
-                    />
-                    Your browser does not support video playback.
-                  </video>
-                  {segment.attachment.description && (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      {segment.attachment.description}
-                    </p>
-                  )}
-                </div>
+                  src={uri}
+                  mimeType={segment.attachment.media_type || 'video/mp4'}
+                  description={segment.attachment.description}
+                  minHeight={fullscreen ? "18rem" : "12rem"}
+                  maxHeight={fullscreen ? "28rem" : "18rem"}
+                />
               );
             }
             return (

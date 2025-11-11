@@ -30,7 +30,7 @@ describe('attachmentRegistry', () => {
     resetAttachmentRegistry();
   });
 
-  it('hydrates task_complete events using previously captured attachments', () => {
+  it('does not duplicate attachments already shown via tool events', () => {
     const toolEvent: ToolCallCompleteEvent = {
       ...baseToolCallEvent(),
       attachments: {
@@ -49,11 +49,7 @@ describe('attachmentRegistry', () => {
     };
     handleAttachmentEvent(taskComplete);
 
-    expect(taskComplete.attachments).toBeDefined();
-    expect(taskComplete.attachments?.['generated.png']).toMatchObject({
-      media_type: 'image/png',
-      data: 'YmFzZTY0',
-    });
+    expect(taskComplete.attachments).toBeUndefined();
   });
 
   it('does not leak attachments after reset', () => {
@@ -77,5 +73,51 @@ describe('attachmentRegistry', () => {
     handleAttachmentEvent(taskComplete);
 
     expect(taskComplete.attachments).toBeUndefined();
+  });
+
+  it('retains task_complete attachments that were not previously displayed', () => {
+    const taskComplete: TaskCompleteEvent = {
+      ...baseTaskCompleteEvent(),
+      attachments: {
+        'fresh.png': {
+          name: 'fresh.png',
+          media_type: 'image/png',
+          data: 'ZGF0YQ==',
+        },
+      },
+    };
+
+    handleAttachmentEvent(taskComplete);
+    expect(taskComplete.attachments).toBeDefined();
+    expect(taskComplete.attachments?.['fresh.png']).toBeDefined();
+  });
+
+  it('hydrates task_complete events from registry when assets were not displayed', () => {
+    const userTask: UserTaskEvent = {
+      event_type: 'user_task',
+      agent_level: 'core',
+      timestamp: new Date().toISOString(),
+      session_id: 'sess-1',
+      task_id: 'task-1',
+      parent_task_id: undefined,
+      task: 'Describe attachment',
+      attachments: {
+        'analysis.png': {
+          name: 'analysis.png',
+          media_type: 'image/png',
+          data: 'YW5hbHlzaXM=',
+        },
+      },
+    };
+    handleAttachmentEvent(userTask);
+
+    const taskComplete: TaskCompleteEvent = {
+      ...baseTaskCompleteEvent(),
+      final_answer: 'See [analysis.png] for reference.',
+    };
+    handleAttachmentEvent(taskComplete);
+
+    expect(taskComplete.attachments).toBeDefined();
+    expect(taskComplete.attachments?.['analysis.png']).toBeDefined();
   });
 });
