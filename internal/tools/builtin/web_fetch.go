@@ -348,6 +348,7 @@ func (t *webFetch) analyzeLLM(ctx context.Context, content, prompt string) (stri
 				Role: "user",
 				Content: fmt.Sprintf("Based on this web page content:\n\n%s\n\n%s",
 					content, prompt),
+				Source: ports.MessageSourceSystemPrompt,
 			},
 		},
 		Temperature: 0.3,

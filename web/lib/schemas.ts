@@ -24,6 +24,47 @@ export const AttachmentPayloadSchema = z.object({
   description: z.string().optional(),
 });
 
+export const MessageSourceSchema = z.enum([
+  'system_prompt',
+  'user_input',
+  'assistant_reply',
+  'tool_result',
+  'debug',
+  'evaluation',
+]);
+
+export const ToolCallSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  arguments: z.record(z.string(), z.any()),
+  session_id: z.string().optional(),
+  task_id: z.string().optional(),
+  parent_task_id: z.string().optional(),
+});
+
+export const ToolResultSchema = z.object({
+  call_id: z.string(),
+  content: z.string(),
+  error: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  attachments: z
+    .record(z.string(), AttachmentPayloadSchema)
+    .optional(),
+});
+
+export const MessageSchema = z.object({
+  role: z.string(),
+  content: z.string(),
+  tool_calls: z.array(ToolCallSchema).optional(),
+  tool_results: z.array(ToolResultSchema).optional(),
+  tool_call_id: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  attachments: z
+    .record(z.string(), AttachmentPayloadSchema)
+    .optional(),
+  source: MessageSourceSchema.optional(),
+});
+
 // Task Analysis Event
 export const TaskAnalysisEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_analysis'),
@@ -194,6 +235,14 @@ export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
   tool_filter_ratio: z.number(),
 });
 
+export const ContextSnapshotEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('context_snapshot'),
+  iteration: z.number(),
+  request_id: z.string(),
+  messages: z.array(MessageSchema),
+  excluded_messages: z.array(MessageSchema).optional(),
+});
+
 // Connected Event
 export const ConnectedEventSchema = z.object({
   event_type: z.literal('connected'),
@@ -232,6 +281,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   SandboxProgressEventSchema,
   ContextCompressionEventSchema,
   ToolFilteringEventSchema,
+  ContextSnapshotEventSchema,
   ConnectedEventSchema,
   UserTaskEventSchema,
 ]);

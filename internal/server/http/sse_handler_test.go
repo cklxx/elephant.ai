@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/server/app"
 )
@@ -234,6 +236,106 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				t.Error("Expected session_id in JSON")
 			}
 		})
+	}
+}
+
+func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
+	handler := NewSSEHandler(nil)
+	now := time.Now()
+
+	messages := []agentports.Message{
+		{
+			Role:    "system",
+			Content: "You are a helpful assistant.",
+			Source:  agentports.MessageSourceSystemPrompt,
+		},
+		{
+			Role:       "tool",
+			Content:    "Tool output",
+			ToolCallID: "call-1",
+			ToolResults: []agentports.ToolResult{
+				{
+					CallID:  "call-1",
+					Content: "complete",
+				},
+			},
+			Source: agentports.MessageSourceToolResult,
+		},
+	}
+
+	excluded := []agentports.Message{
+		{
+			Role:    "system",
+			Content: "Debug trace",
+			Source:  agentports.MessageSourceDebug,
+		},
+	}
+
+	event := domain.NewContextSnapshotEvent(
+		types.LevelCore,
+		"session-123",
+		"task-456",
+		"parent-789",
+		2,
+		"req-abc",
+		messages,
+		excluded,
+		now,
+	)
+
+	payload, err := handler.serializeEvent(event)
+	if err != nil {
+		t.Fatalf("serializeEvent returned error: %v", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal([]byte(payload), &data); err != nil {
+		t.Fatalf("failed to decode payload: %v", err)
+	}
+
+	if got := data["iteration"]; got != float64(2) {
+		t.Fatalf("expected iteration 2, got %v", got)
+	}
+
+	if got := data["request_id"]; got != "req-abc" {
+		t.Fatalf("expected request_id 'req-abc', got %v", got)
+	}
+
+	rawMessages, ok := data["messages"].([]interface{})
+	if !ok {
+		t.Fatalf("messages field missing or wrong type: %T", data["messages"])
+	}
+	if len(rawMessages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(rawMessages))
+	}
+
+	first, ok := rawMessages[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("first message type mismatch: %T", rawMessages[0])
+	}
+	if first["source"] != string(agentports.MessageSourceSystemPrompt) {
+		t.Fatalf("expected first message source %q, got %v", agentports.MessageSourceSystemPrompt, first["source"])
+	}
+
+	second, ok := rawMessages[1].(map[string]interface{})
+	if !ok {
+		t.Fatalf("second message type mismatch: %T", rawMessages[1])
+	}
+	if _, ok := second["tool_results"].([]interface{}); !ok {
+		t.Fatalf("expected tool_results array on second message, got %T", second["tool_results"])
+	}
+
+	excludedRaw, ok := data["excluded_messages"].([]interface{})
+	if !ok || len(excludedRaw) != 1 {
+		t.Fatalf("expected 1 excluded message, got %v", data["excluded_messages"])
+	}
+
+	excludedMsg, ok := excludedRaw[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("excluded message type mismatch: %T", excludedRaw[0])
+	}
+	if excludedMsg["source"] != string(agentports.MessageSourceDebug) {
+		t.Fatalf("expected excluded message source %q, got %v", agentports.MessageSourceDebug, excludedMsg["source"])
 	}
 }
 

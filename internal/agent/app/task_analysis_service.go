@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	id "alex/internal/utils/id"
 )
 
 // TaskAnalysis contains the structured result of task pre-analysis.
@@ -53,10 +54,19 @@ Approach: [brief strategy]
 
 Keep each line under 80 characters. Be specific and actionable.`, task)
 
+	requestID := id.NewRequestID()
+
 	req := ports.CompletionRequest{
-		Messages:    []ports.Message{{Role: "user", Content: prompt}},
+		Messages: []ports.Message{{
+			Role:    "user",
+			Content: prompt,
+			Source:  ports.MessageSourceSystemPrompt,
+		}},
 		Temperature: 0.2,
 		MaxTokens:   150,
+		Metadata: map[string]any{
+			"request_id": requestID,
+		},
 	}
 
 	analyzeCtx, cancel := context.WithTimeout(ctx, s.timeout)
@@ -64,18 +74,18 @@ Keep each line under 80 characters. Be specific and actionable.`, task)
 
 	resp, err := llmClient.Complete(analyzeCtx, req)
 	if err != nil {
-		s.logger.Warn("Task pre-analysis failed: %v", err)
+		s.logger.Warn("Task pre-analysis failed (request_id=%s): %v", requestID, err)
 		return nil
 	}
 
 	if resp == nil || resp.Content == "" {
-		s.logger.Warn("Task pre-analysis returned empty response")
+		s.logger.Warn("Task pre-analysis returned empty response (request_id=%s)", requestID)
 		return nil
 	}
 
-	s.logger.Debug("Task pre-analysis LLM response: %s", resp.Content)
+	s.logger.Debug("Task pre-analysis LLM response (request_id=%s): %s", requestID, resp.Content)
 	analysis := parseTaskAnalysis(resp.Content)
-	s.logger.Debug("Task pre-analysis completed: action=%s, goal=%s", analysis.ActionName, analysis.Goal)
+	s.logger.Debug("Task pre-analysis completed (request_id=%s): action=%s, goal=%s", requestID, analysis.ActionName, analysis.Goal)
 	return analysis
 }
 

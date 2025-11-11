@@ -321,6 +321,18 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["filtered_count"] = e.FilteredCount
 		data["filtered_tools"] = e.FilteredTools
 		data["tool_filter_ratio"] = e.ToolFilterRatio
+
+	case *domain.ContextSnapshotEvent:
+		data["iteration"] = e.Iteration
+		data["request_id"] = e.RequestID
+		messages := serializeMessages(e.Messages)
+		if messages == nil {
+			messages = []map[string]any{}
+		}
+		data["messages"] = messages
+		if excluded := serializeMessages(e.Excluded); len(excluded) > 0 {
+			data["excluded_messages"] = excluded
+		}
 	}
 
 	// Marshal to JSON
@@ -413,4 +425,41 @@ func sanitizeMap(rv reflect.Value) map[string]interface{} {
 	}
 
 	return sanitized
+}
+
+func serializeMessages(messages []ports.Message) []map[string]any {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	serialized := make([]map[string]any, len(messages))
+	for i, msg := range messages {
+		entry := map[string]any{
+			"role":    msg.Role,
+			"content": msg.Content,
+		}
+
+		if len(msg.ToolCalls) > 0 {
+			entry["tool_calls"] = msg.ToolCalls
+		}
+		if len(msg.ToolResults) > 0 {
+			entry["tool_results"] = msg.ToolResults
+		}
+		if msg.ToolCallID != "" {
+			entry["tool_call_id"] = msg.ToolCallID
+		}
+		if len(msg.Metadata) > 0 {
+			entry["metadata"] = msg.Metadata
+		}
+		if len(msg.Attachments) > 0 {
+			entry["attachments"] = msg.Attachments
+		}
+		if msg.Source != ports.MessageSourceUnknown && msg.Source != "" {
+			entry["source"] = msg.Source
+		}
+
+		serialized[i] = entry
+	}
+
+	return serialized
 }

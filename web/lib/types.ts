@@ -78,6 +78,42 @@ export interface AttachmentUpload {
   description?: string;
 }
 
+export type MessageSource =
+  | 'system_prompt'
+  | 'user_input'
+  | 'assistant_reply'
+  | 'tool_result'
+  | 'debug'
+  | 'evaluation';
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, any>;
+  session_id?: string;
+  task_id?: string;
+  parent_task_id?: string;
+}
+
+export interface ToolResult {
+  call_id: string;
+  content: string;
+  error?: string;
+  metadata?: Record<string, any>;
+  attachments?: Record<string, AttachmentPayload>;
+}
+
+export interface Message {
+  role: string;
+  content: string;
+  tool_calls?: ToolCall[];
+  tool_results?: ToolResult[];
+  tool_call_id?: string;
+  metadata?: Record<string, any>;
+  attachments?: Record<string, AttachmentPayload>;
+  source?: MessageSource;
+}
+
 // Tool Call Complete Event - emitted when tool execution finishes
 export interface ToolCallCompleteEvent extends AgentEvent {
   event_type: 'tool_call_complete';
@@ -204,6 +240,14 @@ export interface ToolFilteringEvent extends AgentEvent {
   tool_filter_ratio: number;
 }
 
+export interface ContextSnapshotEvent extends AgentEvent {
+  event_type: 'context_snapshot';
+  iteration: number;
+  request_id: string;
+  messages: Message[];
+  excluded_messages?: Message[];
+}
+
 // Connected Event - emitted when SSE connection is established
 export interface ConnectedEvent {
   event_type: 'connected';
@@ -242,6 +286,7 @@ export type AnyAgentEvent =
   | SandboxProgressEvent
   | ContextCompressionEvent
   | ToolFilteringEvent
+  | ContextSnapshotEvent
   | ConnectedEvent
   | UserTaskEvent;
 

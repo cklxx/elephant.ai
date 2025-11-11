@@ -41,6 +41,7 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	result = append(result, ports.Message{
 		Role:    "system",
 		Content: "[Previous conversation compressed...]",
+		Source:  ports.MessageSourceSystemPrompt,
 	})
 	result = append(result, recent...)
 	return result, nil
