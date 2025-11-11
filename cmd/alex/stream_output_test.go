@@ -83,3 +83,43 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 	require.Contains(t, output, "✗ [1/3] Task 2")
 	require.Contains(t, output, "boom")
 }
+
+func TestStreamingOutputHandlerStoresCompletionEvent(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	event := &domain.TaskCompleteEvent{TotalIterations: 4, TotalTokens: 512}
+
+	handler.onTaskComplete(event)
+
+	stored := handler.consumeTaskCompletion()
+	require.Equal(t, event, stored)
+
+	// Subsequent calls should return nil
+	require.Nil(t, handler.consumeTaskCompletion())
+}
+
+func TestStreamingOutputHandlerPrintsInterruptMessages(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.printInterruptRequested()
+	handler.printForcedExit()
+
+	output := out.String()
+	require.Contains(t, output, "Interrupt requested")
+	require.Contains(t, output, "Force exit requested")
+}
+
+func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	event := &domain.TaskCompleteEvent{TotalIterations: 3, TotalTokens: 256}
+	handler.printCancellation(event)
+
+	output := out.String()
+	require.Contains(t, output, "Task interrupted")
+	require.Contains(t, output, "3 iteration")
+	require.Contains(t, output, "256 tokens")
+}

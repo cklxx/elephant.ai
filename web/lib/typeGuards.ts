@@ -12,6 +12,7 @@ import {
   ToolCallCompleteEvent,
   IterationCompleteEvent,
   TaskCompleteEvent,
+  TaskCancelledEvent,
   ErrorEvent,
   ResearchPlanEvent,
   StepStartedEvent,
@@ -74,6 +75,11 @@ export function isIterationCompleteEvent(event: AnyAgentEvent): event is Iterati
 // Task Complete Event
 export function isTaskCompleteEvent(event: AnyAgentEvent): event is TaskCompleteEvent {
   return event.event_type === 'task_complete';
+}
+
+// Task Cancelled Event
+export function isTaskCancelledEvent(event: AnyAgentEvent): event is TaskCancelledEvent {
+  return event.event_type === 'task_cancelled';
 }
 
 // Error Event

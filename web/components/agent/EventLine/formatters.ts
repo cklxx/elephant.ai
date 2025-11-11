@@ -96,6 +96,16 @@ export function formatContent(event: AnyAgentEvent): string {
       }
       return '✓ Task complete';
 
+    case 'task_cancelled': {
+      const requestedBy = 'requested_by' in event ? event.requested_by : undefined;
+      const actorPrefix = requestedBy === 'user' ? '⏹ You stopped the agent' : '⏹ Task cancelled';
+      const reason =
+        'reason' in event && event.reason && event.reason !== 'cancelled'
+          ? ` · Reason: ${event.reason}`
+          : '';
+      return `${actorPrefix}${reason}`;
+    }
+
     case 'error':
       if ('error' in event) {
         return `✗ Error: ${event.error}`;

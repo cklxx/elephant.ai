@@ -143,6 +143,12 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
+export const TaskCancelledEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('task_cancelled'),
+  reason: z.string(),
+  requested_by: z.enum(['user', 'system']).optional(),
+});
+
 // Error Event
 export const ErrorEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('error'),
@@ -264,6 +270,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   ToolCallStreamEventSchema,
   ToolCallCompleteEventSchema,
   IterationCompleteEventSchema,
+  TaskCancelledEventSchema,
   TaskCompleteEventSchema,
   ErrorEventSchema,
   ResearchPlanEventSchema,
@@ -319,7 +326,7 @@ export const TaskStatusResponseSchema = z.object({
   task_id: z.string(),
   session_id: z.string(),
   parent_task_id: z.string().optional(),
-  status: z.enum(['pending', 'running', 'completed', 'failed']),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']),
   created_at: z.string(),
   completed_at: z.string().optional(),
   error: z.string().optional(),
@@ -373,12 +380,14 @@ function normalizeEventData(data: unknown): unknown {
   }
 
   // Handle missing event_type - try to infer or skip
-  if (!normalized.event_type || typeof normalized.event_type !== 'string') {
-    // Try to infer event type from available fields
-    if ('final_answer' in normalized && 'total_iterations' in normalized) {
-      normalized.event_type = 'task_complete';
-    } else if ('tool_name' in normalized && 'result' in normalized && 'call_id' in normalized) {
-      normalized.event_type = 'tool_call_complete';
+    if (!normalized.event_type || typeof normalized.event_type !== 'string') {
+      // Try to infer event type from available fields
+      if ('final_answer' in normalized && 'total_iterations' in normalized) {
+        normalized.event_type = 'task_complete';
+      } else if ('reason' in normalized && normalized.reason !== undefined) {
+        normalized.event_type = 'task_cancelled';
+      } else if ('tool_name' in normalized && 'result' in normalized && 'call_id' in normalized) {
+        normalized.event_type = 'tool_call_complete';
     } else if ('tool_name' in normalized && 'call_id' in normalized && !('result' in normalized)) {
       normalized.event_type = 'tool_call_start';
     } else if ('call_id' in normalized && 'chunk' in normalized) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/utils"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
@@ -56,6 +57,7 @@ type seedreamTextTool struct {
 type seedreamImageTool struct {
 	config  SeedreamConfig
 	factory *seedreamClientFactory
+	logger  *utils.Logger
 }
 
 type seedreamVisionTool struct {
@@ -80,6 +82,7 @@ func NewSeedreamImageToImage(config SeedreamConfig) ports.ToolExecutor {
 	return &seedreamImageTool{
 		config:  config,
 		factory: &seedreamClientFactory{config: config},
+		logger:  utils.NewComponentLogger("SeedreamImageToImage"),
 	}
 }
 
@@ -248,7 +251,13 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	}
 
 	imageValue, _ := call.Arguments["init_image"].(string)
-	normalizedImage, err := normalizeSeedreamInitImage(imageValue)
+	if resolved, placeholder, ok := resolveSeedreamInitImagePlaceholder(ctx, imageValue); ok {
+		if t.logger != nil {
+			t.logger.Debug("Resolved init_image placeholder [%s] via attachment context", placeholder)
+		}
+		imageValue = resolved
+	}
+	normalizedImage, kind, err := normalizeSeedreamInitImage(imageValue)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
@@ -263,6 +272,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		Watermark:      volcengine.Bool(true),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
+	t.logRequestPayload(imageValue, normalizedImage, kind, req)
 
 	client, err := t.factory.instance()
 	if err != nil {
@@ -281,6 +291,46 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 
 	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
 	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
+}
+
+func (t *seedreamImageTool) logRequestPayload(rawImage, normalizedImage, kind string, req arkm.GenerateImagesRequest) {
+	if t.logger == nil {
+		return
+	}
+
+	payload := map[string]any{
+		"model":               strings.TrimSpace(req.Model),
+		"prompt":              strings.TrimSpace(req.Prompt),
+		"init_image_raw":      summarizeSeedreamImageValue(rawImage),
+		"init_image_kind":     kind,
+		"init_image_resolved": summarizeSeedreamImageValue(normalizedImage),
+	}
+
+	if req.Size != nil && strings.TrimSpace(*req.Size) != "" {
+		payload["size"] = strings.TrimSpace(*req.Size)
+	}
+	if req.ResponseFormat != nil && strings.TrimSpace(*req.ResponseFormat) != "" {
+		payload["response_format"] = strings.TrimSpace(*req.ResponseFormat)
+	}
+	if req.Seed != nil {
+		payload["seed"] = *req.Seed
+	}
+	if req.GuidanceScale != nil {
+		payload["cfg_scale"] = *req.GuidanceScale
+	}
+	if req.Watermark != nil {
+		payload["watermark"] = *req.Watermark
+	}
+	if req.OptimizePrompt != nil {
+		payload["optimize_prompt"] = *req.OptimizePrompt
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.logger.Debug("Seedream image-to-image request payload: %+v", payload)
+		return
+	}
+	t.logger.Debug("Seedream image-to-image request payload: %s", string(encoded))
 }
 
 func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
@@ -629,29 +679,81 @@ func buildVisionImageItem(raw string, detail *responses.ContentItemImageDetail_E
 	return nil, fmt.Errorf("image value must be an HTTPS URL or data URI")
 }
 
-func normalizeSeedreamInitImage(raw string) (string, error) {
+func normalizeSeedreamInitImage(raw string) (string, string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return "", errors.New("init_image parameter must be provided (base64 or URL)")
+		return "", "", errors.New("init_image parameter must be provided (base64 or URL)")
 	}
 
 	if strings.HasPrefix(trimmed, "data:") {
-		payload, err := extractBase64Payload(trimmed)
-		if err != nil {
-			return "", fmt.Errorf("invalid init_image data URI: %w", err)
+		if _, err := extractBase64Payload(trimmed); err != nil {
+			return "", "", fmt.Errorf("invalid init_image data URI: %w", err)
 		}
-		return payload, nil
+		return trimmed, classifySeedreamInitImageKind(trimmed), nil
 	}
 
 	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
-		return trimmed, nil
+		return trimmed, classifySeedreamInitImageKind(trimmed), nil
 	}
 
 	if strings.Contains(trimmed, "://") {
-		return "", fmt.Errorf("init_image must be an HTTPS URL or data URI")
+		return "", "", fmt.Errorf("init_image must be an HTTPS URL or data URI")
 	}
 
-	return trimmed, nil
+	// Assume bare base64 PNG blobs and wrap in a generic data URI.
+	encoded := fmt.Sprintf("data:image/png;base64,%s", trimmed)
+	return encoded, classifySeedreamInitImageKind(encoded), nil
+}
+
+func summarizeSeedreamImageValue(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "(empty)"
+	}
+
+	const previewLen = 32
+
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+		prefix := trimmed
+		if len(prefix) > previewLen {
+			prefix = prefix[:previewLen] + "..."
+		}
+		return fmt.Sprintf("url(len=%d,prefix=%q)", len(trimmed), prefix)
+	}
+
+	if strings.HasPrefix(trimmed, "data:") {
+		meta := trimmed
+		dataIdx := strings.Index(meta, ",")
+		if dataIdx != -1 {
+			header := meta[:dataIdx]
+			payload := meta[dataIdx+1:]
+			if len(payload) > previewLen {
+				payload = payload[:previewLen] + "..."
+			}
+			return fmt.Sprintf("data_uri(header=%q,len=%d,payload_prefix=%q)", header, len(trimmed), payload)
+		}
+		if len(meta) > previewLen {
+			meta = meta[:previewLen] + "..."
+		}
+		return fmt.Sprintf("data_uri(len=%d,prefix=%q)", len(trimmed), meta)
+	}
+
+	payload := trimmed
+	if len(payload) > previewLen {
+		payload = payload[:previewLen] + "..."
+	}
+	return fmt.Sprintf("base64(len=%d,prefix=%q)", len(trimmed), payload)
+}
+
+func classifySeedreamInitImageKind(value string) string {
+	switch {
+	case strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://"):
+		return "url"
+	case strings.HasPrefix(value, "data:"):
+		return "data_uri"
+	default:
+		return "base64"
+	}
 }
 
 func extractBase64Payload(dataURI string) (string, error) {
@@ -740,4 +842,71 @@ func readStringSlice(value any) []string {
 	default:
 		return nil
 	}
+}
+
+func resolveSeedreamInitImagePlaceholder(ctx context.Context, raw string) (string, string, bool) {
+	placeholder := strings.TrimSpace(raw)
+	if placeholder == "" {
+		return "", "", false
+	}
+	name, ok := extractPlaceholderIdentifier(placeholder)
+	if !ok {
+		return "", "", false
+	}
+
+	attachments, _ := ports.GetAttachmentContext(ctx)
+	if len(attachments) == 0 {
+		return "", "", false
+	}
+
+	if att, exists := attachments[name]; exists {
+		if resolved := attachmentReferenceValueForTool(att); resolved != "" {
+			return resolved, name, true
+		}
+	}
+
+	lowerName := strings.ToLower(name)
+	for key, att := range attachments {
+		if strings.ToLower(strings.TrimSpace(key)) != lowerName {
+			continue
+		}
+		if resolved := attachmentReferenceValueForTool(att); resolved != "" {
+			return resolved, strings.TrimSpace(key), true
+		}
+	}
+
+	return "", "", false
+}
+
+func extractPlaceholderIdentifier(value string) (string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < 3 {
+		return "", false
+	}
+	if trimmed[0] != '[' || trimmed[len(trimmed)-1] != ']' {
+		return "", false
+	}
+	name := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+func attachmentReferenceValueForTool(att ports.Attachment) string {
+	data := strings.TrimSpace(att.Data)
+	if data != "" {
+		if strings.HasPrefix(data, "data:") {
+			return data
+		}
+		mediaType := strings.TrimSpace(att.MediaType)
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+		}
+		return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+	}
+	if uri := strings.TrimSpace(att.URI); uri != "" {
+		return uri
+	}
+	return ""
 }

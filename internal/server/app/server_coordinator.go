@@ -290,6 +290,30 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 	return snapshots
 }
 
+func (s *ServerCoordinator) emitTaskCancelledEvent(ctx context.Context, task *serverPorts.Task, reason, requestedBy string) {
+	if s.broadcaster == nil || task == nil {
+		return
+	}
+
+	outCtx := ports.GetOutputContext(ctx)
+	level := outCtx.Level
+	if level == "" {
+		level = ports.LevelCore
+	}
+
+	event := domain.NewTaskCancelledEvent(
+		level,
+		task.SessionID,
+		task.ID,
+		task.ParentTaskID,
+		reason,
+		requestedBy,
+		time.Now(),
+	)
+	s.logger.Info("[CancelTask] Emitting task_cancelled event: sessionID=%s taskID=%s", task.SessionID, task.ID)
+	s.broadcaster.OnEvent(event)
+}
+
 // GetSession retrieves a session by ID
 func (s *ServerCoordinator) GetSession(ctx context.Context, id string) (*ports.Session, error) {
 	return s.sessionStore.Get(ctx, id)
@@ -347,10 +371,18 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 	if exists && cancelFunc != nil {
 		s.logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
 		cancelFunc(fmt.Errorf("task cancelled by user"))
+		s.emitTaskCancelledEvent(ctx, task, "cancelled", "user")
 	} else {
 		s.logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
 		// If no cancel function exists (task not started yet or already completed), just update status
-		return s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
+		if err := s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled); err != nil {
+			return err
+		}
+		if err := s.taskStore.SetTerminationReason(ctx, taskID, serverPorts.TerminationReasonCancelled); err != nil {
+			s.logger.Warn("[CancelTask] Failed to set termination reason for taskID=%s: %v", taskID, err)
+		}
+		s.emitTaskCancelledEvent(ctx, task, "cancelled", "user")
+		return nil
 	}
 
 	return nil

@@ -7,32 +7,40 @@ import { MarkdownRenderer } from "@/components/ui/markdown";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 
+interface StopReasonCopy {
+  title: string;
+  body?: string;
+}
+
 interface TaskCompleteCardProps {
   event: TaskCompleteEvent;
 }
 
 export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
-  if (!event.final_answer) return null;
-  const segments = parseContentSegments(event.final_answer, event.attachments);
-  const textContent = segments
-    .filter((segment) => segment.type === "text")
+  const answer = event.final_answer ?? "";
+  const segments = parseContentSegments(answer, event.attachments);
+  const textSegments = segments.filter((segment) => segment.type === "text");
+  const textContent = textSegments
     .map((segment) => segment.text ?? "")
     .join("");
+  const hasAnswer = textContent.trim().length > 0;
   const imageSegments = segments.filter(
     (segment) => segment.type === "image" && segment.attachment,
   );
 
+  const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
+
   // Build metrics string
   const metrics: string[] = [];
   if (typeof event.total_iterations === "number") {
-    metrics.push(`${event.total_iterations} iterations`);
+    metrics.push(t("events.taskComplete.metrics.iterations", { count: event.total_iterations }));
   }
   if (typeof event.total_tokens === "number") {
-    metrics.push(`${event.total_tokens} tokens`);
+    metrics.push(t("events.taskComplete.metrics.tokens", { count: event.total_tokens }));
   }
   if (typeof event.duration === "number") {
-    metrics.push(formatDuration(event.duration));
+    metrics.push(t("events.taskComplete.metrics.duration", { duration: formatDuration(event.duration) }));
   }
 
   return (
@@ -40,8 +48,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       className="border-l-2 border-green-200 pl-3"
       data-testid="task-complete-event"
     >
-      {event.final_answer && (
-        <div className="mt-2">
+      <div className="mt-2 space-y-4">
+        {hasAnswer ? (
           <MarkdownRenderer
             content={textContent}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-600"
@@ -92,35 +100,79 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               ),
             }}
           />
-          {imageSegments.length > 0 && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {imageSegments.map((segment, index) => {
-                if (!segment.attachment) {
-                  return null;
-                }
-                const uri = buildAttachmentUri(segment.attachment);
-                if (!uri) {
-                  return null;
-                }
-                const caption =
-                  segment.attachment.description ||
-                  segment.attachment.name ||
-                  `image-${index + 1}`;
-                return (
-                  <ImagePreview
-                    key={`image-segment-${index}`}
-                    src={uri}
-                    alt={caption}
-                    minHeight="12rem"
-                    maxHeight="20rem"
-                    sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 100vw"
-                  />
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+        ) : (
+          <div
+            className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+            data-testid="task-complete-fallback"
+          >
+            <p className="font-medium text-slate-700">{stopReasonCopy.title}</p>
+            {stopReasonCopy.body && (
+              <p className="mt-1 text-slate-500">{stopReasonCopy.body}</p>
+            )}
+          </div>
+        )}
+
+        {metrics.length > 0 && (
+          <div
+            className="text-xs uppercase tracking-wide text-slate-400"
+            data-testid="task-complete-metrics"
+          >
+            {metrics.join(" · ")}
+          </div>
+        )}
+
+        {imageSegments.length > 0 && (
+          <div className="flex flex-wrap items-start gap-3">
+            {imageSegments.map((segment, index) => {
+              if (!segment.attachment) {
+                return null;
+              }
+              const uri = buildAttachmentUri(segment.attachment);
+              if (!uri) {
+                return null;
+              }
+              const caption =
+                segment.attachment.description ||
+                segment.attachment.name ||
+                `image-${index + 1}`;
+              return (
+                <ImagePreview
+                  key={`image-segment-${index}`}
+                  src={uri}
+                  alt={caption}
+                  minHeight="12rem"
+                  maxHeight="20rem"
+                  className="w-full sm:w-[220px] lg:w-[260px]"
+                  sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 100vw"
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function getStopReasonCopy(
+  stopReason: string | undefined,
+  t: ReturnType<typeof useTranslation>,
+): StopReasonCopy {
+  if (!stopReason) {
+    return {
+      title: t("events.taskComplete.empty"),
+    };
+  }
+
+  if (stopReason === "cancelled") {
+    return {
+      title: t("events.taskComplete.cancelled.title"),
+      body: t("events.taskComplete.cancelled.body"),
+    };
+  }
+
+  return {
+    title: t("events.taskComplete.empty"),
+    body: t("events.taskComplete.stopReason", { reason: stopReason }),
+  };
 }

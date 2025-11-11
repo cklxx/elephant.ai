@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"html"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -300,16 +302,40 @@ func FormatSandboxError(err error) error {
 		return nil
 	}
 
-	message := err.Error()
+	raw := err.Error()
+	lower := strings.ToLower(raw)
+
+	message := ""
 	switch {
-	case strings.Contains(message, "connection refused"):
+	case strings.Contains(lower, "connection refused"):
 		message = "sandbox unreachable - check SANDBOX_BASE_URL"
-	case strings.Contains(message, "timeout"):
+	case strings.Contains(lower, "timeout"):
 		message = "sandbox operation timed out"
-	case strings.Contains(message, "not found"):
+	case strings.Contains(lower, "not found"):
 		message = "resource not found in sandbox"
+	case strings.Contains(lower, "bad gateway") || strings.Contains(lower, " 502"):
+		message = "sandbox gateway unavailable (502)"
 	default:
-		message = fmt.Sprintf("sandbox error: %s", message)
+		sanitized := sanitizeSandboxDetails(raw)
+		if sanitized == "" {
+			sanitized = "unknown sandbox failure"
+		}
+		message = fmt.Sprintf("sandbox error: %s", sanitized)
 	}
 	return fmt.Errorf("%s", message)
+}
+
+var htmlTagPattern = regexp.MustCompile(`<[^>]+>`)
+
+func sanitizeSandboxDetails(input string) string {
+	if input == "" {
+		return ""
+	}
+	clean := htmlTagPattern.ReplaceAllString(input, " ")
+	clean = html.UnescapeString(clean)
+	clean = strings.Join(strings.Fields(clean), " ")
+	if len(clean) > 160 {
+		return clean[:157] + "..."
+	}
+	return clean
 }

@@ -24,6 +24,7 @@ const statusLabels: Record<string, TranslationKey> = {
   failed: 'sessions.details.history.status.failed',
   in_progress: 'sessions.details.history.status.in_progress',
   error: 'sessions.details.history.status.error',
+  cancelled: 'sessions.details.history.status.cancelled',
 };
 
 type SessionDetailsClientProps = {
@@ -51,8 +52,14 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       cancelIntentRef.current = false;
       cancelTask(taskId, {
         onSuccess: () => {
-          setActiveTaskId(null);
-          setCancelRequested(false);
+          const currentActiveTaskId = activeTaskIdRef.current;
+
+          if (!currentActiveTaskId || currentActiveTaskId === taskId) {
+            setActiveTaskId((prevActiveTaskId) =>
+              prevActiveTaskId === taskId ? null : prevActiveTaskId
+            );
+            setCancelRequested(false);
+          }
           toast.success(
             t('sessions.details.toast.taskCancelRequested.title'),
             t('sessions.details.toast.taskCancelRequested.description')
@@ -80,10 +87,6 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution({
     onSuccess: (response) => {
       setActiveTaskId(response.task_id);
-      toast.success(
-        t('sessions.details.toast.taskStarted.title'),
-        t('sessions.details.toast.taskStarted.description')
-      );
       if (cancelIntentRef.current) {
         setCancelRequested(true);
         performCancellation(response.task_id);
@@ -137,7 +140,11 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       if (!currentId || !event.task_id || event.task_id !== currentId) {
         return;
       }
-      if (event.event_type === 'task_complete' || event.event_type === 'error') {
+      if (
+        event.event_type === 'task_complete' ||
+        event.event_type === 'task_cancelled' ||
+        event.event_type === 'error'
+      ) {
         setActiveTaskId(null);
         setCancelRequested(false);
         cancelIntentRef.current = false;
@@ -263,6 +270,15 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                 const statusKey = statusLabels[task.status];
                 const translatedStatus = statusKey ? t(statusKey) : task.status.toUpperCase();
 
+                const badgeVariant =
+                  task.status === 'completed'
+                    ? 'success'
+                    : task.status === 'failed' || task.status === 'error'
+                      ? 'error'
+                      : task.status === 'cancelled'
+                        ? 'warning'
+                        : 'info';
+
                 return (
                   <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
@@ -277,7 +293,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                         {task.parent_task_id ? ` · Parent: ${task.parent_task_id}` : ''}
                       </p>
                     </div>
-                    <Badge variant={task.status === 'completed' ? 'success' : 'info'}>
+                    <Badge variant={badgeVariant}>
                       {translatedStatus}
                     </Badge>
                   </div>

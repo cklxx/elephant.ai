@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -30,17 +31,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Ensure cleanup on exit
-	defer func() {
+	cleanup := func() {
 		if err := container.Cleanup(); err != nil {
 			fmt.Fprintf(os.Stderr, "Cleanup error: %v\n", err)
 		}
+	}
+	defer func() {
+		cleanup()
 	}()
 
 	// No arguments: enter interactive mode
 	if len(args) == 0 {
 		if err := RunNativeChatUI(container); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			cleanup()
 			os.Exit(1)
 		}
 		return
@@ -49,7 +53,12 @@ func main() {
 	// With arguments: execute command
 	cli := NewCLI(container)
 	if err := cli.Run(args); err != nil {
+		if errors.Is(err, ErrForceExit) {
+			cleanup()
+			os.Exit(130)
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		cleanup()
 		os.Exit(1)
 	}
 }

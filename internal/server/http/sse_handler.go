@@ -252,6 +252,14 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 			data["attachments"] = e.Attachments
 		}
 
+	case *domain.TaskCancelledEvent:
+		if e.Reason != "" {
+			data["reason"] = e.Reason
+		}
+		if e.RequestedBy != "" {
+			data["requested_by"] = e.RequestedBy
+		}
+
 	case *domain.ErrorEvent:
 		data["iteration"] = e.Iteration
 		data["phase"] = e.Phase

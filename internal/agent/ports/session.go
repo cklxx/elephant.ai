@@ -25,12 +25,13 @@ type SessionStore interface {
 
 // Session represents an agent session
 type Session struct {
-	ID        string            `json:"id"`
-	Messages  []Message         `json:"messages"`
-	Todos     []Todo            `json:"todos"`
-	Metadata  map[string]string `json:"metadata"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	ID          string                `json:"id"`
+	Messages    []Message             `json:"messages"`
+	Todos       []Todo                `json:"todos"`
+	Metadata    map[string]string     `json:"metadata"`
+	Attachments map[string]Attachment `json:"attachments,omitempty"`
+	CreatedAt   time.Time             `json:"created_at"`
+	UpdatedAt   time.Time             `json:"updated_at"`
 }
 
 // Todo represents a task item

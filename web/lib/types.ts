@@ -145,6 +145,13 @@ export interface TaskCompleteEvent extends AgentEvent {
   attachments?: Record<string, AttachmentPayload>;
 }
 
+// Task Cancelled Event - emitted when a task receives a cancellation request
+export interface TaskCancelledEvent extends AgentEvent {
+  event_type: 'task_cancelled';
+  reason: string;
+  requested_by?: 'user' | 'system';
+}
+
 // Error Event - emitted on errors
 export interface ErrorEvent extends AgentEvent {
   event_type: 'error';
@@ -268,6 +275,7 @@ export type AnyAgentEvent =
   | ToolCallStreamEvent
   | ToolCallCompleteEvent
   | IterationCompleteEvent
+  | TaskCancelledEvent
   | TaskCompleteEvent
   | ErrorEvent
   | ResearchPlanEvent
@@ -325,7 +333,7 @@ export interface TaskStatusResponse {
   task_id: string;
   session_id: string;
   parent_task_id?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   created_at: string;
   completed_at?: string;
   error?: string;

@@ -293,3 +293,57 @@ func TestExpandPlaceholdersResolvesCanonicalSeedreamNameWithoutBrackets(t *testi
 		t.Fatalf("expected appended base64 payload, got %q", images[0])
 	}
 }
+
+func TestDecorateFinalResultOmitsUnreferencedAttachments(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"seed.png": {
+				Name:      "seed.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+				Data:      "YmFzZTY0",
+			},
+		},
+	}
+
+	result := &TaskResult{
+		Answer: "Task finished successfully.",
+	}
+
+	attachments := engine.decorateFinalResult(state, result)
+	if attachments != nil {
+		t.Fatalf("expected no attachments to be returned, got %+v", attachments)
+	}
+	if result.Answer != "Task finished successfully." {
+		t.Fatalf("expected final answer to remain unchanged, got %q", result.Answer)
+	}
+}
+
+func TestDecorateFinalResultIncludesReferencedAttachments(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"seed.png": {
+				Name:      "seed.png",
+				MediaType: "image/png",
+				URI:       "https://example.com/seed.png",
+			},
+		},
+	}
+
+	result := &TaskResult{
+		Answer: "Artifacts ready: [seed.png]",
+	}
+
+	attachments := engine.decorateFinalResult(state, result)
+	if len(attachments) != 1 {
+		t.Fatalf("expected single attachment to remain, got %d", len(attachments))
+	}
+	if _, ok := attachments["seed.png"]; !ok {
+		t.Fatalf("expected placeholder to resolve to attachment, got %+v", attachments)
+	}
+	if !strings.Contains(result.Answer, "![seed.png](https://example.com/seed.png)") {
+		t.Fatalf("expected placeholder to be converted to markdown reference, got %q", result.Answer)
+	}
+}

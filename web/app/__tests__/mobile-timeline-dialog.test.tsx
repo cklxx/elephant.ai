@@ -13,9 +13,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 const mockMutate = vi.fn();
+const mockCancel = vi.fn();
 
 vi.mock('@/hooks/useTaskExecution', () => ({
   useTaskExecution: () => ({ mutate: mockMutate, isPending: false }),
+  useCancelTask: () => ({ mutate: mockCancel, isPending: false }),
 }));
 
 const mockAddEvent = vi.fn();
