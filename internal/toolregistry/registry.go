@@ -3,9 +3,11 @@ package toolregistry
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"alex/internal/agent/ports"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/tools"
 	"alex/internal/tools/builtin"
 )
@@ -300,9 +302,13 @@ func (r *Registry) registerBuiltins(config Config) error {
 		visionConfig.ModelEnvVar = "SEEDREAM_VISION_MODEL"
 		r.static["seedream_vision_analyze"] = builtin.NewSeedreamVisionAnalyze(visionConfig)
 	}
-	if config.SeedreamVideoModel != "" {
+	videoModel := strings.TrimSpace(config.SeedreamVideoModel)
+	if videoModel == "" {
+		videoModel = runtimeconfig.DefaultSeedreamVideoModel
+	}
+	if videoModel != "" {
 		videoConfig := seedreamBase
-		videoConfig.Model = config.SeedreamVideoModel
+		videoConfig.Model = videoModel
 		videoConfig.ModelDescriptor = "Seedance video generation"
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
 		r.static["seedream_video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)

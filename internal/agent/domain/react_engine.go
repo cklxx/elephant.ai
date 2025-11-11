@@ -1232,8 +1232,24 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 	}
 
 	builder.WriteString("\nUse the placeholders verbatim to work with these attachments in follow-up steps.")
+	if hint := attachmentSandboxPathHint(state); hint != "" {
+		builder.WriteString("\nFiles are mirrored inside the sandbox under ")
+		builder.WriteString(hint)
+		builder.WriteString(".")
+	}
 
 	return strings.TrimSpace(builder.String())
+}
+
+func attachmentSandboxPathHint(state *TaskState) string {
+	if state == nil {
+		return ""
+	}
+	session := strings.TrimSpace(state.SessionID)
+	if session == "" {
+		return "/workspace/.alex/sessions/<session>/attachments"
+	}
+	return fmt.Sprintf("/workspace/.alex/sessions/%s/attachments", session)
 }
 
 func findAttachmentCatalogMessageIndex(state *TaskState) int {
@@ -1318,6 +1334,9 @@ func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
 }
 
 func attachmentReferenceValue(att ports.Attachment) string {
+	if uri := strings.TrimSpace(att.URI); uri != "" {
+		return uri
+	}
 	data := strings.TrimSpace(att.Data)
 	if data != "" {
 		if strings.HasPrefix(data, "data:") {
@@ -1328,9 +1347,6 @@ func attachmentReferenceValue(att ports.Attachment) string {
 			mediaType = "application/octet-stream"
 		}
 		return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
-	}
-	if uri := strings.TrimSpace(att.URI); uri != "" {
-		return uri
 	}
 	return ""
 }

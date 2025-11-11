@@ -6,6 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"net/http"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -68,14 +72,21 @@ type seedreamVisionTool struct {
 }
 
 type seedreamVideoTool struct {
-	config  SeedreamConfig
-	factory *seedreamClientFactory
+	config     SeedreamConfig
+	factory    *seedreamClientFactory
+	httpClient *http.Client
+	logger     *utils.Logger
 }
 
 const (
 	// doubao-seedance-1.0-pro documentation: https://www.volcengine.com/docs/82379/1587798
 	seedanceMinDurationSeconds = 2
 	seedanceMaxDurationSeconds = 12
+
+	seedreamMaxInlineVideoBytes  = 40 * 1024 * 1024
+	seedreamMaxInlineImageBytes  = 8 * 1024 * 1024
+	seedreamMaxInlineBinaryBytes = 4 * 1024 * 1024
+	seedreamAssetHTTPTimeout     = 2 * time.Minute
 )
 
 var seedreamPlaceholderNonce = func() string {
@@ -110,8 +121,10 @@ func NewSeedreamVisionAnalyze(config SeedreamConfig) ports.ToolExecutor {
 // NewSeedreamVideoGenerate returns a tool that creates short videos from prompts.
 func NewSeedreamVideoGenerate(config SeedreamConfig) ports.ToolExecutor {
 	return &seedreamVideoTool{
-		config:  config,
-		factory: &seedreamClientFactory{config: config},
+		config:     config,
+		factory:    &seedreamClientFactory{config: config},
+		httpClient: &http.Client{Timeout: seedreamAssetHTTPTimeout},
+		logger:     utils.NewComponentLogger("SeedreamVideo"),
 	}
 }
 
@@ -666,6 +679,8 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 				firstFrameKind,
 				firstFrameMimeTypeResolved,
 			)
+			t.embedRemoteAttachmentData(ctx, attachments)
+
 			metadata["task_id"] = taskID
 			metadata["poll_interval_seconds"] = int(pollInterval / time.Second)
 			metadata["max_wait_seconds"] = int(maxWait / time.Second)
@@ -789,11 +804,15 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 		}
 		placeholder := fmt.Sprintf("%s_%d.png", requestID, idx)
 		entry["placeholder"] = placeholder
+		attachmentURI := strings.TrimSpace(urlStr)
+		if attachmentURI == "" && encoded != "" {
+			attachmentURI = fmt.Sprintf("data:image/png;base64,%s", encoded)
+		}
 		attachments[placeholder] = ports.Attachment{
 			Name:        placeholder,
 			MediaType:   "image/png",
 			Data:        encoded,
-			URI:         urlStr,
+			URI:         attachmentURI,
 			Source:      "seedream",
 			Description: attachmentDescription,
 		}
@@ -1446,6 +1465,94 @@ func formatSeedreamVideoResponse(resp *arkm.GetContentGenerationTaskResponse, de
 	builder.WriteString("Plan follow-up edits for stitching or compositing as needed.")
 
 	return builder.String(), metadata, attachments
+}
+
+func (t *seedreamVideoTool) embedRemoteAttachmentData(ctx context.Context, attachments map[string]ports.Attachment) {
+	if len(attachments) == 0 {
+		return
+	}
+
+	for key, att := range attachments {
+		if strings.TrimSpace(att.URI) == "" || att.Data != "" {
+			continue
+		}
+		lowerURI := strings.ToLower(strings.TrimSpace(att.URI))
+		if !strings.HasPrefix(lowerURI, "http://") && !strings.HasPrefix(lowerURI, "https://") {
+			continue
+		}
+
+		limit := inlineLimitForMedia(att.MediaType)
+		payload, mediaType, err := t.downloadAsset(ctx, att.URI, limit)
+		if err != nil {
+			if t.logger != nil {
+				t.logger.Debug("Seedream inline fetch skipped for %s: %v", att.URI, err)
+			}
+			continue
+		}
+
+		if strings.TrimSpace(att.MediaType) == "" && strings.TrimSpace(mediaType) != "" {
+			att.MediaType = mediaType
+		}
+		att.Data = base64.StdEncoding.EncodeToString(payload)
+		attachments[key] = att
+	}
+}
+
+func inlineLimitForMedia(mediaType string) int64 {
+	lower := strings.ToLower(strings.TrimSpace(mediaType))
+	switch {
+	case strings.HasPrefix(lower, "video/"):
+		return seedreamMaxInlineVideoBytes
+	case strings.HasPrefix(lower, "image/"):
+		return seedreamMaxInlineImageBytes
+	default:
+		return seedreamMaxInlineBinaryBytes
+	}
+}
+
+func (t *seedreamVideoTool) downloadAsset(ctx context.Context, assetURL string, maxBytes int64) ([]byte, string, error) {
+	if maxBytes <= 0 {
+		maxBytes = seedreamMaxInlineBinaryBytes
+	}
+	client := t.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: seedreamAssetHTTPTimeout}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("http %d received while fetching %s", resp.StatusCode, assetURL)
+	}
+
+	limited := io.LimitReader(resp.Body, maxBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, "", err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, "", fmt.Errorf("asset exceeds inline limit (%d bytes)", maxBytes)
+	}
+
+	mediaType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if mediaType == "" {
+		if ext := path.Ext(assetURL); ext != "" {
+			if resolved := mime.TypeByExtension(ext); resolved != "" {
+				mediaType = resolved
+			}
+		}
+	}
+
+	return data, mediaType, nil
 }
 
 // seedreamVideoUsage returns a non-nil usage pointer when the Seedance response

@@ -47,7 +47,7 @@ func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing
 	}
 }
 
-func TestExpandPlaceholdersPrefersAttachmentData(t *testing.T) {
+func TestExpandPlaceholdersPrefersAttachmentURI(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	attachments := map[string]ports.Attachment{
 		"seed.png": {
@@ -65,14 +65,8 @@ func TestExpandPlaceholdersPrefersAttachmentData(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected expanded init_image to be a string, got %T", expanded["init_image"])
 	}
-	if !strings.HasPrefix(value, "data:image/png;base64,") {
-		t.Fatalf("expected data URI, got %q", value)
-	}
-	if strings.Contains(value, "example.com") {
-		t.Fatalf("expected base64 payload, got remote URL %q", value)
-	}
-	if !strings.HasSuffix(value, attachments["seed.png"].Data) {
-		t.Fatalf("expected payload to include base64 data, got %q", value)
+	if value != attachments["seed.png"].URI {
+		t.Fatalf("expected URI reference, got %q", value)
 	}
 }
 
@@ -370,6 +364,7 @@ func TestRegisterMessageAttachmentsDetectsChanges(t *testing.T) {
 func TestUpdateAttachmentCatalogMessageAppendsSystemNote(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
+		SessionID: "session-abc",
 		Messages: []Message{
 			{Role: "user", Content: "hi"},
 		},
@@ -395,6 +390,9 @@ func TestUpdateAttachmentCatalogMessageAppendsSystemNote(t *testing.T) {
 	}
 	if !strings.Contains(note.Content, "[diagram.png]") {
 		t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
+	}
+	if !strings.Contains(note.Content, "/workspace/.alex/sessions/session-abc/attachments") {
+		t.Fatalf("expected catalog content to mention sandbox path, got %q", note.Content)
 	}
 	if note.Source != ports.MessageSourceSystemPrompt {
 		t.Fatalf("expected catalog note to use system prompt source, got %q", note.Source)
@@ -434,5 +432,29 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected a single catalog note, found %d", count)
+	}
+}
+
+func TestAttachmentReferenceValuePrefersURI(t *testing.T) {
+	att := ports.Attachment{
+		Name:      "diagram.png",
+		MediaType: "image/png",
+		Data:      "ZGF0YQo=",
+		URI:       "https://example.com/diagram.png",
+	}
+	if value := attachmentReferenceValue(att); value != att.URI {
+		t.Fatalf("expected URI to be preferred, got %q", value)
+	}
+}
+
+func TestAttachmentReferenceValueFallsBackToData(t *testing.T) {
+	att := ports.Attachment{
+		Name:      "diagram.png",
+		MediaType: "image/png",
+		Data:      "ZGF0YQo=",
+	}
+	value := attachmentReferenceValue(att)
+	if !strings.HasPrefix(value, "data:image/png;base64,") {
+		t.Fatalf("expected data URI fallback, got %q", value)
 	}
 }

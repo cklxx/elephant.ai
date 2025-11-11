@@ -100,6 +100,7 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	screenshot, screenshotErr := t.captureScreenshot(ctx, finalURL)
 	html, htmlErr := t.fetchHTML(ctx, finalURL)
+	attachments := t.buildBrowserAttachments(finalURL, screenshot, html)
 
 	// Build text content for LLM (success status + HTML)
 	var textContent strings.Builder
@@ -126,9 +127,10 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}
 
 	return &ports.ToolResult{
-		CallID:   call.ID,
-		Content:  textContent.String(),
-		Metadata: metadata,
+		CallID:      call.ID,
+		Content:     textContent.String(),
+		Metadata:    metadata,
+		Attachments: attachments,
 	}, nil
 }
 
@@ -235,4 +237,96 @@ func navigateSandboxBrowser(ctx context.Context, client *sandboxbrowser.Client, 
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (t *browserTool) buildBrowserAttachments(targetURL, screenshotData, html string) map[string]ports.Attachment {
+	attachments := make(map[string]ports.Attachment)
+	hostSegment := browserAttachmentHostSegment(targetURL)
+	timestamp := time.Now().UTC().Format("20060102T150405")
+
+	if payload, mediaType := browserDataPayload(screenshotData); payload != "" {
+		name := fmt.Sprintf("browser_%s_screenshot_%s.png", hostSegment, timestamp)
+		attachments[name] = ports.Attachment{
+			Name:        name,
+			MediaType:   mediaType,
+			Data:        payload,
+			URI:         screenshotData,
+			Source:      "browser",
+			Description: fmt.Sprintf("Screenshot captured from %s", targetURL),
+		}
+	}
+
+	if strings.TrimSpace(html) != "" {
+		name := fmt.Sprintf("browser_%s_page_%s.html", hostSegment, timestamp)
+		encoded := base64.StdEncoding.EncodeToString([]byte(html))
+		attachments[name] = ports.Attachment{
+			Name:        name,
+			MediaType:   "text/html",
+			Data:        encoded,
+			URI:         fmt.Sprintf("data:text/html;base64,%s", encoded),
+			Source:      "browser",
+			Description: fmt.Sprintf("HTML snapshot fetched from %s", targetURL),
+		}
+	}
+
+	if len(attachments) == 0 {
+		return nil
+	}
+	return attachments
+}
+
+func browserDataPayload(uri string) (string, string) {
+	trimmed := strings.TrimSpace(uri)
+	if trimmed == "" {
+		return "", ""
+	}
+	if !strings.HasPrefix(trimmed, "data:") {
+		return trimmed, "application/octet-stream"
+	}
+	parts := strings.SplitN(trimmed, ",", 2)
+	if len(parts) != 2 {
+		return "", ""
+	}
+	header := parts[0]
+	payload := parts[1]
+	mediaType := "application/octet-stream"
+	if segments := strings.Split(header, ";"); len(segments) > 0 {
+		value := strings.TrimPrefix(segments[0], "data:")
+		if value != "" {
+			mediaType = value
+		}
+	}
+	return payload, mediaType
+}
+
+func browserAttachmentHostSegment(rawURL string) string {
+	parsed, err := neturl.Parse(rawURL)
+	if err != nil || parsed == nil {
+		return "page"
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		host = parsed.Host
+	}
+	return sanitizeAttachmentSegment(host)
+}
+
+func sanitizeAttachmentSegment(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "page"
+	}
+	var builder strings.Builder
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			builder.WriteRune(r)
+		} else {
+			builder.WriteRune('_')
+		}
+	}
+	sanitized := strings.Trim(builder.String(), "_")
+	if sanitized == "" {
+		return "page"
+	}
+	return sanitized
 }
