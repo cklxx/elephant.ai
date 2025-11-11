@@ -326,7 +326,7 @@ export const TaskStatusResponseSchema = z.object({
   task_id: z.string(),
   session_id: z.string(),
   parent_task_id: z.string().optional(),
-  status: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'error', 'cancelled']),
   created_at: z.string(),
   completed_at: z.string().optional(),
   error: z.string().optional(),

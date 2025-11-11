@@ -333,7 +333,7 @@ export interface TaskStatusResponse {
   task_id: string;
   session_id: string;
   parent_task_id?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'error' | 'cancelled';
   created_at: string;
   completed_at?: string;
   error?: string;
