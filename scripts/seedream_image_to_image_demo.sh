@@ -17,7 +17,7 @@ set -euo pipefail
 
 MODEL="doubao-seedream-4-0-250828"
 PROMPT="Connectivity test via curl demo"
-WATERMARK="true"
+WATERMARK="false"
 RESPONSE_FORMAT="b64_json"
 
 while [[ $# -gt 0 ]]; do

@@ -159,10 +159,6 @@ func (t *seedreamTextTool) Definition() ports.ToolDefinition {
 					Type:        "number",
 					Description: "Classifier-free guidance / prompt strength.",
 				},
-				"watermark": {
-					Type:        "boolean",
-					Description: "Whether to embed the Seedream watermark (default true).",
-				},
 				"optimize_prompt": {
 					Type:        "boolean",
 					Description: "Let Seedream refine the prompt automatically.",
@@ -189,7 +185,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		Model:          t.config.Model,
 		Prompt:         prompt,
 		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
-		Watermark:      volcengine.Bool(true),
+		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
 
@@ -256,10 +252,6 @@ func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 				"cfg_scale": {
 					Type: "number",
 				},
-				"watermark": {
-					Type:        "boolean",
-					Description: "Whether to embed the Seedream watermark (default true).",
-				},
 			},
 			Required: []string{"init_image"},
 		},
@@ -290,7 +282,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		Prompt:         strings.TrimSpace(prompt),
 		Image:          normalizedImage,
 		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
-		Watermark:      volcengine.Bool(true),
+		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
 	t.logRequestPayload(imageValue, normalizedImage, kind, req)
@@ -439,10 +431,6 @@ func (t *seedreamVideoTool) Definition() ports.ToolDefinition {
 				"camera_fixed": {
 					Type:        "boolean",
 					Description: "Whether to keep the camera fixed for the entire shot (default false).",
-				},
-				"watermark": {
-					Type:        "boolean",
-					Description: "Embed the Seedance watermark (default true).",
 				},
 				"seed": {
 					Type:        "integer",
@@ -597,7 +585,7 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	}
 
 	cameraFixed := readBoolWithDefault(call.Arguments, "camera_fixed", false)
-	watermark := readBoolWithDefault(call.Arguments, "watermark", true)
+	watermark := false
 	returnLastFrame := readBoolWithDefault(call.Arguments, "return_last_frame", true)
 
 	seed, seedProvided := readInt(call.Arguments, "seed")
@@ -730,9 +718,6 @@ func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]a
 	}
 	if cfgScale, ok := readFloat(args, "cfg_scale"); ok {
 		req.GuidanceScale = volcengine.Float64(cfgScale)
-	}
-	if watermark, ok := args["watermark"].(bool); ok {
-		req.Watermark = volcengine.Bool(watermark)
 	}
 	if optimize, ok := args["optimize_prompt"].(bool); ok {
 		req.OptimizePrompt = volcengine.Bool(optimize)
