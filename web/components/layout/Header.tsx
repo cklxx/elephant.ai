@@ -1,46 +1,48 @@
 "use client";
 
-import { Share2, MoreVertical, Download, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { MoreVertical, Download, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { ReactNode, useState, useRef, useEffect } from "react";
 import { EnvironmentStrip } from "@/components/status/EnvironmentStrip";
 
 interface HeaderProps {
   title?: string;
   subtitle?: string;
-  onShare?: () => void;
   onExport?: () => void;
   onDelete?: () => void;
   className?: string;
   leadingSlot?: ReactNode;
+  actionsSlot?: ReactNode;
 }
 
 export function Header({
   title,
   subtitle,
-  onShare,
   onExport,
   onDelete,
   className,
   leadingSlot,
+  actionsSlot,
 }: HeaderProps) {
   const { t } = useI18n();
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const hasMenuActions = Boolean(onExport || onDelete);
 
   useEffect(() => {
+    if (!showMenu) {
+      return;
+    }
+
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowMenu(false);
       }
     };
 
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
-    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMenu]);
 
   return (
@@ -63,40 +65,56 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative" ref={menuRef}>
-          {showMenu && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border-2 border-border bg-card shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
-              <div className="py-1">
-                {onExport && (
-                  <button
-                    onClick={() => {
-                      onExport();
-                      setShowMenu(false);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-200"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>{t("header.actions.export")}</span>
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={() => {
-                      onDelete();
-                      setShowMenu(false);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-300"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>{t("header.actions.delete")}</span>
-                  </button>
-                )}
-              </div>
+      {(actionsSlot || hasMenuActions) && (
+        <div className="flex items-center gap-2">
+          {actionsSlot}
+          {hasMenuActions && (
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setShowMenu((prev) => !prev)}
+                className="console-button console-button-ghost inline-flex items-center justify-center !px-2 !py-2"
+                aria-haspopup="true"
+                aria-expanded={showMenu}
+                aria-label={t("header.actions.more")}
+              >
+                <MoreVertical className="h-4 w-4" aria-hidden />
+              </button>
+
+              {showMenu && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border-2 border-border bg-card shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
+                  <div className="py-1">
+                    {onExport && (
+                      <button
+                        onClick={() => {
+                          onExport();
+                          setShowMenu(false);
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-200"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>{t("header.actions.export")}</span>
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => {
+                          onDelete();
+                          setShowMenu(false);
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>{t("header.actions.delete")}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-      </div>
+      )}
     </header>
   );
 }

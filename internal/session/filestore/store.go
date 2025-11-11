@@ -6,6 +6,7 @@ import (
 	id "alex/internal/utils/id"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -108,13 +109,26 @@ func (s *store) List(ctx context.Context) ([]string, error) {
 }
 
 func (s *store) Delete(ctx context.Context, id string) error {
-	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
-	err := os.Remove(path)
-	// Ignore error if file doesn't exist - deletion goal achieved
-	if err != nil && !os.IsNotExist(err) {
-		return err
+	var combined error
+
+	mainPath := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
+	if err := os.Remove(mainPath); err != nil && !os.IsNotExist(err) {
+		combined = errors.Join(combined, fmt.Errorf("remove session file: %w", err))
 	}
-	return nil
+
+	// Remove companion files (e.g., todos, attachments) that follow the session ID prefix.
+	pattern := filepath.Join(s.baseDir, fmt.Sprintf("%s_*", id))
+	if matches, globErr := filepath.Glob(pattern); globErr == nil {
+		for _, match := range matches {
+			if err := os.RemoveAll(match); err != nil && !os.IsNotExist(err) {
+				combined = errors.Join(combined, fmt.Errorf("remove companion file %s: %w", match, err))
+			}
+		}
+	} else {
+		combined = errors.Join(combined, fmt.Errorf("expand companion file pattern: %w", globErr))
+	}
+
+	return combined
 }
 
 func previewJSON(data []byte) string {

@@ -103,6 +103,15 @@ make build        # build ./alex
 ./alex --no-tui   # run in legacy line-mode
 ```
 
+#### Session cleanup
+
+Use the CLI to prune historical session files and free disk space:
+
+```bash
+./alex sessions cleanup --older-than 30d --keep-latest 25   # delete everything older than 30 days, keep 25 newest
+./alex sessions cleanup --older-than 14d --dry-run          # preview the impact without deleting
+```
+
 ### Server & Dashboard
 
 ```bash

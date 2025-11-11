@@ -19,6 +19,7 @@ const translations = {
     'home.hero.subtitle': 'Open the console and steer runs live.',
     'home.hero.ctaPrimary': 'Open conversation view',
     'home.hero.ctaSecondary': 'Browse sessions',
+    'navigation.sessions': 'Session archive',
     'home.feature.chat.title': 'Chat-first',
     'home.feature.chat.description': 'View prompts, replies, and actions together.',
     'home.feature.actions.title': 'Live actions',

@@ -75,6 +75,7 @@ Usage:
   alex help                      Show this help message
   alex version                   Show version
   alex sessions                  List all sessions
+  alex sessions cleanup [...]    Remove historical sessions (see options below)
   alex config                    Show current configuration
   alex cost                      Show cost tracking commands
   alex index [--repo PATH]       Index repository for code search
@@ -88,6 +89,11 @@ Configuration:
     LLM_PROVIDER                 LLM provider (openrouter, openai, deepseek, ollama, mock)
     LLM_MODEL                    Model name
     ALEX_VERBOSE                 Show full tool output (set to 1 or true)
+
+Sessions cleanup options:
+  --older-than 30d               Delete sessions not updated in the last 30 days
+  --keep-latest 20               Always keep the newest N sessions, regardless of age
+  --dry-run                      Show what would be deleted without removing files
 
 Examples:
   alex "list files in current directory"
@@ -110,6 +116,19 @@ Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
 func (c *CLI) handleSessions(args []string) error {
 	ctx := context.Background()
 
+	if len(args) == 0 || args[0] == "list" {
+		return c.listSessions(ctx)
+	}
+
+	switch args[0] {
+	case "cleanup", "clean", "prune":
+		return c.cleanupSessions(ctx, args[1:])
+	default:
+		return fmt.Errorf("unknown sessions subcommand: %s", args[0])
+	}
+}
+
+func (c *CLI) listSessions(ctx context.Context) error {
 	sessionIDs, err := c.container.Coordinator.ListSessions(ctx)
 	if err != nil {
 		return err
