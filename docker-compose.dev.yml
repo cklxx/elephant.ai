@@ -23,7 +23,10 @@ services:
     command: go run ./cmd/alex-server
     restart: unless-stopped
     depends_on:
-      - sandbox
+      sandbox:
+        condition: service_started
+      auth-db:
+        condition: service_healthy
     networks:
       - alex-dev-network
 
@@ -59,6 +62,25 @@ services:
     networks:
       - alex-dev-network
 
+  auth-db:
+    image: postgres:15
+    container_name: alex-auth-db
+    environment:
+      - POSTGRES_USER=${AUTH_DB_USER:-alex}
+      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-alex}
+      - POSTGRES_DB=${AUTH_DB_NAME:-alex_auth}
+    ports:
+      - "${AUTH_DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-alex} -d ${AUTH_DB_NAME:-alex_auth}"]
+      interval: 5s
+      retries: 10
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - alex-dev-network
+
   sandbox:
     build:
       context: .
@@ -75,8 +97,8 @@ services:
 volumes:
   alex-sessions-dev:
   redis-data-dev:
+  auth-db-data:
 
 networks:
   alex-dev-network:
     driver: bridge
-
