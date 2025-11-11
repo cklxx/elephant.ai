@@ -162,7 +162,7 @@ Task status polling with automatic stop on completion.
 ```tsx
 const { data: status, isLoading } = useTaskStatus(taskId, {
   pollingInterval: 2000,
-  stopPollingOn: ['completed', 'failed'],
+  stopPollingOn: ['completed', 'failed', 'cancelled', 'error'],
   onSuccess: (data) => {
     console.log('Status updated:', data.status);
   }

@@ -271,6 +271,12 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	}
 
 	imageValue, _ := call.Arguments["init_image"].(string)
+	if resolved, placeholder, ok := resolveSeedreamInitImagePlaceholder(ctx, imageValue); ok {
+		if t.logger != nil {
+			t.logger.Debug("Resolved init_image placeholder [%s] via attachment context", placeholder)
+		}
+		imageValue = resolved
+	}
 	normalizedImage, kind, err := normalizeSeedreamInitImage(imageValue)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil

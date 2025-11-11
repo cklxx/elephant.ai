@@ -241,6 +241,35 @@ func NewContextCompressionEvent(level ports.AgentLevel, sessionID, taskID, paren
 	}
 }
 
+// ContextSnapshotEvent - emitted with the exact messages provided to the LLM.
+type ContextSnapshotEvent struct {
+	BaseEvent
+	Iteration int
+	RequestID string
+	Messages  []ports.Message
+	Excluded  []ports.Message
+}
+
+func (e *ContextSnapshotEvent) EventType() string { return "context_snapshot" }
+
+// NewContextSnapshotEvent creates an immutable snapshot of the LLM context payload.
+func NewContextSnapshotEvent(
+	level ports.AgentLevel,
+	sessionID, taskID, parentTaskID string,
+	iteration int,
+	requestID string,
+	messages, excluded []ports.Message,
+	ts time.Time,
+) *ContextSnapshotEvent {
+	return &ContextSnapshotEvent{
+		BaseEvent: newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		Iteration: iteration,
+		RequestID: requestID,
+		Messages:  cloneMessageSlice(messages),
+		Excluded:  cloneMessageSlice(excluded),
+	}
+}
+
 // ToolFilteringEvent - emitted when tools are filtered by preset
 type ToolFilteringEvent struct {
 	BaseEvent
@@ -375,6 +404,56 @@ func cloneAttachmentMap(values map[string]ports.Attachment) map[string]ports.Att
 		clone[k] = v
 	}
 	return clone
+}
+
+func cloneMessageSlice(values []ports.Message) []ports.Message {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]ports.Message, len(values))
+	for i, msg := range values {
+		cloned[i] = cloneMessage(msg)
+	}
+	return cloned
+}
+
+func cloneMessage(msg ports.Message) ports.Message {
+	cloned := msg
+	if len(msg.ToolCalls) > 0 {
+		cloned.ToolCalls = append([]ports.ToolCall(nil), msg.ToolCalls...)
+	}
+	if len(msg.ToolResults) > 0 {
+		cloned.ToolResults = make([]ports.ToolResult, len(msg.ToolResults))
+		for i, result := range msg.ToolResults {
+			cloned.ToolResults[i] = cloneToolResult(result)
+		}
+	}
+	if len(msg.Metadata) > 0 {
+		metadata := make(map[string]any, len(msg.Metadata))
+		for key, value := range msg.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(msg.Attachments) > 0 {
+		cloned.Attachments = cloneAttachmentMap(msg.Attachments)
+	}
+	return cloned
+}
+
+func cloneToolResult(result ports.ToolResult) ports.ToolResult {
+	cloned := result
+	if len(result.Metadata) > 0 {
+		metadata := make(map[string]any, len(result.Metadata))
+		for key, value := range result.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(result.Attachments) > 0 {
+		cloned.Attachments = cloneAttachmentMap(result.Attachments)
+	}
+	return cloned
 }
 
 // EventListenerFunc is a function adapter for EventListener

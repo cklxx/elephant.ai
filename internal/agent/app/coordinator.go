@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
@@ -266,7 +267,13 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 // SaveSessionAfterExecution saves session state after task completion
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
 	// Update session with results
-	session.Messages = append([]ports.Message(nil), result.Messages...)
+	sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
+	session.Messages = sanitizedMessages
+	if len(attachmentStore) > 0 {
+		session.Attachments = attachmentStore
+	} else {
+		session.Attachments = nil
+	}
 	session.UpdatedAt = c.clock.Now()
 
 	if session.Metadata == nil {
@@ -357,6 +364,41 @@ func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 	if c.prepService != nil {
 		c.prepService.SetEnvironmentSummary(summary)
 	}
+}
+
+func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, map[string]ports.Attachment) {
+	if len(messages) == 0 {
+		return nil, nil
+	}
+
+	sanitized := make([]ports.Message, len(messages))
+	attachments := make(map[string]ports.Attachment)
+
+	for i, msg := range messages {
+		cloned := msg
+		if len(msg.Attachments) > 0 {
+			for key, att := range msg.Attachments {
+				name := strings.TrimSpace(key)
+				if name == "" {
+					name = strings.TrimSpace(att.Name)
+				}
+				if name == "" {
+					continue
+				}
+				if att.Name == "" {
+					att.Name = name
+				}
+				attachments[name] = att
+			}
+			cloned.Attachments = nil
+		}
+		sanitized[i] = cloned
+	}
+
+	if len(attachments) == 0 {
+		return sanitized, nil
+	}
+	return sanitized, attachments
 }
 
 // GetLLMClient returns an LLM client

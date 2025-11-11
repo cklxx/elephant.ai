@@ -24,7 +24,6 @@ export function ConversationPageContent() {
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isInputManuallyOpened, setIsInputManuallyOpened] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -204,10 +203,6 @@ export function ConversationPageContent() {
       setActiveTaskId(mockTaskId);
       setCurrentSession(mockSessionId);
       addToHistory(mockSessionId);
-      toast.success(
-        t('console.toast.taskStarted.title'),
-        t('console.toast.taskStarted.description')
-      );
       return;
     }
 
@@ -229,10 +224,6 @@ export function ConversationPageContent() {
             setActiveTaskId(data.task_id);
             setCurrentSession(data.session_id);
             addToHistory(data.session_id);
-            toast.success(
-              t('console.toast.taskStarted.title'),
-              t('console.toast.taskStarted.description')
-            );
             if (cancelIntentRef.current) {
               setCancelRequested(true);
               performCancellation(data.task_id);
@@ -363,20 +354,6 @@ export function ConversationPageContent() {
   const inputDisabled = cancelRequested || isCancelPending;
 
   const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
-
-  useEffect(() => {
-    if (hasConversation && isInputManuallyOpened) {
-      setIsInputManuallyOpened(false);
-    }
-  }, [hasConversation, isInputManuallyOpened]);
-
-  const shouldShowInputBar = hasConversation || isInputManuallyOpened;
-
-  useEffect(() => {
-    if (prefillTask && !shouldShowInputBar) {
-      setIsInputManuallyOpened(true);
-    }
-  }, [prefillTask, shouldShowInputBar]);
 
   const firstTaskAnalysis = useMemo(
     () => events.find((event) => event.event_type === "task_analysis"),
@@ -550,26 +527,24 @@ export function ConversationPageContent() {
         )}
 
         {/* Input Bar */}
-        {shouldShowInputBar && (
-          <div className="px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6">
-            <TaskInput
-              onSubmit={handleTaskSubmit}
-              placeholder={
-                resolvedSessionId
-                  ? t('console.input.placeholder.active')
-                  : t('console.input.placeholder.idle')
-              }
-              disabled={inputDisabled}
-              loading={creationPending}
-              prefill={prefillTask}
-              onPrefillApplied={() => setPrefillTask(null)}
-              onStop={handleStop}
-              isRunning={isTaskRunning}
-              stopPending={stopPending}
-              stopDisabled={isCancelPending}
-            />
-          </div>
-        )}
+        <div className="px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6">
+          <TaskInput
+            onSubmit={handleTaskSubmit}
+            placeholder={
+              resolvedSessionId
+                ? t('console.input.placeholder.active')
+                : t('console.input.placeholder.idle')
+            }
+            disabled={inputDisabled}
+            loading={creationPending}
+            prefill={prefillTask}
+            onPrefillApplied={() => setPrefillTask(null)}
+            onStop={handleStop}
+            isRunning={isTaskRunning}
+            stopPending={stopPending}
+            stopDisabled={isCancelPending}
+          />
+        </div>
       </div>
     </div>
   );

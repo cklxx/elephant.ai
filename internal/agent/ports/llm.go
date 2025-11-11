@@ -68,6 +68,18 @@ type TokenUsage struct {
 }
 
 // Message represents a conversation message
+type MessageSource string
+
+const (
+	MessageSourceUnknown        MessageSource = ""
+	MessageSourceSystemPrompt   MessageSource = "system_prompt"
+	MessageSourceUserInput      MessageSource = "user_input"
+	MessageSourceAssistantReply MessageSource = "assistant_reply"
+	MessageSourceToolResult     MessageSource = "tool_result"
+	MessageSourceDebug          MessageSource = "debug"
+	MessageSourceEvaluation     MessageSource = "evaluation"
+)
+
 type Message struct {
 	Role        string                `json:"role"`
 	Content     string                `json:"content"`
@@ -76,6 +88,7 @@ type Message struct {
 	ToolCallID  string                `json:"tool_call_id,omitempty"`
 	Metadata    map[string]any        `json:"metadata,omitempty"`
 	Attachments map[string]Attachment `json:"attachments,omitempty"`
+	Source      MessageSource         `json:"source,omitempty"`
 }
 
 // Attachment represents a binary asset (image, audio, etc.) referenced within a

@@ -25,14 +25,16 @@ type APIHandler struct {
 	coordinator   *app.ServerCoordinator
 	healthChecker *app.HealthCheckerImpl
 	logger        *utils.Logger
+	internalMode  bool
 }
 
 // NewAPIHandler creates a new API handler
-func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl) *APIHandler {
+func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl, internalMode bool) *APIHandler {
 	return &APIHandler{
 		coordinator:   coordinator,
 		healthChecker: healthChecker,
 		logger:        utils.NewComponentLogger("APIHandler"),
+		internalMode:  internalMode,
 	}
 }
 
@@ -65,6 +67,21 @@ type AttachmentPayload struct {
 	Data        string `json:"data,omitempty"`
 	URI         string `json:"uri,omitempty"`
 	Description string `json:"description,omitempty"`
+}
+
+type ContextSnapshotItem struct {
+	RequestID        string               `json:"request_id"`
+	Iteration        int                  `json:"iteration"`
+	Timestamp        string               `json:"timestamp"`
+	TaskID           string               `json:"task_id,omitempty"`
+	ParentTaskID     string               `json:"parent_task_id,omitempty"`
+	Messages         []agentports.Message `json:"messages"`
+	ExcludedMessages []agentports.Message `json:"excluded_messages,omitempty"`
+}
+
+type ContextSnapshotResponse struct {
+	SessionID string                `json:"session_id"`
+	Snapshots []ContextSnapshotItem `json:"snapshots"`
 }
 
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
@@ -487,6 +504,70 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleInternalSessionRequest routes internal session endpoints.
+func (h *APIHandler) HandleInternalSessionRequest(w http.ResponseWriter, r *http.Request) {
+	if !h.internalMode {
+		http.NotFound(w, r)
+		return
+	}
+
+	if strings.HasSuffix(r.URL.Path, "/context") {
+		h.HandleGetContextSnapshots(w, r)
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+// HandleGetContextSnapshots handles GET /api/internal/sessions/:id/context.
+func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Request) {
+	if !h.internalMode {
+		http.NotFound(w, r)
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/internal/sessions/")
+	path = strings.TrimSuffix(path, "/context")
+	sessionID := strings.Trim(path, "/")
+	if sessionID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Session ID required", fmt.Errorf("invalid session id"))
+		return
+	}
+
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	snapshots := h.coordinator.GetContextSnapshots(sessionID)
+	response := ContextSnapshotResponse{
+		SessionID: sessionID,
+		Snapshots: make([]ContextSnapshotItem, len(snapshots)),
+	}
+
+	for i, snapshot := range snapshots {
+		item := ContextSnapshotItem{
+			RequestID:    snapshot.RequestID,
+			Iteration:    snapshot.Iteration,
+			Timestamp:    snapshot.Timestamp.Format(time.RFC3339Nano),
+			TaskID:       snapshot.TaskID,
+			ParentTaskID: snapshot.ParentTaskID,
+			Messages:     snapshot.Messages,
+		}
+		if len(snapshot.Excluded) > 0 {
+			item.ExcludedMessages = snapshot.Excluded
+		}
+		response.Snapshots[i] = item
+	}
+
+	h.writeJSON(w, http.StatusOK, response)
+}
+
 // HandleHealthCheck handles GET /health
 func (h *APIHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	// Check all component health
@@ -544,5 +625,13 @@ func (h *APIHandler) writeJSONError(w http.ResponseWriter, status int, message s
 	w.WriteHeader(status)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
 		h.logger.Error("Failed to encode error response: %v", encodeErr)
+	}
+}
+
+func (h *APIHandler) writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		h.logger.Error("Failed to encode JSON response: %v", err)
 	}
 }

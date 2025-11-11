@@ -29,7 +29,7 @@ func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, 
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
 	rootErr := errors.New("json: cannot unmarshal object into Go struct field ToolResult.messages.tool_results.error of type error")
 	coordinator := app.NewServerCoordinator(&failingAgentCoordinator{err: rootErr}, app.NewEventBroadcaster(), nil, nil)
-	handler := NewAPIHandler(coordinator, app.NewHealthChecker())
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
 
 	reqBody := bytes.NewBufferString(`{"task":"demo"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks", reqBody)
