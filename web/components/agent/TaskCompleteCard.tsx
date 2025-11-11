@@ -28,11 +28,6 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const imageSegments = segments.filter(
     (segment) => segment.type === "image" && segment.attachment,
   );
-  const referencedPlaceholders = extractReferencedPlaceholders(answer);
-  const referencedImageSegments = imageSegments.filter((segment) => {
-    const placeholderName = normalizePlaceholder(segment.placeholder);
-    return placeholderName ? referencedPlaceholders.has(placeholderName) : false;
-  });
 
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
 
@@ -126,9 +121,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </div>
         )}
 
-        {referencedImageSegments.length > 0 && (
+        {imageSegments.length > 0 && (
           <div className="flex flex-wrap items-start gap-3">
-            {referencedImageSegments.map((segment, index) => {
+            {imageSegments.map((segment, index) => {
               if (!segment.attachment) {
                 return null;
               }
@@ -180,30 +175,4 @@ function getStopReasonCopy(
     title: t("events.taskComplete.empty"),
     body: t("events.taskComplete.stopReason", { reason: stopReason }),
   };
-}
-
-const PLACEHOLDER_REGEX = /\[([^\[\]]+)\]/g;
-
-function extractReferencedPlaceholders(content: string) {
-  const matches = new Set<string>();
-  if (!content) {
-    return matches;
-  }
-  PLACEHOLDER_REGEX.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = PLACEHOLDER_REGEX.exec(content)) !== null) {
-    const key = match[1]?.trim();
-    if (key) {
-      matches.add(key);
-    }
-  }
-  return matches;
-}
-
-function normalizePlaceholder(placeholder?: string) {
-  if (!placeholder) {
-    return null;
-  }
-  const trimmed = placeholder.replace(/^\[/, "").replace(/\]$/, "").trim();
-  return trimmed || null;
 }

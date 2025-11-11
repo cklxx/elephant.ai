@@ -3,7 +3,6 @@ package domain_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"alex/internal/agent/domain"
@@ -328,7 +327,7 @@ func TestReactEngine_EventListenerReceivesEvents(t *testing.T) {
 	}
 }
 
-func TestReactEngine_TaskCompleteIncludesGeneratedAttachments(t *testing.T) {
+func TestReactEngine_TaskCompleteSkipsUnreferencedGeneratedAttachments(t *testing.T) {
 	mockLLM := &mocks.MockLLMClient{
 		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 			return &ports.CompletionResponse{
@@ -382,16 +381,10 @@ func TestReactEngine_TaskCompleteIncludesGeneratedAttachments(t *testing.T) {
 		t.Fatal("expected a task complete event to be emitted")
 	}
 
-	if len(finalEvent.Attachments) != 1 {
-		t.Fatalf("expected only generated attachments to be included, got %d", len(finalEvent.Attachments))
+	if len(finalEvent.Attachments) != 0 {
+		t.Fatalf("expected no attachments to be emitted, got %d", len(finalEvent.Attachments))
 	}
-	if _, ok := finalEvent.Attachments["cat.png"]; !ok {
-		t.Fatalf("expected generated attachment 'cat.png' to be present: %+v", finalEvent.Attachments)
-	}
-	if !strings.Contains(finalEvent.FinalAnswer, "[cat.png]") {
-		t.Fatalf("expected final answer to reference attachment placeholder, got %q", finalEvent.FinalAnswer)
-	}
-	if strings.Contains(finalEvent.FinalAnswer, "Images:") {
-		t.Fatalf("final answer should not include 'Images:' prefix, got %q", finalEvent.FinalAnswer)
+	if finalEvent.FinalAnswer != "All done." {
+		t.Fatalf("expected final answer to remain unchanged, got %q", finalEvent.FinalAnswer)
 	}
 }
