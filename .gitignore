@@ -93,8 +93,8 @@ CHANGELOG.ignore.md
 *.test
 *.out
 build/
-alex
-alex-server
+/alex
+/alex-server
 
 # Go workspace files
 go.work
