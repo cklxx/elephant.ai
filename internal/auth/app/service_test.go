@@ -98,6 +98,76 @@ func TestOAuthFlowCreatesUser(t *testing.T) {
 	}
 }
 
+func TestCompleteOAuthBlocksDisabledUser(t *testing.T) {
+	users, identities, sessions, states := adapters.NewMemoryStores()
+	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
+	sessions.SetVerifier(func(plain, encoded string) (bool, error) {
+		return tokenManager.VerifyRefreshToken(plain, encoded)
+	})
+
+	provider := adapters.NewPassthroughOAuthProvider(adapters.OAuthProviderConfig{
+		Provider:     domain.ProviderGoogle,
+		ClientID:     "client",
+		AuthURL:      "https://example.com/oauth",
+		RedirectURL:  "https://app.example.com/callback",
+		DefaultScope: []string{"openid"},
+	})
+
+	service := authapp.NewService(users, identities, sessions, tokenManager, states, []ports.OAuthProvider{provider}, authapp.Config{})
+
+	ctx := context.Background()
+	now := time.Now()
+
+	disabledUser := domain.User{
+		ID:          "user-disabled",
+		Email:       "disabled@example.com",
+		DisplayName: "Disabled User",
+		Status:      domain.UserStatusDisabled,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if _, err := users.Create(ctx, disabledUser); err != nil {
+		t.Fatalf("create disabled user: %v", err)
+	}
+
+	identity := domain.Identity{
+		ID:         "identity-disabled",
+		UserID:     disabledUser.ID,
+		Provider:   domain.ProviderGoogle,
+		ProviderID: "google-123",
+		Tokens: domain.OAuthTokens{
+			AccessToken:  "third-party-access",
+			RefreshToken: "third-party-refresh",
+			Expiry:       now.Add(time.Hour),
+			Scopes:       []string{"openid"},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if _, err := identities.Create(ctx, identity); err != nil {
+		t.Fatalf("create identity: %v", err)
+	}
+
+	_, state, err := service.StartOAuth(ctx, domain.ProviderGoogle)
+	if err != nil {
+		t.Fatalf("start oauth: %v", err)
+	}
+
+	code := encodeOAuthCode(t, map[string]any{
+		"provider_id":   "google-123",
+		"email":         disabledUser.Email,
+		"display_name":  disabledUser.DisplayName,
+		"access_token":  "third-party-access",
+		"refresh_token": "third-party-refresh",
+		"expires_in":    3600,
+		"scopes":        []string{"openid"},
+	})
+
+	if _, err := service.CompleteOAuth(ctx, domain.ProviderGoogle, code, state, "agent", "127.0.0.1"); err == nil || err.Error() != "user disabled" {
+		t.Fatalf("expected disabled user error, got: %v", err)
+	}
+}
+
 func encodeOAuthCode(t *testing.T, payload map[string]any) string {
 	t.Helper()
 	raw, err := json.Marshal(payload)

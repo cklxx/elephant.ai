@@ -289,6 +289,10 @@ func (s *Service) CompleteOAuth(ctx context.Context, provider domain.ProviderTyp
 		}
 	}
 
+	if user.Status != domain.UserStatusActive {
+		return domain.TokenPair{}, fmt.Errorf("user disabled")
+	}
+
 	plainRefresh, hashedRefresh, err := s.tokens.GenerateRefreshToken(ctx)
 	if err != nil {
 		return domain.TokenPair{}, err
