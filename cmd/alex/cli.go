@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type CLI struct {
@@ -126,6 +130,188 @@ func (c *CLI) handleSessions(args []string) error {
 	default:
 		return fmt.Errorf("unknown sessions subcommand: %s", args[0])
 	}
+}
+
+type sessionCleanupOptions struct {
+	olderThan    time.Duration
+	keepLatest   int
+	dryRun       bool
+	olderThanSet bool
+}
+
+func (c *CLI) cleanupSessions(ctx context.Context, args []string) error {
+	opts, err := parseSessionCleanupOptions(args)
+	if err != nil {
+		return err
+	}
+
+	sessionIDs, err := c.container.Coordinator.ListSessions(ctx)
+	if err != nil {
+		return fmt.Errorf("list sessions: %w", err)
+	}
+
+	if len(sessionIDs) == 0 {
+		fmt.Println("No sessions found")
+		return nil
+	}
+
+	type sessionInfo struct {
+		id      string
+		created time.Time
+		updated time.Time
+	}
+
+	var sessions []sessionInfo
+	for _, id := range sessionIDs {
+		session, err := c.container.SessionStore.Get(ctx, id)
+		if err != nil {
+			fmt.Printf("Skipping session %s (failed to load: %v)\n", id, err)
+			continue
+		}
+		sessions = append(sessions, sessionInfo{id: id, created: session.CreatedAt, updated: session.UpdatedAt})
+	}
+
+	if len(sessions) == 0 {
+		fmt.Println("No sessions available for cleanup")
+		return nil
+	}
+
+	// Sort sessions by UpdatedAt descending to simplify keepLatest handling
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].updated.After(sessions[j].updated)
+	})
+
+	cutoff := time.Time{}
+	if opts.olderThanSet {
+		cutoff = time.Now().Add(-opts.olderThan)
+	}
+
+	keepSet := map[string]struct{}{}
+	if opts.keepLatest > 0 {
+		limit := opts.keepLatest
+		if limit > len(sessions) {
+			limit = len(sessions)
+		}
+		for i := 0; i < limit; i++ {
+			keepSet[sessions[i].id] = struct{}{}
+		}
+	}
+
+	var candidates []sessionInfo
+	for _, session := range sessions {
+		if _, keep := keepSet[session.id]; keep {
+			continue
+		}
+		if opts.olderThanSet && session.updated.After(cutoff) {
+			continue
+		}
+		candidates = append(candidates, session)
+	}
+
+	if len(candidates) == 0 {
+		fmt.Println("Nothing to clean up")
+		return nil
+	}
+
+	fmt.Printf("Identified %d session(s) for cleanup:\n", len(candidates))
+	for _, session := range candidates {
+		fmt.Printf("  %s (created %s, updated %s)\n", session.id, session.created.Format(time.RFC3339), session.updated.Format(time.RFC3339))
+	}
+
+	if opts.dryRun {
+		fmt.Println("Dry run: no sessions were deleted")
+		return nil
+	}
+
+	var combinedErr error
+	deleted := 0
+	for _, session := range candidates {
+		if err := c.container.SessionStore.Delete(ctx, session.id); err != nil {
+			fmt.Printf("Failed to delete session %s: %v\n", session.id, err)
+			combinedErr = errors.Join(combinedErr, err)
+			continue
+		}
+		deleted++
+	}
+
+	fmt.Printf("Deleted %d session(s)\n", deleted)
+
+	if combinedErr != nil {
+		return combinedErr
+	}
+
+	return nil
+}
+
+func parseSessionCleanupOptions(args []string) (sessionCleanupOptions, error) {
+	opts := sessionCleanupOptions{keepLatest: 0}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--older-than":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("--older-than requires a value (e.g., 30d)")
+			}
+			duration, err := parseSessionAge(args[i+1])
+			if err != nil {
+				return opts, err
+			}
+			opts.olderThan = duration
+			opts.olderThanSet = true
+			i++
+		case "--keep-latest":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("--keep-latest requires a numeric value")
+			}
+			value, err := strconv.Atoi(args[i+1])
+			if err != nil || value < 0 {
+				return opts, fmt.Errorf("invalid value for --keep-latest: %s", args[i+1])
+			}
+			opts.keepLatest = value
+			i++
+		case "--dry-run":
+			opts.dryRun = true
+		default:
+			return opts, fmt.Errorf("unknown cleanup option: %s", args[i])
+		}
+	}
+
+	if !opts.olderThanSet && opts.keepLatest == 0 {
+		return opts, fmt.Errorf("cleanup requires at least one of --older-than or --keep-latest")
+	}
+
+	return opts, nil
+}
+
+func parseSessionAge(value string) (time.Duration, error) {
+	if value == "" {
+		return 0, fmt.Errorf("age value cannot be empty")
+	}
+
+	if strings.HasSuffix(value, "d") {
+		days, err := strconv.Atoi(strings.TrimSuffix(value, "d"))
+		if err != nil || days < 0 {
+			return 0, fmt.Errorf("invalid day value: %s", value)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+
+	if strings.HasSuffix(value, "w") {
+		weeks, err := strconv.Atoi(strings.TrimSuffix(value, "w"))
+		if err != nil || weeks < 0 {
+			return 0, fmt.Errorf("invalid week value: %s", value)
+		}
+		return time.Duration(weeks) * 7 * 24 * time.Hour, nil
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration: %s", value)
+	}
+	if duration < 0 {
+		return 0, fmt.Errorf("duration must be positive")
+	}
+	return duration, nil
 }
 
 func (c *CLI) listSessions(ctx context.Context) error {
