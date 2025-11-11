@@ -87,10 +87,6 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution({
     onSuccess: (response) => {
       setActiveTaskId(response.task_id);
-      toast.success(
-        t('sessions.details.toast.taskStarted.title'),
-        t('sessions.details.toast.taskStarted.description')
-      );
       if (cancelIntentRef.current) {
         setCancelRequested(true);
         performCancellation(response.task_id);

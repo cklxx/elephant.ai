@@ -996,20 +996,10 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 	}
 
 	attachments := resolveContentAttachments(result.Answer, state)
-	generated := collectGeneratedAttachments(state, state.Iterations)
-	if len(generated) > 0 {
-		if attachments == nil {
-			attachments = generated
-		} else {
-			for key, att := range generated {
-				if _, exists := attachments[key]; !exists {
-					attachments[key] = att
-				}
-			}
-		}
-	}
-
 	result.Answer = ensureAttachmentPlaceholders(result.Answer, attachments)
+	if len(attachments) == 0 {
+		return nil
+	}
 	return attachments
 }
 
