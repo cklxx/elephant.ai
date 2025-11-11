@@ -253,6 +253,7 @@ type fileConfig struct {
 	Model                   string                 `json:"model"`
 	APIKey                  string                 `json:"api_key"`
 	ArkAPIKey               string                 `json:"arkApiKey"`
+	LegacyArkAPIKey         string                 `json:"ark_api_key"`
 	BaseURL                 string                 `json:"base_url"`
 	TavilyAPIKey            string                 `json:"tavilyApiKey"`
 	SeedreamTextEndpointID  string                 `json:"seedreamTextEndpointId"`
@@ -310,8 +311,8 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.APIKey = parsed.APIKey
 		meta.sources["api_key"] = SourceFile
 	}
-	if parsed.ArkAPIKey != "" {
-		cfg.ArkAPIKey = parsed.ArkAPIKey
+	if arkKey := firstNonEmpty(parsed.ArkAPIKey, parsed.LegacyArkAPIKey); arkKey != "" {
+		cfg.ArkAPIKey = arkKey
 		meta.sources["ark_api_key"] = SourceFile
 	}
 	if parsed.LLMProvider != "" {
@@ -428,6 +429,15 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	}
 
 	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {

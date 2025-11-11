@@ -20,7 +20,6 @@ export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
-  const [isInputManuallyOpened, setIsInputManuallyOpened] = useState(false);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -183,7 +182,6 @@ export function ConversationPageContent() {
     setTaskId(null);
     clearEvents();
     clearCurrentSession();
-    setIsInputManuallyOpened(true);
   };
 
   const handleSessionSelect = (id: string) => {
@@ -230,22 +228,7 @@ export function ConversationPageContent() {
   };
 
   const isSubmitting = useMockStream ? false : isPending;
-
-  const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
-
-  useEffect(() => {
-    if (hasConversation && isInputManuallyOpened) {
-      setIsInputManuallyOpened(false);
-    }
-  }, [hasConversation, isInputManuallyOpened]);
-
-  const shouldShowInputBar = hasConversation || isInputManuallyOpened;
-
-  useEffect(() => {
-    if (prefillTask && !shouldShowInputBar) {
-      setIsInputManuallyOpened(true);
-    }
-  }, [prefillTask, shouldShowInputBar]);
+  const shouldShowInputBar = true;
 
   const firstTaskAnalysis = useMemo(
     () => events.find((event) => event.event_type === "task_analysis"),
@@ -268,21 +251,11 @@ export function ConversationPageContent() {
     : null;
 
   const emptyState = (
-    <div className="flex flex-col items-center justify-center gap-4 text-center">
-      <span className="console-quiet-chip">{t('console.empty.badge')}</span>
+    <div className="flex flex-col items-center justify-center gap-3 text-center">
       <p className="text-base font-semibold text-slate-700">{t('console.empty.title')}</p>
       <p className="console-microcopy max-w-sm text-slate-400">
-        {t('console.empty.description')}
+        {t('console.empty.prompt')}
       </p>
-      {!shouldShowInputBar && (
-        <button
-          type="button"
-          onClick={handleNewSession}
-          className="console-button console-button-primary"
-        >
-          {t('console.connection.newConversation')}
-        </button>
-      )}
     </div>
   );
 
@@ -430,7 +403,7 @@ export function ConversationPageContent() {
 
         {/* Input Bar */}
         {shouldShowInputBar && (
-          <div className="border-t border-slate-200 bg-white px-6 py-4">
+          <div className="px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6">
             <TaskInput
               onSubmit={handleTaskSubmit}
               placeholder={

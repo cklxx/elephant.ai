@@ -107,45 +107,70 @@ func TestNormalizeSeedreamInitImageDataURI(t *testing.T) {
 	base64 := "YWJjMTIz"
 	value := " data:image/png;base64," + base64 + "  "
 
-	actual, err := normalizeSeedreamInitImage(value)
+	actual, kind, err := normalizeSeedreamInitImage(value)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if actual != base64 {
-		t.Fatalf("expected payload %q, got %q", base64, actual)
+	expected := "data:image/png;base64," + base64
+	if actual != expected {
+		t.Fatalf("expected payload %q, got %q", expected, actual)
+	}
+	if kind != "data_uri" {
+		t.Fatalf("expected kind %q, got %q", "data_uri", kind)
 	}
 }
 
 func TestNormalizeSeedreamInitImageHTTPURL(t *testing.T) {
 	raw := "https://example.com/seed.png"
-	actual, err := normalizeSeedreamInitImage(raw)
+	actual, kind, err := normalizeSeedreamInitImage(raw)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if actual != raw {
 		t.Fatalf("expected URL %q, got %q", raw, actual)
 	}
+	if kind != "url" {
+		t.Fatalf("expected kind %q, got %q", "url", kind)
+	}
 }
 
 func TestNormalizeSeedreamInitImagePlainBase64(t *testing.T) {
 	payload := "ZXhhbXBsZQ=="
-	actual, err := normalizeSeedreamInitImage(payload)
+	actual, kind, err := normalizeSeedreamInitImage(payload)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if actual != payload {
-		t.Fatalf("expected payload %q, got %q", payload, actual)
+	expected := "data:image/png;base64," + payload
+	if actual != expected {
+		t.Fatalf("expected payload %q, got %q", expected, actual)
+	}
+	if kind != "data_uri" {
+		t.Fatalf("expected kind %q, got %q", "data_uri", kind)
 	}
 }
 
 func TestNormalizeSeedreamInitImageRejectsBadScheme(t *testing.T) {
-	if _, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
-		t.Fatalf("expected error for unsupported scheme")
-	}
+       if actual, kind, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
+               t.Fatalf("expected error for unsupported scheme")
+       } else {
+               if actual != "" {
+                       t.Fatalf("expected empty payload on error, got %q", actual)
+               }
+               if kind != "" {
+                       t.Fatalf("expected empty kind on error, got %q", kind)
+               }
+       }
 }
 
 func TestNormalizeSeedreamInitImageRequiresPayload(t *testing.T) {
-	if _, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
-		t.Fatalf("expected error for empty payload")
-	}
+       if actual, kind, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
+               t.Fatalf("expected error for empty payload")
+       } else {
+               if actual != "" {
+                       t.Fatalf("expected empty payload on error, got %q", actual)
+               }
+               if kind != "" {
+                       t.Fatalf("expected empty kind on error, got %q", kind)
+               }
+       }
 }
