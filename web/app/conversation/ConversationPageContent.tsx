@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
-import { useTaskExecution } from '@/hooks/useTaskExecution';
+import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
@@ -14,22 +14,31 @@ import { Sidebar, Header, ContentArea } from '@/components/layout';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
-import type { AttachmentPayload, AttachmentUpload } from '@/lib/types';
+import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
 
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [isInputManuallyOpened, setIsInputManuallyOpened] = useState(false);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const cancelIntentRef = useRef(false);
+  const activeTaskIdRef = useRef<string | null>(null);
   const searchParams = useSearchParams();
   const { t } = useI18n();
 
   const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
 
-  const { mutate: executeTask, isPending } = useTaskExecution();
+  useEffect(() => {
+    activeTaskIdRef.current = activeTaskId;
+  }, [activeTaskId]);
+
+  const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution();
+  const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
   const deleteSessionMutation = useDeleteSession();
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const {
@@ -47,6 +56,26 @@ export function ConversationPageContent() {
 
   const resolvedSessionId = sessionId || currentSessionId;
 
+  const handleAgentEvent = useCallback(
+    (event: AnyAgentEvent) => {
+      const currentId = activeTaskIdRef.current;
+      if (!currentId || !event.task_id || event.task_id !== currentId) {
+        return;
+      }
+
+      if (
+        event.event_type === 'task_complete' ||
+        event.event_type === 'task_cancelled' ||
+        event.event_type === 'error'
+      ) {
+        setActiveTaskId(null);
+        setCancelRequested(false);
+        cancelIntentRef.current = false;
+      }
+    },
+    [setActiveTaskId, setCancelRequested]
+  );
+
   const {
     events,
     isConnected,
@@ -58,6 +87,7 @@ export function ConversationPageContent() {
     addEvent,
   } = useAgentEventStream(resolvedSessionId, {
     useMock: useMockStream,
+    onEvent: handleAgentEvent,
   });
 
   // Auto-set session name from first task_analysis event
@@ -84,8 +114,59 @@ export function ConversationPageContent() {
     }
   }, [events]);
 
+  const performCancellation = useCallback(
+    (taskId: string) => {
+      cancelIntentRef.current = false;
+
+      if (useMockStream) {
+        setActiveTaskId(null);
+        setCancelRequested(false);
+        toast.success(
+          t('console.toast.taskCancelRequested.title'),
+          t('console.toast.taskCancelRequested.description')
+        );
+        return;
+      }
+
+      cancelTask(taskId, {
+        onSuccess: () => {
+          setActiveTaskId(null);
+          setCancelRequested(false);
+          toast.success(
+            t('console.toast.taskCancelRequested.title'),
+            t('console.toast.taskCancelRequested.description')
+          );
+        },
+        onError: (cancelError) => {
+          console.error(
+            '[ConversationPage] Task cancellation error:',
+            getErrorLogPayload(cancelError)
+          );
+          setCancelRequested(false);
+          const parsed = parseError(cancelError, t('common.error.unknown'));
+          toast.error(
+            t('console.toast.taskCancelError.title'),
+            t('console.toast.taskCancelError.description', {
+              message: formatParsedError(parsed),
+            })
+          );
+        },
+      });
+    },
+    [
+      cancelTask,
+      setActiveTaskId,
+      setCancelRequested,
+      t,
+      useMockStream,
+    ]
+  );
+
   const handleTaskSubmit = (task: string, attachments: AttachmentUpload[]) => {
     console.log('[ConversationPage] Task submitted:', { task, attachments });
+
+    cancelIntentRef.current = false;
+    setCancelRequested(false);
 
     if (useMockStream) {
       const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
@@ -114,8 +195,13 @@ export function ConversationPageContent() {
       const mockTaskId = `mock-task-${Date.now().toString(36)}`;
       setSessionId(mockSessionId);
       setTaskId(mockTaskId);
+      setActiveTaskId(mockTaskId);
       setCurrentSession(mockSessionId);
       addToHistory(mockSessionId);
+      toast.success(
+        t('console.toast.taskStarted.title'),
+        t('console.toast.taskStarted.description')
+      );
       return;
     }
 
@@ -134,8 +220,17 @@ export function ConversationPageContent() {
             console.log('[ConversationPage] Task execution started:', data);
             setSessionId(data.session_id);
             setTaskId(data.task_id);
+            setActiveTaskId(data.task_id);
             setCurrentSession(data.session_id);
             addToHistory(data.session_id);
+            toast.success(
+              t('console.toast.taskStarted.title'),
+              t('console.toast.taskStarted.description')
+            );
+            if (cancelIntentRef.current) {
+              setCancelRequested(true);
+              performCancellation(data.task_id);
+            }
           },
           onError: (error) => {
             const isStaleSession =
@@ -153,6 +248,9 @@ export function ConversationPageContent() {
 
               setSessionId(null);
               setTaskId(null);
+              setActiveTaskId(null);
+              setCancelRequested(false);
+              cancelIntentRef.current = false;
               clearCurrentSession();
               removeSession(requestedSessionId);
               clearEvents();
@@ -165,6 +263,9 @@ export function ConversationPageContent() {
               '[ConversationPage] Task execution error:',
               getErrorLogPayload(error)
             );
+            cancelIntentRef.current = false;
+            setCancelRequested(false);
+            setActiveTaskId(null);
             const parsed = parseError(error, t('common.error.unknown'));
             toast.error(
               t('console.toast.taskFailed'),
@@ -178,9 +279,25 @@ export function ConversationPageContent() {
     runExecution(initialSessionId ?? null);
   };
 
+  const handleStop = useCallback(() => {
+    if (isCancelPending) {
+      return;
+    }
+
+    setCancelRequested(true);
+    if (activeTaskId) {
+      performCancellation(activeTaskId);
+    } else {
+      cancelIntentRef.current = true;
+    }
+  }, [activeTaskId, isCancelPending, performCancellation]);
+
   const handleNewSession = () => {
     setSessionId(null);
     setTaskId(null);
+    setActiveTaskId(null);
+    setCancelRequested(false);
+    cancelIntentRef.current = false;
     clearEvents();
     clearCurrentSession();
     setIsInputManuallyOpened(true);
@@ -191,6 +308,9 @@ export function ConversationPageContent() {
     clearEvents();
     setSessionId(id);
     setTaskId(null);
+    setActiveTaskId(null);
+    setCancelRequested(false);
+    cancelIntentRef.current = false;
     setCurrentSession(id);
     addToHistory(id);
   };
@@ -212,6 +332,9 @@ export function ConversationPageContent() {
           clearEvents();
           setSessionId(null);
           setTaskId(null);
+          setActiveTaskId(null);
+          setCancelRequested(false);
+          cancelIntentRef.current = false;
           clearCurrentSession();
         }
         toast.success(t('sidebar.session.toast.deleteSuccess'));
@@ -229,7 +352,10 @@ export function ConversationPageContent() {
     }
   };
 
-  const isSubmitting = useMockStream ? false : isPending;
+  const creationPending = useMockStream ? false : isCreatePending;
+  const isTaskRunning = Boolean(activeTaskId);
+  const stopPending = cancelRequested || isCancelPending;
+  const inputDisabled = cancelRequested || isCancelPending;
 
   const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
 
@@ -438,10 +564,14 @@ export function ConversationPageContent() {
                   ? t('console.input.placeholder.active')
                   : t('console.input.placeholder.idle')
               }
-              disabled={isSubmitting}
-              loading={isSubmitting}
+              disabled={inputDisabled}
+              loading={creationPending}
               prefill={prefillTask}
               onPrefillApplied={() => setPrefillTask(null)}
+              onStop={handleStop}
+              isRunning={isTaskRunning}
+              stopPending={stopPending}
+              stopDisabled={isCancelPending}
             />
           </div>
         )}

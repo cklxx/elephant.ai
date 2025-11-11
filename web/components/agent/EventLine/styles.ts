@@ -25,6 +25,10 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
     content: "font-semibold text-foreground",
     line: "is-highlighted",
   },
+  task_cancelled: {
+    content: "font-semibold text-amber-600",
+    line: "is-highlighted",
+  },
   error: { content: "font-semibold text-destructive", line: "is-highlighted" },
   research_plan: { content: "text-foreground/90 font-medium" },
   tool_call_start: { content: "font-mono text-[12px] text-foreground/80" },

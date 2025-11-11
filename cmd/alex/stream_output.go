@@ -1,15 +1,20 @@
 package main
 
 import (
-	"alex/internal/agent/types"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/types"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
 	id "alex/internal/utils/id"
@@ -32,7 +37,11 @@ type StreamingOutputHandler struct {
 	activeTools     map[string]ToolInfo
 	subagentDisplay *SubagentDisplay
 	verbose         bool
+	mu              sync.Mutex
+	lastCompletion  *domain.TaskCompleteEvent
 }
+
+var ErrForceExit = errors.New("force exit requested by user")
 
 func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOutputHandler {
 	return &StreamingOutputHandler{
@@ -57,7 +66,9 @@ func (h *StreamingOutputHandler) SetOutputWriter(w io.Writer) {
 // RunTaskWithStreamOutput executes a task with inline streaming output
 func RunTaskWithStreamOutput(container *Container, task string, sessionID string) error {
 	// Start execution with stream handler
-	ctx := context.Background()
+	baseCtx := context.Background()
+	ctx, cancel := context.WithCancel(baseCtx)
+	defer cancel()
 
 	if sessionID == "" {
 		session, err := container.SessionStore.Create(ctx)
@@ -93,14 +104,54 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	// Add listener to context so subagent can forward events
 	ctx = builtin.WithParentListener(ctx, bridge)
 
+	// Handle interrupts for graceful cancellation
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+
+	done := make(chan struct{})
+	defer close(done)
+
+	var forceExit atomic.Bool
+
+	go func() {
+		interrupted := false
+		for {
+			select {
+			case <-signals:
+				if !interrupted {
+					interrupted = true
+					handler.printInterruptRequested()
+					cancel()
+				} else {
+					handler.printForcedExit()
+					forceExit.Store(true)
+					cancel()
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
 	// Execute task with streaming via listener
 	domainResult, err := container.Coordinator.ExecuteTask(ctx, task, sessionID, bridge)
 	if err != nil {
+		if forceExit.Load() {
+			handler.consumeTaskCompletion()
+			return ErrForceExit
+		}
+		if errors.Is(err, context.Canceled) {
+			completion := handler.consumeTaskCompletion()
+			handler.printCancellation(completion)
+			return nil
+		}
 		return fmt.Errorf("task execution failed: %w", err)
 	}
 
 	// Print completion summary
 	handler.printCompletion(domainResult)
+	handler.consumeTaskCompletion()
 
 	return nil
 }
@@ -139,6 +190,8 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 		b.handler.onToolCallComplete(e)
 	case *domain.ErrorEvent:
 		b.handler.onError(e)
+	case *domain.TaskCompleteEvent:
+		b.handler.onTaskComplete(e)
 	}
 }
 
@@ -229,6 +282,12 @@ func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
 	h.write(rendered)
 }
 
+func (h *StreamingOutputHandler) onTaskComplete(event *domain.TaskCompleteEvent) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.lastCompletion = event
+}
+
 func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 	outCtx := &types.OutputContext{
 		Level:        types.LevelCore,
@@ -240,6 +299,30 @@ func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 	}
 	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(result))
 	h.write(rendered)
+}
+
+func (h *StreamingOutputHandler) printInterruptRequested() {
+	h.write("\n⏹️  Interrupt requested – attempting graceful shutdown (press Ctrl+C again to force exit)\n")
+}
+
+func (h *StreamingOutputHandler) printForcedExit() {
+	h.write("\n⏹️  Force exit requested – terminating immediately.\n")
+}
+
+func (h *StreamingOutputHandler) printCancellation(event *domain.TaskCompleteEvent) {
+	summary := "⚠️ Task interrupted"
+	if event != nil {
+		summary = fmt.Sprintf("⚠️ Task interrupted | %d iteration(s) | %d tokens", event.TotalIterations, event.TotalTokens)
+	}
+	h.write("\n" + summary + "\n")
+}
+
+func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.TaskCompleteEvent {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	event := h.lastCompletion
+	h.lastCompletion = nil
+	return event
 }
 
 // handleSubtaskEvent handles events from subtasks with simple line-by-line output

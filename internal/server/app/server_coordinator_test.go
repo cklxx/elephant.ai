@@ -537,6 +537,18 @@ func TestTaskCancellation(t *testing.T) {
 		t.Errorf("Expected termination reason 'cancelled', got '%s'", cancelledTask.TerminationReason)
 	}
 
+	events := broadcaster.GetEventHistory(task.SessionID)
+	foundCancellation := false
+	for _, evt := range events {
+		if evt.EventType() == "task_cancelled" {
+			foundCancellation = true
+			break
+		}
+	}
+	if !foundCancellation {
+		t.Errorf("expected task_cancelled event in history for session %s", task.SessionID)
+	}
+
 	t.Logf("✓ Task cancelled successfully: status=%s, reason=%s",
 		cancelledTask.Status, cancelledTask.TerminationReason)
 }

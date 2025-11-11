@@ -183,6 +183,29 @@ type TaskCompleteEvent struct {
 
 func (e *TaskCompleteEvent) EventType() string { return "task_complete" }
 
+// TaskCancelledEvent - emitted when a running task receives an explicit cancellation request
+type TaskCancelledEvent struct {
+	BaseEvent
+	Reason      string
+	RequestedBy string
+}
+
+func (e *TaskCancelledEvent) EventType() string { return "task_cancelled" }
+
+// NewTaskCancelledEvent constructs a cancellation notification event for SSE consumers.
+func NewTaskCancelledEvent(
+	level ports.AgentLevel,
+	sessionID, taskID, parentTaskID string,
+	reason, requestedBy string,
+	ts time.Time,
+) *TaskCancelledEvent {
+	return &TaskCancelledEvent{
+		BaseEvent:   newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		Reason:      reason,
+		RequestedBy: requestedBy,
+	}
+}
+
 // ErrorEvent - emitted on errors
 type ErrorEvent struct {
 	BaseEvent

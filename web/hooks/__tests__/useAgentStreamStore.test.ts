@@ -278,6 +278,25 @@ describe('useAgentStreamStore', () => {
       expect(state.totalTokens).toBe(1500);
     });
 
+    it('should transition to cancelled on task cancelled', () => {
+      const cancelledEvent: AnyAgentEvent = {
+        event_type: 'task_cancelled',
+        timestamp: new Date().toISOString(),
+        session_id: 'test-123',
+        agent_level: 'core',
+        reason: 'cancelled',
+      };
+
+      act(() => {
+        useAgentStreamStore.getState().addEvent(cancelledEvent);
+      });
+
+      const state = useAgentStreamStore.getState();
+      expect(state.taskStatus).toBe('cancelled');
+      expect(state.errorMessage).toBeUndefined();
+      expect(state.finalAnswer).toBeUndefined();
+    });
+
     it('should transition to error on error event', () => {
       const errorEvent: AnyAgentEvent = {
         event_type: 'error',
