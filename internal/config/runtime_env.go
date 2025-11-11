@@ -65,6 +65,8 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("ALEX_SEEDREAM_IMAGE_MODEL", cfg.SeedreamImageModel)
 	set("SEEDREAM_VISION_MODEL", cfg.SeedreamVisionModel)
 	set("ALEX_SEEDREAM_VISION_MODEL", cfg.SeedreamVisionModel)
+	set("SEEDREAM_VIDEO_MODEL", cfg.SeedreamVideoModel)
+	set("ALEX_SEEDREAM_VIDEO_MODEL", cfg.SeedreamVideoModel)
 
 	if cfg.Environment != "" {
 		set("ALEX_ENV", cfg.Environment)

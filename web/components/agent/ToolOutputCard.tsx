@@ -43,8 +43,16 @@ export function ToolOutputCard({
   const t = useTranslation();
 
   const normalizedToolName = toolName.toLowerCase();
+  const normalizedSeedreamKey = normalizedToolName.replace(/\s+/g, "");
+  const seedreamDisplayNames: Record<string, string> = {
+    seedream_text_to_image: "Seedream image generation",
+    seedream_image_to_image: "Seedream image-to-image",
+    seedream_vision_analyze: "Seedream vision analysis",
+    seedream_video_generate: "Seedance video generation",
+  };
   const isSeedream = normalizedToolName.includes("seedream");
-  const displayToolName = isSeedream ? "Seedream image generation" : toolName;
+  const displayToolName = seedreamDisplayNames[normalizedSeedreamKey] ||
+    (isSeedream ? "Seedream tool" : toolName);
 
   const language = useMemo(
     () => detectLanguage(toolName, parameters, result),
@@ -766,9 +774,11 @@ function renderToolResult(
           (segment) => segment.text?.trim() !== normalizedDescriptor,
         )
       : cleanedTextSegments;
-  const imageSegments = parsedSegments
+  const mediaSegments = parsedSegments
     ? parsedSegments.filter(
-        (segment) => segment.type === "image" && segment.attachment,
+        (segment) =>
+          (segment.type === "image" || segment.type === "video") &&
+          segment.attachment,
       )
     : [];
 
@@ -791,9 +801,9 @@ function renderToolResult(
           ))}
         </div>
       )}
-      {imageSegments.length > 0 && (
+      {mediaSegments.length > 0 && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {imageSegments.map((segment, index) => {
+          {mediaSegments.map((segment, index) => {
             if (!segment.attachment) {
               return null;
             }
@@ -801,9 +811,35 @@ function renderToolResult(
             if (!uri) {
               return null;
             }
+            const key = segment.placeholder || `${segment.type}-${index}`;
+            if (segment.type === "video") {
+              return (
+                <div
+                  key={`media-segment-${key}`}
+                  className="relative w-full overflow-hidden rounded-2xl bg-black"
+                >
+                  <video
+                    controls
+                    className="h-full w-full"
+                    preload="metadata"
+                  >
+                    <source
+                      src={uri}
+                      type={segment.attachment.media_type || "video/mp4"}
+                    />
+                    Your browser does not support video playback.
+                  </video>
+                  {segment.attachment.description && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {segment.attachment.description}
+                    </p>
+                  )}
+                </div>
+              );
+            }
             return (
               <ImagePreview
-                key={`image-segment-${index}`}
+                key={`media-segment-${key}`}
                 src={uri}
                 alt={segment.attachment.description || segment.attachment.name}
                 minHeight="10rem"

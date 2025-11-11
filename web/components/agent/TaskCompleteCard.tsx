@@ -25,8 +25,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     .map((segment) => segment.text ?? "")
     .join("");
   const hasAnswer = textContent.trim().length > 0;
-  const imageSegments = segments.filter(
-    (segment) => segment.type === "image" && segment.attachment,
+  const mediaSegments = segments.filter(
+    (segment) =>
+      (segment.type === "image" || segment.type === "video") &&
+      segment.attachment,
   );
 
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
@@ -121,9 +123,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </div>
         )}
 
-        {imageSegments.length > 0 && (
+        {mediaSegments.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
-            {imageSegments.map((segment, index) => {
+            {mediaSegments.map((segment, index) => {
               if (!segment.attachment) {
                 return null;
               }
@@ -135,9 +137,31 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 segment.attachment.description ||
                 segment.attachment.name ||
                 `image-${index + 1}`;
+              const key = segment.placeholder || `${segment.type}-${index}`;
+              if (segment.type === "video") {
+                return (
+                  <div
+                    key={`task-complete-media-${key}`}
+                    className="overflow-hidden rounded-2xl bg-black"
+                  >
+                    <video controls className="w-full" preload="metadata">
+                      <source
+                        src={uri}
+                        type={segment.attachment.media_type || "video/mp4"}
+                      />
+                      Your browser does not support video playback.
+                    </video>
+                    {segment.attachment.description && (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {segment.attachment.description}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
               return (
                 <ImagePreview
-                  key={`image-segment-${index}`}
+                  key={`task-complete-media-${key}`}
                   src={uri}
                   alt={caption}
                   minHeight="12rem"

@@ -34,6 +34,7 @@ type Config struct {
 	SeedreamTextModel       string
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
+	SeedreamVideoModel      string
 
 	ExecutionMode  tools.ExecutionMode
 	SandboxManager *tools.SandboxManager
@@ -71,6 +72,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		SeedreamTextModel:       config.SeedreamTextModel,
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
+		SeedreamVideoModel:      config.SeedreamVideoModel,
 		ExecutionMode:           mode,
 		SandboxManager:          config.SandboxManager,
 	}); err != nil {
@@ -297,6 +299,13 @@ func (r *Registry) registerBuiltins(config Config) error {
 		visionConfig.ModelDescriptor = "Seedream vision analysis"
 		visionConfig.ModelEnvVar = "SEEDREAM_VISION_MODEL"
 		r.static["seedream_vision_analyze"] = builtin.NewSeedreamVisionAnalyze(visionConfig)
+	}
+	if config.SeedreamVideoModel != "" {
+		videoConfig := seedreamBase
+		videoConfig.Model = config.SeedreamVideoModel
+		videoConfig.ModelDescriptor = "Seedance video generation"
+		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
+		r.static["seedream_video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
 	}
 
 	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {

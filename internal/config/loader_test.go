@@ -57,6 +57,7 @@ func TestLoadFromFile(t *testing.T) {
                 "seedreamTextModel": "file-text-model",
                 "seedreamImageModel": "file-image-model",
                 "seedreamVisionModel": "file-vision-model",
+                "seedreamVideoModel": "file-video-model",
                 "environment": "staging",
                 "verbose": true,
                 "follow_transcript": false,
@@ -100,8 +101,8 @@ func TestLoadFromFile(t *testing.T) {
 	if cfg.ArkAPIKey != "file-ark" {
 		t.Fatalf("expected ark API key from file, got %q", cfg.ArkAPIKey)
 	}
-	if cfg.SeedreamTextModel != "file-text-model" || cfg.SeedreamImageModel != "file-image-model" || cfg.SeedreamVisionModel != "file-vision-model" {
-		t.Fatalf("expected seedream models from file, got %q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel)
+	if cfg.SeedreamTextModel != "file-text-model" || cfg.SeedreamImageModel != "file-image-model" || cfg.SeedreamVisionModel != "file-vision-model" || cfg.SeedreamVideoModel != "file-video-model" {
+		t.Fatalf("expected seedream models from file, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
 	}
 	if cfg.Environment != "staging" {
 		t.Fatalf("expected environment from file, got %q", cfg.Environment)
@@ -123,6 +124,9 @@ func TestLoadFromFile(t *testing.T) {
 	}
 	if meta.Source("seedream_text_endpoint_id") != SourceFile || meta.Source("seedream_image_endpoint_id") != SourceFile {
 		t.Fatalf("expected seedream endpoints source from file")
+	}
+	if meta.Source("seedream_video_model") != SourceFile {
+		t.Fatalf("expected seedream video model source from file")
 	}
 	if meta.Source("agent_preset") != SourceFile || meta.Source("tool_preset") != SourceFile {
 		t.Fatalf("expected preset sources from file")
@@ -152,6 +156,7 @@ func TestEnvOverridesFile(t *testing.T) {
 			"SEEDREAM_TEXT_MODEL":        "env-text-model",
 			"SEEDREAM_IMAGE_MODEL":       "env-image-model",
 			"SEEDREAM_VISION_MODEL":      "env-vision-model",
+			"SEEDREAM_VIDEO_MODEL":       "env-video-model",
 			"ALEX_ENV":                   "production",
 			"ALEX_VERBOSE":               "yes",
 			"ALEX_NO_TUI":                "true",
@@ -179,8 +184,8 @@ func TestEnvOverridesFile(t *testing.T) {
 	if cfg.ArkAPIKey != "env-ark" {
 		t.Fatalf("expected ark api key from env, got %q", cfg.ArkAPIKey)
 	}
-	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" {
-		t.Fatalf("expected seedream models from env, got %q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel)
+	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" || cfg.SeedreamVideoModel != "env-video-model" {
+		t.Fatalf("expected seedream models from env, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
 	}
 	if cfg.Environment != "production" {
 		t.Fatalf("expected environment from env, got %q", cfg.Environment)
@@ -206,7 +211,7 @@ func TestEnvOverridesFile(t *testing.T) {
 	if meta.Source("seedream_text_endpoint_id") != SourceEnv || meta.Source("seedream_image_endpoint_id") != SourceEnv {
 		t.Fatalf("expected env source for seedream endpoints")
 	}
-	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv {
+	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv || meta.Source("seedream_video_model") != SourceEnv {
 		t.Fatalf("expected env source for seedream models")
 	}
 	if meta.Source("temperature") != SourceEnv {
@@ -242,6 +247,7 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideSeedreamTextModel := "override-text-model"
 	overrideSeedreamImageModel := "override-image-model"
 	overrideSeedreamVisionModel := "override-vision-model"
+	overrideSeedreamVideoModel := "override-video-model"
 	overrideEnv := "qa"
 	overrideVerbose := true
 	overrideFollowTranscript := false
@@ -260,6 +266,7 @@ func TestOverridesTakePriority(t *testing.T) {
 			SeedreamTextModel:       &overrideSeedreamTextModel,
 			SeedreamImageModel:      &overrideSeedreamImageModel,
 			SeedreamVisionModel:     &overrideSeedreamVisionModel,
+			SeedreamVideoModel:      &overrideSeedreamVideoModel,
 			Environment:             &overrideEnv,
 			Verbose:                 &overrideVerbose,
 			FollowTranscript:        &overrideFollowTranscript,
@@ -286,8 +293,8 @@ func TestOverridesTakePriority(t *testing.T) {
 	if cfg.SeedreamTextEndpointID != overrideSeedreamText || cfg.SeedreamImageEndpointID != overrideSeedreamImage {
 		t.Fatalf("expected override seedream endpoints, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
 	}
-	if cfg.SeedreamTextModel != overrideSeedreamTextModel || cfg.SeedreamImageModel != overrideSeedreamImageModel || cfg.SeedreamVisionModel != overrideSeedreamVisionModel {
-		t.Fatalf("expected override seedream models, got %q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel)
+	if cfg.SeedreamTextModel != overrideSeedreamTextModel || cfg.SeedreamImageModel != overrideSeedreamImageModel || cfg.SeedreamVisionModel != overrideSeedreamVisionModel || cfg.SeedreamVideoModel != overrideSeedreamVideoModel {
+		t.Fatalf("expected override seedream models, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
 	}
 	if cfg.Environment != "qa" {
 		t.Fatalf("expected override environment, got %q", cfg.Environment)

@@ -32,7 +32,10 @@ export const EventLine = React.memo(function EventLine({
     const textSegments = segments.filter(
       (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
     );
-    const imageSegments = segments.filter((segment) => segment.type === "image");
+    const mediaSegments = segments.filter(
+      (segment) =>
+        segment.type === "image" || segment.type === "video",
+    );
     return (
       <div className="console-user-task">
         <div className="console-user-task-bubble">
@@ -43,7 +46,7 @@ export const EventLine = React.memo(function EventLine({
             {textSegments.map((segment, index) => (
               <span key={`text-segment-${index}`}>{segment.text}</span>
             ))}
-            {imageSegments.map((segment, index) => {
+            {mediaSegments.map((segment, index) => {
               if (!segment.attachment) {
                 return null;
               }
@@ -51,9 +54,31 @@ export const EventLine = React.memo(function EventLine({
               if (!uri) {
                 return null;
               }
+              const key = segment.placeholder || `${segment.type}-${index}`;
+              if (segment.type === "video") {
+                return (
+                  <div
+                    key={`task-media-${key}`}
+                    className="mt-3 overflow-hidden rounded-2xl bg-black"
+                  >
+                    <video controls className="w-full" preload="metadata">
+                      <source
+                        src={uri}
+                        type={segment.attachment.media_type || "video/mp4"}
+                      />
+                      Your browser does not support video playback.
+                    </video>
+                    {segment.attachment.description && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {segment.attachment.description}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
               return (
                 <ImagePreview
-                  key={`image-segment-${index}`}
+                  key={`task-media-${key}`}
                   src={uri}
                   alt={segment.attachment.description || segment.attachment.name}
                   minHeight="12rem"
