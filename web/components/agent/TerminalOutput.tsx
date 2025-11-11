@@ -121,6 +121,7 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     case "task_analysis":
     // Show task completion
     case "task_complete":
+    case "task_cancelled":
     // Show failures
     case "error":
       return false;

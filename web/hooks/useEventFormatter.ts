@@ -76,6 +76,8 @@ export function useEventFormatter(
           return 'text-primary';
         case 'task_complete':
           return 'text-emerald-600 font-semibold';
+        case 'task_cancelled':
+          return 'text-amber-600 font-semibold';
         case 'error':
           return 'text-destructive font-semibold';
         case 'research_plan':
@@ -233,6 +235,16 @@ export function useEventFormatter(
             return `✓ Task Complete\n${preview}${suffix}`;
           }
           return '✓ Task complete';
+
+        case 'task_cancelled': {
+          const requestedBy = 'requested_by' in event ? event.requested_by : undefined;
+          const prefix = requestedBy === 'user' ? '⏹ You stopped the agent' : '⏹ Task cancelled';
+          const reason =
+            'reason' in event && event.reason && event.reason !== 'cancelled'
+              ? ` · Reason: ${event.reason}`
+              : '';
+          return `${prefix}${reason}`;
+        }
 
         case 'error':
           if ('error' in event) {

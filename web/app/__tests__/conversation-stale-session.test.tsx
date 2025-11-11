@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ConversationPageContent } from '../conversation/ConversationPageContent';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { APIError } from '@/lib/api';
-import { useTaskExecution } from '@/hooks/useTaskExecution';
+import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 
 vi.mock('next/navigation', () => ({
@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/useTaskExecution', () => ({
   useTaskExecution: vi.fn(),
+  useCancelTask: vi.fn(),
 }));
 
 vi.mock('@/hooks/useAgentEventStream', () => ({
@@ -90,6 +91,7 @@ vi.mock('@/hooks/useSessionStore', async () => {
 });
 
 const useTaskExecutionMock = vi.mocked(useTaskExecution);
+const useCancelTaskMock = vi.mocked(useCancelTask);
 const useAgentEventStreamMock = vi.mocked(useAgentEventStream);
 
 describe('ConversationPageContent - stale session handling', () => {
@@ -108,6 +110,11 @@ describe('ConversationPageContent - stale session handling', () => {
       reconnect: vi.fn(),
       addEvent: vi.fn(),
     });
+
+    useCancelTaskMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useCancelTask>);
 
     useSessionStore.setState({
       currentSessionId: 'stale-session',
