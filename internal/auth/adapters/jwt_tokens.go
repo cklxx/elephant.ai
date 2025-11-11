@@ -150,6 +150,10 @@ func decodeHash(encoded string) (argonParams, []byte, []byte, error) {
 	if err != nil {
 		return argonParams{}, nil, nil, err
 	}
+	// Bounds check: threads must be between 1 and 255 to fit in uint8
+	if threads == 0 || threads > 255 {
+		return argonParams{}, nil, nil, fmt.Errorf("invalid thread count: must be between 1 and 255")
+	}
 	params.threads = uint8(threads)
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
