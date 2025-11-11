@@ -102,7 +102,7 @@ interface UseTaskStatusOptions extends Omit<
 > {
   /** Polling interval in milliseconds (default: 2000) */
   pollingInterval?: number;
-  /** Stop polling on these statuses (default: ['completed', 'failed']) */
+  /** Stop polling on these statuses (default: ['completed', 'failed', 'cancelled', 'error']) */
   stopPollingOn?: string[];
 }
 
@@ -126,7 +126,7 @@ export function useTaskStatus(
 ) {
   const {
     pollingInterval = 2000,
-    stopPollingOn = ['completed', 'failed'],
+    stopPollingOn = ['completed', 'failed', 'cancelled', 'error'],
     ...queryOptions
   } = options;
 
