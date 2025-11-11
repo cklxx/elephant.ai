@@ -133,6 +133,7 @@ const translations = {
     'console.empty.badge': 'Waiting',
     'console.empty.title': 'Ready to start',
     'console.empty.description': 'Send a task to begin.',
+    'console.empty.prompt': '说点啥，让我们开始吧。',
     'console.input.placeholder.active': '建立一个小猫网站并给到网站ip',
     'console.input.placeholder.idle': '建立一个小猫网站并给到网站ip',
     'console.input.hotkeyHint': 'Enter sends · Shift+Enter newline',

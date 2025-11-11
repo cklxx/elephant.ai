@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -507,7 +508,8 @@ func (e *ReactEngine) executeToolsWithEvents(
 
 			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
 
-			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, tc.Arguments)
+			formattedArgs := formatToolArgumentsForLog(tc.Arguments)
+			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, formattedArgs)
 			result, err := tool.Execute(toolCtx, ports.ToolCall(tc))
 
 			if err != nil {
@@ -604,6 +606,157 @@ func (e *ReactEngine) executeToolsWithEvents(
 	wg.Wait()
 	e.logger.Debug("All %d tools completed execution", len(calls))
 	return results
+}
+
+const (
+	toolArgInlineLengthLimit = 256
+	toolArgPreviewLength     = 64
+)
+
+func formatToolArgumentsForLog(args map[string]any) string {
+	if len(args) == 0 {
+		return "{}"
+	}
+	sanitized := sanitizeToolArgumentsForLog(args)
+	if len(sanitized) == 0 {
+		return "{}"
+	}
+	if encoded, err := json.Marshal(sanitized); err == nil {
+		return string(encoded)
+	}
+	return fmt.Sprintf("%v", sanitized)
+}
+
+func sanitizeToolArgumentsForLog(args map[string]any) map[string]any {
+	if args == nil {
+		return nil
+	}
+	sanitized := make(map[string]any, len(args))
+	for key, value := range args {
+		sanitized[key] = summarizeToolArgumentValue(key, value)
+	}
+	return sanitized
+}
+
+func summarizeToolArgumentValue(key string, value any) any {
+	switch v := value.(type) {
+	case string:
+		return summarizeToolArgumentString(key, v)
+	case map[string]any:
+		return sanitizeToolArgumentsForLog(v)
+	case []any:
+		summarized := make([]any, 0, len(v))
+		for idx, item := range v {
+			summarized = append(summarized, summarizeToolArgumentValue(fmt.Sprintf("%s[%d]", key, idx), item))
+		}
+		return summarized
+	case []string:
+		summarized := make([]string, 0, len(v))
+		for _, item := range v {
+			summarized = append(summarized, summarizeToolArgumentString(key, item))
+		}
+		return summarized
+	default:
+		return value
+	}
+}
+
+func summarizeToolArgumentString(key, raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return trimmed
+	}
+
+	lowerKey := strings.ToLower(key)
+	if strings.HasPrefix(trimmed, "data:") {
+		return summarizeDataURIForLog(trimmed)
+	}
+
+	if strings.Contains(lowerKey, "image") {
+		if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+			return trimmed
+		}
+		if len(trimmed) > toolArgInlineLengthLimit || looksLikeBinaryString(trimmed) {
+			return summarizeBinaryLikeString(trimmed)
+		}
+		return trimmed
+	}
+
+	if looksLikeBinaryString(trimmed) {
+		return summarizeBinaryLikeString(trimmed)
+	}
+
+	if len(trimmed) > toolArgInlineLengthLimit {
+		return summarizeLongPlainString(trimmed)
+	}
+
+	return trimmed
+}
+
+func summarizeDataURIForLog(value string) string {
+	comma := strings.Index(value, ",")
+	if comma == -1 {
+		return fmt.Sprintf("data_uri(len=%d)", len(value))
+	}
+	header := value[:comma]
+	payload := value[comma+1:]
+	preview := truncateStringForLog(payload, toolArgPreviewLength)
+	if len(payload) > len(preview) {
+		preview += "..."
+	}
+	return fmt.Sprintf("data_uri(header=%q,len=%d,payload_prefix=%q)", header, len(value), preview)
+}
+
+func summarizeBinaryLikeString(value string) string {
+	preview := truncateStringForLog(value, toolArgPreviewLength)
+	if len(value) > len(preview) {
+		preview += "..."
+	}
+	return fmt.Sprintf("base64(len=%d,prefix=%q)", len(value), preview)
+}
+
+func summarizeLongPlainString(value string) string {
+	preview := truncateStringForLog(value, toolArgPreviewLength)
+	if len(value) > len(preview) {
+		preview += "..."
+	}
+	return fmt.Sprintf("%s (len=%d)", preview, len(value))
+}
+
+func looksLikeBinaryString(value string) bool {
+	if len(value) < toolArgInlineLengthLimit {
+		return false
+	}
+	sample := value
+	const sampleSize = 128
+	if len(sample) > sampleSize {
+		sample = sample[:sampleSize]
+	}
+	for i := 0; i < len(sample); i++ {
+		c := sample[i]
+		if (c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') ||
+			c == '+' || c == '/' || c == '=' || c == '-' || c == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func truncateStringForLog(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runeCount := 0
+	for idx := range value {
+		if runeCount == limit {
+			return value[:idx]
+		}
+		runeCount++
+	}
+	return value
 }
 
 // parseToolCalls extracts tool calls from assistant message

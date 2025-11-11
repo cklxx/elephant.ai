@@ -382,7 +382,7 @@ export function TaskInput({
             rows={1}
             aria-label={t("task.input.ariaLabel")}
             data-testid="task-input"
-            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-slate-300 bg-white/90 px-3.5 pr-12 py-2.5 text-[13px] text-slate-700 shadow-sm transition focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-slate-300 bg-white px-3.5 pr-12 py-2.5 text-[13px] text-slate-700 transition focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ fieldSizing: "content" } as any}
           />
           <button

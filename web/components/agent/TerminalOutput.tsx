@@ -82,10 +82,7 @@ export function TerminalOutput({
     );
   }
   return (
-    <div
-      className="console-card space-y-5 px-6 py-5"
-      data-testid="conversation-stream"
-    >
+    <div className="space-y-5" data-testid="conversation-stream">
       <div className="space-y-4" data-testid="conversation-events">
         {filteredEvents.map((event, index) => {
           const key = `${event.event_type}-${event.timestamp}-${index}`;
@@ -125,6 +122,8 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     // Show task completion
     case "task_complete":
     case "task_cancelled":
+    // Show failures
+    case "error":
       return false;
     case "tool_call_start":
     case "tool_call_complete":
