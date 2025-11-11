@@ -150,13 +150,27 @@ func TestNormalizeSeedreamInitImagePlainBase64(t *testing.T) {
 }
 
 func TestNormalizeSeedreamInitImageRejectsBadScheme(t *testing.T) {
-	if _, _, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
-		t.Fatalf("expected error for unsupported scheme")
-	}
+       if actual, kind, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
+               t.Fatalf("expected error for unsupported scheme")
+       } else {
+               if actual != "" {
+                       t.Fatalf("expected empty payload on error, got %q", actual)
+               }
+               if kind != "" {
+                       t.Fatalf("expected empty kind on error, got %q", kind)
+               }
+       }
 }
 
 func TestNormalizeSeedreamInitImageRequiresPayload(t *testing.T) {
-	if _, _, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
-		t.Fatalf("expected error for empty payload")
-	}
+       if actual, kind, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
+               t.Fatalf("expected error for empty payload")
+       } else {
+               if actual != "" {
+                       t.Fatalf("expected empty payload on error, got %q", actual)
+               }
+               if kind != "" {
+                       t.Fatalf("expected empty kind on error, got %q", kind)
+               }
+       }
 }
