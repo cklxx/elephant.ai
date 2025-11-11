@@ -1,8 +1,11 @@
 package builtin
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"alex/internal/agent/ports"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
@@ -150,27 +153,71 @@ func TestNormalizeSeedreamInitImagePlainBase64(t *testing.T) {
 }
 
 func TestNormalizeSeedreamInitImageRejectsBadScheme(t *testing.T) {
-       if actual, kind, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
-               t.Fatalf("expected error for unsupported scheme")
-       } else {
-               if actual != "" {
-                       t.Fatalf("expected empty payload on error, got %q", actual)
-               }
-               if kind != "" {
-                       t.Fatalf("expected empty kind on error, got %q", kind)
-               }
-       }
+	if actual, kind, err := normalizeSeedreamInitImage("ftp://example.com/image.png"); err == nil {
+		t.Fatalf("expected error for unsupported scheme")
+	} else {
+		if actual != "" {
+			t.Fatalf("expected empty payload on error, got %q", actual)
+		}
+		if kind != "" {
+			t.Fatalf("expected empty kind on error, got %q", kind)
+		}
+	}
 }
 
 func TestNormalizeSeedreamInitImageRequiresPayload(t *testing.T) {
-       if actual, kind, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
-               t.Fatalf("expected error for empty payload")
-       } else {
-               if actual != "" {
-                       t.Fatalf("expected empty payload on error, got %q", actual)
-               }
-               if kind != "" {
-                       t.Fatalf("expected empty kind on error, got %q", kind)
-               }
-       }
+	if actual, kind, err := normalizeSeedreamInitImage("data:image/png;base64,"); err == nil {
+		t.Fatalf("expected error for empty payload")
+	} else {
+		if actual != "" {
+			t.Fatalf("expected empty payload on error, got %q", actual)
+		}
+		if kind != "" {
+			t.Fatalf("expected empty kind on error, got %q", kind)
+		}
+	}
+}
+
+func TestResolveSeedreamInitImagePlaceholder(t *testing.T) {
+	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+		"seed.png": {
+			Name:      "seed.png",
+			MediaType: "image/png",
+			Data:      "YmFzZTY0",
+		},
+	}, nil)
+
+	resolved, placeholder, ok := resolveSeedreamInitImagePlaceholder(ctx, " [seed.png] ")
+	if !ok {
+		t.Fatalf("expected placeholder to resolve via attachment context")
+	}
+	if placeholder != "seed.png" {
+		t.Fatalf("expected placeholder name to be preserved, got %q", placeholder)
+	}
+	expected := "data:image/png;base64,YmFzZTY0"
+	if resolved != expected {
+		t.Fatalf("expected resolved data URI %q, got %q", expected, resolved)
+	}
+}
+
+func TestResolveSeedreamInitImagePlaceholderMissing(t *testing.T) {
+	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+		"seed.png": {
+			Name:      "seed.png",
+			MediaType: "image/png",
+			Data:      "YmFzZTY0",
+		},
+	}, nil)
+
+	if _, _, ok := resolveSeedreamInitImagePlaceholder(ctx, "[unknown.png]"); ok {
+		t.Fatalf("expected unknown placeholder to remain unresolved")
+	}
+
+	if _, _, ok := resolveSeedreamInitImagePlaceholder(context.Background(), "[seed.png]"); ok {
+		t.Fatalf("expected resolution to fail without attachment context")
+	}
+
+	if _, _, ok := resolveSeedreamInitImagePlaceholder(ctx, "seed.png"); ok {
+		t.Fatalf("expected bare filenames to be ignored")
+	}
 }

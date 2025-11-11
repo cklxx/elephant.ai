@@ -188,7 +188,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			systemPrompt = summary
 		}
 	}
-	preloadedAttachments := collectSessionAttachments(session.Messages)
+	preloadedAttachments := collectSessionAttachments(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
 	if len(inheritedAttachments) > 0 {
 		if preloadedAttachments == nil {
@@ -277,24 +277,36 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}, nil
 }
 
-func collectSessionAttachments(messages []ports.Message) map[string]ports.Attachment {
-	if len(messages) == 0 {
-		return make(map[string]ports.Attachment)
+func collectSessionAttachments(session *ports.Session) map[string]ports.Attachment {
+	attachments := make(map[string]ports.Attachment)
+	if session == nil {
+		return attachments
 	}
 
-	attachments := make(map[string]ports.Attachment)
-	for _, msg := range messages {
-		for key, att := range msg.Attachments {
-			if key == "" {
-				key = att.Name
-			}
-			if key == "" {
-				continue
-			}
-			attachments[key] = att
-		}
+	mergeAttachmentMaps(attachments, session.Attachments)
+	for _, msg := range session.Messages {
+		mergeAttachmentMaps(attachments, msg.Attachments)
 	}
 	return attachments
+}
+
+func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]ports.Attachment) {
+	if len(source) == 0 {
+		return
+	}
+	for key, att := range source {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			name = strings.TrimSpace(att.Name)
+		}
+		if name == "" {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = name
+		}
+		target[name] = att
+	}
 }
 
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.
