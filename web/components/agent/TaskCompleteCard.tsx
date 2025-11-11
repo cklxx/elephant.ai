@@ -124,7 +124,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         )}
 
         {mediaSegments.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-wrap items-start gap-3">
             {mediaSegments.map((segment, index) => {
               if (!segment.attachment) {
                 return null;
@@ -166,7 +166,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   alt={caption}
                   minHeight="12rem"
                   maxHeight="20rem"
-                  sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 100vw"
+                  className="w-full sm:w-[220px] lg:w-[260px]"
+                  sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 100vw"
                 />
               );
             })}

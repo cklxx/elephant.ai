@@ -414,3 +414,47 @@ func TestInferMediaTypeFromURL(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveSeedreamInitImagePlaceholder(t *testing.T) {
+	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+		"seed.png": {
+			Name:      "seed.png",
+			MediaType: "image/png",
+			Data:      "YmFzZTY0",
+		},
+	}, nil)
+
+	resolved, placeholder, ok := resolveSeedreamInitImagePlaceholder(ctx, " [seed.png] ")
+	if !ok {
+		t.Fatalf("expected placeholder to resolve via attachment context")
+	}
+	if placeholder != "seed.png" {
+		t.Fatalf("expected placeholder name to be preserved, got %q", placeholder)
+	}
+	expected := "data:image/png;base64,YmFzZTY0"
+	if resolved != expected {
+		t.Fatalf("expected resolved data URI %q, got %q", expected, resolved)
+	}
+}
+
+func TestResolveSeedreamInitImagePlaceholderMissing(t *testing.T) {
+	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+		"seed.png": {
+			Name:      "seed.png",
+			MediaType: "image/png",
+			Data:      "YmFzZTY0",
+		},
+	}, nil)
+
+	if _, _, ok := resolveSeedreamInitImagePlaceholder(ctx, "[unknown.png]"); ok {
+		t.Fatalf("expected unknown placeholder to remain unresolved")
+	}
+
+	if _, _, ok := resolveSeedreamInitImagePlaceholder(context.Background(), "[seed.png]"); ok {
+		t.Fatalf("expected resolution to fail without attachment context")
+	}
+
+	if _, _, ok := resolveSeedreamInitImagePlaceholder(ctx, "seed.png"); ok {
+		t.Fatalf("expected bare filenames to be ignored")
+	}
+}

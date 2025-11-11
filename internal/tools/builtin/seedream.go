@@ -1252,6 +1252,73 @@ func readDurationWithDefault(args map[string]any, key string, def int) time.Dura
 	return time.Duration(seconds) * time.Second
 }
 
+func resolveSeedreamInitImagePlaceholder(ctx context.Context, raw string) (string, string, bool) {
+	placeholder := strings.TrimSpace(raw)
+	if placeholder == "" {
+		return "", "", false
+	}
+	name, ok := extractPlaceholderIdentifier(placeholder)
+	if !ok {
+		return "", "", false
+	}
+
+	attachments, _ := ports.GetAttachmentContext(ctx)
+	if len(attachments) == 0 {
+		return "", "", false
+	}
+
+	if att, exists := attachments[name]; exists {
+		if resolved := attachmentReferenceValueForTool(att); resolved != "" {
+			return resolved, name, true
+		}
+	}
+
+	lowerName := strings.ToLower(name)
+	for key, att := range attachments {
+		if strings.ToLower(strings.TrimSpace(key)) != lowerName {
+			continue
+		}
+		if resolved := attachmentReferenceValueForTool(att); resolved != "" {
+			return resolved, strings.TrimSpace(key), true
+		}
+	}
+
+	return "", "", false
+}
+
+func extractPlaceholderIdentifier(value string) (string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < 3 {
+		return "", false
+	}
+	if trimmed[0] != '[' || trimmed[len(trimmed)-1] != ']' {
+		return "", false
+	}
+	name := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+func attachmentReferenceValueForTool(att ports.Attachment) string {
+	data := strings.TrimSpace(att.Data)
+	if data != "" {
+		if strings.HasPrefix(data, "data:") {
+			return data
+		}
+		mediaType := strings.TrimSpace(att.MediaType)
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+		}
+		return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+	}
+	if uri := strings.TrimSpace(att.URI); uri != "" {
+		return uri
+	}
+	return ""
+}
+
 func buildSeedreamVideoPrompt(prompt, firstFramePrompt string, duration int, resolution string, cameraFixed, watermark bool, seed int, seedProvided bool) string {
 	builder := &strings.Builder{}
 	trimmedPrompt := strings.TrimSpace(prompt)
