@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -1375,8 +1376,8 @@ func formatSeedreamVideoResponse(resp *arkm.GetContentGenerationTaskResponse, de
 			"stitching": "planned",
 		},
 	}
-	if resp.Usage.CompletionTokens != 0 {
-		metadata["usage"] = resp.Usage
+	if usage := seedreamVideoUsage(resp); usage != nil && usage.CompletionTokens != 0 {
+		metadata["usage"] = *usage
 	}
 	if resp.Seed != nil {
 		metadata["seed"] = *resp.Seed
@@ -1460,6 +1461,46 @@ func formatSeedreamVideoResponse(resp *arkm.GetContentGenerationTaskResponse, de
 	builder.WriteString("Plan follow-up edits for stitching or compositing as needed.")
 
 	return builder.String(), metadata, attachments
+}
+
+// seedreamVideoUsage returns a non-nil usage pointer when the Seedance response
+// includes usage metrics. The underlying SDK currently models Usage as a
+// struct, but some responses may omit it entirely (and future SDK versions may
+// switch to a pointer), so we use reflection to safely support both layouts.
+func seedreamVideoUsage(resp *arkm.GetContentGenerationTaskResponse) *arkm.Usage {
+	if resp == nil {
+		return nil
+	}
+
+	field := reflect.ValueOf(resp).Elem().FieldByName("Usage")
+	if !field.IsValid() {
+		return nil
+	}
+
+	switch field.Kind() {
+	case reflect.Pointer:
+		if field.IsNil() {
+			return nil
+		}
+		usage, ok := field.Interface().(*arkm.Usage)
+		if !ok || usage == nil {
+			return nil
+		}
+		if reflect.ValueOf(usage).Elem().IsZero() {
+			return nil
+		}
+		return usage
+	case reflect.Struct:
+		if field.IsZero() {
+			return nil
+		}
+		if _, ok := field.Interface().(arkm.Usage); !ok {
+			return nil
+		}
+		return &resp.Usage
+	default:
+		return nil
+	}
 }
 
 func seedreamAttachmentPrefix(model string, created int64) string {
