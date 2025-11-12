@@ -72,3 +72,14 @@ func TestRenderTaskCompleteRendersMarkdown(t *testing.T) {
 		t.Fatalf("expected rendered output to include bullet glyph, got %q", rendered)
 	}
 }
+
+func TestRenderMarkdownStreamChunkMaintainsTrailingNewline(t *testing.T) {
+	renderer := NewCLIRenderer(false)
+	chunk := renderer.RenderMarkdownStreamChunk("**bold**", true)
+	if !strings.Contains(chunk, "bold") {
+		t.Fatalf("expected rendered chunk to include content, got %q", chunk)
+	}
+	if !strings.HasSuffix(chunk, "\n") {
+		t.Fatalf("expected rendered chunk to end with newline, got %q", chunk)
+	}
+}

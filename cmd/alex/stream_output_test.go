@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,4 +123,30 @@ func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
 	require.Contains(t, output, "Task interrupted")
 	require.Contains(t, output, "3 iteration")
 	require.Contains(t, output, "256 tokens")
+}
+
+func TestStreamingOutputHandlerAssistantMessageStream(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Delta: "Hello", Final: false})
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Final: true})
+
+	require.Contains(t, out.String(), "Hello")
+	require.True(t, strings.HasSuffix(out.String(), "\n"))
+	require.True(t, handler.streamedContent)
+}
+
+func TestStreamingOutputHandlerAssistantMessageBuffersMarkdownLines(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Delta: "Hello\nWorld", Final: false})
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Final: true})
+
+	require.Contains(t, out.String(), "Hello")
+	require.Contains(t, out.String(), "World")
+	require.True(t, strings.HasSuffix(out.String(), "\n"))
 }

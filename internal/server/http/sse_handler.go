@@ -196,6 +196,15 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["content"] = e.Content
 		data["tool_call_count"] = e.ToolCallCount
 
+	case *domain.AssistantMessageEvent:
+		data["iteration"] = e.Iteration
+		data["delta"] = e.Delta
+		data["final"] = e.Final
+		data["created_at"] = e.CreatedAt.Format(time.RFC3339Nano)
+		if e.SourceModel != "" {
+			data["source_model"] = e.SourceModel
+		}
+
 	case *domain.ToolCallStartEvent:
 		data["iteration"] = e.Iteration
 		data["call_id"] = e.CallID

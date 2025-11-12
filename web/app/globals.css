@@ -605,6 +605,56 @@
     }
 
 
+    .console-assistant-message {
+        display: flex;
+        justify-content: flex-start;
+        margin: 0.5rem 0;
+        padding: 0 0.5rem;
+    }
+
+    .console-assistant-bubble {
+        width: min(720px, 100%);
+        border-radius: 22px;
+        border: 1px solid hsla(var(--foreground) / 0.08);
+        background: linear-gradient(
+                180deg,
+                hsla(var(--foreground) / 0.04),
+                hsla(var(--foreground) / 0.02)
+            )
+            hsla(var(--foreground) / 0.04);
+        padding: 0.9rem 1.25rem 1.2rem;
+        backdrop-filter: blur(4px);
+    }
+
+    .console-assistant-meta {
+        @apply font-mono text-[11px] uppercase tracking-[0.22em];
+        color: hsl(var(--gray-600));
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .console-assistant-meta-source {
+        color: hsl(var(--gray-500));
+    }
+
+    .console-assistant-meta-streaming {
+        color: hsl(var(--primary));
+        letter-spacing: 0.4em;
+        font-size: 0.7rem;
+    }
+
+    .console-assistant-content {
+        color: hsl(var(--foreground));
+    }
+
+    .console-assistant-content .markdown-body__content {
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    
     .console-event-content em {
         @apply not-italic;
         color: hsl(var(--gray-500));

@@ -94,6 +94,16 @@ export const ThinkCompleteEventSchema = BaseAgentEventSchema.extend({
   tool_call_count: z.number(),
 });
 
+// Assistant Message Event
+export const AssistantMessageEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('assistant_message'),
+  iteration: z.number(),
+  delta: z.string().optional().default(''),
+  final: z.boolean(),
+  created_at: z.string(),
+  source_model: z.string().optional(),
+});
+
 // Tool Call Start Event
 export const ToolCallStartEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('tool_call_start'),
@@ -266,6 +276,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   IterationStartEventSchema,
   ThinkingEventSchema,
   ThinkCompleteEventSchema,
+  AssistantMessageEventSchema,
   ToolCallStartEventSchema,
   ToolCallStreamEventSchema,
   ToolCallCompleteEventSchema,
@@ -394,6 +405,8 @@ function normalizeEventData(data: unknown): unknown {
       normalized.event_type = 'tool_call_stream';
     } else if ('content' in normalized && 'tool_call_count' in normalized) {
       normalized.event_type = 'think_complete';
+    } else if ('delta' in normalized && 'final' in normalized) {
+      normalized.event_type = 'assistant_message';
     } else if ('iteration' in normalized && 'tokens_used' in normalized) {
       normalized.event_type = 'iteration_complete';
     } else if ('iteration' in normalized && 'message_count' in normalized) {
