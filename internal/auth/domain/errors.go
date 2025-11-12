@@ -19,4 +19,12 @@ var (
 	ErrSessionNotFound = errors.New("session not found")
 	// ErrSessionExpired indicates the refresh token is expired.
 	ErrSessionExpired = errors.New("session expired")
+	// ErrInsufficientPoints indicates the requested adjustment would drop below zero.
+	ErrInsufficientPoints = errors.New("insufficient points balance")
+	// ErrInvalidSubscriptionTier indicates the tier is not present in the catalog.
+	ErrInvalidSubscriptionTier = errors.New("invalid subscription tier")
+	// ErrSubscriptionExpiryRequired indicates a paid tier change lacked an expiry.
+	ErrSubscriptionExpiryRequired = errors.New("subscription expiry required")
+	// ErrSubscriptionExpiryInPast indicates the supplied expiry is already elapsed.
+	ErrSubscriptionExpiryInPast = errors.New("subscription expiry must be in the future")
 )

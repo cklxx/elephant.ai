@@ -10,13 +10,14 @@
  *   subscribes to the bus for event updates.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { AnyAgentEvent } from '@/lib/types';
-import { agentEventBus } from '@/lib/events/eventBus';
-import { defaultEventRegistry } from '@/lib/events/eventRegistry';
-import { resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
-import { EventPipeline } from '@/lib/events/eventPipeline';
-import { SSEClient } from '@/lib/events/sseClient';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { AnyAgentEvent } from "@/lib/types";
+import { agentEventBus } from "@/lib/events/eventBus";
+import { defaultEventRegistry } from "@/lib/events/eventRegistry";
+import { resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
+import { EventPipeline } from "@/lib/events/eventPipeline";
+import { SSEClient } from "@/lib/events/sseClient";
+import { authClient } from "@/lib/auth/client";
 
 export interface UseSSEOptions {
   enabled?: boolean;
@@ -95,9 +96,20 @@ export function useSSE(
 
     // Check if we've exceeded max attempts - stop reconnecting
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.warn('[SSE] Max reconnection attempts reached, stopping auto-reconnect');
+      console.warn(
+        "[SSE] Max reconnection attempts reached, stopping auto-reconnect",
+      );
       setIsReconnecting(false);
-      setError('Maximum reconnection attempts exceeded');
+      setError("Maximum reconnection attempts exceeded");
+      return;
+    }
+
+    const token = authClient.getSession()?.accessToken;
+    if (!token) {
+      console.warn("[SSE] Missing access token, skipping connection attempt");
+      setIsConnected(false);
+      setIsReconnecting(false);
+      setError("Missing access token");
       return;
     }
 
@@ -113,9 +125,8 @@ export function useSSE(
         setReconnectAttempts(0);
       },
       onError: (err) => {
-        console.error('[SSE] Connection error:', err);
+        console.error("[SSE] Connection error:", err);
 
-        // Clean up current client
         if (clientRef.current) {
           clientRef.current.dispose();
           clientRef.current = null;
@@ -125,19 +136,23 @@ export function useSSE(
 
         const nextAttempts = reconnectAttemptsRef.current + 1;
         reconnectAttemptsRef.current = nextAttempts;
-        const clampedAttempts = Math.min(nextAttempts, maxReconnectAttempts);
+        const clampedAttempts = Math.min(
+          nextAttempts,
+          maxReconnectAttempts,
+        );
         setReconnectAttempts(clampedAttempts);
 
         if (nextAttempts > maxReconnectAttempts) {
-          console.warn('[SSE] Maximum reconnection attempts exceeded');
-          setError('Maximum reconnection attempts exceeded');
+          console.warn("[SSE] Maximum reconnection attempts exceeded");
+          setError("Maximum reconnection attempts exceeded");
           setIsReconnecting(false);
           return;
         }
 
-        // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s
         const delay = Math.min(1000 * 2 ** (nextAttempts - 1), 30000);
-        console.log(`[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`);
+        console.log(
+          `[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`,
+        );
         setIsReconnecting(true);
 
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -150,13 +165,21 @@ export function useSSE(
     });
 
     clientRef.current = client;
+
     try {
-      client.connect();
+      client.connect(token);
     } catch (err) {
-      console.error('[SSE] Failed to connect:', err);
+      console.error("[SSE] Failed to connect:", err);
+      if (clientRef.current) {
+        clientRef.current.dispose();
+        clientRef.current = null;
+      }
       isConnectingRef.current = false;
       setIsConnected(false);
-      setError(err instanceof Error ? err.message : 'Unknown connection error');
+      setIsReconnecting(false);
+      setError(
+        err instanceof Error ? err.message : "Unknown connection error",
+      );
     }
   }, [enabled, maxReconnectAttempts]);
 
@@ -167,10 +190,10 @@ export function useSSE(
       onInvalidEvent: (raw, validationError) => {
         // Log as warning instead of error for better UX
         // Unknown/invalid events should not break the application
-        console.warn('[SSE] Event validation failed (skipping):', {
+        console.warn("[SSE] Event validation failed (skipping):", {
           raw,
           error: validationError,
-          note: 'This event will be skipped. This is usually harmless.',
+          note: "This event will be skipped. This is usually harmless.",
         });
       },
     });

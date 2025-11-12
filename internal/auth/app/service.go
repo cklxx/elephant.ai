@@ -5,11 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"alex/internal/auth/crypto"
 	"alex/internal/auth/domain"
 	"alex/internal/auth/ports"
 )
@@ -97,20 +99,23 @@ func (s *Service) RegisterLocal(ctx context.Context, email, password, displayNam
 		return domain.User{}, domain.ErrUserExists
 	}
 
-	hashed, err := s.tokens.HashRefreshToken(password)
+	hashed, err := crypto.HashPassword(password)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("hash password: %w", err)
 	}
 
 	now := s.now()
 	user := domain.User{
-		ID:           uuid.NewString(),
-		Email:        email,
-		DisplayName:  displayName,
-		Status:       domain.UserStatusActive,
-		PasswordHash: hashed,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                    uuid.NewString(),
+		Email:                 email,
+		DisplayName:           displayName,
+		Status:                domain.UserStatusActive,
+		PasswordHash:          hashed,
+		PointsBalance:         0,
+		SubscriptionTier:      domain.SubscriptionTierFree,
+		SubscriptionExpiresAt: nil,
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}
 
 	created, err := s.users.Create(ctx, user)
@@ -127,7 +132,7 @@ func (s *Service) LoginWithPassword(ctx context.Context, email, password, userAg
 	if err != nil {
 		return domain.TokenPair{}, domain.ErrInvalidCredentials
 	}
-	ok, err := s.tokens.VerifyRefreshToken(password, user.PasswordHash)
+	ok, err := crypto.VerifyPassword(password, user.PasswordHash)
 	if err != nil || !ok {
 		return domain.TokenPair{}, domain.ErrInvalidCredentials
 	}
@@ -140,13 +145,14 @@ func (s *Service) LoginWithPassword(ctx context.Context, email, password, userAg
 		return domain.TokenPair{}, err
 	}
 	session := domain.Session{
-		ID:               uuid.NewString(),
-		UserID:           user.ID,
-		RefreshTokenHash: hashedRefresh,
-		UserAgent:        userAgent,
-		IP:               ip,
-		CreatedAt:        s.now(),
-		ExpiresAt:        s.now().Add(s.config.RefreshTokenTTL),
+		ID:                      uuid.NewString(),
+		UserID:                  user.ID,
+		RefreshTokenHash:        hashedRefresh,
+		RefreshTokenFingerprint: domain.FingerprintRefreshToken(plainRefresh),
+		UserAgent:               userAgent,
+		IP:                      ip,
+		CreatedAt:               s.now(),
+		ExpiresAt:               s.now().Add(s.config.RefreshTokenTTL),
 	}
 	if _, err := s.sessions.Create(ctx, session); err != nil {
 		return domain.TokenPair{}, err
@@ -185,6 +191,7 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken, userAgen
 	_ = s.sessions.DeleteByID(ctx, session.ID)
 	session.ID = uuid.NewString()
 	session.RefreshTokenHash = hashedRefresh
+	session.RefreshTokenFingerprint = domain.FingerprintRefreshToken(plainRefresh)
 	session.UserAgent = userAgent
 	session.IP = ip
 	session.CreatedAt = s.now()
@@ -257,12 +264,15 @@ func (s *Service) CompleteOAuth(ctx context.Context, provider domain.ProviderTyp
 		if err != nil {
 			now := s.now()
 			user = domain.User{
-				ID:          uuid.NewString(),
-				Email:       normalizedEmail,
-				DisplayName: info.DisplayName,
-				Status:      domain.UserStatusActive,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				ID:                    uuid.NewString(),
+				Email:                 normalizedEmail,
+				DisplayName:           info.DisplayName,
+				Status:                domain.UserStatusActive,
+				PointsBalance:         0,
+				SubscriptionTier:      domain.SubscriptionTierFree,
+				SubscriptionExpiresAt: nil,
+				CreatedAt:             now,
+				UpdatedAt:             now,
 			}
 			user, err = s.users.Create(ctx, user)
 			if err != nil {
@@ -298,13 +308,14 @@ func (s *Service) CompleteOAuth(ctx context.Context, provider domain.ProviderTyp
 		return domain.TokenPair{}, err
 	}
 	session := domain.Session{
-		ID:               uuid.NewString(),
-		UserID:           user.ID,
-		RefreshTokenHash: hashedRefresh,
-		UserAgent:        userAgent,
-		IP:               ip,
-		CreatedAt:        s.now(),
-		ExpiresAt:        s.now().Add(s.config.RefreshTokenTTL),
+		ID:                      uuid.NewString(),
+		UserID:                  user.ID,
+		RefreshTokenHash:        hashedRefresh,
+		RefreshTokenFingerprint: domain.FingerprintRefreshToken(plainRefresh),
+		UserAgent:               userAgent,
+		IP:                      ip,
+		CreatedAt:               s.now(),
+		ExpiresAt:               s.now().Add(s.config.RefreshTokenTTL),
 	}
 	if _, err := s.sessions.Create(ctx, session); err != nil {
 		return domain.TokenPair{}, err
@@ -329,6 +340,56 @@ func (s *Service) ParseAccessToken(ctx context.Context, token string) (domain.Cl
 // GetUser fetches a user by ID.
 func (s *Service) GetUser(ctx context.Context, id string) (domain.User, error) {
 	return s.users.FindByID(ctx, id)
+}
+
+// AdjustPoints changes a user's points balance by the provided delta.
+func (s *Service) AdjustPoints(ctx context.Context, userID string, delta int64) (domain.User, error) {
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if delta == 0 {
+		return user, nil
+	}
+	if delta > 0 {
+		if user.PointsBalance > math.MaxInt64-delta {
+			return domain.User{}, fmt.Errorf("points balance overflow")
+		}
+		user.PointsBalance += delta
+	} else {
+		if user.PointsBalance < -delta {
+			return domain.User{}, domain.ErrInsufficientPoints
+		}
+		user.PointsBalance += delta
+	}
+	user.UpdatedAt = s.now()
+	return s.users.Update(ctx, user)
+}
+
+// UpdateSubscription switches a user's subscription tier.
+// For paid plans the caller must provide a future expiry time.
+func (s *Service) UpdateSubscription(ctx context.Context, userID string, tier domain.SubscriptionTier, expiresAt *time.Time) (domain.User, error) {
+	if !tier.IsValid() {
+		return domain.User{}, domain.ErrInvalidSubscriptionTier
+	}
+	if tier.IsPaid() {
+		if expiresAt == nil {
+			return domain.User{}, domain.ErrSubscriptionExpiryRequired
+		}
+		if expiresAt.Before(s.now()) {
+			return domain.User{}, domain.ErrSubscriptionExpiryInPast
+		}
+	} else {
+		expiresAt = nil
+	}
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	user.SubscriptionTier = tier
+	user.SubscriptionExpiresAt = expiresAt
+	user.UpdatedAt = s.now()
+	return s.users.Update(ctx, user)
 }
 
 func randomState() string {

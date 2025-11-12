@@ -13,7 +13,7 @@ import (
 func NewMemoryStores() (*memoryUserRepo, *memoryIdentityRepo, *memorySessionRepo, *memoryStateStore) {
 	users := &memoryUserRepo{users: map[string]domain.User{}, emailIdx: map[string]string{}}
 	identities := &memoryIdentityRepo{identities: map[string]domain.Identity{}, providerIdx: map[string]string{}}
-	sessions := &memorySessionRepo{sessions: map[string]domain.Session{}, verifier: func(string, string) (bool, error) {
+	sessions := &memorySessionRepo{sessions: map[string]domain.Session{}, fingerprintIdx: map[string]string{}, verifier: func(string, string) (bool, error) {
 		return false, fmt.Errorf("refresh token verifier not configured")
 	}}
 	states := &memoryStateStore{states: map[string]stateRecord{}}
@@ -108,9 +108,10 @@ func (r *memoryIdentityRepo) FindByProvider(_ context.Context, provider domain.P
 }
 
 type memorySessionRepo struct {
-	mu       sync.RWMutex
-	sessions map[string]domain.Session
-	verifier func(string, string) (bool, error)
+	mu             sync.RWMutex
+	sessions       map[string]domain.Session
+	fingerprintIdx map[string]string
+	verifier       func(string, string) (bool, error)
 }
 
 // SetVerifier configures the refresh token verification callback.
@@ -127,12 +128,20 @@ func (r *memorySessionRepo) Create(_ context.Context, session domain.Session) (d
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.sessions[session.ID] = session
+	if session.RefreshTokenFingerprint != "" {
+		r.fingerprintIdx[session.RefreshTokenFingerprint] = session.ID
+	}
 	return session, nil
 }
 
 func (r *memorySessionRepo) DeleteByID(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if session, ok := r.sessions[id]; ok {
+		if session.RefreshTokenFingerprint != "" {
+			delete(r.fingerprintIdx, session.RefreshTokenFingerprint)
+		}
+	}
 	delete(r.sessions, id)
 	return nil
 }
@@ -142,6 +151,9 @@ func (r *memorySessionRepo) DeleteByUser(_ context.Context, userID string) error
 	defer r.mu.Unlock()
 	for id, session := range r.sessions {
 		if session.UserID == userID {
+			if session.RefreshTokenFingerprint != "" {
+				delete(r.fingerprintIdx, session.RefreshTokenFingerprint)
+			}
 			delete(r.sessions, id)
 		}
 	}
@@ -151,7 +163,9 @@ func (r *memorySessionRepo) DeleteByUser(_ context.Context, userID string) error
 func (r *memorySessionRepo) FindByRefreshToken(_ context.Context, refreshToken string) (domain.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	for _, session := range r.sessions {
+	fingerprint := domain.FingerprintRefreshToken(refreshToken)
+	if id, ok := r.fingerprintIdx[fingerprint]; ok {
+		session := r.sessions[id]
 		match, err := r.verifier(refreshToken, session.RefreshTokenHash)
 		if err != nil {
 			return domain.Session{}, err
@@ -196,4 +210,17 @@ func (s *memoryStateStore) Consume(_ context.Context, state string, provider dom
 	}
 	delete(s.states, state)
 	return nil
+}
+
+func (s *memoryStateStore) PurgeExpired(_ context.Context, before time.Time) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var removed int64
+	for state, record := range s.states {
+		if !record.expires.IsZero() && record.expires.Before(before) {
+			delete(s.states, state)
+			removed++
+		}
+	}
+	return removed, nil
 }

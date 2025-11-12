@@ -1,154 +1,143 @@
-# 本地用户登录数据库方案
+# 本地认证数据库指南
 
-> 目的：为需要真实用户登录的本地开发环境提供一份“可以立刻落地”的后端数据库拓扑、建表 SQL、启动顺序与待办清单，同时记录当前登录系统存在的结构性问题，方便团队分工推进。
+为了在开发环境中调试登录/鉴权功能，需要引入可持久化的认证数据库。本指南介绍当前问题、推荐的拓扑结构、Postgres 初始化脚本，以及如何使用新的 Docker Compose 服务启动环境，最后还列出了后续落地任务清单。
 
-## 1. 现状问题
+## 背景与现状问题
 
-| 问题 | 影响 | 证据 |
-| --- | --- | --- |
-| 仅有内存仓库 | 账号 / 刷新令牌保存在 `cmd/alex-server/main.go:402-410` 中的 `authAdapters.NewMemoryStores()`，一旦重启服务或扩容多实例即全部丢失。 | `cmd/alex-server/main.go:365-452` |
-| 默认未启用认证 | 需要 `AUTH_JWT_SECRET` 才会构建 `AuthHandler`，在 `.env.example`、`docker-compose.dev.yml` 中均未配置，开发者默认无法命中 `/api/auth/*`。 | `cmd/alex-server/main.go:333-379` |
-| API 没有鉴权门控 | Router 从未检查 Authorization 头部；即使成功登录也无法保护 `/api/tasks`、`/api/sessions`。 | `internal/server/http/router.go:16-104` |
-| Web 前端没有登录入口 | `web/app` 仅包含 `conversation/`、`sessions/` 两个页面，无 `/login`、无 token 注入逻辑。 | `web/app` 目录结构 |
-| 数据模型只存在于设计文档 | `docs/design/AUTH_SYSTEM_DESIGN.md` 描述了 `users` / `user_identities` / `sessions` 表，但代码中没有任何数据库实现或迁移脚本。 | 文档与代码对照 |
+目前 `cmd/alex-server` 仍然默认使用内存版 `authAdapters.NewMemoryStores()`。这会导致以下限制：
 
-> 结论：要让“用户登录”可在本地验证，必须先补齐持久化、配置、迁移与最小化的启动脚本，再逐步实现仓库适配层与前端入口。
+- 账户、刷新令牌在进程重启后立即丢失，无法复现登录相关缺陷。
+- 无法支撑多实例部署，每个副本都会维护自己的内存状态。
+- 缺乏统一的认证入口：服务只有在设置 `AUTH_JWT_SECRET` 时才会注册 `/api/auth/*` 路由，而 `.env`、`docker-compose.dev.yml` 默认都未配置。
+- HTTP 路由缺少 `Authorization` 校验，中后台接口在登录成功后仍未受保护。
+- Web 前端没有 `/login` 页面，也没有把令牌注入到请求上下文中，用户即便拿到了账号也没有入口登录。
 
-## 2. 本地开发拓扑
+因此需要一个持久化的认证数据库来支撑后续开发与调试。
+
+## 推荐拓扑
 
 ```
-┌────────────────────────────┐      ┌─────────────────────┐
-│ docker-compose.dev.yml     │      │ 本地 CLI / cURL     │
-│                            │      │ (注册 / 登录)       │
-│  • alex-server (Go)        │◄────►│ 或 Postman          │
-│  • web (Next.js)           │      └─────────────────────┘
-│  • sandbox (tools)         │
-│  • auth-db (Postgres 15)   │◄────┐
-└──────────┬─────────────────┘     │ 5432/tcp
-           │                        │
-           ▼                        │
-  auth-db-data (Docker volume) ─────┘
+┌──────────────┐     ┌─────────────────────────┐
+│ alex-web(dev)├────▶│ alex-server (Go backend) │
+└──────────────┘     └──────────────┬──────────┘
+                                   │  AUTH_DATABASE_URL
+                             ┌─────▼─────┐
+                             │ Postgres  │
+                             │ (auth-db) │
+                             └───────────┘
 ```
 
-新增的 `auth-db` 容器负责三类数据：
+- `alex-server` 通过 `AUTH_DATABASE_URL` 访问 `auth-db` 服务。
+- `alex-web` 在登录后将访问令牌注入后续请求。
+- Postgres 使用持久化卷保存用户、身份和会话数据。
 
-1. `auth_users` – 账号、邮箱、密码哈希、状态。
-2. `auth_user_identities` – Google / WeChat 等外部身份。
-3. `auth_sessions` – 刷新令牌会话、UA、IP、过期时间。
+## Postgres 初始化
 
-数据库启动参数（可通过环境变量覆盖）：
+当首次启动 Postgres 时，可以使用仓库内提供的迁移脚本初始化数据库结构：
 
-| 变量 | 默认值 | 用途 |
-| --- | --- | --- |
-| `AUTH_DB_USER` | `alex` | Postgres 用户名 |
-| `AUTH_DB_PASSWORD` | `alex` | 密码 |
-| `AUTH_DB_NAME` | `alex_auth` | 数据库名 |
-| `AUTH_DB_PORT` | `5432` | 暴露到宿主机的端口 |
+```bash
+psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql
+```
 
-Compose 会把这些变量注入容器，同时暴露 `AUTH_DATABASE_URL=postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable` 供 `alex-server` 使用。
+脚本将创建以下对象：
 
-## 3. 数据库建表脚本
+- `pgcrypto` 与 `citext` 扩展，用于生成 UUID 和大小写不敏感的邮箱字段。
+- `auth_users`：存储本地账号（邮箱、密码哈希）。
+- `auth_user_identities`：外部身份提供方（如 OAuth）的映射表。
+- `auth_sessions`：刷新令牌哈希、指纹（SHA-256）及设备信息，用于跨实例校验。
+- `auth_states`：保存 OAuth state 随机串，保证多实例场景的回调校验。
 
-`migrations/auth/001_init.sql` 定义了最小可用 Schema（Postgres）：
+## docker-compose.dev.yml 配置
+
+开发 Compose 文件增加了 `auth-db` 服务，并让 `alex-server` 在启动前等待数据库健康：
+
+```yaml
+  alex-server:
+    environment:
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-dev-secret-change-me}
+      - AUTH_ACCESS_TOKEN_TTL_MINUTES=${AUTH_ACCESS_TOKEN_TTL_MINUTES:-15}
+      - AUTH_REFRESH_TOKEN_TTL_DAYS=${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
+      - AUTH_REDIRECT_BASE_URL=${AUTH_REDIRECT_BASE_URL:-http://localhost:8080}
+      - AUTH_DATABASE_URL=${AUTH_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+
+  auth-db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=${AUTH_DB_USER:-alex}
+      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-alex}
+      - POSTGRES_DB=${AUTH_DB_NAME:-alex_auth}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-alex} -d ${AUTH_DB_NAME:-alex_auth}"]
+```
+
+通过 `.env` 文件即可覆盖默认连接信息，例如：
+
+```
+AUTH_JWT_SECRET=please-change-me
+AUTH_DATABASE_URL=postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable
+AUTH_DB_PASSWORD=super-secret
+```
+
+## 启动步骤
+
+1. 复制 `.env.example` 为 `.env` 并按需修改认证相关变量。
+2. 执行 `docker-compose -f docker-compose.dev.yml up --build`。
+3. 待 `auth-db` 通过健康检查后，`alex-server` 会自动连接数据库。
+4. 运行 `psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql` 初始化表结构。
+5. `cmd/alex-server` 检测到 `AUTH_DATABASE_URL` 时会自动启用 Postgres 仓储与 JWT 鉴权中间件。
+6. 通过下文的 SQL 示例写入至少一个可用账号，以便 Web 登录。
+
+## 手动创建测试账号
+
+当前仓库未包含自动化的用户种子脚本，可以直接使用 `psql` 向 `auth_users` 表写入测试账号。首先用下列 Argon2id 哈希（对应明文 `P@ssw0rd!`）作为密码：
+
+```
+argon2id$1$65536$4$X/2c361Hs7Z7BTh06+aZaQ$FN9oVAe9UTRi7adCznuGy7sQrKYhanWBDhVG3en+HV4
+```
+
+然后执行以下 SQL，将账号插入数据库：
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS citext;
-
-CREATE TABLE IF NOT EXISTS auth_users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email CITEXT NOT NULL UNIQUE,
-    display_name TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'active',
-    password_hash TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK (status IN ('active', 'disabled'))
-);
-
-CREATE TABLE IF NOT EXISTS auth_user_identities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL,
-    provider_uid TEXT NOT NULL,
-    access_token TEXT,
-    refresh_token TEXT,
-    expires_at TIMESTAMPTZ,
-    scopes TEXT[],
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (provider, provider_uid)
-);
-
-CREATE TABLE IF NOT EXISTS auth_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-    refresh_token_hash TEXT NOT NULL,
-    user_agent TEXT,
-    ip TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    CHECK (expires_at > created_at)
-);
-
-CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions (user_id);
-CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions (expires_at);
+INSERT INTO auth_users (id, email, display_name, status, password_hash, points_balance, subscription_tier, subscription_expires_at, created_at, updated_at)
+VALUES (
+  gen_random_uuid(),
+  'admin@example.com',
+  'Admin',
+  'active',
+  'argon2id$1$65536$4$X/2c361Hs7Z7BTh06+aZaQ$FN9oVAe9UTRi7adCznuGy7sQrKYhanWBDhVG3en+HV4',
+  0,
+  'free',
+  NULL,
+  NOW(),
+  NOW()
+)
+ON CONFLICT (email) DO UPDATE
+SET display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status,
+    password_hash = EXCLUDED.password_hash,
+    points_balance = EXCLUDED.points_balance,
+    subscription_tier = EXCLUDED.subscription_tier,
+    subscription_expires_at = EXCLUDED.subscription_expires_at,
+    updated_at = NOW();
 ```
 
-未来可以在此目录继续追加迁移（002、003…），并在 CI/部署阶段统一执行。
+### 积分与订阅字段说明
 
-## 4. 启动步骤
+- `points_balance`：平台级积分余额，默认 0，可由后台或业务逻辑累加／扣减。
+- `subscription_tier`：订阅档位，当前支持：
+  - `free`：免费版。
+  - `supporter`：每月 20 美元，解锁支持者额度。
+  - `professional`：每月 100 美元，解锁专业版额度。
+- `subscription_expires_at`：订阅到期时间，针对付费档必填；免费档保持 `NULL` 即可。
 
-1. **准备环境变量**
-   ```bash
-   cp .env.example .env
-   export AUTH_JWT_SECRET="dev-secret-change-me"
-   export AUTH_DATABASE_URL="postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable"
-   export AUTH_REDIRECT_BASE_URL="http://localhost:8080"
-   ```
-   > 备注：目前 `alex-server` 仅消费 `AUTH_JWT_SECRET`；`AUTH_DATABASE_URL` 先写入 `.env`，等仓库实现落地后直接复用。
+如需生成自定义哈希，可运行任意脚本调用 `internal/auth/crypto` 包或根据同样的参数（Argon2id、t=1、m=65536、p=4、32 字节输出、16 字节盐）生成匹配格式的字符串后再插入。
 
-2. **启动 Docker 服务**
-   ```bash
-   docker compose -f docker-compose.dev.yml up auth-db -d
-   docker compose -f docker-compose.dev.yml up alex-server web
-   ```
+## 后续落地清单
 
-3. **执行迁移**
-   ```bash
-   psql postgres://alex:alex@localhost:5432/postgres \
-     -c "CREATE DATABASE alex_auth OWNER alex;"
-   psql postgres://alex:alex@localhost:5432/alex_auth \
-     -f migrations/auth/001_init.sql
-   ```
+- ✅ **前端入口**：在 `web/app` 中实现 `/login` 页面，并在全局布局中根据令牌控制导航与请求头注入。
+- ✅ **多集群**：`cmd/alex-server` 会在启用数据库仓储时每分钟自动清理过期的 `auth_states` 记录，避免历史 state 堆积。
 
-4. **手动创建测试账号（可选）**
-   ```sql
-   INSERT INTO auth_users (email, display_name, password_hash)
-   VALUES (
-     'dev@example.com',
-     'Dev Admin',
-     '$argon2id$v=19$m=65536,t=3,p=4$uGxm...'
-   );
-   ```
-   Argon2 哈希可通过 `./alex hash-password <plain>`（待实现）或在线工具生成。
-
-5. **调用 API 验证**
-   ```bash
-   curl -X POST http://localhost:8080/api/auth/login \
-     -d '{"email":"dev@example.com","password":"secret"}' \
-     -H "Content-Type: application/json"
-   ```
-   查看响应是否带回 `access_token`、`refresh_token`，并在 `auth_sessions` 表中出现记录。
-
-## 5. 后续落地清单
-
-| 模块 | 工作项 |
-| --- | --- |
-| Go 服务 | 实现 `ports.UserRepository/IdentityRepository/SessionRepository` 的 Postgres 适配层；在 `buildAuthService` 中读取 `AUTH_DATABASE_URL` 并注入对应实现。 |
-| API 中间件 | 引入 `Authorization` 校验，将 `/api/tasks/*`、`/api/sessions/*` 挂在 JWT 校验之后。 |
-| CLI/工具 | 提供 `alex auth seed-user` 或 `scripts/seed_auth_user.go` 以生成 Argon2 密码。 |
-| Web 前端 | 新建 `/login` 页面、封装 `authClient`，在 Layout 中根据 token 状态决定显示内容。 |
-| 文档 & CI | 将 `migrations/auth` 纳入 CI（例如 `scripts/db-migrate.sh`），确保 PR 自动验证迁移是否可执行。 |
-
-完成以上步骤后，用户登录即可在本地与云端共享同一套数据模型，实现“登录后访问控制”的闭环。
+完成以上工作后，登录体验即可在全链路达到生产级要求。

@@ -62,3 +62,9 @@ type StateStore interface {
 	Save(ctx context.Context, state string, provider domain.ProviderType, expiresAt time.Time) error
 	Consume(ctx context.Context, state string, provider domain.ProviderType) error
 }
+
+// StateStoreWithCleanup extends StateStore with the ability to purge expired records.
+type StateStoreWithCleanup interface {
+	StateStore
+	PurgeExpired(ctx context.Context, before time.Time) (int64, error)
+}

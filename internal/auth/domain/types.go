@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 // ProviderType identifies an external identity provider.
 type ProviderType string
@@ -24,15 +27,86 @@ const (
 	UserStatusDisabled UserStatus = "disabled"
 )
 
+// SubscriptionTier describes the available subscription plans.
+type SubscriptionTier string
+
+const (
+	// SubscriptionTierFree represents the default free tier.
+	SubscriptionTierFree SubscriptionTier = "free"
+	// SubscriptionTierSupporter represents the $20/month supporter tier.
+	SubscriptionTierSupporter SubscriptionTier = "supporter"
+	// SubscriptionTierProfessional represents the $100/month professional tier.
+	SubscriptionTierProfessional SubscriptionTier = "professional"
+)
+
+// SubscriptionPlan captures metadata about a subscription tier.
+type SubscriptionPlan struct {
+	Tier              SubscriptionTier
+	MonthlyPriceCents int
+}
+
+var subscriptionCatalog = map[SubscriptionTier]SubscriptionPlan{
+	SubscriptionTierFree: {
+		Tier:              SubscriptionTierFree,
+		MonthlyPriceCents: 0,
+	},
+	SubscriptionTierSupporter: {
+		Tier:              SubscriptionTierSupporter,
+		MonthlyPriceCents: 2000,
+	},
+	SubscriptionTierProfessional: {
+		Tier:              SubscriptionTierProfessional,
+		MonthlyPriceCents: 10000,
+	},
+}
+
+// Plan returns the catalog entry for the tier. Unknown tiers resolve to a zero-value plan.
+func (t SubscriptionTier) Plan() SubscriptionPlan {
+	if plan, ok := subscriptionCatalog[t]; ok {
+		return plan
+	}
+	return SubscriptionPlan{Tier: t}
+}
+
+// IsPaid reports whether the tier requires payment.
+func (t SubscriptionTier) IsPaid() bool {
+	plan := t.Plan()
+	return plan.MonthlyPriceCents > 0
+}
+
+// IsValid reports whether the tier exists in the catalog.
+func (t SubscriptionTier) IsValid() bool {
+	_, ok := subscriptionCatalog[t]
+	return ok
+}
+
+// SubscriptionPlans returns a snapshot of available plans.
+func SubscriptionPlans() []SubscriptionPlan {
+	plans := make([]SubscriptionPlan, 0, len(subscriptionCatalog))
+	for _, plan := range subscriptionCatalog {
+		plans = append(plans, plan)
+	}
+	sort.Slice(plans, func(i, j int) bool {
+		if plans[i].MonthlyPriceCents == plans[j].MonthlyPriceCents {
+			return plans[i].Tier < plans[j].Tier
+		}
+		return plans[i].MonthlyPriceCents < plans[j].MonthlyPriceCents
+	})
+	return plans
+}
+
 // User represents a person who can access the platform.
 type User struct {
-	ID           string
-	Email        string
-	DisplayName  string
-	Status       UserStatus
-	PasswordHash string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                    string
+	Email                 string
+	DisplayName           string
+	Status                UserStatus
+	PasswordHash          string
+	PointsBalance         int64
+	SubscriptionTier      SubscriptionTier
+	SubscriptionExpiresAt *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 // Identity links a user to a third-party identity provider.
@@ -56,13 +130,14 @@ type OAuthTokens struct {
 
 // Session represents a refresh-token backed login session.
 type Session struct {
-	ID               string
-	UserID           string
-	RefreshTokenHash string
-	UserAgent        string
-	IP               string
-	CreatedAt        time.Time
-	ExpiresAt        time.Time
+	ID                      string
+	UserID                  string
+	RefreshTokenHash        string
+	RefreshTokenFingerprint string
+	UserAgent               string
+	IP                      string
+	CreatedAt               time.Time
+	ExpiresAt               time.Time
 }
 
 // Claims represents JWT payload extracted from issued access tokens.
