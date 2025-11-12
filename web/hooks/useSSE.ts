@@ -81,7 +81,7 @@ export function useSSE(
     isConnectingRef.current = false;
   }, []);
 
-  const connectInternal = useCallback(() => {
+  const connectInternal = useCallback(async () => {
     const currentSessionId = sessionIdRef.current;
     const currentEnabled = enabled;
     const pipeline = pipelineRef.current;
@@ -104,16 +104,17 @@ export function useSSE(
       return;
     }
 
-    const token = authClient.getSession()?.accessToken;
+    isConnectingRef.current = true;
+
+    const token = await authClient.ensureAccessToken();
     if (!token) {
       console.warn("[SSE] Missing access token, skipping connection attempt");
       setIsConnected(false);
       setIsReconnecting(false);
       setError("Missing access token");
+      isConnectingRef.current = false;
       return;
     }
-
-    isConnectingRef.current = true;
 
     const client = new SSEClient(currentSessionId, pipeline, {
       onOpen: () => {
@@ -156,7 +157,7 @@ export function useSSE(
         setIsReconnecting(true);
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          connectInternal();
+          void connectInternal();
         }, delay);
       },
       onClose: () => {
@@ -218,7 +219,7 @@ export function useSSE(
     setError(null);
 
     if (sessionId && enabled) {
-      connectInternal();
+      void connectInternal();
     }
 
     return () => {
@@ -230,7 +231,7 @@ export function useSSE(
     cleanup();
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
-    connectInternal();
+    void connectInternal();
   }, [cleanup, connectInternal]);
 
   const addEvent = useCallback((event: AnyAgentEvent) => {
