@@ -25,6 +25,7 @@ import (
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
 	"alex/internal/utils"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Config holds server configuration
@@ -47,6 +48,7 @@ type AuthConfig struct {
 	GoogleAuthURL         string
 	WeChatAppID           string
 	WeChatAuthURL         string
+	DatabaseURL           string
 }
 
 func main() {
@@ -185,9 +187,12 @@ func main() {
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	healthChecker.RegisterProbe(serverApp.NewSandboxProbe(container.SandboxManager))
 
-	authService, err := buildAuthService(config, logger)
+	authService, authCleanup, err := buildAuthService(config, logger)
 	if err != nil {
 		logger.Warn("Authentication disabled: %v", err)
+	}
+	if authCleanup != nil {
+		defer authCleanup()
 	}
 	var authHandler *serverHTTP.AuthHandler
 	if authService != nil {
@@ -197,7 +202,7 @@ func main() {
 	}
 
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, runtimeCfg.Environment)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -357,18 +362,21 @@ func loadConfig() (Config, error) {
 	if authURL, ok := envLookup("WECHAT_AUTH_URL"); ok {
 		authCfg.WeChatAuthURL = strings.TrimSpace(authURL)
 	}
+	if dbURL, ok := envLookup("AUTH_DATABASE_URL"); ok {
+		authCfg.DatabaseURL = strings.TrimSpace(dbURL)
+	}
 	cfg.Auth = authCfg
 
 	return cfg, nil
 }
 
-func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, error) {
+func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {
 	runtimeCfg := cfg.Runtime
 	authCfg := cfg.Auth
 
 	secret := strings.TrimSpace(authCfg.JWTSecret)
 	if secret == "" {
-		return nil, fmt.Errorf("AUTH_JWT_SECRET not configured")
+		return nil, nil, fmt.Errorf("AUTH_JWT_SECRET not configured")
 	}
 
 	accessTTL := 15 * time.Minute
@@ -398,11 +406,38 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, error
 		}
 	}
 
-	users, identities, sessions, states := authAdapters.NewMemoryStores()
+	memUsers, memIdentities, memSessions, memStates := authAdapters.NewMemoryStores()
+	var (
+		users      authports.UserRepository     = memUsers
+		identities authports.IdentityRepository = memIdentities
+		sessions   authports.SessionRepository  = memSessions
+		states     authports.StateStore         = memStates
+	)
 	tokenManager := authAdapters.NewJWTTokenManager(secret, "alex-server", accessTTL)
-	sessions.SetVerifier(func(plain, encoded string) (bool, error) {
-		return tokenManager.VerifyRefreshToken(plain, encoded)
-	})
+
+	var cleanupFuncs []func()
+
+	if dbURL := strings.TrimSpace(authCfg.DatabaseURL); dbURL != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		pool, err := pgxpool.New(ctx, dbURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("create auth db pool: %w", err)
+		}
+		if err := pool.Ping(ctx); err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("ping auth db: %w", err)
+		}
+		usersRepo, identitiesRepo, sessionsRepo, statesRepo := authAdapters.NewPostgresStores(pool)
+		users = usersRepo
+		identities = identitiesRepo
+		sessions = sessionsRepo
+		states = statesRepo
+		cleanupFuncs = append(cleanupFuncs, func() {
+			pool.Close()
+		})
+		logger.Info("Authentication repositories backed by Postgres")
+	}
 
 	redirectBase := strings.TrimSpace(authCfg.RedirectBaseURL)
 	if redirectBase == "" {
@@ -451,5 +486,58 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, error
 		SecureCookies:         strings.EqualFold(runtimeCfg.Environment, "production"),
 		AllowedCallbackDomain: runtimeCfg.Environment,
 	})
-	return service, nil
+
+	if cleaner, ok := states.(authports.StateStoreWithCleanup); ok {
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		interval := time.Minute
+
+		runCleanup := func() {
+			purgeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			removed, err := cleaner.PurgeExpired(purgeCtx, time.Now().UTC())
+			if err != nil {
+				logger.Warn("Failed to purge expired auth states: %v", err)
+				return
+			}
+			if removed > 0 {
+				logger.Info("Purged %d expired auth states", removed)
+			} else {
+				logger.Debug("No expired auth states to purge")
+			}
+		}
+
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer func() {
+				ticker.Stop()
+				close(done)
+			}()
+			runCleanup()
+			for {
+				select {
+				case <-ticker.C:
+					runCleanup()
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		cleanupFuncs = append(cleanupFuncs, func() {
+			cancel()
+			<-done
+		})
+	}
+
+	var cleanup func()
+	if len(cleanupFuncs) > 0 {
+		cleanup = func() {
+			for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+				cleanupFuncs[i]()
+			}
+		}
+	}
+
+	return service, cleanup, nil
 }

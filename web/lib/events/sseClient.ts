@@ -1,38 +1,38 @@
-import { apiClient } from '@/lib/api';
-import { AnyAgentEvent } from '@/lib/types';
-import { EventPipeline } from './eventPipeline';
+import { apiClient } from "@/lib/api";
+import { AnyAgentEvent } from "@/lib/types";
+import { EventPipeline } from "./eventPipeline";
 
 export interface SSEClientOptions {
-  eventTypes: AnyAgentEvent['event_type'][];
+  eventTypes: AnyAgentEvent["event_type"][];
   onOpen?: () => void;
   onError?: (error: Event | Error) => void;
   onClose?: () => void;
   reconnect?: boolean;
 }
 
-const DEFAULT_EVENTS: AnyAgentEvent['event_type'][] = [
-  'connected',
-  'task_analysis',
-  'iteration_start',
-  'thinking',
-  'think_complete',
-  'tool_call_start',
-  'tool_call_stream',
-  'tool_call_complete',
-  'iteration_complete',
-  'task_cancelled',
-  'task_complete',
-  'error',
-  'research_plan',
-  'step_started',
-  'step_completed',
-  'browser_info',
-  'environment_snapshot',
-  'sandbox_progress',
-  'context_compression',
-  'tool_filtering',
-  'context_snapshot',
-  'user_task',
+const DEFAULT_EVENTS: AnyAgentEvent["event_type"][] = [
+  "connected",
+  "task_analysis",
+  "iteration_start",
+  "thinking",
+  "think_complete",
+  "tool_call_start",
+  "tool_call_stream",
+  "tool_call_complete",
+  "iteration_complete",
+  "task_cancelled",
+  "task_complete",
+  "error",
+  "research_plan",
+  "step_started",
+  "step_completed",
+  "browser_info",
+  "environment_snapshot",
+  "sandbox_progress",
+  "context_compression",
+  "tool_filtering",
+  "context_snapshot",
+  "user_task",
 ];
 
 export class SSEClient {
@@ -42,7 +42,11 @@ export class SSEClient {
   private eventSource: EventSource | null = null;
   private isDisposed: boolean = false;
 
-  constructor(sessionId: string, pipeline: EventPipeline, options: Partial<SSEClientOptions> = {}) {
+  constructor(
+    sessionId: string,
+    pipeline: EventPipeline,
+    options: Partial<SSEClientOptions> = {},
+  ) {
     this.sessionId = sessionId;
     this.pipeline = pipeline;
     this.options = {
@@ -54,10 +58,13 @@ export class SSEClient {
     };
   }
 
-  connect() {
+  connect(accessToken?: string) {
     this.dispose();
     this.isDisposed = false;
-    this.eventSource = apiClient.createSSEConnection(this.sessionId);
+    this.eventSource = apiClient.createSSEConnection(
+      this.sessionId,
+      accessToken,
+    );
     const eventSource = this.eventSource;
 
     eventSource.onopen = () => {
@@ -72,7 +79,7 @@ export class SSEClient {
       // EventSource.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
       const closedState =
         (eventSource as unknown as { CLOSED?: number }).CLOSED ??
-        (typeof EventSource !== 'undefined' ? EventSource.CLOSED : undefined);
+        (typeof EventSource !== "undefined" ? EventSource.CLOSED : undefined);
       if (closedState === undefined || eventSource.readyState === closedState) {
         this.options.onError?.(error);
       }
@@ -86,7 +93,7 @@ export class SSEClient {
           const payload = JSON.parse(rawEvent.data);
           this.pipeline.process(payload);
         } catch (error) {
-          console.error('[SSE] Failed to parse event payload', error);
+          console.error("[SSE] Failed to parse event payload", error);
         }
       });
     });

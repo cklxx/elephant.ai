@@ -16,6 +16,11 @@ services:
       - ALEX_VERBOSE=true
       - SESSION_STORE_PATH=/data/sessions
       - ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-dev-secret-change-me}
+      - AUTH_ACCESS_TOKEN_TTL_MINUTES=${AUTH_ACCESS_TOKEN_TTL_MINUTES:-15}
+      - AUTH_REFRESH_TOKEN_TTL_DAYS=${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
+      - AUTH_REDIRECT_BASE_URL=${AUTH_REDIRECT_BASE_URL:-http://localhost:8080}
+      - AUTH_DATABASE_URL=${AUTH_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
     volumes:
       - ./:/app:cached
       - alex-sessions-dev:/data/sessions

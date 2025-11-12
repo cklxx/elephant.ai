@@ -2,7 +2,8 @@
 
 ## 🚀 部署概述
 
-本指南提供Alex Cloud Agent在Kubernetes集群上的完整部署流程，包括基础设施准备、服务配置、监控设置和生产验证。
+本指南提供Alex Cloud Agent在 Kubernetes 集群上的部署参考。仓库当前仅随附 `k8s/deployment.yaml` 示例清单，需要通过 `kubectl`
+手动应用；Istio、Argo CD 等扩展组件仍需读者按需自建。
 
 ## 📋 前置要求
 
@@ -177,7 +178,8 @@ kubectl create configmap alex-config \
 kubectl create secret generic alex-secrets \
   --from-literal=llm-api-key="${LLM_API_KEY}" \
   --from-literal=tavily-api-key="${TAVILY_API_KEY}" \
-  --from-literal=jwt-secret="${JWT_SECRET}" \
+  --from-literal=AUTH_JWT_SECRET="${AUTH_JWT_SECRET}" \
+  --from-literal=AUTH_DATABASE_URL="${AUTH_DATABASE_URL}" \
   --namespace alex-system
 
 # 3. 创建TLS证书
@@ -186,6 +188,13 @@ kubectl create secret tls alex-tls-cert \
   --key=alex-cloud.key \
   --namespace istio-system
 ```
+
+> 🔐 **生产登录提示**：`alex-server` 在检测到 `AUTH_JWT_SECRET` 与 `AUTH_DATABASE_URL` 后会自动启用 Postgres 仓储和 JWT 鉴权中间件。部署前请确保：
+>
+> 1. 在生产数据库中创建认证库并运行 `psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql`，初始化 `auth_users`、`auth_user_identities`、`auth_sessions`、`auth_states` 等表。
+> 2. `AUTH_DATABASE_URL` 指向可从集群访问的地址（推荐通过 Kubernetes Service 或私网负载均衡暴露）。
+> 3. 生成高熵的 `AUTH_JWT_SECRET`，并将 `AUTH_REDIRECT_BASE_URL` 设置为实际域名，保证前端回调正确。
+> 4. 为数据库与 Secret 配置备份和轮换策略，刷新令牌及 OAuth state 才能跨 Pod 持久化。
 
 ### 第二步：部署核心服务
 ```yaml
