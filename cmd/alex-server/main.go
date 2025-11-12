@@ -13,6 +13,7 @@ import (
 	"time"
 
 	agentdomain "alex/internal/agent/domain"
+	"alex/internal/analytics"
 	authAdapters "alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
@@ -34,6 +35,7 @@ type Config struct {
 	EnableMCP          bool
 	EnvironmentSummary string
 	Auth               AuthConfig
+	Analytics          AnalyticsConfig
 }
 
 // AuthConfig captures authentication-related environment configuration.
@@ -47,6 +49,12 @@ type AuthConfig struct {
 	GoogleAuthURL         string
 	WeChatAppID           string
 	WeChatAuthURL         string
+}
+
+// AnalyticsConfig holds analytics configuration values.
+type AnalyticsConfig struct {
+	PostHogAPIKey string
+	PostHogHost   string
 }
 
 func main() {
@@ -172,11 +180,30 @@ func main() {
 		broadcaster.SetAttachmentArchiver(archiver)
 	}
 
+	analyticsClient := analytics.NewNoopClient()
+	if apiKey := strings.TrimSpace(config.Analytics.PostHogAPIKey); apiKey != "" {
+		client, err := analytics.NewPostHogClient(apiKey, strings.TrimSpace(config.Analytics.PostHogHost))
+		if err != nil {
+			logger.Warn("Analytics disabled: %v", err)
+		} else {
+			analyticsClient = client
+			logger.Info("Analytics client initialized (PostHog)")
+		}
+	} else {
+		logger.Info("Analytics client disabled: POSTHOG_API_KEY not provided")
+	}
+	defer func() {
+		if err := analyticsClient.Close(); err != nil {
+			logger.Warn("Failed to close analytics client: %v", err)
+		}
+	}()
+
 	serverCoordinator := serverApp.NewServerCoordinator(
 		container.AgentCoordinator,
 		broadcaster,
 		container.SessionStore,
 		taskStore,
+		serverApp.WithAnalyticsClient(analyticsClient),
 	)
 
 	// Setup health checker
@@ -295,6 +322,8 @@ func loadConfig() (Config, error) {
 		"PORT":                       {"ALEX_SERVER_PORT"},
 		"ENABLE_MCP":                 {"ALEX_ENABLE_MCP"},
 		"SANDBOX_BASE_URL":           {"ALEX_SANDBOX_BASE_URL"},
+		"POSTHOG_API_KEY":            {"ALEX_POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY"},
+		"POSTHOG_HOST":               {"ALEX_POSTHOG_HOST", "NEXT_PUBLIC_POSTHOG_HOST"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(
@@ -358,6 +387,15 @@ func loadConfig() (Config, error) {
 		authCfg.WeChatAuthURL = strings.TrimSpace(authURL)
 	}
 	cfg.Auth = authCfg
+
+	analyticsCfg := AnalyticsConfig{}
+	if apiKey, ok := envLookup("POSTHOG_API_KEY"); ok {
+		analyticsCfg.PostHogAPIKey = strings.TrimSpace(apiKey)
+	}
+	if host, ok := envLookup("POSTHOG_HOST"); ok {
+		analyticsCfg.PostHogHost = strings.TrimSpace(host)
+	}
+	cfg.Analytics = analyticsCfg
 
 	return cfg, nil
 }

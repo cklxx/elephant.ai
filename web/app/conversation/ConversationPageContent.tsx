@@ -16,6 +16,8 @@ import { TaskInput } from '@/components/agent/TaskInput';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
+import { captureEvent } from '@/lib/analytics/posthog';
+import { AnalyticsEvent } from '@/lib/analytics/events';
 
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -125,6 +127,12 @@ export function ConversationPageContent() {
           t('console.toast.taskCancelRequested.title'),
           t('console.toast.taskCancelRequested.description')
         );
+        captureEvent(AnalyticsEvent.TaskCancelRequested, {
+          session_id: resolvedSessionId ?? null,
+          task_id: taskId,
+          status: 'success',
+          mock_stream: true,
+        });
         return;
       }
 
@@ -142,6 +150,12 @@ export function ConversationPageContent() {
             t('console.toast.taskCancelRequested.title'),
             t('console.toast.taskCancelRequested.description')
           );
+          captureEvent(AnalyticsEvent.TaskCancelRequested, {
+            session_id: resolvedSessionId ?? null,
+            task_id: taskId,
+            status: 'success',
+            mock_stream: false,
+          });
         },
         onError: (cancelError) => {
           console.error(
@@ -156,11 +170,18 @@ export function ConversationPageContent() {
               message: formatParsedError(parsed),
             })
           );
+          captureEvent(AnalyticsEvent.TaskCancelFailed, {
+            session_id: resolvedSessionId ?? null,
+            task_id: taskId,
+            error_kind: isAPIError(cancelError) ? 'api' : 'unknown',
+            ...(isAPIError(cancelError) ? { status_code: cancelError.status } : {}),
+          });
         },
       });
     },
     [
       cancelTask,
+      resolvedSessionId,
       setActiveTaskId,
       setCancelRequested,
       t,
@@ -170,6 +191,16 @@ export function ConversationPageContent() {
 
   const handleTaskSubmit = (task: string, attachments: AttachmentUpload[]) => {
     console.log('[ConversationPage] Task submitted:', { task, attachments });
+
+    captureEvent(AnalyticsEvent.TaskSubmitted, {
+      session_id: resolvedSessionId ?? null,
+      has_active_session: Boolean(resolvedSessionId),
+      attachment_count: attachments.length,
+      has_attachments: attachments.length > 0,
+      input_length: task.length,
+      mock_stream: useMockStream,
+      prefill_present: Boolean(prefillTask),
+    });
 
     cancelIntentRef.current = false;
     setCancelRequested(false);
@@ -239,40 +270,52 @@ export function ConversationPageContent() {
 
             if (isStaleSession) {
               retriedWithoutSession = true;
-              console.warn('[ConversationPage] Session not found, retrying without session_id', {
-                sessionId: requestedSessionId,
-                error: getErrorLogPayload(error),
-              });
+            console.warn('[ConversationPage] Session not found, retrying without session_id', {
+              sessionId: requestedSessionId,
+              error: getErrorLogPayload(error),
+            });
 
-              setSessionId(null);
-              setTaskId(null);
-              setActiveTaskId(null);
-              setCancelRequested(false);
-              cancelIntentRef.current = false;
-              clearCurrentSession();
-              removeSession(requestedSessionId);
-              clearEvents();
-
-              runExecution(null);
-              return;
-            }
-
-            console.error(
-              '[ConversationPage] Task execution error:',
-              getErrorLogPayload(error)
-            );
-            cancelIntentRef.current = false;
-            setCancelRequested(false);
+            setSessionId(null);
+            setTaskId(null);
             setActiveTaskId(null);
-            const parsed = parseError(error, t('common.error.unknown'));
-            toast.error(
-              t('console.toast.taskFailed'),
-              formatParsedError(parsed)
-            );
-          },
-        }
-      );
-    };
+            setCancelRequested(false);
+            cancelIntentRef.current = false;
+            clearCurrentSession();
+            removeSession(requestedSessionId);
+            clearEvents();
+
+            captureEvent(AnalyticsEvent.TaskRetriedWithoutSession, {
+              session_id: requestedSessionId,
+              error_status: 404,
+              mock_stream: useMockStream,
+            });
+
+            runExecution(null);
+            return;
+          }
+
+          console.error(
+            '[ConversationPage] Task execution error:',
+            getErrorLogPayload(error)
+          );
+          cancelIntentRef.current = false;
+          setCancelRequested(false);
+          setActiveTaskId(null);
+          const parsed = parseError(error, t('common.error.unknown'));
+          toast.error(
+            t('console.toast.taskFailed'),
+            formatParsedError(parsed)
+          );
+          captureEvent(AnalyticsEvent.TaskSubmissionFailed, {
+            session_id: requestedSessionId ?? null,
+            is_api_error: isAPIError(error),
+            mock_stream: useMockStream,
+            ...(isAPIError(error) ? { status_code: error.status } : {}),
+          });
+        },
+      }
+    );
+  };
 
     runExecution(initialSessionId ?? null);
   };
@@ -282,13 +325,21 @@ export function ConversationPageContent() {
       return;
     }
 
+    captureEvent(AnalyticsEvent.TaskCancelRequested, {
+      session_id: resolvedSessionId ?? null,
+      task_id: activeTaskId ?? null,
+      status: 'initiated',
+      mock_stream: useMockStream,
+      request_state: activeTaskId ? 'inflight' : 'queued',
+    });
+
     setCancelRequested(true);
     if (activeTaskId) {
       performCancellation(activeTaskId);
     } else {
       cancelIntentRef.current = true;
     }
-  }, [activeTaskId, isCancelPending, performCancellation]);
+  }, [activeTaskId, isCancelPending, performCancellation, resolvedSessionId, useMockStream]);
 
   const handleNewSession = () => {
     setSessionId(null);
@@ -298,6 +349,12 @@ export function ConversationPageContent() {
     cancelIntentRef.current = false;
     clearEvents();
     clearCurrentSession();
+    captureEvent(AnalyticsEvent.SessionCreated, {
+      previous_session_id: resolvedSessionId ?? null,
+      had_active_session: Boolean(resolvedSessionId),
+      history_count: sessionHistory.length,
+      pinned_count: pinnedSessions.length,
+    });
   };
 
   const handleSessionSelect = (id: string) => {
@@ -310,6 +367,12 @@ export function ConversationPageContent() {
     cancelIntentRef.current = false;
     setCurrentSession(id);
     addToHistory(id);
+    captureEvent(AnalyticsEvent.SessionSelected, {
+      session_id: id,
+      previous_session_id: resolvedSessionId ?? null,
+      was_pinned: pinnedSessions.includes(id),
+      was_in_history: sessionHistory.includes(id),
+    });
   };
 
   const handleSessionDelete = async (id: string) => {
@@ -335,6 +398,10 @@ export function ConversationPageContent() {
           clearCurrentSession();
         }
         toast.success(t('sidebar.session.toast.deleteSuccess'));
+        captureEvent(AnalyticsEvent.SessionDeleted, {
+          session_id: id,
+          status: 'success',
+        });
       } catch (err) {
         console.error(
           '[ConversationPage] Failed to delete session:',
@@ -345,6 +412,12 @@ export function ConversationPageContent() {
           t('sidebar.session.toast.deleteError'),
           formatParsedError(parsed)
         );
+        captureEvent(AnalyticsEvent.SessionDeleted, {
+          session_id: id,
+          status: 'error',
+          error_kind: isAPIError(err) ? 'api' : 'unknown',
+          ...(isAPIError(err) ? { status_code: err.status } : {}),
+        });
       }
     }
   };
@@ -446,7 +519,16 @@ export function ConversationPageContent() {
           leadingSlot={
             <button
               type="button"
-              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              onClick={() =>
+                setIsSidebarOpen((prev) => {
+                  const next = !prev;
+                  captureEvent(AnalyticsEvent.SidebarToggled, {
+                    next_state: next ? 'open' : 'closed',
+                    previous_state: prev ? 'open' : 'closed',
+                  });
+                  return next;
+                })
+              }
               className="console-button console-button-secondary flex items-center justify-center !px-3 !py-2"
               aria-expanded={isSidebarOpen}
               aria-controls="conversation-sidebar"
@@ -476,7 +558,13 @@ export function ConversationPageContent() {
               <button
                 type="button"
                 data-testid="mobile-timeline-trigger"
-                onClick={() => setShowTimelineDialog(true)}
+                onClick={() => {
+                  captureEvent(AnalyticsEvent.TimelineViewed, {
+                    session_id: resolvedSessionId ?? null,
+                    step_count: timelineSteps.length,
+                  });
+                  setShowTimelineDialog(true);
+                }}
                 className="mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm"
               >
                 {t('console.timeline.mobileLabel')}
