@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"path"
@@ -87,6 +88,10 @@ const (
 	seedreamMaxInlineImageBytes  = 8 * 1024 * 1024
 	seedreamMaxInlineBinaryBytes = 4 * 1024 * 1024
 	seedreamAssetHTTPTimeout     = 2 * time.Minute
+
+	seedreamMinGuidanceScale     = 1.0
+	seedreamMaxGuidanceScale     = 10.0
+	seedreamDefaultGuidanceScale = 7.0
 )
 
 var seedreamPlaceholderNonce = func() string {
@@ -732,11 +737,21 @@ func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]a
 		req.Seed = volcengine.Int64(int64(seed))
 	}
 	if cfgScale, ok := readFloat(args, "cfg_scale"); ok {
-		req.GuidanceScale = volcengine.Float64(cfgScale)
+		req.GuidanceScale = volcengine.Float64(sanitizeSeedreamGuidanceScale(cfgScale))
 	}
 	if optimize, ok := args["optimize_prompt"].(bool); ok {
 		req.OptimizePrompt = volcengine.Bool(optimize)
 	}
+}
+
+func sanitizeSeedreamGuidanceScale(value float64) float64 {
+	if math.IsNaN(value) {
+		return seedreamDefaultGuidanceScale
+	}
+	if value < seedreamMinGuidanceScale || value > seedreamMaxGuidanceScale {
+		return seedreamDefaultGuidanceScale
+	}
+	return value
 }
 
 func seedreamMissingConfigMessage(config SeedreamConfig) string {
