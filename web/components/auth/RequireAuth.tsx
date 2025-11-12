@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { useI18n } from "@/lib/i18n";
@@ -16,7 +16,21 @@ function buildNextParam(
   return combined.startsWith("/") ? combined : "/conversation";
 }
 
-export function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuthFallback() {
+  const { t } = useI18n();
+
+  return (
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center text-sm text-slate-500">
+      {t("auth.account.loading")}
+    </div>
+  );
+}
+
+function RequireAuthContent({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { status } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -33,11 +47,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }, [status, pathname, searchParams, router]);
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center text-sm text-slate-500">
-        {t("auth.account.loading")}
-      </div>
-    );
+    return <RequireAuthFallback />;
   }
 
   if (status !== "authenticated") {
@@ -45,4 +55,12 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+export function RequireAuth({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<RequireAuthFallback />}>
+      <RequireAuthContent>{children}</RequireAuthContent>
+    </Suspense>
+  );
 }
