@@ -24,6 +24,7 @@ interface ToolOutputCardProps {
   callId?: string;
   metadata?: Record<string, any>;
   attachments?: Record<string, AttachmentPayload>;
+  status?: "running" | "completed" | "failed";
 }
 
 export function ToolOutputCard({
@@ -34,6 +35,7 @@ export function ToolOutputCard({
   duration,
   metadata,
   attachments,
+  status,
 }: ToolOutputCardProps) {
   const hasResult = Boolean(result && result.trim().length > 0);
   const hasParameters = Boolean(
@@ -54,6 +56,38 @@ export function ToolOutputCard({
   const isSeedream = normalizedToolName.includes("seedream");
   const displayToolName = seedreamDisplayNames[normalizedSeedreamKey] ||
     (isSeedream ? "Seedream tool" : toolName);
+
+  const resolvedStatus: "running" | "completed" | "failed" = useMemo(() => {
+    if (status) {
+      return status;
+    }
+    if (hasError) {
+      return "failed";
+    }
+    return "completed";
+  }, [status, hasError]);
+
+  const statusLabel = useMemo(() => {
+    switch (resolvedStatus) {
+      case "running":
+        return t("tool.status.running");
+      case "failed":
+        return t("tool.status.failed");
+      default:
+        return t("tool.status.completed");
+    }
+  }, [resolvedStatus, t]);
+
+  const statusVariant: "success" | "error" | "info" = useMemo(() => {
+    switch (resolvedStatus) {
+      case "running":
+        return "info";
+      case "failed":
+        return "error";
+      default:
+        return "success";
+    }
+  }, [resolvedStatus]);
 
   const language = useMemo(
     () => detectLanguage(toolName, parameters, result),
@@ -111,12 +145,12 @@ export function ToolOutputCard({
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm">
                 <span
                   className={
-                    error
+                    resolvedStatus === "failed"
                       ? "text-destructive font-semibold"
                       : "text-primary font-semibold"
                   }
                 >
-                  {error ? "✗ " : ""}
+                  {resolvedStatus === "failed" ? "✗ " : ""}
                   {displayToolName}
                 </span>
                 {typeof duration === "number" && duration >= 0 && (
@@ -132,8 +166,8 @@ export function ToolOutputCard({
               </p>
             )}
           </div>
-          <Badge variant={error ? "error" : "success"} className="shrink-0">
-            {error ? t("tool.status.failed") : t("tool.status.completed")}
+          <Badge variant={statusVariant} className="shrink-0">
+            {statusLabel}
           </Badge>
         </div>
       </CardHeader>
