@@ -54,9 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authClient.getSession(),
   );
   const [status, setStatus] = useState<AuthStatus>("loading");
-  const refreshTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(
-    null,
-  );
+  const refreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (refreshTimerRef.current) {
+    if (refreshTimerRef.current !== null) {
       window.clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
     }
@@ -151,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, delay);
 
     return () => {
-      if (refreshTimerRef.current) {
+      if (refreshTimerRef.current !== null) {
         window.clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
