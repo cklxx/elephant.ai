@@ -8,6 +8,7 @@ import (
 	agentapp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	agentPorts "alex/internal/agent/ports"
+	"alex/internal/analytics"
 	serverPorts "alex/internal/server/ports"
 )
 
@@ -82,6 +83,31 @@ func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, ses
 		StopReason: "completed",
 		SessionID:  sessionID,
 	}, nil
+}
+
+type mockAnalytics struct {
+	captures []struct {
+		distinctID string
+		event      string
+		properties map[string]any
+	}
+}
+
+func (m *mockAnalytics) Capture(ctx context.Context, distinctID string, event string, properties map[string]any) error {
+	copied := make(map[string]any, len(properties))
+	for key, value := range properties {
+		copied[key] = value
+	}
+	m.captures = append(m.captures, struct {
+		distinctID string
+		event      string
+		properties map[string]any
+	}{distinctID: distinctID, event: event, properties: copied})
+	return nil
+}
+
+func (m *mockAnalytics) Close() error {
+	return nil
 }
 
 // TestSessionIDConsistency verifies the critical P0 fix:
@@ -213,6 +239,45 @@ func TestSessionIDConsistency(t *testing.T) {
 		t.Logf("✓ Progress fields initialized: current_iteration=%d, tokens_used=%d",
 			freshTask.CurrentIteration, freshTask.TokensUsed)
 	})
+}
+
+func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+
+	agentCoordinator := NewMockAgentCoordinator(sessionStore)
+	analyticsMock := &mockAnalytics{}
+
+	coordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+		WithAnalyticsClient(analyticsMock),
+	)
+
+	ctx := context.Background()
+	coordinator.emitUserTaskEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
+
+	if len(analyticsMock.captures) != 1 {
+		t.Fatalf("expected 1 analytics capture, got %d", len(analyticsMock.captures))
+	}
+
+	capture := analyticsMock.captures[0]
+	if capture.distinctID != "session-analytics" {
+		t.Errorf("expected distinctID session-analytics, got %s", capture.distinctID)
+	}
+	if capture.event != analytics.EventTaskExecutionStarted {
+		t.Errorf("expected event %s, got %s", analytics.EventTaskExecutionStarted, capture.event)
+	}
+	if capture.properties["task_id"] != "task-analytics" {
+		t.Errorf("expected task_id task-analytics, got %v", capture.properties["task_id"])
+	}
+	if capture.properties["source"] != "server" {
+		t.Errorf("expected source server, got %v", capture.properties["source"])
+	}
 }
 
 // TestBroadcasterMapping verifies that broadcaster task-session mapping uses correct session ID

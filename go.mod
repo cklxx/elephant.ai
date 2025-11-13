@@ -17,6 +17,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/philippgille/chromem-go v0.7.0
 	github.com/pkoukk/tiktoken-go v0.1.8
+	github.com/posthog/posthog-go v1.6.12
 	github.com/prometheus/client_golang v1.23.2
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sergi/go-diff v1.0.0

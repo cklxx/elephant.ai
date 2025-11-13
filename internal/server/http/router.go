@@ -46,8 +46,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.HandleFunc("/api/auth/refresh", authHandler.HandleRefresh)
 		mux.HandleFunc("/api/auth/me", authHandler.HandleMe)
 		mux.HandleFunc("/api/auth/plans", authHandler.HandleListPlans)
-		mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
-		mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
+		if internalMode {
+			mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
+			mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
+		}
 		mux.HandleFunc("/api/auth/google/login", func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthStart(domain.ProviderGoogle, w, r)
 		})

@@ -13,10 +13,12 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const mockGetSession = vi.hoisted(() => vi.fn());
+const mockEnsureAccessToken = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth/client", () => ({
   authClient: {
     getSession: mockGetSession,
+    ensureAccessToken: mockEnsureAccessToken,
   },
 }));
 
@@ -64,6 +66,7 @@ class MockEventSource {
   }
 
   simulateError(): void {
+    this.readyState = 2; // CLOSED
     if (this.onerror) {
       this.onerror(new Event("error"));
     }
@@ -80,10 +83,20 @@ class MockEventSource {
 
 describe("useSSE", () => {
   let mockEventSource: MockEventSource;
+  let connectionCalls: number;
+
+  async function waitForConnection(expectedCalls: number) {
+    while (connectionCalls < expectedCalls) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    connectionCalls = 0;
 
     mockGetSession.mockReturnValue({
       accessToken: "test-token",
@@ -102,6 +115,7 @@ describe("useSSE", () => {
         },
       },
     });
+    mockEnsureAccessToken.mockResolvedValue("test-token");
 
     // Setup mock EventSource factory
     (apiClient.createSSEConnection as vi.Mock).mockImplementation(
@@ -109,6 +123,7 @@ describe("useSSE", () => {
         mockEventSource = new MockEventSource(
           `http://localhost:8080/api/sse?session_id=${sessionId}&access_token=${token}`,
         );
+        connectionCalls += 1;
         return mockEventSource;
       },
     );
@@ -123,9 +138,7 @@ describe("useSSE", () => {
     test("should establish connection when sessionId and enabled are provided", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(1);
 
       expect(apiClient.createSSEConnection).toHaveBeenCalledWith(
         "test-session-123",
@@ -138,9 +151,7 @@ describe("useSSE", () => {
     test("should set isConnected to true on successful connection", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -169,9 +180,7 @@ describe("useSSE", () => {
         initialProps: { sessionId: "session-1" },
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(1);
 
       const firstEventSource = mockEventSource;
       const closeSpy = vi.spyOn(firstEventSource, "close");
@@ -181,16 +190,17 @@ describe("useSSE", () => {
       });
 
       // Change sessionId
+      const secondCall = connectionCalls + 1;
       rerender({ sessionId: "session-2" });
 
       expect(closeSpy).toHaveBeenCalled();
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(secondCall);
     });
 
-    test("should cleanup on unmount", () => {
+    test("should cleanup on unmount", async () => {
       const { unmount } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -204,8 +214,10 @@ describe("useSSE", () => {
   });
 
   describe("Event Handling", () => {
-    test("should collect events and update state", () => {
+    test("should collect events and update state", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -239,11 +251,13 @@ describe("useSSE", () => {
       expect(result.current.events[1]).toEqual(event2);
     });
 
-    test("should call onEvent callback when event is received", () => {
+    test("should call onEvent callback when event is received", async () => {
       const onEvent = vi.fn();
       const { result } = renderHook(() =>
         useSSE("test-session-123", { onEvent }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -268,8 +282,10 @@ describe("useSSE", () => {
       expect(onEvent).toHaveBeenCalledWith(event);
     });
 
-    test("should clear events when clearEvents is called", () => {
+    test("should clear events when clearEvents is called", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -301,10 +317,12 @@ describe("useSSE", () => {
   });
 
   describe("Reconnection Logic", () => {
-    test("should attempt reconnection on error with exponential backoff", () => {
+    test("should attempt reconnection on error with exponential backoff", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 5 }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -326,6 +344,8 @@ describe("useSSE", () => {
         vi.advanceTimersByTime(1000);
       });
 
+      await waitForConnection(2);
+
       expect(result.current.isReconnecting).toBe(true);
 
       // Simulate another error on the new connection
@@ -340,13 +360,17 @@ describe("useSSE", () => {
         vi.advanceTimersByTime(2000);
       });
 
+      await waitForConnection(3);
+
       expect(result.current.isReconnecting).toBe(true);
     });
 
-    test("should cap exponential backoff at 30 seconds", () => {
+    test("should cap exponential backoff at 30 seconds", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 10 }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -359,20 +383,25 @@ describe("useSSE", () => {
         });
 
         const expectedDelay = Math.min(1000 * Math.pow(2, i), 30000);
+        const expectedCall = connectionCalls + 1;
         act(() => {
           vi.advanceTimersByTime(expectedDelay);
         });
+
+        await waitForConnection(expectedCall);
       }
 
       // 7th attempt should still use 30s cap (not 64s)
       expect(result.current.reconnectAttempts).toBe(6);
     });
 
-    test("should stop reconnecting after max attempts", () => {
+    test("should stop reconnecting after max attempts", async () => {
       const maxAttempts = 3;
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: maxAttempts }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -392,9 +421,12 @@ describe("useSSE", () => {
         // Advance timer to trigger reconnection (except after the last one)
         if (i < maxAttempts - 1) {
           const delay = 1000 * Math.pow(2, i);
+          const expectedCall = connectionCalls + 1;
           act(() => {
             vi.advanceTimersByTime(delay);
           });
+
+          await waitForConnection(expectedCall);
         }
       }
 
@@ -422,10 +454,12 @@ describe("useSSE", () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    test("should reset reconnection attempts on successful connection", () => {
+    test("should reset reconnection attempts on successful connection", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 5 }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -439,9 +473,12 @@ describe("useSSE", () => {
       expect(result.current.reconnectAttempts).toBe(1);
 
       // Advance timer and simulate successful reconnection
+      const expectedCall = connectionCalls + 1;
       act(() => {
         vi.advanceTimersByTime(1000);
       });
+
+      await waitForConnection(expectedCall);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -452,10 +489,12 @@ describe("useSSE", () => {
       expect(result.current.isReconnecting).toBe(false);
     });
 
-    test("should NOT trigger double connections on reconnectAttempts state change", () => {
+    test("should NOT trigger double connections on reconnectAttempts state change", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 5 }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -486,10 +525,12 @@ describe("useSSE", () => {
   });
 
   describe("Manual Reconnection", () => {
-    test("should reset attempts and reconnect when reconnect() is called", () => {
+    test("should reset attempts and reconnect when reconnect() is called", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 5 }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -503,9 +544,12 @@ describe("useSSE", () => {
       expect(result.current.reconnectAttempts).toBe(1);
 
       // Manual reconnect
+      const expectedCall = connectionCalls + 1;
       act(() => {
         result.current.reconnect();
       });
+
+      await waitForConnection(expectedCall);
 
       expect(result.current.reconnectAttempts).toBe(0);
       expect(result.current.error).toBe(null);
@@ -533,10 +577,12 @@ describe("useSSE", () => {
       ).toBeLessThanOrEqual(initialCallCount + 3);
     });
 
-    test("should cleanup pending reconnection timers when component unmounts", () => {
+    test("should cleanup pending reconnection timers when component unmounts", async () => {
       const { result, unmount } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 5 }),
       );
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -566,8 +612,10 @@ describe("useSSE", () => {
   });
 
   describe("State Transitions", () => {
-    test("should transition through states correctly: disconnected -> connecting -> connected", () => {
+    test("should transition through states correctly: disconnected -> connecting -> connected", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
 
       // Initial state
       expect(result.current.isConnected).toBe(false);
@@ -582,8 +630,10 @@ describe("useSSE", () => {
       expect(result.current.isReconnecting).toBe(false);
     });
 
-    test("should transition through states correctly: connected -> error -> reconnecting -> connected", () => {
+    test("should transition through states correctly: connected -> error -> reconnecting -> connected", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
 
       // Connect
       act(() => {
@@ -605,6 +655,8 @@ describe("useSSE", () => {
         vi.advanceTimersByTime(1000);
       });
 
+      await waitForConnection(2);
+
       // Successful reconnection
       act(() => {
         mockEventSource.simulateOpen();
@@ -621,20 +673,18 @@ describe("useSSE", () => {
         initialProps: { sessionId: "session-1" },
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(1);
 
       // Rapidly change sessions
       for (let i = 2; i <= 5; i++) {
         const prevEventSource = mockEventSource;
         const closeSpy = vi.spyOn(prevEventSource, "close");
 
+        const expectedCall = connectionCalls + 1;
+
         rerender({ sessionId: `session-${i}` });
 
-        await act(async () => {
-          await Promise.resolve();
-        });
+        await waitForConnection(expectedCall);
 
         expect(closeSpy).toHaveBeenCalled();
       }
@@ -650,9 +700,7 @@ describe("useSSE", () => {
         { initialProps: { enabled: true } },
       );
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
@@ -665,16 +713,17 @@ describe("useSSE", () => {
       expect(closeSpy).toHaveBeenCalled();
 
       // Re-enable
+      const reconnectCall = connectionCalls + 1;
       rerender({ enabled: true });
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await waitForConnection(reconnectCall);
       expect(apiClient.createSSEConnection).toHaveBeenCalledTimes(2);
     });
 
-    test("should handle malformed JSON events gracefully", () => {
+    test("should handle malformed JSON events gracefully", async () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation();
       const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
 
       act(() => {
         mockEventSource.simulateOpen();
