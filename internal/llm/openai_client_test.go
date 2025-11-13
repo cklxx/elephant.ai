@@ -330,6 +330,20 @@ func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
 	}
 }
 
+func TestShouldEmbedAttachmentsSkipsToolResultSources(t *testing.T) {
+	msg := ports.Message{
+		Role:   "system",
+		Source: ports.MessageSourceToolResult,
+		Attachments: map[string]ports.Attachment{
+			"doc.txt": {Name: "doc.txt"},
+		},
+	}
+
+	if shouldEmbedAttachmentsInContent(msg) {
+		t.Fatalf("expected tool-result message to skip attachment embedding")
+	}
+}
+
 func newIPv4TestServer(t *testing.T, handler http.Handler) *httptest.Server {
 	t.Helper()
 

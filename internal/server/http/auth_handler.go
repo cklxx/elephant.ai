@@ -431,7 +431,9 @@ func extractBearerToken(header string) string {
 
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, v any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAuthBodySize)
-	defer r.Body.Close()
+	defer func() {
+		_ = r.Body.Close()
+	}()
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(v); err != nil {

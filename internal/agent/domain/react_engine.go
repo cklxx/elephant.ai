@@ -171,16 +171,8 @@ func (e *ReactEngine) SolveTask(
 		e.updateAttachmentCatalogMessage(state)
 	}
 
-	// Initialize state if empty
-	if len(state.Messages) == 0 {
-		// Add system prompt first if available
-		if state.SystemPrompt != "" {
-			state.Messages = []Message{
-				{Role: "system", Content: state.SystemPrompt, Source: ports.MessageSourceSystemPrompt},
-			}
-			e.logger.Debug("Initialized state with system prompt")
-		}
-	}
+	// Ensure the system prompt (if provided) is always present at the front
+	e.ensureSystemPromptMessage(state)
 
 	// ALWAYS append the new user task to messages (even if history exists)
 	userMessage := Message{
@@ -1166,6 +1158,32 @@ func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 	}
 
 	return strings.TrimSpace(cleaned)
+}
+
+func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
+	if state == nil {
+		return
+	}
+
+	prompt := strings.TrimSpace(state.SystemPrompt)
+	if prompt == "" {
+		return
+	}
+
+	for _, msg := range state.Messages {
+		if msg.Source == ports.MessageSourceSystemPrompt && strings.TrimSpace(msg.Content) == prompt {
+			return
+		}
+	}
+
+	systemMessage := Message{
+		Role:    "system",
+		Content: state.SystemPrompt,
+		Source:  ports.MessageSourceSystemPrompt,
+	}
+
+	state.Messages = append([]Message{systemMessage}, state.Messages...)
+	e.logger.Debug("Inserted system prompt into message history")
 }
 
 func ensureAttachmentStore(state *TaskState) {
