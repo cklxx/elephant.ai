@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -167,7 +168,7 @@ func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T
 	handler.printCompletion(streamedResult)
 
 	firstOutput := out.String()
-	require.NotContains(t, firstOutput, streamedResult.Answer)
+	require.NotContains(t, stripANSI(firstOutput), streamedResult.Answer)
 	require.False(t, handler.streamedContent)
 
 	out.Reset()
@@ -181,6 +182,11 @@ func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T
 	handler.printCompletion(nonStreamedResult)
 
 	secondOutput := out.String()
-	require.Contains(t, secondOutput, nonStreamedResult.Answer)
+	require.Contains(t, stripANSI(secondOutput), nonStreamedResult.Answer)
 	require.False(t, handler.streamedContent)
+}
+
+func stripANSI(s string) string {
+	ansiRegexp := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	return ansiRegexp.ReplaceAllString(s, "")
 }
