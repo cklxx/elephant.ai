@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type NativeVideoProps = Omit<
@@ -24,21 +24,25 @@ export function VideoPreview({
   className,
   videoClassName,
   maxHeight = "20rem",
-  controls = true,
+  controls = false,
   preload = "metadata",
   ...videoProps
 }: VideoPreviewProps) {
   const accessibleLabel = description ? `Video preview: ${description}` : undefined;
+  const [isHovered, setIsHovered] = useState(false);
+  const showControls = controls || isHovered;
 
   return (
     <div className={cn("w-full space-y-2", className)}>
       <div
         className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-black"
         style={{ maxHeight }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         <video
           {...videoProps}
-          controls={controls}
+          controls={showControls}
           preload={preload}
           aria-label={accessibleLabel}
           title={description}
