@@ -728,11 +728,12 @@ function renderToolResult(
 
   // Default rendering for other tools
   const descriptor = isSeedream
-    ? typeof metadata?.description === "string"
-      ? metadata.description
-      : typeof parameters?.prompt === "string"
-        ? parameters.prompt
-        : undefined
+    ? getFirstSeedreamDescriptor([
+        metadata?.prompt,
+        metadata?.revised_prompt,
+        metadata?.description,
+        parameters?.prompt,
+      ])
     : undefined;
   const baseResult =
     typeof (isSeedream ? descriptor : result) === "string"
@@ -865,6 +866,18 @@ function renderToolResult(
       </SyntaxHighlighter>
     </div>
   );
+}
+
+function getFirstSeedreamDescriptor(values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+  }
+  return undefined;
 }
 
 // Helper to detect language from file path
