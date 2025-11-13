@@ -33,25 +33,26 @@ export function VideoPreview({
   const showControls = controls || isHovered;
 
   return (
-    <div className={cn("w-full space-y-2", className)}>
-      <div
-        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-black"
-        style={{ maxHeight }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-2xl bg-black",
+        className,
+      )}
+      style={{ maxHeight }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <video
+        {...videoProps}
+        controls={showControls}
+        preload={preload}
+        aria-label={accessibleLabel}
+        title={description}
+        className={cn("block h-full w-full object-cover object-center bg-black", videoClassName)}
       >
-        <video
-          {...videoProps}
-          controls={showControls}
-          preload={preload}
-          aria-label={accessibleLabel}
-          title={description}
-          className={cn("max-h-full w-full object-cover object-center bg-black", videoClassName)}
-        >
-          <source src={src} type={mimeType} />
-          Your browser does not support video playback.
-        </video>
-      </div>
+        <source src={src} type={mimeType} />
+        Your browser does not support video playback.
+      </video>
     </div>
   );
 }
