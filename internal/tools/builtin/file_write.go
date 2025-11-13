@@ -6,31 +6,38 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	api "github.com/agent-infra/sandbox-sdk-go"
 )
 
 type fileWrite struct {
-        mode    tools.ExecutionMode
-        sandbox *tools.SandboxManager
+	mode    tools.ExecutionMode
+	sandbox *tools.SandboxManager
 }
 
 func NewFileWrite(cfg FileToolConfig) ports.ToolExecutor {
-        mode := cfg.Mode
-        if mode == tools.ExecutionModeUnknown {
-                mode = tools.ExecutionModeLocal
-        }
-        return &fileWrite{mode: mode, sandbox: cfg.SandboxManager}
+	mode := cfg.Mode
+	if mode == tools.ExecutionModeUnknown {
+		mode = tools.ExecutionModeLocal
+	}
+	return &fileWrite{mode: mode, sandbox: cfg.SandboxManager}
 }
 
 func (t *fileWrite) Mode() tools.ExecutionMode {
-        return t.mode
+	return t.mode
 }
 
 func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	path, ok := call.Arguments["path"].(string)
 	if !ok {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'path'")}, nil
+	}
+
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("file path cannot be empty")}, nil
 	}
 
 	content, ok := call.Arguments["content"].(string)
@@ -45,7 +52,13 @@ func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 }
 
 func (t *fileWrite) executeLocal(call ports.ToolCall, path, content string) *ports.ToolResult {
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	resolved := filepath.Clean(path)
+
+	if err := ensureParentDirectory(resolved); err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}
+	}
+
+	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}
 	}
 
@@ -62,9 +75,9 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, content string) *por
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), path),
+		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), resolved),
 		Metadata: map[string]any{
-			"path":    path,
+			"path":    resolved,
 			"chars":   len(content),
 			"lines":   lines,
 			"content": content,
@@ -80,7 +93,12 @@ func (t *fileWrite) executeSandbox(ctx context.Context, call ports.ToolCall, pat
 		return &ports.ToolResult{CallID: call.ID, Error: tools.FormatSandboxError(err)}, nil
 	}
 
-	req := &api.FileWriteRequest{File: path, Content: content}
+	resolvedPath, err := resolveSandboxPath(path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	req := &api.FileWriteRequest{File: resolvedPath, Content: content}
 	resp, err := t.sandbox.File().WriteFile(ctx, req)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: tools.FormatSandboxError(err)}, nil
@@ -103,9 +121,9 @@ func (t *fileWrite) executeSandbox(ctx context.Context, call ports.ToolCall, pat
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Wrote %d bytes to %s", bytesWritten, path),
+		Content: fmt.Sprintf("Wrote %d bytes to %s", bytesWritten, resolvedPath),
 		Metadata: map[string]any{
-			"path":    path,
+			"path":    resolvedPath,
 			"chars":   bytesWritten,
 			"lines":   lines,
 			"content": content,
@@ -132,4 +150,34 @@ func (t *fileWrite) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name: "file_write", Version: "1.0.0", Category: "file_operations", Dangerous: true,
 	}
+}
+
+func ensureParentDirectory(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "." || dir == "" {
+		return nil
+	}
+	return os.MkdirAll(dir, 0o755)
+}
+
+func resolveSandboxPath(path string) (string, error) {
+	cleaned := filepath.Clean(path)
+	if filepath.IsAbs(cleaned) {
+		if cleaned == "/workspace" {
+			return "", fmt.Errorf("file path cannot resolve to workspace directory")
+		}
+		if !strings.HasPrefix(cleaned, "/workspace/") {
+			return "", fmt.Errorf("path must be inside /workspace")
+		}
+		return cleaned, nil
+	}
+
+	joined := filepath.Join("/workspace", cleaned)
+	if joined == "/workspace" {
+		return "", fmt.Errorf("file path cannot resolve to workspace directory")
+	}
+	if !strings.HasPrefix(joined, "/workspace/") {
+		return "", fmt.Errorf("path must be inside /workspace")
+	}
+	return joined, nil
 }
