@@ -613,3 +613,32 @@ func TestResolveSeedreamInitImagePlaceholderMissing(t *testing.T) {
 		t.Fatalf("expected bare filenames to be ignored")
 	}
 }
+
+func TestSeedreamImageToImageRejectsUnresolvedPlaceholder(t *testing.T) {
+	tool := &seedreamImageTool{
+		config: SeedreamConfig{
+			APIKey: "test-key",
+			Model:  "test-model",
+		},
+		factory: &seedreamClientFactory{},
+	}
+
+	call := ports.ToolCall{
+		ID: "placeholder-missing",
+		Arguments: map[string]any{
+			"init_image": " [missing.png] ",
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), call)
+	if err != nil {
+		t.Fatalf("expected error to be captured in result, got %v", err)
+	}
+	if result.Error == nil {
+		t.Fatalf("expected unresolved placeholder to surface as error result")
+	}
+	expected := "init_image placeholder [missing.png] could not be resolved"
+	if !strings.Contains(result.Content, expected) {
+		t.Fatalf("expected error message to mention unresolved placeholder, got %q", result.Content)
+	}
+}
