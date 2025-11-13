@@ -160,6 +160,37 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
       },
     },
     {
+      delay: 3525,
+      event: {
+        event_type: 'assistant_message',
+        agent_level: 'core',
+        iteration: 1,
+        delta: 'Here are the key findings from the console audit:\n',
+        final: false,
+      },
+    },
+    {
+      delay: 3600,
+      event: {
+        event_type: 'assistant_message',
+        agent_level: 'core',
+        iteration: 1,
+        delta: '- Keep the input dock always visible so tasks are effortless.\n',
+        final: false,
+      },
+    },
+    {
+      delay: 3680,
+      event: {
+        event_type: 'assistant_message',
+        agent_level: 'core',
+        iteration: 1,
+        delta:
+          '- Stream agent output in a dedicated column for clarity.\n- Provide reconnection affordances with the new console styling.',
+        final: true,
+      },
+    },
+    {
       delay: 3700,
       event: {
         event_type: 'task_complete',

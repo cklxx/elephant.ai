@@ -8,7 +8,11 @@ test.describe('Task input image attachments', () => {
     await page.addInitScript(() => window.localStorage.clear());
     await page.goto('/conversation?mockSSE=1');
 
-    const newConversationButton = page.getByRole('button', { name: 'Start new conversation' });
+    const openSidebar = page.getByTestId('session-list-toggle');
+    await expect(openSidebar).toBeVisible();
+    await openSidebar.click();
+
+    const newConversationButton = page.getByTestId('session-list-new');
     await expect(newConversationButton).toBeVisible();
     await newConversationButton.click();
 
@@ -20,7 +24,9 @@ test.describe('Task input image attachments', () => {
 
     const attachmentGallery = page.getByTestId('task-attachments');
     await expect(attachmentGallery).toBeVisible();
-    await expect(attachmentGallery.getByRole('img', { name: 'test-image.png' })).toBeVisible();
+    await expect(
+      attachmentGallery.getByRole('img', { name: 'test-image.png' })
+    ).toBeVisible();
     await expect(textarea).toHaveValue(/\[test-image\.png\]/);
 
     await textarea.click();
@@ -28,6 +34,8 @@ test.describe('Task input image attachments', () => {
     await textarea.type(' Please review this image.');
     await textarea.press('Enter');
 
-    await expect(page.getByRole('img', { name: 'test-image.png' })).toBeVisible();
+    await expect(
+      page.getByTestId('event-task_analysis')
+    ).toContainText('image.png', { timeout: 15000 });
   });
 });

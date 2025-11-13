@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -127,6 +128,83 @@ func TestOpenAIClientCompleteSuccess(t *testing.T) {
 
 	if resp.ToolCalls[0].Arguments["foo"] != "bar" {
 		t.Fatalf("unexpected tool call arguments: %+v", resp.ToolCalls[0].Arguments)
+	}
+}
+
+func TestOpenAIClientStreamComplete(t *testing.T) {
+	t.Parallel()
+
+	streamPayloads := []string{
+		"data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n",
+		"data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}]}\n\n",
+		"data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":4,\"total_tokens\":7}}\n\n",
+		"data: [DONE]\n\n",
+	}
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+		for _, payload := range streamPayloads {
+			if _, err := io.WriteString(w, payload); err != nil {
+				t.Fatalf("failed to write payload: %v", err)
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+	}))
+
+	clientIface, err := NewOpenAIClient("test-model", Config{APIKey: "test-key", BaseURL: server.URL})
+	if err != nil {
+		t.Fatalf("NewOpenAIClient: %v", err)
+	}
+
+	client := clientIface.(*openaiClient)
+
+	var deltas []ports.ContentDelta
+	callbacks := ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			deltas = append(deltas, delta)
+		},
+	}
+
+	resp, err := client.StreamComplete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{{Role: "user", Content: "hi"}},
+	}, callbacks)
+	if err != nil {
+		t.Fatalf("StreamComplete: %v", err)
+	}
+
+	if got, want := resp.Content, "Hello world"; got != want {
+		t.Fatalf("expected content %q, got %q", want, got)
+	}
+
+	if resp.StopReason != "stop" {
+		t.Fatalf("expected stop reason 'stop', got %q", resp.StopReason)
+	}
+
+	if resp.Usage.TotalTokens != 7 {
+		t.Fatalf("expected usage total 7, got %+v", resp.Usage)
+	}
+
+	if len(deltas) < 3 {
+		t.Fatalf("expected at least 3 deltas (including final), got %d", len(deltas))
+	}
+
+	if deltas[0].Delta != "Hello" || deltas[0].Final {
+		t.Fatalf("unexpected first delta: %+v", deltas[0])
+	}
+
+	if deltas[1].Delta != " world" || deltas[1].Final {
+		t.Fatalf("unexpected second delta: %+v", deltas[1])
+	}
+
+	lastDelta := deltas[len(deltas)-1]
+	if !lastDelta.Final {
+		t.Fatalf("expected final delta to have Final=true, got %+v", lastDelta)
 	}
 }
 

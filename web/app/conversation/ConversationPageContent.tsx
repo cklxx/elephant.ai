@@ -377,9 +377,20 @@ export function ConversationPageContent() {
     : null;
 
   const emptyState = (
-    <div className="flex flex-col items-center justify-center gap-3 text-center">
-      <p className="text-base font-semibold text-slate-700">{t('console.empty.title')}</p>
-      <p className="console-microcopy max-w-sm text-slate-400">
+    <div
+      className="flex flex-col items-center justify-center gap-3 text-center"
+      data-testid="conversation-empty-state"
+    >
+      <p
+        className="text-base font-semibold text-slate-700"
+        data-testid="conversation-empty-title"
+      >
+        {t('console.empty.title')}
+      </p>
+      <p
+        className="console-microcopy max-w-sm text-slate-400"
+        data-testid="conversation-empty-prompt"
+      >
         {t('console.empty.prompt')}
       </p>
     </div>
@@ -446,6 +457,7 @@ export function ConversationPageContent() {
           leadingSlot={
             <button
               type="button"
+              data-testid="session-list-toggle"
               onClick={() => setIsSidebarOpen((prev) => !prev)}
               className="console-button console-button-secondary flex items-center justify-center !px-3 !py-2"
               aria-expanded={isSidebarOpen}

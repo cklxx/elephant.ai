@@ -124,6 +124,18 @@ type ThinkCompleteEvent struct {
 
 func (e *ThinkCompleteEvent) EventType() string { return "think_complete" }
 
+// AssistantMessageEvent is emitted as assistant content tokens stream in.
+type AssistantMessageEvent struct {
+	BaseEvent
+	Iteration   int
+	Delta       string
+	Final       bool
+	CreatedAt   time.Time
+	SourceModel string
+}
+
+func (e *AssistantMessageEvent) EventType() string { return "assistant_message" }
+
 // ToolCallStartEvent - emitted when tool execution begins
 type ToolCallStartEvent struct {
 	BaseEvent

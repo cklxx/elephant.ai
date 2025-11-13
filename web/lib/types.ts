@@ -42,6 +42,16 @@ export interface ThinkCompleteEvent extends AgentEvent {
   tool_call_count: number;
 }
 
+// Assistant Message Event - emitted as assistant tokens stream in
+export interface AssistantMessageEvent extends AgentEvent {
+  event_type: 'assistant_message';
+  iteration: number;
+  delta: string;
+  final: boolean;
+  created_at: string;
+  source_model?: string;
+}
+
 // Tool Call Start Event - emitted when tool execution begins
 export interface ToolCallStartEvent extends AgentEvent {
   event_type: 'tool_call_start';
@@ -271,6 +281,7 @@ export type AnyAgentEvent =
   | IterationStartEvent
   | ThinkingEvent
   | ThinkCompleteEvent
+  | AssistantMessageEvent
   | ToolCallStartEvent
   | ToolCallStreamEvent
   | ToolCallCompleteEvent

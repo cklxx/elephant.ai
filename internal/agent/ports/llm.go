@@ -11,6 +11,17 @@ type LLMClient interface {
 	Model() string
 }
 
+// StreamingLLMClient extends LLMClient with native streaming support.
+// Implementations can surface incremental content while still returning the
+// aggregated completion response when the stream ends.
+type StreamingLLMClient interface {
+	LLMClient
+
+	// StreamComplete behaves like Complete but delivers incremental deltas
+	// via the provided callbacks before returning the final response.
+	StreamComplete(ctx context.Context, req CompletionRequest, callbacks CompletionStreamCallbacks) (*CompletionResponse, error)
+}
+
 // LLMClientFactory creates LLM clients for different providers
 // This interface abstracts the concrete llm.Factory implementation
 type LLMClientFactory interface {
@@ -58,6 +69,18 @@ type CompletionResponse struct {
 	StopReason string         `json:"stop_reason"`
 	Usage      TokenUsage     `json:"usage"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+// ContentDelta represents a streamed assistant content fragment.
+type ContentDelta struct {
+	Delta string
+	Final bool
+}
+
+// CompletionStreamCallbacks captures optional hooks invoked while streaming an
+// LLM response. All callbacks are optional; nil functions are ignored.
+type CompletionStreamCallbacks struct {
+	OnContentDelta func(ContentDelta)
 }
 
 // TokenUsage tracks token consumption

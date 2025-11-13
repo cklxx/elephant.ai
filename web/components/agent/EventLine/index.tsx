@@ -38,7 +38,7 @@ export const EventLine = React.memo(function EventLine({
         segment.type === "image" || segment.type === "video",
     );
     return (
-      <div className="console-user-task">
+      <div className="console-user-task" data-testid="event-user_task">
         <div className="console-user-task-bubble">
           <div className="console-user-task-meta">
             {formatTimestamp(event.timestamp)}
@@ -56,28 +56,43 @@ export const EventLine = React.memo(function EventLine({
                 return null;
               }
               const key = segment.placeholder || `${segment.type}-${index}`;
+              const attachmentName =
+                segment.attachment.description ||
+                segment.attachment.name ||
+                key;
               if (segment.type === "video") {
                 return (
-                  <VideoPreview
+                  <div
                     key={`task-media-${key}`}
-                    src={uri}
-                    mimeType={segment.attachment.media_type || "video/mp4"}
-                    description={segment.attachment.description}
                     className="mt-3"
-                    minHeight="12rem"
-                    maxHeight="20rem"
-                  />
+                    data-testid="event-attachment-video"
+                    data-attachment-name={attachmentName}
+                  >
+                    <VideoPreview
+                      src={uri}
+                      mimeType={segment.attachment.media_type || "video/mp4"}
+                      description={segment.attachment.description}
+                      minHeight="12rem"
+                      maxHeight="20rem"
+                    />
+                  </div>
                 );
               }
               return (
-                <ImagePreview
+                <div
                   key={`task-media-${key}`}
-                  src={uri}
-                  alt={segment.attachment.description || segment.attachment.name}
-                  minHeight="12rem"
-                  maxHeight="20rem"
-                  sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
-                />
+                  className="mt-3"
+                  data-testid="event-attachment-image"
+                  data-attachment-name={attachmentName}
+                >
+                  <ImagePreview
+                    src={uri}
+                    alt={segment.attachment.description || segment.attachment.name}
+                    minHeight="12rem"
+                    maxHeight="20rem"
+                    sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
+                  />
+                </div>
               );
             })}
           </div>
@@ -92,17 +107,19 @@ export const EventLine = React.memo(function EventLine({
       arguments?: Record<string, unknown>;
     };
     return (
-      <ToolOutputCard
-        toolName={completeEvent.tool_name}
-        parameters={completeEvent.arguments}
-        result={completeEvent.result}
-        error={completeEvent.error}
-        duration={completeEvent.duration}
-        timestamp={completeEvent.timestamp}
-        callId={completeEvent.call_id}
-        metadata={completeEvent.metadata}
-        attachments={completeEvent.attachments}
-      />
+      <div data-testid="event-tool_call_complete">
+        <ToolOutputCard
+          toolName={completeEvent.tool_name}
+          parameters={completeEvent.arguments}
+          result={completeEvent.result}
+          error={completeEvent.error}
+          duration={completeEvent.duration}
+          timestamp={completeEvent.timestamp}
+          callId={completeEvent.call_id}
+          metadata={completeEvent.metadata}
+          attachments={completeEvent.attachments}
+        />
+      </div>
     );
   }
 
@@ -140,7 +157,10 @@ export const EventLine = React.memo(function EventLine({
     return null;
   }
   return (
-    <div className={cn("console-event-line items-center flex", style.line)}>
+    <div
+      className={cn("console-event-line items-center flex", style.line)}
+      data-testid={`event-${event.event_type}`}
+    >
       <div className={cn("console-event-content", style.content)}>
         {content}
       </div>
