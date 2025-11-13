@@ -1,0 +1,27 @@
+presets:
+  default_1080p:
+    video_codec: h264
+    audio_codec: aac
+    video_bitrate: 6M
+    audio_bitrate: 192k
+    pixel_format: yuv420p
+    frame_rate: "30"
+    filters:
+      - scale=1920:1080
+      - format=yuv420p
+    extra_args:
+      - -movflags
+      - +faststart
+  social_720p:
+    video_codec: h264
+    audio_codec: aac
+    video_bitrate: 4M
+    audio_bitrate: 160k
+    pixel_format: yuv420p
+    frame_rate: "30"
+    filters:
+      - scale=1280:720
+      - format=yuv420p
+    extra_args:
+      - -movflags
+      - +faststart

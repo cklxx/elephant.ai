@@ -7,6 +7,7 @@ video:
     - path: assets/video/main.mp4
   output: working/video-only.mp4
   final_output: outputs/sample_final.mp4
+  preset: default_1080p
   filters:
     - scale=1920:1080
     - format=yuv420p

@@ -8,13 +8,14 @@
 ## 2. 组件拆分
 | 组件 | 描述 | 核心能力 |
 | --- | --- | --- |
-| `internal/ffmpeg` | 通用执行器，封装 `exec.CommandContext` | 构建命令、控制 Dry-run、采集日志 |
-| `internal/ffmpeg/plan` | 拼接/封装计划数据结构 | `ConcatJob`、`MuxJob`、`FilterGraph` |
-| `configs/ffmpeg/*.yaml` | 转码模板（分辨率、码率、编码器） | `default_1080p`, `social_9_16` |
+| `internal/ffmpeg` | 通用执行器与探测器，封装 `ffmpeg`/`ffprobe` | 构建命令、控制 Dry-run、采集日志、元数据预检 |
+| `internal/ffmpeg/preset.go` | 拼接/封装模板加载 | `PresetLibrary`, `Preset.Args` |
+| `internal/ffmpeg/probe.go` | ffprobe 调用及解析 | `LocalProber`, `ProbeResult` |
+| `configs/ffmpeg/*.yaml` | 转码模板（分辨率、码率、编码器） | `default_1080p`, `social_720p` |
 
 ## 3. 流程详解
-1. **素材检测**：通过 `ffprobe` 获取分辨率、帧率，写入检查报告。  
-2. **参数统一**：若素材不一致，执行预处理（scale、fps、pix_fmt）。  
+1. **素材检测**：通过 `ffprobe` 获取分辨率、帧率，写入检查报告（本地 CLI 已对接 `LocalProber` 自动执行）。
+2. **参数统一**：若素材不一致，执行预处理（scale、fps、pix_fmt）；当未显式声明滤镜或模板时直接阻断不兼容输入，提示操作人补齐转换。
 3. **拼接策略**：
    - 同编码：使用 concat demuxer；
    - 异编码：使用 `filter_complex` + `concat=n`.  
@@ -63,6 +64,7 @@ ffmpeg -y -safe 0 -f concat -i segments.txt -vf "scale=1920:1080,format=yuv420p"
 - `ffmpeg_job_duration_seconds{job_type="concat"}`。  
 - `ffmpeg_gpu_sessions_total`。  
 - `ffmpeg_retry_total`。
+- `ffmpeg_video_precheck_failures_total`（预检失败次数，后续接 Prometheus）。
 
 ## 8. 迭代计划
 1. MVP：拼接 + 模板导出。
@@ -73,5 +75,5 @@ ffmpeg -y -safe 0 -f concat -i segments.txt -vf "scale=1920:1080,format=yuv420p"
 ## 9. 任务进度
 - [x] 本地 FFmpeg Executor、concat/mux 调用封装。
 - [x] 编排阶段完成基础拼接路径。
-- [ ] 模板化导出与 ffprobe 预检查。
+- [x] 模板化导出（Preset Library）与 ffprobe 预检查。
 - [ ] GPU 自动探测与高级滤镜。

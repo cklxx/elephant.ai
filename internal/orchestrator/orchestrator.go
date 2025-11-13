@@ -29,6 +29,8 @@ type Orchestrator struct {
 	storage *storage.Manager
 	logger  *slog.Logger
 	metrics *Metrics
+	prober  ffmpeg.Prober
+	presets *ffmpeg.PresetLibrary
 }
 
 // Dependencies lists the collaborators required to build an Orchestrator.
@@ -39,6 +41,8 @@ type Dependencies struct {
 	Storage *storage.Manager
 	Logger  *slog.Logger
 	Metrics *Metrics
+	Prober  ffmpeg.Prober
+	Presets *ffmpeg.PresetLibrary
 }
 
 // New creates an orchestrator with the provided dependencies.
@@ -61,6 +65,8 @@ func New(deps Dependencies) (*Orchestrator, error) {
 		storage: deps.Storage,
 		logger:  deps.Logger,
 		metrics: metrics,
+		prober:  deps.Prober,
+		presets: deps.Presets,
 	}, nil
 }
 
@@ -173,17 +179,46 @@ func (o *Orchestrator) Run(ctx context.Context, spec *task.JobSpec) error {
 		}
 		videoInputs = append(videoInputs, path)
 	}
+	if len(spec.Video.Filters) == 0 {
+		if err := o.validateVideoInputs(ctx, videoInputs); err != nil {
+			return err
+		}
+	}
+	var preset *ffmpeg.Preset
+	if strings.TrimSpace(spec.Video.Preset) != "" {
+		if o.presets == nil {
+			return fmt.Errorf("video.preset %q requested but no preset library configured", spec.Video.Preset)
+		}
+		p, ok := o.presets.Get(spec.Video.Preset)
+		if !ok {
+			return fmt.Errorf("video.preset %q not found", spec.Video.Preset)
+		}
+		preset = &p
+	}
 	videoOutput, err := o.resolveOutput(videoOutputRel, workingAbs, workingRel)
 	if err != nil {
 		return err
 	}
 	if err := o.runStage(ctx, "video_concat", attempts, backoff, jitter, spec.StageTimeouts, func(stageCtx context.Context) error {
+		videoCodec := "h264"
+		audioCodec := "aac"
+		extraArgs := []string(nil)
+		if preset != nil {
+			if preset.VideoCodec != "" {
+				videoCodec = preset.VideoCodec
+			}
+			if preset.AudioCodec != "" {
+				audioCodec = preset.AudioCodec
+			}
+			extraArgs = append(extraArgs, preset.Args()...)
+		}
 		concatJob := ffmpeg.ConcatJob{
 			Inputs:      videoInputs,
 			Output:      videoOutput,
-			FilterGraph: buildVideoFilter(spec.Video),
-			VideoCodec:  "h264",
-			AudioCodec:  "aac",
+			FilterGraph: buildVideoFilter(spec.Video, preset),
+			VideoCodec:  videoCodec,
+			AudioCodec:  audioCodec,
+			ExtraArgs:   extraArgs,
 			Overwrite:   spec.AllowOverwrite,
 		}
 		if concatErr := o.ffmpeg.Concat(stageCtx, concatJob); concatErr != nil {
@@ -249,9 +284,58 @@ func (o *Orchestrator) log() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelInfo}))
 }
 
-func buildVideoFilter(spec task.VideoSpec) string {
-	if len(spec.Filters) > 0 {
-		return strings.Join(spec.Filters, ";")
+func (o *Orchestrator) validateVideoInputs(ctx context.Context, inputs []string) error {
+	if o.prober == nil || len(inputs) <= 1 {
+		return nil
+	}
+	var baseline *ffmpeg.VideoStream
+	for _, input := range inputs {
+		result, err := o.prober.Probe(ctx, input)
+		if err != nil {
+			return fmt.Errorf("ffprobe %s: %w", input, err)
+		}
+		stream, ok := result.FirstVideo()
+		if !ok {
+			return fmt.Errorf("ffprobe %s: no video stream detected", input)
+		}
+		if baseline == nil {
+			s := stream
+			baseline = &s
+			continue
+		}
+		if !compatibleVideoStream(*baseline, stream) {
+			return fmt.Errorf("video input %s parameters differ from baseline (%dx%d %s %.3ffps)", input, baseline.Width, baseline.Height, baseline.PixelFormat, baseline.FrameRate)
+		}
+	}
+	return nil
+}
+
+func compatibleVideoStream(a, b ffmpeg.VideoStream) bool {
+	if a.Width != b.Width || a.Height != b.Height {
+		return false
+	}
+	if !strings.EqualFold(a.PixelFormat, b.PixelFormat) {
+		return false
+	}
+	if !strings.EqualFold(a.CodecName, b.CodecName) {
+		return false
+	}
+	const frameRateTolerance = 0.01
+	diff := math.Abs(a.FrameRate - b.FrameRate)
+	if diff > frameRateTolerance {
+		return false
+	}
+	return true
+}
+
+func buildVideoFilter(spec task.VideoSpec, preset *ffmpeg.Preset) string {
+	filters := make([]string, 0, len(spec.Filters))
+	if preset != nil {
+		filters = append(filters, preset.Filters...)
+	}
+	filters = append(filters, spec.Filters...)
+	if len(filters) > 0 {
+		return strings.Join(filters, ";")
 	}
 	return ""
 }

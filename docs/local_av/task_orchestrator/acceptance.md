@@ -19,6 +19,7 @@
 | ORC-003 | 失败回滚 | 人为删除某段素材 | 阶段失败后任务标记为失败，输出清晰的错误信息 |
 | ORC-004 | 重试机制 | 配置 `retries: 2`，模拟首次失败 | 第二次成功后记录重试次数 |
 | ORC-005 | 超时控制 | 将 `stage_timeout` 设为 1s，执行长任务 | 超时被取消，产生日志与指标 |
+| ORC-006 | 视频预检 | 使用两段分辨率不同素材，省略 `filters`/`preset` | CLI 在 `video_concat` 前失败并提示参数不兼容 |
 
 ## 4. 指标验收
 - `local_av_orchestrator_job_stage_duration_seconds`：每个阶段至少上报 1 条样本，并区分 `status=success|retry|failed|timeout`。

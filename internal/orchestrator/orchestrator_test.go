@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -155,6 +156,40 @@ func TestOrchestratorMetricsRecorded(t *testing.T) {
 
 }
 
+func TestOrchestratorVideoPrecheckMismatch(t *testing.T) {
+	t.Helper()
+	tempDir := t.TempDir()
+	exec := &stubExecutor{}
+	eng := &audio.Engine{Executor: exec}
+	prober := &stubProber{
+		results: map[string]ffmpeg.ProbeResult{
+			filepath.Join(tempDir, "video/a.mp4"): {VideoStreams: []ffmpeg.VideoStream{{Width: 1920, Height: 1080, PixelFormat: "yuv420p", CodecName: "h264", FrameRate: 30}}},
+			filepath.Join(tempDir, "video/b.mp4"): {VideoStreams: []ffmpeg.VideoStream{{Width: 1280, Height: 720, PixelFormat: "yuv420p", CodecName: "h264", FrameRate: 30}}},
+		},
+	}
+	orch, err := New(Dependencies{FFmpeg: exec, Audio: eng, Prober: prober})
+	if err != nil {
+		t.Fatalf("new orchestrator: %v", err)
+	}
+	spec := &task.JobSpec{
+		Name:           "video-mismatch",
+		WorkingDir:     tempDir,
+		AllowOverwrite: true,
+		Video: task.VideoSpec{
+			Segments: []task.VideoSegment{{Path: "video/a.mp4"}, {Path: "video/b.mp4"}},
+			Output:   "video/out.mp4",
+		},
+		Audio: task.AudioSpec{
+			MixdownOutput: "audio/mix.wav",
+			Tracks:        []task.AudioTrack{{Name: "bgm", Source: "audio/bgm.wav"}},
+		},
+	}
+	err = orch.Run(context.Background(), spec)
+	if err == nil {
+		t.Fatal("expected mismatch error")
+	}
+}
+
 type stubExecutor struct {
 	audioFailures int
 	audioRuns     int
@@ -196,4 +231,19 @@ func (s *stubExecutor) Concat(ctx context.Context, job ffmpeg.ConcatJob) error {
 func (s *stubExecutor) Mux(ctx context.Context, job ffmpeg.MuxJob) error {
 	s.muxCalls++
 	return nil
+}
+
+type stubProber struct {
+	results map[string]ffmpeg.ProbeResult
+	err     error
+}
+
+func (s *stubProber) Probe(ctx context.Context, path string) (ffmpeg.ProbeResult, error) {
+	if s.err != nil {
+		return ffmpeg.ProbeResult{}, s.err
+	}
+	if res, ok := s.results[path]; ok {
+		return res, nil
+	}
+	return ffmpeg.ProbeResult{}, ffmpeg.ErrNoVideoStreams
 }

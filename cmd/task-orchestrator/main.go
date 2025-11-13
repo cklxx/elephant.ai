@@ -20,13 +20,16 @@ import (
 
 func main() {
 	var (
-		specPath  = flag.String("spec", "", "Path to the job specification YAML")
-		rootDir   = flag.String("root", ".", "Root directory for storage operations")
-		ffmpegBin = flag.String("ffmpeg-bin", "", "Path to the ffmpeg binary")
-		dryRun    = flag.Bool("dry-run", false, "Print commands without executing them")
-		mockTTS   = flag.Bool("mock-tts", false, "Use a silent mock TTS provider")
-		logLevel  = flag.String("log-level", "info", "Log level (debug|info|warn|error)")
-		timeout   = flag.Duration("timeout", 0, "Optional timeout for the entire job")
+		specPath     = flag.String("spec", "", "Path to the job specification YAML")
+		rootDir      = flag.String("root", ".", "Root directory for storage operations")
+		ffmpegBin    = flag.String("ffmpeg-bin", "", "Path to the ffmpeg binary")
+		ffprobeBin   = flag.String("ffprobe-bin", "", "Path to the ffprobe binary")
+		presetPath   = flag.String("ffmpeg-presets", "configs/ffmpeg/presets.yaml", "Path to the FFmpeg preset library")
+		skipPrecheck = flag.Bool("skip-video-precheck", false, "Disable ffprobe validation before concat")
+		dryRun       = flag.Bool("dry-run", false, "Print commands without executing them")
+		mockTTS      = flag.Bool("mock-tts", false, "Use a silent mock TTS provider")
+		logLevel     = flag.String("log-level", "info", "Log level (debug|info|warn|error)")
+		timeout      = flag.Duration("timeout", 0, "Optional timeout for the entire job")
 	)
 	flag.Parse()
 
@@ -56,6 +59,21 @@ func main() {
 		DryRun:  *dryRun,
 		Logger:  logger,
 		Storage: storageManager,
+	}
+	var presetLibrary *ffmpeg.PresetLibrary
+	if presetPath != nil && strings.TrimSpace(*presetPath) != "" {
+		if dataExists(*presetPath) {
+			lib, err := ffmpeg.LoadPresetFile(*presetPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "load presets: %v\n", err)
+				os.Exit(1)
+			}
+			presetLibrary = lib
+		}
+	}
+	var prober ffmpeg.Prober
+	if !*dryRun && !*skipPrecheck {
+		prober = &ffmpeg.LocalProber{Binary: *ffprobeBin, Logger: logger}
 	}
 	audioEngine := &audio.Engine{
 		Executor: ffmpegExec,
@@ -90,6 +108,8 @@ func main() {
 		TTS:     ttsClient,
 		Storage: storageManager,
 		Logger:  logger,
+		Prober:  prober,
+		Presets: presetLibrary,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "init orchestrator: %v\n", err)
@@ -124,4 +144,12 @@ func parseLevel(value string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+func dataExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }

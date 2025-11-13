@@ -11,6 +11,7 @@
 | --- | --- | --- | --- |
 | FFM-001 | 同编码拼接 | 使用 concat demuxer | 输出时长 == 各片段时长之和 ±0.1s |
 | FFM-002 | 异编码拼接 | 自动触发 filter_complex | 输出帧率、分辨率与模板一致 |
+| FFM-002A | 预检阻断 | 输入两段分辨率不同素材且未配置滤镜/模板 | CLI 在 concat 前失败并提示参数不一致 |
 | FFM-003 | 转场效果 | 配置 `xfade=fade` | 视觉检查转场平滑，无闪烁 |
 | FFM-004 | 水印叠加 | 指定位置/透明度 | 水印坐标准确，透明度 70%±5% |
 | FFM-005 | GPU 编码 | 开启 `use_gpu` | 处理速度提升 ≥ 2 倍，且日志标记 GPU |
@@ -29,7 +30,7 @@
 - 提供 QC 报告：截图、音频波形（Audacity 导出）。
 
 ## 5. 交付物
-- 转码模板样例 (`configs/ffmpeg/default_1080p.yaml`)。  
+- 转码模板样例 (`configs/ffmpeg/presets.yaml`)。
 - 验收脚本：`scripts/verify_ffmpeg.sh`，自动对比输出参数。  
 - GPU 验收记录：`gpu_capability.json`。
 
