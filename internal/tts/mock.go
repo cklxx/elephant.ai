@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"time"
 )
@@ -25,7 +26,10 @@ func (m MockProvider) Synthesize(_ context.Context, req Request) (ProviderResult
 		rate = 16000
 	}
 	duration := estimateDuration(req.Text)
-	data := generateSilentWAV(duration, rate)
+	data, err := generateSilentWAV(duration, rate)
+	if err != nil {
+		return ProviderResult{}, fmt.Errorf("generate silent wav: %w", err)
+	}
 	return ProviderResult{
 		Audio:       data,
 		ContentType: "audio/wav",
@@ -45,7 +49,7 @@ func estimateDuration(text string) time.Duration {
 	return time.Duration(seconds * float64(time.Second))
 }
 
-func generateSilentWAV(duration time.Duration, sampleRate int) []byte {
+func generateSilentWAV(duration time.Duration, sampleRate int) ([]byte, error) {
 	totalSamples := int(math.Ceil(duration.Seconds() * float64(sampleRate)))
 	if totalSamples < sampleRate {
 		totalSamples = sampleRate
@@ -53,22 +57,49 @@ func generateSilentWAV(duration time.Duration, sampleRate int) []byte {
 	dataSize := totalSamples * 2
 	buf := bytes.NewBuffer(make([]byte, 0, 44+dataSize))
 	writeString(buf, "RIFF")
-	binary.Write(buf, binary.LittleEndian, uint32(36+dataSize))
+	if err := writeLE(buf, uint32(36+dataSize)); err != nil {
+		return nil, err
+	}
 	writeString(buf, "WAVE")
 	writeString(buf, "fmt ")
-	binary.Write(buf, binary.LittleEndian, uint32(16))
-	binary.Write(buf, binary.LittleEndian, uint16(1))
-	binary.Write(buf, binary.LittleEndian, uint16(1))
-	binary.Write(buf, binary.LittleEndian, uint32(sampleRate))
-	binary.Write(buf, binary.LittleEndian, uint32(sampleRate*2))
-	binary.Write(buf, binary.LittleEndian, uint16(2))
-	binary.Write(buf, binary.LittleEndian, uint16(16))
+	if err := writeLE(buf, uint32(16)); err != nil {
+		return nil, err
+	}
+	if err := writeLE(buf, uint16(1)); err != nil {
+		return nil, err
+	}
+	if err := writeLE(buf, uint16(1)); err != nil {
+		return nil, err
+	}
+	if err := writeLE(buf, uint32(sampleRate)); err != nil {
+		return nil, err
+	}
+	if err := writeLE(buf, uint32(sampleRate*2)); err != nil {
+		return nil, err
+	}
+	if err := writeLE(buf, uint16(2)); err != nil {
+		return nil, err
+	}
+	if err := writeLE(buf, uint16(16)); err != nil {
+		return nil, err
+	}
 	writeString(buf, "data")
-	binary.Write(buf, binary.LittleEndian, uint32(dataSize))
-	buf.Write(make([]byte, dataSize))
-	return buf.Bytes()
+	if err := writeLE(buf, uint32(dataSize)); err != nil {
+		return nil, err
+	}
+	if _, err := buf.Write(make([]byte, dataSize)); err != nil {
+		return nil, fmt.Errorf("write pcm data: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 func writeString(buf *bytes.Buffer, s string) {
 	buf.WriteString(s)
+}
+
+func writeLE[T any](buf *bytes.Buffer, value T) error {
+	if err := binary.Write(buf, binary.LittleEndian, value); err != nil {
+		return fmt.Errorf("write little endian value: %w", err)
+	}
+	return nil
 }

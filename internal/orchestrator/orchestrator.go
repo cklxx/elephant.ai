@@ -322,10 +322,7 @@ func compatibleVideoStream(a, b ffmpeg.VideoStream) bool {
 	}
 	const frameRateTolerance = 0.01
 	diff := math.Abs(a.FrameRate - b.FrameRate)
-	if diff > frameRateTolerance {
-		return false
-	}
-	return true
+	return diff <= frameRateTolerance
 }
 
 func buildVideoFilter(spec task.VideoSpec, preset *ffmpeg.Preset) string {
