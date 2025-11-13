@@ -28,14 +28,16 @@ export function VideoPreview({
   preload = "metadata",
   ...videoProps
 }: VideoPreviewProps) {
-  const accessibleLabel = description ? `Video preview: ${description}` : undefined;
+  const accessibleLabel = description
+    ? `Video preview: ${description}`
+    : undefined;
   const [isHovered, setIsHovered] = useState(false);
   const showControls = controls || isHovered;
 
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-2xl bg-black",
+        "self-center relative w-full overflow-hidden rounded-2xl bg-black",
         className,
       )}
       style={{ maxHeight }}
@@ -48,7 +50,10 @@ export function VideoPreview({
         preload={preload}
         aria-label={accessibleLabel}
         title={description}
-        className={cn("block h-full w-full object-cover object-center bg-black", videoClassName)}
+        className={cn(
+          "block h-full w-full object-cover object-center bg-black",
+          videoClassName,
+        )}
       >
         <source src={src} type={mimeType} />
         Your browser does not support video playback.
