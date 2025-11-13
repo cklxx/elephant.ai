@@ -14,7 +14,6 @@ interface VideoPreviewProps extends NativeVideoProps {
   description?: string;
   className?: string;
   videoClassName?: string;
-  minHeight?: string;
   maxHeight?: string;
 }
 
@@ -24,7 +23,6 @@ export function VideoPreview({
   description,
   className,
   videoClassName,
-  minHeight = "12rem",
   maxHeight = "20rem",
   controls = true,
   preload = "metadata",
@@ -35,8 +33,8 @@ export function VideoPreview({
   return (
     <div className={cn("w-full space-y-2", className)}>
       <div
-        className="relative w-full overflow-hidden rounded-2xl bg-black"
-        style={{ minHeight, maxHeight }}
+        className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-black"
+        style={{ maxHeight }}
       >
         <video
           {...videoProps}
