@@ -361,6 +361,7 @@ func (o *Orchestrator) runStage(ctx context.Context, stage string, attempts int,
 		start := time.Now()
 		o.log().Info("stage start", slog.String("stage", stage), slog.Int("attempt", attempt))
 		runErr := fn(stageCtx)
+		stageErr := stageCtx.Err()
 		if cancel != nil {
 			cancel()
 		}
@@ -370,11 +371,17 @@ func (o *Orchestrator) runStage(ctx context.Context, stage string, attempts int,
 			o.log().Info("stage complete", slog.String("stage", stage), slog.Duration("duration", duration), slog.Int("attempt", attempt))
 			return nil
 		}
-		if stageCtx.Err() != nil {
+		if errors.Is(stageErr, context.DeadlineExceeded) {
 			o.metrics.ObserveStageDuration(stage, "timeout", duration)
 			o.metrics.IncStageFailure(stage, "timeout")
 			o.log().Error("stage timeout", slog.String("stage", stage), slog.Duration("duration", duration))
-			return fmt.Errorf("%s: %w", stage, stageCtx.Err())
+			return fmt.Errorf("%s: %w", stage, stageErr)
+		}
+		if errors.Is(stageErr, context.Canceled) {
+			o.metrics.ObserveStageDuration(stage, "canceled", duration)
+			o.metrics.IncStageFailure(stage, "canceled")
+			o.log().Error("stage cancelled", slog.String("stage", stage), slog.Duration("duration", duration))
+			return fmt.Errorf("%s: %w", stage, stageErr)
 		}
 		if errors.Is(runErr, context.DeadlineExceeded) || errors.Is(runErr, context.Canceled) {
 			o.metrics.ObserveStageDuration(stage, "canceled", duration)
