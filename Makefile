@@ -119,7 +119,7 @@ server-test-integration: server-build ## Run integration tests with test script
 # Deployment Targets
 # ========================================
 
-.PHONY: deploy-local deploy-docker deploy-dev deploy-k8s deploy-test deploy-status deploy-down
+.PHONY: deploy-local deploy-docker deploy-dev deploy-test deploy-status deploy-down
 
 deploy-local: ## Deploy locally (Go + Next.js)
 	@./deploy.sh local
@@ -129,9 +129,6 @@ deploy-docker: ## Deploy with Docker Compose (production)
 
 deploy-dev: ## Deploy with Docker Compose (development)
 	@./deploy.sh dev
-
-deploy-k8s: ## Deploy to Kubernetes
-	@./deploy.sh k8s
 
 deploy-test: ## Run all deployment tests
 	@./deploy.sh test

@@ -11,6 +11,7 @@ import (
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/analytics"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -34,6 +35,7 @@ type ServerCoordinator struct {
 	sessionStore     ports.SessionStore
 	taskStore        serverPorts.TaskStore
 	logger           *utils.Logger
+	analytics        analytics.Client
 
 	// Cancel function map for task cancellation support
 	cancelFuncs map[string]context.CancelCauseFunc
@@ -58,14 +60,38 @@ func NewServerCoordinator(
 	broadcaster *EventBroadcaster,
 	sessionStore ports.SessionStore,
 	taskStore serverPorts.TaskStore,
+	opts ...ServerCoordinatorOption,
 ) *ServerCoordinator {
-	return &ServerCoordinator{
+	coordinator := &ServerCoordinator{
 		agentCoordinator: agentCoordinator,
 		broadcaster:      broadcaster,
 		sessionStore:     sessionStore,
 		taskStore:        taskStore,
 		logger:           utils.NewComponentLogger("ServerCoordinator"),
+		analytics:        analytics.NewNoopClient(),
 		cancelFuncs:      make(map[string]context.CancelCauseFunc),
+	}
+
+	for _, opt := range opts {
+		if opt != nil {
+			opt(coordinator)
+		}
+	}
+
+	return coordinator
+}
+
+// ServerCoordinatorOption configures optional behavior for the server coordinator.
+type ServerCoordinatorOption func(*ServerCoordinator)
+
+// WithAnalyticsClient attaches an analytics client to the coordinator.
+func WithAnalyticsClient(client analytics.Client) ServerCoordinatorOption {
+	return func(coordinator *ServerCoordinator) {
+		if client == nil {
+			coordinator.analytics = analytics.NewNoopClient()
+			return
+		}
+		coordinator.analytics = client
 	}
 }
 
@@ -147,6 +173,9 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	s.logger.Info("[Background] Starting task execution: taskID=%s, sessionID=%s", taskID, sessionID)
 
+	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	startTime := time.Now()
+
 	// Defensive validation: Ensure agentCoordinator is initialized
 	if s.agentCoordinator == nil {
 		errMsg := fmt.Sprintf("[Background] CRITICAL: agentCoordinator is nil (taskID=%s)", taskID)
@@ -205,6 +234,22 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		// Update task status to cancelled with termination reason
 		_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
 		_ = s.taskStore.SetTerminationReason(context.Background(), taskID, terminationReason)
+		props := map[string]any{
+			"task_id":            taskID,
+			"session_id":         sessionID,
+			"termination_reason": string(terminationReason),
+			"duration_ms":        time.Since(startTime).Milliseconds(),
+		}
+		if parentTaskID != "" {
+			props["parent_task_id"] = parentTaskID
+		}
+		if agentPreset != "" {
+			props["agent_preset"] = agentPreset
+		}
+		if toolPreset != "" {
+			props["tool_preset"] = toolPreset
+		}
+		s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCancelled, props)
 		return
 	}
 
@@ -219,6 +264,22 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 		// Update task status
 		_ = s.taskStore.SetError(ctx, taskID, err)
+		props := map[string]any{
+			"task_id":     taskID,
+			"session_id":  sessionID,
+			"duration_ms": time.Since(startTime).Milliseconds(),
+			"error":       err.Error(),
+		}
+		if parentTaskID != "" {
+			props["parent_task_id"] = parentTaskID
+		}
+		if agentPreset != "" {
+			props["agent_preset"] = agentPreset
+		}
+		if toolPreset != "" {
+			props["tool_preset"] = toolPreset
+		}
+		s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionFailed, props)
 		return
 	}
 
@@ -226,6 +287,47 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	_ = s.taskStore.SetResult(ctx, taskID, result)
 
 	s.logger.Info("[Background] Task execution completed: taskID=%s, sessionID=%s, iterations=%d", taskID, result.SessionID, result.Iterations)
+
+	props := map[string]any{
+		"task_id":     taskID,
+		"session_id":  sessionID,
+		"duration_ms": time.Since(startTime).Milliseconds(),
+		"iterations":  result.Iterations,
+	}
+	if parentTaskID != "" {
+		props["parent_task_id"] = parentTaskID
+	}
+	if agentPreset != "" {
+		props["agent_preset"] = agentPreset
+	}
+	if toolPreset != "" {
+		props["tool_preset"] = toolPreset
+	}
+	if result.StopReason != "" {
+		props["stop_reason"] = result.StopReason
+	}
+	s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCompleted, props)
+}
+
+func (s *ServerCoordinator) captureAnalytics(ctx context.Context, distinctID string, event string, props map[string]any) {
+	if s.analytics == nil {
+		return
+	}
+
+	payload := map[string]any{
+		"source": "server",
+	}
+
+	for key, value := range props {
+		if value == nil {
+			continue
+		}
+		payload[key] = value
+	}
+
+	if err := s.analytics.Capture(ctx, distinctID, event, payload); err != nil {
+		s.logger.Debug("[Analytics] failed to capture event %s: %v", event, err)
+	}
 }
 
 func (s *ServerCoordinator) emitUserTaskEvent(ctx context.Context, sessionID, taskID, task string) {
@@ -256,6 +358,21 @@ func (s *ServerCoordinator) emitUserTaskEvent(ctx context.Context, sessionID, ta
 	event := domain.NewUserTaskEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
 	s.logger.Debug("[Background] Emitting user_task event for session=%s task=%s", sessionID, taskID)
 	s.broadcaster.OnEvent(event)
+
+	attachmentCount := len(attachmentMap)
+	props := map[string]any{
+		"task_id":          taskID,
+		"session_id":       sessionID,
+		"level":            level,
+		"has_parent_task":  parentTaskID != "",
+		"has_attachments":  attachmentCount > 0,
+		"attachment_count": attachmentCount,
+	}
+	if parentTaskID != "" {
+		props["parent_task_id"] = parentTaskID
+	}
+
+	s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionStarted, props)
 }
 
 // GetContextSnapshots retrieves context snapshots captured during LLM calls for a session.
@@ -368,10 +485,12 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 	cancelFunc, exists := s.cancelFuncs[taskID]
 	s.cancelMu.RUnlock()
 
+	status := "no_active_execution"
 	if exists && cancelFunc != nil {
 		s.logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
 		cancelFunc(fmt.Errorf("task cancelled by user"))
 		s.emitTaskCancelledEvent(ctx, task, "cancelled", "user")
+		status = "dispatched"
 	} else {
 		s.logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
 		// If no cancel function exists (task not started yet or already completed), just update status
@@ -382,8 +501,16 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 			s.logger.Warn("[CancelTask] Failed to set termination reason for taskID=%s: %v", taskID, err)
 		}
 		s.emitTaskCancelledEvent(ctx, task, "cancelled", "user")
-		return nil
 	}
+
+	props := map[string]any{
+		"task_id":         task.ID,
+		"session_id":      task.SessionID,
+		"requested_by":    "user",
+		"cancel_fn_found": exists && cancelFunc != nil,
+		"status":          status,
+	}
+	s.captureAnalytics(ctx, task.SessionID, analytics.EventTaskCancelRequested, props)
 
 	return nil
 }
