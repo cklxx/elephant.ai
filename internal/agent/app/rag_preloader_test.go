@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -132,5 +133,35 @@ func TestRAGPreloaderExecutesActions(t *testing.T) {
 		if !ok || !flag {
 			t.Fatalf("expected rag_preload metadata flag on result, got %#v", result.Metadata)
 		}
+	}
+}
+
+func TestRAGPreloaderSkipsWhenRetrievalToolUnavailable(t *testing.T) {
+	env := &ports.ExecutionEnvironment{
+		Services: ports.ServiceBundle{ToolExecutor: &toolRegistryStub{}},
+		Session:  &ports.Session{ID: "sess-2", Metadata: map[string]string{}},
+		State:    &ports.TaskState{},
+		RAGDirectives: &ports.RAGDirectives{
+			Query:        "inspect logs",
+			UseRetrieval: true,
+		},
+	}
+
+	preloader := newRAGPreloader(ports.NoopLogger{})
+	if err := preloader.apply(context.Background(), env); err != nil {
+		t.Fatalf("expected preloader to succeed without code_search tool, got %v", err)
+	}
+	if len(env.State.ToolResults) != 0 {
+		t.Fatalf("expected no tool results when retrieval tool missing, got %d", len(env.State.ToolResults))
+	}
+	if len(env.State.Messages) == 0 {
+		t.Fatalf("expected directive summary message to be recorded")
+	}
+	summary := env.State.Messages[len(env.State.Messages)-1].Content
+	if !strings.Contains(summary, "SKIP") {
+		t.Fatalf("expected summary to indicate skipped actions, got %q", summary)
+	}
+	if !strings.Contains(summary, "Retrieval skipped because code_search tool is unavailable.") {
+		t.Fatalf("expected summary to record retrieval skip reason, got %q", summary)
 	}
 }

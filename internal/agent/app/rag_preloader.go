@@ -40,14 +40,24 @@ func (p *ragPreloader) apply(ctx context.Context, env *ports.ExecutionEnvironmen
 	}
 
 	p.annotateSessionMetadata(env)
-	p.appendDirectiveSummary(env)
 
 	var execErr error
+	executedRetrieval := false
+	executedSearch := false
+	executedCrawl := false
+	notes := make([]string, 0, 1)
+
 	if directives.UseRetrieval {
-		if err := p.executeTool(ctx, env, "code_search", map[string]any{"query": directives.Query}); err != nil {
+		if _, err := env.Services.ToolExecutor.Get("code_search"); err != nil {
+			p.logger.Debug("Skipping RAG retrieval preload: code_search unavailable: %v", err)
+			notes = append(notes, "Retrieval skipped because code_search tool is unavailable.")
+		} else if err := p.executeTool(ctx, env, "code_search", map[string]any{"query": directives.Query}); err != nil {
 			execErr = err
+		} else {
+			executedRetrieval = true
 		}
 	}
+
 	if directives.UseSearch {
 		searchArgs := map[string]any{"query": directives.Query}
 		if len(directives.SearchSeeds) > 0 {
@@ -56,8 +66,11 @@ func (p *ragPreloader) apply(ctx context.Context, env *ports.ExecutionEnvironmen
 		}
 		if err := p.executeTool(ctx, env, "web_search", searchArgs); err != nil {
 			execErr = err
+		} else {
+			executedSearch = true
 		}
 	}
+
 	if directives.UseCrawl && len(directives.CrawlSeeds) > 0 {
 		maxFetches := 3
 		if maxFetches > len(directives.CrawlSeeds) {
@@ -70,9 +83,13 @@ func (p *ragPreloader) apply(ctx context.Context, env *ports.ExecutionEnvironmen
 			}
 			if err := p.executeTool(ctx, env, "web_fetch", map[string]any{"url": url}); err != nil {
 				execErr = err
+			} else {
+				executedCrawl = true
 			}
 		}
 	}
+
+	p.appendDirectiveSummary(env, executedRetrieval, executedSearch, executedCrawl, notes)
 
 	return execErr
 }
@@ -97,12 +114,16 @@ func (p *ragPreloader) annotateSessionMetadata(env *ports.ExecutionEnvironment) 
 	}
 }
 
-func (p *ragPreloader) appendDirectiveSummary(env *ports.ExecutionEnvironment) {
+func (p *ragPreloader) appendDirectiveSummary(env *ports.ExecutionEnvironment, executedRetrieval, executedSearch, executedCrawl bool, notes []string) {
 	if env == nil || env.State == nil || env.RAGDirectives == nil {
 		return
 	}
 	directives := env.RAGDirectives
-	actions := describeDirectiveActions(*directives)
+	actions := describeDirectiveActions(ports.RAGDirectives{
+		UseRetrieval: executedRetrieval,
+		UseSearch:    executedSearch,
+		UseCrawl:     executedCrawl,
+	})
 	summary := fmt.Sprintf("Automated context loader executed actions: %s.", actions)
 	if len(directives.SearchSeeds) > 0 {
 		summary += " Focus domains: " + strings.Join(directives.SearchSeeds, ", ") + "."
@@ -112,6 +133,9 @@ func (p *ragPreloader) appendDirectiveSummary(env *ports.ExecutionEnvironment) {
 	}
 	if directives.Justification != nil {
 		summary += " Signals:" + formatJustification(directives.Justification)
+	}
+	if len(notes) > 0 {
+		summary += " " + strings.Join(notes, " ")
 	}
 	env.State.Messages = append(env.State.Messages, ports.Message{
 		Role:    "system",
