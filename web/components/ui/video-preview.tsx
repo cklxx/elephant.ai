@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type NativeVideoProps = Omit<
@@ -14,7 +14,6 @@ interface VideoPreviewProps extends NativeVideoProps {
   description?: string;
   className?: string;
   videoClassName?: string;
-  minHeight?: string;
   maxHeight?: string;
 }
 
@@ -24,32 +23,67 @@ export function VideoPreview({
   description,
   className,
   videoClassName,
-  minHeight = "12rem",
   maxHeight = "20rem",
-  controls = true,
+  controls = false,
   preload = "metadata",
   ...videoProps
 }: VideoPreviewProps) {
-  const accessibleLabel = description ? `Video preview: ${description}` : undefined;
+  const accessibleLabel = description
+    ? `Video preview: ${description}`
+    : undefined;
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [canHover, setCanHover] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(hover: hover)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setCanHover(event.matches);
+    };
+
+    setCanHover(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  const showControls = controls || (canHover ? isHovered : true) || isFocused;
 
   return (
-    <div className={cn("w-full space-y-2", className)}>
-      <div
-        className="relative w-full overflow-hidden rounded-2xl bg-black"
-        style={{ minHeight, maxHeight }}
+    <div
+      className={cn(
+        "self-center relative w-full overflow-hidden rounded-2xl bg-black",
+        className,
+      )}
+      style={{ maxHeight }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <video
+        {...videoProps}
+        controls={showControls}
+        preload={preload}
+        aria-label={accessibleLabel}
+        title={description}
+        className={cn(
+          "block h-full w-full object-cover object-center bg-black",
+          videoClassName,
+        )}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
       >
-        <video
-          {...videoProps}
-          controls={controls}
-          preload={preload}
-          aria-label={accessibleLabel}
-          title={description}
-          className={cn("h-full w-full object-contain bg-black", videoClassName)}
-        >
-          <source src={src} type={mimeType} />
-          Your browser does not support video playback.
-        </video>
-      </div>
+        <source src={src} type={mimeType} />
+        Your browser does not support video playback.
+      </video>
     </div>
   );
 }

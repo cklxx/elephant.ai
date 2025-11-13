@@ -187,7 +187,6 @@ export function ToolResultPanel({
                       src={uri}
                       mimeType={segment.attachment.media_type || 'video/mp4'}
                       description={segment.attachment.description}
-                      minHeight="10rem"
                       maxHeight="16rem"
                     />
                   );

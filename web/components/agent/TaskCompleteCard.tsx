@@ -147,7 +147,6 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                     mimeType={segment.attachment.media_type || "video/mp4"}
                     description={segment.attachment.description}
                     className="w-full sm:w-[220px] lg:w-[260px]"
-                    minHeight="12rem"
                     maxHeight="20rem"
                   />
                 );

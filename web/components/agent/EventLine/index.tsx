@@ -72,7 +72,6 @@ export const EventLine = React.memo(function EventLine({
                       src={uri}
                       mimeType={segment.attachment.media_type || "video/mp4"}
                       description={segment.attachment.description}
-                      minHeight="12rem"
                       maxHeight="20rem"
                     />
                   </div>
