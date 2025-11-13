@@ -162,6 +162,7 @@ func TestEnvOverridesFile(t *testing.T) {
 			"ALEX_NO_TUI":                "true",
 			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
 			"ALEX_TUI_FOLLOW_STREAM":     "false",
+			"ALEX_REASONING_STREAM":      "true",
 			"AGENT_PRESET":               "designer",
 			"TOOL_PRESET":                "full",
 		}.Lookup),

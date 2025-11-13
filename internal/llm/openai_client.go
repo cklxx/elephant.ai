@@ -1,10 +1,7 @@
 package llm
 
 import (
-	"alex/internal/agent/ports"
-	alexerrors "alex/internal/errors"
-	"alex/internal/utils"
-	id "alex/internal/utils/id"
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,6 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"alex/internal/agent/ports"
+	alexerrors "alex/internal/errors"
+	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 // OpenAI API compatible client
@@ -244,6 +246,270 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 
 	// Debug log: Summary
 	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
+	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
+	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
+	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
+	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
+		prefix,
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens)
+	c.logger.Debug("%s==================", prefix)
+
+	return result, nil
+}
+
+// StreamComplete streams incremental completion deltas while constructing the
+// final aggregated response.
+func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	requestID := extractRequestID(req.Metadata)
+	if requestID == "" {
+		requestID = id.NewRequestID()
+	}
+	prefix := fmt.Sprintf("[req:%s] ", requestID)
+
+	oaiReq := map[string]any{
+		"model":       c.model,
+		"messages":    c.convertMessages(req.Messages),
+		"temperature": req.Temperature,
+		"max_tokens":  req.MaxTokens,
+		"stream":      true,
+	}
+
+	if len(req.Tools) > 0 {
+		oaiReq["tools"] = c.convertTools(req.Tools)
+		oaiReq["tool_choice"] = "auto"
+	}
+
+	if len(req.StopSequences) > 0 {
+		oaiReq["stop"] = append([]string(nil), req.StopSequences...)
+	}
+
+	body, err := json.Marshal(oaiReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	c.logger.Debug("%s=== LLM Request ===", prefix)
+	c.logger.Debug("%sURL: POST %s/chat/completions", prefix, c.baseURL)
+	c.logger.Debug("%sModel: %s", prefix, c.model)
+
+	endpoint := c.baseURL + "/chat/completions"
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.maxRetries > 0 {
+		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
+	}
+
+	for k, v := range c.headers {
+		httpReq.Header.Set(k, v)
+	}
+
+	c.logger.Debug("%sRequest Headers:", prefix)
+	for k, v := range httpReq.Header {
+		if k == "Authorization" {
+			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
+		} else {
+			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+		}
+	}
+
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
+		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
+	} else {
+		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
+		return nil, c.wrapRequestError(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	c.logger.Debug("%s=== LLM Streaming Response ===", prefix)
+	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
+	c.logger.Debug("%sResponse Headers:", prefix)
+	for k, v := range resp.Header {
+		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			c.logger.Debug("%sFailed to read error response: %v", prefix, readErr)
+			return nil, fmt.Errorf("read response: %w", readErr)
+		}
+		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
+		return nil, c.mapHTTPError(resp.StatusCode, respBody, resp.Header)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+
+	type toolCallDelta struct {
+		Index    int    `json:"index"`
+		ID       string `json:"id"`
+		Type     string `json:"type"`
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"function"`
+	}
+
+	type streamChunk struct {
+		Choices []struct {
+			Delta struct {
+				Content   string          `json:"content"`
+				Role      string          `json:"role"`
+				ToolCalls []toolCallDelta `json:"tool_calls"`
+			} `json:"delta"`
+			FinishReason *string `json:"finish_reason"`
+		} `json:"choices"`
+		Usage *struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+
+	type toolAccumulator struct {
+		id        string
+		name      string
+		arguments strings.Builder
+	}
+
+	toolAccumulators := make(map[int]*toolAccumulator)
+	var toolOrder []int
+
+	var contentBuilder strings.Builder
+	usage := ports.TokenUsage{}
+	finishReason := ""
+
+	appendToolCall := func(idx int) *toolAccumulator {
+		acc, ok := toolAccumulators[idx]
+		if !ok {
+			acc = &toolAccumulator{}
+			toolAccumulators[idx] = acc
+			toolOrder = append(toolOrder, idx)
+		}
+		return acc
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" {
+			continue
+		}
+		if payload == "[DONE]" {
+			break
+		}
+
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			c.logger.Debug("%sFailed to decode stream chunk: %v", prefix, err)
+			continue
+		}
+
+		if chunk.Usage != nil {
+			usage.PromptTokens = chunk.Usage.PromptTokens
+			usage.CompletionTokens = chunk.Usage.CompletionTokens
+			usage.TotalTokens = chunk.Usage.TotalTokens
+		}
+
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+
+		choice := chunk.Choices[0]
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
+			finishReason = *choice.FinishReason
+		}
+
+		if text := choice.Delta.Content; text != "" {
+			contentBuilder.WriteString(text)
+			if callbacks.OnContentDelta != nil {
+				callbacks.OnContentDelta(ports.ContentDelta{Delta: text})
+			}
+		}
+
+		for _, tc := range choice.Delta.ToolCalls {
+			acc := appendToolCall(tc.Index)
+			if tc.ID != "" {
+				acc.id = tc.ID
+			}
+			if tc.Function.Name != "" {
+				acc.name = tc.Function.Name
+			}
+			if tc.Function.Arguments != "" {
+				acc.arguments.WriteString(tc.Function.Arguments)
+			}
+		}
+
+	}
+
+	if err := scanner.Err(); err != nil {
+		c.logger.Debug("%sStream read error: %v", prefix, err)
+		return nil, fmt.Errorf("read response stream: %w", err)
+	}
+
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+	}
+
+	result := &ports.CompletionResponse{
+		Content:    contentBuilder.String(),
+		StopReason: finishReason,
+		Usage:      usage,
+		Metadata: map[string]any{
+			"request_id": requestID,
+		},
+	}
+
+	for _, idx := range toolOrder {
+		acc := toolAccumulators[idx]
+		if acc == nil {
+			continue
+		}
+		var args map[string]any
+		if acc.arguments.Len() > 0 {
+			if err := json.Unmarshal([]byte(acc.arguments.String()), &args); err != nil {
+				c.logger.Debug("%sFailed to parse tool call arguments: %v", prefix, err)
+			}
+		}
+		result.ToolCalls = append(result.ToolCalls, ports.ToolCall{
+			ID:        acc.id,
+			Name:      acc.name,
+			Arguments: args,
+		})
+	}
+
+	if c.usageCallback != nil {
+		provider := "openrouter"
+		if strings.Contains(c.baseURL, "api.openai.com") {
+			provider = "openai"
+		} else if strings.Contains(c.baseURL, "api.deepseek.com") {
+			provider = "deepseek"
+		}
+		c.usageCallback(result.Usage, c.model, provider)
+	}
+
+	c.logger.Debug("%s=== LLM Streaming Summary ===", prefix)
 	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
 	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
 	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))

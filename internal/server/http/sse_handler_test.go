@@ -178,6 +178,16 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 			wantField: "final_answer",
 		},
 		{
+			name: "AssistantMessageEvent",
+			event: &domain.AssistantMessageEvent{
+				BaseEvent: domain.BaseEvent{},
+				Delta:     "chunk",
+				Final:     true,
+				CreatedAt: time.Now(),
+			},
+			wantField: "delta",
+		},
+		{
 			name: "TaskCancelledEvent",
 			event: domain.NewTaskCancelledEvent(
 				types.LevelCore,

@@ -17,6 +17,7 @@ import (
 	"alex/internal/mcp"
 	"alex/internal/parser"
 	"alex/internal/prompts"
+	"alex/internal/rag/gate"
 	"alex/internal/session/filestore"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
@@ -244,6 +245,8 @@ func BuildContainer(config Config) (*Container, error) {
 	promptLoader := prompts.New(prompts.WithSandbox(sandboxManager))
 
 	// Application Layer
+	ragGateImpl := gate.New(gate.DefaultConfig(), gate.NopEmitter{})
+
 	coordinator := agentApp.NewAgentCoordinator(
 		llmFactory,
 		toolRegistry,
@@ -267,6 +270,7 @@ func BuildContainer(config Config) (*Container, error) {
 			ToolPreset:          config.ToolPreset,
 			EnvironmentSummary:  config.EnvironmentSummary,
 		},
+		agentApp.WithRAGGate(agentApp.NewRAGGateAdapter(ragGateImpl)),
 	)
 
 	// Register subagent tool after coordinator is created

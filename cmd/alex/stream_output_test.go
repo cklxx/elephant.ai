@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"errors"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/tools/builtin"
 )
 
@@ -122,4 +125,68 @@ func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
 	require.Contains(t, output, "Task interrupted")
 	require.Contains(t, output, "3 iteration")
 	require.Contains(t, output, "256 tokens")
+}
+
+func TestStreamingOutputHandlerAssistantMessageStream(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Delta: "Hello", Final: false})
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Final: true})
+
+	require.Contains(t, out.String(), "Hello")
+	require.True(t, strings.HasSuffix(out.String(), "\n"))
+	require.True(t, handler.streamedContent)
+}
+
+func TestStreamingOutputHandlerAssistantMessageBuffersMarkdownLines(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Delta: "Hello\nWorld", Final: false})
+	handler.onAssistantMessage(&domain.AssistantMessageEvent{Final: true})
+
+	require.Contains(t, out.String(), "Hello")
+	require.Contains(t, out.String(), "World")
+	require.True(t, strings.HasSuffix(out.String(), "\n"))
+}
+
+func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.streamedContent = true
+	streamedResult := &ports.TaskResult{
+		Answer:     "streamed answer",
+		Iterations: 1,
+		TokensUsed: 5,
+	}
+
+	handler.printCompletion(streamedResult)
+
+	firstOutput := out.String()
+	require.NotContains(t, stripANSI(firstOutput), streamedResult.Answer)
+	require.False(t, handler.streamedContent)
+
+	out.Reset()
+
+	nonStreamedResult := &ports.TaskResult{
+		Answer:     "final answer",
+		Iterations: 2,
+		TokensUsed: 8,
+	}
+
+	handler.printCompletion(nonStreamedResult)
+
+	secondOutput := out.String()
+	require.Contains(t, stripANSI(secondOutput), nonStreamedResult.Answer)
+	require.False(t, handler.streamedContent)
+}
+
+func stripANSI(s string) string {
+	ansiRegexp := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	return ansiRegexp.ReplaceAllString(s, "")
 }
