@@ -51,6 +51,15 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type adjustPointsRequest struct {
+	Delta int64 `json:"delta"`
+}
+
+type updateSubscriptionRequest struct {
+	Tier      string  `json:"tier"`
+	ExpiresAt *string `json:"expires_at"`
+}
+
 type tokenResponse struct {
 	AccessToken    string    `json:"access_token"`
 	ExpiresAt      time.Time `json:"expires_at"`
@@ -59,9 +68,26 @@ type tokenResponse struct {
 }
 
 type userDTO struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
+	ID            string          `json:"id"`
+	Email         string          `json:"email"`
+	DisplayName   string          `json:"display_name"`
+	PointsBalance int64           `json:"points_balance"`
+	Subscription  subscriptionDTO `json:"subscription"`
+}
+
+type subscriptionDTO struct {
+	Tier              string     `json:"tier"`
+	MonthlyPriceCents int        `json:"monthly_price_cents"`
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+}
+
+type subscriptionPlanDTO struct {
+	Tier              string `json:"tier"`
+	MonthlyPriceCents int    `json:"monthly_price_cents"`
+}
+
+type plansResponse struct {
+	Plans []subscriptionPlanDTO `json:"plans"`
 }
 
 type oauthStartResponse struct {
@@ -85,7 +111,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		h.writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, userDTO{ID: user.ID, Email: user.Email, DisplayName: user.DisplayName})
+	writeJSON(w, http.StatusCreated, toUserDTO(user))
 }
 
 // HandleLogin processes POST /api/auth/login.
@@ -181,22 +207,81 @@ func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	token := extractBearerToken(r.Header.Get("Authorization"))
-	if token == "" {
-		http.Error(w, "authorization required", http.StatusUnauthorized)
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
 		return
 	}
-	claims, err := h.service.ParseAccessToken(r.Context(), token)
-	if err != nil {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+	writeJSON(w, http.StatusOK, toUserDTO(user))
+}
+
+// HandleAdjustPoints processes POST /api/auth/points.
+func (h *AuthHandler) HandleAdjustPoints(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	user, err := h.service.GetUser(r.Context(), claims.Subject)
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
+		return
+	}
+	var req adjustPointsRequest
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		h.writeError(w, err)
+		return
+	}
+	updated, err := h.service.AdjustPoints(r.Context(), user.ID, req.Delta)
 	if err != nil {
 		h.writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toUserDTO(user))
+	writeJSON(w, http.StatusOK, toUserDTO(updated))
+}
+
+// HandleUpdateSubscription processes POST /api/auth/subscription.
+func (h *AuthHandler) HandleUpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
+		return
+	}
+	var req updateSubscriptionRequest
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		h.writeError(w, err)
+		return
+	}
+	tier := domain.SubscriptionTier(strings.TrimSpace(strings.ToLower(req.Tier)))
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && strings.TrimSpace(*req.ExpiresAt) != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ExpiresAt))
+		if err != nil {
+			http.Error(w, "invalid expires_at", http.StatusBadRequest)
+			return
+		}
+		expiresAt = &parsed
+	}
+	updated, err := h.service.UpdateSubscription(r.Context(), user.ID, tier, expiresAt)
+	if err != nil {
+		h.writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toUserDTO(updated))
+}
+
+// HandleListPlans returns the subscription catalog.
+func (h *AuthHandler) HandleListPlans(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	plans := domain.SubscriptionPlans()
+	dtos := make([]subscriptionPlanDTO, 0, len(plans))
+	for _, plan := range plans {
+		dtos = append(dtos, toSubscriptionPlanDTO(plan))
+	}
+	writeJSON(w, http.StatusOK, plansResponse{Plans: dtos})
 }
 
 // HandleOAuthStart handles GET /api/auth/{provider}/login.
@@ -245,6 +330,25 @@ func (h *AuthHandler) HandleOAuthCallback(provider domain.ProviderType, w http.R
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *AuthHandler) requireAuthenticatedUser(w http.ResponseWriter, r *http.Request) (domain.User, bool) {
+	token := extractBearerToken(r.Header.Get("Authorization"))
+	if token == "" {
+		http.Error(w, "authorization required", http.StatusUnauthorized)
+		return domain.User{}, false
+	}
+	claims, err := h.service.ParseAccessToken(r.Context(), token)
+	if err != nil {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return domain.User{}, false
+	}
+	user, err := h.service.GetUser(r.Context(), claims.Subject)
+	if err != nil {
+		h.writeDomainError(w, err)
+		return domain.User{}, false
+	}
+	return user, true
+}
+
 func (h *AuthHandler) writeError(w http.ResponseWriter, err error) {
 	var syntaxErr *json.SyntaxError
 	var typeErr *json.UnmarshalTypeError
@@ -272,6 +376,14 @@ func (h *AuthHandler) writeDomainError(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 	case errors.Is(err, domain.ErrSessionNotFound):
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+	case errors.Is(err, domain.ErrInsufficientPoints):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, domain.ErrInvalidSubscriptionTier):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, domain.ErrSubscriptionExpiryRequired):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, domain.ErrSubscriptionExpiryInPast):
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	default:
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -331,7 +443,25 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, v any) error {
 }
 
 func toUserDTO(user domain.User) userDTO {
-	return userDTO{ID: user.ID, Email: user.Email, DisplayName: user.DisplayName}
+	plan := user.SubscriptionTier.Plan()
+	return userDTO{
+		ID:            user.ID,
+		Email:         user.Email,
+		DisplayName:   user.DisplayName,
+		PointsBalance: user.PointsBalance,
+		Subscription: subscriptionDTO{
+			Tier:              string(plan.Tier),
+			MonthlyPriceCents: plan.MonthlyPriceCents,
+			ExpiresAt:         user.SubscriptionExpiresAt,
+		},
+	}
+}
+
+func toSubscriptionPlanDTO(plan domain.SubscriptionPlan) subscriptionPlanDTO {
+	return subscriptionPlanDTO{
+		Tier:              string(plan.Tier),
+		MonthlyPriceCents: plan.MonthlyPriceCents,
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

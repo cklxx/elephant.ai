@@ -6,6 +6,28 @@ import { enableMapSet } from 'immer';
 // Enable Immer MapSet plugin for Zustand tests
 enableMapSet();
 
+// Mock PostHog client to avoid network calls in tests
+vi.mock('posthog-js', () => {
+  const posthogMock: any = {
+    capture: vi.fn(),
+    identify: vi.fn(),
+    register: vi.fn(),
+    reset: vi.fn(),
+    shutdown: vi.fn(),
+    on: vi.fn((_, callback) => {
+      if (typeof callback === 'function') {
+        callback(posthogMock);
+      }
+    }),
+  };
+  posthogMock.people = { set: vi.fn() };
+  posthogMock.init = vi.fn((_key: string, options?: { loaded?: (client: any) => void }) => {
+    options?.loaded?.(posthogMock);
+    return posthogMock;
+  });
+  return { default: posthogMock };
+});
+
 // Cleanup after each test
 afterEach(() => {
   cleanup();

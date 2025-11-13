@@ -63,7 +63,12 @@ OPENAI_API_KEY=sk-xxxxx
 OPENAI_BASE_URL=https://api.openai.com/v1
 ALEX_MODEL=gpt-4
 ALEX_VERBOSE=false
+AUTH_JWT_SECRET=change-me-in-prod
+AUTH_DATABASE_URL=postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable
+AUTH_REDIRECT_BASE_URL=https://alex.yourdomain.com
 ```
+
+> 登录服务在生产模式下默认开启。启动栈之前，请先通过 `psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql` 初始化认证表，并确保证书/Secret 能够持久化保存刷新令牌。
 
 ### 2. 构建和启动
 
@@ -110,6 +115,8 @@ docker-compose up -d
 ---
 
 ## Kubernetes 集群部署
+
+> ⚠️ 当前仓库仅提供 `k8s/deployment.yaml` 这一手动应用的示例清单，没有额外的 `deploy.sh k8s` 或自动化脚本；以下步骤均需直接使用 `kubectl` 部署这些资源。
 
 ### 1. 准备镜像
 
