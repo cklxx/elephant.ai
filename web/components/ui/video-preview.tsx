@@ -33,7 +33,7 @@ export function VideoPreview({
   return (
     <div className={cn("w-full space-y-2", className)}>
       <div
-        className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-black"
+        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-black"
         style={{ maxHeight }}
       >
         <video
@@ -42,7 +42,7 @@ export function VideoPreview({
           preload={preload}
           aria-label={accessibleLabel}
           title={description}
-          className={cn("h-full w-full object-cover bg-black", videoClassName)}
+          className={cn("max-h-full w-full object-cover object-center bg-black", videoClassName)}
         >
           <source src={src} type={mimeType} />
           Your browser does not support video playback.
