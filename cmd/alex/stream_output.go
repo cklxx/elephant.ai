@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -34,14 +35,84 @@ type StreamingOutputHandler struct {
 	out       io.Writer
 
 	// State
-	activeTools     map[string]ToolInfo
-	subagentDisplay *SubagentDisplay
-	verbose         bool
-	mu              sync.Mutex
-	lastCompletion  *domain.TaskCompleteEvent
+	activeTools                     map[string]ToolInfo
+	subagentDisplay                 *SubagentDisplay
+	verbose                         bool
+	mu                              sync.Mutex
+	lastCompletion                  *domain.TaskCompleteEvent
+	streamedContent                 bool
+	mdBuffer                        *markdownStreamBuffer
+	lastStreamChunkEndedWithNewline bool
 }
 
 var ErrForceExit = errors.New("force exit requested by user")
+
+const markdownBufferThreshold = 4096
+
+type markdownChunk struct {
+	content      string
+	completeLine bool
+}
+
+type markdownStreamBuffer struct {
+	builder     strings.Builder
+	maxBuffered int
+}
+
+func newMarkdownStreamBuffer() *markdownStreamBuffer {
+	return &markdownStreamBuffer{maxBuffered: markdownBufferThreshold}
+}
+
+func (b *markdownStreamBuffer) Append(delta string) []markdownChunk {
+	if delta == "" {
+		return nil
+	}
+
+	b.builder.WriteString(delta)
+	data := b.builder.String()
+	var chunks []markdownChunk
+
+	for {
+		idx := strings.IndexByte(data, '\n')
+		if idx == -1 {
+			break
+		}
+
+		chunk := data[:idx+1]
+		chunks = append(chunks, markdownChunk{content: chunk, completeLine: true})
+		if idx+1 >= len(data) {
+			data = ""
+			break
+		}
+		data = data[idx+1:]
+	}
+
+	if len(chunks) > 0 {
+		b.builder.Reset()
+		if len(data) > 0 {
+			b.builder.WriteString(data)
+		}
+		return chunks
+	}
+
+	if b.maxBuffered > 0 && len(data) >= b.maxBuffered {
+		chunk := data
+		b.builder.Reset()
+		return []markdownChunk{{content: chunk, completeLine: false}}
+	}
+
+	return nil
+}
+
+func (b *markdownStreamBuffer) FlushAll() string {
+	if b.builder.Len() == 0 {
+		return ""
+	}
+
+	trailing := b.builder.String()
+	b.builder.Reset()
+	return trailing
+}
 
 func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOutputHandler {
 	return &StreamingOutputHandler{
@@ -51,6 +122,7 @@ func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOut
 		subagentDisplay: NewSubagentDisplay(),
 		verbose:         verbose,
 		out:             os.Stdout,
+		mdBuffer:        newMarkdownStreamBuffer(),
 	}
 }
 
@@ -184,6 +256,8 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 		b.handler.onThinking(e)
 	case *domain.ThinkCompleteEvent:
 		b.handler.onThinkComplete(e)
+	case *domain.AssistantMessageEvent:
+		b.handler.onAssistantMessage(e)
 	case *domain.ToolCallStartEvent:
 		b.handler.onToolCallStart(e)
 	case *domain.ToolCallCompleteEvent:
@@ -222,6 +296,37 @@ func (h *StreamingOutputHandler) onThinking(event *domain.ThinkingEvent) {
 func (h *StreamingOutputHandler) onThinkComplete(event *domain.ThinkCompleteEvent) {
 	// Silent - don't print analysis output
 	// Analysis is internal reasoning, not user-facing output
+}
+
+func (h *StreamingOutputHandler) onAssistantMessage(event *domain.AssistantMessageEvent) {
+	h.streamedContent = true
+	if event.Delta != "" {
+		for _, chunk := range h.mdBuffer.Append(event.Delta) {
+			if chunk.content == "" {
+				continue
+			}
+			rendered := h.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
+			h.write(rendered)
+			h.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
+		}
+	}
+	if event.Final {
+		trailing := h.mdBuffer.FlushAll()
+		if trailing != "" {
+			rendered := h.renderer.RenderMarkdownStreamChunk(trailing, false)
+			h.write(rendered)
+			if strings.HasSuffix(rendered, "\n") {
+				h.lastStreamChunkEndedWithNewline = true
+			} else {
+				h.lastStreamChunkEndedWithNewline = false
+				h.write("\n")
+				h.lastStreamChunkEndedWithNewline = true
+			}
+		} else if !h.lastStreamChunkEndedWithNewline {
+			h.write("\n")
+			h.lastStreamChunkEndedWithNewline = true
+		}
+	}
 }
 
 func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEvent) {
@@ -297,8 +402,13 @@ func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 		TaskID:       result.TaskID,
 		ParentTaskID: result.ParentTaskID,
 	}
-	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(result))
+	resultCopy := *result
+	if h.streamedContent {
+		resultCopy.Answer = ""
+	}
+	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(&resultCopy))
 	h.write(rendered)
+	h.streamedContent = false
 }
 
 func (h *StreamingOutputHandler) printInterruptRequested() {

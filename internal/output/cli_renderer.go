@@ -516,6 +516,39 @@ func (r *CLIRenderer) renderMarkdown(content string) string {
 	return strings.TrimRight(rendered, "\n") + "\n"
 }
 
+// RenderMarkdownStreamChunk renders a fragment of markdown that may be part of a
+// streamed response. The caller can request a trailing newline to preserve
+// terminal formatting when a full line has been received.
+func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNewline bool) string {
+	if strings.TrimSpace(content) == "" {
+		if ensureTrailingNewline && content != "" && !strings.HasSuffix(content, "\n") {
+			return content + "\n"
+		}
+		return content
+	}
+
+	if r.mdRenderer == nil {
+		if ensureTrailingNewline && !strings.HasSuffix(content, "\n") {
+			return content + "\n"
+		}
+		return content
+	}
+
+	rendered, err := r.mdRenderer.Render(content)
+	if err != nil {
+		if ensureTrailingNewline && !strings.HasSuffix(content, "\n") {
+			return content + "\n"
+		}
+		return content
+	}
+
+	rendered = strings.TrimRight(rendered, "\n")
+	if ensureTrailingNewline {
+		rendered += "\n"
+	}
+	return rendered
+}
+
 func max(a, b int) int {
 	if a > b {
 		return a

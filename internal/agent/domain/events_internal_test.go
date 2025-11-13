@@ -44,6 +44,7 @@ func TestEventTypeImplementations(t *testing.T) {
 		{"iteration_start", &IterationStartEvent{BaseEvent: base}, "iteration_start"},
 		{"thinking", &ThinkingEvent{BaseEvent: base}, "thinking"},
 		{"think_complete", &ThinkCompleteEvent{BaseEvent: base}, "think_complete"},
+		{"assistant_message", &AssistantMessageEvent{BaseEvent: base}, "assistant_message"},
 		{"tool_call_start", &ToolCallStartEvent{BaseEvent: base}, "tool_call_start"},
 		{"tool_call_stream", &ToolCallStreamEvent{BaseEvent: base}, "tool_call_stream"},
 		{"tool_call_complete", &ToolCallCompleteEvent{BaseEvent: base}, "tool_call_complete"},

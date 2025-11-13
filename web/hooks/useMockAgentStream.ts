@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnyAgentEvent } from '@/lib/types';
+import { AnyAgentEvent, AssistantMessageEvent } from '@/lib/types';
 import { UseSSEOptions, UseSSEReturn } from './useSSE';
 import {
   createMockEventSequence,
@@ -49,10 +49,18 @@ export function useMockAgentStream(
       const start = Date.now();
       sequence.forEach(({ delay, event }) => {
         const timeoutId = setTimeout(() => {
+          const eventTimestamp = new Date(start + delay).toISOString();
           const timestampedEvent = {
             ...event,
-            timestamp: new Date(start + delay).toISOString(),
+            timestamp: eventTimestamp,
           } as AnyAgentEvent;
+
+          if (timestampedEvent.event_type === 'assistant_message') {
+            const assistantEvent = timestampedEvent as AssistantMessageEvent;
+            if (!assistantEvent.created_at) {
+              assistantEvent.created_at = eventTimestamp;
+            }
+          }
 
           defaultEventRegistry.run(timestampedEvent);
           setEvents((prev) => [...prev, timestampedEvent]);
@@ -73,6 +81,12 @@ export function useMockAgentStream(
   const addEvent = useCallback((event: AnyAgentEvent) => {
     if (event.event_type === 'user_task' && 'task' in event) {
       lastUserTaskRef.current = event.task;
+    }
+    if (event.event_type === 'assistant_message') {
+      const assistantEvent = event as AssistantMessageEvent;
+      if (!assistantEvent.created_at) {
+        assistantEvent.created_at = assistantEvent.timestamp ?? new Date().toISOString();
+      }
     }
     defaultEventRegistry.run(event);
     setEvents((prev) => [...prev, event]);
