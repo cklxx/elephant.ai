@@ -14,7 +14,6 @@ interface VideoPreviewProps extends NativeVideoProps {
   description?: string;
   className?: string;
   videoClassName?: string;
-  minHeight?: string;
   maxHeight?: string;
 }
 
@@ -24,7 +23,6 @@ export function VideoPreview({
   description,
   className,
   videoClassName,
-  minHeight,
   maxHeight = "20rem",
   controls = false,
   preload = "metadata",
@@ -36,18 +34,13 @@ export function VideoPreview({
   const [isHovered, setIsHovered] = useState(false);
   const showControls = controls || isHovered;
 
-  const wrapperStyle = {
-    maxHeight,
-    minHeight,
-  };
-
   return (
     <div
       className={cn(
         "self-center relative w-full overflow-hidden rounded-2xl bg-black",
         className,
       )}
-      style={wrapperStyle}
+      style={{ maxHeight }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

@@ -567,7 +567,6 @@ function GenericOutput({
                   src={uri}
                   mimeType={segment.attachment.media_type || 'video/mp4'}
                   description={segment.attachment.description}
-                  minHeight={fullscreen ? "18rem" : "12rem"}
                   maxHeight={fullscreen ? "28rem" : "18rem"}
                 />
               );
