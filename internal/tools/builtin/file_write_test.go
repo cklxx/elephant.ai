@@ -44,6 +44,18 @@ func TestResolveSandboxPathRelative(t *testing.T) {
 	}
 }
 
+func TestResolveSandboxPathRelativeWindowsSeparators(t *testing.T) {
+	got, err := resolveSandboxPath("project\\output.txt")
+	if err != nil {
+		t.Fatalf("resolveSandboxPath returned error: %v", err)
+	}
+
+	want := "/workspace/project/output.txt"
+	if got != want {
+		t.Fatalf("resolveSandboxPath mismatch: got %q want %q", got, want)
+	}
+}
+
 func TestResolveSandboxPathAbsolute(t *testing.T) {
 	got, err := resolveSandboxPath("/workspace/project/output.txt")
 	if err != nil {
@@ -63,5 +75,9 @@ func TestResolveSandboxPathRejectsEscape(t *testing.T) {
 
 	if _, err := resolveSandboxPath("/etc/passwd"); err == nil {
 		t.Fatalf("expected error for absolute path outside workspace")
+	}
+
+	if _, err := resolveSandboxPath("\\workspace\\..\\etc\\passwd"); err == nil {
+		t.Fatalf("expected error for windows-style escape from workspace")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 
@@ -160,9 +161,11 @@ func ensureParentDirectory(path string) error {
 	return os.MkdirAll(dir, 0o755)
 }
 
-func resolveSandboxPath(path string) (string, error) {
-	cleaned := filepath.Clean(path)
-	if filepath.IsAbs(cleaned) {
+func resolveSandboxPath(p string) (string, error) {
+	sanitized := strings.ReplaceAll(p, "\\", "/")
+	cleaned := pathpkg.Clean(sanitized)
+
+	if pathpkg.IsAbs(cleaned) {
 		if cleaned == "/workspace" {
 			return "", fmt.Errorf("file path cannot resolve to workspace directory")
 		}
@@ -172,7 +175,7 @@ func resolveSandboxPath(path string) (string, error) {
 		return cleaned, nil
 	}
 
-	joined := filepath.Join("/workspace", cleaned)
+	joined := pathpkg.Join("/workspace", cleaned)
 	if joined == "/workspace" {
 		return "", fmt.Errorf("file path cannot resolve to workspace directory")
 	}
