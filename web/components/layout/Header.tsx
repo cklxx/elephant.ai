@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { MoreVertical, Download, Trash2, UserCircle2 } from "lucide-react";
+import { History, MoreVertical, Download, Trash2, UserCircle2 } from "lucide-react";
 import {
   getLanguageLocale,
   useI18n,
@@ -188,6 +188,14 @@ export function Header({
                   <p className="mt-1 text-slate-500">{expiryLabel}</p>
                 )}
               </div>
+              <Link
+                href="/sessions"
+                onClick={() => setShowAccountMenu(false)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                <History className="h-4 w-4" aria-hidden />
+                <span>{t("navigation.sessions")}</span>
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
