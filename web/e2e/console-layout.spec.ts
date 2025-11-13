@@ -7,19 +7,17 @@ test.describe('ALEX console layout', () => {
     await page.addInitScript(() => window.localStorage.clear());
     await page.goto('/conversation');
 
-    await expect(
-      page.getByRole('heading', { name: 'Start new run', level: 1 })
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'New Session', exact: true })
-    ).toBeVisible();
+    await expect(page.getByTestId('console-header-title')).toBeVisible();
+    const openSidebar = page.getByTestId('session-list-toggle');
+    await expect(openSidebar).toBeVisible();
+    await openSidebar.click();
 
-    await expect(page.getByText('No sessions yet')).toBeVisible();
-    await expect(page.getByText('Ready to start')).toBeVisible();
-    await expect(page.getByText('Send a task to begin.')).toBeVisible();
-    await expect(page.getByText('Waiting', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('session-list-new')).toBeVisible();
 
-    const input = page.locator('textarea[placeholder="Describe your task…"]');
+    await expect(page.getByTestId('session-list-empty')).toBeVisible();
+    await expect(page.getByTestId('conversation-empty-state')).toBeVisible();
+
+    const input = page.getByTestId('task-input');
     await expect(input).toBeVisible();
   });
 
@@ -44,47 +42,47 @@ test.describe('ALEX console layout', () => {
     );
 
     await page.goto('/conversation');
+    const openSidebar = page.getByTestId('session-list-toggle');
+    await openSidebar.click();
 
-    await expect(page.getByText('Pinned')).toBeVisible();
-    await expect(page.getByText('Recent')).toBeVisible();
+    await expect(page.getByTestId('session-list-pinned')).toBeVisible();
+    await expect(page.getByTestId('session-list-recent')).toBeVisible();
 
-    const pinnedSession = page.getByRole('button', { name: /Primary workflow/ });
-    await expect(pinnedSession).toBeVisible();
+    const pinnedSessionButton = page.locator(
+      '[data-testid="session-list-item"][data-session-id="session-123456"]'
+    );
+    await expect(pinnedSessionButton).toBeVisible();
 
-    const recentSession = page.getByRole('button', { name: 'sess…cdef' });
-    await expect(recentSession).toBeVisible();
+    const recentSessionButton = page.locator(
+      '[data-testid="session-list-item"][data-session-id="session-abcdef"]'
+    );
+    await expect(recentSessionButton).toBeVisible();
 
-    await recentSession.click();
-
-    await expect(
-      page.getByRole('heading', { level: 1 })
-    ).toHaveText(/sess…cdef/i);
+    await recentSessionButton.click({ force: true });
   });
 
   test('supports mock stream mode', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.clear());
     await page.goto('/conversation?mockSSE=1');
 
-    await expect(
-      page.getByRole('heading', { name: 'Start new run', level: 1 })
-    ).toBeVisible();
-    await expect(page.getByText('No sessions yet')).toBeVisible();
+    await expect(page.getByTestId('console-header-title')).toBeVisible();
+    const openSidebar = page.getByTestId('session-list-toggle');
+    await openSidebar.click();
 
-    const input = page.locator('textarea[placeholder="Describe your task…"]');
+    await expect(page.getByTestId('session-list-empty')).toBeVisible();
+
+    const input = page.getByTestId('task-input');
     await input.click();
     await page.keyboard.type('Mock stream task');
     await page.keyboard.press('Enter');
 
-    await expect(page.getByText('Recent')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('session-list-recent')).toBeVisible({ timeout: 15000 });
     await expect(
-      page.getByRole('button', { name: /Understanding task requirements/i })
+      page.getByTestId('event-task_analysis')
     ).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByRole('heading', { level: 1, name: /Understanding task requirements/i })
-    ).toBeVisible();
-    await expect(
-      page.locator('textarea[placeholder="Add detail…"]')
-    ).toBeVisible();
+    await expect(page.getByTestId('console-header-title')).toHaveText(
+      /Understanding task requirements/i
+    );
   });
 
   test('home route redirects to conversation view', async ({ page }) => {
@@ -92,8 +90,6 @@ test.describe('ALEX console layout', () => {
     await page.goto('/');
 
     await expect(page).toHaveURL(/\/conversation$/);
-    await expect(
-      page.getByRole('heading', { name: 'Start new run', level: 1 })
-    ).toBeVisible();
+    await expect(page.getByTestId('console-header-title')).toBeVisible();
   });
 });

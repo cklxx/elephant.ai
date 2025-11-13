@@ -70,6 +70,8 @@ export function Sidebar({
           <button
             onClick={() => onSessionSelect?.(id)}
             className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left focus-visible:outline-none"
+            data-testid="session-list-item"
+            data-session-id={id}
           >
             <span className="w-full truncate text-sm font-medium">
               {label || getSessionBadge(id)}
@@ -106,7 +108,7 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
           {pinnedSessions.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="session-list-pinned">
               <button
                 type="button"
                 onClick={() => setIsPinnedCollapsed((prev) => !prev)}
@@ -129,7 +131,7 @@ export function Sidebar({
           )}
 
           {recentSessions.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="session-list-recent">
               <button
                 type="button"
                 onClick={() => setIsRecentCollapsed((prev) => !prev)}
@@ -152,7 +154,10 @@ export function Sidebar({
           )}
 
           {sessionHistory.length === 0 && (
-            <div className="flex min-h-[120px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center">
+            <div
+              className="flex min-h-[120px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center"
+              data-testid="session-list-empty"
+            >
               <p className="text-sm text-slate-500">
                 {t("sidebar.session.empty")}
               </p>
@@ -166,6 +171,7 @@ export function Sidebar({
         <button
           onClick={onNewSession}
           className="console-button console-button-primary w-full !normal-case tracking-normal"
+          data-testid="session-list-new"
         >
           {t("sidebar.session.new")}
         </button>

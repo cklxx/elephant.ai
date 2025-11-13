@@ -46,6 +46,7 @@ type ReactEngineConfig struct {
 	StopReasons        []string
 	Logger             ports.Logger
 	Clock              ports.Clock
+	EventListener      EventListener
 	CompletionDefaults CompletionDefaults
 }
 
@@ -78,7 +79,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		stopReasons:   stopReasons,
 		logger:        logger,
 		clock:         clock,
-		eventListener: nil,
+		eventListener: cfg.EventListener,
 		completion:    completion,
 	}
 }
@@ -478,9 +479,39 @@ func (e *ReactEngine) think(
 	)
 	e.emitEvent(snapshot)
 
-	// Call LLM
+	// Call LLM (streaming when available)
 	e.logger.Debug("Calling LLM (request_id=%s)...", requestID)
-	resp, err := services.LLM.Complete(ctx, req)
+
+	var resp *ports.CompletionResponse
+	var err error
+	modelName := ""
+	if services.LLM != nil {
+		modelName = services.LLM.Model()
+	}
+
+	if streamingClient, ok := services.LLM.(ports.StreamingLLMClient); ok {
+		callbacks := ports.CompletionStreamCallbacks{}
+
+		callbacks.OnContentDelta = func(delta ports.ContentDelta) {
+			if delta.Delta == "" && !delta.Final {
+				return
+			}
+			event := &AssistantMessageEvent{
+				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				Iteration:   state.Iterations,
+				Delta:       delta.Delta,
+				Final:       delta.Final,
+				CreatedAt:   e.clock.Now(),
+				SourceModel: modelName,
+			}
+			e.emitEvent(event)
+		}
+
+		resp, err = streamingClient.StreamComplete(ctx, req, callbacks)
+	} else {
+		resp, err = services.LLM.Complete(ctx, req)
+	}
+
 	if err != nil {
 		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
