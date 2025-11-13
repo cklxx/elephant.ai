@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"strings"
 
+	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
 	"alex/internal/server/app"
 	"alex/internal/utils"
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, environment string) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
@@ -18,13 +19,25 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
 	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode)
 
+	var authMiddleware func(http.Handler) http.Handler
+	if authHandler != nil && authService != nil {
+		authMiddleware = AuthMiddleware(authService)
+	}
+
+	wrap := func(handler http.Handler) http.Handler {
+		if authMiddleware == nil {
+			return handler
+		}
+		return authMiddleware(handler)
+	}
+
 	// Create mux
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/internal/sessions/", apiHandler.HandleInternalSessionRequest)
 
 	// SSE endpoint
-	mux.HandleFunc("/api/sse", sseHandler.HandleSSEStream)
+	mux.Handle("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream)))
 
 	if authHandler != nil {
 		mux.HandleFunc("/api/auth/register", authHandler.HandleRegister)
@@ -32,6 +45,9 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.HandleFunc("/api/auth/logout", authHandler.HandleLogout)
 		mux.HandleFunc("/api/auth/refresh", authHandler.HandleRefresh)
 		mux.HandleFunc("/api/auth/me", authHandler.HandleMe)
+		mux.HandleFunc("/api/auth/plans", authHandler.HandleListPlans)
+		mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
+		mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
 		mux.HandleFunc("/api/auth/google/login", func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthStart(domain.ProviderGoogle, w, r)
 		})
@@ -47,7 +63,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	}
 
 	// Task endpoints
-	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/tasks", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			apiHandler.HandleCreateTask(w, r)
@@ -56,9 +72,9 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	})))
 
-	mux.HandleFunc("/api/tasks/", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/tasks/", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 
 		// Handle /api/tasks/:id/cancel
@@ -74,10 +90,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 
 		http.Error(w, "Not found", http.StatusNotFound)
-	})
+	})))
 
 	// Session endpoints
-	mux.HandleFunc("/api/sessions/", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/sessions/", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
 			apiHandler.HandleListSessions(w, r)
 		} else {
@@ -104,7 +120,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 			http.Error(w, "Not found", http.StatusNotFound)
 		}
-	})
+	})))
 
 	// Health check endpoint
 	mux.HandleFunc("/health", apiHandler.HandleHealthCheck)
