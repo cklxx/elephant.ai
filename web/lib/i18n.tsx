@@ -324,6 +324,7 @@ const translations = {
     "task.stop.pending": "Stopping…",
     "task.input.ariaLabel": "Task input",
     "tool.status.failed": "Failed",
+    "tool.status.running": "Running…",
     "tool.status.completed": "Completed",
     "tool.toggle.expand": "Expand output",
     "tool.toggle.collapse": "Collapse output",

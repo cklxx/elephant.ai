@@ -31,6 +31,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     metadata?: Record<string, unknown>;
     attachments?: Record<string, AttachmentPayload>;
     isComplete: boolean;
+    status: "running" | "completed" | "failed";
   }
 
   // Aggregate tool calls and model outputs
@@ -47,6 +48,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           timestamp: event.timestamp,
           parameters: event.arguments as Record<string, unknown>,
           isComplete: false,
+          status: "running",
         });
       } else if (event.event_type === "tool_call_complete") {
         // Update with complete event data (including metadata)
@@ -61,6 +63,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             AttachmentPayload
           >;
           toolCall.isComplete = true;
+          toolCall.status =
+            event.error && event.error.trim().length > 0 ? "failed" : "completed";
         } else {
           // If no start event, create from complete event directly
           toolCallsMap.set(event.call_id, {
@@ -73,6 +77,10 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             metadata: event.metadata as Record<string, unknown>,
             attachments: event.attachments as Record<string, AttachmentPayload>,
             isComplete: true,
+            status:
+              event.error && event.error.trim().length > 0
+                ? "failed"
+                : "completed",
           });
         }
       } else if (event.event_type === "think_complete") {
@@ -100,7 +108,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   );
 
   const runningTools = useMemo(
-    () => toolCalls.filter((call) => !call.isComplete),
+    () => toolCalls.filter((call) => call.status === "running"),
     [toolCalls],
   );
   const hasRunningTool = runningTools.length > 0;
@@ -188,6 +196,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
               callId={item.callId}
               metadata={item.metadata}
               attachments={item.attachments}
+              status={item.status}
             />
           );
         })}
