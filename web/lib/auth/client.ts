@@ -26,6 +26,20 @@ type TokenResponse = {
   user: RawAuthUser;
 };
 
+type OAuthStartResponse = {
+  url?: string;
+  state?: string;
+};
+
+export type OAuthProvider = "google" | "wechat";
+
+export interface OAuthSessionOptions {
+  popup?: Window | null;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  signal?: AbortSignal;
+}
+
 export interface SubscriptionInfo {
   tier: string;
   monthlyPriceCents: number;
@@ -58,6 +72,46 @@ type SessionListener = (session: AuthSession | null) => void;
 
 const STORAGE_KEY = "alex.console.auth";
 const EXPIRY_BUFFER_MS = 30 * 1000; // 30 seconds safety buffer
+
+function sessionsEqual(a: AuthSession | null, b: AuthSession | null): boolean {
+  if (a === b) {
+    return true;
+  }
+
+  if (!a || !b) {
+    return false;
+  }
+
+  if (
+    a.accessToken !== b.accessToken ||
+    a.accessExpiry !== b.accessExpiry ||
+    a.refreshExpiry !== b.refreshExpiry
+  ) {
+    return false;
+  }
+
+  const userA = a.user;
+  const userB = b.user;
+
+  if (
+    userA.id !== userB.id ||
+    userA.email !== userB.email ||
+    userA.displayName !== userB.displayName ||
+    userA.pointsBalance !== userB.pointsBalance
+  ) {
+    return false;
+  }
+
+  const subA = userA.subscription;
+  const subB = userB.subscription;
+
+  return (
+    subA.tier === subB.tier &&
+    subA.monthlyPriceCents === subB.monthlyPriceCents &&
+    subA.expiresAt === subB.expiresAt &&
+    subA.isPaid === subB.isPaid
+  );
+}
 
 function isBrowser(): boolean {
   return (
@@ -264,6 +318,7 @@ class AuthClient {
   private session: AuthSession | null = readSessionFromStorage();
   private listeners = new Set<SessionListener>();
   private refreshPromise: Promise<AuthSession | null> | null = null;
+  private storageSyncInProgress = false;
 
   getSession(): AuthSession | null {
     return this.session;
@@ -305,6 +360,47 @@ class AuthClient {
     this.setSession(null);
   }
 
+  handleStorageEvent(event: StorageEvent): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (event.key !== STORAGE_KEY) {
+      return;
+    }
+
+    if (this.storageSyncInProgress) {
+      return;
+    }
+
+    try {
+      this.storageSyncInProgress = true;
+      const stored = readSessionFromStorage();
+      if (sessionsEqual(stored, this.session)) {
+        return;
+      }
+      this.session = stored;
+      this.notify(this.session);
+    } catch (error) {
+      console.warn("[authClient] Failed to synchronize session from storage", error);
+    } finally {
+      this.storageSyncInProgress = false;
+    }
+  }
+
+  async register(
+    email: string,
+    password: string,
+    displayName: string,
+  ): Promise<AuthUser> {
+    const payload = await postJSON<RawAuthUser>("/api/auth/register", {
+      email: email.trim().toLowerCase(),
+      password,
+      display_name: displayName.trim(),
+    });
+    return mapUser(payload);
+  }
+
   async login(email: string, password: string): Promise<AuthSession> {
     const payload = await postJSON<TokenResponse>("/api/auth/login", {
       email: email.trim().toLowerCase(),
@@ -313,6 +409,30 @@ class AuthClient {
     const session = mapResponse(payload);
     this.setSession(session);
     return session;
+  }
+
+  async resumeFromRefreshCookie(): Promise<AuthSession | null> {
+    try {
+      const payload = await postJSON<TokenResponse>("/api/auth/refresh");
+      const session = mapResponse(payload);
+      this.setSession(session);
+      return session;
+    } catch (error) {
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+        if (
+          message.includes("refresh token required") ||
+          message.includes("http 400") ||
+          message.includes("http 401") ||
+          message.includes("http 403")
+        ) {
+          return null;
+        }
+      }
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to resume session from refresh cookie");
+    }
   }
 
   async refresh(): Promise<AuthSession | null> {
@@ -373,6 +493,114 @@ class AuthClient {
     } finally {
       this.clearSession();
     }
+  }
+
+  async startOAuth(provider: OAuthProvider): Promise<{ url: string; state: string }> {
+    const payload = await getJSON<OAuthStartResponse>(
+      `/api/auth/${provider}/login`,
+    );
+    const url = typeof payload?.url === "string" ? payload.url.trim() : "";
+    const state = typeof payload?.state === "string" ? payload.state.trim() : "";
+    if (!url) {
+      throw new Error("Missing authorization URL");
+    }
+    return { url, state };
+  }
+
+  async waitForOAuthSession(
+    provider: OAuthProvider,
+    options: OAuthSessionOptions = {},
+  ): Promise<AuthSession> {
+    if (typeof window === "undefined") {
+      throw new Error("OAuth login is only available in the browser");
+    }
+
+    const { popup = null, timeoutMs = 2 * 60 * 1000, pollIntervalMs = 800, signal } =
+      options;
+
+    return new Promise<AuthSession>((resolve, reject) => {
+      let settled = false;
+      let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+      let intervalId: ReturnType<typeof window.setInterval> | null = null;
+
+      const cleanup = () => {
+        if (timeoutId) {
+          window.clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        if (intervalId) {
+          window.clearInterval(intervalId);
+          intervalId = null;
+        }
+        if (signal) {
+          signal.removeEventListener("abort", handleAbort);
+        }
+      };
+
+      const finalize = (result: { session?: AuthSession | null; error?: Error }) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+        if (result.session) {
+          resolve(result.session);
+        } else if (result.error) {
+          reject(result.error);
+        } else {
+          reject(new Error("OAuth login failed"));
+        }
+      };
+
+      const handleAbort = () => {
+        finalize({ error: new Error("OAuth login cancelled") });
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          handleAbort();
+          return;
+        }
+        signal.addEventListener("abort", handleAbort);
+      }
+
+      const poll = async () => {
+        if (settled) {
+          return;
+        }
+
+        if (popup && popup.closed) {
+          finalize({ error: new Error("OAuth window closed") });
+          return;
+        }
+
+        try {
+          const session = await this.resumeFromRefreshCookie();
+          if (session) {
+            finalize({ session });
+          }
+        } catch (error) {
+          const err =
+            error instanceof Error
+              ? error
+              : new Error(`OAuth ${provider} login failed`);
+          finalize({ error: err });
+        }
+      };
+
+      timeoutId = window.setTimeout(() => {
+        finalize({ error: new Error("OAuth login timed out") });
+      }, timeoutMs);
+
+      intervalId = window.setInterval(() => {
+        void poll();
+      }, pollIntervalMs);
+
+      void poll();
+    });
   }
 
   async adjustPoints(delta: number): Promise<AuthUser> {
