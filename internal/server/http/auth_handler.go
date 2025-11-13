@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -480,9 +481,9 @@ func clientIP(r *http.Request) string {
 	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
 		return realIP
 	}
-	host := strings.Split(r.RemoteAddr, ":")
-	if len(host) > 0 {
-		return host[0]
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
 	}
-	return ""
+	return strings.Trim(r.RemoteAddr, "[]")
 }
