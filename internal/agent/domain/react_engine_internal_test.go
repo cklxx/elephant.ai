@@ -435,6 +435,48 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	}
 }
 
+func TestEnsureSystemPromptMessagePrependsWhenMissing(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		SystemPrompt: "Stay focused.",
+		Messages: []Message{
+			{Role: "user", Content: "hi"},
+		},
+	}
+
+	engine.ensureSystemPromptMessage(state)
+
+	if len(state.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(state.Messages))
+	}
+	if state.Messages[0].Role != "system" {
+		t.Fatalf("expected system prompt at index 0, got role %q", state.Messages[0].Role)
+	}
+	if state.Messages[0].Content != "Stay focused." {
+		t.Fatalf("unexpected system prompt content: %q", state.Messages[0].Content)
+	}
+}
+
+func TestEnsureSystemPromptMessageNoDuplicate(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		SystemPrompt: "Follow the plan.",
+		Messages: []Message{
+			{Role: "system", Content: "Follow the plan.", Source: ports.MessageSourceSystemPrompt},
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	engine.ensureSystemPromptMessage(state)
+
+	if len(state.Messages) != 2 {
+		t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+	}
+	if state.Messages[0].Content != "Follow the plan." {
+		t.Fatalf("expected existing system prompt to remain first, got %q", state.Messages[0].Content)
+	}
+}
+
 func TestAttachmentReferenceValuePrefersURI(t *testing.T) {
 	att := ports.Attachment{
 		Name:      "diagram.png",

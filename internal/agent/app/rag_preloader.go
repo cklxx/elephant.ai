@@ -213,9 +213,8 @@ func (p *ragPreloader) appendResult(env *ports.ExecutionEnvironment, result port
 
 	env.State.ToolResults = append(env.State.ToolResults, result)
 	env.State.Messages = append(env.State.Messages, ports.Message{
-		Role:        "tool",
+		Role:        "user",
 		Content:     formatToolResultContent(result),
-		ToolCallID:  result.CallID,
 		ToolResults: []ports.ToolResult{result},
 		Attachments: result.Attachments,
 		Source:      ports.MessageSourceToolResult,

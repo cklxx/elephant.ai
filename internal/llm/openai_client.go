@@ -653,6 +653,9 @@ func shouldEmbedAttachmentsInContent(msg ports.Message) bool {
 	if strings.EqualFold(strings.TrimSpace(msg.Role), "tool") {
 		return false
 	}
+	if msg.Source == ports.MessageSourceToolResult {
+		return false
+	}
 	return true
 }
 

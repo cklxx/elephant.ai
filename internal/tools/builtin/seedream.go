@@ -650,7 +650,7 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 
 	taskID := strings.TrimSpace(createResp.ID)
 	if taskID == "" {
-		err = errors.New("Seedance did not return a task identifier")
+		err = errors.New("seedance did not return a task identifier")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
@@ -661,7 +661,7 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	for {
 		select {
 		case <-ctx.Done():
-			err := fmt.Errorf("Seedance polling cancelled: %w", ctx.Err())
+			err := fmt.Errorf("seedance polling cancelled: %w", ctx.Err())
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		default:
 		}
@@ -699,18 +699,18 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 			err := errors.New(msg)
 			return &ports.ToolResult{CallID: call.ID, Content: msg, Error: err}, nil
 		case arkm.StatusCancelled:
-			err := errors.New("Seedance task cancelled")
+			err := errors.New("seedance task cancelled")
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
 
 		if time.Now().After(deadline) {
-			err := fmt.Errorf("Seedance task %s did not complete within %d seconds", taskID, int(maxWait/time.Second))
+			err := fmt.Errorf("seedance task %s did not complete within %d seconds", taskID, int(maxWait/time.Second))
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
 
 		select {
 		case <-ctx.Done():
-			err := fmt.Errorf("Seedance polling cancelled: %w", ctx.Err())
+			err := fmt.Errorf("seedance polling cancelled: %w", ctx.Err())
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		case <-ticker.C:
 		}
@@ -1543,7 +1543,9 @@ func (t *seedreamVideoTool) downloadAsset(ctx context.Context, assetURL string, 
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, "", fmt.Errorf("http %d received while fetching %s", resp.StatusCode, assetURL)
