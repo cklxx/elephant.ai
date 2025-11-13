@@ -408,6 +408,7 @@ func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 	}
 	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(&resultCopy))
 	h.write(rendered)
+	h.streamedContent = false
 }
 
 func (h *StreamingOutputHandler) printInterruptRequested() {

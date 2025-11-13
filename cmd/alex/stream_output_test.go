@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/tools/builtin"
 )
 
@@ -149,4 +150,37 @@ func TestStreamingOutputHandlerAssistantMessageBuffersMarkdownLines(t *testing.T
 	require.Contains(t, out.String(), "Hello")
 	require.Contains(t, out.String(), "World")
 	require.True(t, strings.HasSuffix(out.String(), "\n"))
+}
+
+func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	handler.streamedContent = true
+	streamedResult := &ports.TaskResult{
+		Answer:     "streamed answer",
+		Iterations: 1,
+		TokensUsed: 5,
+	}
+
+	handler.printCompletion(streamedResult)
+
+	firstOutput := out.String()
+	require.NotContains(t, firstOutput, streamedResult.Answer)
+	require.False(t, handler.streamedContent)
+
+	out.Reset()
+
+	nonStreamedResult := &ports.TaskResult{
+		Answer:     "final answer",
+		Iterations: 2,
+		TokensUsed: 8,
+	}
+
+	handler.printCompletion(nonStreamedResult)
+
+	secondOutput := out.String()
+	require.Contains(t, secondOutput, nonStreamedResult.Answer)
+	require.False(t, handler.streamedContent)
 }
