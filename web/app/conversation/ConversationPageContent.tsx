@@ -1,9 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { History, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
@@ -469,16 +468,6 @@ export function ConversationPageContent() {
     </div>
   );
 
-  const sessionArchiveLink = (
-    <Link
-      href="/sessions"
-      className="console-button console-button-secondary inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em]"
-    >
-      <History className="h-4 w-4" aria-hidden />
-      <span>{t('navigation.sessions')}</span>
-    </Link>
-  );
-
   const timelineSteps = useTimelineSteps(events);
 
   useEffect(() => {
@@ -526,7 +515,6 @@ export function ConversationPageContent() {
                 ? t('conversation.header.subtitle')
                 : undefined
           }
-          actionsSlot={sessionArchiveLink}
           leadingSlot={
             <button
               type="button"
