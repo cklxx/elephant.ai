@@ -520,15 +520,15 @@ class AuthClient {
 
     return new Promise<AuthSession>((resolve, reject) => {
       let settled = false;
-      let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
-      let intervalId: ReturnType<typeof window.setInterval> | null = null;
+      let timeoutId: number | null = null;
+      let intervalId: number | null = null;
 
       const cleanup = () => {
-        if (timeoutId) {
+        if (timeoutId !== null) {
           window.clearTimeout(timeoutId);
           timeoutId = null;
         }
-        if (intervalId) {
+        if (intervalId !== null) {
           window.clearInterval(intervalId);
           intervalId = null;
         }
