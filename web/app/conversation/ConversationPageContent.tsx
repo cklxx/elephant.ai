@@ -519,6 +519,7 @@ export function ConversationPageContent() {
           leadingSlot={
             <button
               type="button"
+              data-testid="session-list-toggle"
               onClick={() =>
                 setIsSidebarOpen((prev) => {
                   const next = !prev;
