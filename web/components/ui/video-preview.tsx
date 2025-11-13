@@ -44,7 +44,7 @@ export function VideoPreview({
           preload={preload}
           aria-label={accessibleLabel}
           title={description}
-          className={cn("h-full w-full object-contain bg-black", videoClassName)}
+          className={cn("h-full w-full object-cover bg-black", videoClassName)}
         >
           <source src={src} type={mimeType} />
           Your browser does not support video playback.
