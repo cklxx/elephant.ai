@@ -59,11 +59,42 @@ func (p *ragPreloader) apply(ctx context.Context, env *ports.ExecutionEnvironmen
 	}
 
 	if directives.UseSearch {
-		searchArgs := map[string]any{"query": directives.Query}
-		if len(directives.SearchSeeds) > 0 {
-			seeds := strings.Join(directives.SearchSeeds, " ")
-			searchArgs["query"] = strings.TrimSpace(directives.Query + " " + seeds)
+		baseQuery := strings.TrimSpace(directives.Query)
+		seedText := strings.TrimSpace(strings.Join(directives.SearchSeeds, " "))
+
+		fallbackQuery := baseQuery
+		if fallbackQuery == "" {
+			fallbackQuery = seedText
+		} else if seedText != "" {
+			fallbackQuery = strings.TrimSpace(baseQuery + " " + seedText)
 		}
+
+		finalQuery := fallbackQuery
+		if finalQuery == "" {
+			finalQuery = baseQuery
+		}
+
+		if env != nil && env.Services.LLM != nil {
+			generated, err := p.generateSearchQuery(ctx, env.Services.LLM, baseQuery, directives.SearchSeeds)
+			if err != nil {
+				p.logger.Warn("RAG preloader search query generation failed: %v", err)
+				if fallbackQuery != "" {
+					finalQuery = fallbackQuery
+				} else {
+					finalQuery = baseQuery
+				}
+			} else if strings.TrimSpace(generated) != "" {
+				finalQuery = generated
+			} else if fallbackQuery != "" {
+				finalQuery = fallbackQuery
+			}
+		}
+
+		if finalQuery == "" {
+			finalQuery = directives.Query
+		}
+
+		searchArgs := map[string]any{"query": finalQuery}
 		if err := p.executeTool(ctx, env, "web_search", searchArgs); err != nil {
 			execErr = err
 		} else {
@@ -142,6 +173,98 @@ func (p *ragPreloader) appendDirectiveSummary(env *ports.ExecutionEnvironment, e
 		Content: summary,
 		Source:  ports.MessageSourceDebug,
 	})
+}
+
+func (p *ragPreloader) generateSearchQuery(ctx context.Context, llm ports.LLMClient, baseQuery string, seeds []string) (string, error) {
+	if llm == nil {
+		return "", fmt.Errorf("llm client unavailable")
+	}
+
+	baseQuery = strings.TrimSpace(baseQuery)
+	seedText := strings.TrimSpace(strings.Join(seeds, ", "))
+	if baseQuery == "" && seedText == "" {
+		return "", fmt.Errorf("no query or seeds provided")
+	}
+
+	var userPrompt strings.Builder
+	if baseQuery != "" {
+		userPrompt.WriteString("Task or question: ")
+		userPrompt.WriteString(baseQuery)
+	} else {
+		userPrompt.WriteString("Focus area requested via seeds only.")
+	}
+	if seedText != "" {
+		userPrompt.WriteString("\nFocus phrases: ")
+		userPrompt.WriteString(seedText)
+	}
+
+	req := ports.CompletionRequest{
+		Messages: []ports.Message{
+			{
+				Role:    "system",
+				Content: "You craft precise web search queries for research. When focus phrases are provided, incorporate them naturally. Respond with only the final search query, without quotes or commentary.",
+			},
+			{
+				Role:    "user",
+				Content: userPrompt.String(),
+			},
+		},
+		Temperature: 0.2,
+		MaxTokens:   48,
+		Metadata: map[string]any{
+			"feature": "rag_preload_search",
+		},
+	}
+
+	resp, err := llm.Complete(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	query := sanitizeSearchQuery(resp.Content)
+	if query == "" {
+		return "", fmt.Errorf("empty query from llm")
+	}
+	return query, nil
+}
+
+func sanitizeSearchQuery(raw string) string {
+	query := strings.TrimSpace(raw)
+	if query == "" {
+		return ""
+	}
+
+	if idx := strings.IndexAny(query, "\r\n"); idx >= 0 {
+		query = query[:idx]
+	}
+	query = strings.TrimSpace(query)
+
+	lower := strings.ToLower(query)
+	prefixes := []string{
+		"search query:",
+		"query:",
+		"optimized query:",
+		"final query:",
+		"use this query:",
+		"recommended query:",
+		"search:",
+		"try:",
+	}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(lower, prefix) {
+			query = strings.TrimSpace(query[len(prefix):])
+			break
+		}
+	}
+
+	query = strings.Trim(query, "\"'`")
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return ""
+	}
+
+	query = strings.Join(strings.Fields(query), " ")
+	return query
 }
 
 func formatJustification(values map[string]float64) string {
