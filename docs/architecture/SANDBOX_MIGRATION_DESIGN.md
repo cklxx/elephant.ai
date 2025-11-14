@@ -1343,7 +1343,9 @@ func determineExecutionMode(config Config, processType string) tools.ExecutionMo
 
 ---
 
-## TODO Checklist
+## Checklist (Completed)
+
+All migration tasks were completed during the initial rollout and remain current.
 
 - [x] Implement the `ExecutionMode` validation helper and ensure all constructors fail fast on invalid values.
 - [x] Update the tool registry and DI wiring to propagate errors from `NewRegistry` instead of panicking.

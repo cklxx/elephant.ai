@@ -683,7 +683,7 @@ func (m ChatTUIModel) renderHeader() string {
     return style.Render(fmt.Sprintf(
         "ALEX Chat - Session: %s | Model: %s",
         m.sessionID[:8],
-        "gpt-4", // TODO: get from config
+        m.session.ModelName,
     ))
 }
 
