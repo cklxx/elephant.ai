@@ -35,6 +35,16 @@ Each document follows the principle: **clear, concise, and actionable**. If you 
 
 ---
 
+## 🧹 Documentation Maintenance
+
+- Removed stale TODO markers from long-lived design docs and replaced them with current terminology.
+- Updated the sandbox migration checklist to reflect its completed status with an explicit maintenance note.
+- Clarified TUI design snippets so configuration-derived values are referenced directly.
+
+Keep this section updated whenever you perform broad documentation clean-ups so contributors can see what changed at a glance.
+
+---
+
 ## 🧭 Contribution Tips
 
 - Keep references authoritative and up to date with the codebase.
