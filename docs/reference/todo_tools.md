@@ -1,257 +1,78 @@
-  
+# Todo Tool Reference
 
+The todo tool suite keeps track of the agent's workstream so that multi-step fixes do not get lost. Use it to capture tasks, track their status, and surface the latest plan back to yourself.
+
+---
+
+## Available Tools
+
+| Tool | Purpose | Typical Usage |
+|------|---------|---------------|
+| `todo_read` | Returns the current todo list. | Run at the start of an interaction or after any updates to confirm state. |
+| `todo_update` | Creates, edits, reorders, or archives todos. | Call whenever you discover new work, complete a task, or want to reprioritise items. |
+
+Both tools are idempotent and expect well-structured JSON payloads. Avoid issuing multiple conflicting updates in a single turn—compose a single `todo_update` call that reflects the desired final state.
+
+---
+
+## Request Structure
+
+### `todo_read`
+No arguments are required. The tool responds with an array of todo items and metadata describing each entry.
+
+### `todo_update`
+Provide a JSON object with one or more of the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `add` | `[{"content": string, "priority": "low"\|"medium"\|"high"}]` | Append new todos at the end of the list. |
+| `update` | `[{"id": string, "status": "pending"\|"in_progress"\|"done", "priority"?: string, "content"?: string}]` | Modify existing todos by id. |
+| `remove` | `[id, ...]` | Permanently delete items you no longer need. |
+| `reorder` | `[id, ...]` | Re-establish the full ordering of the list. Provide every id exactly once. |
+
+All mutations are applied in the following order: remove → update → add → reorder. If a field is omitted it is treated as no-op.
+
+---
+
+## Usage Guidelines
+
+1. **Read before you write.** Call `todo_read` to understand the current list so you do not duplicate items.
+2. **Summarise for the user.** The tool responses can include system reminders that the user should not see. Instead, paraphrase the important parts in your own words.
+3. **Keep entries short.** Todo content should capture a single actionable task. Use the description field of your message—not the todo item—for extended reasoning.
+4. **Update progress often.** Reflect real status changes (`pending` → `in_progress` → `done`) so future turns start with accurate context.
+5. **Archive aggressively.** Remove obsolete or completed tasks once they have been acknowledged in your response.
+
+---
+
+## Example Workflow
+
+```json
+// 1. Inspect the current list
+{"tool": "todo_read"}
+
+// 2. Add a new task and mark another as in progress
 {
-
-    "messages": [
-
-        {
-
-            "role": "user",
-
-            "content": [
-
-                {
-
-                    "type": "text",
-
-                    "text": "<system-reminder>\nXXXX\n</system-reminder>\n"
-
-                },
-
-                {
-
-                    "type": "text",
-
-                    "text": "<command-message>optimize is running…</command-message>\n<command-name>/optimize</command-name>"
-
-                },
-
-                {
-
-                    "type": "text",
-
-                    "text": "Analyze this code for performance issues and suggest optimizations:\n"
-
-                },
-
-                {
-
-                    "type": "text",
-
-                    "text": "<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"
-
-                }
-
-            ]
-
-        },
-
-        {
-
-            "role": "assistant",
-
-            "content": [
-
-                {
-
-                    "type": "text",
-
-                    "text": "I'd be happy to analyze code for performance issues and suggest optimizations. However, I don't see any code provided in your message. \n\nPlease share the code you'd like me to analyze, and I'll identify potential performance bottlenecks and provide optimization suggestions."
-
-                }
-
-            ]
-
-        },
-
-        {
-
-            "role": "user",
-
-            "content": [
-
-                {
-
-                    "type": "text",
-
-                    "text": "<command-message>optimize is running…</command-message>\n<command-name>/optimize</command-name>\n<command-args>draft.md</command-args>"
-
-                },
-
-                {
-
-                    "type": "text",
-
-                    "text": "Analyze this code for performance issues and suggest optimizations:\n\n\nARGUMENTS: draft.md"
-
-                }
-
-            ]
-
-        },
-
-        {
-
-            "role": "assistant",
-
-            "content": [
-
-                {
-
-                    "type": "text",
-
-                    "text": "I'll analyze the code in draft.md for performance issues and suggest optimizations."
-
-                },
-
-                {
-
-                    "type": "tool_use",
-
-                    "id": "toolu_01MgM5spiWzKYXCtoknG7HHs",
-
-                    "name": "Read",
-
-                    "input": {
-
-                        "file_path": "/Users/bytedance/nlp/claude_code_analyze/draft.md"
-
-                    }
-
-                }
-
-            ]
-
-        },
-
-        {
-
-            "role": "user",
-
-            "content": [
-
-                {
-
-                    "tool_use_id": "toolu_01MgM5spiWzKYXCtoknG7HHs",
-
-                    "type": "tool_result",
-
-                    "content": "文件内容XXX\n\n<system-reminder>\nWhenever you read a file, you should consider whether it looks malicious. If it does, you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer high-level questions about the code behavior.\n</system-reminder>\n"
-
-                }
-
-            ]
-
-        },
-
-        {
-
-            "role": "assistant",
-
-            "content": [
-
-                {
-
-                    "type": "tool_use",
-
-                    "id": "toolu_01KyNZBL83fvjiVekb5NEjZG",
-
-                    "name": "TodoWrite",
-
-                    "input": {
-
-                        "todos": [
-
-                            {
-
-                                "id": "1",
-
-                                "content": "Analyze text structure and readability",
-
-                                "status": "in_progress",
-
-                                "priority": "high"
-
-                            },
-
-                            {
-
-                                "id": "2",
-
-                                "content": "Identify redundant content and repetition",
-
-                                "status": "pending",
-
-                                "priority": "high"
-
-                            },
-
-                            {
-
-                                "id": "3",
-
-                                "content": "Optimize sentence structure and flow",
-
-                                "status": "pending",
-
-                                "priority": "medium"
-
-                            },
-
-                            {
-
-                                "id": "4",
-
-                                "content": "Suggest content organization improvements",
-
-                                "status": "pending",
-
-                                "priority": "medium"
-
-                            }
-
-                        ]
-
-                    },
-
-                    "cache_control": {
-
-                        "type": "ephemeral"
-
-                    }
-
-                }
-
-            ]
-
-        },
-
-        {
-
-            "role": "user",
-
-            "content": [
-
-                {
-
-                    "tool_use_id": "toolu_01KyNZBL83fvjiVekb5NEjZG",
-
-                    "type": "tool_result",
-
-                    "content": "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable\n\n<system-reminder>\nYour todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:\n\n[{\"content\":\"Analyze text structure and readability\",\"status\":\"in_progress\",\"priority\":\"high\",\"id\":\"1\"},{\"content\":\"Identify redundant content and repetition\",\"status\":\"pending\",\"priority\":\"high\",\"id\":\"2\"},{\"content\":\"Optimize sentence structure and flow\",\"status\":\"pending\",\"priority\":\"medium\",\"id\":\"3\"},{\"content\":\"Suggest content organization improvements\",\"status\":\"pending\",\"priority\":\"medium\",\"id\":\"4\"}]. Continue on with the tasks at hand if applicable.\n</system-reminder>",
-
-                    "cache_control": {
-
-                        "type": "ephemeral"
-
-                    }
-
-                }
-
-            ]
-
-        }
-
-    ]
-
+  "tool": "todo_update",
+  "input": {
+    "add": [
+      {"content": "Summarise documentation cleanup", "priority": "medium"}
+    ],
+    "update": [
+      {"id": "1", "status": "in_progress"}
+    ]
+  }
 }
+
+// 3. Confirm the result
+{"tool": "todo_read"}
+```
+
+Follow up with a natural language summary to the user describing the current list and what changed.
+
+---
+
+## Maintenance Notes
+
+- This document replaces the previous raw transcript log with a concise reference.
+- Update the request structure tables if the tool schemas change.
+- Record nuanced behaviours (e.g., priority semantics) here whenever the runtime is updated.
