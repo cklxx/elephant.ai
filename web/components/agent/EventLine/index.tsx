@@ -45,7 +45,12 @@ export const EventLine = React.memo(function EventLine({
           </div>
           <div className="console-user-task-content">
             {textSegments.map((segment, index) => (
-              <span key={`text-segment-${index}`}>{segment.text}</span>
+              <p
+                key={`text-segment-${index}`}
+                className="m-0 whitespace-pre-wrap"
+              >
+                {segment.text}
+              </p>
             ))}
             {mediaSegments.map((segment, index) => {
               if (!segment.attachment) {
