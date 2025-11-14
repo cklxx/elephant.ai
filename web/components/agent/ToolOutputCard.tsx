@@ -769,16 +769,16 @@ function renderToolResult(
         parameters?.prompt,
       ])
     : undefined;
-  const baseResult =
-    typeof (isSeedream ? descriptor : result) === "string"
-      ? (isSeedream ? descriptor : result) ?? ""
+  const resultString =
+    typeof result === "string"
+      ? result
       : result
         ? JSON.stringify(result, null, 2)
         : "";
   const attachmentsAvailable =
     attachments && Object.keys(attachments).length > 0;
   const parsedSegments = attachmentsAvailable
-    ? parseContentSegments(baseResult, attachments)
+    ? parseContentSegments(resultString, attachments)
     : null;
   const normalizedDescriptor =
     typeof descriptor === "string" ? descriptor.trim() : undefined;
@@ -789,8 +789,8 @@ function renderToolResult(
           segment.text &&
           segment.text.trim().length > 0,
       )
-    : baseResult
-      ? [{ type: "text", text: baseResult }]
+    : resultString
+      ? [{ type: "text", text: resultString }]
       : [];
   const cleanedTextSegments = textSegments
     .map((segment) => {
@@ -818,71 +818,94 @@ function renderToolResult(
       )
     : [];
 
-  return attachmentsAvailable ? (
-    <div className="rounded-lg bg-muted/15 p-3 space-y-4">
-      {isSeedream && normalizedDescriptor && (
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-            Prompt
-          </p>
-          <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
-            {normalizedDescriptor}
-          </p>
-        </div>
-      )}
-      {filteredTextSegments.length > 0 && (
-        <div className="whitespace-pre-wrap font-mono text-xs space-y-3 text-foreground/80">
-          {filteredTextSegments.map((segment, index) => (
-            <span key={`text-segment-${index}`}>{segment.text}</span>
-          ))}
-        </div>
-      )}
-      {mediaSegments.length > 0 && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {mediaSegments.map((segment, index) => {
-            if (!segment.attachment) {
-              return null;
-            }
-            const uri = buildAttachmentUri(segment.attachment);
-            if (!uri) {
-              return null;
-            }
-            const key = segment.placeholder || `${segment.type}-${index}`;
-            if (segment.type === "video") {
+  if (attachmentsAvailable) {
+    return (
+      <div className="rounded-lg bg-muted/15 p-3 space-y-4">
+        {isSeedream && normalizedDescriptor && (
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Prompt
+            </p>
+            <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
+              {normalizedDescriptor}
+            </p>
+          </div>
+        )}
+        {filteredTextSegments.length > 0 && (
+          <div className="whitespace-pre-wrap font-mono text-xs space-y-3 text-foreground/80">
+            {filteredTextSegments.map((segment, index) => (
+              <span key={`text-segment-${index}`}>{segment.text}</span>
+            ))}
+          </div>
+        )}
+        {mediaSegments.length > 0 && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {mediaSegments.map((segment, index) => {
+              if (!segment.attachment) {
+                return null;
+              }
+              const uri = buildAttachmentUri(segment.attachment);
+              if (!uri) {
+                return null;
+              }
+              const key = segment.placeholder || `${segment.type}-${index}`;
+              if (segment.type === "video") {
+                return (
+                  <VideoPreview
+                    key={`media-segment-${key}`}
+                    src={uri}
+                    mimeType={segment.attachment.media_type || "video/mp4"}
+                    description={segment.attachment.description}
+                    maxHeight="16rem"
+                  />
+                );
+              }
               return (
-                <VideoPreview
+                <ImagePreview
                   key={`media-segment-${key}`}
                   src={uri}
-                  mimeType={segment.attachment.media_type || "video/mp4"}
-                  description={segment.attachment.description}
+                  alt={segment.attachment.description || segment.attachment.name}
+                  minHeight="10rem"
                   maxHeight="16rem"
+                  sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
                 />
               );
-            }
-            return (
-              <ImagePreview
-                key={`media-segment-${key}`}
-                src={uri}
-                alt={segment.attachment.description || segment.attachment.name}
-                minHeight="10rem"
-                maxHeight="16rem"
-                sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  ) : isSeedream ? (
-    <div className="rounded-lg bg-muted/15 p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-        Prompt
-      </p>
-      <p className="mt-2 whitespace-pre-wrap font-mono text-xs text-foreground/90">
-        {baseResult}
-      </p>
-    </div>
-  ) : (
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isSeedream) {
+    const cleanedResult = stripNoisyLines(resultString).trim();
+    const showPrompt = Boolean(normalizedDescriptor);
+    const showResult = cleanedResult.length > 0;
+
+    return (
+      <div className="rounded-lg bg-muted/15 p-3 space-y-3">
+        {showPrompt && (
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Prompt
+            </p>
+            <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
+              {normalizedDescriptor}
+            </p>
+          </div>
+        )}
+        {showResult && (
+          <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+            <p className="whitespace-pre-wrap text-xs text-foreground/90 font-sans">
+              {cleanedResult}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
     <div className="rounded-lg bg-muted/20 overflow-auto">
       <SyntaxHighlighter
         language={language}
@@ -895,7 +918,7 @@ function renderToolResult(
         }}
         showLineNumbers={language !== "text"}
       >
-        {baseResult}
+        {resultString}
       </SyntaxHighlighter>
     </div>
   );
