@@ -173,7 +173,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		// Get agent level from context
 		agentLevel := ports.GetOutputContext(ctx).Level
 
-		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, ensuredTaskID, parentTaskID, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal, c.clock.Now())
+		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, ensuredTaskID, parentTaskID, env.TaskAnalysis, c.clock.Now())
 		listener.OnEvent(event)
 	}
 
@@ -389,10 +389,14 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 		return nil, nil
 	}
 
-	sanitized := make([]ports.Message, len(messages))
+	sanitized := make([]ports.Message, 0, len(messages))
 	attachments := make(map[string]ports.Attachment)
 
-	for i, msg := range messages {
+	for _, msg := range messages {
+		if msg.Source == ports.MessageSourceUserHistory {
+			continue
+		}
+
 		cloned := msg
 		if len(msg.Attachments) > 0 {
 			for key, att := range msg.Attachments {
@@ -410,7 +414,11 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 			}
 			cloned.Attachments = nil
 		}
-		sanitized[i] = cloned
+		sanitized = append(sanitized, cloned)
+	}
+
+	if len(sanitized) == 0 {
+		return nil, nil
 	}
 
 	if len(attachments) == 0 {

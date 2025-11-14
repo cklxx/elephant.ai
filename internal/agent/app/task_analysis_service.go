@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,9 @@ type TaskAnalysis struct {
 	Goal        string
 	Approach    string
 	RawAnalysis string
+	Steps       []ports.TaskAnalysisStep
+	Criteria    []string
+	Retrieval   ports.TaskRetrievalPlan
 }
 
 // TaskAnalysisService performs lightweight LLM analysis prior to execution.
@@ -43,16 +47,39 @@ func (s *TaskAnalysisService) Analyze(ctx context.Context, task string, llmClien
 
 	s.logger.Debug("Starting task pre-analysis")
 
-	prompt := fmt.Sprintf(`Analyze this task and provide a concise structured response:
+	prompt := fmt.Sprintf(`You are a planning agent that must prepare execution and retrieval guidance in a single pass.
 
-Task: %s
+Task:
+"""%s"""
 
-Respond in this exact format:
-Action: [single verb phrase, e.g., "Analyzing codebase", "Implementing feature", "Debugging issue"]
-Goal: [what needs to be achieved]
-Approach: [brief strategy]
+Return ONLY well-formed XML (no prose) following this schema:
+<task_analysis>
+  <action>string</action>                      <!-- concise verb phrase -->
+  <goal>string</goal>                          <!-- specific outcome to achieve -->
+  <approach>string</approach>                  <!-- short strategy summary -->
+  <success_criteria>
+    <criterion>string</criterion>              <!-- 2-5 measurable checks for completion -->
+  </success_criteria>
+  <task_breakdown>
+    <step requires_external_research="bool" requires_retrieval="bool" requires_discovery="bool">
+      <description>string</description>        <!-- high-level step -->
+      <reason>string</reason>                  <!-- short rationale for the flags -->
+    </step>
+  </task_breakdown>
+  <retrieval_plan should_retrieve="bool">
+    <local_queries><query>string</query></local_queries>      <!-- internal doc/code queries -->
+    <search_queries><query>string</query></search_queries>    <!-- web search queries -->
+    <crawl_urls><url>string</url></crawl_urls>                <!-- specific URLs to fetch -->
+    <knowledge_gaps><gap>string</gap></knowledge_gaps>        <!-- facts to resolve -->
+    <notes>string</notes>                                     <!-- optional clarifications -->
+  </retrieval_plan>
+</task_analysis>
 
-Keep each line under 80 characters. Be specific and actionable.`, task)
+Guidelines:
+- Keep lists small (<=4 items) and omit duplicates.
+- If retrieval is unnecessary, set should_retrieve="false" and leave lists empty.
+- Use clear, executable language in the same language as the task.
+`, task)
 
 	requestID := id.NewRequestID()
 
@@ -62,8 +89,8 @@ Keep each line under 80 characters. Be specific and actionable.`, task)
 			Content: prompt,
 			Source:  ports.MessageSourceSystemPrompt,
 		}},
-		Temperature: 0.2,
-		MaxTokens:   150,
+		Temperature: 0.15,
+		MaxTokens:   450,
 		Metadata: map[string]any{
 			"request_id": requestID,
 		},
@@ -108,6 +135,14 @@ func fallbackTaskAnalysis(task string) *TaskAnalysis {
 		Goal:        goal,
 		Approach:    approach,
 		RawAnalysis: fmt.Sprintf("Action: %s\nGoal: %s\nApproach: %s", action, goal, approach),
+		Criteria:    []string{"Deliver a complete answer", "Document reasoning for the user"},
+		Steps: []ports.TaskAnalysisStep{
+			{
+				Description:          "Review the user task and available context",
+				NeedsExternalContext: false,
+				Rationale:            "Establish baseline understanding",
+			},
+		},
 	}
 }
 
@@ -133,6 +168,11 @@ func inferActionFromTask(task string) string {
 }
 
 func parseTaskAnalysis(content string) *TaskAnalysis {
+	if structured := parseStructuredTaskAnalysis(content); structured != nil {
+		structured.RawAnalysis = content
+		return structured
+	}
+
 	analysis := &TaskAnalysis{RawAnalysis: content}
 	lines := strings.Split(content, "\n")
 
@@ -162,4 +202,156 @@ func parseTaskAnalysis(content string) *TaskAnalysis {
 	}
 
 	return analysis
+}
+
+type llmTaskAnalysis struct {
+	XMLName   xml.Name              `xml:"task_analysis"`
+	Action    string                `xml:"action"`
+	Goal      string                `xml:"goal"`
+	Approach  string                `xml:"approach"`
+	Success   []string              `xml:"success_criteria>criterion"`
+	Steps     []llmTaskAnalysisStep `xml:"task_breakdown>step"`
+	Retrieval llmRetrievalPlan      `xml:"retrieval_plan"`
+}
+
+type llmTaskAnalysisStep struct {
+	Description          string `xml:"description"`
+	Reason               string `xml:"reason"`
+	RequiresExternal     bool   `xml:"requires_external_research,attr"`
+	RequiresRetrieval    bool   `xml:"requires_retrieval,attr"`
+	RequiresDiscovery    bool   `xml:"requires_discovery,attr"`
+	NeedsExternalContext bool   `xml:"needs_external_context,attr"`
+}
+
+type llmRetrievalPlan struct {
+	ShouldRetrieve bool     `xml:"should_retrieve,attr"`
+	LocalQueries   []string `xml:"local_queries>query"`
+	SearchQueries  []string `xml:"search_queries>query"`
+	CrawlURLs      []string `xml:"crawl_urls>url"`
+	KnowledgeGaps  []string `xml:"knowledge_gaps>gap"`
+	Notes          string   `xml:"notes"`
+}
+
+func parseStructuredTaskAnalysis(content string) *TaskAnalysis {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return nil
+	}
+
+	fragment := extractTaskAnalysisFragment(trimmed)
+	if fragment == "" {
+		return nil
+	}
+
+	decoder := xml.NewDecoder(strings.NewReader(fragment))
+	decoder.Strict = false
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if start.Name.Local != "task_analysis" {
+			continue
+		}
+
+		var payload llmTaskAnalysis
+		if err := decoder.DecodeElement(&payload, &start); err != nil {
+			return nil
+		}
+
+		analysis := &TaskAnalysis{
+			ActionName: strings.TrimSpace(payload.Action),
+			Goal:       strings.TrimSpace(payload.Goal),
+			Approach:   strings.TrimSpace(payload.Approach),
+		}
+		analysis.Criteria = normalizeList(payload.Success)
+
+		if len(payload.Steps) > 0 {
+			steps := make([]ports.TaskAnalysisStep, 0, len(payload.Steps))
+			for _, step := range payload.Steps {
+				desc := strings.TrimSpace(step.Description)
+				if desc == "" {
+					continue
+				}
+				needsExternal := step.RequiresExternal || step.RequiresRetrieval || step.RequiresDiscovery || step.NeedsExternalContext
+				steps = append(steps, ports.TaskAnalysisStep{
+					Description:          desc,
+					NeedsExternalContext: needsExternal,
+					Rationale:            strings.TrimSpace(step.Reason),
+				})
+			}
+			if len(steps) > 0 {
+				analysis.Steps = steps
+			}
+		}
+
+		retrieval := payload.Retrieval
+		analysis.Retrieval = ports.TaskRetrievalPlan{
+			ShouldRetrieve: retrieval.ShouldRetrieve,
+			LocalQueries:   normalizeList(retrieval.LocalQueries),
+			SearchQueries:  normalizeList(retrieval.SearchQueries),
+			CrawlURLs:      normalizeList(retrieval.CrawlURLs),
+			KnowledgeGaps:  normalizeList(retrieval.KnowledgeGaps),
+			Notes:          strings.TrimSpace(retrieval.Notes),
+		}
+		if !analysis.Retrieval.ShouldRetrieve {
+			analysis.Retrieval.ShouldRetrieve = len(analysis.Retrieval.LocalQueries) > 0 || len(analysis.Retrieval.SearchQueries) > 0 || len(analysis.Retrieval.CrawlURLs) > 0
+		}
+
+		return analysis
+	}
+}
+
+func extractTaskAnalysisFragment(content string) string {
+	lower := strings.ToLower(content)
+	start := strings.Index(lower, "<task_analysis")
+	if start < 0 {
+		return ""
+	}
+
+	fragment := content[start:]
+	lowerFragment := lower[start:]
+
+	endStart := strings.Index(lowerFragment, "</task_analysis")
+	if endStart < 0 {
+		return ""
+	}
+
+	closing := fragment[endStart:]
+	gt := strings.Index(closing, ">")
+	if gt < 0 {
+		return ""
+	}
+
+	end := start + endStart + gt + 1
+	return strings.TrimSpace(content[start:end])
+}
+
+func normalizeList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }

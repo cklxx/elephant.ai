@@ -230,6 +230,18 @@ describe("useSSE", () => {
         agent_level: "core",
         action_name: "Plan",
         goal: "Test event 1",
+        approach: "Review state and plan",
+        success_criteria: ["Emit events"],
+        steps: [
+          {
+            description: "Collect signals",
+            needs_external_context: false,
+          },
+        ],
+        retrieval_plan: {
+          should_retrieve: false,
+          local_queries: ["docs"],
+        },
       };
 
       const event2: AnyAgentEvent = {

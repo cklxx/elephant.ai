@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 )
 
@@ -178,7 +179,14 @@ func TestProgressTracking_WithoutTaskStore(t *testing.T) {
 
 // Helper functions to create events for testing
 func createIterationStartEvent(sessionID string, iteration, totalIters int) *domain.IterationStartEvent {
-	evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "progress-task", "", "test", "test", time.Now())
+	evt := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		sessionID,
+		"progress-task",
+		"",
+		&ports.TaskAnalysis{ActionName: "test", Goal: "test"},
+		time.Now(),
+	)
 	return &domain.IterationStartEvent{
 		BaseEvent:  evt.BaseEvent,
 		Iteration:  iteration,
@@ -187,7 +195,14 @@ func createIterationStartEvent(sessionID string, iteration, totalIters int) *dom
 }
 
 func createIterationCompleteEvent(sessionID string, iteration, tokensUsed, toolsRun int) *domain.IterationCompleteEvent {
-	evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "progress-task", "", "test", "test", time.Now())
+	evt := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		sessionID,
+		"progress-task",
+		"",
+		&ports.TaskAnalysis{ActionName: "test", Goal: "test"},
+		time.Now(),
+	)
 	return &domain.IterationCompleteEvent{
 		BaseEvent:  evt.BaseEvent,
 		Iteration:  iteration,
@@ -197,7 +212,14 @@ func createIterationCompleteEvent(sessionID string, iteration, tokensUsed, tools
 }
 
 func createTaskCompleteEvent(sessionID string, totalIterations, totalTokens int) *domain.TaskCompleteEvent {
-	evt := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "progress-task", "", "test", "test", time.Now())
+	evt := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		sessionID,
+		"progress-task",
+		"",
+		&ports.TaskAnalysis{ActionName: "test", Goal: "test"},
+		time.Now(),
+	)
 	return &domain.TaskCompleteEvent{
 		BaseEvent:       evt.BaseEvent,
 		FinalAnswer:     "Task completed successfully",

@@ -11,7 +11,19 @@ import (
 	id "alex/internal/utils/id"
 )
 
-const defaultBudgetTarget = 5.0
+const (
+	defaultBudgetTarget     = 5.0
+	historyMaxSnippets      = 3
+	historySnippetRuneLimit = 220
+	historyMinOverlapRatio  = 0.1
+)
+
+var historyStopWords = map[string]struct{}{
+	"the": {}, "and": {}, "for": {}, "with": {}, "that": {}, "this": {}, "from": {}, "into": {}, "about": {},
+	"have": {}, "need": {}, "please": {}, "help": {}, "make": {}, "create": {}, "update": {}, "issue": {},
+	"problem": {}, "error": {}, "task": {}, "project": {}, "request": {}, "plan": {}, "info": {},
+	"information": {}, "details": {}, "should": {}, "could": {}, "would": {}, "just": {}, "maybe": {},
+}
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
@@ -49,6 +61,11 @@ type ExecutionPreparationService struct {
 	eventEmitter   ports.EventListener
 	costTracker    ports.CostTracker
 	ragGate        ports.RAGGate
+}
+
+type historyRecall struct {
+	message     *ports.Message
+	searchSeeds []string
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -170,6 +187,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			analysis = fallback
 		}
 	}
+	history := s.recallUserHistory(task, analysis, session)
 	var analysisInfo *ports.TaskAnalysisInfo
 	var taskAnalysis *ports.TaskAnalysis
 	if analysis != nil && analysis.ActionName != "" {
@@ -180,9 +198,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			Approach: analysis.Approach,
 		}
 		taskAnalysis = &ports.TaskAnalysis{
-			ActionName: analysis.ActionName,
-			Goal:       analysis.Goal,
-			Approach:   analysis.Approach,
+			ActionName:      analysis.ActionName,
+			Goal:            analysis.Goal,
+			Approach:        analysis.Approach,
+			SuccessCriteria: append([]string(nil), analysis.Criteria...),
+			TaskBreakdown:   cloneTaskAnalysisSteps(analysis.Steps),
+			Retrieval:       cloneTaskRetrievalPlan(analysis.Retrieval),
 		}
 	} else {
 		s.logger.Debug("Task pre-analysis skipped or failed")
@@ -245,6 +266,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
+	if history != nil && history.message != nil {
+		state.Messages = append(state.Messages, *history.message)
+	}
+
 	if userAttachments := GetUserAttachments(ctx); len(userAttachments) > 0 {
 		if state.Attachments == nil {
 			state.Attachments = make(map[string]ports.Attachment)
@@ -275,7 +300,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		Context:      s.contextMgr,
 	}
 
-	ragDirectives := s.evaluateRAGDirectives(ctx, session, task, toolRegistry)
+	ragDirectives := s.evaluateRAGDirectives(ctx, session, task, toolRegistry, analysis, history)
 
 	s.logger.Info("Execution environment prepared successfully")
 
@@ -289,16 +314,37 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}, nil
 }
 
-func (s *ExecutionPreparationService) evaluateRAGDirectives(ctx context.Context, session *ports.Session, task string, registry ports.ToolRegistry) *ports.RAGDirectives {
+func (s *ExecutionPreparationService) evaluateRAGDirectives(ctx context.Context, session *ports.Session, task string, registry ports.ToolRegistry, analysis *TaskAnalysis, history *historyRecall) *ports.RAGDirectives {
 	if s.ragGate == nil {
 		return nil
 	}
-	query := strings.TrimSpace(task)
+	baseQuery := strings.TrimSpace(task)
+	if analysis != nil {
+		if trimmed := strings.TrimSpace(analysis.Goal); trimmed != "" {
+			baseQuery = trimmed
+		}
+		if len(analysis.Retrieval.LocalQueries) > 0 {
+			if candidate := strings.TrimSpace(analysis.Retrieval.LocalQueries[0]); candidate != "" {
+				baseQuery = candidate
+			}
+		}
+		if len(analysis.Retrieval.SearchQueries) > 0 {
+			if baseQuery == "" {
+				if candidate := strings.TrimSpace(analysis.Retrieval.SearchQueries[0]); candidate != "" {
+					baseQuery = candidate
+				}
+			}
+		}
+	}
+	if baseQuery == "" && history != nil && len(history.searchSeeds) > 0 {
+		baseQuery = strings.TrimSpace(history.searchSeeds[0])
+	}
+	query := baseQuery
 	if query == "" {
 		return nil
 	}
 
-	signals := s.buildRAGSignals(ctx, session, query, registry)
+	signals := s.buildRAGSignals(ctx, session, query, registry, analysis, history)
 	directives := s.ragGate.Evaluate(ctx, signals)
 
 	if directives.Justification == nil {
@@ -306,6 +352,15 @@ func (s *ExecutionPreparationService) evaluateRAGDirectives(ctx context.Context,
 	}
 	s.recordRAGDirectiveMetadata(session, directives, signals)
 	s.emitRAGDirectiveEvent(ctx, session, directives, signals)
+
+	if analysis != nil {
+		directives.Query = query
+		directives.SearchSeeds = appendUniqueStrings(directives.SearchSeeds, analysis.Retrieval.SearchQueries...)
+		directives.CrawlSeeds = appendUniqueStrings(directives.CrawlSeeds, analysis.Retrieval.CrawlURLs...)
+	}
+	if history != nil {
+		directives.SearchSeeds = appendUniqueStrings(directives.SearchSeeds, history.searchSeeds...)
+	}
 
 	if total, ok := directives.Justification["total_score"]; ok {
 		s.logger.Info("RAG gate directives: retrieval=%t search=%t crawl=%t (score=%.2f)", directives.UseRetrieval, directives.UseSearch, directives.UseCrawl, total)
@@ -359,8 +414,11 @@ func (s *ExecutionPreparationService) emitRAGDirectiveEvent(ctx context.Context,
 	s.eventEmitter.OnEvent(event)
 }
 
-func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, session *ports.Session, query string, registry ports.ToolRegistry) ports.RAGSignals {
+func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, session *ports.Session, query string, registry ports.ToolRegistry, analysis *TaskAnalysis, history *historyRecall) ports.RAGSignals {
 	searchSeeds, crawlSeeds := s.extractSeeds(session)
+	if history != nil && len(history.searchSeeds) > 0 {
+		searchSeeds = appendUniqueStrings(searchSeeds, history.searchSeeds...)
+	}
 	lower := strings.ToLower(query)
 	isMarketing := containsAny(lower, marketingKeywords)
 	isCode := containsAny(lower, codeKeywords)
@@ -381,6 +439,18 @@ func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, sessi
 	remaining, target := s.estimateBudget(ctx, session)
 	signals.BudgetRemaining = remaining
 	signals.BudgetTarget = target
+	if analysis != nil {
+		signals.SearchSeeds = appendUniqueStrings(signals.SearchSeeds, analysis.Retrieval.SearchQueries...)
+		signals.CrawlSeeds = appendUniqueStrings(signals.CrawlSeeds, analysis.Retrieval.CrawlURLs...)
+		if analysis.Retrieval.ShouldRetrieve {
+			if signals.IntentConfidence < 0.7 {
+				signals.IntentConfidence = 0.7
+			}
+		}
+	}
+	if history != nil && len(history.searchSeeds) > 0 {
+		signals.SearchSeeds = appendUniqueStrings(signals.SearchSeeds, history.searchSeeds...)
+	}
 	if !signals.AllowSearch && len(searchSeeds) > 0 {
 		signals.SearchSeeds = nil
 	}
@@ -389,6 +459,378 @@ func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, sessi
 	}
 
 	return signals
+}
+
+func (s *ExecutionPreparationService) recallUserHistory(task string, analysis *TaskAnalysis, session *ports.Session) *historyRecall {
+	if session == nil || len(session.Messages) == 0 {
+		return nil
+	}
+
+	queryParts := make([]string, 0, 8)
+	if trimmed := strings.TrimSpace(task); trimmed != "" {
+		queryParts = append(queryParts, trimmed)
+	}
+	if analysis != nil {
+		if trimmed := strings.TrimSpace(analysis.Goal); trimmed != "" {
+			queryParts = append(queryParts, trimmed)
+		}
+		if trimmed := strings.TrimSpace(analysis.ActionName); trimmed != "" {
+			queryParts = append(queryParts, trimmed)
+		}
+		if trimmed := strings.TrimSpace(analysis.Approach); trimmed != "" {
+			queryParts = append(queryParts, trimmed)
+		}
+		queryParts = append(queryParts, analysis.Retrieval.LocalQueries...)
+		queryParts = append(queryParts, analysis.Retrieval.SearchQueries...)
+	}
+
+	query := collapseHistoryQuery(queryParts)
+	if query == "" {
+		return nil
+	}
+
+	candidates := selectHistoryCandidates(query, session.Messages)
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	summary := buildHistorySummary(candidates)
+	if summary == "" {
+		return nil
+	}
+
+	recall := &historyRecall{
+		searchSeeds: collectHistorySeeds(candidates),
+	}
+	message := ports.Message{
+		Role:    "system",
+		Content: summary,
+		Source:  ports.MessageSourceUserHistory,
+	}
+	recall.message = &message
+	return recall
+}
+
+type historyCandidate struct {
+	user      string
+	assistant string
+	seed      string
+}
+
+func selectHistoryCandidates(query string, messages []ports.Message) []historyCandidate {
+	queryTokens := historyTokens(query)
+	if len(queryTokens) == 0 {
+		return nil
+	}
+
+	snippets := make([]historyCandidate, 0, historyMaxSnippets)
+	queryLower := strings.ToLower(query)
+	for idx := len(messages) - 1; idx >= 0; idx-- {
+		msg := messages[idx]
+		if !isUserHistoryMessage(msg) {
+			continue
+		}
+		userContent := strings.TrimSpace(msg.Content)
+		if userContent == "" {
+			continue
+		}
+		candidateTokens := historyTokens(userContent)
+		if len(candidateTokens) == 0 {
+			continue
+		}
+		overlap := tokenOverlapCount(queryTokens, candidateTokens)
+		queryRatio := 0.0
+		candidateRatio := 0.0
+		if len(queryTokens) > 0 {
+			queryRatio = float64(overlap) / float64(len(queryTokens))
+		}
+		if len(candidateTokens) > 0 {
+			candidateRatio = float64(overlap) / float64(len(candidateTokens))
+		}
+		score := queryRatio
+		if overlap == 0 && queryLower != "" && strings.Contains(strings.ToLower(userContent), queryLower) {
+			score = 1.0
+		}
+		if overlap < 2 && score < historyMinOverlapRatio && candidateRatio < historyMinOverlapRatio {
+			continue
+		}
+		assistant := findAssistantReply(messages, idx)
+		snippets = append(snippets, historyCandidate{
+			user:      userContent,
+			assistant: assistant,
+			seed:      deriveHistorySeed(candidateTokens),
+		})
+		if len(snippets) >= historyMaxSnippets {
+			break
+		}
+	}
+
+	if len(snippets) == 0 {
+		return nil
+	}
+
+	for i, j := 0, len(snippets)-1; i < j; i, j = i+1, j-1 {
+		snippets[i], snippets[j] = snippets[j], snippets[i]
+	}
+	return snippets
+}
+
+func collapseHistoryQuery(values []string) string {
+	cleaned := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	if len(cleaned) == 0 {
+		return ""
+	}
+	return strings.Join(cleaned, " ")
+}
+
+func buildHistorySummary(candidates []historyCandidate) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	builder.WriteString("Context recall from earlier user exchanges:\n")
+	for i, cand := range candidates {
+		user := condenseHistoryText(cand.user, historySnippetRuneLimit)
+		if user == "" {
+			continue
+		}
+		builder.WriteString(fmt.Sprintf("%d. User: %s\n", i+1, user))
+		if assistant := condenseHistoryText(cand.assistant, historySnippetRuneLimit); assistant != "" {
+			builder.WriteString("   Assistant: ")
+			builder.WriteString(assistant)
+			builder.WriteString("\n")
+		}
+		if i < len(candidates)-1 {
+			builder.WriteString("\n")
+		}
+	}
+	return strings.TrimRight(builder.String(), "\n")
+}
+
+func condenseHistoryText(value string, limit int) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	normalized := normalizeWhitespace(trimmed)
+	runes := []rune(normalized)
+	if len(runes) <= limit {
+		return normalized
+	}
+	if limit <= 1 {
+		return string(runes[:1])
+	}
+	return string(runes[:limit-1]) + "…"
+}
+
+func normalizeWhitespace(value string) string {
+	if value == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func collectHistorySeeds(candidates []historyCandidate) []string {
+	if len(candidates) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(candidates))
+	seeds := make([]string, 0, len(candidates))
+	for _, cand := range candidates {
+		seed := strings.TrimSpace(cand.seed)
+		if seed == "" {
+			continue
+		}
+		lower := strings.ToLower(seed)
+		if _, exists := seen[lower]; exists {
+			continue
+		}
+		seen[lower] = struct{}{}
+		seeds = append(seeds, seed)
+	}
+	if len(seeds) == 0 {
+		return nil
+	}
+	return seeds
+}
+
+func deriveHistorySeed(tokens []string) string {
+	if len(tokens) == 0 {
+		return ""
+	}
+	filtered := make([]string, 0, len(tokens))
+	seen := make(map[string]struct{}, len(tokens))
+	for _, token := range tokens {
+		if len(token) < 3 {
+			continue
+		}
+		if _, stop := historyStopWords[token]; stop {
+			continue
+		}
+		if _, exists := seen[token]; exists {
+			continue
+		}
+		seen[token] = struct{}{}
+		filtered = append(filtered, token)
+		if len(filtered) >= 5 {
+			break
+		}
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	return strings.Join(filtered, " ")
+}
+
+func historyTokens(value string) []string {
+	lower := strings.ToLower(value)
+	if lower == "" {
+		return nil
+	}
+	fields := strings.Fields(lower)
+	if len(fields) == 0 {
+		return nil
+	}
+	tokens := make([]string, 0, len(fields))
+	seen := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		token := strings.Trim(field, "\"'`.,;:!?()[]{}<>")
+		if token == "" {
+			continue
+		}
+		if _, exists := seen[token]; exists {
+			continue
+		}
+		seen[token] = struct{}{}
+		tokens = append(tokens, token)
+	}
+	if len(tokens) == 0 {
+		return nil
+	}
+	return tokens
+}
+
+func tokenOverlapCount(queryTokens, candidateTokens []string) int {
+	if len(queryTokens) == 0 || len(candidateTokens) == 0 {
+		return 0
+	}
+	querySet := make(map[string]struct{}, len(queryTokens))
+	for _, token := range queryTokens {
+		querySet[token] = struct{}{}
+	}
+	overlap := 0
+	for _, token := range candidateTokens {
+		if _, ok := querySet[token]; ok {
+			overlap++
+		}
+	}
+	return overlap
+}
+
+func isUserHistoryMessage(msg ports.Message) bool {
+	if msg.Source == ports.MessageSourceUserInput {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(msg.Role), "user")
+}
+
+func findAssistantReply(messages []ports.Message, userIndex int) string {
+	for i := userIndex + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if strings.EqualFold(strings.TrimSpace(msg.Role), "assistant") || msg.Source == ports.MessageSourceAssistantReply {
+			if trimmed := strings.TrimSpace(msg.Content); trimmed != "" {
+				return trimmed
+			}
+			continue
+		}
+		if msg.Source == ports.MessageSourceUserInput || strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
+			break
+		}
+	}
+	return ""
+}
+
+func cloneTaskAnalysisSteps(steps []ports.TaskAnalysisStep) []ports.TaskAnalysisStep {
+	if len(steps) == 0 {
+		return nil
+	}
+	cloned := make([]ports.TaskAnalysisStep, 0, len(steps))
+	for _, step := range steps {
+		if strings.TrimSpace(step.Description) == "" {
+			continue
+		}
+		cloned = append(cloned, ports.TaskAnalysisStep{
+			Description:          strings.TrimSpace(step.Description),
+			NeedsExternalContext: step.NeedsExternalContext,
+			Rationale:            strings.TrimSpace(step.Rationale),
+		})
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
+}
+
+func cloneTaskRetrievalPlan(plan ports.TaskRetrievalPlan) ports.TaskRetrievalPlan {
+	cloned := ports.TaskRetrievalPlan{
+		ShouldRetrieve: plan.ShouldRetrieve,
+		Notes:          strings.TrimSpace(plan.Notes),
+	}
+	cloned.LocalQueries = append([]string(nil), plan.LocalQueries...)
+	cloned.SearchQueries = append([]string(nil), plan.SearchQueries...)
+	cloned.CrawlURLs = append([]string(nil), plan.CrawlURLs...)
+	cloned.KnowledgeGaps = append([]string(nil), plan.KnowledgeGaps...)
+	if !cloned.ShouldRetrieve {
+		if len(cloned.LocalQueries) > 0 || len(cloned.SearchQueries) > 0 || len(cloned.CrawlURLs) > 0 {
+			cloned.ShouldRetrieve = true
+		}
+	}
+	return cloned
+}
+
+func appendUniqueStrings(base []string, values ...string) []string {
+	if len(values) == 0 {
+		if len(base) == 0 {
+			return nil
+		}
+		return base
+	}
+	seen := make(map[string]struct{}, len(base)+len(values))
+	result := make([]string, 0, len(base)+len(values))
+	for _, value := range base {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, trimmed)
+	}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, trimmed)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func (s *ExecutionPreparationService) estimateRetrievalHitRate(session *ports.Session) float64 {

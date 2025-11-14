@@ -14,7 +14,11 @@ func TestBaseEventAccessors(t *testing.T) {
 
 	taskID := "task-123"
 	parentTaskID := ""
-	event := NewTaskAnalysisEvent(level, sessionID, taskID, parentTaskID, "analyze", "goal", ts)
+	analysis := &ports.TaskAnalysis{
+		ActionName: "analyze",
+		Goal:       "goal",
+	}
+	event := NewTaskAnalysisEvent(level, sessionID, taskID, parentTaskID, analysis, ts)
 	if got := event.Timestamp(); !got.Equal(ts) {
 		t.Fatalf("expected timestamp %v, got %v", ts, got)
 	}

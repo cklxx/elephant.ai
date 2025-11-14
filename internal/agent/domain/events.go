@@ -52,19 +52,90 @@ func newBaseEventWithIDs(level ports.AgentLevel, sessionID, taskID, parentTaskID
 // TaskAnalysisEvent - emitted after task pre-analysis
 type TaskAnalysisEvent struct {
 	BaseEvent
-	ActionName string // e.g., "Optimizing context collection pipeline"
-	Goal       string // Brief description of what needs to be achieved
+	ActionName      string
+	Goal            string
+	Approach        string
+	SuccessCriteria []string
+	Steps           []ports.TaskAnalysisStep
+	Retrieval       ports.TaskRetrievalPlan
 }
 
 func (e *TaskAnalysisEvent) EventType() string { return "task_analysis" }
 
 // NewTaskAnalysisEvent creates a new task analysis event
-func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID, actionName, goal string, ts time.Time) *TaskAnalysisEvent {
-	return &TaskAnalysisEvent{
-		BaseEvent:  newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
-		ActionName: actionName,
-		Goal:       goal,
+func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID string, analysis *ports.TaskAnalysis, ts time.Time) *TaskAnalysisEvent {
+	var action string
+	var goal string
+	var approach string
+	var criteria []string
+	var steps []ports.TaskAnalysisStep
+	var retrieval ports.TaskRetrievalPlan
+
+	if analysis != nil {
+		action = analysis.ActionName
+		goal = analysis.Goal
+		approach = analysis.Approach
+		if len(analysis.SuccessCriteria) > 0 {
+			criteria = append([]string(nil), analysis.SuccessCriteria...)
+		}
+		if len(analysis.TaskBreakdown) > 0 {
+			steps = cloneAnalysisSteps(analysis.TaskBreakdown)
+		}
+		retrieval = cloneRetrievalPlan(analysis.Retrieval)
 	}
+
+	return &TaskAnalysisEvent{
+		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		ActionName:      action,
+		Goal:            goal,
+		Approach:        approach,
+		SuccessCriteria: criteria,
+		Steps:           steps,
+		Retrieval:       retrieval,
+	}
+}
+
+func cloneAnalysisSteps(steps []ports.TaskAnalysisStep) []ports.TaskAnalysisStep {
+	if len(steps) == 0 {
+		return nil
+	}
+	cloned := make([]ports.TaskAnalysisStep, 0, len(steps))
+	for _, step := range steps {
+		cloned = append(cloned, ports.TaskAnalysisStep{
+			Description:          step.Description,
+			NeedsExternalContext: step.NeedsExternalContext,
+			Rationale:            step.Rationale,
+		})
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
+}
+
+func cloneRetrievalPlan(plan ports.TaskRetrievalPlan) ports.TaskRetrievalPlan {
+	cloned := ports.TaskRetrievalPlan{
+		ShouldRetrieve: plan.ShouldRetrieve,
+		Notes:          plan.Notes,
+	}
+	if len(plan.LocalQueries) > 0 {
+		cloned.LocalQueries = append([]string(nil), plan.LocalQueries...)
+	}
+	if len(plan.SearchQueries) > 0 {
+		cloned.SearchQueries = append([]string(nil), plan.SearchQueries...)
+	}
+	if len(plan.CrawlURLs) > 0 {
+		cloned.CrawlURLs = append([]string(nil), plan.CrawlURLs...)
+	}
+	if len(plan.KnowledgeGaps) > 0 {
+		cloned.KnowledgeGaps = append([]string(nil), plan.KnowledgeGaps...)
+	}
+	if !cloned.ShouldRetrieve {
+		if len(cloned.LocalQueries) > 0 || len(cloned.SearchQueries) > 0 || len(cloned.CrawlURLs) > 0 {
+			cloned.ShouldRetrieve = true
+		}
+	}
+	return cloned
 }
 
 // UserTaskEvent - emitted when a user submits a new task

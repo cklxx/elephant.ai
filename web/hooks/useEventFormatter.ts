@@ -178,7 +178,14 @@ export function useEventFormatter(
 
         case 'task_analysis':
           if ('action_name' in event) {
-            return `📋 ${event.action_name} - ${event.goal}`;
+            const parts = [event.action_name];
+            if ('goal' in event && event.goal) {
+              parts.push(event.goal);
+            }
+            if ('approach' in event && event.approach) {
+              parts.push(event.approach);
+            }
+            return `📋 ${parts.filter(Boolean).join(' · ')}`;
           }
           return 'Task analysis';
 

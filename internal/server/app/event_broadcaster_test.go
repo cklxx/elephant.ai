@@ -45,7 +45,14 @@ func TestEventBroadcaster_BroadcastEvent(t *testing.T) {
 	broadcaster.RegisterClient(sessionID, ch2)
 
 	// Create and broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "task-broadcast", "", "Test Action", "Test Goal", time.Now())
+	event := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		sessionID,
+		"task-broadcast",
+		"",
+		&ports.TaskAnalysis{ActionName: "Test Action", Goal: "Test Goal"},
+		time.Now(),
+	)
 	broadcaster.OnEvent(event)
 
 	// Give some time for event to be delivered
@@ -89,7 +96,14 @@ func TestEventBroadcaster_MultipleSessionsIsolation(t *testing.T) {
 	broadcaster.RegisterClient(session2, ch2)
 
 	// Broadcast event for session1 - should only go to session1
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, session1, "task-session1", "", "Test", "Test", time.Now())
+	event := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		session1,
+		"task-session1",
+		"",
+		&ports.TaskAnalysis{ActionName: "Test", Goal: "Test"},
+		time.Now(),
+	)
 	broadcaster.OnEvent(event)
 
 	time.Sleep(100 * time.Millisecond)
@@ -119,7 +133,14 @@ func TestEventBroadcaster_BufferFull(t *testing.T) {
 
 	// Fill the buffer
 	for i := 0; i < 5; i++ {
-		event := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "task-buffer", "", "Test", "Test", time.Now())
+		event := domain.NewTaskAnalysisEvent(
+			types.LevelCore,
+			sessionID,
+			"task-buffer",
+			"",
+			&ports.TaskAnalysis{ActionName: "Test", Goal: "Test"},
+			time.Now(),
+		)
 		broadcaster.OnEvent(event)
 	}
 
@@ -141,7 +162,14 @@ func TestEventBroadcaster_AttachmentArchiver(t *testing.T) {
 	broadcaster.SetAttachmentArchiver(stub)
 
 	sessionID := "session-attachments"
-	base := domain.NewTaskAnalysisEvent(types.LevelCore, sessionID, "task-attachments", "", "Action", "Goal", time.Now()).BaseEvent
+	base := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		sessionID,
+		"task-attachments",
+		"",
+		&ports.TaskAnalysis{ActionName: "Action", Goal: "Goal"},
+		time.Now(),
+	).BaseEvent
 	event := &domain.ToolCallCompleteEvent{
 		BaseEvent: base,
 		Attachments: map[string]ports.Attachment{
