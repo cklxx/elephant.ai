@@ -134,6 +134,83 @@ func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
 	}
 }
 
+func TestSanitizeMessagesForPersistenceSkipsUserHistory(t *testing.T) {
+	messages := []ports.Message{
+		{
+			Role:    "system",
+			Source:  ports.MessageSourceSystemPrompt,
+			Content: "persist me",
+		},
+		{
+			Role:    "system",
+			Source:  ports.MessageSourceUserHistory,
+			Content: "transient summary",
+			Attachments: map[string]ports.Attachment{
+				"summary.txt": {
+					Name: "summary.txt",
+				},
+			},
+		},
+		{
+			Role:    "assistant",
+			Source:  ports.MessageSourceAssistantReply,
+			Content: "final answer",
+			Attachments: map[string]ports.Attachment{
+				"diagram.png": {
+					Name:      "diagram.png",
+					MediaType: "image/png",
+				},
+			},
+		},
+	}
+
+	sanitized, attachments := sanitizeMessagesForPersistence(messages)
+
+	if len(sanitized) != 2 {
+		t.Fatalf("expected 2 sanitized messages, got %d", len(sanitized))
+	}
+
+	if sanitized[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected first sanitized message to be the system prompt, got %s", sanitized[0].Source)
+	}
+
+	if sanitized[1].Source != ports.MessageSourceAssistantReply {
+		t.Fatalf("expected second sanitized message to be the assistant reply, got %s", sanitized[1].Source)
+	}
+
+	if sanitized[1].Attachments != nil {
+		t.Fatalf("expected attachments to be stripped from sanitized message, got %+v", sanitized[1].Attachments)
+	}
+
+	if len(attachments) != 1 {
+		t.Fatalf("expected 1 persisted attachment, got %d", len(attachments))
+	}
+
+	if _, ok := attachments["diagram.png"]; !ok {
+		t.Fatalf("expected diagram.png attachment to be persisted, got keys %v", attachments)
+	}
+}
+
+func TestSanitizeMessagesForPersistenceAllUserHistory(t *testing.T) {
+	messages := []ports.Message{
+		{
+			Role:    "system",
+			Source:  ports.MessageSourceUserHistory,
+			Content: "transient summary",
+		},
+	}
+
+	sanitized, attachments := sanitizeMessagesForPersistence(messages)
+
+	if sanitized != nil {
+		t.Fatalf("expected sanitized messages to be nil, got %+v", sanitized)
+	}
+
+	if attachments != nil {
+		t.Fatalf("expected attachments to be nil, got %+v", attachments)
+	}
+}
+
 func TestCoordinatorGetConfigIncludesCompletionDefaults(t *testing.T) {
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
