@@ -76,7 +76,14 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Broadcast an event
-	event := domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "sse-task", "", "Test Action", "Test Goal", time.Now())
+	event := domain.NewTaskAnalysisEvent(
+		types.LevelCore,
+		"test-session",
+		"sse-task",
+		"",
+		&agentports.TaskAnalysis{ActionName: "Test Action", Goal: "Test Goal"},
+		time.Now(),
+	)
 	broadcaster.OnEvent(event)
 
 	// Wait for event to be sent
@@ -147,9 +154,31 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 		wantField string
 	}{
 		{
-			name:      "TaskAnalysisEvent",
-			event:     domain.NewTaskAnalysisEvent(types.LevelCore, "test-session", "sse-task", "", "Test", "Goal", time.Now()),
-			wantField: "action_name",
+			name: "TaskAnalysisEvent",
+			event: domain.NewTaskAnalysisEvent(
+				types.LevelCore,
+				"test-session",
+				"sse-task",
+				"",
+				&agentports.TaskAnalysis{
+					ActionName:      "Test",
+					Goal:            "Goal",
+					Approach:        "Refine flow",
+					SuccessCriteria: []string{"Document plan"},
+					TaskBreakdown: []agentports.TaskAnalysisStep{{
+						Description:          "Audit modules",
+						NeedsExternalContext: true,
+						Rationale:            "Identify dependencies",
+					}},
+					Retrieval: agentports.TaskRetrievalPlan{
+						LocalQueries:  []string{"module graph"},
+						KnowledgeGaps: []string{"Ownership map"},
+						Notes:         "Check service owners",
+					},
+				},
+				time.Now(),
+			),
+			wantField: "approach",
 		},
 		{
 			name: "ToolCallStartEvent",
@@ -204,45 +233,73 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			json, err := handler.serializeEvent(tt.event)
+			serialized, err := handler.serializeEvent(tt.event)
 			if err != nil {
 				t.Fatalf("Failed to serialize event: %v", err)
 			}
 
-			if !strings.Contains(json, tt.wantField) {
-				t.Errorf("Expected field %s in JSON, got: %s", tt.wantField, json)
+			if !strings.Contains(serialized, tt.wantField) {
+				t.Errorf("Expected field %s in JSON, got: %s", tt.wantField, serialized)
 			}
 
-			if !strings.Contains(json, "\"task_id\"") {
-				t.Errorf("Expected serialized event to include task_id, got: %s", json)
+			if ta, ok := tt.event.(*domain.TaskAnalysisEvent); ok {
+				var payload map[string]any
+				if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
+					t.Fatalf("failed to decode task analysis payload: %v", err)
+				}
+				if got := payload["approach"]; got != ta.Approach {
+					t.Fatalf("expected approach %q, got %v", ta.Approach, got)
+				}
+				criteria, ok := payload["success_criteria"].([]any)
+				if !ok || len(criteria) != len(ta.SuccessCriteria) {
+					t.Fatalf("expected success_criteria %v, got %v", ta.SuccessCriteria, payload["success_criteria"])
+				}
+				steps, ok := payload["steps"].([]any)
+				if !ok || len(steps) != len(ta.Steps) {
+					t.Fatalf("expected steps to mirror analysis, got %v", payload["steps"])
+				}
+				retrieval, ok := payload["retrieval_plan"].(map[string]any)
+				if !ok {
+					t.Fatalf("expected retrieval_plan map, got %T", payload["retrieval_plan"])
+				}
+				if retrieval["should_retrieve"] != true {
+					t.Fatalf("expected should_retrieve true, got %v", retrieval["should_retrieve"])
+				}
+				if _, exists := retrieval["knowledge_gaps"]; !exists {
+					t.Fatalf("expected knowledge_gaps in retrieval payload, got %v", retrieval)
+				}
 			}
 
-			if !strings.Contains(json, "\"parent_task_id\"") {
-				t.Errorf("Expected serialized event to include parent_task_id, got: %s", json)
+			if !strings.Contains(serialized, "\"task_id\"") {
+				t.Errorf("Expected serialized event to include task_id, got: %s", serialized)
+			}
+
+			if !strings.Contains(serialized, "\"parent_task_id\"") {
+				t.Errorf("Expected serialized event to include parent_task_id, got: %s", serialized)
 			}
 
 			if _, ok := tt.event.(*domain.ToolCallStartEvent); ok {
-				if strings.Contains(json, "sk-secret") || strings.Contains(json, "Bearer token-value") {
-					t.Errorf("Sensitive values should be redacted, got: %s", json)
+				if strings.Contains(serialized, "sk-secret") || strings.Contains(serialized, "Bearer token-value") {
+					t.Errorf("Sensitive values should be redacted, got: %s", serialized)
 				}
 
-				if !strings.Contains(json, "arguments_preview") {
-					t.Errorf("Expected arguments_preview in serialized start event, got: %s", json)
+				if !strings.Contains(serialized, "arguments_preview") {
+					t.Errorf("Expected arguments_preview in serialized start event, got: %s", serialized)
 				}
 
-				if !strings.Contains(json, "command") {
-					t.Errorf("Expected sanitized command argument, got: %s", json)
+				if !strings.Contains(serialized, "command") {
+					t.Errorf("Expected sanitized command argument, got: %s", serialized)
 				}
 			}
 
 			// Check common fields
-			if !strings.Contains(json, "event_type") {
+			if !strings.Contains(serialized, "event_type") {
 				t.Error("Expected event_type in JSON")
 			}
-			if !strings.Contains(json, "timestamp") {
+			if !strings.Contains(serialized, "timestamp") {
 				t.Error("Expected timestamp in JSON")
 			}
-			if !strings.Contains(json, "session_id") {
+			if !strings.Contains(serialized, "session_id") {
 				t.Error("Expected session_id in JSON")
 			}
 		})

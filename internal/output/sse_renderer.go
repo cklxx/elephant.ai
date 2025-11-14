@@ -2,9 +2,11 @@ package output
 
 import (
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -35,18 +37,32 @@ type SSEEvent struct {
 
 // RenderTaskAnalysis renders task analysis as SSE event with hierarchy
 func (r *SSERenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain.TaskAnalysisEvent) string {
+	payload := map[string]interface{}{
+		"action_name":    event.ActionName,
+		"goal":           event.Goal,
+		"level":          string(ctx.Level),
+		"agent_id":       ctx.AgentID,
+		"session_id":     ctx.SessionID,
+		"task_id":        event.GetTaskID(),
+		"parent_task_id": event.GetParentTaskID(),
+	}
+	if strings.TrimSpace(event.Approach) != "" {
+		payload["approach"] = event.Approach
+	}
+	if len(event.SuccessCriteria) > 0 {
+		payload["success_criteria"] = append([]string(nil), event.SuccessCriteria...)
+	}
+	if steps := cloneStepsForSSE(event.Steps); len(steps) > 0 {
+		payload["steps"] = steps
+	}
+	if retrieval := cloneRetrievalForSSE(event.Retrieval); retrieval != nil {
+		payload["retrieval_plan"] = retrieval
+	}
+
 	sseEvent := SSEEvent{
 		Type:      "task_analysis",
 		Timestamp: event.Timestamp(),
-		Data: map[string]interface{}{
-			"action":         event.ActionName,
-			"goal":           event.Goal,
-			"level":          string(ctx.Level),
-			"agent_id":       ctx.AgentID,
-			"session_id":     ctx.SessionID,
-			"task_id":        event.GetTaskID(),
-			"parent_task_id": event.GetParentTaskID(),
-		},
+		Data:      payload,
 	}
 	return r.toSSE(sseEvent)
 }
@@ -192,4 +208,60 @@ func (r *SSERenderer) toSSE(event SSEEvent) string {
 	}
 	// SSE format: data: <json>\n\n
 	return fmt.Sprintf("data: %s\n\n", string(jsonData))
+}
+
+func cloneStepsForSSE(steps []ports.TaskAnalysisStep) []map[string]any {
+	if len(steps) == 0 {
+		return nil
+	}
+	cloned := make([]map[string]any, 0, len(steps))
+	for _, step := range steps {
+		if strings.TrimSpace(step.Description) == "" {
+			continue
+		}
+		entry := map[string]any{
+			"description": step.Description,
+		}
+		if strings.TrimSpace(step.Rationale) != "" {
+			entry["rationale"] = step.Rationale
+		}
+		if step.NeedsExternalContext {
+			entry["needs_external_context"] = true
+		}
+		cloned = append(cloned, entry)
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
+}
+
+func cloneRetrievalForSSE(plan ports.TaskRetrievalPlan) map[string]any {
+	hasQueries := len(plan.LocalQueries) > 0 || len(plan.SearchQueries) > 0 || len(plan.CrawlURLs) > 0 || len(plan.KnowledgeGaps) > 0
+	if !plan.ShouldRetrieve && !hasQueries && strings.TrimSpace(plan.Notes) == "" {
+		return nil
+	}
+
+	payload := map[string]any{
+		"should_retrieve": plan.ShouldRetrieve,
+	}
+	if len(plan.LocalQueries) > 0 {
+		payload["local_queries"] = append([]string(nil), plan.LocalQueries...)
+	}
+	if len(plan.SearchQueries) > 0 {
+		payload["search_queries"] = append([]string(nil), plan.SearchQueries...)
+	}
+	if len(plan.CrawlURLs) > 0 {
+		payload["crawl_urls"] = append([]string(nil), plan.CrawlURLs...)
+	}
+	if len(plan.KnowledgeGaps) > 0 {
+		payload["knowledge_gaps"] = append([]string(nil), plan.KnowledgeGaps...)
+	}
+	if strings.TrimSpace(plan.Notes) != "" {
+		payload["notes"] = plan.Notes
+	}
+	if !plan.ShouldRetrieve && hasQueries {
+		payload["should_retrieve"] = true
+	}
+	return payload
 }

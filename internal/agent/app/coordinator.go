@@ -173,7 +173,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		// Get agent level from context
 		agentLevel := ports.GetOutputContext(ctx).Level
 
-		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, ensuredTaskID, parentTaskID, env.TaskAnalysis.ActionName, env.TaskAnalysis.Goal, c.clock.Now())
+		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, ensuredTaskID, parentTaskID, env.TaskAnalysis, c.clock.Now())
 		listener.OnEvent(event)
 	}
 

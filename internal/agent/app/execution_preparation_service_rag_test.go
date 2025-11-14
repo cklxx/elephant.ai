@@ -53,7 +53,42 @@ func (f *fakeLLMFactory) DisableRetry() {}
 type fakeLLMClient struct{}
 
 func (fakeLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	return &ports.CompletionResponse{Content: "Action: Research\nGoal: Understand\nApproach: Outline"}, nil
+	return &ports.CompletionResponse{Content: `<task_analysis>
+  <action>Researching marketing landscape</action>
+  <goal>Summarize current marketing trends</goal>
+  <approach>Review internal assets then synthesize web insights</approach>
+  <success_criteria>
+    <criterion>List at least three trend themes</criterion>
+    <criterion>Cite internal and external sources</criterion>
+  </success_criteria>
+  <task_breakdown>
+    <step requires_external_research="false" requires_retrieval="true">
+      <description>Review recent marketing briefs in the repo</description>
+      <reason>Need latest internal positioning</reason>
+    </step>
+    <step requires_external_research="true" requires_retrieval="true">
+      <description>Collect public reports on 2024 marketing trends</description>
+      <reason>Fresh data lives outside the workspace</reason>
+    </step>
+  </task_breakdown>
+  <retrieval_plan should_retrieve="true">
+    <local_queries>
+      <query>marketing brief</query>
+      <query>campaign roadmap</query>
+    </local_queries>
+    <search_queries>
+      <query>2024 marketing trends</query>
+      <query>consumer engagement benchmarks</query>
+    </search_queries>
+    <crawl_urls>
+      <url>https://example.com/report</url>
+    </crawl_urls>
+    <knowledge_gaps>
+      <gap>Latest consumer engagement statistics</gap>
+    </knowledge_gaps>
+    <notes>Prioritize sources updated within the last quarter</notes>
+  </retrieval_plan>
+</task_analysis>`}, nil
 }
 
 func (fakeLLMClient) Model() string { return "stub-model" }
@@ -179,11 +214,26 @@ func TestExecutionPreparationServiceEmitsRAGDirectives(t *testing.T) {
 	if !env.RAGDirectives.UseRetrieval || !env.RAGDirectives.UseSearch || env.RAGDirectives.UseCrawl {
 		t.Fatalf("unexpected directives: %+v", env.RAGDirectives)
 	}
+	if env.RAGDirectives.Query != "marketing brief" {
+		t.Fatalf("expected directives query to prefer structured plan, got %q", env.RAGDirectives.Query)
+	}
 	if env.RAGDirectives.Justification["total_score"] != 0.6 {
 		t.Fatalf("expected justification to be copied, got %#v", env.RAGDirectives.Justification)
 	}
-	if len(env.RAGDirectives.SearchSeeds) != 1 || env.RAGDirectives.SearchSeeds[0] != "seed-from-plan" {
-		t.Fatalf("expected directives search seeds propagated, got %#v", env.RAGDirectives.SearchSeeds)
+	if !containsString(env.RAGDirectives.SearchSeeds, "seed-from-plan") || !containsString(env.RAGDirectives.SearchSeeds, "2024 marketing trends") {
+		t.Fatalf("expected directives search seeds to merge plan suggestions, got %#v", env.RAGDirectives.SearchSeeds)
+	}
+	if !containsString(env.RAGDirectives.CrawlSeeds, "https://example.com") || !containsString(env.RAGDirectives.CrawlSeeds, "https://example.com/report") {
+		t.Fatalf("expected directives crawl seeds to merge plan suggestions, got %#v", env.RAGDirectives.CrawlSeeds)
+	}
+	if gate.signals.Query != "marketing brief" {
+		t.Fatalf("expected signals query to align with local retrieval plan, got %q", gate.signals.Query)
+	}
+	if !containsString(gate.signals.SearchSeeds, "2024 marketing trends") || !containsString(gate.signals.SearchSeeds, "consumer engagement benchmarks") {
+		t.Fatalf("expected signals search seeds to include plan guidance, got %#v", gate.signals.SearchSeeds)
+	}
+	if !containsString(gate.signals.CrawlSeeds, "https://example.com/report") {
+		t.Fatalf("expected signals crawl seeds to include plan guidance, got %#v", gate.signals.CrawlSeeds)
 	}
 
 	metadata := env.Session.Metadata
@@ -242,8 +292,11 @@ func TestExecutionPreparationServiceEmitsRAGDirectives(t *testing.T) {
 	if signals.RetrievalHitRate <= 0.5 {
 		t.Fatalf("expected retrieval hit rate to reflect prior success, got %.2f", signals.RetrievalHitRate)
 	}
-	if len(signals.SearchSeeds) != 2 || signals.SearchSeeds[0] != "example.com" {
-		t.Fatalf("expected seeds from metadata, got %#v", signals.SearchSeeds)
+	if !containsString(signals.SearchSeeds, "example.com") || !containsString(signals.SearchSeeds, "example.org") {
+		t.Fatalf("expected metadata seeds to persist, got %#v", signals.SearchSeeds)
+	}
+	if !containsString(signals.SearchSeeds, "2024 marketing trends") || !containsString(signals.SearchSeeds, "consumer engagement benchmarks") {
+		t.Fatalf("expected signals to include plan seeds, got %#v", signals.SearchSeeds)
 	}
 	expectedRemaining := 3.5 - tracker.stats.TotalCost
 	if diff := signals.BudgetRemaining - expectedRemaining; diff < -0.001 || diff > 0.001 {
@@ -252,4 +305,13 @@ func TestExecutionPreparationServiceEmitsRAGDirectives(t *testing.T) {
 	if signals.BudgetTarget != 3.5 {
 		t.Fatalf("expected budget target 3.5, got %.2f", signals.BudgetTarget)
 	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

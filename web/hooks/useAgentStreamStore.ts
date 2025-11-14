@@ -14,6 +14,8 @@ import {
   IterationStartEvent,
   IterationCompleteEvent,
   TaskAnalysisEvent,
+  TaskAnalysisStepDetail,
+  TaskRetrievalPlanDetail,
   TaskCancelledEvent,
   TaskCompleteEvent,
   ErrorEvent,
@@ -94,10 +96,7 @@ interface AgentStreamState {
   currentIteration: number | null;
   activeToolCallId: string | null;
   activeResearchStepId: string | null;
-  taskAnalysis: {
-    action_name?: string;
-    goal?: string;
-  };
+  taskAnalysis: TaskAnalysisSnapshot;
   taskStatus: 'idle' | 'analyzing' | 'running' | 'completed' | 'cancelled' | 'error';
   finalAnswer?: string;
   finalAnswerAttachments?: Record<string, AttachmentPayload>;
@@ -112,6 +111,15 @@ interface AgentStreamState {
 
 type AgentStreamDraft = AgentStreamState;
 
+type TaskAnalysisSnapshot = {
+  action_name?: string;
+  goal?: string;
+  approach?: string;
+  success_criteria?: string[];
+  steps?: TaskAnalysisStepDetail[];
+  retrieval_plan?: TaskRetrievalPlanDetail;
+};
+
 const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' | 'clearEvents' | 'recomputeAggregations'> => ({
   eventCache: new EventLRUCache(MAX_EVENT_COUNT),
   toolCalls: new Map(),
@@ -123,7 +131,7 @@ const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' |
   currentIteration: null,
   activeToolCallId: null,
   activeResearchStepId: null,
-  taskAnalysis: {},
+  taskAnalysis: {} as TaskAnalysisSnapshot,
   taskStatus: 'idle',
   finalAnswer: undefined,
   finalAnswerAttachments: undefined,
@@ -336,6 +344,10 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       draft.taskAnalysis = {
         action_name: task.action_name,
         goal: task.goal,
+        approach: task.approach,
+        success_criteria: task.success_criteria ?? [],
+        steps: task.steps,
+        retrieval_plan: task.retrieval_plan,
       };
       break;
     }
@@ -514,6 +526,10 @@ export const useTaskSummary = () => {
   return useAgentStreamStore((state) => ({
     actionName: state.taskAnalysis.action_name,
     goal: state.taskAnalysis.goal,
+    approach: state.taskAnalysis.approach,
+    successCriteria: state.taskAnalysis.success_criteria ?? [],
+    steps: state.taskAnalysis.steps ?? [],
+    retrievalPlan: state.taskAnalysis.retrieval_plan,
     status: state.taskStatus,
     currentIteration: state.currentIteration,
     totalIterations: state.totalIterations,

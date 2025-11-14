@@ -27,6 +27,7 @@ export const AttachmentPayloadSchema = z.object({
 export const MessageSourceSchema = z.enum([
   'system_prompt',
   'user_input',
+  'user_history',
   'assistant_reply',
   'tool_result',
   'debug',
@@ -70,6 +71,27 @@ export const TaskAnalysisEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_analysis'),
   action_name: z.string(),
   goal: z.string(),
+  approach: z.string().optional(),
+  success_criteria: z.array(z.string()).optional(),
+  steps: z
+    .array(
+      z.object({
+        description: z.string(),
+        rationale: z.string().optional(),
+        needs_external_context: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+  retrieval_plan: z
+    .object({
+      should_retrieve: z.boolean().optional(),
+      local_queries: z.array(z.string()).optional(),
+      search_queries: z.array(z.string()).optional(),
+      crawl_urls: z.array(z.string()).optional(),
+      knowledge_gaps: z.array(z.string()).optional(),
+      notes: z.string().optional(),
+    })
+    .optional(),
 });
 
 // Iteration Start Event

@@ -97,6 +97,7 @@ const (
 	MessageSourceUnknown        MessageSource = ""
 	MessageSourceSystemPrompt   MessageSource = "system_prompt"
 	MessageSourceUserInput      MessageSource = "user_input"
+	MessageSourceUserHistory    MessageSource = "user_history"
 	MessageSourceAssistantReply MessageSource = "assistant_reply"
 	MessageSourceToolResult     MessageSource = "tool_result"
 	MessageSourceDebug          MessageSource = "debug"

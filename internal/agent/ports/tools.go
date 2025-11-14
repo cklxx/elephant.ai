@@ -39,9 +39,29 @@ type ExecutionEnvironment struct {
 
 // TaskAnalysis contains structured task pre-analysis result
 type TaskAnalysis struct {
-	ActionName string
-	Goal       string
-	Approach   string
+	ActionName      string
+	Goal            string
+	Approach        string
+	SuccessCriteria []string
+	TaskBreakdown   []TaskAnalysisStep
+	Retrieval       TaskRetrievalPlan
+}
+
+// TaskAnalysisStep captures a step in the pre-analysis task plan.
+type TaskAnalysisStep struct {
+	Description          string
+	NeedsExternalContext bool
+	Rationale            string
+}
+
+// TaskRetrievalPlan captures retrieval specific directives extracted during analysis.
+type TaskRetrievalPlan struct {
+	ShouldRetrieve bool
+	LocalQueries   []string
+	SearchQueries  []string
+	CrawlURLs      []string
+	KnowledgeGaps  []string
+	Notes          string
 }
 
 // TaskState tracks execution state during ReAct loop

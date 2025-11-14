@@ -223,6 +223,18 @@ describe('useAgentStreamStore', () => {
         iteration: 1,
         action_name: 'Test Task',
         goal: 'Complete the test',
+        approach: 'Outline plan and execute checks',
+        success_criteria: ['Pass regression tests'],
+        steps: [
+          {
+            description: 'Review existing coverage',
+            needs_external_context: true,
+          },
+        ],
+        retrieval_plan: {
+          should_retrieve: true,
+          local_queries: ['coverage report'],
+        },
       };
 
       act(() => {
@@ -232,6 +244,10 @@ describe('useAgentStreamStore', () => {
       const state = useAgentStreamStore.getState();
       expect(state.taskStatus).toBe('analyzing');
       expect(state.taskAnalysis.action_name).toBe('Test Task');
+      expect(state.taskAnalysis.approach).toBe('Outline plan and execute checks');
+      expect(state.taskAnalysis.success_criteria).toEqual(['Pass regression tests']);
+      expect(state.taskAnalysis.steps?.[0]?.description).toBe('Review existing coverage');
+      expect(state.taskAnalysis.retrieval_plan?.local_queries).toEqual(['coverage report']);
     });
 
     it('should transition to running on iteration start', () => {

@@ -19,6 +19,24 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         agent_level: 'core',
         action_name: 'Understanding task requirements',
         goal: safeTask,
+        approach: 'Review context, identify blockers, then execute',
+        success_criteria: ['Summarize repository state', 'Flag outstanding TODOs'],
+        steps: [
+          {
+            description: 'Audit project documentation',
+            needs_external_context: false,
+          },
+          {
+            description: 'Collect outstanding tasks',
+            needs_external_context: true,
+            rationale: 'Requires scanning TODO tracking files',
+          },
+        ],
+        retrieval_plan: {
+          should_retrieve: true,
+          local_queries: ['TODO.md', 'docs roadmap'],
+          knowledge_gaps: ['Latest release checklist'],
+        },
       },
     },
     {

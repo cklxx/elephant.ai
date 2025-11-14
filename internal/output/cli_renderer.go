@@ -17,6 +17,10 @@ import (
 )
 
 // CLIRenderer renders output for CLI display with hierarchical context awareness
+type MarkdownRenderer interface {
+	Render(string) (string, error)
+}
+
 type CLIRenderer struct {
 	// verbose controls the DETAIL LEVEL of output, NOT whether to show output:
 	// - verbose=false (default): Show compact previews (e.g., "150 lines", "12 matches")
@@ -27,7 +31,7 @@ type CLIRenderer struct {
 	// - LevelSubagent/LevelParallel: Hide tool details, show progress summary only
 	verbose    bool
 	formatter  *domain.ToolFormatter
-	mdRenderer *glamour.TermRenderer
+	mdRenderer MarkdownRenderer
 }
 
 const nonVerbosePreviewLimit = 80
@@ -36,14 +40,32 @@ const nonVerbosePreviewLimit = 80
 // verbose=true enables detailed output (full args, more content preview)
 // verbose=false shows compact output (tool name + brief summary)
 func NewCLIRenderer(verbose bool) *CLIRenderer {
-	// Set lipgloss to use stdout for color detection
-	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
+	return NewCLIRendererWithMarkdown(verbose, nil)
+}
 
+// NewCLIRendererWithMarkdown allows tests to supply a lightweight markdown renderer.
+func NewCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer {
 	renderer := &CLIRenderer{
 		verbose:   verbose,
 		formatter: domain.NewToolFormatter(),
 	}
 
+	if md != nil {
+		renderer.mdRenderer = md
+		return renderer
+	}
+
+	// Set lipgloss to use stdout for color detection only when using the default renderer.
+	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
+
+	if defaultRenderer := buildDefaultMarkdownRenderer(); defaultRenderer != nil {
+		renderer.mdRenderer = defaultRenderer
+	}
+
+	return renderer
+}
+
+func buildDefaultMarkdownRenderer() MarkdownRenderer {
 	options := []glamour.TermRendererOption{
 		glamour.WithWordWrap(100),
 		glamour.WithPreservedNewLines(),
@@ -58,11 +80,10 @@ func NewCLIRenderer(verbose bool) *CLIRenderer {
 	}
 
 	mdRenderer, err := glamour.NewTermRenderer(options...)
-	if err == nil {
-		renderer.mdRenderer = mdRenderer
+	if err != nil {
+		return nil
 	}
-
-	return renderer
+	return mdRenderer
 }
 
 // Target returns the output target
@@ -70,31 +91,168 @@ func (r *CLIRenderer) Target() OutputTarget {
 	return TargetCLI
 }
 
-// RenderTaskAnalysis renders task analysis with purple gradient and hierarchy indicator
+// RenderTaskAnalysis renders task analysis details with hierarchy-aware styling.
 func (r *CLIRenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain.TaskAnalysisEvent) string {
+	if event == nil {
+		return ""
+	}
+
+	action := strings.TrimSpace(event.ActionName)
+	if action == "" {
+		action = "Task analysis"
+	}
+
 	var prefix string
+	var detailIndent string
 	switch ctx.Level {
 	case types.LevelCore:
 		prefix = "👾"
 	case types.LevelSubagent:
 		prefix = "  ↳"
+		detailIndent = "  "
 	case types.LevelParallel:
 		prefix = "  ⇉"
+		detailIndent = "  "
 	default:
 		prefix = "👾"
 	}
 
-	text := fmt.Sprintf("%s %s...", prefix, event.ActionName)
+	header := fmt.Sprintf("%s %s", prefix, action)
+	var output strings.Builder
 
-	// Only use gradient for core agent
-	if ctx.Level == types.LevelCore {
-		gradientText := renderPurpleGradient(text)
-		return fmt.Sprintf("\n%s\n\n", gradientText)
+	switch ctx.Level {
+	case types.LevelCore:
+		output.WriteString("\n")
+		output.WriteString(renderPurpleGradient(header))
+		output.WriteString("\n")
+	case types.LevelSubagent:
+		output.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#A0A0A0")).Render(header))
+		output.WriteString("\n")
+	case types.LevelParallel:
+		output.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#909090")).Render(header))
+		output.WriteString("\n")
+	default:
+		output.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#808080")).Render(header))
+		output.WriteString("\n")
 	}
 
-	// Simple gray text for subagents (use brighter gray)
-	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
-	return fmt.Sprintf("%s\n", grayStyle.Render(text))
+	type section []string
+	var sections []section
+
+	goal := strings.TrimSpace(event.Goal)
+	approach := strings.TrimSpace(event.Approach)
+	if goal != "" || approach != "" {
+		var lines section
+		if goal != "" {
+			lines = append(lines, fmt.Sprintf("%sGoal: %s", detailIndent, goal))
+		}
+		if approach != "" {
+			lines = append(lines, fmt.Sprintf("%sApproach: %s", detailIndent, approach))
+		}
+		if len(lines) > 0 {
+			sections = append(sections, lines)
+		}
+	}
+
+	if len(event.SuccessCriteria) > 0 {
+		criteriaLines := section{fmt.Sprintf("%sSuccess criteria:", detailIndent)}
+		for _, c := range event.SuccessCriteria {
+			trimmed := strings.TrimSpace(c)
+			if trimmed == "" {
+				continue
+			}
+			criteriaLines = append(criteriaLines, fmt.Sprintf("%s  • %s", detailIndent, trimmed))
+		}
+		if len(criteriaLines) > 1 {
+			sections = append(sections, criteriaLines)
+		}
+	}
+
+	if len(event.Steps) > 0 {
+		planLines := section{fmt.Sprintf("%sPlan:", detailIndent)}
+		for idx, step := range event.Steps {
+			desc := strings.TrimSpace(step.Description)
+			if desc == "" {
+				continue
+			}
+			line := fmt.Sprintf("%s  %d. %s", detailIndent, idx+1, desc)
+			if step.NeedsExternalContext {
+				line += " [needs external context]"
+			}
+			planLines = append(planLines, line)
+
+			rationale := strings.TrimSpace(step.Rationale)
+			if rationale != "" {
+				planLines = append(planLines, fmt.Sprintf("%s     ↳ %s", detailIndent, rationale))
+			}
+		}
+		if len(planLines) > 1 {
+			sections = append(sections, planLines)
+		}
+	}
+
+	retrieval := event.Retrieval
+	hasRetrievalData := retrieval.ShouldRetrieve || len(retrieval.LocalQueries) > 0 || len(retrieval.SearchQueries) > 0 ||
+		len(retrieval.CrawlURLs) > 0 || len(retrieval.KnowledgeGaps) > 0 || strings.TrimSpace(retrieval.Notes) != ""
+	if hasRetrievalData {
+		retrievalLines := section{fmt.Sprintf("%sRetrieval plan:", detailIndent)}
+		if retrieval.ShouldRetrieve {
+			retrievalLines = append(retrievalLines, fmt.Sprintf("%s  Status: Gather additional context", detailIndent))
+		} else {
+			retrievalLines = append(retrievalLines, fmt.Sprintf("%s  Status: Skip retrieval", detailIndent))
+		}
+
+		appendList := func(label string, values []string) {
+			var cleaned []string
+			for _, value := range values {
+				trimmed := strings.TrimSpace(value)
+				if trimmed != "" {
+					cleaned = append(cleaned, trimmed)
+				}
+			}
+			if len(cleaned) == 0 {
+				return
+			}
+			retrievalLines = append(retrievalLines, fmt.Sprintf("%s  %s:", detailIndent, label))
+			for _, item := range cleaned {
+				retrievalLines = append(retrievalLines, fmt.Sprintf("%s    • %s", detailIndent, item))
+			}
+		}
+
+		appendList("Local queries", retrieval.LocalQueries)
+		appendList("Search queries", retrieval.SearchQueries)
+		appendList("Crawl targets", retrieval.CrawlURLs)
+		appendList("Knowledge gaps / TODOs", retrieval.KnowledgeGaps)
+
+		if notes := strings.TrimSpace(retrieval.Notes); notes != "" {
+			retrievalLines = append(retrievalLines, fmt.Sprintf("%s  Notes: %s", detailIndent, notes))
+		}
+
+		if len(retrievalLines) > 1 {
+			sections = append(sections, retrievalLines)
+		}
+	}
+
+	if len(sections) == 0 {
+		if ctx.Level == types.LevelCore {
+			output.WriteString("\n")
+		}
+		return output.String()
+	}
+
+	output.WriteString("\n")
+	for idx, block := range sections {
+		for _, line := range block {
+			output.WriteString(line)
+			output.WriteString("\n")
+		}
+		if idx < len(sections)-1 {
+			output.WriteString("\n")
+		}
+	}
+	output.WriteString("\n")
+
+	return output.String()
 }
 
 // RenderToolCallStart renders tool call start with hierarchy awareness
