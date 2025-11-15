@@ -20,6 +20,7 @@ const DEFAULT_EVENTS: AnyAgentEvent["event_type"][] = [
   "tool_call_stream",
   "tool_call_complete",
   "iteration_complete",
+  "assistant_message",
   "task_cancelled",
   "task_complete",
   "error",

@@ -1,7 +1,7 @@
 'use client';
 
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
-import { AnyAgentEvent } from '@/lib/types';
+import { AnyAgentEvent, AssistantMessageEvent } from '@/lib/types';
 
 const baseTime = new Date('2025-10-12T08:00:00Z').getTime();
 
@@ -153,6 +153,26 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
+    event_type: 'assistant_message',
+    timestamp: atOffset(74),
+    created_at: atOffset(74),
+    agent_level: 'core',
+    iteration: 1,
+    delta: '第一轮总结：搜索结果显示领先团队都实现了逐 token 更新。',
+    final: false,
+  },
+  {
+    ...baseEventContext,
+    event_type: 'assistant_message',
+    timestamp: atOffset(76),
+    created_at: atOffset(76),
+    agent_level: 'core',
+    iteration: 1,
+    delta: '我们需要在终端流中引入渐进式渲染来降低用户等待。',
+    final: true,
+  },
+  {
+    ...baseEventContext,
     event_type: 'iteration_start',
     timestamp: atOffset(78),
     agent_level: 'core',
@@ -210,17 +230,41 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
+    event_type: 'assistant_message',
+    timestamp: atOffset(120),
+    created_at: atOffset(120),
+    agent_level: 'core',
+    iteration: 2,
+    delta: '第二轮调研补充了浏览器端的实时回传模式，建议结合。',
+    final: false,
+  },
+  {
+    ...baseEventContext,
+    event_type: 'assistant_message',
+    timestamp: atOffset(132),
+    created_at: atOffset(132),
+    agent_level: 'core',
+    iteration: 2,
+    delta: '最终方案：同时保留工具状态区与逐字增长的主回答气泡。',
+    final: true,
+  },
+  {
+    ...baseEventContext,
     event_type: 'task_complete',
     timestamp: atOffset(150),
     agent_level: 'core',
     final_answer:
       '整理出实时工具流的自动滚动策略，并给出逐步落地建议。',
     total_iterations: 2,
-    total_tokens: 17860,
+    total_tokens: 30871,
     stop_reason: 'end',
-    duration: 150000,
+    duration: 13650,
   },
 ];
+
+const summaryLine = buildSummaryLine(mockEvents);
+const previewInput = buildPreviewInput(mockEvents);
+const previewOutputs = buildPreviewOutputs(mockEvents);
 
 export default function ConsolePreviewPage() {
   return (
@@ -248,7 +292,158 @@ export default function ConsolePreviewPage() {
             onReconnect={() => {}}
           />
         </section>
+
+        <section className="rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-white/70">
+          <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-slate-900">
+                对话快照
+              </h2>
+              <p className="text-xs text-slate-500">
+                {summaryLine}
+              </p>
+            </div>
+          </header>
+
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <article className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
+                  Input
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  {previewInput.primary}
+                </p>
+              </div>
+
+              {previewInput.supporting && (
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 text-xs leading-6 text-slate-600">
+                  <p className="font-medium text-slate-500">研究计划</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-slate-600">
+                    {previewInput.supporting.map((step, index) => (
+                      <li key={index}>{step}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </article>
+
+            <article className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-900/90 p-5 text-slate-100">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-300">
+                  Output
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {previewOutputs.map((output) => (
+                  <div
+                    key={`${output.iteration}-${output.content}`}
+                    className="rounded-xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/70">
+                      Iteration {output.iteration}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-100">
+                      {output.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {previewInput.summary && (
+                <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 text-xs leading-6 text-amber-100">
+                  <p className="font-medium text-amber-200">最终总结</p>
+                  <p className="mt-2 text-slate-100">{previewInput.summary}</p>
+                </div>
+              )}
+            </article>
+          </div>
+        </section>
       </div>
     </div>
   );
+}
+
+function buildSummaryLine(events: AnyAgentEvent[]): string {
+  const taskComplete = events.find(
+    (event): event is Extract<AnyAgentEvent, { event_type: 'task_complete' }>
+      => event.event_type === 'task_complete',
+  );
+
+  const iterations = taskComplete?.total_iterations;
+  const tokens = taskComplete?.total_tokens;
+  const durationSeconds = taskComplete?.duration
+    ? (taskComplete.duration / 1000).toFixed(2)
+    : undefined;
+
+  const parts: string[] = [];
+  if (iterations !== undefined) {
+    parts.push(`${iterations} iterations`);
+  }
+  if (tokens !== undefined) {
+    parts.push(`${tokens.toLocaleString('en-US')} tokens`);
+  }
+  if (durationSeconds !== undefined) {
+    parts.push(`${durationSeconds}s`);
+  }
+
+  return parts.join(' · ');
+}
+
+function buildPreviewInput(events: AnyAgentEvent[]) {
+  const userTask = events.find(
+    (event): event is Extract<AnyAgentEvent, { event_type: 'user_task' }>
+      => event.event_type === 'user_task',
+  );
+  const planEvent = events.find(
+    (event): event is Extract<AnyAgentEvent, { event_type: 'research_plan' }>
+      => event.event_type === 'research_plan',
+  );
+  const taskComplete = events.find(
+    (event): event is Extract<AnyAgentEvent, { event_type: 'task_complete' }>
+      => event.event_type === 'task_complete',
+  );
+
+  return {
+    primary:
+      userTask?.task ?? '暂无输入，等待用户任务。',
+    supporting: planEvent?.plan_steps ?? null,
+    summary: taskComplete?.final_answer ?? null,
+  };
+}
+
+function buildPreviewOutputs(events: AnyAgentEvent[]): {
+  iteration: number;
+  content: string;
+}[] {
+  const buckets: Array<{ key: string; iteration: number; content: string }> = [];
+  const bucketMap = new Map<string, { iteration: number; content: string }>();
+
+  events.forEach((event) => {
+    if (event.event_type !== 'assistant_message') {
+      return;
+    }
+
+    const assistantEvent = event as AssistantMessageEvent;
+    const iteration = assistantEvent.iteration ?? 0;
+    const key = `${assistantEvent.task_id ?? 'task'}:${assistantEvent.parent_task_id ?? 'root'}:${iteration}`;
+    let bucket = bucketMap.get(key);
+    if (!bucket) {
+      bucket = { iteration, content: '' };
+      bucketMap.set(key, bucket);
+      buckets.push(bucket);
+    }
+
+    if (assistantEvent.delta) {
+      bucket.content += assistantEvent.delta;
+    }
+  });
+
+  return buckets
+    .map((bucket) => ({
+      iteration: bucket.iteration,
+      content: bucket.content.trim(),
+    }))
+    .filter((bucket) => bucket.content.length > 0);
 }
