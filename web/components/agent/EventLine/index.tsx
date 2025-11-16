@@ -28,6 +28,10 @@ interface EventLineProps {
 export const EventLine = React.memo(function EventLine({
   event,
 }: EventLineProps) {
+  if (event.agent_level === "subagent" || event.is_subtask) {
+    return <SubagentEventLine event={event} />;
+  }
+
   if (event.event_type === "user_task") {
     const segments = parseContentSegments(event.task, event.attachments);
     const textSegments = segments.filter(
@@ -171,3 +175,129 @@ export const EventLine = React.memo(function EventLine({
     </div>
   );
 });
+
+interface SubagentEventLineProps {
+  event: AnyAgentEvent;
+}
+
+function SubagentEventLine({ event }: SubagentEventLineProps) {
+  const context = getSubagentContext(event);
+
+  if (event.event_type === "tool_call_complete") {
+    const completeEvent = event as ToolCallCompleteEvent & {
+      arguments?: Record<string, unknown>;
+    };
+    return (
+      <div
+        className="space-y-3"
+        data-testid={`event-subagent-${event.event_type}`}
+      >
+        <SubagentHeader context={context} />
+        <ToolOutputCard
+          toolName={completeEvent.tool_name}
+          parameters={completeEvent.arguments}
+          result={completeEvent.result}
+          error={completeEvent.error}
+          duration={completeEvent.duration}
+          callId={completeEvent.call_id}
+          metadata={completeEvent.metadata}
+          attachments={completeEvent.attachments}
+          status={completeEvent.error ? "failed" : "completed"}
+        />
+      </div>
+    );
+  }
+
+  if (event.event_type === "task_complete") {
+    return (
+      <div
+        className="space-y-3"
+        data-testid="event-subagent-task_complete"
+      >
+        <SubagentHeader context={context} />
+        <TaskCompleteCard event={event as TaskCompleteEvent} />
+      </div>
+    );
+  }
+
+  const content = formatContent(event);
+  if (!content) {
+    return null;
+  }
+
+  const style = getEventStyle(event);
+
+  return (
+    <div
+      className="space-y-2"
+      data-testid={`event-subagent-${event.event_type}`}
+    >
+      <SubagentHeader context={context} />
+      <div
+        className={cn(
+          "console-event-line flex rounded-lg border border-primary/30 bg-primary/5 px-3 py-2",
+          style.line,
+        )}
+      >
+        <div className={cn("console-event-content", style.content)}>
+          {content}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SubagentContext {
+  title: string;
+  preview?: string;
+  concurrency?: string;
+}
+
+function getSubagentContext(event: AnyAgentEvent): SubagentContext {
+  const index = typeof event.subtask_index === "number"
+    ? event.subtask_index + 1
+    : undefined;
+  const total = typeof event.total_subtasks === "number" && event.total_subtasks > 0
+    ? event.total_subtasks
+    : undefined;
+
+  let title = "Subagent Task";
+  if (index !== undefined && total !== undefined) {
+    title = `Subagent Task ${index}/${total}`;
+  } else if (index !== undefined) {
+    title = `Subagent Task ${index}`;
+  }
+
+  const preview = event.subtask_preview?.trim();
+  const concurrency = event.max_parallel && event.max_parallel > 1
+    ? `Parallel ×${event.max_parallel}`
+    : undefined;
+
+  return { title, preview, concurrency };
+}
+
+interface SubagentHeaderProps {
+  context: SubagentContext;
+}
+
+function SubagentHeader({ context }: SubagentHeaderProps) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary">
+        {context.title}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {context.preview && (
+          <span className="text-xs text-foreground/80">
+            {context.preview}
+          </span>
+        )}
+        {context.concurrency && (
+          <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            {context.concurrency}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}

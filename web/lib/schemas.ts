@@ -13,6 +13,11 @@ export const BaseAgentEventSchema = z.object({
   session_id: z.string(),
   task_id: z.string().optional(),
   parent_task_id: z.string().optional(),
+  is_subtask: z.boolean().optional(),
+  subtask_index: z.number().optional(),
+  total_subtasks: z.number().optional(),
+  subtask_preview: z.string().optional(),
+  max_parallel: z.number().optional(),
 });
 
 export const AttachmentPayloadSchema = z.object({
