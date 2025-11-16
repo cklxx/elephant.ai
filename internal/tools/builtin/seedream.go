@@ -135,7 +135,7 @@ func NewSeedreamVideoGenerate(config SeedreamConfig) ports.ToolExecutor {
 
 func (t *seedreamTextTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "seedream_text_to_image",
+		Name:     "text_to_image",
 		Version:  "2.0.0",
 		Category: "design",
 		Tags:     []string{"image", "generation", "seedream", "text-to-image"},
@@ -144,7 +144,7 @@ func (t *seedreamTextTool) Metadata() ports.ToolMetadata {
 
 func (t *seedreamTextTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "seedream_text_to_image",
+		Name:        "text_to_image",
 		Description: "Generate new imagery with Volcano Engine Seedream text-to-image models.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
@@ -228,7 +228,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 
 func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "seedream_image_to_image",
+		Name:     "image_to_image",
 		Version:  "2.0.0",
 		Category: "design",
 		Tags:     []string{"image", "generation", "seedream", "image-to-image"},
@@ -237,7 +237,7 @@ func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
 
 func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "seedream_image_to_image",
+		Name:        "image_to_image",
 		Description: "Transform or upscale reference art with Seedream image-to-image models. Provide a base64 string, HTTPS URL, or previously generated `[placeholder.png]` in `init_image` along with an optional prompt. The runtime automatically resolves placeholders into the required data URI.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
@@ -370,7 +370,7 @@ func (t *seedreamImageTool) logRequestPayload(rawImage, normalizedImage, kind st
 
 func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "seedream_vision_analyze",
+		Name:     "vision_analyze",
 		Version:  "1.0.0",
 		Category: "analysis",
 		Tags:     []string{"vision", "analysis", "seedream", "multimodal"},
@@ -379,7 +379,7 @@ func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
 
 func (t *seedreamVideoTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "seedream_video_generate",
+		Name:     "video_generate",
 		Version:  "1.0.0",
 		Category: "design",
 		Tags:     []string{"video", "generation", "seedream", "seedance"},
@@ -388,7 +388,7 @@ func (t *seedreamVideoTool) Metadata() ports.ToolMetadata {
 
 func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "seedream_vision_analyze",
+		Name:        "vision_analyze",
 		Description: "Use the Doubao multimodal vision model to describe or answer questions about supplied image URLs.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
@@ -413,7 +413,7 @@ func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 
 func (t *seedreamVideoTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "seedream_video_generate",
+		Name: "video_generate",
 		Description: fmt.Sprintf(
 			"Create short cinematic videos with the Doubao Seedance model. The tool will plan for an establishing first frame, honor the requested duration, and enforces the official %d-%d second clip window.",
 			seedanceMinDurationSeconds,

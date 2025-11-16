@@ -14,6 +14,18 @@ import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 
+const SEEDREAM_TOOL_ALIASES = new Set([
+  'video_generate',
+  'text_to_image',
+  'image_to_image',
+  'vision_analyze',
+]);
+
+function isSeedreamTool(toolName: string) {
+  const normalized = toolName.toLowerCase().trim();
+  return normalized.includes('seedream') || SEEDREAM_TOOL_ALIASES.has(normalized);
+}
+
 interface ToolOutputCardProps {
   toolName: string;
   parameters?: Record<string, unknown>;
@@ -48,12 +60,15 @@ export function ToolOutputCard({
   const normalizedToolName = toolName.toLowerCase();
   const normalizedSeedreamKey = normalizedToolName.replace(/\s+/g, "");
   const seedreamDisplayNames: Record<string, string> = {
+    text_to_image: "Seedream image generation",
     seedream_text_to_image: "Seedream image generation",
+    image_to_image: "Seedream image-to-image",
     seedream_image_to_image: "Seedream image-to-image",
+    vision_analyze: "Seedream vision analysis",
     seedream_vision_analyze: "Seedream vision analysis",
-    seedream_video_generate: "Seedance video generation",
+    video_generate: "Video generation",
   };
-  const isSeedream = normalizedToolName.includes("seedream");
+  const isSeedream = isSeedreamTool(toolName);
   const displayToolName = seedreamDisplayNames[normalizedSeedreamKey] ||
     (isSeedream ? "Seedream tool" : toolName);
 
@@ -542,7 +557,7 @@ function renderToolResult(
   attachments?: Record<string, AttachmentPayload>,
 ): React.ReactNode {
   const normalizedToolName = toolName.toLowerCase();
-  const isSeedream = normalizedToolName.includes("seedream");
+  const isSeedream = isSeedreamTool(toolName);
   const hasResultText = typeof result === "string" && result.trim().length > 0;
 
   // Code execute - show executed code and output

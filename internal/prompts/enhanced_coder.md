@@ -77,7 +77,7 @@ def select_tools(task_analysis):
 - **Observations & answers**: Include the placeholder anywhere you describe or reuse an attachment so downstream surfaces can render the media inline. Avoid inlining raw base64 yourself.
 - **Temporary files**: When reading scratch or transient files (for example via `file_read`), record them with the same placeholder convention so you can reference them later in the conversation or feed them into additional tools.
 - **Final gallery hook**: When any tool run in the current session produces images or binary assets, close your final response by listing every `[filename.ext]` placeholder (no prefix required) so downstream clients always have something to render.
-- **Image understanding**: When a user supplies screenshots or reference art, run `seedream_vision_analyze` with the `[placeholder]` names to get a Doubao vision summary (powered by `ARK_API_KEY`) before proposing design or code changes.
+- **Image understanding**: When a user supplies screenshots or reference art, run `vision_analyze` with the `[placeholder]` names to get a Doubao vision summary (powered by `ARK_API_KEY`) before proposing design or code changes.
 
 ---
 
