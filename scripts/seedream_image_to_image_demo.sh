@@ -10,7 +10,7 @@
 #
 # This script fabricates a tiny 32x32 PNG, base64-encodes it, and sends a request
 # directly to the Volcano Engine Seedream image generation endpoint using curl.
-# It mirrors the payload structure used by the Alex seedream_image_to_image tool.
+# It mirrors the payload structure used by the Alex image_to_image tool.
 ###############################################################################
 
 set -euo pipefail

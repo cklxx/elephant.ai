@@ -82,8 +82,8 @@ func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
-	if _, err := registry.Get("seedream_video_generate"); err != nil {
-		t.Fatalf("expected seedream_video_generate to be registered by default: %v", err)
+	if _, err := registry.Get("video_generate"); err != nil {
+		t.Fatalf("expected video_generate to be registered by default: %v", err)
 	}
 }
 
@@ -96,13 +96,13 @@ func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	tool, err := registry.Get("seedream_video_generate")
+	tool, err := registry.Get("video_generate")
 	if err != nil {
-		t.Fatalf("expected seedream_video_generate to be registered: %v", err)
+		t.Fatalf("expected video_generate to be registered: %v", err)
 	}
 
 	metadata := tool.Metadata()
-	if metadata.Name != "seedream_video_generate" {
+	if metadata.Name != "video_generate" {
 		t.Fatalf("unexpected metadata name: %s", metadata.Name)
 	}
 	if metadata.Category != "design" {
@@ -113,7 +113,7 @@ func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 	}
 
 	def := tool.Definition()
-	if def.Name != "seedream_video_generate" {
+	if def.Name != "video_generate" {
 		t.Fatalf("unexpected definition name: %s", def.Name)
 	}
 	if !strings.Contains(def.Description, "Seedance") {

@@ -286,21 +286,21 @@ func (r *Registry) registerBuiltins(config Config) error {
 		textConfig.Model = config.SeedreamTextModel
 		textConfig.ModelDescriptor = "Seedream 3.0 text-to-image"
 		textConfig.ModelEnvVar = "SEEDREAM_TEXT_MODEL"
-		r.static["seedream_text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
+		r.static["text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
 	}
 	if config.SeedreamImageModel != "" {
 		imageConfig := seedreamBase
 		imageConfig.Model = config.SeedreamImageModel
 		imageConfig.ModelDescriptor = "Seedream 4.0 image-to-image"
 		imageConfig.ModelEnvVar = "SEEDREAM_IMAGE_MODEL"
-		r.static["seedream_image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
+		r.static["image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
 	}
 	if config.SeedreamVisionModel != "" {
 		visionConfig := seedreamBase
 		visionConfig.Model = config.SeedreamVisionModel
 		visionConfig.ModelDescriptor = "Seedream vision analysis"
 		visionConfig.ModelEnvVar = "SEEDREAM_VISION_MODEL"
-		r.static["seedream_vision_analyze"] = builtin.NewSeedreamVisionAnalyze(visionConfig)
+		r.static["vision_analyze"] = builtin.NewSeedreamVisionAnalyze(visionConfig)
 	}
 	videoModel := strings.TrimSpace(config.SeedreamVideoModel)
 	if videoModel == "" {
@@ -311,7 +311,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		videoConfig.Model = videoModel
 		videoConfig.ModelDescriptor = "Seedance video generation"
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
-		r.static["seedream_video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
+		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
 	}
 
 	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {

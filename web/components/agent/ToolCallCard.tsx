@@ -104,7 +104,7 @@ const STATUS_LABELS = {
   error: (t: ReturnType<typeof useTranslation>) => t('conversation.status.failed'),
 } as const;
 
-const VIDEO_GENERATION_TOOLS = new Set(['seedream_video_generate']);
+const VIDEO_GENERATION_TOOLS = new Set(['video_generate']);
 
 function VideoWaitHint() {
   return (
