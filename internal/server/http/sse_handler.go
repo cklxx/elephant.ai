@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/security/redaction"
 	"alex/internal/server/app"
+	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
@@ -162,7 +163,54 @@ drainComplete:
 
 // serializeEvent converts domain event to JSON
 func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
-	// Create a map with common fields
+	data, err := h.buildEventData(event)
+	if err != nil {
+		return "", err
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonData), nil
+}
+
+func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interface{}, error) {
+	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+		base, err := h.buildEventData(subtaskEvent.OriginalEvent)
+		if err != nil {
+			return nil, err
+		}
+
+		// Clone base map to avoid mutating the original instance
+		cloned := make(map[string]interface{}, len(base)+6)
+		for key, value := range base {
+			cloned[key] = value
+		}
+
+		cloned["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339)
+		cloned["agent_level"] = subtaskEvent.GetAgentLevel()
+		cloned["session_id"] = subtaskEvent.GetSessionID()
+		cloned["task_id"] = subtaskEvent.GetTaskID()
+		if parentTaskID := subtaskEvent.GetParentTaskID(); parentTaskID != "" {
+			cloned["parent_task_id"] = parentTaskID
+		}
+
+		cloned["event_type"] = subtaskEvent.OriginalEvent.EventType()
+		cloned["is_subtask"] = true
+		cloned["subtask_index"] = subtaskEvent.SubtaskIndex
+		cloned["total_subtasks"] = subtaskEvent.TotalSubtasks
+		if subtaskEvent.SubtaskPreview != "" {
+			cloned["subtask_preview"] = subtaskEvent.SubtaskPreview
+		}
+		if subtaskEvent.MaxParallel > 0 {
+			cloned["max_parallel"] = subtaskEvent.MaxParallel
+		}
+
+		return cloned, nil
+	}
+
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
 		"timestamp":      event.Timestamp().Format(time.RFC3339),
@@ -344,13 +392,7 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		}
 	}
 
-	// Marshal to JSON
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonData), nil
+	return data, nil
 }
 
 const redactedPlaceholder = redaction.Placeholder

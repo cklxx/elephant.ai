@@ -11,6 +11,11 @@ export interface AgentEvent {
   session_id: string;
   task_id?: string;
   parent_task_id?: string;
+  is_subtask?: boolean;
+  subtask_index?: number;
+  total_subtasks?: number;
+  subtask_preview?: string;
+  max_parallel?: number;
 }
 
 // Task Analysis Event - emitted after task pre-analysis

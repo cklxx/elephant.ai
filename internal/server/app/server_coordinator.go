@@ -13,6 +13,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/analytics"
 	serverPorts "alex/internal/server/ports"
+	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
@@ -207,6 +208,9 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Execute task with broadcaster as event listener
 	s.logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
 	s.emitUserTaskEvent(ctx, sessionID, taskID, task)
+
+	// Ensure subagent tool invocations forward their events to the main listener
+	ctx = builtin.WithParentListener(ctx, s.broadcaster)
 
 	result, err := s.agentCoordinator.ExecuteTask(ctx, task, sessionID, s.broadcaster)
 

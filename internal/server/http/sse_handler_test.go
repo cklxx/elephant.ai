@@ -14,6 +14,7 @@ import (
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/server/app"
+	"alex/internal/tools/builtin"
 )
 
 func TestSSEHandler_MissingSessionID(t *testing.T) {
@@ -246,6 +247,63 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				t.Error("Expected session_id in JSON")
 			}
 		})
+	}
+}
+
+func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
+	handler := NewSSEHandler(nil)
+	original := &domain.ToolCallCompleteEvent{
+		BaseEvent: domain.BaseEvent{},
+		CallID:    "call-1",
+		ToolName:  "file_read",
+		Result:    "ok",
+	}
+	subtask := &builtin.SubtaskEvent{
+		OriginalEvent:  original,
+		SubtaskIndex:   1,
+		TotalSubtasks:  3,
+		SubtaskPreview: "Review config",
+		MaxParallel:    2,
+	}
+
+	data, err := handler.buildEventData(subtask)
+	if err != nil {
+		t.Fatalf("buildEventData returned error: %v", err)
+	}
+
+	if data["event_type"] != "tool_call_complete" {
+		t.Fatalf("expected event_type to match original event, got %v", data["event_type"])
+	}
+
+	switch level := data["agent_level"].(type) {
+	case agentports.AgentLevel:
+		if level != types.LevelSubagent {
+			t.Fatalf("expected agent_level to default to subagent, got %v", level)
+		}
+	case string:
+		if level != string(types.LevelSubagent) {
+			t.Fatalf("expected agent_level string to default to subagent, got %v", level)
+		}
+	default:
+		t.Fatalf("unexpected agent_level type %T", data["agent_level"])
+	}
+
+	isSubtask, ok := data["is_subtask"].(bool)
+	if !ok || !isSubtask {
+		t.Fatalf("expected is_subtask flag to be true, got %v", data["is_subtask"])
+	}
+
+	if data["subtask_index"] != 1 {
+		t.Fatalf("expected subtask_index 1, got %v", data["subtask_index"])
+	}
+	if data["total_subtasks"] != 3 {
+		t.Fatalf("expected total_subtasks 3, got %v", data["total_subtasks"])
+	}
+	if data["subtask_preview"] != "Review config" {
+		t.Fatalf("expected preview \"Review config\", got %v", data["subtask_preview"])
+	}
+	if data["max_parallel"] != 2 {
+		t.Fatalf("expected max_parallel 2, got %v", data["max_parallel"])
 	}
 }
 
