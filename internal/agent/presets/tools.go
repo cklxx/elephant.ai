@@ -53,6 +53,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"explore":        true,
 				"text_to_image":  true,
 				"image_to_image": true,
+				"vision_analyze": true,
 			},
 			DeniedTools: map[string]bool{
 				"file_write":   true,
@@ -134,6 +135,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"explore":        true,
 				"text_to_image":  true,
 				"image_to_image": true,
+				"vision_analyze": true,
 			},
 			DeniedTools: map[string]bool{
 				"bash":         true,

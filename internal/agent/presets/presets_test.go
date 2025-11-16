@@ -238,6 +238,18 @@ func TestToolPresetBlocking(t *testing.T) {
 			toolName:  "code_execute",
 			wantAllow: false,
 		},
+		{
+			name:      "read-only allows vision_analyze",
+			preset:    ToolPresetReadOnly,
+			toolName:  "vision_analyze",
+			wantAllow: true,
+		},
+		{
+			name:      "safe allows vision_analyze",
+			preset:    ToolPresetSafe,
+			toolName:  "vision_analyze",
+			wantAllow: true,
+		},
 	}
 
 	for _, tt := range tests {
