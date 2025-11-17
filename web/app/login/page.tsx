@@ -402,12 +402,8 @@ function LoginPageContent() {
 
   return (
     <>
-      <div className="flex min-h-screen items-center justify-center bg-[hsl(var(--background))] px-4 py-12 text-[hsl(var(--foreground))]">
-        <div className="relative w-full max-w-4xl space-y-8 rounded-[40px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-8 shadow-[20px_20px_0_rgba(0,0,0,0.75)]">
-          <div
-            className="pointer-events-none absolute inset-4 rounded-[32px] border-[3px] border-dashed border-[hsl(var(--foreground))]"
-            aria-hidden="true"
-          />
+      <div className="flex min-h-screen w-full items-center bg-[hsl(var(--background))] px-4 py-12 text-[hsl(var(--foreground))]">
+        <div className="relative w-full max-w-none space-y-8 rounded-[40px] bg-[hsl(var(--card))] p-8">
           <div className="relative space-y-8 text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gray-500">
               {t("console.brand")}
