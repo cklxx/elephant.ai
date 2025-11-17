@@ -47,7 +47,10 @@ type AuthConfig struct {
 	StateTTLMinutes       string
 	RedirectBaseURL       string
 	GoogleClientID        string
+	GoogleClientSecret    string
 	GoogleAuthURL         string
+	GoogleTokenURL        string
+	GoogleUserInfoURL     string
 	WeChatAppID           string
 	WeChatAuthURL         string
 	DatabaseURL           string
@@ -382,8 +385,17 @@ func loadConfig() (Config, error) {
 	if clientID, ok := envLookup("GOOGLE_CLIENT_ID"); ok {
 		authCfg.GoogleClientID = strings.TrimSpace(clientID)
 	}
+	if clientSecret, ok := envLookup("GOOGLE_CLIENT_SECRET"); ok {
+		authCfg.GoogleClientSecret = strings.TrimSpace(clientSecret)
+	}
 	if authURL, ok := envLookup("GOOGLE_AUTH_URL"); ok {
 		authCfg.GoogleAuthURL = strings.TrimSpace(authURL)
+	}
+	if tokenURL, ok := envLookup("GOOGLE_TOKEN_URL"); ok {
+		authCfg.GoogleTokenURL = strings.TrimSpace(tokenURL)
+	}
+	if userInfoURL, ok := envLookup("GOOGLE_USERINFO_URL"); ok {
+		authCfg.GoogleUserInfoURL = strings.TrimSpace(userInfoURL)
 	}
 	if appID, ok := envLookup("WECHAT_APP_ID"); ok {
 		authCfg.WeChatAppID = strings.TrimSpace(appID)
@@ -491,6 +503,14 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 	if googleAuthURL == "" {
 		googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
 	}
+	googleTokenURL := strings.TrimSpace(authCfg.GoogleTokenURL)
+	if googleTokenURL == "" {
+		googleTokenURL = "https://oauth2.googleapis.com/token"
+	}
+	googleUserInfoURL := strings.TrimSpace(authCfg.GoogleUserInfoURL)
+	if googleUserInfoURL == "" {
+		googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
+	}
 	wechatAuthURL := strings.TrimSpace(authCfg.WeChatAuthURL)
 	if wechatAuthURL == "" {
 		wechatAuthURL = "https://open.weixin.qq.com/connect/qrconnect"
@@ -498,13 +518,19 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 
 	providers := []authports.OAuthProvider{}
 	if clientID := strings.TrimSpace(authCfg.GoogleClientID); clientID != "" {
-		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
-			Provider:     authdomain.ProviderGoogle,
-			ClientID:     clientID,
-			AuthURL:      googleAuthURL,
-			RedirectURL:  trimmedBase + "/api/auth/google/callback",
-			DefaultScope: []string{"openid", "email", "profile"},
-		}))
+		secret := strings.TrimSpace(authCfg.GoogleClientSecret)
+		if secret == "" {
+			logger.Warn("Google OAuth client secret not configured; Google login disabled")
+		} else {
+			providers = append(providers, authAdapters.NewGoogleOAuthProvider(authAdapters.GoogleOAuthConfig{
+				ClientID:     clientID,
+				ClientSecret: secret,
+				AuthURL:      googleAuthURL,
+				TokenURL:     googleTokenURL,
+				UserInfoURL:  googleUserInfoURL,
+				RedirectURL:  trimmedBase + "/api/auth/google/callback",
+			}))
+		}
 	}
 	if appID := strings.TrimSpace(authCfg.WeChatAppID); appID != "" {
 		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
