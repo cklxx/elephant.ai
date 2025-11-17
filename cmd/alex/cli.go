@@ -1,9 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"flag"
 	"fmt"
+	"io"
+	"os"
+	"sort"
 	"strings"
+	"time"
+
+	sessionstate "alex/internal/session/state_store"
 )
 
 type CLI struct {
@@ -75,6 +84,7 @@ Usage:
   alex help                      Show this help message
   alex version                   Show version
   alex sessions                  List all sessions
+  alex sessions pull <id> [...]  Inspect or export context snapshots
   alex sessions cleanup [...]    Remove historical sessions (see options below)
   alex config                    Show current configuration
   alex cost                      Show cost tracking commands
@@ -123,9 +133,225 @@ func (c *CLI) handleSessions(args []string) error {
 	switch args[0] {
 	case "cleanup", "clean", "prune":
 		return c.cleanupSessions(ctx, args[1:])
+	case "pull":
+		return c.pullSessionSnapshots(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown sessions subcommand: %s", args[0])
 	}
+}
+
+func (c *CLI) pullSessionSnapshots(ctx context.Context, args []string) error {
+	return c.pullSessionSnapshotsWithWriter(ctx, args, os.Stdout)
+}
+
+const (
+	defaultSnapshotListLimit = 20
+	llmTurnSearchPageSize    = 50
+	flagUsageLine            = "usage: alex sessions pull <session-id> [--turn N|--llm-turn N]"
+)
+
+func (c *CLI) pullSessionSnapshotsWithWriter(ctx context.Context, args []string, out io.Writer) error {
+	if c == nil || c.container == nil {
+		return fmt.Errorf("container not initialized")
+	}
+	store := c.container.StateStore
+	if store == nil {
+		return fmt.Errorf("session state store not configured")
+	}
+
+	fs := flag.NewFlagSet("sessions pull", flag.ContinueOnError)
+	var flagBuf bytes.Buffer
+	fs.SetOutput(&flagBuf)
+	turnFlag := fs.Int("turn", -1, "Fetch a specific turn_id snapshot")
+	llmTurnFlag := fs.Int("llm-turn", -1, "Fetch the snapshot matching llm_turn_seq")
+	limitFlag := fs.Int("limit", defaultSnapshotListLimit, "Number of snapshots to list when no turn specified")
+	cursorFlag := fs.String("cursor", "", "Pagination cursor for listing (default newest)")
+	rawFlag := fs.Bool("raw", false, "Print raw JSON payload")
+	outputFlag := fs.String("output", "", "Write JSON snapshot to the provided file path")
+
+	var positionalID string
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		positionalID = strings.TrimSpace(args[0])
+		args = args[1:]
+	}
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(flagBuf.String()))
+	}
+	sessionID := positionalID
+	positional := fs.Args()
+	if sessionID == "" {
+		if len(positional) == 0 {
+			return fmt.Errorf(flagUsageLine)
+		}
+		sessionID = strings.TrimSpace(positional[0])
+	} else if len(positional) > 0 {
+		// When both a leading positional ID and trailing args are supplied, treat the
+		// next positional token as an error to avoid ambiguous input.
+		return fmt.Errorf("multiple session identifiers provided; %s", flagUsageLine)
+	}
+	if sessionID == "" {
+		return fmt.Errorf("session id required")
+	}
+
+	if *turnFlag >= 0 {
+		snapshot, err := store.GetSnapshot(ctx, sessionID, *turnFlag)
+		if err != nil {
+			return err
+		}
+		return c.outputSnapshot(out, snapshot, *rawFlag, *outputFlag)
+	}
+
+	if *llmTurnFlag >= 0 {
+		snapshot, err := c.findSnapshotByLLMTurn(ctx, store, sessionID, *llmTurnFlag)
+		if err != nil {
+			return err
+		}
+		return c.outputSnapshot(out, snapshot, *rawFlag, *outputFlag)
+	}
+
+	if *outputFlag != "" {
+		return fmt.Errorf("--output is only supported with --turn or --llm-turn")
+	}
+	limit := *limitFlag
+	if limit <= 0 {
+		limit = defaultSnapshotListLimit
+	}
+	metas, nextCursor, err := store.ListSnapshots(ctx, sessionID, *cursorFlag, limit)
+	if err != nil {
+		return err
+	}
+	return c.printSnapshotMetadata(out, sessionID, metas, nextCursor)
+}
+
+func (c *CLI) findSnapshotByLLMTurn(ctx context.Context, store sessionstate.Store, sessionID string, llmTurn int) (sessionstate.Snapshot, error) {
+	cursor := ""
+	for {
+		metas, nextCursor, err := store.ListSnapshots(ctx, sessionID, cursor, llmTurnSearchPageSize)
+		if err != nil {
+			return sessionstate.Snapshot{}, err
+		}
+		for _, meta := range metas {
+			if meta.LLMTurnSeq == llmTurn {
+				return store.GetSnapshot(ctx, sessionID, meta.TurnID)
+			}
+		}
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
+	}
+	return sessionstate.Snapshot{}, fmt.Errorf("no snapshot found for llm_turn_seq=%d", llmTurn)
+}
+
+func (c *CLI) printSnapshotMetadata(out io.Writer, sessionID string, metas []sessionstate.SnapshotMetadata, nextCursor string) error {
+	if len(metas) == 0 {
+		fmt.Fprintf(out, "No snapshots found for session %s\n", sessionID)
+		return nil
+	}
+	fmt.Fprintf(out, "Snapshots for session %s (showing %d):\n", sessionID, len(metas))
+	for _, meta := range metas {
+		timestamp := meta.CreatedAt.UTC().Format(time.RFC3339)
+		summary := strings.TrimSpace(meta.Summary)
+		if summary == "" {
+			summary = "(no summary)"
+		}
+		fmt.Fprintf(out, "  - Turn %d (LLM %d) @ %s :: %s\n", meta.TurnID, meta.LLMTurnSeq, timestamp, summary)
+	}
+	if nextCursor != "" {
+		fmt.Fprintf(out, "Next cursor: %s\n", nextCursor)
+	}
+	return nil
+}
+
+func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw bool, outputPath string) error {
+	var encoded []byte
+	var err error
+	if raw || outputPath != "" {
+		encoded, err = json.MarshalIndent(snapshot, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encode snapshot: %w", err)
+		}
+	}
+	if outputPath != "" {
+		if err := os.WriteFile(outputPath, encoded, 0o644); err != nil {
+			return fmt.Errorf("write snapshot: %w", err)
+		}
+		fmt.Fprintf(out, "Snapshot saved to %s\n", outputPath)
+	}
+	if raw {
+		fmt.Fprintf(out, "%s\n", encoded)
+		return nil
+	}
+	created := "(unknown)"
+	if !snapshot.CreatedAt.IsZero() {
+		created = snapshot.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	fmt.Fprintf(out, "Turn %d (LLM turn %d) captured %s\n", snapshot.TurnID, snapshot.LLMTurnSeq, created)
+	if strings.TrimSpace(snapshot.Summary) != "" {
+		fmt.Fprintf(out, "  Summary: %s\n", strings.TrimSpace(snapshot.Summary))
+	}
+	fmt.Fprintf(out, "  Plans: %d | Beliefs: %d | Messages: %d | Feedback: %d\n", len(snapshot.Plans), len(snapshot.Beliefs), len(snapshot.Messages), len(snapshot.Feedback))
+
+	// TODO(context): surface structured diff/plan output once the runtime populates these fields.
+	if worldKeys := sortedKeys(snapshot.World); len(worldKeys) > 0 {
+		fmt.Fprintf(out, "  World keys: %s\n", strings.Join(worldKeys, ", "))
+	}
+	if diffKeys := sortedKeys(snapshot.Diff); len(diffKeys) > 0 {
+		fmt.Fprintf(out, "  Diff keys: %s\n", strings.Join(diffKeys, ", "))
+	}
+	if len(snapshot.KnowledgeRefs) > 0 {
+		var refs []string
+		for _, ref := range snapshot.KnowledgeRefs {
+			if ref.ID != "" {
+				refs = append(refs, ref.ID)
+			}
+		}
+		if len(refs) > 0 {
+			fmt.Fprintf(out, "  Knowledge refs: %s\n", strings.Join(refs, ", "))
+		}
+	}
+	c.printSnapshotGaps(out, snapshot)
+	return nil
+}
+
+func sortedKeys(input map[string]any) []string {
+	if len(input) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(input))
+	for key := range input {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func (c *CLI) printSnapshotGaps(out io.Writer, snapshot sessionstate.Snapshot) {
+	if out == nil {
+		return
+	}
+	note := summarizeSnapshotGaps(snapshot)
+	if note == "" {
+		return
+	}
+	fmt.Fprintf(out, "  TODO: %s\n", note)
+}
+
+func summarizeSnapshotGaps(snapshot sessionstate.Snapshot) string {
+	var missing []string
+	if len(snapshot.Diff) == 0 {
+		missing = append(missing, "state diff")
+	}
+	if len(snapshot.World) == 0 {
+		missing = append(missing, "world state")
+	}
+	if len(snapshot.Feedback) == 0 {
+		missing = append(missing, "feedback signals")
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("snapshots currently omit %s; see docs/status/context_framework_status.md", strings.Join(missing, ", "))
 }
 
 func (c *CLI) listSessions(ctx context.Context) error {

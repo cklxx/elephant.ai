@@ -13,6 +13,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/analytics"
 	serverPorts "alex/internal/server/ports"
+	sessionstate "alex/internal/session/state_store"
 	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -34,6 +35,7 @@ type ServerCoordinator struct {
 	agentCoordinator AgentExecutor
 	broadcaster      *EventBroadcaster
 	sessionStore     ports.SessionStore
+	stateStore       sessionstate.Store
 	taskStore        serverPorts.TaskStore
 	logger           *utils.Logger
 	analytics        analytics.Client
@@ -61,12 +63,14 @@ func NewServerCoordinator(
 	broadcaster *EventBroadcaster,
 	sessionStore ports.SessionStore,
 	taskStore serverPorts.TaskStore,
+	stateStore sessionstate.Store,
 	opts ...ServerCoordinatorOption,
 ) *ServerCoordinator {
 	coordinator := &ServerCoordinator{
 		agentCoordinator: agentCoordinator,
 		broadcaster:      broadcaster,
 		sessionStore:     sessionStore,
+		stateStore:       stateStore,
 		taskStore:        taskStore,
 		logger:           utils.NewComponentLogger("ServerCoordinator"),
 		analytics:        analytics.NewNoopClient(),
@@ -107,6 +111,11 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	if err != nil {
 		s.logger.Error("[ServerCoordinator] Failed to get/create session: %v", err)
 		return nil, fmt.Errorf("failed to get/create session: %w", err)
+	}
+	if s.stateStore != nil {
+		if err := s.stateStore.Init(ctx, session.ID); err != nil {
+			s.logger.Warn("[ServerCoordinator] Failed to initialize state store: %v", err)
+		}
 	}
 	confirmedSessionID := session.ID
 	s.logger.Info("[ServerCoordinator] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
@@ -311,6 +320,31 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		props["stop_reason"] = result.StopReason
 	}
 	s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCompleted, props)
+}
+
+// ListSnapshots returns paginated session snapshots for API consumers.
+func (s *ServerCoordinator) ListSnapshots(ctx context.Context, sessionID string, cursor string, limit int) ([]sessionstate.SnapshotMetadata, string, error) {
+	if s.stateStore == nil {
+		return nil, "", fmt.Errorf("state store not configured")
+	}
+	return s.stateStore.ListSnapshots(ctx, sessionID, cursor, limit)
+}
+
+// GetSnapshot fetches a specific turn snapshot.
+func (s *ServerCoordinator) GetSnapshot(ctx context.Context, sessionID string, turnID int) (sessionstate.Snapshot, error) {
+	if s.stateStore == nil {
+		return sessionstate.Snapshot{}, fmt.Errorf("state store not configured")
+	}
+	return s.stateStore.GetSnapshot(ctx, sessionID, turnID)
+}
+
+// ReplaySession is a placeholder for full event-log replays; currently it validates the session exists.
+func (s *ServerCoordinator) ReplaySession(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return fmt.Errorf("session id required")
+	}
+	_, err := s.agentCoordinator.GetSession(ctx, sessionID)
+	return err
 }
 
 func (s *ServerCoordinator) captureAnalytics(ctx context.Context, distinctID string, event string, props map[string]any) {

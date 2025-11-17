@@ -393,6 +393,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 
 	case *domain.ContextSnapshotEvent:
 		data["iteration"] = e.Iteration
+		data["llm_turn_seq"] = e.LLMTurnSeq
 		data["request_id"] = e.RequestID
 		messages := serializeMessages(e.Messages)
 		if messages == nil {
