@@ -603,23 +603,69 @@ func TestEnsureSystemPromptMessagePrependsWhenMissing(t *testing.T) {
 }
 
 func TestEnsureSystemPromptMessageNoDuplicate(t *testing.T) {
-	engine := NewReactEngine(ReactEngineConfig{})
-	state := &TaskState{
-		SystemPrompt: "Follow the plan.",
-		Messages: []Message{
-			{Role: "system", Content: "Follow the plan.", Source: ports.MessageSourceSystemPrompt},
-			{Role: "user", Content: "hello"},
-		},
-	}
+engine := NewReactEngine(ReactEngineConfig{})
+state := &TaskState{
+SystemPrompt: "Follow the plan.",
+Messages: []Message{
+{Role: "system", Content: "Follow the plan.", Source: ports.MessageSourceSystemPrompt},
+{Role: "user", Content: "hello"},
+},
+}
 
-	engine.ensureSystemPromptMessage(state)
+engine.ensureSystemPromptMessage(state)
 
-	if len(state.Messages) != 2 {
-		t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
-	}
-	if state.Messages[0].Content != "Follow the plan." {
-		t.Fatalf("expected existing system prompt to remain first, got %q", state.Messages[0].Content)
-	}
+if len(state.Messages) != 2 {
+t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+}
+if state.Messages[0].Content != "Follow the plan." {
+t.Fatalf("expected existing system prompt to remain first, got %q", state.Messages[0].Content)
+}
+}
+
+func TestEnsureSystemPromptMessageRewritesWhenContentDiffers(t *testing.T) {
+engine := NewReactEngine(ReactEngineConfig{})
+state := &TaskState{
+SystemPrompt: "Follow the updated framework.",
+Messages: []Message{
+{Role: "system", Content: "Follow the legacy framework.", Source: ports.MessageSourceSystemPrompt},
+{Role: "user", Content: "hello"},
+},
+}
+
+engine.ensureSystemPromptMessage(state)
+
+if len(state.Messages) != 2 {
+t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+}
+if state.Messages[0].Content != "Follow the updated framework." {
+t.Fatalf("expected system prompt to be rewritten, got %q", state.Messages[0].Content)
+}
+if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+t.Fatalf("expected rewritten message to carry system prompt source, got %q", state.Messages[0].Source)
+}
+}
+
+func TestEnsureSystemPromptMessageHandlesLegacySystemRole(t *testing.T) {
+engine := NewReactEngine(ReactEngineConfig{})
+state := &TaskState{
+SystemPrompt: "Follow the structured context.",
+Messages: []Message{
+{Role: "system", Content: "Follow the legacy context."},
+{Role: "user", Content: "hello"},
+},
+}
+
+engine.ensureSystemPromptMessage(state)
+
+if len(state.Messages) != 2 {
+t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+}
+if state.Messages[0].Content != "Follow the structured context." {
+t.Fatalf("expected system prompt to replace legacy role entry, got %q", state.Messages[0].Content)
+}
+if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+t.Fatalf("expected legacy role entry to be normalized to system prompt source, got %q", state.Messages[0].Source)
+}
 }
 
 func TestAttachmentReferenceValuePrefersURI(t *testing.T) {
