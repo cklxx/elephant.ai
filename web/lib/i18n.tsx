@@ -167,6 +167,9 @@ const translations = {
     "conversation.tool.timeline.errorOutput": "Errors",
     "conversation.tool.timeline.result": "{tool} result",
     "conversation.tool.timeline.metadata": "Context",
+    "conversation.tool.timeline.summaryRunning": "{tool} is running…",
+    "conversation.tool.timeline.summaryCompleted": "{tool} finished running.",
+    "conversation.tool.timeline.summaryErrored": "{tool} reported an error.",
     "conversation.environment.heading": "Sandbox environment",
     "conversation.environment.assurance":
       "All web tools run inside the sandbox runtime.",
