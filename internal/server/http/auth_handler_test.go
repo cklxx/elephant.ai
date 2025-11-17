@@ -33,8 +33,20 @@ type plansResponse struct {
 	} `json:"plans"`
 }
 
+type pointsEndpointResponse struct {
+	Balance int64 `json:"balance"`
+}
+
+type subscriptionEndpointResponse struct {
+	Subscription struct {
+		Tier              string     `json:"tier"`
+		MonthlyPriceCents int        `json:"monthly_price_cents"`
+		ExpiresAt         *time.Time `json:"expires_at"`
+	} `json:"subscription"`
+}
+
 func TestHandleAdjustPoints(t *testing.T) {
-	handler, service, token, _ := newAuthHandler(t)
+	handler, service, token, _, userID := newAuthHandler(t)
 
 	reqBody := bytes.NewBufferString(`{"delta": 75}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/points", reqBody)
@@ -57,7 +69,7 @@ func TestHandleAdjustPoints(t *testing.T) {
 		t.Fatalf("expected points balance 75, got %d", resp.PointsBalance)
 	}
 
-	user, err := service.GetUser(context.Background(), resp.ID)
+	user, err := service.GetUser(context.Background(), userID)
 	if err != nil {
 		t.Fatalf("get user: %v", err)
 	}
@@ -66,8 +78,55 @@ func TestHandleAdjustPoints(t *testing.T) {
 	}
 }
 
+func TestHandlePointsEndpoint(t *testing.T) {
+	handler, service, token, _, userID := newAuthHandler(t)
+
+	// GET should return current balance
+	getReq := httptest.NewRequest(http.MethodGet, "/api/points", nil)
+	getReq.Header.Set("Authorization", "Bearer "+token)
+	getRec := httptest.NewRecorder()
+	handler.HandlePoints(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", getRec.Code, getRec.Body.String())
+	}
+	var getResp pointsEndpointResponse
+	if err := json.NewDecoder(getRec.Body).Decode(&getResp); err != nil {
+		t.Fatalf("decode get response: %v", err)
+	}
+	if getResp.Balance != 0 {
+		t.Fatalf("expected initial balance 0, got %d", getResp.Balance)
+	}
+
+	// POST should adjust balance and reflect change
+	postReq := httptest.NewRequest(http.MethodPost, "/api/points", bytes.NewBufferString(`{"delta": 30}`))
+	postReq.Header.Set("Authorization", "Bearer "+token)
+	postReq.Header.Set("Content-Type", "application/json")
+	postRec := httptest.NewRecorder()
+	handler.HandlePoints(postRec, postReq)
+
+	if postRec.Code != http.StatusOK {
+		t.Fatalf("expected POST status 200, got %d: %s", postRec.Code, postRec.Body.String())
+	}
+	var postResp pointsEndpointResponse
+	if err := json.NewDecoder(postRec.Body).Decode(&postResp); err != nil {
+		t.Fatalf("decode post response: %v", err)
+	}
+	if postResp.Balance != 30 {
+		t.Fatalf("expected balance 30, got %d", postResp.Balance)
+	}
+
+	user, err := service.GetUser(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.PointsBalance != 30 {
+		t.Fatalf("expected stored balance 30, got %d", user.PointsBalance)
+	}
+}
+
 func TestHandleUpdateSubscription(t *testing.T) {
-	handler, service, token, now := newAuthHandler(t)
+	handler, service, token, now, userID := newAuthHandler(t)
 
 	expiry := now.Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	body := bytes.NewBufferString(`{"tier":"supporter","expires_at":"` + expiry + `"}`)
@@ -97,7 +156,7 @@ func TestHandleUpdateSubscription(t *testing.T) {
 		t.Fatalf("expected expiry %s, got %v", expiry, resp.Subscription.ExpiresAt)
 	}
 
-	user, err := service.GetUser(context.Background(), resp.ID)
+	user, err := service.GetUser(context.Background(), userID)
 	if err != nil {
 		t.Fatalf("get user: %v", err)
 	}
@@ -109,8 +168,58 @@ func TestHandleUpdateSubscription(t *testing.T) {
 	}
 }
 
+func TestHandleSubscriptionsEndpoint(t *testing.T) {
+	handler, service, token, now, userID := newAuthHandler(t)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/subscriptions", nil)
+	getReq.Header.Set("Authorization", "Bearer "+token)
+	getRec := httptest.NewRecorder()
+	handler.HandleSubscriptions(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", getRec.Code, getRec.Body.String())
+	}
+	var getResp subscriptionEndpointResponse
+	if err := json.NewDecoder(getRec.Body).Decode(&getResp); err != nil {
+		t.Fatalf("decode get response: %v", err)
+	}
+	if getResp.Subscription.Tier != "free" {
+		t.Fatalf("expected free tier, got %s", getResp.Subscription.Tier)
+	}
+
+	expiry := now.Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	body := bytes.NewBufferString(`{"tier":"supporter","expires_at":"` + expiry + `"}`)
+	postReq := httptest.NewRequest(http.MethodPost, "/api/subscriptions", body)
+	postReq.Header.Set("Authorization", "Bearer "+token)
+	postReq.Header.Set("Content-Type", "application/json")
+	postRec := httptest.NewRecorder()
+	handler.HandleSubscriptions(postRec, postReq)
+
+	if postRec.Code != http.StatusOK {
+		t.Fatalf("expected POST status 200, got %d: %s", postRec.Code, postRec.Body.String())
+	}
+	var postResp subscriptionEndpointResponse
+	if err := json.NewDecoder(postRec.Body).Decode(&postResp); err != nil {
+		t.Fatalf("decode post response: %v", err)
+	}
+	if postResp.Subscription.Tier != "supporter" {
+		t.Fatalf("expected supporter tier, got %s", postResp.Subscription.Tier)
+	}
+	if postResp.Subscription.ExpiresAt == nil || postResp.Subscription.ExpiresAt.Format(time.RFC3339) != expiry {
+		t.Fatalf("expected expiry %s, got %v", expiry, postResp.Subscription.ExpiresAt)
+	}
+
+	usersub, err := service.GetUser(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if usersub.SubscriptionTier != "supporter" {
+		t.Fatalf("expected stored tier supporter, got %s", usersub.SubscriptionTier)
+	}
+}
+
 func TestHandleListPlans(t *testing.T) {
-	handler, _, _, _ := newAuthHandler(t)
+	handler, _, _, _, _ := newAuthHandler(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/plans", nil)
 	rr := httptest.NewRecorder()
 
@@ -139,7 +248,7 @@ func TestHandleListPlans(t *testing.T) {
 	}
 }
 
-func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, string, time.Time) {
+func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, string, time.Time, string) {
 	t.Helper()
 	users, identities, sessions, states := adapters.NewMemoryStores()
 	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
@@ -151,7 +260,8 @@ func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, st
 	service.WithNow(func() time.Time { return fixed })
 
 	ctx := context.Background()
-	if _, err := service.RegisterLocal(ctx, "handler@example.com", "password", "Handler"); err != nil {
+	user, err := service.RegisterLocal(ctx, "handler@example.com", "password", "Handler")
+	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
 	tokens, err := service.LoginWithPassword(ctx, "handler@example.com", "password", "test-agent", "127.0.0.1")
@@ -159,5 +269,5 @@ func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, st
 		t.Fatalf("login: %v", err)
 	}
 
-	return serverhttp.NewAuthHandler(service, false), service, tokens.AccessToken, fixed
+	return serverhttp.NewAuthHandler(service, false), service, tokens.AccessToken, fixed, user.ID
 }

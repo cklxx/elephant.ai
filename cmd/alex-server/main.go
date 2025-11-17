@@ -16,6 +16,8 @@ import (
 	"alex/internal/analytics"
 	authAdapters "alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
+	pointsapp "alex/internal/auth/app/points"
+	subscriptionapp "alex/internal/auth/app/subscription"
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
 	runtimeconfig "alex/internal/config"
@@ -445,12 +447,18 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 	}
 
 	memUsers, memIdentities, memSessions, memStates := authAdapters.NewMemoryStores()
-	var (
-		users      authports.UserRepository     = memUsers
-		identities authports.IdentityRepository = memIdentities
-		sessions   authports.SessionRepository  = memSessions
-		states     authports.StateStore         = memStates
-	)
+        var (
+                users            authports.UserRepository         = memUsers
+                identities       authports.IdentityRepository     = memIdentities
+                sessions         authports.SessionRepository      = memSessions
+                states           authports.StateStore             = memStates
+                planRepo         authports.PlanRepository         = authAdapters.NewMemoryPlanRepo(nil)
+                subscriptionRepo authports.SubscriptionRepository = authAdapters.NewMemorySubscriptionRepo()
+                ledgerRepo       authports.PointsLedgerRepository = authAdapters.NewMemoryPointsLedgerRepo()
+                promotionFeed    authports.PromotionFeedPort      = authAdapters.NewMemoryPromotionFeed()
+                paymentGateway   authports.PaymentGatewayPort     = authAdapters.NewFakePaymentGateway()
+                eventPublisher   authports.EventPublisher         = authAdapters.NewMemoryEventPublisher()
+        )
 	tokenManager := authAdapters.NewJWTTokenManager(secret, "alex-server", accessTTL)
 
 	var cleanupFuncs []func()
@@ -471,6 +479,9 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 		identities = identitiesRepo
 		sessions = sessionsRepo
 		states = statesRepo
+		planRepo = authAdapters.NewPostgresPlanRepo(pool)
+		subscriptionRepo = authAdapters.NewPostgresSubscriptionRepo(pool)
+		ledgerRepo = authAdapters.NewPostgresPointsLedgerRepo(pool)
 		cleanupFuncs = append(cleanupFuncs, func() {
 			pool.Close()
 		})
@@ -577,5 +588,11 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 		}
 	}
 
-	return service, cleanup, nil
+        subscriptionService := subscriptionapp.NewService(users, planRepo, subscriptionRepo, paymentGateway, subscriptionapp.Config{})
+        subscriptionService.AttachPublisher(eventPublisher)
+        service.AttachSubscriptionService(subscriptionService)
+        pointsService := pointsapp.NewService(users, ledgerRepo, promotionFeed, pointsapp.Config{})
+        pointsService.AttachPublisher(eventPublisher)
+        service.AttachPointsService(pointsService)
+        return service, cleanup, nil
 }

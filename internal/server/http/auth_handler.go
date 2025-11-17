@@ -59,6 +59,7 @@ type adjustPointsRequest struct {
 type updateSubscriptionRequest struct {
 	Tier      string  `json:"tier"`
 	ExpiresAt *string `json:"expires_at"`
+	AutoRenew *bool   `json:"auto_renew"`
 }
 
 type tokenResponse struct {
@@ -82,6 +83,10 @@ type subscriptionDTO struct {
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
 }
 
+type subscriptionStatusResponse struct {
+	Subscription subscriptionDTO `json:"subscription"`
+}
+
 type subscriptionPlanDTO struct {
 	Tier              string `json:"tier"`
 	MonthlyPriceCents int    `json:"monthly_price_cents"`
@@ -89,6 +94,10 @@ type subscriptionPlanDTO struct {
 
 type plansResponse struct {
 	Plans []subscriptionPlanDTO `json:"plans"`
+}
+
+type pointsResponse struct {
+	Balance int64 `json:"balance"`
 }
 
 type oauthStartResponse struct {
@@ -238,6 +247,44 @@ func (h *AuthHandler) HandleAdjustPoints(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, toUserDTO(updated))
 }
 
+// HandlePoints supports GET/POST /api/points.
+func (h *AuthHandler) HandlePoints(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.handlePointsGet(w, r)
+	case http.MethodPost:
+		h.handlePointsPost(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *AuthHandler) handlePointsGet(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, pointsResponse{Balance: user.PointsBalance})
+}
+
+func (h *AuthHandler) handlePointsPost(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
+		return
+	}
+	var req adjustPointsRequest
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		h.writeError(w, err)
+		return
+	}
+	updated, err := h.service.AdjustPoints(r.Context(), user.ID, req.Delta)
+	if err != nil {
+		h.writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pointsResponse{Balance: updated.PointsBalance})
+}
+
 // HandleUpdateSubscription processes POST /api/auth/subscription.
 func (h *AuthHandler) HandleUpdateSubscription(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -253,22 +300,60 @@ func (h *AuthHandler) HandleUpdateSubscription(w http.ResponseWriter, r *http.Re
 		h.writeError(w, err)
 		return
 	}
-	tier := domain.SubscriptionTier(strings.TrimSpace(strings.ToLower(req.Tier)))
-	var expiresAt *time.Time
-	if req.ExpiresAt != nil && strings.TrimSpace(*req.ExpiresAt) != "" {
-		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ExpiresAt))
-		if err != nil {
-			http.Error(w, "invalid expires_at", http.StatusBadRequest)
-			return
-		}
-		expiresAt = &parsed
+	tier, expiresAt, autoRenew, err := normalizeSubscriptionRequest(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-	updated, err := h.service.UpdateSubscription(r.Context(), user.ID, tier, expiresAt)
+	updated, err := h.service.UpdateSubscription(r.Context(), user.ID, tier, expiresAt, autoRenew)
 	if err != nil {
 		h.writeDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, toUserDTO(updated))
+}
+
+// HandleSubscriptions manages GET/POST /api/subscriptions.
+func (h *AuthHandler) HandleSubscriptions(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.handleSubscriptionStatus(w, r)
+	case http.MethodPost:
+		h.handleSubscriptionUpdate(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *AuthHandler) handleSubscriptionStatus(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionStatusResponse{Subscription: toSubscriptionDTOFromUser(user)})
+}
+
+func (h *AuthHandler) handleSubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.requireAuthenticatedUser(w, r)
+	if !ok {
+		return
+	}
+	var req updateSubscriptionRequest
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		h.writeError(w, err)
+		return
+	}
+	tier, expiresAt, autoRenew, err := normalizeSubscriptionRequest(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	updated, err := h.service.UpdateSubscription(r.Context(), user.ID, tier, expiresAt, autoRenew)
+	if err != nil {
+		h.writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionStatusResponse{Subscription: toSubscriptionDTOFromUser(updated)})
 }
 
 // HandleListPlans returns the subscription catalog.
@@ -446,18 +531,42 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, v any) error {
 }
 
 func toUserDTO(user domain.User) userDTO {
-	plan := user.SubscriptionTier.Plan()
 	return userDTO{
 		ID:            user.ID,
 		Email:         user.Email,
 		DisplayName:   user.DisplayName,
 		PointsBalance: user.PointsBalance,
-		Subscription: subscriptionDTO{
-			Tier:              string(plan.Tier),
-			MonthlyPriceCents: plan.MonthlyPriceCents,
-			ExpiresAt:         user.SubscriptionExpiresAt,
-		},
+		Subscription:  toSubscriptionDTOFromUser(user),
 	}
+}
+
+func toSubscriptionDTOFromUser(user domain.User) subscriptionDTO {
+	plan := user.SubscriptionTier.Plan()
+	return subscriptionDTO{
+		Tier:              string(plan.Tier),
+		MonthlyPriceCents: plan.MonthlyPriceCents,
+		ExpiresAt:         user.SubscriptionExpiresAt,
+	}
+}
+
+func normalizeSubscriptionRequest(req updateSubscriptionRequest) (domain.SubscriptionTier, *time.Time, bool, error) {
+	tier := domain.SubscriptionTier(strings.TrimSpace(strings.ToLower(req.Tier)))
+	if tier == "" {
+		return "", nil, true, fmt.Errorf("tier is required")
+	}
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && strings.TrimSpace(*req.ExpiresAt) != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ExpiresAt))
+		if err != nil {
+			return "", nil, true, fmt.Errorf("invalid expires_at")
+		}
+		expiresAt = &parsed
+	}
+	autoRenew := true
+	if req.AutoRenew != nil {
+		autoRenew = *req.AutoRenew
+	}
+	return tier, expiresAt, autoRenew, nil
 }
 
 func toSubscriptionPlanDTO(plan domain.SubscriptionPlan) subscriptionPlanDTO {

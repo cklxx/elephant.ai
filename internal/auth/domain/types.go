@@ -42,30 +42,48 @@ const (
 // SubscriptionPlan captures metadata about a subscription tier.
 type SubscriptionPlan struct {
 	Tier              SubscriptionTier
+	DisplayName       string
 	MonthlyPriceCents int
+	Currency          string
+	IsActive          bool
+	Metadata          map[string]any
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 var subscriptionCatalog = map[SubscriptionTier]SubscriptionPlan{
 	SubscriptionTierFree: {
 		Tier:              SubscriptionTierFree,
+		DisplayName:       "Free",
 		MonthlyPriceCents: 0,
+		Currency:          "USD",
+		IsActive:          true,
+		Metadata:          map[string]any{},
 	},
 	SubscriptionTierSupporter: {
 		Tier:              SubscriptionTierSupporter,
+		DisplayName:       "Supporter",
 		MonthlyPriceCents: 2000,
+		Currency:          "USD",
+		IsActive:          true,
+		Metadata:          map[string]any{},
 	},
 	SubscriptionTierProfessional: {
 		Tier:              SubscriptionTierProfessional,
+		DisplayName:       "Professional",
 		MonthlyPriceCents: 10000,
+		Currency:          "USD",
+		IsActive:          true,
+		Metadata:          map[string]any{},
 	},
 }
 
 // Plan returns the catalog entry for the tier. Unknown tiers resolve to a zero-value plan.
 func (t SubscriptionTier) Plan() SubscriptionPlan {
 	if plan, ok := subscriptionCatalog[t]; ok {
-		return plan
+		return cloneSubscriptionPlan(plan)
 	}
-	return SubscriptionPlan{Tier: t}
+	return SubscriptionPlan{Tier: t, Currency: "USD", IsActive: false, Metadata: map[string]any{}}
 }
 
 // IsPaid reports whether the tier requires payment.
@@ -84,7 +102,7 @@ func (t SubscriptionTier) IsValid() bool {
 func SubscriptionPlans() []SubscriptionPlan {
 	plans := make([]SubscriptionPlan, 0, len(subscriptionCatalog))
 	for _, plan := range subscriptionCatalog {
-		plans = append(plans, plan)
+		plans = append(plans, cloneSubscriptionPlan(plan))
 	}
 	sort.Slice(plans, func(i, j int) bool {
 		if plans[i].MonthlyPriceCents == plans[j].MonthlyPriceCents {
@@ -93,6 +111,20 @@ func SubscriptionPlans() []SubscriptionPlan {
 		return plans[i].MonthlyPriceCents < plans[j].MonthlyPriceCents
 	})
 	return plans
+}
+
+func cloneSubscriptionPlan(plan SubscriptionPlan) SubscriptionPlan {
+	cloned := plan
+	if plan.Metadata == nil {
+		cloned.Metadata = map[string]any{}
+		return cloned
+	}
+	meta := make(map[string]any, len(plan.Metadata))
+	for key, value := range plan.Metadata {
+		meta[key] = value
+	}
+	cloned.Metadata = meta
+	return cloned
 }
 
 // User represents a person who can access the platform.

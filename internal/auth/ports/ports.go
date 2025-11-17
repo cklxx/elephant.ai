@@ -68,3 +68,43 @@ type StateStoreWithCleanup interface {
 	StateStore
 	PurgeExpired(ctx context.Context, before time.Time) (int64, error)
 }
+
+// PlanRepository manages subscription catalog metadata sourced from auth_plans.
+type PlanRepository interface {
+	List(ctx context.Context, includeInactive bool) ([]domain.SubscriptionPlan, error)
+	FindByTier(ctx context.Context, tier domain.SubscriptionTier) (domain.SubscriptionPlan, error)
+	Upsert(ctx context.Context, plan domain.SubscriptionPlan) error
+}
+
+// SubscriptionRepository persists per-user subscription lifecycles backed by auth_subscriptions.
+type SubscriptionRepository interface {
+	Create(ctx context.Context, subscription domain.Subscription) (domain.Subscription, error)
+	Update(ctx context.Context, subscription domain.Subscription) (domain.Subscription, error)
+	FindActiveByUser(ctx context.Context, userID string) (domain.Subscription, error)
+	ListExpiring(ctx context.Context, before time.Time) ([]domain.Subscription, error)
+}
+
+// PointsLedgerRepository stores immutable debit/credit rows and exposes balance helpers.
+type PointsLedgerRepository interface {
+	AppendEntry(ctx context.Context, entry domain.PointsLedgerEntry) (domain.PointsLedgerEntry, error)
+	ListEntries(ctx context.Context, userID string, limit int) ([]domain.PointsLedgerEntry, error)
+	LatestBalance(ctx context.Context, userID string) (int64, error)
+}
+
+// PaymentGatewayPort encapsulates the remote billing platform (e.g., Stripe, WeChat Pay).
+type PaymentGatewayPort interface {
+	EnsureCustomer(ctx context.Context, user domain.User) (customerID string, err error)
+	CreateSubscription(ctx context.Context, customerID string, plan domain.SubscriptionPlan) (gatewaySubscriptionID string, err error)
+	CancelSubscription(ctx context.Context, gatewaySubscriptionID string) error
+}
+
+// PromotionFeedPort exposes promotional campaigns that may affect subscriptions or points bonuses.
+type PromotionFeedPort interface {
+	ListActive(ctx context.Context, userID string) ([]domain.Promotion, error)
+}
+
+// EventPublisher fan-outs domain events to downstream systems (e.g., message buses).
+type EventPublisher interface {
+	PublishSubscriptionEvent(ctx context.Context, event domain.SubscriptionEvent) error
+	PublishPointsEvent(ctx context.Context, event domain.PointsLedgerEvent) error
+}

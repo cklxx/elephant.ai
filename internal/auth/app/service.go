@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
+	pointsapp "alex/internal/auth/app/points"
+	subscriptionapp "alex/internal/auth/app/subscription"
 	"alex/internal/auth/crypto"
 	"alex/internal/auth/domain"
 	"alex/internal/auth/ports"
@@ -36,6 +39,8 @@ type Service struct {
 	providers  map[domain.ProviderType]ports.OAuthProvider
 	config     Config
 	now        func() time.Time
+	pointsSvc  *pointsapp.Service
+	subSvc     *subscriptionapp.Service
 }
 
 // NewService constructs a Service instance.
@@ -83,6 +88,18 @@ func (s *Service) WithNow(now func() time.Time) {
 	if now != nil {
 		s.now = now
 	}
+}
+
+// AttachPointsService wires the dedicated points ledger service so AdjustPoints routes
+// through immutable ledger entries instead of mutating the balance directly.
+func (s *Service) AttachPointsService(points *pointsapp.Service) {
+	s.pointsSvc = points
+}
+
+// AttachSubscriptionService wires the dedicated subscription orchestration service so paid
+// plan upgrades/cancellations flow through consistent billing logic.
+func (s *Service) AttachSubscriptionService(subscriptions *subscriptionapp.Service) {
+	s.subSvc = subscriptions
 }
 
 // RegisterLocal registers a new local user with username/password.
@@ -344,6 +361,17 @@ func (s *Service) GetUser(ctx context.Context, id string) (domain.User, error) {
 
 // AdjustPoints changes a user's points balance by the provided delta.
 func (s *Service) AdjustPoints(ctx context.Context, userID string, delta int64) (domain.User, error) {
+	if s.pointsSvc != nil {
+		metadata := map[string]any{"source": "auth.service"}
+		if delta > 0 {
+			metadata["delta"] = delta
+		}
+		corr := uuid.NewString()
+		if _, err := s.pointsSvc.Adjust(ctx, userID, delta, "manual_adjustment", metadata, corr); err != nil {
+			return domain.User{}, err
+		}
+		return s.users.FindByID(ctx, userID)
+	}
 	user, err := s.users.FindByID(ctx, userID)
 	if err != nil {
 		return domain.User{}, err
@@ -367,10 +395,44 @@ func (s *Service) AdjustPoints(ctx context.Context, userID string, delta int64) 
 }
 
 // UpdateSubscription switches a user's subscription tier.
-// For paid plans the caller must provide a future expiry time.
-func (s *Service) UpdateSubscription(ctx context.Context, userID string, tier domain.SubscriptionTier, expiresAt *time.Time) (domain.User, error) {
+// For paid plans the caller must provide a future expiry time when the legacy
+// flow is used. When the dedicated subscription service is attached, the
+// expiry is derived from that service's billing cycle.
+func (s *Service) UpdateSubscription(ctx context.Context, userID string, tier domain.SubscriptionTier, expiresAt *time.Time, autoRenew bool) (domain.User, error) {
 	if !tier.IsValid() {
 		return domain.User{}, domain.ErrInvalidSubscriptionTier
+	}
+	if s.subSvc != nil {
+		user, err := s.users.FindByID(ctx, userID)
+		if err != nil {
+			return domain.User{}, err
+		}
+		corr := uuid.NewString()
+		if tier == domain.SubscriptionTierFree {
+			if !user.SubscriptionTier.IsPaid() {
+				if user.SubscriptionTier == domain.SubscriptionTierFree {
+					return user, nil
+				}
+				user.SubscriptionTier = domain.SubscriptionTierFree
+				user.SubscriptionExpiresAt = nil
+				user.UpdatedAt = s.now()
+				return s.users.Update(ctx, user)
+			}
+			if _, err := s.subSvc.Cancel(ctx, user, corr); err != nil {
+				if errors.Is(err, domain.ErrSubscriptionNotFound) {
+					user.SubscriptionTier = domain.SubscriptionTierFree
+					user.SubscriptionExpiresAt = nil
+					user.UpdatedAt = s.now()
+					return s.users.Update(ctx, user)
+				}
+				return domain.User{}, err
+			}
+			return s.users.FindByID(ctx, userID)
+		}
+		if _, err := s.subSvc.ChangePlan(ctx, user, tier, autoRenew, corr); err != nil {
+			return domain.User{}, err
+		}
+		return s.users.FindByID(ctx, userID)
 	}
 	if tier.IsPaid() {
 		if expiresAt == nil {

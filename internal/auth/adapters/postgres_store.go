@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -31,11 +32,38 @@ type PostgresStateStore struct {
 	pool *pgxpool.Pool
 }
 
+type PostgresPlanRepo struct {
+	pool *pgxpool.Pool
+}
+
+type PostgresSubscriptionRepo struct {
+	pool *pgxpool.Pool
+}
+
+type PostgresPointsLedgerRepo struct {
+	pool *pgxpool.Pool
+}
+
 func NewPostgresStores(pool *pgxpool.Pool) (*PostgresUserRepo, *PostgresIdentityRepo, *PostgresSessionRepo, *PostgresStateStore) {
 	sessions := &PostgresSessionRepo{pool: pool, verifier: func(string, string) (bool, error) {
 		return false, fmt.Errorf("refresh token verifier not configured")
 	}}
 	return &PostgresUserRepo{pool: pool}, &PostgresIdentityRepo{pool: pool}, sessions, &PostgresStateStore{pool: pool}
+}
+
+// NewPostgresPlanRepo returns a PlanRepository backed by auth_plans.
+func NewPostgresPlanRepo(pool *pgxpool.Pool) *PostgresPlanRepo {
+	return &PostgresPlanRepo{pool: pool}
+}
+
+// NewPostgresSubscriptionRepo returns a SubscriptionRepository backed by auth_subscriptions.
+func NewPostgresSubscriptionRepo(pool *pgxpool.Pool) *PostgresSubscriptionRepo {
+	return &PostgresSubscriptionRepo{pool: pool}
+}
+
+// NewPostgresPointsLedgerRepo returns a PointsLedgerRepository backed by auth_points_ledger.
+func NewPostgresPointsLedgerRepo(pool *pgxpool.Pool) *PostgresPointsLedgerRepo {
+	return &PostgresPointsLedgerRepo{pool: pool}
 }
 
 func (r *PostgresUserRepo) Create(ctx context.Context, user domain.User) (domain.User, error) {
@@ -439,4 +467,435 @@ func (s *PostgresStateStore) PurgeExpired(ctx context.Context, before time.Time)
 		return 0, err
 	}
 	return cmdTag.RowsAffected(), nil
+}
+
+// List returns the subscription catalog from auth_plans.
+func (r *PostgresPlanRepo) List(ctx context.Context, includeInactive bool) ([]domain.SubscriptionPlan, error) {
+	query := `SELECT tier, display_name, monthly_price_cents, currency, is_active, metadata, created_at, updated_at FROM auth_plans`
+	if !includeInactive {
+		query += ` WHERE is_active = TRUE`
+	}
+	query += ` ORDER BY monthly_price_cents ASC, tier ASC`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	plans := []domain.SubscriptionPlan{}
+	for rows.Next() {
+		plan, err := scanSubscriptionPlanRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		plans = append(plans, plan)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+
+// FindByTier returns the catalog entry for the tier.
+func (r *PostgresPlanRepo) FindByTier(ctx context.Context, tier domain.SubscriptionTier) (domain.SubscriptionPlan, error) {
+	query := `SELECT tier, display_name, monthly_price_cents, currency, is_active, metadata, created_at, updated_at FROM auth_plans WHERE tier = $1`
+	plan, err := scanSubscriptionPlanRow(r.pool.QueryRow(ctx, query, string(tier)))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.SubscriptionPlan{}, domain.ErrInvalidSubscriptionTier
+		}
+		return domain.SubscriptionPlan{}, err
+	}
+	return plan, nil
+}
+
+// Upsert inserts or updates a plan definition.
+func (r *PostgresPlanRepo) Upsert(ctx context.Context, plan domain.SubscriptionPlan) error {
+	metadata, err := encodeMetadata(plan.Metadata)
+	if err != nil {
+		return err
+	}
+	query := `
+INSERT INTO auth_plans (tier, display_name, monthly_price_cents, currency, is_active, metadata)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (tier) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    monthly_price_cents = EXCLUDED.monthly_price_cents,
+    currency = EXCLUDED.currency,
+    is_active = EXCLUDED.is_active,
+    metadata = EXCLUDED.metadata,
+    updated_at = NOW()
+`
+	_, err = r.pool.Exec(ctx, query,
+		string(plan.Tier),
+		plan.DisplayName,
+		plan.MonthlyPriceCents,
+		plan.Currency,
+		plan.IsActive,
+		metadata,
+	)
+	return err
+}
+
+// Create inserts a subscription row.
+func (r *PostgresSubscriptionRepo) Create(ctx context.Context, subscription domain.Subscription) (domain.Subscription, error) {
+	metadata, err := encodeMetadata(subscription.Metadata)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	query := `
+INSERT INTO auth_subscriptions (id, user_id, tier, status, auto_renew, current_period_start, current_period_end, external_customer_id, external_subscription_id, external_plan_id, metadata, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), $11, $12, $12)
+RETURNING id, user_id, tier, status, auto_renew, current_period_start, current_period_end, external_customer_id, external_subscription_id, external_plan_id, metadata, created_at, updated_at
+`
+	var currentPeriodEnd sql.NullTime
+	var rawMetadata []byte
+	var created domain.Subscription
+	err = r.pool.QueryRow(ctx, query,
+		subscription.ID,
+		subscription.UserID,
+		string(subscription.Tier),
+		string(subscription.Status),
+		subscription.AutoRenew,
+		subscription.CurrentPeriodStart,
+		subscription.CurrentPeriodEnd,
+		subscription.ExternalCustomerID,
+		subscription.ExternalSubscriptionID,
+		subscription.ExternalPlanID,
+		metadata,
+		subscription.CreatedAt,
+	).Scan(
+		&created.ID,
+		&created.UserID,
+		&created.Tier,
+		&created.Status,
+		&created.AutoRenew,
+		&created.CurrentPeriodStart,
+		&currentPeriodEnd,
+		&created.ExternalCustomerID,
+		&created.ExternalSubscriptionID,
+		&created.ExternalPlanID,
+		&rawMetadata,
+		&created.CreatedAt,
+		&created.UpdatedAt,
+	)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	if currentPeriodEnd.Valid {
+		t := currentPeriodEnd.Time
+		created.CurrentPeriodEnd = &t
+	}
+	if created.Metadata, err = decodeMetadata(rawMetadata); err != nil {
+		return domain.Subscription{}, err
+	}
+	return created, nil
+}
+
+// Update persists subscription changes.
+func (r *PostgresSubscriptionRepo) Update(ctx context.Context, subscription domain.Subscription) (domain.Subscription, error) {
+	metadata, err := encodeMetadata(subscription.Metadata)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	query := `
+UPDATE auth_subscriptions
+SET tier = $2,
+    status = $3,
+    auto_renew = $4,
+    current_period_start = $5,
+    current_period_end = $6,
+    external_customer_id = NULLIF($7, ''),
+    external_subscription_id = NULLIF($8, ''),
+    external_plan_id = NULLIF($9, ''),
+    metadata = $10,
+    updated_at = $11
+WHERE id = $1
+RETURNING id, user_id, tier, status, auto_renew, current_period_start, current_period_end, external_customer_id, external_subscription_id, external_plan_id, metadata, created_at, updated_at
+`
+	var currentPeriodEnd sql.NullTime
+	var rawMetadata []byte
+	var updated domain.Subscription
+	err = r.pool.QueryRow(ctx, query,
+		subscription.ID,
+		string(subscription.Tier),
+		string(subscription.Status),
+		subscription.AutoRenew,
+		subscription.CurrentPeriodStart,
+		subscription.CurrentPeriodEnd,
+		subscription.ExternalCustomerID,
+		subscription.ExternalSubscriptionID,
+		subscription.ExternalPlanID,
+		metadata,
+		subscription.UpdatedAt,
+	).Scan(
+		&updated.ID,
+		&updated.UserID,
+		&updated.Tier,
+		&updated.Status,
+		&updated.AutoRenew,
+		&updated.CurrentPeriodStart,
+		&currentPeriodEnd,
+		&updated.ExternalCustomerID,
+		&updated.ExternalSubscriptionID,
+		&updated.ExternalPlanID,
+		&rawMetadata,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Subscription{}, domain.ErrSubscriptionNotFound
+		}
+		return domain.Subscription{}, err
+	}
+	if currentPeriodEnd.Valid {
+		t := currentPeriodEnd.Time
+		updated.CurrentPeriodEnd = &t
+	}
+	if updated.Metadata, err = decodeMetadata(rawMetadata); err != nil {
+		return domain.Subscription{}, err
+	}
+	return updated, nil
+}
+
+// FindActiveByUser returns the most recent non-canceled subscription for a user.
+func (r *PostgresSubscriptionRepo) FindActiveByUser(ctx context.Context, userID string) (domain.Subscription, error) {
+	query := `
+SELECT id, user_id, tier, status, auto_renew, current_period_start, current_period_end, external_customer_id, external_subscription_id, external_plan_id, metadata, created_at, updated_at
+FROM auth_subscriptions
+WHERE user_id = $1 AND status != 'canceled'
+ORDER BY updated_at DESC
+LIMIT 1
+`
+	subscription, err := scanSubscriptionRow(r.pool.QueryRow(ctx, query, userID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Subscription{}, domain.ErrSubscriptionNotFound
+		}
+		return domain.Subscription{}, err
+	}
+	return subscription, nil
+}
+
+// ListExpiring returns subscriptions that expire before the provided instant.
+func (r *PostgresSubscriptionRepo) ListExpiring(ctx context.Context, before time.Time) ([]domain.Subscription, error) {
+	query := `
+SELECT id, user_id, tier, status, auto_renew, current_period_start, current_period_end, external_customer_id, external_subscription_id, external_plan_id, metadata, created_at, updated_at
+FROM auth_subscriptions
+WHERE status = 'active' AND current_period_end IS NOT NULL AND current_period_end <= $1
+ORDER BY current_period_end ASC
+`
+	rows, err := r.pool.Query(ctx, query, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var subscriptions []domain.Subscription
+	for rows.Next() {
+		sub, err := scanSubscriptionRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		subscriptions = append(subscriptions, sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return subscriptions, nil
+}
+
+// AppendEntry writes a new ledger entry.
+func (r *PostgresPointsLedgerRepo) AppendEntry(ctx context.Context, entry domain.PointsLedgerEntry) (domain.PointsLedgerEntry, error) {
+	metadata, err := encodeMetadata(entry.Metadata)
+	if err != nil {
+		return domain.PointsLedgerEntry{}, err
+	}
+	query := `
+INSERT INTO auth_points_ledger (id, user_id, delta, balance_after, reason, metadata, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, user_id, delta, balance_after, reason, metadata, created_at
+`
+	var rawMetadata []byte
+	var created domain.PointsLedgerEntry
+	err = r.pool.QueryRow(ctx, query,
+		entry.ID,
+		entry.UserID,
+		entry.Delta,
+		entry.BalanceAfter,
+		entry.Reason,
+		metadata,
+		entry.CreatedAt,
+	).Scan(
+		&created.ID,
+		&created.UserID,
+		&created.Delta,
+		&created.BalanceAfter,
+		&created.Reason,
+		&rawMetadata,
+		&created.CreatedAt,
+	)
+	if err != nil {
+		return domain.PointsLedgerEntry{}, err
+	}
+	if created.Metadata, err = decodeMetadata(rawMetadata); err != nil {
+		return domain.PointsLedgerEntry{}, err
+	}
+	return created, nil
+}
+
+// ListEntries returns the newest ledger entries up to limit.
+func (r *PostgresPointsLedgerRepo) ListEntries(ctx context.Context, userID string, limit int) ([]domain.PointsLedgerEntry, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+SELECT id, user_id, delta, balance_after, reason, metadata, created_at
+FROM auth_points_ledger
+WHERE user_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+`
+	rows, err := r.pool.Query(ctx, query, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []domain.PointsLedgerEntry
+	for rows.Next() {
+		entry, err := scanLedgerEntry(rows)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// LatestBalance returns the most recent balance recorded in the ledger.
+func (r *PostgresPointsLedgerRepo) LatestBalance(ctx context.Context, userID string) (int64, error) {
+	query := `
+SELECT balance_after
+FROM auth_points_ledger
+WHERE user_id = $1 AND balance_after IS NOT NULL
+ORDER BY created_at DESC
+LIMIT 1
+`
+	var balance sql.NullInt64
+	err := r.pool.QueryRow(ctx, query, userID).Scan(&balance)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, domain.ErrPointsLedgerEntryNotFound
+		}
+		return 0, err
+	}
+	if !balance.Valid {
+		return 0, domain.ErrPointsLedgerEntryNotFound
+	}
+	return balance.Int64, nil
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanSubscriptionPlanRow(row rowScanner) (domain.SubscriptionPlan, error) {
+	var plan domain.SubscriptionPlan
+	var rawMetadata []byte
+	err := row.Scan(
+		&plan.Tier,
+		&plan.DisplayName,
+		&plan.MonthlyPriceCents,
+		&plan.Currency,
+		&plan.IsActive,
+		&rawMetadata,
+		&plan.CreatedAt,
+		&plan.UpdatedAt,
+	)
+	if err != nil {
+		return domain.SubscriptionPlan{}, err
+	}
+	if plan.Metadata, err = decodeMetadata(rawMetadata); err != nil {
+		return domain.SubscriptionPlan{}, err
+	}
+	return plan, nil
+}
+
+func scanSubscriptionRow(row rowScanner) (domain.Subscription, error) {
+	var subscription domain.Subscription
+	var currentPeriodEnd sql.NullTime
+	var rawMetadata []byte
+	err := row.Scan(
+		&subscription.ID,
+		&subscription.UserID,
+		&subscription.Tier,
+		&subscription.Status,
+		&subscription.AutoRenew,
+		&subscription.CurrentPeriodStart,
+		&currentPeriodEnd,
+		&subscription.ExternalCustomerID,
+		&subscription.ExternalSubscriptionID,
+		&subscription.ExternalPlanID,
+		&rawMetadata,
+		&subscription.CreatedAt,
+		&subscription.UpdatedAt,
+	)
+	if err != nil {
+		return domain.Subscription{}, err
+	}
+	if currentPeriodEnd.Valid {
+		t := currentPeriodEnd.Time
+		subscription.CurrentPeriodEnd = &t
+	}
+	if subscription.Metadata, err = decodeMetadata(rawMetadata); err != nil {
+		return domain.Subscription{}, err
+	}
+	return subscription, nil
+}
+
+func scanLedgerEntry(row rowScanner) (domain.PointsLedgerEntry, error) {
+	var entry domain.PointsLedgerEntry
+	var rawMetadata []byte
+	err := row.Scan(
+		&entry.ID,
+		&entry.UserID,
+		&entry.Delta,
+		&entry.BalanceAfter,
+		&entry.Reason,
+		&rawMetadata,
+		&entry.CreatedAt,
+	)
+	if err != nil {
+		return domain.PointsLedgerEntry{}, err
+	}
+	if entry.Metadata, err = decodeMetadata(rawMetadata); err != nil {
+		return domain.PointsLedgerEntry{}, err
+	}
+	return entry, nil
+}
+
+func encodeMetadata(metadata map[string]any) ([]byte, error) {
+	if metadata == nil {
+		return []byte("{}"), nil
+	}
+	if len(metadata) == 0 {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(metadata)
+}
+
+func decodeMetadata(raw []byte) (map[string]any, error) {
+	if len(raw) == 0 {
+		return map[string]any{}, nil
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(raw, &metadata); err != nil {
+		return nil, err
+	}
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	return metadata, nil
 }

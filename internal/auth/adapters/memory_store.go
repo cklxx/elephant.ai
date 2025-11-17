@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -210,6 +211,204 @@ func (s *memoryStateStore) Consume(_ context.Context, state string, provider dom
 	}
 	delete(s.states, state)
 	return nil
+}
+
+// NewMemoryPlanRepo returns an in-memory Subscription plan catalog.
+func NewMemoryPlanRepo(plans []domain.SubscriptionPlan) *memoryPlanRepo {
+	repo := &memoryPlanRepo{plans: map[domain.SubscriptionTier]domain.SubscriptionPlan{}}
+	if len(plans) == 0 {
+		plans = domain.SubscriptionPlans()
+	}
+	for _, plan := range plans {
+		repo.plans[plan.Tier] = clonePlan(plan)
+	}
+	return repo
+}
+
+type memoryPlanRepo struct {
+	mu    sync.RWMutex
+	plans map[domain.SubscriptionTier]domain.SubscriptionPlan
+}
+
+func (r *memoryPlanRepo) List(_ context.Context, includeInactive bool) ([]domain.SubscriptionPlan, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	plans := make([]domain.SubscriptionPlan, 0, len(r.plans))
+	for _, plan := range r.plans {
+		if !includeInactive && !plan.IsActive {
+			continue
+		}
+		plans = append(plans, clonePlan(plan))
+	}
+	sort.Slice(plans, func(i, j int) bool {
+		if plans[i].MonthlyPriceCents == plans[j].MonthlyPriceCents {
+			return plans[i].Tier < plans[j].Tier
+		}
+		return plans[i].MonthlyPriceCents < plans[j].MonthlyPriceCents
+	})
+	return plans, nil
+}
+
+func (r *memoryPlanRepo) FindByTier(_ context.Context, tier domain.SubscriptionTier) (domain.SubscriptionPlan, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	plan, ok := r.plans[tier]
+	if !ok {
+		return domain.SubscriptionPlan{}, domain.ErrInvalidSubscriptionTier
+	}
+	return clonePlan(plan), nil
+}
+
+func (r *memoryPlanRepo) Upsert(_ context.Context, plan domain.SubscriptionPlan) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.plans[plan.Tier] = clonePlan(plan)
+	return nil
+}
+
+func clonePlan(plan domain.SubscriptionPlan) domain.SubscriptionPlan {
+	cloned := plan
+	if plan.Metadata == nil {
+		cloned.Metadata = map[string]any{}
+		return cloned
+	}
+	meta := make(map[string]any, len(plan.Metadata))
+	for key, value := range plan.Metadata {
+		meta[key] = value
+	}
+	cloned.Metadata = meta
+	return cloned
+}
+
+// NewMemorySubscriptionRepo constructs an in-memory Subscription repository.
+func NewMemorySubscriptionRepo() *memorySubscriptionRepo {
+	return &memorySubscriptionRepo{subscriptions: map[string]domain.Subscription{}}
+}
+
+type memorySubscriptionRepo struct {
+	mu            sync.RWMutex
+	subscriptions map[string]domain.Subscription // keyed by user ID for quick lookup
+}
+
+func (r *memorySubscriptionRepo) Create(_ context.Context, subscription domain.Subscription) (domain.Subscription, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.subscriptions[subscription.UserID] = cloneSubscription(subscription)
+	return subscription, nil
+}
+
+func (r *memorySubscriptionRepo) Update(_ context.Context, subscription domain.Subscription) (domain.Subscription, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.subscriptions[subscription.UserID]; !ok {
+		return domain.Subscription{}, domain.ErrSubscriptionNotFound
+	}
+	r.subscriptions[subscription.UserID] = cloneSubscription(subscription)
+	return subscription, nil
+}
+
+func (r *memorySubscriptionRepo) FindActiveByUser(_ context.Context, userID string) (domain.Subscription, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	sub, ok := r.subscriptions[userID]
+	if !ok || sub.Status != domain.SubscriptionStatusActive {
+		return domain.Subscription{}, domain.ErrSubscriptionNotFound
+	}
+	return cloneSubscription(sub), nil
+}
+
+func (r *memorySubscriptionRepo) ListExpiring(_ context.Context, before time.Time) ([]domain.Subscription, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var expiring []domain.Subscription
+	for _, sub := range r.subscriptions {
+		if sub.CurrentPeriodEnd == nil {
+			continue
+		}
+		if sub.Status != domain.SubscriptionStatusActive {
+			continue
+		}
+		if sub.CurrentPeriodEnd.Before(before) {
+			expiring = append(expiring, cloneSubscription(sub))
+		}
+	}
+	return expiring, nil
+}
+
+func cloneSubscription(sub domain.Subscription) domain.Subscription {
+	cloned := sub
+	if sub.Metadata == nil {
+		cloned.Metadata = map[string]any{}
+		return cloned
+	}
+	meta := make(map[string]any, len(sub.Metadata))
+	for key, value := range sub.Metadata {
+		meta[key] = value
+	}
+	cloned.Metadata = meta
+	return cloned
+}
+
+// NewMemoryPointsLedgerRepo constructs an in-memory ledger for points adjustments.
+func NewMemoryPointsLedgerRepo() *memoryPointsLedgerRepo {
+	return &memoryPointsLedgerRepo{entries: map[string][]domain.PointsLedgerEntry{}}
+}
+
+type memoryPointsLedgerRepo struct {
+	mu      sync.RWMutex
+	entries map[string][]domain.PointsLedgerEntry
+}
+
+func (r *memoryPointsLedgerRepo) AppendEntry(_ context.Context, entry domain.PointsLedgerEntry) (domain.PointsLedgerEntry, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cloned := cloneLedgerEntry(entry)
+	r.entries[entry.UserID] = append(r.entries[entry.UserID], cloned)
+	return cloned, nil
+}
+
+func (r *memoryPointsLedgerRepo) ListEntries(_ context.Context, userID string, limit int) ([]domain.PointsLedgerEntry, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entries := r.entries[userID]
+	if len(entries) == 0 {
+		return []domain.PointsLedgerEntry{}, nil
+	}
+	start := 0
+	if limit > 0 && len(entries) > limit {
+		start = len(entries) - limit
+	}
+	result := make([]domain.PointsLedgerEntry, len(entries)-start)
+	copy(result, entries[start:])
+	return result, nil
+}
+
+func (r *memoryPointsLedgerRepo) LatestBalance(_ context.Context, userID string) (int64, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entries := r.entries[userID]
+	if len(entries) == 0 {
+		return 0, domain.ErrPointsLedgerEntryNotFound
+	}
+	last := entries[len(entries)-1]
+	if last.BalanceAfter == nil {
+		return 0, domain.ErrPointsLedgerEntryNotFound
+	}
+	return *last.BalanceAfter, nil
+}
+
+func cloneLedgerEntry(entry domain.PointsLedgerEntry) domain.PointsLedgerEntry {
+	cloned := entry
+	if entry.Metadata == nil {
+		cloned.Metadata = map[string]any{}
+		return cloned
+	}
+	meta := make(map[string]any, len(entry.Metadata))
+	for key, value := range entry.Metadata {
+		meta[key] = value
+	}
+	cloned.Metadata = meta
+	return cloned
 }
 
 func (s *memoryStateStore) PurgeExpired(_ context.Context, before time.Time) (int64, error) {

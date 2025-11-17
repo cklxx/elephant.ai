@@ -23,8 +23,12 @@ var (
 	ErrInsufficientPoints = errors.New("insufficient points balance")
 	// ErrInvalidSubscriptionTier indicates the tier is not present in the catalog.
 	ErrInvalidSubscriptionTier = errors.New("invalid subscription tier")
+	// ErrSubscriptionNotFound indicates there is no active subscription record.
+	ErrSubscriptionNotFound = errors.New("subscription not found")
 	// ErrSubscriptionExpiryRequired indicates a paid tier change lacked an expiry.
 	ErrSubscriptionExpiryRequired = errors.New("subscription expiry required")
 	// ErrSubscriptionExpiryInPast indicates the supplied expiry is already elapsed.
 	ErrSubscriptionExpiryInPast = errors.New("subscription expiry must be in the future")
+	// ErrPointsLedgerEntryNotFound indicates no ledger entries exist yet.
+	ErrPointsLedgerEntryNotFound = errors.New("points ledger entry not found")
 )

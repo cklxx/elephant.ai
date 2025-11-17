@@ -10,6 +10,8 @@ import (
 
 	"alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
+	pointsapp "alex/internal/auth/app/points"
+	subscriptionapp "alex/internal/auth/app/subscription"
 	"alex/internal/auth/domain"
 	"alex/internal/auth/ports"
 )
@@ -175,6 +177,10 @@ func TestAdjustPoints(t *testing.T) {
 	users, identities, sessions, states := adapters.NewMemoryStores()
 	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
 	service := authapp.NewService(users, identities, sessions, tokenManager, states, nil, authapp.Config{})
+	ledger := adapters.NewMemoryPointsLedgerRepo()
+	promotions := adapters.NewMemoryPromotionFeed()
+	points := pointsapp.NewService(users, ledger, promotions, pointsapp.Config{MaxBalance: 1000})
+	service.AttachPointsService(points)
 
 	ctx := context.Background()
 	user, err := service.RegisterLocal(ctx, "points@example.com", "password", "Points User")
@@ -218,7 +224,7 @@ func TestUpdateSubscription(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 	supporterExpiry := time.Now().Add(30 * 24 * time.Hour)
-	updated, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, &supporterExpiry)
+	updated, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, &supporterExpiry, true)
 	if err != nil {
 		t.Fatalf("update subscription supporter: %v", err)
 	}
@@ -228,17 +234,17 @@ func TestUpdateSubscription(t *testing.T) {
 	if updated.SubscriptionExpiresAt == nil || !updated.SubscriptionExpiresAt.Equal(supporterExpiry) {
 		t.Fatalf("expected expiry to be %v, got %v", supporterExpiry, updated.SubscriptionExpiresAt)
 	}
-	if _, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTier("invalid"), nil); !errors.Is(err, domain.ErrInvalidSubscriptionTier) {
+	if _, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTier("invalid"), nil, true); !errors.Is(err, domain.ErrInvalidSubscriptionTier) {
 		t.Fatalf("expected invalid tier error, got %v", err)
 	}
-	if _, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, nil); !errors.Is(err, domain.ErrSubscriptionExpiryRequired) {
+	if _, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, nil, true); !errors.Is(err, domain.ErrSubscriptionExpiryRequired) {
 		t.Fatalf("expected expiry required error, got %v", err)
 	}
 	past := time.Now().Add(-time.Hour)
-	if _, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, &past); !errors.Is(err, domain.ErrSubscriptionExpiryInPast) {
+	if _, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, &past, true); !errors.Is(err, domain.ErrSubscriptionExpiryInPast) {
 		t.Fatalf("expected expiry in past error, got %v", err)
 	}
-	free, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierFree, nil)
+	free, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierFree, nil, true)
 	if err != nil {
 		t.Fatalf("revert to free tier: %v", err)
 	}
@@ -247,6 +253,50 @@ func TestUpdateSubscription(t *testing.T) {
 	}
 	if free.SubscriptionExpiresAt != nil {
 		t.Fatalf("expected expiry to be cleared, got %v", free.SubscriptionExpiresAt)
+	}
+}
+
+func TestUpdateSubscriptionDelegatesToSubscriptionService(t *testing.T) {
+	users, identities, sessions, states := adapters.NewMemoryStores()
+	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
+	service := authapp.NewService(users, identities, sessions, tokenManager, states, nil, authapp.Config{})
+	planRepo := adapters.NewMemoryPlanRepo(nil)
+	subRepo := adapters.NewMemorySubscriptionRepo()
+	payment := adapters.NewFakePaymentGateway()
+	subSvc := subscriptionapp.NewService(users, planRepo, subRepo, payment, subscriptionapp.Config{BillingCycle: 24 * time.Hour})
+	fixed := time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC)
+	service.WithNow(func() time.Time { return fixed })
+	subSvc.WithNow(func() time.Time { return fixed })
+	service.AttachSubscriptionService(subSvc)
+
+	ctx := context.Background()
+	user, err := service.RegisterLocal(ctx, "delegate@example.com", "password", "Delegate")
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	updated, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierSupporter, nil, true)
+	if err != nil {
+		t.Fatalf("change plan via service: %v", err)
+	}
+	if updated.SubscriptionTier != domain.SubscriptionTierSupporter {
+		t.Fatalf("expected supporter tier, got %s", updated.SubscriptionTier)
+	}
+	if updated.SubscriptionExpiresAt == nil {
+		t.Fatalf("expected expiry to be set")
+	}
+	expectedExpiry := fixed.Add(24 * time.Hour)
+	if !updated.SubscriptionExpiresAt.Equal(expectedExpiry) {
+		t.Fatalf("expected expiry %v, got %v", expectedExpiry, updated.SubscriptionExpiresAt)
+	}
+	freed, err := service.UpdateSubscription(ctx, user.ID, domain.SubscriptionTierFree, nil, true)
+	if err != nil {
+		t.Fatalf("cancel via service: %v", err)
+	}
+	if freed.SubscriptionTier != domain.SubscriptionTierFree {
+		t.Fatalf("expected free tier after cancel, got %s", freed.SubscriptionTier)
+	}
+	if freed.SubscriptionExpiresAt != nil {
+		t.Fatalf("expected expiry cleared, got %v", freed.SubscriptionExpiresAt)
 	}
 }
 

@@ -46,6 +46,9 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.HandleFunc("/api/auth/refresh", authHandler.HandleRefresh)
 		mux.HandleFunc("/api/auth/me", authHandler.HandleMe)
 		mux.HandleFunc("/api/auth/plans", authHandler.HandleListPlans)
+		mux.HandleFunc("/api/subscriptions/plans", authHandler.HandleListPlans)
+		mux.Handle("/api/subscriptions", wrap(http.HandlerFunc(authHandler.HandleSubscriptions)))
+		mux.Handle("/api/points", wrap(http.HandlerFunc(authHandler.HandlePoints)))
 		if internalMode {
 			mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
 			mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
