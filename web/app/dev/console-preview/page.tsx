@@ -482,11 +482,18 @@ export default function ConsolePreviewPage() {
   );
 }
 
-function buildSummaryLine(events: AnyAgentEvent[]): string {
-  const taskComplete = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'task_complete' }>
-      => event.event_type === 'task_complete',
+function findEvent<TEventType extends AnyAgentEvent['event_type']>(
+  events: AnyAgentEvent[],
+  eventType: TEventType,
+): Extract<AnyAgentEvent, { event_type: TEventType }> | undefined {
+  return events.find(
+    (event): event is Extract<AnyAgentEvent, { event_type: TEventType }> =>
+      event.event_type === eventType,
   );
+}
+
+function buildSummaryLine(events: AnyAgentEvent[]): string {
+  const taskComplete = findEvent(events, 'task_complete');
 
   const iterations = taskComplete?.total_iterations;
   const tokens = taskComplete?.total_tokens;
@@ -509,18 +516,9 @@ function buildSummaryLine(events: AnyAgentEvent[]): string {
 }
 
 function buildPreviewInput(events: AnyAgentEvent[]) {
-  const userTask = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'user_task' }>
-      => event.event_type === 'user_task',
-  );
-  const planEvent = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'research_plan' }>
-      => event.event_type === 'research_plan',
-  );
-  const taskComplete = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'task_complete' }>
-      => event.event_type === 'task_complete',
-  );
+  const userTask = findEvent(events, 'user_task');
+  const planEvent = findEvent(events, 'research_plan');
+  const taskComplete = findEvent(events, 'task_complete');
 
   return {
     primary:
