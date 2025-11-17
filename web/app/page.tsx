@@ -39,7 +39,7 @@ const timeline = [
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-16 px-6 py-12 lg:py-20">
+      <div className="mx-auto w-full flex max-w-none flex-col gap-16 px-6 py-12 lg:py-20">
         <header className="flex flex-col gap-10 lg:flex-row lg:items-center">
           <div className="flex-1 space-y-6">
             <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-gray-600">
@@ -68,7 +68,7 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-8 shadow-[16px_16px_0_rgba(0,0,0,0.8)]">
+          <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-[32px] bg-[hsl(var(--card))] p-8 shadow-[16px_16px_0_rgba(0,0,0,0.8)]">
             <div className="absolute inset-4 rounded-3xl border-[3px] border-dashed border-[hsl(var(--foreground))]" aria-hidden="true" />
             <div className="relative flex flex-col gap-6">
               <div className="grid grid-cols-4 gap-3">
