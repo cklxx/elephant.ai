@@ -97,6 +97,7 @@ ensure_required_envs() {
     ensure_env_var "AUTH_DB_PASSWORD" "alex"
     ensure_env_var "AUTH_DB_NAME" "alex_auth"
     ensure_env_var "AUTH_DB_PORT" "5432"
+    ensure_env_var "AUTH_DB_IMAGE" "postgres:15"
 }
 
 compose_cmd() {

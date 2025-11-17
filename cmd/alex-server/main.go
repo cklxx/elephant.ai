@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -54,6 +55,9 @@ type AuthConfig struct {
 	WeChatAppID           string
 	WeChatAuthURL         string
 	DatabaseURL           string
+	BootstrapEmail        string
+	BootstrapPassword     string
+	BootstrapDisplayName  string
 }
 
 // AnalyticsConfig holds analytics configuration values.
@@ -407,6 +411,15 @@ func loadConfig() (Config, error) {
 	if dbURL, ok := envLookup("AUTH_DATABASE_URL"); ok {
 		authCfg.DatabaseURL = strings.TrimSpace(dbURL)
 	}
+	if email, ok := envLookup("AUTH_BOOTSTRAP_EMAIL"); ok {
+		authCfg.BootstrapEmail = strings.TrimSpace(email)
+	}
+	if password, ok := envLookup("AUTH_BOOTSTRAP_PASSWORD"); ok {
+		authCfg.BootstrapPassword = password
+	}
+	if name, ok := envLookup("AUTH_BOOTSTRAP_DISPLAY_NAME"); ok {
+		authCfg.BootstrapDisplayName = strings.TrimSpace(name)
+	}
 	cfg.Auth = authCfg
 
 	analyticsCfg := AnalyticsConfig{}
@@ -595,14 +608,42 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 		})
 	}
 
-	var cleanup func()
-	if len(cleanupFuncs) > 0 {
-		cleanup = func() {
-			for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+	cleanup := func() {
+		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+			if cleanupFuncs[i] != nil {
 				cleanupFuncs[i]()
 			}
 		}
 	}
 
+	if err := bootstrapAuthUser(service, authCfg, logger); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+
 	return service, cleanup, nil
+}
+
+func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger *utils.Logger) error {
+	email := strings.TrimSpace(cfg.BootstrapEmail)
+	password := strings.TrimSpace(cfg.BootstrapPassword)
+	if email == "" || password == "" {
+		return nil
+	}
+	displayName := strings.TrimSpace(cfg.BootstrapDisplayName)
+	if displayName == "" {
+		displayName = "Admin"
+	}
+
+	_, err := service.RegisterLocal(context.Background(), email, password, displayName)
+	if err != nil {
+		if errors.Is(err, authdomain.ErrUserExists) {
+			logger.Info("Bootstrap auth user already exists: %s", email)
+			return nil
+		}
+		return fmt.Errorf("bootstrap auth user %s: %w", email, err)
+	}
+
+	logger.Info("Bootstrap auth user created: %s", email)
+	return nil
 }
