@@ -402,121 +402,123 @@ function LoginPageContent() {
 
   return (
     <>
-      <div className="flex min-h-screen w-full items-center bg-[hsl(var(--background))] px-4 py-12 text-[hsl(var(--foreground))]">
-        <div className="relative w-full max-w-none space-y-8 rounded-[40px] bg-[hsl(var(--card))] p-8">
-          <div className="relative space-y-8 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gray-500">
-              {t("console.brand")}
-            </p>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-semibold leading-tight">
-              {mode === "login"
-                ? t("auth.login.title")
-                : t("auth.register.title")}
-            </h1>
-            <p className="text-base text-gray-600">
-              {mode === "login"
-                ? t("auth.login.subtitle")
-                : t("auth.register.subtitle")}
-            </p>
-          </div>
-          <div className="mx-auto w-full max-w-xl rounded-[28px] border-[3px] border-dashed border-[hsl(var(--foreground))] bg-white/80 p-6 shadow-[12px_12px_0_rgba(0,0,0,0.15)]">
-            <div className="grid grid-cols-5 gap-3">
-              {Array.from({ length: 10 }).map((_, index) => (
-                <div
-                  key={index}
-                  className={clsx(
-                    "aspect-square rounded-2xl border-[3px] border-[hsl(var(--foreground))] bg-white",
-                    index % 3 === 0 && "border-dashed bg-[hsl(var(--card))]",
-                  )}
-                />
-              ))}
-            </div>
-            <div className="mt-6 space-y-3">
-              <div className="h-3 rounded-full border-[3px] border-[hsl(var(--foreground))] bg-white" />
-              <div className="h-3 w-3/4 rounded-full border-[3px] border-[hsl(var(--foreground))] bg-white" />
-              <div className="flex gap-3">
-                <div className="h-16 flex-1 rounded-[24px] border-[3px] border-[hsl(var(--foreground))]" />
-                <div className="h-16 flex-1 rounded-[24px] border-[3px] border-dashed border-[hsl(var(--foreground))]" />
+      <div className="flex min-h-screen w-full items-center justify-center bg-[hsl(var(--background))] px-4 py-10 text-[hsl(var(--foreground))]">
+        <div className="flex w-full max-w-6xl flex-col items-center gap-10 lg:flex-row lg:items-center">
+          <div className="relative w-full max-w-2xl space-y-8 rounded-[40px] bg-[hsl(var(--card))] p-8">
+            <div className="relative space-y-8 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gray-500">
+                {t("console.brand")}
+              </p>
+              <div className="space-y-2">
+                <h1 className="text-4xl font-semibold leading-tight">
+                  {mode === "login"
+                    ? t("auth.login.title")
+                    : t("auth.register.title")}
+                </h1>
+                <p className="text-base text-gray-600">
+                  {mode === "login"
+                    ? t("auth.login.subtitle")
+                    : t("auth.register.subtitle")}
+                </p>
+              </div>
+              <div className="mx-auto w-full max-w-xl rounded-[28px] border-[3px] border-dashed border-[hsl(var(--foreground))] bg-white/80 p-6 shadow-[12px_12px_0_rgba(0,0,0,0.15)]">
+                <div className="grid grid-cols-5 gap-3">
+                  {Array.from({ length: 10 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className={clsx(
+                        "aspect-square rounded-2xl border-[3px] border-[hsl(var(--foreground))] bg-white",
+                        index % 3 === 0 && "border-dashed bg-[hsl(var(--card))]",
+                      )}
+                    />
+                  ))}
+                </div>
+                <div className="mt-6 space-y-3">
+                  <div className="h-3 rounded-full border-[3px] border-[hsl(var(--foreground))] bg-white" />
+                  <div className="h-3 w-3/4 rounded-full border-[3px] border-[hsl(var(--foreground))] bg-white" />
+                  <div className="flex gap-3">
+                    <div className="h-16 flex-1 rounded-[24px] border-[3px] border-[hsl(var(--foreground))]" />
+                    <div className="h-16 flex-1 rounded-[24px] border-[3px] border-dashed border-[hsl(var(--foreground))]" />
+                  </div>
+                </div>
+              </div>
+              <div className="inline-flex rounded-[999px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 p-1 shadow-[8px_8px_0_rgba(0,0,0,0.15)]">
+                {(["login", "register"] as AuthMode[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={clsx(
+                      "relative flex-1 rounded-[999px] border-[3px] border-[hsl(var(--foreground))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foreground))]",
+                      item === mode
+                        ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] shadow-[6px_6px_0_rgba(0,0,0,0.35)]"
+                        : "bg-white text-[hsl(var(--foreground))]",
+                    )}
+                    onClick={() => {
+                      switchMode(item);
+                    }}
+                    aria-pressed={item === mode}
+                  >
+                    {item === "login"
+                      ? t("auth.login.mode.signIn")
+                      : t("auth.login.mode.register")}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-          <div className="inline-flex rounded-[999px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 p-1 shadow-[8px_8px_0_rgba(0,0,0,0.15)]">
-            {(["login", "register"] as AuthMode[]).map((item) => (
+
+          <div className="relative w-full max-w-2xl space-y-6">
+            <div className="grid w-full max-w-xl gap-3">
               <button
-                key={item}
                 type="button"
-                className={clsx(
-                  "relative flex-1 rounded-[999px] border-[3px] border-[hsl(var(--foreground))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foreground))]",
-                  item === mode
-                    ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] shadow-[6px_6px_0_rgba(0,0,0,0.35)]"
-                    : "bg-white text-[hsl(var(--foreground))]",
-                )}
-                onClick={() => {
-                  switchMode(item);
-                }}
-                aria-pressed={item === mode}
+                onClick={() => handleOAuth("google")}
+                className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] shadow-[8px_8px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+                disabled={isBusy}
               >
-                {item === "login"
-                  ? t("auth.login.mode.signIn")
-                  : t("auth.login.mode.register")}
+                <Chrome className="h-4 w-4" aria-hidden="true" />
+                {oauthPending === "google"
+                  ? t("auth.oauth.pending")
+                  : t("auth.oauth.google")}
               </button>
-            ))}
-          </div>
-        </div>
+              <button
+                type="button"
+                onClick={() => handleOAuth("wechat")}
+                className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-emerald-700 bg-emerald-50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-900 shadow-[8px_8px_0_rgba(16,185,129,0.25)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+                disabled={isBusy}
+              >
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                {oauthPending === "wechat"
+                  ? t("auth.oauth.pending")
+                  : t("auth.oauth.wechat")}
+              </button>
+            </div>
 
-        <div className="relative space-y-6">
-          <div className="grid gap-3">
-            <button
-              type="button"
-              onClick={() => handleOAuth("google")}
-              className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] shadow-[8px_8px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
-              disabled={isBusy}
+            <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-gray-500">
+              <span className="h-px flex-1 border-t-2 border-dashed border-[hsl(var(--foreground))]" aria-hidden="true" />
+              <span>
+                {mode === "login"
+                  ? t("auth.login.emailDivider")
+                  : t("auth.register.emailDivider")}
+              </span>
+              <span className="h-px flex-1 border-t-2 border-dashed border-[hsl(var(--foreground))]" aria-hidden="true" />
+            </div>
+
+            <form
+              className="w-full max-w-xl space-y-5 rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-white/90 p-6 shadow-[12px_12px_0_rgba(0,0,0,0.2)]"
+              onSubmit={handleSubmit}
             >
-              <Chrome className="h-4 w-4" aria-hidden="true" />
-              {oauthPending === "google"
-                ? t("auth.oauth.pending")
-                : t("auth.oauth.google")}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOAuth("wechat")}
-              className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-emerald-700 bg-emerald-50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-900 shadow-[8px_8px_0_rgba(16,185,129,0.25)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
-              disabled={isBusy}
-            >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
-              {oauthPending === "wechat"
-                ? t("auth.oauth.pending")
-                : t("auth.oauth.wechat")}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-gray-500">
-            <span className="h-px flex-1 border-t-2 border-dashed border-[hsl(var(--foreground))]" aria-hidden="true" />
-            <span>
-              {mode === "login"
-                ? t("auth.login.emailDivider")
-                : t("auth.register.emailDivider")}
-            </span>
-            <span className="h-px flex-1 border-t-2 border-dashed border-[hsl(var(--foreground))]" aria-hidden="true" />
-          </div>
-
-          <form
-            className="space-y-5 rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-white/90 p-6 shadow-[12px_12px_0_rgba(0,0,0,0.2)]"
-            onSubmit={handleSubmit}
-          >
-            {mode === "register" && (
-              <div className="space-y-2">
-                <label
-                  htmlFor="displayName"
-                  className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-600"
-                >
-                  {t("auth.register.displayNameLabel")}
-                </label>
-                <input
-                  id="displayName"
-                  name="displayName"
-                  type="text"
+              {mode === "register" && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="displayName"
+                    className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-600"
+                  >
+                    {t("auth.register.displayNameLabel")}
+                  </label>
+                  <input
+                    id="displayName"
+                    name="displayName"
+                    type="text"
                   autoComplete="name"
                   required
                   value={displayName}
