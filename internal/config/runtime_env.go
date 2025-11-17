@@ -112,6 +112,14 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("ALEX_AGENT_PRESET", cfg.AgentPreset)
 	set("TOOL_PRESET", cfg.ToolPreset)
 	set("ALEX_TOOL_PRESET", cfg.ToolPreset)
+	set("ALEX_AUTO_REVIEW_ENABLED", strconv.FormatBool(cfg.AutoReviewEnabled))
+	if cfg.AutoReviewMinPassingScore > 0 {
+		set("ALEX_AUTO_REVIEW_MIN_SCORE", formatFloat(cfg.AutoReviewMinPassingScore))
+	}
+	set("ALEX_AUTO_REVIEW_ENABLE_REWORK", strconv.FormatBool(cfg.AutoReviewEnableRework))
+	if cfg.AutoReviewMaxReworkAttempts > 0 {
+		set("ALEX_AUTO_REVIEW_MAX_REWORK_ATTEMPTS", strconv.Itoa(cfg.AutoReviewMaxReworkAttempts))
+	}
 
 	return values
 }

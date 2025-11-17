@@ -56,6 +56,7 @@ All surfaces share the same dependency injection container (`internal/di`) so co
 4. Tool calls resolve through the registry (`internal/toolregistry`) and respect sandbox mode abstractions in `internal/tools`.
 5. Sessions, memory compression, and retrieval live in `internal/session`, `internal/context`, and `internal/rag` for long-running tasks.
 6. Costs, metrics, traces, and structured logs are emitted through `internal/observability` and `internal/storage`.
+7. An automatic reviewer grades the final answer, streaming any auto-rework attempts back through the same listener before the session is persisted. You can override the reviewer via per-command CLI flags like `--auto-review=false` or `--auto-review-max-rework 3`. The Auto Review card is now scoped to internal session playback only—set `NEXT_PUBLIC_INTERNAL_AUTO_REVIEW=1` to enable it inside the `/sessions/:id` replay UI, where reviewers get the “继续完成 / 继续完成并标注当前项目未完成内容” controls plus the prefilled follow-up prompt for unfinished work.
 
 ---
 

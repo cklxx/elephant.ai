@@ -95,6 +95,51 @@ func NewTaskAnalysisEvent(level ports.AgentLevel, sessionID, taskID, parentTaskI
 	}
 }
 
+func cloneAutoReviewReport(report *ports.AutoReviewReport) *ports.AutoReviewReport {
+	if report == nil {
+		return nil
+	}
+	cloned := &ports.AutoReviewReport{}
+	if report.Assessment != nil {
+		cloned.Assessment = cloneResultAssessment(report.Assessment)
+	}
+	if report.Rework != nil {
+		cloned.Rework = cloneReworkSummary(report.Rework)
+	}
+	return cloned
+}
+
+func cloneResultAssessment(assessment *ports.ResultAssessment) *ports.ResultAssessment {
+	if assessment == nil {
+		return nil
+	}
+	cloned := &ports.ResultAssessment{
+		Score:       assessment.Score,
+		Grade:       assessment.Grade,
+		NeedsRework: assessment.NeedsRework,
+	}
+	if len(assessment.Notes) > 0 {
+		cloned.Notes = append([]string(nil), assessment.Notes...)
+	}
+	return cloned
+}
+
+func cloneReworkSummary(summary *ports.ReworkSummary) *ports.ReworkSummary {
+	if summary == nil {
+		return nil
+	}
+	cloned := &ports.ReworkSummary{
+		Attempted:  summary.Attempted,
+		Applied:    summary.Applied,
+		FinalGrade: summary.FinalGrade,
+		FinalScore: summary.FinalScore,
+	}
+	if len(summary.Notes) > 0 {
+		cloned.Notes = append([]string(nil), summary.Notes...)
+	}
+	return cloned
+}
+
 func cloneAnalysisSteps(steps []ports.TaskAnalysisStep) []ports.TaskAnalysisStep {
 	if len(steps) == 0 {
 		return nil
@@ -265,6 +310,30 @@ type TaskCompleteEvent struct {
 }
 
 func (e *TaskCompleteEvent) EventType() string { return "task_complete" }
+
+// AutoReviewEvent surfaces the automated review verdict and rework summary.
+type AutoReviewEvent struct {
+	BaseEvent
+	Summary      *ports.AutoReviewReport
+	InternalOnly bool
+}
+
+// EventType identifies the auto review notification.
+func (e *AutoReviewEvent) EventType() string { return "auto_review" }
+
+// NewAutoReviewEvent constructs a review summary event with safe copies of nested data.
+func NewAutoReviewEvent(
+	level ports.AgentLevel,
+	sessionID, taskID, parentTaskID string,
+	summary *ports.AutoReviewReport,
+	ts time.Time,
+) *AutoReviewEvent {
+	return &AutoReviewEvent{
+		BaseEvent:    newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		Summary:      cloneAutoReviewReport(summary),
+		InternalOnly: true,
+	}
+}
 
 // TaskCancelledEvent - emitted when a running task receives an explicit cancellation request
 type TaskCancelledEvent struct {

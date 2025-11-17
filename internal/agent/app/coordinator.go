@@ -29,6 +29,7 @@ type AgentCoordinator struct {
 	costDecorator   *CostTrackingDecorator
 	ragGate         ports.RAGGate
 	ragExecutor     *ragPreloader
+	autoReviewer    *ResultAutoReviewer
 }
 
 type Config struct {
@@ -45,6 +46,7 @@ type Config struct {
 	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
 	ToolPreset          string // Tool access preset (full, read-only, etc.)
 	EnvironmentSummary  string
+	AutoReview          *AutoReviewOptions
 }
 
 func NewAgentCoordinator(
@@ -88,6 +90,11 @@ func NewAgentCoordinator(
 		opt(coordinator)
 	}
 
+	if coordinator.config.AutoReview == nil {
+		coordinator.config.AutoReview = defaultAutoReviewOptions()
+	}
+	coordinator.SetAutoReviewOptions(coordinator.config.AutoReview)
+
 	if coordinator.ragExecutor == nil {
 		coordinator.ragExecutor = newRAGPreloader(coordinator.logger)
 	}
@@ -117,6 +124,26 @@ func NewAgentCoordinator(
 	})
 
 	return coordinator
+}
+
+// SetAutoReviewOptions replaces the current auto-review configuration and refreshes
+// the reviewer instance. Passing nil disables the reviewer entirely until a new
+// configuration is applied.
+func (c *AgentCoordinator) SetAutoReviewOptions(options *AutoReviewOptions) {
+	if c == nil {
+		return
+	}
+	if options == nil {
+		c.config.AutoReview = nil
+		c.autoReviewer = nil
+		return
+	}
+	c.config.AutoReview = cloneAutoReviewOptions(options)
+	if c.autoReviewer == nil {
+		c.autoReviewer = NewResultAutoReviewer(c.config.AutoReview)
+		return
+	}
+	c.autoReviewer.UpdateOptions(c.config.AutoReview)
 }
 
 // ExecuteTask executes a task with optional event listener for streaming output
@@ -149,15 +176,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	// Create ReactEngine and configure listener
+	reactEngine := c.newReactEngine()
 	c.logger.Info("Delegating to ReactEngine...")
-	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
-
-	reactEngine := domain.NewReactEngine(domain.ReactEngineConfig{
-		MaxIterations:      c.config.MaxIterations,
-		Logger:             c.logger,
-		Clock:              c.clock,
-		CompletionDefaults: completionDefaults,
-	})
 
 	if listener != nil {
 		// DO NOT log listener objects to avoid leaking sensitive information.
@@ -203,30 +223,169 @@ func (c *AgentCoordinator) ExecuteTask(
 		}
 	}
 
+	finalEnv := env
+	finalResult := result
+	if c.autoReviewer != nil {
+		reviewEnv, reviewedResult, reviewReport, reviewErr := c.processAutoReview(ctx, task, env, result, listener)
+		if reviewErr != nil {
+			c.logger.Warn("Auto review failed: %v", reviewErr)
+		} else {
+			finalEnv = reviewEnv
+			finalResult = reviewedResult
+			finalResult.Review = reviewReport
+		}
+	}
+
 	// Save session
-	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
+	if err := c.SaveSessionAfterExecution(ctx, finalEnv.Session, finalResult); err != nil {
 		return nil, err
 	}
 
-	taskResultTaskID := result.TaskID
+	taskResultTaskID := finalResult.TaskID
 	if taskResultTaskID == "" {
 		taskResultTaskID = ensuredTaskID
 	}
-	parentResultID := result.ParentTaskID
+	parentResultID := finalResult.ParentTaskID
 	if parentResultID == "" {
 		parentResultID = parentTaskID
 	}
 
 	return &ports.TaskResult{
-		Answer:       result.Answer,
-		Messages:     result.Messages,
-		Iterations:   result.Iterations,
-		TokensUsed:   result.TokensUsed,
-		StopReason:   result.StopReason,
-		SessionID:    env.Session.ID,
+		Answer:       finalResult.Answer,
+		Messages:     finalResult.Messages,
+		Iterations:   finalResult.Iterations,
+		TokensUsed:   finalResult.TokensUsed,
+		StopReason:   finalResult.StopReason,
+		SessionID:    finalEnv.Session.ID,
 		TaskID:       taskResultTaskID,
 		ParentTaskID: parentResultID,
+		Review:       finalResult.Review,
 	}, nil
+}
+
+func (c *AgentCoordinator) newReactEngine() *domain.ReactEngine {
+	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
+	return domain.NewReactEngine(domain.ReactEngineConfig{
+		MaxIterations:      c.config.MaxIterations,
+		Logger:             c.logger,
+		Clock:              c.clock,
+		CompletionDefaults: completionDefaults,
+	})
+}
+
+func (c *AgentCoordinator) processAutoReview(
+	ctx context.Context,
+	originalTask string,
+	initialEnv *ports.ExecutionEnvironment,
+	initialResult *ports.TaskResult,
+	listener ports.EventListener,
+) (*ports.ExecutionEnvironment, *ports.TaskResult, *ports.AutoReviewReport, error) {
+	if c.autoReviewer == nil || c.config.AutoReview == nil || !c.config.AutoReview.Enabled {
+		return initialEnv, initialResult, nil, nil
+	}
+
+	assessment := c.autoReviewer.Review(initialResult)
+	report := &ports.AutoReviewReport{Assessment: assessment}
+	if !assessment.NeedsRework || !c.config.AutoReview.EnableAutoRework || c.config.AutoReview.MaxReworkAttempts <= 0 {
+		c.emitAutoReviewEvent(ctx, initialEnv, initialResult, listener, report)
+		return initialEnv, initialResult, report, nil
+	}
+
+	sessionID := ""
+	if initialEnv != nil && initialEnv.Session != nil {
+		sessionID = initialEnv.Session.ID
+	}
+	bestEnv := initialEnv
+	bestResult := initialResult
+	bestAssessment := assessment
+	summary := &ports.ReworkSummary{}
+
+	for attempt := 0; attempt < c.config.AutoReview.MaxReworkAttempts; attempt++ {
+		summary.Attempted++
+		reworkTask := buildReworkPrompt(originalTask, bestResult.Answer, bestAssessment, attempt)
+		reworkEnv, err := c.prepareExecutionWithListener(ctx, reworkTask, sessionID, listener)
+		if err != nil {
+			note := fmt.Sprintf("attempt %d: failed to prepare environment (%v)", attempt+1, err)
+			summary.Notes = append(summary.Notes, note)
+			c.logger.Warn("Auto rework prepare failed: %v", err)
+			continue
+		}
+		reworkEngine := c.newReactEngine()
+		if listener != nil {
+			reworkEngine.SetEventListener(listener)
+		}
+		reworkResult, err := reworkEngine.SolveTask(ctx, reworkTask, reworkEnv.State, reworkEnv.Services)
+		if err != nil {
+			note := fmt.Sprintf("attempt %d: execution failed (%v)", attempt+1, err)
+			summary.Notes = append(summary.Notes, note)
+			c.logger.Warn("Auto rework execution failed: %v", err)
+			continue
+		}
+		attemptAssessment := c.autoReviewer.Review(reworkResult)
+		summary.Notes = append(summary.Notes, fmt.Sprintf(
+			"attempt %d: grade %s (%.2f)",
+			attempt+1,
+			attemptAssessment.Grade,
+			attemptAssessment.Score,
+		))
+		if attemptAssessment.Score > bestAssessment.Score {
+			bestAssessment = attemptAssessment
+			bestResult = reworkResult
+			bestEnv = reworkEnv
+		}
+		if attemptAssessment.Score >= c.config.AutoReview.MinPassingScore {
+			summary.Applied = bestResult == reworkResult
+			summary.FinalGrade = attemptAssessment.Grade
+			summary.FinalScore = attemptAssessment.Score
+			break
+		}
+	}
+
+	if summary.Attempted > 0 {
+		if summary.FinalGrade == "" {
+			summary.FinalGrade = bestAssessment.Grade
+			summary.FinalScore = bestAssessment.Score
+			summary.Applied = bestResult != initialResult
+		}
+		report.Rework = summary
+	}
+	report.Assessment = bestAssessment
+	c.emitAutoReviewEvent(ctx, bestEnv, bestResult, listener, report)
+	return bestEnv, bestResult, report, nil
+}
+
+func (c *AgentCoordinator) emitAutoReviewEvent(
+	ctx context.Context,
+	env *ports.ExecutionEnvironment,
+	result *ports.TaskResult,
+	listener ports.EventListener,
+	report *ports.AutoReviewReport,
+) {
+	if listener == nil || report == nil {
+		return
+	}
+	outCtx := ports.GetOutputContext(ctx)
+	sessionID := ""
+	if env != nil && env.Session != nil {
+		sessionID = env.Session.ID
+	}
+	taskID := ""
+	parentTaskID := ""
+	if result != nil {
+		if result.TaskID != "" {
+			taskID = result.TaskID
+		}
+		parentTaskID = result.ParentTaskID
+	}
+	event := domain.NewAutoReviewEvent(
+		outCtx.Level,
+		sessionID,
+		taskID,
+		parentTaskID,
+		report,
+		c.clock.Now(),
+	)
+	listener.OnEvent(event)
 }
 
 func buildCompletionDefaultsFromConfig(cfg Config) domain.CompletionDefaults {

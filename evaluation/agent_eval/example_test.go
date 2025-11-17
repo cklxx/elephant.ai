@@ -3,6 +3,7 @@ package agent_eval
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,6 +131,51 @@ func TestBasicFunctionality(t *testing.T) {
 		}
 	})
 
+	// 测试自动评审器
+	t.Run("ResultAutoReviewer", func(t *testing.T) {
+		reviewer := NewResultAutoReviewer(&AutoReviewOptions{
+			Enabled:            true,
+			MinPassingScore:    0.75,
+			EnableAutoRework:   true,
+			MaxReworkTasks:     2,
+			AlwaysReworkFailed: true,
+		})
+
+		results := []swe_bench.WorkerResult{
+			{
+				TaskID:       "ok",
+				InstanceID:   "inst_ok",
+				Status:       swe_bench.StatusCompleted,
+				Solution:     strings.Repeat("a", 120),
+				Explanation:  strings.Repeat("b", 150),
+				FilesChanged: []string{"file1"},
+			},
+			{
+				TaskID:      "bad",
+				InstanceID:  "inst_bad",
+				Status:      swe_bench.StatusFailed,
+				Solution:    "short",
+				Explanation: "tiny",
+			},
+		}
+
+		assessments := reviewer.Review(results)
+		if len(assessments) != 2 {
+			t.Fatalf("expected 2 assessments, got %d", len(assessments))
+		}
+
+		var reworkIDs []string
+		for _, a := range assessments {
+			if a.InstanceID == "inst_ok" && a.NeedsRework {
+				t.Fatalf("expected completed instance to pass review")
+			}
+		}
+		reworkIDs = reviewer.SelectReworkCandidates(assessments)
+		if len(reworkIDs) == 0 || reworkIDs[0] != "inst_bad" {
+			t.Fatalf("expected failed instance to be flagged for rework")
+		}
+	})
+
 	// 测试报告生成器
 	t.Run("MarkdownReporter", func(t *testing.T) {
 		reporter := NewMarkdownReporter()
@@ -244,6 +290,42 @@ func TestCLIManager(t *testing.T) {
 
 	if options.OutputDir == "" {
 		t.Error("Expected output directory in default options")
+	}
+
+	if cliManager != nil {
+		disable := false
+		minScore := 0.9
+		rework := false
+		maxTasks := 1
+		alwaysReworkFailed := false
+
+		options.AutoReview = &AutoReviewOverrides{
+			Enabled:            &disable,
+			MinPassingScore:    &minScore,
+			EnableAutoRework:   &rework,
+			MaxReworkTasks:     &maxTasks,
+			AlwaysReworkFailed: &alwaysReworkFailed,
+		}
+
+		config := cliManager.applyOptions(options)
+		if config.AutoReview == nil {
+			t.Fatalf("expected auto review config to be populated")
+		}
+		if config.AutoReview.Enabled != disable {
+			t.Errorf("expected auto review enabled to be %v", disable)
+		}
+		if config.AutoReview.MinPassingScore != minScore {
+			t.Errorf("expected min passing score override to be %.2f", minScore)
+		}
+		if config.AutoReview.EnableAutoRework != rework {
+			t.Errorf("expected enable auto rework override to be %v", rework)
+		}
+		if config.AutoReview.MaxReworkTasks != maxTasks {
+			t.Errorf("expected max rework tasks override to be %d", maxTasks)
+		}
+		if config.AutoReview.AlwaysReworkFailed != alwaysReworkFailed {
+			t.Errorf("expected always rework failed override to be %v", alwaysReworkFailed)
+		}
 	}
 }
 

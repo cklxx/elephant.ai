@@ -36,6 +36,12 @@
 - 趋势分析和预测
 - 异常检测和警报
 
+### ♻️ **自动评审与反工**
+- 对每个任务输出进行自动打分和评级
+- 支持可配置的阈值（默认通过线75%）
+- 自动挑选低分或失败任务重新执行
+- 报告中展示反工成功率与改进情况
+
 ### 📝 **详细报告**
 - Markdown格式的详细报告
 - 执行摘要和关键洞察
@@ -166,8 +172,32 @@ type EvaluationConfig struct {
     // 输出配置
     OutputDir     string        // 输出目录
     ReportFormat  string        // 报告格式 (默认: "markdown")
+
+    // 自动评审配置
+    AutoReview   *AutoReviewOptions // 自动评审与反工选项
 }
 ```
+
+### CLI EvaluationOptions 与自动评审覆盖
+
+CLI 层暴露的 `EvaluationOptions` 允许通过 `AutoReviewOverrides` 精细控制自动评审参数，而无需手动重建整套配置：
+
+```go
+options := agent_eval.DefaultEvaluationOptions()
+disableAuto := false
+minScore := 0.85
+maxRework := 2
+
+options.AutoReview = &agent_eval.AutoReviewOverrides{
+    Enabled:         &disableAuto,        // 关闭或开启自动评审
+    MinPassingScore: &minScore,           // 自定义通过阈值
+    MaxReworkTasks:  &maxRework,          // 限制自动反工数量
+}
+
+job, err := cliManager.RunEvaluation(ctx, options)
+```
+
+CLI 会在运行前将这些可选字段与框架默认值合并，避免误覆盖其他自动评审参数。
 
 ## 指标说明
 

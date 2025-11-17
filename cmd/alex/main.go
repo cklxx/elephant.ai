@@ -8,6 +8,11 @@ import (
 
 func main() {
 	args := os.Args[1:]
+	cliOptions, args, err := parseGlobalCLIOptions(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(2)
+	}
 
 	if handled, exitCode := handleStandaloneArgs(args); handled {
 		if exitCode != 0 {
@@ -19,7 +24,7 @@ func main() {
 	// Always disable sandbox execution in CLI mode to ensure tools run locally.
 	shouldDisableSandbox := true
 
-	container, err := buildContainerWithOptions(shouldDisableSandbox)
+	container, err := buildContainerWithOptions(shouldDisableSandbox, cliOptions.loaderOptions()...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize: %v\n", err)
 		os.Exit(1)

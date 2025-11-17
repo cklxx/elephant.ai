@@ -7,11 +7,14 @@ import {
   ToolCallCompleteEvent,
   ThinkCompleteEvent,
   TaskCompleteEvent,
+  AutoReviewEvent,
+  AutoReviewActionIntent,
 } from "@/lib/types";
 import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
 import { ToolOutputCard } from "../ToolOutputCard";
 import { TaskCompleteCard } from "../TaskCompleteCard";
+import { AutoReviewCard } from "../AutoReviewCard";
 import { cn } from "@/lib/utils";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
@@ -19,6 +22,7 @@ import { VideoPreview } from "@/components/ui/video-preview";
 
 interface EventLineProps {
   event: AnyAgentEvent;
+  onAutoReviewAction?: (intent: AutoReviewActionIntent) => void;
 }
 
 /**
@@ -27,6 +31,7 @@ interface EventLineProps {
  */
 export const EventLine = React.memo(function EventLine({
   event,
+  onAutoReviewAction,
 }: EventLineProps) {
   if (event.agent_level === "subagent" || event.is_subtask) {
     return <SubagentEventLine event={event} />;
@@ -155,6 +160,15 @@ export const EventLine = React.memo(function EventLine({
       };
       return <TaskCompleteCard event={mockTaskCompleteEvent} />;
     }
+  }
+
+  if (event.event_type === "auto_review") {
+    return (
+      <AutoReviewCard
+        event={event as AutoReviewEvent}
+        onAction={onAutoReviewAction}
+      />
+    );
   }
 
   // Other events - use simple line format

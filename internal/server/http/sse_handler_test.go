@@ -208,6 +208,16 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 			wantField: "final_answer",
 		},
 		{
+			name: "AutoReviewEvent",
+			event: &domain.AutoReviewEvent{
+				BaseEvent: domain.BaseEvent{},
+				Summary: &agentports.AutoReviewReport{
+					Assessment: &agentports.ResultAssessment{Grade: "C", Score: 0.42, NeedsRework: true},
+				},
+			},
+			wantField: "summary",
+		},
+		{
 			name: "AssistantMessageEvent",
 			event: &domain.AssistantMessageEvent{
 				BaseEvent: domain.BaseEvent{},

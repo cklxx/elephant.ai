@@ -46,32 +46,36 @@ type Container struct {
 // Config holds the dependency injection configuration
 type Config struct {
 	// LLM Configuration
-	LLMProvider             string
-	LLMModel                string
-	APIKey                  string
-	ArkAPIKey               string
-	BaseURL                 string
-	TavilyAPIKey            string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	SandboxBaseURL          string
-	MaxTokens               int
-	MaxIterations           int
-	Temperature             float64
-	TemperatureSet          bool
-	TopP                    float64
-	StopSequences           []string
-	AgentPreset             string
-	ToolPreset              string
-	Environment             string
-	Verbose                 bool
-	DisableTUI              bool
-	FollowTranscript        bool
-	FollowStream            bool
+	LLMProvider                 string
+	LLMModel                    string
+	APIKey                      string
+	ArkAPIKey                   string
+	BaseURL                     string
+	TavilyAPIKey                string
+	SeedreamTextEndpointID      string
+	SeedreamImageEndpointID     string
+	SeedreamTextModel           string
+	SeedreamImageModel          string
+	SeedreamVisionModel         string
+	SeedreamVideoModel          string
+	SandboxBaseURL              string
+	MaxTokens                   int
+	MaxIterations               int
+	Temperature                 float64
+	TemperatureSet              bool
+	TopP                        float64
+	StopSequences               []string
+	AgentPreset                 string
+	ToolPreset                  string
+	Environment                 string
+	Verbose                     bool
+	DisableTUI                  bool
+	FollowTranscript            bool
+	FollowStream                bool
+	AutoReviewEnabled           bool
+	AutoReviewMinPassingScore   float64
+	AutoReviewEnableRework      bool
+	AutoReviewMaxReworkAttempts int
 
 	EnvironmentSummary string
 
@@ -269,6 +273,12 @@ func BuildContainer(config Config) (*Container, error) {
 			AgentPreset:         config.AgentPreset,
 			ToolPreset:          config.ToolPreset,
 			EnvironmentSummary:  config.EnvironmentSummary,
+			AutoReview: &agentApp.AutoReviewOptions{
+				Enabled:           config.AutoReviewEnabled,
+				MinPassingScore:   config.AutoReviewMinPassingScore,
+				EnableAutoRework:  config.AutoReviewEnableRework,
+				MaxReworkAttempts: config.AutoReviewMaxReworkAttempts,
+			},
 		},
 		agentApp.WithRAGGate(agentApp.NewRAGGateAdapter(ragGateImpl)),
 	)

@@ -62,3 +62,10 @@ func WithRAGGate(gate ports.RAGGate) CoordinatorOption {
 		c.ragGate = gate
 	}
 }
+
+// WithAutoReviewOptions overrides the default auto-review behaviour.
+func WithAutoReviewOptions(options *AutoReviewOptions) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		c.SetAutoReviewOptions(options)
+	}
+}

@@ -61,4 +61,39 @@ describe('TerminalOutput', () => {
 
     expect(screen.getByText(/Here is the summary with additional context\./i)).toBeInTheDocument();
   });
+
+  it('hides auto review events in the live conversation view', () => {
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'auto_review',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        timestamp: new Date().toISOString(),
+        summary: {
+          assessment: {
+            grade: 'C',
+            needs_rework: true,
+          },
+        },
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.queryByTestId('event-auto_review')).toBeNull();
+  });
 });

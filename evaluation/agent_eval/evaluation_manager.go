@@ -17,6 +17,7 @@ type EvaluationManager struct {
 	metricsStore *SimpleMetricsStore
 	analyzer     *BasicAnalyzer
 	reporter     *MarkdownReporter
+	reviewer     *ResultAutoReviewer
 
 	// State management
 	mu         sync.RWMutex
@@ -63,14 +64,21 @@ type EvaluationConfig struct {
 	// Output configuration
 	OutputDir    string `json:"output_dir"`
 	ReportFormat string `json:"report_format"`
+
+	// Auto review configuration
+	AutoReview *AutoReviewOptions `json:"auto_review,omitempty"`
 }
 
 // NewEvaluationManager 创建新的评估管理器
 func NewEvaluationManager(config *EvaluationConfig) *EvaluationManager {
+	if config.AutoReview == nil {
+		config.AutoReview = defaultAutoReviewOptions()
+	}
 	return &EvaluationManager{
 		metricsStore: NewSimpleMetricsStore(filepath.Join(config.OutputDir, "metrics")),
 		analyzer:     NewBasicAnalyzer(),
 		reporter:     NewMarkdownReporter(),
+		reviewer:     NewResultAutoReviewer(config.AutoReview),
 		activeJobs:   make(map[string]*EvaluationJob),
 		config:       config,
 	}
@@ -120,11 +128,15 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 	}
 
 	// 2. 执行评估（基于现有SWE-Bench处理器）
-	results, err := em.runEvaluation(ctx, instances, job.Config)
+	results, err := em.runEvaluation(ctx, instances, job.Config, "results.json")
 	if err != nil {
 		job.Error = fmt.Errorf("failed to run evaluation: %w", err)
 		return
 	}
+
+	// 2.1 自动评审与反工
+	var reviewSummary *AutoReviewReport
+	results, reviewSummary = em.processAutoReview(ctx, results, instances, job.Config)
 
 	// 3. 收集和分析指标
 	if job.Config.EnableMetrics {
@@ -142,11 +154,12 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 
 			// 生成报告
 			report := &EvaluationResults{
-				JobID:     job.ID,
-				Results:   results,
-				Metrics:   metrics,
-				Analysis:  analysis,
-				Timestamp: time.Now(),
+				JobID:         job.ID,
+				Results:       results,
+				Metrics:       metrics,
+				Analysis:      analysis,
+				ReviewSummary: reviewSummary,
+				Timestamp:     time.Now(),
 			}
 
 			job.Results = report
@@ -174,11 +187,11 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 }
 
 // runEvaluation 运行评估
-func (em *EvaluationManager) runEvaluation(ctx context.Context, instances []swe_bench.Instance, config *EvaluationConfig) ([]swe_bench.WorkerResult, error) {
+func (em *EvaluationManager) runEvaluation(ctx context.Context, instances []swe_bench.Instance, config *EvaluationConfig, outputName string) ([]swe_bench.WorkerResult, error) {
 	// 创建批处理配置
 	batchConfig := &swe_bench.BatchConfig{
 		NumWorkers: config.MaxWorkers,
-		OutputPath: filepath.Join(config.OutputDir, "results.json"),
+		OutputPath: filepath.Join(config.OutputDir, outputName),
 	}
 
 	// 设置超时
@@ -186,10 +199,8 @@ func (em *EvaluationManager) runEvaluation(ctx context.Context, instances []swe_
 		batchConfig.Agent.Timeout = int(config.TimeoutPerTask.Seconds())
 	}
 
-	// 使用现有批处理器
-	if em.batchRunner == nil {
-		em.batchRunner = swe_bench.NewBatchProcessor(batchConfig)
-	}
+	// 每次运行都创建新的处理器以隔离输出
+	em.batchRunner = swe_bench.NewBatchProcessor(batchConfig)
 
 	batchResult, err := em.batchRunner.ProcessBatch(ctx, instances, batchConfig)
 	if err != nil {
@@ -205,10 +216,106 @@ func (em *EvaluationManager) collectMetrics(ctx context.Context, results []swe_b
 	return collector.Collect(results)
 }
 
+// processAutoReview 根据配置自动评估并尝试反工
+func (em *EvaluationManager) processAutoReview(ctx context.Context, results []swe_bench.WorkerResult, instances []swe_bench.Instance, config *EvaluationConfig) ([]swe_bench.WorkerResult, *AutoReviewReport) {
+	if em.reviewer == nil || config.AutoReview == nil || !config.AutoReview.Enabled {
+		return results, nil
+	}
+
+	em.reviewer.UpdateOptions(config.AutoReview)
+	assessments := em.reviewer.Review(results)
+	report := &AutoReviewReport{Assessments: assessments}
+
+	if !config.AutoReview.EnableAutoRework {
+		return results, report
+	}
+
+	reworkIDs := em.reviewer.SelectReworkCandidates(assessments)
+	if len(reworkIDs) == 0 {
+		return results, report
+	}
+
+	instanceIndex := make(map[string]swe_bench.Instance, len(instances))
+	for _, instance := range instances {
+		instanceIndex[instance.ID] = instance
+	}
+
+	reworkInstances := make([]swe_bench.Instance, 0, len(reworkIDs))
+	for _, id := range reworkIDs {
+		if instance, ok := instanceIndex[id]; ok {
+			reworkInstances = append(reworkInstances, instance)
+		}
+	}
+
+	if len(reworkInstances) == 0 {
+		return results, report
+	}
+
+	reworkOutput := fmt.Sprintf("rework_%d.json", time.Now().Unix())
+	reworkResults, err := em.runEvaluation(ctx, reworkInstances, config, reworkOutput)
+	if err != nil {
+		report.Rework = &ReworkSummary{
+			Attempted: len(reworkInstances),
+			Notes:     []string{fmt.Sprintf("auto rework failed: %v", err)},
+		}
+		return results, report
+	}
+
+	merged, summary := mergeReworkResults(results, reworkResults)
+	report.Rework = summary
+	report.Assessments = em.reviewer.Review(merged)
+
+	return merged, report
+}
+
 // generateReport 生成报告
 func (em *EvaluationManager) generateReport(ctx context.Context, report *EvaluationResults, config *EvaluationConfig) error {
 	outputPath := filepath.Join(config.OutputDir, fmt.Sprintf("report_%s.md", report.JobID))
 	return em.reporter.GenerateReport(report, outputPath)
+}
+
+// mergeReworkResults 将反工结果融合进原始结果中
+func mergeReworkResults(original []swe_bench.WorkerResult, rework []swe_bench.WorkerResult) ([]swe_bench.WorkerResult, *ReworkSummary) {
+	if len(rework) == 0 {
+		return original, &ReworkSummary{}
+	}
+
+	merged := make([]swe_bench.WorkerResult, len(original))
+	copy(merged, original)
+	index := make(map[string]int, len(original))
+	for i, result := range original {
+		index[result.InstanceID] = i
+	}
+
+	summary := &ReworkSummary{Attempted: len(rework)}
+
+	for _, result := range rework {
+		if idx, ok := index[result.InstanceID]; ok {
+			previous := merged[idx]
+			if improved(previous, result) {
+				summary.Improved++
+			}
+			merged[idx] = result
+		} else {
+			merged = append(merged, result)
+		}
+
+		if result.Status == swe_bench.StatusCompleted {
+			summary.Completed++
+		}
+	}
+
+	summary.StillFailed = summary.Attempted - summary.Completed
+
+	return merged, summary
+}
+
+func improved(previous, current swe_bench.WorkerResult) bool {
+	if previous.Status == swe_bench.StatusCompleted {
+		return current.Status == swe_bench.StatusCompleted && current.Duration < previous.Duration
+	}
+
+	return current.Status == swe_bench.StatusCompleted || len(current.Solution) > len(previous.Solution)
 }
 
 // updateJobStatus 更新任务状态

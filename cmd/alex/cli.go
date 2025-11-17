@@ -89,6 +89,11 @@ Configuration:
     LLM_PROVIDER                 LLM provider (openrouter, openai, deepseek, ollama, mock)
     LLM_MODEL                    Model name
     ALEX_VERBOSE                 Show full tool output (set to 1 or true)
+  CLI overrides (per command):
+    --auto-review[=true|false]         Enable or disable automatic grading
+    --auto-review-min-score <0-1>      Override the passing threshold
+    --auto-review-rework[=true|false]  Force automated rework on/off
+    --auto-review-max-rework <n>       Limit the number of rework attempts
 
 Sessions cleanup options:
   --older-than 30d               Delete sessions not updated in the last 30 days

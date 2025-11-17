@@ -180,6 +180,32 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
+const AutoReviewAssessmentSchema = z.object({
+  score: z.number().optional(),
+  grade: z.string().optional(),
+  notes: z.array(z.string()).optional(),
+  needs_rework: z.boolean().optional(),
+});
+
+const AutoReviewReworkSchema = z.object({
+  attempted: z.number().optional(),
+  applied: z.boolean().optional(),
+  final_grade: z.string().optional(),
+  final_score: z.number().optional(),
+  notes: z.array(z.string()).optional(),
+});
+
+export const AutoReviewEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('auto_review'),
+  summary: z
+    .object({
+      assessment: AutoReviewAssessmentSchema.optional(),
+      rework: AutoReviewReworkSchema.optional(),
+    })
+    .optional(),
+  internal_only: z.boolean().optional(),
+});
+
 export const TaskCancelledEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_cancelled'),
   reason: z.string(),
@@ -310,6 +336,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   IterationCompleteEventSchema,
   TaskCancelledEventSchema,
   TaskCompleteEventSchema,
+  AutoReviewEventSchema,
   ErrorEventSchema,
   ResearchPlanEventSchema,
   StepStartedEventSchema,

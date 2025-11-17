@@ -64,6 +64,12 @@ func (mr *MarkdownReporter) buildReportContent(results *EvaluationResults) strin
 	report.WriteString(mr.buildBehaviorSection(results))
 	report.WriteString("\n")
 
+	// Auto review summary
+	if results.ReviewSummary != nil && len(results.ReviewSummary.Assessments) > 0 {
+		report.WriteString(mr.buildAutoReviewSection(results))
+		report.WriteString("\n")
+	}
+
 	// Insights and Recommendations
 	report.WriteString(mr.buildInsightsSection(results))
 	report.WriteString("\n")
@@ -275,6 +281,42 @@ func (mr *MarkdownReporter) buildBehaviorSection(results *EvaluationResults) str
 	}
 
 	return report.String()
+}
+
+// buildAutoReviewSection 构建自动评审与反工总结
+func (mr *MarkdownReporter) buildAutoReviewSection(results *EvaluationResults) string {
+	review := results.ReviewSummary
+	var passCount, reworkCount int
+	for _, assessment := range review.Assessments {
+		if assessment.NeedsRework {
+			reworkCount++
+		} else {
+			passCount++
+		}
+	}
+
+	var builder strings.Builder
+	builder.WriteString("## Automated Review & Rework\n\n")
+	builder.WriteString("| Result | Count |\n|--------|-------|\n")
+	builder.WriteString(fmt.Sprintf("| Passed | %d |\n", passCount))
+	builder.WriteString(fmt.Sprintf("| Needs Rework | %d |\n\n", reworkCount))
+
+	if review.Rework != nil && review.Rework.Attempted > 0 {
+		builder.WriteString("### Rework Summary\n")
+		builder.WriteString(fmt.Sprintf("- Attempted: %d\n", review.Rework.Attempted))
+		builder.WriteString(fmt.Sprintf("- Completed successfully: %d\n", review.Rework.Completed))
+		builder.WriteString(fmt.Sprintf("- Improved outcomes: %d\n", review.Rework.Improved))
+		builder.WriteString(fmt.Sprintf("- Still failing: %d\n", review.Rework.StillFailed))
+		if len(review.Rework.Notes) > 0 {
+			builder.WriteString("- Notes:\n")
+			for _, note := range review.Rework.Notes {
+				builder.WriteString(fmt.Sprintf("  - %s\n", note))
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
 }
 
 // buildInsightsSection 构建洞察部分

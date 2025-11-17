@@ -2,6 +2,7 @@ package output
 
 import (
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/config"
 	"encoding/json"
@@ -358,7 +359,112 @@ func (r *CLIRenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 		}
 	}
 
+	if summary := r.RenderAutoReviewSummary(result.Review); summary != "" {
+		output.WriteString(summary)
+		if !strings.HasSuffix(summary, "\n") {
+			output.WriteString("\n")
+		}
+	}
+
 	return output.String()
+}
+
+// RenderAutoReviewSummary produces a human-friendly verdict for the automatic reviewer.
+func (r *CLIRenderer) RenderAutoReviewSummary(report *ports.AutoReviewReport) string {
+	if report == nil || report.Assessment == nil {
+		return ""
+	}
+	assessment := report.Assessment
+	icon := "🤖"
+	status := fmt.Sprintf("Auto-review grade %s (%.2f)", assessment.Grade, assessment.Score)
+	if assessment.NeedsRework {
+		icon = "⚠️"
+		status = fmt.Sprintf("Auto-review flagged unfinished work – grade %s (%.2f)", assessment.Grade, assessment.Score)
+	} else {
+		icon = "✅"
+		status = fmt.Sprintf("Auto-review passed – grade %s (%.2f)", assessment.Grade, assessment.Score)
+	}
+	builder := &strings.Builder{}
+	builder.WriteString("\n")
+	builder.WriteString(icon)
+	builder.WriteString("  ")
+	builder.WriteString(status)
+	builder.WriteString("\n")
+	printAssessmentNotes := func(notes []string) {
+		for _, note := range notes {
+			note = strings.TrimSpace(note)
+			if note == "" {
+				continue
+			}
+			builder.WriteString("   • ")
+			builder.WriteString(note)
+			builder.WriteString("\n")
+		}
+	}
+	if assessment.NeedsRework {
+		outstanding := collectOutstandingNotes(report)
+		if len(outstanding) > 0 {
+			builder.WriteString("   ↳ 未完成内容：\n")
+			for _, note := range outstanding {
+				builder.WriteString("      - ")
+				builder.WriteString(note)
+				builder.WriteString("\n")
+			}
+		} else {
+			printAssessmentNotes(assessment.Notes)
+		}
+	} else {
+		printAssessmentNotes(assessment.Notes)
+	}
+	if report.Rework != nil {
+		rework := report.Rework
+		builder.WriteString(fmt.Sprintf("   ↳ Rework attempts: %d", rework.Attempted))
+		if rework.FinalGrade != "" {
+			builder.WriteString(fmt.Sprintf(" | final %s (%.2f)", rework.FinalGrade, rework.FinalScore))
+		}
+		if rework.Applied {
+			builder.WriteString(" | improvements applied")
+		}
+		builder.WriteString("\n")
+		for _, note := range rework.Notes {
+			note = strings.TrimSpace(note)
+			if note == "" {
+				continue
+			}
+			builder.WriteString("      · ")
+			builder.WriteString(note)
+			builder.WriteString("\n")
+		}
+	}
+	return builder.String()
+}
+
+func collectOutstandingNotes(report *ports.AutoReviewReport) []string {
+	if report == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var notes []string
+	appendNotes := func(values []string) {
+		for _, value := range values {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			notes = append(notes, trimmed)
+		}
+	}
+	if report.Assessment != nil {
+		appendNotes(report.Assessment.Notes)
+	}
+	if report.Rework != nil {
+		appendNotes(report.Rework.Notes)
+	}
+	return notes
 }
 
 // RenderError renders an error with hierarchy awareness

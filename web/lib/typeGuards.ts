@@ -19,6 +19,7 @@ import {
   StepCompletedEvent,
   BrowserInfoEvent,
   UserTaskEvent,
+  AutoReviewEvent,
 } from '@/lib/types';
 
 // Base event type guard
@@ -75,6 +76,10 @@ export function isIterationCompleteEvent(event: AnyAgentEvent): event is Iterati
 // Task Complete Event
 export function isTaskCompleteEvent(event: AnyAgentEvent): event is TaskCompleteEvent {
   return event.event_type === 'task_complete';
+}
+
+export function isAutoReviewEvent(event: AnyAgentEvent): event is AutoReviewEvent {
+  return event.event_type === 'auto_review';
 }
 
 // Task Cancelled Event

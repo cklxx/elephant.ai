@@ -8,11 +8,12 @@ import (
 
 // EvaluationResults 评估结果
 type EvaluationResults struct {
-	JobID     string                   `json:"job_id"`
-	Results   []swe_bench.WorkerResult `json:"results"`
-	Metrics   *EvaluationMetrics       `json:"metrics"`
-	Analysis  *AnalysisResult          `json:"analysis"`
-	Timestamp time.Time                `json:"timestamp"`
+	JobID         string                   `json:"job_id"`
+	Results       []swe_bench.WorkerResult `json:"results"`
+	Metrics       *EvaluationMetrics       `json:"metrics"`
+	Analysis      *AnalysisResult          `json:"analysis"`
+	ReviewSummary *AutoReviewReport        `json:"review_summary,omitempty"`
+	Timestamp     time.Time                `json:"timestamp"`
 }
 
 // ComparisonResult 比较结果（用于A/B测试）

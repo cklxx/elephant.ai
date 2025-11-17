@@ -15,7 +15,10 @@ import { formatRelativeTime } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
 import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
-import type { AnyAgentEvent, AttachmentUpload } from '@/lib/types';
+import type { AnyAgentEvent, AttachmentUpload, AutoReviewActionIntent } from '@/lib/types';
+import { captureEvent } from '@/lib/analytics/posthog';
+import { AnalyticsEvent } from '@/lib/analytics/events';
+import { collectOutstandingReviewNotes } from '@/lib/autoReview';
 
 const statusLabels: Record<string, TranslationKey> = {
   completed: 'sessions.details.history.status.completed',
@@ -31,6 +34,8 @@ type SessionDetailsClientProps = {
   sessionId: string;
 };
 
+const INTERNAL_AUTO_REVIEW_ENABLED = process.env.NEXT_PUBLIC_INTERNAL_AUTO_REVIEW === '1';
+
 export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const { data: sessionData, isLoading, error } = useSessionDetails(sessionId);
   const { t, language } = useI18n();
@@ -38,6 +43,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
+  const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
 
@@ -120,6 +126,39 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
       });
     },
     [executeTask, sessionId]
+  );
+
+  const handleAutoReviewAction = useCallback(
+    (intent: AutoReviewActionIntent) => {
+      const outstandingNotes = collectOutstandingReviewNotes(intent.event.summary);
+
+      let suggestedTask =
+        '继续完成当前项目，补全自动评审指出的所有缺失内容，并交付最终结果。';
+      if (intent.action === 'continue_with_notes') {
+        const noteBlock =
+          outstandingNotes.length > 0
+            ? outstandingNotes.map((note) => `- [ ] ${note}`).join('\n')
+            : '- [ ] 在开头列出当前未完成内容并逐项解决';
+        suggestedTask = `继续完成当前项目，并在开头标注「未完成内容」列表，逐项解决：\n${noteBlock}\n\n完成后请更新项目状态并说明是否仍有风险。`;
+      } else if (outstandingNotes.length > 0) {
+        suggestedTask = `继续完成当前项目，重点解决以下缺失项：\n${outstandingNotes
+          .map((note) => `- ${note}`)
+          .join('\n')}\n\n完成后请再次提交总结。`;
+      }
+
+      setPrefillTask(suggestedTask);
+      captureEvent(
+        intent.action === 'continue_with_notes'
+          ? AnalyticsEvent.AutoReviewContinueWithNotes
+          : AnalyticsEvent.AutoReviewContinue,
+        {
+          session_id: sessionId,
+          task_id: intent.event.task_id ?? null,
+          has_notes: outstandingNotes.length > 0,
+        },
+      );
+    },
+    [sessionId]
   );
 
   const handleStop = useCallback(() => {
@@ -246,6 +285,8 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
             onStop={handleStop}
             stopPending={stopPending}
             stopDisabled={isCancelPending}
+            prefill={prefillTask}
+            onPrefillApplied={() => setPrefillTask(null)}
           />
         </div>
       </Card>
@@ -257,6 +298,10 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
         error={sseError}
         reconnectAttempts={reconnectAttempts}
         onReconnect={reconnect}
+        showAutoReview={INTERNAL_AUTO_REVIEW_ENABLED}
+        onAutoReviewAction={
+          INTERNAL_AUTO_REVIEW_ENABLED ? handleAutoReviewAction : undefined
+        }
       />
 
       {sessionData.tasks && sessionData.tasks.length > 0 && (

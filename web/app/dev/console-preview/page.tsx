@@ -377,6 +377,28 @@ const mockEvents: AnyAgentEvent[] = [
     stop_reason: 'end',
     duration: 13650,
   },
+  {
+    ...baseEventContext,
+    event_type: 'auto_review',
+    timestamp: atOffset(152),
+    agent_level: 'core',
+    summary: {
+      assessment: {
+        grade: 'C',
+        score: 0.42,
+        needs_rework: true,
+        notes: [
+          '未提供实时指标落地的成本评估',
+          '未明确历史任务迁移计划',
+        ],
+      },
+      rework: {
+        attempted: 1,
+        applied: false,
+        notes: ['自动反工尝试 1：新增指标列表但仍缺少验收标准'],
+      },
+    },
+  },
 ];
 
 const summaryLine = buildSummaryLine(mockEvents);

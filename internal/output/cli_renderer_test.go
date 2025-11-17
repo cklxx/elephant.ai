@@ -163,3 +163,30 @@ func TestRenderTaskAnalysisIncludesStructuredDetails(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderAutoReviewSummaryHighlightsOutstandingNotes(t *testing.T) {
+	renderer := newTestRenderer(false)
+	report := &ports.AutoReviewReport{
+		Assessment: &ports.ResultAssessment{
+			Score:       0.42,
+			Grade:       "C",
+			Notes:       []string{" polish onboarding flow "},
+			NeedsRework: true,
+		},
+		Rework: &ports.ReworkSummary{
+			Attempted: 1,
+			Notes:     []string{"add release checklist"},
+		},
+	}
+
+	output := renderer.RenderAutoReviewSummary(report)
+	if !strings.Contains(output, "未完成内容") {
+		t.Fatalf("expected output to highlight unfinished work, got: %s", output)
+	}
+	if !strings.Contains(output, "polish onboarding flow") {
+		t.Fatalf("expected assessment notes to be listed, got: %s", output)
+	}
+	if !strings.Contains(output, "add release checklist") {
+		t.Fatalf("expected rework notes to be listed, got: %s", output)
+	}
+}

@@ -2,12 +2,18 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
+import {
+  AnyAgentEvent,
+  AutoReviewActionIntent,
+  AutoReviewEvent,
+  ToolCallStartEvent,
+} from '@/lib/types';
 import { TaskAnalysisCard } from './TaskAnalysisCard';
 import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
+import { AutoReviewCard } from './AutoReviewCard';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { ReactNode } from 'react';
@@ -18,6 +24,8 @@ interface VirtualizedEventListProps {
   focusedEventIndex?: number | null;
   onJumpToLatest?: () => void;
   className?: string;
+  showAutoReview?: boolean;
+  onAutoReviewAction?: (intent: AutoReviewActionIntent) => void;
 }
 
 export function VirtualizedEventList({
@@ -26,6 +34,8 @@ export function VirtualizedEventList({
   focusedEventIndex = null,
   onJumpToLatest,
   className,
+  showAutoReview = false,
+  onAutoReviewAction,
 }: VirtualizedEventListProps) {
   const t = useTranslation();
   const { visibleEvents, indexMap } = useMemo(() => {
@@ -41,6 +51,9 @@ export function VirtualizedEventList({
     }
 
     events.forEach((event, index) => {
+      if (event.event_type === 'auto_review' && !showAutoReview) {
+        return;
+      }
       if (event.event_type === 'task_analysis' && index !== lastTaskAnalysisIndex) {
         return;
       }
@@ -50,7 +63,7 @@ export function VirtualizedEventList({
     });
 
     return { visibleEvents: filtered, indexMap: mapping };
-  }, [events]);
+  }, [events, showAutoReview]);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const isAutoScrollingRef = useRef(false);
@@ -294,6 +307,8 @@ export function VirtualizedEventList({
                             : undefined
                         }
                         isFocused={isFocused}
+                        showAutoReview={showAutoReview}
+                        onAutoReviewAction={onAutoReviewAction}
                       />
                     </div>
                   </div>
@@ -330,10 +345,14 @@ function EventCard({
   event,
   pairedStart,
   isFocused = false,
+  showAutoReview = false,
+  onAutoReviewAction,
 }: {
   event: AnyAgentEvent;
   pairedStart?: ToolCallStartEvent;
   isFocused?: boolean;
+  showAutoReview?: boolean;
+  onAutoReviewAction?: (intent: AutoReviewActionIntent) => void;
 }) {
   const t = useTranslation();
 
@@ -372,6 +391,17 @@ function EventCard({
 
     case 'error':
       return wrapWithContext(<ErrorCard event={event} />);
+
+    case 'auto_review':
+      if (!showAutoReview) {
+        return null;
+      }
+      return wrapWithContext(
+        <AutoReviewCard
+          event={event as AutoReviewEvent}
+          onAction={onAutoReviewAction}
+        />
+      );
 
     case 'iteration_start':
       return (

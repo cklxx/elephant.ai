@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AnyAgentEvent } from '@/lib/types';
+import { AnyAgentEvent, AutoReviewActionIntent } from '@/lib/types';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
 import { ResearchTimeline } from './ResearchTimeline';
@@ -15,6 +15,8 @@ interface AgentOutputProps {
   error?: string | null;
   reconnectAttempts?: number;
   onReconnect?: () => void;
+  showAutoReview?: boolean;
+  onAutoReviewAction?: (intent: AutoReviewActionIntent) => void;
 }
 
 export function AgentOutput({
@@ -24,6 +26,8 @@ export function AgentOutput({
   error,
   reconnectAttempts,
   onReconnect,
+  showAutoReview = false,
+  onAutoReviewAction,
 }: AgentOutputProps) {
   const memoryStats = useMemoryStats() as {
     eventCount: number;
@@ -130,6 +134,8 @@ export function AgentOutput({
           setFocusedStepId(targetStepId);
           setHasUserSelectedStep(false);
         }}
+        showAutoReview={showAutoReview}
+        onAutoReviewAction={onAutoReviewAction}
         className="bg-card/90"
       />
     </div>

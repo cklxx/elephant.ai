@@ -34,34 +34,38 @@ const (
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider             string
-	LLMModel                string
-	APIKey                  string
-	ArkAPIKey               string
-	BaseURL                 string
-	TavilyAPIKey            string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	SandboxBaseURL          string
-	Environment             string
-	Verbose                 bool
-	DisableTUI              bool
-	FollowTranscript        bool
-	FollowStream            bool
-	MaxIterations           int
-	MaxTokens               int
-	Temperature             float64
-	TemperatureProvided     bool
-	TopP                    float64
-	StopSequences           []string
-	SessionDir              string
-	CostDir                 string
-	AgentPreset             string
-	ToolPreset              string
+	LLMProvider                 string
+	LLMModel                    string
+	APIKey                      string
+	ArkAPIKey                   string
+	BaseURL                     string
+	TavilyAPIKey                string
+	SeedreamTextEndpointID      string
+	SeedreamImageEndpointID     string
+	SeedreamTextModel           string
+	SeedreamImageModel          string
+	SeedreamVisionModel         string
+	SeedreamVideoModel          string
+	SandboxBaseURL              string
+	Environment                 string
+	Verbose                     bool
+	DisableTUI                  bool
+	FollowTranscript            bool
+	FollowStream                bool
+	MaxIterations               int
+	MaxTokens                   int
+	Temperature                 float64
+	TemperatureProvided         bool
+	TopP                        float64
+	StopSequences               []string
+	SessionDir                  string
+	CostDir                     string
+	AgentPreset                 string
+	ToolPreset                  string
+	AutoReviewEnabled           bool
+	AutoReviewMinPassingScore   float64
+	AutoReviewEnableRework      bool
+	AutoReviewMaxReworkAttempts int
 }
 
 // Metadata contains provenance details for loaded configuration.
@@ -88,33 +92,37 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider             *string
-	LLMModel                *string
-	APIKey                  *string
-	ArkAPIKey               *string
-	BaseURL                 *string
-	TavilyAPIKey            *string
-	SeedreamTextEndpointID  *string
-	SeedreamImageEndpointID *string
-	SeedreamTextModel       *string
-	SeedreamImageModel      *string
-	SeedreamVisionModel     *string
-	SeedreamVideoModel      *string
-	SandboxBaseURL          *string
-	Environment             *string
-	Verbose                 *bool
-	DisableTUI              *bool
-	FollowTranscript        *bool
-	FollowStream            *bool
-	MaxIterations           *int
-	MaxTokens               *int
-	Temperature             *float64
-	TopP                    *float64
-	StopSequences           *[]string
-	SessionDir              *string
-	CostDir                 *string
-	AgentPreset             *string
-	ToolPreset              *string
+	LLMProvider                 *string
+	LLMModel                    *string
+	APIKey                      *string
+	ArkAPIKey                   *string
+	BaseURL                     *string
+	TavilyAPIKey                *string
+	SeedreamTextEndpointID      *string
+	SeedreamImageEndpointID     *string
+	SeedreamTextModel           *string
+	SeedreamImageModel          *string
+	SeedreamVisionModel         *string
+	SeedreamVideoModel          *string
+	SandboxBaseURL              *string
+	Environment                 *string
+	Verbose                     *bool
+	DisableTUI                  *bool
+	FollowTranscript            *bool
+	FollowStream                *bool
+	MaxIterations               *int
+	MaxTokens                   *int
+	Temperature                 *float64
+	TopP                        *float64
+	StopSequences               *[]string
+	SessionDir                  *string
+	CostDir                     *string
+	AgentPreset                 *string
+	ToolPreset                  *string
+	AutoReviewEnabled           *bool
+	AutoReviewMinPassingScore   *float64
+	AutoReviewEnableRework      *bool
+	AutoReviewMaxReworkAttempts *int
 }
 
 // EnvLookup resolves the value for an environment variable.
@@ -205,23 +213,27 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:         "openrouter",
-		LLMModel:            "deepseek/deepseek-chat",
-		BaseURL:             "https://openrouter.ai/api/v1",
-		SandboxBaseURL:      DefaultSandboxBaseURL,
-		SeedreamTextModel:   DefaultSeedreamTextModel,
-		SeedreamImageModel:  DefaultSeedreamImageModel,
-		SeedreamVisionModel: DefaultSeedreamVisionModel,
-		SeedreamVideoModel:  DefaultSeedreamVideoModel,
-		Environment:         "development",
-		FollowTranscript:    true,
-		FollowStream:        true,
-		MaxIterations:       150,
-		MaxTokens:           100000,
-		Temperature:         0.7,
-		TopP:                1.0,
-		SessionDir:          "~/.alex-sessions",
-		CostDir:             "~/.alex-costs",
+		LLMProvider:                 "openrouter",
+		LLMModel:                    "deepseek/deepseek-chat",
+		BaseURL:                     "https://openrouter.ai/api/v1",
+		SandboxBaseURL:              DefaultSandboxBaseURL,
+		SeedreamTextModel:           DefaultSeedreamTextModel,
+		SeedreamImageModel:          DefaultSeedreamImageModel,
+		SeedreamVisionModel:         DefaultSeedreamVisionModel,
+		SeedreamVideoModel:          DefaultSeedreamVideoModel,
+		Environment:                 "development",
+		FollowTranscript:            true,
+		FollowStream:                true,
+		MaxIterations:               150,
+		MaxTokens:                   100000,
+		Temperature:                 0.7,
+		TopP:                        1.0,
+		SessionDir:                  "~/.alex-sessions",
+		CostDir:                     "~/.alex-costs",
+		AutoReviewEnabled:           true,
+		AutoReviewMinPassingScore:   0.45,
+		AutoReviewEnableRework:      true,
+		AutoReviewMaxReworkAttempts: 1,
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -252,35 +264,39 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 }
 
 type fileConfig struct {
-	LLMProvider             string                 `json:"llm_provider"`
-	LLMModel                string                 `json:"llm_model"`
-	Model                   string                 `json:"model"`
-	APIKey                  string                 `json:"api_key"`
-	ArkAPIKey               string                 `json:"arkApiKey"`
-	LegacyArkAPIKey         string                 `json:"ark_api_key"`
-	BaseURL                 string                 `json:"base_url"`
-	TavilyAPIKey            string                 `json:"tavilyApiKey"`
-	SeedreamTextEndpointID  string                 `json:"seedreamTextEndpointId"`
-	SeedreamImageEndpointID string                 `json:"seedreamImageEndpointId"`
-	SeedreamTextModel       string                 `json:"seedreamTextModel"`
-	SeedreamImageModel      string                 `json:"seedreamImageModel"`
-	SeedreamVisionModel     string                 `json:"seedreamVisionModel"`
-	SeedreamVideoModel      string                 `json:"seedreamVideoModel"`
-	SandboxBaseURL          string                 `json:"sandbox_base_url"`
-	Environment             string                 `json:"environment"`
-	Verbose                 *bool                  `json:"verbose"`
-	FollowTranscript        *bool                  `json:"follow_transcript"`
-	FollowStream            *bool                  `json:"follow_stream"`
-	MaxIterations           *int                   `json:"max_iterations"`
-	MaxTokens               *int                   `json:"max_tokens"`
-	Temperature             *float64               `json:"temperature"`
-	TopP                    *float64               `json:"top_p"`
-	StopSequences           []string               `json:"stop_sequences"`
-	SessionDir              string                 `json:"session_dir"`
-	CostDir                 string                 `json:"cost_dir"`
-	Models                  map[string]modelConfig `json:"models"`
-	AgentPreset             string                 `json:"agent_preset"`
-	ToolPreset              string                 `json:"tool_preset"`
+	LLMProvider                 string                 `json:"llm_provider"`
+	LLMModel                    string                 `json:"llm_model"`
+	Model                       string                 `json:"model"`
+	APIKey                      string                 `json:"api_key"`
+	ArkAPIKey                   string                 `json:"arkApiKey"`
+	LegacyArkAPIKey             string                 `json:"ark_api_key"`
+	BaseURL                     string                 `json:"base_url"`
+	TavilyAPIKey                string                 `json:"tavilyApiKey"`
+	SeedreamTextEndpointID      string                 `json:"seedreamTextEndpointId"`
+	SeedreamImageEndpointID     string                 `json:"seedreamImageEndpointId"`
+	SeedreamTextModel           string                 `json:"seedreamTextModel"`
+	SeedreamImageModel          string                 `json:"seedreamImageModel"`
+	SeedreamVisionModel         string                 `json:"seedreamVisionModel"`
+	SeedreamVideoModel          string                 `json:"seedreamVideoModel"`
+	SandboxBaseURL              string                 `json:"sandbox_base_url"`
+	Environment                 string                 `json:"environment"`
+	Verbose                     *bool                  `json:"verbose"`
+	FollowTranscript            *bool                  `json:"follow_transcript"`
+	FollowStream                *bool                  `json:"follow_stream"`
+	MaxIterations               *int                   `json:"max_iterations"`
+	MaxTokens                   *int                   `json:"max_tokens"`
+	Temperature                 *float64               `json:"temperature"`
+	TopP                        *float64               `json:"top_p"`
+	StopSequences               []string               `json:"stop_sequences"`
+	SessionDir                  string                 `json:"session_dir"`
+	CostDir                     string                 `json:"cost_dir"`
+	Models                      map[string]modelConfig `json:"models"`
+	AgentPreset                 string                 `json:"agent_preset"`
+	ToolPreset                  string                 `json:"tool_preset"`
+	AutoReviewEnabled           *bool                  `json:"auto_review_enabled"`
+	AutoReviewMinPassingScore   *float64               `json:"auto_review_min_passing_score"`
+	AutoReviewEnableRework      *bool                  `json:"auto_review_enable_rework"`
+	AutoReviewMaxReworkAttempts *int                   `json:"auto_review_max_rework_attempts"`
 }
 
 type modelConfig struct {
@@ -420,6 +436,22 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolPreset = parsed.ToolPreset
 		meta.sources["tool_preset"] = SourceFile
 	}
+	if parsed.AutoReviewEnabled != nil {
+		cfg.AutoReviewEnabled = *parsed.AutoReviewEnabled
+		meta.sources["auto_review_enabled"] = SourceFile
+	}
+	if parsed.AutoReviewMinPassingScore != nil {
+		cfg.AutoReviewMinPassingScore = *parsed.AutoReviewMinPassingScore
+		meta.sources["auto_review_min_passing_score"] = SourceFile
+	}
+	if parsed.AutoReviewEnableRework != nil {
+		cfg.AutoReviewEnableRework = *parsed.AutoReviewEnableRework
+		meta.sources["auto_review_enable_rework"] = SourceFile
+	}
+	if parsed.AutoReviewMaxReworkAttempts != nil {
+		cfg.AutoReviewMaxReworkAttempts = *parsed.AutoReviewMaxReworkAttempts
+		meta.sources["auto_review_max_rework_attempts"] = SourceFile
+	}
 	if parsed.Models != nil {
 		if basic, ok := parsed.Models["basic"]; ok {
 			if basic.APIKey != "" && cfg.APIKey == "" {
@@ -517,6 +549,50 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	} else if value, ok := lookup("ALEX_SEEDREAM_IMAGE_MODEL"); ok && value != "" {
 		cfg.SeedreamImageModel = value
 		meta.sources["seedream_image_model"] = SourceEnv
+	}
+	if value, ok := lookup("AUTO_REVIEW_ENABLED"); ok && value != "" {
+		if parsed, err := parseBoolEnv(value); err == nil {
+			cfg.AutoReviewEnabled = parsed
+			meta.sources["auto_review_enabled"] = SourceEnv
+		}
+	} else if value, ok := lookup("ALEX_AUTO_REVIEW_ENABLED"); ok && value != "" {
+		if parsed, err := parseBoolEnv(value); err == nil {
+			cfg.AutoReviewEnabled = parsed
+			meta.sources["auto_review_enabled"] = SourceEnv
+		}
+	}
+	if value, ok := lookup("AUTO_REVIEW_MIN_SCORE"); ok && value != "" {
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			cfg.AutoReviewMinPassingScore = parsed
+			meta.sources["auto_review_min_passing_score"] = SourceEnv
+		}
+	} else if value, ok := lookup("ALEX_AUTO_REVIEW_MIN_SCORE"); ok && value != "" {
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			cfg.AutoReviewMinPassingScore = parsed
+			meta.sources["auto_review_min_passing_score"] = SourceEnv
+		}
+	}
+	if value, ok := lookup("AUTO_REVIEW_ENABLE_REWORK"); ok && value != "" {
+		if parsed, err := parseBoolEnv(value); err == nil {
+			cfg.AutoReviewEnableRework = parsed
+			meta.sources["auto_review_enable_rework"] = SourceEnv
+		}
+	} else if value, ok := lookup("ALEX_AUTO_REVIEW_ENABLE_REWORK"); ok && value != "" {
+		if parsed, err := parseBoolEnv(value); err == nil {
+			cfg.AutoReviewEnableRework = parsed
+			meta.sources["auto_review_enable_rework"] = SourceEnv
+		}
+	}
+	if value, ok := lookup("AUTO_REVIEW_MAX_REWORK_ATTEMPTS"); ok && value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			cfg.AutoReviewMaxReworkAttempts = parsed
+			meta.sources["auto_review_max_rework_attempts"] = SourceEnv
+		}
+	} else if value, ok := lookup("ALEX_AUTO_REVIEW_MAX_REWORK_ATTEMPTS"); ok && value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			cfg.AutoReviewMaxReworkAttempts = parsed
+			meta.sources["auto_review_max_rework_attempts"] = SourceEnv
+		}
 	}
 	if value, ok := lookup("SEEDREAM_VISION_MODEL"); ok && value != "" {
 		cfg.SeedreamVisionModel = value
@@ -770,6 +846,22 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.ToolPreset != nil {
 		cfg.ToolPreset = *overrides.ToolPreset
 		meta.sources["tool_preset"] = SourceOverride
+	}
+	if overrides.AutoReviewEnabled != nil {
+		cfg.AutoReviewEnabled = *overrides.AutoReviewEnabled
+		meta.sources["auto_review_enabled"] = SourceOverride
+	}
+	if overrides.AutoReviewMinPassingScore != nil {
+		cfg.AutoReviewMinPassingScore = *overrides.AutoReviewMinPassingScore
+		meta.sources["auto_review_min_passing_score"] = SourceOverride
+	}
+	if overrides.AutoReviewEnableRework != nil {
+		cfg.AutoReviewEnableRework = *overrides.AutoReviewEnableRework
+		meta.sources["auto_review_enable_rework"] = SourceOverride
+	}
+	if overrides.AutoReviewMaxReworkAttempts != nil {
+		cfg.AutoReviewMaxReworkAttempts = *overrides.AutoReviewMaxReworkAttempts
+		meta.sources["auto_review_max_rework_attempts"] = SourceOverride
 	}
 }
 

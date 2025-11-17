@@ -32,6 +32,7 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 		MetricsTypes:   []string{"performance", "quality", "resource", "behavior"},
 		OutputDir:      outputDir,
 		ReportFormat:   "markdown",
+		AutoReview:     cloneAutoReviewOptions(defaultAutoReviewOptions()),
 	}
 
 	evaluationManager := NewEvaluationManager(config)
@@ -70,6 +71,7 @@ func (cm *CLIManager) RunEvaluation(ctx context.Context, options *EvaluationOpti
 // applyOptions 应用选项到配置
 func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig {
 	config := *cm.config // 复制默认配置
+	config.AutoReview = cloneAutoReviewOptions(cm.config.AutoReview)
 
 	if options.DatasetPath != "" {
 		config.DatasetPath = options.DatasetPath
@@ -88,6 +90,13 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 	}
 	if !options.EnableMetrics {
 		config.EnableMetrics = options.EnableMetrics
+	}
+	if options.ReportFormat != "" {
+		config.ReportFormat = options.ReportFormat
+	}
+
+	if options.AutoReview != nil {
+		config.AutoReview = applyAutoReviewOverrides(config.AutoReview, options.AutoReview)
 	}
 
 	return &config
@@ -147,14 +156,15 @@ func (cm *CLIManager) GetJobResults(jobID string) (*EvaluationResults, error) {
 
 // EvaluationOptions 评估选项
 type EvaluationOptions struct {
-	DatasetPath    string        `json:"dataset_path"`
-	InstanceLimit  int           `json:"instance_limit"`
-	MaxWorkers     int           `json:"max_workers"`
-	TimeoutPerTask time.Duration `json:"timeout_per_task"`
-	OutputDir      string        `json:"output_dir"`
-	EnableMetrics  bool          `json:"enable_metrics"`
-	ReportFormat   string        `json:"report_format"`
-	Verbose        bool          `json:"verbose"`
+	DatasetPath    string               `json:"dataset_path"`
+	InstanceLimit  int                  `json:"instance_limit"`
+	MaxWorkers     int                  `json:"max_workers"`
+	TimeoutPerTask time.Duration        `json:"timeout_per_task"`
+	OutputDir      string               `json:"output_dir"`
+	EnableMetrics  bool                 `json:"enable_metrics"`
+	ReportFormat   string               `json:"report_format"`
+	Verbose        bool                 `json:"verbose"`
+	AutoReview     *AutoReviewOverrides `json:"auto_review,omitempty"`
 }
 
 // DefaultEvaluationOptions 默认评估选项
@@ -168,6 +178,7 @@ func DefaultEvaluationOptions() *EvaluationOptions {
 		EnableMetrics:  true,
 		ReportFormat:   "markdown",
 		Verbose:        false,
+		AutoReview:     nil,
 	}
 }
 
@@ -355,6 +366,18 @@ func ValidateConfig(config *EvaluationConfig) error {
 
 	if config.OutputDir == "" {
 		return fmt.Errorf("output directory is required")
+	}
+
+	if config.AutoReview == nil {
+		config.AutoReview = defaultAutoReviewOptions()
+	}
+
+	if config.AutoReview.MinPassingScore <= 0 || config.AutoReview.MinPassingScore > 1 {
+		return fmt.Errorf("auto review min passing score must be between 0 and 1")
+	}
+
+	if config.AutoReview.MaxReworkTasks < 0 {
+		return fmt.Errorf("auto review max rework tasks must be >= 0")
 	}
 
 	// 检查数据集文件是否存在

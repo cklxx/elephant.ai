@@ -329,6 +329,13 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 			data["requested_by"] = e.RequestedBy
 		}
 
+	case *domain.AutoReviewEvent:
+		if e.Summary != nil {
+			data["summary"] = e.Summary
+		}
+		if e.InternalOnly {
+			data["internal_only"] = true
+		}
 	case *domain.ErrorEvent:
 		data["iteration"] = e.Iteration
 		data["phase"] = e.Phase

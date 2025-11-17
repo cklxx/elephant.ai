@@ -266,6 +266,8 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 		b.handler.onError(e)
 	case *domain.TaskCompleteEvent:
 		b.handler.onTaskComplete(e)
+	case *domain.AutoReviewEvent:
+		b.handler.onAutoReview(e)
 	}
 }
 
@@ -409,6 +411,15 @@ func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
 	rendered := h.renderer.RenderTaskComplete(outCtx, (*domain.TaskResult)(&resultCopy))
 	h.write(rendered)
 	h.streamedContent = false
+}
+
+func (h *StreamingOutputHandler) onAutoReview(event *domain.AutoReviewEvent) {
+	if event == nil {
+		return
+	}
+	if summary := h.renderer.RenderAutoReviewSummary(event.Summary); summary != "" {
+		h.write(summary)
+	}
 }
 
 func (h *StreamingOutputHandler) printInterruptRequested() {

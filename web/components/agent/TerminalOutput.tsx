@@ -121,7 +121,9 @@ export function TerminalOutput({
             );
           }
 
-          return <EventLine key={key} event={event} />;
+          return (
+            <EventLine key={key} event={event} />
+          );
         })}
       </div>
 

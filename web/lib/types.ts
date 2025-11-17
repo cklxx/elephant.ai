@@ -180,6 +180,39 @@ export interface TaskCompleteEvent extends AgentEvent {
   attachments?: Record<string, AttachmentPayload>;
 }
 
+export interface AutoReviewAssessment {
+  score?: number;
+  grade?: string;
+  notes?: string[];
+  needs_rework?: boolean;
+}
+
+export interface AutoReviewReworkSummary {
+  attempted?: number;
+  applied?: boolean;
+  final_grade?: string;
+  final_score?: number;
+  notes?: string[];
+}
+
+export interface AutoReviewSummary {
+  assessment?: AutoReviewAssessment;
+  rework?: AutoReviewReworkSummary;
+}
+
+export interface AutoReviewEvent extends AgentEvent {
+  event_type: 'auto_review';
+  summary?: AutoReviewSummary;
+  internal_only?: boolean;
+}
+
+export type AutoReviewActionType = 'continue' | 'continue_with_notes';
+
+export interface AutoReviewActionIntent {
+  action: AutoReviewActionType;
+  event: AutoReviewEvent;
+}
+
 // Task Cancelled Event - emitted when a task receives a cancellation request
 export interface TaskCancelledEvent extends AgentEvent {
   event_type: 'task_cancelled';
@@ -313,6 +346,7 @@ export type AnyAgentEvent =
   | IterationCompleteEvent
   | TaskCancelledEvent
   | TaskCompleteEvent
+  | AutoReviewEvent
   | ErrorEvent
   | ResearchPlanEvent
   | StepStartedEvent

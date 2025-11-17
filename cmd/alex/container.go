@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"alex/internal/agent/app"
+	"alex/internal/config"
 	"alex/internal/di"
 	"alex/internal/environment"
 )
@@ -18,9 +19,9 @@ type Container struct {
 	Runtime     appConfig
 }
 
-func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
+func buildContainerWithOptions(disableSandbox bool, loaderOpts ...config.Option) (*Container, error) {
 	// Load configuration
-	cfg, err := loadConfig()
+	cfg, err := loadConfig(loaderOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
@@ -34,35 +35,39 @@ func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 	environmentSummary := environment.FormatSummary(localSummary)
 
 	diConfig := di.Config{
-		LLMProvider:             cfg.LLMProvider,
-		LLMModel:                cfg.LLMModel,
-		APIKey:                  cfg.APIKey,
-		ArkAPIKey:               cfg.ArkAPIKey,
-		BaseURL:                 cfg.BaseURL,
-		TavilyAPIKey:            cfg.TavilyAPIKey,
-		SeedreamTextEndpointID:  cfg.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: cfg.SeedreamImageEndpointID,
-		SeedreamTextModel:       cfg.SeedreamTextModel,
-		SeedreamImageModel:      cfg.SeedreamImageModel,
-		SeedreamVisionModel:     cfg.SeedreamVisionModel,
-		SandboxBaseURL:          cfg.SandboxBaseURL,
-		MaxTokens:               cfg.MaxTokens,
-		MaxIterations:           cfg.MaxIterations,
-		Temperature:             cfg.Temperature,
-		TemperatureSet:          cfg.TemperatureProvided,
-		TopP:                    cfg.TopP,
-		StopSequences:           append([]string(nil), cfg.StopSequences...),
-		SessionDir:              cfg.SessionDir,
-		CostDir:                 cfg.CostDir,
-		Environment:             cfg.Environment,
-		Verbose:                 cfg.Verbose,
-		DisableTUI:              cfg.DisableTUI,
-		FollowTranscript:        cfg.FollowTranscript,
-		FollowStream:            cfg.FollowStream,
-		AgentPreset:             cfg.AgentPreset,
-		ToolPreset:              cfg.ToolPreset,
-		EnvironmentSummary:      environmentSummary,
-		DisableSandbox:          disableSandbox,
+		LLMProvider:                 cfg.LLMProvider,
+		LLMModel:                    cfg.LLMModel,
+		APIKey:                      cfg.APIKey,
+		ArkAPIKey:                   cfg.ArkAPIKey,
+		BaseURL:                     cfg.BaseURL,
+		TavilyAPIKey:                cfg.TavilyAPIKey,
+		SeedreamTextEndpointID:      cfg.SeedreamTextEndpointID,
+		SeedreamImageEndpointID:     cfg.SeedreamImageEndpointID,
+		SeedreamTextModel:           cfg.SeedreamTextModel,
+		SeedreamImageModel:          cfg.SeedreamImageModel,
+		SeedreamVisionModel:         cfg.SeedreamVisionModel,
+		SandboxBaseURL:              cfg.SandboxBaseURL,
+		MaxTokens:                   cfg.MaxTokens,
+		MaxIterations:               cfg.MaxIterations,
+		Temperature:                 cfg.Temperature,
+		TemperatureSet:              cfg.TemperatureProvided,
+		TopP:                        cfg.TopP,
+		StopSequences:               append([]string(nil), cfg.StopSequences...),
+		SessionDir:                  cfg.SessionDir,
+		CostDir:                     cfg.CostDir,
+		Environment:                 cfg.Environment,
+		Verbose:                     cfg.Verbose,
+		DisableTUI:                  cfg.DisableTUI,
+		FollowTranscript:            cfg.FollowTranscript,
+		FollowStream:                cfg.FollowStream,
+		AgentPreset:                 cfg.AgentPreset,
+		ToolPreset:                  cfg.ToolPreset,
+		EnvironmentSummary:          environmentSummary,
+		DisableSandbox:              disableSandbox,
+		AutoReviewEnabled:           cfg.AutoReviewEnabled,
+		AutoReviewMinPassingScore:   cfg.AutoReviewMinPassingScore,
+		AutoReviewEnableRework:      cfg.AutoReviewEnableRework,
+		AutoReviewMaxReworkAttempts: cfg.AutoReviewMaxReworkAttempts,
 	}
 
 	container, err := di.BuildContainer(diConfig)
