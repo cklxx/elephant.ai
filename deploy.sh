@@ -232,6 +232,54 @@ wait_for_docker_health() {
 # Environment Setup
 ###############################################################################
 
+generate_auth_secret() {
+    if command_exists python3; then
+        python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+        return
+    fi
+
+    if command_exists python; then
+        python - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+        return
+    fi
+
+    if command_exists openssl; then
+        openssl rand -hex 32
+        return
+    fi
+
+    head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
+}
+
+append_env_var_if_missing() {
+    local key=$1
+    local value=$2
+    if ! grep -q "^${key}=" .env 2>/dev/null; then
+        printf "\n%s=%s\n" "$key" "$value" >> .env
+        log_warn "Appended default ${key} to .env"
+    fi
+}
+
+ensure_auth_env_defaults() {
+    local default_redirect="http://localhost:${SERVER_PORT}"
+
+    if ! grep -q '^AUTH_JWT_SECRET=' .env 2>/dev/null; then
+        local secret
+        secret=$(generate_auth_secret)
+        append_env_var_if_missing "AUTH_JWT_SECRET" "$secret"
+    fi
+
+    append_env_var_if_missing "AUTH_ACCESS_TOKEN_TTL_MINUTES" "15"
+    append_env_var_if_missing "AUTH_REFRESH_TOKEN_TTL_DAYS" "30"
+    append_env_var_if_missing "AUTH_REDIRECT_BASE_URL" "$default_redirect"
+}
+
 setup_environment() {
     # Create directories
     mkdir -p "$PID_DIR" "$LOG_DIR"
@@ -242,14 +290,22 @@ setup_environment() {
     command -v npm >/dev/null 2>&1 || die "npm not installed"
 
     # Check .env
+    local default_auth_secret
     if [[ ! -f .env ]]; then
         log_warn ".env not found, creating default"
-        cat > .env << 'EOF'
+        default_auth_secret=$(generate_auth_secret)
+        cat > .env << EOF
 OPENAI_API_KEY=
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 ALEX_MODEL=anthropic/claude-3.5-sonnet
 ALEX_VERBOSE=false
 ALEX_SANDBOX_BASE_URL=http://localhost:8090
+
+# Authentication defaults for local development
+AUTH_JWT_SECRET=${default_auth_secret}
+AUTH_ACCESS_TOKEN_TTL_MINUTES=15
+AUTH_REFRESH_TOKEN_TTL_DAYS=30
+AUTH_REDIRECT_BASE_URL=http://localhost:${SERVER_PORT}
 
 # China Mirror Configuration (uncomment to enable)
 # Use pre-built China sandbox image (recommended for China - no build required!)
@@ -261,6 +317,8 @@ ALEX_SANDBOX_BASE_URL=http://localhost:8090
 # PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 EOF
     fi
+
+    ensure_auth_env_defaults
 
     # Source environment
     set -a
