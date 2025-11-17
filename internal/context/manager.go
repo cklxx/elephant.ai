@@ -575,9 +575,9 @@ func readYAMLDir(dir string) ([][]byte, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if !(strings.HasSuffix(d.Name(), ".yaml") || strings.HasSuffix(d.Name(), ".yml")) {
-			return nil
-		}
+if !strings.HasSuffix(d.Name(), ".yaml") && !strings.HasSuffix(d.Name(), ".yml") {
+return nil
+}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err

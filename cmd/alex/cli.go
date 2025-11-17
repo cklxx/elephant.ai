@@ -1,16 +1,17 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"flag"
-	"fmt"
-	"io"
-	"os"
-	"sort"
-	"strings"
-	"time"
+"bytes"
+"context"
+"encoding/json"
+"errors"
+"flag"
+"fmt"
+"io"
+"os"
+"sort"
+"strings"
+"time"
 
 	sessionstate "alex/internal/session/state_store"
 )
@@ -179,10 +180,10 @@ func (c *CLI) pullSessionSnapshotsWithWriter(ctx context.Context, args []string,
 	}
 	sessionID := positionalID
 	positional := fs.Args()
-	if sessionID == "" {
-		if len(positional) == 0 {
-			return fmt.Errorf(flagUsageLine)
-		}
+if sessionID == "" {
+if len(positional) == 0 {
+return errors.New(flagUsageLine)
+}
 		sessionID = strings.TrimSpace(positional[0])
 	} else if len(positional) > 0 {
 		// When both a leading positional ID and trailing args are supplied, treat the
@@ -244,23 +245,28 @@ func (c *CLI) findSnapshotByLLMTurn(ctx context.Context, store sessionstate.Stor
 }
 
 func (c *CLI) printSnapshotMetadata(out io.Writer, sessionID string, metas []sessionstate.SnapshotMetadata, nextCursor string) error {
-	if len(metas) == 0 {
-		fmt.Fprintf(out, "No snapshots found for session %s\n", sessionID)
-		return nil
-	}
-	fmt.Fprintf(out, "Snapshots for session %s (showing %d):\n", sessionID, len(metas))
-	for _, meta := range metas {
-		timestamp := meta.CreatedAt.UTC().Format(time.RFC3339)
-		summary := strings.TrimSpace(meta.Summary)
-		if summary == "" {
-			summary = "(no summary)"
-		}
-		fmt.Fprintf(out, "  - Turn %d (LLM %d) @ %s :: %s\n", meta.TurnID, meta.LLMTurnSeq, timestamp, summary)
-	}
-	if nextCursor != "" {
-		fmt.Fprintf(out, "Next cursor: %s\n", nextCursor)
-	}
-	return nil
+if len(metas) == 0 {
+return writeLine(out, "No snapshots found for session %s\n", sessionID)
+}
+if err := writeLine(out, "Snapshots for session %s (showing %d):\n", sessionID, len(metas)); err != nil {
+return err
+}
+for _, meta := range metas {
+timestamp := meta.CreatedAt.UTC().Format(time.RFC3339)
+summary := strings.TrimSpace(meta.Summary)
+if summary == "" {
+summary = "(no summary)"
+}
+if err := writeLine(out, "  - Turn %d (LLM %d) @ %s :: %s\n", meta.TurnID, meta.LLMTurnSeq, timestamp, summary); err != nil {
+return err
+}
+}
+if nextCursor != "" {
+if err := writeLine(out, "Next cursor: %s\n", nextCursor); err != nil {
+return err
+}
+}
+return nil
 }
 
 func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw bool, outputPath string) error {
@@ -272,46 +278,58 @@ func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw 
 			return fmt.Errorf("encode snapshot: %w", err)
 		}
 	}
-	if outputPath != "" {
-		if err := os.WriteFile(outputPath, encoded, 0o644); err != nil {
-			return fmt.Errorf("write snapshot: %w", err)
-		}
-		fmt.Fprintf(out, "Snapshot saved to %s\n", outputPath)
-	}
-	if raw {
-		fmt.Fprintf(out, "%s\n", encoded)
-		return nil
-	}
-	created := "(unknown)"
-	if !snapshot.CreatedAt.IsZero() {
-		created = snapshot.CreatedAt.UTC().Format(time.RFC3339)
-	}
-	fmt.Fprintf(out, "Turn %d (LLM turn %d) captured %s\n", snapshot.TurnID, snapshot.LLMTurnSeq, created)
-	if strings.TrimSpace(snapshot.Summary) != "" {
-		fmt.Fprintf(out, "  Summary: %s\n", strings.TrimSpace(snapshot.Summary))
-	}
-	fmt.Fprintf(out, "  Plans: %d | Beliefs: %d | Messages: %d | Feedback: %d\n", len(snapshot.Plans), len(snapshot.Beliefs), len(snapshot.Messages), len(snapshot.Feedback))
+if outputPath != "" {
+if err := os.WriteFile(outputPath, encoded, 0o644); err != nil {
+return fmt.Errorf("write snapshot: %w", err)
+}
+if err := writeLine(out, "Snapshot saved to %s\n", outputPath); err != nil {
+return err
+}
+}
+if raw {
+return writeLine(out, "%s\n", encoded)
+}
+created := "(unknown)"
+if !snapshot.CreatedAt.IsZero() {
+created = snapshot.CreatedAt.UTC().Format(time.RFC3339)
+}
+if err := writeLine(out, "Turn %d (LLM turn %d) captured %s\n", snapshot.TurnID, snapshot.LLMTurnSeq, created); err != nil {
+return err
+}
+if strings.TrimSpace(snapshot.Summary) != "" {
+if err := writeLine(out, "  Summary: %s\n", strings.TrimSpace(snapshot.Summary)); err != nil {
+return err
+}
+}
+if err := writeLine(out, "  Plans: %d | Beliefs: %d | Messages: %d | Feedback: %d\n", len(snapshot.Plans), len(snapshot.Beliefs), len(snapshot.Messages), len(snapshot.Feedback)); err != nil {
+return err
+}
 
-	// TODO(context): surface structured diff/plan output once the runtime populates these fields.
-	if worldKeys := sortedKeys(snapshot.World); len(worldKeys) > 0 {
-		fmt.Fprintf(out, "  World keys: %s\n", strings.Join(worldKeys, ", "))
-	}
-	if diffKeys := sortedKeys(snapshot.Diff); len(diffKeys) > 0 {
-		fmt.Fprintf(out, "  Diff keys: %s\n", strings.Join(diffKeys, ", "))
-	}
-	if len(snapshot.KnowledgeRefs) > 0 {
-		var refs []string
-		for _, ref := range snapshot.KnowledgeRefs {
-			if ref.ID != "" {
-				refs = append(refs, ref.ID)
-			}
-		}
-		if len(refs) > 0 {
-			fmt.Fprintf(out, "  Knowledge refs: %s\n", strings.Join(refs, ", "))
-		}
-	}
-	c.printSnapshotGaps(out, snapshot)
-	return nil
+// TODO(context): surface structured diff/plan output once the runtime populates these fields.
+if worldKeys := sortedKeys(snapshot.World); len(worldKeys) > 0 {
+if err := writeLine(out, "  World keys: %s\n", strings.Join(worldKeys, ", ")); err != nil {
+return err
+}
+}
+if diffKeys := sortedKeys(snapshot.Diff); len(diffKeys) > 0 {
+if err := writeLine(out, "  Diff keys: %s\n", strings.Join(diffKeys, ", ")); err != nil {
+return err
+}
+}
+if len(snapshot.KnowledgeRefs) > 0 {
+var refs []string
+for _, ref := range snapshot.KnowledgeRefs {
+if ref.ID != "" {
+refs = append(refs, ref.ID)
+}
+}
+if len(refs) > 0 {
+if err := writeLine(out, "  Knowledge refs: %s\n", strings.Join(refs, ", ")); err != nil {
+return err
+}
+}
+}
+return c.printSnapshotGaps(out, snapshot)
 }
 
 func sortedKeys(input map[string]any) []string {
@@ -326,15 +344,25 @@ func sortedKeys(input map[string]any) []string {
 	return keys
 }
 
-func (c *CLI) printSnapshotGaps(out io.Writer, snapshot sessionstate.Snapshot) {
-	if out == nil {
-		return
-	}
-	note := summarizeSnapshotGaps(snapshot)
-	if note == "" {
-		return
-	}
-	fmt.Fprintf(out, "  TODO: %s\n", note)
+func (c *CLI) printSnapshotGaps(out io.Writer, snapshot sessionstate.Snapshot) error {
+if out == nil {
+return nil
+}
+note := summarizeSnapshotGaps(snapshot)
+if note == "" {
+return nil
+}
+return writeLine(out, "  TODO: %s\n", note)
+}
+
+func writeLine(out io.Writer, format string, args ...any) error {
+if out == nil {
+return nil
+}
+if _, err := fmt.Fprintf(out, format, args...); err != nil {
+return fmt.Errorf("write output: %w", err)
+}
+return nil
 }
 
 func summarizeSnapshotGaps(snapshot sessionstate.Snapshot) string {
