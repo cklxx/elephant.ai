@@ -208,6 +208,7 @@ func main() {
 		broadcaster,
 		container.SessionStore,
 		taskStore,
+		container.StateStore,
 		serverApp.WithAnalyticsClient(analyticsClient),
 	)
 

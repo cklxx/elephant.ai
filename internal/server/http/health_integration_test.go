@@ -39,6 +39,7 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 		broadcaster,
 		container.SessionStore,
 		taskStore,
+		container.StateStore,
 	)
 
 	// Setup health checker

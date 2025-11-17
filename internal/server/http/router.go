@@ -117,6 +117,19 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		} else {
 			path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 
+			if strings.HasSuffix(path, "/snapshots") {
+				apiHandler.HandleListSnapshots(w, r)
+				return
+			}
+			if strings.Contains(path, "/turns/") {
+				apiHandler.HandleGetTurnSnapshot(w, r)
+				return
+			}
+			if strings.HasSuffix(path, "/replay") {
+				apiHandler.HandleReplaySession(w, r)
+				return
+			}
+
 			// Handle /api/sessions/:id/fork
 			if strings.HasSuffix(path, "/fork") {
 				apiHandler.HandleForkSession(w, r)

@@ -275,6 +275,7 @@ export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
 export const ContextSnapshotEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('context_snapshot'),
   iteration: z.number(),
+  llm_turn_seq: z.number(),
   request_id: z.string(),
   messages: z.array(MessageSchema),
   excluded_messages: z.array(MessageSchema).optional(),
