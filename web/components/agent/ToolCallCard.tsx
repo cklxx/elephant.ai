@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { ToolCallStartEvent, ToolCallCompleteEvent } from '@/lib/types';
+import { isToolCallStartEvent } from '@/lib/typeGuards';
 import { getToolIcon, formatDuration } from '@/lib/utils';
 import { CheckCircle2, Loader2, XCircle, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
@@ -35,6 +36,22 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   const showVideoWaitHint =
     status === 'running' && VIDEO_GENERATION_TOOLS.has(toolName.toLowerCase());
 
+  const summaryText = useMemo(() => {
+    const argsSummary = getArgumentsPreview(event, adapter.context.startEvent ?? undefined);
+    const errorSummary = adapter.context.completeEvent?.error?.trim();
+    const resultSummary = summarizeResult(adapter.context.completeEvent?.result);
+
+    if (status === 'running') {
+      return argsSummary || t('conversation.tool.timeline.summaryRunning', { tool: toolName });
+    }
+
+    if (status === 'error') {
+      return errorSummary || resultSummary || argsSummary || t('conversation.tool.timeline.summaryErrored', { tool: toolName });
+    }
+
+    return resultSummary || argsSummary || t('conversation.tool.timeline.summaryCompleted', { tool: toolName });
+  }, [adapter, event, status, t, toolName]);
+
   const panels = renderer({
     ...adapter.context,
     labels: {
@@ -56,6 +73,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       icon={toolGlyph}
       callId={callId}
       statusChip={<StatusChip status={status} label={statusLabel} />}
+      summary={summaryText}
       metadata={metadata}
       isFocused={isFocused}
     >
@@ -73,7 +91,7 @@ function StatusChip({ status, label }: { status: 'running' | 'done' | 'error'; l
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[9px] font-semibold tracking-[0.2em]',
+        'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold text-foreground/80',
         meta.className,
       )}
     >
@@ -86,15 +104,15 @@ function StatusChip({ status, label }: { status: 'running' | 'done' | 'error'; l
 const STATUS_META = {
   running: {
     icon: Loader2,
-    className: 'bg-muted text-foreground',
+    className: 'border-amber-200 bg-amber-50/80 text-amber-800',
   },
   done: {
     icon: CheckCircle2,
-    className: 'bg-muted text-foreground',
+    className: 'border-emerald-200 bg-emerald-50/80 text-emerald-800',
   },
   error: {
     icon: XCircle,
-    className: 'bg-destructive/20 text-destructive',
+    className: 'border-destructive/30 bg-destructive/10 text-destructive',
   },
 } as const;
 
@@ -113,4 +131,94 @@ function VideoWaitHint() {
       <span>视频生成较慢，请耐心等待...</span>
     </div>
   );
+}
+
+function getArgumentsPreview(
+  event: ToolCallStartEvent | ToolCallCompleteEvent,
+  startEvent?: ToolCallStartEvent | null
+): string | undefined {
+  const preview =
+    startEvent?.arguments_preview ??
+    (isToolCallStartEvent(event) ? event.arguments_preview : undefined);
+  if (preview && preview.trim().length > 0) {
+    return preview.trim();
+  }
+
+  const args =
+    startEvent?.arguments ??
+    (isToolCallStartEvent(event) ? event.arguments : undefined);
+  return summarizeArguments(args);
+}
+
+function summarizeArguments(args?: Record<string, unknown>): string | undefined {
+  if (!args || Object.keys(args).length === 0) {
+    return undefined;
+  }
+
+  const entries = Object.entries(args)
+    .map(([key, value]) => {
+      const normalized = formatArgumentValue(value);
+      if (!normalized) {
+        return null;
+      }
+      return `${key}: ${normalized}`;
+    })
+    .filter(Boolean) as string[];
+
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  const preview = entries.join(' · ');
+  return preview.length > 200 ? `${preview.slice(0, 200)}…` : preview;
+}
+
+function formatArgumentValue(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    return trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const formatted = value
+      .slice(0, 3)
+      .map((item) => formatArgumentValue(item))
+      .filter(Boolean)
+      .join(', ');
+    if (!formatted) {
+      return '';
+    }
+    return value.length > 3 ? `${formatted}…` : formatted;
+  }
+  if (typeof value === 'object') {
+    try {
+      const json = JSON.stringify(value);
+      if (!json) {
+        return '';
+      }
+      return json.length > 80 ? `${json.slice(0, 80)}…` : json;
+    } catch {
+      return '';
+    }
+  }
+  return '';
+}
+
+function summarizeResult(result?: string | null): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+  const trimmed = result.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
 }

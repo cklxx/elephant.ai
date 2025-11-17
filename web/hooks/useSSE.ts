@@ -54,6 +54,17 @@ export function useSSE(
   const clientRef = useRef<SSEClient | null>(null);
   const pipelineRef = useRef<EventPipeline | null>(null);
   const sessionIdRef = useRef(sessionId);
+  const dedupeRef = useRef<{ seen: Set<string>; order: string[] }>({
+    seen: new Set(),
+    order: [],
+  });
+
+  const resetDedupe = useCallback(() => {
+    dedupeRef.current = {
+      seen: new Set(),
+      order: [],
+    };
+  }, []);
 
   const onEventRef = useRef(onEvent);
   useEffect(() => {
@@ -67,7 +78,8 @@ export function useSSE(
   const clearEvents = useCallback(() => {
     setEvents([]);
     resetAttachmentRegistry();
-  }, []);
+    resetDedupe();
+  }, [resetDedupe]);
 
   const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -200,6 +212,21 @@ export function useSSE(
     });
 
     const unsubscribe = agentEventBus.subscribe((event) => {
+      const dedupeKey = buildEventSignature(event);
+      const cache = dedupeRef.current;
+      if (cache.seen.has(dedupeKey)) {
+        return;
+      }
+
+      cache.seen.add(dedupeKey);
+      cache.order.push(dedupeKey);
+      if (cache.order.length > 2000) {
+        const oldest = cache.order.shift();
+        if (oldest) {
+          cache.seen.delete(oldest);
+        }
+      }
+
       setEvents((prev) => [...prev, event]);
       onEventRef.current?.(event);
     });
@@ -214,6 +241,7 @@ export function useSSE(
     cleanup();
     setEvents([]);
     resetAttachmentRegistry();
+    resetDedupe();
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
     setError(null);
@@ -249,4 +277,40 @@ export function useSSE(
     reconnect,
     addEvent,
   };
+}
+
+function buildEventSignature(event: AnyAgentEvent): string {
+  const baseParts = [
+    event.event_type,
+    event.timestamp ?? '',
+    event.session_id ?? '',
+    'task_id' in event && event.task_id ? event.task_id : '',
+  ];
+
+  if ('call_id' in event && event.call_id) {
+    baseParts.push(event.call_id);
+  }
+  if ('iteration' in event && typeof event.iteration === 'number') {
+    baseParts.push(String(event.iteration));
+  }
+  if ('chunk' in event && typeof event.chunk === 'string') {
+    baseParts.push(event.chunk);
+  }
+  if ('delta' in event && typeof event.delta === 'string') {
+    baseParts.push(event.delta);
+  }
+  if ('result' in event && typeof event.result === 'string') {
+    baseParts.push(event.result);
+  }
+  if ('error' in event && typeof event.error === 'string') {
+    baseParts.push(event.error);
+  }
+  if ('final_answer' in event && typeof event.final_answer === 'string') {
+    baseParts.push(event.final_answer);
+  }
+  if ('task' in event && typeof event.task === 'string') {
+    baseParts.push(event.task);
+  }
+
+  return baseParts.join('|');
 }
