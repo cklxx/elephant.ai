@@ -250,6 +250,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		Attachments:          preloadedAttachments,
 		AttachmentIterations: make(map[string]int),
 	}
+	domain.ApplyWorkspacePaths(state.SessionID, state.Attachments)
 	for key := range preloadedAttachments {
 		if key == "" {
 			continue
@@ -288,6 +289,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			pending[name] = att
 		}
 		if len(pending) > 0 {
+			domain.ApplyWorkspacePaths(state.SessionID, pending)
 			state.PendingUserAttachments = pending
 		}
 	}
@@ -1134,8 +1136,120 @@ func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]p
 		if att.Name == "" {
 			att.Name = name
 		}
+		att.SizeBytes = normalizeAttachmentSize(att)
+
+		if existing, ok := target[name]; ok {
+			target[name] = mergeAttachmentMetadata(existing, att)
+			continue
+		}
 		target[name] = att
 	}
+}
+
+func normalizeAttachmentSize(att ports.Attachment) int64 {
+	if att.SizeBytes > 0 {
+		return att.SizeBytes
+	}
+	if att.Data == "" {
+		return 0
+	}
+	length := len(strings.TrimSpace(att.Data))
+	if length == 0 {
+		return 0
+	}
+	padding := 0
+	trimmed := strings.TrimSpace(att.Data)
+	if strings.HasSuffix(trimmed, "==") {
+		padding = 2
+	} else if strings.HasSuffix(trimmed, "=") {
+		padding = 1
+	}
+	decoded := (length/4)*3 - padding
+	if decoded < 0 {
+		decoded = 0
+	}
+	return int64(decoded)
+}
+
+func mergeAttachmentMetadata(existing, incoming ports.Attachment) ports.Attachment {
+	if shouldPreferIncoming(existing, incoming) {
+		preferred := fillAttachmentGaps(incoming, existing)
+		return preferred
+	}
+	return fillAttachmentGaps(existing, incoming)
+}
+
+func shouldPreferIncoming(existing, incoming ports.Attachment) bool {
+	existingPriority := attachmentPriority(existing)
+	incomingPriority := attachmentPriority(incoming)
+	if incomingPriority != existingPriority {
+		return incomingPriority > existingPriority
+	}
+	return attachmentMetadataScore(incoming) > attachmentMetadataScore(existing)
+}
+
+func attachmentPriority(att ports.Attachment) int {
+	switch strings.ToLower(strings.TrimSpace(att.Source)) {
+	case "delegated":
+		return 3
+	case "user_upload":
+		return 2
+	case "archived":
+		return 0
+	default:
+		if strings.TrimSpace(att.Source) != "" {
+			return 2
+		}
+		return 1
+	}
+}
+
+func attachmentMetadataScore(att ports.Attachment) int {
+	score := 0
+	if att.Description != "" {
+		score += 2
+	}
+	if att.URI != "" {
+		score += 2
+	}
+	if att.Data != "" {
+		score++
+	}
+	if att.MediaType != "" {
+		score++
+	}
+	if att.SizeBytes > 0 {
+		score++
+	}
+	if att.ParentTaskID != "" {
+		score++
+	}
+	return score
+}
+
+func fillAttachmentGaps(primary, secondary ports.Attachment) ports.Attachment {
+	if primary.Description == "" {
+		primary.Description = secondary.Description
+	}
+	if primary.URI == "" {
+		primary.URI = secondary.URI
+	}
+	if primary.Data == "" {
+		primary.Data = secondary.Data
+	}
+	if primary.MediaType == "" {
+		primary.MediaType = secondary.MediaType
+	}
+	if primary.Source == "" {
+		primary.Source = secondary.Source
+	}
+	if primary.SizeBytes == 0 {
+		primary.SizeBytes = secondary.SizeBytes
+	}
+	if primary.ParentTaskID == "" {
+		primary.ParentTaskID = secondary.ParentTaskID
+	}
+	return primary
 }
 
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.

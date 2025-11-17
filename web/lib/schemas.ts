@@ -175,6 +175,26 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
+export const AttachmentExportStatusEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('attachment_export_status'),
+  status: z.enum(['succeeded', 'failed', 'skipped']),
+  attachment_count: z.number(),
+  attempts: z.number(),
+  duration_ms: z.number(),
+  exporter_kind: z.string().optional(),
+  endpoint: z.string().optional(),
+  error: z.string().optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+});
+
+export const AttachmentScanStatusEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('attachment_scan_status'),
+  placeholder: z.string(),
+  verdict: z.enum(['unknown', 'clean', 'infected']),
+  details: z.string().optional(),
+  attachment: AttachmentPayloadSchema.optional(),
+});
+
 export const TaskCancelledEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_cancelled'),
   reason: z.string(),
@@ -305,6 +325,8 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   IterationCompleteEventSchema,
   TaskCancelledEventSchema,
   TaskCompleteEventSchema,
+  AttachmentExportStatusEventSchema,
+  AttachmentScanStatusEventSchema,
   ErrorEventSchema,
   ResearchPlanEventSchema,
   StepStartedEventSchema,

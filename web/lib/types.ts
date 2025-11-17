@@ -96,7 +96,11 @@ export interface AttachmentPayload {
   uri?: string;
   source?: string;
   description?: string;
+  size_bytes?: number;
+  parent_task_id?: string;
 }
+
+export type AttachmentScanVerdict = 'unknown' | 'clean' | 'infected';
 
 export interface AttachmentUpload {
   name: string;
@@ -105,6 +109,8 @@ export interface AttachmentUpload {
   uri?: string;
   source?: string;
   description?: string;
+  size_bytes?: number;
+  parent_task_id?: string;
 }
 
 export type MessageSource =
@@ -173,6 +179,28 @@ export interface TaskCompleteEvent extends AgentEvent {
   stop_reason: string;
   duration: number; // milliseconds
   attachments?: Record<string, AttachmentPayload>;
+}
+
+export type AttachmentExportStatus = 'succeeded' | 'failed' | 'skipped';
+
+export interface AttachmentExportStatusEvent extends AgentEvent {
+  event_type: 'attachment_export_status';
+  status: AttachmentExportStatus;
+  attachment_count: number;
+  attempts: number;
+  duration_ms: number;
+  exporter_kind?: string;
+  endpoint?: string;
+  error?: string;
+  attachments?: Record<string, AttachmentPayload>;
+}
+
+export interface AttachmentScanStatusEvent extends AgentEvent {
+  event_type: 'attachment_scan_status';
+  placeholder: string;
+  verdict: AttachmentScanVerdict;
+  details?: string;
+  attachment?: AttachmentPayload;
 }
 
 // Task Cancelled Event - emitted when a task receives a cancellation request
@@ -308,6 +336,8 @@ export type AnyAgentEvent =
   | IterationCompleteEvent
   | TaskCancelledEvent
   | TaskCompleteEvent
+  | AttachmentExportStatusEvent
+  | AttachmentScanStatusEvent
   | ErrorEvent
   | ResearchPlanEvent
   | StepStartedEvent

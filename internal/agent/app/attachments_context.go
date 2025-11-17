@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"alex/internal/agent/ports"
+	id "alex/internal/utils/id"
 )
 
 type userAttachmentsKey struct{}
@@ -34,6 +35,7 @@ func GetUserAttachments(ctx context.Context) []ports.Attachment {
 type inheritedAttachmentPayload struct {
 	attachments map[string]ports.Attachment
 	iterations  map[string]int
+	parentTask  string
 }
 
 // WithInheritedAttachments shares generated attachments with delegated agents
@@ -42,9 +44,21 @@ func WithInheritedAttachments(ctx context.Context, attachments map[string]ports.
 	if len(attachments) == 0 {
 		return ctx
 	}
+	parentTaskID := id.ParentTaskIDFromContext(ctx)
+
+	cloned := cloneAttachmentMap(attachments)
+	if parentTaskID != "" {
+		for key, att := range cloned {
+			if att.ParentTaskID == "" {
+				att.ParentTaskID = parentTaskID
+				cloned[key] = att
+			}
+		}
+	}
 	payload := inheritedAttachmentPayload{
-		attachments: cloneAttachmentMap(attachments),
+		attachments: cloned,
 		iterations:  cloneIterationMap(iterations),
+		parentTask:  parentTaskID,
 	}
 	return context.WithValue(ctx, inheritedAttachmentsKey{}, payload)
 }

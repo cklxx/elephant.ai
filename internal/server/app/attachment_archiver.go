@@ -6,14 +6,16 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"alex/internal/agent/ports"
+	attachmentsutil "alex/internal/attachments"
 	"alex/internal/tools"
 	"alex/internal/utils"
 
@@ -21,53 +23,78 @@ import (
 )
 
 const (
-	defaultSandboxSessionDir = "/workspace/.alex/sessions"
-	maxArchiveDuration       = 30 * time.Second
+	maxArchiveDuration          = 30 * time.Second
+	maxRemoteAttachmentBytes    = 8 * 1024 * 1024 // 8 MiB safeguard for remote downloads
+	remoteAttachmentHTTPTimeout = 15 * time.Second
 )
 
 // AttachmentArchiver persists generated attachments to a backing store.
 type AttachmentArchiver interface {
-	Persist(ctx context.Context, sessionID string, attachments map[string]ports.Attachment)
+	Persist(ctx context.Context, sessionID, taskID string, attachments map[string]ports.Attachment)
+}
+
+// AttachmentScanReporter emits events whenever the scanner returns a verdict
+// that callers should surface to end users.
+type AttachmentScanReporter interface {
+	ReportAttachmentScan(sessionID, taskID, placeholder string, attachment ports.Attachment, result AttachmentScanResult)
+}
+
+// SandboxAttachmentArchiverConfig customizes remote mirroring behavior.
+type SandboxAttachmentArchiverConfig struct {
+	AllowedRemoteHosts []string
+	BlockedRemoteHosts []string
+	Scanner            AttachmentScanner
+	ScanReporter       AttachmentScanReporter
 }
 
 // NewSandboxAttachmentArchiver returns an AttachmentArchiver that writes files into the sandbox workspace.
-func NewSandboxAttachmentArchiver(manager *tools.SandboxManager, baseDir string) AttachmentArchiver {
+func NewSandboxAttachmentArchiver(manager *tools.SandboxManager, baseDir string, cfg SandboxAttachmentArchiverConfig) AttachmentArchiver {
 	if manager == nil {
 		return nil
 	}
 	dir := strings.TrimSpace(baseDir)
 	if dir == "" {
-		dir = defaultSandboxSessionDir
+		dir = attachmentsutil.DefaultWorkspaceSessionDir
 	}
 	return &sandboxAttachmentArchiver{
 		sandbox: manager,
 		baseDir: dir,
 		logger:  utils.NewComponentLogger("AttachmentArchiver"),
+		httpClient: &http.Client{
+			Timeout: remoteAttachmentHTTPTimeout,
+		},
+		hostFilter:   newHostFilter(cfg),
+		scanner:      cfg.Scanner,
+		scanReporter: cfg.ScanReporter,
 	}
 }
 
 type sandboxAttachmentArchiver struct {
-	sandbox     *tools.SandboxManager
-	baseDir     string
-	logger      *utils.Logger
-	ensuredDirs sync.Map
-	digestCache sync.Map
+	sandbox      *tools.SandboxManager
+	baseDir      string
+	logger       *utils.Logger
+	ensuredDirs  sync.Map
+	digestCache  sync.Map
+	httpClient   *http.Client
+	hostFilter   *hostFilter
+	scanner      AttachmentScanner
+	scanReporter AttachmentScanReporter
 }
 
-func (a *sandboxAttachmentArchiver) Persist(ctx context.Context, sessionID string, attachments map[string]ports.Attachment) {
+func (a *sandboxAttachmentArchiver) Persist(ctx context.Context, sessionID, taskID string, attachments map[string]ports.Attachment) {
 	if len(attachments) == 0 {
 		return
 	}
-	session := sanitizeSessionID(sessionID)
+	session := attachmentsutil.SanitizeSessionID(sessionID)
 	if session == "" {
 		session = "session"
 	}
 
 	cloned := cloneAttachments(attachments)
-	go a.write(context.Background(), session, cloned)
+	go a.write(context.Background(), session, taskID, cloned)
 }
 
-func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, attachments map[string]ports.Attachment) {
+func (a *sandboxAttachmentArchiver) write(ctx context.Context, session, taskID string, attachments map[string]ports.Attachment) {
 	if len(attachments) == 0 {
 		return
 	}
@@ -95,15 +122,12 @@ func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, a
 	cache := a.getSessionCache(session)
 
 	for key, attachment := range attachments {
-		if strings.EqualFold(strings.TrimSpace(attachment.Source), "user_upload") {
-			continue
-		}
 
-		payload, mediaType, err := decodeAttachmentPayload(attachment)
-		if err != nil {
-			a.logger.Debug("Skipping attachment %s: %v", key, err)
+		payload, mediaType, ok := a.preparePayload(timeoutCtx, session, taskID, key, attachment)
+		if !ok {
 			continue
 		}
+		var err error
 
 		digest := digestAttachment(payload)
 		if existing, ok := cache.HasDigest(digest); ok {
@@ -111,7 +135,7 @@ func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, a
 			continue
 		}
 
-		filename := sanitizeFileName(key, attachment.Name, mediaType)
+		filename := attachmentsutil.SanitizeFileName(key, attachment.Name, mediaType)
 		if filename == "" {
 			filename = defaultAttachmentFilename(mediaType)
 		}
@@ -137,13 +161,61 @@ func (a *sandboxAttachmentArchiver) write(ctx context.Context, session string, a
 	}
 }
 
+func (a *sandboxAttachmentArchiver) preparePayload(ctx context.Context, session, taskID, placeholder string, attachment ports.Attachment) ([]byte, string, bool) {
+	payload, mediaType, err := a.decodeAttachmentPayload(ctx, attachment)
+	if err != nil {
+		if a != nil && a.logger != nil {
+			a.logger.Debug("Skipping attachment %s: %v", placeholder, err)
+		}
+		return nil, "", false
+	}
+	if a == nil || a.scanner == nil {
+		return payload, mediaType, true
+	}
+	result, err := a.scanner.Scan(ctx, AttachmentScanRequest{
+		SessionID:   session,
+		Placeholder: placeholder,
+		Attachment:  attachment,
+		MediaType:   mediaType,
+		Payload:     payload,
+	})
+	if err != nil {
+		if a.logger != nil {
+			a.logger.Warn("Attachment scan failed for %s/%s: %v", session, placeholder, err)
+		}
+		return payload, mediaType, true
+	}
+	if result.Verdict == AttachmentScanVerdictInfected {
+		if a.logger != nil {
+			detail := result.Details
+			if detail == "" {
+				detail = "malware detected"
+			}
+			a.logger.Warn("Attachment %s flagged as infected; skipping (%s)", placeholder, detail)
+		}
+		a.reportScanVerdict(session, taskID, placeholder, attachment, result)
+		return nil, "", false
+	}
+	return payload, mediaType, true
+}
+
+func (a *sandboxAttachmentArchiver) reportScanVerdict(session, taskID, placeholder string, attachment ports.Attachment, result AttachmentScanResult) {
+	if a == nil || a.scanReporter == nil {
+		return
+	}
+	if result.Verdict != AttachmentScanVerdictInfected {
+		return
+	}
+	a.scanReporter.ReportAttachmentScan(session, taskID, placeholder, attachment, result)
+}
+
 func digestAttachment(payload []byte) string {
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:])
 }
 
 func defaultAttachmentFilename(mediaType string) string {
-	ext := inferExtension(mediaType)
+	ext := attachmentsutil.InferExtension(mediaType)
 	if ext == "" {
 		ext = "bin"
 	}
@@ -192,7 +264,7 @@ func (a *sandboxAttachmentArchiver) ensureDirectory(ctx context.Context, dir str
 	return nil
 }
 
-func decodeAttachmentPayload(att ports.Attachment) ([]byte, string, error) {
+func (a *sandboxAttachmentArchiver) decodeAttachmentPayload(ctx context.Context, att ports.Attachment) ([]byte, string, error) {
 	data := strings.TrimSpace(att.Data)
 	if data != "" {
 		return decodeDataString(data, att.MediaType)
@@ -203,10 +275,69 @@ func decodeAttachmentPayload(att ports.Attachment) ([]byte, string, error) {
 		if strings.HasPrefix(uri, "data:") {
 			return decodeDataURI(uri)
 		}
-		return nil, "", fmt.Errorf("remote URIs not supported for automatic archiving")
+		return a.fetchRemoteAttachment(ctx, uri, att.MediaType)
 	}
 
 	return nil, "", fmt.Errorf("attachment %s missing inline data", att.Name)
+}
+
+func (a *sandboxAttachmentArchiver) fetchRemoteAttachment(ctx context.Context, rawURL, declaredMediaType string) ([]byte, string, error) {
+	if a == nil || a.httpClient == nil {
+		return nil, "", fmt.Errorf("remote attachment mirroring disabled: http client unavailable")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid attachment URI: %w", err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return nil, "", fmt.Errorf("unsupported attachment URI scheme: %s", parsed.Scheme)
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if err := a.validateRemoteHost(host); err != nil {
+		return nil, "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to download attachment: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, "", fmt.Errorf("remote attachment download failed with status %d", resp.StatusCode)
+	}
+	if resp.ContentLength > maxRemoteAttachmentBytes {
+		return nil, "", fmt.Errorf("remote attachment exceeds %d bytes", maxRemoteAttachmentBytes)
+	}
+	reader := io.LimitReader(resp.Body, maxRemoteAttachmentBytes+1)
+	payload, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read remote attachment: %w", err)
+	}
+	if len(payload) > maxRemoteAttachmentBytes {
+		return nil, "", fmt.Errorf("remote attachment exceeds %d bytes", maxRemoteAttachmentBytes)
+	}
+	mediaType := strings.TrimSpace(declaredMediaType)
+	if mediaType == "" {
+		mediaType = sanitizeContentType(resp.Header.Get("Content-Type"))
+	}
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+	return payload, mediaType, nil
+}
+
+func (a *sandboxAttachmentArchiver) validateRemoteHost(host string) error {
+	if host == "" || a == nil || a.hostFilter == nil {
+		return nil
+	}
+	if a.hostFilter.Allows(host) {
+		return nil
+	}
+	return fmt.Errorf("remote attachment host %s not allowed", host)
 }
 
 func decodeDataString(raw string, mediaType string) ([]byte, string, error) {
@@ -277,56 +408,6 @@ func isLikelyBase64(value string) bool {
 	return true
 }
 
-var (
-	sessionSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
-	fileSanitizer    = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
-)
-
-func sanitizeSessionID(sessionID string) string {
-	session := strings.TrimSpace(sessionID)
-	session = sessionSanitizer.ReplaceAllString(session, "_")
-	return strings.Trim(session, "._-")
-}
-
-func sanitizeFileName(candidate, attachmentName, mediaType string) string {
-	name := strings.TrimSpace(attachmentName)
-	if name == "" {
-		name = strings.TrimSpace(candidate)
-	}
-	if name == "" {
-		return ""
-	}
-	name = path.Base(name)
-	name = fileSanitizer.ReplaceAllString(name, "_")
-	if idx := strings.LastIndex(name, "."); idx == -1 {
-		if ext := inferExtension(mediaType); ext != "" {
-			name = name + "." + ext
-		}
-	}
-	return name
-}
-
-func inferExtension(mediaType string) string {
-	switch strings.ToLower(mediaType) {
-	case "image/png":
-		return "png"
-	case "image/jpeg", "image/jpg":
-		return "jpg"
-	case "image/gif":
-		return "gif"
-	case "text/plain":
-		return "txt"
-	case "text/html":
-		return "html"
-	case "text/markdown":
-		return "md"
-	case "application/pdf":
-		return "pdf"
-	default:
-		return ""
-	}
-}
-
 func cloneAttachments(values map[string]ports.Attachment) map[string]ports.Attachment {
 	if len(values) == 0 {
 		return nil
@@ -336,6 +417,84 @@ func cloneAttachments(values map[string]ports.Attachment) map[string]ports.Attac
 		cloned[key] = att
 	}
 	return cloned
+}
+
+type hostFilter struct {
+	allowAll      bool
+	allowedExact  map[string]struct{}
+	allowedSuffix []string
+	blockedExact  map[string]struct{}
+	blockedSuffix []string
+}
+
+func newHostFilter(cfg SandboxAttachmentArchiverConfig) *hostFilter {
+	filter := &hostFilter{allowAll: len(cfg.AllowedRemoteHosts) == 0}
+	filter.allowedExact, filter.allowedSuffix = compileHostPatterns(cfg.AllowedRemoteHosts)
+	filter.blockedExact, filter.blockedSuffix = compileHostPatterns(cfg.BlockedRemoteHosts)
+	if filter.allowAll && len(filter.blockedExact) == 0 && len(filter.blockedSuffix) == 0 {
+		if len(filter.allowedExact) == 0 && len(filter.allowedSuffix) == 0 {
+			return nil
+		}
+	}
+	return filter
+}
+
+func compileHostPatterns(values []string) (map[string]struct{}, []string) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	exact := make(map[string]struct{})
+	var suffixes []string
+	for _, raw := range values {
+		value := strings.TrimSpace(strings.ToLower(raw))
+		if value == "" {
+			continue
+		}
+		if strings.HasPrefix(value, "*.") {
+			suffix := strings.TrimPrefix(value, "*")
+			if !strings.HasPrefix(suffix, ".") {
+				suffix = "." + strings.TrimPrefix(suffix, ".")
+			}
+			suffixes = append(suffixes, suffix)
+			continue
+		}
+		if strings.HasPrefix(value, ".") {
+			suffixes = append(suffixes, value)
+			continue
+		}
+		exact[value] = struct{}{}
+	}
+	return exact, suffixes
+}
+
+func (f *hostFilter) Allows(host string) bool {
+	if f == nil {
+		return true
+	}
+	value := strings.ToLower(strings.TrimSpace(host))
+	if value == "" {
+		return false
+	}
+	if _, blocked := f.blockedExact[value]; blocked {
+		return false
+	}
+	for _, suffix := range f.blockedSuffix {
+		if strings.HasSuffix(value, suffix) {
+			return false
+		}
+	}
+	if f.allowAll {
+		return true
+	}
+	if _, ok := f.allowedExact[value]; ok {
+		return true
+	}
+	for _, suffix := range f.allowedSuffix {
+		if strings.HasSuffix(value, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func shellQuote(value string) string {
@@ -422,4 +581,15 @@ func splitPreferredFilename(preferred string) (string, string) {
 		ext = ".bin"
 	}
 	return base, ext
+}
+
+func sanitizeContentType(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if idx := strings.Index(value, ";"); idx != -1 {
+		value = value[:idx]
+	}
+	return strings.TrimSpace(value)
 }

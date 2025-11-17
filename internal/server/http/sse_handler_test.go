@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +53,9 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	broadcaster := app.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=test-session", nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=test-session", nil).WithContext(ctx)
 
 	// Use a thread-safe buffer to capture output
 	var mu sync.Mutex
@@ -115,6 +118,13 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 
 	if cacheControl != "no-cache" {
 		t.Errorf("Expected Cache-Control no-cache, got %s", cacheControl)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected handler goroutine to exit after cancellation")
 	}
 }
 
@@ -229,6 +239,41 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 			),
 			wantField: "reason",
 		},
+		{
+			name: "AttachmentExportEvent",
+			event: app.NewAttachmentExportEvent(
+				agentports.LevelCore,
+				"test-session",
+				"sse-task",
+				app.AttachmentExportStatusSucceeded,
+				2,
+				3,
+				1500*time.Millisecond,
+				"http_webhook",
+				"https://cdn.example/export",
+				"",
+				nil,
+				time.Now(),
+			),
+			wantField: "attachment_count",
+		},
+		{
+			name: "AttachmentScanEvent",
+			event: app.NewAttachmentScanEvent(
+				agentports.LevelCore,
+				"test-session",
+				"sse-task",
+				"report.txt",
+				app.AttachmentScanVerdictInfected,
+				"virus detected",
+				agentports.Attachment{
+					Name:          "report.txt",
+					WorkspacePath: "/workspace/.alex/sessions/test/attachments/report.txt",
+				},
+				time.Now(),
+			),
+			wantField: "placeholder",
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,6 +348,143 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				t.Error("Expected session_id in JSON")
 			}
 		})
+	}
+}
+
+func TestSSEHandler_SerializeEventStripsWorkspacePaths(t *testing.T) {
+	handler := NewSSEHandler(nil)
+	events := []agentports.AgentEvent{
+		&domain.UserTaskEvent{
+			BaseEvent: domain.BaseEvent{},
+			Task:      "demo",
+			Attachments: map[string]agentports.Attachment{
+				"report.txt": {
+					Name:          "report.txt",
+					WorkspacePath: "/workspace/.alex/sessions/demo/attachments/report.txt",
+				},
+			},
+		},
+		app.NewAttachmentScanEvent(
+			agentports.LevelCore,
+			"session",
+			"task",
+			"blocked.png",
+			app.AttachmentScanVerdictInfected,
+			"malware",
+			agentports.Attachment{
+				Name:          "blocked.png",
+				WorkspacePath: "/workspace/.alex/sessions/demo/attachments/blocked.png",
+			},
+			time.Now(),
+		),
+	}
+
+	for _, event := range events {
+		serialized, err := handler.serializeEvent(event)
+		if err != nil {
+			t.Fatalf("serializeEvent returned error: %v", err)
+		}
+		if strings.Contains(serialized, "workspace_path") {
+			t.Fatalf("workspace_path should not be exposed to clients: %s", serialized)
+		}
+	}
+
+	serialized, err := handler.serializeEvent(events[0])
+	if err != nil {
+		t.Fatalf("serializeEvent returned error: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
+		t.Fatalf("failed decoding payload: %v", err)
+	}
+	attachments, ok := payload["attachments"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected attachments to be present")
+	}
+	if _, ok := attachments["report.txt"].(map[string]any); !ok {
+		t.Fatalf("expected attachment metadata to remain structured: %#v", attachments)
+	}
+}
+
+func TestSSEHandler_SerializeAttachmentExportEventIncludesUpdates(t *testing.T) {
+	handler := NewSSEHandler(nil)
+	updates := map[string]agentports.Attachment{
+		"report.txt": {
+			Name:          "report.txt",
+			URI:           "https://cdn.example/report.txt",
+			WorkspacePath: "/workspace/.alex/sessions/demo/report.txt",
+		},
+	}
+	event := app.NewAttachmentExportEvent(
+		agentports.LevelCore,
+		"session",
+		"task",
+		app.AttachmentExportStatusSucceeded,
+		1,
+		1,
+		500*time.Millisecond,
+		"http_webhook",
+		"https://cdn.example",
+		"",
+		updates,
+		time.Now(),
+	)
+	serialized, err := handler.serializeEvent(event)
+	if err != nil {
+		t.Fatalf("serializeEvent returned error: %v", err)
+	}
+	if !strings.Contains(serialized, "\"attachments\"") {
+		t.Fatalf("expected attachments in payload: %s", serialized)
+	}
+	if strings.Contains(serialized, "workspace_path") {
+		t.Fatalf("workspace_path should not be included in export payloads: %s", serialized)
+	}
+}
+
+func TestSerializeMessagesStripsWorkspacePaths(t *testing.T) {
+	attachments := map[string]agentports.Attachment{
+		"diagram.png": {
+			Name:          "diagram.png",
+			WorkspacePath: "/workspace/.alex/sessions/demo/attachments/diagram.png",
+		},
+	}
+	messages := []agentports.Message{
+		{
+			Role:        "assistant",
+			Content:     "done",
+			Attachments: attachments,
+			ToolResults: []agentports.ToolResult{
+				{
+					CallID: "tool-1",
+					Attachments: map[string]agentports.Attachment{
+						"diagram.png": {
+							Name:          "diagram.png",
+							WorkspacePath: "/workspace/.alex/sessions/demo/attachments/diagram.png",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	serialized := serializeMessages(messages)
+	if len(serialized) != 1 {
+		t.Fatalf("expected 1 serialized message, got %d", len(serialized))
+	}
+	entry := serialized[0]
+	attMap, ok := entry["attachments"].(map[string]agentports.Attachment)
+	if !ok {
+		t.Fatalf("attachments missing or wrong type: %#v", entry["attachments"])
+	}
+	if attMap["diagram.png"].WorkspacePath != "" {
+		t.Fatalf("expected attachment workspace path to be stripped, got %q", attMap["diagram.png"].WorkspacePath)
+	}
+	toolResults, ok := entry["tool_results"].([]agentports.ToolResult)
+	if !ok {
+		t.Fatalf("tool_results missing or wrong type: %#v", entry["tool_results"])
+	}
+	if got := toolResults[0].Attachments["diagram.png"].WorkspacePath; got != "" {
+		t.Fatalf("expected tool result workspace path to be stripped, got %q", got)
 	}
 }
 

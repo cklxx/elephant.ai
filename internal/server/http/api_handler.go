@@ -189,9 +189,9 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 
 	attachments := make([]agentports.Attachment, 0, len(payloads))
 	for _, incoming := range payloads {
-		name := strings.TrimSpace(incoming.Name)
-		if name == "" {
-			return nil, fmt.Errorf("attachment name is required")
+		normalizedName, err := normalizeAttachmentName(incoming.Name)
+		if err != nil {
+			return nil, err
 		}
 
 		mediaType := strings.TrimSpace(incoming.MediaType)
@@ -202,16 +202,17 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 		data := strings.TrimSpace(incoming.Data)
 		uri := strings.TrimSpace(incoming.URI)
 		if data == "" && uri == "" {
-			return nil, fmt.Errorf("attachment '%s' must include data or uri", name)
+			return nil, fmt.Errorf("attachment '%s' must include data or uri", normalizedName)
 		}
 
 		attachment := agentports.Attachment{
-			Name:        name,
+			Name:        normalizedName,
 			MediaType:   mediaType,
 			Data:        data,
 			URI:         uri,
 			Description: strings.TrimSpace(incoming.Description),
 			Source:      "user_upload",
+			SizeBytes:   estimateBase64Size(data),
 		}
 		if attachment.URI == "" && attachment.Data != "" {
 			attachment.URI = fmt.Sprintf("data:%s;base64,%s", attachment.MediaType, attachment.Data)

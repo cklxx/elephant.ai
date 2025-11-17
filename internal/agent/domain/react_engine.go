@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"alex/internal/agent/ports"
 	id "alex/internal/utils/id"
@@ -946,24 +947,79 @@ func normalizeToolAttachments(attachments map[string]ports.Attachment) map[strin
 		return nil
 	}
 	normalized := make(map[string]ports.Attachment, len(attachments))
+	counters := make(map[string]int)
+	generatedFallbacks := 0
 	for _, key := range sortedAttachmentKeys(attachments) {
 		att := attachments[key]
-		placeholder := strings.TrimSpace(key)
+		placeholder := sanitizePlaceholderName(strings.TrimSpace(key))
 		if placeholder == "" {
-			placeholder = strings.TrimSpace(att.Name)
+			placeholder = sanitizePlaceholderName(att.Name)
 		}
 		if placeholder == "" {
-			continue
+			generatedFallbacks++
+			placeholder = fmt.Sprintf("attachment-%d", generatedFallbacks)
 		}
-		if att.Name == "" {
-			att.Name = placeholder
+		base := placeholder
+		if count := counters[base]; count > 0 {
+			placeholder = fmt.Sprintf("%s-%d", base, count+1)
 		}
+		for {
+			if _, exists := normalized[placeholder]; !exists {
+				break
+			}
+			counters[base]++
+			placeholder = fmt.Sprintf("%s-%d", base, counters[base]+1)
+		}
+		counters[base]++
+		att.Name = placeholder
+		att.SizeBytes = ensureAttachmentSize(att)
 		normalized[placeholder] = att
 	}
 	if len(normalized) == 0 {
 		return nil
 	}
 	return normalized
+}
+
+func sanitizePlaceholderName(raw string) string {
+	trimmed := strings.TrimSpace(strings.Trim(raw, "[]"))
+	if trimmed == "" {
+		return ""
+	}
+	var builder strings.Builder
+	builder.Grow(len(trimmed))
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r), r == '.', r == '_', r == '-':
+			builder.WriteRune(r)
+		case unicode.IsSpace(r):
+			builder.WriteRune('_')
+		default:
+			builder.WriteRune('_')
+		}
+	}
+	return strings.Trim(builder.String(), "._-")
+}
+
+func ensureAttachmentSize(att ports.Attachment) int64 {
+	if att.SizeBytes > 0 {
+		return att.SizeBytes
+	}
+	trimmed := strings.TrimSpace(att.Data)
+	if trimmed == "" {
+		return 0
+	}
+	padding := 0
+	if strings.HasSuffix(trimmed, "==") {
+		padding = 2
+	} else if strings.HasSuffix(trimmed, "=") {
+		padding = 1
+	}
+	decoded := (len(trimmed)/4)*3 - padding
+	if decoded < 0 {
+		decoded = 0
+	}
+	return int64(decoded)
 }
 
 func splitMessagesForLLM(messages []Message) ([]Message, []Message) {
@@ -1196,10 +1252,11 @@ func ensureAttachmentStore(state *TaskState) {
 }
 
 func registerMessageAttachments(state *TaskState, msg Message) bool {
-	if len(msg.Attachments) == 0 {
-		return false
-	}
-	ensureAttachmentStore(state)
+if len(msg.Attachments) == 0 {
+return false
+}
+ApplyWorkspacePaths(state.SessionID, msg.Attachments)
+ensureAttachmentStore(state)
 	changed := false
 	for key, att := range msg.Attachments {
 		placeholder := strings.TrimSpace(key)
@@ -1690,6 +1747,7 @@ func resolveContentAttachments(content string, state *TaskState) map[string]port
 		if att.Name == "" {
 			att.Name = name
 		}
+		att.SizeBytes = ensureAttachmentSize(att)
 		resolved[name] = att
 	}
 	if len(resolved) == 0 {

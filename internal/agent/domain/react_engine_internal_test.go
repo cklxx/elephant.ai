@@ -206,6 +206,25 @@ func TestLookupAttachmentByNamePrefersLatestSeedreamAlias(t *testing.T) {
 	}
 }
 
+func TestRegisterMessageAttachmentsPopulatesWorkspacePaths(t *testing.T) {
+	state := &TaskState{SessionID: "session-abc"}
+	msg := Message{
+		Attachments: map[string]ports.Attachment{
+			"report.txt": {Name: "report.txt", MediaType: "text/plain"},
+		},
+	}
+	if !registerMessageAttachments(state, msg) {
+		t.Fatalf("expected registerMessageAttachments to report change")
+	}
+	att, ok := state.Attachments["report.txt"]
+	if !ok {
+		t.Fatalf("expected attachment to be stored in state")
+	}
+	if !strings.Contains(att.WorkspacePath, "/workspace/.alex/sessions/session-abc/attachments/report.txt") {
+		t.Fatalf("unexpected workspace path: %s", att.WorkspacePath)
+	}
+}
+
 func TestResolveContentAttachmentsSupportsSeedreamAlias(t *testing.T) {
 	state := &TaskState{
 		Attachments: map[string]ports.Attachment{

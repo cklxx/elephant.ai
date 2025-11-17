@@ -1,7 +1,11 @@
 // Formatting utilities for agent events
 // Extracted from TerminalOutput.tsx for better maintainability
 
-import { AnyAgentEvent } from '@/lib/types';
+import {
+  AnyAgentEvent,
+  AttachmentExportStatusEvent,
+  AttachmentScanStatusEvent,
+} from '@/lib/types';
 
 /**
  * Format tool call arguments for display
@@ -101,6 +105,42 @@ export function formatContent(event: AnyAgentEvent): string {
         return `✓ Task Complete\n${preview}${suffix}`;
       }
       return '✓ Task complete';
+
+    case 'attachment_export_status': {
+      const exportEvent = event as AttachmentExportStatusEvent;
+      const count = exportEvent.attachment_count ?? 0;
+      const attempts = exportEvent.attempts ?? 0;
+      const updateCount = exportEvent.attachments
+        ? Object.keys(exportEvent.attachments).length
+        : 0;
+      const statusLabel =
+        exportEvent.status === 'succeeded'
+          ? '⬆️ Attachments exported'
+          : exportEvent.status === 'failed'
+            ? '⚠️ Attachment export failed'
+            : 'ℹ️ Attachment export skipped';
+      const metrics = ` (${count} file${count === 1 ? '' : 's'}, ${attempts} attempt${
+        attempts === 1 ? '' : 's'
+      })`;
+      const errorSuffix = exportEvent.error ? ` – ${exportEvent.error}` : '';
+      const endpointSuffix =
+        exportEvent.endpoint && exportEvent.status === 'succeeded'
+          ? ` → ${exportEvent.endpoint}`
+          : '';
+      const cdnSuffix =
+        updateCount > 0
+          ? ` • ${updateCount} CDN link${updateCount === 1 ? '' : 's'} ready`
+          : '';
+      return `${statusLabel}${metrics}${errorSuffix}${endpointSuffix}${cdnSuffix}`;
+    }
+
+    case 'attachment_scan_status': {
+      const scanEvent = event as AttachmentScanStatusEvent;
+      const badge = scanEvent.verdict === 'infected' ? '🛑' : 'ℹ️';
+      const name = scanEvent.attachment?.name || scanEvent.placeholder;
+      const reason = scanEvent.details ? ` – ${scanEvent.details}` : '';
+      return `${badge} Attachment blocked (${name})${reason}`;
+    }
 
     case 'task_cancelled': {
       const requestedBy = 'requested_by' in event ? event.requested_by : undefined;

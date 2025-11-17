@@ -178,8 +178,72 @@ func main() {
 
 	// Set task store on broadcaster for progress tracking
 	broadcaster.SetTaskStore(taskStore)
-	if archiver := serverApp.NewSandboxAttachmentArchiver(container.SandboxManager, ""); archiver != nil {
+	var attachmentScanner serverApp.AttachmentScanner
+	if scannerURL := strings.TrimSpace(os.Getenv("ATTACHMENT_SCAN_WEBHOOK")); scannerURL != "" {
+		scannerCfg := serverApp.HTTPAttachmentScannerConfig{
+			Endpoint: scannerURL,
+			Secret:   strings.TrimSpace(os.Getenv("ATTACHMENT_SCAN_SECRET")),
+		}
+		if timeout := strings.TrimSpace(os.Getenv("ATTACHMENT_SCAN_TIMEOUT_MS")); timeout != "" {
+			value, err := strconv.Atoi(timeout)
+			if err != nil {
+				logger.Warn("Invalid ATTACHMENT_SCAN_TIMEOUT_MS value %q: %v", timeout, err)
+			} else if value > 0 {
+				scannerCfg.Timeout = time.Duration(value) * time.Millisecond
+			}
+		}
+		attachmentScanner = serverApp.NewHTTPAttachmentScanner(scannerCfg)
+		if attachmentScanner != nil {
+			logger.Info("Attachment scanner initialized (webhook=%s)", scannerURL)
+		} else {
+			logger.Warn("Attachment scanner disabled: invalid configuration for %s", scannerURL)
+		}
+	} else {
+		logger.Info("Attachment scanner disabled: ATTACHMENT_SCAN_WEBHOOK not set")
+	}
+archiverCfg := serverApp.SandboxAttachmentArchiverConfig{
+AllowedRemoteHosts: parseCSVEnv("ATTACHMENT_REMOTE_HOST_ALLOWLIST"),
+BlockedRemoteHosts: parseCSVEnv("ATTACHMENT_REMOTE_HOST_DENYLIST"),
+Scanner:            attachmentScanner,
+ScanReporter:       broadcaster,
+}
+	if archiver := serverApp.NewSandboxAttachmentArchiver(container.SandboxManager, "", archiverCfg); archiver != nil {
 		broadcaster.SetAttachmentArchiver(archiver)
+		if len(archiverCfg.AllowedRemoteHosts) > 0 || len(archiverCfg.BlockedRemoteHosts) > 0 {
+			logger.Info("Sandbox attachment archiver host filters configured (allow=%v, block=%v)", archiverCfg.AllowedRemoteHosts, archiverCfg.BlockedRemoteHosts)
+		}
+	}
+	if exporterURL := strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_WEBHOOK")); exporterURL != "" {
+		exporterCfg := serverApp.HTTPAttachmentExporterConfig{
+			Endpoint: exporterURL,
+			Secret:   strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_SECRET")),
+		}
+		if attempts := strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_MAX_ATTEMPTS")); attempts != "" {
+			value, err := strconv.Atoi(attempts)
+			if err != nil {
+				logger.Warn("Invalid ATTACHMENT_EXPORT_MAX_ATTEMPTS value %q: %v", attempts, err)
+			} else {
+				exporterCfg.MaxAttempts = value
+			}
+		}
+		if backoff := strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_BACKOFF_MS")); backoff != "" {
+			value, err := strconv.Atoi(backoff)
+			if err != nil {
+				logger.Warn("Invalid ATTACHMENT_EXPORT_BACKOFF_MS value %q: %v", backoff, err)
+			} else if value > 0 {
+				exporterCfg.Backoff = time.Duration(value) * time.Millisecond
+			}
+		}
+		if exporter := serverApp.NewHTTPAttachmentExporterWithConfig(exporterCfg); exporter != nil {
+			broadcaster.SetAttachmentExporter(exporter)
+			retries := exporterCfg.MaxAttempts
+			if retries <= 0 {
+				retries = 3
+			}
+			logger.Info("Attachment exporter initialized (webhook=%s, retries=%d)", exporterURL, retries)
+		}
+	} else {
+		logger.Info("Attachment exporter disabled: ATTACHMENT_EXPORT_WEBHOOK not set")
 	}
 
 	analyticsClient := analytics.NewNoopClient()
@@ -406,6 +470,23 @@ func loadConfig() (Config, error) {
 	cfg.Analytics = analyticsCfg
 
 	return cfg, nil
+}
+
+func parseCSVEnv(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	var results []string
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		results = append(results, trimmed)
+	}
+	return results
 }
 
 func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {

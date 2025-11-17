@@ -118,9 +118,9 @@ type Message struct {
 // Attachment represents a binary asset (image, audio, etc.) referenced within a
 // message or tool result using a placeholder such as `[filename.ext]`.
 type Attachment struct {
-	// Name is the canonical filename (without surrounding brackets) used in
-	// the placeholder, e.g. `diagram.png` for `[diagram.png]`.
-	Name string `json:"name"`
+// Name is the canonical filename (without surrounding brackets) used in
+// the placeholder, e.g. `diagram.png` for `[diagram.png]`.
+Name string `json:"name"`
 	// MediaType is the MIME type (e.g. image/png).
 	MediaType string `json:"media_type"`
 	// Data is a base64-encoded payload. It is optional when URI is
@@ -135,4 +135,13 @@ type Attachment struct {
 	// Description provides optional human readable context about the
 	// attachment contents.
 	Description string `json:"description,omitempty"`
+	// SizeBytes records the approximate decoded payload size so clients can
+	// decide whether to fetch inline data or download from a URI.
+	SizeBytes int64 `json:"size_bytes,omitempty"`
+// ParentTaskID is populated when attachments are inherited from another
+// task (e.g. delegated agents) to simplify provenance tracking.
+ParentTaskID string `json:"parent_task_id,omitempty"`
+// WorkspacePath indicates where the attachment was mirrored inside the
+// sandbox so tools can read the binary without re-downloading it.
+WorkspacePath string `json:"workspace_path,omitempty"`
 }

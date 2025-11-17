@@ -29,6 +29,12 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
     content: "font-semibold text-amber-600",
     line: "is-highlighted",
   },
+  attachment_export_status: {
+    content: "text-muted-foreground text-sm",
+  },
+  attachment_scan_status: {
+    content: "text-amber-600 text-sm",
+  },
   error: { content: "font-semibold text-destructive", line: "is-highlighted" },
   research_plan: { content: "text-foreground/90 font-medium" },
   tool_call_start: { content: "font-mono text-[12px] text-foreground/80" },
