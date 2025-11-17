@@ -347,6 +347,36 @@ EOF
     fi
 }
 
+ensure_local_auth_db() {
+    if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
+        log_warn "Skipping local auth database setup (SKIP_LOCAL_AUTH_DB=1)"
+        return 0
+    fi
+
+    local script_path="${SCRIPT_DIR}/scripts/setup_local_auth_db.sh"
+    if [[ ! -x "$script_path" ]]; then
+        log_warn "Auth DB setup script not found or not executable at $script_path"
+        return 0
+    fi
+
+    if ! command_exists docker; then
+        log_warn "Docker not available; skipping local auth database setup"
+        return 0
+    fi
+
+    if ! command_exists psql; then
+        log_warn "psql not available; skipping local auth database setup"
+        return 0
+    fi
+
+    log_info "Ensuring local auth database is running..."
+    if "$script_path"; then
+        log_success "Local auth database ready"
+    else
+        die "Failed to initialize local auth database"
+    fi
+}
+
 ensure_docker_compose() {
     if [[ ${#DOCKER_COMPOSE_CMD[@]} -gt 0 ]]; then
         return
@@ -728,6 +758,7 @@ cmd_start() {
 
     # Setup
     setup_environment
+    ensure_local_auth_db
 
     # Build & start
     build_backend || die "Backend build failed"
