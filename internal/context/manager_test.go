@@ -62,13 +62,13 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
 	session := &ports.Session{ID: "sess-ctx", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
-window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "CI lab"})
-if err != nil {
-t.Fatalf("BuildWindow returned error: %v", err)
-}
-    if strings.TrimSpace(window.SystemPrompt) == "" {
-            t.Fatalf("expected system prompt to be populated")
-    }
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "CI lab"})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if strings.TrimSpace(window.SystemPrompt) == "" {
+		t.Fatalf("expected system prompt to be populated")
+	}
 	if !strings.Contains(window.SystemPrompt, "CI lab") {
 		t.Fatalf("expected environment summary in system prompt, got %q", window.SystemPrompt)
 	}
@@ -77,6 +77,108 @@ t.Fatalf("BuildWindow returned error: %v", err)
 	}
 	if !strings.Contains(window.SystemPrompt, "Identity & Persona") {
 		t.Fatalf("expected persona section, got %q", window.SystemPrompt)
+	}
+}
+
+func TestBuildWindowEmbedsDynamicStateIntoSystemPrompt(t *testing.T) {
+	root := buildStaticContextTree(t)
+	store := sessionstate.NewInMemoryStore()
+	mgr := NewManager(WithConfigRoot(root), WithStateStore(store))
+
+	snapshotTime := time.Date(2024, time.April, 1, 12, 30, 0, 0, time.UTC)
+	snapshot := sessionstate.Snapshot{
+		SessionID:  "sess-live",
+		TurnID:     4,
+		LLMTurnSeq: 9,
+		CreatedAt:  snapshotTime,
+		Plans: []ports.PlanNode{{
+			ID:     "plan-root",
+			Title:  "Ship feature",
+			Status: "in_progress",
+			Children: []ports.PlanNode{{
+				ID:          "plan-tests",
+				Title:       "Write tests",
+				Description: "Add regression coverage",
+				Status:      "pending",
+			}},
+		}},
+		Beliefs: []ports.Belief{{
+			Statement:  "Tests fail on CI",
+			Confidence: 0.8,
+		}},
+		World: map[string]any{"deploy": "blocked"},
+		Feedback: []ports.FeedbackSignal{{
+			Kind:    "reward",
+			Message: "Stabilize pipeline",
+			Value:   0.6,
+		}},
+	}
+	if err := store.SaveSnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("save snapshot: %v", err)
+	}
+
+	session := &ports.Session{ID: snapshot.SessionID, Messages: []ports.Message{{Role: "user", Content: "status?"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if !strings.Contains(window.SystemPrompt, "Live Session State") {
+		t.Fatalf("expected dynamic section in system prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Ship feature [in_progress]") {
+		t.Fatalf("expected plan entry in prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "deploy: blocked") {
+		t.Fatalf("expected world state summary, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, snapshotTime.Format(time.RFC3339)) {
+		t.Fatalf("expected snapshot timestamp, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Tests fail on CI") {
+		t.Fatalf("expected beliefs section, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "reward — Stabilize pipeline") {
+		t.Fatalf("expected feedback signal in prompt, got %q", window.SystemPrompt)
+	}
+}
+
+func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
+	static := ports.StaticContext{
+		Persona: ports.PersonaProfile{
+			Voice: "Operate like ALEX.",
+			Tone:  "direct",
+		},
+		Goal:               ports.GoalProfile{LongTerm: []string{"Ship value"}},
+		EnvironmentSummary: "CI lab",
+	}
+	dynamic := ports.DynamicContext{
+		TurnID:     1,
+		LLMTurnSeq: 2,
+	}
+	memoTime := time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC)
+	meta := ports.MetaContext{
+		PersonaVersion: "persona-v2",
+		Memories: []ports.MemoryFragment{{
+			Key:       "user-pref",
+			Content:   "Prefers Go",
+			CreatedAt: memoTime,
+			Source:    "steward",
+		}},
+		Recommendations: []string{"Prioritize secure defaults"},
+	}
+
+	prompt := composeSystemPrompt(static, dynamic, meta)
+	if !strings.Contains(prompt, "Persona version: persona-v2") {
+		t.Fatalf("expected persona version in prompt, got %q", prompt)
+	}
+	if !strings.Contains(prompt, "Prefers Go — user-pref") {
+		t.Fatalf("expected memory snippet in prompt, got %q", prompt)
+	}
+	if !strings.Contains(prompt, "Prioritize secure defaults") {
+		t.Fatalf("expected recommendation in prompt, got %q", prompt)
+	}
+	if !strings.Contains(prompt, memoTime.Format("2006-01-02")) {
+		t.Fatalf("expected formatted memory date, got %q", prompt)
 	}
 }
 
