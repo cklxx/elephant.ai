@@ -169,6 +169,55 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 	}
 }
 
+func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "system", Content: "Static context", Source: ports.MessageSourceSystemPrompt},
+		{Role: "user", Content: "第一轮：分析日志", Source: ports.MessageSourceUserInput},
+		{Role: "tool", Content: "shell[logs-1]: grep found 2 errors", Source: ports.MessageSourceToolResult, ToolCallID: "logs-1"},
+		{Role: "assistant", Content: "我会根据错误代码修复", Source: ports.MessageSourceAssistantReply},
+		{Role: "user", Content: "第二轮：生成修复计划", Source: ports.MessageSourceUserInput},
+		{Role: "tool", Content: "shell[plan-1]: patched failing test", Source: ports.MessageSourceToolResult, ToolCallID: "plan-1"},
+		{Role: "assistant", Content: "已完成计划", Source: ports.MessageSourceAssistantReply},
+	}
+
+	meta := deriveHistoryAwareMeta(messages, "persona-v1")
+	if meta.PersonaVersion != "persona-v1" {
+		t.Fatalf("expected persona version to be carried into meta context, got %q", meta.PersonaVersion)
+	}
+
+	var timeline *ports.MemoryFragment
+	for i := range meta.Memories {
+		if meta.Memories[i].Key == "recent_session_timeline" {
+			timeline = &meta.Memories[i]
+			break
+		}
+	}
+	if timeline == nil {
+		t.Fatalf("expected recent session timeline memory to be recorded, got %+v", meta.Memories)
+	}
+	for _, expected := range []string{"01. system", "02. user", "03. tool[logs-1]", "05. user", "07. assistant"} {
+		if !strings.Contains(timeline.Content, expected) {
+			t.Fatalf("expected timeline to include %q, got %q", expected, timeline.Content)
+		}
+	}
+
+	var hasUser, hasAssistant, hasTool bool
+	for _, rec := range meta.Recommendations {
+		if strings.Contains(rec, "Latest user request") {
+			hasUser = true
+		}
+		if strings.Contains(rec, "Previous assistant response") {
+			hasAssistant = true
+		}
+		if strings.Contains(rec, "Latest tool insight") {
+			hasTool = true
+		}
+	}
+	if !hasUser || !hasAssistant || !hasTool {
+		t.Fatalf("expected meta recommendations to include user/assistant/tool snippets, got %#v", meta.Recommendations)
+	}
+}
+
 func TestBuildWindowEmbedsDynamicStateIntoSystemPrompt(t *testing.T) {
 	root := buildStaticContextTree(t)
 	store := sessionstate.NewInMemoryStore()
@@ -469,6 +518,29 @@ func resolveDefaultConfigRoot(t *testing.T) string {
 		t.Fatalf("default context root missing: %v", err)
 	}
 	return root
+}
+
+func TestSearchContextRootFromDirFindsConfigs(t *testing.T) {
+	root := t.TempDir()
+	contextDir := filepath.Join(root, "configs", "context")
+	if err := os.MkdirAll(contextDir, 0o755); err != nil {
+		t.Fatalf("create context dir: %v", err)
+	}
+	deployDir := filepath.Join(root, "deploy", "server", "bin")
+	if err := os.MkdirAll(deployDir, 0o755); err != nil {
+		t.Fatalf("create deploy dir: %v", err)
+	}
+	if resolved := searchContextRootFromDir(deployDir); resolved != contextDir {
+		t.Fatalf("expected search to resolve %q, got %q", contextDir, resolved)
+	}
+}
+
+func TestResolveContextConfigRootPrefersEnvOverride(t *testing.T) {
+	custom := filepath.Join(t.TempDir(), "custom-root")
+	t.Setenv(contextConfigEnvVar, custom)
+	if resolved := resolveContextConfigRoot(); resolved != custom {
+		t.Fatalf("expected env override to win, got %q", resolved)
+	}
 }
 
 func writeContextFile(t *testing.T, root, subdir, name, body string) {
