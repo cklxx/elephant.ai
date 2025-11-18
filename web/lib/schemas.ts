@@ -298,6 +298,76 @@ export const UserTaskEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
+export const RuntimeConfigPayloadSchema = z.object({
+  llm_provider: z.string().optional(),
+  llm_model: z.string().optional(),
+  api_key: z.string().optional(),
+  ark_api_key: z.string().optional(),
+  base_url: z.string().optional(),
+  tavily_api_key: z.string().optional(),
+  seedream_text_endpoint_id: z.string().optional(),
+  seedream_image_endpoint_id: z.string().optional(),
+  seedream_text_model: z.string().optional(),
+  seedream_image_model: z.string().optional(),
+  seedream_vision_model: z.string().optional(),
+  seedream_video_model: z.string().optional(),
+  sandbox_base_url: z.string().optional(),
+  environment: z.string().optional(),
+  verbose: z.boolean().optional(),
+  disable_tui: z.boolean().optional(),
+  follow_transcript: z.boolean().optional(),
+  follow_stream: z.boolean().optional(),
+  max_iterations: z.number().optional(),
+  max_tokens: z.number().optional(),
+  temperature: z.number().optional(),
+  temperature_provided: z.boolean().optional(),
+  top_p: z.number().optional(),
+  stop_sequences: z.array(z.string()).optional(),
+  session_dir: z.string().optional(),
+  cost_dir: z.string().optional(),
+  agent_preset: z.string().optional(),
+  tool_preset: z.string().optional(),
+});
+
+export const AuthConfigPayloadSchema = z.object({
+  jwt_secret: z.string().optional(),
+  access_token_ttl_minutes: z.string().optional(),
+  refresh_token_ttl_days: z.string().optional(),
+  state_ttl_minutes: z.string().optional(),
+  redirect_base_url: z.string().optional(),
+  google_client_id: z.string().optional(),
+  google_client_secret: z.string().optional(),
+  google_auth_url: z.string().optional(),
+  google_token_url: z.string().optional(),
+  google_userinfo_url: z.string().optional(),
+  wechat_app_id: z.string().optional(),
+  wechat_auth_url: z.string().optional(),
+  database_url: z.string().optional(),
+  bootstrap_email: z.string().optional(),
+  bootstrap_password: z.string().optional(),
+  bootstrap_display_name: z.string().optional(),
+});
+
+export const AnalyticsConfigPayloadSchema = z.object({
+  posthog_api_key: z.string().optional(),
+  posthog_host: z.string().optional(),
+});
+
+export const ServerConfigPayloadSchema = z.object({
+  runtime: RuntimeConfigPayloadSchema,
+  port: z.string(),
+  enable_mcp: z.boolean(),
+  environment_summary: z.string().optional(),
+  auth: AuthConfigPayloadSchema,
+  analytics: AnalyticsConfigPayloadSchema,
+});
+
+export const ConfigurationUpdatedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('configuration_updated'),
+  version: z.number(),
+  config: ServerConfigPayloadSchema,
+});
+
 // Union schema for all agent events
 export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   TaskAnalysisEventSchema,
@@ -323,6 +393,7 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   ContextSnapshotEventSchema,
   ConnectedEventSchema,
   UserTaskEventSchema,
+  ConfigurationUpdatedEventSchema,
 ]);
 
 // API Request/Response Schemas

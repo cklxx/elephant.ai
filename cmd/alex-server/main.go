@@ -20,58 +20,28 @@ import (
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
 	runtimeconfig "alex/internal/config"
+	configcenter "alex/internal/configcenter"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
 	"alex/internal/environment"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
+	serverconfig "alex/internal/serverconfig"
 	"alex/internal/tools"
 	"alex/internal/utils"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Config holds server configuration
-type Config struct {
-	Runtime            runtimeconfig.RuntimeConfig
-	Port               string
-	EnableMCP          bool
-	EnvironmentSummary string
-	Auth               AuthConfig
-	Analytics          AnalyticsConfig
-}
-
-// AuthConfig captures authentication-related environment configuration.
-type AuthConfig struct {
-	JWTSecret             string
-	AccessTokenTTLMinutes string
-	RefreshTokenTTLDays   string
-	StateTTLMinutes       string
-	RedirectBaseURL       string
-	GoogleClientID        string
-	GoogleClientSecret    string
-	GoogleAuthURL         string
-	GoogleTokenURL        string
-	GoogleUserInfoURL     string
-	WeChatAppID           string
-	WeChatAuthURL         string
-	DatabaseURL           string
-	BootstrapEmail        string
-	BootstrapPassword     string
-	BootstrapDisplayName  string
-}
-
-// AnalyticsConfig holds analytics configuration values.
-type AnalyticsConfig struct {
-	PostHogAPIKey string
-	PostHogHost   string
-}
-
 func main() {
 	logger := utils.NewComponentLogger("Main")
 	logger.Info("Starting ALEX SSE Server...")
 
+	configStore := configcenter.NewFileStore(configcenter.FileStoreConfig{Path: strings.TrimSpace(os.Getenv("ALEX_CONFIG_CENTER_PATH"))})
+	configService := configcenter.NewService(configStore, 30*time.Second)
+	logger.Info("Config center backing file: %s", configStore.Path())
+
 	// Load configuration
-	config, err := loadConfig()
+	config, err := loadConfig(configService)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -161,6 +131,17 @@ func main() {
 	broadcaster := serverApp.NewEventBroadcaster()
 	taskStore := serverApp.NewInMemoryTaskStore()
 
+	if configService != nil {
+		updates, cancel := configService.Subscribe()
+		defer cancel()
+		go func() {
+			for snapshot := range updates {
+				event := agentdomain.NewConfigurationUpdatedEvent(snapshot.Version, snapshot.Config, snapshot.UpdatedAt)
+				broadcaster.OnEvent(event)
+			}
+		}()
+	}
+
 	// Broadcast environment diagnostics to all connected SSE clients.
 	unsubscribeEnv := diagnostics.SubscribeEnvironments(func(payload diagnostics.EnvironmentPayload) {
 		event := agentdomain.NewEnvironmentSnapshotEvent(payload.Host, payload.Sandbox, payload.Captured)
@@ -237,7 +218,8 @@ func main() {
 	}
 
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment)
+	configHandler := serverHTTP.NewConfigHandler(configService)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, configHandler, runtimeCfg.Environment)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -282,7 +264,7 @@ func main() {
 }
 
 // buildContainer builds the dependency injection container
-func buildContainer(config Config) (*di.Container, error) {
+func buildContainer(config serverconfig.Config) (*di.Container, error) {
 	// Build DI container with configurable storage
 	diConfig := di.Config{
 		LLMProvider:             config.Runtime.LLMProvider,
@@ -314,7 +296,7 @@ func buildContainer(config Config) (*di.Container, error) {
 	return di.BuildContainer(diConfig)
 }
 
-func loadConfig() (Config, error) {
+func loadConfig(center *configcenter.Service) (serverconfig.Config, error) {
 	envLookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, map[string][]string{
 		"LLM_PROVIDER":               {"ALEX_LLM_PROVIDER"},
 		"LLM_MODEL":                  {"ALEX_LLM_MODEL"},
@@ -343,10 +325,10 @@ func loadConfig() (Config, error) {
 		runtimeconfig.WithEnv(envLookup),
 	)
 	if err != nil {
-		return Config{}, err
+		return serverconfig.Config{}, err
 	}
 
-	cfg := Config{
+	cfg := serverconfig.Config{
 		Runtime:   runtimeCfg,
 		Port:      "8080",
 		EnableMCP: true, // Default: enabled
@@ -362,7 +344,7 @@ func loadConfig() (Config, error) {
 	}
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
-		return Config{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
+		return serverconfig.Config{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 
 	sandboxBaseURL := strings.TrimSpace(cfg.Runtime.SandboxBaseURL)
@@ -371,7 +353,7 @@ func loadConfig() (Config, error) {
 	}
 	cfg.Runtime.SandboxBaseURL = sandboxBaseURL
 
-	authCfg := AuthConfig{}
+	authCfg := serverconfig.AuthConfig{}
 	if secret, ok := envLookup("AUTH_JWT_SECRET"); ok {
 		authCfg.JWTSecret = strings.TrimSpace(secret)
 	}
@@ -422,7 +404,7 @@ func loadConfig() (Config, error) {
 	}
 	cfg.Auth = authCfg
 
-	analyticsCfg := AnalyticsConfig{}
+	analyticsCfg := serverconfig.AnalyticsConfig{}
 	if apiKey, ok := envLookup("POSTHOG_API_KEY"); ok {
 		analyticsCfg.PostHogAPIKey = strings.TrimSpace(apiKey)
 	}
@@ -431,10 +413,26 @@ func loadConfig() (Config, error) {
 	}
 	cfg.Analytics = analyticsCfg
 
+	if center != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		snapshot, err := center.Get(ctx)
+		if err == nil && !snapshot.IsZero() {
+			cfg = snapshot.Config
+		} else {
+			if err != nil && !errors.Is(err, configcenter.ErrNotFound) && err != context.Canceled && err != context.DeadlineExceeded {
+				log.Printf("config center fetch failed: %v", err)
+			}
+			if _, seedErr := center.SeedIfEmpty(ctx, cfg); seedErr != nil && seedErr != context.Canceled && seedErr != context.DeadlineExceeded {
+				log.Printf("config center seed failed: %v", seedErr)
+			}
+		}
+	}
+
 	return cfg, nil
 }
 
-func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {
+func buildAuthService(cfg serverconfig.Config, logger *utils.Logger) (*authapp.Service, func(), error) {
 	runtimeCfg := cfg.Runtime
 	authCfg := cfg.Auth
 
@@ -624,7 +622,7 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 	return service, cleanup, nil
 }
 
-func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger *utils.Logger) error {
+func bootstrapAuthUser(service *authapp.Service, cfg serverconfig.AuthConfig, logger *utils.Logger) error {
 	email := strings.TrimSpace(cfg.BootstrapEmail)
 	password := strings.TrimSpace(cfg.BootstrapPassword)
 	if email == "" || password == "" {

@@ -34,34 +34,34 @@ const (
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider             string
-	LLMModel                string
-	APIKey                  string
-	ArkAPIKey               string
-	BaseURL                 string
-	TavilyAPIKey            string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	SandboxBaseURL          string
-	Environment             string
-	Verbose                 bool
-	DisableTUI              bool
-	FollowTranscript        bool
-	FollowStream            bool
-	MaxIterations           int
-	MaxTokens               int
-	Temperature             float64
-	TemperatureProvided     bool
-	TopP                    float64
-	StopSequences           []string
-	SessionDir              string
-	CostDir                 string
-	AgentPreset             string
-	ToolPreset              string
+	LLMProvider             string   `json:"llm_provider"`
+	LLMModel                string   `json:"llm_model"`
+	APIKey                  string   `json:"api_key"`
+	ArkAPIKey               string   `json:"ark_api_key"`
+	BaseURL                 string   `json:"base_url"`
+	TavilyAPIKey            string   `json:"tavily_api_key"`
+	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id"`
+	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id"`
+	SeedreamTextModel       string   `json:"seedream_text_model"`
+	SeedreamImageModel      string   `json:"seedream_image_model"`
+	SeedreamVisionModel     string   `json:"seedream_vision_model"`
+	SeedreamVideoModel      string   `json:"seedream_video_model"`
+	SandboxBaseURL          string   `json:"sandbox_base_url"`
+	Environment             string   `json:"environment"`
+	Verbose                 bool     `json:"verbose"`
+	DisableTUI              bool     `json:"disable_tui"`
+	FollowTranscript        bool     `json:"follow_transcript"`
+	FollowStream            bool     `json:"follow_stream"`
+	MaxIterations           int      `json:"max_iterations"`
+	MaxTokens               int      `json:"max_tokens"`
+	Temperature             float64  `json:"temperature"`
+	TemperatureProvided     bool     `json:"temperature_provided"`
+	TopP                    float64  `json:"top_p"`
+	StopSequences           []string `json:"stop_sequences"`
+	SessionDir              string   `json:"session_dir"`
+	CostDir                 string   `json:"cost_dir"`
+	AgentPreset             string   `json:"agent_preset"`
+	ToolPreset              string   `json:"tool_preset"`
 }
 
 // Metadata contains provenance details for loaded configuration.

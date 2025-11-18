@@ -366,9 +366,9 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 		data["sandbox"] = e.Sandbox
 		data["captured"] = e.Captured.Format(time.RFC3339)
 
-	case *domain.SandboxProgressEvent:
-		data["status"] = e.Status
-		data["stage"] = e.Stage
+case *domain.SandboxProgressEvent:
+data["status"] = e.Status
+data["stage"] = e.Stage
 		if e.Message != "" {
 			data["message"] = e.Message
 		}
@@ -377,9 +377,13 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 		if e.Error != "" {
 			data["error"] = e.Error
 		}
-		data["updated"] = e.Updated.Format(time.RFC3339)
+data["updated"] = e.Updated.Format(time.RFC3339)
 
-	case *domain.ContextCompressionEvent:
+case *domain.ConfigurationUpdatedEvent:
+data["version"] = e.Version
+data["config"] = e.Config
+
+case *domain.ContextCompressionEvent:
 		data["original_count"] = e.OriginalCount
 		data["compressed_count"] = e.CompressedCount
 		data["compression_rate"] = e.CompressionRate

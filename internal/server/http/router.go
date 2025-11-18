@@ -11,7 +11,7 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, configHandler *ConfigHandler, environment string) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
@@ -35,6 +35,9 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/internal/sessions/", apiHandler.HandleInternalSessionRequest)
+	if internalMode && configHandler != nil {
+		mux.Handle("/api/internal/config", wrap(http.HandlerFunc(configHandler.HandleConfigRequest)))
+	}
 
 	// SSE endpoint
 	mux.Handle("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream)))

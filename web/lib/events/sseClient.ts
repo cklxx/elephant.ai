@@ -34,6 +34,7 @@ const DEFAULT_EVENTS: AnyAgentEvent["event_type"][] = [
   "tool_filtering",
   "context_snapshot",
   "user_task",
+  "configuration_updated",
 ];
 
 export class SSEClient {

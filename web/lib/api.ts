@@ -3,6 +3,7 @@
 import { buildApiUrl } from "./api-base";
 import { authClient } from "./auth/client";
 import {
+  ConfigCenterSnapshot,
   CreateTaskRequest,
   CreateTaskResponse,
   TaskStatusResponse,
@@ -10,6 +11,7 @@ import {
   SessionDetailsResponse,
   ApprovePlanRequest,
   ApprovePlanResponse,
+  ServerConfigPayload,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -206,6 +208,21 @@ export async function forkSession(
   );
 }
 
+// Config center APIs
+
+export async function getServerConfigSnapshot(): Promise<ConfigCenterSnapshot> {
+  return fetchAPI<ConfigCenterSnapshot>("/api/internal/config");
+}
+
+export async function updateServerConfigSnapshot(
+  config: ServerConfigPayload,
+): Promise<ConfigCenterSnapshot> {
+  return fetchAPI<ConfigCenterSnapshot>("/api/internal/config", {
+    method: "PUT",
+    body: JSON.stringify({ config }),
+  });
+}
+
 // SSE Connection
 
 export function createSSEConnection(
@@ -238,6 +255,8 @@ export const apiClient = {
   getSessionDetails,
   deleteSession,
   forkSession,
+  getServerConfigSnapshot,
+  updateServerConfigSnapshot,
   createSSEConnection,
   healthCheck,
 };

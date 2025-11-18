@@ -122,6 +122,12 @@ Use the CLI to prune historical session files and free disk space:
 
 To enable the sandbox runtime, export `SANDBOX_BASE_URL` or set it in `~/.alex-config.json`. The DI container will wire the shared `SandboxManager` for every surface.
 
+### Internal configuration center
+
+- **Config backend** – the server persists an editable snapshot to `configs/server-config.json` by default (override with `ALEX_CONFIG_CENTER_PATH`). Values loaded from this store override environment variables for every binary.
+- **REST API** – internal-only routes under `/api/internal/config` let authenticated operators fetch/update the full snapshot in one request. Updates fan out over SSE as `configuration_updated` events so dashboards refresh automatically.
+- **UI console** – the Next.js app exposes `/dev/config-center`, a gated screen with grouped forms for runtime, auth, and analytics fields plus a single "Apply all changes" action.
+
 ### Development Workflow
 
 ```bash

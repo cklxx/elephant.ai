@@ -301,6 +301,82 @@ export interface UserTaskEvent extends AgentEvent {
   attachments?: Record<string, AttachmentPayload>;
 }
 
+export interface RuntimeConfigPayload {
+  llm_provider?: string;
+  llm_model?: string;
+  api_key?: string;
+  ark_api_key?: string;
+  base_url?: string;
+  tavily_api_key?: string;
+  seedream_text_endpoint_id?: string;
+  seedream_image_endpoint_id?: string;
+  seedream_text_model?: string;
+  seedream_image_model?: string;
+  seedream_vision_model?: string;
+  seedream_video_model?: string;
+  sandbox_base_url?: string;
+  environment?: string;
+  verbose?: boolean;
+  disable_tui?: boolean;
+  follow_transcript?: boolean;
+  follow_stream?: boolean;
+  max_iterations?: number;
+  max_tokens?: number;
+  temperature?: number;
+  temperature_provided?: boolean;
+  top_p?: number;
+  stop_sequences?: string[];
+  session_dir?: string;
+  cost_dir?: string;
+  agent_preset?: string;
+  tool_preset?: string;
+}
+
+export interface AuthConfigPayload {
+  jwt_secret?: string;
+  access_token_ttl_minutes?: string;
+  refresh_token_ttl_days?: string;
+  state_ttl_minutes?: string;
+  redirect_base_url?: string;
+  google_client_id?: string;
+  google_client_secret?: string;
+  google_auth_url?: string;
+  google_token_url?: string;
+  google_userinfo_url?: string;
+  wechat_app_id?: string;
+  wechat_auth_url?: string;
+  database_url?: string;
+  bootstrap_email?: string;
+  bootstrap_password?: string;
+  bootstrap_display_name?: string;
+}
+
+export interface AnalyticsConfigPayload {
+  posthog_api_key?: string;
+  posthog_host?: string;
+}
+
+export interface ServerConfigPayload {
+  runtime: RuntimeConfigPayload;
+  port: string;
+  enable_mcp: boolean;
+  environment_summary?: string;
+  auth: AuthConfigPayload;
+  analytics: AnalyticsConfigPayload;
+}
+
+export interface ConfigCenterSnapshot {
+  config: ServerConfigPayload;
+  version: number;
+  updated_at: string;
+}
+
+export interface ConfigurationUpdatedEvent extends AgentEvent {
+  event_type: 'configuration_updated';
+  version: number;
+  config: ServerConfigPayload;
+}
+
 // Union type for all agent events
 export type AnyAgentEvent =
   | TaskAnalysisEvent
@@ -325,7 +401,8 @@ export type AnyAgentEvent =
   | ToolFilteringEvent
   | ContextSnapshotEvent
   | ConnectedEvent
-  | UserTaskEvent;
+  | UserTaskEvent
+  | ConfigurationUpdatedEvent;
 
 // API Request/Response Types
 
