@@ -223,7 +223,7 @@ export function Header({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b-4 border-border bg-card px-6 py-4 shadow-[6px_6px_0_rgba(0,0,0,0.55)]",
+        "flex items-center justify-between border-b-4 border-border bg-card px-6 py-4",
         className,
       )}
     >
@@ -266,7 +266,7 @@ export function Header({
             </button>
 
             {showMenu && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border-2 border-border bg-card shadow-[6px_6px_0_rgba(0,0,0,0.55)]">
+              <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border-2 border-border bg-card">
                 <div className="py-1">
                   {onExport && (
                     <button

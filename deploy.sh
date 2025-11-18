@@ -940,9 +940,10 @@ cmd_docker() {
 
     case $action in
         up|start)
-            log_info "Starting docker-compose services..."
-            run_docker_compose up -d
-            log_success "Docker services are running"
+            ensure_pro_defaults
+            log_info "Starting docker-compose stack behind nginx reverse proxy..."
+            run_docker_compose up -d --build nginx
+            log_success "Services are available via http://localhost"
             ;;
         down|stop)
             log_info "Stopping docker-compose services..."
@@ -1058,12 +1059,16 @@ ${C_YELLOW}Usage:${C_RESET}
   ./deploy.sh docker [command]
 
 ${C_YELLOW}Commands:${C_RESET}
-  ${C_GREEN}up|start${C_RESET}          Start services (default)
+  ${C_GREEN}up|start${C_RESET}          Start reverse-proxy stack on :80 (default)
   ${C_GREEN}down|stop${C_RESET}         Stop services
   ${C_GREEN}logs [service]${C_RESET}    Tail logs (all if omitted)
   ${C_GREEN}ps|status${C_RESET}         Show running services
   ${C_GREEN}pull${C_RESET}              Pull latest images
   ${C_GREEN}help${C_RESET}              Show this help
+
+${C_YELLOW}Notes:${C_RESET}
+  • Traffic is routed through nginx so the frontend and API share the same origin
+  • Set NEXT_PUBLIC_API_URL=auto (default) to allow the frontend to auto-detect the API origin
 
 EOF
 }

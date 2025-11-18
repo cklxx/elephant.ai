@@ -1,4 +1,6 @@
 # Agent Preset Quick Reference
+> Last updated: 2025-11-18
+
 
 ## Agent Presets (Personas)
 

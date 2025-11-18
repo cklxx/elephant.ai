@@ -197,27 +197,24 @@
         background: hsl(var(--card));
         border: 3px solid hsl(var(--foreground));
         border-radius: 12px;
-        box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.75);
-        transition:
-            transform 0.15s ease,
-            box-shadow 0.15s ease;
+        box-shadow: none;
+        transition: transform 0.15s ease;
     }
 
     .console-card-interactive {
         background: hsl(var(--card));
         border: 3px solid hsl(var(--foreground));
         border-radius: 12px;
-        box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
         transition:
             transform 0.15s ease,
-            box-shadow 0.15s ease,
             background-color 0.15s ease;
     }
 
     .console-card-interactive:hover {
         background: hsla(var(--foreground) / 0.08);
         transform: translate(-4px, -4px);
-        box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.7);
+        box-shadow: none;
     }
 
     /**
@@ -274,17 +271,17 @@
         color: hsl(var(--foreground));
         background: hsl(var(--card));
         border: 2px solid hsl(var(--foreground));
-        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.85);
+        box-shadow: none;
     }
 
     .console-button:hover {
         transform: translate(-2px, -2px);
-        box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-button:active {
         transform: translate(0, 0);
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-button:focus-visible {
@@ -296,13 +293,13 @@
         cursor: not-allowed;
         opacity: 0.6;
         transform: none;
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+        box-shadow: none;
     }
 
     .console-button:disabled:hover,
     .console-button:disabled:active {
         transform: none;
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+        box-shadow: none;
     }
 
     .console-button-primary {
@@ -328,17 +325,17 @@
         background: hsl(var(--foreground));
         color: hsl(var(--primary-foreground));
         border: 2px solid hsl(var(--foreground));
-        box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.85);
+        box-shadow: none;
     }
 
     .console-primary-action:hover {
         transform: translate(-2px, -2px);
-        box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-primary-action:active {
         transform: translate(0, 0);
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-primary-action:focus-visible {
@@ -350,13 +347,13 @@
         cursor: not-allowed;
         opacity: 0.55;
         transform: none;
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+        box-shadow: none;
     }
 
     .console-primary-action:disabled:hover,
     .console-primary-action:disabled:active {
         transform: none;
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+        box-shadow: none;
     }
 
     .console-icon-button {
@@ -365,17 +362,17 @@
         background: hsl(var(--card));
         color: hsl(var(--foreground));
         padding: 0.4rem;
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-icon-button:hover {
         transform: translate(-1.5px, -1.5px);
-        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.65);
+        box-shadow: none;
     }
 
     .console-icon-button:active {
         transform: translate(0, 0);
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.65);
+        box-shadow: none;
     }
 
     .console-icon-button:focus-visible {
@@ -387,13 +384,13 @@
         cursor: not-allowed;
         opacity: 0.5;
         transform: none;
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+        box-shadow: none;
     }
 
     .console-icon-button:disabled:hover,
     .console-icon-button:disabled:active {
         transform: none;
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+        box-shadow: none;
     }
 
     .console-icon-button-primary {
@@ -432,7 +429,7 @@
         background: hsl(var(--card));
         color: hsl(var(--foreground));
         border: 2px solid hsl(var(--foreground));
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-badge-primary {
@@ -475,7 +472,7 @@
         border-radius: 28px;
         background: hsl(var(--card));
         border: 3px solid hsl(var(--foreground));
-        box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-pane-title {
@@ -509,7 +506,7 @@
         font-weight: 600;
         letter-spacing: 0.12em;
         color: hsl(var(--foreground));
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.75);
+        box-shadow: none;
     }
 
     .console-event-line {
@@ -706,7 +703,7 @@
         width: 16rem;
         background: hsl(var(--card));
         border-right: 3px solid hsl(var(--foreground));
-        box-shadow: 12px 0 0 rgba(0, 0, 0, 0.15);
+        box-shadow: none;
     }
 
     .layout-main {
@@ -723,7 +720,7 @@
         z-index: 10;
         background: hsl(var(--card));
         border-bottom: 3px solid hsl(var(--foreground));
-        box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.55);
+        box-shadow: none;
     }
 
     .layout-content {
@@ -737,7 +734,7 @@
         bottom: 0;
         background: hsl(var(--card));
         border-top: 3px solid hsl(var(--foreground));
-        box-shadow: 0 -6px 0 rgba(0, 0, 0, 0.15);
+        box-shadow: none;
     }
 }
 

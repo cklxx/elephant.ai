@@ -1,4 +1,6 @@
 # MCP (Model Context Protocol) Support in ALEX
+> Last updated: 2025-11-18
+
 
 ## Overview
 

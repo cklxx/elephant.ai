@@ -7,8 +7,8 @@ services:
       context: .
       dockerfile: Dockerfile.server
     container_name: alex-server
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
@@ -20,6 +20,7 @@ services:
     volumes:
       - alex-sessions:/data/sessions
       - ./:/workspace:cached  # Mount workspace for development
+      - ~/.alex-config.json:/root/.alex-config.json:ro
     restart: unless-stopped
     depends_on:
       - redis

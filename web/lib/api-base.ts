@@ -1,9 +1,43 @@
 const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
 const DEFAULT_INTERNAL_PRODUCTION_API_BASE = "http://alex-server:8080";
 const DEFAULT_DEVELOPMENT_API_BASE = "http://localhost:8080";
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/$/, "");
+}
+
+function isLocalHostname(hostname: string | undefined | null): boolean {
+  if (!hostname) {
+    return false;
+  }
+
+  return LOCAL_HOSTNAMES.has(hostname.trim().toLowerCase());
+}
+
+function rewriteLocalhostBaseUrl(url: string): string | null {
+  if (typeof window === "undefined" || !window.location) {
+    return null;
+  }
+
+  const clientHostname = window.location.hostname;
+  if (!clientHostname || isLocalHostname(clientHostname)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url);
+    if (!isLocalHostname(parsed.hostname)) {
+      return null;
+    }
+
+    const portSuffix = parsed.port ? `:${parsed.port}` : "";
+    const rewritten = `${parsed.protocol}//${clientHostname}${portSuffix}`;
+
+    return normalizeBaseUrl(rewritten);
+  } catch {
+    return null;
+  }
 }
 
 export function resolveApiBaseUrl(): string {
@@ -19,7 +53,10 @@ export function resolveApiBaseUrl(): string {
       : normalizeBaseUrl(DEFAULT_DEVELOPMENT_API_BASE);
   }
 
-  return normalizeBaseUrl(value);
+  const normalized = normalizeBaseUrl(value);
+  const rewritten = rewriteLocalhostBaseUrl(normalized);
+
+  return rewritten ?? normalized;
 }
 
 export function buildApiUrl(endpoint: string): string {

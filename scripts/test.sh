@@ -66,13 +66,9 @@ run_integration_tests() {
 }
 
 run_lint() {
-    if command -v golangci-lint >/dev/null 2>&1; then
-        print_status "Running golangci-lint..."
-        golangci-lint run ./...
-        print_success "Lint checks passed"
-    else
-        print_warning "golangci-lint not installed; skipping lint step"
-    fi
+    print_status "Running golangci-lint..."
+    ./scripts/run-golangci-lint.sh run ./...
+    print_success "Lint checks passed"
 }
 
 run_cli_smoke() {
@@ -97,7 +93,7 @@ Usage: $0 [target]
 Targets:
   unit           Run Go unit tests (cmd/internal/tests)
   integration    Run evaluation test suites
-  lint           Run golangci-lint (if available)
+  lint           Run golangci-lint (auto-installs pinned version)
   cli-smoke      Build alex CLI and run non-network smoke tests
   all            Run lint, unit tests, integration tests, and CLI smoke tests
   help           Show this message

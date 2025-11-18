@@ -17,7 +17,7 @@ func TestCORSMiddlewareHonorsEnvironment(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 
-	wrapped := CORSMiddleware("production")(handler)
+	wrapped := CORSMiddleware("production", []string{"http://localhost:3000"})(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api", nil)
 	req.Header.Set("Origin", "https://malicious.example")
@@ -35,7 +35,7 @@ func TestCORSMiddlewareAllowsListedOriginsInProduction(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 
-	wrapped := CORSMiddleware("production")(handler)
+	wrapped := CORSMiddleware("production", []string{"http://localhost:3000"})(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
@@ -56,7 +56,7 @@ func TestCORSMiddlewareAllowsAllOriginsInNonProduction(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 
-	wrapped := CORSMiddleware("staging")(handler)
+	wrapped := CORSMiddleware("staging", []string{"http://localhost:3000"})(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api", nil)
 	req.Header.Set("Origin", "https://example.dev")
@@ -67,8 +67,50 @@ func TestCORSMiddlewareAllowsAllOriginsInNonProduction(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://example.dev" {
 		t.Fatalf("expected origin echoed in non-production, got %q", got)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
-		t.Fatalf("expected no credentials header for non-listed origin outside production, got %q", got)
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("expected credentials header even in non-production, got %q", got)
+	}
+}
+
+func TestCORSMiddlewareAllowsForwardedOriginInProduction(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+
+	wrapped := CORSMiddleware("production", nil)(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	req.Header.Set("Origin", "https://alex.example.com")
+	req.Header.Set("Forwarded", "proto=https;host=alex.example.com")
+	rec := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://alex.example.com" {
+		t.Fatalf("expected forwarded origin to be allowed, got %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("expected credentials header for forwarded origin, got %q", got)
+	}
+}
+
+func TestCORSMiddlewareRejectsUnknownOriginInProduction(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := CORSMiddleware("production", nil)(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	req.Header.Set("Origin", "https://alex.example.com")
+	req.Header.Set("X-Forwarded-Host", "other.example.com")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected Access-Control-Allow-Origin to be empty, got %q", got)
 	}
 }
 

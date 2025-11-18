@@ -122,6 +122,8 @@ Use the CLI to prune historical session files and free disk space:
 
 To enable the sandbox runtime, export `SANDBOX_BASE_URL` or set it in `~/.alex-config.json`. The DI container will wire the shared `SandboxManager` for every surface.
 
+When running `docker compose up`, the `alex-server` service bind-mounts your host `~/.alex-config.json` into `/root/.alex-config.json` inside the container so the server automatically picks up the same credentials and model configuration as your local CLI.
+
 ### Development Workflow
 
 ```bash

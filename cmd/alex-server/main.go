@@ -40,6 +40,7 @@ type Config struct {
 	EnvironmentSummary string
 	Auth               AuthConfig
 	Analytics          AnalyticsConfig
+	AllowedOrigins     []string
 }
 
 // AuthConfig captures authentication-related environment configuration.
@@ -66,6 +67,12 @@ type AuthConfig struct {
 type AnalyticsConfig struct {
 	PostHogAPIKey string
 	PostHogHost   string
+}
+
+var defaultAllowedOrigins = []string{
+	"http://localhost:3000",
+	"http://localhost:3001",
+	"https://alex.yourdomain.com",
 }
 
 func main() {
@@ -252,7 +259,7 @@ func main() {
 	}
 
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment, config.AllowedOrigins)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -352,6 +359,7 @@ func loadConfig() (Config, error) {
 		"SANDBOX_BASE_URL":           {"ALEX_SANDBOX_BASE_URL"},
 		"POSTHOG_API_KEY":            {"ALEX_POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY"},
 		"POSTHOG_HOST":               {"ALEX_POSTHOG_HOST", "NEXT_PUBLIC_POSTHOG_HOST"},
+		"CORS_ALLOWED_ORIGINS":       {"ALEX_ALLOWED_ORIGINS", "ALEX_CORS_ALLOWED_ORIGINS"},
 	})
 
 	runtimeCfg, _, err := runtimeconfig.Load(
@@ -362,9 +370,10 @@ func loadConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		Runtime:   runtimeCfg,
-		Port:      "8080",
-		EnableMCP: true, // Default: enabled
+		Runtime:        runtimeCfg,
+		Port:           "8080",
+		EnableMCP:      true, // Default: enabled
+		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
 	}
 
 	if port, ok := envLookup("PORT"); ok && port != "" {
@@ -374,6 +383,11 @@ func loadConfig() (Config, error) {
 	// Parse feature flags
 	if enableMCP, ok := envLookup("ENABLE_MCP"); ok {
 		cfg.EnableMCP = enableMCP == "true" || enableMCP == "1"
+	}
+
+	if origins, ok := envLookup("CORS_ALLOWED_ORIGINS"); ok {
+		parsedOrigins := parseAllowedOrigins(origins)
+		cfg.AllowedOrigins = parsedOrigins
 	}
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
@@ -447,6 +461,35 @@ func loadConfig() (Config, error) {
 	cfg.Analytics = analyticsCfg
 
 	return cfg, nil
+}
+
+func parseAllowedOrigins(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}
+	}
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', '\n', '\r', '\t':
+			return true
+		default:
+			return false
+		}
+	})
+	origins := make([]string, 0, len(fields))
+	seen := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		origin := strings.TrimSpace(field)
+		if origin == "" {
+			continue
+		}
+		if _, ok := seen[origin]; ok {
+			continue
+		}
+		seen[origin] = struct{}{}
+		origins = append(origins, origin)
+	}
+	return origins
 }
 
 func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {

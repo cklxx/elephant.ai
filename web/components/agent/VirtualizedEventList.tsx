@@ -218,7 +218,7 @@ export function VirtualizedEventList({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-[28px] border-4 border-border bg-card/95 shadow-[14px_14px_0_rgba(0,0,0,0.72)]',
+        'relative overflow-hidden rounded-[28px] border-4 border-border bg-card/95',
         className,
       )}
     >
@@ -279,11 +279,10 @@ export function VirtualizedEventList({
                     data-focused={isFocused ? 'true' : undefined}
                   >
                     <div
-                      className={cn(
+                    className={cn(
                         'console-card bg-card/98 px-5 py-4 transition-all duration-150 ease-out',
-                        'hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[12px_12px_0_rgba(0,0,0,0.68)]',
-                        isFocused &&
-                          'outline outline-2 outline-offset-4 outline-foreground shadow-[14px_14px_0_rgba(0,0,0,0.68)]',
+                        'hover:-translate-y-1 hover:-translate-x-1',
+                        isFocused && 'outline outline-2 outline-offset-4 outline-foreground',
                       )}
                     >
                       <EventCard
@@ -477,7 +476,7 @@ function EventCard({
           {details.length > 0 ? (
             <dl className="space-y-2 text-sm text-foreground/80">
               {details.map(([label, value]) => (
-                <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2 shadow-[4px_4px_0_rgba(0,0,0,0.35)]">
+                <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
                   <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
                   <dd className="break-words text-sm text-foreground">{value}</dd>
                 </div>

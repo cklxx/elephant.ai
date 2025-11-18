@@ -1,4 +1,6 @@
 # State-of-the-Art Code Agent Architectures: Comprehensive Analysis
+> Last updated: 2025-11-18
+
 
 ## Executive Summary
 
