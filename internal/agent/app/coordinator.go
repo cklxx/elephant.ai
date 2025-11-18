@@ -188,9 +188,11 @@ func (c *AgentCoordinator) ExecuteTask(
 		// Check if it's a context cancellation error
 		if ctx.Err() != nil {
 			c.logger.Info("Task execution cancelled: %v", ctx.Err())
+			c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
 			return nil, ctx.Err()
 		}
 		c.logger.Error("Task execution failed: %v", err)
+		c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "error")
 		return nil, fmt.Errorf("task execution failed: %w", err)
 	}
 	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
@@ -323,6 +325,44 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	c.logger.Debug("Session saved successfully")
 
 	return nil
+}
+
+func (c *AgentCoordinator) persistSessionSnapshot(
+	ctx context.Context,
+	env *ports.ExecutionEnvironment,
+	fallbackTaskID string,
+	parentTaskID string,
+	stopReason string,
+) {
+	if env == nil || env.State == nil || env.Session == nil {
+		return
+	}
+
+	state := env.State
+	result := &ports.TaskResult{
+		Answer:       "",
+		Messages:     state.Messages,
+		Iterations:   state.Iterations,
+		TokensUsed:   state.TokenCount,
+		StopReason:   stopReason,
+		SessionID:    state.SessionID,
+		TaskID:       state.TaskID,
+		ParentTaskID: state.ParentTaskID,
+	}
+
+	if result.SessionID == "" {
+		result.SessionID = env.Session.ID
+	}
+	if result.TaskID == "" {
+		result.TaskID = fallbackTaskID
+	}
+	if result.ParentTaskID == "" {
+		result.ParentTaskID = parentTaskID
+	}
+
+	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
+		c.logger.Error("Failed to persist session after failure: %v", err)
+	}
 }
 
 // GetSession retrieves or creates a session (public method)
