@@ -329,7 +329,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	return nil
 }
 
-// RegisterSubAgent registers the subagent tool that requires a coordinator
+// RegisterSubAgent registers the subagent tool and phase delegates that require coordinator wiring.
 func (r *Registry) RegisterSubAgent(coordinator ports.AgentCoordinator) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -337,14 +337,21 @@ func (r *Registry) RegisterSubAgent(coordinator ports.AgentCoordinator) {
 		return
 	}
 
-	if _, exists := r.static["subagent"]; exists {
-		if _, ok := r.static["explore"]; !ok {
-			r.static["explore"] = builtin.NewExplore(r.static["subagent"])
-		}
-		return
+	subTool, exists := r.static["subagent"]
+	if !exists {
+		subTool = builtin.NewSubAgent(coordinator, 3)
+		r.static["subagent"] = subTool
 	}
 
-	subTool := builtin.NewSubAgent(coordinator, 3)
-	r.static["subagent"] = subTool
-	r.static["explore"] = builtin.NewExplore(subTool)
+	phaseFactories := map[string]func(ports.ToolExecutor) ports.ToolExecutor{
+		"explore":  builtin.NewExplore,
+		"code":     builtin.NewCode,
+		"research": builtin.NewResearch,
+		"build":    builtin.NewBuild,
+	}
+	for name, factory := range phaseFactories {
+		if _, ok := r.static[name]; !ok {
+			r.static[name] = factory(subTool)
+		}
+	}
 }

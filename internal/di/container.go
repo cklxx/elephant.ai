@@ -278,7 +278,6 @@ func BuildContainer(config Config) (*Container, error) {
 		agentApp.WithRAGGate(agentApp.NewRAGGateAdapter(ragGateImpl)),
 	)
 
-	// Register subagent tool after coordinator is created
 	toolRegistry.RegisterSubAgent(coordinator)
 
 	logger.Info("Container built successfully (heavy initialization deferred to Start())")

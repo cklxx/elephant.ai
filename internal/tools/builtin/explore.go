@@ -9,41 +9,155 @@ import (
 	"alex/internal/agent/ports"
 )
 
-type explore struct {
+type scopeFormatter func(objective, item string) string
+
+type phaseConfig struct {
+	ID                string
+	Name              string
+	Description       string
+	Category          string
+	Tags              []string
+	Version           string
+	LocalFormatter    scopeFormatter
+	WebFormatter      scopeFormatter
+	CustomFormatter   scopeFormatter
+	FallbackFormatter func(string) string
+}
+
+type phaseTool struct {
 	subagent ports.ToolExecutor
+	config   phaseConfig
 }
 
-// NewExplore creates an explore tool that wraps the subagent executor.
+// NewExplore creates an explore-phase delegator backed by the subagent tool.
 func NewExplore(subagent ports.ToolExecutor) ports.ToolExecutor {
-	return &explore{subagent: subagent}
+	return newPhaseTool(subagent, phaseConfig{
+		ID:          "explore",
+		Name:        "Explore",
+		Version:     "2.0.0",
+		Category:    "orchestration",
+		Description: "Coordinates discovery subagents to map repositories, risks, and unknowns before coding.",
+		Tags:        []string{"planning", "delegation", "exploration"},
+		LocalFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[EXPLORE:LOCAL] %s — Map %s and capture ownership, blockers, and TODOs.", objective, focus)
+		},
+		WebFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[EXPLORE:WEB] %s — Research %s via docs, web_search, and browser tools.", objective, focus)
+		},
+		CustomFormatter: func(objective, task string) string {
+			return fmt.Sprintf("[EXPLORE:CUSTOM] %s — %s.", objective, task)
+		},
+		FallbackFormatter: func(objective string) string {
+			return fmt.Sprintf("[EXPLORE] %s — Run repository reconnaissance and summarize findings.", objective)
+		},
+	})
 }
 
-func (e *explore) Definition() ports.ToolDefinition {
+// NewCode creates a code-phase delegator backed by the subagent tool.
+func NewCode(subagent ports.ToolExecutor) ports.ToolExecutor {
+	return newPhaseTool(subagent, phaseConfig{
+		ID:          "code",
+		Name:        "Code",
+		Version:     "2.0.0",
+		Category:    "implementation",
+		Description: "Delegates implementation slices, refactors, and test work to focused coding subagents.",
+		Tags:        []string{"implementation", "testing", "delegation"},
+		LocalFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[CODE:IMPLEMENT] %s — Build or refactor %s with tests and TODO updates.", objective, focus)
+		},
+		WebFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[CODE:REFERENCE] %s — Review specifications for %s before editing.", objective, focus)
+		},
+		CustomFormatter: func(objective, task string) string {
+			return fmt.Sprintf("[CODE:DELIVERABLE] %s — %s.", objective, task)
+		},
+		FallbackFormatter: func(objective string) string {
+			return fmt.Sprintf("[CODE] %s — Implement the approved plan with tests and verification logs.", objective)
+		},
+	})
+}
+
+// NewResearch creates a research-phase delegator backed by the subagent tool.
+func NewResearch(subagent ports.ToolExecutor) ports.ToolExecutor {
+	return newPhaseTool(subagent, phaseConfig{
+		ID:          "research",
+		Name:        "Research",
+		Version:     "2.0.0",
+		Category:    "investigation",
+		Description: "Delegates research questions and validation tasks to evidence-driven subagents.",
+		Tags:        []string{"research", "validation", "delegation"},
+		LocalFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[RESEARCH:LOCAL] %s — Audit project docs/code tied to %s and capture citations.", objective, focus)
+		},
+		WebFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[RESEARCH:WEB] %s — Investigate %s using web_search + web_fetch with sources.", objective, focus)
+		},
+		CustomFormatter: func(objective, task string) string {
+			return fmt.Sprintf("[RESEARCH:EXPERIMENT] %s — %s.", objective, task)
+		},
+		FallbackFormatter: func(objective string) string {
+			return fmt.Sprintf("[RESEARCH] %s — Close open questions with citations and follow-ups.", objective)
+		},
+	})
+}
+
+// NewBuild creates a build-phase delegator backed by the subagent tool.
+func NewBuild(subagent ports.ToolExecutor) ports.ToolExecutor {
+	return newPhaseTool(subagent, phaseConfig{
+		ID:          "build",
+		Name:        "Build",
+		Version:     "2.0.0",
+		Category:    "delivery",
+		Description: "Delegates validation, deployment rehearsal, and artifact preparation to build-focused subagents.",
+		Tags:        []string{"build", "validation", "delegation"},
+		LocalFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[BUILD:VALIDATE] %s — Verify %s via bash/code_execute and attach logs.", objective, focus)
+		},
+		WebFormatter: func(objective, focus string) string {
+			return fmt.Sprintf("[BUILD:CHECK] %s — Confirm external dependencies or release notes for %s.", objective, focus)
+		},
+		CustomFormatter: func(objective, task string) string {
+			return fmt.Sprintf("[BUILD:CUSTOM] %s — %s.", objective, task)
+		},
+		FallbackFormatter: func(objective string) string {
+			return fmt.Sprintf("[BUILD] %s — Run validation matrix and capture required artifacts.", objective)
+		},
+	})
+}
+
+func newPhaseTool(subagent ports.ToolExecutor, cfg phaseConfig) ports.ToolExecutor {
+	return &phaseTool{
+		subagent: subagent,
+		config:   cfg,
+	}
+}
+
+func (p *phaseTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "explore",
-		Description: "Plan and delegate multi-scope investigations while orchestrating the platform's complete exploration toolset. Automatically prepares local, web, and custom subtasks and synthesizes a concise summary of findings.",
+		Name:        p.config.ID,
+		Description: p.config.Description,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"objective": {
 					Type:        "string",
-					Description: "High-level goal to investigate.",
+					Description: "Primary goal for this phase.",
 				},
 				"local_scope": {
 					Type:        "array",
-					Description: "Specific local/codebase areas to inspect.",
+					Description: "Repository or code-specific focus areas.",
 				},
 				"web_scope": {
 					Type:        "array",
-					Description: "Web research focus areas.",
+					Description: "External research, dependencies, or rollout concerns.",
 				},
 				"custom_tasks": {
 					Type:        "array",
-					Description: "Additional custom subtasks to run.",
+					Description: "Custom deliverables or validation items.",
 				},
 				"notes": {
 					Type:        "string",
-					Description: "Context or constraints shared with every subtask.",
+					Description: "Shared context for every delegated subtask.",
 				},
 				"mode": {
 					Type:        "string",
@@ -56,18 +170,18 @@ func (e *explore) Definition() ports.ToolDefinition {
 	}
 }
 
-func (e *explore) Metadata() ports.ToolMetadata {
+func (p *phaseTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "explore",
-		Version:  "1.0.0",
-		Category: "orchestration",
-		Tags:     []string{"planning", "delegation", "discovery"},
+		Name:     p.config.ID,
+		Version:  p.config.Version,
+		Category: p.config.Category,
+		Tags:     append([]string(nil), p.config.Tags...),
 	}
 }
 
-func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	if e.subagent == nil {
-		err := fmt.Errorf("explore tool is unavailable: subagent not registered")
+func (p *phaseTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	if p.subagent == nil {
+		err := fmt.Errorf("%s tool is unavailable: subagent not registered", p.config.Name)
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
@@ -116,11 +230,7 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		mode = normalized
 	}
 
-	subtasks := buildExploreSubtasks(objective, localScope, webScope, customTasks, notes)
-	if len(subtasks) == 0 {
-		base := fmt.Sprintf("[CUSTOM] %s", objective)
-		subtasks = []string{appendNotes(base, notes)}
-	}
+	subtasks := buildPhaseSubtasks(p.config, objective, localScope, webScope, customTasks, notes)
 
 	subagentSubtasks := make([]any, len(subtasks))
 	for i, task := range subtasks {
@@ -133,12 +243,12 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 	}
 
 	delegationCall := ports.ToolCall{
-		ID:        call.ID + ":explore",
+		ID:        fmt.Sprintf("%s:%s", call.ID, p.config.ID),
 		Name:      "subagent",
 		Arguments: delegationArgs,
 	}
 
-	delegateResult, execErr := e.subagent.Execute(ctx, delegationCall)
+	delegateResult, execErr := p.subagent.Execute(ctx, delegationCall)
 	if execErr != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("subagent execution failed: %v", execErr), Error: execErr}, nil
 	}
@@ -162,6 +272,7 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 			Content: fmt.Sprintf("Delegation failed: %s", delegateResult.Error.Error()),
 			Error:   delegateResult.Error,
 			Metadata: map[string]any{
+				"phase":         p.config.Name,
 				"objective":     objective,
 				"local_scope":   localScope,
 				"web_scope":     webScope,
@@ -186,9 +297,10 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 
 	highlights := buildDelegationHighlights(parsedResults)
 
-	summary := buildExploreSummary(objective, len(localScope), len(webScope), len(customTasks), totalTasks, successCount, failureCount, highlights, notes)
+	summary := buildPhaseSummary(p.config, objective, len(localScope), len(webScope), len(customTasks), totalTasks, successCount, failureCount, highlights, notes)
 
 	resultMetadata := map[string]any{
+		"phase":              p.config.Name,
 		"objective":          objective,
 		"local_scope":        localScope,
 		"web_scope":          webScope,
@@ -208,6 +320,41 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		Content:  summary,
 		Metadata: resultMetadata,
 	}, nil
+}
+
+func buildPhaseSubtasks(cfg phaseConfig, objective string, localScope, webScope, customTasks []string, notes string) []string {
+	var subtasks []string
+
+	if cfg.LocalFormatter != nil {
+		for _, focus := range localScope {
+			base := cfg.LocalFormatter(objective, focus)
+			subtasks = append(subtasks, appendNotes(base, notes))
+		}
+	}
+	if cfg.WebFormatter != nil {
+		for _, focus := range webScope {
+			base := cfg.WebFormatter(objective, focus)
+			subtasks = append(subtasks, appendNotes(base, notes))
+		}
+	}
+	if cfg.CustomFormatter != nil {
+		for _, task := range customTasks {
+			base := cfg.CustomFormatter(objective, task)
+			subtasks = append(subtasks, appendNotes(base, notes))
+		}
+	}
+
+	if len(subtasks) > 0 {
+		return subtasks
+	}
+
+	fallback := cfg.FallbackFormatter
+	if fallback == nil {
+		fallback = func(obj string) string {
+			return fmt.Sprintf("[%s] %s", strings.ToUpper(cfg.ID), obj)
+		}
+	}
+	return []string{appendNotes(fallback(objective), notes)}
 }
 
 func parseStringList(args map[string]any, key string) ([]string, error) {
@@ -240,29 +387,6 @@ func parseStringList(args map[string]any, key string) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("%s must be an array of strings when provided", key)
 	}
-}
-
-func buildExploreSubtasks(objective string, localScope, webScope, customTasks []string, notes string) []string {
-	var subtasks []string
-
-	for _, focus := range localScope {
-		base := fmt.Sprintf("[LOCAL] %s — Focus on %s.", objective, focus)
-		subtasks = append(subtasks, appendNotes(base, notes))
-	}
-	for _, focus := range webScope {
-		base := fmt.Sprintf("[WEB] %s — Research %s.", objective, focus)
-		subtasks = append(subtasks, appendNotes(base, notes))
-	}
-	for _, task := range customTasks {
-		base := fmt.Sprintf("[CUSTOM] %s", task)
-		subtasks = append(subtasks, appendNotes(base, notes))
-	}
-
-	if len(subtasks) == 0 {
-		return subtasks
-	}
-
-	return subtasks
 }
 
 func appendNotes(base, notes string) string {
@@ -361,8 +485,8 @@ func buildDelegationHighlights(results []delegationSubtask) []string {
 	return highlights
 }
 
-func buildExploreSummary(objective string, localCount, webCount, customCount, total, success, failure int, highlights []string, notes string) string {
-	summary := fmt.Sprintf("Delegated objective \"%s\" across %d subtask(s) (local:%d, web:%d, custom:%d) with %d success/%d failure.", objective, total, localCount, webCount, customCount, success, failure)
+func buildPhaseSummary(cfg phaseConfig, objective string, localCount, webCount, customCount, total, success, failure int, highlights []string, notes string) string {
+	summary := fmt.Sprintf("%s phase delegated objective \"%s\" across %d subtask(s) (local:%d, web:%d, custom:%d) with %d success/%d failure.", cfg.Name, objective, total, localCount, webCount, customCount, success, failure)
 
 	if len(highlights) > 0 {
 		summary += "\nHighlights:"

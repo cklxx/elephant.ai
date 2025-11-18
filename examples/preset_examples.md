@@ -173,23 +173,22 @@ curl -X POST http://localhost:3000/api/tasks \
 
 ## Example 9: API Documentation
 
-Create API documentation using the researcher preset.
+Create API documentation using the Markdown Architect preset so every section cites Explore/Code/Research/Build evidence.
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "task": "Create comprehensive API documentation for all endpoints in internal/server/http/. Include request/response examples, error codes, and authentication requirements.",
-    "agent_preset": "researcher",
-    "tool_preset": "code-only"
+    "task": "Create comprehensive API documentation for all endpoints in internal/server/http/. Include request/response examples, error codes, acceptance criteria, and a changelog of Explore → Code → Research → Build steps.",
+    "agent_preset": "md",
+    "tool_preset": "full"
   }'
 ```
 
 **What happens:**
-- Agent analyzes API endpoints
-- Creates structured documentation
-- Includes practical examples
-- No web access needed
+- Agent inventories relevant files via `explore`, researches missing context, then edits Markdown in scoped chunks
+- Documentation explicitly lists Explore/Code/Research/Build actions and cites file paths plus command outputs
+- Verification steps (tests, curl invocations) are captured before closing the task
 
 ## Example 10: Safe Code Review
 

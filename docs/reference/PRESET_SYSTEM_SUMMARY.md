@@ -10,13 +10,15 @@ Successfully implemented a comprehensive agent preset system for ALEX that allow
 
 ### 1. System Prompt Presets (Agent Personas)
 
-Created 5 specialized agent presets in `/internal/agent/presets/prompts.go`:
+Created 7 specialized agent presets in `/internal/agent/presets/prompts.go`:
 
 - **`default`**: General-purpose coding assistant
 - **`code-expert`**: Specialized in code review, debugging, and refactoring
 - **`researcher`**: Information gathering, analysis, and documentation
+- **`md`**: Markdown Architect enforcing Explore → Code → Research → Build discipline for documentation work
 - **`devops`**: Deployment, infrastructure, and CI/CD
 - **`security-analyst`**: Security audits and vulnerability detection
+- **`designer`**: Visual ideation and Seedream concepting partner
 
 Each preset has:
 - Unique system prompt tailored to its role
@@ -70,7 +72,7 @@ Created detailed documentation:
 
 #### `/docs/AGENT_PRESETS.md` (Main Documentation)
 - Complete guide to all presets
-- Detailed descriptions of each agent preset
+- Detailed descriptions of each agent preset, including the new Markdown Architect workflow guidance
 - Tool preset specifications
 - API usage examples
 - Best practices and security considerations
@@ -80,7 +82,7 @@ Created detailed documentation:
 #### `/examples/preset_examples.md` (Practical Examples)
 - 10 real-world usage examples
 - API request examples with curl
-- Example combinations for different scenarios
+- Example combinations for different scenarios (now including Markdown-focused flows)
 - Two-phase workflows (analyze then fix)
 - Monitoring and debugging tips
 - Bash script for testing presets

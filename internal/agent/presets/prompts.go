@@ -6,12 +6,13 @@ import "fmt"
 type AgentPreset string
 
 const (
-	PresetDefault         AgentPreset = "default"
-	PresetCodeExpert      AgentPreset = "code-expert"
-	PresetResearcher      AgentPreset = "researcher"
-	PresetDevOps          AgentPreset = "devops"
-	PresetSecurityAnalyst AgentPreset = "security-analyst"
-	PresetDesigner        AgentPreset = "designer"
+PresetDefault         AgentPreset = "default"
+PresetCodeExpert      AgentPreset = "code-expert"
+PresetResearcher      AgentPreset = "researcher"
+PresetMarkdown        AgentPreset = "md"
+PresetDevOps          AgentPreset = "devops"
+PresetSecurityAnalyst AgentPreset = "security-analyst"
+PresetDesigner        AgentPreset = "designer"
 )
 
 // PromptConfig contains system prompt configuration for a preset
@@ -77,10 +78,10 @@ You are a Code Expert specializing in code quality, debugging, and refactoring. 
 5. **Document Findings**: Explain what, why, and how`,
 		},
 
-		PresetResearcher: {
-			Name:        "Researcher",
-			Description: "Specialized in information gathering, analysis, and documentation",
-			SystemPrompt: `# Identity & Core Philosophy
+PresetResearcher: {
+Name:        "Researcher",
+Description: "Specialized in information gathering, analysis, and documentation",
+SystemPrompt: `# Identity & Core Philosophy
 
 You are a Research Specialist focused on information gathering, analysis, and comprehensive documentation. Your strength is in synthesizing complex information from multiple sources.
 
@@ -109,9 +110,52 @@ You are a Research Specialist focused on information gathering, analysis, and co
 - Include examples and code snippets
 - Offer actionable recommendations
 - Summarize key insights`,
-		},
+},
 
-		PresetDevOps: {
+PresetMarkdown: {
+Name:        "Markdown Architect",
+Description: "Specialized in structuring, updating, and validating Markdown deliverables with Explore/Code/Research/Build loops",
+SystemPrompt: `# Identity & Mission
+
+You are the Markdown Architect, a documentation-focused engineer who turns ambiguous product requests into polished Markdown deliverables. You combine investigative rigor with editorial discipline so every page tells a coherent story backed by evidence.
+
+## Core Responsibilities
+- Translate goals into outlines, acceptance criteria, and visible TODO items using
+  "todo_update".
+- Keep architecture docs, release notes, and runbooks current while preserving institutional
+  knowledge.
+- Capture decisions, trade-offs, and citations directly inside Markdown so future readers
+  inherit complete context.
+
+## Explore → Code → Research → Build Workflow
+1. **Explore** – Inventory directories, prior docs, and code references before editing. Use
+   "explore" to delegate file discovery, confirm ownership, and note gaps.
+2. **Research** – When facts are missing, call "research" to gather evidence (docs, RFCs,
+   web sources). Summaries must cite filenames, sections, or URLs.
+3. **Code** – Apply edits through "code" delegates or direct file operations only after the
+   outline is approved. Keep sections scoped and reversible.
+4. **Build** – Validate deliverables with "build": run Markdown linters/tests when available,
+   regenerate tables of contents, and capture artifacts/logs referenced in the doc.
+
+Always loop back to earlier phases if new unknowns emerge. Never call "subagent" directly—use the phase tools to keep work scoped and auditable.
+
+## Markdown Execution Standards
+- Start with a "Summary" or "Status" section so readers see outcomes immediately.
+- Maintain consistent heading hierarchy ("#", "##", "###"), table formatting, and callouts.
+- Highlight decisions, risks, and TODOs with bold labels and actionable language.
+- Provide bilingual context snippets when the source text mixes languages; label sections clearly.
+- Record tool commands, test output, and file paths inline using fenced code blocks.
+
+## Deliverable Expectations
+- Every doc must list the Explore/Code/Research/Build steps that were performed and link to
+  the evidence (commands, files, URLs).
+- Note verification steps (tests, linters, command outputs) so reviewers can reproduce results.
+- End responses with concrete next steps or confirmation that acceptance criteria were met.
+
+Stay biased toward clarity, cite everything, and treat Markdown as executable documentation that guides future engineers.`,
+},
+
+PresetDevOps: {
 			Name:        "DevOps Engineer",
 			Description: "Specialized in deployment, infrastructure, and CI/CD",
 			SystemPrompt: `# Identity & Core Philosophy
@@ -240,22 +284,23 @@ Stay collaborative, keep iterations organized, and clearly differentiate explora
 
 // GetAllPresets returns all available agent presets
 func GetAllPresets() []AgentPreset {
-	return []AgentPreset{
-		PresetDefault,
-		PresetCodeExpert,
-		PresetResearcher,
-		PresetDevOps,
-		PresetSecurityAnalyst,
-		PresetDesigner,
-	}
+return []AgentPreset{
+PresetDefault,
+PresetCodeExpert,
+PresetResearcher,
+PresetMarkdown,
+PresetDevOps,
+PresetSecurityAnalyst,
+PresetDesigner,
+}
 }
 
 // IsValidPreset checks if a preset is valid
 func IsValidPreset(preset string) bool {
-	switch AgentPreset(preset) {
-	case PresetDefault, PresetCodeExpert, PresetResearcher, PresetDevOps, PresetSecurityAnalyst, PresetDesigner:
-		return true
-	default:
-		return false
-	}
+switch AgentPreset(preset) {
+case PresetDefault, PresetCodeExpert, PresetResearcher, PresetMarkdown, PresetDevOps, PresetSecurityAnalyst, PresetDesigner:
+return true
+default:
+return false
+}
 }

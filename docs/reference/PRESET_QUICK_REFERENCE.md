@@ -9,6 +9,7 @@
 | `default` | General-purpose coding assistant | Mixed tasks, general development |
 | `code-expert` | Code review, debugging, refactoring | Code quality, performance optimization |
 | `researcher` | Information gathering, analysis, documentation | Research, codebase analysis, docs |
+| `md` | Markdown Architect enforcing Explore/Code/Research/Build | Architecture docs, release notes, runbooks |
 | `devops` | Deployment, infrastructure, CI/CD | Infrastructure, automation, deployment |
 | `security-analyst` | Security audits, vulnerability detection | Security reviews, threat analysis |
 | `designer` | Visual ideation and Seedream prompt engineering | Creative briefs, concept art, marketing visuals |
@@ -73,11 +74,12 @@
 ### Documentation
 ```json
 {
-  "agent_preset": "researcher",
-  "tool_preset": "read-only"
+  "agent_preset": "md",
+  "tool_preset": "full"
 }
 ```
-**Use**: Analyze code and create documentation
+**Use**: Author Markdown deliverables with Explore → Code → Research → Build traceability
+**Workflow Notes**: Start with an outline/TODOs, cite every fact (file path, URL, or command), and close with the verification commands executed in the Build phase.
 
 ### Creative Concepting
 ```json
@@ -139,6 +141,8 @@ curl -X POST http://localhost:3000/api/tasks \
 - Use `read-only` for untrusted code review
 - Use `security-analyst` + `read-only` for audits
 - Use `researcher` + `web-only` for pure research
+- Use `md` + `full` for Markdown deliverables that need Explore/Code/Research/Build traceability
+- Capture citations (file paths, URLs, command output) inline when using `md`
 
 ❌ **DON'T:**
 - Use `full` access for initial security audits
@@ -152,8 +156,10 @@ curl -X POST http://localhost:3000/api/tasks \
 - `default`
 - `code-expert`
 - `researcher`
+- `md`
 - `devops`
 - `security-analyst`
+- `designer`
 
 ### Valid Tool Presets
 - `full`

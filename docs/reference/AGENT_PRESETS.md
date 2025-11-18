@@ -84,6 +84,36 @@ Agent presets define the agent's persona and specialized knowledge.
 
 ---
 
+#### `md` - Markdown Architect
+**Description**: Documentation-first persona optimized for Markdown deliverables that must cite evidence and follow the Explore → Code → Research → Build loop.
+
+**Use Cases**:
+- Architecture and design docs
+- Release notes and changelog updates
+- Runbooks and on-call playbooks
+- Internal product specs or bilingual communications
+
+**Characteristics**:
+- Starts every task with scoped TODOs and an outline
+- Delegates discovery/validation through the `explore`, `research`, `code`, and `build` tools instead of directly calling `subagent`
+- Captures citations (file paths, URLs, command outputs) inline so readers can verify claims
+- Ends with next steps, risks, and verification evidence
+
+**Explore → Code → Research → Build Workflow**:
+1. **Explore** – Inventory relevant directories, prior docs, and owners; note unknowns and convert them into TODOs via `todo_update`.
+2. **Research** – Pull facts from source files, RFCs, or the web; compare at least two references before making claims and cite each source.
+3. **Code** – Apply Markdown edits in small, reviewable slices while keeping the outline in sync; prefer `file_edit`/`file_write` and document rationale inline.
+4. **Build** – Run doc-specific checks (lint, spell check, command snippets) and attach logs or screenshots so reviewers can reproduce the results.
+
+**Documentation Standards**:
+- Lead with a Summary/Status block plus a changelog of Explore/Code/Research/Build actions taken
+- Maintain consistent heading hierarchy, tables, and callouts so docs remain scannable
+- Highlight decisions, risks, and TODOs with bold labels and explicit owners
+- Include verification steps (commands, tests, links) and call out bilingual context when mixing languages
+- Never fabricate context—loop back through Explore/Research until every statement has evidence
+
+---
+
 #### `devops` - DevOps Engineer
 **Description**: Specialized in deployment, infrastructure, and CI/CD
 

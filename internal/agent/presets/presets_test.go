@@ -20,11 +20,16 @@ func TestGetPromptConfig(t *testing.T) {
 			preset:  PresetCodeExpert,
 			wantErr: false,
 		},
-		{
-			name:    "researcher preset",
-			preset:  PresetResearcher,
-			wantErr: false,
-		},
+{
+name:    "researcher preset",
+preset:  PresetResearcher,
+wantErr: false,
+},
+{
+name:    "markdown architect preset",
+preset:  PresetMarkdown,
+wantErr: false,
+},
 		{
 			name:    "devops preset",
 			preset:  PresetDevOps,
@@ -124,19 +129,20 @@ func TestGetToolConfig(t *testing.T) {
 }
 
 func TestIsValidPreset(t *testing.T) {
-	tests := []struct {
-		name   string
-		preset string
-		want   bool
-	}{
-		{"default", "default", true},
-		{"code-expert", "code-expert", true},
-		{"researcher", "researcher", true},
-		{"devops", "devops", true},
-		{"security-analyst", "security-analyst", true},
-		{"invalid", "invalid", false},
-		{"empty", "", false},
-	}
+tests := []struct {
+name   string
+preset string
+want   bool
+}{
+{"default", "default", true},
+{"code-expert", "code-expert", true},
+{"researcher", "researcher", true},
+{"md", "md", true},
+{"devops", "devops", true},
+{"security-analyst", "security-analyst", true},
+{"invalid", "invalid", false},
+{"empty", "", false},
+}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -279,20 +285,21 @@ func TestToolPresetBlocking(t *testing.T) {
 }
 
 func TestGetAllPresets(t *testing.T) {
-	presets := GetAllPresets()
-	if len(presets) != 6 {
-		t.Errorf("GetAllPresets() returned %d presets, want 6", len(presets))
-	}
+presets := GetAllPresets()
+if len(presets) != 7 {
+t.Errorf("GetAllPresets() returned %d presets, want 7", len(presets))
+}
 
-	// Check all expected presets are present
-	expected := map[AgentPreset]bool{
-		PresetDefault:         false,
-		PresetCodeExpert:      false,
-		PresetResearcher:      false,
-		PresetDevOps:          false,
-		PresetSecurityAnalyst: false,
-		PresetDesigner:        false,
-	}
+// Check all expected presets are present
+expected := map[AgentPreset]bool{
+PresetDefault:         false,
+PresetCodeExpert:      false,
+PresetResearcher:      false,
+PresetMarkdown:        false,
+PresetDevOps:          false,
+PresetSecurityAnalyst: false,
+PresetDesigner:        false,
+}
 
 	for _, preset := range presets {
 		if _, ok := expected[preset]; ok {
