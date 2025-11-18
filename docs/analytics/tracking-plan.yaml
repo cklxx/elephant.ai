@@ -292,3 +292,37 @@ events:
       - name: step_count
         type: number
         required: true
+
+  - event: auto_review_continue
+    description: 内部回放中在自动评审卡片选择「继续完成」
+    source: web
+    properties:
+      - name: session_id
+        type: string
+        required: true
+        description: 触发操作的会话 ID
+      - name: task_id
+        type: string
+        required: false
+        description: 相关自动评审事件的任务 ID
+      - name: has_notes
+        type: boolean
+        required: true
+        description: 自动评审是否提供了未完成内容备注
+
+  - event: auto_review_continue_with_notes
+    description: 内部回放中在自动评审卡片选择「继续完成并标注未完成内容」
+    source: web
+    properties:
+      - name: session_id
+        type: string
+        required: true
+        description: 触发操作的会话 ID
+      - name: task_id
+        type: string
+        required: false
+        description: 相关自动评审事件的任务 ID
+      - name: has_notes
+        type: boolean
+        required: true
+        description: 自动评审是否提供了未完成内容备注
