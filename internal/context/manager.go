@@ -120,8 +120,10 @@ func (m *manager) ShouldCompress(messages []ports.Message, limit int) bool {
 	return float64(m.EstimateTokens(messages)) > float64(limit)*m.threshold
 }
 
-// Compress keeps the system prompt and the last ten messages, inserting a
-// placeholder message when older history is trimmed.
+// Compress keeps the system prompt and the last ten messages. When older
+// history is trimmed we inject a lightweight structured summary so the model
+// still has awareness of what was dropped without wasting tokens on verbose
+// placeholders.
 func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
 	if targetTokens <= 0 {
 		return messages, nil
@@ -136,13 +138,83 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	head := messages[0]
 	tail := messages[len(messages)-10:]
 	compressed := []ports.Message{head}
-	compressed = append(compressed, ports.Message{
-		Role:    "system",
-		Content: "[Previous conversation compressed to retain key goals and rules]",
-		Source:  ports.MessageSourceSystemPrompt,
-	})
+	if summary := buildCompressionSummary(messages[1 : len(messages)-10]); summary != "" {
+		compressed = append(compressed, ports.Message{
+			Role:    "system",
+			Content: summary,
+			Source:  ports.MessageSourceSystemPrompt,
+		})
+	}
 	compressed = append(compressed, tail...)
 	return compressed, nil
+}
+
+func buildCompressionSummary(messages []ports.Message) string {
+	if len(messages) == 0 {
+		return ""
+	}
+
+	var userCount, assistantCount, toolMentions int
+	var firstUser, lastUser, firstAssistant, lastAssistant string
+
+	for _, msg := range messages {
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		snippet := buildCompressionSnippet(msg.Content, 140)
+		switch role {
+		case "user":
+			userCount++
+			if firstUser == "" {
+				firstUser = snippet
+			}
+			lastUser = snippet
+		case "assistant":
+			assistantCount++
+			toolMentions += len(msg.ToolCalls)
+			if firstAssistant == "" {
+				firstAssistant = snippet
+			}
+			lastAssistant = snippet
+		case "tool":
+			toolMentions++
+		}
+		toolMentions += len(msg.ToolResults)
+	}
+
+	parts := []string{fmt.Sprintf("Earlier conversation had %d user message(s) and %d assistant response(s)", userCount, assistantCount)}
+	if toolMentions > 0 {
+		parts = append(parts, fmt.Sprintf("tools were referenced %d time(s)", toolMentions))
+	}
+
+	var contextParts []string
+	if firstUser != "" {
+		contextParts = append(contextParts, fmt.Sprintf("user first asked: %s", firstUser))
+	}
+	if firstAssistant != "" {
+		contextParts = append(contextParts, fmt.Sprintf("assistant first replied: %s", firstAssistant))
+	}
+	if lastUser != "" && lastUser != firstUser {
+		contextParts = append(contextParts, fmt.Sprintf("recent user request: %s", lastUser))
+	}
+	if lastAssistant != "" && lastAssistant != firstAssistant {
+		contextParts = append(contextParts, fmt.Sprintf("recent assistant reply: %s", lastAssistant))
+	}
+	if len(contextParts) > 0 {
+		parts = append(parts, strings.Join(contextParts, " | "))
+	}
+
+	return fmt.Sprintf("[Earlier context compressed] %s.", strings.Join(parts, "; "))
+}
+
+func buildCompressionSnippet(content string, limit int) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" || limit <= 0 {
+		return trimmed
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= limit {
+		return trimmed
+	}
+	return strings.TrimSpace(string(runes[:limit])) + "…"
 }
 
 func (m *manager) Preload(ctx context.Context) error {
@@ -575,9 +647,9 @@ func readYAMLDir(dir string) ([][]byte, error) {
 		if d.IsDir() {
 			return nil
 		}
-if !strings.HasSuffix(d.Name(), ".yaml") && !strings.HasSuffix(d.Name(), ".yml") {
-return nil
-}
+		if !strings.HasSuffix(d.Name(), ".yaml") && !strings.HasSuffix(d.Name(), ".yml") {
+			return nil
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
