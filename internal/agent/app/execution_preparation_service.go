@@ -149,12 +149,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if s.contextMgr != nil {
 		originalCount := len(session.Messages)
 		var err error
-		window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
-			TokenLimit:         s.config.MaxTokens,
-			PersonaKey:         personaKey,
-			ToolPreset:         s.config.ToolPreset,
-			EnvironmentSummary: s.config.EnvironmentSummary,
-		})
+                window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+                        PersonaKey:         personaKey,
+                        ToolPreset:         s.config.ToolPreset,
+                        EnvironmentSummary: s.config.EnvironmentSummary,
+                })
 		if err != nil {
 			return nil, fmt.Errorf("build context window: %w", err)
 		}
