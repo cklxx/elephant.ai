@@ -1,4 +1,6 @@
 # Cost Tracking and Token Usage Analytics
+> Last updated: 2025-11-18
+
 
 ALEX includes comprehensive cost tracking and token usage analytics to help you monitor and manage LLM API costs.
 

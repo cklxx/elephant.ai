@@ -1,4 +1,6 @@
 # Agent-TUI Communication Architecture
+> Last updated: 2025-11-18
+
 
 **Date:** 2025-10-01
 **Status:** Design Document

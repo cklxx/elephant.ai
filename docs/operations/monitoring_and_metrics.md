@@ -1,4 +1,6 @@
 # ALEX Monitoring and Metrics Guide
+> Last updated: 2025-11-18
+
 
 **Version**: 0.6.0
 **Last Updated**: 2025-Q1

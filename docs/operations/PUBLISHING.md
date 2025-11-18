@@ -1,4 +1,6 @@
 # Publishing Guide
+> Last updated: 2025-11-18
+
 
 This project uses an `esbuild`-style multi-package approach to distribute the `alex` binary via npm. This involves a main package (`alex-code`) and several platform-specific packages (`@alex-code/linux-amd64`, etc.).
 

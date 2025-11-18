@@ -1,4 +1,6 @@
 # ALEX Observability Guide
+> Last updated: 2025-11-18
+
 
 This guide explains how to use ALEX's comprehensive observability features including structured logging, metrics, and distributed tracing.
 

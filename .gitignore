@@ -127,3 +127,6 @@ old_internal/
 ast_viewr
 *.old
 pet_podcast_basic.png
+
+# Local tooling
+.bin/
