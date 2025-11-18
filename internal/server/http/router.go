@@ -39,28 +39,28 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	// SSE endpoint
 	mux.Handle("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream)))
 
-	if authHandler != nil {
+if authHandler != nil {
 		mux.HandleFunc("/api/auth/register", authHandler.HandleRegister)
 		mux.HandleFunc("/api/auth/login", authHandler.HandleLogin)
 		mux.HandleFunc("/api/auth/logout", authHandler.HandleLogout)
 		mux.HandleFunc("/api/auth/refresh", authHandler.HandleRefresh)
 		mux.HandleFunc("/api/auth/me", authHandler.HandleMe)
 		mux.HandleFunc("/api/auth/plans", authHandler.HandleListPlans)
-		mux.HandleFunc("/api/subscriptions/plans", authHandler.HandleListPlans)
-		mux.Handle("/api/subscriptions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost && !internalMode {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			authHandler.HandleSubscriptions(w, r)
-		})))
-		mux.Handle("/api/points", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost && !internalMode {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			authHandler.HandlePoints(w, r)
-		})))
+mux.HandleFunc("/api/subscriptions/plans", authHandler.HandleListPlans)
+mux.Handle("/api/subscriptions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+if r.Method == http.MethodPost && !internalMode {
+http.Error(w, "subscription overrides are restricted to internal deployments", http.StatusForbidden)
+return
+}
+authHandler.HandleSubscriptions(w, r)
+})))
+mux.Handle("/api/points", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+if r.Method == http.MethodPost && !internalMode {
+http.Error(w, "points adjustments are restricted to internal deployments", http.StatusForbidden)
+return
+}
+authHandler.HandlePoints(w, r)
+})))
 		if internalMode {
 			mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
 			mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
@@ -77,6 +77,25 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.HandleFunc("/api/auth/wechat/callback", func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthCallback(domain.ProviderWeChat, w, r)
 		})
+} else {
+authDisabled := func(w http.ResponseWriter, r *http.Request) {
+http.Error(w, "Authentication module not configured", http.StatusServiceUnavailable)
+}
+mux.HandleFunc("/api/auth/register", authDisabled)
+mux.HandleFunc("/api/auth/login", authDisabled)
+mux.HandleFunc("/api/auth/logout", authDisabled)
+mux.HandleFunc("/api/auth/refresh", authDisabled)
+mux.HandleFunc("/api/auth/me", authDisabled)
+mux.HandleFunc("/api/auth/plans", authDisabled)
+mux.HandleFunc("/api/subscriptions/plans", authDisabled)
+mux.HandleFunc("/api/subscriptions", authDisabled)
+mux.HandleFunc("/api/points", authDisabled)
+mux.HandleFunc("/api/auth/points", authDisabled)
+mux.HandleFunc("/api/auth/subscription", authDisabled)
+mux.HandleFunc("/api/auth/google/login", authDisabled)
+		mux.HandleFunc("/api/auth/google/callback", authDisabled)
+		mux.HandleFunc("/api/auth/wechat/login", authDisabled)
+		mux.HandleFunc("/api/auth/wechat/callback", authDisabled)
 	}
 
 	// Task endpoints
@@ -115,6 +134,19 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 			apiHandler.HandleListSessions(w, r)
 		} else {
 			path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+
+			if strings.HasSuffix(path, "/snapshots") {
+				apiHandler.HandleListSnapshots(w, r)
+				return
+			}
+			if strings.Contains(path, "/turns/") {
+				apiHandler.HandleGetTurnSnapshot(w, r)
+				return
+			}
+			if strings.HasSuffix(path, "/replay") {
+				apiHandler.HandleReplaySession(w, r)
+				return
+			}
 
 			// Handle /api/sessions/:id/fork
 			if strings.HasSuffix(path, "/fork") {

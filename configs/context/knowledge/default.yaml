@@ -1,0 +1,9 @@
+id: default
+description: Core operating procedures
+sop_refs:
+  - docs/sop/triage.md
+  - docs/sop/tooling.md
+rag_collections:
+  - core
+memory_keys:
+  - core-values

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -165,10 +166,13 @@ func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	if refresh == "" {
 		var req refreshRequest
 		if err := decodeJSONBody(w, r, &req); err != nil {
-			h.writeError(w, err)
-			return
+			if !errors.Is(err, io.EOF) {
+				h.writeError(w, err)
+				return
+			}
+		} else {
+			refresh = req.RefreshToken
 		}
-		refresh = req.RefreshToken
 	}
 	if refresh == "" {
 		http.Error(w, "refresh token required", http.StatusBadRequest)

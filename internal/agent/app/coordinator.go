@@ -116,6 +116,12 @@ func NewAgentCoordinator(
 		RAGGate:       coordinator.ragGate,
 	})
 
+	if coordinator.contextMgr != nil {
+		if err := coordinator.contextMgr.Preload(context.Background()); err != nil {
+			coordinator.logger.Warn("Context preload failed: %v", err)
+		}
+	}
+
 	return coordinator
 }
 

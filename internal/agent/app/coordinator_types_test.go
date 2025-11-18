@@ -70,6 +70,14 @@ func (stubContextManager) Compress(messages []ports.Message, targetTokens int) (
 	return messages, nil
 }
 func (stubContextManager) ShouldCompress(messages []ports.Message, limit int) bool { return false }
+func (stubContextManager) Preload(context.Context) error                           { return nil }
+func (stubContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+	if session == nil {
+		return ports.ContextWindow{}, fmt.Errorf("session required")
+	}
+	return ports.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
+}
+func (stubContextManager) RecordTurn(context.Context, ports.ContextTurnRecord) error { return nil }
 
 type stubToolRegistry struct{}
 
