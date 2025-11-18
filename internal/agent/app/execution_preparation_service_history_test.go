@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/prompts"
 )
 
 func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
@@ -48,7 +47,6 @@ func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
 		SessionStore:  store,
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
-		PromptLoader:  prompts.New(),
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
@@ -129,7 +127,6 @@ func TestPrepareSkipsHistoryRecallWhenNoMatch(t *testing.T) {
 		SessionStore:  store,
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
-		PromptLoader:  prompts.New(),
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),

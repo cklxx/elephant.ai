@@ -18,7 +18,6 @@ type AgentCoordinator struct {
 	sessionStore ports.SessionStore
 	contextMgr   ports.ContextManager
 	parser       ports.FunctionCallParser
-	promptLoader ports.PromptLoader
 	costTracker  ports.CostTracker
 	config       Config
 	logger       ports.Logger
@@ -53,7 +52,6 @@ func NewAgentCoordinator(
 	sessionStore ports.SessionStore,
 	contextMgr ports.ContextManager,
 	parser ports.FunctionCallParser,
-	promptLoader ports.PromptLoader,
 	costTracker ports.CostTracker,
 	config Config,
 	opts ...CoordinatorOption,
@@ -75,7 +73,6 @@ func NewAgentCoordinator(
 		sessionStore: sessionStore,
 		contextMgr:   contextMgr,
 		parser:       parser,
-		promptLoader: promptLoader,
 		costTracker:  costTracker,
 		config:       config,
 		logger:       utils.NewComponentLogger("Coordinator"),
@@ -106,7 +103,6 @@ func NewAgentCoordinator(
 		SessionStore:  sessionStore,
 		ContextMgr:    contextMgr,
 		Parser:        parser,
-		PromptLoader:  coordinator.promptLoader,
 		Config:        config,
 		Logger:        coordinator.logger,
 		Clock:         coordinator.clock,
@@ -272,7 +268,6 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 			SessionStore:  c.sessionStore,
 			ContextMgr:    c.contextMgr,
 			Parser:        c.parser,
-			PromptLoader:  c.promptLoader,
 			Config:        c.config,
 			Logger:        c.logger,
 			Clock:         c.clock,
@@ -457,8 +452,26 @@ func (c *AgentCoordinator) GetContextManager() ports.ContextManager {
 
 // GetSystemPrompt returns the system prompt
 func (c *AgentCoordinator) GetSystemPrompt() string {
-	prompt, _ := c.promptLoader.GetSystemPrompt("", nil)
-	return prompt
+	if c.contextMgr == nil {
+		return defaultSystemPrompt
+	}
+	session := &ports.Session{ID: "", Messages: nil}
+	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
+		TokenLimit:         c.config.MaxTokens,
+		PersonaKey:         c.config.AgentPreset,
+		ToolPreset:         c.config.ToolPreset,
+		EnvironmentSummary: c.config.EnvironmentSummary,
+	})
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Warn("Failed to build preview context window: %v", err)
+		}
+		return defaultSystemPrompt
+	}
+	if prompt := strings.TrimSpace(window.SystemPrompt); prompt != "" {
+		return prompt
+	}
+	return defaultSystemPrompt
 }
 
 // performTaskPreAnalysis performs quick task analysis using LLM

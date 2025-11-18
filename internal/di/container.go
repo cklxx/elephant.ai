@@ -16,7 +16,6 @@ import (
 	"alex/internal/llm"
 	"alex/internal/mcp"
 	"alex/internal/parser"
-	"alex/internal/prompts"
 	"alex/internal/rag/gate"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
@@ -246,9 +245,6 @@ func BuildContainer(config Config) (*Container, error) {
 	mcpRegistry := mcp.NewRegistry(mcp.WithEnvLookup(envLookup))
 	tracker := newMCPInitializationTracker()
 
-	// Prompt Loader - implements ports.PromptLoader interface
-	promptLoader := prompts.New(prompts.WithSandbox(sandboxManager))
-
 	// Application Layer
 	ragGateImpl := gate.New(gate.DefaultConfig(), gate.NopEmitter{})
 
@@ -258,7 +254,6 @@ func BuildContainer(config Config) (*Container, error) {
 		sessionStore,
 		contextMgr,
 		parserImpl,
-		promptLoader,
 		costTracker,
 		agentApp.Config{
 			LLMProvider:         config.LLMProvider,

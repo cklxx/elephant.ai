@@ -46,11 +46,12 @@ type ContextWindowConfig struct {
 
 // ContextWindow exposes the layered context returned by the manager.
 type ContextWindow struct {
-	SessionID string         `json:"session_id"`
-	Messages  []Message      `json:"messages"`
-	Static    StaticContext  `json:"static"`
-	Dynamic   DynamicContext `json:"dynamic"`
-	Meta      MetaContext    `json:"meta"`
+	SessionID    string         `json:"session_id"`
+	Messages     []Message      `json:"messages"`
+	SystemPrompt string         `json:"system_prompt"`
+	Static       StaticContext  `json:"static"`
+	Dynamic      DynamicContext `json:"dynamic"`
+	Meta         MetaContext    `json:"meta"`
 }
 
 // StaticContext captures persona, goals, rules and knowledge packs.
@@ -85,45 +86,45 @@ type MetaContext struct {
 
 // PersonaProfile models persona level instructions.
 type PersonaProfile struct {
-	ID            string `json:"id"`
-	Tone          string `json:"tone"`
-	RiskProfile   string `json:"risk_profile"`
-	DecisionStyle string `json:"decision_style"`
-	Voice         string `json:"voice"`
+	ID            string `json:"id" yaml:"id"`
+	Tone          string `json:"tone" yaml:"tone"`
+	RiskProfile   string `json:"risk_profile" yaml:"risk_profile"`
+	DecisionStyle string `json:"decision_style" yaml:"decision_style"`
+	Voice         string `json:"voice" yaml:"voice"`
 }
 
 // GoalProfile enumerates long and mid-term goals.
 type GoalProfile struct {
-	ID             string   `json:"id"`
-	LongTerm       []string `json:"long_term"`
-	MidTerm        []string `json:"mid_term"`
-	SuccessMetrics []string `json:"success_metrics"`
+	ID             string   `json:"id" yaml:"id"`
+	LongTerm       []string `json:"long_term" yaml:"long_term"`
+	MidTerm        []string `json:"mid_term" yaml:"mid_term"`
+	SuccessMetrics []string `json:"success_metrics" yaml:"success_metrics"`
 }
 
 // PolicyRule contains explicit guardrails/preference statements.
 type PolicyRule struct {
-	ID              string   `json:"id"`
-	HardConstraints []string `json:"hard_constraints"`
-	SoftPreferences []string `json:"soft_preferences"`
-	RewardHooks     []string `json:"reward_hooks"`
+	ID              string   `json:"id" yaml:"id"`
+	HardConstraints []string `json:"hard_constraints" yaml:"hard_constraints"`
+	SoftPreferences []string `json:"soft_preferences" yaml:"soft_preferences"`
+	RewardHooks     []string `json:"reward_hooks" yaml:"reward_hooks"`
 }
 
 // KnowledgeReference references SOP or RAG collections.
 type KnowledgeReference struct {
-	ID             string   `json:"id"`
-	Description    string   `json:"description"`
-	SOPRefs        []string `json:"sop_refs"`
-	RAGCollections []string `json:"rag_collections"`
-	MemoryKeys     []string `json:"memory_keys"`
+	ID             string   `json:"id" yaml:"id"`
+	Description    string   `json:"description" yaml:"description"`
+	SOPRefs        []string `json:"sop_refs" yaml:"sop_refs"`
+	RAGCollections []string `json:"rag_collections" yaml:"rag_collections"`
+	MemoryKeys     []string `json:"memory_keys" yaml:"memory_keys"`
 }
 
 // WorldProfile enumerates runtime environment capabilities and limits.
 type WorldProfile struct {
-	ID           string   `json:"id"`
-	Environment  string   `json:"environment"`
-	Capabilities []string `json:"capabilities"`
-	Limits       []string `json:"limits"`
-	CostModel    []string `json:"cost_model"`
+	ID           string   `json:"id" yaml:"id"`
+	Environment  string   `json:"environment" yaml:"environment"`
+	Capabilities []string `json:"capabilities" yaml:"capabilities"`
+	Limits       []string `json:"limits" yaml:"limits"`
+	CostModel    []string `json:"cost_model" yaml:"cost_model"`
 }
 
 // PlanNode encodes nested plan trees.
