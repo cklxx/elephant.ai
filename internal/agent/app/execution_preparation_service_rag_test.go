@@ -50,9 +50,16 @@ func (f *fakeLLMFactory) GetIsolatedClient(provider, model string, config ports.
 
 func (f *fakeLLMFactory) DisableRetry() {}
 
+const fakeHistorySummaryResponse = "History Summary: Marketing experiments and automation context recalled."
+
 type fakeLLMClient struct{}
 
 func (fakeLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	if req.Metadata != nil {
+		if intent, ok := req.Metadata["intent"].(string); ok && intent == historySummaryIntent {
+			return &ports.CompletionResponse{Content: fakeHistorySummaryResponse}, nil
+		}
+	}
 	return &ports.CompletionResponse{Content: `<task_analysis>
   <action>Researching marketing landscape</action>
   <goal>Summarize current marketing trends</goal>
