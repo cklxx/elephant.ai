@@ -1182,22 +1182,32 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 		return
 	}
 
+	systemPromptIdx := -1
 	for idx := range state.Messages {
-		role := strings.ToLower(strings.TrimSpace(state.Messages[idx].Role))
-		if state.Messages[idx].Source == ports.MessageSourceSystemPrompt || role == "system" {
-			if strings.TrimSpace(state.Messages[idx].Content) == prompt {
-				// Existing system prompt already matches the desired prompt.
-				if state.Messages[idx].Source == "" {
-					state.Messages[idx].Source = ports.MessageSourceSystemPrompt
-				}
-				return
-			}
+		msg := state.Messages[idx]
+		if !isSystemPromptMessage(msg) {
+			continue
+		}
+		systemPromptIdx = idx
+		break
+	}
 
-			state.Messages[idx].Content = state.SystemPrompt
-			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
-			e.logger.Debug("Updated existing system prompt in message history")
+	if systemPromptIdx >= 0 {
+		msg := state.Messages[systemPromptIdx]
+		if strings.TrimSpace(msg.Content) == prompt && msg.Source == ports.MessageSourceSystemPrompt && systemPromptIdx == 0 {
+			// Prompt already correct and at the head of the conversation.
 			return
 		}
+
+		msg.Role = "system"
+		msg.Content = prompt
+		msg.Source = ports.MessageSourceSystemPrompt
+
+		// Remove the old entry and move the updated message to the front of the conversation.
+		state.Messages = append(state.Messages[:systemPromptIdx], state.Messages[systemPromptIdx+1:]...)
+		state.Messages = append([]Message{msg}, state.Messages...)
+		e.logger.Debug("Updated existing system prompt in message history")
+		return
 	}
 
 	systemMessage := Message{
@@ -1208,6 +1218,18 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 	state.Messages = append([]Message{systemMessage}, state.Messages...)
 	e.logger.Debug("Inserted system prompt into message history")
+}
+
+func isSystemPromptMessage(msg Message) bool {
+	source := ports.MessageSource(strings.TrimSpace(string(msg.Source)))
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+
+	if source == ports.MessageSourceSystemPrompt {
+		return true
+	}
+
+	// Treat legacy prompt entries (which may not set the source) as system prompts so they can be updated.
+	return source == "" && role == "system"
 }
 
 func ensureAttachmentStore(state *TaskState) {
