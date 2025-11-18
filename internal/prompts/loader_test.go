@@ -9,6 +9,8 @@ import (
 
 	"github.com/agent-infra/sandbox-sdk-go/file"
 	"github.com/agent-infra/sandbox-sdk-go/shell"
+
+	"alex/internal/agent/ports"
 )
 
 func TestGetSystemPromptIncludesSkillsInfo(t *testing.T) {
@@ -65,6 +67,34 @@ func TestWithSandboxIgnoresNilImplementation(t *testing.T) {
 
 	if _, err := loader.GetSystemPrompt("goal", nil); err != nil {
 		t.Fatalf("GetSystemPrompt should not fail without sandbox: %v", err)
+	}
+}
+
+func TestBuildPromptVariablesIncludesContextSummary(t *testing.T) {
+	loader := New()
+	vars := loader.buildPromptVariables(
+		"/repo",
+		"Ship the feature",
+		&ports.TaskAnalysisInfo{Action: "Plan rollout", Goal: "Ship the feature", Approach: "Iterative"},
+		"Respect coding standards and security reviews.",
+		"Current branch: main\nStatus: clean",
+	)
+	summary := vars["ContextSummary"]
+	if summary == "" {
+		t.Fatalf("expected context summary to be populated")
+	}
+	checks := []string{
+		"Working directory: /repo",
+		"Goal: Ship the feature",
+		"Task analysis:",
+		"Plan rollout",
+		"Memory:",
+		"Git:",
+	}
+	for _, snippet := range checks {
+		if !strings.Contains(summary, snippet) {
+			t.Fatalf("expected summary to contain %q, got %q", snippet, summary)
+		}
 	}
 }
 

@@ -31,6 +31,11 @@ type Loader struct {
 	sandbox   Sandbox
 }
 
+const (
+	defaultProjectMemory   = "You are a helpful AI assistant."
+	gitNotRepositoryMarker = "Not in a git repository"
+)
+
 // LoaderOption customises the prompt loader behaviour.
 type LoaderOption func(*Loader)
 
@@ -216,21 +221,22 @@ func (l *Loader) buildPromptVariables(workingDir, goal string, analysis *ports.T
 			analysis.Action, analysis.Goal, analysis.Approach)
 	}
 
+	summary := buildContextSummary(workingDir, goal, memory, gitInfo, taskAnalysis)
+
 	return map[string]string{
-		"WorkingDir":   workingDir,
-		"Goal":         goal,
-		"Memory":       memory,
-		"GitInfo":      gitInfo,
-		"TaskAnalysis": taskAnalysis,
+		"WorkingDir":     workingDir,
+		"Goal":           goal,
+		"Memory":         memory,
+		"GitInfo":        gitInfo,
+		"TaskAnalysis":   taskAnalysis,
+		"ContextSummary": summary,
 	}
 }
 
 // loadProjectMemory loads project memory from ALEX.md file with CLAUDE.md fallback
 func (l *Loader) loadProjectMemory(workingDir string) string {
-	defaultMemory := "You are a helpful AI assistant."
-
 	if workingDir == "" {
-		return defaultMemory
+		return defaultProjectMemory
 	}
 
 	// Try ALEX.md first
@@ -245,7 +251,7 @@ func (l *Loader) loadProjectMemory(workingDir string) string {
 		return content
 	}
 
-	return defaultMemory
+	return defaultProjectMemory
 }
 
 // loadGitInfo loads current git information
@@ -403,12 +409,12 @@ func (l *Loader) sandboxProjectMemory() string {
 	if content := l.sandboxReadFile("CLAUDE.md"); content != "" {
 		return content
 	}
-	return "You are a helpful AI assistant."
+	return defaultProjectMemory
 }
 
 func (l *Loader) sandboxGitInfo() string {
 	if strings.TrimSpace(l.sandboxCommand("git rev-parse --is-inside-work-tree")) != "true" {
-		return "Not in a git repository"
+		return gitNotRepositoryMarker
 	}
 
 	var builder strings.Builder
@@ -431,10 +437,53 @@ func (l *Loader) sandboxGitInfo() string {
 	}
 
 	if builder.Len() == 0 {
-		return "Not in a git repository"
+		return gitNotRepositoryMarker
 	}
 
 	return strings.TrimSpace(builder.String())
+}
+
+func buildContextSummary(workingDir, goal, memory, gitInfo, taskAnalysis string) string {
+	var parts []string
+	if trimmed := strings.TrimSpace(workingDir); trimmed != "" {
+		parts = append(parts, fmt.Sprintf("- Working directory: %s", trimmed))
+	}
+	if trimmed := strings.TrimSpace(goal); trimmed != "" {
+		parts = append(parts, fmt.Sprintf("- Goal: %s", trimmed))
+	}
+	if formatted := formatMultiline("Task analysis", taskAnalysis); formatted != "" {
+		parts = append(parts, formatted)
+	}
+	if trimmed := strings.TrimSpace(memory); trimmed != "" && trimmed != defaultProjectMemory {
+		if formatted := formatMultiline("Memory", trimmed); formatted != "" {
+			parts = append(parts, formatted)
+		}
+	}
+	if trimmed := strings.TrimSpace(gitInfo); trimmed != "" && trimmed != gitNotRepositoryMarker {
+		if formatted := formatMultiline("Git", trimmed); formatted != "" {
+			parts = append(parts, formatted)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func formatMultiline(label, value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.Contains(trimmed, "\n") {
+		return fmt.Sprintf("- %s:\n%s", label, indentLines(trimmed, "  "))
+	}
+	return fmt.Sprintf("- %s: %s", label, trimmed)
+}
+
+func indentLines(value, prefix string) string {
+	lines := strings.Split(value, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + strings.TrimRight(line, " \t")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (l *Loader) sandboxSkillsInfo() string {
