@@ -1,4 +1,6 @@
 # ALEX Server Acceptance Test Summary
+> Last updated: 2025-11-18
+
 
 **Date**: 2025-10-03
 **Version**: v2.0

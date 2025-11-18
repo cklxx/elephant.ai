@@ -1,4 +1,6 @@
 # CLI Chat Experience Refactor Plan
+> Last updated: 2025-11-18
+
 
 ## 1. Current Architecture Overview
 
@@ -164,4 +166,3 @@ Total: ~9 weeks with overlap possible if multiple contributors work in parallel 
 - **High-volume transcript optimisations** – profile and, if necessary, paginate rendering for transcripts that exceed ~5k messages to protect redraw latency.
 - **Real-time cost streaming** – explore wiring the cost tracker to push incremental updates without waiting for `/cost` or manual refreshes, especially for long-running background sessions.
 - **Configuration persistence** – persist UI preferences (follow mode, focused pane, verbose toggle) so they survive restarts alongside the restored transcript.
-

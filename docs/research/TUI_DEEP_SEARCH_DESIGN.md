@@ -1,4 +1,6 @@
 # TUI Deep Search Interface Design Research
+> Last updated: 2025-11-18
+
 
 **Date:** 2025-10-01
 **Purpose:** Comprehensive research on TUI development for ALEX deep search feature

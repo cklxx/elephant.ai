@@ -1,4 +1,6 @@
 # ALEX 完整架构图
+> Last updated: 2025-11-18
+
 
 ```mermaid
 graph TD

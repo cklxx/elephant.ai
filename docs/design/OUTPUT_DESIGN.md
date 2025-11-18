@@ -1,4 +1,6 @@
 # Output Design - Dual Format System
+> Last updated: 2025-11-18
+
 
 ## Overview
 
