@@ -8,7 +8,7 @@ export function ThinkingIndicator() {
 
   return (
     <div className="flex items-center gap-4" data-testid="thinking-event">
-      <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-border bg-card shadow-[3px_3px_0_rgba(0,0,0,0.55)]">
+      <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-border bg-card">
         <Brain className="h-4 w-4 text-foreground" aria-hidden />
       </span>
       <div className="flex flex-col gap-1">
