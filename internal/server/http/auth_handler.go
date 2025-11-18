@@ -332,8 +332,137 @@ func (h *AuthHandler) HandleOAuthCallback(provider domain.ProviderType, w http.R
 	}
 	h.setRefreshCookie(w, tokens.RefreshToken, tokens.RefreshExpiry)
 	resp := tokenResponse{AccessToken: tokens.AccessToken, ExpiresAt: tokens.AccessExpiry, RefreshExpires: tokens.RefreshExpiry, User: toUserDTO(user)}
+	if prefersHTML(r.Header.Get("Accept")) {
+		h.writeOAuthSuccessPage(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+func (h *AuthHandler) writeOAuthSuccessPage(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, oauthCallbackSuccessHTML)
+}
+
+func prefersHTML(accept string) bool {
+	if accept == "" {
+		return false
+	}
+	accept = strings.ToLower(accept)
+	for _, part := range strings.Split(accept, ",") {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if idx := strings.Index(value, ";"); idx >= 0 {
+			value = value[:idx]
+		}
+		if value == "text/html" || value == "application/xhtml+xml" {
+			return true
+		}
+	}
+	return false
+}
+
+const oauthCallbackSuccessHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login complete · Alex Console</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #f3f4f6;
+    }
+    main {
+      background: #fff;
+      padding: 32px;
+      max-width: 420px;
+      border-radius: 16px;
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.15);
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+      color: #111827;
+    }
+    p {
+      margin: 0 0 1.25rem;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+    button {
+      background: #111827;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 0.65rem 1.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #fallback[hidden] {
+      display: none;
+    }
+  </style>
+  <script>
+    (function () {
+      function notifyParent() {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ source: "alex-auth", status: "success" }, "*");
+          }
+        } catch (err) {
+          // ignore cross-origin restrictions
+        }
+      }
+
+      function closeWindow() {
+        notifyParent();
+        try {
+          window.close();
+        } catch (err) {
+          // ignore
+        }
+      }
+
+      window.addEventListener("load", function () {
+        closeWindow();
+        window.setTimeout(function () {
+          var fallback = document.getElementById("fallback");
+          if (fallback) {
+            fallback.hidden = false;
+            var button = document.getElementById("close-window");
+            if (button) {
+              try { button.focus(); } catch (err) {}
+            }
+          }
+        }, 800);
+      });
+    })();
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Login complete</h1>
+    <p>You're signed in and this window will close automatically. You can return to Alex Console at any time.</p>
+    <div id="fallback" hidden>
+      <p>If this window didn't close, you can do it manually now.</p>
+      <button id="close-window" type="button" onclick="window.close()">Close this window</button>
+    </div>
+  </main>
+</body>
+</html>`
 
 func (h *AuthHandler) requireAuthenticatedUser(w http.ResponseWriter, r *http.Request) (domain.User, bool) {
 	token := extractBearerToken(r.Header.Get("Authorization"))
