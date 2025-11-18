@@ -2,8 +2,12 @@ package context
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -471,6 +475,9 @@ func (r *staticRegistry) currentSnapshot(ctx context.Context) (staticSnapshot, e
 		return r.snapshot, nil
 	}
 
+	if r.metrics != nil {
+		r.metrics.RecordStaticCacheMiss()
+	}
 	snap, err := r.load(ctx)
 	if err != nil {
 		return staticSnapshot{}, err
@@ -483,32 +490,28 @@ func (r *staticRegistry) currentSnapshot(ctx context.Context) (staticSnapshot, e
 func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
 	personas, err := loadPersonas(filepath.Join(r.root, "personas"))
 	if err != nil {
-		r.metrics.RecordStaticCacheMiss()
 		return staticSnapshot{}, err
 	}
 	goals, err := loadGoals(filepath.Join(r.root, "goals"))
 	if err != nil {
-		r.metrics.RecordStaticCacheMiss()
 		return staticSnapshot{}, err
 	}
 	policies, err := loadPolicies(filepath.Join(r.root, "policies"))
 	if err != nil {
-		r.metrics.RecordStaticCacheMiss()
 		return staticSnapshot{}, err
 	}
 	knowledge, err := loadKnowledge(filepath.Join(r.root, "knowledge"))
 	if err != nil {
-		r.metrics.RecordStaticCacheMiss()
 		return staticSnapshot{}, err
 	}
 	worlds, err := loadWorlds(filepath.Join(r.root, "worlds"))
 	if err != nil {
-		r.metrics.RecordStaticCacheMiss()
 		return staticSnapshot{}, err
 	}
 
+	version := hashStaticSnapshot(personas, goals, policies, knowledge, worlds)
 	snap := staticSnapshot{
-		Version:   fmt.Sprintf("%d", time.Now().Unix()),
+		Version:   version,
 		LoadedAt:  time.Now(),
 		Personas:  personas,
 		Goals:     goals,
@@ -658,4 +661,45 @@ func readYAMLDir(dir string) ([][]byte, error) {
 		return nil
 	})
 	return blobs, err
+}
+
+func hashStaticSnapshot(
+	personas map[string]ports.PersonaProfile,
+	goals map[string]ports.GoalProfile,
+	policies map[string]ports.PolicyRule,
+	knowledge map[string]ports.KnowledgeReference,
+	worlds map[string]ports.WorldProfile,
+) string {
+	h := sha256.New()
+	encodeMapForHash(h, "personas", personas)
+	encodeMapForHash(h, "goals", goals)
+	encodeMapForHash(h, "policies", policies)
+	encodeMapForHash(h, "knowledge", knowledge)
+	encodeMapForHash(h, "worlds", worlds)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func encodeMapForHash[T any](h hash.Hash, label string, entries map[string]T) {
+	if h == nil {
+		return
+	}
+	h.Write([]byte(label))
+	if len(entries) == 0 {
+		h.Write([]byte{0})
+		return
+	}
+	keys := make([]string, 0, len(entries))
+	for k := range entries {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		h.Write([]byte(k))
+		data, err := json.Marshal(entries[k])
+		if err != nil {
+			h.Write([]byte(fmt.Sprintf("%v", entries[k])))
+			continue
+		}
+		h.Write(data)
+	}
 }
