@@ -1,4 +1,6 @@
 # ReAct 认知架构思维导图
+> Last updated: 2025-11-18
+
 
 ```mermaid
 mindmap

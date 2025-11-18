@@ -1,4 +1,6 @@
 # Tool Development Guide
+> Last updated: 2025-11-18
+
 
 ## Overview
 

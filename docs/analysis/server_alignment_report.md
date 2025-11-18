@@ -1,4 +1,6 @@
 # Server Alignment & Reliability Audit
+> Last updated: 2025-11-18
+
 
 _Last updated: 2024-xx-xx_
 

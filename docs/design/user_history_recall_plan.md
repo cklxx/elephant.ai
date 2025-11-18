@@ -1,4 +1,6 @@
 # User History Recall, Search, and Blending Plan
+> Last updated: 2025-11-18
+
 
 ## Goals
 - Surface relevant prior exchanges to ground new tasks with historical context.

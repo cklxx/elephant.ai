@@ -1,4 +1,6 @@
 # Session and Task Identifier Acceptance Checklist
+> Last updated: 2025-11-18
+
 
 This manual acceptance guide exercises the full identifier pipeline (session → task → subtask) across the CLI, HTTP API, SSE stream, and structured logs. Follow these steps after applying the identifier changes to verify end-to-end propagation.
 

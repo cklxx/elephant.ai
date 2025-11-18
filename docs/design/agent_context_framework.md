@@ -1,4 +1,6 @@
 # 智能体三层 Context 框架技术方案（面向 ALEX 优化）
+> Last updated: 2025-11-18
+
 
 ## 0. 现状评估（2024-05）
 
@@ -362,4 +364,3 @@ Meta 层以批处理和后台服务为主，关键组件如下：
 | 运营交付 | 文档、图示是否同步到内网知识库？CLI/Web 说明是否在 `docs/product/` 更新？ | 产品组 | 在发布清单中附带链接，PR Template 勾选完毕 |
 
 > 说明：Checklist 以 `docs/releases/context_upgrade.md` 为基准文档，发布前需逐项勾选并附带验证证据（Grafana 截图、测试日志等），避免遗漏关键依赖。若某项延期需记录 owner、补偿措施及预计完成时间。
-
