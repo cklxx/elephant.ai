@@ -12,6 +12,7 @@ import (
 	"time"
 
 	agentPorts "alex/internal/agent/ports"
+	"alex/internal/analytics/journal"
 	"alex/internal/server/app"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
@@ -88,7 +89,15 @@ func TestSnapshotHandlers(t *testing.T) {
 	stateStore := sessionstate.NewInMemoryStore()
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
-	coordinator := app.NewServerCoordinator(&stubAgentCoordinator{}, broadcaster, sessionStore, taskStore, stateStore)
+	reader := &staticJournalReader{entries: []journal.TurnJournalEntry{{SessionID: "sess-1", TurnID: 1, Summary: "rehydrate"}}}
+	coordinator := app.NewServerCoordinator(
+		&stubAgentCoordinator{},
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+		app.WithJournalReader(reader),
+	)
 	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
 
 	snapshot := sessionstate.Snapshot{
@@ -137,4 +146,32 @@ func TestSnapshotHandlers(t *testing.T) {
 	if replayResp.Code != http.StatusAccepted {
 		t.Fatalf("expected 202 for replay, got %d", replayResp.Code)
 	}
+}
+
+type staticJournalReader struct {
+	entries []journal.TurnJournalEntry
+}
+
+func (r *staticJournalReader) Stream(_ context.Context, sessionID string, fn func(journal.TurnJournalEntry) error) error {
+	for _, entry := range r.entries {
+		e := entry
+		if e.SessionID == "" {
+			e.SessionID = sessionID
+		}
+		if err := fn(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *staticJournalReader) ReadAll(_ context.Context, sessionID string) ([]journal.TurnJournalEntry, error) {
+	entries := make([]journal.TurnJournalEntry, len(r.entries))
+	copy(entries, r.entries)
+	for i := range entries {
+		if entries[i].SessionID == "" {
+			entries[i].SessionID = sessionID
+		}
+	}
+	return entries, nil
 }

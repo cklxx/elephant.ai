@@ -11,6 +11,7 @@ import (
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	"alex/internal/analytics/journal"
 	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
@@ -197,8 +198,17 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	sessionStore := filestore.New(sessionDir)
 	stateStore := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
+	journalDir := filepath.Join(sessionDir, "journals")
+	var journalWriter journal.Writer
+	if fileWriter, err := journal.NewFileWriter(journalDir); err != nil {
+		logger.Warn("Failed to initialize journal writer: %v", err)
+		journalWriter = journal.NopWriter()
+	} else {
+		journalWriter = fileWriter
+	}
 	contextMgr := ctxmgr.NewManager(
 		ctxmgr.WithStateStore(stateStore),
+		ctxmgr.WithJournalWriter(journalWriter),
 	)
 	parserImpl := parser.New()
 
@@ -277,6 +287,9 @@ func BuildContainer(config Config) (*Container, error) {
 	toolRegistry.RegisterSubAgent(coordinator)
 
 	logger.Info("Container built successfully (heavy initialization deferred to Start())")
+
+	config.SessionDir = sessionDir
+	config.CostDir = costDir
 
 	return &Container{
 		AgentCoordinator: coordinator,
@@ -448,4 +461,12 @@ func GetAPIKey(provider string) string {
 	default:
 		return ""
 	}
+}
+
+// SessionDir returns the resolved session directory backing file-based stores.
+func (c *Container) SessionDir() string {
+	if c == nil {
+		return ""
+	}
+	return c.config.SessionDir
 }

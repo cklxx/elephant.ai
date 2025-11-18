@@ -180,6 +180,13 @@ Meta 组件（记忆/知识/Persona）监听事件 Bus，并写回配置/知识�
 
 这一机制确保新增/拆分 YAML（例如将 coder prompt 的 Guardrail 拆成多个 policy 文件）时，只要放入对应目录即可被自动加载到系统提示中，无需更改业务代码。
 
+### 3.2 Turn Journal ↔ Replay 管道
+
+- **写入**：`ctxmgr.NewManager` 现在通过 `internal/analytics/journal.FileWriter` 默认把 `RecordTurn` 生成的 `ContextTurnRecord` 追加到 `~/.alex-sessions/journals/<session>.jsonl`，Server/CLI 共享同一目录。
+- **读取**：`internal/analytics/journal.FileReader` 提供 `Stream/ReadAll` API，可在不加载整条 SSE 流的情况下顺序遍历 JSONL 记录；Reader 会在需要时自动创建目录并填充缺失的 `session_id`。
+- **重放**：`internal/server/app/server_coordinator.go` 暴露 `ReplaySession`，调用时会把 JSONL 中的每条记录转换成 `sessionstate.Snapshot` 再写回 `state_store`，同时 `/api/sessions/:id/replay` HTTP 端点会触发该流程，供控制台或脚本恢复上下文。
+- **容器注入**：DI 容器在构建阶段即创建 FileWriter 并传给 ContextManager，Server 入口再基于 `container.SessionDir()` 派生 Reader，保证 journal 写读使用同一路径。
+
 ## 4. 动态 Context 设计
 
 动态层依赖事件驱动架构，将交互数据拆成三个流，并复用 ALEX 现有的事件模型（`internal/agent/domain/events.go`）。所有数据既要满足**实时推理用的快速读取**，也要兼顾**会话回放、故障排查时的历史追溯**，因此读写策略采用“事件日志 + 快照”的双轨结构：
