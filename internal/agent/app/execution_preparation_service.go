@@ -241,9 +241,14 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			preloadedAttachments[name] = att
 		}
 	}
+	stateMessages := append([]domain.Message(nil), session.Messages...)
+	if history != nil && len(history.messages) > 0 {
+		stateMessages = trimSessionHistoryMessages(stateMessages)
+	}
+
 	state := &domain.TaskState{
 		SystemPrompt:         systemPrompt,
-		Messages:             append([]domain.Message(nil), session.Messages...),
+		Messages:             stateMessages,
 		SessionID:            session.ID,
 		TaskID:               ids.TaskID,
 		ParentTaskID:         ids.ParentTaskID,
@@ -574,14 +579,7 @@ func historyMessagesFromSession(messages []ports.Message) []ports.Message {
 	}
 	filtered := make([]ports.Message, 0, len(messages))
 	for _, msg := range messages {
-		role := strings.TrimSpace(msg.Role)
-		if strings.EqualFold(role, "system") {
-			continue
-		}
-		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
-			continue
-		}
-		if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 && len(msg.ToolResults) == 0 {
+		if !shouldRecallHistoryMessage(msg) {
 			continue
 		}
 		filtered = append(filtered, cloneHistoryMessage(msg))
@@ -590,6 +588,42 @@ func historyMessagesFromSession(messages []ports.Message) []ports.Message {
 		return nil
 	}
 	return filtered
+}
+
+func trimSessionHistoryMessages(messages []ports.Message) []ports.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	trimmed := make([]ports.Message, 0, len(messages))
+	removed := false
+	for _, msg := range messages {
+		if shouldRecallHistoryMessage(msg) {
+			removed = true
+			continue
+		}
+		trimmed = append(trimmed, msg)
+	}
+	if !removed {
+		return messages
+	}
+	if len(trimmed) == 0 {
+		return nil
+	}
+	return trimmed
+}
+
+func shouldRecallHistoryMessage(msg ports.Message) bool {
+	role := strings.TrimSpace(msg.Role)
+	if strings.EqualFold(role, "system") {
+		return false
+	}
+	if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
+		return false
+	}
+	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 && len(msg.ToolResults) == 0 {
+		return false
+	}
+	return true
 }
 
 func cloneHistoryMessage(msg ports.Message) ports.Message {

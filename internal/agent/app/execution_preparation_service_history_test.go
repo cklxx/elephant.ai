@@ -143,6 +143,64 @@ func TestPrepareHistoryRecallOmitsSystemMessages(t *testing.T) {
 	}
 }
 
+func TestPrepareHistoryRecallReplacesOriginalTurns(t *testing.T) {
+	session := &ports.Session{
+		ID: "session-history-duplicates",
+		Messages: []ports.Message{
+			{
+				Role:    "user",
+				Source:  ports.MessageSourceUserInput,
+				Content: "Draft a marketing plan for the Q3 launch.",
+			},
+			{
+				Role:    "assistant",
+				Source:  ports.MessageSourceAssistantReply,
+				Content: "Outlined launch phases and KPIs.",
+			},
+		},
+		Metadata: map[string]string{},
+	}
+	store := &stubSessionStore{session: session}
+	deps := ExecutionPreparationDeps{
+		LLMFactory:   &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry: &registryWithList{},
+		SessionStore: store,
+		ContextMgr:   stubContextManager{},
+		Parser:       stubParser{},
+		PromptLoader: prompts.New(),
+		Config:       Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
+		Logger:       ports.NoopLogger{},
+		Clock:        ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		EventEmitter: ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	env, err := service.Prepare(context.Background(), "Summarize marketing plan", session.ID)
+	if err != nil {
+		t.Fatalf("prepare execution failed: %v", err)
+	}
+
+	expected := map[string]int{
+		"marketing plan":         0,
+		"launch phases and KPIs": 0,
+	}
+	for _, msg := range env.State.Messages {
+		for needle := range expected {
+			if strings.Contains(msg.Content, needle) {
+				if msg.Source != ports.MessageSourceUserHistory {
+					t.Fatalf("expected recalled message %q to use user history source, got %s", needle, msg.Source)
+				}
+				expected[needle]++
+			}
+		}
+	}
+	for needle, count := range expected {
+		if count != 1 {
+			t.Fatalf("expected exactly one recalled entry for %q, got %d", needle, count)
+		}
+	}
+}
+
 func TestHistoryRecallSummarizesWhenThresholdExceeded(t *testing.T) {
 	session := &ports.Session{
 		ID: "session-history-3",
