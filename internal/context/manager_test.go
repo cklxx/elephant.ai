@@ -58,6 +58,28 @@ func TestBuildWindowIncludesWorldProfile(t *testing.T) {
 	}
 }
 
+func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+	session := &ports.Session{ID: "sess-ctx", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
+window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "CI lab"})
+if err != nil {
+t.Fatalf("BuildWindow returned error: %v", err)
+}
+    if strings.TrimSpace(window.SystemPrompt) == "" {
+            t.Fatalf("expected system prompt to be populated")
+    }
+	if !strings.Contains(window.SystemPrompt, "CI lab") {
+		t.Fatalf("expected environment summary in system prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Deliver value") {
+		t.Fatalf("expected goal context in system prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Identity & Persona") {
+		t.Fatalf("expected persona section, got %q", window.SystemPrompt)
+	}
+}
+
 func TestCompressInjectsStructuredSummary(t *testing.T) {
 	mgr := &manager{}
 	messages := []ports.Message{{

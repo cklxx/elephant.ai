@@ -31,7 +31,7 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 |-------|--------------|------------------|
 | Delivery | `cmd/alex`, `cmd/alex-server`, `web/` | CLI + TUI, HTTP & SSE APIs, and the Next.js dashboard.
 | Agent core | `internal/agent/app`, `internal/agent/domain`, `internal/agent/ports` | ReAct coordinators, domain entities, iteration policies, typed event stream.
-| Infrastructure | `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/output`, `internal/observability`, `internal/prompts`, `internal/environment`, `internal/diagnostics` | Dependency wiring, tool implementations, LLM clients, MCP runtime, persistence, rendering, telemetry, and environment capture.
+| Infrastructure | `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/output`, `internal/observability`, `internal/context`, `internal/environment`, `internal/diagnostics` | Dependency wiring, tool implementations, LLM clients, MCP runtime, persistence, rendering, telemetry, layered context, and environment capture.
 | Frontend | `web/` | Next.js app that subscribes to SSE, renders sessions, and submits work.
 
 See [`docs/AGENT.md`](docs/AGENT.md) for a deeper walkthrough of the reasoning loop and orchestration flow.
@@ -65,7 +65,7 @@ All surfaces share the same dependency injection container (`internal/di`) so co
 - **Sandbox runtime** – optional remote execution provided by `third_party/sandbox-sdk-go`, orchestrated via `internal/di` and tool adapters.
 - **MCP** – JSON-RPC 2.0 clients, process supervisor, and server registry in `internal/mcp`.
 - **Approval workflows** – user confirmation prompts and guardrails in `internal/approval`.
-- **Prompts & parsing** – prompt builders and structured tool call parsing in `internal/prompts` and `internal/parser`.
+- **Context & parsing** – layered prompt/context builders and structured tool call parsing in `internal/context` and `internal/parser`.
 - **Evaluations** – SWE-Bench runner, reporting, and helper scripts in `evaluation/`.
 
 ---
@@ -75,7 +75,7 @@ All surfaces share the same dependency injection container (`internal/di`) so co
 | Path | Purpose |
 |------|---------|
 | `cmd/` | Go entrypoints (`alex`, `alex-server`). |
-| `internal/` | Backend implementation (agent core, DI, tools, LLM, storage, observability, prompts, etc.). |
+| `internal/` | Backend implementation (agent core, DI, tools, LLM, storage, observability, context orchestration, etc.). |
 | `web/` | Next.js dashboard with SSE client, task submission UI, and Playwright/Vitest tests. |
 | `evaluation/` | SWE-Bench automation, batch execution helpers, and reporting utilities. |
 | `docs/` | Architecture notes, reference material, operational guides, and research. |

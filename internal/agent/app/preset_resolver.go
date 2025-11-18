@@ -12,76 +12,43 @@ import (
 // PresetResolver handles preset resolution for both agent and tool presets.
 // It resolves presets from context (highest priority), config (fallback), or defaults.
 type PresetResolver struct {
-	promptLoader ports.PromptLoader
-	logger       ports.Logger
-	clock        ports.Clock
-	eventEmitter ports.EventListener
+logger       ports.Logger
+clock        ports.Clock
+eventEmitter ports.EventListener
 }
 
 // PresetResolverDeps enumerates dependencies for PresetResolver
 type PresetResolverDeps struct {
-	PromptLoader ports.PromptLoader
-	Logger       ports.Logger
-	Clock        ports.Clock
-	EventEmitter ports.EventListener
+Logger       ports.Logger
+Clock        ports.Clock
+EventEmitter ports.EventListener
 }
 
 // NewPresetResolver creates a new preset resolver instance.
-func NewPresetResolver(promptLoader ports.PromptLoader, logger ports.Logger) *PresetResolver {
-	return NewPresetResolverWithDeps(PresetResolverDeps{
-		PromptLoader: promptLoader,
-		Logger:       logger,
-	})
+func NewPresetResolver(logger ports.Logger) *PresetResolver {
+return NewPresetResolverWithDeps(PresetResolverDeps{Logger: logger})
 }
 
 // NewPresetResolverWithDeps creates a new preset resolver with full dependencies
 func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
-	logger := deps.Logger
-	if logger == nil {
-		logger = ports.NoopLogger{}
-	}
-	promptLoader := deps.PromptLoader
-	// PromptLoader is now a required dependency - must be provided by caller
-	clock := deps.Clock
-	if clock == nil {
-		clock = ports.SystemClock{}
-	}
+logger := deps.Logger
+if logger == nil {
+logger = ports.NoopLogger{}
+}
+clock := deps.Clock
+if clock == nil {
+clock = ports.SystemClock{}
+}
 	eventEmitter := deps.EventEmitter
 	if eventEmitter == nil {
 		eventEmitter = ports.NoopEventListener{}
 	}
 
-	return &PresetResolver{
-		promptLoader: promptLoader,
-		logger:       logger,
-		clock:        clock,
-		eventEmitter: eventEmitter,
-	}
+return &PresetResolver{
+logger:       logger,
+clock:        clock,
+eventEmitter: eventEmitter,
 }
-
-// ResolveSystemPrompt resolves the system prompt based on agent preset configuration.
-// Priority: context preset > config preset > default prompt loader.
-func (r *PresetResolver) ResolveSystemPrompt(
-	ctx context.Context,
-	task string,
-	analysis *ports.TaskAnalysisInfo,
-	configPreset string,
-) string {
-	agentPreset, source := r.resolveAgentPreset(ctx, configPreset)
-
-	// If we have a valid preset, use it
-	if agentPreset != "" && presets.IsValidPreset(agentPreset) {
-		presetConfig, err := presets.GetPromptConfig(presets.AgentPreset(agentPreset))
-		if err != nil {
-			r.logger.Warn("Failed to load preset prompt: %v, using default", err)
-			return r.loadDefaultPrompt(task, analysis)
-		}
-		r.logger.Info("Using preset system prompt: %s (source=%s)", presetConfig.Name, source)
-		return presetConfig.SystemPrompt
-	}
-
-	// No preset, use default prompt loader
-	return r.loadDefaultPrompt(task, analysis)
 }
 
 // ResolveToolRegistry resolves the tool registry based on tool preset configuration.
@@ -199,14 +166,3 @@ func (r *PresetResolver) resolveToolPreset(ctx context.Context, configPreset str
 	return "", ""
 }
 
-// loadDefaultPrompt loads the default system prompt using the prompt loader.
-func (r *PresetResolver) loadDefaultPrompt(task string, analysis *ports.TaskAnalysisInfo) string {
-	prompt, err := r.promptLoader.GetSystemPrompt(task, analysis)
-	if err != nil {
-		r.logger.Warn("Failed to load system prompt: %v, using fallback", err)
-		return "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
-	}
-
-	r.logger.Debug("System prompt loaded: %d bytes", len(prompt))
-	return prompt
-}

@@ -2,7 +2,6 @@ package app
 
 import (
 	"alex/internal/agent/ports"
-	"alex/internal/prompts"
 )
 
 // CoordinatorOption configures optional dependencies for the agent coordinator.
@@ -22,16 +21,6 @@ func WithClock(clock ports.Clock) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if clock != nil {
 			c.clock = clock
-		}
-	}
-}
-
-// WithPromptLoader overrides the default prompt loader.
-// This allows injecting a custom prompt loader for testing or alternative prompt sources.
-func WithPromptLoader(loader *prompts.Loader) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if loader != nil {
-			c.promptLoader = loader
 		}
 	}
 }
