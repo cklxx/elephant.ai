@@ -3,7 +3,7 @@
 
 
 ## 1. 环境准备
-- Go 1.24+，启用 `GODEBUG=asyncpreemptoff=0` 保证调度稳定。  
+- Go 1.25+，启用 `GODEBUG=asyncpreemptoff=0` 保证调度稳定。
 - 预装 FFmpeg、SoX，可执行路径写入 `PATH`。  
 - 准备示例素材：不少于 3 段视频、2 段音频和 2 条 TTS 文本。  
 - 新建输出目录，确保拥有写权限，并清理旧产物。

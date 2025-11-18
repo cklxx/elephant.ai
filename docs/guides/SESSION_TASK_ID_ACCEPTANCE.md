@@ -6,7 +6,7 @@ This manual acceptance guide exercises the full identifier pipeline (session →
 
 ## Prerequisites
 
-- Go toolchain installed (1.24 or newer).
+- Go toolchain installed (1.25 or newer).
 - Node.js 20+ with `pnpm` available if you plan to exercise the web UI.
 - From the repository root, install Go dependencies and build the binaries once:
 

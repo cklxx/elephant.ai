@@ -91,7 +91,7 @@ A curated documentation map lives in [`docs/README.md`](docs/README.md).
 
 ### Prerequisites
 
-- Go **1.24+** (toolchain pinned in `go.mod`).
+- Go **1.25+** (toolchain pinned in `go.mod`).
 - Node.js **20+** for the web dashboard.
 - Docker (optional) for sandbox services and containerised deployment.
 

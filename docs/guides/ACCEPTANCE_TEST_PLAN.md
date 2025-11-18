@@ -37,7 +37,7 @@ Out of scope: third-party MCP services, enterprise SSO, custom deployment script
 
 | ID | Description | Runtime | Data Roots | Notes |
 |----|-------------|---------|------------|-------|
-| DEV | Local developer workstation | Go 1.24.6, Node 20 | `~/.alex-*` (isolated per tester) | Fast iteration, mock providers permitted |
+| DEV | Local developer workstation | Go 1.25.1, Node 20 | `~/.alex-*` (isolated per tester) | Fast iteration, mock providers permitted |
 | STAGE | Shared staging cluster | Kubernetes (3 replicas) | `s3://alex-stage-sessions`, `postgres://alex_stage_costs` | Mirrors production topology, no mock LLM |
 | PROD-CAND | Pre-production sandbox | Same as prod | TBD (final) | One-shot smoke prior to cutover |
 

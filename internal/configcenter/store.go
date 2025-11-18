@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"alex/internal/serverconfig"
@@ -31,10 +32,16 @@ type FileStoreConfig struct {
 	Path string
 }
 
+const configCenterPathEnv = "ALEX_CONFIG_CENTER_PATH"
+
 // NewFileStore constructs a FileStore pointing at the provided path. When the
-// path is empty it falls back to configs/server-config.json.
+// path is empty it falls back to configs/server-config.json or the optional
+// override provided via the ALEX_CONFIG_CENTER_PATH environment variable.
 func NewFileStore(cfg FileStoreConfig) *FileStore {
-	path := cfg.Path
+	path := strings.TrimSpace(cfg.Path)
+	if path == "" {
+		path = strings.TrimSpace(os.Getenv(configCenterPathEnv))
+	}
 	if path == "" {
 		path = filepath.Join("configs", "server-config.json")
 	}

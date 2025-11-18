@@ -36,7 +36,7 @@ func main() {
 	logger := utils.NewComponentLogger("Main")
 	logger.Info("Starting ALEX SSE Server...")
 
-	configStore := configcenter.NewFileStore(configcenter.FileStoreConfig{Path: strings.TrimSpace(os.Getenv("ALEX_CONFIG_CENTER_PATH"))})
+	configStore := configcenter.NewFileStore(configcenter.FileStoreConfig{})
 	configService := configcenter.NewService(configStore, 30*time.Second)
 	logger.Info("Config center backing file: %s", configStore.Path())
 

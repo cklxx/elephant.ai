@@ -1,8 +1,8 @@
 module alex
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.24.9
+toolchain go1.25.1
 
 require (
 	github.com/PuerkitoBio/goquery v1.10.3

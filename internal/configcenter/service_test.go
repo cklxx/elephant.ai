@@ -47,9 +47,11 @@ func TestServiceCachesAndNotifies(t *testing.T) {
 	updated := base
 	updated.Runtime.LLMModel = "updated"
 
+	errCh := make(chan error, 1)
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		svc.Update(ctx, updated)
+		_, err := svc.Update(ctx, updated)
+		errCh <- err
 	}()
 
 	select {
@@ -59,5 +61,9 @@ func TestServiceCachesAndNotifies(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for update")
+	}
+
+	if err := <-errCh; err != nil {
+		t.Fatalf("update failed: %v", err)
 	}
 }

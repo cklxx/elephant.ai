@@ -15,6 +15,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 
 	allowed := map[string]struct{}{
 		"cmd/auth-user-seed/main.go":       {},
+		"internal/configcenter/store.go":   {},
 		"internal/rag/embedder_test.go":    {},
 		"internal/tools/sandbox_docker.go": {},
 		"internal/utils/logger.go":         {},

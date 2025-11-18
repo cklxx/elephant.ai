@@ -117,7 +117,7 @@ fi
 
 if [[ "$needs_bundled" == "true" ]]; then
   if [[ -z "$required_toolchain" ]]; then
-    required_toolchain="go1.24.9"
+    required_toolchain="go1.25.1"
   fi
   ensure_toolchain_installed "$required_toolchain"
   local_version="$($GO_BIN version | awk '{print $3}')"
