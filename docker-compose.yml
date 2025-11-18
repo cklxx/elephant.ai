@@ -20,6 +20,7 @@ services:
     volumes:
       - alex-sessions:/data/sessions
       - ./:/workspace:cached  # Mount workspace for development
+      - ~/.alex-config.json:/root/.alex-config.json:ro
     restart: unless-stopped
     depends_on:
       - redis
