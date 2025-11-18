@@ -3,7 +3,11 @@ environment: local-sandbox
 capabilities:
   - filesystem
   - search
+  - go test / npm test runners
+  - structured TODO + journal tooling
 limits:
   - "External network calls restricted unless tools explicitly allow."
+  - "All shell access is audited; destructive commands require confirmation."
 cost_model:
   - "LLM usage tracked per session; stay within configured token budgets."
+  - "Prefer deterministic local analysis before expensive remote calls."

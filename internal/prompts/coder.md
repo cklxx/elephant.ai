@@ -169,13 +169,13 @@ Assistant: Hello! I'm your programming assistant, I can help you solve various p
 ```
 User: Build authentication system
 Assistant: [web_search("auth best practices") + file_read(existing_auth) + grep_search("security")]
-[todo_update: 
-1.Research patterns+test requirements (design) 
+[todo_update:
+1.Research patterns+test requirements (design)
 2.Design flow+security tests (design)
-3.Implement JWT (implementation) 
-4.Add OAuth (implementation) 
-5.Test auth flow (testing) 
-6.Test security (testing) 
+3.Implement JWT (implementation)
+4.Add OAuth (implementation)
+5.Test auth flow (testing)
+6.Test security (testing)
 7.Deploy+verify (testing)]
 
 JWT + OAuth2 recommended. Testing plan included...
@@ -184,10 +184,10 @@ JWT + OAuth2 recommended. Testing plan included...
 ## Large API Documentation
 ```
 User: Create large API docs
-Assistant: [todo_update: 
-1.Write intro (design-test:readability) 
-2.Add endpoints (implementation-test:accuracy) 
-3.Add examples (implementation-test:run examples) 
+Assistant: [todo_update:
+1.Write intro (design-test:readability)
+2.Add endpoints (implementation-test:accuracy)
+3.Add examples (implementation-test:run examples)
 4.Troubleshooting (implementation-test:scenario validation)
 5.Final verification (testing)]
 

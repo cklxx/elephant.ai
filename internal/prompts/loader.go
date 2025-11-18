@@ -15,15 +15,19 @@ import (
 	api "github.com/agent-infra/sandbox-sdk-go"
 	"github.com/agent-infra/sandbox-sdk-go/file"
 	"github.com/agent-infra/sandbox-sdk-go/shell"
-
-	"alex/internal/agent/ports"
 )
 
 //go:embed *.md
 var promptFS embed.FS
 
-// Ensure Loader implements ports.PromptLoader interface
-var _ ports.PromptLoader = (*Loader)(nil)
+// TaskAnalysisInfo captures the coordinator's understanding of the task when
+// the legacy prompt loader is used. It mirrors the old ports struct so that the
+// loader can continue to function in isolation from the main context module.
+type TaskAnalysisInfo struct {
+	Action   string
+	Goal     string
+	Approach string
+}
 
 // Loader handles loading and rendering prompt templates
 type Loader struct {
@@ -133,7 +137,7 @@ func (l *Loader) List() []string {
 }
 
 // GetSystemPrompt returns the system prompt with context
-func (l *Loader) GetSystemPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+func (l *Loader) GetSystemPrompt(goal string, analysis *TaskAnalysisInfo) (string, error) {
 	if l.sandbox != nil {
 		if value := reflect.ValueOf(l.sandbox); value.Kind() != reflect.Pointer || !value.IsNil() {
 			if prompt, err := l.getSandboxPrompt(goal, analysis); err == nil {
@@ -145,7 +149,7 @@ func (l *Loader) GetSystemPrompt(goal string, analysis *ports.TaskAnalysisInfo) 
 	return l.getLocalPrompt(goal, analysis)
 }
 
-func (l *Loader) getLocalPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+func (l *Loader) getLocalPrompt(goal string, analysis *TaskAnalysisInfo) (string, error) {
 	workingDir := l.resolveWorkingDirectory()
 
 	memory := l.loadProjectMemory(workingDir)
@@ -174,7 +178,7 @@ func (l *Loader) resolveWorkingDirectory() string {
 	return "."
 }
 
-func (l *Loader) getSandboxPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
+func (l *Loader) getSandboxPrompt(goal string, analysis *TaskAnalysisInfo) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -209,7 +213,7 @@ func (l *Loader) getSandboxPrompt(goal string, analysis *ports.TaskAnalysisInfo)
 	return prompt, nil
 }
 
-func (l *Loader) buildPromptVariables(workingDir, goal string, analysis *ports.TaskAnalysisInfo, memory, gitInfo string) map[string]string {
+func (l *Loader) buildPromptVariables(workingDir, goal string, analysis *TaskAnalysisInfo, memory, gitInfo string) map[string]string {
 	var taskAnalysis string
 	if analysis != nil && analysis.Action != "" {
 		taskAnalysis = fmt.Sprintf("Action: %s\nGoal: %s\nApproach: %s",

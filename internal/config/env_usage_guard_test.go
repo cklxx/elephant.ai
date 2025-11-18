@@ -13,11 +13,12 @@ import (
 func TestNoUnapprovedGetenv(t *testing.T) {
 	moduleRoot := findModuleRoot(t)
 
-	allowed := map[string]struct{}{
-		"internal/rag/embedder_test.go":    {},
-		"internal/tools/sandbox_docker.go": {},
-		"internal/utils/logger.go":         {},
-	}
+	allowed := newStringSet(t,
+		"internal/rag/embedder_test.go",
+		"internal/tools/sandbox_docker.go",
+		"internal/utils/logger.go",
+		"cmd/auth-user-seed/main.go",
+	)
 
 	skipDirs := map[string]struct{}{
 		".cache":       {},
@@ -91,4 +92,17 @@ func findModuleRoot(t *testing.T) string {
 		}
 		dir = parent
 	}
+}
+
+func newStringSet(t *testing.T, entries ...string) map[string]struct{} {
+	t.Helper()
+
+	set := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if _, exists := set[entry]; exists {
+			t.Fatalf("duplicate allowlist entry: %s", entry)
+		}
+		set[entry] = struct{}{}
+	}
+	return set
 }

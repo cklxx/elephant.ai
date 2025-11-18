@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/analytics"
+	"alex/internal/analytics/journal"
 	serverPorts "alex/internal/server/ports"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/tools/builtin"
@@ -39,6 +40,7 @@ type ServerCoordinator struct {
 	taskStore        serverPorts.TaskStore
 	logger           *utils.Logger
 	analytics        analytics.Client
+	journalReader    journal.Reader
 
 	// Cancel function map for task cancellation support
 	cancelFuncs map[string]context.CancelCauseFunc
@@ -97,6 +99,13 @@ func WithAnalyticsClient(client analytics.Client) ServerCoordinatorOption {
 			return
 		}
 		coordinator.analytics = client
+	}
+}
+
+// WithJournalReader wires a journal reader used for replay operations.
+func WithJournalReader(reader journal.Reader) ServerCoordinatorOption {
+	return func(coordinator *ServerCoordinator) {
+		coordinator.journalReader = reader
 	}
 }
 
@@ -338,13 +347,59 @@ func (s *ServerCoordinator) GetSnapshot(ctx context.Context, sessionID string, t
 	return s.stateStore.GetSnapshot(ctx, sessionID, turnID)
 }
 
-// ReplaySession is a placeholder for full event-log replays; currently it validates the session exists.
+// ReplaySession rehydrates the snapshot store from persisted turn journal entries.
 func (s *ServerCoordinator) ReplaySession(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return fmt.Errorf("session id required")
 	}
-	_, err := s.agentCoordinator.GetSession(ctx, sessionID)
-	return err
+	if s.journalReader == nil {
+		return fmt.Errorf("journal reader not configured")
+	}
+	if s.stateStore == nil {
+		return fmt.Errorf("state store not configured")
+	}
+	if err := s.stateStore.Init(ctx, sessionID); err != nil {
+		return fmt.Errorf("init state store: %w", err)
+	}
+	var applied int
+	streamErr := s.journalReader.Stream(ctx, sessionID, func(entry journal.TurnJournalEntry) error {
+		snapshot := sessionstate.Snapshot{
+			SessionID:     entry.SessionID,
+			TurnID:        entry.TurnID,
+			LLMTurnSeq:    entry.LLMTurnSeq,
+			Summary:       entry.Summary,
+			Plans:         entry.Plans,
+			Beliefs:       entry.Beliefs,
+			World:         entry.World,
+			Diff:          entry.Diff,
+			Messages:      entry.Messages,
+			Feedback:      entry.Feedback,
+			KnowledgeRefs: entry.KnowledgeRefs,
+		}
+		if snapshot.SessionID == "" {
+			snapshot.SessionID = sessionID
+		}
+		if entry.Timestamp.IsZero() {
+			snapshot.CreatedAt = time.Now().UTC()
+		} else {
+			snapshot.CreatedAt = entry.Timestamp
+		}
+		if err := s.stateStore.SaveSnapshot(ctx, snapshot); err != nil {
+			return fmt.Errorf("save snapshot: %w", err)
+		}
+		applied++
+		return nil
+	})
+	if streamErr != nil {
+		return fmt.Errorf("replay journal: %w", streamErr)
+	}
+	if applied == 0 {
+		return fmt.Errorf("no journal entries for session %s", sessionID)
+	}
+	if s.logger != nil {
+		s.logger.Info("[Replay] Rehydrated %d turn(s) for session %s", applied, sessionID)
+	}
+	return nil
 }
 
 func (s *ServerCoordinator) captureAnalytics(ctx context.Context, distinctID string, event string, props map[string]any) {

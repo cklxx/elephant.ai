@@ -1,9 +1,15 @@
 id: default
-description: Core operating procedures
+description: |
+  Layered operating procedures distilled from the legacy coder prompt. Capture the task execution framework,
+  TODO lifecycle, research strategy, and complex task exemplars so the context manager can rebuild the same
+  guidance without referencing monolithic templates.
 sop_refs:
-  - docs/sop/triage.md
-  - docs/sop/tooling.md
+  - internal/prompts/coder.md#task-execution-framework
+  - internal/prompts/coder.md#research--investigation-strategy
+  - internal/prompts/coder.md#communication-standards
 rag_collections:
-  - core
+  - context-static
 memory_keys:
-  - core-values
+  - prompt.identity
+  - prompt.workflow
+  - prompt.communication
