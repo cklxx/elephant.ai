@@ -622,7 +622,7 @@ func TestEnsureSystemPromptMessageNoDuplicate(t *testing.T) {
 	}
 }
 
-func TestEnsureSystemPromptMessageKeepsExistingWhenContentDiffers(t *testing.T) {
+func TestEnsureSystemPromptMessageUpdatesExistingWhenContentDiffers(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
 		SystemPrompt: "Follow the updated framework.",
@@ -637,8 +637,11 @@ func TestEnsureSystemPromptMessageKeepsExistingWhenContentDiffers(t *testing.T) 
 	if len(state.Messages) != 2 {
 		t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
 	}
-	if state.Messages[0].Content != "Follow the legacy framework." {
-		t.Fatalf("expected historical system prompt to remain, got %q", state.Messages[0].Content)
+	if got := state.Messages[0].Content; got != state.SystemPrompt {
+		t.Fatalf("expected system prompt to update, got %q", got)
+	}
+	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected system prompt source to be preserved, got %q", state.Messages[0].Source)
 	}
 }
 
@@ -657,8 +660,11 @@ func TestEnsureSystemPromptMessageHandlesLegacySystemRole(t *testing.T) {
 	if len(state.Messages) != 2 {
 		t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
 	}
-	if state.Messages[0].Content != "Follow the legacy context." {
-		t.Fatalf("expected legacy system role to remain unchanged, got %q", state.Messages[0].Content)
+	if got := state.Messages[0].Content; got != state.SystemPrompt {
+		t.Fatalf("expected legacy system role content to update, got %q", got)
+	}
+	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected legacy system role to adopt system prompt source, got %q", state.Messages[0].Source)
 	}
 }
 
