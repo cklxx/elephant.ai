@@ -7,8 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/analytics/journal"
+	sessionstate "alex/internal/session/state_store"
 )
 
 func TestSelectWorldPrefersExplicitKey(t *testing.T) {
@@ -87,6 +90,42 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if strings.Contains(summary.Content, "Previous conversation compressed") {
 		t.Fatalf("legacy placeholder should be removed, got %q", summary.Content)
 	}
+}
+
+func TestRecordTurnEmitsJournalEntry(t *testing.T) {
+	store := sessionstate.NewInMemoryStore()
+	jr := &recordingJournal{}
+	mgr := NewManager(WithStateStore(store), WithJournalWriter(jr))
+	record := ports.ContextTurnRecord{
+		SessionID:  "sess-99",
+		TurnID:     7,
+		LLMTurnSeq: 3,
+		Timestamp:  time.Unix(1710000000, 0),
+		Summary:    "completed step",
+		Plans:      []ports.PlanNode{{ID: "p1"}},
+	}
+	if err := mgr.RecordTurn(context.Background(), record); err != nil {
+		t.Fatalf("RecordTurn returned error: %v", err)
+	}
+	if len(jr.entries) != 1 {
+		t.Fatalf("expected 1 journal entry, got %d", len(jr.entries))
+	}
+	entry := jr.entries[0]
+	if entry.SessionID != record.SessionID || entry.TurnID != record.TurnID {
+		t.Fatalf("unexpected journal entry: %+v", entry)
+	}
+	if entry.Timestamp != record.Timestamp {
+		t.Fatalf("expected timestamp to match, got %v", entry.Timestamp)
+	}
+}
+
+type recordingJournal struct {
+	entries []journal.TurnJournalEntry
+}
+
+func (r *recordingJournal) Write(_ context.Context, entry journal.TurnJournalEntry) error {
+	r.entries = append(r.entries, entry)
+	return nil
 }
 
 func buildStaticContextTree(t *testing.T) string {

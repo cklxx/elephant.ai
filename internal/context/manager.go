@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/analytics/journal"
 	"alex/internal/observability"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/utils"
@@ -29,6 +30,7 @@ type manager struct {
 	logger     *utils.Logger
 	stateStore sessionstate.Store
 	metrics    *observability.ContextMetrics
+	journal    journal.Writer
 
 	static      *staticRegistry
 	preloadOnce sync.Once
@@ -68,6 +70,15 @@ func WithLogger(logger *utils.Logger) Option {
 	}
 }
 
+// WithJournalWriter wires a turn journal writer for replay and meta-context jobs.
+func WithJournalWriter(writer journal.Writer) Option {
+	return func(m *manager) {
+		if writer != nil {
+			m.journal = writer
+		}
+	}
+}
+
 // WithMetrics allows overriding the metrics recorder.
 func WithMetrics(metrics *observability.ContextMetrics) Option {
 	return func(m *manager) {
@@ -91,6 +102,7 @@ func NewManager(opts ...Option) ports.ContextManager {
 		configRoot: root,
 		logger:     utils.NewComponentLogger("ContextManager"),
 		metrics:    observability.NewContextMetrics(),
+		journal:    journal.NopWriter(),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -286,32 +298,40 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 }
 
 func (m *manager) RecordTurn(ctx context.Context, record ports.ContextTurnRecord) error {
-	if m.stateStore == nil || record.SessionID == "" {
+	if record.SessionID == "" {
 		return nil
 	}
-	snapshot := sessionstate.Snapshot{
-		SessionID:     record.SessionID,
-		TurnID:        record.TurnID,
-		LLMTurnSeq:    record.LLMTurnSeq,
-		CreatedAt:     record.Timestamp,
-		Summary:       record.Summary,
-		Plans:         record.Plans,
-		Beliefs:       record.Beliefs,
-		World:         record.World,
-		Diff:          record.Diff,
-		Messages:      record.Messages,
-		Feedback:      record.Feedback,
-		KnowledgeRefs: record.KnowledgeRefs,
-	}
-	if snapshot.CreatedAt.IsZero() {
-		snapshot.CreatedAt = time.Now()
-	}
-	if err := m.stateStore.SaveSnapshot(ctx, snapshot); err != nil {
-		m.metrics.RecordSnapshotError()
-		if m.logger != nil {
-			m.logger.Warn("Failed to persist context snapshot: %v", err)
+	if m.stateStore != nil {
+		snapshot := sessionstate.Snapshot{
+			SessionID:     record.SessionID,
+			TurnID:        record.TurnID,
+			LLMTurnSeq:    record.LLMTurnSeq,
+			CreatedAt:     record.Timestamp,
+			Summary:       record.Summary,
+			Plans:         record.Plans,
+			Beliefs:       record.Beliefs,
+			World:         record.World,
+			Diff:          record.Diff,
+			Messages:      record.Messages,
+			Feedback:      record.Feedback,
+			KnowledgeRefs: record.KnowledgeRefs,
 		}
-		return err
+		if snapshot.CreatedAt.IsZero() {
+			snapshot.CreatedAt = time.Now()
+		}
+		if err := m.stateStore.SaveSnapshot(ctx, snapshot); err != nil {
+			m.metrics.RecordSnapshotError()
+			if m.logger != nil {
+				m.logger.Warn("Failed to persist context snapshot: %v", err)
+			}
+			return err
+		}
+	}
+	if m.journal != nil {
+		entry := convertRecordToJournal(record)
+		if err := m.journal.Write(ctx, entry); err != nil && m.logger != nil {
+			m.logger.Warn("Failed to write turn journal: %v", err)
+		}
 	}
 	return nil
 }
@@ -335,6 +355,28 @@ func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) ports.DynamicConte
 		Feedback:          snapshot.Feedback,
 		SnapshotTimestamp: snapshot.CreatedAt,
 	}
+}
+
+func convertRecordToJournal(record ports.ContextTurnRecord) journal.TurnJournalEntry {
+	entry := journal.TurnJournalEntry{
+		SessionID:     record.SessionID,
+		TurnID:        record.TurnID,
+		LLMTurnSeq:    record.LLMTurnSeq,
+		Summary:       record.Summary,
+		Plans:         record.Plans,
+		Beliefs:       record.Beliefs,
+		World:         record.World,
+		Diff:          record.Diff,
+		Messages:      record.Messages,
+		Feedback:      record.Feedback,
+		KnowledgeRefs: record.KnowledgeRefs,
+	}
+	if record.Timestamp.IsZero() {
+		entry.Timestamp = time.Now()
+	} else {
+		entry.Timestamp = record.Timestamp
+	}
+	return entry
 }
 
 func selectPersona(key string, session *ports.Session, personas map[string]ports.PersonaProfile) ports.PersonaProfile {
