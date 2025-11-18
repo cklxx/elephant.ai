@@ -47,8 +47,20 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.HandleFunc("/api/auth/me", authHandler.HandleMe)
 		mux.HandleFunc("/api/auth/plans", authHandler.HandleListPlans)
 		mux.HandleFunc("/api/subscriptions/plans", authHandler.HandleListPlans)
-		mux.Handle("/api/subscriptions", wrap(http.HandlerFunc(authHandler.HandleSubscriptions)))
-		mux.Handle("/api/points", wrap(http.HandlerFunc(authHandler.HandlePoints)))
+		mux.Handle("/api/subscriptions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && !internalMode {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			authHandler.HandleSubscriptions(w, r)
+		})))
+		mux.Handle("/api/points", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && !internalMode {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			authHandler.HandlePoints(w, r)
+		})))
 		if internalMode {
 			mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
 			mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
