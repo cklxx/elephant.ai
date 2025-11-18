@@ -27,6 +27,16 @@ func (s *InMemoryStore) Init(_ context.Context, sessionID string) error {
 	return nil
 }
 
+func (s *InMemoryStore) ClearSession(_ context.Context, sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sessionID == "" {
+		return nil
+	}
+	delete(s.snapshots, sessionID)
+	return nil
+}
+
 func (s *InMemoryStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
 	if err := s.Init(ctx, snapshot.SessionID); err != nil {
 		return err

@@ -358,6 +358,9 @@ func (s *ServerCoordinator) ReplaySession(ctx context.Context, sessionID string)
 	if s.stateStore == nil {
 		return fmt.Errorf("state store not configured")
 	}
+	if err := s.stateStore.ClearSession(ctx, sessionID); err != nil {
+		return fmt.Errorf("clear state store: %w", err)
+	}
 	if err := s.stateStore.Init(ctx, sessionID); err != nil {
 		return fmt.Errorf("init state store: %w", err)
 	}
