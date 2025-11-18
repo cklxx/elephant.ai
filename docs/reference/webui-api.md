@@ -1,4 +1,6 @@
 # ALEX Web UI API 文档
+> Last updated: 2025-11-18
+
 
 ALEX Web UI 服务器提供 HTTP REST API 和 WebSocket 接口，允许通过 web 浏览器或 HTTP 客户端与 ALEX 进行交互。
 

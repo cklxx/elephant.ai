@@ -3,14 +3,18 @@ package http_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
+	"alex/internal/auth/domain"
+	"alex/internal/auth/ports"
 	serverhttp "alex/internal/server/http"
 )
 
@@ -139,7 +143,134 @@ func TestHandleListPlans(t *testing.T) {
 	}
 }
 
+func TestRefreshCookieSameSiteModes(t *testing.T) {
+	t.Run("insecure cookies use Lax mode", func(t *testing.T) {
+		handler, _, _, _ := newAuthHandler(t)
+		reqBody := bytes.NewBufferString(`{"email":"handler@example.com","password":"password"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.HandleLogin(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		refresh := findRefreshCookie(rr.Result().Cookies())
+		if refresh == nil {
+			t.Fatalf("expected refresh cookie in response")
+		}
+		if refresh.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("expected SameSite=Lax, got %v", refresh.SameSite)
+		}
+		if refresh.Secure {
+			t.Fatalf("expected insecure cookie in dev mode")
+		}
+	})
+
+	t.Run("secure cookies use SameSite=None", func(t *testing.T) {
+		handler, _, _, _ := newAuthHandlerWithSecure(t, true)
+		reqBody := bytes.NewBufferString(`{"email":"handler@example.com","password":"password"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.HandleLogin(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		refresh := findRefreshCookie(rr.Result().Cookies())
+		if refresh == nil {
+			t.Fatalf("expected refresh cookie in response")
+		}
+		if refresh.SameSite != http.SameSiteNoneMode {
+			t.Fatalf("expected SameSite=None, got %v", refresh.SameSite)
+		}
+		if !refresh.Secure {
+			t.Fatalf("expected secure cookie in production mode")
+		}
+	})
+}
+
+func TestHandleOAuthCallbackPrefersHTML(t *testing.T) {
+	handler, service := newOAuthEnabledAuthHandler(t)
+	ctx := context.Background()
+	_, state, err := service.StartOAuth(ctx, domain.ProviderGoogle)
+	if err != nil {
+		t.Fatalf("start oauth: %v", err)
+	}
+	code := encodePassthroughCode(t, "google-user", "oauth@example.com", "OAuth User")
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/google/callback?code="+code+"&state="+state, nil)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	rr := httptest.NewRecorder()
+	handler.HandleOAuthCallback(domain.ProviderGoogle, rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Fatalf("expected text/html response, got %s", ct)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Login complete") {
+		t.Fatalf("expected success page, got %s", body)
+	}
+	if !strings.Contains(body, "window.close") {
+		t.Fatalf("expected auto-close script in response")
+	}
+}
+
+func TestHandleOAuthCallbackFallsBackToJSON(t *testing.T) {
+	handler, service := newOAuthEnabledAuthHandler(t)
+	ctx := context.Background()
+	_, state, err := service.StartOAuth(ctx, domain.ProviderGoogle)
+	if err != nil {
+		t.Fatalf("start oauth: %v", err)
+	}
+	code := encodePassthroughCode(t, "google-json", "json@example.com", "JSON User")
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/google/callback?code="+code+"&state="+state, nil)
+	req.Header.Set("Accept", "application/json")
+	rr := httptest.NewRecorder()
+	handler.HandleOAuthCallback(domain.ProviderGoogle, rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Fatalf("expected JSON response, got %s", ct)
+	}
+	var resp struct {
+		AccessToken string       `json:"access_token"`
+		User        userResponse `json:"user"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.AccessToken == "" {
+		t.Fatalf("expected access token in JSON response")
+	}
+	if resp.User.Email != "json@example.com" {
+		t.Fatalf("expected user email json@example.com, got %s", resp.User.Email)
+	}
+}
+
+func findRefreshCookie(cookies []*http.Cookie) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == "alex_refresh_token" {
+			return cookie
+		}
+	}
+	return nil
+}
+
 func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, string, time.Time) {
+	return newAuthHandlerWithSecure(t, false)
+}
+
+func newAuthHandlerWithSecure(t *testing.T, secure bool) (*serverhttp.AuthHandler, *authapp.Service, string, time.Time) {
 	t.Helper()
 	users, identities, sessions, states := adapters.NewMemoryStores()
 	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
@@ -159,5 +290,45 @@ func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, st
 		t.Fatalf("login: %v", err)
 	}
 
-	return serverhttp.NewAuthHandler(service, false), service, tokens.AccessToken, fixed
+	return serverhttp.NewAuthHandler(service, secure), service, tokens.AccessToken, fixed
+}
+
+func newOAuthEnabledAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service) {
+	t.Helper()
+	users, identities, sessions, states := adapters.NewMemoryStores()
+	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
+	provider := adapters.NewPassthroughOAuthProvider(adapters.OAuthProviderConfig{
+		Provider:    domain.ProviderGoogle,
+		ClientID:    "client-id",
+		AuthURL:     "https://example.com/oauth",
+		RedirectURL: "http://localhost/api/auth/google/callback",
+	})
+	service := authapp.NewService(
+		users,
+		identities,
+		sessions,
+		tokenManager,
+		states,
+		[]ports.OAuthProvider{provider},
+		authapp.Config{},
+	)
+	return serverhttp.NewAuthHandler(service, false), service
+}
+
+func encodePassthroughCode(t *testing.T, providerID, email, displayName string) string {
+	t.Helper()
+	payload := map[string]any{
+		"provider_id":   providerID,
+		"email":         email,
+		"display_name":  displayName,
+		"access_token":  "remote-access-token",
+		"refresh_token": "remote-refresh-token",
+		"expires_in":    3600,
+		"scopes":        []string{"profile"},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(data)
 }

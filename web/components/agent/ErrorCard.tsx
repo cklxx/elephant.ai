@@ -16,7 +16,7 @@ export function ErrorCard({ event }: ErrorCardProps) {
   return (
     <section className="space-y-4" data-testid="error-event">
       <header className="flex flex-wrap items-center gap-3 text-destructive">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-destructive bg-destructive/5 shadow-[3px_3px_0_rgba(0,0,0,0.6)]">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-destructive bg-destructive/5">
           <AlertCircle className="h-4 w-4" aria-hidden />
         </span>
         <h3 className="text-lg font-semibold uppercase tracking-[0.2em]">

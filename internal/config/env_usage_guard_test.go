@@ -13,7 +13,8 @@ import (
 func TestNoUnapprovedGetenv(t *testing.T) {
 	moduleRoot := findModuleRoot(t)
 
-	allowed := newStringSet(t,
+
+  allowed := newStringSet(t,
 		"internal/rag/embedder_test.go",
 		"internal/tools/sandbox_docker.go",
 		"internal/utils/logger.go",

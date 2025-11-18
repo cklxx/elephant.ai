@@ -1,4 +1,6 @@
 # End-to-End LLM Streaming Plan
+> Last updated: 2025-11-18
+
 
 ## Executive Summary
 

@@ -114,7 +114,7 @@ interface StepColumnProps {
 
 function StepColumn({ title, steps, tone, emptyLabel, focusedStepId, onStepSelect }: StepColumnProps) {
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-card/90 p-4 shadow-[8px_8px_0_rgba(0,0,0,0.5)]">
+    <section className="space-y-3 rounded-2xl border border-border bg-card/90 p-4">
       <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">{title}</h4>
       {steps.length === 0 ? (
         <p className="console-microcopy text-muted-foreground/70">{emptyLabel}</p>
@@ -154,7 +154,7 @@ function StepItem({
         type="button"
         onClick={() => onSelect?.(step.id)}
         className={cn(
-          'w-full rounded-xl border-2 border-border bg-background/70 p-3 text-left transition hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[6px_6px_0_rgba(0,0,0,0.55)] focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'w-full rounded-xl border-2 border-border bg-background/70 p-3 text-left transition hover:-translate-y-1 hover:-translate-x-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           isFocused && 'ring-2 ring-foreground ring-offset-2 ring-offset-background',
           tone === 'active' && 'border-foreground/60 bg-accent/20',
           tone === 'history' && 'opacity-90 hover:opacity-100',

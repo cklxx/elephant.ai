@@ -1,4 +1,6 @@
 # Code Agent 实用指导手册
+> Last updated: 2025-11-18
+
 > 如何指导 AI 代码助手产出有效代码和调试 Bug
 
 ## 核心原则

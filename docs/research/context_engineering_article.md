@@ -1,3 +1,5 @@
+> Last updated: 2025-11-18
+
 Title: Effective context engineering for AI agents
 
 URL Source: https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents

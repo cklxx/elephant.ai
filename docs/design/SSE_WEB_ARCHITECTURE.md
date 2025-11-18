@@ -1,4 +1,6 @@
 # ALEX SSE Service Architecture & Web Interface Design
+> Last updated: 2025-11-18
+
 
 ## 目录
 

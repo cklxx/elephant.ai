@@ -1,4 +1,6 @@
 # Release Guide
+> Last updated: 2025-11-18
+
 
 This document explains how to use the newly added automated build and release system.
 
@@ -158,4 +160,4 @@ If you encounter issues, you can:
 
 1. Check GitHub Actions logs
 2. Look for similar issues on the Issues page
-3. Create a new Issue for help 
+3. Create a new Issue for help

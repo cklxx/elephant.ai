@@ -1,4 +1,6 @@
 # ALEX Data Flow Architecture
+> Last updated: 2025-11-18
+
 
 ```mermaid
 graph TD

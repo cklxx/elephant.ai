@@ -285,5 +285,74 @@ nil,
 	}
 }
 
+func TestPersistSessionSnapshotPersistsMessagesWithFallbackIDs(t *testing.T) {
+	sessionStore := &stubSessionStore{}
+	coordinator := &AgentCoordinator{
+		sessionStore: sessionStore,
+		logger:       ports.NoopLogger{},
+		clock:        ports.SystemClock{},
+	}
+
+	env := &ports.ExecutionEnvironment{
+		Session: &ports.Session{
+			ID:        "session-generated",
+			Metadata:  map[string]string{},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		State: &ports.TaskState{
+			Messages:   []ports.Message{{Role: "assistant", Source: ports.MessageSourceAssistantReply, Content: "partial"}},
+			Iterations: 2,
+			TokenCount: 42,
+		},
+	}
+
+	coordinator.persistSessionSnapshot(context.Background(), env, "task-123", "parent-456", "error")
+
+	saved := sessionStore.session
+	if saved == nil {
+		t.Fatalf("expected session to be saved")
+	}
+	if saved.Metadata["last_task_id"] != "task-123" {
+		t.Fatalf("expected last_task_id metadata to be persisted, got %q", saved.Metadata["last_task_id"])
+	}
+	if saved.Metadata["last_parent_task_id"] != "parent-456" {
+		t.Fatalf("expected last_parent_task_id metadata, got %q", saved.Metadata["last_parent_task_id"])
+	}
+	if saved.Metadata["session_id"] != env.Session.ID {
+		t.Fatalf("expected session metadata to include session_id, got %q", saved.Metadata["session_id"])
+	}
+	if len(saved.Messages) == 0 {
+		t.Fatalf("expected persisted messages to be stored")
+	}
+}
+
+func TestPersistSessionSnapshotSkipsWhenStateMissing(t *testing.T) {
+	sessionStore := &stubSessionStore{}
+	coordinator := &AgentCoordinator{
+		sessionStore: sessionStore,
+		logger:       ports.NoopLogger{},
+		clock:        ports.SystemClock{},
+	}
+
+	coordinator.persistSessionSnapshot(context.Background(), nil, "task-123", "parent-456", "error")
+	if sessionStore.session != nil {
+		t.Fatalf("expected no session to be saved when env is nil")
+	}
+
+	env := &ports.ExecutionEnvironment{
+		Session: &ports.Session{
+			ID:        "session-generated",
+			Metadata:  map[string]string{},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}
+	coordinator.persistSessionSnapshot(context.Background(), env, "task-123", "parent-456", "error")
+	if sessionStore.session != nil {
+		t.Fatalf("expected no session to be saved when state is nil")
+	}
+}
+
 // Ensure the coordinator continues to satisfy the AgentCoordinator port contract.
 var _ ports.AgentCoordinator = (*AgentCoordinator)(nil)
