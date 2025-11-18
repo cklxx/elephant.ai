@@ -365,7 +365,6 @@ export const ServerConfigPayloadSchema = z.object({
 export const ConfigurationUpdatedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('configuration_updated'),
   version: z.number(),
-  config: ServerConfigPayloadSchema,
 });
 
 // Union schema for all agent events

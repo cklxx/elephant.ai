@@ -136,7 +136,7 @@ func main() {
 		defer cancel()
 		go func() {
 			for snapshot := range updates {
-				event := agentdomain.NewConfigurationUpdatedEvent(snapshot.Version, snapshot.Config, snapshot.UpdatedAt)
+				event := agentdomain.NewConfigurationUpdatedEvent(snapshot.Version, snapshot.UpdatedAt)
 				broadcaster.OnEvent(event)
 			}
 		}()

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	serverconfig "alex/internal/serverconfig"
 )
 
 // Re-export the event listener contract defined at the port layer.
@@ -498,21 +497,24 @@ func NewSandboxProgressEvent(status, stage, message string, step, totalSteps int
 }
 
 // ConfigurationUpdatedEvent informs clients that the shared server configuration changed.
+//
+// The event intentionally excludes the full configuration payload to avoid leaking
+// sensitive values (API keys, JWT secrets, etc.) over public SSE streams. Clients
+// should fetch the latest snapshot via the authenticated REST API when they need
+// the full data.
 type ConfigurationUpdatedEvent struct {
 	BaseEvent
 	Version int64
-	Config  serverconfig.Config
 }
 
 // EventType implements ports.AgentEvent.
 func (e *ConfigurationUpdatedEvent) EventType() string { return "configuration_updated" }
 
 // NewConfigurationUpdatedEvent constructs a global configuration update event.
-func NewConfigurationUpdatedEvent(version int64, cfg serverconfig.Config, updated time.Time) *ConfigurationUpdatedEvent {
+func NewConfigurationUpdatedEvent(version int64, updated time.Time) *ConfigurationUpdatedEvent {
 	return &ConfigurationUpdatedEvent{
 		BaseEvent: newBaseEventWithIDs(ports.LevelCore, "", "", "", updated),
 		Version:   version,
-		Config:    cfg.Clone(),
 	}
 }
 

@@ -374,7 +374,6 @@ export interface ConfigCenterSnapshot {
 export interface ConfigurationUpdatedEvent extends AgentEvent {
   event_type: 'configuration_updated';
   version: number;
-  config: ServerConfigPayload;
 }
 
 // Union type for all agent events
