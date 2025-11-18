@@ -456,12 +456,11 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		return defaultSystemPrompt
 	}
 	session := &ports.Session{ID: "", Messages: nil}
-	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
-		TokenLimit:         c.config.MaxTokens,
-		PersonaKey:         c.config.AgentPreset,
-		ToolPreset:         c.config.ToolPreset,
-		EnvironmentSummary: c.config.EnvironmentSummary,
-	})
+        window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
+                PersonaKey:         c.config.AgentPreset,
+                ToolPreset:         c.config.ToolPreset,
+                EnvironmentSummary: c.config.EnvironmentSummary,
+        })
 	if err != nil {
 		if c.logger != nil {
 			c.logger.Warn("Failed to build preview context window: %v", err)
