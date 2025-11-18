@@ -49,7 +49,7 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	healthChecker.RegisterProbe(app.NewSandboxProbe(container.SandboxManager))
 
 	// Create router
-	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development")
+	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development", nil)
 
 	// Test health endpoint
 	req := httptest.NewRequest("GET", "/health", nil)
