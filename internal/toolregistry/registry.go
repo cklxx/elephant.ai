@@ -169,8 +169,14 @@ func (w *idAwareExecutor) Mode() tools.ExecutionMode {
 // This prevents nested subagent calls at registration level
 func (r *Registry) WithoutSubagent() ports.ToolRegistry {
 	return &filteredRegistry{
-		parent:  r,
-		exclude: map[string]bool{"subagent": true},
+		parent: r,
+		exclude: map[string]bool{
+			"subagent": true,
+			"explore":  true,
+			"code":     true,
+			"research": true,
+			"build":    true,
+		},
 	}
 }
 
