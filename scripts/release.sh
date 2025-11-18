@@ -67,12 +67,8 @@ run_checks() {
     print_status "Running test suite..."
     ./scripts/test.sh all
 
-    if command -v golangci-lint >/dev/null 2>&1; then
-        print_status "Running golangci-lint..."
-        golangci-lint run ./...
-    else
-        print_warning "golangci-lint not installed; skipping lint step."
-    fi
+    print_status "Running golangci-lint..."
+    ./scripts/run-golangci-lint.sh run ./...
 }
 
 prepare_workspace() {
