@@ -17,6 +17,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"internal/rag/embedder_test.go":    {},
 		"internal/tools/sandbox_docker.go": {},
 		"internal/utils/logger.go":         {},
+		"cmd/auth-user-seed/main.go":       {},
 	}
 
 	skipDirs := map[string]struct{}{

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/prompts"
 )
 
 func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
@@ -19,7 +18,6 @@ func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
 		SessionStore:  store,
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
-		PromptLoader:  prompts.New(),
 		Config:        Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3},
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 2, 9, 0, 0, 0, time.UTC) }),
@@ -66,7 +64,6 @@ func TestPrepareCapturesWorldStateFromContextManager(t *testing.T) {
 		SessionStore:  store,
 		ContextMgr:    worldAwareContextManager{},
 		Parser:        stubParser{},
-		PromptLoader:  prompts.New(),
 		Config:        Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3, EnvironmentSummary: "Sandbox"},
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),

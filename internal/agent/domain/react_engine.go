@@ -1173,59 +1173,30 @@ func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 }
 
 func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
-if state == nil {
-return
-}
+	if state == nil {
+		return
+	}
 
-prompt := strings.TrimSpace(state.SystemPrompt)
-if prompt == "" {
-return
-}
+	prompt := strings.TrimSpace(state.SystemPrompt)
+	if prompt == "" {
+		return
+	}
 
-rewriteExisting := func(idx int) {
-if idx < 0 || idx >= len(state.Messages) {
-return
-}
-updated := state.Messages[idx]
-updated.Role = "system"
-updated.Source = ports.MessageSourceSystemPrompt
-updated.Content = state.SystemPrompt
-if idx == 0 {
-state.Messages[0] = updated
-return
-}
-state.Messages = append([]Message{updated}, append(state.Messages[:idx], state.Messages[idx+1:]...)...)
-}
+	for _, msg := range state.Messages {
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if msg.Source == ports.MessageSourceSystemPrompt || role == "system" {
+			return
+		}
+	}
 
-for idx, msg := range state.Messages {
-role := strings.ToLower(strings.TrimSpace(msg.Role))
-if msg.Source != ports.MessageSourceSystemPrompt && role != "system" {
-continue
-}
-if msg.Source != ports.MessageSourceSystemPrompt && role == "system" {
-// Treat legacy system-role messages (without explicit source) as candidates.
-rewriteExisting(idx)
-return
-}
-if strings.TrimSpace(msg.Content) == prompt {
-if idx == 0 {
-return
-}
-state.Messages = append([]Message{msg}, append(state.Messages[:idx], state.Messages[idx+1:]...)...)
-return
-}
-rewriteExisting(idx)
-return
-}
+	systemMessage := Message{
+		Role:    "system",
+		Content: state.SystemPrompt,
+		Source:  ports.MessageSourceSystemPrompt,
+	}
 
-systemMessage := Message{
-Role:    "system",
-Content: state.SystemPrompt,
-Source:  ports.MessageSourceSystemPrompt,
-}
-
-state.Messages = append([]Message{systemMessage}, state.Messages...)
-e.logger.Debug("Inserted system prompt into message history")
+	state.Messages = append([]Message{systemMessage}, state.Messages...)
+	e.logger.Debug("Inserted system prompt into message history")
 }
 
 func ensureAttachmentStore(state *TaskState) {

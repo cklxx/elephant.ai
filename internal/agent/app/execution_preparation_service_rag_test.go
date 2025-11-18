@@ -8,7 +8,6 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/prompts"
 	id "alex/internal/utils/id"
 )
 
@@ -188,7 +187,6 @@ func TestExecutionPreparationServiceEmitsRAGDirectives(t *testing.T) {
 		SessionStore:  sessionStore,
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
-		PromptLoader:  prompts.New(),
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return now }),
