@@ -1182,22 +1182,28 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 		return
 	}
 
+	existingIdx := -1
 	for idx := range state.Messages {
 		role := strings.ToLower(strings.TrimSpace(state.Messages[idx].Role))
 		if state.Messages[idx].Source == ports.MessageSourceSystemPrompt || role == "system" {
-			if strings.TrimSpace(state.Messages[idx].Content) == prompt {
-				// Existing system prompt already matches the desired prompt.
-				if state.Messages[idx].Source == "" {
-					state.Messages[idx].Source = ports.MessageSourceSystemPrompt
-				}
-				return
-			}
-
-			state.Messages[idx].Content = state.SystemPrompt
-			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
-			e.logger.Debug("Updated existing system prompt in message history")
-			return
+			existingIdx = idx
+			break
 		}
+	}
+
+	if existingIdx >= 0 {
+		msg := &state.Messages[existingIdx]
+		if strings.TrimSpace(msg.Content) != prompt {
+			msg.Content = state.SystemPrompt
+			e.logger.Debug("Updated existing system prompt in message history")
+		}
+		if msg.Source == "" {
+			msg.Source = ports.MessageSourceSystemPrompt
+		}
+		if strings.TrimSpace(msg.Role) == "" {
+			msg.Role = "system"
+		}
+		return
 	}
 
 	systemMessage := Message{
