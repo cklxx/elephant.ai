@@ -8,7 +8,6 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/prompts"
 	id "alex/internal/utils/id"
 )
 
@@ -53,6 +52,11 @@ func (f *fakeLLMFactory) DisableRetry() {}
 type fakeLLMClient struct{}
 
 func (fakeLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	if req.Metadata != nil {
+		if intent, ok := req.Metadata["intent"].(string); ok && intent == historySummaryIntent {
+			return &ports.CompletionResponse{Content: historySummaryResponse()}, nil
+		}
+	}
 	return &ports.CompletionResponse{Content: `<task_analysis>
   <action>Researching marketing landscape</action>
   <goal>Summarize current marketing trends</goal>
@@ -188,7 +192,6 @@ func TestExecutionPreparationServiceEmitsRAGDirectives(t *testing.T) {
 		SessionStore:  sessionStore,
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
-		PromptLoader:  prompts.New(),
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return now }),

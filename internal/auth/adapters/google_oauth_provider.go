@@ -134,7 +134,9 @@ func (p *GoogleOAuthProvider) Exchange(ctx context.Context, code string) (ports.
 	if err != nil {
 		return ports.OAuthUserInfo{}, fmt.Errorf("google: exchange token request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxGoogleErrorBody))
@@ -160,7 +162,9 @@ func (p *GoogleOAuthProvider) Exchange(ctx context.Context, code string) (ports.
 	if err != nil {
 		return ports.OAuthUserInfo{}, fmt.Errorf("google: user info request failed: %w", err)
 	}
-	defer infoResp.Body.Close()
+	defer func() {
+		_ = infoResp.Body.Close()
+	}()
 
 	if infoResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(infoResp.Body, maxGoogleErrorBody))
