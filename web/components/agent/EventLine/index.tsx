@@ -33,7 +33,11 @@ export const EventLine = React.memo(function EventLine({
   event,
   onAutoReviewAction,
 }: EventLineProps) {
-  if (event.agent_level === "subagent" || event.is_subtask) {
+  const isSubtaskEvent =
+    event.agent_level === "subagent" ||
+    ("is_subtask" in event && Boolean(event.is_subtask));
+
+  if (isSubtaskEvent) {
     return <SubagentEventLine event={event} />;
   }
 
@@ -268,12 +272,16 @@ interface SubagentContext {
 }
 
 function getSubagentContext(event: AnyAgentEvent): SubagentContext {
-  const index = typeof event.subtask_index === "number"
-    ? event.subtask_index + 1
-    : undefined;
-  const total = typeof event.total_subtasks === "number" && event.total_subtasks > 0
-    ? event.total_subtasks
-    : undefined;
+  const index =
+    "subtask_index" in event && typeof event.subtask_index === "number"
+      ? event.subtask_index + 1
+      : undefined;
+  const total =
+    "total_subtasks" in event &&
+    typeof event.total_subtasks === "number" &&
+    event.total_subtasks > 0
+      ? event.total_subtasks
+      : undefined;
 
   let title = "Subagent Task";
   if (index !== undefined && total !== undefined) {
@@ -282,10 +290,12 @@ function getSubagentContext(event: AnyAgentEvent): SubagentContext {
     title = `Subagent Task ${index}`;
   }
 
-  const preview = event.subtask_preview?.trim();
-  const concurrency = event.max_parallel && event.max_parallel > 1
-    ? `Parallel ×${event.max_parallel}`
-    : undefined;
+  const preview =
+    "subtask_preview" in event ? event.subtask_preview?.trim() : undefined;
+  const concurrency =
+    "max_parallel" in event && event.max_parallel && event.max_parallel > 1
+      ? `Parallel ×${event.max_parallel}`
+      : undefined;
 
   return { title, preview, concurrency };
 }

@@ -311,6 +311,7 @@ export interface ToolFilteringEvent extends AgentEvent {
 export interface ContextSnapshotEvent extends AgentEvent {
   event_type: 'context_snapshot';
   iteration: number;
+  llm_turn_seq: number;
   request_id: string;
   messages: Message[];
   excluded_messages?: Message[];

@@ -68,7 +68,7 @@ services:
       - alex-dev-network
 
   auth-db:
-    image: postgres:15
+    image: ${AUTH_DB_IMAGE:-postgres:15}
     container_name: alex-auth-db
     environment:
       - POSTGRES_USER=${AUTH_DB_USER:-alex}

@@ -412,6 +412,7 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		"task-456",
 		"parent-789",
 		2,
+		5,
 		"req-abc",
 		messages,
 		excluded,
@@ -430,6 +431,9 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 
 	if got := data["iteration"]; got != float64(2) {
 		t.Fatalf("expected iteration 2, got %v", got)
+	}
+	if got := data["llm_turn_seq"]; got != float64(5) {
+		t.Fatalf("expected llm_turn_seq 5, got %v", got)
 	}
 
 	if got := data["request_id"]; got != "req-abc" {

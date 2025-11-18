@@ -422,10 +422,11 @@ func NewContextCompressionEvent(level ports.AgentLevel, sessionID, taskID, paren
 // ContextSnapshotEvent - emitted with the exact messages provided to the LLM.
 type ContextSnapshotEvent struct {
 	BaseEvent
-	Iteration int
-	RequestID string
-	Messages  []ports.Message
-	Excluded  []ports.Message
+	Iteration  int
+	LLMTurnSeq int
+	RequestID  string
+	Messages   []ports.Message
+	Excluded   []ports.Message
 }
 
 func (e *ContextSnapshotEvent) EventType() string { return "context_snapshot" }
@@ -435,16 +436,18 @@ func NewContextSnapshotEvent(
 	level ports.AgentLevel,
 	sessionID, taskID, parentTaskID string,
 	iteration int,
+	llmTurnSeq int,
 	requestID string,
 	messages, excluded []ports.Message,
 	ts time.Time,
 ) *ContextSnapshotEvent {
 	return &ContextSnapshotEvent{
-		BaseEvent: newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
-		Iteration: iteration,
-		RequestID: requestID,
-		Messages:  cloneMessageSlice(messages),
-		Excluded:  cloneMessageSlice(excluded),
+		BaseEvent:  newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		Iteration:  iteration,
+		LLMTurnSeq: llmTurnSeq,
+		RequestID:  requestID,
+		Messages:   cloneMessageSlice(messages),
+		Excluded:   cloneMessageSlice(excluded),
 	}
 }
 

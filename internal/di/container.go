@@ -19,6 +19,7 @@ import (
 	"alex/internal/prompts"
 	"alex/internal/rag/gate"
 	"alex/internal/session/filestore"
+	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
 	"alex/internal/tools"
@@ -29,6 +30,7 @@ import (
 type Container struct {
 	AgentCoordinator *agentApp.AgentCoordinator
 	SessionStore     ports.SessionStore
+	StateStore       sessionstate.Store
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
@@ -199,7 +201,10 @@ func BuildContainer(config Config) (*Container, error) {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
 	sessionStore := filestore.New(sessionDir)
-	contextMgr := ctxmgr.NewManager()
+	stateStore := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
+	contextMgr := ctxmgr.NewManager(
+		ctxmgr.WithStateStore(stateStore),
+	)
 	parserImpl := parser.New()
 
 	// Cost tracking storage
@@ -291,6 +296,7 @@ func BuildContainer(config Config) (*Container, error) {
 	return &Container{
 		AgentCoordinator: coordinator,
 		SessionStore:     sessionStore,
+		StateStore:       stateStore,
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,

@@ -14,6 +14,7 @@ import (
 	serverApp "alex/internal/server/app"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/session/filestore"
+	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 )
 
@@ -158,6 +159,7 @@ func TestTaskCancellation(t *testing.T) {
 	costTracker := agentApp.NewCostTracker(costStore)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	broadcaster := serverApp.NewEventBroadcaster()
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := agentApp.NewAgentCoordinator(
 		llmFactory,
@@ -180,6 +182,7 @@ func TestTaskCancellation(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	// Create and start a long-running task
@@ -252,6 +255,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	costTracker := agentApp.NewCostTracker(costStore)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	broadcaster := serverApp.NewEventBroadcaster()
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := agentApp.NewAgentCoordinator(
 		llmFactory,
@@ -274,6 +278,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	// Get or create session
@@ -470,6 +475,17 @@ func (m *testContextManager) Compress(messages []ports.Message, targetTokens int
 func (m *testContextManager) ShouldCompress(messages []ports.Message, limit int) bool {
 	return false
 }
+
+func (m *testContextManager) Preload(context.Context) error { return nil }
+
+func (m *testContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+	if session == nil {
+		return ports.ContextWindow{}, fmt.Errorf("session required")
+	}
+	return ports.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
+}
+
+func (m *testContextManager) RecordTurn(context.Context, ports.ContextTurnRecord) error { return nil }
 
 type testParser struct{}
 

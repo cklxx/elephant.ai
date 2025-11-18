@@ -93,6 +93,16 @@ else
     fi
 fi
 
+if [[ -n "${AUTH_DB_IMAGE:-}" ]]; then
+    if [[ "${AUTH_DB_IMAGE}" == docker.m.daocloud.io/library/postgres:15 ]]; then
+        echo -e "${C_GREEN}✓${C_RESET} AUTH_DB_IMAGE: ${AUTH_DB_IMAGE} (China mirror)"
+    else
+        echo -e "${C_GREEN}✓${C_RESET} AUTH_DB_IMAGE: ${AUTH_DB_IMAGE}"
+    fi
+else
+    echo -e "${C_YELLOW}○${C_RESET} AUTH_DB_IMAGE: not set (defaulting to postgres:15)"
+fi
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -119,6 +129,7 @@ echo ""
 echo -e "${C_BLUE}Recommended Configuration for China:${C_RESET}"
 echo ""
 echo "  🚀 Fastest: SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest"
+echo "  🗄  Auth DB: AUTH_DB_IMAGE=docker.m.daocloud.io/library/postgres:15"
 echo "  🐳 Docker:  https://docker.mirrors.ustc.edu.cn"
 echo "  📦 NPM:     https://registry.npmmirror.com/"
 echo "  🐍 PIP:     https://pypi.tuna.tsinghua.edu.cn/simple"

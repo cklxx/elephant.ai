@@ -550,12 +550,14 @@ function buildPreviewInput(events: AnyAgentEvent[]) {
   };
 }
 
+type PreviewBucket = { key: string; iteration: number; content: string };
+
 function buildPreviewOutputs(events: AnyAgentEvent[]): {
   iteration: number;
   content: string;
 }[] {
-  const buckets: Array<{ key: string; iteration: number; content: string }> = [];
-  const bucketMap = new Map<string, { iteration: number; content: string }>();
+  const buckets: PreviewBucket[] = [];
+  const bucketMap = new Map<string, PreviewBucket>();
 
   events.forEach((event) => {
     if (event.event_type !== 'assistant_message') {
@@ -567,7 +569,7 @@ function buildPreviewOutputs(events: AnyAgentEvent[]): {
     const key = `${assistantEvent.task_id ?? 'task'}:${assistantEvent.parent_task_id ?? 'root'}:${iteration}`;
     let bucket = bucketMap.get(key);
     if (!bucket) {
-      bucket = { iteration, content: '' };
+      bucket = { key, iteration, content: '' };
       bucketMap.set(key, bucket);
       buckets.push(bucket);
     }

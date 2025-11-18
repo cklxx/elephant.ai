@@ -32,7 +32,7 @@ interface ToolOutputCardProps {
   result?: string;
   error?: string;
   duration?: number;
-  timestamp: string;
+  timestamp?: string;
   callId?: string;
   metadata?: Record<string, any>;
   attachments?: Record<string, AttachmentPayload>;
