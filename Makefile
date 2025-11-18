@@ -26,7 +26,7 @@ clean: ## Clean build artifacts
 	@echo "✓ Cleaned"
 
 fmt: ## Format and lint Go code with golangci-lint
-	@golangci-lint run --fix ./...
+	@./scripts/run-golangci-lint.sh run --fix ./...
 	@echo "✓ Formatted and linted"
 
 vet: ## Run go vet

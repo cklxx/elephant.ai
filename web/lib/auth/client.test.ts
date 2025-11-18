@@ -213,4 +213,56 @@ describe("authClient.waitForOAuthSession", () => {
     controller.abort();
     await rejection;
   });
+
+  it("resolves immediately when it receives an OAuth success message", async () => {
+    const session = {
+      accessToken: "oauth-access",
+      accessExpiry: futureDate(5),
+      refreshExpiry: futureDate(60),
+      user: {
+        id: "user-42",
+        email: "oauth@example.com",
+        displayName: "OAuth User",
+        pointsBalance: 0,
+        subscription: {
+          tier: "free",
+          monthlyPriceCents: 0,
+          expiresAt: null,
+          isPaid: false,
+        },
+      },
+    };
+
+    const popup = {
+      closed: false,
+      close: vi.fn(() => {
+        popup.closed = true;
+      }),
+    } as unknown as Window;
+
+    const resumeSpy = vi
+      .spyOn(authClient, "resumeFromRefreshCookie")
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(session);
+
+    const promise = authClient.waitForOAuthSession("google", {
+      popup,
+      timeoutMs: 5000,
+      pollIntervalMs: 250,
+    });
+
+    await Promise.resolve();
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { source: "alex-auth", status: "success" },
+      }),
+    );
+
+    const result = await promise;
+
+    expect(result).toEqual(session);
+    expect(resumeSpy).toHaveBeenCalledTimes(2);
+    expect(popup.close).toHaveBeenCalledTimes(1);
+  });
 });

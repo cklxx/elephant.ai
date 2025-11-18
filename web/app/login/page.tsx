@@ -421,7 +421,7 @@ function LoginPageContent() {
                     : t("auth.register.subtitle")}
                 </p>
               </div>
-              <div className="mx-auto w-full max-w-xl rounded-[28px] border-[3px] border-dashed border-[hsl(var(--foreground))] bg-white/80 p-6 shadow-[12px_12px_0_rgba(0,0,0,0.15)]">
+              <div className="mx-auto w-full max-w-xl rounded-[28px] border-[3px] border-dashed border-[hsl(var(--foreground))] bg-white/80 p-6">
                 <div className="grid grid-cols-5 gap-3">
                   {Array.from({ length: 10 }).map((_, index) => (
                     <div
@@ -442,7 +442,7 @@ function LoginPageContent() {
                   </div>
                 </div>
               </div>
-              <div className="inline-flex rounded-[999px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 p-1 shadow-[8px_8px_0_rgba(0,0,0,0.15)]">
+              <div className="inline-flex rounded-[999px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 p-1">
                 {(["login", "register"] as AuthMode[]).map((item) => (
                   <button
                     key={item}
@@ -450,7 +450,7 @@ function LoginPageContent() {
                     className={clsx(
                       "relative flex-1 rounded-[999px] border-[3px] border-[hsl(var(--foreground))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foreground))]",
                       item === mode
-                        ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] shadow-[6px_6px_0_rgba(0,0,0,0.35)]"
+                        ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]"
                         : "bg-white text-[hsl(var(--foreground))]",
                     )}
                     onClick={() => {
@@ -472,7 +472,7 @@ function LoginPageContent() {
               <button
                 type="button"
                 onClick={() => handleOAuth("google")}
-                className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] shadow-[8px_8px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
                 disabled={isBusy}
               >
                 <Chrome className="h-4 w-4" aria-hidden="true" />
@@ -483,7 +483,7 @@ function LoginPageContent() {
               <button
                 type="button"
                 onClick={() => handleOAuth("wechat")}
-                className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-emerald-700 bg-emerald-50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-900 shadow-[8px_8px_0_rgba(16,185,129,0.25)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-[24px] border-[3px] border-emerald-700 bg-emerald-50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-900 transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
                 disabled={isBusy}
               >
                 <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -504,7 +504,7 @@ function LoginPageContent() {
             </div>
 
             <form
-              className="w-full max-w-xl space-y-5 rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-white/90 p-6 shadow-[12px_12px_0_rgba(0,0,0,0.2)]"
+              className="w-full max-w-xl space-y-5 rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-white/90 p-6"
               onSubmit={handleSubmit}
             >
               {mode === "register" && (
@@ -606,7 +606,7 @@ function LoginPageContent() {
 
             <button
               type="submit"
-              className="w-full rounded-[28px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.35em] text-[hsl(var(--background))] shadow-[10px_10px_0_rgba(0,0,0,0.35)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+              className="w-full rounded-[28px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.35em] text-[hsl(var(--background))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
               disabled={isBusy || status === "authenticated"}
             >
               {submitting
@@ -663,7 +663,7 @@ function LoginPageContent() {
 
       {wechatModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
-          <div className="w-full max-w-sm space-y-6 rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-6 text-[hsl(var(--foreground))] shadow-[18px_18px_0_rgba(0,0,0,0.6)]">
+          <div className="w-full max-w-sm space-y-6 rounded-[32px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-6 text-[hsl(var(--foreground))]">
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">{t("auth.oauth.wechat.title")}</h2>
               <p className="text-sm text-gray-600">{t("auth.oauth.wechat.subtitle")}</p>
@@ -700,7 +700,7 @@ function LoginPageContent() {
             <button
               type="button"
               onClick={cancelWeChatLogin}
-              className="w-full rounded-[24px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] shadow-[8px_8px_0_rgba(0,0,0,0.25)] transition-transform hover:-translate-y-0.5"
+              className="w-full rounded-[24px] border-[3px] border-[hsl(var(--foreground))] bg-white/80 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5"
             >
               {t("auth.oauth.wechat.cancel")}
             </button>

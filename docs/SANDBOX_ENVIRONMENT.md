@@ -1,4 +1,6 @@
 # Sandbox Environment
+> Last updated: 2025-11-18
+
 
 Pre-initialized development environment in the ALEX sandbox container.
 

@@ -56,7 +56,7 @@ export default function HomePage() {
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center rounded-xl border-2 border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[hsl(var(--background))] shadow-[8px_8px_0_rgba(0,0,0,0.75)] transition-transform hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center rounded-xl border-2 border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] px-6 py-3 text-sm font-semibold uppercase tracking-wider text-[hsl(var(--background))] transition-transform hover:-translate-y-0.5"
               >
                 Enter the lab
               </Link>
@@ -68,7 +68,7 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-[32px] bg-[hsl(var(--card))] p-8 shadow-[16px_16px_0_rgba(0,0,0,0.8)]">
+          <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-[32px] bg-[hsl(var(--card))] p-8">
             <div className="absolute inset-4 rounded-3xl border-[3px] border-dashed border-[hsl(var(--foreground))]" aria-hidden="true" />
             <div className="relative flex flex-col gap-6">
               <div className="grid grid-cols-4 gap-3">
@@ -99,7 +99,7 @@ export default function HomePage() {
           {highlights.map((item) => (
             <article
               key={item.title}
-              className="flex h-full flex-col gap-4 rounded-3xl border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-6 shadow-[10px_10px_0_rgba(0,0,0,0.7)]"
+              className="flex h-full flex-col gap-4 rounded-3xl border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-6"
             >
               <h2 className="text-2xl font-semibold">{item.title}</h2>
               <p className="text-base text-gray-600">{item.description}</p>
@@ -107,7 +107,7 @@ export default function HomePage() {
           ))}
         </section>
 
-        <section className="rounded-[36px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-8 shadow-[14px_14px_0_rgba(0,0,0,0.75)]">
+        <section className="rounded-[36px] border-[3px] border-[hsl(var(--foreground))] bg-[hsl(var(--card))] p-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
             <div className="flex-1 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Workflow</p>

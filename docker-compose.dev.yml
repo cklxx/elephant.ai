@@ -24,6 +24,7 @@ services:
     volumes:
       - ./:/app:cached
       - alex-sessions-dev:/data/sessions
+      - ~/.alex-config.json:/root/.alex-config.json:ro
     working_dir: /app
     command: go run ./cmd/alex-server
     restart: unless-stopped

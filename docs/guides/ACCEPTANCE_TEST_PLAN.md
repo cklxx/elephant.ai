@@ -1,4 +1,6 @@
 # ALEX Acceptance & Verification Plan
+> Last updated: 2025-11-18
+
 
 **Version**: 2025-10-05  
 **Owners**: Platform Team (Go backend), Web Experience Team (Next.js UI)  

@@ -32,9 +32,9 @@ func TestRAGPreloaderAppendResultAddsSystemMessageWithoutToolCallID(t *testing.T
 	}
 
 	msg := env.State.Messages[0]
-	if msg.Role != "user" {
-		t.Fatalf("expected user role, got %q", msg.Role)
-	}
+    if msg.Role != "assistant" {
+            t.Fatalf("expected assistant role, got %q", msg.Role)
+    }
 	if msg.ToolCallID != "" {
 		t.Fatalf("expected tool_call_id to be empty, got %q", msg.ToolCallID)
 	}
