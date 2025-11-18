@@ -1,4 +1,6 @@
 # Project-Fit RAG Blueprint for ALEX
+> Last updated: 2025-11-18
+
 
 ## 0. Executive Summary
 After re-reviewing the repository constraints, prior experiments, and the comparative analysis, the final recommendation for ALEX is a **search-gated, crawl-backed augmentation loop** that layers new discovery capabilities on top of the existing Go RAG packages. This design is technically preferred because it:

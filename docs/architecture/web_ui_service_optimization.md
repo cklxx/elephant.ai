@@ -1,4 +1,6 @@
 # Web UI 与服务架构优化调研与实施计划（精简版）
+> Last updated: 2025-11-18
+
 
 > 目标：在不显著提升技术复杂度的前提下，逐步改善单体式应用的可用性与可维护性。全部改动以现有技术栈（Next.js、Go、Redis、Postgres）为基础，优先复用现有组件与脚本。
 
@@ -165,4 +167,3 @@
 - **基础测试矩阵（逐项落地）**  
   - **代码执行计划**：在 `Makefile` 增加 `test:frontend`、`test:backend`、`test:e2e` 目标；更新 `scripts/ci/run-tests.sh` 串联执行；在 `web/e2e` 目录按模块补充脚本，后端维持现有集成测试。  
   - **验收方案**：CI Pipeline 必须在主干执行全部测试目标；记录测试覆盖率于 `docs/qa/test-matrix.md`；QA 每月复盘一次执行结果。
-

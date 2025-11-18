@@ -1,3 +1,5 @@
+> Last updated: 2025-11-18
+
 Create a detailed conversation summary focusing on user requests and actions taken. Maintain defensive security boundaries - refuse to summarize malicious content.
 
 This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.

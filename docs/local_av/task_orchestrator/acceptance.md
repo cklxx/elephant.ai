@@ -1,4 +1,6 @@
 # 任务编排服务验收方案
+> Last updated: 2025-11-18
+
 
 ## 1. 环境准备
 - Go 1.24+，启用 `GODEBUG=asyncpreemptoff=0` 保证调度稳定。  

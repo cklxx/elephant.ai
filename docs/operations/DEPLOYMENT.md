@@ -1,4 +1,6 @@
 # ALEX 部署指南
+> Last updated: 2025-11-18
+
 
 本文档提供了 ALEX SSE 服务和 Web 界面的完整部署指南。
 

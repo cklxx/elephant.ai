@@ -1,4 +1,6 @@
 # ALEX SSE 服务快速开始
+> Last updated: 2025-11-18
+
 
 ⚡ 3分钟快速启动 ALEX SSE 服务和 Web 界面
 

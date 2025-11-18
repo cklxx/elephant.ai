@@ -1,4 +1,6 @@
 # ALEX Documentation Portal
+> Last updated: 2025-11-18
+
 
 This repository ships with a large collection of docs covering architecture, operations, research, and design. Use this page as the single entry point to discover what you need.
 
@@ -37,6 +39,7 @@ Each document follows the principle: **clear, concise, and actionable**. If you 
 
 ## 🧹 Documentation Maintenance
 
+- **2025-11-18** – Removed the unrelated `research/love_sociological_analysis.md` file and added a `Last updated` stamp to every doc so contributors know when material was reviewed.
 - Removed stale TODO markers from long-lived design docs and replaced them with current terminology.
 - Updated the sandbox migration checklist to reflect its completed status with an explicit maintenance note.
 - Clarified TUI design snippets so configuration-derived values are referenced directly.

@@ -1,4 +1,6 @@
 # 视频处理与 FFmpeg 管线验收方案
+> Last updated: 2025-11-18
+
 
 ## 1. 环境准备
 - FFmpeg ≥ 6.1，确保启用常用滤镜（`xfade`, `frei0r`, `loudnorm`）。  

@@ -1,4 +1,6 @@
 # Context Framework Implementation Status
+> Last updated: 2025-11-18
+
 
 _Last updated: 2024-05-21._
 

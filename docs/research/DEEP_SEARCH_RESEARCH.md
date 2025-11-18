@@ -1,4 +1,6 @@
 # Deep Search Research Report
+> Last updated: 2025-11-18
+
 
 **Date:** 2025-10-01
 **Purpose:** Comprehensive research on deep search implementations for ALEX code agent

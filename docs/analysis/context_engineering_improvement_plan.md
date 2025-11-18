@@ -1,4 +1,6 @@
 # Context Engineering Improvement & Acceptance Plan
+> Last updated: 2025-11-18
+
 
 ## 1. Background and Key Insights
 - Anthropic's article *Effective context engineering for AI agents* frames context as "the minimal high-signal token set that maximizes the chance of desired behavior," emphasizing careful curation across prompts, tools, examples, and history (docs/research/context_engineering_article.md:1).
