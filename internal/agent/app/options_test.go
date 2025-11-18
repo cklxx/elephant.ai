@@ -7,7 +7,6 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/llm"
-	"alex/internal/prompts"
 )
 
 // Mock logger for testing
@@ -45,7 +44,6 @@ func TestWithLogger(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithLogger(logger),
@@ -73,7 +71,6 @@ func TestWithClock(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithClock(clock),
@@ -90,26 +87,6 @@ func TestWithClock(t *testing.T) {
 	}
 }
 
-func TestWithPromptLoader(t *testing.T) {
-	loader := prompts.New()
-	coordinator := NewAgentCoordinator(
-		llm.NewFactory(),
-		stubToolRegistry{},
-		&stubSessionStore{},
-		stubContextManager{},
-		stubParser{},
-		prompts.New(),
-		nil,
-		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
-		WithPromptLoader(loader),
-	)
-
-	// Verify prompt loader is set
-	if coordinator.promptLoader != loader {
-		t.Fatal("expected custom prompt loader to be set")
-	}
-}
-
 func TestWithTaskAnalysisService(t *testing.T) {
 	logger := &testLogger{}
 	analysisService := NewTaskAnalysisService(logger)
@@ -120,7 +97,6 @@ func TestWithTaskAnalysisService(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithLogger(logger),
@@ -144,7 +120,6 @@ func TestWithCostTrackingDecorator(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithCostTrackingDecorator(decorator),
@@ -159,7 +134,6 @@ func TestWithCostTrackingDecorator(t *testing.T) {
 func TestMultipleOptions(t *testing.T) {
 	logger := &testLogger{}
 	clock := &testClock{fixedTime: time.Now()}
-	loader := prompts.New()
 
 	coordinator := NewAgentCoordinator(
 		llm.NewFactory(),
@@ -167,12 +141,10 @@ func TestMultipleOptions(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithLogger(logger),
 		WithClock(clock),
-		WithPromptLoader(loader),
 	)
 
 	// Verify all options are applied
@@ -181,9 +153,6 @@ func TestMultipleOptions(t *testing.T) {
 	}
 	if coordinator.clock != clock {
 		t.Fatal("expected custom clock to be set")
-	}
-	if coordinator.promptLoader != loader {
-		t.Fatal("expected custom prompt loader to be set")
 	}
 }
 
@@ -195,7 +164,6 @@ func TestOptionWithNilValue(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 	)
@@ -208,7 +176,6 @@ func TestOptionWithNilValue(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithLogger(nil),
@@ -232,7 +199,6 @@ func TestOptionsBackwardCompatibility(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 	)
@@ -243,9 +209,6 @@ func TestOptionsBackwardCompatibility(t *testing.T) {
 	}
 	if coordinator.clock == nil {
 		t.Fatal("expected default clock to be set")
-	}
-	if coordinator.promptLoader == nil {
-		t.Fatal("expected default prompt loader to be set")
 	}
 	if coordinator.analysisService == nil {
 		t.Fatal("expected default analysis service to be set")
@@ -265,7 +228,6 @@ func TestOptionsAreAppliedBeforeServiceInitialization(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithLogger(logger),
@@ -300,7 +262,6 @@ func TestWithRAGGate(t *testing.T) {
 		&stubSessionStore{},
 		stubContextManager{},
 		stubParser{},
-		prompts.New(),
 		nil,
 		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
 		WithRAGGate(ragGate),

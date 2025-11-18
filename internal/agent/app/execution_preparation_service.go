@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
@@ -12,18 +13,13 @@ import (
 )
 
 const (
-	defaultBudgetTarget     = 5.0
-	historyMaxSnippets      = 3
-	historySnippetRuneLimit = 220
-	historyMinOverlapRatio  = 0.1
+	defaultBudgetTarget        = 5.0
+	historyComposeSnippetLimit = 600
+	historySummaryMaxTokens    = 320
+	historySummaryLLMTimeout   = 4 * time.Second
+	historySummaryIntent       = "user_history_summary"
+	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
 )
-
-var historyStopWords = map[string]struct{}{
-	"the": {}, "and": {}, "for": {}, "with": {}, "that": {}, "this": {}, "from": {}, "into": {}, "about": {},
-	"have": {}, "need": {}, "please": {}, "help": {}, "make": {}, "create": {}, "update": {}, "issue": {},
-	"problem": {}, "error": {}, "task": {}, "project": {}, "request": {}, "plan": {}, "info": {},
-	"information": {}, "details": {}, "should": {}, "could": {}, "would": {}, "just": {}, "maybe": {},
-}
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
@@ -32,7 +28,6 @@ type ExecutionPreparationDeps struct {
 	SessionStore   ports.SessionStore
 	ContextMgr     ports.ContextManager
 	Parser         ports.FunctionCallParser
-	PromptLoader   ports.PromptLoader
 	Config         Config
 	Logger         ports.Logger
 	Clock          ports.Clock
@@ -51,7 +46,6 @@ type ExecutionPreparationService struct {
 	sessionStore   ports.SessionStore
 	contextMgr     ports.ContextManager
 	parser         ports.FunctionCallParser
-	promptLoader   ports.PromptLoader
 	config         Config
 	logger         ports.Logger
 	clock          ports.Clock
@@ -64,8 +58,7 @@ type ExecutionPreparationService struct {
 }
 
 type historyRecall struct {
-	message     *ports.Message
-	searchSeeds []string
+	messages []ports.Message
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -78,9 +71,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	if clock == nil {
 		clock = ports.SystemClock{}
 	}
-
-	promptLoader := deps.PromptLoader
-	// PromptLoader is now a required dependency - must be provided by caller
 
 	analysis := deps.Analysis
 	if analysis == nil {
@@ -100,7 +90,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	presetResolver := deps.PresetResolver
 	if presetResolver == nil {
 		presetResolver = NewPresetResolverWithDeps(PresetResolverDeps{
-			PromptLoader: promptLoader,
 			Logger:       logger,
 			Clock:        clock,
 			EventEmitter: eventEmitter,
@@ -113,7 +102,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		sessionStore:   deps.SessionStore,
 		contextMgr:     deps.ContextMgr,
 		parser:         deps.Parser,
-		promptLoader:   promptLoader,
 		config:         deps.Config,
 		logger:         logger,
 		clock:          clock,
@@ -140,13 +128,24 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ids.SessionID = session.ID
 	}
 
-	var initialWorldState map[string]any
-	var initialWorldDiff map[string]any
+	var (
+		initialWorldState map[string]any
+		initialWorldDiff  map[string]any
+		window            ports.ContextWindow
+	)
+	personaKey := s.config.AgentPreset
+	if s.presetResolver != nil {
+		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
+			personaKey = preset
+			s.logger.Info("Using persona preset %s (source=%s)", preset, source)
+		}
+	}
 	if s.contextMgr != nil {
 		originalCount := len(session.Messages)
-		window, err := s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+		var err error
+		window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
 			TokenLimit:         s.config.MaxTokens,
-			PersonaKey:         s.config.AgentPreset,
+			PersonaKey:         personaKey,
 			ToolPreset:         s.config.ToolPreset,
 			EnvironmentSummary: s.config.EnvironmentSummary,
 		})
@@ -167,6 +166,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			)
 			s.eventEmitter.OnEvent(compressionEvent)
 		}
+	}
+	systemPrompt := strings.TrimSpace(window.SystemPrompt)
+	if systemPrompt == "" {
+		systemPrompt = defaultSystemPrompt
 	}
 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, s.config.LLMModel)
@@ -190,16 +193,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			analysis = fallback
 		}
 	}
-	history := s.recallUserHistory(task, analysis, session)
-	var analysisInfo *ports.TaskAnalysisInfo
+	history := s.recallUserHistory(ctx, llmClient, task, analysis, session)
 	var taskAnalysis *ports.TaskAnalysis
 	if analysis != nil && analysis.ActionName != "" {
 		s.logger.Debug("Task pre-analysis: action=%s, goal=%s", analysis.ActionName, analysis.Goal)
-		analysisInfo = &ports.TaskAnalysisInfo{
-			Action:   analysis.ActionName,
-			Goal:     analysis.Goal,
-			Approach: analysis.Approach,
-		}
 		taskAnalysis = &ports.TaskAnalysis{
 			ActionName:      analysis.ActionName,
 			Goal:            analysis.Goal,
@@ -215,15 +212,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	beliefs := deriveBeliefsFromTaskAnalysis(taskAnalysis)
 	knowledgeRefs := buildKnowledgeRefsFromTaskAnalysis(taskAnalysis)
 
-	systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
-	summary := strings.TrimSpace(s.config.EnvironmentSummary)
-	if summary != "" {
-		if trimmed := strings.TrimSpace(systemPrompt); trimmed != "" {
-			systemPrompt = trimmed + "\n\n" + summary
-		} else {
-			systemPrompt = summary
-		}
-	}
 	preloadedAttachments := collectSessionAttachments(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
 	if len(inheritedAttachments) > 0 {
@@ -247,9 +235,14 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			preloadedAttachments[name] = att
 		}
 	}
+	stateMessages := append([]domain.Message(nil), session.Messages...)
+	if history != nil && len(history.messages) > 0 {
+		stateMessages = trimSessionHistoryMessages(stateMessages)
+	}
+
 	state := &domain.TaskState{
 		SystemPrompt:         systemPrompt,
-		Messages:             append([]domain.Message(nil), session.Messages...),
+		Messages:             stateMessages,
 		SessionID:            session.ID,
 		TaskID:               ids.TaskID,
 		ParentTaskID:         ids.ParentTaskID,
@@ -277,8 +270,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	if history != nil && history.message != nil {
-		state.Messages = append(state.Messages, *history.message)
+	if history != nil && len(history.messages) > 0 {
+		state.Messages = append(state.Messages, history.messages...)
 	}
 
 	if userAttachments := GetUserAttachments(ctx); len(userAttachments) > 0 {
@@ -347,15 +340,12 @@ func (s *ExecutionPreparationService) evaluateRAGDirectives(ctx context.Context,
 			}
 		}
 	}
-	if baseQuery == "" && history != nil && len(history.searchSeeds) > 0 {
-		baseQuery = strings.TrimSpace(history.searchSeeds[0])
-	}
 	query := baseQuery
 	if query == "" {
 		return nil
 	}
 
-	signals := s.buildRAGSignals(ctx, session, query, registry, analysis, history)
+	signals := s.buildRAGSignals(ctx, session, query, registry, analysis)
 	directives := s.ragGate.Evaluate(ctx, signals)
 
 	if directives.Justification == nil {
@@ -368,9 +358,6 @@ func (s *ExecutionPreparationService) evaluateRAGDirectives(ctx context.Context,
 		directives.Query = query
 		directives.SearchSeeds = appendUniqueStrings(directives.SearchSeeds, analysis.Retrieval.SearchQueries...)
 		directives.CrawlSeeds = appendUniqueStrings(directives.CrawlSeeds, analysis.Retrieval.CrawlURLs...)
-	}
-	if history != nil {
-		directives.SearchSeeds = appendUniqueStrings(directives.SearchSeeds, history.searchSeeds...)
 	}
 
 	if total, ok := directives.Justification["total_score"]; ok {
@@ -425,11 +412,8 @@ func (s *ExecutionPreparationService) emitRAGDirectiveEvent(ctx context.Context,
 	s.eventEmitter.OnEvent(event)
 }
 
-func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, session *ports.Session, query string, registry ports.ToolRegistry, analysis *TaskAnalysis, history *historyRecall) ports.RAGSignals {
+func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, session *ports.Session, query string, registry ports.ToolRegistry, analysis *TaskAnalysis) ports.RAGSignals {
 	searchSeeds, crawlSeeds := s.extractSeeds(session)
-	if history != nil && len(history.searchSeeds) > 0 {
-		searchSeeds = appendUniqueStrings(searchSeeds, history.searchSeeds...)
-	}
 	lower := strings.ToLower(query)
 	isMarketing := containsAny(lower, marketingKeywords)
 	isCode := containsAny(lower, codeKeywords)
@@ -459,9 +443,6 @@ func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, sessi
 			}
 		}
 	}
-	if history != nil && len(history.searchSeeds) > 0 {
-		signals.SearchSeeds = appendUniqueStrings(signals.SearchSeeds, history.searchSeeds...)
-	}
 	if !signals.AllowSearch && len(searchSeeds) > 0 {
 		signals.SearchSeeds = nil
 	}
@@ -472,156 +453,95 @@ func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, sessi
 	return signals
 }
 
-func (s *ExecutionPreparationService) recallUserHistory(task string, analysis *TaskAnalysis, session *ports.Session) *historyRecall {
+func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, analysis *TaskAnalysis, session *ports.Session) *historyRecall {
 	if session == nil || len(session.Messages) == 0 {
 		return nil
 	}
 
-	queryParts := make([]string, 0, 8)
-	if trimmed := strings.TrimSpace(task); trimmed != "" {
-		queryParts = append(queryParts, trimmed)
-	}
-	if analysis != nil {
-		if trimmed := strings.TrimSpace(analysis.Goal); trimmed != "" {
-			queryParts = append(queryParts, trimmed)
-		}
-		if trimmed := strings.TrimSpace(analysis.ActionName); trimmed != "" {
-			queryParts = append(queryParts, trimmed)
-		}
-		if trimmed := strings.TrimSpace(analysis.Approach); trimmed != "" {
-			queryParts = append(queryParts, trimmed)
-		}
-		queryParts = append(queryParts, analysis.Retrieval.LocalQueries...)
-		queryParts = append(queryParts, analysis.Retrieval.SearchQueries...)
-	}
-
-	query := collapseHistoryQuery(queryParts)
-	if query == "" {
+	rawMessages := historyMessagesFromSession(session.Messages)
+	if len(rawMessages) == 0 {
 		return nil
 	}
 
-	candidates := selectHistoryCandidates(query, session.Messages)
-	if len(candidates) == 0 {
-		return nil
+	recall := &historyRecall{}
+	if s.shouldSummarizeHistory(rawMessages) {
+		summaryMessages := s.composeHistorySummary(ctx, llm, rawMessages)
+		if len(summaryMessages) > 0 {
+			recall.messages = summaryMessages
+			return recall
+		}
+		s.logger.Warn("History recall summary failed, falling back to raw messages")
 	}
 
-	summary := buildHistorySummary(candidates)
-	if summary == "" {
-		return nil
-	}
-
-	recall := &historyRecall{
-		searchSeeds: collectHistorySeeds(candidates),
-	}
-	message := ports.Message{
-		Role:    "system",
-		Content: summary,
-		Source:  ports.MessageSourceUserHistory,
-	}
-	recall.message = &message
+	recall.messages = rawMessages
 	return recall
 }
 
-type historyCandidate struct {
-	user      string
-	assistant string
-	seed      string
-}
-
-func selectHistoryCandidates(query string, messages []ports.Message) []historyCandidate {
-	queryTokens := historyTokens(query)
-	if len(queryTokens) == 0 {
+func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context, llm ports.LLMClient, messages []ports.Message) []ports.Message {
+	if llm == nil || len(messages) == 0 {
 		return nil
 	}
-
-	snippets := make([]historyCandidate, 0, historyMaxSnippets)
-	queryLower := strings.ToLower(query)
-	for idx := len(messages) - 1; idx >= 0; idx-- {
-		msg := messages[idx]
-		if !isUserHistoryMessage(msg) {
-			continue
-		}
-		userContent := strings.TrimSpace(msg.Content)
-		if userContent == "" {
-			continue
-		}
-		candidateTokens := historyTokens(userContent)
-		if len(candidateTokens) == 0 {
-			continue
-		}
-		overlap := tokenOverlapCount(queryTokens, candidateTokens)
-		queryRatio := 0.0
-		candidateRatio := 0.0
-		if len(queryTokens) > 0 {
-			queryRatio = float64(overlap) / float64(len(queryTokens))
-		}
-		if len(candidateTokens) > 0 {
-			candidateRatio = float64(overlap) / float64(len(candidateTokens))
-		}
-		score := queryRatio
-		if overlap == 0 && queryLower != "" && strings.Contains(strings.ToLower(userContent), queryLower) {
-			score = 1.0
-		}
-		if overlap < 2 && score < historyMinOverlapRatio && candidateRatio < historyMinOverlapRatio {
-			continue
-		}
-		assistant := findAssistantReply(messages, idx)
-		snippets = append(snippets, historyCandidate{
-			user:      userContent,
-			assistant: assistant,
-			seed:      deriveHistorySeed(candidateTokens),
-		})
-		if len(snippets) >= historyMaxSnippets {
-			break
-		}
-	}
-
-	if len(snippets) == 0 {
+	prompt := buildHistorySummaryPrompt(messages)
+	if prompt == "" {
 		return nil
 	}
-
-	for i, j := 0, len(snippets)-1; i < j; i, j = i+1, j-1 {
-		snippets[i], snippets[j] = snippets[j], snippets[i]
+	requestID := id.NewRequestID()
+	req := ports.CompletionRequest{
+		Messages: []ports.Message{
+			{
+				Role:    "system",
+				Content: "You are a memory specialist who condenses previous assistant conversations into concise, high-signal summaries. Capture the user objectives, assistant actions, and any follow-up commitments in a neutral tone. Limit the response to 2-3 short paragraphs or bullet points.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+				Source:  ports.MessageSourceUserHistory,
+			},
+		},
+		Temperature: 0.1,
+		MaxTokens:   historySummaryMaxTokens,
+		Metadata: map[string]any{
+			"request_id": requestID,
+			"intent":     historySummaryIntent,
+		},
 	}
-	return snippets
+	summaryCtx, cancel := context.WithTimeout(ctx, historySummaryLLMTimeout)
+	defer cancel()
+	resp, err := llm.Complete(summaryCtx, req)
+	if err != nil {
+		s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
+		return nil
+	}
+	if resp == nil || strings.TrimSpace(resp.Content) == "" {
+		s.logger.Warn("History summary composition returned empty response (request_id=%s)", requestID)
+		return nil
+	}
+	summary := strings.TrimSpace(resp.Content)
+	return []ports.Message{{
+		Role:    "system",
+		Content: summary,
+		Source:  ports.MessageSourceUserHistory,
+	}}
 }
 
-func collapseHistoryQuery(values []string) string {
-	cleaned := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			cleaned = append(cleaned, trimmed)
-		}
-	}
-	if len(cleaned) == 0 {
-		return ""
-	}
-	return strings.Join(cleaned, " ")
-}
-
-func buildHistorySummary(candidates []historyCandidate) string {
-	if len(candidates) == 0 {
+func buildHistorySummaryPrompt(messages []ports.Message) string {
+	if len(messages) == 0 {
 		return ""
 	}
 	var builder strings.Builder
-	builder.WriteString("Context recall from earlier user exchanges:\n")
-	for i, cand := range candidates {
-		user := condenseHistoryText(cand.user, historySnippetRuneLimit)
-		if user == "" {
-			continue
+	builder.WriteString("Summarize the intent, assistant responses, tool outputs, and remaining follow-ups from the prior exchanges below. Focus on actionable context relevant to the current task.\n\n")
+	for i, msg := range messages {
+		role := strings.TrimSpace(msg.Role)
+		if role == "" {
+			role = "message"
 		}
-		builder.WriteString(fmt.Sprintf("%d. User: %s\n", i+1, user))
-		if assistant := condenseHistoryText(cand.assistant, historySnippetRuneLimit); assistant != "" {
-			builder.WriteString("   Assistant: ")
-			builder.WriteString(assistant)
-			builder.WriteString("\n")
-		}
-		if i < len(candidates)-1 {
-			builder.WriteString("\n")
-		}
+		roleLower := strings.ToLower(role)
+		roleLabel := strings.ToUpper(roleLower[:1]) + roleLower[1:]
+		builder.WriteString(fmt.Sprintf("%d. %s: ", i+1, roleLabel))
+		builder.WriteString(condenseHistoryText(msg.Content, historyComposeSnippetLimit))
+		builder.WriteString("\n")
 	}
-	return strings.TrimRight(builder.String(), "\n")
+	return strings.TrimSpace(builder.String())
 }
 
 func condenseHistoryText(value string, limit int) string {
@@ -647,124 +567,144 @@ func normalizeWhitespace(value string) string {
 	return strings.Join(strings.Fields(value), " ")
 }
 
-func collectHistorySeeds(candidates []historyCandidate) []string {
-	if len(candidates) == 0 {
+func historyMessagesFromSession(messages []ports.Message) []ports.Message {
+	if len(messages) == 0 {
 		return nil
 	}
-	seen := make(map[string]struct{}, len(candidates))
-	seeds := make([]string, 0, len(candidates))
-	for _, cand := range candidates {
-		seed := strings.TrimSpace(cand.seed)
-		if seed == "" {
+	filtered := make([]ports.Message, 0, len(messages))
+	for _, msg := range messages {
+		if !shouldRecallHistoryMessage(msg) {
 			continue
 		}
-		lower := strings.ToLower(seed)
-		if _, exists := seen[lower]; exists {
-			continue
-		}
-		seen[lower] = struct{}{}
-		seeds = append(seeds, seed)
-	}
-	if len(seeds) == 0 {
-		return nil
-	}
-	return seeds
-}
-
-func deriveHistorySeed(tokens []string) string {
-	if len(tokens) == 0 {
-		return ""
-	}
-	filtered := make([]string, 0, len(tokens))
-	seen := make(map[string]struct{}, len(tokens))
-	for _, token := range tokens {
-		if len(token) < 3 {
-			continue
-		}
-		if _, stop := historyStopWords[token]; stop {
-			continue
-		}
-		if _, exists := seen[token]; exists {
-			continue
-		}
-		seen[token] = struct{}{}
-		filtered = append(filtered, token)
-		if len(filtered) >= 5 {
-			break
-		}
+		filtered = append(filtered, cloneHistoryMessage(msg))
 	}
 	if len(filtered) == 0 {
-		return ""
+		return nil
 	}
-	return strings.Join(filtered, " ")
+	return filtered
 }
 
-func historyTokens(value string) []string {
-	lower := strings.ToLower(value)
-	if lower == "" {
+func trimSessionHistoryMessages(messages []ports.Message) []ports.Message {
+	if len(messages) == 0 {
 		return nil
 	}
-	fields := strings.Fields(lower)
-	if len(fields) == 0 {
-		return nil
-	}
-	tokens := make([]string, 0, len(fields))
-	seen := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		token := strings.Trim(field, "\"'`.,;:!?()[]{}<>")
-		if token == "" {
+	trimmed := make([]ports.Message, 0, len(messages))
+	removed := false
+	for _, msg := range messages {
+		if shouldRecallHistoryMessage(msg) {
+			removed = true
 			continue
 		}
-		if _, exists := seen[token]; exists {
-			continue
-		}
-		seen[token] = struct{}{}
-		tokens = append(tokens, token)
+		trimmed = append(trimmed, msg)
 	}
-	if len(tokens) == 0 {
+	if !removed {
+		return messages
+	}
+	if len(trimmed) == 0 {
 		return nil
 	}
-	return tokens
+	return trimmed
 }
 
-func tokenOverlapCount(queryTokens, candidateTokens []string) int {
-	if len(queryTokens) == 0 || len(candidateTokens) == 0 {
+func shouldRecallHistoryMessage(msg ports.Message) bool {
+	role := strings.TrimSpace(msg.Role)
+	if strings.EqualFold(role, "system") {
+		return false
+	}
+	if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
+		return false
+	}
+	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 && len(msg.ToolResults) == 0 {
+		return false
+	}
+	return true
+}
+
+func cloneHistoryMessage(msg ports.Message) ports.Message {
+	cloned := msg
+	cloned.Role = strings.TrimSpace(cloned.Role)
+	if cloned.Role == "" {
+		cloned.Role = msg.Role
+	}
+	cloned.Content = strings.TrimSpace(cloned.Content)
+	cloned.Source = ports.MessageSourceUserHistory
+	if len(msg.ToolCalls) > 0 {
+		cloned.ToolCalls = append([]ports.ToolCall(nil), msg.ToolCalls...)
+	}
+	if len(msg.ToolResults) > 0 {
+		cloned.ToolResults = make([]ports.ToolResult, len(msg.ToolResults))
+		for i, result := range msg.ToolResults {
+			cloned.ToolResults[i] = cloneHistoryToolResult(result)
+		}
+	}
+	if len(msg.Metadata) > 0 {
+		metadata := make(map[string]any, len(msg.Metadata))
+		for key, value := range msg.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(msg.Attachments) > 0 {
+		cloned.Attachments = cloneHistoryAttachments(msg.Attachments)
+	}
+	return cloned
+}
+
+func cloneHistoryToolResult(result ports.ToolResult) ports.ToolResult {
+	cloned := result
+	if len(result.Metadata) > 0 {
+		metadata := make(map[string]any, len(result.Metadata))
+		for key, value := range result.Metadata {
+			metadata[key] = value
+		}
+		cloned.Metadata = metadata
+	}
+	if len(result.Attachments) > 0 {
+		cloned.Attachments = cloneHistoryAttachments(result.Attachments)
+	}
+	return cloned
+}
+
+func cloneHistoryAttachments(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]ports.Attachment, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func (s *ExecutionPreparationService) shouldSummarizeHistory(messages []ports.Message) bool {
+	if len(messages) == 0 {
+		return false
+	}
+	limit := s.config.MaxTokens
+	if limit <= 0 {
+		return false
+	}
+	threshold := int(float64(limit) * 0.7)
+	if threshold <= 0 {
+		return false
+	}
+	return s.estimateHistoryTokens(messages) > threshold
+}
+
+func (s *ExecutionPreparationService) estimateHistoryTokens(messages []ports.Message) int {
+	if len(messages) == 0 {
 		return 0
 	}
-	querySet := make(map[string]struct{}, len(queryTokens))
-	for _, token := range queryTokens {
-		querySet[token] = struct{}{}
-	}
-	overlap := 0
-	for _, token := range candidateTokens {
-		if _, ok := querySet[token]; ok {
-			overlap++
+	if s.contextMgr != nil {
+		if estimate := s.contextMgr.EstimateTokens(messages); estimate > 0 {
+			return estimate
 		}
 	}
-	return overlap
-}
-
-func isUserHistoryMessage(msg ports.Message) bool {
-	if msg.Source == ports.MessageSourceUserInput {
-		return true
+	total := 0
+	for _, msg := range messages {
+		total += len(msg.Content) / 4
 	}
-	return strings.EqualFold(strings.TrimSpace(msg.Role), "user")
-}
-
-func findAssistantReply(messages []ports.Message, userIndex int) string {
-	for i := userIndex + 1; i < len(messages); i++ {
-		msg := messages[i]
-		if strings.EqualFold(strings.TrimSpace(msg.Role), "assistant") || msg.Source == ports.MessageSourceAssistantReply {
-			if trimmed := strings.TrimSpace(msg.Content); trimmed != "" {
-				return trimmed
-			}
-			continue
-		}
-		if msg.Source == ports.MessageSourceUserInput || strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
-			break
-		}
-	}
-	return ""
+	return total
 }
 
 func buildPlanNodesFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.PlanNode {

@@ -2,11 +2,16 @@ package context
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/analytics/journal"
+	sessionstate "alex/internal/session/state_store"
 )
 
 func TestSelectWorldPrefersExplicitKey(t *testing.T) {
@@ -53,6 +58,431 @@ func TestBuildWindowIncludesWorldProfile(t *testing.T) {
 	}
 }
 
+func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+	session := &ports.Session{ID: "sess-ctx", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "CI lab"})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if strings.TrimSpace(window.SystemPrompt) == "" {
+		t.Fatalf("expected system prompt to be populated")
+	}
+	if !strings.Contains(window.SystemPrompt, "CI lab") {
+		t.Fatalf("expected environment summary in system prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Deliver value") {
+		t.Fatalf("expected goal context in system prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Identity & Persona") {
+		t.Fatalf("expected persona section, got %q", window.SystemPrompt)
+	}
+}
+
+func TestDefaultStaticContextCarriesLegacyPromptSections(t *testing.T) {
+	configRoot := resolveDefaultConfigRoot(t)
+	mgr := NewManager(WithConfigRoot(configRoot))
+	session := &ports.Session{ID: "legacy-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
+
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "ci lab"})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	prompt := window.SystemPrompt
+	expectations := []string{
+		"You are a secure coding assistant focused on defensive programming practices",
+		"Use `todo_update` to create a task checklist",
+		"Represent every attachment as a [filename.ext] placeholder",
+		"Investigate before coding: understand the user's workflow",
+		"Follow the Design → Implementation → Testing cadence",
+		"Use multiple tools in parallel for research or verification when it saves time",
+		"Respond directly without phrases like 'Here is'",
+	}
+	for _, snippet := range expectations {
+		if !strings.Contains(prompt, snippet) {
+			t.Fatalf("expected system prompt to include %q, got %q", snippet, prompt)
+		}
+	}
+}
+
+func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
+	t.Helper()
+
+	configRoot := resolveDefaultConfigRoot(t)
+
+	registry := newStaticRegistry(configRoot, time.Minute, nil, nil)
+	snapshot, err := registry.currentSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("failed to load default static context: %v", err)
+	}
+
+	if _, ok := snapshot.Personas["default"]; !ok {
+		t.Fatalf("expected default persona to be loaded")
+	}
+	if _, ok := snapshot.Goals["default"]; !ok {
+		t.Fatalf("expected default goal to be loaded")
+	}
+	if _, ok := snapshot.Knowledge["default"]; !ok {
+		t.Fatalf("expected default knowledge pack to be loaded")
+	}
+	if _, ok := snapshot.Worlds["default"]; !ok {
+		t.Fatalf("expected default world profile to be loaded")
+	}
+
+	expectedPolicies := []string{
+		"Core Guardrails",
+		"Execution Principles",
+		"TODO Management",
+		"Standard Workflow",
+		"Quality Standards",
+		"Multimodal Attachment Protocol",
+		"Research & Investigation",
+		"Tool Usage Guidelines",
+		"Communication Standards",
+	}
+	for _, id := range expectedPolicies {
+		if _, ok := snapshot.Policies[id]; !ok {
+			t.Fatalf("expected policy %q to be loaded", id)
+		}
+	}
+
+	mgr := NewManager(WithConfigRoot(configRoot))
+	session := &ports.Session{ID: "default-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "yaml smoke"})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	sections := []string{
+		"# Identity & Persona",
+		"# Mission Objectives",
+		"# Guardrails & Policies",
+		"# Knowledge & Experience",
+		"# Operating Environment",
+	}
+	for _, section := range sections {
+		if !strings.Contains(window.SystemPrompt, section) {
+			t.Fatalf("expected system prompt to include section %q, got %q", section, window.SystemPrompt)
+		}
+	}
+}
+
+func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "system", Content: "Static context", Source: ports.MessageSourceSystemPrompt},
+		{Role: "user", Content: "第一轮：分析日志", Source: ports.MessageSourceUserInput},
+		{Role: "tool", Content: "shell[logs-1]: grep found 2 errors", Source: ports.MessageSourceToolResult, ToolCallID: "logs-1"},
+		{Role: "assistant", Content: "我会根据错误代码修复", Source: ports.MessageSourceAssistantReply},
+		{Role: "user", Content: "第二轮：生成修复计划", Source: ports.MessageSourceUserInput},
+		{Role: "tool", Content: "shell[plan-1]: patched failing test", Source: ports.MessageSourceToolResult, ToolCallID: "plan-1"},
+		{Role: "assistant", Content: "已完成计划", Source: ports.MessageSourceAssistantReply},
+	}
+
+	meta := deriveHistoryAwareMeta(messages, "persona-v1")
+	if meta.PersonaVersion != "persona-v1" {
+		t.Fatalf("expected persona version to be carried into meta context, got %q", meta.PersonaVersion)
+	}
+
+	var timeline *ports.MemoryFragment
+	for i := range meta.Memories {
+		if meta.Memories[i].Key == "recent_session_timeline" {
+			timeline = &meta.Memories[i]
+			break
+		}
+	}
+	if timeline == nil {
+		t.Fatalf("expected recent session timeline memory to be recorded, got %+v", meta.Memories)
+	}
+	for _, expected := range []string{"01. system", "02. user", "03. tool[logs-1]", "05. user", "07. assistant"} {
+		if !strings.Contains(timeline.Content, expected) {
+			t.Fatalf("expected timeline to include %q, got %q", expected, timeline.Content)
+		}
+	}
+
+	var hasUser, hasAssistant, hasTool bool
+	for _, rec := range meta.Recommendations {
+		if strings.Contains(rec, "Latest user request") {
+			hasUser = true
+		}
+		if strings.Contains(rec, "Previous assistant response") {
+			hasAssistant = true
+		}
+		if strings.Contains(rec, "Latest tool insight") {
+			hasTool = true
+		}
+	}
+	if !hasUser || !hasAssistant || !hasTool {
+		t.Fatalf("expected meta recommendations to include user/assistant/tool snippets, got %#v", meta.Recommendations)
+	}
+}
+
+func TestBuildWindowEmbedsDynamicStateIntoSystemPrompt(t *testing.T) {
+	root := buildStaticContextTree(t)
+	store := sessionstate.NewInMemoryStore()
+	mgr := NewManager(WithConfigRoot(root), WithStateStore(store))
+
+	snapshotTime := time.Date(2024, time.April, 1, 12, 30, 0, 0, time.UTC)
+	snapshot := sessionstate.Snapshot{
+		SessionID:  "sess-live",
+		TurnID:     4,
+		LLMTurnSeq: 9,
+		CreatedAt:  snapshotTime,
+		Plans: []ports.PlanNode{{
+			ID:     "plan-root",
+			Title:  "Ship feature",
+			Status: "in_progress",
+			Children: []ports.PlanNode{{
+				ID:          "plan-tests",
+				Title:       "Write tests",
+				Description: "Add regression coverage",
+				Status:      "pending",
+			}},
+		}},
+		Beliefs: []ports.Belief{{
+			Statement:  "Tests fail on CI",
+			Confidence: 0.8,
+		}},
+		World: map[string]any{"deploy": "blocked"},
+		Feedback: []ports.FeedbackSignal{{
+			Kind:    "reward",
+			Message: "Stabilize pipeline",
+			Value:   0.6,
+		}},
+	}
+	if err := store.SaveSnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("save snapshot: %v", err)
+	}
+
+	session := &ports.Session{ID: snapshot.SessionID, Messages: []ports.Message{{Role: "user", Content: "status?"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if !strings.Contains(window.SystemPrompt, "Live Session State") {
+		t.Fatalf("expected dynamic section in system prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Ship feature [in_progress]") {
+		t.Fatalf("expected plan entry in prompt, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "deploy: blocked") {
+		t.Fatalf("expected world state summary, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, snapshotTime.Format(time.RFC3339)) {
+		t.Fatalf("expected snapshot timestamp, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "Tests fail on CI") {
+		t.Fatalf("expected beliefs section, got %q", window.SystemPrompt)
+	}
+	if !strings.Contains(window.SystemPrompt, "reward — Stabilize pipeline") {
+		t.Fatalf("expected feedback signal in prompt, got %q", window.SystemPrompt)
+	}
+}
+
+func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+
+	session := &ports.Session{
+		ID: "sess-history",
+		Messages: []ports.Message{
+			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
+			{Role: "user", Content: "请继续昨天的代码重构"},
+			{Role: "assistant", Content: "我已经完成 parser 的一半, 接下来修复测试"},
+		},
+	}
+
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	if window.Meta.PersonaVersion == "" {
+		t.Fatalf("expected persona version to be populated in meta context")
+	}
+	if len(window.Meta.Memories) == 0 {
+		t.Fatalf("expected meta context to capture historical memories")
+	}
+	hasSystemMemory := false
+	for _, memory := range window.Meta.Memories {
+		if memory.Key == "session_system_prompt" {
+			hasSystemMemory = true
+			break
+		}
+	}
+	if !hasSystemMemory {
+		t.Fatalf("expected meta context to include system prompt memory, got %#v", window.Meta.Memories)
+	}
+	if len(window.Meta.Recommendations) < 2 {
+		t.Fatalf("expected meta context to include history-driven recommendations, got %v", window.Meta.Recommendations)
+	}
+	historyHints := strings.Join(window.Meta.Recommendations, " ")
+	if !strings.Contains(historyHints, "user request") {
+		t.Fatalf("expected user request hint in recommendations, got %q", historyHints)
+	}
+	if !strings.Contains(historyHints, "Previous assistant response") {
+		t.Fatalf("expected assistant response hint in recommendations, got %q", historyHints)
+	}
+}
+
+func TestBuildWindowMetaContextIncludesHistoryTimeline(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+
+	session := &ports.Session{
+		ID: "sess-history-timeline",
+		Messages: []ports.Message{
+			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
+			{Role: "user", Content: "第一轮：帮我准备代码审查要点", Source: ports.MessageSourceUserInput},
+			{Role: "assistant", Content: "我会先拉取最新提交再列出审查清单", Source: ports.MessageSourceAssistantReply},
+			{Role: "tool", Content: "git_fetch: updated 3 files", Source: ports.MessageSourceToolResult, ToolCallID: "git-1"},
+			{Role: "assistant", Content: "工具输出显示了 3 个新增文件", Source: ports.MessageSourceAssistantReply},
+			{Role: "user", Content: "第二轮：再生成发布计划", Source: ports.MessageSourceUserInput},
+			{Role: "tool", Content: "todo_update: added release checklist", Source: ports.MessageSourceToolResult, ToolCallID: "todo-2"},
+			{Role: "assistant", Content: "发布计划包括 smoke 测试和回滚步骤", Source: ports.MessageSourceAssistantReply},
+		},
+	}
+
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	var timeline ports.MemoryFragment
+	found := false
+	for _, memory := range window.Meta.Memories {
+		if memory.Key == "recent_session_timeline" {
+			timeline = memory
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected meta context to include recent session timeline, got %#v", window.Meta.Memories)
+	}
+
+	if !strings.Contains(timeline.Content, "user") || !strings.Contains(timeline.Content, "assistant") {
+		t.Fatalf("expected timeline to mention user and assistant snippets, got %q", timeline.Content)
+	}
+	if !strings.Contains(timeline.Content, "tool[git-1]") {
+		t.Fatalf("expected timeline to include tool call identifier, got %q", timeline.Content)
+	}
+	if !strings.Contains(timeline.Content, "第二轮") {
+		t.Fatalf("expected timeline to include later user request, got %q", timeline.Content)
+	}
+}
+
+func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
+	static := ports.StaticContext{
+		Persona: ports.PersonaProfile{
+			Voice: "Operate like ALEX.",
+			Tone:  "direct",
+		},
+		Goal:               ports.GoalProfile{LongTerm: []string{"Ship value"}},
+		EnvironmentSummary: "CI lab",
+	}
+	dynamic := ports.DynamicContext{
+		TurnID:     1,
+		LLMTurnSeq: 2,
+	}
+	memoTime := time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC)
+	meta := ports.MetaContext{
+		PersonaVersion: "persona-v2",
+		Memories: []ports.MemoryFragment{{
+			Key:       "user-pref",
+			Content:   "Prefers Go",
+			CreatedAt: memoTime,
+			Source:    "steward",
+		}},
+		Recommendations: []string{"Prioritize secure defaults"},
+	}
+
+	prompt := composeSystemPrompt(static, dynamic, meta)
+	if !strings.Contains(prompt, "Persona version: persona-v2") {
+		t.Fatalf("expected persona version in prompt, got %q", prompt)
+	}
+	if !strings.Contains(prompt, "Prefers Go — user-pref") {
+		t.Fatalf("expected memory snippet in prompt, got %q", prompt)
+	}
+	if !strings.Contains(prompt, "Prioritize secure defaults") {
+		t.Fatalf("expected recommendation in prompt, got %q", prompt)
+	}
+	if !strings.Contains(prompt, memoTime.Format("2006-01-02")) {
+		t.Fatalf("expected formatted memory date, got %q", prompt)
+	}
+}
+
+func TestCompressInjectsStructuredSummary(t *testing.T) {
+	mgr := &manager{}
+	messages := []ports.Message{{
+		Role:    "system",
+		Source:  ports.MessageSourceSystemPrompt,
+		Content: "base system",
+	}}
+	for i := 0; i < 12; i++ {
+		messages = append(messages, ports.Message{Role: "user", Content: fmt.Sprintf("Need help with feature %d", i)})
+		messages = append(messages, ports.Message{Role: "assistant", Content: fmt.Sprintf("Working on feature %d", i)})
+	}
+	target := mgr.EstimateTokens(messages) - 1
+	compressed, err := mgr.Compress(messages, target)
+	if err != nil {
+		t.Fatalf("compress returned error: %v", err)
+	}
+	if len(compressed) != 12 {
+		t.Fatalf("expected 12 messages (head + summary + last 10), got %d", len(compressed))
+	}
+	summary := compressed[1]
+	if summary.Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected summary to be marked as system prompt, got %v", summary.Source)
+	}
+	if summary.Role != "system" {
+		t.Fatalf("expected summary role system, got %s", summary.Role)
+	}
+	if !strings.Contains(summary.Content, "Earlier conversation had") {
+		t.Fatalf("expected structured summary content, got %q", summary.Content)
+	}
+	if strings.Contains(summary.Content, "Previous conversation compressed") {
+		t.Fatalf("legacy placeholder should be removed, got %q", summary.Content)
+	}
+}
+
+func TestRecordTurnEmitsJournalEntry(t *testing.T) {
+	store := sessionstate.NewInMemoryStore()
+	jr := &recordingJournal{}
+	mgr := NewManager(WithStateStore(store), WithJournalWriter(jr))
+	record := ports.ContextTurnRecord{
+		SessionID:  "sess-99",
+		TurnID:     7,
+		LLMTurnSeq: 3,
+		Timestamp:  time.Unix(1710000000, 0),
+		Summary:    "completed step",
+		Plans:      []ports.PlanNode{{ID: "p1"}},
+	}
+	if err := mgr.RecordTurn(context.Background(), record); err != nil {
+		t.Fatalf("RecordTurn returned error: %v", err)
+	}
+	if len(jr.entries) != 1 {
+		t.Fatalf("expected 1 journal entry, got %d", len(jr.entries))
+	}
+	entry := jr.entries[0]
+	if entry.SessionID != record.SessionID || entry.TurnID != record.TurnID {
+		t.Fatalf("unexpected journal entry: %+v", entry)
+	}
+	if entry.Timestamp != record.Timestamp {
+		t.Fatalf("expected timestamp to match, got %v", entry.Timestamp)
+	}
+}
+
+type recordingJournal struct {
+	entries []journal.TurnJournalEntry
+}
+
+func (r *recordingJournal) Write(_ context.Context, entry journal.TurnJournalEntry) error {
+	r.entries = append(r.entries, entry)
+	return nil
+}
+
 func buildStaticContextTree(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -79,6 +509,38 @@ limits:
 cost_model:
   - Standard token budget`)
 	return root
+}
+
+func resolveDefaultConfigRoot(t *testing.T) string {
+	t.Helper()
+	root := filepath.Clean(filepath.Join("..", "..", "configs", "context"))
+	if _, err := os.Stat(root); err != nil {
+		t.Fatalf("default context root missing: %v", err)
+	}
+	return root
+}
+
+func TestSearchContextRootFromDirFindsConfigs(t *testing.T) {
+	root := t.TempDir()
+	contextDir := filepath.Join(root, "configs", "context")
+	if err := os.MkdirAll(contextDir, 0o755); err != nil {
+		t.Fatalf("create context dir: %v", err)
+	}
+	deployDir := filepath.Join(root, "deploy", "server", "bin")
+	if err := os.MkdirAll(deployDir, 0o755); err != nil {
+		t.Fatalf("create deploy dir: %v", err)
+	}
+	if resolved := searchContextRootFromDir(deployDir); resolved != contextDir {
+		t.Fatalf("expected search to resolve %q, got %q", contextDir, resolved)
+	}
+}
+
+func TestResolveContextConfigRootPrefersEnvOverride(t *testing.T) {
+	custom := filepath.Join(t.TempDir(), "custom-root")
+	t.Setenv(contextConfigEnvVar, custom)
+	if resolved := resolveContextConfigRoot(); resolved != custom {
+		t.Fatalf("expected env override to win, got %q", resolved)
+	}
 }
 
 func writeContextFile(t *testing.T, root, subdir, name, body string) {

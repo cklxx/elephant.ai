@@ -139,7 +139,9 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := id.WithSessionID(context.Background(), sessionID)
+	ctx = id.WithTaskID(ctx, taskID)
+	b.logger.Debug("[updateTaskProgress] Tracking event type=%s for session=%s task=%s", event.EventType(), sessionID, taskID)
 
 	// Update progress based on event type
 	switch e := event.(type) {
