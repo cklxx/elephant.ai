@@ -152,7 +152,17 @@ export ALEX_LLM_PROVIDER="openai"       # Default: openai
 export ALEX_LLM_MODEL="gpt-4o"          # Default: gpt-4o
 export ALEX_BASE_URL=""                 # Optional custom base URL
 export PORT="8080"                      # Default: 8080
+# Optional comma-separated list when you need to pin explicit SPA origins
+export CORS_ALLOWED_ORIGINS="https://app.example.com,https://console.example.com"
 ```
+
+> 💡 **Reverse proxy friendly CORS:** When you put `alex-server` behind a layer-7 proxy
+> (Nginx, Cloudflare, AWS ALB, etc.) you typically terminate TLS and expose a custom
+> hostname. The HTTP middleware now inspects the standard `Forwarded`/`X-Forwarded-*`
+> headers that those proxies add, so any browser origin that matches the public host is
+> automatically trusted—even in production—without editing Go source or baking IPs into
+> configs. Set `CORS_ALLOWED_ORIGINS` only when you need to allow additional out-of-band
+> origins (e.g., staging SPA on a different domain).
 
 ## Running the Server
 
@@ -258,12 +268,19 @@ The server emits the following event types (from `internal/agent/domain/events.g
 
 ## CORS Configuration
 
-The server includes CORS middleware that allows:
-- Origins: `localhost:3000`, `localhost:3001`
-- Methods: `GET, POST, PUT, DELETE, OPTIONS`
-- Headers: `Content-Type, Authorization`
+The server's CORS middleware now reads the allow-list from the `CORS_ALLOWED_ORIGINS`
+environment variable (comma or newline separated). If the variable is unset the
+defaults of `http://localhost:3000`, `http://localhost:3001`, and
+`https://alex.yourdomain.com` are used. When running behind a reverse proxy, the
+middleware automatically trusts any browser origin that matches the proxy's
+`Forwarded`/`X-Forwarded-*` headers, so simply pointing your proxy at the server
+is enough—no more editing Go files when you rotate IPs or hostnames.
 
-For production, update `internal/server/http/middleware.go` to restrict allowed origins.
+All configurations allow the methods `GET, POST, PUT, DELETE, OPTIONS` and the
+headers `Content-Type, Authorization`. Set `ALEX_ENV=production` together with
+your desired `CORS_ALLOWED_ORIGINS` list to permit extra origins (for example a
+staging SPA) in addition to the automatically detected proxy host while still
+restricting credentialed OAuth flows.
 
 ## Deployment
 
