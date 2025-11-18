@@ -139,7 +139,72 @@ func TestHandleListPlans(t *testing.T) {
 	}
 }
 
+func TestRefreshCookieSameSiteModes(t *testing.T) {
+	t.Run("insecure cookies use Lax mode", func(t *testing.T) {
+		handler, _, _, _ := newAuthHandler(t)
+		reqBody := bytes.NewBufferString(`{"email":"handler@example.com","password":"password"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.HandleLogin(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		refresh := findRefreshCookie(rr.Result().Cookies())
+		if refresh == nil {
+			t.Fatalf("expected refresh cookie in response")
+		}
+		if refresh.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("expected SameSite=Lax, got %v", refresh.SameSite)
+		}
+		if refresh.Secure {
+			t.Fatalf("expected insecure cookie in dev mode")
+		}
+	})
+
+	t.Run("secure cookies use SameSite=None", func(t *testing.T) {
+		handler, _, _, _ := newAuthHandlerWithSecure(t, true)
+		reqBody := bytes.NewBufferString(`{"email":"handler@example.com","password":"password"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.HandleLogin(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		refresh := findRefreshCookie(rr.Result().Cookies())
+		if refresh == nil {
+			t.Fatalf("expected refresh cookie in response")
+		}
+		if refresh.SameSite != http.SameSiteNoneMode {
+			t.Fatalf("expected SameSite=None, got %v", refresh.SameSite)
+		}
+		if !refresh.Secure {
+			t.Fatalf("expected secure cookie in production mode")
+		}
+	})
+}
+
+func findRefreshCookie(cookies []*http.Cookie) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == "alex_refresh_token" {
+			return cookie
+		}
+	}
+	return nil
+}
+
 func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, string, time.Time) {
+	return newAuthHandlerWithSecure(t, false)
+}
+
+func newAuthHandlerWithSecure(t *testing.T, secure bool) (*serverhttp.AuthHandler, *authapp.Service, string, time.Time) {
 	t.Helper()
 	users, identities, sessions, states := adapters.NewMemoryStores()
 	tokenManager := adapters.NewJWTTokenManager("secret", "test", 15*time.Minute)
@@ -159,5 +224,5 @@ func newAuthHandler(t *testing.T) (*serverhttp.AuthHandler, *authapp.Service, st
 		t.Fatalf("login: %v", err)
 	}
 
-	return serverhttp.NewAuthHandler(service, false), service, tokens.AccessToken, fixed
+	return serverhttp.NewAuthHandler(service, secure), service, tokens.AccessToken, fixed
 }
