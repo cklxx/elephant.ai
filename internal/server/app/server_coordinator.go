@@ -150,6 +150,9 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
 
+	// Emit user_task event immediately so the frontend gets instant feedback.
+	s.emitUserTaskEvent(ctx, confirmedSessionID, taskRecord.ID, task)
+
 	// Create a detached context so the task keeps running after the HTTP handler returns
 	// while keeping request-scoped values for logging/metrics via context.WithoutCancel
 	// Explicit cancellation still flows through the stored cancel function
@@ -225,7 +228,6 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	// Execute task with broadcaster as event listener
 	s.logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
-	s.emitUserTaskEvent(ctx, sessionID, taskID, task)
 
 	// Ensure subagent tool invocations forward their events to the main listener
 	ctx = builtin.WithParentListener(ctx, s.broadcaster)
