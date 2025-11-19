@@ -118,17 +118,13 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Request body (pretty print)
-	var (
-		prettyJSON   bytes.Buffer
-		loggableBody = body
-	)
+	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
-		loggableBody = prettyJSON.Bytes()
 		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
 	} else {
 		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
 	}
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), loggableBody...))
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), body...))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -186,17 +182,13 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Response body (pretty print)
-	var (
-		prettyResp   bytes.Buffer
-		loggableResp = respBody
-	)
+	var prettyResp bytes.Buffer
 	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
 		c.logger.Debug("%sResponse Body:\n%s", prefix, prettyResp.String())
-		loggableResp = prettyResp.Bytes()
 	} else {
 		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	}
-	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), loggableResp...))
+	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
 
 	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)

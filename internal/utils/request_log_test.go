@@ -12,15 +12,17 @@ func resetStreamingLogDeduperForTest() {
 	streamingLogDeduper = sync.Map{}
 }
 
-func TestLogStreamingRequestPayload_WritesToDedicatedFile(t *testing.T) {
+func TestLogStreamingPayload_WritesSequentialEntries(t *testing.T) {
 	logDir := t.TempDir()
 	t.Setenv(requestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
-	payload := []byte("{\"task\":\"demo\"}")
-	LogStreamingRequestPayload("req-123", payload)
+	reqPayload := []byte("{\"task\":\"demo\"}")
+	respPayload := []byte("{\"result\":\"demo\"}")
+	LogStreamingRequestPayload("req-123", reqPayload)
+	LogStreamingResponsePayload("req-123", respPayload)
 
-	logPath := filepath.Join(logDir, requestLogRequestFileName)
+	logPath := filepath.Join(logDir, requestLogFileName)
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read log file: %v", err)
@@ -30,35 +32,23 @@ func TestLogStreamingRequestPayload_WritesToDedicatedFile(t *testing.T) {
 	if !strings.Contains(content, "req-123") {
 		t.Fatalf("log missing request id: %s", content)
 	}
-	if !strings.Contains(content, string(payload)) {
-		t.Fatalf("log missing payload: %s", content)
+	if !strings.Contains(content, string(reqPayload)) {
+		t.Fatalf("log missing raw request payload: %s", content)
+	}
+	if !strings.Contains(content, string(respPayload)) {
+		t.Fatalf("log missing raw response payload: %s", content)
+	}
+	requestIndex := strings.Index(content, string(reqPayload))
+	responseIndex := strings.Index(content, string(respPayload))
+	if requestIndex == -1 || responseIndex == -1 {
+		t.Fatalf("expected request and response payloads in log: %s", content)
+	}
+	if requestIndex >= responseIndex {
+		t.Fatalf("expected request payload to be logged before response: %s", content)
 	}
 }
 
-func TestLogStreamingResponsePayload_WritesToDedicatedFile(t *testing.T) {
-	logDir := t.TempDir()
-	t.Setenv(requestLogEnvVar, logDir)
-	resetStreamingLogDeduperForTest()
-
-	payload := []byte("{\"result\":\"demo\"}")
-	LogStreamingResponsePayload("req-456", payload)
-
-	logPath := filepath.Join(logDir, requestLogResponseFileName)
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("failed to read log file: %v", err)
-	}
-
-	content := string(data)
-	if !strings.Contains(content, "req-456") {
-		t.Fatalf("log missing request id: %s", content)
-	}
-	if !strings.Contains(content, string(payload)) {
-		t.Fatalf("log missing payload: %s", content)
-	}
-}
-
-func TestLogStreamingPayload_DeduplicatesByFile(t *testing.T) {
+func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 	logDir := t.TempDir()
 	t.Setenv(requestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
@@ -69,22 +59,16 @@ func TestLogStreamingPayload_DeduplicatesByFile(t *testing.T) {
 	LogStreamingResponsePayload("req-dup", payload)
 	LogStreamingResponsePayload("req-dup", payload)
 
-	requestLogPath := filepath.Join(logDir, requestLogRequestFileName)
-	responseLogPath := filepath.Join(logDir, requestLogResponseFileName)
-
-	requestData, err := os.ReadFile(requestLogPath)
+	logPath := filepath.Join(logDir, requestLogFileName)
+	data, err := os.ReadFile(logPath)
 	if err != nil {
-		t.Fatalf("failed to read request log file: %v", err)
+		t.Fatalf("failed to read log file: %v", err)
 	}
-	responseData, err := os.ReadFile(responseLogPath)
-	if err != nil {
-		t.Fatalf("failed to read response log file: %v", err)
+	content := string(data)
+	if strings.Count(content, "[request]") != 1 {
+		t.Fatalf("expected 1 request log entry for req-dup: %s", content)
 	}
-
-	if strings.Count(string(requestData), "req-dup") != 1 {
-		t.Fatalf("expected 1 request log entry for req-dup")
-	}
-	if strings.Count(string(responseData), "req-dup") != 1 {
-		t.Fatalf("expected 1 response log entry for req-dup")
+	if strings.Count(content, "[response]") != 1 {
+		t.Fatalf("expected 1 response log entry for req-dup: %s", content)
 	}
 }

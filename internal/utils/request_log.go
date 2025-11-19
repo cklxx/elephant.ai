@@ -16,10 +16,9 @@ var (
 )
 
 const (
-	requestLogEnvVar           = "ALEX_REQUEST_LOG_DIR"
-	requestLogSubfolder        = "logs/requests"
-	requestLogRequestFileName  = "streaming_request.log"
-	requestLogResponseFileName = "streaming_response.log"
+	requestLogEnvVar    = "ALEX_REQUEST_LOG_DIR"
+	requestLogSubfolder = "logs/requests"
+	requestLogFileName  = "streaming.log"
 )
 
 const (
@@ -27,20 +26,20 @@ const (
 )
 
 // LogStreamingRequestPayload persists the serialized request payload for a streaming request.
-// The payload is written to logs/requests/streaming_request.log (or the directory specified via
+// The payload is written to logs/requests/streaming.log (or the directory specified via
 // ALEX_REQUEST_LOG_DIR) so it doesn't mix with the general server logs captured by deploy.sh.
 func LogStreamingRequestPayload(requestID string, payload []byte) {
-	logStreamingPayload(requestID, payload, requestLogRequestFileName)
+	logStreamingPayload(requestID, payload, "request")
 }
 
 // LogStreamingResponsePayload persists the serialized response payload for a streaming request.
-// The payload is written to logs/requests/streaming_response.log (or the directory specified via
+// The payload is written to logs/requests/streaming.log (or the directory specified via
 // ALEX_REQUEST_LOG_DIR) to keep it isolated from the general server logs.
 func LogStreamingResponsePayload(requestID string, payload []byte) {
-	logStreamingPayload(requestID, payload, requestLogResponseFileName)
+	logStreamingPayload(requestID, payload, "response")
 }
 
-func logStreamingPayload(requestID string, payload []byte, fileName string) {
+func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	if len(payload) == 0 {
 		return
 	}
@@ -55,14 +54,19 @@ func logStreamingPayload(requestID string, payload []byte, fileName string) {
 	if trimmedID == "" {
 		trimmedID = "unknown"
 	}
-	if trimmedID != "unknown" && !shouldLogStreamingEntry(trimmedID+":"+fileName, defaultStreamingLogTTL) {
+	entryKey := fmt.Sprintf("%s:%s", trimmedID, entryType)
+	if trimmedID != "unknown" && !shouldLogStreamingEntry(entryKey, defaultStreamingLogTTL) {
 		return
 	}
 
-	entry := fmt.Sprintf("%s [req:%s] body_bytes=%d\n%s\n\n",
-		time.Now().Format(time.RFC3339Nano), trimmedID, len(payload), string(payload))
+	entryLabel := strings.ToLower(strings.TrimSpace(entryType))
+	if entryLabel == "" {
+		entryLabel = "payload"
+	}
+	entry := fmt.Sprintf("%s [req:%s] [%s] body_bytes=%d\n%s\n\n",
+		time.Now().Format(time.RFC3339Nano), trimmedID, entryLabel, len(payload), string(payload))
 
-	path := filepath.Join(dir, fileName)
+	path := filepath.Join(dir, requestLogFileName)
 	requestLogMu.Lock()
 	defer requestLogMu.Unlock()
 
