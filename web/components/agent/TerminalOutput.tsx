@@ -153,24 +153,34 @@ function buildDisplayEvents(
   events: AnyAgentEvent[],
 ): (AnyAgentEvent | AggregatedAssistantMessage)[] {
   const display: (AnyAgentEvent | AggregatedAssistantMessage)[] = [];
-  let currentAssistant: AggregatedAssistantMessage | null = null;
+  const assistantBuckets = new Map<string, AggregatedAssistantMessage>();
 
   events.forEach((event) => {
     if (event.event_type === "assistant_message") {
-      currentAssistant = appendAssistantMessage(display, currentAssistant, event);
+      const key = buildAssistantAggregationKey(event);
+      const current = assistantBuckets.get(key) ?? null;
+      const aggregated = appendAssistantMessage(display, current, event);
       if (event.final) {
-        currentAssistant = null;
+        assistantBuckets.delete(key);
+      } else {
+        assistantBuckets.set(key, aggregated);
       }
       return;
     }
 
-    currentAssistant = null;
     if (!shouldSkipEvent(event)) {
       display.push(event);
     }
   });
 
   return display;
+}
+
+function buildAssistantAggregationKey(event: AssistantMessageEvent): string {
+  const parentTaskId = event.parent_task_id ?? "root";
+  const taskId = event.task_id ?? "task";
+  const iteration = event.iteration ?? 0;
+  return `${parentTaskId}-${taskId}-${iteration}`;
 }
 
 function appendAssistantMessage(
