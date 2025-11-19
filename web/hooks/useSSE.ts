@@ -279,7 +279,7 @@ export function useSSE(
   };
 }
 
-function buildEventSignature(event: AnyAgentEvent): string {
+export function buildEventSignature(event: AnyAgentEvent): string {
   const baseParts = [
     event.event_type,
     event.timestamp ?? '',
@@ -310,6 +310,12 @@ function buildEventSignature(event: AnyAgentEvent): string {
   }
   if ('task' in event && typeof event.task === 'string') {
     baseParts.push(event.task);
+  }
+  if ('created_at' in event) {
+    const createdAt = (event as { created_at?: unknown }).created_at;
+    if (typeof createdAt === 'string') {
+      baseParts.push(createdAt);
+    }
   }
 
   return baseParts.join('|');

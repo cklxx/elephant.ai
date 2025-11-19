@@ -189,7 +189,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 			cloned[key] = value
 		}
 
-		cloned["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339)
+		cloned["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339Nano)
 		cloned["agent_level"] = subtaskEvent.GetAgentLevel()
 		cloned["session_id"] = subtaskEvent.GetSessionID()
 		cloned["task_id"] = subtaskEvent.GetTaskID()
@@ -213,7 +213,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
-		"timestamp":      event.Timestamp().Format(time.RFC3339),
+		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
 		"agent_level":    event.GetAgentLevel(),
 		"session_id":     event.GetSessionID(),
 		"task_id":        event.GetTaskID(),

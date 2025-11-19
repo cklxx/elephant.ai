@@ -19,6 +19,8 @@ type retryClient struct {
 	logger         *utils.Logger
 }
 
+var _ ports.StreamingLLMClient = (*retryClient)(nil)
+
 // NewRetryClient wraps an LLM client with retry and circuit breaker logic
 func NewRetryClient(client ports.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker) ports.LLMClient {
 	return &retryClient{
@@ -79,6 +81,59 @@ func (c *retryClient) SetUsageCallback(callback func(usage ports.TokenUsage, mod
 	if trackingClient, ok := c.underlying.(ports.UsageTrackingClient); ok {
 		trackingClient.SetUsageCallback(callback)
 	}
+}
+
+// StreamComplete proxies streaming requests to the underlying client when supported.
+// Unlike Complete, streaming requests are not retried to avoid duplicating partial
+// responses when an upstream error occurs mid-stream. We still leverage the circuit
+// breaker for protection and fall back to non-streaming completion when the
+// underlying client lacks native streaming support.
+func (c *retryClient) StreamComplete(
+	ctx context.Context,
+	req ports.CompletionRequest,
+	callbacks ports.CompletionStreamCallbacks,
+) (*ports.CompletionResponse, error) {
+	streamingClient, ok := c.underlying.(ports.StreamingLLMClient)
+	if !ok {
+		c.logger.Debug("Underlying LLM client %T does not support streaming – falling back to Complete", c.underlying)
+		resp, err := c.Complete(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		if callbacks.OnContentDelta != nil {
+			if resp.Content != "" {
+				callbacks.OnContentDelta(ports.ContentDelta{Delta: resp.Content})
+			}
+			callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+		}
+		return resp, nil
+	}
+
+	startTime := time.Now()
+
+	resp, err := alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
+		response, streamErr := streamingClient.StreamComplete(ctx, req, callbacks)
+		if streamErr != nil {
+			return nil, c.classifyLLMError(streamErr)
+		}
+		return response, nil
+	})
+
+	duration := time.Since(startTime)
+
+	if err != nil {
+		if alexerrors.IsDegraded(err) {
+			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
+		}
+		formattedErr := c.formatStreamingError(err, duration)
+		return nil, fmt.Errorf("%s", formattedErr)
+	}
+
+	if duration > 5*time.Second {
+		c.logger.Debug("LLM streaming request succeeded after %v", duration)
+	}
+
+	return resp, nil
 }
 
 // classifyLLMError detects transient errors from LLM API
@@ -173,6 +228,11 @@ func (c *retryClient) formatRetryError(err error, duration time.Duration) string
 	attempts := c.retryConfig.MaxAttempts + 1
 	return fmt.Sprintf("%s Retried %d times over %v.",
 		llmMessage, attempts, duration.Round(time.Second))
+}
+
+func (c *retryClient) formatStreamingError(err error, duration time.Duration) string {
+	llmMessage := alexerrors.FormatForLLM(err)
+	return fmt.Sprintf("%s Streaming request failed after %v.", llmMessage, duration.Round(time.Second))
 }
 
 // WrapWithRetry wraps an existing LLM client with retry logic using provided configuration
