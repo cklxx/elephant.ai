@@ -35,6 +35,11 @@ readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
 readonly BIN_DIR="${SCRIPT_DIR}/.bin"
 readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
+readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex-config.json}"
+source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
+
+COMPOSE_CORE_VARS=()
+COMPOSE_MISSING_VARS=()
 
 readonly DEFAULT_DOCKER_COMPOSE_VERSION="v2.29.7"
 DOCKER_COMPOSE_VERSION="${DOCKER_COMPOSE_VERSION:-${DEFAULT_DOCKER_COMPOSE_VERSION}}"
@@ -70,25 +75,6 @@ log_warn() {
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
-}
-
-banner() {
-    echo -e "${C_CYAN}"
-    cat << 'EOF'
-    ___    __    _______  __  __
-   /   |  / /   / ____/ |/ / / /
-  / /| | / /   / __/  |   / / /
- / ___ |/ /___/ /___ /   | / /___
-/_/  |_/_____/_____//_/|_|/_____/
-
-AI Programming Agent - Local Dev
-EOF
-    echo -e "${C_RESET}"
-}
-
-die() {
-    log_error "$*"
-    exit 1
 }
 
 ###############################################################################
@@ -266,6 +252,41 @@ append_env_var_if_missing() {
     fi
 }
 
+hydrate_env_from_config() {
+    deploy_config::resolve_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key' >/dev/null || true
+    deploy_config::resolve_var OPENAI_BASE_URL '.base_url // .models.basic.base_url // .models.reasoning.base_url' >/dev/null || true
+    deploy_config::resolve_var ALEX_MODEL '.llm_model // .model // .models.basic.model' >/dev/null || true
+    deploy_config::resolve_var ALEX_SANDBOX_BASE_URL '.sandbox_base_url' >/dev/null || true
+    deploy_config::resolve_var AUTH_JWT_SECRET '.auth.jwtSecret' >/dev/null || true
+    deploy_config::resolve_var AUTH_DATABASE_URL '.auth.databaseUrl' >/dev/null || true
+    deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.apiUrl' >/dev/null || true
+}
+
+ensure_api_url_default() {
+    local default_value="$1"
+    local mode="$2"  # local|nginx
+
+    local source="default"
+    local resolved_source
+    if resolved_source=$(deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.apiUrl' "$default_value" 2>/dev/null); then
+        source="$resolved_source"
+    else
+        export NEXT_PUBLIC_API_URL="$default_value"
+    fi
+
+    if [[ "$mode" == "local" ]]; then
+        if [[ "${NEXT_PUBLIC_API_URL}" == "auto" ]]; then
+            log_warn "NEXT_PUBLIC_API_URL=auto relies on nginx to proxy API traffic back to :${SERVER_PORT}"
+        else
+            log_success "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} (${source})"
+        fi
+    else
+        if [[ "${NEXT_PUBLIC_API_URL}" != "auto" ]]; then
+            log_warn "NEXT_PUBLIC_API_URL='${NEXT_PUBLIC_API_URL}'. nginx already proxies all exits, so 'auto' keeps the same-origin flow."
+        fi
+    fi
+}
+
 ensure_auth_env_defaults() {
     local default_redirect="http://localhost:${SERVER_PORT}"
 
@@ -278,6 +299,168 @@ ensure_auth_env_defaults() {
     append_env_var_if_missing "AUTH_ACCESS_TOKEN_TTL_MINUTES" "15"
     append_env_var_if_missing "AUTH_REFRESH_TOKEN_TTL_DAYS" "30"
     append_env_var_if_missing "AUTH_REDIRECT_BASE_URL" "$default_redirect"
+}
+
+ensure_web_env_file() {
+    local web_env_file="web/.env.development"
+    local resolved_api="${NEXT_PUBLIC_API_URL:-http://localhost:${SERVER_PORT}}"
+
+    if [[ ! -f "$web_env_file" ]]; then
+        log_warn ".env.development not found, creating it"
+        printf "NEXT_PUBLIC_API_URL=%s\n" "$resolved_api" > "$web_env_file"
+        log_success "Created web/.env.development"
+        return
+    fi
+
+    if ! grep -q '^NEXT_PUBLIC_API_URL=' "$web_env_file"; then
+        printf "NEXT_PUBLIC_API_URL=%s\n" "$resolved_api" >> "$web_env_file"
+        log_warn "NEXT_PUBLIC_API_URL was missing from web/.env.development, appended ${resolved_api}"
+        return
+    fi
+
+    local existing
+    existing=$(grep '^NEXT_PUBLIC_API_URL=' "$web_env_file" | tail -n1 | cut -d= -f2- || true)
+    if [[ -n "$existing" && "$existing" != "$resolved_api" ]]; then
+        log_warn "web/.env.development NEXT_PUBLIC_API_URL=${existing}, current session resolved ${resolved_api}. Update the file if you need same-origin behavior."
+    fi
+}
+
+compose_reset_var_tracking() {
+    COMPOSE_CORE_VARS=()
+    COMPOSE_MISSING_VARS=()
+}
+
+source_root_env_if_present() {
+    if [[ -f .env ]]; then
+        set -a
+        # shellcheck disable=SC1091
+        source .env
+        set +a
+    fi
+}
+
+compose_record_core_var() {
+    local name="$1"
+    local source="$2"
+    COMPOSE_CORE_VARS+=("${name}=${source}")
+}
+
+compose_resolve_required_var() {
+    local name="$1"
+    local expr="$2"
+    local default_value="${3:-}"
+    local resolved_source
+
+    if resolved_source=$(deploy_config::resolve_var "$name" "$expr" "$default_value" 2>/dev/null); then
+        compose_record_core_var "$name" "$resolved_source"
+        return 0
+    fi
+
+    if [[ -z "${!name:-}" ]]; then
+        COMPOSE_MISSING_VARS+=("$name")
+        return 1
+    fi
+
+    compose_record_core_var "$name" "env"
+}
+
+compose_resolve_optional_var() {
+    local name="$1"
+    local expr="${2:-}"
+    local default_value="${3:-}"
+    deploy_config::resolve_var "$name" "$expr" "$default_value" >/dev/null || true
+}
+
+compose_validate_core_vars() {
+    if [[ ${#COMPOSE_MISSING_VARS[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    log_error "Missing required variables: ${COMPOSE_MISSING_VARS[*]}"
+    cat <<'EOF'
+Core secrets must be provided either via environment variables or ~/.alex-config.json
+with structure similar to:
+{
+  "api_key": "sk-...",
+  "auth": {
+    "jwtSecret": "super-secret",
+    "databaseUrl": "postgres://user:pass@host:5432/alex?sslmode=disable"
+  },
+  "web": {
+    "apiUrl": "auto"
+  }
+}
+EOF
+    exit 1
+}
+
+compose_show_summary() {
+    if [[ ${#COMPOSE_CORE_VARS[@]} -eq 0 ]]; then
+        return
+    fi
+
+    log_info "Resolved variables:"
+    for entry in "${COMPOSE_CORE_VARS[@]}"; do
+        IFS='=' read -r name source <<<"$entry"
+        printf "  - %s (%s)\n" "$name" "$source"
+    done
+    [[ -n "${OPENAI_BASE_URL:-}" ]] && printf "  - OPENAI_BASE_URL\n"
+    [[ -n "${ALEX_MODEL:-}" ]] && printf "  - ALEX_MODEL\n"
+    [[ -n "${ALEX_SANDBOX_BASE_URL:-}" ]] && printf "  - ALEX_SANDBOX_BASE_URL\n"
+}
+
+prepare_compose_environment() {
+    compose_reset_var_tracking
+    source_root_env_if_present
+
+    compose_resolve_required_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key'
+    compose_resolve_required_var AUTH_JWT_SECRET '.auth.jwtSecret'
+    compose_resolve_required_var AUTH_DATABASE_URL '.auth.databaseUrl'
+    compose_resolve_required_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto
+
+    compose_resolve_optional_var OPENAI_BASE_URL '.base_url // .models.basic.base_url // .models.reasoning.base_url'
+    compose_resolve_optional_var ALEX_MODEL '.llm_model // .model // .models.basic.model'
+    compose_resolve_optional_var ALEX_SANDBOX_BASE_URL '.sandbox_base_url'
+
+    if [[ "${NEXT_PUBLIC_API_URL}" != "auto" ]]; then
+        log_warn "NEXT_PUBLIC_API_URL='${NEXT_PUBLIC_API_URL}'. nginx already proxies all exits, so 'auto' keeps the same-origin flow."
+    fi
+
+    if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
+        export ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
+    fi
+
+    compose_validate_core_vars
+}
+
+apply_auth_migrations() {
+    local migration_file="${SCRIPT_DIR}/migrations/auth/001_init.sql"
+
+    if [[ "${SKIP_AUTH_MIGRATIONS:-false}" == "true" ]]; then
+        log_warn "Skipping auth migrations (SKIP_AUTH_MIGRATIONS=true)"
+        return
+    fi
+
+    if [[ -z "${AUTH_DATABASE_URL:-}" ]]; then
+        return
+    fi
+
+    if [[ ! -f "$migration_file" ]]; then
+        log_warn "Migration file not found: $migration_file"
+        return
+    fi
+
+    if ! command_exists psql; then
+        log_warn "psql is not installed; skipping automatic auth migrations"
+        return
+    fi
+
+    log_info "Applying auth migrations"
+    if ! psql "$AUTH_DATABASE_URL" -f "$migration_file" >/dev/null; then
+        log_warn "Failed to run auth migrations. Ensure the database is reachable and initialized."
+    else
+        log_success "Auth migrations applied"
+    fi
 }
 
 setup_environment() {
@@ -325,6 +508,10 @@ EOF
     source .env
     set +a
 
+    hydrate_env_from_config
+    ensure_api_url_default "http://localhost:${SERVER_PORT}" "local"
+    ensure_web_env_file
+
     if [[ -z "${OPENAI_API_KEY:-}" ]]; then
         log_warn "OPENAI_API_KEY not set in .env"
     else
@@ -340,11 +527,6 @@ EOF
     fi
 
     # Verify .env.development exists
-    if [[ ! -f web/.env.development ]]; then
-        log_warn ".env.development not found, creating it"
-        echo "NEXT_PUBLIC_API_URL=http://localhost:$SERVER_PORT" > web/.env.development
-        log_success "Created web/.env.development"
-    fi
 }
 
 ensure_local_auth_db() {
@@ -463,17 +645,6 @@ download_docker_compose() {
 run_docker_compose() {
     ensure_docker_compose
     "${DOCKER_COMPOSE_CMD[@]}" "$@"
-}
-
-ensure_pro_defaults() {
-    if [[ -z "${NEXT_PUBLIC_API_URL:-}" ]]; then
-        export NEXT_PUBLIC_API_URL=auto
-    fi
-
-    # Ensure sandbox requests inside docker use internal service URL when not explicitly set
-    if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
-        export ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
-    fi
 }
 
 is_local_sandbox_url() {
@@ -646,7 +817,7 @@ run_go_tests() {
 run_web_unit_tests() {
     log_info "Running web unit tests..."
 
-    if ! npm --prefix web test -- --run 2>&1 | tee "$LOG_DIR/web-test.log"; then
+    if ! NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" npm --prefix web test -- --run 2>&1 | tee "$LOG_DIR/web-test.log"; then
         log_error "Web unit tests failed, check logs/web-test.log"
         tail -20 "$LOG_DIR/web-test.log"
         return 1
@@ -678,7 +849,7 @@ run_web_e2e_tests() {
 
     ensure_playwright_browsers || return 1
 
-    if ! npm --prefix web run e2e 2>&1 | tee "$LOG_DIR/web-e2e.log"; then
+    if ! NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" npm --prefix web run e2e 2>&1 | tee "$LOG_DIR/web-e2e.log"; then
         log_error "Web end-to-end tests failed, check logs/web-e2e.log"
         tail -20 "$LOG_DIR/web-e2e.log"
         return 1
@@ -734,7 +905,7 @@ start_frontend() {
 
     # Start frontend in background
     cd web
-    PORT=$WEB_PORT npm run dev > "$WEB_LOG" 2>&1 &
+    NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" PORT=$WEB_PORT npm run dev > "$WEB_LOG" 2>&1 &
     local pid=$!
     cd ..
     echo "$pid" > "$WEB_PID_FILE"
@@ -940,7 +1111,8 @@ cmd_docker() {
 
     case $action in
         up|start)
-            ensure_pro_defaults
+            prepare_compose_environment
+            compose_show_summary
             log_info "Starting docker-compose stack behind nginx reverse proxy..."
             run_docker_compose up -d --build nginx
             log_success "Services are available via http://localhost"
@@ -986,10 +1158,11 @@ cmd_pro() {
         shift
     fi
 
-    ensure_pro_defaults
-
     case $action in
         up|start|deploy)
+            prepare_compose_environment
+            compose_show_summary
+            apply_auth_migrations
             log_info "Starting production stack (nginx reverse proxy on :80)..."
             run_docker_compose up -d --build nginx
             log_success "Production services are running at http://localhost"
@@ -1000,9 +1173,11 @@ cmd_pro() {
             log_success "Production services stopped"
             ;;
         restart)
+            prepare_compose_environment
+            compose_show_summary
+            apply_auth_migrations
             log_info "Restarting production stack..."
             run_docker_compose down
-            ensure_pro_defaults
             run_docker_compose up -d --build nginx
             log_success "Production services restarted"
             ;;
@@ -1014,6 +1189,24 @@ cmd_pro() {
         status|ps)
             log_info "Listing production services..."
             run_docker_compose ps
+            ;;
+        config)
+            prepare_compose_environment
+            compose_show_summary
+            ;;
+        test)
+            if ! command_exists make; then
+                log_error "make is required to run repository tests"
+                exit 1
+            fi
+            prepare_compose_environment
+            compose_show_summary
+            log_info "Validating docker compose stack"
+            run_docker_compose config >/dev/null
+            log_success "docker compose config is valid"
+            log_info "Running repository test suite (make test)"
+            (cd "$SCRIPT_DIR" && make test)
+            log_success "Repository tests passed"
             ;;
         help|-h|--help)
             cmd_pro_help
@@ -1040,6 +1233,8 @@ ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}restart${C_RESET}          Recreate the production stack
   ${C_GREEN}logs [service]${C_RESET}   Tail logs (defaults to nginx)
   ${C_GREEN}status|ps${C_RESET}        Show running containers
+  ${C_GREEN}config${C_RESET}           Print resolved environment summary
+  ${C_GREEN}test${C_RESET}             Run docker compose config + make test
   ${C_GREEN}help${C_RESET}             Show this help
 
 ${C_YELLOW}Notes:${C_RESET}
@@ -1114,6 +1309,8 @@ EOF
 
 main() {
     cd "$SCRIPT_DIR"
+
+    hydrate_env_from_config
 
     local cmd=${1:-start}
     if (($# > 0)); then
