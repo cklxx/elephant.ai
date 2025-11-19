@@ -169,9 +169,10 @@ func (p *ragPreloader) appendDirectiveSummary(env *ports.ExecutionEnvironment, e
 		summary += " " + strings.Join(notes, " ")
 	}
 	env.State.Messages = append(env.State.Messages, ports.Message{
-		Role:    "system",
-		Content: summary,
-		Source:  ports.MessageSourceDebug,
+		Role:     "system",
+		Content:  summary,
+		Source:   ports.MessageSourceDebug,
+		Metadata: map[string]any{"rag_preload": true},
 	})
 }
 
@@ -334,14 +335,15 @@ func (p *ragPreloader) appendResult(env *ports.ExecutionEnvironment, result port
 		result.Attachments = normalized
 	}
 
-    env.State.ToolResults = append(env.State.ToolResults, result)
-    env.State.Messages = append(env.State.Messages, ports.Message{
-            Role:        "assistant",
-            Content:     formatToolResultContent(result),
-            ToolResults: []ports.ToolResult{result},
-            Attachments: result.Attachments,
-            Source:      ports.MessageSourceToolResult,
-    })
+	env.State.ToolResults = append(env.State.ToolResults, result)
+	env.State.Messages = append(env.State.Messages, ports.Message{
+		Role:        "assistant",
+		Content:     formatToolResultContent(result),
+		ToolResults: []ports.ToolResult{result},
+		Attachments: result.Attachments,
+		Source:      ports.MessageSourceToolResult,
+		Metadata:    map[string]any{"rag_preload": true},
+	})
 }
 
 func describeDirectiveActions(directives ports.RAGDirectives) string {

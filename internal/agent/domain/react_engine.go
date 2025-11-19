@@ -171,6 +171,8 @@ func (e *ReactEngine) SolveTask(
 		e.updateAttachmentCatalogMessage(state)
 	}
 
+	preloadedContext := e.extractPreloadedContextMessages(state)
+
 	// Ensure the system prompt (if provided) is always present at the front
 	e.ensureSystemPromptMessage(state)
 
@@ -195,6 +197,9 @@ func (e *ReactEngine) SolveTask(
 	}
 	if len(userMessage.Attachments) > 0 {
 		e.logger.Debug("Registered %d user attachments", len(userMessage.Attachments))
+	}
+	if len(preloadedContext) > 0 {
+		state.Messages = append(state.Messages, preloadedContext...)
 	}
 	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
 
@@ -1184,20 +1189,32 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 	for idx := range state.Messages {
 		role := strings.ToLower(strings.TrimSpace(state.Messages[idx].Role))
-		if state.Messages[idx].Source == ports.MessageSourceSystemPrompt || role == "system" {
-			if strings.TrimSpace(state.Messages[idx].Content) == prompt {
-				// Existing system prompt already matches the desired prompt.
-				if state.Messages[idx].Source == "" {
-					state.Messages[idx].Source = ports.MessageSourceSystemPrompt
-				}
-				return
-			}
+		if role != "system" {
+			continue
+		}
+		source := ports.MessageSource(strings.TrimSpace(string(state.Messages[idx].Source)))
+		if source != "" && source != ports.MessageSourceSystemPrompt {
+			// Skip system-role messages that serve other purposes
+			// (e.g. recalled history summaries).
+			continue
+		}
 
+		if strings.TrimSpace(state.Messages[idx].Content) != prompt {
 			state.Messages[idx].Content = state.SystemPrompt
 			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
 			e.logger.Debug("Updated existing system prompt in message history")
-			return
+		} else if source == "" {
+			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
 		}
+
+		existing := state.Messages[idx]
+		if idx > 0 {
+			state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
+			state.Messages = append([]Message{existing}, state.Messages...)
+		} else {
+			state.Messages[0] = existing
+		}
+		return
 	}
 
 	systemMessage := Message{
@@ -1208,6 +1225,53 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 	state.Messages = append([]Message{systemMessage}, state.Messages...)
 	e.logger.Debug("Inserted system prompt into message history")
+}
+
+func (e *ReactEngine) extractPreloadedContextMessages(state *TaskState) []Message {
+	if state == nil || len(state.Messages) == 0 {
+		return nil
+	}
+
+	kept := state.Messages[:0]
+	var preloaded []Message
+	for _, msg := range state.Messages {
+		if isPreloadedContextMessage(msg) {
+			preloaded = append(preloaded, msg)
+			continue
+		}
+		kept = append(kept, msg)
+	}
+	state.Messages = kept
+	return preloaded
+}
+
+func isPreloadedContextMessage(msg Message) bool {
+	if len(msg.Metadata) == 0 {
+		return false
+	}
+	value, ok := msg.Metadata["rag_preload"]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	case float64:
+		return v != 0
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint64:
+		return v != 0
+	default:
+		return false
+	}
 }
 
 func ensureAttachmentStore(state *TaskState) {

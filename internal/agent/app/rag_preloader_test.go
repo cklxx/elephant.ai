@@ -32,9 +32,9 @@ func TestRAGPreloaderAppendResultAddsSystemMessageWithoutToolCallID(t *testing.T
 	}
 
 	msg := env.State.Messages[0]
-    if msg.Role != "assistant" {
-            t.Fatalf("expected assistant role, got %q", msg.Role)
-    }
+	if msg.Role != "assistant" {
+		t.Fatalf("expected assistant role, got %q", msg.Role)
+	}
 	if msg.ToolCallID != "" {
 		t.Fatalf("expected tool_call_id to be empty, got %q", msg.ToolCallID)
 	}
@@ -130,6 +130,37 @@ func TestRAGPreloaderUsesLLMGeneratedQuery(t *testing.T) {
 	}
 	if query != "vector db 2024 benchmarks" {
 		t.Fatalf("expected LLM generated query, got %q", query)
+	}
+}
+
+func TestRAGPreloaderMarksInjectedMessages(t *testing.T) {
+	tool := &recordingTool{}
+	registry := &singleToolRegistry{tool: tool}
+	env := &ports.ExecutionEnvironment{
+		Services: ports.ServiceBundle{ToolExecutor: registry},
+		Session:  &ports.Session{ID: "sess", Metadata: map[string]string{}},
+		State:    &ports.TaskState{},
+		RAGDirectives: &ports.RAGDirectives{
+			Query:     "search patches",
+			UseSearch: true,
+		},
+	}
+
+	preloader := newRAGPreloader(ports.NoopLogger{})
+	if err := preloader.apply(context.Background(), env); err != nil {
+		t.Fatalf("apply returned error: %v", err)
+	}
+
+	flagged := 0
+	for _, msg := range env.State.Messages {
+		if msg.Metadata != nil {
+			if v, ok := msg.Metadata["rag_preload"].(bool); ok && v {
+				flagged++
+			}
+		}
+	}
+	if flagged < 2 {
+		t.Fatalf("expected tool result and summary messages to be flagged, got %d", flagged)
 	}
 }
 
