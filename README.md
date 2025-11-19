@@ -124,6 +124,38 @@ To enable the sandbox runtime, export `SANDBOX_BASE_URL` or set it in `~/.alex-c
 
 When running `docker compose up`, the `alex-server` service bind-mounts your host `~/.alex-config.json` into `/root/.alex-config.json` inside the container so the server automatically picks up the same credentials and model configuration as your local CLI.
 
+### Unified Deployment Script
+
+`deploy.sh` now covers the entire lifecycle—from local development to the docker/nginx production stack—while hydrating secrets from `~/.alex-config.json` (override with `ALEX_CONFIG_PATH`). It automatically:
+
+1. Resolves `OPENAI_API_KEY`, `AUTH_JWT_SECRET`, `AUTH_DATABASE_URL`, and `NEXT_PUBLIC_API_URL` (defaulting to `auto` for nginx’s same-origin proxy) before any docker/pro command runs.
+2. Pulls optional knobs like `OPENAI_BASE_URL`, `ALEX_MODEL`, and `ALEX_SANDBOX_BASE_URL` from the same config file, falling back to the in-cluster sandbox when unset.
+3. Runs the auth migrations in `migrations/auth/001_init.sql` via `psql` (skip with `SKIP_AUTH_MIGRATIONS=true`).
+4. Exposes `config` and `test` helpers so you can review the resolved environment or gate rollouts on `docker compose config` + `make test`.
+
+#### Production / nginx flow
+
+```bash
+./deploy.sh pro up        # validate + run docker compose up -d nginx
+./deploy.sh pro config    # print the resolved environment summary
+./deploy.sh pro test      # docker compose config + make test
+./deploy.sh pro status    # docker compose ps
+./deploy.sh pro logs web  # follow a specific service
+./deploy.sh pro down      # tear everything down
+```
+
+Set `COMPOSE_FILE=/path/to/compose.yml` to target a different stack definition. All commands accept the same environment variables that the old helper supported.
+
+#### Local workflow
+
+```bash
+./deploy.sh start       # build + run backend/frontend locally
+./deploy.sh test        # run Go + web unit/e2e suites
+./deploy.sh docker up   # boot the nginx + compose stack with same-origin API defaults
+```
+
+The local workflow still keeps `NEXT_PUBLIC_API_URL=http://localhost:8080` for the dev server, while the docker/pro modes coerce `NEXT_PUBLIC_API_URL=auto` so nginx can proxy all exits.
+
 ### Development Workflow
 
 ```bash

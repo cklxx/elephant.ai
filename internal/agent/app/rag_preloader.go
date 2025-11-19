@@ -169,9 +169,10 @@ func (p *ragPreloader) appendDirectiveSummary(env *ports.ExecutionEnvironment, e
 		summary += " " + strings.Join(notes, " ")
 	}
 	env.State.Messages = append(env.State.Messages, ports.Message{
-		Role:    "system",
-		Content: summary,
-		Source:  ports.MessageSourceDebug,
+		Role:     "system",
+		Content:  summary,
+		Source:   ports.MessageSourceDebug,
+		Metadata: markRAGPreloadMetadata(nil, env.State),
 	})
 }
 
@@ -315,7 +316,7 @@ func (p *ragPreloader) executeTool(ctx context.Context, env *ports.ExecutionEnvi
 	if result.Metadata == nil {
 		result.Metadata = make(map[string]any)
 	}
-	result.Metadata["rag_preload"] = true
+	result.Metadata = markRAGPreloadMetadata(result.Metadata, env.State)
 
 	p.appendResult(env, *result)
 	return nil
@@ -334,14 +335,15 @@ func (p *ragPreloader) appendResult(env *ports.ExecutionEnvironment, result port
 		result.Attachments = normalized
 	}
 
-    env.State.ToolResults = append(env.State.ToolResults, result)
-    env.State.Messages = append(env.State.Messages, ports.Message{
-            Role:        "assistant",
-            Content:     formatToolResultContent(result),
-            ToolResults: []ports.ToolResult{result},
-            Attachments: result.Attachments,
-            Source:      ports.MessageSourceToolResult,
-    })
+	env.State.ToolResults = append(env.State.ToolResults, result)
+	env.State.Messages = append(env.State.Messages, ports.Message{
+		Role:        "assistant",
+		Content:     formatToolResultContent(result),
+		ToolResults: []ports.ToolResult{result},
+		Attachments: result.Attachments,
+		Source:      ports.MessageSourceToolResult,
+		Metadata:    markRAGPreloadMetadata(nil, env.State),
+	})
 }
 
 func describeDirectiveActions(directives ports.RAGDirectives) string {
@@ -359,6 +361,20 @@ func describeDirectiveActions(directives ports.RAGDirectives) string {
 		return "SKIP"
 	}
 	return strings.Join(actions, "+")
+}
+
+func markRAGPreloadMetadata(meta map[string]any, state *ports.TaskState) map[string]any {
+	if meta == nil {
+		meta = make(map[string]any)
+	}
+	meta["rag_preload"] = true
+	if state != nil {
+		taskID := strings.TrimSpace(state.TaskID)
+		if taskID != "" {
+			meta["rag_preload_task_id"] = taskID
+		}
+	}
+	return meta
 }
 
 func formatToolResultContent(result ports.ToolResult) string {

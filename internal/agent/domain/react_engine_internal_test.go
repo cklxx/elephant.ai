@@ -738,6 +738,33 @@ func TestEnsureSystemPromptMessageHandlesLegacySystemRole(t *testing.T) {
 	}
 }
 
+func TestEnsureSystemPromptMessageLeavesHistorySummariesIntact(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	historySummary := Message{Role: "system", Content: "Earlier rounds summarized", Source: ports.MessageSourceUserHistory}
+	state := &TaskState{
+		SystemPrompt: "Follow the structured context.",
+		Messages: []Message{
+			historySummary,
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	engine.ensureSystemPromptMessage(state)
+
+	if len(state.Messages) != 3 {
+		t.Fatalf("expected system prompt to be prepended without dropping history, got %d messages", len(state.Messages))
+	}
+	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected first message to be the system prompt, got source %q", state.Messages[0].Source)
+	}
+	if state.Messages[1].Content != historySummary.Content {
+		t.Fatalf("expected history summary to remain after system prompt, got %q", state.Messages[1].Content)
+	}
+	if state.Messages[1].Source != ports.MessageSourceUserHistory {
+		t.Fatalf("expected history summary to retain source, got %q", state.Messages[1].Source)
+	}
+}
+
 func TestAttachmentReferenceValuePrefersURI(t *testing.T) {
 	att := ports.Attachment{
 		Name:      "diagram.png",
