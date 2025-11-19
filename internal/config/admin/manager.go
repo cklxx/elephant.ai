@@ -118,7 +118,6 @@ func (m *Manager) Subscribe() (<-chan runtimeconfig.Overrides, func()) {
 	unsubscribe := func() {
 		m.mu.Lock()
 		delete(m.subscribers, ch)
-		close(ch)
 		m.mu.Unlock()
 	}
 	return ch, unsubscribe

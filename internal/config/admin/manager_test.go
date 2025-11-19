@@ -110,6 +110,34 @@ func TestManagerUpdateOverridesPersistsAndNotifies(t *testing.T) {
 	}
 }
 
+func TestManagerUpdateOverridesIgnoresUnsubscribedChannels(t *testing.T) {
+	t.Parallel()
+
+	store := &stubStore{}
+	manager := NewManager(store, runtimeconfig.Overrides{})
+
+	ch, unsubscribe := manager.Subscribe()
+	unsubscribe()
+
+	llm := "unsubscribed"
+	overrides := runtimeconfig.Overrides{LLMProvider: &llm}
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-time.After(100 * time.Millisecond):
+		case <-ch:
+		}
+		close(done)
+	}()
+
+	if err := manager.UpdateOverrides(context.Background(), overrides); err != nil {
+		t.Fatalf("UpdateOverrides returned error: %v", err)
+	}
+
+	<-done
+}
+
 func TestManagerSubscribeSafeForNil(t *testing.T) {
 	var nilManager *Manager
 	ch, unsubscribe := nilManager.Subscribe()
