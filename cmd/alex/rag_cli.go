@@ -1,7 +1,6 @@
 package main
 
 import (
-	runtimeconfig "alex/internal/config"
 	"alex/internal/rag"
 	"context"
 	"fmt"
@@ -11,7 +10,7 @@ import (
 )
 
 func resolveAPIKey() (string, error) {
-	cfg, _, err := runtimeconfig.Load()
+	cfg, _, err := loadRuntimeConfigSnapshot()
 	if err != nil {
 		return "", fmt.Errorf("load runtime configuration: %w", err)
 	}
