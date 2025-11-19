@@ -11,19 +11,36 @@ import (
 )
 
 var (
-	requestLogMu sync.Mutex
+	requestLogMu        sync.Mutex
+	streamingLogDeduper sync.Map
 )
 
 const (
-	requestLogEnvVar    = "ALEX_REQUEST_LOG_DIR"
-	requestLogSubfolder = "logs/requests"
-	requestLogFileName  = "streaming.log"
+	requestLogEnvVar           = "ALEX_REQUEST_LOG_DIR"
+	requestLogSubfolder        = "logs/requests"
+	requestLogRequestFileName  = "streaming_request.log"
+	requestLogResponseFileName = "streaming_response.log"
 )
 
-// LogStreamingRequestPayload persists the final serialized payload for a streaming request.
-// The payload is written to logs/requests/streaming.log (or the directory specified via
+const (
+	defaultStreamingLogTTL = 5 * time.Minute
+)
+
+// LogStreamingRequestPayload persists the serialized request payload for a streaming request.
+// The payload is written to logs/requests/streaming_request.log (or the directory specified via
 // ALEX_REQUEST_LOG_DIR) so it doesn't mix with the general server logs captured by deploy.sh.
 func LogStreamingRequestPayload(requestID string, payload []byte) {
+	logStreamingPayload(requestID, payload, requestLogRequestFileName)
+}
+
+// LogStreamingResponsePayload persists the serialized response payload for a streaming request.
+// The payload is written to logs/requests/streaming_response.log (or the directory specified via
+// ALEX_REQUEST_LOG_DIR) to keep it isolated from the general server logs.
+func LogStreamingResponsePayload(requestID string, payload []byte) {
+	logStreamingPayload(requestID, payload, requestLogResponseFileName)
+}
+
+func logStreamingPayload(requestID string, payload []byte, fileName string) {
 	if len(payload) == 0 {
 		return
 	}
@@ -38,11 +55,14 @@ func LogStreamingRequestPayload(requestID string, payload []byte) {
 	if trimmedID == "" {
 		trimmedID = "unknown"
 	}
+	if trimmedID != "unknown" && !shouldLogStreamingEntry(trimmedID+":"+fileName, defaultStreamingLogTTL) {
+		return
+	}
 
 	entry := fmt.Sprintf("%s [req:%s] body_bytes=%d\n%s\n\n",
 		time.Now().Format(time.RFC3339Nano), trimmedID, len(payload), string(payload))
 
-	path := filepath.Join(dir, requestLogFileName)
+	path := filepath.Join(dir, fileName)
 	requestLogMu.Lock()
 	defer requestLogMu.Unlock()
 
@@ -78,4 +98,20 @@ func ensureRequestLogDir() (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+func shouldLogStreamingEntry(requestID string, ttl time.Duration) bool {
+	now := time.Now()
+	if ttl <= 0 {
+		ttl = defaultStreamingLogTTL
+	}
+	if value, ok := streamingLogDeduper.Load(requestID); ok {
+		if ts, ok := value.(time.Time); ok {
+			if now.Sub(ts) < ttl {
+				return false
+			}
+		}
+	}
+	streamingLogDeduper.Store(requestID, now)
+	return true
 }

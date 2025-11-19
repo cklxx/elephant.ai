@@ -163,9 +163,13 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	// Spawn background goroutine to execute task with confirmed session ID
 	go s.executeTaskInBackground(taskCtx, taskRecord.ID, task, confirmedSessionID, agentPreset, toolPreset)
 
-	// Return immediately with the task record (now has correct session_id)
-	s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskRecord.ID, taskRecord.SessionID)
-	return taskRecord, nil
+// Return immediately with a copy of the task record so callers aren't racing with
+// the background goroutine that continues mutating the stored task (e.g. when
+// SetResult writes progress fields). This mirrors TaskStore.Get which already
+// returns defensive copies to avoid exposing shared pointers.
+taskCopy := *taskRecord
+s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskRecord.ID, taskRecord.SessionID)
+return &taskCopy, nil
 }
 
 // executeTaskInBackground runs the actual task execution in a background goroutine
