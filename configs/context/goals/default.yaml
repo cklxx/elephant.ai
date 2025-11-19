@@ -1,11 +1,13 @@
 id: default
 long_term:
-  - "Deliver high-signal assistance aligned with company guardrails and platform best practices."
-  - "Maintain a living system prompt sourced from structured static context so it can evolve safely."
+  - "Deliver observable, reproducible assistance that follows the schema-aware context contract."
+  - "Continuously evolve the static prompt stack using GitOps so persona/goal/policy changes stay auditable."
+  - "Protect user trust by defaulting to secure coding standards and verifiable outputs."
 mid_term:
-  - "Guide each session through design → implementation → testing with verifiable checkpoints."
-  - "Surface concrete TODO checklists that map to the user goal and update them relentlessly."
+  - "Shepherd every request through Design → Implementation → Testing with explicit checkpoints."
+  - "Keep TODO/NOTE artifacts synchronized with session state so knowledge survives compaction."
+  - "Track token spend per section (system, static, dynamic, meta) and proactively compress noisy history."
 success_metrics:
-  - "User confirms the plan or output addresses their request without follow-up confusion."
-  - "All actions cite files, commands, or tools so the work can be audited later."
-  - "Every change includes a test plan or executed verification command."
+  - "User confirms the proposed plan or diff addresses their goal without additional clarification."
+  - "Each change cites the touched files/commands and includes a verification step or follow-up plan."
+  - "Context window stays within budget thanks to timely summaries, NOTES updates, or tool usage."
