@@ -549,11 +549,3 @@ func (f EventListenerFunc) OnEvent(event AgentEvent) {
 	f(event)
 }
 
-func cloneStringSlice(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]string, len(values))
-	copy(cloned, values)
-	return cloned
-}
