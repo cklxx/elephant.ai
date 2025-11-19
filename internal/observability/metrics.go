@@ -33,8 +33,47 @@ type MetricsCollector struct {
 	// Session metrics
 	sessionsActive metric.Int64UpDownCounter
 
+	// HTTP server metrics
+	httpRequests     metric.Int64Counter
+	httpLatency      metric.Float64Histogram
+	httpResponseSize metric.Int64Histogram
+
+	// SSE metrics
+	sseConnections        metric.Int64UpDownCounter
+	sseConnectionDuration metric.Float64Histogram
+	sseMessages           metric.Int64Counter
+	sseMessageBytes       metric.Int64Histogram
+
+	// Task metrics
+	taskExecutions metric.Int64Counter
+	taskDuration   metric.Float64Histogram
+
+	// Frontend performance metrics
+	webVital metric.Float64Histogram
+
 	// Server for Prometheus scraping
 	prometheusServer *http.Server
+
+	// Optional callbacks used by tests to assert instrumentation behavior
+	testHooks MetricsTestHooks
+}
+
+// MetricsTestHooks exposes callbacks that integration tests can use to assert
+// instrumentation without spinning up a full OTel stack.
+type MetricsTestHooks struct {
+	HTTPServerRequest func(method, route string, status int, duration time.Duration, responseBytes int64)
+	SSEMessage        func(eventType, status string, sizeBytes int64)
+	TaskExecution     func(status string, duration time.Duration)
+}
+
+// SetTestHooks registers callbacks that are invoked whenever the matching
+// metric is recorded. This is primarily used in unit tests so we can assert
+// instrumentation without exporting real metrics.
+func (m *MetricsCollector) SetTestHooks(hooks MetricsTestHooks) {
+	if m == nil {
+		return
+	}
+	m.testHooks = hooks
 }
 
 // MetricsConfig configures the metrics collector
@@ -137,16 +176,114 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		return nil, fmt.Errorf("failed to create sessions_active gauge: %w", err)
 	}
 
+	httpRequests, err := meter.Int64Counter(
+		"alex.http.requests.total",
+		metric.WithDescription("Total HTTP requests handled by the server"),
+		metric.WithUnit("{request}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http_requests counter: %w", err)
+	}
+
+	httpLatency, err := meter.Float64Histogram(
+		"alex.http.latency",
+		metric.WithDescription("HTTP request latency in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http_latency histogram: %w", err)
+	}
+
+	httpResponseSize, err := meter.Int64Histogram(
+		"alex.http.response.size",
+		metric.WithDescription("HTTP response payload sizes in bytes"),
+		metric.WithUnit("By"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http_response_size histogram: %w", err)
+	}
+
+	sseConnections, err := meter.Int64UpDownCounter(
+		"alex.sse.connections.active",
+		metric.WithDescription("Active SSE connections"),
+		metric.WithUnit("{connection}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sse_connections gauge: %w", err)
+	}
+
+	sseConnectionDuration, err := meter.Float64Histogram(
+		"alex.sse.connection.duration",
+		metric.WithDescription("SSE connection lifetimes in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sse_connection_duration histogram: %w", err)
+	}
+
+	sseMessages, err := meter.Int64Counter(
+		"alex.sse.messages.total",
+		metric.WithDescription("Total SSE events delivered"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sse_messages counter: %w", err)
+	}
+
+	sseMessageBytes, err := meter.Int64Histogram(
+		"alex.sse.message.size",
+		metric.WithDescription("SSE payload sizes in bytes"),
+		metric.WithUnit("By"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sse_message_size histogram: %w", err)
+	}
+
+	taskExecutions, err := meter.Int64Counter(
+		"alex.tasks.executions.total",
+		metric.WithDescription("Total background task executions"),
+		metric.WithUnit("{execution}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task_executions counter: %w", err)
+	}
+
+	taskDuration, err := meter.Float64Histogram(
+		"alex.tasks.execution.duration",
+		metric.WithDescription("Task execution duration in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task_duration histogram: %w", err)
+	}
+
+	webVital, err := meter.Float64Histogram(
+		"alex.frontend.web_vital",
+		metric.WithDescription("Reported frontend web vital values"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create web_vital histogram: %w", err)
+	}
+
 	collector := &MetricsCollector{
-		meter:           meter,
-		llmRequests:     llmRequests,
-		llmTokensInput:  llmTokensInput,
-		llmTokensOutput: llmTokensOutput,
-		llmLatency:      llmLatency,
-		llmCost:         llmCost,
-		toolExecutions:  toolExecutions,
-		toolDuration:    toolDuration,
-		sessionsActive:  sessionsActive,
+		meter:                 meter,
+		llmRequests:           llmRequests,
+		llmTokensInput:        llmTokensInput,
+		llmTokensOutput:       llmTokensOutput,
+		llmLatency:            llmLatency,
+		llmCost:               llmCost,
+		toolExecutions:        toolExecutions,
+		toolDuration:          toolDuration,
+		sessionsActive:        sessionsActive,
+		httpRequests:          httpRequests,
+		httpLatency:           httpLatency,
+		httpResponseSize:      httpResponseSize,
+		sseConnections:        sseConnections,
+		sseConnectionDuration: sseConnectionDuration,
+		sseMessages:           sseMessages,
+		sseMessageBytes:       sseMessageBytes,
+		taskExecutions:        taskExecutions,
+		taskDuration:          taskDuration,
+		webVital:              webVital,
 	}
 
 	// Start Prometheus HTTP server
@@ -236,6 +373,119 @@ func (m *MetricsCollector) DecrementActiveSessions(ctx context.Context) {
 		return
 	}
 	m.sessionsActive.Add(ctx, -1)
+}
+
+// RecordHTTPServerRequest records metrics for an HTTP request lifecycle
+
+func (m *MetricsCollector) RecordHTTPServerRequest(ctx context.Context, method, route string, status int, duration time.Duration, responseBytes int64) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.HTTPServerRequest; hook != nil {
+		hook(method, route, status, duration, responseBytes)
+	}
+	if m.httpRequests == nil || m.httpLatency == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("http.method", method),
+		attribute.String("http.route", route),
+		attribute.Int("http.status_code", status),
+	}
+	m.httpRequests.Add(ctx, 1, metric.WithAttributes(attrs...))
+	m.httpLatency.Record(ctx, duration.Seconds(), metric.WithAttributes(
+		attribute.String("http.method", method),
+		attribute.String("http.route", route),
+	))
+	if m.httpResponseSize != nil && responseBytes >= 0 {
+		m.httpResponseSize.Record(ctx, responseBytes, metric.WithAttributes(
+			attribute.String("http.method", method),
+			attribute.String("http.route", route),
+		))
+	}
+}
+
+// IncrementSSEConnections increments the active SSE connection gauge
+func (m *MetricsCollector) IncrementSSEConnections(ctx context.Context) {
+	if m.sseConnections == nil {
+		return
+	}
+	m.sseConnections.Add(ctx, 1)
+}
+
+// DecrementSSEConnections decrements the active SSE connection gauge
+func (m *MetricsCollector) DecrementSSEConnections(ctx context.Context) {
+	if m.sseConnections == nil {
+		return
+	}
+	m.sseConnections.Add(ctx, -1)
+}
+
+// RecordSSEConnectionDuration records how long an SSE connection stayed open
+func (m *MetricsCollector) RecordSSEConnectionDuration(ctx context.Context, duration time.Duration) {
+	if m.sseConnectionDuration == nil {
+		return
+	}
+	m.sseConnectionDuration.Record(ctx, duration.Seconds())
+}
+
+// RecordSSEMessage records an SSE event delivery attempt.
+func (m *MetricsCollector) RecordSSEMessage(ctx context.Context, eventType, status string, sizeBytes int64) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.SSEMessage; hook != nil {
+		hook(eventType, status, sizeBytes)
+	}
+	if m.sseMessages == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{attribute.String("event_type", eventType)}
+	if status != "" {
+		attrs = append(attrs, attribute.String("status", status))
+	}
+	m.sseMessages.Add(ctx, 1, metric.WithAttributes(attrs...))
+	if m.sseMessageBytes != nil && sizeBytes > 0 {
+		m.sseMessageBytes.Record(ctx, sizeBytes, metric.WithAttributes(attribute.String("event_type", eventType)))
+	}
+}
+
+// RecordTaskExecution records task execution metrics
+func (m *MetricsCollector) RecordTaskExecution(ctx context.Context, status string, duration time.Duration) {
+	if m == nil {
+		return
+	}
+	if hook := m.testHooks.TaskExecution; hook != nil {
+		hook(status, duration)
+	}
+	if m.taskExecutions == nil || m.taskDuration == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("status", status),
+	}
+	m.taskExecutions.Add(ctx, 1, metric.WithAttributes(attrs...))
+	m.taskDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// RecordWebVital stores reported frontend performance metrics
+func (m *MetricsCollector) RecordWebVital(ctx context.Context, name, label, page string, value, delta float64) {
+	if m.webVital == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("name", name),
+	}
+	if label != "" {
+		attrs = append(attrs, attribute.String("label", label))
+	}
+	if page != "" {
+		attrs = append(attrs, attribute.String("page", page))
+	}
+	if delta != 0 {
+		attrs = append(attrs, attribute.Float64("delta", delta))
+	}
+	m.webVital.Record(ctx, value, metric.WithAttributes(attrs...))
 }
 
 // EstimateCost estimates the cost of an LLM request (simplified)

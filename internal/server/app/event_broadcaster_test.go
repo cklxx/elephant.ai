@@ -197,6 +197,40 @@ func TestEventBroadcaster_AttachmentArchiver(t *testing.T) {
 	}
 }
 
+func TestEventBroadcaster_CriticalEventDeliveredWhenBufferFull(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	sessionID := "critical-session"
+	ch := make(chan ports.AgentEvent, 1)
+	broadcaster.RegisterClient(sessionID, ch)
+	defer broadcaster.UnregisterClient(sessionID, ch)
+
+	// Fill the buffer with a non-critical event.
+	nonCritical := stubAgentEvent{
+		eventType: "assistant_message",
+		sessionID: sessionID,
+		taskID:    "task-1",
+	}
+	broadcaster.OnEvent(nonCritical)
+	broadcaster.OnEvent(nonCritical) // This one should be dropped.
+
+	critical := stubAgentEvent{
+		eventType: "task_complete",
+		sessionID: sessionID,
+		taskID:    "task-1",
+	}
+	broadcaster.OnEvent(critical)
+
+	select {
+	case evt := <-ch:
+		if evt.EventType() != "task_complete" {
+			t.Fatalf("expected task_complete event, got %s", evt.EventType())
+		}
+	default:
+		t.Fatal("critical event was not delivered")
+	}
+}
+
 type stubAttachmentCall struct {
 	sessionID   string
 	attachments map[string]ports.Attachment
@@ -212,3 +246,18 @@ func (s *stubAttachmentArchiver) Persist(ctx context.Context, sessionID string, 
 		attachments: attachments,
 	}
 }
+
+type stubAgentEvent struct {
+	eventType string
+	sessionID string
+	taskID    string
+}
+
+func (e stubAgentEvent) EventType() string    { return e.eventType }
+func (e stubAgentEvent) Timestamp() time.Time { return time.Now() }
+func (e stubAgentEvent) GetAgentLevel() ports.AgentLevel {
+	return types.LevelCore
+}
+func (e stubAgentEvent) GetSessionID() string    { return e.sessionID }
+func (e stubAgentEvent) GetTaskID() string       { return e.taskID }
+func (e stubAgentEvent) GetParentTaskID() string { return "" }

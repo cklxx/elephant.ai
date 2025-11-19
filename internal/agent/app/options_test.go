@@ -1,11 +1,9 @@
 package app
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
 	"alex/internal/llm"
 )
 
@@ -244,30 +242,5 @@ func TestOptionsAreAppliedBeforeServiceInitialization(t *testing.T) {
 	// but we can verify the coordinator logger is set correctly
 	if coordinator.logger != logger {
 		t.Fatal("expected coordinator to use custom logger")
-	}
-}
-
-type stubRAGGate struct{}
-
-func (stubRAGGate) Evaluate(context.Context, ports.RAGSignals) ports.RAGDirectives {
-	return ports.RAGDirectives{}
-}
-
-func TestWithRAGGate(t *testing.T) {
-	ragGate := &stubRAGGate{}
-
-	coordinator := NewAgentCoordinator(
-		llm.NewFactory(),
-		stubToolRegistry{},
-		&stubSessionStore{},
-		stubContextManager{},
-		stubParser{},
-		nil,
-		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
-		WithRAGGate(ragGate),
-	)
-
-	if coordinator.ragGate != ragGate {
-		t.Fatal("expected RAG gate to be set via option")
 	}
 }

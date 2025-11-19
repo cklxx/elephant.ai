@@ -23,14 +23,9 @@ export function TerminalOutput({
   reconnectAttempts,
   onReconnect,
 }: TerminalOutputProps) {
-  const nonAssistantEvents = useMemo(
-    () => events.filter((event) => event.event_type !== "assistant_message"),
-    [events],
-  );
-
   const panelAnchors = useMemo(
-    () => buildPanelAnchors(nonAssistantEvents),
-    [nonAssistantEvents],
+    () => buildPanelAnchors(events),
+    [events],
   );
 
   const displayEvents = useMemo(

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import type { NextWebVitalsMetric } from "next/app";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import "@uiw/react-markdown-preview/markdown.css";
 import { Providers } from "./providers";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
+import { buildApiUrl } from "@/lib/api-base";
 
 const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"] });
 
@@ -36,4 +38,40 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+export function reportWebVitals(metric: NextWebVitalsMetric) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const payload = {
+    name: metric.name,
+    value: metric.value,
+    delta: metric.delta,
+    id: metric.id,
+    label: metric.label,
+    page: window.location?.pathname ?? metric.path ?? "/",
+    navigation_type: metric.navigationType,
+    ts: Date.now(),
+  };
+
+  const body = JSON.stringify(payload);
+  const endpoint = buildApiUrl("/api/metrics/web-vitals");
+  const blob = new Blob([body], { type: "application/json" });
+
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(endpoint, blob);
+    return;
+  }
+
+  fetch(endpoint, {
+    method: "POST",
+    body,
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+    credentials: "omit",
+  }).catch(() => {
+    // Silently ignore failures to avoid impacting UX
+  });
 }

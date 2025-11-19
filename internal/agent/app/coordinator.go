@@ -26,8 +26,6 @@ type AgentCoordinator struct {
 	prepService     *ExecutionPreparationService
 	analysisService *TaskAnalysisService
 	costDecorator   *CostTrackingDecorator
-	ragGate         ports.RAGGate
-	ragExecutor     *ragPreloader
 }
 
 type Config struct {
@@ -77,16 +75,10 @@ func NewAgentCoordinator(
 		config:       config,
 		logger:       utils.NewComponentLogger("Coordinator"),
 		clock:        ports.SystemClock{},
-		ragGate:      nil,
-		ragExecutor:  nil,
 	}
 
 	for _, opt := range opts {
 		opt(coordinator)
-	}
-
-	if coordinator.ragExecutor == nil {
-		coordinator.ragExecutor = newRAGPreloader(coordinator.logger)
 	}
 
 	// Create services only if not provided via options
@@ -109,7 +101,6 @@ func NewAgentCoordinator(
 		Analysis:      coordinator.analysisService,
 		CostDecorator: coordinator.costDecorator,
 		CostTracker:   coordinator.costTracker,
-		RAGGate:       coordinator.ragGate,
 	})
 
 	if coordinator.contextMgr != nil {
@@ -143,12 +134,6 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	ctx = id.WithSessionID(ctx, env.Session.ID)
-
-	if c.ragExecutor != nil {
-		if err := c.ragExecutor.apply(ctx, env); err != nil {
-			c.logger.Warn("RAG preloading encountered issues: %v", err)
-		}
-	}
 
 	// Create ReactEngine and configure listener
 	c.logger.Info("Delegating to ReactEngine...")
@@ -277,7 +262,6 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 			CostDecorator: c.costDecorator,
 			EventEmitter:  listener, // Pass the listener for event emission
 			CostTracker:   c.costTracker,
-			RAGGate:       c.ragGate,
 		})
 		return prepService.Prepare(ctx, task, sessionID)
 	}

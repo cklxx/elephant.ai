@@ -13,11 +13,15 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
+	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // AgentExecutor defines the interface for agent task execution
@@ -41,6 +45,7 @@ type ServerCoordinator struct {
 	logger           *utils.Logger
 	analytics        analytics.Client
 	journalReader    journal.Reader
+	obs              *observability.Observability
 
 	// Cancel function map for task cancellation support
 	cancelFuncs map[string]context.CancelCauseFunc
@@ -109,6 +114,13 @@ func WithJournalReader(reader journal.Reader) ServerCoordinatorOption {
 	}
 }
 
+// WithObservability wires the observability provider into the coordinator.
+func WithObservability(obs *observability.Observability) ServerCoordinatorOption {
+	return func(coordinator *ServerCoordinator) {
+		coordinator.obs = obs
+	}
+}
+
 // ExecuteTaskAsync executes a task asynchronously and streams events via SSE
 // Returns immediately with the task record, spawns background goroutine for execution
 func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
@@ -141,12 +153,14 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		taskRecord.ParentTaskID = parentTaskID
 	}
 
-	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskRecord.ID, ParentTaskID: parentTaskID})
+	taskID := taskRecord.ID
+	taskSessionID := taskRecord.SessionID
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskID, ParentTaskID: parentTaskID})
 
 	// Verify broadcaster is initialized
 	if s.broadcaster == nil {
 		s.logger.Error("[ServerCoordinator] Broadcaster is nil!")
-		_ = s.taskStore.SetError(ctx, taskRecord.ID, fmt.Errorf("broadcaster not initialized"))
+		_ = s.taskStore.SetError(ctx, taskID, fmt.Errorf("broadcaster not initialized"))
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
 
@@ -160,15 +174,18 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 
 	// Store cancel function to enable explicit cancellation via CancelTask API
 	s.cancelMu.Lock()
-	s.cancelFuncs[taskRecord.ID] = cancelFunc
+	s.cancelFuncs[taskID] = cancelFunc
 	s.cancelMu.Unlock()
 
-	// Spawn background goroutine to execute task with confirmed session ID
-	go s.executeTaskInBackground(taskCtx, taskRecord.ID, task, confirmedSessionID, agentPreset, toolPreset)
+	// Create a snapshot of the task record before the background goroutine begins
+	// mutating the original entry stored in the task store. Returning a copy avoids
+	// exposing callers to shared mutable state and prevents data races when the
+	// goroutine later calls SetResult/SetStatus on the same underlying task.
+	taskCopy := *taskRecord
+	go s.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset)
 
-	// Return immediately with the task record (now has correct session_id)
-	s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskRecord.ID, taskRecord.SessionID)
-	return taskRecord, nil
+	s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
+	return &taskCopy, nil
 }
 
 // executeTaskInBackground runs the actual task execution in a background goroutine
@@ -197,13 +214,37 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	startTime := time.Now()
+	status := "success"
+	var spanErr error
+	if s.obs != nil {
+		if s.obs.Tracer != nil {
+			attrs := append(observability.SessionAttrs(sessionID), attribute.String(observability.AttrTaskID, taskID))
+			ctxWithSpan, span := s.obs.Tracer.StartSpan(ctx, observability.SpanSessionSolveTask, attrs...)
+			ctx = ctxWithSpan
+			defer func() {
+				if spanErr != nil {
+					span.RecordError(spanErr)
+					span.SetStatus(codes.Error, spanErr.Error())
+				}
+				span.End()
+			}()
+		}
+		s.obs.Metrics.IncrementActiveSessions(ctx)
+		defer s.obs.Metrics.DecrementActiveSessions(ctx)
+		defer func() {
+			s.obs.Metrics.RecordTaskExecution(ctx, status, time.Since(startTime))
+		}()
+	}
 
 	// Defensive validation: Ensure agentCoordinator is initialized
 	if s.agentCoordinator == nil {
 		errMsg := fmt.Sprintf("[Background] CRITICAL: agentCoordinator is nil (taskID=%s)", taskID)
 		s.logger.Error("%s", errMsg)
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
-		_ = s.taskStore.SetError(ctx, taskID, fmt.Errorf("agent coordinator not initialized"))
+		err := fmt.Errorf("agent coordinator not initialized")
+		spanErr = err
+		status = "error"
+		_ = s.taskStore.SetError(ctx, taskID, err)
 		return
 	}
 
@@ -237,6 +278,10 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Check if context was cancelled
 	if ctx.Err() != nil {
 		s.logger.Info("[Background] Task cancelled: taskID=%s, sessionID=%s, reason=%v", taskID, sessionID, context.Cause(ctx))
+		status = "cancelled"
+		if cause := context.Cause(ctx); cause != nil {
+			spanErr = cause
+		}
 
 		// Determine termination reason from context
 		cause := context.Cause(ctx)
@@ -279,6 +324,8 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	if err != nil {
 		errMsg := fmt.Sprintf("[Background] Task execution failed (taskID=%s, sessionID=%s): %v", taskID, sessionID, err)
+		status = "error"
+		spanErr = err
 
 		// Log to file (use %s to avoid linter warning)
 		s.logger.Error("%s", errMsg)

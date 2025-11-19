@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"alex/internal/agent/domain"
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
+	"alex/internal/observability"
 	"alex/internal/server/app"
 	"alex/internal/tools/builtin"
 )
@@ -46,6 +48,43 @@ func TestSSEHandler_InvalidSessionID(t *testing.T) {
 
 	if !strings.Contains(rec.Body.String(), "invalid characters") {
 		t.Fatalf("expected invalid characters error, got %q", rec.Body.String())
+	}
+}
+
+func TestSSEHandler_RecordsWriteErrorOnHandshakeFailure(t *testing.T) {
+	broadcaster := app.NewEventBroadcaster()
+	metrics := &observability.MetricsCollector{}
+	var mu sync.Mutex
+	var samples []struct {
+		event  string
+		status string
+	}
+	metrics.SetTestHooks(observability.MetricsTestHooks{
+		SSEMessage: func(eventType, status string, _ int64) {
+			mu.Lock()
+			defer mu.Unlock()
+			samples = append(samples, struct {
+				event  string
+				status string
+			}{event: eventType, status: status})
+		},
+	})
+	obs := &observability.Observability{Metrics: metrics}
+	handler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=session-123", nil)
+	writer := &failingSSEWriter{header: make(http.Header), failAfter: 1}
+	handler.HandleSSEStream(writer, req)
+	mu.Lock()
+	defer mu.Unlock()
+	found := false
+	for _, sample := range samples {
+		if sample.event == "connected" && sample.status == "write_error" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected write_error metric for failed handshake, got %+v", samples)
 	}
 }
 
@@ -145,6 +184,28 @@ func (w *threadSafeResponseWriter) WriteHeader(statusCode int) {
 func (w *threadSafeResponseWriter) Flush() {
 	// Implement Flusher interface
 }
+
+type failingSSEWriter struct {
+	header    http.Header
+	failAfter int
+	writes    int
+}
+
+func (w *failingSSEWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *failingSSEWriter) Write(b []byte) (int, error) {
+	w.writes++
+	if w.failAfter > 0 && w.writes >= w.failAfter {
+		return 0, errors.New("forced write failure")
+	}
+	return len(b), nil
+}
+
+func (w *failingSSEWriter) WriteHeader(statusCode int) {}
+
+func (w *failingSSEWriter) Flush() {}
 
 func TestSSEHandler_SerializeEvent(t *testing.T) {
 	handler := NewSSEHandler(nil)
@@ -307,6 +368,39 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}
 }
 
+func TestResolveHTTPFlusher_UnwrapsLayers(t *testing.T) {
+	base := &testFlusherResponseWriter{header: make(http.Header)}
+	wrapped := &testUnwrappingWriter{ResponseWriter: base}
+
+	if _, ok := resolveHTTPFlusher(wrapped); !ok {
+		t.Fatalf("expected resolveHTTPFlusher to unwrap to underlying flusher, got ok=false")
+	}
+}
+
+type testFlusherResponseWriter struct {
+	header http.Header
+}
+
+func (w *testFlusherResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *testFlusherResponseWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func (w *testFlusherResponseWriter) WriteHeader(statusCode int) {}
+
+func (w *testFlusherResponseWriter) Flush() {}
+
+type testUnwrappingWriter struct {
+	http.ResponseWriter
+}
+
+func (w *testUnwrappingWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
 	handler := NewSSEHandler(nil)
 	original := &domain.ToolCallCompleteEvent{
@@ -375,6 +469,14 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 			Source:  agentports.MessageSourceSystemPrompt,
 		},
 		{
+			Role:    "assistant",
+			Content: "RAG context",
+			Metadata: map[string]any{
+				"rag_preload": true,
+			},
+			Source: agentports.MessageSourceToolResult,
+		},
+		{
 			Role:       "tool",
 			Content:    "Tool output",
 			ToolCallID: "call-1",
@@ -435,7 +537,7 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		t.Fatalf("messages field missing or wrong type: %T", data["messages"])
 	}
 	if len(rawMessages) != 2 {
-		t.Fatalf("expected 2 messages, got %d", len(rawMessages))
+		t.Fatalf("expected 2 messages after filtering, got %d", len(rawMessages))
 	}
 
 	first, ok := rawMessages[0].(map[string]interface{})
@@ -452,6 +554,18 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 	}
 	if _, ok := second["tool_results"].([]interface{}); !ok {
 		t.Fatalf("expected tool_results array on second message, got %T", second["tool_results"])
+	}
+
+	for _, raw := range rawMessages {
+		entry, _ := raw.(map[string]any)
+		if entry == nil {
+			continue
+		}
+		if meta, hasMeta := entry["metadata"].(map[string]any); hasMeta {
+			if flagged, ok := meta["rag_preload"].(bool); ok && flagged {
+				t.Fatalf("expected rag_preload messages to be filtered from snapshot")
+			}
+		}
 	}
 
 	excludedRaw, ok := data["excluded_messages"].([]interface{})
