@@ -14,6 +14,8 @@ import (
 	"alex/internal/security/redaction"
 )
 
+const logDirEnvVar = "ALEX_LOG_DIR"
+
 // LogLevel represents the severity of a log message
 type LogLevel int
 
@@ -29,6 +31,7 @@ type LogCategory string
 const (
 	LogCategoryService LogCategory = "service"
 	LogCategoryLLM     LogCategory = "llm"
+	LogCategoryLatency LogCategory = "latency"
 )
 
 var (
@@ -57,6 +60,11 @@ func GetLogger() *Logger {
 // NewComponentLogger creates a logger for a specific component
 func NewComponentLogger(component string) *Logger {
 	return NewCategorizedLogger(LogCategoryService, component)
+}
+
+// NewLatencyLogger creates a logger dedicated to latency instrumentation output.
+func NewLatencyLogger(component string) *Logger {
+	return NewCategorizedLogger(LogCategoryLatency, component)
 }
 
 // NewCategorizedLogger creates a logger for a specific category and component.
@@ -102,13 +110,17 @@ func newLogger(component string, level LogLevel, enableFile bool, category LogCa
 	}
 
 	if enableFile {
-		home, err := os.UserHomeDir()
+		logDir, err := resolveLogDirectory()
 		if err != nil {
-			log.Printf("Failed to get home directory: %v", err)
+			log.Printf("Failed to resolve log directory: %v", err)
+			return l
+		}
+		if err := os.MkdirAll(logDir, 0o755); err != nil {
+			log.Printf("Failed to create log directory %s: %v", logDir, err)
 			return l
 		}
 
-		logPath := filepath.Join(home, logFileName(category))
+		logPath := filepath.Join(logDir, logFileName(category))
 		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			log.Printf("Failed to open log file: %v", err)
@@ -122,10 +134,23 @@ func newLogger(component string, level LogLevel, enableFile bool, category LogCa
 	return l
 }
 
+func resolveLogDirectory() (string, error) {
+	if override := strings.TrimSpace(os.Getenv(logDirEnvVar)); override != "" {
+		return override, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return home, nil
+}
+
 func logFileName(category LogCategory) string {
 	switch category {
 	case LogCategoryLLM:
 		return "alex-llm.log"
+	case LogCategoryLatency:
+		return "alex-latency.log"
 	default:
 		return "alex-service.log"
 	}

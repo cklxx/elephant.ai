@@ -14,6 +14,7 @@ import (
 // NewRouter creates a new HTTP router with all endpoints
 func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, obs *observability.Observability) http.Handler {
 	logger := utils.NewComponentLogger("Router")
+	latencyLogger := utils.NewLatencyLogger("HTTP")
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
@@ -180,9 +181,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// Apply middleware
 	var handler http.Handler = mux
-	if obs != nil {
-		handler = ObservabilityMiddleware(obs)(handler)
-	}
+	handler = ObservabilityMiddleware(obs, latencyLogger)(handler)
 	handler = LoggingMiddleware(logger)(handler)
 	handler = CORSMiddleware(environment, allowedOrigins)(handler)
 
