@@ -102,7 +102,7 @@ The tool executes subtasks in parallel and aggregates results.`,
 				"mode": {
 					Type:        "string",
 					Description: "Set to 'parallel' (default) to fan out tasks concurrently, or 'serial' to execute subtasks sequentially when shared state or ordering is required.",
-					Enum:        []string{"parallel", "serial"},
+					Enum:        []any{"parallel", "serial"},
 				},
 			},
 			Required: []string{"prompt"},
