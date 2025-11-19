@@ -169,6 +169,13 @@ Meta 组件（记忆/知识/Persona）监听事件 Bus，并写回配置/知识�
 | 人格与偏好（Persona Config） | `tone`, `risk_profile`, `decision_style` | Config Service | Persona 由用户配置和系统默认合成；支持层级覆盖。 | 由 `internal/context` 生成系统消息模板，并暴露至 CLI/Web 预设 |
 | 世界与资源（World/Tool Map） | `environment`, `capabilities`, `limits`, `cost_model` | Tool Registry + Feature Flag | 对接内部工具目录，声明额度、速率限制与权限。 | 结合 `internal/toolregistry` 与 `internal/observability/cost` 计算 |
 
+> **最新默认配置亮点**：
+> - `configs/context/personas/default.yaml` 重写为 “Identity / Workflow / Context Hygiene / Collaboration” 四段，直接映射到系统提示分区，减少冗长自然语言。
+> - `configs/context/goals/default.yaml` 将长期/中期目标绑定“可观测 + 可验证 + 可压缩”指标，并在成功度量中写入 System+Static 950 tokens、Dynamic+Meta ≥900 tokens 的预算分配。
+> - 新增 `configs/context/policies/context_hygiene.yaml`，把压缩阈值、NOTES/TODO 写回和成本标注固化为 Guardrail，Context Service 拼装时即可读取同一份约束。
+> - `configs/context/knowledge/default.yaml` 直接引用 Claude Code Prompt 最佳实践与 Context Schema 设计文档，方便压缩器/工具在上下文内注入原始依据。
+> - `configs/context/worlds/default.yaml` 声明 “context metrics emitters” 能力以及 token ceiling，Planner 在系统提示阶段即可感知可用的观测手段与预算。
+
 **拉取策略**：在每次会话初始化时，Context Orchestrator 根据 `tenant_id`, `agent_id`, `session_type` 计算一个合并视图，并缓存于 Redis（复用 `internal/cache`），TTL 依据场景（如 1 小时）。缓存未命中时回退到 GitOps 配置，并记录 Prometheus 指标 `context_static_cache_miss_total`。
 
 ### 3.1 YAML 加载机制
@@ -197,6 +204,88 @@ Meta 组件（记忆/知识/Persona）监听事件 Bus，并写回配置/知识�
 - 会话快照：在 `internal/session/state_store` 中维护每回合后的合成状态，支持随机读取与分页查询，满足 Web 控制台与 API 的 Session 详情需求。
 
 事件日志与快照通过 `session_id + turn_id` 对齐，Meta 层可按需回放或重建任意时刻的内部状态。
+
+## 5. Context Schema 优化
+
+> 目标：把「最佳实践」转化为可执行的上下文 Schema 规范，使 `ContextWindow` 的每一段都能被独立治理、压缩和观测。
+
+### 5.1 设计原则
+
+- **分层显式化**：把系统提示、静态配置、动态状态、Meta 记忆拆成可枚举的 section，杜绝「大字符串」式上下文，使 `internal/context/manager.go` 可以在构建前后打点统计。【F:internal/context/manager.go†L1-L118】
+- **高信号优先级**：结合 `docs/research/claude_code_prompt_best_practices.md` 中的“最小高信号 token 集”理念，确保每个 section 都在 1-2 个明确问题上提供信号（身份、目标、计划、反馈），其余内容通过工具或 notes 按需拉取。【F:docs/research/claude_code_prompt_best_practices.md†L1-L34】
+- **结构化可压缩**：每个 section 保持 JSON/YAML 结构，便于 summarizer 定位字段；压缩策略优先对 `dynamic.history`、`tools.cache` 等非关键段落生效，而 persona/goal 等静态段落保持只读。
+- **可观测性**：Schema 中保留 `token_budget`, `last_refresh_at`, `source` 等元数据，让 SSE 与 cost tracker 直接展示每段上下文的体积与更新时间，避免“上下文黑盒”。
+
+### 5.2 Schema 结构
+
+新的 `ContextWindow` 物理结构建议如下，JSON 片段可作为 `ports.ContextWindow` 的序列化标准（必要字段在现有 struct 内已存在，新增字段可通过 map 扩展）：
+
+```json
+{
+  "session_id": "sess_123",
+  "system_prompt": {
+    "header": "## Identity",
+    "capabilities": ["tools/list_files", "tools/ripgrep"],
+    "workflow": ["analyze", "plan", "execute", "verify"],
+    "observability": {"token_budget": 2048, "last_refresh_at": "2025-05-21T10:00:00Z"}
+  },
+  "static": {
+    "persona": {...},
+    "goal": {...},
+    "policies": [...],
+    "knowledge": [...],
+    "world": {...},
+    "environment_summary": "Docker + Go1.22",
+    "version": "static:v3.2"
+  },
+  "dynamic": {
+    "turn_id": 12,
+    "plans": [...],
+    "beliefs": [...],
+    "world_state": {...},
+    "feedback": [...],
+    "history": {
+      "recent_messages": 10,
+      "compressed_digest": "Earlier conversation had ...",
+      "tool_cache": [{"tool": "file_read", "token_cost": 180, "source": "/web/app/page.tsx"}]
+    },
+    "snapshot_timestamp": "2025-05-21T10:05:11Z"
+  },
+  "meta": {
+    "memories": [...],
+    "recommendations": ["refresh NOTES.md"],
+    "persona_version": "persona:v5"
+  }
+}
+```
+
+核心变化：
+
+1. `system_prompt` 从单字符串升级为具名 section，方便合成器针对 `header`（身份）、`capabilities`（工具声明）、`workflow`（工作流）分别拼装与打点。
+2. `dynamic.history` 引入 `recent_messages`、`compressed_digest`、`tool_cache`，把「对话记录」「压缩摘要」「高信号工具引用」拆开，便于压缩策略决定保留哪部分。
+3. Meta 区新增 `recommendations`（长期策略提示），用于在 compaction 触发前提醒代理写 NOTES/TODO。
+
+### 5.3 Token 预算与裁剪策略
+
+| Section | 说明 | 默认预算 | 裁剪策略 |
+| --- | --- | --- | --- |
+| System header | 人设 + 运行模式 | 400 tokens | 固定模板；仅当 persona/goal 更新时才重建 |
+| Tool guidance | 工具合同 +成本提示 | 300 tokens | 统一引用 `configs/context/worlds`，按 `ToolPreset` 选择子集 |
+| Static goal/policy | 长短期目标/规则 | 250 tokens | 仅在任务类型切换时重载；否则缓存版本号 |
+| Dynamic history | 最近消息 +摘要 | 600 tokens | 采用“10 条 + digest”策略；digest 超限即再次压缩 |
+| Plan/belief/world | 当前计划与观测 | 300 tokens | 计划树超限时只保留活跃分支 |
+| Meta memory | NOTES/Checkpoint | 150 tokens | 通过 `notes` 工具写盘，窗口内只加载最近 3 条 |
+
+该配额确保系统提示 + 静态配置不会无限膨胀，并为实时消息、反馈、meta 提供明确的 token ceiling。结合 `ContextManager.ShouldCompress` 的 0.8 阈值，可在 2400 tokens 左右触发 compaction，兼容 Sonnet 200k/Opus 1M 的多模型策略。【F:internal/context/manager.go†L118-L177】
+
+### 5.4 落地路线图
+
+1. **Struct 扩展**：在 `internal/agent/ports/context.go` 中引入 `SystemPromptSections`（含 header/capabilities/workflow/observability）以及 `DynamicHistory`（recent/compressed/tool cache）结构体，保持 JSON 标签与 Schema 对齐，旧字段暂时保留用于回溯兼容。【F:internal/agent/ports/context.go†L26-L129】
+2. **Manager 适配**：`internal/context/manager.go` 中的 `BuildWindow` 负责填充新字段；tool cache 可由 `session.ToolOutputs` 或 `RecordTurn` 产物推导，并在压缩阶段优先保留高信号工具引用。
+3. **可观测性**：扩展 `observability.ContextMetrics`，为每个 section 记录 `tokens_total` 与 `cache_hit` 指标，并写入 SSE payload 供 Web 控制台调试。
+4. **文档/验收**：更新 `docs/status/context_framework_status.md` 与验收脚本，确保新 Schema 可被 CLI (`alex sessions pull --format schema_v2`) 导出，且长程测试覆盖压缩/回放路径。
+
+此 Schema 优化将 prompt 最佳实践落到具象字段，既方便 prompt 工程师按段调优，也能让 agent 在长回合任务中保持干净、可诊断的上下文。
 
 **Session / Message 对齐策略**
 
@@ -281,7 +370,7 @@ Context 模块（Context Service）不仅维护状态，还负责与 LLM 请求 
   - `POST /sessions/{id}/replay`：触发后台回放，基于事件日志重建状态并写入沙箱（复用 `internal/session/replayer`）。
 - 控制台前端复用这些接口实现时间轴视图，支持研发/运营快速定位问题并下载快照；CLI 将新增 `alex sessions pull --turn` 命令，并允许通过 `--llm-turn` 参数按模型回合过滤。
 
-## 5. Meta-Context 机制
+## 6. Meta-Context 机制
 
 Meta 层以批处理和后台服务为主，关键组件如下：
 
@@ -306,7 +395,7 @@ Meta 层以批处理和后台服务为主，关键组件如下：
 - 采用“渐进权重”策略：`persona = α * user_profile + (1-α) * system_defaults`，α 在 [0.3, 0.7] 内动态调整；变更写回 `configs/context/personas/overrides/*.yaml` 并触发热更新。
 - 加入“守护规则”：若连续 N 次（默认 3 次）检测到自相矛盾输出，则触发回滚到上一个 Persona 版本，并在 `docs/changelog/` 生成自动记录。
 
-## 6. 数据模型与存储选型
+## 7. 数据模型与存储选型
 
 | 数据类型 | 推荐存储 | 备注 | ALEX 集成 |
 | --- | --- | --- | --- |
@@ -316,7 +405,7 @@ Meta 层以批处理和后台服务为主，关键组件如下：
 | 长期记忆 | PostgreSQL（结构化）+ 向量库（Milvus/Weaviate） | 支持检索与精确查询。 | 接入 `internal/rag` 模块，新增 `MemoryCollection` |
 | 知识文档 | S3/MinIO + Git（Markdown） | 与 RAG 管道对接。 | 与 `docs/` 仓库同步，结合 `scripts/publish-docs.sh` |
 
-## 7. 编排流程
+## 8. 编排流程
 
 1. **Session 初始化**
    - Orchestrator 读取静态配置合成初始上下文缓存，并写入 Prometheus 计时指标。
@@ -335,7 +424,7 @@ Meta 层以批处理和后台服务为主，关键组件如下：
    - Meta 层定时任务（如每小时）执行记忆筛选、知识库治理、人格评估，任务入口为 `cmd/context-steward`。
    - 触发必要的通知（例如需要人工审核的冲突、Persona 回滚），通过 `internal/observability/alerts` 推送到 PagerDuty/Slack。
 
-## 8. 监控与评估
+## 9. 监控与评估
 
 - **上下文完整性指标**：静态合成耗时、配置缺失率、版本漂移率，导出到 `internal/observability/metrics/context.go`。
 - **动态响应指标**：反馈写入延迟、世界状态同步延迟、计划一致性检测、快照写入成功率（`context.snapshot_error_total` 反向指标）、回放重建耗时；可在 Grafana 创建“Context Runtime”看板。
@@ -344,7 +433,7 @@ Meta 层以批处理和后台服务为主，关键组件如下：
 
 通过这些指标，可建立 Dashboard（Grafana + Prometheus + OpenSearch），持续评估上下文系统的有效性。
 
-## 9. 实施路线图
+## 10. 实施路线图
 
 1. **Phase 1：静态层上线（Sprint 28）**
    - 搭建 Context Orchestrator MVP，支持静态配置合成，落地在 `internal/agent/app/context_composer.go`。
@@ -363,14 +452,14 @@ Meta 层以批处理和后台服务为主，关键组件如下：
    - 完善监控告警、自动化测试（上下文回放、回归验证）；在 `tests/e2e/context_replay_test.go` 添加回放场景。
    - 根据指标迭代奖励模型、计划管理策略，定期在 `docs/analytics/context_report.md` 输出周报。
 
-## 10. 预期收益
+## 11. 预期收益
 
 - **决策更稳健**：目标、规则、资源明确后，智能体行为风格更可控。
 - **记忆更可控**：通过 Meta 层的筛选与治理，避免“信息垃圾场”。
 - **运营更高效**：标准化 Schema + GitOps，让产品、运营、研发协同调整上下文。
 - **可持续演进**：三层架构为日后接入多模态、跨平台智能体奠定基础。
 
-## 11. 查漏补缺清单（上线前 Checklist）
+## 12. 查漏补缺清单（上线前 Checklist）
 
 | 维度 | 关键检查项 | 负责人 | 状态追踪 |
 | --- | --- | --- | --- |

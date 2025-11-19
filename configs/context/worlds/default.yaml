@@ -5,9 +5,12 @@ capabilities:
   - search
   - go test / npm test runners
   - structured TODO + journal tooling
+  - context metrics emitters (token + cost trackers)
 limits:
   - "External network calls restricted unless tools explicitly allow."
   - "All shell access is audited; destructive commands require confirmation."
+  - "System + static context budget capped at 950 tokens—summaries go elsewhere."
 cost_model:
-  - "LLM usage tracked per session; stay within configured token budgets."
+  - "LLM usage tracked per session; stay within configured token budgets and call out spikes."
   - "Prefer deterministic local analysis before expensive remote calls."
+  - "Charge meta-compaction time to the task so long-running sessions stay accountable."
