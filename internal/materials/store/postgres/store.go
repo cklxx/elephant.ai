@@ -249,19 +249,19 @@ func (s *Store) DeleteExpiredMaterials(ctx context.Context, req store.DeleteExpi
 	limitPlaceholder := fmt.Sprintf("$%d", param)
 	query := fmt.Sprintf(`
 WITH expired AS (
-    SELECT material_id, request_id, storage_key
-    FROM materials
-    WHERE retention_ttl_seconds > 0
-      AND created_at + (retention_ttl_seconds || ' seconds')::interval <= $1
-      %s
-    ORDER BY created_at
-    LIMIT %s
-    FOR UPDATE SKIP LOCKED
+SELECT material_id, request_id, storage_key, preview_assets
+FROM materials
+WHERE retention_ttl_seconds > 0
+  AND created_at + (retention_ttl_seconds || ' seconds')::interval <= $1
+  %s
+ORDER BY created_at
+LIMIT %s
+FOR UPDATE SKIP LOCKED
 )
 DELETE FROM materials m
 USING expired e
 WHERE m.material_id = e.material_id
-RETURNING e.material_id, e.request_id, e.storage_key;
+RETURNING e.material_id, e.request_id, e.storage_key, e.preview_assets;
 `, statusClause, limitPlaceholder)
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
@@ -270,10 +270,18 @@ RETURNING e.material_id, e.request_id, e.storage_key;
 	defer rows.Close()
 	var deleted []store.DeletedMaterial
 	for rows.Next() {
-		var record store.DeletedMaterial
-		if err := rows.Scan(&record.MaterialID, &record.RequestID, &record.StorageKey); err != nil {
+		var (
+			record        store.DeletedMaterial
+			previewAssets []byte
+		)
+		if err := rows.Scan(&record.MaterialID, &record.RequestID, &record.StorageKey, &previewAssets); err != nil {
 			return nil, fmt.Errorf("scan deleted material: %w", err)
 		}
+		keys, err := extractPreviewAssetKeys(previewAssets)
+		if err != nil {
+			return nil, fmt.Errorf("parse preview assets for %s: %w", record.MaterialID, err)
+		}
+		record.PreviewAssetKeys = keys
 		deleted = append(deleted, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -372,6 +380,29 @@ func marshalPreviewAssets(assets []*materialapi.PreviewAsset) ([]byte, error) {
 		return []byte("[]"), nil
 	}
 	return json.Marshal(payload)
+}
+
+func extractPreviewAssetKeys(payload []byte) ([]string, error) {
+	if len(payload) == 0 {
+		return nil, nil
+	}
+	var rows []struct {
+		AssetID string `json:"asset_id"`
+	}
+	if err := json.Unmarshal(payload, &rows); err != nil {
+		return nil, err
+	}
+	var keys []string
+	for _, row := range rows {
+		if row.AssetID == "" {
+			continue
+		}
+		keys = append(keys, row.AssetID)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	return keys, nil
 }
 
 func jsonBytes(v any) ([]byte, error) {

@@ -48,12 +48,15 @@ func (j *Janitor) Sweep(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	for _, material := range deleted {
-		if j.Storage != nil && material.StorageKey != "" {
-			if err := j.Storage.Delete(ctx, material.StorageKey); err != nil {
-				return len(deleted), fmt.Errorf("delete storage object %s: %w", material.StorageKey, err)
-			}
-			if err := j.Storage.Refresh(ctx, material.StorageKey); err != nil {
-				return len(deleted), fmt.Errorf("refresh cdn for %s: %w", material.StorageKey, err)
+		if j.Storage != nil {
+			keys := collectMaterialKeys(material)
+			for _, key := range keys {
+				if err := j.Storage.Delete(ctx, key); err != nil {
+					return len(deleted), fmt.Errorf("delete storage object %s: %w", key, err)
+				}
+				if err := j.Storage.Refresh(ctx, key); err != nil {
+					return len(deleted), fmt.Errorf("refresh cdn for %s: %w", key, err)
+				}
 			}
 		}
 		if j.Publisher != nil && material.RequestID != "" {
@@ -63,4 +66,18 @@ func (j *Janitor) Sweep(ctx context.Context) (int, error) {
 		}
 	}
 	return len(deleted), nil
+}
+
+func collectMaterialKeys(material store.DeletedMaterial) []string {
+	var keys []string
+	if material.StorageKey != "" {
+		keys = append(keys, material.StorageKey)
+	}
+	for _, key := range material.PreviewAssetKeys {
+		if key == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	return keys
 }
