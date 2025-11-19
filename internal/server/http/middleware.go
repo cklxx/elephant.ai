@@ -1,7 +1,9 @@
 package http
 
 import (
+	"bufio"
 	"context"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,6 +32,69 @@ type responseRecorder struct {
 	bytes  int64
 }
 
+type responseRecorderFlusher struct {
+	*responseRecorder
+	flusher http.Flusher
+}
+
+func (r *responseRecorderFlusher) Flush() {
+	r.flusher.Flush()
+}
+
+type responseRecorderHijacker struct {
+	*responseRecorder
+	hijacker http.Hijacker
+}
+
+func (r *responseRecorderHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return r.hijacker.Hijack()
+}
+
+type responseRecorderCloseNotifier struct {
+	*responseRecorder
+	notifier http.CloseNotifier
+}
+
+func (r *responseRecorderCloseNotifier) CloseNotify() <-chan bool {
+	return r.notifier.CloseNotify()
+}
+
+type responseRecorderFlusherHijacker struct {
+	*responseRecorderFlusher
+	hijacker http.Hijacker
+}
+
+func (r *responseRecorderFlusherHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return r.hijacker.Hijack()
+}
+
+type responseRecorderFlusherCloseNotifier struct {
+	*responseRecorderFlusher
+	notifier http.CloseNotifier
+}
+
+func (r *responseRecorderFlusherCloseNotifier) CloseNotify() <-chan bool {
+	return r.notifier.CloseNotify()
+}
+
+type responseRecorderHijackerCloseNotifier struct {
+	*responseRecorderHijacker
+	notifier http.CloseNotifier
+}
+
+func (r *responseRecorderHijackerCloseNotifier) CloseNotify() <-chan bool {
+	return r.notifier.CloseNotify()
+}
+
+type responseRecorderFlusherHijackerCloseNotifier struct {
+	*responseRecorderFlusherHijacker
+	notifier http.CloseNotifier
+}
+
+func (r *responseRecorderFlusherHijackerCloseNotifier) CloseNotify() <-chan bool {
+	return r.notifier.CloseNotify()
+}
+
 func (r *responseRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
@@ -44,6 +109,37 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 		r.bytes += int64(n)
 	}
 	return n, err
+}
+
+func newResponseRecorder(w http.ResponseWriter) (*responseRecorder, http.ResponseWriter) {
+	rec := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
+	var wrapped http.ResponseWriter = rec
+	if flusher, ok := w.(http.Flusher); ok {
+		wrapped = &responseRecorderFlusher{responseRecorder: rec, flusher: flusher}
+	}
+	if hijacker, ok := w.(http.Hijacker); ok {
+		switch current := wrapped.(type) {
+		case *responseRecorderFlusher:
+			wrapped = &responseRecorderFlusherHijacker{responseRecorderFlusher: current, hijacker: hijacker}
+		default:
+			wrapped = &responseRecorderHijacker{responseRecorder: rec, hijacker: hijacker}
+		}
+	}
+	if notifier, ok := w.(http.CloseNotifier); ok {
+		switch current := wrapped.(type) {
+		case *responseRecorderFlusherHijacker:
+			wrapped = &responseRecorderFlusherHijackerCloseNotifier{responseRecorderFlusherHijacker: current, notifier: notifier}
+		case *responseRecorderFlusher:
+			wrapped = &responseRecorderFlusherCloseNotifier{responseRecorderFlusher: current, notifier: notifier}
+		case *responseRecorderHijacker:
+			wrapped = &responseRecorderHijackerCloseNotifier{responseRecorderHijacker: current, notifier: notifier}
+		case *responseRecorder:
+			wrapped = &responseRecorderCloseNotifier{responseRecorder: rec, notifier: notifier}
+		default:
+			wrapped = &responseRecorderCloseNotifier{responseRecorder: rec, notifier: notifier}
+		}
+	}
+	return rec, wrapped
 }
 
 func annotateRequestRoute(r *http.Request, route string) {
@@ -240,7 +336,7 @@ func ObservabilityMiddleware(obs *observability.Observability) func(http.Handler
 				return
 			}
 			ctx := r.Context()
-			rec := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
+			rec, writer := newResponseRecorder(w)
 			start := time.Now()
 			initialRoute := canonicalPath(r.URL.Path)
 			var spanEnd func(error)
@@ -269,7 +365,7 @@ func ObservabilityMiddleware(obs *observability.Observability) func(http.Handler
 					}
 				}()
 			}
-			next.ServeHTTP(rec, r)
+			next.ServeHTTP(writer, r)
 			resolvedRoute := routeFromContext(r.Context())
 			if resolvedRoute == "" {
 				resolvedRoute = initialRoute
