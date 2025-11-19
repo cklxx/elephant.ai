@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseTaskAnalysisStructuredXML(t *testing.T) {
 	content := `<task_analysis>
@@ -133,5 +136,40 @@ func TestExtractTaskAnalysisFragment(t *testing.T) {
 
 	if extractTaskAnalysisFragment("no xml here") != "" {
 		t.Fatal("expected empty fragment when no XML present")
+	}
+}
+
+func TestInferActionFromTaskPreservesUnicode(t *testing.T) {
+	task := strings.Repeat("画一个月亮在睡觉的毛毡风格动画", 4) + "并生成视频预览"
+
+	action := inferActionFromTask(task)
+
+	if strings.ContainsRune(action, '\uFFFD') {
+		t.Fatalf("action contains replacement rune: %s", action)
+	}
+
+	expectedSentence := truncateRunes(strings.TrimSpace(task), 60)
+	expected := "Working on " + strings.ToLower(expectedSentence)
+
+	if action != expected {
+		t.Fatalf("expected %q, got %q", expected, action)
+	}
+}
+
+func TestFallbackTaskAnalysisGoalPreservesUnicode(t *testing.T) {
+	task := strings.Repeat("多彩的视频展示任务", 20)
+
+	analysis := fallbackTaskAnalysis(task)
+	if analysis == nil {
+		t.Fatalf("expected analysis, got nil")
+	}
+
+	if strings.ContainsRune(analysis.Goal, '\uFFFD') {
+		t.Fatalf("goal contains replacement rune: %s", analysis.Goal)
+	}
+
+	expectedGoal := truncateRunes(strings.TrimSpace(task), 160)
+	if analysis.Goal != expectedGoal {
+		t.Fatalf("expected goal %q, got %q", expectedGoal, analysis.Goal)
 	}
 }

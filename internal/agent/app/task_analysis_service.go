@@ -122,10 +122,7 @@ func fallbackTaskAnalysis(task string) *TaskAnalysis {
 		return nil
 	}
 
-	goal := trimmed
-	if len(goal) > 160 {
-		goal = goal[:160] + "..."
-	}
+	goal := truncateRunes(trimmed, 160)
 
 	action := inferActionFromTask(trimmed)
 	approach := "Outline a plan and execute the request step by step."
@@ -155,9 +152,7 @@ func inferActionFromTask(task string) string {
 	if sentence == "" {
 		return "Processing request"
 	}
-	if len(sentence) > 60 {
-		sentence = sentence[:60] + "..."
-	}
+	sentence = truncateRunes(sentence, 60)
 	if strings.HasPrefix(strings.ToLower(sentence), "please") {
 		sentence = strings.TrimSpace(sentence[6:])
 	}
@@ -165,6 +160,17 @@ func inferActionFromTask(task string) string {
 		return "Processing request"
 	}
 	return fmt.Sprintf("Working on %s", strings.ToLower(sentence))
+}
+
+func truncateRunes(input string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(input)
+	if len(runes) <= limit {
+		return input
+	}
+	return string(runes[:limit]) + "..."
 }
 
 func parseTaskAnalysis(content string) *TaskAnalysis {
