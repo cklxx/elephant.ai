@@ -13,16 +13,13 @@ func resetStreamingLogDeduperForTest() {
 }
 
 func TestLogStreamingRequestPayload_WritesToDedicatedFile(t *testing.T) {
-	t.Setenv(requestLogEnvVar, t.TempDir())
+	logDir := t.TempDir()
+	t.Setenv(requestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
 	payload := []byte("{\"task\":\"demo\"}")
 	LogStreamingRequestPayload("req-123", payload)
 
-	logDir, ok := os.LookupEnv(requestLogEnvVar)
-	if !ok {
-		t.Fatalf("expected %s to be set", requestLogEnvVar)
-	}
 	logPath := filepath.Join(logDir, requestLogRequestFileName)
 	data, err := os.ReadFile(logPath)
 	if err != nil {
@@ -39,13 +36,13 @@ func TestLogStreamingRequestPayload_WritesToDedicatedFile(t *testing.T) {
 }
 
 func TestLogStreamingResponsePayload_WritesToDedicatedFile(t *testing.T) {
-	t.Setenv(requestLogEnvVar, t.TempDir())
+	logDir := t.TempDir()
+	t.Setenv(requestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
 	payload := []byte("{\"result\":\"demo\"}")
 	LogStreamingResponsePayload("req-456", payload)
 
-	logDir := os.Getenv(requestLogEnvVar)
 	logPath := filepath.Join(logDir, requestLogResponseFileName)
 	data, err := os.ReadFile(logPath)
 	if err != nil {
@@ -62,7 +59,8 @@ func TestLogStreamingResponsePayload_WritesToDedicatedFile(t *testing.T) {
 }
 
 func TestLogStreamingPayload_DeduplicatesByFile(t *testing.T) {
-	t.Setenv(requestLogEnvVar, t.TempDir())
+	logDir := t.TempDir()
+	t.Setenv(requestLogEnvVar, logDir)
 	resetStreamingLogDeduperForTest()
 
 	payload := []byte("{\"task\":\"demo\"}")
@@ -71,7 +69,6 @@ func TestLogStreamingPayload_DeduplicatesByFile(t *testing.T) {
 	LogStreamingResponsePayload("req-dup", payload)
 	LogStreamingResponsePayload("req-dup", payload)
 
-	logDir := os.Getenv(requestLogEnvVar)
 	requestLogPath := filepath.Join(logDir, requestLogRequestFileName)
 	responseLogPath := filepath.Join(logDir, requestLogResponseFileName)
 
