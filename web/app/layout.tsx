@@ -48,11 +48,11 @@ export function reportWebVitals(metric: NextWebVitalsMetric) {
   const payload = {
     name: metric.name,
     value: metric.value,
-    delta: metric.delta,
+    delta: "delta" in metric ? metric.delta : undefined,
     id: metric.id,
     label: metric.label,
-    page: window.location?.pathname ?? metric.path ?? "/",
-    navigation_type: metric.navigationType,
+    page: window.location?.pathname ?? ("path" in metric ? metric.path : undefined) ?? "/",
+    navigation_type: "navigationType" in metric ? metric.navigationType : undefined,
     ts: Date.now(),
   };
 

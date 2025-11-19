@@ -160,7 +160,10 @@ function buildFormState(snapshot: RuntimeConfigSnapshot | null): FormState {
 }
 
 function createOverridesFromForm(values: FormState): RuntimeConfigOverrides {
-  const overrides: RuntimeConfigOverrides = {};
+  // Build overrides using a generic record first; the metadata-driven loop
+  // makes it difficult for TypeScript to infer the precise key/value mapping.
+  // We'll cast it back to the RuntimeConfigOverrides shape once populated.
+  const overrides: Record<string, unknown> = {};
   for (const field of CONFIG_FIELDS) {
     const raw = values[field.key as string];
     if (raw === undefined) {
@@ -196,7 +199,7 @@ function createOverridesFromForm(values: FormState): RuntimeConfigOverrides {
       }
     }
   }
-  return overrides;
+  return overrides as RuntimeConfigOverrides;
 }
 
 function describeSource(key: FieldKey, snapshot: RuntimeConfigSnapshot | null) {
