@@ -2,25 +2,24 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnyAgentEvent, AttachmentPayload } from "@/lib/types";
+import {
+  AnyAgentEvent,
+  AssistantMessageEvent,
+  AttachmentPayload,
+  ThinkCompleteEvent,
+} from "@/lib/types";
 import { PanelRightOpen, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
-import { TaskCompleteCard } from "./TaskCompleteCard";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
-}
-
-interface ModelOutput {
-  iteration: number;
-  content: string;
-  timestamp: string;
 }
 
 interface ThinkPreviewItem {
   iteration: number;
   timestamp: string;
   content: string;
+  isFinal: boolean;
 }
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
@@ -41,9 +40,9 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   }
 
   // Aggregate tool calls and model outputs
-  const { toolCalls, modelOutputs } = useMemo(() => {
+  const { toolCalls, thinkStreamItems } = useMemo(() => {
     const toolCallsMap = new Map<string, AggregatedToolCall>();
-    const outputList: ModelOutput[] = [];
+    const thinkStreams = new Map<number, ThinkPreviewItem>();
 
     events.forEach((event) => {
       if (event.event_type === "tool_call_start") {
@@ -89,28 +88,64 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 : "completed",
           });
         }
+      } else if (event.event_type === "assistant_message") {
+        const assistantEvent = event as AssistantMessageEvent;
+        const iteration = assistantEvent.iteration;
+        if (typeof iteration !== "number") {
+          return;
+        }
+        const existing = thinkStreams.get(iteration) ?? {
+          iteration,
+          timestamp: assistantEvent.created_at ?? assistantEvent.timestamp,
+          content: "",
+          isFinal: false,
+        };
+        const delta = assistantEvent.delta ?? "";
+        if (delta.length > 0) {
+          existing.content = `${existing.content}${delta}`;
+        }
+        existing.timestamp = assistantEvent.created_at ?? assistantEvent.timestamp;
+        existing.isFinal = Boolean(assistantEvent.final);
+        thinkStreams.set(iteration, existing);
       } else if (event.event_type === "think_complete") {
-        outputList.push({
-          iteration: event.iteration,
-          content: event.content,
-          timestamp: event.timestamp,
-        });
+        const thinkEvent = event as ThinkCompleteEvent;
+        const iteration = thinkEvent.iteration;
+        if (typeof iteration !== "number") {
+          return;
+        }
+        const existing = thinkStreams.get(iteration) ?? {
+          iteration,
+          timestamp: thinkEvent.timestamp,
+          content: "",
+          isFinal: true,
+        };
+        if (!existing.content.trim().length && thinkEvent.content) {
+          existing.content = thinkEvent.content;
+        }
+        existing.timestamp = thinkEvent.timestamp;
+        existing.isFinal = true;
+        thinkStreams.set(iteration, existing);
       }
     });
 
     return {
       toolCalls: Array.from(toolCallsMap.values()),
-      modelOutputs: outputList,
+      thinkStreamItems: Array.from(thinkStreams.values())
+        .filter((item) => item.content.trim().length > 0)
+        .sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        ),
     };
   }, [events]);
 
-  const timelineItems = useMemo(
+  const sortedToolCalls = useMemo(
     () =>
-      [...modelOutputs, ...toolCalls].sort(
+      [...toolCalls].sort(
         (a, b) =>
           new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
       ),
-    [modelOutputs, toolCalls],
+    [toolCalls],
   );
 
   const runningTools = useMemo(
@@ -135,21 +170,9 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     .map((call) => call.toolName)
     .join(", ");
 
-  const thinkPreviewItems = useMemo<ThinkPreviewItem[]>(() => {
-    const previews: ThinkPreviewItem[] = [];
-    modelOutputs.forEach((output) => {
-      const trimmed = output.content?.trim();
-      if (!trimmed) {
-        return;
-      }
-      previews.push({
-        iteration: output.iteration,
-        timestamp: output.timestamp,
-        content: trimmed,
-      });
-    });
-    return previews;
-  }, [modelOutputs]);
+  const thinkPreviewItems = thinkStreamItems;
+  const latestThinkPreviewItem =
+    thinkPreviewItems[thinkPreviewItems.length - 1];
 
   const toolSummary = useMemo(() => {
     if (toolCalls.length === 0) {
@@ -178,7 +201,10 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const openDetails = () => setIsPanelOpen(true);
 
   return (
-    <div className="pb-1 pl-1">
+    <div className="space-y-2 pb-1 pl-1">
+      {latestThinkPreviewItem && (
+        <ThinkStreamList items={[latestThinkPreviewItem]} />
+      )}
       <button
         type="button"
         onClick={openDetails}
@@ -190,19 +216,9 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         }
       >
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {thinkPreviewItems.length > 0 ? (
-            <div className="console-assistant-content max-h-24 space-y-1 overflow-hidden text-[13px] leading-5 text-foreground/90">
-              {thinkPreviewItems.map((output) => (
-                <p key={`${output.iteration}-${output.timestamp}`} className="m-0 whitespace-pre-wrap">
-                  {output.content}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <span className="max-w-full truncate text-[11px] text-muted-foreground">
-              {runningSummary || toolSummary}
-            </span>
-          )}
+          <span className="max-w-full truncate text-[11px] text-muted-foreground">
+            {runningSummary || toolSummary}
+          </span>
           {hasRunningTool && (
             <span className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/90">
               <span
@@ -228,16 +244,11 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         open={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
       >
-        {timelineItems.map((item) => {
-          if ("iteration" in item) {
-            return (
-              <ModelOutputItem
-                key={`output-${item.iteration}-${item.timestamp}`}
-                modelOutput={item}
-              />
-            );
-          }
-          return (
+        <div className="space-y-4">
+          {thinkPreviewItems.length > 0 && (
+            <ThinkStreamList items={thinkPreviewItems} />
+          )}
+          {sortedToolCalls.map((item) => (
             <ToolOutputCard
               key={item.callId}
               toolName={item.toolName}
@@ -251,51 +262,11 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
               attachments={item.attachments}
               status={item.status}
             />
-          );
-        })}
+          ))}
+        </div>
       </ToolCallDetailsPanel>
     </div>
   );
-}
-
-function ModelOutputItem({ modelOutput }: { modelOutput: ModelOutput }) {
-  const content = modelOutput.content ?? "";
-
-  // Convert ModelOutput to TaskCompleteEvent format for consistent rendering
-  const mockEvent = {
-    event_type: "task_complete" as const,
-    timestamp: modelOutput.timestamp,
-    agent_level: "core" as const,
-    session_id: "",
-    task_id: "",
-    final_answer: modelOutput.content,
-    total_iterations: modelOutput.iteration,
-    total_tokens: 0,
-    stop_reason: "",
-    duration: 0,
-  };
-
-  const preview = useMemo(() => {
-    const trimmed = content.trim();
-    if (!trimmed) {
-      return "";
-    }
-    const firstLine =
-      trimmed
-        .split(/\n+/)
-        .map((line) => line.trim())
-        .find((line) => line.length > 0) ?? trimmed;
-    if (firstLine.length <= 80) {
-      return firstLine;
-    }
-    return `${firstLine.slice(0, 80)}…`;
-  }, [content]);
-
-  if (!content) {
-    return null;
-  }
-
-  return <TaskCompleteCard event={mockEvent} />;
 }
 
 interface ToolCallDetailsPanelProps {
@@ -357,5 +328,39 @@ function ToolCallDetailsPanel({
       </aside>
     </div>,
     document.body,
+  );
+}
+
+function ThinkStreamList({ items }: { items: ThinkPreviewItem[] }) {
+  return (
+    <section className="rounded-2xl bg-muted/40 px-4 py-3">
+      <div className="space-y-3">
+        {items.map((item) => (
+          <div
+            key={`${item.iteration}-${item.timestamp}`}
+            className="space-y-1"
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+              <span>LLM THINK</span>
+              <span className="font-mono tracking-normal text-[10px] text-muted-foreground/70">
+                iter {item.iteration}
+              </span>
+              {!item.isFinal && (
+                <span className="flex items-center gap-1 text-primary">
+                  <span
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                  streaming
+                </span>
+              )}
+            </div>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+              {item.content}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
