@@ -145,6 +145,47 @@ describe('TaskInput', () => {
           media_type: 'image/png',
           data: 'Zm9v',
           source: 'user_upload',
+          kind: 'attachment',
+        }),
+      ]);
+    });
+  });
+
+  it('allows marking uploads as artifacts with extended TTL', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <LanguageProvider>
+        <TaskInput onSubmit={onSubmit} />
+      </LanguageProvider>,
+    );
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['foo'], 'deck.pptx', {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    });
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      writable: false,
+    });
+
+    await user.click(screen.getByTestId('task-attach-image'));
+    fireEvent.change(fileInput);
+
+    await screen.findByTestId('task-attachments');
+
+    const artifactToggle = screen.getAllByRole('button', { name: /Artifact/i })[0];
+    await user.click(artifactToggle);
+
+    await user.click(screen.getByTestId('task-submit'));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('[deck.pptx]', [
+        expect.objectContaining({
+          name: 'deck.pptx',
+          kind: 'artifact',
+          retention_ttl_seconds: 90 * 24 * 60 * 60,
         }),
       ]);
     });

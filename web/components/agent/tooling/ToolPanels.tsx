@@ -6,6 +6,7 @@ import { AttachmentPayload } from '@/lib/types';
 import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
 import { ImagePreview } from '@/components/ui/image-preview';
 import { VideoPreview } from '@/components/ui/video-preview';
+import { ArtifactPreviewCard } from '../ArtifactPreviewCard';
 
 function fallbackCopy(text: string) {
   try {
@@ -152,6 +153,13 @@ export function ToolResultPanel({
           segment.attachment,
       )
     : [];
+  const artifactSegments = segments
+    ? segments.filter(
+        (segment) =>
+          (segment.type === 'document' || segment.type === 'embed') &&
+          segment.attachment,
+      )
+    : [];
 
   if (!formatted && !attachmentsAvailable) {
     return null;
@@ -199,6 +207,22 @@ export function ToolResultPanel({
                     minHeight="10rem"
                     maxHeight="16rem"
                     sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
+                  />
+                );
+              })}
+            </div>
+          )}
+          {artifactSegments.length > 0 && (
+            <div className="mt-4 space-y-3">
+              {artifactSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const key = segment.placeholder || `artifact-${index}`;
+                return (
+                  <ArtifactPreviewCard
+                    key={`tool-panel-artifact-${key}`}
+                    attachment={segment.attachment}
                   />
                 );
               })}

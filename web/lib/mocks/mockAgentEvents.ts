@@ -1,4 +1,136 @@
-import { AgentEvent, AnyAgentEvent } from '@/lib/types';
+import { AgentEvent, AnyAgentEvent, AttachmentPayload } from '@/lib/types';
+
+const HTML_ARTIFACT_PREVIEW =
+  'data:text/html;base64,PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkludGVyLHNhbnMtc2VyaWY7cGFkZGluZzoyNHB4O2JhY2tncm91bmQ6I2Y4ZmFmYyI+PGgxPkNvbnNvbGUgQXJjaGl0ZWN0dXJlIFByb3RvdHlwZTwvaDE+PHA+VGhpcyBhcnRpZmFjdCBkZW1vbnN0cmF0ZXMgdGhlIGlubGluZSBIVE1MIHByZXZpZXcgY2hhbm5lbC48L3A+PHVsPjxsaT5Eb2NrZWQgaW5wdXQ8L2xpPjxsaT5UaW1lbGluZSBzcGxpdCB2aWV3PC9saT48bGk+QXJ0aWZhY3QgZ2FsbGVyeTwvbGk+PC91bD48L2JvZHk+PC9odG1sPg==';
+
+const MARKDOWN_ARTIFACT_PREVIEW =
+  'data:text/html;base64,PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkludGVyLHNhbnMtc2VyaWY7cGFkZGluZzoyNHB4O2JhY2tncm91bmQ6I2ZmZmJlNiI+PGgxPlEzIFJlc2VhcmNoIE1lbW88L2gxPjxwPkNvbnZlcnRlZCBmcm9tIG1hcmtkb3duIHRvIEhUTUwgZm9yIHByZXZpZXcgdGVzdGluZy48L3A+PGJsb2NrcXVvdGU+QXJ0aWZhY3QgcHJldmlld3Mgc2hvdWxkIGZlZWwgaW5zdGFudC48L2Jsb2NrcXVvdGU+PHA+LSBHb2FsczogdW5ibG9jayBVSSBkZW1vczwvcD48cD4tIE93bmVyczogQ29uc29sZSBzcXVhZDwvcD48L2JvZHk+PC9odG1sPg==';
+
+const MARKDOWN_ARTIFACT_SOURCE =
+  'data:text/markdown;base64,IyBRMyBSZXNlYXJjaCBNZW1vCgotIEdvYWxzOiBzaGFyZSBhcnRpZmFjdCBkZW1vCi0gT3duZXJzOiBDb25zb2xlIHNxdWFkCg==';
+
+function createSvgDataUrl(color: string, label: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" rx="24" fill="${color}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, sans-serif" font-size="32" fill="#ffffff">${label}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const mockAttachmentGallery: Record<string, AttachmentPayload> = {
+  'Executive Review Slides': {
+    name: 'Executive Review Slides',
+    description: 'Executive Review Slides',
+    media_type:
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    format: 'pptx',
+    kind: 'artifact',
+    uri: 'https://mock.cdn.example.com/artifacts/executive-review-slides.pptx',
+    preview_profile: 'document.presentation',
+    preview_assets: [
+      {
+        asset_id: 'ppt-slide-1',
+        label: 'Slide 1',
+        mime_type: 'image/svg+xml',
+        preview_type: 'image',
+        cdn_url: createSvgDataUrl('#2563eb', 'Slide 1'),
+      },
+      {
+        asset_id: 'ppt-slide-2',
+        label: 'Slide 2',
+        mime_type: 'image/svg+xml',
+        preview_type: 'image',
+        cdn_url: createSvgDataUrl('#7c3aed', 'Slide 2'),
+      },
+    ],
+  },
+  'Console Architecture Prototype': {
+    name: 'Console Architecture Prototype',
+    description: 'Console Architecture Prototype',
+    media_type: 'text/html',
+    format: 'html',
+    kind: 'artifact',
+    uri: HTML_ARTIFACT_PREVIEW,
+    preview_profile: 'embed.html',
+    preview_assets: [
+      {
+        asset_id: 'html-preview',
+        label: 'Live preview',
+        mime_type: 'text/html',
+        preview_type: 'iframe',
+        cdn_url: HTML_ARTIFACT_PREVIEW,
+      },
+    ],
+  },
+  'Q3 Research Memo': {
+    name: 'Q3 Research Memo',
+    description: 'Q3 Research Memo',
+    media_type: 'text/markdown',
+    format: 'markdown',
+    kind: 'artifact',
+    uri: MARKDOWN_ARTIFACT_SOURCE,
+    preview_profile: 'document.markdown',
+    preview_assets: [
+      {
+        asset_id: 'markdown-preview',
+        label: 'Rendered memo',
+        mime_type: 'text/html',
+        preview_type: 'iframe',
+        cdn_url: MARKDOWN_ARTIFACT_PREVIEW,
+      },
+    ],
+  },
+  'Status Heatmap': {
+    name: 'Status Heatmap',
+    description: 'Status Heatmap',
+    media_type: 'image/svg+xml',
+    format: 'png',
+    kind: 'attachment',
+    uri: createSvgDataUrl('#f97316', 'Status'),
+  },
+  'Latency Report': {
+    name: 'Latency Report',
+    description: 'Latency Report',
+    media_type: 'application/pdf',
+    format: 'pdf',
+    kind: 'artifact',
+    uri: 'https://mock.cdn.example.com/artifacts/latency-report.pdf',
+    preview_profile: 'document.pdf',
+    preview_assets: [
+      {
+        asset_id: 'latency-preview',
+        label: 'PDF preview',
+        mime_type: 'image/svg+xml',
+        preview_type: 'image',
+        cdn_url: createSvgDataUrl('#0f172a', 'Latency'),
+      },
+    ],
+  },
+};
+
+function cloneAttachmentMap(
+  map: Record<string, AttachmentPayload>,
+): Record<string, AttachmentPayload> {
+  return Object.entries(map).reduce<Record<string, AttachmentPayload>>(
+    (acc, [key, value]) => {
+      acc[key] = {
+        ...value,
+        preview_assets: value.preview_assets
+          ? value.preview_assets.map((asset) => ({ ...asset }))
+          : undefined,
+      };
+      return acc;
+    },
+    {},
+  );
+}
+
+function pickAttachments(...keys: string[]): Record<string, AttachmentPayload> {
+  const selection: Record<string, AttachmentPayload> = {};
+  keys.forEach((key) => {
+    if (mockAttachmentGallery[key]) {
+      selection[key] = mockAttachmentGallery[key];
+    }
+  });
+  return cloneAttachmentMap(selection);
+}
 
 export type MockEventPayload = Partial<AnyAgentEvent> &
   Pick<AgentEvent, 'event_type' | 'agent_level'> &
@@ -156,8 +288,16 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         agent_level: 'core',
         call_id: callId,
         tool_name: 'file_read',
-        result: 'Successfully reviewed component layout and state management.',
+        result:
+          'Uploaded [Executive Review Slides], [Console Architecture Prototype], [Q3 Research Memo], [Status Heatmap], and [Latency Report] into the registry for downstream previews.',
         duration: 420,
+        attachments: pickAttachments(
+          'Executive Review Slides',
+          'Console Architecture Prototype',
+          'Q3 Research Memo',
+          'Status Heatmap',
+          'Latency Report',
+        ),
       },
     },
     {
@@ -408,11 +548,12 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         event_type: 'task_complete',
         agent_level: 'core',
         final_answer:
-          '1. Keep the input dock always visible.\n2. Stream events in a terminal column.\n3. Provide reconnection affordances with the new console styling.',
+          '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
         total_iterations: 1,
         total_tokens: 865,
         stop_reason: 'completed',
         duration: 3600,
+        attachments: cloneAttachmentMap(mockAttachmentGallery),
       },
     },
   ];

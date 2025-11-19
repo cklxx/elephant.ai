@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
+	"alex/internal/materials/policy"
 	"alex/internal/materials/storage"
 )
 
@@ -68,6 +69,7 @@ type RegisterToolOutputsRequest struct {
 	DefaultStatus       materialapi.MaterialStatus
 	Origin              string
 	DefaultRetentionTTL time.Duration
+	DefaultKind         materialapi.MaterialKind
 }
 
 // RegisterToolOutputs uploads the attachment payloads and records the catalog
@@ -84,7 +86,6 @@ func (b *AttachmentBroker) RegisterToolOutputs(ctx context.Context, req Register
 	if status == materialapi.MaterialStatusUnspecified {
 		status = materialapi.MaterialStatusIntermediate
 	}
-
 	register := &materialapi.RegisterMaterialsRequest{Context: req.Context}
 	originalByStorageKey := make(map[string]string, len(req.Attachments))
 	originalByName := make(map[string]string, len(req.Attachments))
@@ -111,7 +112,25 @@ func (b *AttachmentBroker) RegisterToolOutputs(ctx context.Context, req Register
 			return nil, fmt.Errorf("attachment broker: prewarm %s: %w", key, err)
 		}
 
-		retention := retentionWindow(status, req.DefaultRetentionTTL)
+		kind := resolveMaterialKind(attachment.Kind, req.DefaultKind)
+		format := attachment.Format
+		if format == "" {
+			format = inferFormat(mimeType)
+		}
+		retention := resolveAttachmentRetention(attachment.RetentionTTLSeconds, status, kind, req.DefaultRetentionTTL)
+		previewAssets, err := b.generatePreviewAssets(ctx, previewGenerationInput{
+			Name:     attachment.Name,
+			Source:   attachment.Source,
+			Format:   format,
+			Kind:     kind,
+			MimeType: mimeType,
+			Payload:  payload,
+			Upload:   uploadResult,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("attachment broker: preview assets %s: %w", key, err)
+		}
+		previewProfile := defaultPreviewProfile(kind, format)
 		register.Materials = append(register.Materials, &materialapi.MaterialInput{
 			Name:                attachment.Name,
 			MimeType:            mimeType,
@@ -128,6 +147,10 @@ func (b *AttachmentBroker) RegisterToolOutputs(ctx context.Context, req Register
 			InlineBytes:         nil,
 			Lineage:             nil,
 			RetentionTTLSeconds: uint64(retention / time.Second),
+			Kind:                kind,
+			Format:              format,
+			PreviewProfile:      previewProfile,
+			PreviewAssets:       previewAssets,
 		})
 		originalByStorageKey[uploadResult.StorageKey] = key
 		if attachment.Name != "" {
@@ -153,12 +176,17 @@ func (b *AttachmentBroker) RegisterToolOutputs(ctx context.Context, req Register
 		if material.Descriptor == nil || material.Storage == nil {
 			continue
 		}
+		previewAssets := convertPreviewAssets(material.Descriptor.PreviewAssets)
 		attachment := ports.Attachment{
-			Name:        material.Descriptor.Name,
-			MediaType:   material.Descriptor.MimeType,
-			URI:         material.Storage.CDNURL,
-			Source:      material.Descriptor.Source,
-			Description: material.Descriptor.Description,
+			Name:           material.Descriptor.Name,
+			MediaType:      material.Descriptor.MimeType,
+			URI:            material.Storage.CDNURL,
+			Source:         material.Descriptor.Source,
+			Description:    material.Descriptor.Description,
+			Kind:           materialKindLabel(material.Descriptor.Kind),
+			Format:         material.Descriptor.Format,
+			PreviewProfile: material.Descriptor.PreviewProfile,
+			PreviewAssets:  previewAssets,
 		}
 		key := ""
 		if material.Storage != nil {
@@ -222,6 +250,81 @@ func extractPayload(att ports.Attachment) ([]byte, string, error) {
 	return nil, "", errors.New("attachment broker: no inline data or data URI provided")
 }
 
+func inferFormat(mimeType string) string {
+	mime := strings.ToLower(mimeType)
+	switch mime {
+	case "application/vnd.ms-powerpoint":
+		return "ppt"
+	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+		return "pptx"
+	case "text/markdown", "application/x-markdown":
+		return "markdown"
+	case "text/html":
+		return "html"
+	case "application/pdf":
+		return "pdf"
+	}
+	if idx := strings.Index(mime, "/"); idx != -1 && idx+1 < len(mime) {
+		return mime[idx+1:]
+	}
+	return mime
+}
+
+func defaultPreviewProfile(kind materialapi.MaterialKind, format string) string {
+	if format == "" {
+		return ""
+	}
+	switch strings.ToLower(format) {
+	case "ppt", "pptx":
+		return "document.ppt"
+	case "html":
+		return "document.html"
+	case "markdown":
+		return "document.markdown"
+	case "pdf":
+		return "document.pdf"
+	case "png", "jpg", "jpeg", "gif", "svg":
+		if kind == materialapi.MaterialKindArtifact {
+			return "document.image"
+		}
+	}
+	return ""
+}
+
+func materialKindLabel(kind materialapi.MaterialKind) string {
+	switch kind {
+	case materialapi.MaterialKindArtifact:
+		return "artifact"
+	case materialapi.MaterialKindAttachment, materialapi.MaterialKindUnspecified:
+		return "attachment"
+	default:
+		return ""
+	}
+}
+
+func convertPreviewAssets(assets []*materialapi.PreviewAsset) []ports.AttachmentPreviewAsset {
+	if len(assets) == 0 {
+		return nil
+	}
+	converted := make([]ports.AttachmentPreviewAsset, 0, len(assets))
+	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		converted = append(converted, ports.AttachmentPreviewAsset{
+			AssetID:     asset.AssetID,
+			Label:       asset.Label,
+			MimeType:    asset.MimeType,
+			CDNURL:      asset.CDNURL,
+			PreviewType: asset.PreviewType,
+		})
+	}
+	if len(converted) == 0 {
+		return nil
+	}
+	return converted
+}
+
 func coalesce(values ...string) string {
 	for _, v := range values {
 		if v != "" {
@@ -231,18 +334,20 @@ func coalesce(values ...string) string {
 	return ""
 }
 
-func retentionWindow(status materialapi.MaterialStatus, override time.Duration) time.Duration {
-	if override > 0 {
-		return override
+func resolveMaterialKind(label string, fallback materialapi.MaterialKind) materialapi.MaterialKind {
+	trimmed := strings.ToLower(strings.TrimSpace(label))
+	switch trimmed {
+	case "artifact":
+		return materialapi.MaterialKindArtifact
+	case "attachment":
+		return materialapi.MaterialKindAttachment
 	}
-	switch status {
-	case materialapi.MaterialStatusInput:
-		return 30 * 24 * time.Hour
-	case materialapi.MaterialStatusIntermediate:
-		return 7 * 24 * time.Hour
-	case materialapi.MaterialStatusFinal:
-		return 0
-	default:
-		return 0
+	if fallback == materialapi.MaterialKindUnspecified {
+		return materialapi.MaterialKindAttachment
 	}
+	return fallback
+}
+
+func resolveAttachmentRetention(ttlSeconds uint64, status materialapi.MaterialStatus, kind materialapi.MaterialKind, override time.Duration) time.Duration {
+	return policy.DefaultEngine().ResolveRetention(ttlSeconds, status, kind, override)
 }

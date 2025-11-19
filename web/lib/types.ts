@@ -101,6 +101,19 @@ export interface AttachmentPayload {
   uri?: string;
   source?: string;
   description?: string;
+  kind?: 'attachment' | 'artifact' | string;
+  format?: string;
+  preview_profile?: string;
+  preview_assets?: AttachmentPreviewAssetPayload[];
+  retention_ttl_seconds?: number;
+}
+
+export interface AttachmentPreviewAssetPayload {
+  asset_id?: string;
+  label?: string;
+  mime_type?: string;
+  cdn_url?: string;
+  preview_type?: string;
 }
 
 export interface AttachmentUpload {
@@ -110,6 +123,9 @@ export interface AttachmentUpload {
   uri?: string;
   source?: string;
   description?: string;
+  kind?: 'attachment' | 'artifact' | string;
+  format?: string;
+  retention_ttl_seconds?: number;
 }
 
 export type MessageSource =

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +16,15 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { Highlight, themes, Language } from "prism-react-renderer";
 import { MarkdownRenderer } from "@/components/ui/markdown";
-import { replacePlaceholdersWithMarkdown, buildAttachmentUri } from "@/lib/attachments";
+import {
+  replacePlaceholdersWithMarkdown,
+  buildAttachmentUri,
+  getAttachmentSegmentType,
+} from "@/lib/attachments";
 import { AttachmentPayload } from "@/lib/types";
 import { ImagePreview } from "@/components/ui/image-preview";
+import { VideoPreview } from "@/components/ui/video-preview";
+import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 
 export type ViewMode = "default" | "reading" | "compare";
 
@@ -254,24 +260,7 @@ function DocumentRenderer({
           showLineNumbers={showLineNumbers}
         />
         {document.attachments && Object.keys(document.attachments).length > 0 && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {Object.entries(document.attachments).map(([key, attachment]) => {
-              const uri = buildAttachmentUri(attachment);
-              if (!uri) {
-                return null;
-              }
-              return (
-                <ImagePreview
-                  key={key}
-                  src={uri}
-                  alt={attachment.description || attachment.name || key}
-                  minHeight="12rem"
-                  maxHeight="20rem"
-                  sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-                />
-              );
-            })}
-          </div>
+          <AttachmentGallery attachments={document.attachments} />
         )}
       </div>
     );
@@ -311,6 +300,228 @@ function DocumentRenderer({
   return (
     <div className={cn("font-mono text-sm", containerClass)}>
       <pre className="whitespace-pre-wrap">{document.content}</pre>
+    </div>
+  );
+}
+
+interface AttachmentGalleryProps {
+  attachments: Record<string, AttachmentPayload>;
+}
+
+type AttachmentKindFilter = "all" | "artifact" | "attachment";
+
+interface NormalizedAttachment {
+  key: string;
+  attachment: AttachmentPayload;
+  type: string;
+  kind: string;
+  formatValue: string | null;
+  formatLabel: string | null;
+}
+
+function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
+  const t = useTranslation();
+  const [kindFilter, setKindFilter] = useState<AttachmentKindFilter>("all");
+  const [formatFilter, setFormatFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const normalized = useMemo<NormalizedAttachment[]>(() => {
+    return Object.entries(attachments).map(([key, attachment]) => {
+      const kind = attachment.kind ?? "attachment";
+      const formatLabel = attachment.format ?? null;
+      const formatValue = formatLabel ? formatLabel.toLowerCase() : null;
+      return {
+        key,
+        attachment,
+        type: getAttachmentSegmentType(attachment),
+        kind,
+        formatValue,
+        formatLabel,
+      };
+    });
+  }, [attachments]);
+
+  const availableFormats = useMemo(() => {
+    const seen = new Map<string, string>();
+    normalized.forEach(({ formatValue, formatLabel }) => {
+      if (!formatValue || seen.has(formatValue)) {
+        return;
+      }
+      seen.set(formatValue, formatLabel ?? formatValue.toUpperCase());
+    });
+    return Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+  }, [normalized]);
+
+  const filtered = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return normalized.filter(({ attachment, kind, formatValue, key }) => {
+      const matchesKind =
+        kindFilter === "all" ||
+        (kindFilter === "artifact" ? kind === "artifact" : kind !== "artifact");
+      if (!matchesKind) {
+        return false;
+      }
+
+      const matchesFormat =
+        formatFilter === "all" || (formatValue ? formatValue === formatFilter : false);
+      if (!matchesFormat) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const haystacks = [
+        key,
+        attachment.name,
+        attachment.description,
+        attachment.media_type,
+        attachment.format,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+
+      return haystacks.some((value) => value.includes(query));
+    });
+  }, [normalized, kindFilter, formatFilter, searchQuery]);
+
+  const grouped = filtered.reduce<Record<string, NormalizedAttachment[]>>((acc, item) => {
+    if (!acc[item.type]) {
+      acc[item.type] = [];
+    }
+    acc[item.type].push(item);
+    return acc;
+  }, {});
+
+  const imageAttachments = grouped.image ?? [];
+  const videoAttachments = grouped.video ?? [];
+  const artifactAttachments = [...(grouped.document ?? []), ...(grouped.embed ?? [])];
+
+  const kindOptions: { value: AttachmentKindFilter; label: string }[] = [
+    {
+      value: "all",
+      label: t("document.attachments.filters.kind.all"),
+    },
+    {
+      value: "attachment",
+      label: t("document.attachments.filters.kind.attachments"),
+    },
+    {
+      value: "artifact",
+      label: t("document.attachments.filters.kind.artifacts"),
+    },
+  ];
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+        <div>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            {t("document.attachments.filters.heading")}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {kindOptions.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={kindFilter === option.value ? "default" : "outline"}
+                className="text-xs"
+                onClick={() => setKindFilter(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {availableFormats.length > 0 && (
+            <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+              {t("document.attachments.filters.format.label")}
+              <select
+                className="mt-1 block h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
+                value={formatFilter}
+                onChange={(event) => setFormatFilter(event.target.value)}
+              >
+                <option value="all">
+                  {t("document.attachments.filters.format.all")}
+                </option>
+                {availableFormats.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <div className="flex-1">
+            <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+              {t("document.attachments.filters.search.label")}
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={t("document.attachments.filters.search.placeholder")}
+                className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+      {filtered.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+          {t("document.attachments.filters.empty")}
+        </div>
+      ) : (
+        <>
+          {imageAttachments.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {imageAttachments.map(({ key, attachment }) => {
+                const uri = buildAttachmentUri(attachment);
+                if (!uri) {
+                  return null;
+                }
+                return (
+                  <ImagePreview
+                    key={`doc-image-${key}`}
+                    src={uri}
+                    alt={attachment.description || attachment.name || key}
+                    minHeight="12rem"
+                    maxHeight="20rem"
+                    sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  />
+                );
+              })}
+            </div>
+          )}
+          {videoAttachments.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {videoAttachments.map(({ key, attachment }) => {
+                const uri = buildAttachmentUri(attachment);
+                if (!uri) {
+                  return null;
+                }
+                return (
+                  <VideoPreview
+                    key={`doc-video-${key}`}
+                    src={uri}
+                    mimeType={attachment.media_type || "video/mp4"}
+                    description={attachment.description}
+                    maxHeight="20rem"
+                  />
+                );
+              })}
+            </div>
+          )}
+          {artifactAttachments.length > 0 && (
+            <div className="space-y-3">
+              {artifactAttachments.map(({ key, attachment }) => (
+                <ArtifactPreviewCard key={`doc-artifact-${key}`} attachment={attachment} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

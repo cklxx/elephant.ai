@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
+import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -42,8 +43,12 @@ export const EventLine = React.memo(function EventLine({
       (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
     );
     const mediaSegments = segments.filter(
+      (segment) => segment.type === "image" || segment.type === "video",
+    );
+    const artifactSegments = segments.filter(
       (segment) =>
-        segment.type === "image" || segment.type === "video",
+        (segment.type === "document" || segment.type === "embed") &&
+        segment.attachment,
     );
     return (
       <div className="console-user-task" data-testid="event-user_task">
@@ -107,6 +112,22 @@ export const EventLine = React.memo(function EventLine({
                 </div>
               );
             })}
+            {artifactSegments.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {artifactSegments.map((segment, index) => {
+                  if (!segment.attachment) {
+                    return null;
+                  }
+                  const key = segment.placeholder || `artifact-${index}`;
+                  return (
+                    <ArtifactPreviewCard
+                      key={`task-artifact-${key}`}
+                      attachment={segment.attachment}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
