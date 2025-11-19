@@ -16,11 +16,24 @@ interface IntermediatePanelProps {
 }
 
 interface ThinkPreviewItem {
+  id: string;
   iteration: number;
   timestamp: string;
   content: string;
   isFinal: boolean;
 }
+
+const getThinkStreamKey = (
+  event: AssistantMessageEvent | ThinkCompleteEvent,
+  iteration: number,
+) => {
+  const taskIdentifier =
+    event.task_id ??
+    (event.parent_task_id
+      ? `${event.parent_task_id}:${event.subtask_index ?? "0"}`
+      : event.session_id);
+  return `${taskIdentifier}:${iteration}`;
+};
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -42,7 +55,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   // Aggregate tool calls and model outputs
   const { toolCalls, thinkStreamItems } = useMemo(() => {
     const toolCallsMap = new Map<string, AggregatedToolCall>();
-    const thinkStreams = new Map<number, ThinkPreviewItem>();
+    const thinkStreams = new Map<string, ThinkPreviewItem>();
 
     events.forEach((event) => {
       if (event.event_type === "tool_call_start") {
@@ -94,7 +107,9 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         if (typeof iteration !== "number") {
           return;
         }
-        const existing = thinkStreams.get(iteration) ?? {
+        const streamKey = getThinkStreamKey(assistantEvent, iteration);
+        const existing = thinkStreams.get(streamKey) ?? {
+          id: streamKey,
           iteration,
           timestamp: assistantEvent.created_at ?? assistantEvent.timestamp,
           content: "",
@@ -106,14 +121,16 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         }
         existing.timestamp = assistantEvent.created_at ?? assistantEvent.timestamp;
         existing.isFinal = Boolean(assistantEvent.final);
-        thinkStreams.set(iteration, existing);
+        thinkStreams.set(streamKey, existing);
       } else if (event.event_type === "think_complete") {
         const thinkEvent = event as ThinkCompleteEvent;
         const iteration = thinkEvent.iteration;
         if (typeof iteration !== "number") {
           return;
         }
-        const existing = thinkStreams.get(iteration) ?? {
+        const streamKey = getThinkStreamKey(thinkEvent, iteration);
+        const existing = thinkStreams.get(streamKey) ?? {
+          id: streamKey,
           iteration,
           timestamp: thinkEvent.timestamp,
           content: "",
@@ -124,7 +141,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         }
         existing.timestamp = thinkEvent.timestamp;
         existing.isFinal = true;
-        thinkStreams.set(iteration, existing);
+        thinkStreams.set(streamKey, existing);
       }
     });
 
@@ -337,7 +354,7 @@ function ThinkStreamList({ items }: { items: ThinkPreviewItem[] }) {
       <div className="space-y-3">
         {items.map((item) => (
           <div
-            key={`${item.iteration}-${item.timestamp}`}
+            key={item.id}
             className="space-y-1"
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
