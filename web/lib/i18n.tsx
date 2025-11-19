@@ -410,6 +410,7 @@ const translations = {
     "events.error.details": "Details",
     "events.thinking.title": "Thinking…",
     "events.thinking.hint": "Agent is working",
+    "events.thinking.status": "思考中",
     "events.iteration.progress": "Iteration {iteration} of {total}",
     "events.iteration.complete": "Iteration {iteration} complete",
     "events.iteration.tokens": "{count} tokens",

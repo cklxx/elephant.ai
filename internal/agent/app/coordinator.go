@@ -192,9 +192,14 @@ func (c *AgentCoordinator) ExecuteTask(
 		}
 	}
 
-	// Save session
-	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
-		return nil, err
+	// Save session unless this is a delegated subagent run (which should not
+	// mutate the parent session state).
+	if isSubagentContext(ctx) {
+		c.logger.Debug("Skipping session persistence for subagent execution")
+	} else {
+		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
+			return nil, err
+		}
 	}
 
 	taskResultTaskID := result.TaskID

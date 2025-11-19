@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
 	id "alex/internal/utils/id"
 )
 
@@ -123,6 +124,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ids.SessionID = session.ID
 	}
 
+	var inheritedState *ports.TaskState
+	if isSubagentContext(ctx) {
+		inheritedState = ports.GetTaskStateSnapshot(ctx)
+	}
+
 	var (
 		initialWorldState map[string]any
 		initialWorldDiff  map[string]any
@@ -230,6 +236,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			preloadedAttachments[name] = att
 		}
 	}
+	if inheritedState != nil && len(inheritedState.Attachments) > 0 {
+		if preloadedAttachments == nil {
+			preloadedAttachments = make(map[string]ports.Attachment)
+		}
+		mergeAttachmentMaps(preloadedAttachments, inheritedState.Attachments)
+	}
 	stateMessages := append([]domain.Message(nil), session.Messages...)
 	if history != nil && len(history.messages) > 0 {
 		stateMessages = trimSessionHistoryMessages(stateMessages)
@@ -263,6 +275,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			}
 			state.AttachmentIterations[name] = iter
 		}
+	}
+
+	if inheritedState != nil {
+		s.applyInheritedStateSnapshot(state, inheritedState)
 	}
 
 	if history != nil && len(history.messages) > 0 {
@@ -776,6 +792,55 @@ func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]p
 	}
 }
 
+func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.TaskState, inherited *ports.TaskState) {
+	if state == nil || inherited == nil {
+		return
+	}
+	snapshot := ports.CloneTaskState(inherited)
+	if trimmed := strings.TrimSpace(snapshot.SystemPrompt); trimmed != "" {
+		state.SystemPrompt = trimmed
+	}
+	if len(snapshot.Messages) > 0 {
+		state.Messages = ports.CloneMessages(snapshot.Messages)
+	}
+	if len(snapshot.Attachments) > 0 {
+		if state.Attachments == nil {
+			state.Attachments = make(map[string]ports.Attachment)
+		}
+		mergeAttachmentMaps(state.Attachments, snapshot.Attachments)
+	}
+	if len(snapshot.AttachmentIterations) > 0 {
+		if state.AttachmentIterations == nil {
+			state.AttachmentIterations = make(map[string]int)
+		}
+		for key, iter := range snapshot.AttachmentIterations {
+			name := strings.TrimSpace(key)
+			if name == "" {
+				continue
+			}
+			state.AttachmentIterations[name] = iter
+		}
+	}
+	if len(snapshot.Plans) > 0 {
+		state.Plans = ports.ClonePlanNodes(snapshot.Plans)
+	}
+	if len(snapshot.Beliefs) > 0 {
+		state.Beliefs = ports.CloneBeliefs(snapshot.Beliefs)
+	}
+	if len(snapshot.KnowledgeRefs) > 0 {
+		state.KnowledgeRefs = ports.CloneKnowledgeReferences(snapshot.KnowledgeRefs)
+	}
+	if len(snapshot.WorldState) > 0 {
+		state.WorldState = snapshot.WorldState
+	}
+	if len(snapshot.WorldDiff) > 0 {
+		state.WorldDiff = snapshot.WorldDiff
+	}
+	if len(snapshot.FeedbackSignals) > 0 {
+		state.FeedbackSignals = ports.CloneFeedbackSignals(snapshot.FeedbackSignals)
+	}
+}
+
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.
 func (s *ExecutionPreparationService) SetEnvironmentSummary(summary string) {
 	s.config.EnvironmentSummary = summary
@@ -803,10 +868,18 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) po
 	if isSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()
 		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
+
+		// Apply preset configured for subagents (context overrides allowed)
+		return s.presetResolver.ResolveToolRegistry(ctx, registry, s.config.ToolPreset)
 	}
 
-	// Apply preset-based filtering
-	return s.presetResolver.ResolveToolRegistry(ctx, registry, s.config.ToolPreset)
+	// Force the core agent to run with the orchestrator-only preset so it
+	// can only think, delegate, and finalize work products.
+	presetConfig, _ := ctx.Value(PresetContextKey{}).(PresetConfig)
+	presetConfig.ToolPreset = string(presets.ToolPresetOrchestrator)
+	ctx = context.WithValue(ctx, PresetContextKey{}, presetConfig)
+
+	return s.presetResolver.ResolveToolRegistry(ctx, registry, presetConfig.ToolPreset)
 }
 
 func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolRegistry {

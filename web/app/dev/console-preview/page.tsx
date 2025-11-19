@@ -2,6 +2,8 @@
 
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { AnyAgentEvent, AssistantMessageEvent } from '@/lib/types';
+import { Brain, CheckCircle2, ChevronDown, Sparkles } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 const baseTime = new Date('2025-10-12T08:00:00Z').getTime();
 
@@ -36,6 +38,200 @@ const subagentTwoContext = {
   subtask_preview: '验证工具输出组件的子任务样式',
   max_parallel: 2,
 };
+
+type SubagentStatus = 'pending' | 'running' | 'completed';
+type ToolStatus = 'running' | 'completed' | 'blocked';
+type StatusTone = 'muted' | 'info' | 'success' | 'warning';
+
+interface SubagentToolEntry {
+  id: string;
+  label: string;
+  summary: string;
+  detail: string;
+  duration: string;
+  status: ToolStatus;
+}
+
+interface SubagentMission {
+  id: string;
+  title: string;
+  preview: string;
+  status: SubagentStatus;
+  outcome: string;
+  thinking: string[];
+  tools: SubagentToolEntry[];
+}
+
+interface ThinkMoment {
+  id: string;
+  content: string;
+  accent: string;
+}
+
+interface DelegationMoment {
+  id: string;
+  title: string;
+  detail: string;
+  targetSubagentId: string;
+  accent: string;
+}
+
+interface FinalToolPreview {
+  title: string;
+  description: string;
+  expectedResult: string;
+  highlights: { label: string; value: string }[];
+}
+
+const orchestrationSubagents: SubagentMission[] = [
+  {
+    id: 'immersive-ux',
+    title: '沉浸式事件流对标',
+    preview: '沉浸式事件流体验对标调研',
+    status: 'completed',
+    outcome: '整理 4 套竞品 UI，输出可直接复用的 badge 与分栏节奏。',
+    thinking: [
+      '列出 Cursor、GitHub Copilot 等对标产品的控制台。',
+      '抓取滚动节奏与实时状态标记。',
+      '提炼哪些视觉 token 可以在当前排版沿用。',
+    ],
+    tools: [
+      {
+        id: 'ux-tool-1',
+        label: '截屏竞品控制台',
+        summary: '抓取 Cursor、Claude、Devin 的实时工具流排版。',
+        detail: '生成 12 张对比图 + DOM 注释。',
+        duration: '03:20',
+        status: 'completed',
+      },
+      {
+        id: 'ux-tool-2',
+        label: '提炼 badge 体系',
+        summary: '把竞品的状态颜色映射到 Alex token。',
+        detail: '输出 primary/muted/emphasis 三档对比表。',
+        duration: '01:45',
+        status: 'completed',
+      },
+    ],
+  },
+  {
+    id: 'tooling-audit',
+    title: '工具输出调试',
+    preview: '验证工具输出组件的子任务样式',
+    status: 'completed',
+    outcome: '确认 ToolOutputCard 在 subagent 流中保持折叠/展开策略。',
+    thinking: [
+      '确认 mock 事件里包含 parent_task_id、max_parallel。',
+      '为工具输出补充 metadata, attachments 情况。',
+      '设计子任务完成后的结果摘要。',
+    ],
+    tools: [
+      {
+        id: 'tooling-tool-1',
+        label: '追踪 mock 事件',
+        summary: '扫描 lib/mocks/mockAgentEvents.ts 的字段覆盖率。',
+        detail: '新增 call_id + subtask_preview 的断言。',
+        duration: '02:10',
+        status: 'completed',
+      },
+      {
+        id: 'tooling-tool-2',
+        label: '渲染子任务卡片',
+        summary: '验证 SubagentHeader + ToolOutputCard 组合。',
+        detail: 'Storybook 中截图 3 种状态。',
+        duration: '01:05',
+        status: 'completed',
+      },
+    ],
+  },
+  {
+    id: 'sandbox-script',
+    title: 'Sandbox 回放脚本',
+    preview: '录制自动化脚本，回放 Subagent 时间线',
+    status: 'running',
+    outcome: '构建浏览器脚本，确保事件流在回放模式下同步滚动。',
+    thinking: [
+      '拆分录制脚本与可视化组件的耦合。',
+      '确定滚动锚点与“跳转最新”行为。',
+    ],
+    tools: [
+      {
+        id: 'sandbox-tool-1',
+        label: '录制滚动轨迹',
+        summary: '在 sandbox 内记录事件元素的位置。',
+        detail: '产出 6 条滚动锚点 + 节奏曲线。',
+        duration: '进行中',
+        status: 'running',
+      },
+      {
+        id: 'sandbox-tool-2',
+        label: '生成回放脚本',
+        summary: '把锚点转成 playwright 指令，方便自动演示。',
+        detail: '等待滚动数据完成。',
+        duration: '排队',
+        status: 'blocked',
+      },
+    ],
+  },
+];
+
+const mainAgentThinkMoments: ThinkMoment[] = [
+  {
+    id: 'think-1',
+    content: '需要拆成“体验调研 + 组件验证 + Sandbox 回放”三路并行。',
+    accent: 'Iteration 01 · 00:22',
+  },
+  {
+    id: 'think-2',
+    content: '持续同步每个 subagent 的回传，避免工具卡片重复。',
+    accent: 'Iteration 01 · 00:48',
+  },
+  {
+    id: 'think-3',
+    content: '在最终总结中合并 badge token 与滚动策略。',
+    accent: 'Iteration 02 · 01:12',
+  },
+];
+
+const mainAgentDelegations: DelegationMoment[] = [
+  {
+    id: 'delegate-ux',
+    title: '委派体验对标 subagent',
+    detail: '让其抓取竞品事件流，输出 badge token 建议。',
+    targetSubagentId: 'immersive-ux',
+    accent: 'Parallel · 2 slots',
+  },
+  {
+    id: 'delegate-tooling',
+    title: '委派组件验证 subagent',
+    detail: '把 ToolOutputCard 的折叠逻辑跑一遍并截图。',
+    targetSubagentId: 'tooling-audit',
+    accent: 'Parallel · 2 slots',
+  },
+  {
+    id: 'delegate-sandbox',
+    title: '拉起 Sandbox 回放脚本 subagent',
+    detail: '结合滚动锚点，为演示版准备自动播放脚本。',
+    targetSubagentId: 'sandbox-script',
+    accent: 'Serial · 1 slot',
+  },
+];
+
+const finalToolPreview: FinalToolPreview = {
+  title: 'FINAL · 汇总报告',
+  description: '聚合全部 subagent 输出，生成对外沟通可直接引用的总结。',
+  expectedResult:
+    '整理出实时工具流的自动滚动策略，并给出 badge token 的映射与 Sandbox 回放脚本建议。',
+  highlights: [
+    { label: '迭代', value: '2' },
+    { label: 'Subagent', value: '3 并行' },
+    { label: 'Tokens', value: '30.8K' },
+  ],
+};
+
+const subagentTitleMap: Record<string, string> = Object.fromEntries(
+  orchestrationSubagents.map((task) => [task.id, task.title]),
+);
 
 const mockEvents: AnyAgentEvent[] = [
   {
@@ -77,51 +273,57 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'thinking',
+    event_type: 'tool_call_start',
     timestamp: atOffset(22),
     agent_level: 'core',
     iteration: 1,
-    message_count: 1,
-  },
-  {
-    ...baseEventContext,
-    event_type: 'think_complete',
-    timestamp: atOffset(30),
-    agent_level: 'core',
-    iteration: 1,
-    content: '先检索业内终端流展示，确认指标与交互模式。',
-    tool_call_count: 2,
-  },
-  {
-    ...baseEventContext,
-    event_type: 'tool_call_start',
-    timestamp: atOffset(35),
-    agent_level: 'core',
-    iteration: 1,
-    call_id: 'call-1',
-    tool_name: 'web_search',
+    call_id: 'think-core-1',
+    tool_name: 'think',
     arguments: {
-      query: 'agent operations timeline best practices auto scrolling terminal',
+      goal: '梳理研究切片与待委派的 subagent',
     },
   },
   {
     ...baseEventContext,
     event_type: 'tool_call_stream',
-    timestamp: atOffset(40),
+    timestamp: atOffset(26),
     agent_level: 'core',
-    call_id: 'call-1',
-    chunk: '🔍 找到 12 篇关于自动滚动事件流和操作面板的案例...',
+    call_id: 'think-core-1',
+    chunk: '需要先调研终端流展示，再验证组件状态与回放脚本。\n',
     is_complete: false,
   },
   {
     ...baseEventContext,
     event_type: 'tool_call_complete',
-    timestamp: atOffset(46),
+    timestamp: atOffset(30),
     agent_level: 'core',
-    call_id: 'call-1',
-    tool_name: 'web_search',
-    result: '聚合出 3 个实时流 UI 的滚动策略与指标采集模式。',
-    duration: 4800,
+    call_id: 'think-core-1',
+    tool_name: 'think',
+    result: '整理出体验对标 + 组件验证 + Sandbox 回放三条路线。',
+    duration: 2000,
+  },
+  {
+    ...baseEventContext,
+    event_type: 'tool_call_start',
+    timestamp: atOffset(34),
+    agent_level: 'core',
+    iteration: 1,
+    call_id: 'delegate-core-1',
+    tool_name: 'delegate_subagents',
+    arguments: {
+      subtasks: 2,
+      focus: ['体验对标', '组件验证'],
+    },
+  },
+  {
+    ...baseEventContext,
+    event_type: 'tool_call_complete',
+    timestamp: atOffset(37),
+    agent_level: 'core',
+    call_id: 'delegate-core-1',
+    tool_name: 'delegate_subagents',
+    result: '激活 2 个 subagent，并行负责体验调研与组件输出校验。',
+    duration: 1400,
   },
   {
     ...subagentOneContext,
@@ -158,49 +360,6 @@ const mockEvents: AnyAgentEvent[] = [
     tool_name: 'web_search',
     result: '归纳出 5 条关于多窗口事件回传的模式可供采用。',
     duration: 3200,
-  },
-  {
-    ...baseEventContext,
-    event_type: 'browser_info',
-    timestamp: atOffset(50),
-    agent_level: 'core',
-    captured: new Date(Date.now() + 5000).toISOString(),
-    success: true,
-    message: 'Sandbox browser ready',
-    user_agent: 'ConsolePreview/1.0',
-    cdp_url: 'ws://console.example.com/devtools',
-  },
-  {
-    ...baseEventContext,
-    event_type: 'tool_call_start',
-    timestamp: atOffset(54),
-    agent_level: 'core',
-    iteration: 1,
-    call_id: 'call-2',
-    tool_name: 'bash',
-    arguments: {
-      command: 'npm run test -- research-timeline-autoscroll',
-    },
-  },
-  {
-    ...baseEventContext,
-    event_type: 'tool_call_stream',
-    timestamp: atOffset(58),
-    agent_level: 'core',
-    call_id: 'call-2',
-    chunk: '执行集成测试...\n> checking autoscroll state transitions',
-    is_complete: false,
-  },
-  {
-    ...baseEventContext,
-    event_type: 'tool_call_complete',
-    timestamp: atOffset(63),
-    agent_level: 'core',
-    call_id: 'call-2',
-    tool_name: 'bash',
-    result: '',
-    error: 'Test suite failed: autoscroll hook did not release focus',
-    duration: 6200,
   },
   {
     ...subagentTwoContext,
@@ -266,7 +425,7 @@ const mockEvents: AnyAgentEvent[] = [
     agent_level: 'core',
     iteration: 1,
     tokens_used: 8240,
-    tools_run: 2,
+    tools_run: 1,
   },
   {
     ...baseEventContext,
@@ -298,43 +457,57 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'thinking',
+    event_type: 'tool_call_start',
     timestamp: atOffset(82),
     agent_level: 'core',
     iteration: 2,
-    message_count: 1,
-  },
-  {
-    ...baseEventContext,
-    event_type: 'tool_call_start',
-    timestamp: atOffset(88),
-    agent_level: 'core',
-    iteration: 2,
-    call_id: 'call-3',
-    tool_name: 'browser',
+    call_id: 'think-core-2',
+    tool_name: 'think',
     arguments: {
-      url: 'https://design-system.example.com/terminal-stream',
-      selector: '#live-timeline',
+      goal: '汇总第一轮洞察并确认收尾动作',
     },
   },
   {
     ...baseEventContext,
     event_type: 'tool_call_stream',
-    timestamp: atOffset(94),
+    timestamp: atOffset(84),
     agent_level: 'core',
-    call_id: 'call-3',
-    chunk: '📸 Captured DOM outline and streaming transcript snippet...',
+    call_id: 'think-core-2',
+    chunk: '需要拉起 Sandbox subagent，准备最终合成。\n',
     is_complete: false,
   },
   {
     ...baseEventContext,
-    event_type: 'error',
-    timestamp: atOffset(102),
+    event_type: 'tool_call_complete',
+    timestamp: atOffset(86),
+    agent_level: 'core',
+    call_id: 'think-core-2',
+    tool_name: 'think',
+    result: '确认第二轮聚焦 Sandbox，待全部子任务完成再触发 Final 工具。',
+    duration: 1200,
+  },
+  {
+    ...baseEventContext,
+    event_type: 'tool_call_start',
+    timestamp: atOffset(86),
     agent_level: 'core',
     iteration: 2,
-    phase: 'execute',
-    error: '等待浏览器快照响应超时，准备重试。',
-    recoverable: true,
+    call_id: 'delegate-core-2',
+    tool_name: 'delegate_subagent',
+    arguments: {
+      subtasks: 1,
+      focus: ['Sandbox 回放脚本'],
+    },
+  },
+  {
+    ...baseEventContext,
+    event_type: 'tool_call_complete',
+    timestamp: atOffset(90),
+    agent_level: 'core',
+    call_id: 'delegate-core-2',
+    tool_name: 'delegate_subagent',
+    result: '拉起 Sandbox subagent，跟踪滚动锚点并生成回放脚本。',
+    duration: 1800,
   },
   {
     ...baseEventContext,
@@ -367,6 +540,30 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
+    event_type: 'tool_call_start',
+    timestamp: atOffset(134),
+    agent_level: 'core',
+    iteration: 2,
+    call_id: 'final-call',
+    tool_name: 'final_report',
+    arguments: {
+      sources: ['immersive-ux', 'tooling-audit', 'sandbox-script'],
+      mode: 'synthesis',
+    },
+  },
+  {
+    ...baseEventContext,
+    event_type: 'tool_call_complete',
+    timestamp: atOffset(140),
+    agent_level: 'core',
+    call_id: 'final-call',
+    tool_name: 'final_report',
+    result:
+      '综合子任务输出，得出自动滚动策略 + badge token 对齐方式，并给出 Sandbox 回放脚本步骤。',
+    duration: 2600,
+  },
+  {
+    ...baseEventContext,
     event_type: 'task_complete',
     timestamp: atOffset(150),
     agent_level: 'core',
@@ -395,9 +592,13 @@ export default function ConsolePreviewPage() {
             多轮工具调用事件流（Phase 4 无框排版示例）
           </h1>
           <p className="max-w-2xl text-sm text-slate-600">
-            该页面通过静态数据模拟三轮工具调用：成功的搜索、失败的 Bash 测试以及仍在执行的浏览器采集，以验证所有时间线样式与状态标签在新排版下的表现。
+            该页面通过静态数据模拟「主 Agent 只使用 Think 与 Subagent 工具」的编排流程：主流程只做拆解、委派与 Final 汇总，所有执行细节都在子任务中自动折叠呈现。
           </p>
         </header>
+
+        <section className="rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-white/70">
+          <OrchestrationBoard />
+        </section>
 
         <section className="rounded-3xl bg-white/60 p-6 shadow-sm ring-1 ring-white/70">
           <TerminalOutput
@@ -479,6 +680,355 @@ export default function ConsolePreviewPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function OrchestrationBoard() {
+  const runningCount = orchestrationSubagents.filter(
+    (task) => task.status !== 'completed',
+  ).length;
+  const isRunning = runningCount > 0;
+  const allDone = runningCount === 0;
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-400">
+            Multi-Agent Orchestration
+          </p>
+          <h2 className="text-xl font-semibold text-slate-900">主 Agent 调度板</h2>
+        </div>
+        <StatusBadge tone={isRunning ? 'info' : 'success'}>
+          {isRunning ? `运行中 · ${runningCount} 个子任务` : '所有子任务完成'}
+        </StatusBadge>
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,1fr)]">
+        <MainAgentColumn
+          isRunning={isRunning}
+          thinkMoments={mainAgentThinkMoments}
+          delegations={mainAgentDelegations}
+          subagentTitles={subagentTitleMap as Record<string, string>}
+        />
+        <SubagentColumn subagents={orchestrationSubagents} />
+      </div>
+
+      <FinalToolCard
+        tool={finalToolPreview}
+        state={allDone ? 'ready' : 'waiting'}
+        waitingCount={runningCount}
+      />
+    </div>
+  );
+}
+
+function MainAgentColumn({
+  isRunning,
+  thinkMoments,
+  delegations,
+  subagentTitles,
+}: {
+  isRunning: boolean;
+  thinkMoments: ThinkMoment[];
+  delegations: DelegationMoment[];
+  subagentTitles: Record<string, string>;
+}) {
+  return (
+    <div className="space-y-4 rounded-3xl border border-slate-200/70 bg-white/90 p-5 shadow-sm">
+      {isRunning && <ThinkingStatusCard />}
+      <div className="space-y-4">
+        {thinkMoments.map((moment) => (
+          <MainAgentEvent
+            key={moment.id}
+            variant="think"
+            title="思考"
+            description={moment.content}
+            accent={moment.accent}
+          />
+        ))}
+        {delegations.map((delegation) => (
+          <MainAgentEvent
+            key={delegation.id}
+            variant="delegate"
+            title={delegation.title}
+            description={`${delegation.detail} · 目标：${subagentTitles[delegation.targetSubagentId]}`}
+            accent={delegation.accent}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MainAgentEvent({
+  variant,
+  title,
+  description,
+  accent,
+}: {
+  variant: 'think' | 'delegate';
+  title: string;
+  description: string;
+  accent: string;
+}) {
+  const isThinking = variant === 'think';
+  return (
+    <div className="flex gap-3">
+      <span
+        className={`mt-0.5 inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border text-base ${
+          isThinking
+            ? 'border-indigo-100 bg-indigo-50 text-indigo-600'
+            : 'border-emerald-100 bg-emerald-50 text-emerald-600'
+        }`}
+        aria-hidden
+      >
+        {isThinking ? <Brain className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+      </span>
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-xs text-slate-600">{description}</p>
+        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{accent}</p>
+      </div>
+    </div>
+  );
+}
+
+function ThinkingStatusCard() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-indigo-50 p-4">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-indigo-100 bg-white text-indigo-600">
+          <Brain className="h-4 w-4" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-slate-900">主 Agent 正在思考下一步</p>
+          <p className="text-xs text-slate-500">等待子任务回传并准备最终汇总</p>
+        </div>
+        <span className="thinking-pill ml-auto inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-700">
+          <Sparkles className="h-3.5 w-3.5" />
+          <span>思考中</span>
+        </span>
+      </div>
+      <style jsx>{`
+        .thinking-pill {
+          position: relative;
+          overflow: hidden;
+        }
+        .thinking-pill::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+          transform: translateX(-100%);
+          animation: shimmer 1.6s linear infinite;
+        }
+        .thinking-pill span,
+        .thinking-pill svg {
+          position: relative;
+          z-index: 1;
+        }
+        @keyframes shimmer {
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .thinking-pill::after {
+            animation: none;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function SubagentColumn({ subagents }: { subagents: SubagentMission[] }) {
+  return (
+    <div className="space-y-4">
+      {subagents.map((subagent) => (
+        <SubagentCard key={subagent.id} task={subagent} />
+      ))}
+    </div>
+  );
+}
+
+function SubagentCard({ task }: { task: SubagentMission }) {
+  const isCompleted = task.status === 'completed';
+  const statusLabel =
+    task.status === 'completed'
+      ? '已完成'
+      : task.status === 'running'
+      ? '执行中'
+      : '待启动';
+
+  return (
+    <article className="space-y-4 rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm">
+      <header className="flex items-start gap-3">
+        <span
+          className={`mt-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+            isCompleted ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
+          }`}
+          aria-hidden
+        >
+          {isCompleted ? <CheckCircle2 className="h-3 w-3 text-white" /> : null}
+        </span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-base font-semibold text-slate-900">{task.title}</p>
+          <p className="text-xs text-slate-500">{task.preview}</p>
+          <p className="text-sm text-slate-600">{task.outcome}</p>
+        </div>
+        <StatusBadge
+          tone={
+            task.status === 'completed'
+              ? 'success'
+              : task.status === 'running'
+              ? 'info'
+              : 'muted'
+          }
+        >
+          {statusLabel}
+        </StatusBadge>
+      </header>
+
+      <CollapsibleSection title="思考过程">
+        <ol className="space-y-2 text-sm text-slate-600">
+          {task.thinking.map((step, index) => (
+            <li key={`${task.id}-think-${index}`} className="flex gap-2">
+              <span className="text-xs font-semibold text-slate-400">{index + 1}.</span>
+              <span className="flex-1">{step}</span>
+            </li>
+          ))}
+        </ol>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="工具执行">
+        <div className="space-y-4">
+          {task.tools.map((tool, index) => {
+            const isLast = index === task.tools.length - 1;
+            const tone: StatusTone =
+              tool.status === 'completed'
+                ? 'success'
+                : tool.status === 'running'
+                ? 'info'
+                : 'warning';
+            return (
+              <div key={tool.id} className="relative pl-6">
+                {!isLast && (
+                  <span className="absolute left-[7px] top-5 h-full w-px bg-slate-200" aria-hidden />
+                )}
+                <span
+                  className={`absolute left-0 top-4 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 ${
+                    tone === 'success'
+                      ? 'border-emerald-400 bg-emerald-400'
+                      : tone === 'info'
+                      ? 'border-sky-300 bg-white'
+                      : 'border-amber-300 bg-white'
+                  }`}
+                  aria-hidden
+                >
+                  {tone === 'success' ? (
+                    <CheckCircle2 className="h-2.5 w-2.5 text-white" />
+                  ) : null}
+                </span>
+                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-3.5 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{tool.label}</p>
+                    <StatusBadge tone={tone}>
+                      {tone === 'success'
+                        ? '完成'
+                        : tone === 'info'
+                        ? '执行中'
+                        : '等待'}
+                    </StatusBadge>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{tool.summary}</p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                    <p>{tool.detail}</p>
+                    <span className="font-semibold uppercase tracking-[0.25em] text-slate-400">
+                      {tool.duration}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CollapsibleSection>
+    </article>
+  );
+}
+
+function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-2xl border border-slate-200/70 bg-white/80">
+      <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-slate-700">
+        <span>{title}</span>
+        <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-slate-100 px-4 py-4">{children}</div>
+    </details>
+  );
+}
+
+function FinalToolCard({
+  tool,
+  state,
+  waitingCount,
+}: {
+  tool: FinalToolPreview;
+  state: 'ready' | 'waiting';
+  waitingCount: number;
+}) {
+  const isReady = state === 'ready';
+  return (
+    <div className="space-y-4 rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-emerald-50 p-5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-indigo-600">
+          <Sparkles className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-indigo-500">
+            Final 工具
+          </p>
+          <p className="text-lg font-semibold text-slate-900">{tool.title}</p>
+        </div>
+        <StatusBadge tone={isReady ? 'success' : 'warning'}>
+          {isReady ? '已生成' : `等待 ${waitingCount} 个子任务`}
+        </StatusBadge>
+      </div>
+      <p className="text-sm text-slate-600">{tool.description}</p>
+      <div className="rounded-2xl border border-white/60 bg-white/80 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-400">
+          {isReady ? '最终结果' : '预期输出'}
+        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-800">{tool.expectedResult}</p>
+      </div>
+      <dl className="grid gap-4 sm:grid-cols-3">
+        {tool.highlights.map((highlight) => (
+          <div key={highlight.label} className="rounded-2xl border border-white/50 bg-white/70 p-3 text-center">
+            <dt className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+              {highlight.label}
+            </dt>
+            <dd className="text-lg font-semibold text-slate-900">{highlight.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function StatusBadge({ tone, children }: { tone: StatusTone; children: ReactNode }) {
+  const toneClass: Record<StatusTone, string> = {
+    muted: 'border-slate-200 bg-slate-100 text-slate-600',
+    info: 'border-sky-200 bg-sky-50 text-sky-700',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+  } as const;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${toneClass[tone]}`}>
+      {children}
+    </span>
   );
 }
 

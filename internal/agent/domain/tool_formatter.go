@@ -91,6 +91,8 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 		return tf.simplePathArgs(args), 80
 	case "subagent":
 		return tf.subagentArgs(args), 120
+	case "final":
+		return tf.finalArgs(args), 160
 	default:
 		return tf.genericArgs(args), 120
 	}
@@ -260,6 +262,18 @@ func (tf *ToolFormatter) subagentArgs(args map[string]any) map[string]string {
 	return result
 }
 
+func (tf *ToolFormatter) finalArgs(args map[string]any) map[string]string {
+	result := make(map[string]string)
+	if answer := tf.getStringArg(args, "answer", ""); answer != "" {
+		result["answer"] = tf.summarizeString(answer, 120)
+	}
+	if highlights := tf.getStringSliceArg(args, "highlights"); len(highlights) > 0 {
+		summary := strings.Join(highlights, " | ")
+		result["highlights"] = tf.summarizeString(summary, 120)
+	}
+	return result
+}
+
 func (tf *ToolFormatter) genericArgs(args map[string]any) map[string]string {
 	result := make(map[string]string)
 	for key, value := range args {
@@ -370,6 +384,27 @@ func (tf *ToolFormatter) getStringArg(args map[string]any, key, defaultVal strin
 	return defaultVal
 }
 
+func (tf *ToolFormatter) getStringSliceArg(args map[string]any, key string) []string {
+	if raw, ok := args[key]; ok {
+		switch typed := raw.(type) {
+		case []string:
+			return append([]string(nil), typed...)
+		case []any:
+			var values []string
+			for _, item := range typed {
+				if str, ok := item.(string); ok {
+					trimmed := strings.TrimSpace(str)
+					if trimmed != "" {
+						values = append(values, trimmed)
+					}
+				}
+			}
+			return values
+		}
+	}
+	return nil
+}
+
 func (tf *ToolFormatter) getIntArg(args map[string]any, key string, defaultVal int) int {
 	if val, ok := args[key].(float64); ok {
 		return int(val)
@@ -434,6 +469,8 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 		return tf.formatTodoResult(content)
 	case "subagent":
 		return tf.formatSubagentResult(content)
+	case "final":
+		return tf.formatFinalResult(content)
 	default:
 		return tf.formatDefaultResult(content)
 	}
@@ -664,6 +701,14 @@ func (tf *ToolFormatter) formatSubagentResult(content string) string {
 	}
 
 	return "  → Subtasks completed"
+}
+
+func (tf *ToolFormatter) formatFinalResult(content string) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return "  ✓ Final response prepared"
+	}
+	return fmt.Sprintf("  ✓ %s", tf.summarizeString(trimmed, toolResultPreviewRunes))
 }
 
 // formatTodoResult shows FULL todo list - user needs complete task overview

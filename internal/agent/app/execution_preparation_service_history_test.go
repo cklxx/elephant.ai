@@ -452,6 +452,82 @@ func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
 	}
 }
 
+func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
+	session := &ports.Session{ID: "session-inherited", Metadata: map[string]string{}}
+	store := &stubSessionStore{session: session}
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{},
+		SessionStore:  store,
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 2},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	snapshot := &ports.TaskState{
+		SystemPrompt: "You are the orchestrator",
+		Messages: []ports.Message{{
+			Role:    "system",
+			Content: "Previous reasoning",
+			Source:  ports.MessageSourceSystemPrompt,
+		}},
+		Attachments: map[string]ports.Attachment{
+			"report.md": {Name: "report.md", Data: "YmFzZQ=="},
+		},
+		AttachmentIterations: map[string]int{"report.md": 4},
+		Plans:                []ports.PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		Beliefs:              []ports.Belief{{Statement: "Delegation works"}},
+		KnowledgeRefs:        []ports.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
+		WorldState:           map[string]any{"last_tool": "think"},
+		WorldDiff:            map[string]any{"iteration": 2},
+		FeedbackSignals:      []ports.FeedbackSignal{{Kind: "info"}},
+	}
+
+	ctx := MarkSubagentContext(context.Background())
+	ctx = ports.WithTaskStateSnapshot(ctx, snapshot)
+
+	env, err := service.Prepare(ctx, "Break down the delegated task", "")
+	if err != nil {
+		t.Fatalf("prepare execution failed: %v", err)
+	}
+
+	if env.State.SystemPrompt != snapshot.SystemPrompt {
+		t.Fatalf("expected system prompt to inherit, got %q", env.State.SystemPrompt)
+	}
+	if len(env.State.Messages) != len(snapshot.Messages) {
+		t.Fatalf("expected inherited messages, got %d entries", len(env.State.Messages))
+	}
+	if env.State.Attachments["report.md"].Data != "YmFzZQ==" {
+		t.Fatalf("expected inherited attachment payload")
+	}
+	if env.State.AttachmentIterations["report.md"] != 4 {
+		t.Fatalf("expected inherited attachment iteration, got %d", env.State.AttachmentIterations["report.md"])
+	}
+	if len(env.State.Plans) != 1 || env.State.Plans[0].ID != "plan-1" {
+		t.Fatalf("expected inherited plan nodes")
+	}
+	if len(env.State.Beliefs) != 1 || env.State.Beliefs[0].Statement != "Delegation works" {
+		t.Fatalf("expected inherited beliefs")
+	}
+	if len(env.State.KnowledgeRefs) != 1 || env.State.KnowledgeRefs[0].ID != "rag-1" {
+		t.Fatalf("expected inherited knowledge references")
+	}
+	if env.State.WorldState["last_tool"] != "think" {
+		t.Fatalf("expected inherited world state")
+	}
+	if env.State.WorldDiff["iteration"] != 2 {
+		t.Fatalf("expected inherited world diff")
+	}
+	if len(env.State.FeedbackSignals) != 1 || env.State.FeedbackSignals[0].Kind != "info" {
+		t.Fatalf("expected inherited feedback signals")
+	}
+}
+
 func collectHistoryMessages(messages []ports.Message) []ports.Message {
 	var recalled []ports.Message
 	for _, msg := range messages {
