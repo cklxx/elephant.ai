@@ -1,20 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { AnyAgentEvent, AssistantMessageEvent } from "@/lib/types";
+import { AnyAgentEvent } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
 import { EventLine } from "./EventLine";
-import { MarkdownRenderer } from "@/components/ui/markdown";
-import { formatTimestamp } from "./EventLine/formatters";
-
-interface AggregatedAssistantMessage {
-  kind: "assistant_message";
-  timestamp: string;
-  content: string;
-  sourceModel?: string;
-  isStreaming: boolean;
-}
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -34,7 +24,7 @@ export function TerminalOutput({
   onReconnect,
 }: TerminalOutputProps) {
   const nonAssistantEvents = useMemo(
-    () => events.filter((event) => event.event_type !== 'assistant_message'),
+    () => events.filter((event) => event.event_type !== "assistant_message"),
     [events],
   );
 
@@ -64,15 +54,6 @@ export function TerminalOutput({
     <div className="space-y-5" data-testid="conversation-stream">
       <div className="space-y-4" data-testid="conversation-events">
         {displayEvents.map((event, index) => {
-          if (isAggregatedAssistantMessage(event)) {
-            return (
-              <AssistantMessageBubble
-                key={`assistant-${event.timestamp}-${index}`}
-                message={event}
-              />
-            );
-          }
-
           const key = `${event.event_type}-${event.timestamp}-${index}`;
           const panelEvents = panelAnchors.get(event);
           if (panelEvents) {
@@ -95,14 +76,14 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
 
   const userTaskIndices: number[] = [];
   events.forEach((event, index) => {
-    if (event.event_type === 'user_task') {
+    if (event.event_type === "user_task") {
       userTaskIndices.push(index);
     }
   });
 
   if (userTaskIndices.length === 0) {
     const anchor =
-      events.find((event) => event.event_type === 'task_analysis') ?? events[0];
+      events.find((event) => event.event_type === "task_analysis") ?? events[0];
     if (anchor) {
       anchorMap.set(anchor, events);
     }
@@ -113,7 +94,7 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
     const endIdx = userTaskIndices[idx + 1] ?? events.length;
     const segmentEvents = events.slice(startIdx, endIdx);
     const analysisAnchor = segmentEvents.find(
-      (event) => event.event_type === 'task_analysis',
+      (event) => event.event_type === "task_analysis",
     );
     const anchorEvent = analysisAnchor ?? events[startIdx];
     if (anchorEvent) {
@@ -149,93 +130,9 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   }
 }
 
-function buildDisplayEvents(
-  events: AnyAgentEvent[],
-): (AnyAgentEvent | AggregatedAssistantMessage)[] {
-  const display: (AnyAgentEvent | AggregatedAssistantMessage)[] = [];
-  const assistantBuckets = new Map<string, AggregatedAssistantMessage>();
-
-  events.forEach((event) => {
-    if (event.event_type === "assistant_message") {
-      const key = buildAssistantAggregationKey(event);
-      const current = assistantBuckets.get(key) ?? null;
-      const aggregated = appendAssistantMessage(display, current, event);
-      if (event.final) {
-        assistantBuckets.delete(key);
-      } else {
-        assistantBuckets.set(key, aggregated);
-      }
-      return;
-    }
-
-    if (!shouldSkipEvent(event)) {
-      display.push(event);
-    }
-  });
-
-  return display;
-}
-
-function buildAssistantAggregationKey(event: AssistantMessageEvent): string {
-  const parentTaskId = event.parent_task_id ?? "root";
-  const taskId = event.task_id ?? "task";
-  const iteration = event.iteration ?? 0;
-  return `${parentTaskId}-${taskId}-${iteration}`;
-}
-
-function appendAssistantMessage(
-  display: (AnyAgentEvent | AggregatedAssistantMessage)[],
-  current: AggregatedAssistantMessage | null,
-  event: AssistantMessageEvent,
-): AggregatedAssistantMessage {
-  if (!current) {
-    const aggregated: AggregatedAssistantMessage = {
-      kind: "assistant_message",
-      timestamp: event.timestamp,
-      content: event.delta ?? "",
-      sourceModel: event.source_model,
-      isStreaming: !event.final,
-    };
-    display.push(aggregated);
-    return aggregated;
-  }
-
-  current.timestamp = event.timestamp;
-  current.content = `${current.content}${event.delta ?? ""}`;
-  current.sourceModel = event.source_model ?? current.sourceModel;
-  current.isStreaming = !event.final;
-  return current;
-}
-
-function isAggregatedAssistantMessage(
-  event: AnyAgentEvent | AggregatedAssistantMessage,
-): event is AggregatedAssistantMessage {
-  return (event as AggregatedAssistantMessage).kind === "assistant_message";
-}
-
-interface AssistantMessageBubbleProps {
-  message: AggregatedAssistantMessage;
-}
-
-function AssistantMessageBubble({ message }: AssistantMessageBubbleProps) {
-  return (
-    <div className="console-assistant-message" data-testid="assistant-message">
-      <div className="console-assistant-bubble">
-        <div className="console-assistant-meta">
-          <span>{formatTimestamp(message.timestamp)}</span>
-          {message.sourceModel && (
-            <span className="console-assistant-meta-source">
-              {message.sourceModel}
-            </span>
-          )}
-          {message.isStreaming && (
-            <span className="console-assistant-meta-streaming">LIVE</span>
-          )}
-        </div>
-        <div className="console-assistant-content">
-          <MarkdownRenderer content={message.content} />
-        </div>
-      </div>
-    </div>
+function buildDisplayEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  return events.filter(
+    (event) =>
+      event.event_type !== "assistant_message" && !shouldSkipEvent(event),
   );
 }
