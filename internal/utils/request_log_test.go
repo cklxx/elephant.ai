@@ -13,7 +13,11 @@ func TestLogStreamingRequestPayload_WritesToDedicatedFile(t *testing.T) {
 	payload := []byte("{\"task\":\"demo\"}")
 	LogStreamingRequestPayload("req-123", payload)
 
-	logPath := filepath.Join(os.Getenv(requestLogEnvVar), requestLogFileName)
+	logDir, ok := os.LookupEnv(requestLogEnvVar)
+	if !ok {
+		t.Fatalf("expected %s to be set", requestLogEnvVar)
+	}
+	logPath := filepath.Join(logDir, requestLogFileName)
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read log file: %v", err)

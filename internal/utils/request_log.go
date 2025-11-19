@@ -63,7 +63,10 @@ func LogStreamingRequestPayload(requestID string, payload []byte) {
 }
 
 func ensureRequestLogDir() (string, error) {
-	dir := strings.TrimSpace(os.Getenv(requestLogEnvVar))
+	var dir string
+	if value, ok := os.LookupEnv(requestLogEnvVar); ok {
+		dir = strings.TrimSpace(value)
+	}
 	if dir == "" {
 		base, err := os.Getwd()
 		if err != nil {
