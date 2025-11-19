@@ -54,6 +54,115 @@ func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
 	}
 }
 
+func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
+	mockLLM := &mocks.MockLLMClient{
+		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+			return &ports.CompletionResponse{Content: "Done.", StopReason: "stop"}, nil
+		},
+	}
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+	engine := newReactEngineForTest(1)
+	state := &domain.TaskState{
+		TaskID:       "task-abc",
+		SystemPrompt: "Follow the user objective.",
+		Messages: []ports.Message{
+			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
+			{Role: "assistant", Content: "Context loader output", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-abc"}},
+		},
+	}
+
+	if _, err := engine.SolveTask(context.Background(), "analyze repo", state, services); err != nil {
+		t.Fatalf("SolveTask returned error: %v", err)
+	}
+
+	userIdx := -1
+	ragIdx := -1
+	for idx, msg := range state.Messages {
+		if msg.Source == ports.MessageSourceUserInput && msg.Content == "analyze repo" {
+			userIdx = idx
+		}
+		if msg.Metadata != nil {
+			if flagged, ok := msg.Metadata["rag_preload"].(bool); ok && flagged {
+				ragIdx = idx
+			}
+		}
+	}
+	if userIdx == -1 {
+		t.Fatalf("expected user input message to be recorded: %+v", state.Messages)
+	}
+	if ragIdx == -1 {
+		t.Fatalf("expected preloaded message to remain present: %+v", state.Messages)
+	}
+	if ragIdx <= userIdx {
+		t.Fatalf("expected preloaded context to follow user input, userIdx=%d ragIdx=%d", userIdx, ragIdx)
+	}
+	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+		t.Fatalf("expected system prompt to remain first, got source %q", state.Messages[0].Source)
+	}
+}
+
+func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
+	mockLLM := &mocks.MockLLMClient{
+		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+			return &ports.CompletionResponse{Content: "Done.", StopReason: "stop"}, nil
+		},
+	}
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+	engine := newReactEngineForTest(1)
+	state := &domain.TaskState{
+		TaskID:       "task-def",
+		SystemPrompt: "Follow the user objective.",
+		Messages: []ports.Message{
+			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
+			{Role: "user", Content: "previous question", Source: ports.MessageSourceUserInput},
+			{Role: "assistant", Content: "old context", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-old"}},
+			{Role: "assistant", Content: "fresh context 1", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-def"}},
+			{Role: "assistant", Content: "fresh context 2", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-def"}},
+		},
+	}
+
+	if _, err := engine.SolveTask(context.Background(), "second question", state, services); err != nil {
+		t.Fatalf("SolveTask returned error: %v", err)
+	}
+
+	oldIdx := -1
+	newUserIdx := -1
+	freshAfter := true
+	for idx, msg := range state.Messages {
+		if msg.Content == "old context" {
+			oldIdx = idx
+		}
+		if msg.Content == "second question" {
+			newUserIdx = idx
+		}
+		if (msg.Content == "fresh context 1" || msg.Content == "fresh context 2") && newUserIdx != -1 && idx <= newUserIdx {
+			freshAfter = false
+		}
+	}
+	if oldIdx == -1 {
+		t.Fatalf("expected previous turn context to remain present: %+v", state.Messages)
+	}
+	if newUserIdx == -1 {
+		t.Fatalf("expected new user input to be recorded: %+v", state.Messages)
+	}
+	if oldIdx > newUserIdx {
+		t.Fatalf("expected previous turn context to remain before new user input, oldIdx=%d newIdx=%d", oldIdx, newUserIdx)
+	}
+	if !freshAfter {
+		t.Fatalf("expected fresh preloaded context to follow new user input: %+v", state.Messages)
+	}
+}
+
 func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	// Arrange
 	callCount := 0

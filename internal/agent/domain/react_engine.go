@@ -1207,20 +1207,32 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 	for idx := range state.Messages {
 		role := strings.ToLower(strings.TrimSpace(state.Messages[idx].Role))
-		if state.Messages[idx].Source == ports.MessageSourceSystemPrompt || role == "system" {
-			if strings.TrimSpace(state.Messages[idx].Content) == prompt {
-				// Existing system prompt already matches the desired prompt.
-				if state.Messages[idx].Source == "" {
-					state.Messages[idx].Source = ports.MessageSourceSystemPrompt
-				}
-				return
-			}
+		if role != "system" {
+			continue
+		}
+		source := ports.MessageSource(strings.TrimSpace(string(state.Messages[idx].Source)))
+		if source != "" && source != ports.MessageSourceSystemPrompt {
+			// Skip system-role messages that serve other purposes
+			// (e.g. recalled history summaries).
+			continue
+		}
 
+		if strings.TrimSpace(state.Messages[idx].Content) != prompt {
 			state.Messages[idx].Content = state.SystemPrompt
 			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
 			e.logger.Debug("Updated existing system prompt in message history")
-			return
+		} else if source == "" {
+			state.Messages[idx].Source = ports.MessageSourceSystemPrompt
 		}
+
+		existing := state.Messages[idx]
+		if idx > 0 {
+			state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
+			state.Messages = append([]Message{existing}, state.Messages...)
+		} else {
+			state.Messages[0] = existing
+		}
+		return
 	}
 
 	systemMessage := Message{

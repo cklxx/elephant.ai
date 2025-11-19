@@ -7,6 +7,7 @@ const MAX_ATTEMPTS = 20;
 const preferredPort = Number(process.env.PORT) || DEFAULT_PORT;
 const PORT_RELEASE_ATTEMPTS = 20;
 const PORT_RELEASE_INTERVAL_MS = 250;
+const turboDisabled = process.env.DISABLE_TURBO === '1';
 
 function isPortAvailable(port) {
   return new Promise((resolve, reject) => {
@@ -135,7 +136,19 @@ async function preparePort(preferred) {
     const port = await preparePort(preferredPort);
 
     const nextCommand = process.platform === 'win32' ? 'next.cmd' : 'next';
-    const devProcess = spawn(nextCommand, ['dev', '-p', String(port)], {
+    const devArgs = ['dev', '-p', String(port)];
+
+    if (!turboDisabled) {
+      devArgs.splice(1, 0, '--turbo');
+    }
+
+    console.log(
+      turboDisabled
+        ? 'Starting Next.js dev server (webpack fallback, turbo disabled via DISABLE_TURBO=1).'
+        : 'Starting Next.js dev server with the Rust-based Turbopack compiler...'
+    );
+
+    const devProcess = spawn(nextCommand, devArgs, {
       stdio: 'inherit',
       env: { ...process.env, PORT: String(port) },
     });
