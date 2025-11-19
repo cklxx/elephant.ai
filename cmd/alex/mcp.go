@@ -134,7 +134,7 @@ func (c *CLI) handleMCPAdd(args []string) error {
 	}
 
 	fmt.Printf("Added MCP server '%s' to %s\n", name, configPath)
-	fmt.Println("\nTo start the server, restart ALEX or run:")
+	fmt.Println("\nTo start the server, restart Spinner or run:")
 	fmt.Printf("  alex mcp restart %s\n", name)
 
 	return nil
@@ -175,7 +175,7 @@ func (c *CLI) handleMCPRemove(args []string) error {
 	}
 
 	fmt.Printf("Removed MCP server '%s' from %s\n", name, configPath)
-	fmt.Println("\nRestart ALEX for changes to take effect.")
+	fmt.Println("\nRestart Spinner for changes to take effect.")
 
 	return nil
 }
@@ -291,7 +291,7 @@ func (c *CLI) handleMCPRestart(args []string) error {
 // showMCPUsage displays MCP command usage
 func (c *CLI) showMCPUsage() {
 	fmt.Print(`
-ALEX MCP (Model Context Protocol) Management
+Spinner MCP (Model Context Protocol) Management
 
 Usage:
   alex mcp list                       List all MCP servers and their status

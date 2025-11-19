@@ -11,8 +11,8 @@ import { buildApiUrl } from "@/lib/api-base";
 const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  title: "ALEX Research Console",
-  description: "Streamlined operator console for the ALEX agent.",
+  title: "Spinner Research Console",
+  description: "Streamlined operator console for the Spinner agent.",
 };
 
 export default function RootLayout({

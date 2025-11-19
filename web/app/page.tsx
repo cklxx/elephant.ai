@@ -4,7 +4,7 @@ const highlights = [
   {
     title: 'Sketch-first UX',
     description:
-      'Everything in Alex Code starts as a hand-drawn idea. The interface keeps that playful energy with bold outlines and tactile hover states.',
+      'Spinner treats every fragment like a sketch—playful outlines paired with structured slots for provenance and follow-ups.',
   },
   {
     title: 'Conversational coding',
@@ -43,15 +43,15 @@ export default function HomePage() {
         <header className="flex flex-col gap-10 lg:flex-row lg:items-center">
           <div className="flex-1 space-y-6">
             <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-gray-600">
-              <span className="block h-[6px] w-[6px] rounded-full bg-gray-600" /> Alex Code Lab
+              <span className="block h-[6px] w-[6px] rounded-full bg-gray-600" /> Spinner Loom Lab
             </p>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
               A sketchbook-style operating system for thoughtful builders.
             </h1>
             <p className="max-w-2xl text-lg text-gray-600">
-              This is the GitHub Pages home for Alex Code. Instead of dropping you directly into the
-              conversation view, we wanted to pause for a beat—share the story, the craft, and the
-              deliberate simplicity behind the console.
+              This is the GitHub Pages home for Spinner. Instead of dropping you directly into the conversation view,
+              we pause for a beat—share the story, the craft, and the deliberate simplicity behind a console built to
+              weave scattered evidence into one fabric.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
@@ -113,8 +113,8 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Workflow</p>
               <h2 className="text-3xl font-semibold">From notebook scribbles to production-grade runs</h2>
               <p className="text-gray-600">
-                Alex Code pairs a playful surface with an opinionated developer stack. Each step keeps the
-                hand-drawn aesthetic while surfacing the power tools you need when it is time to ship.
+                Spinner pairs a playful surface with an opinionated developer stack. Each step keeps the hand-drawn
+                aesthetic while surfacing the power tools you need when it is time to ship.
               </p>
             </div>
             <div className="flex-1 space-y-6">
@@ -134,7 +134,7 @@ export default function HomePage() {
         </section>
 
         <footer className="rounded-3xl border-[3px] border-dashed border-[hsl(var(--foreground))] p-8 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-gray-500">Alex Code · Monochrome Playground · 2025</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-gray-500">Spinner · Context Loom · 2025</p>
         </footer>
       </div>
     </main>
