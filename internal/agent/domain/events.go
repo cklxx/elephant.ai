@@ -289,32 +289,6 @@ func NewTaskCancelledEvent(
 	}
 }
 
-// RAGDirectivesEvaluatedEvent is emitted after the retrieval gate selects directives for execution.
-type RAGDirectivesEvaluatedEvent struct {
-	BaseEvent
-	Directives ports.RAGDirectives
-	Signals    ports.RAGSignals
-}
-
-// EventType identifies the event for downstream consumers.
-func (e *RAGDirectivesEvaluatedEvent) EventType() string { return "rag_directives_evaluated" }
-
-// NewRAGDirectivesEvaluatedEvent constructs an evaluation event with defensive copies of
-// directive and signal data so listeners can safely inspect the payload.
-func NewRAGDirectivesEvaluatedEvent(
-	level ports.AgentLevel,
-	sessionID, taskID, parentTaskID string,
-	directives ports.RAGDirectives,
-	signals ports.RAGSignals,
-	ts time.Time,
-) *RAGDirectivesEvaluatedEvent {
-	return &RAGDirectivesEvaluatedEvent{
-		BaseEvent:  newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
-		Directives: cloneRAGDirectives(directives),
-		Signals:    cloneRAGSignals(signals),
-	}
-}
-
 // ErrorEvent - emitted on errors
 type ErrorEvent struct {
 	BaseEvent
@@ -568,35 +542,6 @@ func cloneToolResult(result ports.ToolResult) ports.ToolResult {
 	return cloned
 }
 
-func cloneRAGDirectives(directives ports.RAGDirectives) ports.RAGDirectives {
-	cloned := directives
-	if len(directives.SearchSeeds) > 0 {
-		cloned.SearchSeeds = cloneStringSlice(directives.SearchSeeds)
-	}
-	if len(directives.CrawlSeeds) > 0 {
-		cloned.CrawlSeeds = cloneStringSlice(directives.CrawlSeeds)
-	}
-	if len(directives.Justification) > 0 {
-		justification := make(map[string]float64, len(directives.Justification))
-		for key, value := range directives.Justification {
-			justification[key] = value
-		}
-		cloned.Justification = justification
-	}
-	return cloned
-}
-
-func cloneRAGSignals(signals ports.RAGSignals) ports.RAGSignals {
-	cloned := signals
-	if len(signals.SearchSeeds) > 0 {
-		cloned.SearchSeeds = cloneStringSlice(signals.SearchSeeds)
-	}
-	if len(signals.CrawlSeeds) > 0 {
-		cloned.CrawlSeeds = cloneStringSlice(signals.CrawlSeeds)
-	}
-	return cloned
-}
-
 // EventListenerFunc is a function adapter for EventListener
 type EventListenerFunc func(AgentEvent)
 
@@ -604,11 +549,3 @@ func (f EventListenerFunc) OnEvent(event AgentEvent) {
 	f(event)
 }
 
-func cloneStringSlice(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]string, len(values))
-	copy(cloned, values)
-	return cloned
-}

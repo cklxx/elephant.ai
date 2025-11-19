@@ -29,12 +29,11 @@ type ServiceBundle struct {
 
 // ExecutionEnvironment contains the prepared state for running a task
 type ExecutionEnvironment struct {
-	State         *TaskState
-	Services      ServiceBundle
-	Session       *Session
-	SystemPrompt  string
-	TaskAnalysis  *TaskAnalysis // Pre-analysis result (action name, goal, approach)
-	RAGDirectives *RAGDirectives
+	State        *TaskState
+	Services     ServiceBundle
+	Session      *Session
+	SystemPrompt string
+	TaskAnalysis *TaskAnalysis // Pre-analysis result (action name, goal, approach)
 }
 
 // TaskAnalysis contains structured task pre-analysis result

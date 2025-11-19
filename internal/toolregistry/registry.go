@@ -253,11 +253,12 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["file_edit"] = builtin.NewFileEdit(fileConfig)
 	r.static["list_files"] = builtin.NewListFiles(fileConfig)
 
-        // Shell & search
-        r.static["bash"] = builtin.NewBash(shellConfig)
-        r.static["grep"] = builtin.NewGrep(shellConfig)
-        r.static["ripgrep"] = builtin.NewRipgrep(shellConfig)
-        r.static["find"] = builtin.NewFind(shellConfig)
+	// Shell & search
+	r.static["bash"] = builtin.NewBash(shellConfig)
+	r.static["grep"] = builtin.NewGrep(shellConfig)
+	r.static["ripgrep"] = builtin.NewRipgrep(shellConfig)
+	r.static["find"] = builtin.NewFind(shellConfig)
+	r.static["code_search"] = builtin.NewCodeSearch()
 
 	// Task management
 	r.static["todo_read"] = builtin.NewTodoRead()
@@ -325,7 +326,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 		})
 	}
 
-	// Note: code_search tool is not registered (feature not ready)
 	return nil
 }
 
