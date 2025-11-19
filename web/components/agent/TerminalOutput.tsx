@@ -1,13 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { AnyAgentEvent, AssistantMessageEvent } from "@/lib/types";
+import { AnyAgentEvent } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
-import { useI18n } from "@/lib/i18n";
 import { EventLine } from "./EventLine";
-import { MarkdownRenderer } from "@/components/ui/markdown";
-import { formatTimestamp } from "./EventLine/formatters";
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -18,18 +15,6 @@ interface TerminalOutputProps {
   onReconnect: () => void;
 }
 
-interface AssistantMessageItem {
-  id: string;
-  timestamp: string;
-  content: string;
-  final: boolean;
-  sourceModel?: string;
-}
-
-type StreamItem =
-  | { kind: 'event'; event: AnyAgentEvent }
-  | { kind: 'assistant'; message: AssistantMessageItem };
-
 export function TerminalOutput({
   events,
   isConnected,
@@ -38,48 +23,20 @@ export function TerminalOutput({
   reconnectAttempts,
   onReconnect,
 }: TerminalOutputProps) {
-  const { t } = useI18n();
+  const nonAssistantEvents = useMemo(
+    () => events.filter((event) => event.event_type !== 'assistant_message'),
+    [events],
+  );
 
-  const { streamItems, panelAnchors } = useMemo(() => {
-    const items: StreamItem[] = [];
-    const assistantBuckets = new Map<string, AssistantMessageItem>();
-    const nonAssistantEvents = events.filter(
-      (event) => event.event_type !== 'assistant_message',
-    );
-    const anchorMap = buildPanelAnchors(nonAssistantEvents);
+  const panelAnchors = useMemo(
+    () => buildPanelAnchors(nonAssistantEvents),
+    [nonAssistantEvents],
+  );
 
-    events.forEach((event, index) => {
-      if (event.event_type === 'assistant_message') {
-        const assistantEvent = event as AssistantMessageEvent;
-        const key = `${assistantEvent.task_id ?? 'task'}:${assistantEvent.parent_task_id ?? 'root'}:${assistantEvent.iteration}`;
-        let bucket = assistantBuckets.get(key);
-        if (!bucket) {
-          bucket = {
-            id: `${key}:${index}`,
-            timestamp: assistantEvent.timestamp,
-            content: '',
-            final: assistantEvent.final,
-            sourceModel: assistantEvent.source_model,
-          };
-          assistantBuckets.set(key, bucket);
-          items.push({ kind: 'assistant', message: bucket });
-        }
-
-        if (assistantEvent.delta) {
-          bucket.content += assistantEvent.delta;
-        }
-        bucket.timestamp = assistantEvent.timestamp;
-        bucket.final = assistantEvent.final;
-        if (assistantEvent.source_model) {
-          bucket.sourceModel = assistantEvent.source_model;
-        }
-      } else if (!shouldSkipEvent(event)) {
-        items.push({ kind: 'event', event });
-      }
-    });
-
-    return { streamItems: items, panelAnchors: anchorMap };
-  }, [events]);
+  const displayEvents = useMemo(
+    () => events.filter((event) => !shouldSkipEvent(event)),
+    [events],
+  );
 
   // Show connection banner if disconnected
   if (!isConnected || error) {
@@ -96,41 +53,17 @@ export function TerminalOutput({
   return (
     <div className="space-y-5" data-testid="conversation-stream">
       <div className="space-y-4" data-testid="conversation-events">
-        {streamItems.map((item, index) => {
-          if (item.kind === 'assistant') {
-            if (!item.message.content) {
-              return null;
-            }
-            return (
-              <AssistantMessageBubble
-                key={item.message.id}
-                message={item.message}
-              />
-            );
-          }
-
-          const { event } = item;
+        {displayEvents.map((event, index) => {
           const key = `${event.event_type}-${event.timestamp}-${index}`;
           const panelEvents = panelAnchors.get(event);
           if (panelEvents) {
-            return (
-              <div key={key} className="space-y-2">
-                <EventLine event={event} />
-                <IntermediatePanel events={panelEvents} />
-              </div>
-            );
+            return <IntermediatePanel key={key} events={panelEvents} />;
           }
 
           return <EventLine key={key} event={event} />;
         })}
       </div>
 
-      {isConnected && streamItems.length > 0 && (
-        <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
-          <span>{t("conversation.status.listening")}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -170,37 +103,6 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
   });
 
   return anchorMap;
-}
-
-function AssistantMessageBubble({
-  message,
-}: {
-  message: AssistantMessageItem;
-}) {
-  return (
-    <div className="console-assistant-message">
-      <div className="console-assistant-bubble">
-        <div className="console-assistant-meta">
-          <span>{formatTimestamp(message.timestamp)}</span>
-          {message.sourceModel && (
-            <span className="console-assistant-meta-source">
-              {' '}
-              · {message.sourceModel}
-            </span>
-          )}
-          {!message.final && (
-            <span className="console-assistant-meta-streaming" aria-live="polite">
-              ···
-            </span>
-          )}
-        </div>
-        <MarkdownRenderer
-          content={message.content}
-          containerClassName="console-assistant-content"
-        />
-      </div>
-    </div>
-  );
 }
 
 /**
