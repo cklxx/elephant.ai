@@ -44,10 +44,3 @@ func WithCostTrackingDecorator(decorator *CostTrackingDecorator) CoordinatorOpti
 		}
 	}
 }
-
-// WithRAGGate injects a retrieval gate used during execution preparation.
-func WithRAGGate(gate ports.RAGGate) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		c.ragGate = gate
-	}
-}

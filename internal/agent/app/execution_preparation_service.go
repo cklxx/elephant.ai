@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 )
 
 const (
-	defaultBudgetTarget        = 5.0
 	historyComposeSnippetLimit = 600
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
@@ -36,7 +34,6 @@ type ExecutionPreparationDeps struct {
 	PresetResolver *PresetResolver // Optional: if nil, one will be created
 	EventEmitter   ports.EventListener
 	CostTracker    ports.CostTracker
-	RAGGate        ports.RAGGate
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
@@ -54,7 +51,6 @@ type ExecutionPreparationService struct {
 	presetResolver *PresetResolver
 	eventEmitter   ports.EventListener
 	costTracker    ports.CostTracker
-	ragGate        ports.RAGGate
 }
 
 type historyRecall struct {
@@ -110,7 +106,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		presetResolver: presetResolver,
 		eventEmitter:   eventEmitter,
 		costTracker:    deps.CostTracker,
-		ragGate:        deps.RAGGate,
 	}
 }
 
@@ -304,153 +299,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		Context:      s.contextMgr,
 	}
 
-	ragDirectives := s.evaluateRAGDirectives(ctx, session, task, toolRegistry, analysis, history)
-
 	s.logger.Info("Execution environment prepared successfully")
 
 	return &ports.ExecutionEnvironment{
-		State:         state,
-		Services:      services,
-		Session:       session,
-		SystemPrompt:  systemPrompt,
-		TaskAnalysis:  taskAnalysis,
-		RAGDirectives: ragDirectives,
+		State:        state,
+		Services:     services,
+		Session:      session,
+		SystemPrompt: systemPrompt,
+		TaskAnalysis: taskAnalysis,
 	}, nil
-}
-
-func (s *ExecutionPreparationService) evaluateRAGDirectives(ctx context.Context, session *ports.Session, task string, registry ports.ToolRegistry, analysis *TaskAnalysis, history *historyRecall) *ports.RAGDirectives {
-	if s.ragGate == nil {
-		return nil
-	}
-	baseQuery := strings.TrimSpace(task)
-	if analysis != nil {
-		if trimmed := strings.TrimSpace(analysis.Goal); trimmed != "" {
-			baseQuery = trimmed
-		}
-		if len(analysis.Retrieval.LocalQueries) > 0 {
-			if candidate := strings.TrimSpace(analysis.Retrieval.LocalQueries[0]); candidate != "" {
-				baseQuery = candidate
-			}
-		}
-		if len(analysis.Retrieval.SearchQueries) > 0 {
-			if baseQuery == "" {
-				if candidate := strings.TrimSpace(analysis.Retrieval.SearchQueries[0]); candidate != "" {
-					baseQuery = candidate
-				}
-			}
-		}
-	}
-	query := baseQuery
-	if query == "" {
-		return nil
-	}
-
-	signals := s.buildRAGSignals(ctx, session, query, registry, analysis)
-	directives := s.ragGate.Evaluate(ctx, signals)
-
-	if directives.Justification == nil {
-		directives.Justification = map[string]float64{}
-	}
-	s.recordRAGDirectiveMetadata(session, directives, signals)
-	s.emitRAGDirectiveEvent(ctx, session, directives, signals)
-
-	if analysis != nil {
-		directives.Query = query
-		directives.SearchSeeds = appendUniqueStrings(directives.SearchSeeds, analysis.Retrieval.SearchQueries...)
-		directives.CrawlSeeds = appendUniqueStrings(directives.CrawlSeeds, analysis.Retrieval.CrawlURLs...)
-	}
-
-	if total, ok := directives.Justification["total_score"]; ok {
-		s.logger.Info("RAG gate directives: retrieval=%t search=%t crawl=%t (score=%.2f)", directives.UseRetrieval, directives.UseSearch, directives.UseCrawl, total)
-	} else {
-		s.logger.Info("RAG gate directives: retrieval=%t search=%t crawl=%t", directives.UseRetrieval, directives.UseSearch, directives.UseCrawl)
-	}
-
-	return &directives
-}
-
-func (s *ExecutionPreparationService) recordRAGDirectiveMetadata(session *ports.Session, directives ports.RAGDirectives, signals ports.RAGSignals) {
-	if session == nil {
-		return
-	}
-	if session.Metadata == nil {
-		session.Metadata = make(map[string]string)
-	}
-	session.Metadata["rag_last_directives"] = encodeDirectiveSummary(directives)
-	if score, ok := directives.Justification["total_score"]; ok {
-		session.Metadata["rag_last_plan_score"] = formatFloat(score)
-	} else {
-		delete(session.Metadata, "rag_last_plan_score")
-	}
-	session.Metadata["rag_last_hit_rate"] = formatFloat(signals.RetrievalHitRate)
-	if signals.BudgetRemaining >= 0 {
-		session.Metadata["rag_budget_remaining"] = formatFloat(signals.BudgetRemaining)
-	}
-	if signals.BudgetTarget > 0 {
-		session.Metadata["rag_budget_target"] = formatFloat(signals.BudgetTarget)
-	}
-}
-
-func (s *ExecutionPreparationService) emitRAGDirectiveEvent(ctx context.Context, session *ports.Session, directives ports.RAGDirectives, signals ports.RAGSignals) {
-	if s.eventEmitter == nil || ports.IsSilentMode(ctx) {
-		return
-	}
-	level := ports.GetOutputContext(ctx).Level
-	sessionID := ""
-	if session != nil {
-		sessionID = session.ID
-	}
-	event := domain.NewRAGDirectivesEvaluatedEvent(
-		level,
-		sessionID,
-		id.TaskIDFromContext(ctx),
-		id.ParentTaskIDFromContext(ctx),
-		directives,
-		signals,
-		s.clock.Now(),
-	)
-	s.eventEmitter.OnEvent(event)
-}
-
-func (s *ExecutionPreparationService) buildRAGSignals(ctx context.Context, session *ports.Session, query string, registry ports.ToolRegistry, analysis *TaskAnalysis) ports.RAGSignals {
-	searchSeeds, crawlSeeds := s.extractSeeds(session)
-	lower := strings.ToLower(query)
-	isMarketing := containsAny(lower, marketingKeywords)
-	isCode := containsAny(lower, codeKeywords)
-	freshnessTerms := containsAny(lower, freshnessKeywords) || containsRecentYear(lower)
-
-	signals := ports.RAGSignals{
-		Query:             query,
-		CanRetrieve:       true,
-		SearchSeeds:       searchSeeds,
-		CrawlSeeds:        crawlSeeds,
-		RetrievalHitRate:  s.estimateRetrievalHitRate(session),
-		FreshnessGapHours: estimateFreshnessGap(lower, isMarketing, isCode, freshnessTerms),
-		IntentConfidence:  estimateIntentConfidence(lower, isMarketing, isCode),
-		AllowSearch:       registryProvides(registry, "web_search"),
-		AllowCrawl:        registryProvides(registry, "web_fetch") || registryProvides(registry, "browser"),
-	}
-
-	remaining, target := s.estimateBudget(ctx, session)
-	signals.BudgetRemaining = remaining
-	signals.BudgetTarget = target
-	if analysis != nil {
-		signals.SearchSeeds = appendUniqueStrings(signals.SearchSeeds, analysis.Retrieval.SearchQueries...)
-		signals.CrawlSeeds = appendUniqueStrings(signals.CrawlSeeds, analysis.Retrieval.CrawlURLs...)
-		if analysis.Retrieval.ShouldRetrieve {
-			if signals.IntentConfidence < 0.7 {
-				signals.IntentConfidence = 0.7
-			}
-		}
-	}
-	if !signals.AllowSearch && len(searchSeeds) > 0 {
-		signals.SearchSeeds = nil
-	}
-	if !signals.AllowCrawl && len(crawlSeeds) > 0 {
-		signals.CrawlSeeds = nil
-	}
-
-	return signals
 }
 
 func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, analysis *TaskAnalysis, session *ports.Session) *historyRecall {
@@ -885,279 +742,6 @@ func appendUniqueStrings(base []string, values ...string) []string {
 		return nil
 	}
 	return result
-}
-
-func (s *ExecutionPreparationService) estimateRetrievalHitRate(session *ports.Session) float64 {
-	if session == nil {
-		return 0.55
-	}
-	if rate := parseMetadataFloat(session.Metadata, "rag_last_hit_rate"); rate >= 0 {
-		return clamp01(rate)
-	}
-
-	var attempts float64
-	var successes float64
-	for _, msg := range session.Messages {
-		if len(msg.ToolResults) == 0 {
-			continue
-		}
-		for _, result := range msg.ToolResults {
-			if result.Metadata == nil {
-				continue
-			}
-			if _, ok := result.Metadata["repo_path"]; !ok {
-				continue
-			}
-			attempts++
-			if count, ok := convertToFloat64(result.Metadata["result_count"]); ok {
-				if count > 0 {
-					successes++
-					continue
-				}
-			}
-			if strings.TrimSpace(result.Content) != "" {
-				successes++
-			}
-		}
-	}
-
-	if attempts == 0 {
-		return 0.55
-	}
-	return clamp01(successes / attempts)
-}
-
-func (s *ExecutionPreparationService) estimateBudget(ctx context.Context, session *ports.Session) (float64, float64) {
-	target := defaultBudgetTarget
-	remaining := target
-
-	if session != nil && session.Metadata != nil {
-		if metaTarget := parseMetadataFloat(session.Metadata, "rag_budget_target"); metaTarget > 0 {
-			target = metaTarget
-			remaining = metaTarget
-		}
-		if metaRemaining := parseMetadataFloat(session.Metadata, "rag_budget_remaining"); metaRemaining >= 0 {
-			remaining = metaRemaining
-			if target <= 0 {
-				target = metaRemaining
-			}
-		}
-	}
-
-	if session == nil || session.ID == "" || s.costTracker == nil {
-		if remaining < 0 {
-			remaining = 0
-		}
-		if target <= 0 {
-			target = defaultBudgetTarget
-		}
-		return remaining, target
-	}
-
-	stats, err := s.costTracker.GetSessionStats(ctx, session.ID)
-	if err != nil {
-		s.logger.Debug("Failed to compute session budget from tracker: %v", err)
-		if remaining < 0 {
-			remaining = 0
-		}
-		if target <= 0 {
-			target = defaultBudgetTarget
-		}
-		return remaining, target
-	}
-
-	spent := stats.TotalCost
-	if spent >= target {
-		return 0, target
-	}
-	calculated := target - spent
-	if remaining >= 0 && remaining < calculated {
-		return remaining, target
-	}
-	return calculated, target
-}
-
-func (s *ExecutionPreparationService) extractSeeds(session *ports.Session) ([]string, []string) {
-	if session == nil || len(session.Metadata) == 0 {
-		return nil, nil
-	}
-	var searchSeeds []string
-	var crawlSeeds []string
-
-	if raw := session.Metadata["rag_search_seeds"]; strings.TrimSpace(raw) != "" {
-		searchSeeds = splitSeedList(raw)
-	}
-	if raw := session.Metadata["rag_crawl_seeds"]; strings.TrimSpace(raw) != "" {
-		crawlSeeds = splitSeedList(raw)
-	}
-	return searchSeeds, crawlSeeds
-}
-
-func splitSeedList(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	parts := strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ',' || r == ';' || r == '\n'
-	})
-	seeds := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			seeds = append(seeds, trimmed)
-		}
-	}
-	if len(seeds) == 0 {
-		return nil
-	}
-	return seeds
-}
-
-func encodeDirectiveSummary(directives ports.RAGDirectives) string {
-	if !directives.UseRetrieval && !directives.UseSearch && !directives.UseCrawl {
-		return "skip"
-	}
-	actions := make([]string, 0, 3)
-	if directives.UseRetrieval {
-		actions = append(actions, "retrieve")
-	}
-	if directives.UseSearch {
-		actions = append(actions, "search")
-	}
-	if directives.UseCrawl {
-		actions = append(actions, "crawl")
-	}
-	return strings.Join(actions, "+")
-}
-
-func formatFloat(value float64) string {
-	return strconv.FormatFloat(value, 'f', 4, 64)
-}
-
-func registryProvides(registry ports.ToolRegistry, name string) bool {
-	if registry == nil {
-		return false
-	}
-	for _, def := range registry.List() {
-		if strings.EqualFold(def.Name, name) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsRecentYear(lower string) bool {
-	for year := 2022; year <= 2026; year++ {
-		if strings.Contains(lower, strconv.Itoa(year)) {
-			return true
-		}
-	}
-	return false
-}
-
-func convertToFloat64(value any) (float64, bool) {
-	switch v := value.(type) {
-	case float64:
-		return v, true
-	case float32:
-		return float64(v), true
-	case int:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	case int32:
-		return float64(v), true
-	case string:
-		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
-			return parsed, true
-		}
-	}
-	return 0, false
-}
-
-func parseMetadataFloat(metadata map[string]string, key string) float64 {
-	if metadata == nil {
-		return -1
-	}
-	raw := strings.TrimSpace(metadata[key])
-	if raw == "" {
-		return -1
-	}
-	value, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
-		return -1
-	}
-	return value
-}
-
-func clamp01(value float64) float64 {
-	switch {
-	case value < 0:
-		return 0
-	case value > 1:
-		return 1
-	default:
-		return value
-	}
-}
-
-var marketingKeywords = []string{
-	"marketing", "campaign", "seo", "brand", "audience", "growth", "trend", "insight", "competitor", "market", "persona", "content",
-}
-
-var codeKeywords = []string{
-	"bug", "panic", "goroutine", "function", "struct", "interface", "compile", "error", "stack trace", "module", "unit test", "refactor",
-}
-
-var freshnessKeywords = []string{
-	"latest", "current", "today", "recent", "update", "news", "release", "announcement", "breaking",
-}
-
-func containsAny(haystack string, keywords []string) bool {
-	if haystack == "" {
-		return false
-	}
-	for _, keyword := range keywords {
-		if strings.Contains(haystack, keyword) {
-			return true
-		}
-	}
-	return false
-}
-
-func estimateFreshnessGap(lower string, marketing, code, freshness bool) float64 {
-	gap := 48.0
-	if code {
-		gap = 24.0
-	}
-	if marketing && gap < 120.0 {
-		gap = 120.0
-	}
-	if freshness {
-		if marketing {
-			if gap < 240.0 {
-				gap = 240.0
-			}
-		} else if gap < 168.0 {
-			gap = 168.0
-		}
-	}
-	if containsRecentYear(lower) && gap < 168.0 {
-		gap = 168.0
-	}
-	return gap
-}
-
-func estimateIntentConfidence(lower string, marketing, code bool) float64 {
-	switch {
-	case marketing:
-		return 0.85
-	case code:
-		return 0.2
-	case containsAny(lower, []string{"research", "analysis", "benchmark", "insight"}):
-		return 0.65
-	default:
-		return 0.45
-	}
 }
 
 func collectSessionAttachments(session *ports.Session) map[string]ports.Attachment {
