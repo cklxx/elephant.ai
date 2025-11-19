@@ -11,6 +11,7 @@ import (
 	agentPorts "alex/internal/agent/ports"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
+	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
 	sessionstate "alex/internal/session/state_store"
 )
@@ -875,4 +876,53 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 	} else {
 		t.Logf("✓ No cancel function leak: all %d tasks cleaned up", len(taskIDs))
 	}
+}
+
+func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
+	failingAgent := &failingAgentCoordinator{sessionStore: sessionStore, err: errors.New("boom")}
+	metrics := &observability.MetricsCollector{}
+	statusCh := make(chan string, 1)
+	metrics.SetTestHooks(observability.MetricsTestHooks{
+		TaskExecution: func(status string, _ time.Duration) {
+			statusCh <- status
+		},
+	})
+	coordinator := NewServerCoordinator(
+		failingAgent,
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+		WithObservability(&observability.Observability{Metrics: metrics}),
+	)
+	ctx := context.Background()
+	if _, err := coordinator.ExecuteTaskAsync(ctx, "fail-task", "", "", ""); err != nil {
+		t.Fatalf("ExecuteTaskAsync failed: %v", err)
+	}
+	select {
+	case status := <-statusCh:
+		if status != "error" {
+			t.Fatalf("expected error status metric, got %s", status)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for task execution metric")
+	}
+}
+
+type failingAgentCoordinator struct {
+	sessionStore agentPorts.SessionStore
+	err          error
+}
+
+func (f *failingAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+	return f.sessionStore.Get(ctx, id)
+}
+
+func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+	return nil, f.err
 }

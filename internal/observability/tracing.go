@@ -144,6 +144,8 @@ const (
 	SpanReactIteration   = "alex.react.iteration"
 	SpanToolExecute      = "alex.tool.execute"
 	SpanLLMGenerate      = "alex.llm.generate"
+	SpanHTTPServer       = "alex.http.request"
+	SpanSSEConnection    = "alex.sse.connection"
 )
 
 // Common attribute keys

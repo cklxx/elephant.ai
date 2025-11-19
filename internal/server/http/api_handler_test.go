@@ -165,6 +165,27 @@ func (r *staticJournalReader) Stream(_ context.Context, sessionID string, fn fun
 	return nil
 }
 
+func TestHandleWebVitalsAcceptsPayload(t *testing.T) {
+	handler := NewAPIHandler(nil, app.NewHealthChecker(), false)
+	req := httptest.NewRequest(http.MethodPost, "/api/metrics/web-vitals", strings.NewReader(`{"name":"CLS","value":0.1,"page":"/sessions/123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	handler.HandleWebVitals(resp, req)
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", resp.Code)
+	}
+}
+
+func TestHandleWebVitalsRejectsBadMethod(t *testing.T) {
+	handler := NewAPIHandler(nil, app.NewHealthChecker(), false)
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics/web-vitals", nil)
+	resp := httptest.NewRecorder()
+	handler.HandleWebVitals(resp, req)
+	if resp.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", resp.Code)
+	}
+}
+
 func (r *staticJournalReader) ReadAll(_ context.Context, sessionID string) ([]journal.TurnJournalEntry, error) {
 	entries := make([]journal.TurnJournalEntry, len(r.entries))
 	copy(entries, r.entries)
