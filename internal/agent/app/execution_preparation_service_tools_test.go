@@ -1,0 +1,86 @@
+package app
+
+import (
+	"context"
+	"sort"
+	"testing"
+	"time"
+
+	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
+)
+
+func TestSelectToolRegistryEnforcesOrchestratorPresetForCoreAgent(t *testing.T) {
+deps := ExecutionPreparationDeps{
+LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}}},
+		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1, ToolPreset: string(presets.ToolPresetFull)},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	filtered := service.selectToolRegistry(context.Background())
+
+names := sortedToolNames(filtered.List())
+expected := []string{"final", "subagent", "think", "todo_read", "todo_update"}
+
+	if len(names) != len(expected) {
+		t.Fatalf("core agent should only see %d tools, got %v", len(expected), names)
+	}
+	for i, want := range expected {
+		if names[i] != want {
+			t.Fatalf("unexpected tool order/content: got %v, want %v", names, expected)
+		}
+	}
+}
+
+func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "sub", Metadata: map[string]string{}}},
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1, ToolPreset: string(presets.ToolPresetReadOnly)},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	ctx := MarkSubagentContext(context.Background())
+	filtered := service.selectToolRegistry(ctx)
+	names := sortedToolNames(filtered.List())
+
+	if containsString(names, "bash") {
+		t.Fatalf("subagent preset should block bash: %v", names)
+	}
+	if !containsString(names, "file_read") {
+		t.Fatalf("subagent preset should retain file_read: %v", names)
+	}
+}
+
+func sortedToolNames(defs []ports.ToolDefinition) []string {
+	names := make([]string, len(defs))
+	for i, def := range defs {
+		names[i] = def.Name
+	}
+	sort.Strings(names)
+	return names
+}
+
+func containsString(list []string, target string) bool {
+	for _, item := range list {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}

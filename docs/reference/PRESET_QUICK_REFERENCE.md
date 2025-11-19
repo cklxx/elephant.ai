@@ -22,6 +22,7 @@
 | `code-only` | file_*, grep, ripgrep, find, code_execute, think, todo_*, subagent | web_search, web_fetch, bash | Offline development, local work |
 | `web-only` | web_search, web_fetch, think, todo_read | All file and execution tools | Pure research, web lookups |
 | `safe` | All except bash and code_execute | bash, code_execute | Untrusted code, extra safety |
+| `orchestrator` | think, todo_read, todo_update, subagent, final *(auto-applied to core agent)* | All other tools | Main agent coordination / delegation |
 
 ## Common Combinations
 
@@ -161,26 +162,28 @@ curl -X POST http://localhost:3000/api/tasks \
 - `code-only`
 - `web-only`
 - `safe`
+- `orchestrator` *(core agent only, auto-applied)*
 
 ## Tool Access Matrix
 
-| Tool | full | read-only | code-only | web-only | safe |
-|------|------|-----------|-----------|----------|------|
-| file_read | ✅ | ✅ | ✅ | ❌ | ✅ |
-| file_write | ✅ | ❌ | ✅ | ❌ | ✅ |
-| file_edit | ✅ | ❌ | ✅ | ❌ | ✅ |
-| list_files | ✅ | ✅ | ✅ | ❌ | ✅ |
-| bash | ✅ | ❌ | ❌ | ❌ | ❌ |
-| code_execute | ✅ | ❌ | ✅ | ❌ | ❌ |
-| grep | ✅ | ✅ | ✅ | ❌ | ✅ |
-| ripgrep | ✅ | ✅ | ✅ | ❌ | ✅ |
-| find | ✅ | ✅ | ✅ | ❌ | ✅ |
-| web_search | ✅ | ✅ | ❌ | ✅ | ✅ |
-| web_fetch | ✅ | ✅ | ❌ | ✅ | ✅ |
-| think | ✅ | ✅ | ✅ | ✅ | ✅ |
-| todo_read | ✅ | ✅ | ✅ | ✅ | ✅ |
-| todo_update | ✅ | ❌ | ✅ | ❌ | ✅ |
-| subagent | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Tool | full | read-only | code-only | web-only | safe | orchestrator |
+|------|------|-----------|-----------|----------|------|--------------|
+| file_read | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| file_write | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| file_edit | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| list_files | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| bash | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| code_execute | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| grep | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| ripgrep | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| find | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| web_search | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| web_fetch | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| think | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| todo_read | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| todo_update | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| subagent | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| final | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Examples
 

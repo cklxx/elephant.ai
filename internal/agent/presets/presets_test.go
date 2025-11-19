@@ -97,6 +97,11 @@ func TestGetToolConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "orchestrator preset",
+			preset:  ToolPresetOrchestrator,
+			wantErr: false,
+		},
+		{
 			name:    "invalid preset",
 			preset:  ToolPreset("invalid"),
 			wantErr: true,
@@ -158,6 +163,7 @@ func TestIsValidToolPreset(t *testing.T) {
 		{"code-only", "code-only", true},
 		{"web-only", "web-only", true},
 		{"safe", "safe", true},
+		{"orchestrator", "orchestrator", true},
 		{"invalid", "invalid", false},
 		{"empty", "", false},
 	}
@@ -250,6 +256,30 @@ func TestToolPresetBlocking(t *testing.T) {
 			toolName:  "vision_analyze",
 			wantAllow: true,
 		},
+{
+name:      "orchestrator allows think",
+preset:    ToolPresetOrchestrator,
+toolName:  "think",
+wantAllow: true,
+},
+{
+name:      "orchestrator allows todo_read",
+preset:    ToolPresetOrchestrator,
+toolName:  "todo_read",
+wantAllow: true,
+},
+{
+name:      "orchestrator allows todo_update",
+preset:    ToolPresetOrchestrator,
+toolName:  "todo_update",
+wantAllow: true,
+},
+{
+name:      "orchestrator blocks file_read",
+preset:    ToolPresetOrchestrator,
+toolName:  "file_read",
+wantAllow: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -311,17 +341,18 @@ func TestGetAllPresets(t *testing.T) {
 
 func TestGetAllToolPresets(t *testing.T) {
 	presets := GetAllToolPresets()
-	if len(presets) != 5 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 5", len(presets))
+	if len(presets) != 6 {
+		t.Errorf("GetAllToolPresets() returned %d presets, want 6", len(presets))
 	}
 
 	// Check all expected presets are present
 	expected := map[ToolPreset]bool{
-		ToolPresetFull:     false,
-		ToolPresetReadOnly: false,
-		ToolPresetCodeOnly: false,
-		ToolPresetWebOnly:  false,
-		ToolPresetSafe:     false,
+		ToolPresetFull:         false,
+		ToolPresetReadOnly:     false,
+		ToolPresetCodeOnly:     false,
+		ToolPresetWebOnly:      false,
+		ToolPresetSafe:         false,
+		ToolPresetOrchestrator: false,
 	}
 
 	for _, preset := range presets {

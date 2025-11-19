@@ -339,6 +339,14 @@ func (e *ReactEngine) SolveTask(
 			thought.Content = e.cleanToolCallMarkers(thought.Content)
 		}
 
+		// Track final tool invocations so we can end the run immediately once reported
+		finalCallIDs := make(map[string]struct{})
+		for _, call := range validCalls {
+			if call.Name == "final" {
+				finalCallIDs[call.ID] = struct{}{}
+			}
+		}
+
 		// Execute tools
 		e.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
 
@@ -358,6 +366,16 @@ func (e *ReactEngine) SolveTask(
 		state.ToolResults = append(state.ToolResults, results...)
 		e.observeToolResults(state, state.Iterations, results)
 
+		var finalPayload *ToolResult
+		if len(finalCallIDs) > 0 {
+			for idx := range results {
+				if _, ok := finalCallIDs[results[idx].CallID]; ok && results[idx].Error == nil {
+					finalPayload = &results[idx]
+					break
+				}
+			}
+		}
+
 		// Log results (no stdout printing - let TUI handle display)
 		for i, r := range results {
 			if r.Error != nil {
@@ -370,6 +388,24 @@ func (e *ReactEngine) SolveTask(
 		// 3. OBSERVE: Add results to conversation
 		toolMessages := e.buildToolMessages(results)
 		state.Messages = append(state.Messages, toolMessages...)
+
+		if finalPayload != nil {
+			finalAnswer := strings.TrimSpace(finalPayload.Content)
+			if finalAnswer == "" {
+				finalAnswer = "Final tool was invoked without returning an answer."
+			}
+			state.FinalAnswer = finalAnswer
+			finalMessage := Message{
+				Role:    "assistant",
+				Content: finalAnswer,
+				Source:  ports.MessageSourceAssistantReply,
+				Metadata: map[string]any{
+					"final_tool": true,
+				},
+			}
+			finalMessage.Attachments = normalizeToolAttachments(finalPayload.Attachments)
+			state.Messages = append(state.Messages, finalMessage)
+		}
 		attachmentsChanged := false
 		for _, msg := range toolMessages {
 			if registerMessageAttachments(state, msg) {
@@ -393,6 +429,22 @@ func (e *ReactEngine) SolveTask(
 			TokensUsed: state.TokenCount,
 			ToolsRun:   len(results),
 		})
+
+		if finalPayload != nil {
+			finalResult := e.finalize(state, "final_answer")
+			attachments := e.decorateFinalResult(state, finalResult)
+			e.emitEvent(&TaskCompleteEvent{
+				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				FinalAnswer:     finalResult.Answer,
+				TotalIterations: finalResult.Iterations,
+				TotalTokens:     finalResult.TokensUsed,
+				StopReason:      "final_answer",
+				Duration:        e.clock.Now().Sub(startTime),
+				Attachments:     attachments,
+			})
+
+			return finalResult, nil
+		}
 
 		// LLM decides when to stop - no hardcoded stop conditions
 		e.logger.Debug("Iteration %d complete, continuing to next iteration", state.Iterations)
@@ -559,6 +611,18 @@ func (e *ReactEngine) executeToolsWithEvents(
 	results := make([]ToolResult, len(calls))
 	e.logger.Debug("Executing %d tools in parallel", len(calls))
 
+	needsStateSnapshot := false
+	for _, call := range calls {
+		if call.Name == "subagent" {
+			needsStateSnapshot = true
+			break
+		}
+	}
+	var stateSnapshot *ports.TaskState
+	if needsStateSnapshot {
+		stateSnapshot = ports.CloneTaskState(state)
+	}
+
 	// Execute in parallel using goroutines
 	var (
 		wg            sync.WaitGroup
@@ -603,6 +667,9 @@ func (e *ReactEngine) executeToolsWithEvents(
 			}
 
 			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
+			if needsStateSnapshot && tc.Name == "subagent" {
+				toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, stateSnapshot)
+			}
 
 			formattedArgs := formatToolArgumentsForLog(tc.Arguments)
 			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, formattedArgs)
@@ -1142,12 +1209,14 @@ func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID, taskI
 
 // finalize creates the final task result
 func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult {
-	// Extract final answer from last assistant message
-	var finalAnswer string
-	for i := len(state.Messages) - 1; i >= 0; i-- {
-		if state.Messages[i].Role == "assistant" {
-			finalAnswer = state.Messages[i].Content
-			break
+	// Prefer explicitly captured final answer
+	finalAnswer := strings.TrimSpace(state.FinalAnswer)
+	if finalAnswer == "" {
+		for i := len(state.Messages) - 1; i >= 0; i-- {
+			if state.Messages[i].Role == "assistant" {
+				finalAnswer = state.Messages[i].Content
+				break
+			}
 		}
 	}
 

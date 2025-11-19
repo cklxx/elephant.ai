@@ -10,11 +10,12 @@ import (
 type ToolPreset string
 
 const (
-	ToolPresetFull     ToolPreset = "full"
-	ToolPresetReadOnly ToolPreset = "read-only"
-	ToolPresetCodeOnly ToolPreset = "code-only"
-	ToolPresetWebOnly  ToolPreset = "web-only"
-	ToolPresetSafe     ToolPreset = "safe"
+	ToolPresetFull         ToolPreset = "full"
+	ToolPresetReadOnly     ToolPreset = "read-only"
+	ToolPresetCodeOnly     ToolPreset = "code-only"
+	ToolPresetWebOnly      ToolPreset = "web-only"
+	ToolPresetSafe         ToolPreset = "safe"
+	ToolPresetOrchestrator ToolPreset = "orchestrator"
 )
 
 // ToolConfig contains tool access configuration for a preset
@@ -48,6 +49,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"web_fetch":      true,
 				"browser_info":   true,
 				"think":          true,
+				"final":          true,
 				"todo_read":      true,
 				"subagent":       true,
 				"explore":        true,
@@ -77,6 +79,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"find":         true,
 				"code_execute": true,
 				"think":        true,
+				"final":        true,
 				"todo_read":    true,
 				"todo_update":  true,
 				"subagent":     true,
@@ -97,6 +100,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"web_fetch":    true,
 				"browser_info": true,
 				"think":        true,
+				"final":        true,
 				"todo_read":    true,
 			},
 			DeniedTools: map[string]bool{
@@ -129,6 +133,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"web_fetch":      true,
 				"browser_info":   true,
 				"think":          true,
+				"final":          true,
 				"todo_read":      true,
 				"todo_update":    true,
 				"subagent":       true,
@@ -142,7 +147,20 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"code_execute": true,
 			},
 		},
-	}
+
+ToolPresetOrchestrator: {
+Name:        "Orchestrator Only",
+Description: "Core agent coordination preset (think, todo, delegate, final)",
+AllowedTools: map[string]bool{
+"think":       true,
+"todo_read":   true,
+"todo_update": true,
+"subagent":    true,
+"final":       true,
+},
+DeniedTools: make(map[string]bool),
+},
+}
 
 	config, ok := configs[preset]
 	if !ok {
@@ -235,13 +253,14 @@ func GetAllToolPresets() []ToolPreset {
 		ToolPresetCodeOnly,
 		ToolPresetWebOnly,
 		ToolPresetSafe,
+		ToolPresetOrchestrator,
 	}
 }
 
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetCodeOnly, ToolPresetWebOnly, ToolPresetSafe:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetCodeOnly, ToolPresetWebOnly, ToolPresetSafe, ToolPresetOrchestrator:
 		return true
 	default:
 		return false

@@ -25,13 +25,14 @@ Each preset has:
 
 ### 2. Tool Access Presets
 
-Created 5 tool access levels in `/internal/agent/presets/tools.go`:
+Created 6 tool access levels in `/internal/agent/presets/tools.go` (five user-configurable plus the automatic orchestrator mode):
 
 - **`full`**: All tools available (unrestricted access)
 - **`read-only`**: Only read operations (file_read, grep, web_search, etc.)
 - **`code-only`**: File operations + code execution (no web access)
 - **`web-only`**: Web search and fetch only (no file system)
 - **`safe`**: Excludes potentially dangerous tools (bash, code_execute)
+- **`orchestrator`**: Auto-applied to the main agent so it can only `think`, manage todos (`todo_read`/`todo_update`), delegate via `subagent`, and close work with `final`
 
 ### 3. Core Integration
 
@@ -186,7 +187,7 @@ The task record includes preset metadata:
 
 ### 1. Orthogonal Design
 - Agent presets (personas) and tool presets (access) are independent
-- Can be combined in any way: 5 agent × 5 tool = 25 combinations
+- User-selectable combinations remain 5 agent × 5 tool = 25; the orchestrator preset is auto-applied to the core agent to enforce think/todo/delegate/final loops
 - Each combination serves different use cases
 
 ### 2. Security-First
@@ -329,8 +330,8 @@ Potential future improvements:
 
 The agent preset system is fully implemented, tested, and documented. It provides:
 - 5 specialized agent personas
-- 5 tool access levels
-- 25 possible combinations
+- 6 tool access levels (5 user-facing + orchestrator core mode)
+- 25 user-selectable combinations (with orchestrator automatically layered on top)
 - Complete API integration
 - Comprehensive documentation
 - Full test coverage

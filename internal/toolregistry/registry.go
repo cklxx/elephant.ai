@@ -271,6 +271,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		SandboxManager: config.SandboxManager,
 	})
 	r.static["think"] = builtin.NewThink()
+	r.static["final"] = builtin.NewFinal()
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)

@@ -146,6 +146,15 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			wants:    []string{"subagent"},
 		},
 		{
+			name:     "final summary",
+			toolName: "final",
+			args: map[string]any{
+				"answer":     "全部交付完成",
+				"highlights": []any{"3 subagents", "rollout ready"},
+			},
+			wants: []string{"final(", "answer=", "highlights="},
+		},
+		{
 			name:     "unknown",
 			toolName: "custom_tool",
 			args: map[string]any{
@@ -312,6 +321,13 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			success:  true,
 			content:  "Summary\nSuccess: 2 tasks\nFailed: 1 tasks",
 			wants:    []string{"Success: 2 tasks"},
+		},
+		{
+			name:     "final",
+			toolName: "final",
+			success:  true,
+			content:  "All done.",
+			wants:    []string{"All done."},
 		},
 		{
 			name:     "default",

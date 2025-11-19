@@ -182,6 +182,8 @@ Agent presets define the agent's persona and specialized knowledge.
 
 Tool presets control which tools the agent can access.
 
+> **Core orchestrator restriction**: The main agent always runs under the `orchestrator` preset, limiting it to reasoning (`think`), todo management (`todo_read`/`todo_update`), delegation (`subagent`), and final reporting (`final`). This preset is enforced automatically so only subagents execute real tools, while user-selected presets still govern every subagent run.
+
 ### Available Tool Presets
 
 #### `full` - Full Access
@@ -287,6 +289,24 @@ Tool presets control which tools the agent can access.
 - When you want extra safety
 - Shared environments
 - Teaching/demonstration scenarios
+
+---
+
+#### `orchestrator` - Core Delegation Only *(automatic)*
+**Description**: Restricts the main agent to reasoning (`think`), todo tracking (`todo_read`, `todo_update`), delegation (`subagent`), and final reporting (`final`).
+
+**Available Tools**:
+- `think`
+- `todo_read`
+- `todo_update`
+- `subagent`
+- `final`
+
+**Blocked Tools**: Every other tool remains hidden at the core/orchestrator level.
+
+**Use Cases**:
+- Automatically applied to enforce "think → delegate → finalize" workflows
+- Keeps high-impact tool access constrained to subagents that obey the user-selected preset
 
 ---
 
@@ -659,6 +679,6 @@ To add new presets to ALEX:
 ### Version 1.0.0
 - Initial preset system implementation
 - 6 agent presets: default, code-expert, researcher, devops, security-analyst, designer
-- 5 tool presets: full, read-only, code-only, web-only, safe
+- 6 tool presets: full, read-only, code-only, web-only, safe, orchestrator (core-only)
 - API integration with task creation
 - Comprehensive documentation

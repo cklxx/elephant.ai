@@ -3,6 +3,7 @@ package domain_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"alex/internal/agent/domain"
@@ -160,6 +161,73 @@ func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
 	}
 	if !freshAfter {
 		t.Fatalf("expected fresh preloaded context to follow new user input: %+v", state.Messages)
+	}
+}
+
+func TestReactEngine_FinalToolEndsRun(t *testing.T) {
+	var llmCalls int
+	mockLLM := &mocks.MockLLMClient{
+		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+			llmCalls++
+			if llmCalls > 1 {
+				t.Fatalf("expected single LLM call, got %d", llmCalls)
+			}
+			return &ports.CompletionResponse{
+				ToolCalls: []ports.ToolCall{{
+					ID:        "final-call",
+					Name:      "final",
+					Arguments: map[string]any{"answer": "所有需求已完成"},
+				}},
+				Usage: ports.TokenUsage{TotalTokens: 24},
+			}, nil
+		},
+	}
+
+	mockTools := &mocks.MockToolRegistry{
+		GetFunc: func(name string) (ports.ToolExecutor, error) {
+			if name != "final" {
+				return nil, fmt.Errorf("unexpected tool requested: %s", name)
+			}
+			return &mocks.MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					answer, _ := call.Arguments["answer"].(string)
+					return &ports.ToolResult{CallID: call.ID, Content: answer}, nil
+				},
+			}, nil
+		},
+		ListFunc: func() []ports.ToolDefinition {
+			return []ports.ToolDefinition{{Name: "final"}}
+		},
+	}
+
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: mockTools,
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+
+	state := &domain.TaskState{SessionID: "session-final", TaskID: "task-final"}
+	engine := newReactEngineForTest(5)
+	result, err := engine.SolveTask(context.Background(), "generate summary", state, services)
+	if err != nil {
+		t.Fatalf("SolveTask returned error: %v", err)
+	}
+	if result.StopReason != "final_answer" {
+		t.Fatalf("expected stop reason final_answer, got %s", result.StopReason)
+	}
+	if result.Iterations != 1 {
+		t.Fatalf("expected a single iteration, got %d", result.Iterations)
+	}
+	if result.Answer != "所有需求已完成" {
+		t.Fatalf("unexpected final answer: %q", result.Answer)
+	}
+	if len(state.Messages) == 0 {
+		t.Fatalf("expected messages to include final assistant reply")
+	}
+	last := state.Messages[len(state.Messages)-1]
+	if last.Role != "assistant" || strings.TrimSpace(last.Content) != "所有需求已完成" {
+		t.Fatalf("expected final assistant message to mirror final tool output, got %+v", last)
 	}
 }
 
