@@ -31,6 +31,28 @@ ALEX's observability stack (v0.6.0+) provides:
 - **Tool Metrics**: Access control and execution stats
 - **Structured Logging**: Context-aware logging with sanitization
 
+## Observability Dashboards & Alerts
+
+The following Grafana dashboards and Prometheus alerts are considered the production baseline for the new end-to-end telemetry:
+
+### HTTP + SSE Operations dashboard
+- **Panels**: route-level `alex.http.requests.total`, `alex.http.latency` p50/p90/p99, `alex.http.response.size`, and the `alex.sse.connections.active` gauge split by route (`/api/sse`).
+- **Alerts**:
+  - `HTTPRouteLatencyHigh`: triggers when `histogram_quantile(0.95, rate(alex_http_latency_bucket[5m])) > 1.5` for any canonical route for 10 minutes.
+  - `SSEDisconnectSpike`: fires if `sum(rate(alex_sse_connection_duration_count[5m]))` drops by 50% compared to the prior hour or if `alex_sse_messages_total{status="write_error"}` exceeds 5/min.
+
+### Background Task Health dashboard
+- **Panels**: stacked `alex.sessions.active`, per-status counts from `alex.tasks.executions.total`, and p95 of `alex.tasks.execution.duration` with breakdown by `status`.
+- **Alerts**:
+  - `TaskErrorRatioHigh`: alerts when `sum(rate(alex_tasks_executions_total{status="error"}[5m])) / sum(rate(alex_tasks_executions_total[5m])) > 0.05` for 5 minutes.
+  - `StuckTasks`: warns when `increase(alex_tasks_execution_duration_sum[15m]) == 0` but new tasks keep arriving, indicating hung goroutines.
+
+### Browser Web Vitals dashboard
+- **Panels**: Web Vitals histograms for LCP, FID/INP, CLS, and TTFB using `alex.frontend.web_vital` plus overlaid backend route latency for `/api/*` calls.
+- **Alerts**:
+  - `LCPDegradation`: triggers when `histogram_quantile(0.75, rate(alex_frontend_web_vital_bucket{name="LCP"}[10m])) > 4` seconds.
+  - `CLSRegression`: notifies when the 95th percentile of `CLS` exceeds `0.25` for more than 15 minutes.
+
 ## Health Check System
 
 ### Endpoint

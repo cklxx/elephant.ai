@@ -25,6 +25,7 @@ import (
 	"alex/internal/di"
 	"alex/internal/diagnostics"
 	"alex/internal/environment"
+	"alex/internal/observability"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
@@ -78,6 +79,21 @@ var defaultAllowedOrigins = []string{
 func main() {
 	logger := utils.NewComponentLogger("Main")
 	logger.Info("Starting ALEX SSE Server...")
+
+	obs, err := observability.New(os.Getenv("ALEX_OBSERVABILITY_CONFIG"))
+	if err != nil {
+		logger.Warn("Observability disabled: %v", err)
+		obs = nil
+	}
+	if obs != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := obs.Shutdown(ctx); err != nil {
+				logger.Warn("Observability shutdown error: %v", err)
+			}
+		}()
+	}
 
 	// Load configuration
 	config, err := loadConfig()
@@ -236,6 +252,7 @@ func main() {
 		container.StateStore,
 		serverApp.WithAnalyticsClient(analyticsClient),
 		serverApp.WithJournalReader(journalReader),
+		serverApp.WithObservability(obs),
 	)
 
 	// Setup health checker
@@ -259,7 +276,7 @@ func main() {
 	}
 
 	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment, config.AllowedOrigins)
+	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment, config.AllowedOrigins, obs)
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
