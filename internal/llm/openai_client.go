@@ -329,6 +329,8 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
 	}
 
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), body...))
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
@@ -510,6 +512,30 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		}
 		c.usageCallback(result.Usage, c.model, provider)
 	}
+
+	if respPayload, err := json.Marshal(map[string]any{
+		"content":     result.Content,
+		"stop_reason": result.StopReason,
+		"tool_calls":  result.ToolCalls,
+		"usage":       result.Usage,
+	}); err != nil {
+		c.logger.Debug("%sFailed to marshal streaming response payload: %v", prefix, err)
+	} else {
+		utils.LogStreamingResponsePayload(requestID, respPayload)
+	}
+
+	summaryBuilder := &strings.Builder{}
+	summaryBuilder.WriteString("=== LLM Streaming Summary ===\n")
+	summaryBuilder.WriteString(fmt.Sprintf("Stop Reason: %s\n", result.StopReason))
+	summaryBuilder.WriteString(fmt.Sprintf("Content Length: %d chars\n", len(result.Content)))
+	summaryBuilder.WriteString(fmt.Sprintf("Tool Calls: %d\n", len(result.ToolCalls)))
+	summaryBuilder.WriteString(fmt.Sprintf("Usage: %d prompt + %d completion = %d total tokens\n",
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens,
+	))
+	summaryBuilder.WriteString("==================")
+	utils.LogStreamingSummary(requestID, []byte(summaryBuilder.String()))
 
 	c.logger.Debug("%s=== LLM Streaming Summary ===", prefix)
 	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
