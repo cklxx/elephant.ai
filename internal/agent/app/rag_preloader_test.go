@@ -136,10 +136,11 @@ func TestRAGPreloaderUsesLLMGeneratedQuery(t *testing.T) {
 func TestRAGPreloaderMarksInjectedMessages(t *testing.T) {
 	tool := &recordingTool{}
 	registry := &singleToolRegistry{tool: tool}
+	taskID := "task-123"
 	env := &ports.ExecutionEnvironment{
 		Services: ports.ServiceBundle{ToolExecutor: registry},
 		Session:  &ports.Session{ID: "sess", Metadata: map[string]string{}},
-		State:    &ports.TaskState{},
+		State:    &ports.TaskState{TaskID: taskID},
 		RAGDirectives: &ports.RAGDirectives{
 			Query:     "search patches",
 			UseSearch: true,
@@ -153,9 +154,14 @@ func TestRAGPreloaderMarksInjectedMessages(t *testing.T) {
 
 	flagged := 0
 	for _, msg := range env.State.Messages {
-		if msg.Metadata != nil {
-			if v, ok := msg.Metadata["rag_preload"].(bool); ok && v {
-				flagged++
+		if msg.Metadata == nil {
+			continue
+		}
+		if v, ok := msg.Metadata["rag_preload"].(bool); ok && v {
+			flagged++
+			tag, _ := msg.Metadata["rag_preload_task_id"].(string)
+			if tag != taskID {
+				t.Fatalf("expected rag_preload_task_id %q, got %q", taskID, tag)
 			}
 		}
 	}

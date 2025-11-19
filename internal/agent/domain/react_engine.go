@@ -1232,16 +1232,20 @@ func (e *ReactEngine) extractPreloadedContextMessages(state *TaskState) []Messag
 		return nil
 	}
 
-	kept := state.Messages[:0]
-	var preloaded []Message
-	for _, msg := range state.Messages {
-		if isPreloadedContextMessage(msg) {
-			preloaded = append(preloaded, msg)
-			continue
+	idx := len(state.Messages)
+	for idx > 0 {
+		if !isCurrentPreloadedContextMessage(state.Messages[idx-1], state.TaskID) {
+			break
 		}
-		kept = append(kept, msg)
+		idx--
 	}
-	state.Messages = kept
+	if idx == len(state.Messages) {
+		return nil
+	}
+
+	preloaded := make([]Message, len(state.Messages)-idx)
+	copy(preloaded, state.Messages[idx:])
+	state.Messages = state.Messages[:idx]
 	return preloaded
 }
 
@@ -1269,6 +1273,22 @@ func isPreloadedContextMessage(msg Message) bool {
 		return v != 0
 	case uint64:
 		return v != 0
+	default:
+		return false
+	}
+}
+
+func isCurrentPreloadedContextMessage(msg Message, taskID string) bool {
+	if taskID == "" || !isPreloadedContextMessage(msg) {
+		return false
+	}
+	value, ok := msg.Metadata["rag_preload_task_id"]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v) == taskID
 	default:
 		return false
 	}
