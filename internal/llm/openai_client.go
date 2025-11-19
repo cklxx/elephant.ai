@@ -118,12 +118,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Request body (pretty print)
-	var prettyJSON bytes.Buffer
+	var (
+		prettyJSON   bytes.Buffer
+		loggableBody = body
+	)
 	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
+		loggableBody = prettyJSON.Bytes()
 		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
 	} else {
 		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
 	}
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), loggableBody...))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
