@@ -81,7 +81,7 @@ func (c *CLI) showUsage() {
 
 func printUsage() {
 	fmt.Printf(`
-ALEX - Agile Light Easy Xpert Code Agent (v%s)
+Spinner - Fragment-to-Fabric Agent Console (v%s)
 
 Usage:
   alex <task>                    Execute a task with streaming output
@@ -126,7 +126,7 @@ Features:
   ✓ Code search and indexing
 
 Architecture: Hexagonal (Ports & Adapters)
-Documentation: See docs/architecture/ALEX_DETAILED_ARCHITECTURE.md
+Documentation: Spinner architecture details (docs/architecture/ALEX_DETAILED_ARCHITECTURE.md)
 `, appVersion())
 }
 

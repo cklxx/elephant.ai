@@ -1,6 +1,6 @@
-# ALEX
+# Spinner
 
-ALEX (Agile Light Easy Xpert) is a terminal-native AI programming agent that runs a layered Go backend with a modern web dashboard. The project keeps the core reasoning loop independent from delivery concerns so you can drive the agent from the CLI, HTTP/SSE APIs, or the Next.js UI without duplicating logic.
+Spinner is an AI agent that turns scattered facts, logs, and scratch notes into an actionable knowledge web. It runs the same layered Go backend that powers ALEX, but the framing is focused on weaving together fragmented context for analysts, engineers, and operators.
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
@@ -8,193 +8,162 @@ ALEX (Agile Light Easy Xpert) is a terminal-native AI programming agent that run
 
 ---
 
-## ✨ Highlights
+## Why Spinner?
 
-- **Unified ReAct runtime** – a streaming Think→Act→Observe loop that orchestrates tools, approvals, and memory.
-- **Multi-surface delivery** – interactive TUI/CLI (`cmd/alex`), HTTP + SSE server (`cmd/alex-server`), and a real-time web dashboard (`web/`).
-- **Sandbox-aware tools** – file, shell, search, browser, and notebook helpers that automatically route through the managed sandbox runtime when configured.
-- **MCP ecosystem** – JSON-RPC 2.0 client, supervisor, and registry for external Model Context Protocol servers.
-- **Observability-first** – structured logging, OpenTelemetry tracing, Prometheus metrics, and per-session cost tracking.
-- **Evaluation harness** – SWE-Bench runner, batch execution helpers, and reproducible reporting utilities (`evaluation/`).
+* **Fragment-to-fabric reasoning.** Spinner listens to shell transcripts, notebook results, tickets, and ad-hoc text, and then spins them into a coherent task plan.
+* **One runtime, many surfaces.** The CLI/TUI, HTTP+SSE server, and Next.js dashboard consume the same streaming Think→Act→Observe events.
+* **Context-aware tooling.** File, shell, search, browser, and notebook helpers auto-route through the sandbox runtime when configured.
+* **Observability-first.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking ship with the agent.
+* **Evaluation harness.** SWE-Bench automation plus batch runners ensure Spinner’s weaving stays measurable.
 
 ---
 
-## 🧱 Architecture Overview
-
-ALEX is organised as a layered system. Delivery binaries depend on application services exposed by the agent core, while infrastructure packages implement the ports required by that core. Frontend clients consume the same streaming events exposed over SSE.
+## Architecture Snapshot
 
 ```
 Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Infrastructure Adapters
 ```
 
-| Layer | Key Packages | Responsibilities |
-|-------|--------------|------------------|
-| Delivery | `cmd/alex`, `cmd/alex-server`, `web/` | CLI + TUI, HTTP & SSE APIs, and the Next.js dashboard.
-| Agent core | `internal/agent/app`, `internal/agent/domain`, `internal/agent/ports` | ReAct coordinators, domain entities, iteration policies, typed event stream.
-| Infrastructure | `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/output`, `internal/observability`, `internal/context`, `internal/environment`, `internal/diagnostics` | Dependency wiring, tool implementations, LLM clients, MCP runtime, persistence, rendering, telemetry, layered context, and environment capture.
-| Frontend | `web/` | Next.js app that subscribes to SSE, renders sessions, and submits work.
+| Layer | Highlights |
+| --- | --- |
+| Delivery | `cmd/alex`, `cmd/alex-server`, `web/` share the same DI container for consistent behavior. |
+| Agent core | `internal/agent/app`, `internal/agent/domain`, `internal/agent/ports` implement the ReAct loop, approvals, and typed events. |
+| Infrastructure | `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/observability`, `internal/context` provide adapters, LLM clients, MCP runtime, persistence, rendering, telemetry, and layered context. |
+| Frontend | `web/` renders real-time sessions via SSE, supports cost inspection, and lets operators feed new fragments. |
 
-See [`docs/AGENT.md`](docs/AGENT.md) for a deeper walkthrough of the reasoning loop and orchestration flow.
-
----
-
-## 🚦 Delivery Surfaces
-
-- **Interactive CLI/TUI** – Bubble Tea interface with streaming reasoning, transcript export, and preset selection.
-- **HTTP + SSE server** – exposes `/tasks`, `/sessions`, `/health`, and streaming updates for automation and the dashboard.
-- **Web dashboard** – Next.js 14 app with Tailwind CSS, real-time task feed, and cost/session inspection.
-
-All surfaces share the same dependency injection container (`internal/di`) so configuration, tool wiring, and sandbox routing behave consistently.
+See [`docs/AGENT.md`](docs/AGENT.md) for a deep dive into the orchestration flow.
 
 ---
 
-## 🤖 Agent Runtime
+## Context Design
 
-1. Configuration is loaded (`internal/config`) and the DI container wires LLM providers, tool registries, MCP servers, storage, and observability.
-2. The agent application layer (`internal/agent/app`) coordinates task execution using domain policies (`internal/agent/domain`).
-3. Each iteration streams observations through typed events consumed by renderers (`internal/output`) or SSE encoders (`internal/server`).
-4. Tool calls resolve through the registry (`internal/toolregistry`) and respect sandbox mode abstractions in `internal/tools`.
-5. Sessions, memory compression, and retrieval live in `internal/session`, `internal/context`, and `internal/rag` for long-running tasks.
-6. Costs, metrics, traces, and structured logs are emitted through `internal/observability` and `internal/storage`.
+Spinner treats context like a woven fabric:
 
----
+1. **Strands** (raw snippets) flow into `internal/context` where they are tagged with provenance (file path, tool, timestamp).
+2. **Braids** (layered prompts) merge system instructions, conversation history, retrieved memory, and active tool constraints.
+3. **Loom policies** in `internal/agent/domain` decide when to expand, compress, or fork memory using `internal/session`, `internal/context`, and `internal/rag`.
+4. **Observation wefts** are streamed through `internal/output` so every surface (CLI, server, web) watches the same evolving plan.
+5. **Memory compression** passes through the context builder to keep the woven net light enough for fast LLM calls while retaining anchors.
 
-## 🔌 Integrations & Tooling
-
-- **LLM providers** – multi-model support with retry/cost middleware in `internal/llm`.
-- **Sandbox runtime** – optional remote execution provided by `third_party/sandbox-sdk-go`, orchestrated via `internal/di` and tool adapters.
-- **MCP** – JSON-RPC 2.0 clients, process supervisor, and server registry in `internal/mcp`.
-- **Approval workflows** – user confirmation prompts and guardrails in `internal/approval`.
-- **Context & parsing** – layered prompt/context builders and structured tool call parsing in `internal/context` and `internal/parser`.
-- **Evaluations** – SWE-Bench runner, reporting, and helper scripts in `evaluation/`.
+The result: fragments become a searchable lattice you can reuse later.
 
 ---
 
-## 📁 Repository Layout
+## Delivery Surfaces
+
+* **Interactive CLI/TUI (`cmd/alex`).** Bubble Tea interface with streaming reasoning, transcript export, and preset selection.
+* **HTTP + SSE server (`cmd/alex-server`).** Exposes `/tasks`, `/sessions`, `/health`, and streaming updates for automation and the dashboard.
+* **Web dashboard (`web/`).** Next.js 14 app with Tailwind CSS, real-time task feed, and cost/session inspection.
+
+All binaries wire through `internal/di`, so configuration, tool wiring, and sandbox routing stay identical.
+
+---
+
+## Tooling & Integrations
+
+* **LLM providers.** Multi-model clients with retry/cost middleware in `internal/llm`.
+* **Sandbox runtime.** Optional remote execution via `third_party/sandbox-sdk-go`, orchestrated through `internal/di` and tool adapters.
+* **Model Context Protocol.** JSON-RPC 2.0 clients, supervisors, and server registry in `internal/mcp` so Spinner can negotiate external tools.
+* **Approval workflows.** Guardrails in `internal/approval` let humans veto risky tool usage.
+* **Context & parsing.** Layered prompt builders plus structured tool call parsers in `internal/context` and `internal/parser`.
+* **Evaluations.** `evaluation/` hosts SWE-Bench runners, reporting helpers, and reproducible scripts.
+
+---
+
+## Repository Map
 
 | Path | Purpose |
-|------|---------|
+| --- | --- |
 | `cmd/` | Go entrypoints (`alex`, `alex-server`). |
-| `internal/` | Backend implementation (agent core, DI, tools, LLM, storage, observability, context orchestration, etc.). |
-| `web/` | Next.js dashboard with SSE client, task submission UI, and Playwright/Vitest tests. |
-| `evaluation/` | SWE-Bench automation, batch execution helpers, and reporting utilities. |
-| `docs/` | Architecture notes, reference material, operational guides, and research. |
+| `internal/` | Agent core, DI, tools, context orchestration, storage, and observability. |
+| `web/` | Next.js dashboard with SSE client, session list, and controls. |
+| `evaluation/` | SWE-Bench automation and reporting utilities. |
+| `docs/` | Architecture notes, references, operations guides, and research. |
 | `tests/` | End-to-end and integration suites executed in CI. |
 | `scripts/` | Developer automation and CI helpers. |
-| `third_party/` | Vendored or customised dependencies (e.g. sandbox SDK). |
-
-A curated documentation map lives in [`docs/README.md`](docs/README.md).
+| `third_party/` | Vendored or customized dependencies (e.g., sandbox SDK). |
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- Go **1.24+** (toolchain pinned in `go.mod`).
-- Node.js **20+** for the web dashboard.
-- Docker (optional) for sandbox services and containerised deployment.
+* Go **1.24+** (pinned in `go.mod`).
+* Node.js **20+** for the dashboard.
+* Docker for optional sandbox services and deployments.
 
 ### CLI Quickstart
 
 ```bash
 make build        # build ./alex
-./alex            # launch the interactive TUI
+./alex            # launch the Spinner TUI
 ./alex --no-tui   # run in legacy line-mode
 ```
 
-#### Session cleanup
-
-Use the CLI to prune historical session files and free disk space:
+Session cleanup helpers:
 
 ```bash
-./alex sessions cleanup --older-than 30d --keep-latest 25   # delete everything older than 30 days, keep 25 newest
-./alex sessions cleanup --older-than 14d --dry-run          # preview the impact without deleting
+./alex sessions cleanup --older-than 30d --keep-latest 25
+./alex sessions cleanup --older-than 14d --dry-run
 ```
 
 ### Server & Dashboard
 
 ```bash
-./alex-server           # start HTTP + SSE server on default port 8000
+./alex-server           # start HTTP + SSE server on port 8000
 (cd web && npm install)  # install frontend dependencies
-(cd web && npm run dev)  # launch Next.js dashboard with live SSE
+(cd web && npm run dev)  # launch Next.js dashboard
 ```
 
-To enable the sandbox runtime, export `SANDBOX_BASE_URL` or set it in `~/.alex-config.json`. The DI container will wire the shared `SandboxManager` for every surface.
-
-When running `docker compose up`, the `alex-server` service bind-mounts your host `~/.alex-config.json` into `/root/.alex-config.json` inside the container so the server automatically picks up the same credentials and model configuration as your local CLI.
-
-### Managed runtime configuration (internal)
-
-- `alex-server` exposes an authenticated `/dev/config` page that lets operators review the live snapshot, tweak overrides, and monitor readiness tasks with SSE updates.
-- Overrides are persisted to `~/.alex/runtime-overrides.json` by default so both the CLI and web/server binaries read the same snapshot when they share a home directory. Override the path with `CONFIG_ADMIN_STORE_PATH` (or the legacy `ALEX_CONFIG_STORE_PATH`) so multiple environments can keep separate state.
-- The CLI never calls the HTTP handler—it continues to read `~/.alex-config.json` plus the same override file locally. Running `alex config` now prints the derived readiness checklist so headless environments get the same signal as the web UI.
-- Use `alex config set <field> <value>` (or `field=value`) to write overrides without opening the internal UI, `alex config clear <field>` to remove a value, and `alex config path` to show the shared file path when debugging CLI vs. web mismatches.
+Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox routing. `docker compose up` bind-mounts your host configuration into the container so Spinner reads the same credentials everywhere.
 
 ### Unified Deployment Script
 
-`deploy.sh` now covers the entire lifecycle—from local development to the docker/nginx production stack—while hydrating secrets from `~/.alex-config.json` (override with `ALEX_CONFIG_PATH`). It automatically:
-
-1. Resolves `OPENAI_API_KEY`, `AUTH_JWT_SECRET`, `AUTH_DATABASE_URL`, and `NEXT_PUBLIC_API_URL` (defaulting to `auto` for nginx’s same-origin proxy) before any docker/pro command runs.
-2. Pulls optional knobs like `OPENAI_BASE_URL`, `ALEX_MODEL`, and `ALEX_SANDBOX_BASE_URL` from the same config file, falling back to the in-cluster sandbox when unset.
-3. Runs the auth migrations in `migrations/auth/001_init.sql` via `psql` (skip with `SKIP_AUTH_MIGRATIONS=true`).
-4. Exposes `config` and `test` helpers so you can review the resolved environment or gate rollouts on `docker compose config` + `make test`.
-
-#### Production / nginx flow
+`deploy.sh` drives local development and the nginx-backed production stack while hydrating secrets from `~/.alex-config.json` (override with `ALEX_CONFIG_PATH`). Key helpers:
 
 ```bash
-./deploy.sh pro up        # validate + run docker compose up -d nginx
-./deploy.sh pro config    # print the resolved environment summary
-./deploy.sh pro test      # docker compose config + make test
-./deploy.sh pro status    # docker compose ps
-./deploy.sh pro logs web  # follow a specific service
-./deploy.sh pro down      # tear everything down
+./deploy.sh pro up
+./deploy.sh pro logs web
+./deploy.sh pro down
+./deploy.sh start
+./deploy.sh test
 ```
 
-Set `COMPOSE_FILE=/path/to/compose.yml` to target a different stack definition. All commands accept the same environment variables that the old helper supported.
-
-#### Local workflow
-
-```bash
-./deploy.sh start       # build + run backend/frontend locally
-./deploy.sh test        # run Go + web unit/e2e suites
-./deploy.sh docker up   # boot the nginx + compose stack with same-origin API defaults
-```
-
-The local workflow still keeps `NEXT_PUBLIC_API_URL=http://localhost:8080` for the dev server, while the docker/pro modes coerce `NEXT_PUBLIC_API_URL=auto` so nginx can proxy all exits.
+Set `COMPOSE_FILE=/path/to/compose.yml` to target a different stack definition.
 
 ### Development Workflow
 
 ```bash
-make dev     # format, vet, build, and run tests
+make dev     # format, vet, build, and test Go modules
 make test    # execute Go unit and integration tests
-make fmt     # gofmt + goimports across the repo
+make fmt     # gofmt + goimports
 ```
 
-Frontend commands live under `web/` (see `web/README.md` for details). Evaluation jobs are orchestrated with scripts under `evaluation/`.
+Frontend commands live in `web/README.md`; evaluation jobs use scripts in `evaluation/`.
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-- [`docs/README.md`](docs/README.md) – documentation index and navigation.
-- [`docs/AGENT.md`](docs/AGENT.md) – agent runtime, reasoning loop, and event flow.
-- [`docs/architecture/`](docs/architecture/) – design deep dives and diagrams.
-- [`docs/reference/`](docs/reference/) – API references, presets, formatting, observability, and MCP guides.
-- [`docs/guides/`](docs/guides/) – task-focused walkthroughs (SSE, acceptance tests, etc.).
-- [`docs/operations/`](docs/operations/) – deployment, release, and monitoring guides.
+* [`docs/README.md`](docs/README.md) – full documentation index.
+* [`docs/AGENT.md`](docs/AGENT.md) – reasoning loop, orchestration flow, and event model.
+* [`docs/architecture/`](docs/architecture/) – design deep dives and diagrams.
+* [`docs/reference/`](docs/reference/) – API references, presets, formatting, observability, and MCP guides.
+* [`docs/guides/`](docs/guides/) – task-focused walkthroughs.
+* [`docs/operations/`](docs/operations/) – deployment, release, and monitoring guides.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork and clone the repository.
 2. Run `make dev` to ensure everything builds and tests pass.
-3. Follow the coding standards in `docs/reference/FORMATTING_GUIDE.md`.
-4. Open a pull request with clear commits and include relevant docs or tests.
+3. Follow the formatting standards in `docs/reference/FORMATTING_GUIDE.md`.
+4. Open a pull request with clear commits and relevant docs or tests.
 
 ---
 
-## 📄 License
+## License
 
-ALEX is released under the [MIT License](LICENSE).
+Spinner (ALEX) is released under the [MIT License](LICENSE).

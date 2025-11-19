@@ -79,7 +79,7 @@ var defaultAllowedOrigins = []string{
 
 func main() {
 	logger := utils.NewComponentLogger("Main")
-	logger.Info("Starting ALEX SSE Server...")
+	logger.Info("Starting Spinner SSE Server...")
 
 	obs, err := observability.New(os.Getenv("ALEX_OBSERVABILITY_CONFIG"))
 	if err != nil {
