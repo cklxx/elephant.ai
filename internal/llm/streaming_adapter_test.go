@@ -49,10 +49,6 @@ func TestEnsureStreamingClientWrapsNonStreaming(t *testing.T) {
 	}
 }
 
-type alreadyStreamingClient struct {
-	ports.StreamingLLMClient
-}
-
 func TestEnsureStreamingClientPreservesStreamingImplementation(t *testing.T) {
 	mock := NewMockClient()
 	streaming := ensureStreamingClient(mock)

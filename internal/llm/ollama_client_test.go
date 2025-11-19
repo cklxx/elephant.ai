@@ -101,10 +101,19 @@ func TestOllamaClientStreamComplete(t *testing.T) {
 
 		writer := bufio.NewWriter(w)
 		for _, chunk := range chunks {
-			data, _ := json.Marshal(chunk)
-			writer.Write(data)
-			writer.WriteByte('\n')
-			writer.Flush()
+			data, err := json.Marshal(chunk)
+			if err != nil {
+				t.Fatalf("marshal chunk: %v", err)
+			}
+			if _, err := writer.Write(data); err != nil {
+				t.Fatalf("write chunk: %v", err)
+			}
+			if err := writer.WriteByte('\n'); err != nil {
+				t.Fatalf("write newline: %v", err)
+			}
+			if err := writer.Flush(); err != nil {
+				t.Fatalf("flush writer: %v", err)
+			}
 			flusher.Flush()
 		}
 	}))
