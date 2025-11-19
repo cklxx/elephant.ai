@@ -375,6 +375,14 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 			Source:  agentports.MessageSourceSystemPrompt,
 		},
 		{
+			Role:    "assistant",
+			Content: "RAG context",
+			Metadata: map[string]any{
+				"rag_preload": true,
+			},
+			Source: agentports.MessageSourceToolResult,
+		},
+		{
 			Role:       "tool",
 			Content:    "Tool output",
 			ToolCallID: "call-1",
@@ -435,7 +443,7 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		t.Fatalf("messages field missing or wrong type: %T", data["messages"])
 	}
 	if len(rawMessages) != 2 {
-		t.Fatalf("expected 2 messages, got %d", len(rawMessages))
+		t.Fatalf("expected 2 messages after filtering, got %d", len(rawMessages))
 	}
 
 	first, ok := rawMessages[0].(map[string]interface{})
@@ -452,6 +460,18 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 	}
 	if _, ok := second["tool_results"].([]interface{}); !ok {
 		t.Fatalf("expected tool_results array on second message, got %T", second["tool_results"])
+	}
+
+	for _, raw := range rawMessages {
+		entry, _ := raw.(map[string]any)
+		if entry == nil {
+			continue
+		}
+		if meta, hasMeta := entry["metadata"].(map[string]any); hasMeta {
+			if flagged, ok := meta["rag_preload"].(bool); ok && flagged {
+				t.Fatalf("expected rag_preload messages to be filtered from snapshot")
+			}
+		}
 	}
 
 	excludedRaw, ok := data["excluded_messages"].([]interface{})

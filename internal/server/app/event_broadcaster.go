@@ -18,6 +18,9 @@ type EventBroadcaster struct {
 	mu      sync.RWMutex
 	logger  *utils.Logger
 
+	highVolumeMu       sync.Mutex
+	highVolumeCounters map[string]int
+
 	// Task progress tracking
 	taskStore     serverports.TaskStore
 	sessionToTask map[string]string // sessionID -> taskID mapping
@@ -38,6 +41,11 @@ type EventBroadcaster struct {
 	attachmentArchiver AttachmentArchiver
 }
 
+const (
+	assistantMessageEventType = "assistant_message"
+	assistantMessageLogBatch  = 10
+)
+
 // broadcasterMetrics tracks broadcaster performance metrics
 type broadcasterMetrics struct {
 	mu sync.RWMutex
@@ -51,11 +59,12 @@ type broadcasterMetrics struct {
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster() *EventBroadcaster {
 	return &EventBroadcaster{
-		clients:       make(map[string][]chan agentports.AgentEvent),
-		sessionToTask: make(map[string]string),
-		eventHistory:  make(map[string][]agentports.AgentEvent),
-		maxHistory:    1000, // Keep up to 1000 events per session
-		logger:        utils.NewComponentLogger("EventBroadcaster"),
+		clients:            make(map[string][]chan agentports.AgentEvent),
+		sessionToTask:      make(map[string]string),
+		eventHistory:       make(map[string][]agentports.AgentEvent),
+		highVolumeCounters: make(map[string]int),
+		maxHistory:         1000, // Keep up to 1000 events per session
+		logger:             utils.NewComponentLogger("EventBroadcaster"),
 	}
 }
 
@@ -71,7 +80,12 @@ func (b *EventBroadcaster) SetAttachmentArchiver(archiver AttachmentArchiver) {
 
 // OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
 func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
-	b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
+	suppressLogs := b.shouldSuppressHighVolumeLogs(event)
+	if suppressLogs {
+		b.trackHighVolumeEvent(event)
+	} else {
+		b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
+	}
 
 	// Store event in history for session replay
 	sessionID := event.GetSessionID()
@@ -89,13 +103,17 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, len(b.clients))
+	if !suppressLogs {
+		b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, len(b.clients))
+	}
 
 	if sessionID == "" {
 		// Broadcast to all sessions if no session ID
 		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", len(b.clients))
 		for sid, clients := range b.clients {
-			b.logger.Debug("[OnEvent] Broadcasting to session '%s' with %d clients", sid, len(clients))
+			if !suppressLogs {
+				b.logger.Debug("[OnEvent] Broadcasting to session '%s' with %d clients", sid, len(clients))
+			}
 			b.broadcastToClients(sid, clients, event)
 		}
 		return
@@ -103,7 +121,9 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 
 	// Broadcast to specific session's clients
 	if clients, ok := b.clients[sessionID]; ok {
-		b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
+		if !suppressLogs {
+			b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
+		}
 		b.broadcastToClients(sessionID, clients, event)
 	} else {
 		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
@@ -141,7 +161,9 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 
 	ctx := id.WithSessionID(context.Background(), sessionID)
 	ctx = id.WithTaskID(ctx, taskID)
-	b.logger.Debug("[updateTaskProgress] Tracking event type=%s for session=%s task=%s", event.EventType(), sessionID, taskID)
+	if !b.shouldSuppressHighVolumeLogs(event) {
+		b.logger.Debug("[updateTaskProgress] Tracking event type=%s for session=%s task=%s", event.EventType(), sessionID, taskID)
+	}
 
 	// Update progress based on event type
 	switch e := event.(type) {
@@ -179,13 +201,18 @@ func (b *EventBroadcaster) archiveAttachments(event agentports.AgentEvent) {
 
 // broadcastToClients sends event to all clients in the list
 func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan agentports.AgentEvent, event agentports.AgentEvent) {
-	b.logger.Debug("[broadcastToClients] Sending event type=%s to %d clients for session=%s", event.EventType(), len(clients), sessionID)
+	suppressLogs := b.shouldSuppressHighVolumeLogs(event)
+	if !suppressLogs {
+		b.logger.Debug("[broadcastToClients] Sending event type=%s to %d clients for session=%s", event.EventType(), len(clients), sessionID)
+	}
 
 	for i, ch := range clients {
 		select {
 		case ch <- event:
 			// Event sent successfully
-			b.logger.Debug("[broadcastToClients] Event sent successfully to client %d/%d for session=%s", i+1, len(clients), sessionID)
+			if !suppressLogs {
+				b.logger.Debug("[broadcastToClients] Event sent successfully to client %d/%d for session=%s", i+1, len(clients), sessionID)
+			}
 			b.metrics.incrementEventsSent()
 		default:
 			// Client buffer full, skip this event to avoid blocking
@@ -222,6 +249,7 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports
 			// Clean up empty session entries
 			if len(b.clients[sessionID]) == 0 {
 				delete(b.clients, sessionID)
+				b.clearHighVolumeCounter(sessionID)
 			}
 			break
 		}
@@ -276,7 +304,9 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.
 	}
 
 	b.eventHistory[sessionID] = history
-	b.logger.Debug("Stored event in history: sessionID=%s, type=%s, total=%d", sessionID, event.EventType(), len(history))
+	if !b.shouldSuppressHighVolumeLogs(event) {
+		b.logger.Debug("Stored event in history: sessionID=%s, type=%s, total=%d", sessionID, event.EventType(), len(history))
+	}
 }
 
 func (b *EventBroadcaster) storeGlobalEvent(event agentports.AgentEvent) {
@@ -324,6 +354,7 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 	defer b.historyMu.Unlock()
 
 	delete(b.eventHistory, sessionID)
+	b.clearHighVolumeCounter(sessionID)
 	b.logger.Info("Cleared event history for session: %s", sessionID)
 }
 
@@ -347,6 +378,36 @@ func cloneAttachmentPayload(values map[string]agentports.Attachment) map[string]
 		cloned[key] = att
 	}
 	return cloned
+}
+
+func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEvent) bool {
+	return event != nil && event.EventType() == assistantMessageEventType
+}
+
+func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
+	if event == nil {
+		return
+	}
+	sessionID := event.GetSessionID()
+	if sessionID == "" {
+		return
+	}
+	b.highVolumeMu.Lock()
+	defer b.highVolumeMu.Unlock()
+	count := b.highVolumeCounters[sessionID] + 1
+	b.highVolumeCounters[sessionID] = count
+	if count == 1 || count%assistantMessageLogBatch == 0 {
+		b.logger.Debug("[OnEvent][aggregated] Received %d %s events for session=%s (batch=%d)", count, event.EventType(), sessionID, assistantMessageLogBatch)
+	}
+}
+
+func (b *EventBroadcaster) clearHighVolumeCounter(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	b.highVolumeMu.Lock()
+	defer b.highVolumeMu.Unlock()
+	delete(b.highVolumeCounters, sessionID)
 }
 
 // Metrics helper methods

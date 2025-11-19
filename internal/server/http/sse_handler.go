@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -554,8 +555,12 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 		return nil
 	}
 
-	serialized := make([]map[string]any, len(messages))
-	for i, msg := range messages {
+	serialized := make([]map[string]any, 0, len(messages))
+	for _, msg := range messages {
+		if isRAGPreloadMessage(msg) {
+			continue
+		}
+
 		entry := map[string]any{
 			"role":    msg.Role,
 			"content": msg.Content,
@@ -580,8 +585,55 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 			entry["source"] = msg.Source
 		}
 
-		serialized[i] = entry
+		serialized = append(serialized, entry)
+	}
+
+	if len(serialized) == 0 {
+		return nil
 	}
 
 	return serialized
+}
+
+func isRAGPreloadMessage(msg ports.Message) bool {
+	if len(msg.Metadata) == 0 {
+		return false
+	}
+	value, ok := msg.Metadata["rag_preload"]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	case float64:
+		return v != 0
+	case float32:
+		return v != 0
+	case int:
+		return v != 0
+	case int8:
+		return v != 0
+	case int16:
+		return v != 0
+	case int32:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint8:
+		return v != 0
+	case uint16:
+		return v != 0
+	case uint32:
+		return v != 0
+	case uint64:
+		return v != 0
+	default:
+		return false
+	}
 }

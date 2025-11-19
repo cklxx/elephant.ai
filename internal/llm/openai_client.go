@@ -186,12 +186,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Response body (pretty print)
-	var prettyResp bytes.Buffer
+	var (
+		prettyResp   bytes.Buffer
+		loggableResp = respBody
+	)
 	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
 		c.logger.Debug("%sResponse Body:\n%s", prefix, prettyResp.String())
+		loggableResp = prettyResp.Bytes()
 	} else {
 		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	}
+	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), loggableResp...))
 
 	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
