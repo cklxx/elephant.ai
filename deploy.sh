@@ -73,6 +73,17 @@ log_warn() {
     echo -e "${C_YELLOW}⚠${C_RESET} $*"
 }
 
+banner() {
+    local line
+    line="$(printf '%*s' 80 '' | tr ' ' '─')"
+    echo -e "${C_CYAN}${line}${C_RESET}"
+}
+
+die() {
+    log_error "$*"
+    exit 1
+}
+
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
