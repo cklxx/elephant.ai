@@ -831,7 +831,9 @@ run_go_tests() {
 run_web_unit_tests() {
     log_info "Running web unit tests..."
 
-    if ! NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" npm --prefix web test -- --run 2>&1 | tee "$LOG_DIR/web-test.log"; then
+    local api_url="${NEXT_PUBLIC_API_URL:-http://localhost:${SERVER_PORT}}"
+
+    if ! NEXT_PUBLIC_API_URL="$api_url" npm --prefix web test -- --run 2>&1 | tee "$LOG_DIR/web-test.log"; then
         log_error "Web unit tests failed, check logs/web-test.log"
         tail -20 "$LOG_DIR/web-test.log"
         return 1
@@ -863,7 +865,9 @@ run_web_e2e_tests() {
 
     ensure_playwright_browsers || return 1
 
-    if ! NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" npm --prefix web run e2e 2>&1 | tee "$LOG_DIR/web-e2e.log"; then
+    local api_url="${NEXT_PUBLIC_API_URL:-http://localhost:${SERVER_PORT}}"
+
+    if ! NEXT_PUBLIC_API_URL="$api_url" npm --prefix web run e2e 2>&1 | tee "$LOG_DIR/web-e2e.log"; then
         log_error "Web end-to-end tests failed, check logs/web-e2e.log"
         tail -20 "$LOG_DIR/web-e2e.log"
         return 1
@@ -917,9 +921,12 @@ start_frontend() {
     # Clear Next.js cache to avoid webpack issues
     rm -rf web/.next
 
+    # Determine API origin even if NEXT_PUBLIC_API_URL hasn't been hydrated yet
+    local api_url="${NEXT_PUBLIC_API_URL:-http://localhost:${SERVER_PORT}}"
+
     # Start frontend in background
     cd web
-    NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" PORT=$WEB_PORT npm run dev > "$WEB_LOG" 2>&1 &
+    NEXT_PUBLIC_API_URL="$api_url" PORT=$WEB_PORT npm run dev > "$WEB_LOG" 2>&1 &
     local pid=$!
     cd ..
     echo "$pid" > "$WEB_PID_FILE"
