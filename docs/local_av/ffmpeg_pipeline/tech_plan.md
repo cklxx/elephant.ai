@@ -22,9 +22,10 @@
    - 同编码：使用 concat demuxer；
    - 异编码：使用 `filter_complex` + `concat=n`.  
 4. **滤镜管线**：
-   - 转场：`xfade`, `fade`。  
-   - 调色：LUT、`eq`。  
-   - 水印：`overlay`。  
+> Status: ⚠️ Demo/CLI 已提供 `WATERMARK_*`/`--watermark-*`、`WATERMARK_IMAGE_*`/`--watermark-image*` 以及最新的 `SUBTITLE_*`/`--subtitle-*` 来控制文字 + PNG + 基础字幕 overlay，但字幕样式库、字体缺失回退与多字幕层仍在 `unresolved_work.md#6-水印与字幕灵活性状态进行中`。
+   - 转场：`xfade`, `fade`。
+   - 调色：LUT、`eq`。
+   - 水印：`overlay`。
 5. **输出封装**：
    - H.264/H.265 + AAC；
    - 根据模板控制码率、关键帧间隔、B 帧数量。  
@@ -48,12 +49,13 @@ ffmpeg -y -safe 0 -f concat -i segments.txt -vf "scale=1920:1080,format=yuv420p"
 ```
 
 ## 5. GPU 支持
+> Status: ⚠️ Demo/CLI 已支持 `ENABLE_GPU=1` 并可在检测到 `nvidia-smi` 时切换 `h264_nvenc`，但 orchestrator 层 `use_gpu` 参数、VAAPI 管线与性能指标仍未落地。
 - 检测 `nvidia-smi` / `vainfo`，在模板中启用 `use_gpu: true`。  
 - 映射表：
   - `h264_nvenc`: 直播/快速导出；
   - `hevc_nvenc`: 4K/HDR；
   - `h264_qsv`: Intel QuickSync。  
-- 自动回退：若 GPU 不可用，记录警告并使用 CPU 模式。
+- 自动回退：若 GPU 不可用，记录警告并使用 CPU 模式（demo 已实现日志/`GPU_STATUS_FILE`，orchestrator 仍缺）。
 
 ## 6. 异常处理
 - 检测 FFmpeg 返回码，若为 1~255 记录 stderr。  
@@ -63,6 +65,7 @@ ffmpeg -y -safe 0 -f concat -i segments.txt -vf "scale=1920:1080,format=yuv420p"
 - 重试策略：区分可重试/不可重试错误，最多重试 2 次。
 
 ## 7. 指标
+> Status: ⛔ 未实现（`internal/orchestrator` 尚未暴露下列指标，Prometheus 也无对应字段；`RUN_STATUS_FILE` + `METRICS_LOG_PATH` 仅提供 demo 级别的摘要/伪指标文本，无法替代监控，详见 `pseudo_metrics.md`）。
 - `ffmpeg_job_duration_seconds{job_type="concat"}`。  
 - `ffmpeg_gpu_sessions_total`。  
 - `ffmpeg_retry_total`。
@@ -78,4 +81,4 @@ ffmpeg -y -safe 0 -f concat -i segments.txt -vf "scale=1920:1080,format=yuv420p"
 - [x] 本地 FFmpeg Executor、concat/mux 调用封装。
 - [x] 编排阶段完成基础拼接路径。
 - [x] 模板化导出（Preset Library）与 ffprobe 预检查。
-- [ ] GPU 自动探测与高级滤镜。
+- [ ] GPU 自动探测与高级滤镜（demo 版 GPU 探测已完成，仍需 orchestrator/VAAPI/指标联动）。

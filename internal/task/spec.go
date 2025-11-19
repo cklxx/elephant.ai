@@ -148,8 +148,10 @@ func (j *JobSpec) Validate() error {
 		return fmt.Errorf("audio: %w", err)
 	}
 	aliases := map[string]struct{}{}
-	for i, req := range j.TTS {
-		if strings.TrimSpace(req.Alias) == "" {
+	for i := range j.TTS {
+		req := &j.TTS[i]
+		req.Alias = strings.TrimSpace(req.Alias)
+		if req.Alias == "" {
 			return fmt.Errorf("tts[%d]: alias is required", i)
 		}
 		if _, exists := aliases[req.Alias]; exists {
@@ -159,16 +161,18 @@ func (j *JobSpec) Validate() error {
 		if strings.TrimSpace(req.Text) == "" {
 			return fmt.Errorf("tts[%d]: text is required", i)
 		}
-		if strings.TrimSpace(req.Voice) == "" {
+		req.Voice = strings.TrimSpace(req.Voice)
+		if req.Voice == "" {
 			return fmt.Errorf("tts[%d]: voice is required", i)
 		}
+		req.Format = strings.TrimSpace(req.Format)
 		if req.Format == "" {
 			req.Format = "mp3"
 		}
 	}
 	for i, track := range j.Audio.Tracks {
 		if strings.HasPrefix(track.Source, "tts:") {
-			alias := strings.TrimPrefix(track.Source, "tts:")
+			alias := strings.TrimSpace(strings.TrimPrefix(track.Source, "tts:"))
 			if _, ok := aliases[alias]; !ok {
 				return fmt.Errorf("audio.tracks[%d]: unknown TTS alias %q", i, alias)
 			}
