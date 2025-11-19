@@ -72,3 +72,27 @@ func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 		t.Fatalf("expected 1 response log entry for req-dup: %s", content)
 	}
 }
+
+func TestLogStreamingSummary_WritesOncePerRequest(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv(requestLogEnvVar, logDir)
+	resetStreamingLogDeduperForTest()
+
+	summary := []byte("LLM Streaming Summary\nStop Reason: done")
+	LogStreamingSummary("req-sum", summary)
+	LogStreamingSummary("req-sum", summary)
+
+	logPath := filepath.Join(logDir, requestLogFileName)
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read log file: %v", err)
+	}
+
+	content := string(data)
+	if strings.Count(content, "[summary]") != 1 {
+		t.Fatalf("expected a single summary entry, got: %s", content)
+	}
+	if !strings.Contains(content, "LLM Streaming Summary") {
+		t.Fatalf("expected summary payload to be logged: %s", content)
+	}
+}

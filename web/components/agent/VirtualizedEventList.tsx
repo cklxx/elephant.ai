@@ -394,9 +394,6 @@ function EventCard({
           <span className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
             {t('events.iteration.tokens', { count: event.tokens_used })}
           </span>
-          <span className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
-            {t('events.iteration.tools', { count: event.tools_run })}
-          </span>
         </div>
       );
 

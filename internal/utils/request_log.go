@@ -39,6 +39,13 @@ func LogStreamingResponsePayload(requestID string, payload []byte) {
 	logStreamingPayload(requestID, payload, "response")
 }
 
+// LogStreamingSummary persists the textual or serialized summary for a streaming request.
+// The summary is logged separately so operators can quickly review the LLM Streaming Summary
+// that is also emitted to the structured logger.
+func LogStreamingSummary(requestID string, payload []byte) {
+	logStreamingPayload(requestID, payload, "summary")
+}
+
 func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	if len(payload) == 0 {
 		return
