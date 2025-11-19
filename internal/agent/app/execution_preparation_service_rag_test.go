@@ -49,8 +49,6 @@ func (f *fakeLLMFactory) GetIsolatedClient(provider, model string, config ports.
 
 func (f *fakeLLMFactory) DisableRetry() {}
 
-const fakeHistorySummaryResponse = "History Summary: Marketing experiments and automation context recalled."
-
 type fakeLLMClient struct{}
 
 func (fakeLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
