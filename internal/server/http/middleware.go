@@ -40,11 +40,6 @@ type responseRecorderHijacker struct {
 	http.Hijacker
 }
 
-type responseRecorderCloseNotifier struct {
-	http.ResponseWriter
-	http.CloseNotifier
-}
-
 type responseRecorderPusher struct {
 	http.ResponseWriter
 	http.Pusher
@@ -75,9 +70,6 @@ func wrapResponseWriter(w http.ResponseWriter) (*responseRecorder, http.Response
 	}
 	if hijacker, ok := w.(http.Hijacker); ok {
 		wrapped = &responseRecorderHijacker{ResponseWriter: wrapped, Hijacker: hijacker}
-	}
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		wrapped = &responseRecorderCloseNotifier{ResponseWriter: wrapped, CloseNotifier: notifier}
 	}
 	if pusher, ok := w.(http.Pusher); ok {
 		wrapped = &responseRecorderPusher{ResponseWriter: wrapped, Pusher: pusher}
