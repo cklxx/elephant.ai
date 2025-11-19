@@ -173,6 +173,17 @@ func truncateRunes(input string, limit int) string {
 	return string(runes[:limit]) + "..."
 }
 
+func truncateRunes(input string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(input)
+	if len(runes) <= limit {
+		return input
+	}
+	return string(runes[:limit]) + "..."
+}
+
 func parseTaskAnalysis(content string) *TaskAnalysis {
 	if structured := parseStructuredTaskAnalysis(content); structured != nil {
 		structured.RawAnalysis = content
