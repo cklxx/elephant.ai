@@ -152,14 +152,25 @@ func inferActionFromTask(task string) string {
 	if sentence == "" {
 		return "Processing request"
 	}
-	sentence = truncateRunes(sentence, 60)
 	if strings.HasPrefix(strings.ToLower(sentence), "please") {
 		sentence = strings.TrimSpace(sentence[6:])
 	}
 	if sentence == "" {
 		return "Processing request"
 	}
-	return fmt.Sprintf("Working on %s", strings.ToLower(sentence))
+	sentence = truncateRunes(sentence, 60)
+	return sentence
+}
+
+func truncateRunes(input string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(input)
+	if len(runes) <= limit {
+		return input
+	}
+	return string(runes[:limit]) + "..."
 }
 
 func truncateRunes(input string, limit int) string {

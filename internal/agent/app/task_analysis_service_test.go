@@ -149,7 +149,7 @@ func TestInferActionFromTaskPreservesUnicode(t *testing.T) {
 	}
 
 	expectedSentence := truncateRunes(strings.TrimSpace(task), 60)
-	expected := "Working on " + strings.ToLower(expectedSentence)
+	expected := expectedSentence
 
 	if action != expected {
 		t.Fatalf("expected %q, got %q", expected, action)
