@@ -173,9 +173,7 @@ func (s *sseRecorder) payloads() []string {
 	raw := s.buf.String()
 	parts := strings.Split(strings.TrimSpace(raw), "\n\n")
 	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		out = append(out, part)
-	}
+	out = append(out, parts...)
 	return out
 }
 
