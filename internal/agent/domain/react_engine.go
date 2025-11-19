@@ -177,6 +177,8 @@ func (e *ReactEngine) SolveTask(
 		e.updateAttachmentCatalogMessage(state)
 	}
 
+	preloadedContext := e.extractPreloadedContextMessages(state)
+
 	// Ensure the system prompt (if provided) is always present at the front
 	e.ensureSystemPromptMessage(state)
 
@@ -207,6 +209,9 @@ func (e *ReactEngine) SolveTask(
 	}
 	if len(userMessage.Attachments) > 0 {
 		e.logger.Debug("Registered %d user attachments", len(userMessage.Attachments))
+	}
+	if len(preloadedContext) > 0 {
+		state.Messages = append(state.Messages, preloadedContext...)
 	}
 	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
 
@@ -1229,7 +1234,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 }
 
 func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req legacy.MigrationRequest) map[string]ports.Attachment {
-	if req.Attachments == nil || len(req.Attachments) == 0 || e.attachmentMigrator == nil {
+	if len(req.Attachments) == 0 || e.attachmentMigrator == nil {
 		return req.Attachments
 	}
 	if req.Context == nil {
@@ -1311,6 +1316,73 @@ func (e *ReactEngine) materialRequestContext(state *TaskState, toolCallID string
 		ToolCallID:     toolCallID,
 		ConversationID: state.SessionID,
 		UserID:         state.SessionID,
+	}
+}
+
+func (e *ReactEngine) extractPreloadedContextMessages(state *TaskState) []Message {
+	if state == nil || len(state.Messages) == 0 {
+		return nil
+	}
+
+	idx := len(state.Messages)
+	for idx > 0 {
+		if !isCurrentPreloadedContextMessage(state.Messages[idx-1], state.TaskID) {
+			break
+		}
+		idx--
+	}
+	if idx == len(state.Messages) {
+		return nil
+	}
+
+	preloaded := make([]Message, len(state.Messages)-idx)
+	copy(preloaded, state.Messages[idx:])
+	state.Messages = state.Messages[:idx]
+	return preloaded
+}
+
+func isPreloadedContextMessage(msg Message) bool {
+	if len(msg.Metadata) == 0 {
+		return false
+	}
+	value, ok := msg.Metadata["rag_preload"]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	case float64:
+		return v != 0
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint64:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+func isCurrentPreloadedContextMessage(msg Message, taskID string) bool {
+	if taskID == "" || !isPreloadedContextMessage(msg) {
+		return false
+	}
+	value, ok := msg.Metadata["rag_preload_task_id"]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v) == taskID
+	default:
+		return false
 	}
 }
 
