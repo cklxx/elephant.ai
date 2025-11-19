@@ -1,11 +1,15 @@
 package domain
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"alex/internal/agent/ports"
+	materialapi "alex/internal/materials/api"
+	"alex/internal/materials/legacy"
 )
 
 func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing.T) {
@@ -579,6 +583,72 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 		t.Fatalf("expected a single catalog note, found %d", count)
 	}
 }
+
+func TestNormalizeMessageHistoryAttachmentsMigratesInlinePayloads(t *testing.T) {
+	migrator := &captureMigrator{}
+	engine := NewReactEngine(ReactEngineConfig{AttachmentMigrator: migrator})
+	state := &TaskState{
+		SessionID: "session-1",
+		TaskID:    "task-1",
+		Messages: []Message{
+			{
+				Role:   "user",
+				Source: ports.MessageSourceUserHistory,
+				Attachments: map[string]ports.Attachment{
+					"[seed.png]": {Name: "seed.png", MediaType: "image/png", Data: "YmFzZTY0"},
+				},
+			},
+			{
+				Role:       "tool",
+				ToolCallID: "call-123",
+				Source:     ports.MessageSourceToolResult,
+				Attachments: map[string]ports.Attachment{
+					"[tool.png]": {Name: "tool.png", MediaType: "image/png", Data: "aW1hZ2U="},
+				},
+			},
+		},
+	}
+
+	engine.normalizeMessageHistoryAttachments(context.Background(), state)
+
+	if len(migrator.requests) != 2 {
+		t.Fatalf("expected two migration requests, got %d", len(migrator.requests))
+	}
+	if got := migrator.requests[0].Status; got != materialapi.MaterialStatusInput {
+		t.Fatalf("expected user message to use input status, got %v", got)
+	}
+	if got := migrator.requests[1].Context.ToolCallID; got != "call-123" {
+		t.Fatalf("expected tool message to preserve tool call id, got %q", got)
+	}
+
+	for idx, msg := range state.Messages {
+		for key, att := range msg.Attachments {
+			if att.Data != "" {
+				t.Fatalf("message %d attachment %s still has inline data", idx, key)
+			}
+			if att.URI == "" {
+				t.Fatalf("message %d attachment %s missing CDN URI", idx, key)
+			}
+		}
+	}
+}
+
+type captureMigrator struct {
+	requests []legacy.MigrationRequest
+}
+
+func (m *captureMigrator) Normalize(ctx context.Context, req legacy.MigrationRequest) (map[string]ports.Attachment, error) {
+	m.requests = append(m.requests, req)
+	result := make(map[string]ports.Attachment, len(req.Attachments))
+	for key, att := range req.Attachments {
+		att.URI = fmt.Sprintf("https://cdn/%s", att.Name)
+		att.Data = ""
+		result[key] = att
+	}
+	return result, nil
+}
+
+var _ legacy.Migrator = (*captureMigrator)(nil)
 
 func TestEnsureSystemPromptMessagePrependsWhenMissing(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})

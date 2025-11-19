@@ -12,17 +12,20 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	materialapi "alex/internal/materials/api"
+	"alex/internal/materials/legacy"
 	id "alex/internal/utils/id"
 )
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
 type ReactEngine struct {
-	maxIterations int
-	stopReasons   []string
-	logger        ports.Logger
-	clock         ports.Clock
-	eventListener EventListener // Optional event listener for TUI
-	completion    completionConfig
+	maxIterations      int
+	stopReasons        []string
+	logger             ports.Logger
+	clock              ports.Clock
+	eventListener      EventListener // Optional event listener for TUI
+	completion         completionConfig
+	attachmentMigrator legacy.Migrator
 }
 
 type completionConfig struct {
@@ -48,6 +51,7 @@ type ReactEngineConfig struct {
 	Clock              ports.Clock
 	EventListener      EventListener
 	CompletionDefaults CompletionDefaults
+	AttachmentMigrator legacy.Migrator
 }
 
 // NewReactEngine creates a new ReAct engine with injected infrastructure dependencies.
@@ -75,12 +79,13 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	completion := buildCompletionDefaults(cfg.CompletionDefaults)
 
 	return &ReactEngine{
-		maxIterations: maxIterations,
-		stopReasons:   stopReasons,
-		logger:        logger,
-		clock:         clock,
-		eventListener: cfg.EventListener,
-		completion:    completion,
+		maxIterations:      maxIterations,
+		stopReasons:        stopReasons,
+		logger:             logger,
+		clock:              clock,
+		eventListener:      cfg.EventListener,
+		completion:         completion,
+		attachmentMigrator: cfg.AttachmentMigrator,
 	}
 }
 
@@ -159,11 +164,12 @@ func (e *ReactEngine) SolveTask(
 	startTime := e.clock.Now()
 
 	ensureAttachmentStore(state)
+	e.normalizeMessageHistoryAttachments(ctx, state)
 	// Register attachments from preloaded messages so they are available for
 	// placeholder substitution and multimodal requests.
 	attachmentsChanged := false
-	for _, existing := range state.Messages {
-		if registerMessageAttachments(state, existing) {
+	for idx := range state.Messages {
+		if registerMessageAttachments(state, state.Messages[idx]) {
 			attachmentsChanged = true
 		}
 	}
@@ -186,6 +192,12 @@ func (e *ReactEngine) SolveTask(
 			attachments[key] = att
 		}
 		userMessage.Attachments = attachments
+		userMessage.Attachments = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+			Context:     e.materialRequestContext(state, ""),
+			Attachments: userMessage.Attachments,
+			Status:      materialapi.MaterialStatusInput,
+			Origin:      string(userMessage.Source),
+		})
 		state.PendingUserAttachments = nil
 	}
 
@@ -641,6 +653,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 			}
 
 			if len(result.Attachments) > 0 {
+				result.Attachments = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+					Context:     e.materialRequestContext(state, tc.ID),
+					Attachments: result.Attachments,
+					Status:      materialapi.MaterialStatusIntermediate,
+					Origin:      tc.Name,
+				})
 				attachmentsMu.Lock()
 				ensureAttachmentStore(state)
 				for key, att := range result.Attachments {
@@ -1208,6 +1226,92 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 	state.Messages = append([]Message{systemMessage}, state.Messages...)
 	e.logger.Debug("Inserted system prompt into message history")
+}
+
+func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req legacy.MigrationRequest) map[string]ports.Attachment {
+	if req.Attachments == nil || len(req.Attachments) == 0 || e.attachmentMigrator == nil {
+		return req.Attachments
+	}
+	if req.Context == nil {
+		req.Context = e.materialRequestContext(state, "")
+	}
+	normalized, err := e.attachmentMigrator.Normalize(ctx, req)
+	if err != nil {
+		e.logger.Warn("attachment migration failed: %v", err)
+		return req.Attachments
+	}
+	return normalized
+}
+
+func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, state *TaskState) {
+	if state == nil {
+		return
+	}
+	for idx := range state.Messages {
+		msg := state.Messages[idx]
+		if len(msg.Attachments) == 0 {
+			continue
+		}
+		normalized := e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+			Context:     e.materialRequestContext(state, msg.ToolCallID),
+			Attachments: msg.Attachments,
+			Status:      messageMaterialStatus(msg),
+			Origin:      messageMaterialOrigin(msg),
+		})
+		if normalized != nil {
+			state.Messages[idx].Attachments = normalized
+		}
+	}
+}
+
+func messageMaterialStatus(msg Message) materialapi.MaterialStatus {
+	role := strings.ToLower(strings.TrimSpace(msg.Role))
+	switch role {
+	case "user":
+		return materialapi.MaterialStatusInput
+	case "assistant":
+		return materialapi.MaterialStatusFinal
+	case "tool":
+		return materialapi.MaterialStatusIntermediate
+	}
+	switch msg.Source {
+	case ports.MessageSourceUserInput, ports.MessageSourceUserHistory:
+		return materialapi.MaterialStatusInput
+	case ports.MessageSourceAssistantReply:
+		return materialapi.MaterialStatusFinal
+	case ports.MessageSourceToolResult:
+		return materialapi.MaterialStatusIntermediate
+	default:
+		return materialapi.MaterialStatusIntermediate
+	}
+}
+
+func messageMaterialOrigin(msg Message) string {
+	if msg.Source != "" {
+		return string(msg.Source)
+	}
+	if msg.ToolCallID != "" {
+		return msg.ToolCallID
+	}
+	role := strings.TrimSpace(msg.Role)
+	if role != "" {
+		return role
+	}
+	return "message_history"
+}
+
+func (e *ReactEngine) materialRequestContext(state *TaskState, toolCallID string) *materialapi.RequestContext {
+	if state == nil {
+		return nil
+	}
+	return &materialapi.RequestContext{
+		RequestID:      state.TaskID,
+		TaskID:         state.TaskID,
+		AgentIteration: uint32(state.Iterations),
+		ToolCallID:     toolCallID,
+		ConversationID: state.SessionID,
+		UserID:         state.SessionID,
+	}
 }
 
 func ensureAttachmentStore(state *TaskState) {

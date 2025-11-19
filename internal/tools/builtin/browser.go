@@ -50,6 +50,9 @@ func (t *browserTool) Metadata() ports.ToolMetadata {
 		Version:  "1.0.0",
 		Category: "web",
 		Tags:     []string{"browser", "screenshot", "sandbox"},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Produces: []string{"image/png", "text/html"},
+		},
 	}
 }
 
@@ -71,6 +74,9 @@ Features:
 				},
 			},
 			Required: []string{"url"},
+		},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Produces: []string{"image/png", "text/html"},
 		},
 	}
 }
