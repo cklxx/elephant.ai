@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -47,6 +48,40 @@ func (m *mockLLMClient) Complete(ctx context.Context, req ports.CompletionReques
 
 func (m *mockLLMClient) Model() string {
 	return m.model
+}
+
+// streamingMockLLMClient extends mockLLMClient with streaming support for tests.
+type streamingMockLLMClient struct {
+	*mockLLMClient
+	chunks []string
+}
+
+func newStreamingMockLLMClient(model string, chunks []string) *streamingMockLLMClient {
+	return &streamingMockLLMClient{
+		mockLLMClient: newMockLLMClient(model),
+		chunks:        chunks,
+	}
+}
+
+func (m *streamingMockLLMClient) StreamComplete(
+	ctx context.Context,
+	req ports.CompletionRequest,
+	callbacks ports.CompletionStreamCallbacks,
+) (*ports.CompletionResponse, error) {
+	resp, err := m.mockLLMClient.Complete(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+	resp.Content = strings.Join(m.chunks, "")
+
+	if cb := callbacks.OnContentDelta; cb != nil {
+		for _, chunk := range m.chunks {
+			cb(ports.ContentDelta{Delta: chunk})
+		}
+		cb(ports.ContentDelta{Final: true})
+	}
+
+	return resp, nil
 }
 
 func (m *mockLLMClient) GetCallCount() int {
@@ -196,6 +231,107 @@ func (m *mockLogger) Warn(format string, args ...interface{}) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, fmt.Sprintf(format, args...))
+}
+
+func TestCostTrackingWrapperStreamCompleteDelegatesWhenSupported(t *testing.T) {
+	t.Parallel()
+
+	tracker := newMockCostTracker()
+	logger := newMockLogger()
+	clock := newMockClock(time.Now())
+	decorator := NewCostTrackingDecorator(tracker, logger, clock)
+	baseClient := newStreamingMockLLMClient("gpt-4o", []string{"Hello", " world"})
+
+	wrapped := decorator.Wrap(context.Background(), "session-stream", baseClient)
+	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	if !ok {
+		t.Fatalf("wrapped client does not implement StreamingLLMClient")
+	}
+
+	var deltas []string
+	var finalCount int
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				deltas = append(deltas, delta.Delta)
+			}
+			if delta.Final {
+				finalCount++
+			}
+		},
+	})
+	if err != nil {
+		to := err
+		t.Fatalf("StreamComplete returned error: %v", to)
+	}
+	if resp == nil {
+		t.Fatal("StreamComplete returned nil response")
+	}
+
+	if got := strings.Join(deltas, ""); got != "Hello world" {
+		t.Errorf("unexpected streamed content: %q", got)
+	}
+	if finalCount != 1 {
+		t.Fatalf("expected final event once, got %d", finalCount)
+	}
+
+	records := tracker.GetRecordsBySession("session-stream")
+	if len(records) != 1 {
+		t.Fatalf("expected 1 usage record, got %d", len(records))
+	}
+	if records[0].TotalTokens != resp.Usage.TotalTokens {
+		t.Errorf("recorded tokens mismatch: got %d want %d", records[0].TotalTokens, resp.Usage.TotalTokens)
+	}
+}
+
+func TestCostTrackingWrapperStreamCompleteFallbackWhenUnsupported(t *testing.T) {
+	t.Parallel()
+
+	tracker := newMockCostTracker()
+	logger := newMockLogger()
+	clock := newMockClock(time.Now())
+	decorator := NewCostTrackingDecorator(tracker, logger, clock)
+	baseClient := newMockLLMClient("gpt-4o")
+
+	wrapped := decorator.Wrap(context.Background(), "session-fallback", baseClient)
+	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	if !ok {
+		t.Fatalf("wrapped client does not implement StreamingLLMClient")
+	}
+
+	var deltas []string
+	var finalCount int
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				deltas = append(deltas, delta.Delta)
+			}
+			if delta.Final {
+				finalCount++
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("StreamComplete fallback returned error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("StreamComplete fallback returned nil response")
+	}
+
+	if len(deltas) != 1 || deltas[0] != "mock response" {
+		t.Fatalf("expected single aggregated delta, got %v", deltas)
+	}
+	if finalCount != 1 {
+		t.Fatalf("expected final event, got %d", finalCount)
+	}
+
+	records := tracker.GetRecordsBySession("session-fallback")
+	if len(records) != 1 {
+		t.Fatalf("expected 1 usage record, got %d", len(records))
+	}
+	if records[0].SessionID != "session-fallback" {
+		t.Fatalf("usage record stored under wrong session: %s", records[0].SessionID)
+	}
 }
 
 func (m *mockLogger) Error(format string, args ...interface{}) {

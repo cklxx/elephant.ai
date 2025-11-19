@@ -49,27 +49,6 @@ func (c *mockClient) Model() string {
 	return "mock"
 }
 
-// ollamaClient placeholder
-type ollamaClient struct {
-	model string
-}
-
-func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
-	return &ollamaClient{model: model}, nil
-}
-
-func (c *ollamaClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	return &ports.CompletionResponse{
-		Content:    "Ollama response",
-		StopReason: "stop",
-		Usage:      ports.TokenUsage{TotalTokens: 100},
-	}, nil
-}
-
-func (c *ollamaClient) Model() string {
-	return c.model
-}
-
 func buildMockResponse(req ports.CompletionRequest) (*ports.CompletionResponse, []string) {
 	scenario := selectMockScenario(req)
 	chunks := append([]string(nil), scenario.chunks...)

@@ -91,6 +91,11 @@ type costTrackingWrapper struct {
 	ctx       context.Context
 }
 
+var (
+	_ ports.LLMClient          = (*costTrackingWrapper)(nil)
+	_ ports.StreamingLLMClient = (*costTrackingWrapper)(nil)
+)
+
 func (w *costTrackingWrapper) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	// Call underlying client
 	resp, err := w.client.Complete(ctx, req)
@@ -98,34 +103,68 @@ func (w *costTrackingWrapper) Complete(ctx context.Context, req ports.Completion
 		return resp, err
 	}
 
-	// Track usage
-	if resp != nil {
-		record := ports.UsageRecord{
-			SessionID:    w.sessionID,
-			Model:        w.client.Model(),
-			Provider:     inferProvider(w.client.Model()),
-			InputTokens:  resp.Usage.PromptTokens,
-			OutputTokens: resp.Usage.CompletionTokens,
-			TotalTokens:  resp.Usage.TotalTokens,
-			Timestamp:    w.clock.Now(),
-		}
-
-		record.InputCost, record.OutputCost, record.TotalCost = ports.CalculateCost(
-			resp.Usage.PromptTokens,
-			resp.Usage.CompletionTokens,
-			w.client.Model(),
-		)
-
-		if err := w.tracker.RecordUsage(w.ctx, record); err != nil {
-			w.logger.Warn("Failed to record cost for session %s: %v", w.sessionID, err)
-		}
-	}
-
+	w.recordUsage(resp)
 	return resp, nil
 }
 
 func (w *costTrackingWrapper) Model() string {
 	return w.client.Model()
+}
+
+func (w *costTrackingWrapper) StreamComplete(
+	ctx context.Context,
+	req ports.CompletionRequest,
+	callbacks ports.CompletionStreamCallbacks,
+) (*ports.CompletionResponse, error) {
+	if streamingClient, ok := w.client.(ports.StreamingLLMClient); ok {
+		resp, err := streamingClient.StreamComplete(ctx, req, callbacks)
+		if err != nil {
+			return resp, err
+		}
+		w.recordUsage(resp)
+		return resp, nil
+	}
+
+	resp, err := w.client.Complete(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+
+	if cb := callbacks.OnContentDelta; cb != nil {
+		if resp != nil && resp.Content != "" {
+			cb(ports.ContentDelta{Delta: resp.Content})
+		}
+		cb(ports.ContentDelta{Final: true})
+	}
+
+	w.recordUsage(resp)
+	return resp, nil
+}
+
+func (w *costTrackingWrapper) recordUsage(resp *ports.CompletionResponse) {
+	if w.tracker == nil || resp == nil {
+		return
+	}
+
+	record := ports.UsageRecord{
+		SessionID:    w.sessionID,
+		Model:        w.client.Model(),
+		Provider:     inferProvider(w.client.Model()),
+		InputTokens:  resp.Usage.PromptTokens,
+		OutputTokens: resp.Usage.CompletionTokens,
+		TotalTokens:  resp.Usage.TotalTokens,
+		Timestamp:    w.clock.Now(),
+	}
+
+	record.InputCost, record.OutputCost, record.TotalCost = ports.CalculateCost(
+		resp.Usage.PromptTokens,
+		resp.Usage.CompletionTokens,
+		w.client.Model(),
+	)
+
+	if err := w.tracker.RecordUsage(w.ctx, record); err != nil {
+		w.logger.Warn("Failed to record cost for session %s: %v", w.sessionID, err)
+	}
 }
 
 // inferProvider attempts to infer the provider from the model name
