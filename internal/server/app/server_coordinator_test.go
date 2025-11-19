@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -331,6 +332,38 @@ func TestReplaySessionErrorsWithoutEntries(t *testing.T) {
 	)
 	if err := coordinator.ReplaySession(context.Background(), "missing"); err == nil {
 		t.Fatalf("expected error when no entries exist")
+	}
+}
+
+func TestReplaySessionClearsExistingSnapshots(t *testing.T) {
+	ctx := context.Background()
+	sessionStore := NewMockSessionStore()
+	stateStore := sessionstate.NewInMemoryStore()
+	if err := stateStore.SaveSnapshot(ctx, sessionstate.Snapshot{SessionID: "sess-99", TurnID: 5, Summary: "stale"}); err != nil {
+		t.Fatalf("setup snapshot: %v", err)
+	}
+	reader := &stubJournalReader{entries: map[string][]journal.TurnJournalEntry{
+		"sess-99": {
+			{SessionID: "sess-99", TurnID: 1, LLMTurnSeq: 1, Summary: "one"},
+			{SessionID: "sess-99", TurnID: 2, LLMTurnSeq: 2, Summary: "two"},
+		},
+	}}
+	coordinator := NewServerCoordinator(
+		NewMockAgentCoordinator(sessionStore),
+		NewEventBroadcaster(),
+		sessionStore,
+		NewInMemoryTaskStore(),
+		stateStore,
+		WithJournalReader(reader),
+	)
+	if err := coordinator.ReplaySession(ctx, "sess-99"); err != nil {
+		t.Fatalf("ReplaySession returned error: %v", err)
+	}
+	if _, err := stateStore.GetSnapshot(ctx, "sess-99", 5); !errors.Is(err, sessionstate.ErrSnapshotNotFound) {
+		t.Fatalf("expected stale snapshot removed, got %v", err)
+	}
+	if _, err := stateStore.GetSnapshot(ctx, "sess-99", 2); err != nil {
+		t.Fatalf("expected replayed snapshot to exist: %v", err)
 	}
 }
 

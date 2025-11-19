@@ -358,10 +358,7 @@ func (s *ServerCoordinator) ReplaySession(ctx context.Context, sessionID string)
 	if s.stateStore == nil {
 		return fmt.Errorf("state store not configured")
 	}
-	if err := s.stateStore.Init(ctx, sessionID); err != nil {
-		return fmt.Errorf("init state store: %w", err)
-	}
-	var applied int
+	var snapshots []sessionstate.Snapshot
 	streamErr := s.journalReader.Stream(ctx, sessionID, func(entry journal.TurnJournalEntry) error {
 		snapshot := sessionstate.Snapshot{
 			SessionID:     entry.SessionID,
@@ -384,20 +381,28 @@ func (s *ServerCoordinator) ReplaySession(ctx context.Context, sessionID string)
 		} else {
 			snapshot.CreatedAt = entry.Timestamp
 		}
-		if err := s.stateStore.SaveSnapshot(ctx, snapshot); err != nil {
-			return fmt.Errorf("save snapshot: %w", err)
-		}
-		applied++
+		snapshots = append(snapshots, snapshot)
 		return nil
 	})
 	if streamErr != nil {
 		return fmt.Errorf("replay journal: %w", streamErr)
 	}
-	if applied == 0 {
+	if len(snapshots) == 0 {
 		return fmt.Errorf("no journal entries for session %s", sessionID)
 	}
+	if err := s.stateStore.ClearSession(ctx, sessionID); err != nil {
+		return fmt.Errorf("clear state store: %w", err)
+	}
+	if err := s.stateStore.Init(ctx, sessionID); err != nil {
+		return fmt.Errorf("init state store: %w", err)
+	}
+	for _, snapshot := range snapshots {
+		if err := s.stateStore.SaveSnapshot(ctx, snapshot); err != nil {
+			return fmt.Errorf("save snapshot: %w", err)
+		}
+	}
 	if s.logger != nil {
-		s.logger.Info("[Replay] Rehydrated %d turn(s) for session %s", applied, sessionID)
+		s.logger.Info("[Replay] Rehydrated %d turn(s) for session %s", len(snapshots), sessionID)
 	}
 	return nil
 }

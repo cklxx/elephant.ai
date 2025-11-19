@@ -40,6 +40,17 @@ func (s *FileStore) Init(_ context.Context, sessionID string) error {
 	return os.MkdirAll(s.sessionDir(sessionID), 0o755)
 }
 
+// ClearSession removes any existing snapshots for the session.
+func (s *FileStore) ClearSession(_ context.Context, sessionID string) error {
+	if sessionID == "" {
+		return fmt.Errorf("session id required")
+	}
+	if err := os.RemoveAll(s.sessionDir(sessionID)); err != nil {
+		return fmt.Errorf("remove session snapshots: %w", err)
+	}
+	return nil
+}
+
 // SaveSnapshot writes the snapshot payload to disk.
 func (s *FileStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
 	if err := s.Init(ctx, snapshot.SessionID); err != nil {
