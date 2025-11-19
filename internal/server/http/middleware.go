@@ -30,9 +30,25 @@ type responseRecorder struct {
 	bytes  int64
 }
 
+// Unwrap exposes the underlying ResponseWriter so downstream handlers
+// can recover original capabilities like http.Flusher.
+func (r *responseRecorder) Unwrap() http.ResponseWriter {
+	if r == nil {
+		return nil
+	}
+	return r.ResponseWriter
+}
+
 type responseRecorderFlusher struct {
 	http.ResponseWriter
 	http.Flusher
+}
+
+func (r *responseRecorderFlusher) Unwrap() http.ResponseWriter {
+	if r == nil {
+		return nil
+	}
+	return r.ResponseWriter
 }
 
 type responseRecorderHijacker struct {
@@ -40,9 +56,23 @@ type responseRecorderHijacker struct {
 	http.Hijacker
 }
 
+func (r *responseRecorderHijacker) Unwrap() http.ResponseWriter {
+	if r == nil {
+		return nil
+	}
+	return r.ResponseWriter
+}
+
 type responseRecorderPusher struct {
 	http.ResponseWriter
 	http.Pusher
+}
+
+func (r *responseRecorderPusher) Unwrap() http.ResponseWriter {
+	if r == nil {
+		return nil
+	}
+	return r.ResponseWriter
 }
 
 func (r *responseRecorder) WriteHeader(status int) {
