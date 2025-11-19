@@ -689,7 +689,7 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
 	result := make([]map[string]any, len(tools))
 	for i, tool := range tools {
-		result[i] = map[string]any{
+		entry := map[string]any{
 			"type": "function",
 			"function": map[string]any{
 				"name":        tool.Name,
@@ -697,6 +697,13 @@ func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]a
 				"parameters":  tool.Parameters,
 			},
 		}
+		if !tool.MaterialCapabilities.IsZero() {
+			entry["alex_material_capabilities"] = map[string]any{
+				"consumes": tool.MaterialCapabilities.Consumes,
+				"produces": tool.MaterialCapabilities.Produces,
+			}
+		}
+		result[i] = entry
 	}
 	return result
 }

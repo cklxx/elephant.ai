@@ -274,19 +274,32 @@ func (r *ToolResult) UnmarshalJSON(data []byte) error {
 }
 
 // ToolDefinition describes a tool for the LLM
+type ToolMaterialCapabilities struct {
+	Consumes []string `json:"consumes,omitempty"`
+	Produces []string `json:"produces,omitempty"`
+}
+
+// IsZero allows ToolMaterialCapabilities to honor json omitempty semantics.
+func (c ToolMaterialCapabilities) IsZero() bool {
+	return len(c.Consumes) == 0 && len(c.Produces) == 0
+}
+
+// ToolDefinition describes a tool for the LLM
 type ToolDefinition struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  ParameterSchema `json:"parameters"`
+	Name                 string                   `json:"name"`
+	Description          string                   `json:"description"`
+	Parameters           ParameterSchema          `json:"parameters"`
+	MaterialCapabilities ToolMaterialCapabilities `json:"material_capabilities,omitempty"`
 }
 
 // ToolMetadata contains tool information
 type ToolMetadata struct {
-	Name      string   `json:"name"`
-	Version   string   `json:"version"`
-	Category  string   `json:"category"`
-	Tags      []string `json:"tags"`
-	Dangerous bool     `json:"dangerous"`
+	Name                 string                   `json:"name"`
+	Version              string                   `json:"version"`
+	Category             string                   `json:"category"`
+	Tags                 []string                 `json:"tags"`
+	Dangerous            bool                     `json:"dangerous"`
+	MaterialCapabilities ToolMaterialCapabilities `json:"material_capabilities,omitempty"`
 }
 
 // ParameterSchema defines tool parameters (JSON Schema format)

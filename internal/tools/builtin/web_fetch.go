@@ -75,6 +75,9 @@ func (t *webFetch) Metadata() ports.ToolMetadata {
 		Version:  "1.0.0",
 		Category: "web",
 		Tags:     []string{"web", "fetch", "http", "content"},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Produces: []string{"text/html"},
+		},
 	}
 }
 
@@ -106,6 +109,9 @@ Usage:
 				},
 			},
 			Required: []string{"url"},
+		},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Produces: []string{"text/html"},
 		},
 	}
 }
