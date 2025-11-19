@@ -14,9 +14,10 @@ This document tracks how much of the three-layer context architecture (see `docs
 - **Knowledge reference seeding** – retrieval guidance from task analysis is now turned into `KnowledgeReference` entries so CLI/API callers can inspect which local queries, search terms, and gaps were suggested per turn.
 - **World state + diff ingestion** – the preparation service seeds each session with the selected `WorldProfile`, while the React engine records structured tool-result observations so snapshots expose `world_state` and `diff` data on every turn.
 - **Feedback capture** – tool execution now emits lightweight `FeedbackSignal` entries (including reward values from metadata), enabling APIs/CLI to inspect loop-level reward traces alongside plan and knowledge metadata.
+- **Turn journal capture** – `internal/context/manager.go` now emits `journal.TurnJournalEntry` records through `internal/analytics/journal`, storing JSONL files per session so replay tooling and meta-context jobs can diff turn deltas without scanning raw SSE transcripts.
+- **Replay hooks** – `internal/analytics/journal` gained a file reader, the DI container enables on-disk journaling by default, and `internal/server/app/server_coordinator.go` now streams journal entries back into the snapshot store (and exposes `/api/sessions/:id/replay`) so operators can rehydrate context without rerunning the original session.
 
 ## ⚠️ Outstanding gaps
-- **Turn journals + replay hooks** – the event-log/`turn_journal` pipeline described in the design doc (Section 4) has not been implemented; `internal/session/api/snapshots.go` is still a placeholder.
 - **Meta-context steward** – memory selection, knowledge governance, and persona evolution jobs (Section 5) remain unstarted; no `cmd/context-steward` binary exists yet.
 
 ## Tracking guidance

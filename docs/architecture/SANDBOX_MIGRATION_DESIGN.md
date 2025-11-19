@@ -725,10 +725,10 @@ func ValidateServerConfig(cfg Config) error {
 ```
 
 #### 2.3.5 System Prompt Environment Injection
-**Files**: `internal/prompts/environment_summary.go` (NEW), `internal/conversation/agent.go` (MODIFY)
+**Files**: `internal/context/environment_summary.go` (NEW), `internal/conversation/agent.go` (MODIFY)
 
 ```go
-// internal/prompts/environment_summary.go
+// internal/context/environment_summary.go
 package prompts
 
 import (

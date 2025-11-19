@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Prompt 裁剪 | `internal/context/manager.go` 通过字符计数粗略估算 token，并在超阈值时保留最近 10 条消息 | 未对系统提示、Persona、长期记忆做分层管理，容易造成关键信息被截断 |
 | 会话状态 | `internal/session/filestore` 将完整对话序列写入磁盘，缺少结构化的计划/反馈记录 | 难以针对特定类型信息做检索或差异化保留 |
-| 配置管理 | 目标、规则、Persona 分散在多处（`configs/`, `internal/prompts`, `internal/agent/app`） | 缺乏统一 Schema 与版本治理，难以做环境级切换 |
+| 配置管理 | 目标、规则、Persona 分散在多处（`configs/`, `internal/context`, `internal/agent/app`） | 缺乏统一 Schema 与版本治理，难以做环境级切换 |
 | 记忆与知识 | 仅保留压缩后的历史消息，无独立长期记忆或 RAG 接入 | 无法在多会话间共享经验，也缺乏过期管理 |
 
 现有实现可以支撑基本的 ReAct 循环，但随着工具数量、团队协作场景的增加，会暴露出以下问题：
@@ -166,10 +166,28 @@ Meta 组件（记忆/知识/Persona）监听事件 Bus，并写回配置/知识�
 | 目标（Goal Profiles） | `long_term`, `mid_term`, `success_metrics` | `configs/context/goals/*.yaml` | 支持多 persona / 多任务的目标模板；引用 KPI 计算器。 | 在 `internal/agent/app/session_service.go` 合成回合目标提示 |
 | 价值与规则（Policy Sets） | `hard_constraints`, `soft_preferences`, `reward_hooks` | Policy Engine（OPA 或自研 DSL） | 硬约束在推理前执行过滤，软偏好在评分阶段调整权重。 | 与 `internal/approval`、`internal/tools/guardrails` 联动 |
 | 知识与经验（Knowledge Packs） | `sop_refs`, `rag_collections`, `memory_keys` | 向量库 + 文档仓库（S3/MinIO） | SOP 以 Markdown + 元数据（标签、版本）管理，RAG 通过 collection ID 编排。 | 在 `internal/rag` 注册 collection，输出到 prompt patch |
-| 人格与偏好（Persona Config） | `tone`, `risk_profile`, `decision_style` | Config Service | Persona 由用户配置和系统默认合成；支持层级覆盖。 | 由 `internal/prompts` 生成系统消息模板，并暴露至 CLI/Web 预设 |
+| 人格与偏好（Persona Config） | `tone`, `risk_profile`, `decision_style` | Config Service | Persona 由用户配置和系统默认合成；支持层级覆盖。 | 由 `internal/context` 生成系统消息模板，并暴露至 CLI/Web 预设 |
 | 世界与资源（World/Tool Map） | `environment`, `capabilities`, `limits`, `cost_model` | Tool Registry + Feature Flag | 对接内部工具目录，声明额度、速率限制与权限。 | 结合 `internal/toolregistry` 与 `internal/observability/cost` 计算 |
 
 **拉取策略**：在每次会话初始化时，Context Orchestrator 根据 `tenant_id`, `agent_id`, `session_type` 计算一个合并视图，并缓存于 Redis（复用 `internal/cache`），TTL 依据场景（如 1 小时）。缓存未命中时回退到 GitOps 配置，并记录 Prometheus 指标 `context_static_cache_miss_total`。
+
+### 3.1 YAML 加载机制
+
+当前实现由 `internal/context/manager.go` 中的 `staticRegistry` 负责：
+
+1. **目录结构约定**：`configs/context/{personas,goals,policies,knowledge,worlds}` 下的每个 YAML 文件代表一个 Schema 实例，`id` 字段作为主键。未显式提供 `id` 时，加载器会使用文件名作为兜底键。
+2. **统一读取逻辑**：`readYAMLDir` 递归扫描指定目录，过滤出 `.yaml/.yml` 文件并读取为字节数组；`loadPersonas/loadGoals/...` 等函数复用这一结果，将每个文件解码为相应的结构体（`ports.PersonaProfile` 等）。
+3. **一致性与版本**：所有 section 加载完成后，通过 `hashStaticSnapshot` 将 persona、goal、policy、knowledge、world map 以 JSON 序列化 + 排序的方式写入 SHA-256，得到确定性的 `Version`。后续构建 `ContextWindow` 时会把该版本号写入 `StaticContext.Version`，方便下游检测配置漂移。
+4. **缓存与 TTL**：`staticRegistry` 会缓存最近一次加载的 `staticSnapshot`，并在 TTL 到期或测试强制刷新时重新读取磁盘。命中缓存时不会递增 `context_static_cache_miss_total`，只有真实重载才会记录指标，便于观察 GitOps 变更的实际影响。
+
+这一机制确保新增/拆分 YAML（例如将 coder prompt 的 Guardrail 拆成多个 policy 文件）时，只要放入对应目录即可被自动加载到系统提示中，无需更改业务代码。
+
+### 3.2 Turn Journal ↔ Replay 管道
+
+- **写入**：`ctxmgr.NewManager` 现在通过 `internal/analytics/journal.FileWriter` 默认把 `RecordTurn` 生成的 `ContextTurnRecord` 追加到 `~/.alex-sessions/journals/<session>.jsonl`，Server/CLI 共享同一目录。
+- **读取**：`internal/analytics/journal.FileReader` 提供 `Stream/ReadAll` API，可在不加载整条 SSE 流的情况下顺序遍历 JSONL 记录；Reader 会在需要时自动创建目录并填充缺失的 `session_id`。
+- **重放**：`internal/server/app/server_coordinator.go` 暴露 `ReplaySession`，调用时会把 JSONL 中的每条记录转换成 `sessionstate.Snapshot` 再写回 `state_store`，同时 `/api/sessions/:id/replay` HTTP 端点会触发该流程，供控制台或脚本恢复上下文。
+- **容器注入**：DI 容器在构建阶段即创建 FileWriter 并传给 ContextManager，Server 入口再基于 `container.SessionDir()` 派生 Reader，保证 journal 写读使用同一路径。
 
 ## 4. 动态 Context 设计
 

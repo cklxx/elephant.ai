@@ -10,7 +10,6 @@ import (
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
 	"alex/internal/llm"
-	"alex/internal/prompts"
 	serverApp "alex/internal/server/app"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/session/filestore"
@@ -57,7 +56,6 @@ func TestConcurrentCostIsolation(t *testing.T) {
 				sessionStore,
 				newTestContextManager(),
 				newTestParser(),
-				prompts.New(),
 				costTracker,
 				agentApp.Config{
 					LLMProvider:   "mock",
@@ -167,7 +165,6 @@ func TestTaskCancellation(t *testing.T) {
 		sessionStore,
 		newTestContextManager(),
 		newSlowParser(), // Parser that returns tool calls
-		prompts.New(),
 		costTracker,
 		agentApp.Config{
 			LLMProvider:   "mock",
@@ -263,7 +260,6 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 		sessionStore,
 		newTestContextManager(),
 		newSlowParser(),
-		prompts.New(),
 		costTracker,
 		agentApp.Config{
 			LLMProvider:   "mock",

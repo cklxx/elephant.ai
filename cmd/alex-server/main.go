@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 
 	agentdomain "alex/internal/agent/domain"
 	"alex/internal/analytics"
+	"alex/internal/analytics/journal"
 	authAdapters "alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
@@ -214,6 +216,18 @@ func main() {
 		}
 	}()
 
+	var journalReader journal.Reader
+	if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
+		reader, err := journal.NewFileReader(filepath.Join(sessionDir, "journals"))
+		if err != nil {
+			logger.Warn("Failed to initialize journal reader: %v", err)
+		} else {
+			journalReader = reader
+		}
+	} else {
+		logger.Warn("Session directory missing; turn replay disabled")
+	}
+
 	serverCoordinator := serverApp.NewServerCoordinator(
 		container.AgentCoordinator,
 		broadcaster,
@@ -221,6 +235,7 @@ func main() {
 		taskStore,
 		container.StateStore,
 		serverApp.WithAnalyticsClient(analyticsClient),
+		serverApp.WithJournalReader(journalReader),
 	)
 
 	// Setup health checker

@@ -23,7 +23,7 @@ The uniform container ensures that enabling sandbox mode, adding an MCP server, 
 
 The agent domain (`internal/agent/domain`) models the Think→Act→Observe loop as a series of typed events:
 
-1. **Bootstrap** – assemble the system prompt via `internal/prompts`, capture the environment snapshot (`internal/environment`), and hydrate session context from `internal/session` + `internal/context`.
+1. **Bootstrap** – assemble the system prompt via `internal/context`, capture the environment snapshot (`internal/environment`), and hydrate session context from `internal/session` + `internal/context`.
 2. **Think** – request reasoning tokens from the configured LLM provider using the `LLMPort`. Calls route through `internal/llm` which wraps provider SDKs with retry, streaming, and cost accounting middleware.
 3. **Act** – parse tool intentions from the streamed tokens using `internal/parser`. When a tool invocation is confirmed, the coordinator resolves metadata from `internal/toolregistry` and dispatches execution via adapters in `internal/tools`.
 4. **Observe** – capture tool output, compress logs, and emit structured events. Observations may be fed back into the short-term context or stored as long-term memory in `internal/rag` when required.

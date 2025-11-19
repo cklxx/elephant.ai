@@ -93,30 +93,18 @@ type stubParser struct{}
 func (stubParser) Parse(content string) ([]ports.ToolCall, error)                      { return nil, nil }
 func (stubParser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error { return nil }
 
-type stubPromptLoader struct{}
-
-func (stubPromptLoader) Get(name string) (string, error) { return "", nil }
-func (stubPromptLoader) Render(name string, variables map[string]string) (string, error) {
-	return "", nil
-}
-func (stubPromptLoader) GetSystemPrompt(goal string, analysis *ports.TaskAnalysisInfo) (string, error) {
-	return "System prompt", nil
-}
-func (stubPromptLoader) List() []string { return nil }
-
 func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
-	llmFactory := llm.NewFactory()
-	sessionStore := &stubSessionStore{}
-	coordinator := NewAgentCoordinator(
-		llmFactory,
-		stubToolRegistry{},
-		sessionStore,
-		stubContextManager{},
-		stubParser{},
-		stubPromptLoader{},
-		nil,
-		Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 5},
-	)
+llmFactory := llm.NewFactory()
+sessionStore := &stubSessionStore{}
+coordinator := NewAgentCoordinator(
+llmFactory,
+stubToolRegistry{},
+sessionStore,
+stubContextManager{},
+stubParser{},
+nil,
+Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 5},
+)
 
 	env, err := coordinator.PrepareExecution(context.Background(), "test", "")
 	if err != nil {
@@ -224,14 +212,13 @@ func TestCoordinatorGetConfigIncludesCompletionDefaults(t *testing.T) {
 	sessionStore := &stubSessionStore{}
 	stopSeqs := []string{"<<END>>"}
 
-	coordinator := NewAgentCoordinator(
-		llmFactory,
-		stubToolRegistry{},
-		sessionStore,
-		stubContextManager{},
-		stubParser{},
-		stubPromptLoader{},
-		nil,
+coordinator := NewAgentCoordinator(
+llmFactory,
+stubToolRegistry{},
+sessionStore,
+stubContextManager{},
+stubParser{},
+nil,
 		Config{
 			LLMProvider:         "mock",
 			LLMModel:            "config-check",
@@ -268,14 +255,13 @@ func TestNewAgentCoordinatorHonorsZeroTemperature(t *testing.T) {
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
 
-	coordinator := NewAgentCoordinator(
-		llmFactory,
-		stubToolRegistry{},
-		sessionStore,
-		stubContextManager{},
-		stubParser{},
-		stubPromptLoader{},
-		nil,
+coordinator := NewAgentCoordinator(
+llmFactory,
+stubToolRegistry{},
+sessionStore,
+stubContextManager{},
+stubParser{},
+nil,
 		Config{
 			LLMProvider:         "mock",
 			LLMModel:            "deterministic",

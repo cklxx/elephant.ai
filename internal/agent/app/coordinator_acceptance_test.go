@@ -21,14 +21,13 @@ func TestAgentCoordinatorEndToEndExecutionPerformance(t *testing.T) {
 
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
-	coordinator := NewAgentCoordinator(
-		llmFactory,
-		stubToolRegistry{},
-		sessionStore,
-		stubContextManager{},
-		stubParser{},
-		stubPromptLoader{},
-		nil,
+coordinator := NewAgentCoordinator(
+llmFactory,
+stubToolRegistry{},
+sessionStore,
+stubContextManager{},
+stubParser{},
+nil,
 		Config{
 			LLMProvider:   "mock",
 			LLMModel:      "acceptance",

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"alex/internal/agent/domain"
 	agentPorts "alex/internal/agent/ports"
 	"alex/internal/analytics"
+	"alex/internal/analytics/journal"
 	serverPorts "alex/internal/server/ports"
 	sessionstate "alex/internal/session/state_store"
 )
@@ -283,6 +285,117 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 	if capture.properties["source"] != "server" {
 		t.Errorf("expected source server, got %v", capture.properties["source"])
 	}
+}
+
+func TestReplaySessionRehydratesSnapshots(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	broadcaster := NewEventBroadcaster()
+	stateStore := sessionstate.NewInMemoryStore()
+	agentCoordinator := NewMockAgentCoordinator(sessionStore)
+	reader := &stubJournalReader{entries: map[string][]journal.TurnJournalEntry{
+		"sess-99": {
+			{SessionID: "sess-99", TurnID: 1, LLMTurnSeq: 1, Summary: "start", Timestamp: time.Unix(1, 0)},
+			{SessionID: "sess-99", TurnID: 2, LLMTurnSeq: 2, Summary: "done", Timestamp: time.Unix(2, 0)},
+		},
+	}}
+	coordinator := NewServerCoordinator(
+		agentCoordinator,
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+		WithJournalReader(reader),
+	)
+	if err := coordinator.ReplaySession(context.Background(), "sess-99"); err != nil {
+		t.Fatalf("ReplaySession returned error: %v", err)
+	}
+	snapshot, err := stateStore.GetSnapshot(context.Background(), "sess-99", 2)
+	if err != nil {
+		t.Fatalf("expected snapshot for turn 2: %v", err)
+	}
+	if snapshot.Summary != "done" || snapshot.LLMTurnSeq != 2 {
+		t.Fatalf("unexpected snapshot payload: %+v", snapshot)
+	}
+}
+
+func TestReplaySessionErrorsWithoutEntries(t *testing.T) {
+	sessionStore := NewMockSessionStore()
+	stateStore := sessionstate.NewInMemoryStore()
+	coordinator := NewServerCoordinator(
+		NewMockAgentCoordinator(sessionStore),
+		NewEventBroadcaster(),
+		sessionStore,
+		NewInMemoryTaskStore(),
+		stateStore,
+		WithJournalReader(&stubJournalReader{}),
+	)
+	if err := coordinator.ReplaySession(context.Background(), "missing"); err == nil {
+		t.Fatalf("expected error when no entries exist")
+	}
+}
+
+func TestReplaySessionClearsExistingSnapshots(t *testing.T) {
+	ctx := context.Background()
+	sessionStore := NewMockSessionStore()
+	stateStore := sessionstate.NewInMemoryStore()
+	if err := stateStore.SaveSnapshot(ctx, sessionstate.Snapshot{SessionID: "sess-99", TurnID: 5, Summary: "stale"}); err != nil {
+		t.Fatalf("setup snapshot: %v", err)
+	}
+	reader := &stubJournalReader{entries: map[string][]journal.TurnJournalEntry{
+		"sess-99": {
+			{SessionID: "sess-99", TurnID: 1, LLMTurnSeq: 1, Summary: "one"},
+			{SessionID: "sess-99", TurnID: 2, LLMTurnSeq: 2, Summary: "two"},
+		},
+	}}
+	coordinator := NewServerCoordinator(
+		NewMockAgentCoordinator(sessionStore),
+		NewEventBroadcaster(),
+		sessionStore,
+		NewInMemoryTaskStore(),
+		stateStore,
+		WithJournalReader(reader),
+	)
+	if err := coordinator.ReplaySession(ctx, "sess-99"); err != nil {
+		t.Fatalf("ReplaySession returned error: %v", err)
+	}
+	if _, err := stateStore.GetSnapshot(ctx, "sess-99", 5); !errors.Is(err, sessionstate.ErrSnapshotNotFound) {
+		t.Fatalf("expected stale snapshot removed, got %v", err)
+	}
+	if _, err := stateStore.GetSnapshot(ctx, "sess-99", 2); err != nil {
+		t.Fatalf("expected replayed snapshot to exist: %v", err)
+	}
+}
+
+type stubJournalReader struct {
+	entries map[string][]journal.TurnJournalEntry
+	err     error
+}
+
+func (r *stubJournalReader) Stream(_ context.Context, sessionID string, fn func(journal.TurnJournalEntry) error) error {
+	if r.err != nil {
+		return r.err
+	}
+	entries := r.entries[sessionID]
+	for _, entry := range entries {
+		if err := fn(entry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *stubJournalReader) ReadAll(_ context.Context, sessionID string) ([]journal.TurnJournalEntry, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	entries := r.entries[sessionID]
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	cloned := make([]journal.TurnJournalEntry, len(entries))
+	copy(cloned, entries)
+	return cloned, nil
 }
 
 // TestBroadcasterMapping verifies that broadcaster task-session mapping uses correct session ID

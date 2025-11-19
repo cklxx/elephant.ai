@@ -18,6 +18,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
+	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Use available tools to help solve the user's task."
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -27,7 +28,6 @@ type ExecutionPreparationDeps struct {
 	SessionStore   ports.SessionStore
 	ContextMgr     ports.ContextManager
 	Parser         ports.FunctionCallParser
-	PromptLoader   ports.PromptLoader
 	Config         Config
 	Logger         ports.Logger
 	Clock          ports.Clock
@@ -46,7 +46,6 @@ type ExecutionPreparationService struct {
 	sessionStore   ports.SessionStore
 	contextMgr     ports.ContextManager
 	parser         ports.FunctionCallParser
-	promptLoader   ports.PromptLoader
 	config         Config
 	logger         ports.Logger
 	clock          ports.Clock
@@ -73,9 +72,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		clock = ports.SystemClock{}
 	}
 
-	promptLoader := deps.PromptLoader
-	// PromptLoader is now a required dependency - must be provided by caller
-
 	analysis := deps.Analysis
 	if analysis == nil {
 		analysis = NewTaskAnalysisService(logger)
@@ -94,7 +90,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	presetResolver := deps.PresetResolver
 	if presetResolver == nil {
 		presetResolver = NewPresetResolverWithDeps(PresetResolverDeps{
-			PromptLoader: promptLoader,
 			Logger:       logger,
 			Clock:        clock,
 			EventEmitter: eventEmitter,
@@ -107,7 +102,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		sessionStore:   deps.SessionStore,
 		contextMgr:     deps.ContextMgr,
 		parser:         deps.Parser,
-		promptLoader:   promptLoader,
 		config:         deps.Config,
 		logger:         logger,
 		clock:          clock,
@@ -134,13 +128,24 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ids.SessionID = session.ID
 	}
 
-	var initialWorldState map[string]any
-	var initialWorldDiff map[string]any
+	var (
+		initialWorldState map[string]any
+		initialWorldDiff  map[string]any
+		window            ports.ContextWindow
+	)
+	personaKey := s.config.AgentPreset
+	if s.presetResolver != nil {
+		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
+			personaKey = preset
+			s.logger.Info("Using persona preset %s (source=%s)", preset, source)
+		}
+	}
 	if s.contextMgr != nil {
 		originalCount := len(session.Messages)
-		window, err := s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+		var err error
+		window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
 			TokenLimit:         s.config.MaxTokens,
-			PersonaKey:         s.config.AgentPreset,
+			PersonaKey:         personaKey,
 			ToolPreset:         s.config.ToolPreset,
 			EnvironmentSummary: s.config.EnvironmentSummary,
 		})
@@ -161,6 +166,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			)
 			s.eventEmitter.OnEvent(compressionEvent)
 		}
+	}
+	systemPrompt := strings.TrimSpace(window.SystemPrompt)
+	if systemPrompt == "" {
+		systemPrompt = defaultSystemPrompt
 	}
 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, s.config.LLMModel)
@@ -185,15 +194,9 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 	history := s.recallUserHistory(ctx, llmClient, task, analysis, session)
-	var analysisInfo *ports.TaskAnalysisInfo
 	var taskAnalysis *ports.TaskAnalysis
 	if analysis != nil && analysis.ActionName != "" {
 		s.logger.Debug("Task pre-analysis: action=%s, goal=%s", analysis.ActionName, analysis.Goal)
-		analysisInfo = &ports.TaskAnalysisInfo{
-			Action:   analysis.ActionName,
-			Goal:     analysis.Goal,
-			Approach: analysis.Approach,
-		}
 		taskAnalysis = &ports.TaskAnalysis{
 			ActionName:      analysis.ActionName,
 			Goal:            analysis.Goal,
@@ -209,15 +212,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	beliefs := deriveBeliefsFromTaskAnalysis(taskAnalysis)
 	knowledgeRefs := buildKnowledgeRefsFromTaskAnalysis(taskAnalysis)
 
-	systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
-	summary := strings.TrimSpace(s.config.EnvironmentSummary)
-	if summary != "" {
-		if trimmed := strings.TrimSpace(systemPrompt); trimmed != "" {
-			systemPrompt = trimmed + "\n\n" + summary
-		} else {
-			systemPrompt = summary
-		}
-	}
 	preloadedAttachments := collectSessionAttachments(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
 	if len(inheritedAttachments) > 0 {
