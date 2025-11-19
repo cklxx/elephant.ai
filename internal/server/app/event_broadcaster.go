@@ -215,10 +215,60 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan a
 			}
 			b.metrics.incrementEventsSent()
 		default:
+			if b.ensureCriticalEventDelivery(sessionID, i, len(clients), ch, event) {
+				continue
+			}
 			// Client buffer full, skip this event to avoid blocking
 			b.logger.Warn("Client buffer full for session %s, dropping event (client %d/%d)", sessionID, i+1, len(clients))
 			b.metrics.incrementDroppedEvents()
 		}
+	}
+}
+
+func (b *EventBroadcaster) ensureCriticalEventDelivery(sessionID string, clientIndex, totalClients int, ch chan agentports.AgentEvent, event agentports.AgentEvent) bool {
+	if !isCriticalEvent(event) {
+		return false
+	}
+
+	// First, retry in case the consumer drained the buffer after the initial attempt.
+	select {
+	case ch <- event:
+		b.logger.Warn("Client buffer previously full for session %s, but critical event %s was delivered on retry (client %d/%d)", sessionID, event.EventType(), clientIndex+1, totalClients)
+		b.metrics.incrementEventsSent()
+		return true
+	default:
+	}
+
+	// Drop the oldest event to make room for the critical one.
+	select {
+	case <-ch:
+	default:
+		// Buffer no longer full but send still failed; treat as delivered failure.
+		b.logger.Warn("Failed to free space for critical event %s for session %s (client %d/%d)", event.EventType(), sessionID, clientIndex+1, totalClients)
+		return false
+	}
+
+	select {
+	case ch <- event:
+		b.logger.Warn("Client buffer saturated for session %s; dropped oldest event to deliver critical %s (client %d/%d)", sessionID, event.EventType(), clientIndex+1, totalClients)
+		b.metrics.incrementEventsSent()
+		return true
+	default:
+		// Should be rare – buffer filled again before we could send.
+		b.logger.Warn("Client buffer refilled before delivering critical %s for session %s (client %d/%d)", event.EventType(), sessionID, clientIndex+1, totalClients)
+		return false
+	}
+}
+
+func isCriticalEvent(event agentports.AgentEvent) bool {
+	if event == nil {
+		return false
+	}
+	switch event.EventType() {
+	case "task_complete", "task_cancelled":
+		return true
+	default:
+		return false
 	}
 }
 

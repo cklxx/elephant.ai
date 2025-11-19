@@ -113,9 +113,10 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	h.broadcaster.RegisterClient(sessionID, clientChan)
 	defer h.broadcaster.UnregisterClient(sessionID, clientChan)
 
-	// Get flusher for streaming
-	flusher, ok := w.(http.Flusher)
+	// Get flusher for streaming (unwrap middlewares if necessary)
+	flusher, ok := resolveHTTPFlusher(w)
 	if !ok {
+		h.logger.Error("Response writer does not support streaming (type=%T)", w)
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
@@ -487,6 +488,33 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 	}
 
 	return data, nil
+}
+
+type responseWriterUnwrapper interface {
+	Unwrap() http.ResponseWriter
+}
+
+// resolveHTTPFlusher unwraps middleware layers until it finds a writer
+// that supports http.Flusher so SSE streaming can proceed.
+func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
+	checked := 0
+	current := w
+	for current != nil && checked < 16 {
+		if flusher, ok := current.(http.Flusher); ok {
+			return flusher, true
+		}
+		unwrapper, ok := current.(responseWriterUnwrapper)
+		if !ok {
+			break
+		}
+		next := unwrapper.Unwrap()
+		if next == nil || next == current {
+			break
+		}
+		current = next
+		checked++
+	}
+	return nil, false
 }
 
 const redactedPlaceholder = redaction.Placeholder

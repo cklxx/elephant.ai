@@ -368,6 +368,39 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}
 }
 
+func TestResolveHTTPFlusher_UnwrapsLayers(t *testing.T) {
+	base := &testFlusherResponseWriter{header: make(http.Header)}
+	wrapped := &testUnwrappingWriter{ResponseWriter: base}
+
+	if _, ok := resolveHTTPFlusher(wrapped); !ok {
+		t.Fatalf("expected resolveHTTPFlusher to unwrap to underlying flusher, got ok=false")
+	}
+}
+
+type testFlusherResponseWriter struct {
+	header http.Header
+}
+
+func (w *testFlusherResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *testFlusherResponseWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func (w *testFlusherResponseWriter) WriteHeader(statusCode int) {}
+
+func (w *testFlusherResponseWriter) Flush() {}
+
+type testUnwrappingWriter struct {
+	http.ResponseWriter
+}
+
+func (w *testUnwrappingWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
 	handler := NewSSEHandler(nil)
 	original := &domain.ToolCallCompleteEvent{
