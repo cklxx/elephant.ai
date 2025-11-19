@@ -11,7 +11,7 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
@@ -35,6 +35,20 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/internal/sessions/", apiHandler.HandleInternalSessionRequest)
+
+	if internalMode && configHandler != nil {
+		mux.Handle("/api/internal/config/runtime", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				configHandler.HandleGetRuntimeConfig(w, r)
+			case http.MethodPut:
+				configHandler.HandleUpdateRuntimeConfig(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+		mux.Handle("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(configHandler.HandleRuntimeStream)))
+	}
 
 	// SSE endpoint
 	mux.Handle("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream)))

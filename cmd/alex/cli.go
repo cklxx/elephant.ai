@@ -10,10 +10,13 @@ import (
 "io"
 "os"
 "sort"
+"strconv"
 "strings"
 "time"
 
-	sessionstate "alex/internal/session/state_store"
+runtimeconfig "alex/internal/config"
+configadmin "alex/internal/config/admin"
+sessionstate "alex/internal/session/state_store"
 )
 
 type CLI struct {
@@ -47,7 +50,7 @@ func (c *CLI) Run(args []string) error {
 		return c.handleSessions(cmdArgs)
 
 	case "config":
-		return c.handleConfig()
+		return c.handleConfig(cmdArgs)
 
 	case "cost", "costs":
 		return c.handleCostCommand(cmdArgs)
@@ -88,6 +91,9 @@ Usage:
   alex sessions pull <id> [...]  Inspect or export context snapshots
   alex sessions cleanup [...]    Remove historical sessions (see options below)
   alex config                    Show current configuration
+  alex config set <field> <value> Persist a managed override
+  alex config clear <field>       Remove a managed override
+  alex config path                Show the override file path
   alex cost                      Show cost tracking commands
   alex index [--repo PATH]       Index repository for code search
   alex search "query"            Search indexed code
@@ -437,36 +443,386 @@ func (c *CLI) listSessions(ctx context.Context) error {
 	return nil
 }
 
-func (c *CLI) handleConfig() error {
-	return runConfigCommand()
+func (c *CLI) handleConfig(args []string) error {
+	return runConfigCommand(args)
 }
 
-func runConfigCommand() error {
-	config, err := loadConfig()
+func runConfigCommand(args []string) error {
+	return executeConfigCommand(args, os.Stdout)
+}
+
+func executeConfigCommand(args []string, out io.Writer) error {
+	envLookup := runtimeEnvLookup()
+	overridesPath := managedOverridesPath(envLookup)
+	subcommand := ""
+	if len(args) > 0 {
+		subcommand = strings.ToLower(strings.TrimSpace(args[0]))
+	}
+
+	switch subcommand {
+	case "", "show", "list":
+		return printConfigSummary(out, overridesPath)
+	case "set":
+		key, value, err := parseSetArgs(args[1:])
+		if err != nil {
+			return err
+		}
+		if err := mutateOverrides(envLookup, key, value, setOverrideField); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "已更新 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath)
+		return printConfigSummary(out, overridesPath)
+	case "clear", "unset", "delete", "rm":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: alex config clear <field>")
+		}
+		key := strings.TrimSpace(args[1])
+		if key == "" {
+			return fmt.Errorf("usage: alex config clear <field>")
+		}
+		if err := mutateOverrides(envLookup, key, "", clearOverrideField); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "已清除 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath)
+		return printConfigSummary(out, overridesPath)
+	case "path", "file":
+		fmt.Fprintln(out, overridesPath)
+		return nil
+	case "help", "-h", "--help":
+		printConfigUsage(out)
+		return nil
+	default:
+		printConfigUsage(out)
+		return fmt.Errorf("unknown config subcommand: %s", subcommand)
+	}
+}
+
+type overrideMutation func(*runtimeconfig.Overrides, string, string) error
+
+func mutateOverrides(envLookup runtimeconfig.EnvLookup, key, value string, fn overrideMutation) error {
+	overrides, err := loadManagedOverrides(envLookup)
 	if err != nil {
-		return fmt.Errorf("load configuration: %w", err)
+		return fmt.Errorf("load managed overrides: %w", err)
 	}
-
-	fmt.Println("Current Configuration:")
-	fmt.Printf("  Provider:      %s\n", config.LLMProvider)
-	fmt.Printf("  Model:         %s\n", config.LLMModel)
-	fmt.Printf("  Base URL:      %s\n", config.BaseURL)
-	fmt.Printf("  Max Tokens:    %d\n", config.MaxTokens)
-	fmt.Printf("  Max Iterations: %d\n", config.MaxIterations)
-	fmt.Printf("  Temperature:   %.2f\n", config.Temperature)
-	fmt.Printf("  Top P:         %.2f\n", config.TopP)
-	fmt.Printf("  Environment:   %s\n", config.Environment)
-	fmt.Printf("  Verbose:       %t\n", config.Verbose)
-	if len(config.StopSequences) > 0 {
-		fmt.Printf("  Stop Seqs:     %s\n", strings.Join(config.StopSequences, ", "))
-	} else {
-		fmt.Println("  Stop Seqs:     (not set)")
+	if err := fn(&overrides, key, value); err != nil {
+		return err
 	}
-	if config.APIKey != "" {
-		fmt.Println("  API Key:       (set)")
-	} else {
-		fmt.Println("  API Key:       (not set)")
+	if err := saveManagedOverrides(envLookup, overrides); err != nil {
+		return fmt.Errorf("save managed overrides: %w", err)
 	}
-
 	return nil
+}
+
+func printConfigSummary(out io.Writer, overridesPath string) error {
+	cfg, meta, err := loadRuntimeConfigSnapshot()
+	if err != nil {
+		return fmt.Errorf("load runtime configuration: %w", err)
+	}
+	fmt.Fprintln(out, "Current Configuration:")
+	fmt.Fprintf(out, "  Provider:       %s\n", cfg.LLMProvider)
+	fmt.Fprintf(out, "  Model:          %s\n", cfg.LLMModel)
+	fmt.Fprintf(out, "  Base URL:       %s\n", cfg.BaseURL)
+	fmt.Fprintf(out, "  Max Tokens:     %d\n", cfg.MaxTokens)
+	fmt.Fprintf(out, "  Max Iterations: %d\n", cfg.MaxIterations)
+	fmt.Fprintf(out, "  Temperature:    %.2f\n", cfg.Temperature)
+	fmt.Fprintf(out, "  Top P:          %.2f\n", cfg.TopP)
+	fmt.Fprintf(out, "  Environment:    %s\n", cfg.Environment)
+	fmt.Fprintf(out, "  Verbose:        %t\n", cfg.Verbose)
+	if len(cfg.StopSequences) > 0 {
+		fmt.Fprintf(out, "  Stop Seqs:      %s\n", strings.Join(cfg.StopSequences, ", "))
+	} else {
+		fmt.Fprintln(out, "  Stop Seqs:      (not set)")
+	}
+	if cfg.APIKey != "" {
+		fmt.Fprintln(out, "  API Key:        (set)")
+	} else {
+		fmt.Fprintln(out, "  API Key:        (not set)")
+	}
+	fmt.Fprintf(out, "  Loaded At:      %s\n", meta.LoadedAt().Format(time.RFC3339))
+	fmt.Fprintf(out, "\nManaged overrides file: %s\n", overridesPath)
+	fmt.Fprintln(out, "就绪检查:")
+	fmt.Fprintln(out, readinessSummary(configadmin.DeriveReadinessTasks(cfg)))
+	return nil
+}
+
+func printConfigUsage(out io.Writer) {
+	fmt.Fprintln(out, "Config command usage:")
+	fmt.Fprintln(out, "  alex config                       Show current configuration snapshot")
+	fmt.Fprintln(out, "  alex config set <field> <value>   Persist a managed override (e.g. llm_model gpt-4o-mini)")
+	fmt.Fprintln(out, "  alex config set field=value       Alternate set syntax")
+	fmt.Fprintln(out, "  alex config clear <field>         Remove an override")
+	fmt.Fprintln(out, "  alex config path                  Print the overrides file location")
+	fmt.Fprintln(out, "\nSupported fields: llm_provider, llm_model, base_url, api_key, ark_api_key, tavily_api_key, sandbox_base_url, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.")
+}
+
+func parseSetArgs(args []string) (string, string, error) {
+	if len(args) == 0 {
+		return "", "", fmt.Errorf("usage: alex config set <field> <value>")
+	}
+	if len(args) == 1 {
+		if strings.Contains(args[0], "=") {
+			parts := strings.SplitN(args[0], "=", 2)
+			key := strings.TrimSpace(parts[0])
+			value := ""
+			if len(parts) > 1 {
+				value = strings.TrimSpace(parts[1])
+			}
+			if key == "" || value == "" {
+				return "", "", fmt.Errorf("usage: alex config set <field>=<value>")
+			}
+			return key, value, nil
+		}
+		return "", "", fmt.Errorf("usage: alex config set <field> <value>")
+	}
+	key := strings.TrimSpace(args[0])
+	value := strings.TrimSpace(strings.Join(args[1:], " "))
+	if key == "" || value == "" {
+		return "", "", fmt.Errorf("usage: alex config set <field> <value>")
+	}
+	return key, value, nil
+}
+
+func setOverrideField(overrides *runtimeconfig.Overrides, key, value string) error {
+	if overrides == nil {
+		return fmt.Errorf("overrides not initialized")
+	}
+	key = normalizeOverrideKey(key)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("value for %s cannot be empty", key)
+	}
+	switch key {
+	case "llm_provider":
+		overrides.LLMProvider = stringPtr(value)
+	case "llm_model":
+		overrides.LLMModel = stringPtr(value)
+	case "api_key":
+		overrides.APIKey = stringPtr(value)
+	case "ark_api_key":
+		overrides.ArkAPIKey = stringPtr(value)
+	case "base_url":
+		overrides.BaseURL = stringPtr(value)
+	case "tavily_api_key":
+		overrides.TavilyAPIKey = stringPtr(value)
+	case "seedream_text_endpoint_id":
+		overrides.SeedreamTextEndpointID = stringPtr(value)
+	case "seedream_image_endpoint_id":
+		overrides.SeedreamImageEndpointID = stringPtr(value)
+	case "seedream_text_model":
+		overrides.SeedreamTextModel = stringPtr(value)
+	case "seedream_image_model":
+		overrides.SeedreamImageModel = stringPtr(value)
+	case "seedream_vision_model":
+		overrides.SeedreamVisionModel = stringPtr(value)
+	case "seedream_video_model":
+		overrides.SeedreamVideoModel = stringPtr(value)
+	case "sandbox_base_url":
+		overrides.SandboxBaseURL = stringPtr(value)
+	case "environment":
+		overrides.Environment = stringPtr(value)
+	case "session_dir":
+		overrides.SessionDir = stringPtr(value)
+	case "cost_dir":
+		overrides.CostDir = stringPtr(value)
+	case "agent_preset":
+		overrides.AgentPreset = stringPtr(value)
+	case "tool_preset":
+		overrides.ToolPreset = stringPtr(value)
+	case "max_tokens":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("max_tokens must be an integer: %w", err)
+		}
+		if parsed <= 0 {
+			return fmt.Errorf("max_tokens must be greater than zero")
+		}
+		overrides.MaxTokens = intPtr(parsed)
+	case "max_iterations":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("max_iterations must be an integer: %w", err)
+		}
+		if parsed <= 0 {
+			return fmt.Errorf("max_iterations must be greater than zero")
+		}
+		overrides.MaxIterations = intPtr(parsed)
+	case "temperature":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("temperature must be a float: %w", err)
+		}
+		overrides.Temperature = floatPtr(parsed)
+	case "top_p":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("top_p must be a float: %w", err)
+		}
+		overrides.TopP = floatPtr(parsed)
+	case "verbose":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("verbose must be a boolean: %w", err)
+		}
+		overrides.Verbose = boolPtr(parsed)
+	case "disable_tui":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("disable_tui must be a boolean: %w", err)
+		}
+		overrides.DisableTUI = boolPtr(parsed)
+	case "follow_transcript":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("follow_transcript must be a boolean: %w", err)
+		}
+		overrides.FollowTranscript = boolPtr(parsed)
+	case "follow_stream":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("follow_stream must be a boolean: %w", err)
+		}
+		overrides.FollowStream = boolPtr(parsed)
+	case "stop_sequences":
+		seqs := splitListValue(value)
+		if len(seqs) == 0 {
+			return fmt.Errorf("stop_sequences requires at least one entry")
+		}
+		overrides.StopSequences = &seqs
+	default:
+		return fmt.Errorf("unsupported override field %q", key)
+	}
+	return nil
+}
+
+func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error {
+	if overrides == nil {
+		return fmt.Errorf("overrides not initialized")
+	}
+	switch normalizeOverrideKey(key) {
+	case "llm_provider":
+		overrides.LLMProvider = nil
+	case "llm_model":
+		overrides.LLMModel = nil
+	case "api_key":
+		overrides.APIKey = nil
+	case "ark_api_key":
+		overrides.ArkAPIKey = nil
+	case "base_url":
+		overrides.BaseURL = nil
+	case "tavily_api_key":
+		overrides.TavilyAPIKey = nil
+	case "seedream_text_endpoint_id":
+		overrides.SeedreamTextEndpointID = nil
+	case "seedream_image_endpoint_id":
+		overrides.SeedreamImageEndpointID = nil
+	case "seedream_text_model":
+		overrides.SeedreamTextModel = nil
+	case "seedream_image_model":
+		overrides.SeedreamImageModel = nil
+	case "seedream_vision_model":
+		overrides.SeedreamVisionModel = nil
+	case "seedream_video_model":
+		overrides.SeedreamVideoModel = nil
+	case "sandbox_base_url":
+		overrides.SandboxBaseURL = nil
+	case "environment":
+		overrides.Environment = nil
+	case "session_dir":
+		overrides.SessionDir = nil
+	case "cost_dir":
+		overrides.CostDir = nil
+	case "agent_preset":
+		overrides.AgentPreset = nil
+	case "tool_preset":
+		overrides.ToolPreset = nil
+	case "max_tokens":
+		overrides.MaxTokens = nil
+	case "max_iterations":
+		overrides.MaxIterations = nil
+	case "temperature":
+		overrides.Temperature = nil
+	case "top_p":
+		overrides.TopP = nil
+	case "verbose":
+		overrides.Verbose = nil
+	case "disable_tui":
+		overrides.DisableTUI = nil
+	case "follow_transcript":
+		overrides.FollowTranscript = nil
+	case "follow_stream":
+		overrides.FollowStream = nil
+	case "stop_sequences":
+		overrides.StopSequences = nil
+	default:
+		return fmt.Errorf("unsupported override field %q", key)
+	}
+	return nil
+}
+
+var overrideKeyAliases = map[string]string{
+	"provider":           "llm_provider",
+	"model":              "llm_model",
+	"key":                "api_key",
+	"openai_api_key":     "api_key",
+	"openrouter_api_key": "api_key",
+	"baseurl":            "base_url",
+	"sandbox_url":        "sandbox_base_url",
+	"env":                "environment",
+}
+
+func normalizeOverrideKey(key string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(key))
+	trimmed = strings.ReplaceAll(trimmed, "-", "_")
+	trimmed = strings.ReplaceAll(trimmed, " ", "_")
+	if canonical, ok := overrideKeyAliases[trimmed]; ok {
+		return canonical
+	}
+	return trimmed
+}
+
+func splitListValue(value string) []string {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == '\n'
+	})
+	var result []string
+	for _, field := range fields {
+		trimmed := strings.TrimSpace(field)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func stringPtr(value string) *string {
+	v := value
+	return &v
+}
+
+func boolPtr(value bool) *bool {
+	v := value
+	return &v
+}
+
+func intPtr(value int) *int {
+	v := value
+	return &v
+}
+
+func floatPtr(value float64) *float64 {
+	v := value
+	return &v
+}
+func readinessSummary(tasks []configadmin.ReadinessTask) string {
+        if len(tasks) == 0 {
+                return "  ✓ 所有关键配置均已就绪"
+        }
+        var builder strings.Builder
+        for _, task := range tasks {
+                fmt.Fprintf(&builder, "  [%s] %s\n", strings.ToUpper(string(task.Severity)), task.Label)
+                if hint := strings.TrimSpace(task.Hint); hint != "" {
+                        fmt.Fprintf(&builder, "      ↳ %s\n", hint)
+                }
+        }
+        return strings.TrimRight(builder.String(), "\n")
 }

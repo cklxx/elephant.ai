@@ -1,15 +1,13 @@
 package main
 
-import (
-	"alex/internal/config"
-)
+import runtimeconfig "alex/internal/config"
 
-type appConfig = config.RuntimeConfig
+type appConfig = runtimeconfig.RuntimeConfig
 
 func loadConfig() (appConfig, error) {
-	cfg, _, err := config.Load()
-	if err != nil {
-		return appConfig{}, err
-	}
-	return cfg, nil
+        cfg, _, err := loadRuntimeConfigSnapshot()
+        if err != nil {
+                return appConfig{}, err
+        }
+        return cfg, nil
 }

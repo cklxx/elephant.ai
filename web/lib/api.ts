@@ -10,6 +10,8 @@ import {
   SessionDetailsResponse,
   ApprovePlanRequest,
   ApprovePlanResponse,
+  RuntimeConfigSnapshot,
+  RuntimeConfigOverridesPayload,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -173,6 +175,21 @@ export async function approvePlan(
 ): Promise<ApprovePlanResponse> {
   return fetchAPI<ApprovePlanResponse>("/api/plans/approve", {
     method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+// Internal runtime config APIs
+
+export async function getRuntimeConfigSnapshot(): Promise<RuntimeConfigSnapshot> {
+  return fetchAPI<RuntimeConfigSnapshot>("/api/internal/config/runtime");
+}
+
+export async function updateRuntimeConfig(
+  request: RuntimeConfigOverridesPayload,
+): Promise<RuntimeConfigSnapshot> {
+  return fetchAPI<RuntimeConfigSnapshot>("/api/internal/config/runtime", {
+    method: "PUT",
     body: JSON.stringify(request),
   });
 }
