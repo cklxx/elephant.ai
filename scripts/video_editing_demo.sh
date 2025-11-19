@@ -177,13 +177,17 @@ determine_watermark_position() {
   RESOLVED_WATERMARK_POSITION="$normalized"
 }
 
+apply_cpu_video_defaults() {
+  VIDEO_CODEC=${VIDEO_CODEC:-libx264}
+  VIDEO_PRESET=${VIDEO_PRESET:-veryfast}
+}
+
 configure_video_encoder() {
   local backend="${PREFERRED_GPU_BACKEND:-auto}"
   local enable="${ENABLE_GPU:-0}"
-  VIDEO_CODEC=${VIDEO_CODEC:-libx264}
-  VIDEO_PRESET=${VIDEO_PRESET:-veryfast}
 
   if [[ "$enable" != "1" ]]; then
+    apply_cpu_video_defaults
     GPU_STATUS_MESSAGE="GPU disabled (ENABLE_GPU!=1); using CPU encoder ${VIDEO_CODEC}"
     return
   fi
@@ -213,6 +217,7 @@ configure_video_encoder() {
     return
   fi
 
+  apply_cpu_video_defaults
   GPU_STATUS_MESSAGE="ENABLE_GPU=1 but no supported backend detected (missing nvidia-smi/vainfo); using CPU"
 }
 
