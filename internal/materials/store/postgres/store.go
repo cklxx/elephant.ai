@@ -249,7 +249,7 @@ func (s *Store) DeleteExpiredMaterials(ctx context.Context, req store.DeleteExpi
 	limitPlaceholder := fmt.Sprintf("$%d", param)
 	query := fmt.Sprintf(`
 WITH expired AS (
-    SELECT material_id, request_id, storage_key
+    SELECT material_id, request_id, storage_key, preview_assets
     FROM materials
     WHERE retention_ttl_seconds > 0
       AND created_at + (retention_ttl_seconds || ' seconds')::interval <= $1
@@ -261,7 +261,7 @@ WITH expired AS (
 DELETE FROM materials m
 USING expired e
 WHERE m.material_id = e.material_id
-RETURNING e.material_id, e.request_id, e.storage_key;
+RETURNING e.material_id, e.request_id, e.storage_key, e.preview_assets;
 `, statusClause, limitPlaceholder)
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
@@ -271,9 +271,15 @@ RETURNING e.material_id, e.request_id, e.storage_key;
 	var deleted []store.DeletedMaterial
 	for rows.Next() {
 		var record store.DeletedMaterial
-		if err := rows.Scan(&record.MaterialID, &record.RequestID, &record.StorageKey); err != nil {
+		var previewAssetsJSON []byte
+		if err := rows.Scan(&record.MaterialID, &record.RequestID, &record.StorageKey, &previewAssetsJSON); err != nil {
 			return nil, fmt.Errorf("scan deleted material: %w", err)
 		}
+		previewKeys, err := parsePreviewAssetIDs(previewAssetsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse preview assets for %s: %w", record.MaterialID, err)
+		}
+		record.PreviewAssetKeys = previewKeys
 		deleted = append(deleted, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -372,6 +378,29 @@ func marshalPreviewAssets(assets []*materialapi.PreviewAsset) ([]byte, error) {
 		return []byte("[]"), nil
 	}
 	return json.Marshal(payload)
+}
+
+func parsePreviewAssetIDs(payload []byte) ([]string, error) {
+	if len(payload) == 0 {
+		return nil, nil
+	}
+	var assets []struct {
+		AssetID string `json:"asset_id"`
+	}
+	if err := json.Unmarshal(payload, &assets); err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		if asset.AssetID == "" {
+			continue
+		}
+		keys = append(keys, asset.AssetID)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	return keys, nil
 }
 
 func jsonBytes(v any) ([]byte, error) {

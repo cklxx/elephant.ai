@@ -136,7 +136,9 @@ func TestDeleteExpiredMaterialsRemovesRows(t *testing.T) {
 	s, _ := New(pool)
 	cutoff := time.Unix(123, 0).UTC()
 	pool.ExpectBegin()
-	rows := pgxmock.NewRows([]string{"material_id", "request_id", "storage_key"}).AddRow("mat-1", "req", "materials/foo")
+	rows := pgxmock.NewRows([]string{"material_id", "request_id", "storage_key", "preview_assets"}).AddRow(
+		"mat-1", "req", "materials/foo", []byte(`[{"asset_id":"materials/foo-rendered"}]`),
+	)
 	pool.ExpectQuery("WITH expired").WithArgs(cutoff, []string{"intermediate"}, 50).WillReturnRows(rows)
 	pool.ExpectCommit()
 	deleted, err := s.DeleteExpiredMaterials(context.Background(), store.DeleteExpiredMaterialsRequest{
@@ -149,6 +151,9 @@ func TestDeleteExpiredMaterialsRemovesRows(t *testing.T) {
 	}
 	if len(deleted) != 1 || deleted[0].MaterialID != "mat-1" {
 		t.Fatalf("unexpected deleted materials: %+v", deleted)
+	}
+	if len(deleted[0].PreviewAssetKeys) != 1 || deleted[0].PreviewAssetKeys[0] != "materials/foo-rendered" {
+		t.Fatalf("expected preview asset keys, got %+v", deleted[0].PreviewAssetKeys)
 	}
 	if err := pool.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet expectations: %v", err)

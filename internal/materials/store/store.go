@@ -34,14 +34,15 @@ type DeleteExpiredMaterialsRequest struct {
 
 // DeletedMaterial contains metadata for downstream cleanup (events, storage).
 type DeletedMaterial struct {
-	MaterialID string
-	RequestID  string
-	StorageKey string
+	MaterialID       string
+	RequestID        string
+	StorageKey       string
+	PreviewAssetKeys []string
 }
 
 // Store persists registered materials plus their lineage metadata.
 type Store interface {
-InsertMaterials(ctx context.Context, materials []MaterialRecord) error
-DeleteExpiredMaterials(ctx context.Context, req DeleteExpiredMaterialsRequest) ([]DeletedMaterial, error)
-UpdateRetention(ctx context.Context, materialID string, ttlSeconds uint64) error
+	InsertMaterials(ctx context.Context, materials []MaterialRecord) error
+	DeleteExpiredMaterials(ctx context.Context, req DeleteExpiredMaterialsRequest) ([]DeletedMaterial, error)
+	UpdateRetention(ctx context.Context, materialID string, ttlSeconds uint64) error
 }
