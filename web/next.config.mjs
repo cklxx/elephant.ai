@@ -6,6 +6,12 @@ const nextConfig = {
   reactStrictMode: true,
   basePath: repositoryName || undefined,
   assetPrefix,
+  /**
+   * Generate a fully static output so GitHub Pages has an `index.html` in `web/out`.
+   * This keeps `npm run build` aligned with the CI expectation that checks the
+   * static export directory.
+   */
+  output: 'export',
   images: {
     unoptimized: true,
   },
