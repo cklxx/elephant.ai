@@ -84,10 +84,22 @@ func (b *Bus) dispatch(requestID string, event *materialapi.MaterialEvent) {
 	b.mu.RUnlock()
 
 	for _, reg := range copies {
-		select {
-		case reg.ch <- event:
-		default:
+		b.safeSend(reg, event)
+	}
+}
+
+func (b *Bus) safeSend(reg *watchRegistration, event *materialapi.MaterialEvent) {
+	defer func() {
+		if r := recover(); r != nil {
+			// The watcher channel was closed after we copied the registration. Ignore the event
+			// and keep publishing to other watchers.
+			_ = r
 		}
+	}()
+
+	select {
+	case reg.ch <- event:
+	default:
 	}
 }
 

@@ -41,7 +41,9 @@ func (s *Store) InsertMaterials(ctx context.Context, materials []store.MaterialR
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) // no-op if committed
+	defer func() {
+		_ = tx.Rollback(ctx) // no-op if already committed
+	}()
 
 	for _, material := range materials {
 		if material.MaterialID == "" {
@@ -169,15 +171,16 @@ ON CONFLICT (parent_material_id, child_material_id) DO UPDATE SET
 			if err != nil {
 				return fmt.Errorf("insert lineage for %s: %w", material.MaterialID, err)
 			}
+		}
 
-			for _, binding := range material.AccessBindings {
-				if binding == nil {
-					continue
-				}
-				if binding.Principal == "" || binding.Scope == "" || binding.Capability == "" {
-					return fmt.Errorf("material %s access binding missing fields", material.MaterialID)
-				}
-				_, err = tx.Exec(ctx, `
+		for _, binding := range material.AccessBindings {
+			if binding == nil {
+				continue
+			}
+			if binding.Principal == "" || binding.Scope == "" || binding.Capability == "" {
+				return fmt.Errorf("material %s access binding missing fields", material.MaterialID)
+			}
+			_, err = tx.Exec(ctx, `
 INSERT INTO material_access_bindings (
     material_id,
     principal,
@@ -188,9 +191,8 @@ INSERT INTO material_access_bindings (
 ON CONFLICT (material_id, principal, scope, capability) DO UPDATE SET
     expires_at = EXCLUDED.expires_at;
 `, material.MaterialID, binding.Principal, binding.Scope, binding.Capability, nullableTime(binding.ExpiresAt))
-				if err != nil {
-					return fmt.Errorf("insert access binding for %s: %w", material.MaterialID, err)
-				}
+			if err != nil {
+				return fmt.Errorf("insert access binding for %s: %w", material.MaterialID, err)
 			}
 		}
 	}
@@ -216,7 +218,9 @@ func (s *Store) DeleteExpiredMaterials(ctx context.Context, req store.DeleteExpi
 	if err != nil {
 		return nil, fmt.Errorf("begin cleanup tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 	args := []any{cutoff}
 	param := 2
 	statusClause := ""
