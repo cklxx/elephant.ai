@@ -3,18 +3,23 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/observability"
 	"alex/internal/security/redaction"
 	"alex/internal/server/app"
 	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // SSEHandler handles Server-Sent Events connections
@@ -22,15 +27,33 @@ type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
 	logger      *utils.Logger
 	formatter   *domain.ToolFormatter
+	obs         *observability.Observability
+}
+
+// SSEHandlerOption configures optional instrumentation for the SSE handler.
+type SSEHandlerOption func(*SSEHandler)
+
+// WithSSEObservability wires the observability provider into the handler.
+func WithSSEObservability(obs *observability.Observability) SSEHandlerOption {
+	return func(handler *SSEHandler) {
+		handler.obs = obs
+	}
 }
 
 // NewSSEHandler creates a new SSE handler
-func NewSSEHandler(broadcaster *app.EventBroadcaster) *SSEHandler {
-	return &SSEHandler{
+func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) *SSEHandler {
+	handler := &SSEHandler{
 		broadcaster: broadcaster,
 		logger:      utils.NewComponentLogger("SSEHandler"),
 		formatter:   domain.NewToolFormatter(),
 	}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(handler)
+	}
+	return handler
 }
 
 // HandleSSEStream handles SSE connection for real-time event streaming
@@ -50,6 +73,39 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("SSE connection established for session: %s", sessionID)
 
+	ctx := r.Context()
+	closeReason := "client_closed"
+	var spanEnd func(error)
+	if h.obs != nil && h.obs.Tracer != nil {
+		ctx, span := h.obs.Tracer.StartSpan(ctx, observability.SpanSSEConnection,
+			attribute.String("http.route", "/api/sse"),
+		)
+		span.SetAttributes(attribute.String(observability.AttrSessionID, sessionID))
+		r = r.WithContext(ctx)
+		spanEnd = func(err error) {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetAttributes(attribute.String("alex.sse.close_reason", closeReason))
+			span.End()
+		}
+	}
+	startedAt := time.Now()
+	if h.obs != nil {
+		h.obs.Metrics.IncrementSSEConnections(ctx)
+		defer func() {
+			h.obs.Metrics.DecrementSSEConnections(ctx)
+			h.obs.Metrics.RecordSSEConnectionDuration(ctx, time.Since(startedAt))
+		}()
+	}
+	if spanEnd != nil {
+		defer func() {
+			if spanEnd != nil {
+				spanEnd(nil)
+			}
+		}()
+	}
+
 	// Create event channel for this client
 	clientChan := make(chan ports.AgentEvent, 100)
 
@@ -65,31 +121,51 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial connection message
-	if _, err := fmt.Fprintf(
-		w,
+	initialPayload := fmt.Sprintf(
 		"event: connected\ndata: {\"session_id\":\"%s\",\"task_id\":\"%s\",\"parent_task_id\":\"%s\"}\n\n",
 		sessionID,
 		id.TaskIDFromContext(r.Context()),
 		id.ParentTaskIDFromContext(r.Context()),
-	); err != nil {
+	)
+	if _, err := io.WriteString(w, initialPayload); err != nil {
 		h.logger.Error("Failed to send connection message: %v", err)
+		if h.obs != nil {
+			h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "write_error", 0)
+		}
+		if spanEnd != nil {
+			spanEnd(err)
+			spanEnd = nil
+		}
 		return
 	}
 	flusher.Flush()
+	if h.obs != nil {
+		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
+	}
 
 	sendEvent := func(event ports.AgentEvent) bool {
 		data, err := h.serializeEvent(event)
 		if err != nil {
 			h.logger.Error("Failed to serialize event: %v", err)
+			if h.obs != nil {
+				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "serialization_error", 0)
+			}
 			return false
 		}
 
-		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.EventType(), data); err != nil {
+		payload := fmt.Sprintf("event: %s\ndata: %s\n\n", event.EventType(), data)
+		if _, err := io.WriteString(w, payload); err != nil {
 			h.logger.Error("Failed to send SSE message: %v", err)
+			if h.obs != nil {
+				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "write_error", 0)
+			}
 			return false
 		}
 
 		flusher.Flush()
+		if h.obs != nil {
+			h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "ok", int64(len(payload)))
+		}
 		return true
 	}
 
@@ -149,6 +225,10 @@ drainComplete:
 			// Send heartbeat to keep connection alive
 			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
 				h.logger.Error("Failed to send heartbeat: %v", err)
+				if h.obs != nil {
+					h.obs.Metrics.RecordSSEMessage(r.Context(), "heartbeat", "write_error", 0)
+				}
+				closeReason = "heartbeat_failed"
 				return
 			}
 			flusher.Flush()
@@ -156,6 +236,7 @@ drainComplete:
 		case <-r.Context().Done():
 			// Client disconnected
 			h.logger.Info("SSE connection closed for session: %s", sessionID)
+			closeReason = "context_cancelled"
 			return
 		}
 	}
@@ -554,8 +635,12 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 		return nil
 	}
 
-	serialized := make([]map[string]any, len(messages))
-	for i, msg := range messages {
+	serialized := make([]map[string]any, 0, len(messages))
+	for _, msg := range messages {
+		if isRAGPreloadMessage(msg) {
+			continue
+		}
+
 		entry := map[string]any{
 			"role":    msg.Role,
 			"content": msg.Content,
@@ -580,8 +665,55 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 			entry["source"] = msg.Source
 		}
 
-		serialized[i] = entry
+		serialized = append(serialized, entry)
+	}
+
+	if len(serialized) == 0 {
+		return nil
 	}
 
 	return serialized
+}
+
+func isRAGPreloadMessage(msg ports.Message) bool {
+	if len(msg.Metadata) == 0 {
+		return false
+	}
+	value, ok := msg.Metadata["rag_preload"]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	case float64:
+		return v != 0
+	case float32:
+		return v != 0
+	case int:
+		return v != 0
+	case int8:
+		return v != 0
+	case int16:
+		return v != 0
+	case int32:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint8:
+		return v != 0
+	case uint16:
+		return v != 0
+	case uint32:
+		return v != 0
+	case uint64:
+		return v != 0
+	default:
+		return false
+	}
 }

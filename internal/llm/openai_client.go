@@ -186,12 +186,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Response body (pretty print)
-	var prettyResp bytes.Buffer
+	var (
+		prettyResp   bytes.Buffer
+		loggableResp = respBody
+	)
 	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
 		c.logger.Debug("%sResponse Body:\n%s", prefix, prettyResp.String())
+		loggableResp = prettyResp.Bytes()
 	} else {
 		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	}
+	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), loggableResp...))
 
 	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
@@ -689,7 +694,7 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
 	result := make([]map[string]any, len(tools))
 	for i, tool := range tools {
-		result[i] = map[string]any{
+		entry := map[string]any{
 			"type": "function",
 			"function": map[string]any{
 				"name":        tool.Name,
@@ -697,6 +702,13 @@ func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]a
 				"parameters":  tool.Parameters,
 			},
 		}
+		if !tool.MaterialCapabilities.IsZero() {
+			entry["alex_material_capabilities"] = map[string]any{
+				"consumes": tool.MaterialCapabilities.Consumes,
+				"produces": tool.MaterialCapabilities.Produces,
+			}
+		}
+		result[i] = entry
 	}
 	return result
 }

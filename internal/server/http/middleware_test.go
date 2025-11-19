@@ -10,6 +10,7 @@ import (
 
 	authAdapters "alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
+	"alex/internal/observability"
 )
 
 func TestCORSMiddlewareHonorsEnvironment(t *testing.T) {
@@ -111,6 +112,37 @@ func TestCORSMiddlewareRejectsUnknownOriginInProduction(t *testing.T) {
 
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("expected Access-Control-Allow-Origin to be empty, got %q", got)
+	}
+}
+
+func TestObservabilityMiddlewareResolvesAnnotatedRoute(t *testing.T) {
+	metrics := &observability.MetricsCollector{}
+	recorded := make(chan string, 1)
+	metrics.SetTestHooks(observability.MetricsTestHooks{
+		HTTPServerRequest: func(method, route string, status int, duration time.Duration, responseBytes int64) {
+			recorded <- route
+		},
+	})
+	obs := &observability.Observability{Metrics: metrics}
+	called := false
+	handler := ObservabilityMiddleware(obs)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		annotateRequestRoute(r, "/api/sessions/:session_id/turns/:turn_id")
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/12345/turns/678", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if !called {
+		t.Fatalf("expected handler to be invoked")
+	}
+	select {
+	case route := <-recorded:
+		if route != "/api/sessions/:session_id/turns/:turn_id" {
+			t.Fatalf("expected annotated route, got %s", route)
+		}
+	default:
+		t.Fatalf("expected HTTP metrics hook to be invoked")
 	}
 }
 

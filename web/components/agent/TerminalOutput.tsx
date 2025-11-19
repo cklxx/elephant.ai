@@ -23,18 +23,13 @@ export function TerminalOutput({
   reconnectAttempts,
   onReconnect,
 }: TerminalOutputProps) {
-  const nonAssistantEvents = useMemo(
-    () => events.filter((event) => event.event_type !== 'assistant_message'),
+  const panelAnchors = useMemo(
+    () => buildPanelAnchors(events),
     [events],
   );
 
-  const panelAnchors = useMemo(
-    () => buildPanelAnchors(nonAssistantEvents),
-    [nonAssistantEvents],
-  );
-
   const displayEvents = useMemo(
-    () => events.filter((event) => !shouldSkipEvent(event)),
+    () => buildDisplayEvents(events),
     [events],
   );
 
@@ -76,14 +71,14 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
 
   const userTaskIndices: number[] = [];
   events.forEach((event, index) => {
-    if (event.event_type === 'user_task') {
+    if (event.event_type === "user_task") {
       userTaskIndices.push(index);
     }
   });
 
   if (userTaskIndices.length === 0) {
     const anchor =
-      events.find((event) => event.event_type === 'task_analysis') ?? events[0];
+      events.find((event) => event.event_type === "task_analysis") ?? events[0];
     if (anchor) {
       anchorMap.set(anchor, events);
     }
@@ -94,7 +89,7 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
     const endIdx = userTaskIndices[idx + 1] ?? events.length;
     const segmentEvents = events.slice(startIdx, endIdx);
     const analysisAnchor = segmentEvents.find(
-      (event) => event.event_type === 'task_analysis',
+      (event) => event.event_type === "task_analysis",
     );
     const anchorEvent = analysisAnchor ?? events[startIdx];
     if (anchorEvent) {
@@ -111,8 +106,6 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
  */
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
   switch (event.event_type) {
-    case "assistant_message":
-      return true;
     // Show user input
     case "user_task":
     case "task_analysis":
@@ -130,4 +123,11 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     default:
       return true;
   }
+}
+
+function buildDisplayEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  return events.filter(
+    (event) =>
+      event.event_type !== "assistant_message" && !shouldSkipEvent(event),
+  );
 }

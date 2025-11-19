@@ -14,7 +14,7 @@ const baseEvent: AnyAgentEvent = {
 };
 
 describe('TerminalOutput', () => {
-  it('aggregates assistant_message deltas into a single markdown bubble', () => {
+  it('filters assistant_message events from the output stream', () => {
     const firstTimestamp = new Date().toISOString();
     const thirdTimestamp = new Date(Date.now() + 2000).toISOString();
 
@@ -59,6 +59,9 @@ describe('TerminalOutput', () => {
       </LanguageProvider>,
     );
 
-    expect(screen.getByText(/Here is the summary with additional context\./i)).toBeInTheDocument();
+    expect(screen.getByTestId('conversation-stream')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Here is the summary with additional context\./i),
+    ).not.toBeInTheDocument();
   });
 });

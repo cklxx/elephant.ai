@@ -22,9 +22,11 @@ import (
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
 	runtimeconfig "alex/internal/config"
+	configadmin "alex/internal/config/admin"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
 	"alex/internal/environment"
+	"alex/internal/observability"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
@@ -79,8 +81,23 @@ func main() {
 	logger := utils.NewComponentLogger("Main")
 	logger.Info("Starting ALEX SSE Server...")
 
+	obs, err := observability.New(os.Getenv("ALEX_OBSERVABILITY_CONFIG"))
+	if err != nil {
+		logger.Warn("Observability disabled: %v", err)
+		obs = nil
+	}
+	if obs != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := obs.Shutdown(ctx); err != nil {
+				logger.Warn("Observability shutdown error: %v", err)
+			}
+		}()
+	}
+
 	// Load configuration
-	config, err := loadConfig()
+	config, configManager, resolver, err := loadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -236,6 +253,7 @@ func main() {
 		container.StateStore,
 		serverApp.WithAnalyticsClient(analyticsClient),
 		serverApp.WithJournalReader(journalReader),
+		serverApp.WithObservability(obs),
 	)
 
 	// Setup health checker
@@ -258,8 +276,19 @@ func main() {
 		logger.Info("Authentication module initialized")
 	}
 
-	// Setup HTTP router
-	router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, authHandler, authService, runtimeCfg.Environment, config.AllowedOrigins)
+        // Setup HTTP router
+        configHandler := serverHTTP.NewConfigHandler(configManager, resolver)
+        router := serverHTTP.NewRouter(
+                serverCoordinator,
+                broadcaster,
+                healthChecker,
+                authHandler,
+                authService,
+                runtimeCfg.Environment,
+                config.AllowedOrigins,
+                configHandler,
+                obs,
+        )
 
 	// Seed diagnostics so the UI can immediately render environment context.
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
@@ -336,37 +365,30 @@ func buildContainer(config Config) (*di.Container, error) {
 	return di.BuildContainer(diConfig)
 }
 
-func loadConfig() (Config, error) {
-	envLookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, map[string][]string{
-		"LLM_PROVIDER":               {"ALEX_LLM_PROVIDER"},
-		"LLM_MODEL":                  {"ALEX_LLM_MODEL"},
-		"LLM_BASE_URL":               {"ALEX_BASE_URL"},
-		"LLM_MAX_TOKENS":             {"ALEX_LLM_MAX_TOKENS"},
-		"LLM_MAX_ITERATIONS":         {"ALEX_LLM_MAX_ITERATIONS"},
-		"TAVILY_API_KEY":             {"ALEX_TAVILY_API_KEY"},
-		"ARK_API_KEY":                {"ALEX_ARK_API_KEY"},
-		"SEEDREAM_TEXT_ENDPOINT_ID":  {"ALEX_SEEDREAM_TEXT_ENDPOINT_ID"},
-		"SEEDREAM_IMAGE_ENDPOINT_ID": {"ALEX_SEEDREAM_IMAGE_ENDPOINT_ID"},
-		"SEEDREAM_TEXT_MODEL":        {"ALEX_SEEDREAM_TEXT_MODEL"},
-		"SEEDREAM_IMAGE_MODEL":       {"ALEX_SEEDREAM_IMAGE_MODEL"},
-		"SEEDREAM_VISION_MODEL":      {"ALEX_SEEDREAM_VISION_MODEL"},
-		"ALEX_ENV":                   {"ENVIRONMENT", "NODE_ENV"},
-		"ALEX_VERBOSE":               {"VERBOSE"},
-		"AGENT_PRESET":               {"ALEX_AGENT_PRESET"},
-		"TOOL_PRESET":                {"ALEX_TOOL_PRESET"},
-		"PORT":                       {"ALEX_SERVER_PORT"},
-		"ENABLE_MCP":                 {"ALEX_ENABLE_MCP"},
-		"SANDBOX_BASE_URL":           {"ALEX_SANDBOX_BASE_URL"},
-		"POSTHOG_API_KEY":            {"ALEX_POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY"},
-		"POSTHOG_HOST":               {"ALEX_POSTHOG_HOST", "NEXT_PUBLIC_POSTHOG_HOST"},
-		"CORS_ALLOWED_ORIGINS":       {"ALEX_ALLOWED_ORIGINS", "ALEX_CORS_ALLOWED_ORIGINS"},
-	})
+func loadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error), error) {
+	envLookup := runtimeconfig.DefaultEnvLookupWithAliases()
+
+	storePath := configadmin.ResolveStorePath(envLookup)
+	cacheTTL := 30 * time.Second
+	if ttlValue, ok := envLookup("CONFIG_ADMIN_CACHE_TTL"); ok && strings.TrimSpace(ttlValue) != "" {
+		if parsed, err := time.ParseDuration(strings.TrimSpace(ttlValue)); err == nil && parsed > 0 {
+			cacheTTL = parsed
+		}
+	}
+	ctx := context.Background()
+	store := configadmin.NewFileStore(storePath)
+	managedOverrides, err := store.LoadOverrides(ctx)
+	if err != nil {
+		return Config{}, nil, nil, err
+	}
+	manager := configadmin.NewManager(store, managedOverrides, configadmin.WithCacheTTL(cacheTTL))
 
 	runtimeCfg, _, err := runtimeconfig.Load(
 		runtimeconfig.WithEnv(envLookup),
+		runtimeconfig.WithOverrides(managedOverrides),
 	)
 	if err != nil {
-		return Config{}, err
+		return Config{}, nil, nil, err
 	}
 
 	cfg := Config{
@@ -391,7 +413,7 @@ func loadConfig() (Config, error) {
 	}
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
-		return Config{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
+		return Config{}, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 
 	sandboxBaseURL := strings.TrimSpace(cfg.Runtime.SandboxBaseURL)
@@ -460,7 +482,21 @@ func loadConfig() (Config, error) {
 	}
 	cfg.Analytics = analyticsCfg
 
-	return cfg, nil
+	resolver := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		overrides, err := manager.CurrentOverrides(ctx)
+		if err != nil {
+			return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, err
+		}
+		return runtimeconfig.Load(
+			runtimeconfig.WithEnv(envLookup),
+			runtimeconfig.WithOverrides(overrides),
+		)
+	}
+
+	return cfg, manager, resolver, nil
 }
 
 func parseAllowedOrigins(raw string) []string {

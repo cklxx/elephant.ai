@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package materials.v1;
+
+option go_package = "alex/internal/materials/api;materialsv1";
+
+message RequestContext {
+  string request_id = 1;
+  string task_id = 2;
+  uint32 agent_iteration = 3;
+  string tool_call_id = 4;
+  string conversation_id = 5;
+  string user_id = 6;
+}
+
+enum MaterialStatus {
+  MATERIAL_STATUS_UNSPECIFIED = 0;
+  MATERIAL_STATUS_INPUT = 1;
+  MATERIAL_STATUS_INTERMEDIATE = 2;
+  MATERIAL_STATUS_FINAL = 3;
+}
+
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  VISIBILITY_PRIVATE = 1;
+  VISIBILITY_SHARED = 2;
+  VISIBILITY_PUBLIC = 3;
+}
+
+message MaterialInput {
+  string name = 1;
+  string mime_type = 2;
+  bytes inline_bytes = 3;
+  string external_uri = 4;
+  string storage_key = 5;
+  string cdn_url = 6;
+  string content_hash = 7;
+  uint64 size_bytes = 8;
+  string description = 9;
+  string source = 10;
+  MaterialStatus status = 11;
+  string origin = 12;
+  map<string, string> tags = 13;
+  map<string, string> annotations = 14;
+  Visibility visibility = 15;
+  LineageEdgeInput lineage = 16;
+  SystemAttributes system_attributes = 17;
+  repeated AccessBinding access_bindings = 18;
+  uint64 retention_ttl_seconds = 19;
+}
+
+message LineageEdgeInput {
+  string parent_material_id = 1;
+  string derivation_type = 2;
+  string parameters_hash = 3;
+}
+
+message RegisterMaterialsRequest {
+  RequestContext context = 1;
+  repeated MaterialInput materials = 2;
+}
+
+message RegisterMaterialsResponse {
+  repeated Material materials = 1;
+}
+
+message Material {
+  string material_id = 1;
+  MaterialDescriptor descriptor = 2;
+  MaterialStorage storage = 3;
+  RequestContext context = 4;
+  repeated LineageEdge lineage = 5;
+  repeated AccessBinding access_bindings = 6;
+  SystemAttributes system_attributes = 7;
+}
+
+message MaterialDescriptor {
+  string name = 1;
+  string placeholder = 2;
+  string mime_type = 3;
+  string description = 4;
+  string source = 5;
+  string origin = 6;
+  string status = 7;
+  Visibility visibility = 8;
+  map<string, string> tags = 9;
+  map<string, string> annotations = 10;
+  uint64 retention_ttl_seconds = 11;
+}
+
+message MaterialStorage {
+  string storage_key = 1;
+  string cdn_url = 2;
+  string content_hash = 3;
+  uint64 size_bytes = 4;
+}
+
+message LineageEdge {
+  string parent_material_id = 1;
+  string child_material_id = 2;
+  string derivation_type = 3;
+  string parameters_hash = 4;
+}
+
+message AccessBinding {
+  string principal = 1;
+  string scope = 2;
+  string capability = 3;
+  uint64 expires_at = 4;
+}
+
+message SystemAttributes {
+  repeated string domain_tags = 1;
+  repeated string compliance_tags = 2;
+  string embeddings_ref = 3;
+  string vector_index_key = 4;
+  map<string, string> extra = 5;
+}
+
+message ListMaterialsRequest {
+  string request_id = 1;
+  uint32 up_to_iteration = 2;
+  repeated MaterialStatus statuses = 3;
+}
+
+message ListMaterialsResponse {
+  repeated Material materials = 1;
+}
+
+message WatchMaterialsRequest {
+  string request_id = 1;
+}
+
+message MaterialEvent {
+  string request_id = 1;
+  oneof event {
+    Material material = 2;
+    string tombstone_id = 3;
+  }
+}
+
+service MaterialRegistryService {
+  rpc RegisterMaterials(RegisterMaterialsRequest) returns (RegisterMaterialsResponse);
+  rpc ListMaterials(ListMaterialsRequest) returns (ListMaterialsResponse);
+  rpc WatchMaterials(WatchMaterialsRequest) returns (stream MaterialEvent);
+}

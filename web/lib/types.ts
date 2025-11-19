@@ -205,6 +205,60 @@ export interface ResearchPlanEvent extends AgentEvent {
   estimated_duration_minutes?: number;
 }
 
+// Runtime configuration payloads
+export interface RuntimeConfiguration {
+  llm_provider?: string;
+  llm_model?: string;
+  api_key?: string;
+  ark_api_key?: string;
+  base_url?: string;
+  tavily_api_key?: string;
+  seedream_text_endpoint_id?: string;
+  seedream_image_endpoint_id?: string;
+  seedream_text_model?: string;
+  seedream_image_model?: string;
+  seedream_vision_model?: string;
+  seedream_video_model?: string;
+  sandbox_base_url?: string;
+  environment?: string;
+  verbose?: boolean;
+  disable_tui?: boolean;
+  follow_transcript?: boolean;
+  follow_stream?: boolean;
+  max_iterations?: number;
+  max_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  stop_sequences?: string[];
+  session_dir?: string;
+  cost_dir?: string;
+  agent_preset?: string;
+  tool_preset?: string;
+}
+
+export type RuntimeConfigOverrides = Partial<RuntimeConfiguration>;
+
+export type ConfigReadinessSeverity = 'critical' | 'warning';
+
+export interface ConfigReadinessTask {
+  id: string;
+  label: string;
+  hint?: string;
+  severity: ConfigReadinessSeverity;
+}
+
+export interface RuntimeConfigSnapshot {
+  effective: RuntimeConfiguration;
+  overrides?: RuntimeConfigOverrides;
+  sources?: Record<string, string>;
+  updated_at?: string;
+  tasks?: ConfigReadinessTask[];
+}
+
+export interface RuntimeConfigOverridesPayload {
+  overrides: RuntimeConfigOverrides;
+}
+
 // Step Started Event - emitted when a research step begins
 export interface StepStartedEvent extends AgentEvent {
   event_type: 'step_started';

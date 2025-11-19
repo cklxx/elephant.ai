@@ -9,7 +9,7 @@ import (
 func TestLoadConfigDefaultsSandboxBaseURL(t *testing.T) {
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, err := loadConfig()
+	cfg, _, _, err := loadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestLoadConfigWithSandboxBaseURL(t *testing.T) {
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("SANDBOX_BASE_URL", "http://sandbox.example.com")
 
-	cfg, err := loadConfig()
+	cfg, _, _, err := loadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

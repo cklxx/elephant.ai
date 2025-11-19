@@ -27,8 +27,8 @@ func NewInMemoryTaskStore() ports.TaskStore {
 
 // Create creates a new task with optional presets
 func (s *InMemoryTaskStore) Create(ctx context.Context, sessionID string, description string, agentPreset string, toolPreset string) (*ports.Task, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+s.mu.Lock()
+defer s.mu.Unlock()
 
 	taskID := id.NewTaskID()
 	now := time.Now()
@@ -45,8 +45,11 @@ func (s *InMemoryTaskStore) Create(ctx context.Context, sessionID string, descri
 		ToolPreset:   toolPreset,
 	}
 
-	s.tasks[taskID] = task
-	return task, nil
+s.tasks[taskID] = task
+
+// Return a copy to prevent callers from sharing references with the store.
+taskCopy := *task
+return &taskCopy, nil
 }
 
 // Get retrieves a task by ID

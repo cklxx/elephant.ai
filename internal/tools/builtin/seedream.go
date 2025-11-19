@@ -139,6 +139,9 @@ func (t *seedreamTextTool) Metadata() ports.ToolMetadata {
 		Version:  "2.0.0",
 		Category: "design",
 		Tags:     []string{"image", "generation", "seedream", "text-to-image"},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+		},
 	}
 }
 
@@ -183,6 +186,9 @@ func (t *seedreamTextTool) Definition() ports.ToolDefinition {
 				},
 			},
 			Required: []string{"prompt"},
+		},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
 		},
 	}
 }
@@ -232,6 +238,10 @@ func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
 		Version:  "2.0.0",
 		Category: "design",
 		Tags:     []string{"image", "generation", "seedream", "image-to-image"},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+		},
 	}
 }
 
@@ -272,6 +282,10 @@ func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 				},
 			},
 			Required: []string{"init_image"},
+		},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
 		},
 	}
 }
@@ -374,6 +388,9 @@ func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
 		Version:  "1.0.0",
 		Category: "analysis",
 		Tags:     []string{"vision", "analysis", "seedream", "multimodal"},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+		},
 	}
 }
 
@@ -383,6 +400,10 @@ func (t *seedreamVideoTool) Metadata() ports.ToolMetadata {
 		Version:  "1.0.0",
 		Category: "design",
 		Tags:     []string{"video", "generation", "seedream", "seedance"},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+			Produces: []string{"video/mp4", "image/png", "application/octet-stream"},
+		},
 	}
 }
 
@@ -407,6 +428,9 @@ func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 				},
 			},
 			Required: []string{"images"},
+		},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
 		},
 	}
 }
@@ -472,6 +496,10 @@ func (t *seedreamVideoTool) Definition() ports.ToolDefinition {
 				},
 			},
 			Required: []string{"prompt", "duration_seconds"},
+		},
+		MaterialCapabilities: ports.ToolMaterialCapabilities{
+			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+			Produces: []string{"video/mp4", "image/png", "application/octet-stream"},
 		},
 	}
 }
