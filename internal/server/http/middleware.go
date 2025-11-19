@@ -3,16 +3,97 @@ package http
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
+	"unicode"
 
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
+	"alex/internal/observability"
 	"alex/internal/utils"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type contextKey string
 
-const authUserContextKey contextKey = "authUser"
+const (
+	authUserContextKey       contextKey = "authUser"
+	canonicalRouteContextKey contextKey = "canonicalRoute"
+)
+
+type responseRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int64
+}
+
+type responseRecorderFlusher struct {
+	http.ResponseWriter
+	http.Flusher
+}
+
+type responseRecorderHijacker struct {
+	http.ResponseWriter
+	http.Hijacker
+}
+
+type responseRecorderPusher struct {
+	http.ResponseWriter
+	http.Pusher
+}
+
+func (r *responseRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *responseRecorder) Write(b []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	n, err := r.ResponseWriter.Write(b)
+	if n > 0 {
+		r.bytes += int64(n)
+	}
+	return n, err
+}
+
+func wrapResponseWriter(w http.ResponseWriter) (*responseRecorder, http.ResponseWriter) {
+	rec := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
+	var wrapped http.ResponseWriter = rec
+
+	if flusher, ok := w.(http.Flusher); ok {
+		wrapped = &responseRecorderFlusher{ResponseWriter: wrapped, Flusher: flusher}
+	}
+	if hijacker, ok := w.(http.Hijacker); ok {
+		wrapped = &responseRecorderHijacker{ResponseWriter: wrapped, Hijacker: hijacker}
+	}
+	if pusher, ok := w.(http.Pusher); ok {
+		wrapped = &responseRecorderPusher{ResponseWriter: wrapped, Pusher: pusher}
+	}
+	return rec, wrapped
+}
+
+func annotateRequestRoute(r *http.Request, route string) {
+	if r == nil || route == "" {
+		return
+	}
+	ctx := context.WithValue(r.Context(), canonicalRouteContextKey, route)
+	*r = *r.WithContext(ctx)
+}
+
+func routeFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if route, ok := ctx.Value(canonicalRouteContextKey).(string); ok {
+		return route
+	}
+	return ""
+}
 
 // CORSMiddleware handles CORS headers
 func CORSMiddleware(environment string, allowedOrigins []string) func(http.Handler) http.Handler {
@@ -179,6 +260,104 @@ func LoggingMiddleware(logger *utils.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// ObservabilityMiddleware instruments HTTP requests with tracing + metrics.
+func ObservabilityMiddleware(obs *observability.Observability) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if obs == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ctx := r.Context()
+			rec, wrapped := wrapResponseWriter(w)
+			start := time.Now()
+			initialRoute := canonicalPath(r.URL.Path)
+			var spanEnd func(error)
+			if obs.Tracer != nil {
+				ctx, span := obs.Tracer.StartSpan(ctx, observability.SpanHTTPServer,
+					attribute.String("http.route", initialRoute),
+					attribute.String("http.method", r.Method),
+				)
+				r = r.WithContext(ctx)
+				spanEnd = func(err error) {
+					if err != nil {
+						span.RecordError(err)
+						span.SetStatus(codes.Error, err.Error())
+					}
+					span.SetAttributes(attribute.Int("http.status_code", rec.status))
+					resolvedRoute := routeFromContext(r.Context())
+					if resolvedRoute == "" {
+						resolvedRoute = initialRoute
+					}
+					span.SetAttributes(attribute.String("http.route", resolvedRoute))
+					span.End()
+				}
+				defer func() {
+					if spanEnd != nil {
+						spanEnd(nil)
+					}
+				}()
+			}
+			next.ServeHTTP(wrapped, r)
+			resolvedRoute := routeFromContext(r.Context())
+			if resolvedRoute == "" {
+				resolvedRoute = initialRoute
+			}
+			obs.Metrics.RecordHTTPServerRequest(ctx, r.Method, resolvedRoute, rec.status, time.Since(start), rec.bytes)
+		})
+	}
+}
+
+func canonicalPath(path string) string {
+	if path == "" {
+		return "/"
+	}
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "/"
+	}
+	segments := strings.Split(trimmed, "/")
+	filtered := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		if looksLikeIdentifier(segment) {
+			filtered = append(filtered, ":id")
+			continue
+		}
+		filtered = append(filtered, segment)
+	}
+	if len(filtered) == 0 {
+		return "/"
+	}
+	return "/" + strings.Join(filtered, "/")
+}
+
+func looksLikeIdentifier(segment string) bool {
+	if len(segment) >= 8 {
+		var alphanumeric bool
+		for _, r := range segment {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				alphanumeric = true
+				continue
+			}
+			if r == '-' || r == '_' {
+				continue
+			}
+			return false
+		}
+		if alphanumeric {
+			return true
+		}
+	}
+	if _, err := strconv.Atoi(segment); err == nil {
+		return true
+	}
+	return false
 }
 
 // AuthMiddleware enforces bearer token authentication on protected routes.

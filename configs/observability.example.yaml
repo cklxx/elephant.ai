@@ -1,0 +1,26 @@
+# Example observability configuration for the Alex server.
+# Copy this file to a secure location and point ALEX_OBSERVABILITY_CONFIG at it.
+observability:
+  logging:
+    # Supported values: debug, info, warn, error
+    level: info
+    # Supported values: json, text
+    format: json
+
+  metrics:
+    enabled: true
+    # Expose Prometheus metrics on this port (set to 0 to disable the built-in server)
+    prometheus_port: 9464
+
+  tracing:
+    enabled: true
+    # Exporter can be "otlp" or "zipkin"
+    exporter: otlp
+    # Only used when exporter is set to otlp
+    otlp_endpoint: "otel-collector:4318"
+    # Only used when exporter is set to zipkin
+    zipkin_endpoint: "http://zipkin:9411/api/v2/spans"
+    # Fraction between 0.0 and 1.0 determining how many spans are sampled
+    sample_rate: 0.2
+    service_name: "alex-server"
+    service_version: "1.0.0"

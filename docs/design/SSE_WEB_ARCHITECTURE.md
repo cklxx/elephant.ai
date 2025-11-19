@@ -325,7 +325,17 @@ func main() {
     )
 
     // Setup HTTP router
-    router := serverHTTP.NewRouter(serverCoordinator, broadcaster, healthChecker, nil, runtimeCfg.Environment)
+    router := serverHTTP.NewRouter(
+        serverCoordinator,
+        broadcaster,
+        healthChecker,
+        nil,      // auth handler
+        nil,      // auth service
+        runtimeCfg.Environment,
+        nil,      // allowed origins
+        nil,      // config handler
+        nil,      // observability provider
+    )
 
     // Create HTTP server
     srv := &http.Server{
