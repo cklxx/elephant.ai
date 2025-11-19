@@ -124,6 +124,13 @@ To enable the sandbox runtime, export `SANDBOX_BASE_URL` or set it in `~/.alex-c
 
 When running `docker compose up`, the `alex-server` service bind-mounts your host `~/.alex-config.json` into `/root/.alex-config.json` inside the container so the server automatically picks up the same credentials and model configuration as your local CLI.
 
+### Managed runtime configuration (internal)
+
+- `alex-server` exposes an authenticated `/dev/config` page that lets operators review the live snapshot, tweak overrides, and monitor readiness tasks with SSE updates.
+- Overrides are persisted to `~/.alex/runtime-overrides.json` by default so both the CLI and web/server binaries read the same snapshot when they share a home directory. Override the path with `CONFIG_ADMIN_STORE_PATH` (or the legacy `ALEX_CONFIG_STORE_PATH`) so multiple environments can keep separate state.
+- The CLI never calls the HTTP handler—it continues to read `~/.alex-config.json` plus the same override file locally. Running `alex config` now prints the derived readiness checklist so headless environments get the same signal as the web UI.
+- Use `alex config set <field> <value>` (or `field=value`) to write overrides without opening the internal UI, `alex config clear <field>` to remove a value, and `alex config path` to show the shared file path when debugging CLI vs. web mismatches.
+
 ### Unified Deployment Script
 
 `deploy.sh` now covers the entire lifecycle—from local development to the docker/nginx production stack—while hydrating secrets from `~/.alex-config.json` (override with `ALEX_CONFIG_PATH`). It automatically:

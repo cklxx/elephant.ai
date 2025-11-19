@@ -76,7 +76,7 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		fmt.Println(appVersion())
 		return true, 0
 	case "config":
-		if err := runConfigCommand(); err != nil {
+		if err := runConfigCommand(args[1:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return true, 1
 		}

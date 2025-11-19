@@ -34,40 +34,52 @@ const (
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider             string
-	LLMModel                string
-	APIKey                  string
-	ArkAPIKey               string
-	BaseURL                 string
-	TavilyAPIKey            string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	SandboxBaseURL          string
-	Environment             string
-	Verbose                 bool
-	DisableTUI              bool
-	FollowTranscript        bool
-	FollowStream            bool
-	MaxIterations           int
-	MaxTokens               int
-	Temperature             float64
-	TemperatureProvided     bool
-	TopP                    float64
-	StopSequences           []string
-	SessionDir              string
-	CostDir                 string
-	AgentPreset             string
-	ToolPreset              string
+	LLMProvider             string   `json:"llm_provider"`
+	LLMModel                string   `json:"llm_model"`
+	APIKey                  string   `json:"api_key"`
+	ArkAPIKey               string   `json:"ark_api_key"`
+	BaseURL                 string   `json:"base_url"`
+	TavilyAPIKey            string   `json:"tavily_api_key"`
+	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id"`
+	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id"`
+	SeedreamTextModel       string   `json:"seedream_text_model"`
+	SeedreamImageModel      string   `json:"seedream_image_model"`
+	SeedreamVisionModel     string   `json:"seedream_vision_model"`
+	SeedreamVideoModel      string   `json:"seedream_video_model"`
+	SandboxBaseURL          string   `json:"sandbox_base_url"`
+	Environment             string   `json:"environment"`
+	Verbose                 bool     `json:"verbose"`
+	DisableTUI              bool     `json:"disable_tui"`
+	FollowTranscript        bool     `json:"follow_transcript"`
+	FollowStream            bool     `json:"follow_stream"`
+	MaxIterations           int      `json:"max_iterations"`
+	MaxTokens               int      `json:"max_tokens"`
+	Temperature             float64  `json:"temperature"`
+	TemperatureProvided     bool     `json:"temperature_provided"`
+	TopP                    float64  `json:"top_p"`
+	StopSequences           []string `json:"stop_sequences"`
+	SessionDir              string   `json:"session_dir"`
+	CostDir                 string   `json:"cost_dir"`
+	AgentPreset             string   `json:"agent_preset"`
+	ToolPreset              string   `json:"tool_preset"`
 }
 
 // Metadata contains provenance details for loaded configuration.
 type Metadata struct {
 	sources  map[string]ValueSource
 	loadedAt time.Time
+}
+
+// Sources returns a copy of the provenance map for JSON serialization.
+func (m Metadata) Sources() map[string]ValueSource {
+	if m.sources == nil {
+		return map[string]ValueSource{}
+	}
+	copy := make(map[string]ValueSource, len(m.sources))
+	for key, value := range m.sources {
+		copy[key] = value
+	}
+	return copy
 }
 
 // Source returns the origin for the given configuration field.
@@ -88,33 +100,33 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider             *string
-	LLMModel                *string
-	APIKey                  *string
-	ArkAPIKey               *string
-	BaseURL                 *string
-	TavilyAPIKey            *string
-	SeedreamTextEndpointID  *string
-	SeedreamImageEndpointID *string
-	SeedreamTextModel       *string
-	SeedreamImageModel      *string
-	SeedreamVisionModel     *string
-	SeedreamVideoModel      *string
-	SandboxBaseURL          *string
-	Environment             *string
-	Verbose                 *bool
-	DisableTUI              *bool
-	FollowTranscript        *bool
-	FollowStream            *bool
-	MaxIterations           *int
-	MaxTokens               *int
-	Temperature             *float64
-	TopP                    *float64
-	StopSequences           *[]string
-	SessionDir              *string
-	CostDir                 *string
-	AgentPreset             *string
-	ToolPreset              *string
+	LLMProvider             *string   `json:"llm_provider,omitempty"`
+	LLMModel                *string   `json:"llm_model,omitempty"`
+	APIKey                  *string   `json:"api_key,omitempty"`
+	ArkAPIKey               *string   `json:"ark_api_key,omitempty"`
+	BaseURL                 *string   `json:"base_url,omitempty"`
+	TavilyAPIKey            *string   `json:"tavily_api_key,omitempty"`
+	SeedreamTextEndpointID  *string   `json:"seedream_text_endpoint_id,omitempty"`
+	SeedreamImageEndpointID *string   `json:"seedream_image_endpoint_id,omitempty"`
+	SeedreamTextModel       *string   `json:"seedream_text_model,omitempty"`
+	SeedreamImageModel      *string   `json:"seedream_image_model,omitempty"`
+	SeedreamVisionModel     *string   `json:"seedream_vision_model,omitempty"`
+	SeedreamVideoModel      *string   `json:"seedream_video_model,omitempty"`
+	SandboxBaseURL          *string   `json:"sandbox_base_url,omitempty"`
+	Environment             *string   `json:"environment,omitempty"`
+	Verbose                 *bool     `json:"verbose,omitempty"`
+	DisableTUI              *bool     `json:"disable_tui,omitempty"`
+	FollowTranscript        *bool     `json:"follow_transcript,omitempty"`
+	FollowStream            *bool     `json:"follow_stream,omitempty"`
+	MaxIterations           *int      `json:"max_iterations,omitempty"`
+	MaxTokens               *int      `json:"max_tokens,omitempty"`
+	Temperature             *float64  `json:"temperature,omitempty"`
+	TopP                    *float64  `json:"top_p,omitempty"`
+	StopSequences           *[]string `json:"stop_sequences,omitempty"`
+	SessionDir              *string   `json:"session_dir,omitempty"`
+	CostDir                 *string   `json:"cost_dir,omitempty"`
+	AgentPreset             *string   `json:"agent_preset,omitempty"`
+	ToolPreset              *string   `json:"tool_preset,omitempty"`
 }
 
 // EnvLookup resolves the value for an environment variable.
