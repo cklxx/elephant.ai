@@ -141,12 +141,14 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		taskRecord.ParentTaskID = parentTaskID
 	}
 
-	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskRecord.ID, ParentTaskID: parentTaskID})
+	taskID := taskRecord.ID
+	taskSessionID := taskRecord.SessionID
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskID, ParentTaskID: parentTaskID})
 
 	// Verify broadcaster is initialized
 	if s.broadcaster == nil {
 		s.logger.Error("[ServerCoordinator] Broadcaster is nil!")
-		_ = s.taskStore.SetError(ctx, taskRecord.ID, fmt.Errorf("broadcaster not initialized"))
+		_ = s.taskStore.SetError(ctx, taskID, fmt.Errorf("broadcaster not initialized"))
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
 
@@ -160,19 +162,18 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 
 	// Store cancel function to enable explicit cancellation via CancelTask API
 	s.cancelMu.Lock()
-	s.cancelFuncs[taskRecord.ID] = cancelFunc
+	s.cancelFuncs[taskID] = cancelFunc
 	s.cancelMu.Unlock()
 
-	// Spawn background goroutine to execute task with confirmed session ID
-	go s.executeTaskInBackground(taskCtx, taskRecord.ID, task, confirmedSessionID, agentPreset, toolPreset)
+	// Create a snapshot of the task record before the background goroutine begins
+	// mutating the original entry stored in the task store. Returning a copy avoids
+	// exposing callers to shared mutable state and prevents data races when the
+	// goroutine later calls SetResult/SetStatus on the same underlying task.
+	taskCopy := *taskRecord
+	go s.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset)
 
-// Return immediately with a copy of the task record so callers aren't racing with
-// the background goroutine that continues mutating the stored task (e.g. when
-// SetResult writes progress fields). This mirrors TaskStore.Get which already
-// returns defensive copies to avoid exposing shared pointers.
-taskCopy := *taskRecord
-s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskRecord.ID, taskRecord.SessionID)
-return &taskCopy, nil
+	s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
+	return &taskCopy, nil
 }
 
 // executeTaskInBackground runs the actual task execution in a background goroutine
