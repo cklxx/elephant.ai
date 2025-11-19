@@ -6,18 +6,19 @@ import (
 
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
+	"alex/internal/observability"
 	"alex/internal/server/app"
 	"alex/internal/utils"
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, obs *observability.Observability) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster)
+	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
-	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode)
+	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode, WithAPIObservability(obs))
 
 	var authMiddleware func(http.Handler) http.Handler
 	if authHandler != nil && authService != nil {
@@ -34,10 +35,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	// Create mux
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/api/internal/sessions/", apiHandler.HandleInternalSessionRequest)
+	mux.Handle("/api/internal/sessions/", routeHandler("/api/internal/sessions", http.HandlerFunc(apiHandler.HandleInternalSessionRequest)))
 
 	if internalMode && configHandler != nil {
-		mux.Handle("/api/internal/config/runtime", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runtimeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
 				configHandler.HandleGetRuntimeConfig(w, r)
@@ -46,56 +47,58 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 			default:
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
-		})))
-		mux.Handle("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(configHandler.HandleRuntimeStream)))
+		})
+		mux.Handle("/api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(runtimeHandler)))
+		mux.Handle("/api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(configHandler.HandleRuntimeStream))))
 	}
 
 	// SSE endpoint
-	mux.Handle("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream)))
+	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
+	mux.Handle("/api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
 
 	if authHandler != nil {
-		mux.HandleFunc("/api/auth/register", authHandler.HandleRegister)
-		mux.HandleFunc("/api/auth/login", authHandler.HandleLogin)
-		mux.HandleFunc("/api/auth/logout", authHandler.HandleLogout)
-		mux.HandleFunc("/api/auth/refresh", authHandler.HandleRefresh)
-		mux.HandleFunc("/api/auth/me", authHandler.HandleMe)
-		mux.HandleFunc("/api/auth/plans", authHandler.HandleListPlans)
+		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(authHandler.HandleRegister)))
+		mux.Handle("/api/auth/login", routeHandler("/api/auth/login", http.HandlerFunc(authHandler.HandleLogin)))
+		mux.Handle("/api/auth/logout", routeHandler("/api/auth/logout", http.HandlerFunc(authHandler.HandleLogout)))
+		mux.Handle("/api/auth/refresh", routeHandler("/api/auth/refresh", http.HandlerFunc(authHandler.HandleRefresh)))
+		mux.Handle("/api/auth/me", routeHandler("/api/auth/me", http.HandlerFunc(authHandler.HandleMe)))
+		mux.Handle("/api/auth/plans", routeHandler("/api/auth/plans", http.HandlerFunc(authHandler.HandleListPlans)))
 		if internalMode {
-			mux.Handle("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints)))
-			mux.Handle("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription)))
+			mux.Handle("/api/auth/points", routeHandler("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints))))
+			mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription))))
 		}
-		mux.HandleFunc("/api/auth/google/login", func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("/api/auth/google/login", routeHandler("/api/auth/google/login", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthStart(domain.ProviderGoogle, w, r)
-		})
-		mux.HandleFunc("/api/auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
+		})))
+		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthCallback(domain.ProviderGoogle, w, r)
-		})
-		mux.HandleFunc("/api/auth/wechat/login", func(w http.ResponseWriter, r *http.Request) {
+		})))
+		mux.Handle("/api/auth/wechat/login", routeHandler("/api/auth/wechat/login", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthStart(domain.ProviderWeChat, w, r)
-		})
-		mux.HandleFunc("/api/auth/wechat/callback", func(w http.ResponseWriter, r *http.Request) {
+		})))
+		mux.Handle("/api/auth/wechat/callback", routeHandler("/api/auth/wechat/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthCallback(domain.ProviderWeChat, w, r)
-		})
+		})))
 	} else {
 		authDisabled := func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Authentication module not configured", http.StatusServiceUnavailable)
 		}
-		mux.HandleFunc("/api/auth/register", authDisabled)
-		mux.HandleFunc("/api/auth/login", authDisabled)
-		mux.HandleFunc("/api/auth/logout", authDisabled)
-		mux.HandleFunc("/api/auth/refresh", authDisabled)
-		mux.HandleFunc("/api/auth/me", authDisabled)
-		mux.HandleFunc("/api/auth/plans", authDisabled)
-		mux.HandleFunc("/api/auth/points", authDisabled)
-		mux.HandleFunc("/api/auth/subscription", authDisabled)
-		mux.HandleFunc("/api/auth/google/login", authDisabled)
-		mux.HandleFunc("/api/auth/google/callback", authDisabled)
-		mux.HandleFunc("/api/auth/wechat/login", authDisabled)
-		mux.HandleFunc("/api/auth/wechat/callback", authDisabled)
+		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/login", routeHandler("/api/auth/login", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/logout", routeHandler("/api/auth/logout", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/refresh", routeHandler("/api/auth/refresh", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/me", routeHandler("/api/auth/me", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/plans", routeHandler("/api/auth/plans", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/points", routeHandler("/api/auth/points", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/google/login", routeHandler("/api/auth/google/login", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/wechat/login", routeHandler("/api/auth/wechat/login", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/wechat/callback", routeHandler("/api/auth/wechat/callback", http.HandlerFunc(authDisabled)))
 	}
 
 	// Task endpoints
-	mux.Handle("/api/tasks", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			apiHandler.HandleCreateTask(w, r)
@@ -104,76 +107,94 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	})))
+	}))))
 
-	mux.Handle("/api/tasks/", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/tasks/", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 
 		// Handle /api/tasks/:id/cancel
 		if strings.HasSuffix(path, "/cancel") {
+			annotateRequestRoute(r, "/api/tasks/:task_id/cancel")
 			apiHandler.HandleCancelTask(w, r)
 			return
 		}
 
 		// Handle /api/tasks/:id
 		if !strings.Contains(path, "/") {
+			annotateRequestRoute(r, "/api/tasks/:task_id")
 			apiHandler.HandleGetTask(w, r)
 			return
 		}
 
 		http.Error(w, "Not found", http.StatusNotFound)
-	})))
+	}))))
 
 	// Session endpoints
-	mux.Handle("/api/sessions/", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/sessions/", routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
+			annotateRequestRoute(r, "/api/sessions")
 			apiHandler.HandleListSessions(w, r)
-		} else {
-			path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-
-			if strings.HasSuffix(path, "/snapshots") {
-				apiHandler.HandleListSnapshots(w, r)
-				return
-			}
-			if strings.Contains(path, "/turns/") {
-				apiHandler.HandleGetTurnSnapshot(w, r)
-				return
-			}
-			if strings.HasSuffix(path, "/replay") {
-				apiHandler.HandleReplaySession(w, r)
-				return
-			}
-
-			// Handle /api/sessions/:id/fork
-			if strings.HasSuffix(path, "/fork") {
-				apiHandler.HandleForkSession(w, r)
-				return
-			}
-
-			// Handle /api/sessions/:id
-			if !strings.Contains(path, "/") {
-				switch r.Method {
-				case http.MethodGet:
-					apiHandler.HandleGetSession(w, r)
-				case http.MethodDelete:
-					apiHandler.HandleDeleteSession(w, r)
-				default:
-					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				}
-				return
-			}
-
-			http.Error(w, "Not found", http.StatusNotFound)
+			return
 		}
-	})))
+
+		path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+		if strings.HasSuffix(path, "/snapshots") {
+			annotateRequestRoute(r, "/api/sessions/:session_id/snapshots")
+			apiHandler.HandleListSnapshots(w, r)
+			return
+		}
+		if strings.Contains(path, "/turns/") {
+			annotateRequestRoute(r, "/api/sessions/:session_id/turns/:turn_id")
+			apiHandler.HandleGetTurnSnapshot(w, r)
+			return
+		}
+		if strings.HasSuffix(path, "/replay") {
+			annotateRequestRoute(r, "/api/sessions/:session_id/replay")
+			apiHandler.HandleReplaySession(w, r)
+			return
+		}
+		if strings.HasSuffix(path, "/fork") {
+			annotateRequestRoute(r, "/api/sessions/:session_id/fork")
+			apiHandler.HandleForkSession(w, r)
+			return
+		}
+		if !strings.Contains(path, "/") {
+			switch r.Method {
+			case http.MethodGet:
+				annotateRequestRoute(r, "/api/sessions/:session_id")
+				apiHandler.HandleGetSession(w, r)
+			case http.MethodDelete:
+				annotateRequestRoute(r, "/api/sessions/:session_id")
+				apiHandler.HandleDeleteSession(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		http.Error(w, "Not found", http.StatusNotFound)
+	}))))
 
 	// Health check endpoint
-	mux.HandleFunc("/health", apiHandler.HandleHealthCheck)
+	mux.Handle("/health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
 
 	// Apply middleware
 	var handler http.Handler = mux
+	if obs != nil {
+		handler = ObservabilityMiddleware(obs)(handler)
+	}
 	handler = LoggingMiddleware(logger)(handler)
 	handler = CORSMiddleware(environment, allowedOrigins)(handler)
 
 	return handler
+}
+
+func routeHandler(route string, handler http.Handler) http.Handler {
+	if route == "" {
+		return handler
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		annotateRequestRoute(r, route)
+		handler.ServeHTTP(w, r)
+	})
 }

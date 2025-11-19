@@ -13,6 +13,7 @@ import (
 	agentapp "alex/internal/agent/app"
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
+	"alex/internal/observability"
 	"alex/internal/server/app"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -26,16 +27,34 @@ type APIHandler struct {
 	healthChecker *app.HealthCheckerImpl
 	logger        *utils.Logger
 	internalMode  bool
+	obs           *observability.Observability
+}
+
+// APIHandlerOption configures API handler behavior.
+type APIHandlerOption func(*APIHandler)
+
+// WithAPIObservability wires observability components into the handler.
+func WithAPIObservability(obs *observability.Observability) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.obs = obs
+	}
 }
 
 // NewAPIHandler creates a new API handler
-func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl, internalMode bool) *APIHandler {
-	return &APIHandler{
+func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl, internalMode bool, opts ...APIHandlerOption) *APIHandler {
+	handler := &APIHandler{
 		coordinator:   coordinator,
 		healthChecker: healthChecker,
 		logger:        utils.NewComponentLogger("APIHandler"),
 		internalMode:  internalMode,
 	}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(handler)
+	}
+	return handler
 }
 
 // CreateTaskRequest matches TypeScript CreateTaskRequest interface
@@ -113,6 +132,19 @@ type TurnSnapshotResponse struct {
 	Messages   []agentports.Message        `json:"messages"`
 	Feedback   []agentports.FeedbackSignal `json:"feedback,omitempty"`
 }
+
+type webVitalPayload struct {
+	Name           string  `json:"name"`
+	Value          float64 `json:"value"`
+	Delta          float64 `json:"delta,omitempty"`
+	ID             string  `json:"id,omitempty"`
+	Label          string  `json:"label,omitempty"`
+	Page           string  `json:"page,omitempty"`
+	NavigationType string  `json:"navigation_type,omitempty"`
+	Timestamp      int64   `json:"ts,omitempty"`
+}
+
+const maxWebVitalBodySize = 1 << 14
 
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
@@ -210,6 +242,32 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
+}
+
+// HandleWebVitals ingests frontend performance signals.
+func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body := http.MaxBytesReader(w, r.Body, maxWebVitalBodySize)
+	defer body.Close()
+	var payload webVitalPayload
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+	if payload.Name == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "name is required", fmt.Errorf("name missing"))
+		return
+	}
+	page := canonicalPath(payload.Page)
+	if h.obs != nil {
+		h.obs.Metrics.RecordWebVital(r.Context(), payload.Name, payload.Label, page, payload.Value, payload.Delta)
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentports.Attachment, error) {

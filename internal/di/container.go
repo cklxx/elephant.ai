@@ -17,7 +17,6 @@ import (
 	"alex/internal/llm"
 	"alex/internal/mcp"
 	"alex/internal/parser"
-	"alex/internal/rag/gate"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
@@ -255,9 +254,6 @@ func BuildContainer(config Config) (*Container, error) {
 	mcpRegistry := mcp.NewRegistry(mcp.WithEnvLookup(envLookup))
 	tracker := newMCPInitializationTracker()
 
-	// Application Layer
-	ragGateImpl := gate.New(gate.DefaultConfig(), gate.NopEmitter{})
-
 	coordinator := agentApp.NewAgentCoordinator(
 		llmFactory,
 		toolRegistry,
@@ -280,7 +276,6 @@ func BuildContainer(config Config) (*Container, error) {
 			ToolPreset:          config.ToolPreset,
 			EnvironmentSummary:  config.EnvironmentSummary,
 		},
-		agentApp.WithRAGGate(agentApp.NewRAGGateAdapter(ragGateImpl)),
 	)
 
 	// Register subagent tool after coordinator is created

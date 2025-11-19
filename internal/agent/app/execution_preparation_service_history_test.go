@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,6 @@ func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
 	}
 
 	store := &stubSessionStore{session: session}
-	gate := &recordingGate{directives: ports.RAGDirectives{}}
 	registry := &registryWithList{defs: []ports.ToolDefinition{{Name: "web_search"}, {Name: "web_fetch"}}}
 
 	deps := ExecutionPreparationDeps{
@@ -51,7 +51,6 @@ func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
 		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		RAGGate:       gate,
 		EventEmitter:  ports.NoopEventListener{},
 	}
 
@@ -82,9 +81,6 @@ func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
 		t.Fatalf("expected assistant recall to include earlier reply, got %q", historyMessages[1].Content)
 	}
 
-	if gate.signals.Query == "" {
-		t.Fatalf("expected rag gate signals to capture base query")
-	}
 }
 
 func TestPrepareHistoryRecallOmitsSystemMessages(t *testing.T) {
@@ -261,6 +257,90 @@ func TestHistoryRecallSummarizesWhenThresholdExceeded(t *testing.T) {
 		t.Fatalf("expected summary content to match fake LLM output, got %q", trimmed)
 	}
 }
+
+type fakeLLMFactory struct {
+	client ports.LLMClient
+}
+
+func (f *fakeLLMFactory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+	if f.client == nil {
+		return nil, errors.New("no client")
+	}
+	return f.client, nil
+}
+
+func (f *fakeLLMFactory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+	if f.client == nil {
+		return nil, errors.New("no client")
+	}
+	return f.client, nil
+}
+
+func (f *fakeLLMFactory) DisableRetry() {}
+
+type fakeLLMClient struct{}
+
+func (fakeLLMClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	if req.Metadata != nil {
+		if intent, ok := req.Metadata["intent"].(string); ok && intent == historySummaryIntent {
+			return &ports.CompletionResponse{Content: historySummaryResponse()}, nil
+		}
+	}
+	return &ports.CompletionResponse{Content: `<task_analysis>
+  <action>Researching marketing landscape</action>
+  <goal>Summarize current marketing trends</goal>
+  <approach>Review internal assets then synthesize web insights</approach>
+  <success_criteria>
+    <criterion>List at least three trend themes</criterion>
+    <criterion>Cite internal and external sources</criterion>
+  </success_criteria>
+  <task_breakdown>
+    <step requires_external_research="false" requires_retrieval="true">
+      <description>Review recent marketing briefs in the repo</description>
+      <reason>Need latest internal positioning</reason>
+    </step>
+    <step requires_external_research="true" requires_retrieval="true">
+      <description>Collect public reports on 2024 marketing trends</description>
+      <reason>Fresh data lives outside the workspace</reason>
+    </step>
+  </task_breakdown>
+  <retrieval_plan should_retrieve="true">
+    <local_queries>
+      <query>marketing brief</query>
+      <query>campaign roadmap</query>
+    </local_queries>
+    <search_queries>
+      <query>2024 marketing trends</query>
+      <query>consumer engagement benchmarks</query>
+    </search_queries>
+    <crawl_urls>
+      <url>https://example.com/report</url>
+    </crawl_urls>
+    <knowledge_gaps>
+      <gap>Latest consumer engagement statistics</gap>
+    </knowledge_gaps>
+    <notes>Prioritize sources updated within the last quarter</notes>
+  </retrieval_plan>
+</task_analysis>`}, nil
+}
+
+func (fakeLLMClient) Model() string { return "stub-model" }
+
+type registryWithList struct {
+	defs []ports.ToolDefinition
+}
+
+func (r *registryWithList) Register(tool ports.ToolExecutor) error { return nil }
+
+func (r *registryWithList) Get(name string) (ports.ToolExecutor, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *registryWithList) List() []ports.ToolDefinition {
+	return append([]ports.ToolDefinition(nil), r.defs...)
+}
+
+func (r *registryWithList) Unregister(name string) error { return nil }
 
 func TestPrepareCarriesSessionHistoryIntoState(t *testing.T) {
 	session := &ports.Session{

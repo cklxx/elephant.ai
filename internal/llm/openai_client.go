@@ -118,17 +118,13 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	// Debug log: Request body (pretty print)
-	var (
-		prettyJSON   bytes.Buffer
-		loggableBody = body
-	)
+	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
-		loggableBody = prettyJSON.Bytes()
 		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
 	} else {
 		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
 	}
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), loggableBody...))
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), body...))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -192,6 +188,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	} else {
 		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	}
+	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
 
 	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
@@ -331,6 +328,8 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	} else {
 		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
 	}
+
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), body...))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -513,6 +512,30 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		}
 		c.usageCallback(result.Usage, c.model, provider)
 	}
+
+	if respPayload, err := json.Marshal(map[string]any{
+		"content":     result.Content,
+		"stop_reason": result.StopReason,
+		"tool_calls":  result.ToolCalls,
+		"usage":       result.Usage,
+	}); err != nil {
+		c.logger.Debug("%sFailed to marshal streaming response payload: %v", prefix, err)
+	} else {
+		utils.LogStreamingResponsePayload(requestID, respPayload)
+	}
+
+	summaryBuilder := &strings.Builder{}
+	summaryBuilder.WriteString("=== LLM Streaming Summary ===\n")
+	summaryBuilder.WriteString(fmt.Sprintf("Stop Reason: %s\n", result.StopReason))
+	summaryBuilder.WriteString(fmt.Sprintf("Content Length: %d chars\n", len(result.Content)))
+	summaryBuilder.WriteString(fmt.Sprintf("Tool Calls: %d\n", len(result.ToolCalls)))
+	summaryBuilder.WriteString(fmt.Sprintf("Usage: %d prompt + %d completion = %d total tokens\n",
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens,
+	))
+	summaryBuilder.WriteString("==================")
+	utils.LogStreamingSummary(requestID, []byte(summaryBuilder.String()))
 
 	c.logger.Debug("%s=== LLM Streaming Summary ===", prefix)
 	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)

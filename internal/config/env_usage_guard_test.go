@@ -13,11 +13,12 @@ import (
 func TestNoUnapprovedGetenv(t *testing.T) {
 	moduleRoot := findModuleRoot(t)
 
-	allowed := newStringSet(t,
-		"cmd/auth-user-seed/main.go",
-		"internal/rag/embedder_test.go",
-		"internal/tools/sandbox_docker.go",
-		"internal/utils/logger.go",
+allowed := newStringSet(t,
+"cmd/auth-user-seed/main.go",
+"cmd/alex-server/main.go",
+"internal/rag/embedder_test.go",
+"internal/tools/sandbox_docker.go",
+"internal/utils/logger.go",
 	)
 
 	skipDirs := map[string]struct{}{
