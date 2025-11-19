@@ -285,15 +285,17 @@ ensure_api_url_default() {
         export NEXT_PUBLIC_API_URL="$default_value"
     fi
 
+    local resolved_api_url="${NEXT_PUBLIC_API_URL:-}" # Prevent nounset errors before hydration
+
     if [[ "$mode" == "local" ]]; then
-        if [[ "${NEXT_PUBLIC_API_URL}" == "auto" ]]; then
+        if [[ "$resolved_api_url" == "auto" ]]; then
             log_warn "NEXT_PUBLIC_API_URL=auto relies on nginx to proxy API traffic back to :${SERVER_PORT}"
         else
-            log_success "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} (${source})"
+            log_success "NEXT_PUBLIC_API_URL=${resolved_api_url} (${source})"
         fi
     else
-        if [[ "${NEXT_PUBLIC_API_URL}" != "auto" ]]; then
-            log_warn "NEXT_PUBLIC_API_URL='${NEXT_PUBLIC_API_URL}'. nginx already proxies all exits, so 'auto' keeps the same-origin flow."
+        if [[ "$resolved_api_url" != "auto" ]]; then
+            log_warn "NEXT_PUBLIC_API_URL='${resolved_api_url}'. nginx already proxies all exits, so 'auto' keeps the same-origin flow."
         fi
     fi
 }
@@ -494,6 +496,7 @@ OPENAI_BASE_URL=https://openrouter.ai/api/v1
 ALEX_MODEL=anthropic/claude-3.5-sonnet
 ALEX_VERBOSE=false
 ALEX_SANDBOX_BASE_URL=http://localhost:8090
+NEXT_PUBLIC_API_URL=http://localhost:${SERVER_PORT}
 
 # Authentication defaults for local development
 AUTH_JWT_SECRET=${default_auth_secret}
