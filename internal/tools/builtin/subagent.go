@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
@@ -52,19 +53,30 @@ func (t *subagent) Definition() ports.ToolDefinition {
 		Name: "subagent",
 		Description: `Delegate ONLY COMPLEX, TIME-CONSUMING tasks to parallel sub-agents for concurrent execution.
 
+ORCHESTRATOR CONTEXT:
+- The main agent can only think, manage TODOs, call this tool, and finalize. Every real command must run inside a delegated subagent.
+
+SUBAGENT TOOLING & PRESETS:
+- Each subtask spawns a fresh agent that inherits the user-selected preset (full, read-only, code-only, web-only, or safe).
+- Within that preset the subagent can call the entire toolset it allows—e.g., file_read/file_write/file_edit, list_files, grep/ripgrep/find, todo_read/todo_update, bash, code_execute, browser_info, explore, web_search/web_fetch, text_to_image, image_to_image, vision_analyze, etc.
+- Subagents CANNOT call the subagent tool themselves (recursion prevention enforced at runtime).
+
+PARALLEL FAN-OUT MODEL:
+- Provide newline-separated or JSON-array instructions via the prompt; each entry becomes its own autonomous agent.
+- A single tool call runs all provided subtasks concurrently, and you can have multiple subagent tool calls in-flight at the same time when you want separate batches.
+
 CRITICAL USAGE RULES:
-1. Use ONLY for tasks requiring MULTIPLE INDEPENDENT operations (e.g., "analyze 5 different files", "research 3 technologies")
+1. Use ONLY for tasks requiring MULTIPLE INDEPENDENT operations (e.g., "analyze 5 different files", "research 3 technologies").
 2. DO NOT use for:
    - Single simple operations (file read, bash command)
    - Sequential dependent tasks (use regular tools)
    - Tasks requiring shared state
-3. Break down into SPECIFIC, INDEPENDENT subtasks
-4. Each subtask gets a FRESH agent with FULL tool access (except nested subagent - RECURSION PREVENTION)
+3. Break down into SPECIFIC, INDEPENDENT subtasks and keep each instruction self-contained.
 
 RECURSION PREVENTION:
-- Subagents automatically have the 'subagent' tool REMOVED from their registry
-- This prevents infinite nested subagent calls
-- Implemented via context marking and registry filtering
+- Subagents automatically have the 'subagent' tool REMOVED from their registry.
+- This prevents infinite nested subagent calls.
+- Implemented via context marking and registry filtering.
 
 EXAMPLES:
 
@@ -78,65 +90,28 @@ Bad use cases:
 - "Run tests then deploy" → Sequential, not parallel
 - "Calculate total from multiple sources" → Needs state sharing
 
+
 The tool executes subtasks in parallel and aggregates results.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"subtasks": {
-					Type:        "array",
-					Description: "List of independent subtasks to execute in parallel. Each should be a complete, self-contained task description.",
-				},
-				"mode": {
+				"prompt": {
 					Type:        "string",
-					Description: "Execution mode: 'parallel' (default, faster) or 'serial' (sequential, more reliable)",
-					Enum:        []any{"parallel", "serial"},
+					Description: "Describe the overall goal and enumerate each independent subtask (newline-separated or JSON array).",
 				},
 			},
-			Required: []string{"subtasks"},
+			Required: []string{"prompt"},
 		},
 	}
 }
 
 func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	// Parse parameters from Arguments
-	subtasksRaw, ok := call.Arguments["subtasks"]
-	if !ok {
+	subtasks, err := extractSubtasks(call.Arguments)
+	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
-			Content: "Missing required parameter: subtasks",
-			Error:   fmt.Errorf("subtasks parameter is required"),
-		}, nil
-	}
-
-	// Convert to string array
-	subtasksAny, ok := subtasksRaw.([]any)
-	if !ok {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "Invalid subtasks parameter: must be an array",
-			Error:   fmt.Errorf("subtasks must be an array"),
-		}, nil
-	}
-
-	subtasks := make([]string, 0, len(subtasksAny))
-	for i, t := range subtasksAny {
-		taskStr, ok := t.(string)
-		if !ok {
-			return &ports.ToolResult{
-				CallID:  call.ID,
-				Content: fmt.Sprintf("Invalid subtask at index %d: must be a string", i),
-				Error:   fmt.Errorf("subtask %d is not a string", i),
-			}, nil
-		}
-		subtasks = append(subtasks, taskStr)
-	}
-
-	// Validate
-	if len(subtasks) == 0 {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: "No subtasks provided",
-			Error:   fmt.Errorf("subtasks array is empty"),
+			Content: err.Error(),
+			Error:   err,
 		}, nil
 	}
 
@@ -191,6 +166,114 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	// Format results
 	return t.formatResults(call, subtasks, results, mode)
+}
+
+func extractSubtasks(args map[string]any) ([]string, error) {
+	if raw, ok := args["subtasks"]; ok {
+		return normalizeSubtasks(raw)
+	}
+
+	promptRaw, ok := args["prompt"]
+	if !ok {
+		return nil, fmt.Errorf("missing required parameter: prompt")
+	}
+
+	promptStr, ok := promptRaw.(string)
+	if !ok {
+		return nil, fmt.Errorf("prompt must be a string")
+	}
+
+	subtasks := subtasksFromPrompt(promptStr)
+	if len(subtasks) == 0 {
+		return nil, fmt.Errorf("prompt did not include any recognizable subtasks")
+	}
+
+	return subtasks, nil
+}
+
+func normalizeSubtasks(raw any) ([]string, error) {
+	switch v := raw.(type) {
+	case []any:
+		return convertInterfaceSlice(v)
+	case []string:
+		filtered := filterEmptyStrings(v)
+		if len(filtered) == 0 {
+			return nil, fmt.Errorf("no subtasks provided")
+		}
+		return filtered, nil
+	default:
+		return nil, fmt.Errorf("invalid subtasks parameter: must be an array of strings")
+	}
+}
+
+func convertInterfaceSlice(raw []any) ([]string, error) {
+	result := make([]string, 0, len(raw))
+	for i, entry := range raw {
+		value, ok := entry.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid subtask at index %d: must be a string", i)
+		}
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		result = append(result, value)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no subtasks provided")
+	}
+	return result, nil
+}
+
+func subtasksFromPrompt(prompt string) []string {
+	trimmed := strings.TrimSpace(prompt)
+	if trimmed == "" {
+		return nil
+	}
+
+	var arr []string
+	if err := json.Unmarshal([]byte(trimmed), &arr); err == nil {
+		return filterEmptyStrings(arr)
+	}
+
+	lines := strings.Split(trimmed, "\n")
+	parsed := make([]string, 0, len(lines))
+	for _, line := range lines {
+		normalized := normalizePromptLine(line)
+		if normalized != "" {
+			parsed = append(parsed, normalized)
+		}
+	}
+	if len(parsed) == 0 {
+		return []string{trimmed}
+	}
+	return parsed
+}
+
+func normalizePromptLine(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+
+	line = strings.TrimLeft(line, "-*•")
+	line = strings.TrimSpace(line)
+	line = strings.TrimLeftFunc(line, func(r rune) bool {
+		return unicode.IsDigit(r) || r == '.' || r == ')' || r == ':' || r == ' '
+	})
+	return strings.TrimSpace(line)
+}
+
+func filterEmptyStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
 }
 
 // SubtaskResult holds the result of a single subtask execution
