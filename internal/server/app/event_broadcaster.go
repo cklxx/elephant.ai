@@ -44,6 +44,7 @@ type EventBroadcaster struct {
 const (
 	assistantMessageEventType = "assistant_message"
 	assistantMessageLogBatch  = 10
+	globalHighVolumeSessionID = "__global__"
 )
 
 // broadcasterMetrics tracks broadcaster performance metrics
@@ -417,6 +418,45 @@ func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.
 	default:
 		return nil
 	}
+}
+
+// shouldSuppressHighVolumeLogs determines whether verbose logs should be
+// suppressed for the provided event type. Assistant streaming events are very
+// high volume and can flood the logs, so we only log these events in batches.
+func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEvent) bool {
+	if event == nil {
+		return false
+	}
+	return event.EventType() == assistantMessageEventType
+}
+
+func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
+	if event == nil {
+		return
+	}
+	sessionID := event.GetSessionID()
+	if sessionID == "" {
+		sessionID = globalHighVolumeSessionID
+	}
+
+	b.highVolumeMu.Lock()
+	b.highVolumeCounters[sessionID]++
+	count := b.highVolumeCounters[sessionID]
+	b.highVolumeMu.Unlock()
+
+	if count%assistantMessageLogBatch == 0 {
+		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, event.EventType(), sessionID)
+	}
+}
+
+func (b *EventBroadcaster) clearHighVolumeCounter(sessionID string) {
+	if sessionID == "" {
+		sessionID = globalHighVolumeSessionID
+	}
+
+	b.highVolumeMu.Lock()
+	delete(b.highVolumeCounters, sessionID)
+	b.highVolumeMu.Unlock()
 }
 
 // Metrics helper methods

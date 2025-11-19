@@ -231,6 +231,62 @@ func TestEventBroadcaster_CriticalEventDeliveredWhenBufferFull(t *testing.T) {
 	}
 }
 
+func TestEventBroadcaster_HighVolumeCounterResetsWithHistory(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	sessionID := "high-volume-session"
+	event := stubAgentEvent{eventType: assistantMessageEventType, sessionID: sessionID}
+
+	for i := 0; i < assistantMessageLogBatch+3; i++ {
+		broadcaster.trackHighVolumeEvent(event)
+	}
+
+	broadcaster.highVolumeMu.Lock()
+	if got := broadcaster.highVolumeCounters[sessionID]; got == 0 {
+		broadcaster.highVolumeMu.Unlock()
+		t.Fatalf("expected counter to be recorded for session %s", sessionID)
+	}
+	broadcaster.highVolumeMu.Unlock()
+
+	// Clearing history should also drop the high-volume counter to avoid leaks.
+	broadcaster.ClearEventHistory(sessionID)
+
+	broadcaster.highVolumeMu.Lock()
+	if _, exists := broadcaster.highVolumeCounters[sessionID]; exists {
+		broadcaster.highVolumeMu.Unlock()
+		t.Fatalf("expected high-volume counter to be cleared for session %s", sessionID)
+	}
+	broadcaster.highVolumeMu.Unlock()
+}
+
+func TestEventBroadcaster_HighVolumeCounterUsesGlobalKeyWhenSessionMissing(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	event := stubAgentEvent{eventType: assistantMessageEventType, sessionID: ""}
+
+	broadcaster.trackHighVolumeEvent(event)
+
+	broadcaster.highVolumeMu.Lock()
+	count, exists := broadcaster.highVolumeCounters[globalHighVolumeSessionID]
+	broadcaster.highVolumeMu.Unlock()
+
+	if !exists {
+		t.Fatalf("expected global counter to exist when sessionID is empty")
+	}
+	if count != 1 {
+		t.Fatalf("expected global counter to be 1, got %d", count)
+	}
+
+	// Clearing history without a sessionID should also clean up the global counter.
+	broadcaster.ClearEventHistory("")
+
+	broadcaster.highVolumeMu.Lock()
+	_, exists = broadcaster.highVolumeCounters[globalHighVolumeSessionID]
+	broadcaster.highVolumeMu.Unlock()
+
+	if exists {
+		t.Fatal("expected global high-volume counter to be cleared after history reset")
+	}
+}
+
 type stubAttachmentCall struct {
 	sessionID   string
 	attachments map[string]ports.Attachment
