@@ -17,6 +17,7 @@ import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
+import { isFallbackActionName } from '@/lib/taskAnalysis';
 
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -429,17 +430,27 @@ export function ConversationPageContent() {
   const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
 
   const firstTaskAnalysis = useMemo(
-    () => events.find((event) => event.event_type === "task_analysis"),
+    () => events.find((event) => event.event_type === 'task_analysis'),
     [events],
   );
-  const analysisTitle =
-    firstTaskAnalysis && "action_name" in firstTaskAnalysis
-      ? firstTaskAnalysis.action_name
+  const analysisApproach =
+    firstTaskAnalysis && 'approach' in firstTaskAnalysis && firstTaskAnalysis.approach
+      ? firstTaskAnalysis.approach.trim()
       : null;
+  const analysisActionName =
+    firstTaskAnalysis && 'action_name' in firstTaskAnalysis && firstTaskAnalysis.action_name
+      ? firstTaskAnalysis.action_name.trim()
+      : null;
+  const analysisGoal =
+    firstTaskAnalysis && 'goal' in firstTaskAnalysis && firstTaskAnalysis.goal
+      ? firstTaskAnalysis.goal.trim()
+      : null;
+  const hasMeaningfulActionName = Boolean(
+    analysisActionName && !isFallbackActionName(analysisActionName),
+  );
+  const analysisTitle = analysisApproach || (hasMeaningfulActionName ? analysisActionName : null);
   const analysisSubtitle =
-    firstTaskAnalysis && "goal" in firstTaskAnalysis
-      ? firstTaskAnalysis.goal
-      : null;
+    !analysisApproach && hasMeaningfulActionName && analysisGoal ? analysisGoal : null;
 
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()

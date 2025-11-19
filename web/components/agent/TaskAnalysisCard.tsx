@@ -1,6 +1,7 @@
 'use client';
 
 import { TaskAnalysisEvent } from '@/lib/types';
+import { isFallbackActionName } from '@/lib/taskAnalysis';
 import { Target, Lightbulb, ListTodo, Search, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
@@ -10,6 +11,8 @@ interface TaskAnalysisCardProps {
 
 export function TaskAnalysisCard({ event }: TaskAnalysisCardProps) {
   const t = useTranslation();
+
+  const showActionName = Boolean(event.action_name && !isFallbackActionName(event.action_name));
 
   return (
     <section className="space-y-4" data-testid="task-analysis-event">
@@ -25,20 +28,22 @@ export function TaskAnalysisCard({ event }: TaskAnalysisCardProps) {
         </span>
       </header>
 
-      {event.action_name && (
+      {showActionName && (
         <p className="text-base font-semibold leading-snug text-foreground">
           {event.action_name}
         </p>
       )}
 
-      <div className="space-y-2">
-        <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-          {t('events.taskAnalysis.goal')}
-        </p>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
-          {event.goal}
-        </p>
-      </div>
+      {event.goal && (
+        <div className="space-y-2">
+          <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+            {t('events.taskAnalysis.goal')}
+          </p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+            {event.goal}
+          </p>
+        </div>
+      )}
 
       {event.approach && (
         <div className="space-y-2">
