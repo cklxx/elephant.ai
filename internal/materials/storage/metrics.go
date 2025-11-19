@@ -48,14 +48,37 @@ func NewPrometheusObserver(namespace string, reg prometheus.Registerer) (*Promet
 			Help:      "Cumulative payload size successfully uploaded to object storage.",
 		}),
 	}
-	collectors := []prometheus.Collector{observer.uploadDuration, observer.operationErrors, observer.uploadBytes}
-	for _, collector := range collectors {
-		if err := reg.Register(collector); err != nil {
-			if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-				collector = are.ExistingCollector
-				continue
+	if err := reg.Register(observer.uploadDuration); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if existing, ok := are.ExistingCollector.(*prometheus.HistogramVec); ok {
+				observer.uploadDuration = existing
+			} else {
+				return nil, fmt.Errorf("register storage histogram: %w", err)
 			}
-			return nil, fmt.Errorf("register storage metric: %w", err)
+		} else {
+			return nil, fmt.Errorf("register storage histogram: %w", err)
+		}
+	}
+	if err := reg.Register(observer.operationErrors); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if existing, ok := are.ExistingCollector.(*prometheus.CounterVec); ok {
+				observer.operationErrors = existing
+			} else {
+				return nil, fmt.Errorf("register storage counter: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("register storage counter: %w", err)
+		}
+	}
+	if err := reg.Register(observer.uploadBytes); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if existing, ok := are.ExistingCollector.(prometheus.Counter); ok {
+				observer.uploadBytes = existing
+			} else {
+				return nil, fmt.Errorf("register uploaded bytes counter: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("register uploaded bytes counter: %w", err)
 		}
 	}
 	return observer, nil

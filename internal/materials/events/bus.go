@@ -90,9 +90,10 @@ func (b *Bus) dispatch(requestID string, event *materialapi.MaterialEvent) {
 
 func (b *Bus) safeSend(reg *watchRegistration, event *materialapi.MaterialEvent) {
 	defer func() {
-		if recover() != nil {
+		if r := recover(); r != nil {
 			// The watcher channel was closed after we copied the registration. Ignore the event
 			// and keep publishing to other watchers.
+			_ = r
 		}
 	}()
 

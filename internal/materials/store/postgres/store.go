@@ -41,7 +41,9 @@ func (s *Store) InsertMaterials(ctx context.Context, materials []store.MaterialR
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) // no-op if committed
+	defer func() {
+		_ = tx.Rollback(ctx) // no-op if already committed
+	}()
 
 	for _, material := range materials {
 		if material.MaterialID == "" {
@@ -216,7 +218,9 @@ func (s *Store) DeleteExpiredMaterials(ctx context.Context, req store.DeleteExpi
 	if err != nil {
 		return nil, fmt.Errorf("begin cleanup tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 	args := []any{cutoff}
 	param := 2
 	statusClause := ""

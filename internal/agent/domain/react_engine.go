@@ -1246,7 +1246,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 }
 
 func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req legacy.MigrationRequest) map[string]ports.Attachment {
-	if req.Attachments == nil || len(req.Attachments) == 0 || e.attachmentMigrator == nil {
+	if len(req.Attachments) == 0 || e.attachmentMigrator == nil {
 		return req.Attachments
 	}
 	if req.Context == nil {
