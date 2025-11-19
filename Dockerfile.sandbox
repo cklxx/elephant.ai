@@ -7,6 +7,10 @@ ARG PIP_INDEX_URL=https://pypi.org/simple
 
 WORKDIR /workspace
 
+# Configure pip index early so all subsequent installs honor the mirror
+RUN pip3 config set global.index-url ${PIP_INDEX_URL} \
+    && pip3 config set global.timeout 15
+
 # Copy skills into sandbox runtime so file tools can access them without host mounts
 COPY skills /workspace/skills
 
@@ -85,10 +89,6 @@ RUN pip3 install --no-cache-dir \
     rich \
     tqdm
 
-# Configure pip index (supports China mirror via build arg)
-RUN pip3 config set global.index-url ${PIP_INDEX_URL} \
-    && pip3 config set global.timeout 15
-
 ###############################################################################
 # Environment Variables
 ###############################################################################
@@ -96,6 +96,7 @@ RUN pip3 config set global.index-url ${PIP_INDEX_URL} \
 # Set Python to unbuffered mode for better logging
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
     # Node environment
     NODE_ENV=development \
     # Ensure tools are in PATH
