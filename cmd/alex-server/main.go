@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -47,10 +48,16 @@ type AuthConfig struct {
 	StateTTLMinutes       string
 	RedirectBaseURL       string
 	GoogleClientID        string
+	GoogleClientSecret    string
 	GoogleAuthURL         string
+	GoogleTokenURL        string
+	GoogleUserInfoURL     string
 	WeChatAppID           string
 	WeChatAuthURL         string
 	DatabaseURL           string
+	BootstrapEmail        string
+	BootstrapPassword     string
+	BootstrapDisplayName  string
 }
 
 // AnalyticsConfig holds analytics configuration values.
@@ -178,8 +185,72 @@ func main() {
 
 	// Set task store on broadcaster for progress tracking
 	broadcaster.SetTaskStore(taskStore)
-	if archiver := serverApp.NewSandboxAttachmentArchiver(container.SandboxManager, ""); archiver != nil {
+	var attachmentScanner serverApp.AttachmentScanner
+	if scannerURL := strings.TrimSpace(os.Getenv("ATTACHMENT_SCAN_WEBHOOK")); scannerURL != "" {
+		scannerCfg := serverApp.HTTPAttachmentScannerConfig{
+			Endpoint: scannerURL,
+			Secret:   strings.TrimSpace(os.Getenv("ATTACHMENT_SCAN_SECRET")),
+		}
+		if timeout := strings.TrimSpace(os.Getenv("ATTACHMENT_SCAN_TIMEOUT_MS")); timeout != "" {
+			value, err := strconv.Atoi(timeout)
+			if err != nil {
+				logger.Warn("Invalid ATTACHMENT_SCAN_TIMEOUT_MS value %q: %v", timeout, err)
+			} else if value > 0 {
+				scannerCfg.Timeout = time.Duration(value) * time.Millisecond
+			}
+		}
+		attachmentScanner = serverApp.NewHTTPAttachmentScanner(scannerCfg)
+		if attachmentScanner != nil {
+			logger.Info("Attachment scanner initialized (webhook=%s)", scannerURL)
+		} else {
+			logger.Warn("Attachment scanner disabled: invalid configuration for %s", scannerURL)
+		}
+	} else {
+		logger.Info("Attachment scanner disabled: ATTACHMENT_SCAN_WEBHOOK not set")
+	}
+archiverCfg := serverApp.SandboxAttachmentArchiverConfig{
+AllowedRemoteHosts: parseCSVEnv("ATTACHMENT_REMOTE_HOST_ALLOWLIST"),
+BlockedRemoteHosts: parseCSVEnv("ATTACHMENT_REMOTE_HOST_DENYLIST"),
+Scanner:            attachmentScanner,
+ScanReporter:       broadcaster,
+}
+	if archiver := serverApp.NewSandboxAttachmentArchiver(container.SandboxManager, "", archiverCfg); archiver != nil {
 		broadcaster.SetAttachmentArchiver(archiver)
+		if len(archiverCfg.AllowedRemoteHosts) > 0 || len(archiverCfg.BlockedRemoteHosts) > 0 {
+			logger.Info("Sandbox attachment archiver host filters configured (allow=%v, block=%v)", archiverCfg.AllowedRemoteHosts, archiverCfg.BlockedRemoteHosts)
+		}
+	}
+	if exporterURL := strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_WEBHOOK")); exporterURL != "" {
+		exporterCfg := serverApp.HTTPAttachmentExporterConfig{
+			Endpoint: exporterURL,
+			Secret:   strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_SECRET")),
+		}
+		if attempts := strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_MAX_ATTEMPTS")); attempts != "" {
+			value, err := strconv.Atoi(attempts)
+			if err != nil {
+				logger.Warn("Invalid ATTACHMENT_EXPORT_MAX_ATTEMPTS value %q: %v", attempts, err)
+			} else {
+				exporterCfg.MaxAttempts = value
+			}
+		}
+		if backoff := strings.TrimSpace(os.Getenv("ATTACHMENT_EXPORT_BACKOFF_MS")); backoff != "" {
+			value, err := strconv.Atoi(backoff)
+			if err != nil {
+				logger.Warn("Invalid ATTACHMENT_EXPORT_BACKOFF_MS value %q: %v", backoff, err)
+			} else if value > 0 {
+				exporterCfg.Backoff = time.Duration(value) * time.Millisecond
+			}
+		}
+		if exporter := serverApp.NewHTTPAttachmentExporterWithConfig(exporterCfg); exporter != nil {
+			broadcaster.SetAttachmentExporter(exporter)
+			retries := exporterCfg.MaxAttempts
+			if retries <= 0 {
+				retries = 3
+			}
+			logger.Info("Attachment exporter initialized (webhook=%s, retries=%d)", exporterURL, retries)
+		}
+	} else {
+		logger.Info("Attachment exporter disabled: ATTACHMENT_EXPORT_WEBHOOK not set")
 	}
 
 	analyticsClient := analytics.NewNoopClient()
@@ -205,6 +276,7 @@ func main() {
 		broadcaster,
 		container.SessionStore,
 		taskStore,
+		container.StateStore,
 		serverApp.WithAnalyticsClient(analyticsClient),
 	)
 
@@ -382,8 +454,17 @@ func loadConfig() (Config, error) {
 	if clientID, ok := envLookup("GOOGLE_CLIENT_ID"); ok {
 		authCfg.GoogleClientID = strings.TrimSpace(clientID)
 	}
+	if clientSecret, ok := envLookup("GOOGLE_CLIENT_SECRET"); ok {
+		authCfg.GoogleClientSecret = strings.TrimSpace(clientSecret)
+	}
 	if authURL, ok := envLookup("GOOGLE_AUTH_URL"); ok {
 		authCfg.GoogleAuthURL = strings.TrimSpace(authURL)
+	}
+	if tokenURL, ok := envLookup("GOOGLE_TOKEN_URL"); ok {
+		authCfg.GoogleTokenURL = strings.TrimSpace(tokenURL)
+	}
+	if userInfoURL, ok := envLookup("GOOGLE_USERINFO_URL"); ok {
+		authCfg.GoogleUserInfoURL = strings.TrimSpace(userInfoURL)
 	}
 	if appID, ok := envLookup("WECHAT_APP_ID"); ok {
 		authCfg.WeChatAppID = strings.TrimSpace(appID)
@@ -393,6 +474,15 @@ func loadConfig() (Config, error) {
 	}
 	if dbURL, ok := envLookup("AUTH_DATABASE_URL"); ok {
 		authCfg.DatabaseURL = strings.TrimSpace(dbURL)
+	}
+	if email, ok := envLookup("AUTH_BOOTSTRAP_EMAIL"); ok {
+		authCfg.BootstrapEmail = strings.TrimSpace(email)
+	}
+	if password, ok := envLookup("AUTH_BOOTSTRAP_PASSWORD"); ok {
+		authCfg.BootstrapPassword = password
+	}
+	if name, ok := envLookup("AUTH_BOOTSTRAP_DISPLAY_NAME"); ok {
+		authCfg.BootstrapDisplayName = strings.TrimSpace(name)
 	}
 	cfg.Auth = authCfg
 
@@ -406,6 +496,23 @@ func loadConfig() (Config, error) {
 	cfg.Analytics = analyticsCfg
 
 	return cfg, nil
+}
+
+func parseCSVEnv(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	var results []string
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		results = append(results, trimmed)
+	}
+	return results
 }
 
 func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {
@@ -491,6 +598,14 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 	if googleAuthURL == "" {
 		googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
 	}
+	googleTokenURL := strings.TrimSpace(authCfg.GoogleTokenURL)
+	if googleTokenURL == "" {
+		googleTokenURL = "https://oauth2.googleapis.com/token"
+	}
+	googleUserInfoURL := strings.TrimSpace(authCfg.GoogleUserInfoURL)
+	if googleUserInfoURL == "" {
+		googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
+	}
 	wechatAuthURL := strings.TrimSpace(authCfg.WeChatAuthURL)
 	if wechatAuthURL == "" {
 		wechatAuthURL = "https://open.weixin.qq.com/connect/qrconnect"
@@ -498,13 +613,19 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 
 	providers := []authports.OAuthProvider{}
 	if clientID := strings.TrimSpace(authCfg.GoogleClientID); clientID != "" {
-		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
-			Provider:     authdomain.ProviderGoogle,
-			ClientID:     clientID,
-			AuthURL:      googleAuthURL,
-			RedirectURL:  trimmedBase + "/api/auth/google/callback",
-			DefaultScope: []string{"openid", "email", "profile"},
-		}))
+		secret := strings.TrimSpace(authCfg.GoogleClientSecret)
+		if secret == "" {
+			logger.Warn("Google OAuth client secret not configured; Google login disabled")
+		} else {
+			providers = append(providers, authAdapters.NewGoogleOAuthProvider(authAdapters.GoogleOAuthConfig{
+				ClientID:     clientID,
+				ClientSecret: secret,
+				AuthURL:      googleAuthURL,
+				TokenURL:     googleTokenURL,
+				UserInfoURL:  googleUserInfoURL,
+				RedirectURL:  trimmedBase + "/api/auth/google/callback",
+			}))
+		}
 	}
 	if appID := strings.TrimSpace(authCfg.WeChatAppID); appID != "" {
 		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
@@ -568,14 +689,42 @@ func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 		})
 	}
 
-	var cleanup func()
-	if len(cleanupFuncs) > 0 {
-		cleanup = func() {
-			for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+	cleanup := func() {
+		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+			if cleanupFuncs[i] != nil {
 				cleanupFuncs[i]()
 			}
 		}
 	}
 
+	if err := bootstrapAuthUser(service, authCfg, logger); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+
 	return service, cleanup, nil
+}
+
+func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger *utils.Logger) error {
+	email := strings.TrimSpace(cfg.BootstrapEmail)
+	password := strings.TrimSpace(cfg.BootstrapPassword)
+	if email == "" || password == "" {
+		return nil
+	}
+	displayName := strings.TrimSpace(cfg.BootstrapDisplayName)
+	if displayName == "" {
+		displayName = "Admin"
+	}
+
+	_, err := service.RegisterLocal(context.Background(), email, password, displayName)
+	if err != nil {
+		if errors.Is(err, authdomain.ErrUserExists) {
+			logger.Info("Bootstrap auth user already exists: %s", email)
+			return nil
+		}
+		return fmt.Errorf("bootstrap auth user %s: %w", email, err)
+	}
+
+	logger.Info("Bootstrap auth user created: %s", email)
+	return nil
 }

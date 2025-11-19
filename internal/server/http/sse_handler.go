@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/security/redaction"
 	"alex/internal/server/app"
+	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
@@ -162,7 +163,54 @@ drainComplete:
 
 // serializeEvent converts domain event to JSON
 func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
-	// Create a map with common fields
+	data, err := h.buildEventData(event)
+	if err != nil {
+		return "", err
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonData), nil
+}
+
+func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interface{}, error) {
+	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+		base, err := h.buildEventData(subtaskEvent.OriginalEvent)
+		if err != nil {
+			return nil, err
+		}
+
+		// Clone base map to avoid mutating the original instance
+		cloned := make(map[string]interface{}, len(base)+6)
+		for key, value := range base {
+			cloned[key] = value
+		}
+
+		cloned["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339)
+		cloned["agent_level"] = subtaskEvent.GetAgentLevel()
+		cloned["session_id"] = subtaskEvent.GetSessionID()
+		cloned["task_id"] = subtaskEvent.GetTaskID()
+		if parentTaskID := subtaskEvent.GetParentTaskID(); parentTaskID != "" {
+			cloned["parent_task_id"] = parentTaskID
+		}
+
+		cloned["event_type"] = subtaskEvent.OriginalEvent.EventType()
+		cloned["is_subtask"] = true
+		cloned["subtask_index"] = subtaskEvent.SubtaskIndex
+		cloned["total_subtasks"] = subtaskEvent.TotalSubtasks
+		if subtaskEvent.SubtaskPreview != "" {
+			cloned["subtask_preview"] = subtaskEvent.SubtaskPreview
+		}
+		if subtaskEvent.MaxParallel > 0 {
+			cloned["max_parallel"] = subtaskEvent.MaxParallel
+		}
+
+		return cloned, nil
+	}
+
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
 		"timestamp":      event.Timestamp().Format(time.RFC3339),
@@ -176,8 +224,8 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 	switch e := event.(type) {
 	case *domain.UserTaskEvent:
 		data["task"] = e.Task
-		if len(e.Attachments) > 0 {
-			data["attachments"] = e.Attachments
+		if sanitized := sanitizeAttachmentsForClients(e.Attachments); len(sanitized) > 0 {
+			data["attachments"] = sanitized
 		}
 	case *domain.TaskAnalysisEvent:
 		data["action_name"] = e.ActionName
@@ -249,8 +297,8 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		if len(e.Metadata) > 0 {
 			data["metadata"] = e.Metadata
 		}
-		if len(e.Attachments) > 0 {
-			data["attachments"] = e.Attachments
+		if sanitized := sanitizeAttachmentsForClients(e.Attachments); len(sanitized) > 0 {
+			data["attachments"] = sanitized
 		}
 
 	case *domain.ToolCallStreamEvent:
@@ -269,8 +317,8 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		data["total_tokens"] = e.TotalTokens
 		data["stop_reason"] = e.StopReason
 		data["duration"] = e.Duration.Milliseconds()
-		if len(e.Attachments) > 0 {
-			data["attachments"] = e.Attachments
+		if sanitized := sanitizeAttachmentsForClients(e.Attachments); len(sanitized) > 0 {
+			data["attachments"] = sanitized
 		}
 
 	case *domain.TaskCancelledEvent:
@@ -345,6 +393,7 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 
 	case *domain.ContextSnapshotEvent:
 		data["iteration"] = e.Iteration
+		data["llm_turn_seq"] = e.LLMTurnSeq
 		data["request_id"] = e.RequestID
 		messages := serializeMessages(e.Messages)
 		if messages == nil {
@@ -354,15 +403,35 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent) (string, error) {
 		if excluded := serializeMessages(e.Excluded); len(excluded) > 0 {
 			data["excluded_messages"] = excluded
 		}
+	case *app.AttachmentExportEvent:
+		data["status"] = string(e.Status())
+		data["attachment_count"] = e.AttachmentCount()
+		data["attempts"] = e.Attempts()
+		data["duration_ms"] = e.Duration().Milliseconds()
+		if kind := strings.TrimSpace(e.ExporterKind()); kind != "" {
+			data["exporter_kind"] = kind
+		}
+		if endpoint := strings.TrimSpace(e.Endpoint()); endpoint != "" {
+			data["endpoint"] = endpoint
+		}
+		if errMsg := strings.TrimSpace(e.ErrorMessage()); errMsg != "" {
+			data["error"] = errMsg
+		}
+		if sanitized := sanitizeAttachmentsForClients(e.AttachmentUpdates()); len(sanitized) > 0 {
+			data["attachments"] = sanitized
+		}
+	case *app.AttachmentScanEvent:
+		data["placeholder"] = e.Placeholder()
+		data["verdict"] = string(e.Verdict())
+		if details := strings.TrimSpace(e.Details()); details != "" {
+			data["details"] = details
+		}
+		if att, ok := sanitizeAttachmentForClient(e.Attachment()); ok {
+			data["attachment"] = att
+		}
 	}
 
-	// Marshal to JSON
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonData), nil
+	return data, nil
 }
 
 const redactedPlaceholder = redaction.Placeholder
@@ -521,8 +590,8 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 		if len(msg.ToolCalls) > 0 {
 			entry["tool_calls"] = msg.ToolCalls
 		}
-		if len(msg.ToolResults) > 0 {
-			entry["tool_results"] = msg.ToolResults
+		if sanitized := sanitizeToolResultsForClients(msg.ToolResults); len(sanitized) > 0 {
+			entry["tool_results"] = sanitized
 		}
 		if msg.ToolCallID != "" {
 			entry["tool_call_id"] = msg.ToolCallID
@@ -530,8 +599,8 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 		if len(msg.Metadata) > 0 {
 			entry["metadata"] = msg.Metadata
 		}
-		if len(msg.Attachments) > 0 {
-			entry["attachments"] = msg.Attachments
+		if sanitized := sanitizeAttachmentsForClients(msg.Attachments); len(sanitized) > 0 {
+			entry["attachments"] = sanitized
 		}
 		if msg.Source != ports.MessageSourceUnknown && msg.Source != "" {
 			entry["source"] = msg.Source
@@ -541,4 +610,45 @@ func serializeMessages(messages []ports.Message) []map[string]any {
 	}
 
 	return serialized
+}
+
+func sanitizeAttachmentsForClients(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+
+	sanitized := make(map[string]ports.Attachment, len(values))
+	for placeholder, att := range values {
+		if att.WorkspacePath != "" {
+			att.WorkspacePath = ""
+		}
+		sanitized[placeholder] = att
+	}
+
+	return sanitized
+}
+
+func sanitizeAttachmentForClient(att ports.Attachment) (ports.Attachment, bool) {
+	result := sanitizeAttachmentsForClients(map[string]ports.Attachment{"__": att})
+	if len(result) == 0 {
+		return ports.Attachment{}, false
+	}
+	value, ok := result["__"]
+	return value, ok
+}
+
+func sanitizeToolResultsForClients(results []ports.ToolResult) []ports.ToolResult {
+	if len(results) == 0 {
+		return nil
+	}
+
+	sanitized := make([]ports.ToolResult, len(results))
+	for i, result := range results {
+		sanitized[i] = result
+		if sanitizedAttachments := sanitizeAttachmentsForClients(result.Attachments); len(sanitizedAttachments) > 0 {
+			sanitized[i].Attachments = sanitizedAttachments
+		}
+	}
+
+	return sanitized
 }

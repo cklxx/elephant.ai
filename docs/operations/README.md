@@ -1,4 +1,6 @@
 # ALEX Operations Guide
+> Last updated: 2025-11-18
+
 
 This guide provides practical operational guidance for deploying, monitoring, and troubleshooting ALEX in production and development environments.
 

@@ -1,4 +1,6 @@
 # 音频混音引擎验收方案
+> Last updated: 2025-11-18
+
 
 ## 1. 环境准备
 - FFmpeg 支持 `loudnorm`, `anlmdn`, `sidechaincompress`。  

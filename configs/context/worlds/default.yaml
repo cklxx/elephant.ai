@@ -1,0 +1,9 @@
+id: default
+environment: local-sandbox
+capabilities:
+  - filesystem
+  - search
+limits:
+  - "External network calls restricted unless tools explicitly allow."
+cost_model:
+  - "LLM usage tracked per session; stay within configured token budgets."

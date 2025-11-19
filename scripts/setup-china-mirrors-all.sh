@@ -36,6 +36,7 @@ log_warn() {
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+readonly AUTH_DB_MIRROR_IMAGE="docker.m.daocloud.io/library/postgres:15"
 
 echo -e "${C_CYAN}"
 cat << 'EOF'
@@ -78,6 +79,7 @@ fi
 SANDBOX_IMAGE_CONFIGURED=$(grep -c "^SANDBOX_IMAGE=" "$ENV_FILE" || true)
 NPM_CONFIGURED=$(grep -c "^NPM_REGISTRY=" "$ENV_FILE" || true)
 PIP_CONFIGURED=$(grep -c "^PIP_INDEX_URL=" "$ENV_FILE" || true)
+AUTH_DB_IMAGE_CONFIGURED=$(grep -c "^AUTH_DB_IMAGE=" "$ENV_FILE" || true)
 
 if [[ $SANDBOX_IMAGE_CONFIGURED -gt 0 ]]; then
     log_success "SANDBOX_IMAGE already configured in .env"
@@ -96,6 +98,24 @@ else
 
     # Clean up backup files
     rm -f "${ENV_FILE}.bak"
+fi
+
+# Configure Postgres image mirror for auth-db
+if [[ $AUTH_DB_IMAGE_CONFIGURED -gt 0 ]]; then
+    CURRENT_AUTH_DB_IMAGE=$(grep "^AUTH_DB_IMAGE=" "$ENV_FILE" | tail -n 1 | cut -d= -f2-)
+    if [[ "$CURRENT_AUTH_DB_IMAGE" == "$AUTH_DB_MIRROR_IMAGE" ]]; then
+        log_success "AUTH_DB_IMAGE already set to China mirror: $CURRENT_AUTH_DB_IMAGE"
+    elif [[ "$CURRENT_AUTH_DB_IMAGE" == "postgres:15" || -z "$CURRENT_AUTH_DB_IMAGE" ]]; then
+        # Replace default value with mirror
+        sed -i.bak "s|^AUTH_DB_IMAGE=.*$|AUTH_DB_IMAGE=$AUTH_DB_MIRROR_IMAGE|" "$ENV_FILE"
+        rm -f "${ENV_FILE}.bak"
+        log_success "AUTH_DB_IMAGE updated to China mirror: $AUTH_DB_MIRROR_IMAGE"
+    else
+        log_success "AUTH_DB_IMAGE already customized: $CURRENT_AUTH_DB_IMAGE"
+    fi
+else
+    echo "AUTH_DB_IMAGE=$AUTH_DB_MIRROR_IMAGE" >> "$ENV_FILE"
+    log_success "AUTH_DB_IMAGE configured: $AUTH_DB_MIRROR_IMAGE"
 fi
 
 # Note: NPM and PIP mirrors are only needed when building, not when using pre-built image

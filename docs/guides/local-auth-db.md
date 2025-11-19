@@ -1,4 +1,6 @@
 # 本地认证数据库指南
+> Last updated: 2025-11-18
+
 
 为了在开发环境中调试登录/鉴权功能，需要引入可持久化的认证数据库。本指南介绍当前问题、推荐的拓扑结构、Postgres 初始化脚本，以及如何使用新的 Docker Compose 服务启动环境，最后还列出了后续落地任务清单。
 
@@ -79,7 +81,18 @@ psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql
 AUTH_JWT_SECRET=please-change-me
 AUTH_DATABASE_URL=postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable
 AUTH_DB_PASSWORD=super-secret
+AUTH_DB_IMAGE=postgres:15
 ```
+
+如需在国内网络环境下加速镜像拉取，可将 `AUTH_DB_IMAGE` 改为镜像仓库地址，例如：
+
+```
+AUTH_DB_IMAGE=docker.m.daocloud.io/library/postgres:15
+```
+
+Compose 会直接使用该镜像，避免从 `docker.io` 拉取失败。
+
+> 快捷方式：执行 `./scripts/setup-china-mirrors-all.sh` 会自动把 `.env` 里的 `AUTH_DB_IMAGE` 切换到上述国内镜像。
 
 ## 启动步骤
 
@@ -90,9 +103,45 @@ AUTH_DB_PASSWORD=super-secret
 5. `cmd/alex-server` 检测到 `AUTH_DATABASE_URL` 时会自动启用 Postgres 仓储与 JWT 鉴权中间件。
 6. 通过下文的 SQL 示例写入至少一个可用账号，以便 Web 登录。
 
-## 手动创建测试账号
+## 创建测试账号
 
-当前仓库未包含自动化的用户种子脚本，可以直接使用 `psql` 向 `auth_users` 表写入测试账号。首先用下列 Argon2id 哈希（对应明文 `P@ssw0rd!`）作为密码：
+### 通过环境变量自动注入
+
+若只是想本地跑通登录流程，可直接在 `.env` 中提供启动时自动注入的账号信息（无论是内存仓储还是 Postgres 都生效）：
+
+```
+AUTH_BOOTSTRAP_EMAIL=admin@example.com
+AUTH_BOOTSTRAP_PASSWORD=P@ssw0rd!
+AUTH_BOOTSTRAP_DISPLAY_NAME=Admin
+```
+
+重启 `alex-server` 后会自动调用注册逻辑，若该邮箱尚不存在就会创建账号；已存在则跳过。这样即使暂时没有 `psql` 或 Postgres，也能快速拿到一个本地可用的用户。
+
+### 使用 CLI 脚本（推荐）
+
+仓库现在提供了 `cmd/auth-user-seed`，可以根据 `.env` 中的 `AUTH_DATABASE_URL` 自动向 Postgres 插入（或更新）一个本地账号：
+
+```bash
+# 默认会创建 admin@example.com / P@ssw0rd!
+go run ./cmd/auth-user-seed
+```
+
+也可以通过参数覆盖邮箱、密码、显示名或订阅档位：
+
+```bash
+go run ./cmd/auth-user-seed \
+  -email dev@example.com \
+  -password 'MyStrongerP@ss' \
+  -name 'Dev User' \
+  -tier supporter \
+  -points 100
+```
+
+该脚本会在 `auth_users` 表中执行 `UPSERT`，因此重复运行会直接更新已存在的账号，方便快速重置密码或切换订阅状态。
+
+### 手动创建测试账号
+
+如果暂时无法运行上述脚本，也可以直接使用 `psql` 向 `auth_users` 表写入测试账号。首先用下列 Argon2id 哈希（对应明文 `P@ssw0rd!`）作为密码：
 
 ```
 argon2id$1$65536$4$X/2c361Hs7Z7BTh06+aZaQ$FN9oVAe9UTRi7adCznuGy7sQrKYhanWBDhVG3en+HV4

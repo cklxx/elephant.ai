@@ -140,30 +140,33 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ids.SessionID = session.ID
 	}
 
-	if s.contextMgr.ShouldCompress(session.Messages, s.config.MaxTokens) {
-		s.logger.Info("Context limit reached, compressing...")
+	var initialWorldState map[string]any
+	var initialWorldDiff map[string]any
+	if s.contextMgr != nil {
 		originalCount := len(session.Messages)
-		compressed, err := s.contextMgr.Compress(session.Messages, s.config.MaxTokens*80/100)
+		window, err := s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+			TokenLimit:         s.config.MaxTokens,
+			PersonaKey:         s.config.AgentPreset,
+			ToolPreset:         s.config.ToolPreset,
+			EnvironmentSummary: s.config.EnvironmentSummary,
+		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to compress context: %w", err)
+			return nil, fmt.Errorf("build context window: %w", err)
 		}
-		compressedCount := len(compressed)
-		s.logger.Info("Compression complete: %d -> %d messages (%.1f%% retained)",
-			originalCount, compressedCount, float64(compressedCount)/float64(originalCount)*100.0)
-
-		// Emit compression metrics event
-		compressionEvent := domain.NewContextCompressionEvent(
-			ports.LevelCore,
-			session.ID,
-			ids.TaskID,
-			ids.ParentTaskID,
-			originalCount,
-			compressedCount,
-			s.clock.Now(),
-		)
-		s.eventEmitter.OnEvent(compressionEvent)
-
-		session.Messages = compressed
+		session.Messages = window.Messages
+		initialWorldState, initialWorldDiff = buildWorldStateFromWindow(window)
+		if compressedCount := len(window.Messages); compressedCount < originalCount {
+			compressionEvent := domain.NewContextCompressionEvent(
+				ports.LevelCore,
+				session.ID,
+				ids.TaskID,
+				ids.ParentTaskID,
+				originalCount,
+				compressedCount,
+				s.clock.Now(),
+			)
+			s.eventEmitter.OnEvent(compressionEvent)
+		}
 	}
 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, s.config.LLMModel)
@@ -208,6 +211,9 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	} else {
 		s.logger.Debug("Task pre-analysis skipped or failed")
 	}
+	planNodes := buildPlanNodesFromTaskAnalysis(taskAnalysis)
+	beliefs := deriveBeliefsFromTaskAnalysis(taskAnalysis)
+	knowledgeRefs := buildKnowledgeRefsFromTaskAnalysis(taskAnalysis)
 
 	systemPrompt := s.presetResolver.ResolveSystemPrompt(ctx, task, analysisInfo, s.config.AgentPreset)
 	summary := strings.TrimSpace(s.config.EnvironmentSummary)
@@ -249,7 +255,13 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ParentTaskID:         ids.ParentTaskID,
 		Attachments:          preloadedAttachments,
 		AttachmentIterations: make(map[string]int),
+		Plans:                planNodes,
+		Beliefs:              beliefs,
+		KnowledgeRefs:        knowledgeRefs,
+		WorldState:           initialWorldState,
+		WorldDiff:            initialWorldDiff,
 	}
+	domain.ApplyWorkspacePaths(state.SessionID, state.Attachments)
 	for key := range preloadedAttachments {
 		if key == "" {
 			continue
@@ -288,6 +300,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			pending[name] = att
 		}
 		if len(pending) > 0 {
+			domain.ApplyWorkspacePaths(state.SessionID, pending)
 			state.PendingUserAttachments = pending
 		}
 	}
@@ -756,6 +769,109 @@ func findAssistantReply(messages []ports.Message, userIndex int) string {
 	return ""
 }
 
+func buildPlanNodesFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.PlanNode {
+	if analysis == nil {
+		return nil
+	}
+	rootTitle := strings.TrimSpace(analysis.ActionName)
+	if rootTitle == "" {
+		rootTitle = strings.TrimSpace(analysis.Goal)
+	}
+	if rootTitle == "" && len(analysis.TaskBreakdown) == 0 {
+		return nil
+	}
+	root := ports.PlanNode{
+		ID:          "task_plan_root",
+		Title:       rootTitle,
+		Status:      "pending",
+		Description: strings.TrimSpace(analysis.Approach),
+	}
+	if len(analysis.TaskBreakdown) == 0 {
+		return []ports.PlanNode{root}
+	}
+	children := make([]ports.PlanNode, 0, len(analysis.TaskBreakdown))
+	for idx, step := range analysis.TaskBreakdown {
+		desc := strings.TrimSpace(step.Description)
+		if desc == "" {
+			continue
+		}
+		status := "pending"
+		if step.NeedsExternalContext {
+			status = "needs_context"
+		}
+		child := ports.PlanNode{
+			ID:          fmt.Sprintf("plan_step_%d", idx+1),
+			Title:       desc,
+			Status:      status,
+			Description: strings.TrimSpace(step.Rationale),
+		}
+		children = append(children, child)
+	}
+	if len(children) == 0 {
+		return []ports.PlanNode{root}
+	}
+	root.Children = children
+	return []ports.PlanNode{root}
+}
+
+func deriveBeliefsFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.Belief {
+	if analysis == nil {
+		return nil
+	}
+	beliefs := make([]ports.Belief, 0, len(analysis.SuccessCriteria)+len(analysis.Retrieval.KnowledgeGaps))
+	for _, criterion := range analysis.SuccessCriteria {
+		statement := strings.TrimSpace(criterion)
+		if statement == "" {
+			continue
+		}
+		beliefs = append(beliefs, ports.Belief{
+			Statement:  statement,
+			Confidence: 0.7,
+			Source:     "success_criteria",
+		})
+	}
+	for _, gap := range analysis.Retrieval.KnowledgeGaps {
+		trimmed := strings.TrimSpace(gap)
+		if trimmed == "" {
+			continue
+		}
+		beliefs = append(beliefs, ports.Belief{
+			Statement:  fmt.Sprintf("Unresolved gap: %s", trimmed),
+			Confidence: 0.35,
+			Source:     "retrieval_plan",
+		})
+	}
+	if len(beliefs) == 0 {
+		return nil
+	}
+	return beliefs
+}
+
+func buildKnowledgeRefsFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.KnowledgeReference {
+	if analysis == nil {
+		return nil
+	}
+	plan := analysis.Retrieval
+	if !plan.ShouldRetrieve && len(plan.LocalQueries) == 0 && len(plan.SearchQueries) == 0 && len(plan.CrawlURLs) == 0 && len(plan.KnowledgeGaps) == 0 {
+		return nil
+	}
+	ref := ports.KnowledgeReference{
+		ID:          "task_analysis_retrieval",
+		Description: strings.TrimSpace(plan.Notes),
+	}
+	ref.SOPRefs = appendUniqueStrings(nil, plan.LocalQueries...)
+	ref.RAGCollections = appendUniqueStrings(nil, plan.SearchQueries...)
+	ref.RAGCollections = appendUniqueStrings(ref.RAGCollections, plan.CrawlURLs...)
+	ref.MemoryKeys = appendUniqueStrings(nil, plan.KnowledgeGaps...)
+	if ref.Description == "" && plan.ShouldRetrieve {
+		ref.Description = "Auto-generated retrieval plan"
+	}
+	if len(ref.SOPRefs) == 0 && len(ref.RAGCollections) == 0 && len(ref.MemoryKeys) == 0 && strings.TrimSpace(ref.Description) == "" {
+		return nil
+	}
+	return []ports.KnowledgeReference{ref}
+}
+
 func cloneTaskAnalysisSteps(steps []ports.TaskAnalysisStep) []ports.TaskAnalysisStep {
 	if len(steps) == 0 {
 		return nil
@@ -1134,8 +1250,120 @@ func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]p
 		if att.Name == "" {
 			att.Name = name
 		}
+		att.SizeBytes = normalizeAttachmentSize(att)
+
+		if existing, ok := target[name]; ok {
+			target[name] = mergeAttachmentMetadata(existing, att)
+			continue
+		}
 		target[name] = att
 	}
+}
+
+func normalizeAttachmentSize(att ports.Attachment) int64 {
+	if att.SizeBytes > 0 {
+		return att.SizeBytes
+	}
+	if att.Data == "" {
+		return 0
+	}
+	length := len(strings.TrimSpace(att.Data))
+	if length == 0 {
+		return 0
+	}
+	padding := 0
+	trimmed := strings.TrimSpace(att.Data)
+	if strings.HasSuffix(trimmed, "==") {
+		padding = 2
+	} else if strings.HasSuffix(trimmed, "=") {
+		padding = 1
+	}
+	decoded := (length/4)*3 - padding
+	if decoded < 0 {
+		decoded = 0
+	}
+	return int64(decoded)
+}
+
+func mergeAttachmentMetadata(existing, incoming ports.Attachment) ports.Attachment {
+	if shouldPreferIncoming(existing, incoming) {
+		preferred := fillAttachmentGaps(incoming, existing)
+		return preferred
+	}
+	return fillAttachmentGaps(existing, incoming)
+}
+
+func shouldPreferIncoming(existing, incoming ports.Attachment) bool {
+	existingPriority := attachmentPriority(existing)
+	incomingPriority := attachmentPriority(incoming)
+	if incomingPriority != existingPriority {
+		return incomingPriority > existingPriority
+	}
+	return attachmentMetadataScore(incoming) > attachmentMetadataScore(existing)
+}
+
+func attachmentPriority(att ports.Attachment) int {
+	switch strings.ToLower(strings.TrimSpace(att.Source)) {
+	case "delegated":
+		return 3
+	case "user_upload":
+		return 2
+	case "archived":
+		return 0
+	default:
+		if strings.TrimSpace(att.Source) != "" {
+			return 2
+		}
+		return 1
+	}
+}
+
+func attachmentMetadataScore(att ports.Attachment) int {
+	score := 0
+	if att.Description != "" {
+		score += 2
+	}
+	if att.URI != "" {
+		score += 2
+	}
+	if att.Data != "" {
+		score++
+	}
+	if att.MediaType != "" {
+		score++
+	}
+	if att.SizeBytes > 0 {
+		score++
+	}
+	if att.ParentTaskID != "" {
+		score++
+	}
+	return score
+}
+
+func fillAttachmentGaps(primary, secondary ports.Attachment) ports.Attachment {
+	if primary.Description == "" {
+		primary.Description = secondary.Description
+	}
+	if primary.URI == "" {
+		primary.URI = secondary.URI
+	}
+	if primary.Data == "" {
+		primary.Data = secondary.Data
+	}
+	if primary.MediaType == "" {
+		primary.MediaType = secondary.MediaType
+	}
+	if primary.Source == "" {
+		primary.Source = secondary.Source
+	}
+	if primary.SizeBytes == 0 {
+		primary.SizeBytes = secondary.SizeBytes
+	}
+	if primary.ParentTaskID == "" {
+		primary.ParentTaskID = secondary.ParentTaskID
+	}
+	return primary
 }
 
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.
@@ -1181,4 +1409,46 @@ func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolReg
 	}
 
 	return s.toolRegistry
+}
+func buildWorldStateFromWindow(window ports.ContextWindow) (map[string]any, map[string]any) {
+	profile := window.Static.World
+	envSummary := strings.TrimSpace(window.Static.EnvironmentSummary)
+	hasProfile := profile.ID != "" || profile.Environment != "" || len(profile.Capabilities) > 0 || len(profile.Limits) > 0 || len(profile.CostModel) > 0
+	if !hasProfile && envSummary == "" {
+		return nil, nil
+	}
+	state := make(map[string]any)
+	if hasProfile {
+		profileMap := map[string]any{"id": profile.ID}
+		if profile.Environment != "" {
+			profileMap["environment"] = profile.Environment
+		}
+		if len(profile.Capabilities) > 0 {
+			profileMap["capabilities"] = append([]string(nil), profile.Capabilities...)
+		}
+		if len(profile.Limits) > 0 {
+			profileMap["limits"] = append([]string(nil), profile.Limits...)
+		}
+		if len(profile.CostModel) > 0 {
+			profileMap["cost_model"] = append([]string(nil), profile.CostModel...)
+		}
+		state["profile"] = profileMap
+	}
+	if envSummary != "" {
+		state["environment_summary"] = envSummary
+	}
+	var diff map[string]any
+	if len(state) > 0 {
+		diff = make(map[string]any)
+		if profile.ID != "" {
+			diff["profile_loaded"] = profile.ID
+		}
+		if envSummary != "" {
+			diff["environment_summary"] = envSummary
+		}
+		if len(profile.Capabilities) > 0 {
+			diff["capabilities"] = append([]string(nil), profile.Capabilities...)
+		}
+	}
+	return state, diff
 }

@@ -1,4 +1,6 @@
 # AI Agents: Comprehensive Research Report
+> Last updated: 2025-11-18
+
 
 ## Executive Summary
 

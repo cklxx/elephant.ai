@@ -1,13 +1,13 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 
 interface ToolCallLayoutProps {
   toolName: string;
   icon?: ReactNode;
   callId?: string | null;
   statusChip: ReactNode;
+  summary?: string;
   isFocused?: boolean;
   metadata?: ReactNode;
   children: ReactNode;
@@ -18,6 +18,7 @@ export function ToolCallLayout({
   icon,
   callId,
   statusChip,
+  summary,
   isFocused = false,
   metadata,
   children,
@@ -30,23 +31,41 @@ export function ToolCallLayout({
           className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-foreground"
         />
       )}
-      <header className="flex flex-wrap items-center gap-2 text-foreground text-[10px] uppercase tracking-[0.24em]">
-        {icon && <span className="text-sm text-muted-foreground">{icon}</span>}
-        <h3 className="text-[11px] font-semibold tracking-[0.2em] text-foreground">{toolName}</h3>
-        <span className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
-          TOOL CALL
-        </span>
-        {statusChip}
+      <header className="flex gap-3 text-foreground">
+        {icon && (
+          <span
+            className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-muted text-lg"
+            aria-hidden
+          >
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2 text-base font-semibold leading-tight">
+                <span className="truncate">{toolName}</span>
+                {callId && (
+                  <span className="console-quiet-chip break-all text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                    {callId}
+                  </span>
+                )}
+              </div>
+              {summary && (
+                <p className="text-sm leading-relaxed text-foreground/80">
+                  {summary}
+                </p>
+              )}
+            </div>
+            <div className="flex-shrink-0">{statusChip}</div>
+          </div>
+          {metadata && (
+            <p className="console-microcopy uppercase tracking-[0.2em] text-muted-foreground">
+              {metadata}
+            </p>
+          )}
+        </div>
       </header>
-
-      {callId && (
-        <p className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
-          ID ·{' '}
-          <span className="font-mono text-[10px] tracking-normal text-foreground/70">{callId}</span>
-        </p>
-      )}
-
-      {metadata && <div className={cn('text-[10px] uppercase tracking-[0.2em] text-muted-foreground')}>{metadata}</div>}
 
       <div className="space-y-4">{children}</div>
     </section>

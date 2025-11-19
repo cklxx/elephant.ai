@@ -1,4 +1,6 @@
 # ALEX - Alex-Code Documentation
+> Last updated: 2025-11-18
+
 
 ALEX (Agile Light Easy Xpert Code Agent) is a terminal-native AI programming assistant implemented in Go. It emphasizes lightweight, on-device reasoning with a Think-Act-Observe (ReAct) cycle, a pluggable tool ecosystem, and privacy-first operation suitable for on-premises deployments. This document describes the Alex-Code implementation, its architecture, how to develop and test it, and how to operate it in practice.
 

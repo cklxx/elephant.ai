@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"alex/internal/agent/domain"
 	agentports "alex/internal/agent/ports"
@@ -36,7 +38,13 @@ type EventBroadcaster struct {
 	metrics broadcasterMetrics
 
 	attachmentArchiver AttachmentArchiver
+	attachmentExporter AttachmentExporter
+
+	sessionAttachments  map[string]map[string]agentports.Attachment
+	sessionAttachmentMu sync.RWMutex
 }
+
+const maxExportDuration = 30 * time.Second
 
 // broadcasterMetrics tracks broadcaster performance metrics
 type broadcasterMetrics struct {
@@ -51,11 +59,12 @@ type broadcasterMetrics struct {
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster() *EventBroadcaster {
 	return &EventBroadcaster{
-		clients:       make(map[string][]chan agentports.AgentEvent),
-		sessionToTask: make(map[string]string),
-		eventHistory:  make(map[string][]agentports.AgentEvent),
-		maxHistory:    1000, // Keep up to 1000 events per session
-		logger:        utils.NewComponentLogger("EventBroadcaster"),
+		clients:            make(map[string][]chan agentports.AgentEvent),
+		sessionToTask:      make(map[string]string),
+		eventHistory:       make(map[string][]agentports.AgentEvent),
+		maxHistory:         1000, // Keep up to 1000 events per session
+		logger:             utils.NewComponentLogger("EventBroadcaster"),
+		sessionAttachments: make(map[string]map[string]agentports.Attachment),
 	}
 }
 
@@ -67,6 +76,12 @@ func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
 // SetAttachmentArchiver configures optional sandbox persistence for generated assets.
 func (b *EventBroadcaster) SetAttachmentArchiver(archiver AttachmentArchiver) {
 	b.attachmentArchiver = archiver
+}
+
+// SetAttachmentExporter configures the optional CDN/export hook invoked when the
+// last client for a session disconnects.
+func (b *EventBroadcaster) SetAttachmentExporter(exporter AttachmentExporter) {
+	b.attachmentExporter = exporter
 }
 
 // OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
@@ -161,18 +176,20 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 }
 
 func (b *EventBroadcaster) archiveAttachments(event agentports.AgentEvent) {
-	if b.attachmentArchiver == nil {
-		return
-	}
-	sessionID := event.GetSessionID()
-	if sessionID == "" {
-		return
-	}
-	attachments := collectEventAttachments(event)
-	if len(attachments) == 0 {
-		return
-	}
-	b.attachmentArchiver.Persist(context.Background(), sessionID, attachments)
+sessionID := event.GetSessionID()
+if sessionID == "" {
+return
+}
+attachments := collectEventAttachments(event)
+if len(attachments) == 0 {
+return
+}
+b.mergeSessionAttachments(sessionID, attachments)
+
+if b.attachmentArchiver == nil {
+return
+}
+b.attachmentArchiver.Persist(context.Background(), sessionID, event.GetTaskID(), attachments)
 }
 
 // broadcastToClients sends event to all clients in the list
@@ -220,10 +237,94 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports
 			// Clean up empty session entries
 			if len(b.clients[sessionID]) == 0 {
 				delete(b.clients, sessionID)
+				go b.handleSessionClosed(sessionID)
 			}
 			break
 		}
 	}
+}
+
+func (b *EventBroadcaster) handleSessionClosed(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	attachments := b.drainSessionAttachments(sessionID)
+	if len(attachments) == 0 {
+		return
+	}
+	result := AttachmentExportResult{
+		AttachmentCount: len(attachments),
+		Skipped:         true,
+		ExporterKind:    "none",
+		Error:           errors.New("attachment exporter not configured"),
+	}
+	if b.attachmentExporter == nil {
+		b.logger.Debug("No attachment exporter configured; skipping CDN export for session %s", sessionID)
+	} else {
+		b.logger.Info("Exporting %d attachments for session %s after last client disconnected", len(attachments), sessionID)
+		ctx, cancel := context.WithTimeout(context.Background(), maxExportDuration)
+		defer cancel()
+		result = b.attachmentExporter.ExportSession(ctx, sessionID, attachments)
+		if result.AttachmentCount == 0 {
+			result.AttachmentCount = len(attachments)
+		}
+	}
+	if len(result.AttachmentUpdates) > 0 {
+		b.applyAttachmentUpdates(sessionID, result.AttachmentUpdates)
+	}
+	b.emitAttachmentExportEvent(sessionID, b.lookupTaskID(sessionID), result)
+}
+
+func (b *EventBroadcaster) applyAttachmentUpdates(sessionID string, updates map[string]agentports.Attachment) {
+	if sessionID == "" || len(updates) == 0 {
+		return
+	}
+	clonedUpdates := cloneAttachmentPayload(updates)
+	b.historyMu.Lock()
+	history := b.eventHistory[sessionID]
+	for _, evt := range history {
+		switch e := evt.(type) {
+		case *domain.UserTaskEvent:
+			e.Attachments = mergeAttachmentMaps(e.Attachments, clonedUpdates)
+		case *domain.ToolCallCompleteEvent:
+			e.Attachments = mergeAttachmentMaps(e.Attachments, clonedUpdates)
+		case *domain.TaskCompleteEvent:
+			e.Attachments = mergeAttachmentMaps(e.Attachments, clonedUpdates)
+		}
+	}
+	b.historyMu.Unlock()
+}
+
+func (b *EventBroadcaster) mergeSessionAttachments(sessionID string, attachments map[string]agentports.Attachment) {
+	if sessionID == "" || len(attachments) == 0 {
+		return
+	}
+	b.sessionAttachmentMu.Lock()
+	defer b.sessionAttachmentMu.Unlock()
+	existing := b.sessionAttachments[sessionID]
+	if existing == nil {
+		existing = make(map[string]agentports.Attachment, len(attachments))
+	}
+	for key, att := range attachments {
+		existing[key] = att
+	}
+	b.sessionAttachments[sessionID] = existing
+}
+
+func (b *EventBroadcaster) drainSessionAttachments(sessionID string) map[string]agentports.Attachment {
+	b.sessionAttachmentMu.Lock()
+	defer b.sessionAttachmentMu.Unlock()
+	attachments := b.sessionAttachments[sessionID]
+	if len(attachments) == 0 {
+		delete(b.sessionAttachments, sessionID)
+		return nil
+	}
+	cloned := make(map[string]agentports.Attachment, len(attachments))
+	for key, att := range attachments {
+		cloned[key] = att
+	}
+	delete(b.sessionAttachments, sessionID)
+	return cloned
 }
 
 // GetClientCount returns the number of clients subscribed to a session
@@ -257,6 +358,67 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 
 	delete(b.sessionToTask, sessionID)
 	b.logger.Info("Unregistered task-session mapping: sessionID=%s", sessionID)
+}
+
+func (b *EventBroadcaster) lookupTaskID(sessionID string) string {
+	b.taskMu.RLock()
+	defer b.taskMu.RUnlock()
+	return b.sessionToTask[sessionID]
+}
+
+func (b *EventBroadcaster) emitAttachmentExportEvent(sessionID, taskID string, result AttachmentExportResult) {
+	if sessionID == "" {
+		return
+	}
+	status := AttachmentExportStatusFailed
+	switch {
+	case result.Skipped:
+		status = AttachmentExportStatusSkipped
+	case result.Exported:
+		status = AttachmentExportStatusSucceeded
+	}
+	exporterKind := result.ExporterKind
+	if exporterKind == "" {
+		exporterKind = "custom"
+	}
+	var errMsg string
+	if result.Error != nil {
+		errMsg = result.Error.Error()
+	}
+	event := NewAttachmentExportEvent(
+		agentports.LevelCore,
+		sessionID,
+		taskID,
+		status,
+		result.AttachmentCount,
+		result.Attempts,
+		result.Duration,
+		exporterKind,
+		result.Endpoint,
+		errMsg,
+		result.AttachmentUpdates,
+		time.Now(),
+	)
+	b.OnEvent(event)
+}
+
+// ReportAttachmentScan implements AttachmentScanReporter so malware verdicts get
+// surfaced to SSE clients.
+func (b *EventBroadcaster) ReportAttachmentScan(sessionID, taskID, placeholder string, attachment agentports.Attachment, result AttachmentScanResult) {
+if sessionID == "" {
+return
+}
+event := NewAttachmentScanEvent(
+agentports.LevelCore,
+sessionID,
+taskID,
+placeholder,
+result.Verdict,
+result.Details,
+attachment,
+time.Now(),
+)
+b.OnEvent(event)
 }
 
 // storeEventHistory stores an event in the session's history
@@ -327,6 +489,8 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 
 func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
 	switch e := event.(type) {
+	case *domain.UserTaskEvent:
+		return cloneAttachmentPayload(e.Attachments)
 	case *domain.ToolCallCompleteEvent:
 		return cloneAttachmentPayload(e.Attachments)
 	case *domain.TaskCompleteEvent:
@@ -345,6 +509,48 @@ func cloneAttachmentPayload(values map[string]agentports.Attachment) map[string]
 		cloned[key] = att
 	}
 	return cloned
+}
+
+func mergeAttachmentMaps(base map[string]agentports.Attachment, updates map[string]agentports.Attachment) map[string]agentports.Attachment {
+	if len(updates) == 0 {
+		return base
+	}
+	if base == nil {
+		base = make(map[string]agentports.Attachment, len(updates))
+	}
+	for key, upd := range updates {
+		existing, ok := base[key]
+		if !ok {
+			base[key] = upd
+			continue
+		}
+		if upd.Name != "" {
+			existing.Name = upd.Name
+		}
+		if upd.MediaType != "" {
+			existing.MediaType = upd.MediaType
+		}
+		if upd.Description != "" {
+			existing.Description = upd.Description
+		}
+		if upd.URI != "" {
+			existing.URI = upd.URI
+		}
+		if upd.Data != "" {
+			existing.Data = upd.Data
+		}
+		if upd.Source != "" {
+			existing.Source = upd.Source
+		}
+		if upd.SizeBytes > 0 {
+			existing.SizeBytes = upd.SizeBytes
+		}
+		if upd.ParentTaskID != "" {
+			existing.ParentTaskID = upd.ParentTaskID
+		}
+		base[key] = existing
+	}
+	return base
 }
 
 // Metrics helper methods

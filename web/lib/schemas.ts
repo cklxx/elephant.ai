@@ -13,6 +13,11 @@ export const BaseAgentEventSchema = z.object({
   session_id: z.string(),
   task_id: z.string().optional(),
   parent_task_id: z.string().optional(),
+  is_subtask: z.boolean().optional(),
+  subtask_index: z.number().optional(),
+  total_subtasks: z.number().optional(),
+  subtask_preview: z.string().optional(),
+  max_parallel: z.number().optional(),
 });
 
 export const AttachmentPayloadSchema = z.object({
@@ -175,6 +180,26 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
+export const AttachmentExportStatusEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('attachment_export_status'),
+  status: z.enum(['succeeded', 'failed', 'skipped']),
+  attachment_count: z.number(),
+  attempts: z.number(),
+  duration_ms: z.number(),
+  exporter_kind: z.string().optional(),
+  endpoint: z.string().optional(),
+  error: z.string().optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+});
+
+export const AttachmentScanStatusEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('attachment_scan_status'),
+  placeholder: z.string(),
+  verdict: z.enum(['unknown', 'clean', 'infected']),
+  details: z.string().optional(),
+  attachment: AttachmentPayloadSchema.optional(),
+});
+
 export const TaskCancelledEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_cancelled'),
   reason: z.string(),
@@ -270,6 +295,7 @@ export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
 export const ContextSnapshotEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('context_snapshot'),
   iteration: z.number(),
+  llm_turn_seq: z.number(),
   request_id: z.string(),
   messages: z.array(MessageSchema),
   excluded_messages: z.array(MessageSchema).optional(),
@@ -305,6 +331,8 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   IterationCompleteEventSchema,
   TaskCancelledEventSchema,
   TaskCompleteEventSchema,
+  AttachmentExportStatusEventSchema,
+  AttachmentScanStatusEventSchema,
   ErrorEventSchema,
   ResearchPlanEventSchema,
   StepStartedEventSchema,

@@ -62,6 +62,22 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.HandleFunc("/api/auth/wechat/callback", func(w http.ResponseWriter, r *http.Request) {
 			authHandler.HandleOAuthCallback(domain.ProviderWeChat, w, r)
 		})
+	} else {
+		authDisabled := func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Authentication module not configured", http.StatusServiceUnavailable)
+		}
+		mux.HandleFunc("/api/auth/register", authDisabled)
+		mux.HandleFunc("/api/auth/login", authDisabled)
+		mux.HandleFunc("/api/auth/logout", authDisabled)
+		mux.HandleFunc("/api/auth/refresh", authDisabled)
+		mux.HandleFunc("/api/auth/me", authDisabled)
+		mux.HandleFunc("/api/auth/plans", authDisabled)
+		mux.HandleFunc("/api/auth/points", authDisabled)
+		mux.HandleFunc("/api/auth/subscription", authDisabled)
+		mux.HandleFunc("/api/auth/google/login", authDisabled)
+		mux.HandleFunc("/api/auth/google/callback", authDisabled)
+		mux.HandleFunc("/api/auth/wechat/login", authDisabled)
+		mux.HandleFunc("/api/auth/wechat/callback", authDisabled)
 	}
 
 	// Task endpoints
@@ -100,6 +116,19 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 			apiHandler.HandleListSessions(w, r)
 		} else {
 			path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+
+			if strings.HasSuffix(path, "/snapshots") {
+				apiHandler.HandleListSnapshots(w, r)
+				return
+			}
+			if strings.Contains(path, "/turns/") {
+				apiHandler.HandleGetTurnSnapshot(w, r)
+				return
+			}
+			if strings.HasSuffix(path, "/replay") {
+				apiHandler.HandleReplaySession(w, r)
+				return
+			}
 
 			// Handle /api/sessions/:id/fork
 			if strings.HasSuffix(path, "/fork") {

@@ -401,9 +401,25 @@ func newSubtaskListener(index, total int, task string, parent ports.EventListene
 func (l *subtaskListener) OnEvent(event ports.AgentEvent) {
 	// Forward event to parent listener if present
 	// Parent can choose to wrap/modify the event based on subtask context
-	if l.parentListener != nil {
-		l.parentListener.OnEvent(event)
+	if l.parentListener == nil {
+		return
 	}
+
+	// Avoid double-wrapping if upstream already produced a subtask event
+	if _, isWrapped := event.(*SubtaskEvent); isWrapped {
+		l.parentListener.OnEvent(event)
+		return
+	}
+
+	wrapped := &SubtaskEvent{
+		OriginalEvent:  event,
+		SubtaskIndex:   l.taskIndex,
+		TotalSubtasks:  l.totalTasks,
+		SubtaskPreview: l.taskPreview,
+		MaxParallel:    l.maxParallel,
+	}
+
+	l.parentListener.OnEvent(wrapped)
 }
 
 // SubtaskEvent wraps agent events with subtask context
@@ -418,7 +434,10 @@ type SubtaskEvent struct {
 
 // Implement ports.AgentEvent interface for SubtaskEvent
 func (e *SubtaskEvent) EventType() string {
-	return "subtask_" + e.OriginalEvent.EventType()
+	if e.OriginalEvent == nil {
+		return "subtask"
+	}
+	return e.OriginalEvent.EventType()
 }
 
 func (e *SubtaskEvent) Timestamp() time.Time {
@@ -426,7 +445,13 @@ func (e *SubtaskEvent) Timestamp() time.Time {
 }
 
 func (e *SubtaskEvent) GetAgentLevel() ports.AgentLevel {
-	return e.OriginalEvent.GetAgentLevel()
+	if e == nil || e.OriginalEvent == nil {
+		return ports.LevelSubagent
+	}
+	if level := e.OriginalEvent.GetAgentLevel(); level != "" && level != ports.LevelCore {
+		return level
+	}
+	return ports.LevelSubagent
 }
 
 func (e *SubtaskEvent) GetSessionID() string {

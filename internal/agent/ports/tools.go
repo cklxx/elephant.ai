@@ -79,6 +79,12 @@ type TaskState struct {
 	Attachments            map[string]Attachment
 	AttachmentIterations   map[string]int
 	PendingUserAttachments map[string]Attachment
+	Plans                  []PlanNode
+	Beliefs                []Belief
+	KnowledgeRefs          []KnowledgeReference
+	WorldState             map[string]any
+	WorldDiff              map[string]any
+	FeedbackSignals        []FeedbackSignal
 }
 
 // AgentCoordinator represents the main agent coordinator for subagent delegation

@@ -1,4 +1,6 @@
 # Runtime Environment Reference
+> Last updated: 2025-11-18
+
 
 This reference centralises the environment variables that influence the agent runtime, batch evaluation harness, and auxiliary tooling.
 

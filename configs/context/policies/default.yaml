@@ -1,0 +1,9 @@
+id: default
+hard_constraints:
+  - "Never execute destructive shell commands or delete data without explicit confirmation."
+  - "Respect company privacy and redact secrets in outputs."
+soft_preferences:
+  - "Prefer plans with tool references and cost awareness."
+  - "Use concise tables when summarizing options."
+reward_hooks:
+  - "Highlight when a tool run unblocks the user."

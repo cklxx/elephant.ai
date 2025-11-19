@@ -1,10 +1,15 @@
 import {
   AnyAgentEvent,
+  AttachmentExportStatusEvent,
   AttachmentPayload,
   TaskCompleteEvent,
   ToolCallCompleteEvent,
   UserTaskEvent,
 } from "@/lib/types";
+import {
+  getTaskAttachments,
+  saveTaskAttachments,
+} from "@/lib/stores/taskStore";
 
 const PLACEHOLDER_PATTERN = /\[([^\[\]]+)\]/g;
 
@@ -33,29 +38,55 @@ function normalizeAttachmentMap(
 class AttachmentRegistry {
   private store: AttachmentMap = {};
   private displayedByTool = new Set<string>();
+  private currentTaskId?: string;
 
   clear() {
     this.store = {};
     this.displayedByTool.clear();
+    this.currentTaskId = undefined;
+  }
+
+  private ensureTaskContext(taskId?: string) {
+    if (!taskId || this.currentTaskId === taskId) {
+      return;
+    }
+    this.currentTaskId = taskId;
+    const cached = getTaskAttachments(taskId);
+    if (cached) {
+      this.store = cached;
+      this.displayedByTool = new Set(Object.keys(cached));
+      return;
+    }
+    this.store = {};
+    this.displayedByTool.clear();
+  }
+
+  private persist(taskId?: string) {
+    if (!taskId || Object.keys(this.store).length === 0) {
+      return;
+    }
+    saveTaskAttachments(taskId, this.store);
   }
 
   private upsertMany(attachments?: AttachmentMap) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
-      return;
+      return false;
     }
     Object.entries(normalized).forEach(([key, attachment]) => {
       this.store[key] = attachment;
     });
+    return true;
   }
 
   private recordToolAttachments(attachments?: AttachmentMap) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
-      return;
+      return false;
     }
     Object.keys(normalized).forEach((key) => this.displayedByTool.add(key));
     this.upsertMany(normalized);
+    return true;
   }
 
   private filterUndisplayed(attachments?: AttachmentMap): AttachmentMap | undefined {
@@ -92,16 +123,20 @@ class AttachmentRegistry {
   }
 
   handleEvent(event: AnyAgentEvent) {
+    const taskId = event.task_id;
+    this.ensureTaskContext(taskId);
+    let changed = false;
     switch (event.event_type) {
       case "user_task":
-        this.upsertMany((event as UserTaskEvent).attachments);
+        changed = this.upsertMany((event as UserTaskEvent).attachments) || changed;
         break;
       case "tool_call_complete":
-        this.recordToolAttachments(
-          (event as ToolCallCompleteEvent).attachments as
-            | AttachmentMap
-            | undefined,
-        );
+        changed =
+          this.recordToolAttachments(
+            (event as ToolCallCompleteEvent).attachments as
+              | AttachmentMap
+              | undefined,
+          ) || changed;
         break;
       case "task_complete": {
         const taskEvent = event as TaskCompleteEvent;
@@ -110,7 +145,7 @@ class AttachmentRegistry {
         );
         if (normalized) {
           taskEvent.attachments = normalized;
-          this.upsertMany(normalized);
+          changed = this.upsertMany(normalized) || changed;
           break;
         }
         const fallback = this.filterUndisplayed(
@@ -118,12 +153,23 @@ class AttachmentRegistry {
         );
         if (fallback) {
           taskEvent.attachments = fallback;
-          this.upsertMany(fallback);
+          changed = this.upsertMany(fallback) || changed;
         }
         break;
       }
+      case "attachment_export_status":
+        changed =
+          this.upsertMany(
+            (event as AttachmentExportStatusEvent).attachments as
+              | AttachmentMap
+              | undefined,
+          ) || changed;
+        break;
       default:
         break;
+    }
+    if (changed) {
+      this.persist(taskId);
     }
   }
 }

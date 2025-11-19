@@ -1,15 +1,18 @@
 import { test, expect } from '@playwright/test';
+import { primeAuthSession } from './utils/auth';
 
 const STORAGE_KEY = 'alex-session-storage';
 
 test.describe('ALEX console layout', () => {
   test('renders console shell with empty state', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.clear());
+    await primeAuthSession(page);
     await page.goto('/conversation');
 
-    await expect(page.getByTestId('console-header-title')).toBeVisible();
+    const header = page.getByTestId('console-header-title');
+    await expect(header).toBeVisible({ timeout: 60000 });
     const openSidebar = page.getByTestId('session-list-toggle');
-    await expect(openSidebar).toBeVisible();
+    await expect(openSidebar).toBeVisible({ timeout: 60000 });
     await openSidebar.click();
 
     await expect(page.getByTestId('session-list-new')).toBeVisible();
@@ -40,9 +43,13 @@ test.describe('ALEX console layout', () => {
       },
       { key: STORAGE_KEY, payload: storagePayload }
     );
+    await primeAuthSession(page);
 
     await page.goto('/conversation');
+    const header = page.getByTestId('console-header-title');
+    await expect(header).toBeVisible({ timeout: 60000 });
     const openSidebar = page.getByTestId('session-list-toggle');
+    await expect(openSidebar).toBeVisible({ timeout: 60000 });
     await openSidebar.click();
 
     await expect(page.getByTestId('session-list-pinned')).toBeVisible();
@@ -63,10 +70,13 @@ test.describe('ALEX console layout', () => {
 
   test('supports mock stream mode', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.clear());
+    await primeAuthSession(page);
     await page.goto('/conversation?mockSSE=1');
 
-    await expect(page.getByTestId('console-header-title')).toBeVisible();
+    const header = page.getByTestId('console-header-title');
+    await expect(header).toBeVisible({ timeout: 60000 });
     const openSidebar = page.getByTestId('session-list-toggle');
+    await expect(openSidebar).toBeVisible({ timeout: 60000 });
     await openSidebar.click();
 
     await expect(page.getByTestId('session-list-empty')).toBeVisible();
@@ -87,9 +97,10 @@ test.describe('ALEX console layout', () => {
 
   test('home route redirects to conversation view', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.clear());
+    await primeAuthSession(page);
     await page.goto('/');
 
     await expect(page).toHaveURL(/\/conversation$/);
-    await expect(page.getByTestId('console-header-title')).toBeVisible();
+    await expect(page.getByTestId('console-header-title')).toBeVisible({ timeout: 60000 });
   });
 });

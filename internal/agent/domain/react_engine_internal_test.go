@@ -3,6 +3,7 @@ package domain
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/agent/ports"
 )
@@ -206,6 +207,137 @@ func TestLookupAttachmentByNamePrefersLatestSeedreamAlias(t *testing.T) {
 	}
 }
 
+func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
+	ts := time.Date(2024, time.May, 10, 15, 30, 0, 0, time.UTC)
+	plans := []ports.PlanNode{{
+		ID:    "root",
+		Title: "Root Plan",
+		Children: []ports.PlanNode{{
+			ID:    "child",
+			Title: "Child",
+		}},
+	}}
+	beliefs := []ports.Belief{{Statement: "Will finish", Confidence: 0.8, Source: "test"}}
+	refs := []ports.KnowledgeReference{{
+		ID:          "analysis",
+		Description: "Auto",
+		SOPRefs:     []string{"query"},
+	}}
+	state := &TaskState{
+		SessionID:     "sess-123",
+		Iterations:    4,
+		Plans:         plans,
+		Beliefs:       beliefs,
+		KnowledgeRefs: refs,
+		WorldState: map[string]any{
+			"profile": map[string]any{"id": "sandbox", "environment": "ci"},
+		},
+		WorldDiff: map[string]any{
+			"iteration": 3,
+		},
+		FeedbackSignals: []ports.FeedbackSignal{{Kind: "tool_result", Message: "ok", Value: 1}},
+	}
+	messages := []ports.Message{{Role: "system", Content: "hello"}}
+	record := buildContextTurnRecord(state, messages, ts, "summary")
+	if record.SessionID != state.SessionID || record.TurnID != state.Iterations {
+		t.Fatalf("expected identifiers to propagate: %+v", record)
+	}
+	if len(record.Plans) == 0 || len(record.Plans[0].Children) == 0 {
+		t.Fatalf("expected nested plans in record: %+v", record.Plans)
+	}
+	if len(record.Beliefs) != len(beliefs) {
+		t.Fatalf("expected belief copy, got %+v", record.Beliefs)
+	}
+	if len(record.KnowledgeRefs) == 0 || len(record.KnowledgeRefs[0].SOPRefs) == 0 {
+		t.Fatalf("expected knowledge refs to copy nested slices: %+v", record.KnowledgeRefs)
+	}
+	profile := record.World["profile"].(map[string]any)
+	if profile["id"] != "sandbox" {
+		t.Fatalf("expected world profile to propagate, got %+v", record.World)
+	}
+	if iteration, ok := record.Diff["iteration"].(int); !ok || iteration != 3 {
+		t.Fatalf("expected diff iteration copy, got %+v", record.Diff)
+	}
+	if len(record.Feedback) != 1 || record.Feedback[0].Message != "ok" {
+		t.Fatalf("expected feedback signals to copy, got %+v", record.Feedback)
+	}
+	state.Plans[0].Children[0].Title = "mutated"
+	state.KnowledgeRefs[0].SOPRefs[0] = "mutated"
+	state.WorldState["profile"].(map[string]any)["id"] = "mutated"
+	state.WorldDiff["iteration"] = 99
+	state.FeedbackSignals[0].Message = "changed"
+	if record.Plans[0].Children[0].Title == "mutated" {
+		t.Fatalf("expected plan deep copy to remain immutable")
+	}
+	if record.KnowledgeRefs[0].SOPRefs[0] == "mutated" {
+		t.Fatalf("expected knowledge ref deep copy to remain immutable")
+	}
+	if record.World["profile"].(map[string]any)["id"] == "mutated" {
+		t.Fatalf("expected world state copy to remain immutable")
+	}
+	if record.Diff["iteration"] == 99 {
+		t.Fatalf("expected diff copy to remain immutable")
+	}
+	if record.Feedback[0].Message == "changed" {
+		t.Fatalf("expected feedback copy to remain immutable")
+	}
+}
+
+func TestSnapshotSummaryFromMessagesPrefersLatestContent(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "system", Content: "boot"},
+		{Role: "assistant", Content: "Plan ready."},
+		{Role: "user", Content: "Need\nmultiline   help"},
+	}
+	got := snapshotSummaryFromMessages(messages)
+	want := "User: Need multiline help"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestSnapshotSummaryFromMessagesFallsBackToAssistant(t *testing.T) {
+	messages := []ports.Message{
+		{Role: "assistant", Content: "Latest reasoning"},
+		{Role: "user", Content: "   "},
+	}
+	got := snapshotSummaryFromMessages(messages)
+	if got != "Assistant: Latest reasoning" {
+		t.Fatalf("expected assistant summary fallback, got %q", got)
+	}
+}
+
+func TestSnapshotSummaryFromMessagesTruncatesLongContent(t *testing.T) {
+	longContent := strings.Repeat("x", snapshotSummaryLimit+50)
+	messages := []ports.Message{{Role: "user", Content: longContent}}
+	got := snapshotSummaryFromMessages(messages)
+	if !strings.HasSuffix(got, "…") {
+		t.Fatalf("expected ellipsis suffix, got %q", got)
+	}
+	if len([]rune(got)) > snapshotSummaryLimit {
+		t.Fatalf("expected summary within limit %d, got len=%d", snapshotSummaryLimit, len([]rune(got)))
+	}
+}
+
+func TestRegisterMessageAttachmentsPopulatesWorkspacePaths(t *testing.T) {
+	state := &TaskState{SessionID: "session-abc"}
+	msg := Message{
+		Attachments: map[string]ports.Attachment{
+			"report.txt": {Name: "report.txt", MediaType: "text/plain"},
+		},
+	}
+	if !registerMessageAttachments(state, msg) {
+		t.Fatalf("expected registerMessageAttachments to report change")
+	}
+	att, ok := state.Attachments["report.txt"]
+	if !ok {
+		t.Fatalf("expected attachment to be stored in state")
+	}
+	if !strings.Contains(att.WorkspacePath, "/workspace/.alex/sessions/session-abc/attachments/report.txt") {
+		t.Fatalf("unexpected workspace path: %s", att.WorkspacePath)
+	}
+}
+
 func TestResolveContentAttachmentsSupportsSeedreamAlias(t *testing.T) {
 	state := &TaskState{
 		Attachments: map[string]ports.Attachment{
@@ -258,6 +390,38 @@ func TestExpandPlaceholdersResolvesPlainSeedreamAlias(t *testing.T) {
 	}
 	if !strings.HasSuffix(value, "YmFzZTY0") {
 		t.Fatalf("expected inline base64 data, got %q", value)
+	}
+}
+
+func TestObserveToolResultsPopulatesWorldDiffAndFeedback(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{}
+	results := []ToolResult{{
+		CallID:  "web_fetch",
+		Content: "Fetched updated OKR doc",
+		Metadata: map[string]any{
+			"reward": 0.75,
+		},
+	}}
+	engine.observeToolResults(state, 2, results)
+	if state.WorldDiff == nil {
+		t.Fatalf("expected world diff to be populated")
+	}
+	if iter, ok := state.WorldDiff["iteration"].(int); !ok || iter != 2 {
+		t.Fatalf("expected diff iteration 2, got %+v", state.WorldDiff)
+	}
+	entries, ok := state.WorldDiff["tool_results"].([]map[string]any)
+	if !ok || len(entries) == 0 {
+		t.Fatalf("expected tool result summary in diff, got %+v", state.WorldDiff)
+	}
+	if state.WorldState == nil || state.WorldState["last_updated_at"] == "" {
+		t.Fatalf("expected world state last_updated_at set, got %+v", state.WorldState)
+	}
+	if len(state.FeedbackSignals) != 1 {
+		t.Fatalf("expected feedback signal captured, got %+v", state.FeedbackSignals)
+	}
+	if state.FeedbackSignals[0].Value != 0.75 {
+		t.Fatalf("expected reward to propagate, got %v", state.FeedbackSignals[0].Value)
 	}
 }
 
@@ -458,23 +622,69 @@ func TestEnsureSystemPromptMessagePrependsWhenMissing(t *testing.T) {
 }
 
 func TestEnsureSystemPromptMessageNoDuplicate(t *testing.T) {
-	engine := NewReactEngine(ReactEngineConfig{})
-	state := &TaskState{
-		SystemPrompt: "Follow the plan.",
-		Messages: []Message{
-			{Role: "system", Content: "Follow the plan.", Source: ports.MessageSourceSystemPrompt},
-			{Role: "user", Content: "hello"},
-		},
-	}
+engine := NewReactEngine(ReactEngineConfig{})
+state := &TaskState{
+SystemPrompt: "Follow the plan.",
+Messages: []Message{
+{Role: "system", Content: "Follow the plan.", Source: ports.MessageSourceSystemPrompt},
+{Role: "user", Content: "hello"},
+},
+}
 
-	engine.ensureSystemPromptMessage(state)
+engine.ensureSystemPromptMessage(state)
 
-	if len(state.Messages) != 2 {
-		t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
-	}
-	if state.Messages[0].Content != "Follow the plan." {
-		t.Fatalf("expected existing system prompt to remain first, got %q", state.Messages[0].Content)
-	}
+if len(state.Messages) != 2 {
+t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+}
+if state.Messages[0].Content != "Follow the plan." {
+t.Fatalf("expected existing system prompt to remain first, got %q", state.Messages[0].Content)
+}
+}
+
+func TestEnsureSystemPromptMessageRewritesWhenContentDiffers(t *testing.T) {
+engine := NewReactEngine(ReactEngineConfig{})
+state := &TaskState{
+SystemPrompt: "Follow the updated framework.",
+Messages: []Message{
+{Role: "system", Content: "Follow the legacy framework.", Source: ports.MessageSourceSystemPrompt},
+{Role: "user", Content: "hello"},
+},
+}
+
+engine.ensureSystemPromptMessage(state)
+
+if len(state.Messages) != 2 {
+t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+}
+if state.Messages[0].Content != "Follow the updated framework." {
+t.Fatalf("expected system prompt to be rewritten, got %q", state.Messages[0].Content)
+}
+if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+t.Fatalf("expected rewritten message to carry system prompt source, got %q", state.Messages[0].Source)
+}
+}
+
+func TestEnsureSystemPromptMessageHandlesLegacySystemRole(t *testing.T) {
+engine := NewReactEngine(ReactEngineConfig{})
+state := &TaskState{
+SystemPrompt: "Follow the structured context.",
+Messages: []Message{
+{Role: "system", Content: "Follow the legacy context."},
+{Role: "user", Content: "hello"},
+},
+}
+
+engine.ensureSystemPromptMessage(state)
+
+if len(state.Messages) != 2 {
+t.Fatalf("expected message count to remain 2, got %d", len(state.Messages))
+}
+if state.Messages[0].Content != "Follow the structured context." {
+t.Fatalf("expected system prompt to replace legacy role entry, got %q", state.Messages[0].Content)
+}
+if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
+t.Fatalf("expected legacy role entry to be normalized to system prompt source, got %q", state.Messages[0].Source)
+}
 }
 
 func TestAttachmentReferenceValuePrefersURI(t *testing.T) {

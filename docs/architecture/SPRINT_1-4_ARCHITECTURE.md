@@ -1,4 +1,6 @@
 # Sprint 1-4 Architecture Documentation (v0.6.0)
+> Last updated: 2025-11-18
+
 
 **Version**: 0.6.0
 **Date**: 2025-Q1

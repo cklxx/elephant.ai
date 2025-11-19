@@ -10,6 +10,7 @@ import (
 	agentPorts "alex/internal/agent/ports"
 	"alex/internal/analytics"
 	serverPorts "alex/internal/server/ports"
+	sessionstate "alex/internal/session/state_store"
 )
 
 // Mock implementations for testing
@@ -118,6 +119,7 @@ func TestSessionIDConsistency(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
@@ -126,6 +128,7 @@ func TestSessionIDConsistency(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	// Test Case 1: Task created WITHOUT session_id
@@ -246,6 +249,7 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 	analyticsMock := &mockAnalytics{}
@@ -255,6 +259,7 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 		WithAnalyticsClient(analyticsMock),
 	)
 
@@ -286,6 +291,7 @@ func TestBroadcasterMapping(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
@@ -294,6 +300,7 @@ func TestBroadcasterMapping(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	ctx := context.Background()
@@ -388,6 +395,7 @@ func TestUserTaskEventEmission(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 	serverCoordinator := NewServerCoordinator(
@@ -395,6 +403,7 @@ func TestUserTaskEventEmission(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	original := []agentPorts.Attachment{
@@ -547,6 +556,7 @@ func TestTaskCancellation(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	// Use a cancellable agent coordinator with 1 second delay
 	agentCoordinator := NewMockCancellableAgentCoordinator(sessionStore, 1*time.Second)
@@ -556,6 +566,7 @@ func TestTaskCancellation(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	ctx := context.Background()
@@ -624,6 +635,7 @@ func TestCancelNonExistentTask(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
@@ -632,6 +644,7 @@ func TestCancelNonExistentTask(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	ctx := context.Background()
@@ -651,6 +664,7 @@ func TestCancelCompletedTask(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
 
@@ -659,6 +673,7 @@ func TestCancelCompletedTask(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	ctx := context.Background()
@@ -697,6 +712,7 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
 	broadcaster.SetTaskStore(taskStore)
+	stateStore := sessionstate.NewInMemoryStore()
 
 	// Use fast mock coordinator to quickly complete tasks
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -706,6 +722,7 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 		broadcaster,
 		sessionStore,
 		taskStore,
+		stateStore,
 	)
 
 	ctx := context.Background()

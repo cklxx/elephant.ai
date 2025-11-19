@@ -1,4 +1,6 @@
 # Todo Tool Reference
+> Last updated: 2025-11-18
+
 
 The todo tool suite keeps track of the agent's workstream so that multi-step fixes do not get lost. Use it to capture tasks, track their status, and surface the latest plan back to yourself.
 

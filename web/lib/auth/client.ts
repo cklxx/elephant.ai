@@ -535,6 +535,7 @@ class AuthClient {
         if (signal) {
           signal.removeEventListener("abort", handleAbort);
         }
+        window.removeEventListener("message", handleMessage);
       };
 
       const finalize = (result: { session?: AuthSession | null; error?: Error }) => {
@@ -567,13 +568,8 @@ class AuthClient {
         signal.addEventListener("abort", handleAbort);
       }
 
-      const poll = async () => {
+      const tryResume = async () => {
         if (settled) {
-          return;
-        }
-
-        if (popup && popup.closed) {
-          finalize({ error: new Error("OAuth window closed") });
           return;
         }
 
@@ -591,6 +587,43 @@ class AuthClient {
         }
       };
 
+      const handleMessage = (event: MessageEvent) => {
+        if (settled) {
+          return;
+        }
+
+        const data = event.data;
+        if (!data || typeof data !== "object") {
+          return;
+        }
+
+        const source = (data as { source?: string }).source;
+        if (source !== "alex-auth") {
+          return;
+        }
+
+        const status = (data as { status?: string }).status;
+        if (status && status !== "success") {
+          finalize({ error: new Error(`OAuth ${provider} login failed`) });
+          return;
+        }
+
+        void tryResume();
+      };
+
+      const poll = async () => {
+        if (settled) {
+          return;
+        }
+
+        if (popup && popup.closed) {
+          finalize({ error: new Error("OAuth window closed") });
+          return;
+        }
+
+        await tryResume();
+      };
+
       timeoutId = window.setTimeout(() => {
         finalize({ error: new Error("OAuth login timed out") });
       }, timeoutMs);
@@ -598,6 +631,8 @@ class AuthClient {
       intervalId = window.setInterval(() => {
         void poll();
       }, pollIntervalMs);
+
+      window.addEventListener("message", handleMessage);
 
       void poll();
     });
