@@ -23,3 +23,15 @@ func CloneAttachmentMap(src map[string]Attachment) map[string]Attachment {
 	}
 	return cloned
 }
+
+// cloneAttachmentMap mirrors the behaviour of CloneAttachmentMap but keeps the
+// original unexported helper name used by older files. It exists so new code
+// can depend on the canonical helper while legacy references continue to
+// compile.
+func cloneAttachmentMap(src map[string]Attachment) map[string]Attachment {
+        return CloneAttachmentMap(src)
+}
+
+// keep the legacy helper referenced so static analysis doesn't drop it in
+// builds where older files aren't compiled.
+var _ = cloneAttachmentMap
