@@ -84,6 +84,33 @@ type ContextSnapshotResponse struct {
 	Snapshots []ContextSnapshotItem `json:"snapshots"`
 }
 
+type SessionSnapshotItem struct {
+	TurnID     int    `json:"turn_id"`
+	LLMTurnSeq int    `json:"llm_turn_seq"`
+	Summary    string `json:"summary"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type SessionSnapshotsResponse struct {
+	SessionID  string                `json:"session_id"`
+	Items      []SessionSnapshotItem `json:"items"`
+	NextCursor string                `json:"next_cursor,omitempty"`
+}
+
+type TurnSnapshotResponse struct {
+	SessionID  string                      `json:"session_id"`
+	TurnID     int                         `json:"turn_id"`
+	LLMTurnSeq int                         `json:"llm_turn_seq"`
+	Summary    string                      `json:"summary"`
+	CreatedAt  string                      `json:"created_at"`
+	Plans      []agentports.PlanNode       `json:"plans,omitempty"`
+	Beliefs    []agentports.Belief         `json:"beliefs,omitempty"`
+	WorldState map[string]any              `json:"world_state,omitempty"`
+	Diff       map[string]any              `json:"diff,omitempty"`
+	Messages   []agentports.Message        `json:"messages"`
+	Feedback   []agentports.FeedbackSignal `json:"feedback,omitempty"`
+}
+
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -336,6 +363,130 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleListSnapshots handles GET /api/sessions/:id/snapshots
+func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+
+	trimmed := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+	trimmed = strings.TrimSuffix(trimmed, "/snapshots")
+	sessionID := strings.TrimSuffix(strings.TrimSpace(trimmed), "/")
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			limit = parsed
+		} else {
+			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
+			return
+		}
+	}
+	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
+	items, nextCursor, err := h.coordinator.ListSnapshots(r.Context(), sessionID, cursor, limit)
+	if err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list snapshots", err)
+		return
+	}
+	responseItems := make([]SessionSnapshotItem, 0, len(items))
+	for _, meta := range items {
+		responseItems = append(responseItems, SessionSnapshotItem{
+			TurnID:     meta.TurnID,
+			LLMTurnSeq: meta.LLMTurnSeq,
+			Summary:    meta.Summary,
+			CreatedAt:  meta.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	resp := SessionSnapshotsResponse{SessionID: sessionID, Items: responseItems}
+	if nextCursor != "" {
+		resp.NextCursor = nextCursor
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+// HandleGetTurnSnapshot handles GET /api/sessions/:id/turns/:turnID
+func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+	trimmed := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+	parts := strings.Split(trimmed, "/turns/")
+	if len(parts) != 2 {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid snapshot path", fmt.Errorf("invalid path %s", r.URL.Path))
+		return
+	}
+	sessionID := strings.TrimSuffix(strings.TrimSpace(parts[0]), "/")
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+	turnStr := parts[1]
+	if strings.Contains(turnStr, "/") {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid turn path", fmt.Errorf("invalid path segment %s", turnStr))
+		return
+	}
+	turnID, err := strconv.Atoi(strings.TrimSpace(turnStr))
+	if err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, "turn_id must be numeric", err)
+		return
+	}
+	snapshot, err := h.coordinator.GetSnapshot(r.Context(), sessionID, turnID)
+	if err != nil {
+		h.writeJSONError(w, http.StatusNotFound, "Snapshot not found", err)
+		return
+	}
+	resp := TurnSnapshotResponse{
+		SessionID:  snapshot.SessionID,
+		TurnID:     snapshot.TurnID,
+		LLMTurnSeq: snapshot.LLMTurnSeq,
+		Summary:    snapshot.Summary,
+		CreatedAt:  snapshot.CreatedAt.Format(time.RFC3339),
+		Plans:      snapshot.Plans,
+		Beliefs:    snapshot.Beliefs,
+		WorldState: snapshot.World,
+		Diff:       snapshot.Diff,
+		Messages:   snapshot.Messages,
+		Feedback:   snapshot.Feedback,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+// HandleReplaySession handles POST /api/sessions/:id/replay
+func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/replay")
+	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+	if err := h.coordinator.ReplaySession(r.Context(), sessionID); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to schedule replay", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":     "scheduled",
+		"session_id": sessionID,
+	})
 }
 
 // TaskStatusResponse matches TypeScript TaskStatusResponse interface

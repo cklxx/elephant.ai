@@ -41,6 +41,7 @@ SANDBOX_SECURITY_OPT=seccomp=unconfined
 
 该脚本会自动：
 - **优先配置 `USE_CHINA_SANDBOX=true`（使用预构建镜像）**
+- **将 `AUTH_DB_IMAGE` 指向国内 Postgres 镜像（`docker.m.daocloud.io/library/postgres:15`）**
 - 在 Linux 上配置 Docker 镜像加速器（需要 sudo）
 - 在 macOS/Windows 上提供 Docker Desktop 配置指引
 - 备选：配置 NPM 和 PyPI 镜像（用于自行构建）
@@ -72,6 +73,7 @@ PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 # 使用预构建镜像（推荐）
 SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest \
 SANDBOX_SECURITY_OPT=seccomp=unconfined \
+AUTH_DB_IMAGE=docker.m.daocloud.io/library/postgres:15 \
 docker-compose up -d sandbox
 
 # 或使用 npm/pip 镜像构建
@@ -89,6 +91,14 @@ docker-compose build sandbox
 | 火山引擎 | `enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest` | **强烈推荐**，秒级启动 |
 
 **使用方式**：在 `.env` 中设置 `SANDBOX_IMAGE` 和 `SANDBOX_SECURITY_OPT`
+
+### 认证数据库镜像
+
+| 提供方 | 镜像地址 | 说明 |
+|--------|----------|------|
+| DaoCloud 镜像站 | `docker.m.daocloud.io/library/postgres:15` | 官方 `postgres:15` 的国内镜像 |
+
+**使用方式**：在 `.env` 中设置 `AUTH_DB_IMAGE=docker.m.daocloud.io/library/postgres:15`
 
 ### Docker Hub 镜像加速
 

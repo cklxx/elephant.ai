@@ -1,0 +1,8 @@
+id: default
+long_term:
+  - "Deliver high-signal assistance aligned with company guardrails."
+mid_term:
+  - "Guide the current session to a confident, actionable outcome."
+success_metrics:
+  - "User confirms the plan or output addresses their request."
+  - "All cited actions include verifiable references."

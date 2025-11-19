@@ -13,6 +13,30 @@ const previewSessionId = 'preview-session';
 const previewTaskId = 'preview-task';
 const baseEventContext = { session_id: previewSessionId, task_id: previewTaskId } as const;
 
+const subagentOneContext = {
+  ...baseEventContext,
+  task_id: 'preview-subtask-1',
+  agent_level: 'subagent' as const,
+  parent_task_id: previewTaskId,
+  is_subtask: true,
+  subtask_index: 0,
+  total_subtasks: 2,
+  subtask_preview: '沉浸式事件流体验对标调研',
+  max_parallel: 2,
+};
+
+const subagentTwoContext = {
+  ...baseEventContext,
+  task_id: 'preview-subtask-2',
+  agent_level: 'subagent' as const,
+  parent_task_id: previewTaskId,
+  is_subtask: true,
+  subtask_index: 1,
+  total_subtasks: 2,
+  subtask_preview: '验证工具输出组件的子任务样式',
+  max_parallel: 2,
+};
+
 const mockEvents: AnyAgentEvent[] = [
   {
     ...baseEventContext,
@@ -100,6 +124,42 @@ const mockEvents: AnyAgentEvent[] = [
     duration: 4800,
   },
   {
+    ...subagentOneContext,
+    event_type: 'tool_call_start',
+    timestamp: atOffset(48),
+    iteration: 1,
+    call_id: 'sub-call-1',
+    tool_name: 'web_search',
+    arguments: {
+      query: 'multi-panel agent console layout inspiration',
+    },
+  },
+  {
+    ...subagentOneContext,
+    event_type: 'tool_call_stream',
+    timestamp: atOffset(50),
+    call_id: 'sub-call-1',
+    chunk: '📚 收集 GitHub Copilot 与 Cursor 控制台的排版策略...\n',
+    is_complete: false,
+  },
+  {
+    ...subagentOneContext,
+    event_type: 'tool_call_stream',
+    timestamp: atOffset(52),
+    call_id: 'sub-call-1',
+    chunk: '强调「工具列 + 时间线」分屏，加上高对比 badge。\n',
+    is_complete: true,
+  },
+  {
+    ...subagentOneContext,
+    event_type: 'tool_call_complete',
+    timestamp: atOffset(54),
+    call_id: 'sub-call-1',
+    tool_name: 'web_search',
+    result: '归纳出 5 条关于多窗口事件回传的模式可供采用。',
+    duration: 3200,
+  },
+  {
     ...baseEventContext,
     event_type: 'browser_info',
     timestamp: atOffset(50),
@@ -141,6 +201,63 @@ const mockEvents: AnyAgentEvent[] = [
     result: '',
     error: 'Test suite failed: autoscroll hook did not release focus',
     duration: 6200,
+  },
+  {
+    ...subagentTwoContext,
+    event_type: 'tool_call_start',
+    timestamp: atOffset(64),
+    iteration: 1,
+    call_id: 'sub-call-2',
+    tool_name: 'code_search',
+    arguments: {
+      path: 'web/components/agent/ToolOutputCard.tsx',
+      query: 'subtask',
+    },
+  },
+  {
+    ...subagentTwoContext,
+    event_type: 'tool_call_stream',
+    timestamp: atOffset(66),
+    call_id: 'sub-call-2',
+    chunk: '比对 props 传递链路，确认 subtask metadata 是否完整...',
+    is_complete: false,
+  },
+  {
+    ...subagentTwoContext,
+    event_type: 'tool_call_stream',
+    timestamp: atOffset(69),
+    call_id: 'sub-call-2',
+    chunk: '需要在 mock 数据中加入 parent_task_id 与并行系数。',
+    is_complete: true,
+  },
+  {
+    ...subagentTwoContext,
+    event_type: 'tool_call_complete',
+    timestamp: atOffset(72),
+    call_id: 'sub-call-2',
+    tool_name: 'code_search',
+    result: '确认 EventLine 组件渲染子任务标题，建议补测试覆盖。',
+    duration: 3600,
+  },
+  {
+    ...subagentOneContext,
+    event_type: 'task_complete',
+    timestamp: atOffset(73),
+    final_answer: '完成对标调研，输出 badge 体系建议。',
+    total_iterations: 1,
+    total_tokens: 2400,
+    stop_reason: 'completed',
+    duration: 4200,
+  },
+  {
+    ...subagentTwoContext,
+    event_type: 'task_complete',
+    timestamp: atOffset(74),
+    final_answer: '补齐子任务工具事件 Mock，确保 UI 预览对齐。',
+    total_iterations: 1,
+    total_tokens: 2100,
+    stop_reason: 'completed',
+    duration: 4000,
   },
   {
     ...baseEventContext,
@@ -365,11 +482,18 @@ export default function ConsolePreviewPage() {
   );
 }
 
-function buildSummaryLine(events: AnyAgentEvent[]): string {
-  const taskComplete = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'task_complete' }>
-      => event.event_type === 'task_complete',
+function findEvent<TEventType extends AnyAgentEvent['event_type']>(
+  events: AnyAgentEvent[],
+  eventType: TEventType,
+): Extract<AnyAgentEvent, { event_type: TEventType }> | undefined {
+  return events.find(
+    (event): event is Extract<AnyAgentEvent, { event_type: TEventType }> =>
+      event.event_type === eventType,
   );
+}
+
+function buildSummaryLine(events: AnyAgentEvent[]): string {
+  const taskComplete = findEvent(events, 'task_complete');
 
   const iterations = taskComplete?.total_iterations;
   const tokens = taskComplete?.total_tokens;
@@ -392,18 +516,9 @@ function buildSummaryLine(events: AnyAgentEvent[]): string {
 }
 
 function buildPreviewInput(events: AnyAgentEvent[]) {
-  const userTask = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'user_task' }>
-      => event.event_type === 'user_task',
-  );
-  const planEvent = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'research_plan' }>
-      => event.event_type === 'research_plan',
-  );
-  const taskComplete = events.find(
-    (event): event is Extract<AnyAgentEvent, { event_type: 'task_complete' }>
-      => event.event_type === 'task_complete',
-  );
+  const userTask = findEvent(events, 'user_task');
+  const planEvent = findEvent(events, 'research_plan');
+  const taskComplete = findEvent(events, 'task_complete');
 
   return {
     primary:
@@ -413,12 +528,14 @@ function buildPreviewInput(events: AnyAgentEvent[]) {
   };
 }
 
+type PreviewBucket = { key: string; iteration: number; content: string };
+
 function buildPreviewOutputs(events: AnyAgentEvent[]): {
   iteration: number;
   content: string;
 }[] {
-  const buckets: Array<{ key: string; iteration: number; content: string }> = [];
-  const bucketMap = new Map<string, { iteration: number; content: string }>();
+  const buckets: PreviewBucket[] = [];
+  const bucketMap = new Map<string, PreviewBucket>();
 
   events.forEach((event) => {
     if (event.event_type !== 'assistant_message') {
@@ -430,7 +547,7 @@ function buildPreviewOutputs(events: AnyAgentEvent[]): {
     const key = `${assistantEvent.task_id ?? 'task'}:${assistantEvent.parent_task_id ?? 'root'}:${iteration}`;
     let bucket = bucketMap.get(key);
     if (!bucket) {
-      bucket = { iteration, content: '' };
+      bucket = { key, iteration, content: '' };
       bucketMap.set(key, bucket);
       buckets.push(bucket);
     }

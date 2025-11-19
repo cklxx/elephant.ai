@@ -15,6 +15,7 @@ import (
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	"alex/internal/server/app"
+	"alex/internal/tools/builtin"
 )
 
 func TestSSEHandler_MissingSessionID(t *testing.T) {
@@ -351,141 +352,199 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 	}
 }
 
+
+func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
+        handler := NewSSEHandler(nil)
+        original := &domain.ToolCallCompleteEvent{
+                BaseEvent: domain.BaseEvent{},
+                CallID:    "call-1",
+                ToolName:  "file_read",
+                Result:    "ok",
+        }
+        subtask := &builtin.SubtaskEvent{
+                OriginalEvent:  original,
+                SubtaskIndex:   1,
+                TotalSubtasks:  3,
+                SubtaskPreview: "Review config",
+                MaxParallel:    2,
+        }
+
+        data, err := handler.buildEventData(subtask)
+        if err != nil {
+                t.Fatalf("buildEventData returned error: %v", err)
+        }
+
+        if data["event_type"] != "tool_call_complete" {
+                t.Fatalf("expected event_type to match original event, got %v", data["event_type"])
+        }
+
+        switch level := data["agent_level"].(type) {
+        case agentports.AgentLevel:
+                if level != types.LevelSubagent {
+                        t.Fatalf("expected agent_level to default to subagent, got %v", level)
+                }
+        case string:
+                if level != string(types.LevelSubagent) {
+                        t.Fatalf("expected agent_level string to default to subagent, got %v", level)
+                }
+        default:
+                t.Fatalf("unexpected agent_level type %T", data["agent_level"])
+        }
+
+        isSubtask, ok := data["is_subtask"].(bool)
+        if !ok || !isSubtask {
+                t.Fatalf("expected is_subtask flag to be true, got %v", data["is_subtask"])
+        }
+
+        if data["subtask_index"] != 1 {
+                t.Fatalf("expected subtask_index 1, got %v", data["subtask_index"])
+        }
+        if data["total_subtasks"] != 3 {
+                t.Fatalf("expected total_subtasks 3, got %v", data["total_subtasks"])
+        }
+        if data["subtask_preview"] != "Review config" {
+                t.Fatalf("expected preview \"Review config\", got %v", data["subtask_preview"])
+        }
+        if data["max_parallel"] != 2 {
+                t.Fatalf("expected max_parallel 2, got %v", data["max_parallel"])
+        }
+}
+
 func TestSSEHandler_SerializeEventStripsWorkspacePaths(t *testing.T) {
-	handler := NewSSEHandler(nil)
-	events := []agentports.AgentEvent{
-		&domain.UserTaskEvent{
-			BaseEvent: domain.BaseEvent{},
-			Task:      "demo",
-			Attachments: map[string]agentports.Attachment{
-				"report.txt": {
-					Name:          "report.txt",
-					WorkspacePath: "/workspace/.alex/sessions/demo/attachments/report.txt",
-				},
-			},
-		},
-		app.NewAttachmentScanEvent(
-			agentports.LevelCore,
-			"session",
-			"task",
-			"blocked.png",
-			app.AttachmentScanVerdictInfected,
-			"malware",
-			agentports.Attachment{
-				Name:          "blocked.png",
-				WorkspacePath: "/workspace/.alex/sessions/demo/attachments/blocked.png",
-			},
-			time.Now(),
-		),
-	}
+        handler := NewSSEHandler(nil)
+        events := []agentports.AgentEvent{
+                &domain.UserTaskEvent{
+                        BaseEvent: domain.BaseEvent{},
+                        Task:      "demo",
+                        Attachments: map[string]agentports.Attachment{
+                                "report.txt": {
+                                        Name:          "report.txt",
+                                        WorkspacePath: "/workspace/.alex/sessions/demo/attachments/report.txt",
+                                },
+                        },
+                },
+                app.NewAttachmentScanEvent(
+                        agentports.LevelCore,
+                        "session",
+                        "task",
+                        "blocked.png",
+                        app.AttachmentScanVerdictInfected,
+                        "malware",
+                        agentports.Attachment{
+                                Name:          "blocked.png",
+                                WorkspacePath: "/workspace/.alex/sessions/demo/attachments/blocked.png",
+                        },
+                        time.Now(),
+                ),
+        }
 
-	for _, event := range events {
-		serialized, err := handler.serializeEvent(event)
-		if err != nil {
-			t.Fatalf("serializeEvent returned error: %v", err)
-		}
-		if strings.Contains(serialized, "workspace_path") {
-			t.Fatalf("workspace_path should not be exposed to clients: %s", serialized)
-		}
-	}
+        for _, event := range events {
+                serialized, err := handler.serializeEvent(event)
+                if err != nil {
+                        t.Fatalf("serializeEvent returned error: %v", err)
+                }
+                if strings.Contains(serialized, "workspace_path") {
+                        t.Fatalf("workspace_path should not be exposed to clients: %s", serialized)
+                }
+        }
 
-	serialized, err := handler.serializeEvent(events[0])
-	if err != nil {
-		t.Fatalf("serializeEvent returned error: %v", err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
-		t.Fatalf("failed decoding payload: %v", err)
-	}
-	attachments, ok := payload["attachments"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected attachments to be present")
-	}
-	if _, ok := attachments["report.txt"].(map[string]any); !ok {
-		t.Fatalf("expected attachment metadata to remain structured: %#v", attachments)
-	}
+        serialized, err := handler.serializeEvent(events[0])
+        if err != nil {
+                t.Fatalf("serializeEvent returned error: %v", err)
+        }
+        var payload map[string]any
+        if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
+                t.Fatalf("failed decoding payload: %v", err)
+        }
+        attachments, ok := payload["attachments"].(map[string]any)
+        if !ok {
+                t.Fatalf("expected attachments to be present")
+        }
+        if _, ok := attachments["report.txt"].(map[string]any); !ok {
+                t.Fatalf("expected attachment metadata to remain structured: %#v", attachments)
+        }
 }
 
 func TestSSEHandler_SerializeAttachmentExportEventIncludesUpdates(t *testing.T) {
-	handler := NewSSEHandler(nil)
-	updates := map[string]agentports.Attachment{
-		"report.txt": {
-			Name:          "report.txt",
-			URI:           "https://cdn.example/report.txt",
-			WorkspacePath: "/workspace/.alex/sessions/demo/report.txt",
-		},
-	}
-	event := app.NewAttachmentExportEvent(
-		agentports.LevelCore,
-		"session",
-		"task",
-		app.AttachmentExportStatusSucceeded,
-		1,
-		1,
-		500*time.Millisecond,
-		"http_webhook",
-		"https://cdn.example",
-		"",
-		updates,
-		time.Now(),
-	)
-	serialized, err := handler.serializeEvent(event)
-	if err != nil {
-		t.Fatalf("serializeEvent returned error: %v", err)
-	}
-	if !strings.Contains(serialized, "\"attachments\"") {
-		t.Fatalf("expected attachments in payload: %s", serialized)
-	}
-	if strings.Contains(serialized, "workspace_path") {
-		t.Fatalf("workspace_path should not be included in export payloads: %s", serialized)
-	}
+        handler := NewSSEHandler(nil)
+        updates := map[string]agentports.Attachment{
+                "report.txt": {
+                        Name:          "report.txt",
+                        URI:           "https://cdn.example/report.txt",
+                        WorkspacePath: "/workspace/.alex/sessions/demo/report.txt",
+                },
+        }
+        event := app.NewAttachmentExportEvent(
+                agentports.LevelCore,
+                "session",
+                "task",
+                app.AttachmentExportStatusSucceeded,
+                1,
+                1,
+                500*time.Millisecond,
+                "http_webhook",
+                "https://cdn.example",
+                "",
+                updates,
+                time.Now(),
+        )
+        serialized, err := handler.serializeEvent(event)
+        if err != nil {
+                t.Fatalf("serializeEvent returned error: %v", err)
+        }
+        if !strings.Contains(serialized, "\"attachments\"") {
+                t.Fatalf("expected attachments in payload: %s", serialized)
+        }
+        if strings.Contains(serialized, "workspace_path") {
+                t.Fatalf("workspace_path should not be included in export payloads: %s", serialized)
+        }
 }
 
 func TestSerializeMessagesStripsWorkspacePaths(t *testing.T) {
-	attachments := map[string]agentports.Attachment{
-		"diagram.png": {
-			Name:          "diagram.png",
-			WorkspacePath: "/workspace/.alex/sessions/demo/attachments/diagram.png",
-		},
-	}
-	messages := []agentports.Message{
-		{
-			Role:        "assistant",
-			Content:     "done",
-			Attachments: attachments,
-			ToolResults: []agentports.ToolResult{
-				{
-					CallID: "tool-1",
-					Attachments: map[string]agentports.Attachment{
-						"diagram.png": {
-							Name:          "diagram.png",
-							WorkspacePath: "/workspace/.alex/sessions/demo/attachments/diagram.png",
-						},
-					},
-				},
-			},
-		},
-	}
+        attachments := map[string]agentports.Attachment{
+                "diagram.png": {
+                        Name:          "diagram.png",
+                        WorkspacePath: "/workspace/.alex/sessions/demo/attachments/diagram.png",
+                },
+        }
+        messages := []agentports.Message{
+                {
+                        Role:        "assistant",
+                        Content:     "done",
+                        Attachments: attachments,
+                        ToolResults: []agentports.ToolResult{
+                                {
+                                        CallID: "tool-1",
+                                        Attachments: map[string]agentports.Attachment{
+                                                "diagram.png": {
+                                                        Name:          "diagram.png",
+                                                        WorkspacePath: "/workspace/.alex/sessions/demo/attachments/diagram.png",
+                                                },
+                                        },
+                                },
+                        },
+                },
+        }
 
-	serialized := serializeMessages(messages)
-	if len(serialized) != 1 {
-		t.Fatalf("expected 1 serialized message, got %d", len(serialized))
-	}
-	entry := serialized[0]
-	attMap, ok := entry["attachments"].(map[string]agentports.Attachment)
-	if !ok {
-		t.Fatalf("attachments missing or wrong type: %#v", entry["attachments"])
-	}
-	if attMap["diagram.png"].WorkspacePath != "" {
-		t.Fatalf("expected attachment workspace path to be stripped, got %q", attMap["diagram.png"].WorkspacePath)
-	}
-	toolResults, ok := entry["tool_results"].([]agentports.ToolResult)
-	if !ok {
-		t.Fatalf("tool_results missing or wrong type: %#v", entry["tool_results"])
-	}
-	if got := toolResults[0].Attachments["diagram.png"].WorkspacePath; got != "" {
-		t.Fatalf("expected tool result workspace path to be stripped, got %q", got)
-	}
+        serialized := serializeMessages(messages)
+        if len(serialized) != 1 {
+                t.Fatalf("expected 1 serialized message, got %d", len(serialized))
+        }
+        entry := serialized[0]
+        attMap, ok := entry["attachments"].(map[string]agentports.Attachment)
+        if !ok {
+                t.Fatalf("attachments missing or wrong type: %#v", entry["attachments"])
+        }
+        if attMap["diagram.png"].WorkspacePath != "" {
+                t.Fatalf("expected attachment workspace path to be stripped, got %q", attMap["diagram.png"].WorkspacePath)
+        }
+        toolResults, ok := entry["tool_results"].([]agentports.ToolResult)
+        if !ok {
+                t.Fatalf("tool_results missing or wrong type: %#v", entry["tool_results"])
+        }
+        if got := toolResults[0].Attachments["diagram.png"].WorkspacePath; got != "" {
+                t.Fatalf("expected tool result workspace path to be stripped, got %q", got)
+        }
 }
 
 func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
@@ -526,6 +585,7 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		"task-456",
 		"parent-789",
 		2,
+		5,
 		"req-abc",
 		messages,
 		excluded,
@@ -544,6 +604,9 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 
 	if got := data["iteration"]; got != float64(2) {
 		t.Fatalf("expected iteration 2, got %v", got)
+	}
+	if got := data["llm_turn_seq"]; got != float64(5) {
+		t.Fatalf("expected llm_turn_seq 5, got %v", got)
 	}
 
 	if got := data["request_id"]; got != "req-abc" {

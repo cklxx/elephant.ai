@@ -13,6 +13,11 @@ export const BaseAgentEventSchema = z.object({
   session_id: z.string(),
   task_id: z.string().optional(),
   parent_task_id: z.string().optional(),
+  is_subtask: z.boolean().optional(),
+  subtask_index: z.number().optional(),
+  total_subtasks: z.number().optional(),
+  subtask_preview: z.string().optional(),
+  max_parallel: z.number().optional(),
 });
 
 export const AttachmentPayloadSchema = z.object({
@@ -290,6 +295,7 @@ export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
 export const ContextSnapshotEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('context_snapshot'),
   iteration: z.number(),
+  llm_turn_seq: z.number(),
   request_id: z.string(),
   messages: z.array(MessageSchema),
   excluded_messages: z.array(MessageSchema).optional(),
