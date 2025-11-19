@@ -13,6 +13,7 @@ import { AttachmentPayload } from "@/lib/types";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
+import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 
 const SEEDREAM_TOOL_ALIASES = new Set([
   'video_generate',
@@ -832,6 +833,13 @@ function renderToolResult(
           segment.attachment,
       )
     : [];
+  const artifactSegments = parsedSegments
+    ? parsedSegments.filter(
+        (segment) =>
+          (segment.type === "document" || segment.type === "embed") &&
+          segment.attachment,
+      )
+    : [];
 
   if (attachmentsAvailable) {
     return (
@@ -883,6 +891,22 @@ function renderToolResult(
                   minHeight="10rem"
                   maxHeight="16rem"
                   sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
+                />
+              );
+            })}
+          </div>
+        )}
+        {artifactSegments.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {artifactSegments.map((segment, index) => {
+              if (!segment.attachment) {
+                return null;
+              }
+              const key = segment.placeholder || `artifact-${index}`;
+              return (
+                <ArtifactPreviewCard
+                  key={`media-artifact-${key}`}
+                  attachment={segment.attachment}
                 />
               );
             })}

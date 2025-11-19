@@ -275,13 +275,14 @@ func (r *ToolResult) UnmarshalJSON(data []byte) error {
 
 // ToolDefinition describes a tool for the LLM
 type ToolMaterialCapabilities struct {
-	Consumes []string `json:"consumes,omitempty"`
-	Produces []string `json:"produces,omitempty"`
+	Consumes          []string `json:"consumes,omitempty"`
+	Produces          []string `json:"produces,omitempty"`
+	ProducesArtifacts []string `json:"produces_artifacts,omitempty"`
 }
 
 // IsZero allows ToolMaterialCapabilities to honor json omitempty semantics.
 func (c ToolMaterialCapabilities) IsZero() bool {
-	return len(c.Consumes) == 0 && len(c.Produces) == 0
+	return len(c.Consumes) == 0 && len(c.Produces) == 0 && len(c.ProducesArtifacts) == 0
 }
 
 // ToolDefinition describes a tool for the LLM

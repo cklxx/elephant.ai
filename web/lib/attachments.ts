@@ -4,11 +4,13 @@ const PLACEHOLDER_REGEX = /\[([^\[\]]+)\]/g;
 const IMAGE_MARKDOWN_REGEX = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
 
 export interface ContentSegment {
-  type: 'text' | 'image' | 'video';
+  type: 'text' | 'image' | 'video' | 'document' | 'embed';
   text?: string;
   placeholder?: string;
   attachment?: AttachmentPayload;
 }
+
+export type AttachmentSegmentType = ContentSegment['type'];
 
 export function buildAttachmentUri(
   attachment: AttachmentPayload,
@@ -80,7 +82,7 @@ export function parseContentSegments(
     type: getAttachmentSegmentType(attachment),
   }));
 
-  const attachmentTypes = attachmentList.reduce<Record<string, ContentSegment['type']>>(
+  const attachmentTypes = attachmentList.reduce<Record<string, AttachmentSegmentType>>(
     (acc, { key, type }) => {
       acc[key] = type;
       return acc;
@@ -188,7 +190,7 @@ function tokenizeContent(content: string): ContentToken[] {
 function extractPlaceholderSegments(
   text: string,
   attachments: Record<string, AttachmentPayload>,
-  attachmentTypes: Record<string, ContentSegment['type']>,
+  attachmentTypes: Record<string, AttachmentSegmentType>,
   usedAttachments: Set<string>,
 ): ContentSegment[] {
   if (!text) {
@@ -237,13 +239,42 @@ function extractPlaceholderSegments(
   return segments;
 }
 
-function getAttachmentSegmentType(
+const DOCUMENT_FORMATS = new Set(['ppt', 'pptx', 'pdf', 'markdown', 'md', 'doc', 'docx']);
+
+export function getAttachmentSegmentType(
   attachment: AttachmentPayload,
-): ContentSegment['type'] {
+): AttachmentSegmentType {
   const mediaType = attachment.media_type?.toLowerCase() ?? '';
   if (mediaType.startsWith('video/')) {
     return 'video';
   }
+
+  const format = attachment.format?.toLowerCase();
+  const previewProfile = attachment.preview_profile?.toLowerCase() ?? '';
+  const kind = attachment.kind?.toLowerCase();
+  const previewAssets = attachment.preview_assets ?? [];
+  const hasPreviewAssets = previewAssets.length > 0;
+  const hasHtmlAsset = previewAssets.some((asset) => {
+    const mime = asset.mime_type?.toLowerCase() ?? '';
+    const previewType = asset.preview_type?.toLowerCase() ?? '';
+    return mime.includes('html') || previewType.includes('html') || previewType.includes('iframe');
+  });
+  const htmlLike =
+    mediaType === 'text/html' ||
+    format === 'html' ||
+    previewProfile.includes('html') ||
+    hasHtmlAsset;
+  if (htmlLike) {
+    return 'embed';
+  }
+
+  const documentProfile = previewProfile.startsWith('document.');
+  const documentFormat = (format && DOCUMENT_FORMATS.has(format)) || format === 'pdf';
+  const isArtifact = kind === 'artifact';
+  if (isArtifact || documentProfile || documentFormat || hasPreviewAssets) {
+    return 'document';
+  }
+
   return 'image';
 }
 

@@ -63,7 +63,7 @@ func (a *sandboxAttachmentArchiver) Persist(ctx context.Context, sessionID strin
 		session = "session"
 	}
 
-	cloned := cloneAttachments(attachments)
+	cloned := ports.CloneAttachmentMap(attachments)
 	go a.write(context.Background(), session, cloned)
 }
 
@@ -325,17 +325,6 @@ func inferExtension(mediaType string) string {
 	default:
 		return ""
 	}
-}
-
-func cloneAttachments(values map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]ports.Attachment, len(values))
-	for key, att := range values {
-		cloned[key] = att
-	}
-	return cloned
 }
 
 func shellQuote(value string) string {

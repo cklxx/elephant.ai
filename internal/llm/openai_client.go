@@ -698,9 +698,18 @@ func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]a
 			},
 		}
 		if !tool.MaterialCapabilities.IsZero() {
-			entry["alex_material_capabilities"] = map[string]any{
-				"consumes": tool.MaterialCapabilities.Consumes,
-				"produces": tool.MaterialCapabilities.Produces,
+			capabilities := make(map[string]any)
+			if len(tool.MaterialCapabilities.Consumes) > 0 {
+				capabilities["consumes"] = tool.MaterialCapabilities.Consumes
+			}
+			if len(tool.MaterialCapabilities.Produces) > 0 {
+				capabilities["produces"] = tool.MaterialCapabilities.Produces
+			}
+			if len(tool.MaterialCapabilities.ProducesArtifacts) > 0 {
+				capabilities["produces_artifacts"] = tool.MaterialCapabilities.ProducesArtifacts
+			}
+			if len(capabilities) > 0 {
+				entry["alex_material_capabilities"] = capabilities
 			}
 		}
 		result[i] = entry

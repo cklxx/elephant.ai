@@ -7,6 +7,7 @@ import { MarkdownRenderer } from "@/components/ui/markdown";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
+import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 
 interface StopReasonCopy {
   title: string;
@@ -29,6 +30,11 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const mediaSegments = segments.filter(
     (segment) =>
       (segment.type === "image" || segment.type === "video") &&
+      segment.attachment,
+  );
+  const artifactSegments = segments.filter(
+    (segment) =>
+      (segment.type === "document" || segment.type === "embed") &&
       segment.attachment,
   );
 
@@ -160,6 +166,23 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   maxHeight="20rem"
                   className="w-full sm:w-[220px] lg:w-[260px]"
                   sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 100vw"
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {artifactSegments.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {artifactSegments.map((segment, index) => {
+              if (!segment.attachment) {
+                return null;
+              }
+              const key = segment.placeholder || `artifact-${index}`;
+              return (
+                <ArtifactPreviewCard
+                  key={`task-complete-artifact-${key}`}
+                  attachment={segment.attachment}
                 />
               );
             })}

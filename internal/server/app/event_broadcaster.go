@@ -330,23 +330,12 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
 	switch e := event.(type) {
 	case *domain.ToolCallCompleteEvent:
-		return cloneAttachmentPayload(e.Attachments)
+		return agentports.CloneAttachmentMap(e.Attachments)
 	case *domain.TaskCompleteEvent:
-		return cloneAttachmentPayload(e.Attachments)
+		return agentports.CloneAttachmentMap(e.Attachments)
 	default:
 		return nil
 	}
-}
-
-func cloneAttachmentPayload(values map[string]agentports.Attachment) map[string]agentports.Attachment {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]agentports.Attachment, len(values))
-	for key, att := range values {
-		cloned[key] = att
-	}
-	return cloned
 }
 
 // Metrics helper methods

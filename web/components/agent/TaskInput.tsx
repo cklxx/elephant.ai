@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { ImageUp, Send, Square, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
@@ -20,16 +20,37 @@ interface TaskInputProps {
   stopDisabled?: boolean;
 }
 
+type AttachmentKind = "attachment" | "artifact";
+
 type PendingAttachment = {
   id: string;
   name: string;
   mediaType: string;
   data?: string;
   uri?: string;
-  previewUrl: string;
+  previewUrl?: string;
   placeholder: string;
   description?: string;
+  format?: string;
+  size: number;
+  kind: AttachmentKind;
+  retentionSeconds: number;
+  isImage: boolean;
 };
+
+const artifactRetentionDays = 90;
+const artifactRetentionSeconds = artifactRetentionDays * 24 * 60 * 60;
+const acceptedFileTypes = [
+  "image/*",
+  ".pdf",
+  ".ppt",
+  ".pptx",
+  ".html",
+  ".htm",
+  ".md",
+  ".markdown",
+  ".txt",
+].join(",");
 
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -50,6 +71,45 @@ function inferExtension(file: File): string {
     return fromType.toLowerCase();
   }
   return "png";
+}
+
+function isPreviewableImage(mediaType: string): boolean {
+  return mediaType.startsWith("image/") && mediaType !== "image/svg+xml";
+}
+
+function formatFileSize(size: number): string {
+  if (!Number.isFinite(size) || size <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let idx = 0;
+  let value = size;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  return `${value.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
+
+function resolveMediaType(file: File, ext: string): string {
+  if (file.type) return file.type;
+  if (!ext) return "application/octet-stream";
+  switch (ext.toLowerCase()) {
+    case "md":
+    case "markdown":
+      return "text/markdown";
+    case "html":
+    case "htm":
+      return "text/html";
+    case "ppt":
+      return "application/vnd.ms-powerpoint";
+    case "pptx":
+      return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    case "pdf":
+      return "application/pdf";
+    default:
+      return `application/${ext}`;
+  }
 }
 
 function sanitizeBaseName(file: File): string {
@@ -220,10 +280,6 @@ export function TaskInput({
 
       const existing = new Set(attachments.map((item) => item.name));
       for (const file of files) {
-        if (!file.type?.startsWith("image/")) {
-          continue;
-        }
-
         try {
           const dataUrl = await readFileAsDataURL(file);
           const base64 = dataUrl.split(",")[1];
@@ -241,13 +297,20 @@ export function TaskInput({
           }
           existing.add(candidate);
 
+          const mediaType = resolveMediaType(file, ext);
+          const previewable = isPreviewableImage(mediaType);
           const pending: PendingAttachment = {
             id: createId(),
             name: candidate,
-            mediaType: file.type || `image/${ext}`,
+            mediaType,
             data: base64,
-            previewUrl: dataUrl,
+            previewUrl: previewable ? dataUrl : undefined,
             placeholder: `[${candidate}]`,
+            format: ext,
+            size: file.size,
+            kind: "attachment",
+            retentionSeconds: 0,
+            isImage: previewable,
           };
 
           setAttachments((prev) => [...prev, pending]);
@@ -318,6 +381,28 @@ export function TaskInput({
     [attachments],
   );
 
+  const handleAttachmentKindChange = useCallback(
+    (id: string, nextKind: AttachmentKind) => {
+      setAttachments((prev) =>
+        prev.map((attachment) => {
+          if (attachment.id !== id) {
+            return attachment;
+          }
+          if (attachment.kind === nextKind) {
+            return attachment;
+          }
+          return {
+            ...attachment,
+            kind: nextKind,
+            retentionSeconds:
+              nextKind === "artifact" ? artifactRetentionSeconds : 0,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   const openFilePicker = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -332,6 +417,12 @@ export function TaskInput({
         uri: attachment.uri,
         source: "user_upload",
         description: attachment.description,
+        kind: attachment.kind,
+        format: attachment.format,
+        retention_ttl_seconds:
+          attachment.retentionSeconds > 0
+            ? attachment.retentionSeconds
+            : undefined,
       }));
       onSubmit(task.trim(), uploads);
       setTask("");
@@ -346,7 +437,7 @@ export function TaskInput({
   const attachLabel = translateWithFallback(
     "task.input.attachImage",
     undefined,
-    "Attach image",
+    "Attach file",
   );
   const getRemoveLabel = useCallback(
     (name: string) =>
@@ -354,6 +445,39 @@ export function TaskInput({
         "task.input.removeAttachment",
         { name },
         `Remove attachment ${name}`,
+      ),
+    [translateWithFallback],
+  );
+  const attachmentKindLabels = useMemo(
+    () => ({
+      attachment: translateWithFallback(
+        "task.input.attachments.kind.attachment",
+        undefined,
+        "Attachment",
+      ),
+      artifact: translateWithFallback(
+        "task.input.attachments.kind.artifact",
+        undefined,
+        "Artifact",
+      ),
+    }),
+    [translateWithFallback],
+  );
+  const artifactHint = useMemo(
+    () =>
+      translateWithFallback(
+        "task.input.attachments.artifactHint",
+        { days: artifactRetentionDays },
+        `Artifacts stay available for ${artifactRetentionDays} days with inline previews.`,
+      ),
+    [translateWithFallback],
+  );
+  const noPreviewLabel = useMemo(
+    () =>
+      translateWithFallback(
+        "task.input.attachments.noPreview",
+        undefined,
+        "No preview available",
       ),
     [translateWithFallback],
   );
@@ -401,7 +525,7 @@ export function TaskInput({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={acceptedFileTypes}
             multiple
             className="hidden"
             onChange={handleFileInputChange}
@@ -462,34 +586,69 @@ export function TaskInput({
 
       {attachments.length > 0 && (
         <div
-          className="mt-3 flex flex-wrap gap-3"
+          className="mt-3 flex flex-col gap-3"
           data-testid="task-attachments"
         >
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
-              className="relative h-24 w-24 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm"
+              className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:flex-row"
             >
-              <Image
-                src={attachment.previewUrl}
-                alt={attachment.name}
-                fill
-                className="object-cover"
-                sizes="96px"
-                unoptimized
-              />
-              <button
-                type="button"
-                onClick={() => handleRemoveAttachment(attachment.id)}
-                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-black"
-                aria-label={getRemoveLabel(attachment.name)}
-              >
-                <X className="h-3 w-3" />
-              </button>
-              <div className="absolute inset-x-0 bottom-0 bg-black/60 px-1 py-0.5 text-[10px] font-medium text-white">
-                <span className="line-clamp-2 break-words">
+              <div className="relative flex h-36 w-full items-center justify-center bg-slate-50 sm:h-auto sm:w-32">
+                {attachment.isImage && attachment.previewUrl ? (
+                  <Image
+                    src={attachment.previewUrl}
+                    alt={attachment.name}
+                    fill
+                    className="object-cover"
+                    sizes="128px"
+                    unoptimized
+                  />
+                ) : (
+                  <span className="px-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    {attachment.format
+                      ? attachment.format.slice(0, 6).toUpperCase()
+                      : noPreviewLabel}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachment(attachment.id)}
+                  className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/70"
+                  aria-label={getRemoveLabel(attachment.name)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-slate-600">
+                <div className="text-sm font-semibold text-slate-900">
                   {attachment.name}
-                </span>
+                </div>
+                <div>{attachment.mediaType}</div>
+                <div className="text-slate-400">{formatFileSize(attachment.size)}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(["attachment", "artifact"] as AttachmentKind[]).map((kind) => {
+                    const isActive = attachment.kind === kind;
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => handleAttachmentKindChange(attachment.id, kind)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition",
+                          isActive
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300",
+                        )}
+                      >
+                        {attachmentKindLabels[kind]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {attachment.kind === "artifact" && (
+                  <p className="mt-1 text-[10px] text-slate-500">{artifactHint}</p>
+                )}
               </div>
             </div>
           ))}

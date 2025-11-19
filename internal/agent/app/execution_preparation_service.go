@@ -669,11 +669,7 @@ func cloneHistoryAttachments(values map[string]ports.Attachment) map[string]port
 	if len(values) == 0 {
 		return nil
 	}
-	cloned := make(map[string]ports.Attachment, len(values))
-	for key, value := range values {
-		cloned[key] = value
-	}
-	return cloned
+	return ports.CloneAttachmentMap(values)
 }
 
 func (s *ExecutionPreparationService) shouldSummarizeHistory(messages []ports.Message) bool {

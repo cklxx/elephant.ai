@@ -21,6 +21,7 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/posthog/posthog-go v1.6.12
 	github.com/prometheus/client_golang v1.23.2
+	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sergi/go-diff v1.0.0
 	github.com/stretchr/testify v1.11.1

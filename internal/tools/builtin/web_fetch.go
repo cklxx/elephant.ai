@@ -76,7 +76,8 @@ func (t *webFetch) Metadata() ports.ToolMetadata {
 		Category: "web",
 		Tags:     []string{"web", "fetch", "http", "content"},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"text/html"},
+			Produces:          []string{"text/html"},
+			ProducesArtifacts: []string{"markdown"},
 		},
 	}
 }
@@ -111,7 +112,8 @@ Usage:
 			Required: []string{"url"},
 		},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"text/html"},
+			Produces:          []string{"text/html"},
+			ProducesArtifacts: []string{"markdown"},
 		},
 	}
 }

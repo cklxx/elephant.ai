@@ -24,6 +24,10 @@ func (f *fakeStore) DeleteExpiredMaterials(ctx context.Context, req store.Delete
 	return f.deleted, f.err
 }
 
+func (f *fakeStore) UpdateRetention(ctx context.Context, materialID string, ttlSeconds uint64) error {
+	return nil
+}
+
 type fakePublisher struct {
 	requestID  string
 	materialID string

@@ -41,6 +41,7 @@ type DeletedMaterial struct {
 
 // Store persists registered materials plus their lineage metadata.
 type Store interface {
-	InsertMaterials(ctx context.Context, materials []MaterialRecord) error
-	DeleteExpiredMaterials(ctx context.Context, req DeleteExpiredMaterialsRequest) ([]DeletedMaterial, error)
+InsertMaterials(ctx context.Context, materials []MaterialRecord) error
+DeleteExpiredMaterials(ctx context.Context, req DeleteExpiredMaterialsRequest) ([]DeletedMaterial, error)
+UpdateRetention(ctx context.Context, materialID string, ttlSeconds uint64) error
 }
