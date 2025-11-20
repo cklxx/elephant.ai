@@ -710,30 +710,19 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 }
 
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
-	result := make([]map[string]any, len(tools))
-	for i, tool := range tools {
-		entry := map[string]any{
-			"type": "function",
-			"function": map[string]any{
-				"name":        tool.Name,
-				"description": tool.Description,
+        result := make([]map[string]any, len(tools))
+        for i, tool := range tools {
+                // 注意：ToolDefinition 中的 alex_material_capabilities 仅供前端和
+                // middleware 判断素材上传、产物生成等能力，并不是 OpenAI 工具参数
+                // 支持的字段。这里不要把它透传给 LLM，以避免发送无效字段导致请求失败
+                // 或额外泄露实现细节。
+                entry := map[string]any{
+                        "type": "function",
+                        "function": map[string]any{
+                                "name":        tool.Name,
+                                "description": tool.Description,
 				"parameters":  tool.Parameters,
 			},
-		}
-		if !tool.MaterialCapabilities.IsZero() {
-			capabilities := make(map[string]any)
-			if len(tool.MaterialCapabilities.Consumes) > 0 {
-				capabilities["consumes"] = tool.MaterialCapabilities.Consumes
-			}
-			if len(tool.MaterialCapabilities.Produces) > 0 {
-				capabilities["produces"] = tool.MaterialCapabilities.Produces
-			}
-			if len(tool.MaterialCapabilities.ProducesArtifacts) > 0 {
-				capabilities["produces_artifacts"] = tool.MaterialCapabilities.ProducesArtifacts
-			}
-			if len(capabilities) > 0 {
-				entry["alex_material_capabilities"] = capabilities
-			}
 		}
 		result[i] = entry
 	}
