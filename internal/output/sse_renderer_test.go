@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
 	"alex/internal/agent/types"
 )
 
