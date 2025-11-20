@@ -132,7 +132,10 @@ export class SubagentEventDeriver {
 
     const derived: DerivedEvent[] = [progressEvent];
 
-    if (state.completed.size >= state.total) {
+    const shouldEmitCompletion =
+      state.total > 0 && state.completed.size > 0 && state.completed.size >= state.total;
+
+    if (shouldEmitCompletion) {
       const successCount = state.completed.size - state.failures;
       const completeEvent: SubagentCompleteEvent = {
         ...baseContext,
