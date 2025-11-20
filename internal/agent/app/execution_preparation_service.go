@@ -134,6 +134,16 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		initialWorldDiff  map[string]any
 		window            ports.ContextWindow
 	)
+
+	toolPreset := s.config.ToolPreset
+	if s.presetResolver != nil {
+		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolPreset); resolved != "" {
+			toolPreset = resolved
+			s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
+		}
+	} else if toolPreset == "" {
+		toolPreset = string(presets.ToolPresetFull)
+	}
 	personaKey := s.config.AgentPreset
 	if s.presetResolver != nil {
 		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
@@ -147,7 +157,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
 			TokenLimit:         s.config.MaxTokens,
 			PersonaKey:         personaKey,
-			ToolPreset:         s.config.ToolPreset,
+			ToolPreset:         toolPreset,
 			EnvironmentSummary: s.config.EnvironmentSummary,
 		})
 		if err != nil {
@@ -307,7 +317,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	toolRegistry := s.selectToolRegistry(ctx)
+	toolRegistry := s.selectToolRegistry(ctx, toolPreset)
 	services := domain.Services{
 		LLM:          llmClient,
 		ToolExecutor: toolRegistry,
@@ -858,20 +868,19 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 	return session, err
 }
 
-func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) ports.ToolRegistry {
+func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, resolvedToolPreset string) ports.ToolRegistry {
 	// Handle subagent context filtering first
 	registry := s.toolRegistry
-	configPreset := s.config.ToolPreset
+	configPreset := resolvedToolPreset
+	if configPreset == "" {
+		configPreset = s.config.ToolPreset
+	}
 	if isSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()
 		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
 
 		// Apply preset configured for subagents (context overrides allowed)
 		return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)
-	}
-
-	if configPreset == "" {
-		configPreset = string(presets.ToolPresetOrchestrator)
 	}
 
 	return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)

@@ -13,11 +13,18 @@ import (
 
 func TestPresetResolver_ResolveToolRegistry_DefaultBehavior(t *testing.T) {
 	resolver := NewPresetResolver(&testLogger{})
-	baseRegistry := stubToolRegistry{}
+	baseRegistry := &mockToolRegistry{
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "bash"}},
+	}
 
 	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, "")
-	if registry != baseRegistry {
-		t.Fatal("expected base registry when no preset specified")
+	if registry == nil {
+		t.Fatal("expected registry when defaulting tool preset")
+	}
+
+	tools := registry.List()
+	if len(tools) != len(baseRegistry.tools) {
+		t.Fatalf("expected default preset to retain all tools, got %d", len(tools))
 	}
 }
 
@@ -159,7 +166,7 @@ func TestPresetResolver_EmitsToolFilteringEvent(t *testing.T) {
 	}
 }
 
-func TestPresetResolver_NoEventWhenNoPreset(t *testing.T) {
+func TestPresetResolver_DefaultPresetStillEmitsEvent(t *testing.T) {
 	eventCapturer := &eventCapturer{}
 	resolver := NewPresetResolverWithDeps(PresetResolverDeps{
 		Logger:       &testLogger{},
@@ -168,11 +175,18 @@ func TestPresetResolver_NoEventWhenNoPreset(t *testing.T) {
 
 	baseRegistry := &mockToolRegistry{tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "bash"}}}
 	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, "")
-	if len(eventCapturer.events) != 0 {
-		t.Errorf("expected no events, got %d", len(eventCapturer.events))
+	if len(eventCapturer.events) != 1 {
+		t.Fatalf("expected an event for default preset application, got %d", len(eventCapturer.events))
 	}
-	if registry != baseRegistry {
-		t.Error("expected base registry when no preset specified")
+	filterEvent, ok := eventCapturer.events[0].(*domain.ToolFilteringEvent)
+	if !ok {
+		t.Fatalf("expected ToolFilteringEvent, got %T", eventCapturer.events[0])
+	}
+	if filterEvent.PresetName != "Full Access" {
+		t.Fatalf("expected Full Access preset name, got %s", filterEvent.PresetName)
+	}
+	if registry == nil {
+		t.Fatal("expected registry when resolving default preset")
 	}
 }
 

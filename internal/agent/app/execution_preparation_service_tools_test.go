@@ -25,7 +25,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	}
 
 	service := NewExecutionPreparationService(deps)
-	filtered := service.selectToolRegistry(context.Background())
+	filtered := service.selectToolRegistry(context.Background(), service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
 	expected := []string{"file_read", "final", "subagent", "think", "todo_read", "todo_update"}
@@ -40,7 +40,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	}
 }
 
-func TestSelectToolRegistryDefaultsToOrchestratorWhenUnset(t *testing.T) {
+func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
@@ -55,13 +55,13 @@ func TestSelectToolRegistryDefaultsToOrchestratorWhenUnset(t *testing.T) {
 	}
 
 	service := NewExecutionPreparationService(deps)
-	filtered := service.selectToolRegistry(context.Background())
+	filtered := service.selectToolRegistry(context.Background(), service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
-	expected := []string{"final", "subagent", "think", "todo_read", "todo_update"}
+	expected := []string{"bash", "file_read", "final", "subagent", "think", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
-		t.Fatalf("core agent should default to orchestrator preset tools, got %v", names)
+		t.Fatalf("core agent should default to full preset tools, got %v", names)
 	}
 	for i, want := range expected {
 		if names[i] != want {
@@ -86,7 +86,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 
 	service := NewExecutionPreparationService(deps)
 	ctx := MarkSubagentContext(context.Background())
-	filtered := service.selectToolRegistry(ctx)
+	filtered := service.selectToolRegistry(ctx, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
 	if containsString(names, "bash") {
@@ -113,7 +113,7 @@ func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset
 
 	service := NewExecutionPreparationService(deps)
 	ctx := MarkSubagentContext(context.Background())
-	filtered := service.selectToolRegistry(ctx)
+	filtered := service.selectToolRegistry(ctx, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
 	if containsString(names, "subagent") {
