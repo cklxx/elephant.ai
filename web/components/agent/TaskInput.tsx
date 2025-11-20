@@ -489,7 +489,9 @@ export function TaskInput({
       data-testid="task-input-form"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-        <div className="relative flex-1 sm:items-center">
+        <div
+          className="relative flex-1 rounded-2xl border border-white/40 bg-white/10 px-3.5 py-2.5 shadow-none backdrop-blur focus-within:border-white focus-within:ring-2 focus-within:ring-white/40 sm:items-center"
+        >
           <textarea
             ref={textareaRef}
             value={task}
@@ -506,7 +508,7 @@ export function TaskInput({
             rows={1}
             aria-label={t("task.input.ariaLabel")}
             data-testid="task-input"
-            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-white/40 bg-white/60 px-3.5 pr-12 py-2.5 text-[13px] text-foreground placeholder:text-foreground/60 shadow-none backdrop-blur focus:border-white focus:outline-none focus:ring-2 focus:ring-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-xl bg-transparent p-0 pr-12 text-[13px] text-foreground placeholder:text-foreground/60 shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             style={{ fieldSizing: "content" } as any}
           />
           <button
