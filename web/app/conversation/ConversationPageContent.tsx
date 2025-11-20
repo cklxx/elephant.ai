@@ -206,6 +206,11 @@ export function ConversationPageContent() {
     setCancelRequested(false);
 
     if (useMockStream) {
+      const submissionTimestamp = new Date();
+      const provisionalSessionId =
+        sessionId || currentSessionId || `mock-${submissionTimestamp.getTime().toString(36)}`;
+      const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
+
       const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
         acc[att.name] = {
           name: att.name,
@@ -220,21 +225,19 @@ export function ConversationPageContent() {
 
       addEvent({
         event_type: 'user_task',
-        timestamp: new Date().toISOString(),
+        timestamp: submissionTimestamp.toISOString(),
         agent_level: 'core',
-        session_id: resolvedSessionId ?? 'pending-session',
-        task_id: taskId ?? undefined,
+        session_id: provisionalSessionId,
+        task_id: mockTaskId,
         task,
         attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
       });
 
-      const mockSessionId = sessionId || currentSessionId || `mock-${Date.now().toString(36)}`;
-      const mockTaskId = `mock-task-${Date.now().toString(36)}`;
-      setSessionId(mockSessionId);
+      setSessionId(provisionalSessionId);
       setTaskId(mockTaskId);
       setActiveTaskId(mockTaskId);
-      setCurrentSession(mockSessionId);
-      addToHistory(mockSessionId);
+      setCurrentSession(provisionalSessionId);
+      addToHistory(provisionalSessionId);
       return;
     }
 

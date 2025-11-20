@@ -96,14 +96,12 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 		b.storeGlobalEvent(event)
 	}
 
+	// Run side effects before we broadcast to keep task progress/attachments consistent
+	// with what clients receive, even if those operations are slow.
 	b.archiveAttachments(event)
-
-	// Update task progress before broadcasting
 	b.updateTaskProgress(event)
 
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	if !suppressLogs {
 		b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, len(b.clients))
 	}
@@ -117,11 +115,8 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 			}
 			b.broadcastToClients(sid, clients, event)
 		}
-		return
-	}
-
-	// Broadcast to specific session's clients
-	if clients, ok := b.clients[sessionID]; ok {
+	} else if clients, ok := b.clients[sessionID]; ok {
+		// Broadcast to specific session's clients
 		if !suppressLogs {
 			b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
 		}
@@ -129,6 +124,7 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	} else {
 		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
 	}
+	b.mu.RUnlock()
 }
 
 // getSessionIDs returns list of session IDs for debugging
