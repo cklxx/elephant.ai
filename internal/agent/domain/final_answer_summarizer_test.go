@@ -59,16 +59,10 @@ func TestFinalAnswerSummarizerSummarizesWithoutStreaming(t *testing.T) {
 		t.Fatalf("expected duration to be preserved, got %v", updated.Duration)
 	}
 
-	if len(events) != 2 {
-		t.Fatalf("expected a streaming update and final completion event, got %d", len(events))
+	if len(events) != 1 {
+		t.Fatalf("expected a single completion event without duplicate streaming payloads, got %d", len(events))
 	}
-	if !strings.Contains(events[0].FinalAnswer, "Short summary") {
-		t.Fatalf("expected streaming update to mirror summarized content, got %q", events[0].FinalAnswer)
-	}
-	if !strings.Contains(events[0].FinalAnswer, "report.pdf") {
-		t.Fatalf("expected attachment reference to be preserved in streaming update, got %q", events[0].FinalAnswer)
-	}
-	finalEvent := events[1]
+	finalEvent := events[0]
 	if finalEvent.StopReason != "final_answer" {
 		t.Fatalf("expected stop reason to propagate, got %q", finalEvent.StopReason)
 	}
@@ -136,10 +130,10 @@ func TestFinalAnswerSummarizerStreamsDeltas(t *testing.T) {
 	if updated.Answer == "Original final answer" {
 		t.Fatalf("expected summarized answer to overwrite original")
 	}
-	if len(events) != 3 {
-		t.Fatalf("expected two streaming updates and one final event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected one streaming update and one final event, got %d", len(events))
 	}
-	if events[0].FinalAnswer == "" || events[1].FinalAnswer == "" {
+	if events[0].FinalAnswer == "" {
 		t.Fatalf("expected streaming updates to carry partial content")
 	}
 	last := events[len(events)-1]

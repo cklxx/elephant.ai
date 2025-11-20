@@ -63,4 +63,25 @@ describe('TaskCompleteCard', () => {
       /3 iterations/i,
     );
   });
+
+  it('renders inline images from attachment placeholders', () => {
+    const imageAnswer = 'Here is the preview: [draft.png] with caption.';
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: imageAnswer,
+      stop_reason: 'final_answer',
+      attachments: {
+        'draft.png': {
+          name: 'draft.png',
+          description: 'Draft image',
+          media_type: 'image/png',
+          data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOunS9QAAAAASUVORK5CYII=',
+        },
+      },
+    });
+
+    const img = screen.getByRole('img', { name: /Draft image/i });
+    expect(img).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+  });
 });

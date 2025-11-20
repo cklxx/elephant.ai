@@ -427,7 +427,19 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   addEvent: (event: AnyAgentEvent) => {
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
-        draft.eventCache.add(event);
+        if (event.event_type === 'task_complete') {
+          const complete = event as TaskCompleteEvent;
+          const matcher = (existing: AnyAgentEvent) =>
+            existing.event_type === 'task_complete' &&
+            existing.session_id === complete.session_id &&
+            existing.task_id === complete.task_id;
+          const replaced = draft.eventCache.replaceLastIf(matcher, event);
+          if (!replaced) {
+            draft.eventCache.add(event);
+          }
+        } else {
+          draft.eventCache.add(event);
+        }
         applyEventToDraft(draft, event);
       }),
     );
@@ -436,8 +448,20 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   addEvents: (events: AnyAgentEvent[]) => {
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
-        draft.eventCache.addMany(events);
         events.forEach((event) => {
+          if (event.event_type === 'task_complete') {
+            const complete = event as TaskCompleteEvent;
+            const matcher = (existing: AnyAgentEvent) =>
+              existing.event_type === 'task_complete' &&
+              existing.session_id === complete.session_id &&
+              existing.task_id === complete.task_id;
+            const replaced = draft.eventCache.replaceLastIf(matcher, event);
+            if (!replaced) {
+              draft.eventCache.add(event);
+            }
+          } else {
+            draft.eventCache.add(event);
+          }
           applyEventToDraft(draft, event);
         });
       }),

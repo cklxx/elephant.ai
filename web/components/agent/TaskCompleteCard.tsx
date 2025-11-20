@@ -4,7 +4,11 @@ import { TaskCompleteEvent } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { MarkdownRenderer } from "@/components/ui/markdown";
-import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import {
+  parseContentSegments,
+  buildAttachmentUri,
+  replacePlaceholdersWithMarkdown,
+} from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
@@ -21,16 +25,21 @@ interface TaskCompleteCardProps {
 export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
   const answer = event.final_answer ?? "";
+  const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
+    answer,
+    event.attachments,
+  );
   const segments = parseContentSegments(answer, event.attachments);
-  const textSegments = segments.filter((segment) => segment.type === "text");
-  const textContent = textSegments
-    .map((segment) => segment.text ?? "")
-    .join("");
-  const hasAnswer = textContent.trim().length > 0;
-  const mediaSegments = segments.filter(
+  const referencedPlaceholders = new Set(
+    Array.from(answer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
+  );
+  const hasAnswer = contentWithInlineMedia.trim().length > 0;
+
+  const unreferencedMediaSegments = segments.filter(
     (segment) =>
       (segment.type === "image" || segment.type === "video") &&
-      segment.attachment,
+      segment.attachment &&
+      (!segment.placeholder || !referencedPlaceholders.has(segment.placeholder)),
   );
   const artifactSegments = segments.filter(
     (segment) =>
@@ -60,7 +69,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       <div className="mt-2 space-y-4">
         {hasAnswer ? (
           <MarkdownRenderer
-            content={textContent}
+            content={contentWithInlineMedia}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-600"
             components={{
               code: ({ inline, className, children, ...props }: any) => {
@@ -130,9 +139,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </div>
         )}
 
-        {mediaSegments.length > 0 && (
+        {unreferencedMediaSegments.length > 0 && (
           <div className="flex flex-wrap items-start gap-3">
-            {mediaSegments.map((segment, index) => {
+            {unreferencedMediaSegments.map((segment, index) => {
               if (!segment.attachment) {
                 return null;
               }
