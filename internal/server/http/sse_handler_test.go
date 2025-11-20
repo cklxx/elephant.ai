@@ -295,7 +295,7 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serialized, err := handler.serializeEvent(tt.event)
+                        serialized, err := handler.serializeEvent(tt.event, make(map[string]struct{}))
 			if err != nil {
 				t.Fatalf("Failed to serialize event: %v", err)
 			}
@@ -306,7 +306,7 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 			if ta, ok := tt.event.(*domain.TaskAnalysisEvent); ok {
 				var payload map[string]any
-				if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
+                                if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
 					t.Fatalf("failed to decode task analysis payload: %v", err)
 				}
 				if got := payload["approach"]; got != ta.Approach {
@@ -417,7 +417,7 @@ func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
 		MaxParallel:    2,
 	}
 
-	data, err := handler.buildEventData(subtask)
+        data, err := handler.buildEventData(subtask, make(map[string]struct{}))
 	if err != nil {
 		t.Fatalf("buildEventData returned error: %v", err)
 	}
@@ -511,7 +511,7 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		now,
 	)
 
-	payload, err := handler.serializeEvent(event)
+        payload, err := handler.serializeEvent(event, make(map[string]struct{}))
 	if err != nil {
 		t.Fatalf("serializeEvent returned error: %v", err)
 	}
