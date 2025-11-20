@@ -292,20 +292,20 @@ func LoggingMiddleware(logger *utils.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// ObservabilityMiddleware instruments HTTP requests with tracing + metrics.
-func ObservabilityMiddleware(obs *observability.Observability) func(http.Handler) http.Handler {
+// ObservabilityMiddleware instruments HTTP requests with tracing, metrics, and optional latency logging.
+func ObservabilityMiddleware(obs *observability.Observability, latencyLogger *utils.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+		// When neither observability nor latency logging is enabled, skip the wrapper entirely.
+		if obs == nil && latencyLogger == nil {
+			return next
+		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if obs == nil {
-				next.ServeHTTP(w, r)
-				return
-			}
 			ctx := r.Context()
 			rec, wrapped := wrapResponseWriter(w)
 			start := time.Now()
 			initialRoute := canonicalPath(r.URL.Path)
 			var spanEnd func(error)
-			if obs.Tracer != nil {
+			if obs != nil && obs.Tracer != nil {
 				ctx, span := obs.Tracer.StartSpan(ctx, observability.SpanHTTPServer,
 					attribute.String("http.route", initialRoute),
 					attribute.String("http.method", r.Method),
@@ -335,7 +335,20 @@ func ObservabilityMiddleware(obs *observability.Observability) func(http.Handler
 			if resolvedRoute == "" {
 				resolvedRoute = initialRoute
 			}
-			obs.Metrics.RecordHTTPServerRequest(ctx, r.Method, resolvedRoute, rec.status, time.Since(start), rec.bytes)
+			latency := time.Since(start)
+			if obs != nil {
+				obs.Metrics.RecordHTTPServerRequest(ctx, r.Method, resolvedRoute, rec.status, latency, rec.bytes)
+			}
+			if latencyLogger != nil {
+				latencyLogger.Info(
+					"route=%s method=%s status=%d latency_ms=%.2f bytes=%d",
+					resolvedRoute,
+					r.Method,
+					rec.status,
+					float64(latency.Microseconds())/1000.0,
+					rec.bytes,
+				)
+			}
 		})
 	}
 }

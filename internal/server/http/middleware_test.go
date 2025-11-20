@@ -5,12 +5,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	authAdapters "alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
 	"alex/internal/observability"
+	"alex/internal/utils"
 )
 
 func TestCORSMiddlewareHonorsEnvironment(t *testing.T) {
@@ -125,7 +129,7 @@ func TestObservabilityMiddlewareResolvesAnnotatedRoute(t *testing.T) {
 	})
 	obs := &observability.Observability{Metrics: metrics}
 	called := false
-	handler := ObservabilityMiddleware(obs)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ObservabilityMiddleware(obs, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		annotateRequestRoute(r, "/api/sessions/:session_id/turns/:turn_id")
 		w.WriteHeader(http.StatusAccepted)
@@ -143,6 +147,34 @@ func TestObservabilityMiddlewareResolvesAnnotatedRoute(t *testing.T) {
 		}
 	default:
 		t.Fatalf("expected HTTP metrics hook to be invoked")
+	}
+}
+
+func TestObservabilityMiddlewareWritesLatencyLogWhenObservabilityDisabled(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("ALEX_LOG_DIR", tempDir)
+	utils.ResetLoggerForTests(utils.LogCategoryLatency)
+	logPath := filepath.Join(tempDir, "alex-latency.log")
+	_ = os.Remove(logPath)
+	logger := utils.NewLatencyLogger("HTTP")
+
+	handler := ObservabilityMiddleware(nil, logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/123", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read latency log: %v", err)
+	}
+	contents := string(data)
+	if !strings.Contains(contents, "route=/api/tasks/:id") {
+		t.Fatalf("expected canonical route in latency log, got %s", contents)
+	}
+	if !strings.Contains(contents, "latency_ms=") {
+		t.Fatalf("expected latency measurement in log: %s", contents)
 	}
 }
 

@@ -2,6 +2,8 @@ package utils
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,6 +36,26 @@ func TestSanitizeLogLineRedactsStandaloneSecret(t *testing.T) {
 	}
 	if !containsPlaceholder(sanitized) {
 		t.Fatalf("expected placeholder in sanitized line: %q", sanitized)
+	}
+}
+
+func TestLoggerUsesOverriddenLogDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv(logDirEnvVar, tempDir)
+	ResetLoggerForTests(LogCategoryLatency)
+	logger := NewLatencyLogger("test")
+	logger.Info("hello world")
+	if err := logger.Close(); err != nil {
+		t.Fatalf("close logger: %v", err)
+	}
+	logPath := filepath.Join(tempDir, "alex-latency.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	contents := string(data)
+	if !strings.Contains(contents, "hello world") {
+		t.Fatalf("expected log line in overridden directory, got %s", contents)
 	}
 }
 
