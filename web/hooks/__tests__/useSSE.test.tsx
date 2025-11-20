@@ -302,6 +302,65 @@ describe("useSSE", () => {
       expect(onEvent).toHaveBeenCalledWith(event);
     });
 
+    test("should replace streaming task_complete updates instead of duplicating", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseEvent: AnyAgentEvent = {
+        event_type: "task_complete",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        task_id: "task-1",
+        agent_level: "core",
+        final_answer: "partial",
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: "streaming",
+        duration: 100,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      const updatedEvent: AnyAgentEvent = {
+        ...baseEvent,
+        timestamp: new Date(Date.now() + 1000).toISOString(),
+        final_answer: "partial update",
+      };
+
+      const finalEvent: AnyAgentEvent = {
+        ...baseEvent,
+        timestamp: new Date(Date.now() + 2000).toISOString(),
+        final_answer: "final message",
+        stream_finished: true,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("task_complete", baseEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ final_answer: "partial" });
+
+      act(() => {
+        mockEventSource.simulateEvent("task_complete", updatedEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ final_answer: "partial update" });
+
+      act(() => {
+        mockEventSource.simulateEvent("task_complete", finalEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ final_answer: "final message" });
+    });
+
     test("should clear events when clearEvents is called", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 

@@ -200,6 +200,8 @@ export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   total_tokens: z.number(),
   stop_reason: z.string(),
   duration: z.number(),
+  is_streaming: z.boolean().optional(),
+  stream_finished: z.boolean().optional(),
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 

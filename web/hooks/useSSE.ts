@@ -228,7 +228,18 @@ export function useSSE(
         }
       }
 
-      setEvents((prev) => [...prev, event]);
+      setEvents((prev) => {
+        if (event.event_type === "task_complete" && event.is_streaming) {
+          const matchIndex = findLastStreamingTaskCompleteIndex(prev, event);
+          if (matchIndex !== -1) {
+            const nextEvents = [...prev];
+            nextEvents[matchIndex] = event;
+            return nextEvents;
+          }
+        }
+
+        return [...prev, event];
+      });
       onEventRef.current?.(event);
     });
 
@@ -288,6 +299,33 @@ export function useSSE(
     reconnect,
     addEvent,
   };
+}
+
+function findLastStreamingTaskCompleteIndex(
+  events: AnyAgentEvent[],
+  incoming: AnyAgentEvent,
+): number {
+  const incomingTaskId =
+    incoming.event_type === "task_complete" && "task_id" in incoming
+      ? incoming.task_id
+      : undefined;
+
+  if (!incomingTaskId) return -1;
+
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const candidate = events[i];
+    if (candidate.event_type !== "task_complete") continue;
+    const candidateTaskId = "task_id" in candidate ? candidate.task_id : undefined;
+    if (
+      candidateTaskId &&
+      candidateTaskId === incomingTaskId &&
+      candidate.session_id === incoming.session_id
+    ) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 export function buildEventSignature(event: AnyAgentEvent): string {
