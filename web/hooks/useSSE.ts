@@ -214,7 +214,8 @@ export function useSSE(
 
     const unsubscribe = agentEventBus.subscribe((event) => {
       const isStreamingTaskComplete =
-        event.event_type === "task_complete" && Boolean(event.is_streaming);
+        event.event_type === "task_complete" &&
+        (Boolean(event.is_streaming) || Boolean(event.stream_finished));
 
       if (!isStreamingTaskComplete) {
         const dedupeKey = buildEventSignature(event);
@@ -234,7 +235,10 @@ export function useSSE(
       }
 
       setEvents((prev) => {
-        if (event.event_type === "task_complete" && event.is_streaming) {
+        if (
+          event.event_type === "task_complete" &&
+          (event.is_streaming || event.stream_finished)
+        ) {
           const matchIndex = findLastStreamingTaskCompleteIndex(prev, event);
           if (matchIndex !== -1) {
             const nextEvents = [...prev];
