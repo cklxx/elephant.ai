@@ -16,7 +16,7 @@ export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
       <div
         ref={ref}
         className={cn(
-          'flex-1 overflow-y-auto bg-gray-50/50',
+          'flex-1 overflow-y-auto bg-transparent',
           'console-scrollbar',
           className
         )}

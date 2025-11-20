@@ -117,7 +117,7 @@ export function Header({
   const accountNode: ReactNode = (() => {
     if (authStatus === "loading") {
       return (
-        <div className="rounded-full border border-slate-200/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <div className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 backdrop-blur">
           {t("auth.account.loading")}
         </div>
       );
@@ -156,7 +156,7 @@ export function Header({
           <button
             type="button"
             onClick={() => setShowAccountMenu((prev) => !prev)}
-            className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-800"
+            className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-semibold text-foreground backdrop-blur transition hover:bg-white/20"
             aria-haspopup="true"
             aria-expanded={showAccountMenu}
           >
@@ -172,26 +172,26 @@ export function Header({
               </span>
             </span>
           </button>
-          {showAccountMenu && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-slate-200 bg-white text-slate-800 shadow-xl">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            {showAccountMenu && (
+            <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl bg-white/10 text-foreground shadow-none backdrop-blur">
+              <div className="px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
                   {t("auth.account.signedInAs", { email: user.email })}
                 </p>
               </div>
-              <div className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
-                <p className="text-sm font-semibold text-slate-800">
+              <div className="px-4 py-3 text-xs text-gray-200/90">
+                <p className="text-sm font-semibold text-foreground">
                   {pointsLabel}
                 </p>
-                <p className="mt-1">{subscriptionLabel}</p>
+                <p className="mt-1 text-gray-300">{subscriptionLabel}</p>
                 {expiryLabel && (
-                  <p className="mt-1 text-slate-500">{expiryLabel}</p>
+                  <p className="mt-1 text-gray-400">{expiryLabel}</p>
                 )}
               </div>
               <Link
                 href="/sessions"
                 onClick={() => setShowAccountMenu(false)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-foreground transition hover:bg-white/10"
               >
                 <History className="h-4 w-4" aria-hidden />
                 <span>{t("navigation.sessions")}</span>
@@ -199,7 +199,7 @@ export function Header({
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-foreground transition hover:bg-white/10"
               >
                 <UserCircle2 className="h-4 w-4" />
                 <span>{t("auth.account.logout")}</span>
@@ -223,7 +223,7 @@ export function Header({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b-4 border-border bg-card px-6 py-4",
+        "layout-header flex items-center justify-between px-6 py-4",
         className,
       )}
     >
@@ -266,33 +266,31 @@ export function Header({
             </button>
 
             {showMenu && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border-2 border-border bg-card">
-                <div className="py-1">
-                  {onExport && (
-                    <button
-                      onClick={() => {
-                        onExport();
-                        setShowMenu(false);
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-200"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span>{t("header.actions.export")}</span>
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => {
-                        onDelete();
-                        setShowMenu(false);
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground hover:bg-gray-300"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>{t("header.actions.delete")}</span>
-                    </button>
-                  )}
-                </div>
+              <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-2xl bg-white/10 p-1 shadow-none backdrop-blur">
+                {onExport && (
+                  <button
+                    onClick={() => {
+                      onExport();
+                      setShowMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground transition hover:bg-white/10"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>{t("header.actions.export")}</span>
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={() => {
+                      onDelete();
+                      setShowMenu(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-2 text-left text-sm uppercase tracking-[0.12em] text-foreground transition hover:bg-white/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>{t("header.actions.delete")}</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
