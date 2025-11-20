@@ -125,9 +125,12 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   }
 }
 
-function buildDisplayEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
-  return events.filter(
-    (event) =>
-      event.event_type !== "assistant_message" && !shouldSkipEvent(event),
-  );
+function buildDisplayEvents(
+  events: AnyAgentEvent[],
+): AnyAgentEvent[] {
+  return events.filter((event) => {
+    return (
+      event.event_type !== "assistant_message" && !shouldSkipEvent(event)
+    );
+  });
 }

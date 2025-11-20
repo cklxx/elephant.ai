@@ -64,4 +64,64 @@ describe('TerminalOutput', () => {
       screen.queryByText(/Here is the summary with additional context\./i),
     ).not.toBeInTheDocument();
   });
+
+  it('renders the latest task_complete event inline without duplication', () => {
+    const firstTimestamp = new Date().toISOString();
+    const completionTimestamp = new Date(Date.now() + 1500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'task_complete',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        final_answer: 'All done',
+        total_iterations: 2,
+        total_tokens: 1234,
+        stop_reason: 'complete',
+        duration: 3200,
+        attachments: {
+          'image-1': {
+            name: 'diagram.png',
+            uri: '/attachments/diagram.png',
+            description: 'A diagram',
+          },
+        },
+        timestamp: completionTimestamp,
+      },
+      {
+        event_type: 'assistant_message',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        iteration: 1,
+        delta: 'Trailing message that should not appear',
+        final: true,
+        timestamp: firstTimestamp,
+        created_at: firstTimestamp,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByText(/all done/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('terminal-final-answer')).not.toBeInTheDocument();
+
+    // Ensure the completion is shown once in the event stream
+    expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
+  });
 });

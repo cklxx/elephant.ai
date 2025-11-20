@@ -116,15 +116,6 @@ func (w *costTrackingWrapper) StreamComplete(
 	req ports.CompletionRequest,
 	callbacks ports.CompletionStreamCallbacks,
 ) (*ports.CompletionResponse, error) {
-	if streamingClient, ok := w.client.(ports.StreamingLLMClient); ok {
-		resp, err := streamingClient.StreamComplete(ctx, req, callbacks)
-		if err != nil {
-			return resp, err
-		}
-		w.recordUsage(resp)
-		return resp, nil
-	}
-
 	resp, err := w.client.Complete(ctx, req)
 	if err != nil {
 		return resp, err

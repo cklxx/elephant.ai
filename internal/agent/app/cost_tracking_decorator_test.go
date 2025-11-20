@@ -90,6 +90,24 @@ func (m *mockLLMClient) GetCallCount() int {
 	return m.callCount
 }
 
+type nonStreamingOnlyClient struct {
+	*mockLLMClient
+	streamCalled bool
+}
+
+func newNonStreamingOnlyClient(model string) *nonStreamingOnlyClient {
+	return &nonStreamingOnlyClient{mockLLMClient: newMockLLMClient(model)}
+}
+
+func (m *nonStreamingOnlyClient) StreamComplete(
+	ctx context.Context,
+	req ports.CompletionRequest,
+	callbacks ports.CompletionStreamCallbacks,
+) (*ports.CompletionResponse, error) {
+	m.streamCalled = true
+	return nil, fmt.Errorf("streaming path should not be used")
+}
+
 // mockCostTracker implements ports.CostTracker with thread-safe storage
 type mockCostTracker struct {
 	records []ports.UsageRecord
@@ -233,14 +251,14 @@ func (m *mockLogger) Warn(format string, args ...interface{}) {
 	m.messages = append(m.messages, fmt.Sprintf(format, args...))
 }
 
-func TestCostTrackingWrapperStreamCompleteDelegatesWhenSupported(t *testing.T) {
+func TestCostTrackingWrapperStreamCompleteUsesNonStreamingPath(t *testing.T) {
 	t.Parallel()
 
 	tracker := newMockCostTracker()
 	logger := newMockLogger()
 	clock := newMockClock(time.Now())
 	decorator := NewCostTrackingDecorator(tracker, logger, clock)
-	baseClient := newStreamingMockLLMClient("gpt-4o", []string{"Hello", " world"})
+	baseClient := newNonStreamingOnlyClient("gpt-4o")
 
 	wrapped := decorator.Wrap(context.Background(), "session-stream", baseClient)
 	streaming, ok := wrapped.(ports.StreamingLLMClient)
@@ -261,18 +279,23 @@ func TestCostTrackingWrapperStreamCompleteDelegatesWhenSupported(t *testing.T) {
 		},
 	})
 	if err != nil {
-		to := err
-		t.Fatalf("StreamComplete returned error: %v", to)
+		t.Fatalf("StreamComplete returned error: %v", err)
 	}
 	if resp == nil {
 		t.Fatal("StreamComplete returned nil response")
 	}
 
-	if got := strings.Join(deltas, ""); got != "Hello world" {
-		t.Errorf("unexpected streamed content: %q", got)
+	if got := strings.Join(deltas, ""); got != "mock response" {
+		t.Errorf("unexpected aggregated content: %q", got)
 	}
 	if finalCount != 1 {
 		t.Fatalf("expected final event once, got %d", finalCount)
+	}
+	if baseClient.streamCalled {
+		t.Fatalf("expected streaming path to remain unused")
+	}
+	if baseClient.GetCallCount() != 1 {
+		t.Fatalf("expected single Complete call, got %d", baseClient.GetCallCount())
 	}
 
 	records := tracker.GetRecordsBySession("session-stream")
@@ -281,56 +304,6 @@ func TestCostTrackingWrapperStreamCompleteDelegatesWhenSupported(t *testing.T) {
 	}
 	if records[0].TotalTokens != resp.Usage.TotalTokens {
 		t.Errorf("recorded tokens mismatch: got %d want %d", records[0].TotalTokens, resp.Usage.TotalTokens)
-	}
-}
-
-func TestCostTrackingWrapperStreamCompleteFallbackWhenUnsupported(t *testing.T) {
-	t.Parallel()
-
-	tracker := newMockCostTracker()
-	logger := newMockLogger()
-	clock := newMockClock(time.Now())
-	decorator := NewCostTrackingDecorator(tracker, logger, clock)
-	baseClient := newMockLLMClient("gpt-4o")
-
-	wrapped := decorator.Wrap(context.Background(), "session-fallback", baseClient)
-	streaming, ok := wrapped.(ports.StreamingLLMClient)
-	if !ok {
-		t.Fatalf("wrapped client does not implement StreamingLLMClient")
-	}
-
-	var deltas []string
-	var finalCount int
-	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
-		OnContentDelta: func(delta ports.ContentDelta) {
-			if delta.Delta != "" {
-				deltas = append(deltas, delta.Delta)
-			}
-			if delta.Final {
-				finalCount++
-			}
-		},
-	})
-	if err != nil {
-		t.Fatalf("StreamComplete fallback returned error: %v", err)
-	}
-	if resp == nil {
-		t.Fatal("StreamComplete fallback returned nil response")
-	}
-
-	if len(deltas) != 1 || deltas[0] != "mock response" {
-		t.Fatalf("expected single aggregated delta, got %v", deltas)
-	}
-	if finalCount != 1 {
-		t.Fatalf("expected final event, got %d", finalCount)
-	}
-
-	records := tracker.GetRecordsBySession("session-fallback")
-	if len(records) != 1 {
-		t.Fatalf("expected 1 usage record, got %d", len(records))
-	}
-	if records[0].SessionID != "session-fallback" {
-		t.Fatalf("usage record stored under wrong session: %s", records[0].SessionID)
 	}
 }
 

@@ -26,6 +26,7 @@ type AgentCoordinator struct {
 	prepService     *ExecutionPreparationService
 	analysisService *TaskAnalysisService
 	costDecorator   *CostTrackingDecorator
+	summarizer      *domain.FinalAnswerSummarizer
 }
 
 type Config struct {
@@ -87,6 +88,9 @@ func NewAgentCoordinator(
 	}
 	if coordinator.costDecorator == nil {
 		coordinator.costDecorator = NewCostTrackingDecorator(costTracker, coordinator.logger, coordinator.clock)
+	}
+	if coordinator.summarizer == nil {
+		coordinator.summarizer = domain.NewFinalAnswerSummarizer(coordinator.logger, coordinator.clock)
 	}
 
 	coordinator.prepService = NewExecutionPreparationService(ExecutionPreparationDeps{
@@ -179,6 +183,15 @@ func (c *AgentCoordinator) ExecuteTask(
 	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
 		result.Iterations, result.TokensUsed, result.StopReason)
 
+	if c.summarizer != nil {
+		summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, listener)
+		if sumErr != nil {
+			c.logger.Warn("Final answer summarization failed: %v", sumErr)
+		} else {
+			result = summarizedResult
+		}
+	}
+
 	// Log session-level cost/token metrics
 	if c.costTracker != nil {
 		sessionStats, err := c.costTracker.GetSessionStats(ctx, env.Session.ID)
@@ -220,6 +233,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		SessionID:    env.Session.ID,
 		TaskID:       taskResultTaskID,
 		ParentTaskID: parentResultID,
+		Duration:     result.Duration,
 	}, nil
 }
 
