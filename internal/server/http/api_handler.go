@@ -767,6 +767,8 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		Snapshots: make([]ContextSnapshotItem, len(snapshots)),
 	}
 
+	sentAttachments := make(map[string]struct{})
+
 	for i, snapshot := range snapshots {
 		item := ContextSnapshotItem{
 			RequestID:    snapshot.RequestID,
@@ -774,15 +776,35 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 			Timestamp:    snapshot.Timestamp.Format(time.RFC3339Nano),
 			TaskID:       snapshot.TaskID,
 			ParentTaskID: snapshot.ParentTaskID,
-			Messages:     snapshot.Messages,
 		}
+		item.Messages = sanitizeMessagesForDelivery(snapshot.Messages, sentAttachments)
 		if len(snapshot.Excluded) > 0 {
-			item.ExcludedMessages = snapshot.Excluded
+			item.ExcludedMessages = sanitizeMessagesForDelivery(snapshot.Excluded, sentAttachments)
 		}
 		response.Snapshots[i] = item
 	}
 
 	h.writeJSON(w, http.StatusOK, response)
+}
+
+func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments map[string]struct{}) []agentports.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	sanitized := make([]agentports.Message, 0, len(messages))
+	for _, msg := range messages {
+		cloned := msg
+		if sanitizedAttachments := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments); len(sanitizedAttachments) > 0 {
+			cloned.Attachments = sanitizedAttachments
+		} else {
+			cloned.Attachments = nil
+		}
+
+		sanitized = append(sanitized, cloned)
+	}
+
+	return sanitized
 }
 
 // HandleHealthCheck handles GET /health
