@@ -130,7 +130,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		ensuredTaskID = id.TaskIDFromContext(ctx)
 	}
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
-	c.logger.Info("ExecuteTask called: task='%s', sessionID='%s'", task, sessionID)
+	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
 	// Prepare execution environment with event listener support
 	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, listener)
