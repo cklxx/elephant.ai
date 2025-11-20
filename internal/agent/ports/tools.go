@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 )
 
 // ToolExecutor executes a single tool call
@@ -142,6 +143,7 @@ type TaskResult struct {
 	SessionID    string // The session ID used for this task
 	TaskID       string // The unique task identifier for this execution
 	ParentTaskID string // The parent task identifier when invoked as a subtask
+	Duration     time.Duration
 }
 
 // StreamCallback is called during task execution to stream events

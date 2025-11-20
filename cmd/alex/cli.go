@@ -1,22 +1,22 @@
 package main
 
 import (
-"bytes"
-"context"
-"encoding/json"
-"errors"
-"flag"
-"fmt"
-"io"
-"os"
-"sort"
-"strconv"
-"strings"
-"time"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
-runtimeconfig "alex/internal/config"
-configadmin "alex/internal/config/admin"
-sessionstate "alex/internal/session/state_store"
+	runtimeconfig "alex/internal/config"
+	configadmin "alex/internal/config/admin"
+	sessionstate "alex/internal/session/state_store"
 )
 
 type CLI struct {
@@ -186,10 +186,10 @@ func (c *CLI) pullSessionSnapshotsWithWriter(ctx context.Context, args []string,
 	}
 	sessionID := positionalID
 	positional := fs.Args()
-if sessionID == "" {
-if len(positional) == 0 {
-return errors.New(flagUsageLine)
-}
+	if sessionID == "" {
+		if len(positional) == 0 {
+			return errors.New(flagUsageLine)
+		}
 		sessionID = strings.TrimSpace(positional[0])
 	} else if len(positional) > 0 {
 		// When both a leading positional ID and trailing args are supplied, treat the
@@ -251,28 +251,28 @@ func (c *CLI) findSnapshotByLLMTurn(ctx context.Context, store sessionstate.Stor
 }
 
 func (c *CLI) printSnapshotMetadata(out io.Writer, sessionID string, metas []sessionstate.SnapshotMetadata, nextCursor string) error {
-if len(metas) == 0 {
-return writeLine(out, "No snapshots found for session %s\n", sessionID)
-}
-if err := writeLine(out, "Snapshots for session %s (showing %d):\n", sessionID, len(metas)); err != nil {
-return err
-}
-for _, meta := range metas {
-timestamp := meta.CreatedAt.UTC().Format(time.RFC3339)
-summary := strings.TrimSpace(meta.Summary)
-if summary == "" {
-summary = "(no summary)"
-}
-if err := writeLine(out, "  - Turn %d (LLM %d) @ %s :: %s\n", meta.TurnID, meta.LLMTurnSeq, timestamp, summary); err != nil {
-return err
-}
-}
-if nextCursor != "" {
-if err := writeLine(out, "Next cursor: %s\n", nextCursor); err != nil {
-return err
-}
-}
-return nil
+	if len(metas) == 0 {
+		return writeLine(out, "No snapshots found for session %s\n", sessionID)
+	}
+	if err := writeLine(out, "Snapshots for session %s (showing %d):\n", sessionID, len(metas)); err != nil {
+		return err
+	}
+	for _, meta := range metas {
+		timestamp := meta.CreatedAt.UTC().Format(time.RFC3339)
+		summary := strings.TrimSpace(meta.Summary)
+		if summary == "" {
+			summary = "(no summary)"
+		}
+		if err := writeLine(out, "  - Turn %d (LLM %d) @ %s :: %s\n", meta.TurnID, meta.LLMTurnSeq, timestamp, summary); err != nil {
+			return err
+		}
+	}
+	if nextCursor != "" {
+		if err := writeLine(out, "Next cursor: %s\n", nextCursor); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw bool, outputPath string) error {
@@ -284,58 +284,58 @@ func (c *CLI) outputSnapshot(out io.Writer, snapshot sessionstate.Snapshot, raw 
 			return fmt.Errorf("encode snapshot: %w", err)
 		}
 	}
-if outputPath != "" {
-if err := os.WriteFile(outputPath, encoded, 0o644); err != nil {
-return fmt.Errorf("write snapshot: %w", err)
-}
-if err := writeLine(out, "Snapshot saved to %s\n", outputPath); err != nil {
-return err
-}
-}
-if raw {
-return writeLine(out, "%s\n", encoded)
-}
-created := "(unknown)"
-if !snapshot.CreatedAt.IsZero() {
-created = snapshot.CreatedAt.UTC().Format(time.RFC3339)
-}
-if err := writeLine(out, "Turn %d (LLM turn %d) captured %s\n", snapshot.TurnID, snapshot.LLMTurnSeq, created); err != nil {
-return err
-}
-if strings.TrimSpace(snapshot.Summary) != "" {
-if err := writeLine(out, "  Summary: %s\n", strings.TrimSpace(snapshot.Summary)); err != nil {
-return err
-}
-}
-if err := writeLine(out, "  Plans: %d | Beliefs: %d | Messages: %d | Feedback: %d\n", len(snapshot.Plans), len(snapshot.Beliefs), len(snapshot.Messages), len(snapshot.Feedback)); err != nil {
-return err
-}
+	if outputPath != "" {
+		if err := os.WriteFile(outputPath, encoded, 0o644); err != nil {
+			return fmt.Errorf("write snapshot: %w", err)
+		}
+		if err := writeLine(out, "Snapshot saved to %s\n", outputPath); err != nil {
+			return err
+		}
+	}
+	if raw {
+		return writeLine(out, "%s\n", encoded)
+	}
+	created := "(unknown)"
+	if !snapshot.CreatedAt.IsZero() {
+		created = snapshot.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	if err := writeLine(out, "Turn %d (LLM turn %d) captured %s\n", snapshot.TurnID, snapshot.LLMTurnSeq, created); err != nil {
+		return err
+	}
+	if strings.TrimSpace(snapshot.Summary) != "" {
+		if err := writeLine(out, "  Summary: %s\n", strings.TrimSpace(snapshot.Summary)); err != nil {
+			return err
+		}
+	}
+	if err := writeLine(out, "  Plans: %d | Beliefs: %d | Messages: %d | Feedback: %d\n", len(snapshot.Plans), len(snapshot.Beliefs), len(snapshot.Messages), len(snapshot.Feedback)); err != nil {
+		return err
+	}
 
-// TODO(context): surface structured diff/plan output once the runtime populates these fields.
-if worldKeys := sortedKeys(snapshot.World); len(worldKeys) > 0 {
-if err := writeLine(out, "  World keys: %s\n", strings.Join(worldKeys, ", ")); err != nil {
-return err
-}
-}
-if diffKeys := sortedKeys(snapshot.Diff); len(diffKeys) > 0 {
-if err := writeLine(out, "  Diff keys: %s\n", strings.Join(diffKeys, ", ")); err != nil {
-return err
-}
-}
-if len(snapshot.KnowledgeRefs) > 0 {
-var refs []string
-for _, ref := range snapshot.KnowledgeRefs {
-if ref.ID != "" {
-refs = append(refs, ref.ID)
-}
-}
-if len(refs) > 0 {
-if err := writeLine(out, "  Knowledge refs: %s\n", strings.Join(refs, ", ")); err != nil {
-return err
-}
-}
-}
-return c.printSnapshotGaps(out, snapshot)
+	// TODO(context): surface structured diff/plan output once the runtime populates these fields.
+	if worldKeys := sortedKeys(snapshot.World); len(worldKeys) > 0 {
+		if err := writeLine(out, "  World keys: %s\n", strings.Join(worldKeys, ", ")); err != nil {
+			return err
+		}
+	}
+	if diffKeys := sortedKeys(snapshot.Diff); len(diffKeys) > 0 {
+		if err := writeLine(out, "  Diff keys: %s\n", strings.Join(diffKeys, ", ")); err != nil {
+			return err
+		}
+	}
+	if len(snapshot.KnowledgeRefs) > 0 {
+		var refs []string
+		for _, ref := range snapshot.KnowledgeRefs {
+			if ref.ID != "" {
+				refs = append(refs, ref.ID)
+			}
+		}
+		if len(refs) > 0 {
+			if err := writeLine(out, "  Knowledge refs: %s\n", strings.Join(refs, ", ")); err != nil {
+				return err
+			}
+		}
+	}
+	return c.printSnapshotGaps(out, snapshot)
 }
 
 func sortedKeys(input map[string]any) []string {
@@ -351,24 +351,24 @@ func sortedKeys(input map[string]any) []string {
 }
 
 func (c *CLI) printSnapshotGaps(out io.Writer, snapshot sessionstate.Snapshot) error {
-if out == nil {
-return nil
-}
-note := summarizeSnapshotGaps(snapshot)
-if note == "" {
-return nil
-}
-return writeLine(out, "  TODO: %s\n", note)
+	if out == nil {
+		return nil
+	}
+	note := summarizeSnapshotGaps(snapshot)
+	if note == "" {
+		return nil
+	}
+	return writeLine(out, "  TODO: %s\n", note)
 }
 
 func writeLine(out io.Writer, format string, args ...any) error {
-if out == nil {
-return nil
-}
-if _, err := fmt.Fprintf(out, format, args...); err != nil {
-return fmt.Errorf("write output: %w", err)
-}
-return nil
+	if out == nil {
+		return nil
+	}
+	if _, err := fmt.Fprintf(out, format, args...); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	return nil
 }
 
 func summarizeSnapshotGaps(snapshot sessionstate.Snapshot) string {
@@ -470,7 +470,9 @@ func executeConfigCommand(args []string, out io.Writer) error {
 		if err := mutateOverrides(envLookup, key, value, setOverrideField); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "已更新 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath)
+		if _, err := fmt.Fprintf(out, "已更新 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath); err != nil {
+			return fmt.Errorf("write update message: %w", err)
+		}
 		return printConfigSummary(out, overridesPath)
 	case "clear", "unset", "delete", "rm":
 		if len(args) < 2 {
@@ -483,10 +485,14 @@ func executeConfigCommand(args []string, out io.Writer) error {
 		if err := mutateOverrides(envLookup, key, "", clearOverrideField); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "已清除 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath)
+		if _, err := fmt.Fprintf(out, "已清除 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath); err != nil {
+			return fmt.Errorf("write clear message: %w", err)
+		}
 		return printConfigSummary(out, overridesPath)
 	case "path", "file":
-		fmt.Fprintln(out, overridesPath)
+		if _, err := fmt.Fprintln(out, overridesPath); err != nil {
+			return fmt.Errorf("write overrides path: %w", err)
+		}
 		return nil
 	case "help", "-h", "--help":
 		printConfigUsage(out)
@@ -518,41 +524,87 @@ func printConfigSummary(out io.Writer, overridesPath string) error {
 	if err != nil {
 		return fmt.Errorf("load runtime configuration: %w", err)
 	}
-	fmt.Fprintln(out, "Current Configuration:")
-	fmt.Fprintf(out, "  Provider:       %s\n", cfg.LLMProvider)
-	fmt.Fprintf(out, "  Model:          %s\n", cfg.LLMModel)
-	fmt.Fprintf(out, "  Base URL:       %s\n", cfg.BaseURL)
-	fmt.Fprintf(out, "  Max Tokens:     %d\n", cfg.MaxTokens)
-	fmt.Fprintf(out, "  Max Iterations: %d\n", cfg.MaxIterations)
-	fmt.Fprintf(out, "  Temperature:    %.2f\n", cfg.Temperature)
-	fmt.Fprintf(out, "  Top P:          %.2f\n", cfg.TopP)
-	fmt.Fprintf(out, "  Environment:    %s\n", cfg.Environment)
-	fmt.Fprintf(out, "  Verbose:        %t\n", cfg.Verbose)
+	if _, err := fmt.Fprintln(out, "Current Configuration:"); err != nil {
+		return fmt.Errorf("write header: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Provider:       %s\n", cfg.LLMProvider); err != nil {
+		return fmt.Errorf("write provider: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Model:          %s\n", cfg.LLMModel); err != nil {
+		return fmt.Errorf("write model: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Base URL:       %s\n", cfg.BaseURL); err != nil {
+		return fmt.Errorf("write base url: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Max Tokens:     %d\n", cfg.MaxTokens); err != nil {
+		return fmt.Errorf("write max tokens: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Max Iterations: %d\n", cfg.MaxIterations); err != nil {
+		return fmt.Errorf("write max iterations: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Temperature:    %.2f\n", cfg.Temperature); err != nil {
+		return fmt.Errorf("write temperature: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Top P:          %.2f\n", cfg.TopP); err != nil {
+		return fmt.Errorf("write top p: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Environment:    %s\n", cfg.Environment); err != nil {
+		return fmt.Errorf("write environment: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "  Verbose:        %t\n", cfg.Verbose); err != nil {
+		return fmt.Errorf("write verbose: %w", err)
+	}
 	if len(cfg.StopSequences) > 0 {
-		fmt.Fprintf(out, "  Stop Seqs:      %s\n", strings.Join(cfg.StopSequences, ", "))
+		if _, err := fmt.Fprintf(out, "  Stop Seqs:      %s\n", strings.Join(cfg.StopSequences, ", ")); err != nil {
+			return fmt.Errorf("write stop sequences: %w", err)
+		}
 	} else {
-		fmt.Fprintln(out, "  Stop Seqs:      (not set)")
+		if _, err := fmt.Fprintln(out, "  Stop Seqs:      (not set)"); err != nil {
+			return fmt.Errorf("write stop sequences missing: %w", err)
+		}
 	}
 	if cfg.APIKey != "" {
-		fmt.Fprintln(out, "  API Key:        (set)")
+		if _, err := fmt.Fprintln(out, "  API Key:        (set)"); err != nil {
+			return fmt.Errorf("write api key set: %w", err)
+		}
 	} else {
-		fmt.Fprintln(out, "  API Key:        (not set)")
+		if _, err := fmt.Fprintln(out, "  API Key:        (not set)"); err != nil {
+			return fmt.Errorf("write api key missing: %w", err)
+		}
 	}
-	fmt.Fprintf(out, "  Loaded At:      %s\n", meta.LoadedAt().Format(time.RFC3339))
-	fmt.Fprintf(out, "\nManaged overrides file: %s\n", overridesPath)
-	fmt.Fprintln(out, "就绪检查:")
-	fmt.Fprintln(out, readinessSummary(configadmin.DeriveReadinessTasks(cfg)))
+	if _, err := fmt.Fprintf(out, "  Loaded At:      %s\n", meta.LoadedAt().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("write loaded at: %w", err)
+	}
+	if _, err := fmt.Fprintf(out, "\nManaged overrides file: %s\n", overridesPath); err != nil {
+		return fmt.Errorf("write overrides file path: %w", err)
+	}
+	if _, err := fmt.Fprintln(out, "就绪检查:"); err != nil {
+		return fmt.Errorf("write readiness heading: %w", err)
+	}
+	if _, err := fmt.Fprintln(out, readinessSummary(configadmin.DeriveReadinessTasks(cfg))); err != nil {
+		return fmt.Errorf("write readiness summary: %w", err)
+	}
 	return nil
 }
 
 func printConfigUsage(out io.Writer) {
-	fmt.Fprintln(out, "Config command usage:")
-	fmt.Fprintln(out, "  alex config                       Show current configuration snapshot")
-	fmt.Fprintln(out, "  alex config set <field> <value>   Persist a managed override (e.g. llm_model gpt-4o-mini)")
-	fmt.Fprintln(out, "  alex config set field=value       Alternate set syntax")
-	fmt.Fprintln(out, "  alex config clear <field>         Remove an override")
-	fmt.Fprintln(out, "  alex config path                  Print the overrides file location")
-	fmt.Fprintln(out, "\nSupported fields: llm_provider, llm_model, base_url, api_key, ark_api_key, tavily_api_key, sandbox_base_url, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.")
+	lines := []string{
+		"Config command usage:",
+		"  alex config                       Show current configuration snapshot",
+		"  alex config set <field> <value>   Persist a managed override (e.g. llm_model gpt-4o-mini)",
+		"  alex config set field=value       Alternate set syntax",
+		"  alex config clear <field>         Remove an override",
+		"  alex config path                  Print the overrides file location",
+		"",
+		"Supported fields: llm_provider, llm_model, base_url, api_key, ark_api_key, tavily_api_key, sandbox_base_url, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
+	}
+
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(out, line); err != nil {
+			fmt.Fprintf(os.Stderr, "print config usage: %v\n", err)
+			return
+		}
+	}
 }
 
 func parseSetArgs(args []string) (string, string, error) {
@@ -814,15 +866,15 @@ func floatPtr(value float64) *float64 {
 	return &v
 }
 func readinessSummary(tasks []configadmin.ReadinessTask) string {
-        if len(tasks) == 0 {
-                return "  ✓ 所有关键配置均已就绪"
-        }
-        var builder strings.Builder
-        for _, task := range tasks {
-                fmt.Fprintf(&builder, "  [%s] %s\n", strings.ToUpper(string(task.Severity)), task.Label)
-                if hint := strings.TrimSpace(task.Hint); hint != "" {
-                        fmt.Fprintf(&builder, "      ↳ %s\n", hint)
-                }
-        }
-        return strings.TrimRight(builder.String(), "\n")
+	if len(tasks) == 0 {
+		return "  ✓ 所有关键配置均已就绪"
+	}
+	var builder strings.Builder
+	for _, task := range tasks {
+		fmt.Fprintf(&builder, "  [%s] %s\n", strings.ToUpper(string(task.Severity)), task.Label)
+		if hint := strings.TrimSpace(task.Hint); hint != "" {
+			fmt.Fprintf(&builder, "      ↳ %s\n", hint)
+		}
+	}
+	return strings.TrimRight(builder.String(), "\n")
 }

@@ -294,6 +294,52 @@ describe('useAgentStreamStore', () => {
       expect(state.totalTokens).toBe(1500);
     });
 
+    it('should apply the latest task completion payload when streaming summaries', () => {
+      const partial: AnyAgentEvent = {
+        event_type: 'task_complete',
+        timestamp: new Date().toISOString(),
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 3,
+        final_answer: 'Partial final answer',
+        stop_reason: 'completed',
+        total_iterations: 3,
+        total_tokens: 1500,
+        duration: 12000,
+      };
+
+      const final: AnyAgentEvent = {
+        event_type: 'task_complete',
+        timestamp: new Date().toISOString(),
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 3,
+        final_answer: 'Refined final answer with artifact [report.pdf]',
+        stop_reason: 'completed',
+        total_iterations: 3,
+        total_tokens: 1500,
+        duration: 12500,
+        attachments: {
+          'report.pdf': {
+            name: 'report.pdf',
+            media_type: 'application/pdf',
+            uri: 'https://example.com/report.pdf',
+          },
+        },
+      };
+
+      act(() => {
+        useAgentStreamStore.getState().addEvents([partial, final]);
+      });
+
+      const state = useAgentStreamStore.getState();
+      expect(state.finalAnswer).toBe(final.final_answer);
+      expect(state.finalAnswerAttachments).toEqual(final.attachments);
+      expect(state.totalIterations).toBe(3);
+      expect(state.totalTokens).toBe(1500);
+      expect(state.taskStatus).toBe('completed');
+    });
+
     it('should transition to cancelled on task cancelled', () => {
       const cancelledEvent: AnyAgentEvent = {
         event_type: 'task_cancelled',

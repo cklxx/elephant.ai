@@ -220,7 +220,7 @@ func (e *ReactEngine) SolveTask(
 		// Check if context is cancelled before starting iteration
 		if ctx.Err() != nil {
 			e.logger.Info("Context cancelled, stopping execution: %v", ctx.Err())
-			finalResult := e.finalize(state, "cancelled")
+			finalResult := e.finalize(state, "cancelled", e.clock.Now().Sub(startTime))
 			attachments := e.decorateFinalResult(state, finalResult)
 
 			// EMIT: Task complete with cancellation
@@ -294,17 +294,7 @@ func (e *ReactEngine) SolveTask(
 			}
 
 			e.logger.Info("No tool calls with content - treating response as final answer")
-			finalResult := e.finalize(state, "final_answer")
-			attachments := e.decorateFinalResult(state, finalResult)
-			e.emitEvent(&TaskCompleteEvent{
-				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				FinalAnswer:     finalResult.Answer,
-				TotalIterations: finalResult.Iterations,
-				TotalTokens:     finalResult.TokensUsed,
-				StopReason:      "final_answer",
-				Duration:        e.clock.Now().Sub(startTime),
-				Attachments:     attachments,
-			})
+			finalResult := e.finalize(state, "final_answer", e.clock.Now().Sub(startTime))
 			return finalResult, nil
 		} else {
 			// EMIT: Think complete
@@ -339,14 +329,6 @@ func (e *ReactEngine) SolveTask(
 			thought.Content = e.cleanToolCallMarkers(thought.Content)
 		}
 
-		// Track final tool invocations so we can end the run immediately once reported
-		finalCallIDs := make(map[string]struct{})
-		for _, call := range validCalls {
-			if call.Name == "final" {
-				finalCallIDs[call.ID] = struct{}{}
-			}
-		}
-
 		// Execute tools
 		e.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
 
@@ -366,16 +348,6 @@ func (e *ReactEngine) SolveTask(
 		state.ToolResults = append(state.ToolResults, results...)
 		e.observeToolResults(state, state.Iterations, results)
 
-		var finalPayload *ToolResult
-		if len(finalCallIDs) > 0 {
-			for idx := range results {
-				if _, ok := finalCallIDs[results[idx].CallID]; ok && results[idx].Error == nil {
-					finalPayload = &results[idx]
-					break
-				}
-			}
-		}
-
 		// Log results (no stdout printing - let TUI handle display)
 		for i, r := range results {
 			if r.Error != nil {
@@ -388,24 +360,6 @@ func (e *ReactEngine) SolveTask(
 		// 3. OBSERVE: Add results to conversation
 		toolMessages := e.buildToolMessages(results)
 		state.Messages = append(state.Messages, toolMessages...)
-
-		if finalPayload != nil {
-			finalAnswer := strings.TrimSpace(finalPayload.Content)
-			if finalAnswer == "" {
-				finalAnswer = "Final tool was invoked without returning an answer."
-			}
-			state.FinalAnswer = finalAnswer
-			finalMessage := Message{
-				Role:    "assistant",
-				Content: finalAnswer,
-				Source:  ports.MessageSourceAssistantReply,
-				Metadata: map[string]any{
-					"final_tool": true,
-				},
-			}
-			finalMessage.Attachments = normalizeToolAttachments(finalPayload.Attachments)
-			state.Messages = append(state.Messages, finalMessage)
-		}
 		attachmentsChanged := false
 		for _, msg := range toolMessages {
 			if registerMessageAttachments(state, msg) {
@@ -430,29 +384,13 @@ func (e *ReactEngine) SolveTask(
 			ToolsRun:   len(results),
 		})
 
-		if finalPayload != nil {
-			finalResult := e.finalize(state, "final_answer")
-			attachments := e.decorateFinalResult(state, finalResult)
-			e.emitEvent(&TaskCompleteEvent{
-				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				FinalAnswer:     finalResult.Answer,
-				TotalIterations: finalResult.Iterations,
-				TotalTokens:     finalResult.TokensUsed,
-				StopReason:      "final_answer",
-				Duration:        e.clock.Now().Sub(startTime),
-				Attachments:     attachments,
-			})
-
-			return finalResult, nil
-		}
-
 		// LLM decides when to stop - no hardcoded stop conditions
 		e.logger.Debug("Iteration %d complete, continuing to next iteration", state.Iterations)
 	}
 
 	// Max iterations reached - try to get final answer
 	e.logger.Warn("Max iterations (%d) reached, requesting final answer", e.maxIterations)
-	finalResult := e.finalize(state, "max_iterations")
+	finalResult := e.finalize(state, "max_iterations", e.clock.Now().Sub(startTime))
 
 	// If no answer, try one more time to ask for final answer
 	if finalResult.Answer == "" || len(strings.TrimSpace(finalResult.Answer)) == 0 {
@@ -479,17 +417,6 @@ func (e *ReactEngine) SolveTask(
 	}
 
 	// EMIT: Task complete
-	attachments := e.decorateFinalResult(state, finalResult)
-	e.emitEvent(&TaskCompleteEvent{
-		BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-		FinalAnswer:     finalResult.Answer,
-		TotalIterations: finalResult.Iterations,
-		TotalTokens:     finalResult.TokensUsed,
-		StopReason:      finalResult.StopReason,
-		Duration:        e.clock.Now().Sub(startTime),
-		Attachments:     attachments,
-	})
-
 	return finalResult, nil
 }
 
@@ -550,43 +477,29 @@ func (e *ReactEngine) think(
 		}
 	}
 
-	// Call LLM (streaming when available)
+	// Call LLM without streaming
 	e.logger.Debug("Calling LLM (request_id=%s)...", requestID)
 
-	var resp *ports.CompletionResponse
-	var err error
 	modelName := ""
 	if services.LLM != nil {
 		modelName = services.LLM.Model()
 	}
 
-	if streamingClient, ok := services.LLM.(ports.StreamingLLMClient); ok {
-		callbacks := ports.CompletionStreamCallbacks{}
-
-		callbacks.OnContentDelta = func(delta ports.ContentDelta) {
-			if delta.Delta == "" && !delta.Final {
-				return
-			}
-			event := &AssistantMessageEvent{
-				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				Iteration:   state.Iterations,
-				Delta:       delta.Delta,
-				Final:       delta.Final,
-				CreatedAt:   e.clock.Now(),
-				SourceModel: modelName,
-			}
-			e.emitEvent(event)
-		}
-
-		resp, err = streamingClient.StreamComplete(ctx, req, callbacks)
-	} else {
-		resp, err = services.LLM.Complete(ctx, req)
-	}
+	resp, err := services.LLM.Complete(ctx, req)
 
 	if err != nil {
 		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
 	}
+
+	e.emitEvent(&AssistantMessageEvent{
+		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		Iteration:   state.Iterations,
+		Delta:       resp.Content,
+		Final:       true,
+		CreatedAt:   e.clock.Now(),
+		SourceModel: modelName,
+	})
 
 	e.logger.Debug("LLM response received (request_id=%s): content=%d bytes, tool_calls=%d",
 		requestID, len(resp.Content), len(resp.ToolCalls))
@@ -1197,7 +1110,7 @@ func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID, taskI
 }
 
 // finalize creates the final task result
-func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult {
+func (e *ReactEngine) finalize(state *TaskState, stopReason string, duration time.Duration) *TaskResult {
 	// Prefer explicitly captured final answer
 	finalAnswer := strings.TrimSpace(state.FinalAnswer)
 	if finalAnswer == "" {
@@ -1209,6 +1122,9 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult 
 		}
 	}
 
+	attachments := resolveContentAttachments(finalAnswer, state)
+	finalAnswer = ensureAttachmentPlaceholders(finalAnswer, attachments)
+
 	return &TaskResult{
 		Answer:       finalAnswer,
 		Messages:     state.Messages,
@@ -1218,6 +1134,7 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string) *TaskResult 
 		SessionID:    state.SessionID,
 		TaskID:       state.TaskID,
 		ParentTaskID: state.ParentTaskID,
+		Duration:     duration,
 	}
 }
 

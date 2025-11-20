@@ -17,6 +17,7 @@ import { usePlanProgress } from '@/hooks/usePlanProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
+import { TaskCompleteCard } from './TaskCompleteCard';
 
 interface ConsoleAgentOutputProps {
   events: AnyAgentEvent[];
@@ -161,10 +162,32 @@ export function ConsoleAgentOutput({
     }
   }, [autoApprovePlan, currentPlan, handleApprove, isSubmitting, planState]);
 
+  const latestTaskComplete = useMemo(() => {
+    for (let idx = events.length - 1; idx >= 0; idx -= 1) {
+      const current = events[idx];
+      if (isTaskCompleteEvent(current)) {
+        return current;
+      }
+    }
+    return null;
+  }, [events]);
+
+  const latestAttachmentCount = useMemo(() => {
+    if (!latestTaskComplete?.attachments) return 0;
+    return Object.keys(latestTaskComplete.attachments).length;
+  }, [latestTaskComplete]);
+
   // Build document from task completion
   const document = useMemo((): DocumentContent | null => {
-    const taskComplete = events.find(isTaskCompleteEvent);
-    if (!taskComplete) return null;
+    let taskComplete: AnyAgentEvent | undefined;
+    for (let idx = events.length - 1; idx >= 0; idx -= 1) {
+      const current = events[idx];
+      if (isTaskCompleteEvent(current)) {
+        taskComplete = current;
+        break;
+      }
+    }
+    if (!taskComplete || !isTaskCompleteEvent(taskComplete)) return null;
 
     return {
       id: 'task-result',
@@ -209,6 +232,34 @@ export function ConsoleAgentOutput({
           onReject={handleReject}
           progress={planProgress}
         />
+      )}
+
+      {latestTaskComplete && (
+        <div className="console-card space-y-3 p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Final answer
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Streaming summary with resolved attachments and metrics.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              {latestAttachmentCount > 0 && (
+                <span className="rounded-full bg-muted px-3 py-1 font-semibold text-foreground">
+                  {latestAttachmentCount} attachments
+                </span>
+              )}
+              {typeof latestTaskComplete.duration === 'number' && (
+                <span className="rounded-full bg-muted px-3 py-1 font-semibold text-foreground">
+                  {(latestTaskComplete.duration / 1000).toFixed(1)}s elapsed
+                </span>
+              )}
+            </div>
+          </div>
+          <TaskCompleteCard event={latestTaskComplete} />
+        </div>
       )}
 
       {/* Plan summary (after approval) */}

@@ -526,14 +526,14 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 
 	summaryBuilder := &strings.Builder{}
 	summaryBuilder.WriteString("=== LLM Streaming Summary ===\n")
-	summaryBuilder.WriteString(fmt.Sprintf("Stop Reason: %s\n", result.StopReason))
-	summaryBuilder.WriteString(fmt.Sprintf("Content Length: %d chars\n", len(result.Content)))
-	summaryBuilder.WriteString(fmt.Sprintf("Tool Calls: %d\n", len(result.ToolCalls)))
-	summaryBuilder.WriteString(fmt.Sprintf("Usage: %d prompt + %d completion = %d total tokens\n",
+	fmt.Fprintf(summaryBuilder, "Stop Reason: %s\n", result.StopReason)
+	fmt.Fprintf(summaryBuilder, "Content Length: %d chars\n", len(result.Content))
+	fmt.Fprintf(summaryBuilder, "Tool Calls: %d\n", len(result.ToolCalls))
+	fmt.Fprintf(summaryBuilder, "Usage: %d prompt + %d completion = %d total tokens\n",
 		result.Usage.PromptTokens,
 		result.Usage.CompletionTokens,
 		result.Usage.TotalTokens,
-	))
+	)
 	summaryBuilder.WriteString("==================")
 	utils.LogStreamingSummary(requestID, []byte(summaryBuilder.String()))
 

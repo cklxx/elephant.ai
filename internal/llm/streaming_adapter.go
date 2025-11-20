@@ -9,7 +9,7 @@ import (
 // streamingAdapter wraps an LLMClient that lacks native streaming support and
 // synthesizes CompletionStreamCallbacks by invoking Complete.
 type streamingAdapter struct {
-	ports.LLMClient
+	base ports.LLMClient
 }
 
 var _ ports.StreamingLLMClient = (*streamingAdapter)(nil)
@@ -24,7 +24,15 @@ func ensureStreamingClient(client ports.LLMClient) ports.LLMClient {
 	if _, ok := client.(ports.StreamingLLMClient); ok {
 		return client
 	}
-	return &streamingAdapter{LLMClient: client}
+	return &streamingAdapter{base: client}
+}
+
+func (a *streamingAdapter) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	return a.base.Complete(ctx, req)
+}
+
+func (a *streamingAdapter) Model() string {
+	return a.base.Model()
 }
 
 func (a *streamingAdapter) StreamComplete(
@@ -32,11 +40,11 @@ func (a *streamingAdapter) StreamComplete(
 	req ports.CompletionRequest,
 	callbacks ports.CompletionStreamCallbacks,
 ) (*ports.CompletionResponse, error) {
-	if streaming, ok := a.LLMClient.(ports.StreamingLLMClient); ok {
+	if streaming, ok := a.base.(ports.StreamingLLMClient); ok {
 		return streaming.StreamComplete(ctx, req, callbacks)
 	}
 
-	resp, err := a.LLMClient.Complete(ctx, req)
+	resp, err := a.base.Complete(ctx, req)
 	if err != nil {
 		return nil, err
 	}

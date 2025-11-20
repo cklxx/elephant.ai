@@ -543,6 +543,19 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
       },
     },
     {
+      delay: 4510,
+      event: {
+        event_type: 'task_complete',
+        agent_level: 'core',
+        final_answer:
+          'Drafting summary...\n- Slides incoming: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]',
+        total_iterations: 1,
+        total_tokens: 865,
+        stop_reason: 'completed',
+        duration: 3400,
+      },
+    },
+    {
       delay: 4550,
       event: {
         event_type: 'task_complete',
