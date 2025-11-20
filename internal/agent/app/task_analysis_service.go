@@ -47,38 +47,40 @@ func (s *TaskAnalysisService) Analyze(ctx context.Context, task string, llmClien
 
 	s.logger.Debug("Starting task pre-analysis")
 
-	prompt := fmt.Sprintf(`You are a planning agent that must prepare execution and retrieval guidance in a single pass.
+        prompt := fmt.Sprintf(`You are a planning agent focused on "Info check + defaults + actionable template". Produce a concise, immediately usable plan that surfaces missing inputs, applied defaults, and the next executable steps.
 
 Task:
 """%s"""
 
 Return ONLY well-formed XML (no prose) following this schema:
 <task_analysis>
-  <action>string</action>                      <!-- concise verb phrase -->
-  <goal>string</goal>                          <!-- specific outcome to achieve -->
-  <approach>string</approach>                  <!-- short strategy summary -->
+  <action>string</action>                      <!-- concise verb phrase summarizing the plan -->
+  <goal>string</goal>                          <!-- concrete outcome, including assumed defaults -->
+  <approach>string</approach>                  <!-- short strategy that calls out missing info + defaults -->
   <success_criteria>
-    <criterion>string</criterion>              <!-- 2-5 measurable checks for completion -->
+    <criterion>string</criterion>              <!-- 2-5 checks, including resolving key gaps -->
   </success_criteria>
   <task_breakdown>
     <step requires_external_research="bool" requires_retrieval="bool" requires_discovery="bool">
-      <description>string</description>        <!-- high-level step -->
-      <reason>string</reason>                  <!-- short rationale for the flags -->
+      <description>string</description>        <!-- high-level step with clear owner action -->
+      <reason>string</reason>                  <!-- why this step matters (e.g., fill defaults, confirm inputs) -->
     </step>
   </task_breakdown>
   <retrieval_plan should_retrieve="bool">
-    <local_queries><query>string</query></local_queries>      <!-- internal doc/code queries -->
-    <search_queries><query>string</query></search_queries>    <!-- web search queries -->
+    <local_queries><query>string</query></local_queries>      <!-- internal doc/code queries for context -->
+    <search_queries><query>string</query></search_queries>    <!-- web search queries if needed -->
     <crawl_urls><url>string</url></crawl_urls>                <!-- specific URLs to fetch -->
-    <knowledge_gaps><gap>string</gap></knowledge_gaps>        <!-- facts to resolve -->
-    <notes>string</notes>                                     <!-- optional clarifications -->
+    <knowledge_gaps><gap>string</gap></knowledge_gaps>        <!-- missing facts or decisions to confirm -->
+    <notes>string</notes>                                     <!-- defaults/assumptions applied -->
   </retrieval_plan>
 </task_analysis>
 
 Guidelines:
+- Lead with what information is missing and the defaults you will apply; make those explicit in <approach> and <notes>.
 - Keep lists small (<=4 items) and omit duplicates.
 - If retrieval is unnecessary, set should_retrieve="false" and leave lists empty.
 - Use clear, executable language in the same language as the task.
+- Always include at least one step that checks/collects inputs before execution and one step that outputs the actionable template/plan.
 `, task)
 
 	requestID := id.NewRequestID()
@@ -125,7 +127,7 @@ func fallbackTaskAnalysis(task string) *TaskAnalysis {
 	goal := truncateRunes(trimmed, 160)
 
 	action := inferActionFromTask(trimmed)
-	approach := "Outline a plan and execute the request step by step."
+        approach := "Check missing inputs, apply reasonable defaults, then deliver an actionable plan."
 
 	return &TaskAnalysis{
 		ActionName:  action,
@@ -133,13 +135,18 @@ func fallbackTaskAnalysis(task string) *TaskAnalysis {
 		Approach:    approach,
 		RawAnalysis: fmt.Sprintf("Action: %s\nGoal: %s\nApproach: %s", action, goal, approach),
 		Criteria:    []string{"Deliver a complete answer", "Document reasoning for the user"},
-		Steps: []ports.TaskAnalysisStep{
-			{
-				Description:          "Review the user task and available context",
-				NeedsExternalContext: false,
-				Rationale:            "Establish baseline understanding",
-			},
-		},
+                Steps: []ports.TaskAnalysisStep{
+                        {
+                                Description:          "Confirm required inputs or infer defaults for gaps",
+                                NeedsExternalContext: false,
+                                Rationale:            "Ensure the plan reflects user intent and documented assumptions",
+                        },
+                        {
+                                Description:          "Produce a concise, actionable template or step-by-step plan",
+                                NeedsExternalContext: false,
+                                Rationale:            "Give the user a ready-to-execute outline",
+                        },
+                },
 	}
 }
 
