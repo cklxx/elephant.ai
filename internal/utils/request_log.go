@@ -126,7 +126,7 @@ func shouldLogStreamingEntry(requestID string, ttl time.Duration) bool {
 	streamingLogDeduper.Store(requestID, now)
 	time.AfterFunc(ttl, func() {
 		if value, ok := streamingLogDeduper.Load(requestID); ok {
-			if ts, ok := value.(time.Time); ok && ts == now {
+			if ts, ok := value.(time.Time); ok && ts.Equal(now) {
 				streamingLogDeduper.Delete(requestID)
 			}
 		}

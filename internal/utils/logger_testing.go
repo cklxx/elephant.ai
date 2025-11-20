@@ -7,7 +7,7 @@ import "sync"
 func ResetLoggerForTests(category LogCategory) {
 	if category == LogCategoryService {
 		if loggerInstance != nil {
-			loggerInstance.Close()
+			_ = loggerInstance.Close()
 		}
 		loggerInstance = nil
 		loggerOnce = sync.Once{}
@@ -17,7 +17,7 @@ func ResetLoggerForTests(category LogCategory) {
 	categoryMu.Lock()
 	defer categoryMu.Unlock()
 	if logger, ok := categoryLoggers[category]; ok {
-		logger.Close()
+		_ = logger.Close()
 		delete(categoryLoggers, category)
 	}
 }

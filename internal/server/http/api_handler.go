@@ -251,7 +251,9 @@ func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := http.MaxBytesReader(w, r.Body, maxWebVitalBodySize)
-	defer body.Close()
+	defer func() {
+		_ = body.Close()
+	}()
 	var payload webVitalPayload
 	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()

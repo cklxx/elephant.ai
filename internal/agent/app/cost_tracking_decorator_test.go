@@ -50,40 +50,6 @@ func (m *mockLLMClient) Model() string {
 	return m.model
 }
 
-// streamingMockLLMClient extends mockLLMClient with streaming support for tests.
-type streamingMockLLMClient struct {
-	*mockLLMClient
-	chunks []string
-}
-
-func newStreamingMockLLMClient(model string, chunks []string) *streamingMockLLMClient {
-	return &streamingMockLLMClient{
-		mockLLMClient: newMockLLMClient(model),
-		chunks:        chunks,
-	}
-}
-
-func (m *streamingMockLLMClient) StreamComplete(
-	ctx context.Context,
-	req ports.CompletionRequest,
-	callbacks ports.CompletionStreamCallbacks,
-) (*ports.CompletionResponse, error) {
-	resp, err := m.mockLLMClient.Complete(ctx, req)
-	if err != nil {
-		return resp, err
-	}
-	resp.Content = strings.Join(m.chunks, "")
-
-	if cb := callbacks.OnContentDelta; cb != nil {
-		for _, chunk := range m.chunks {
-			cb(ports.ContentDelta{Delta: chunk})
-		}
-		cb(ports.ContentDelta{Final: true})
-	}
-
-	return resp, nil
-}
-
 func (m *mockLLMClient) GetCallCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
