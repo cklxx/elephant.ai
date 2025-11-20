@@ -195,7 +195,7 @@
      */
     .console-card {
         background: hsl(var(--card));
-        border: 3px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         border-radius: 12px;
         box-shadow: none;
         transition: transform 0.15s ease;
@@ -203,7 +203,7 @@
 
     .console-card-interactive {
         background: hsl(var(--card));
-        border: 3px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         border-radius: 12px;
         box-shadow: none;
         transition:
@@ -223,7 +223,7 @@
    * - Generous padding for readability
    */
     .console-section {
-        border-bottom: 3px solid hsl(var(--foreground));
+        border-bottom: 1.5px solid hsl(var(--foreground));
         padding-top: 1.5rem;
         padding-bottom: 1.5rem;
     }
@@ -270,7 +270,7 @@
         @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold uppercase tracking-[0.12em] transition-transform duration-150 cursor-pointer select-none;
         color: hsl(var(--foreground));
         background: hsl(var(--card));
-        border: 2px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         box-shadow: none;
     }
 
@@ -285,8 +285,8 @@
     }
 
     .console-button:focus-visible {
-        outline: 3px solid hsl(var(--foreground));
-        outline-offset: 4px;
+        outline: 2px solid hsl(var(--foreground));
+        outline-offset: 3px;
     }
 
     .console-button:disabled {
@@ -324,7 +324,7 @@
         @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-transform duration-150;
         background: hsl(var(--foreground));
         color: hsl(var(--primary-foreground));
-        border: 2px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         box-shadow: none;
     }
 
@@ -339,8 +339,8 @@
     }
 
     .console-primary-action:focus-visible {
-        outline: 3px solid hsl(var(--foreground));
-        outline-offset: 4px;
+        outline: 2px solid hsl(var(--foreground));
+        outline-offset: 3px;
     }
 
     .console-primary-action:disabled {
@@ -357,8 +357,8 @@
     }
 
     .console-icon-button {
-        @apply inline-flex items-center justify-center rounded-full border-2 transition-transform duration-150;
-        border-color: hsl(var(--foreground));
+        @apply inline-flex items-center justify-center rounded-full transition-transform duration-150;
+        border: 1.5px solid hsl(var(--foreground));
         background: hsl(var(--card));
         color: hsl(var(--foreground));
         padding: 0.4rem;
@@ -428,7 +428,7 @@
         @apply inline-flex items-center rounded px-2 py-1 text-xs font-semibold uppercase tracking-[0.18em];
         background: hsl(var(--card));
         color: hsl(var(--foreground));
-        border: 2px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         box-shadow: none;
     }
 
@@ -471,7 +471,7 @@
     .console-panel {
         border-radius: 28px;
         background: hsl(var(--card));
-        border: 3px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         box-shadow: none;
     }
 
@@ -499,7 +499,7 @@
         display: inline-flex;
         align-items: center;
         border-radius: 9999px;
-        border: 2px solid hsl(var(--foreground));
+        border: 1.5px solid hsl(var(--foreground));
         background: hsl(var(--card));
         padding: 0.25rem 0.75rem;
         font-size: 11px;

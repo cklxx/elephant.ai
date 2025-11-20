@@ -54,7 +54,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
 
   return (
     <div
-      className="border-l-2 border-green-200 pl-3"
+      className="border-l border-green-100/80 bg-green-50/30 pl-3"
       data-testid="task-complete-event"
     >
       <div className="mt-2 space-y-4">
@@ -111,7 +111,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           />
         ) : (
           <div
-            className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+            className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"
             data-testid="task-complete-fallback"
           >
             <p className="font-medium text-slate-700">{stopReasonCopy.title}</p>
