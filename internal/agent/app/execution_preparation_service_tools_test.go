@@ -97,6 +97,33 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 	}
 }
 
+func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset(t *testing.T) {
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "sub", Metadata: map[string]string{}}},
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	ctx := MarkSubagentContext(context.Background())
+	filtered := service.selectToolRegistry(ctx)
+	names := sortedToolNames(filtered.List())
+
+	if containsString(names, "subagent") {
+		t.Fatalf("subagents should not be able to call other subagents: %v", names)
+	}
+	if !containsString(names, "bash") || !containsString(names, "file_read") {
+		t.Fatalf("subagents should retain execution tools when preset unset, got: %v", names)
+	}
+}
+
 func sortedToolNames(defs []ports.ToolDefinition) []string {
 	names := make([]string, len(defs))
 	for i, def := range defs {
