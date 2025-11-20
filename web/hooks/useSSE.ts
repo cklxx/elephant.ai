@@ -72,6 +72,45 @@ export function useSSE(
     onEventRef.current = onEvent;
   }, [onEvent]);
 
+  const parseServerError = useCallback((err: Event | Error) => {
+    if (err instanceof MessageEvent) {
+      const { data } = err;
+
+      if (typeof data === "string") {
+        const trimmed = data.trim();
+        if (!trimmed) {
+          return null;
+        }
+
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed.error === "string") {
+            return parsed.error;
+          }
+        } catch {
+          // Not JSON, fall back to raw string
+        }
+
+        return trimmed;
+      }
+
+      if (data && typeof data === "object" && "error" in data) {
+        const errorMessage = (data as { error?: unknown }).error;
+        if (typeof errorMessage === "string" && errorMessage.trim()) {
+          return errorMessage;
+        }
+      }
+
+      return null;
+    }
+
+    if (err instanceof Error) {
+      return err.message;
+    }
+
+    return null;
+  }, []);
+
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
@@ -141,12 +180,26 @@ export function useSSE(
       onError: (err) => {
         console.error("[SSE] Connection error:", err);
 
+        const serverErrorMessage = parseServerError(err);
+
         if (clientRef.current) {
           clientRef.current.dispose();
           clientRef.current = null;
         }
         isConnectingRef.current = false;
         setIsConnected(false);
+
+        if (serverErrorMessage) {
+          console.warn(
+            "[SSE] Server returned terminal error, stopping auto-reconnect:",
+            serverErrorMessage,
+          );
+          reconnectAttemptsRef.current = maxReconnectAttempts;
+          setReconnectAttempts(maxReconnectAttempts);
+          setError(serverErrorMessage);
+          setIsReconnecting(false);
+          return;
+        }
 
         const nextAttempts = reconnectAttemptsRef.current + 1;
         reconnectAttemptsRef.current = nextAttempts;
