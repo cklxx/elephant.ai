@@ -218,7 +218,7 @@ export function useConfirmDialog() {
           <DialogFooter>
             <button
               onClick={handleCancel}
-              className="px-4 py-2 rounded-lg border border-primary/30 bg-background text-foreground hover:bg-primary/10 transition-colors"
+              className="px-4 py-2 rounded-lg border border-border bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
             >
               {config.cancelText || 'Cancel'}
             </button>
