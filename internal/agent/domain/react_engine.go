@@ -529,14 +529,19 @@ func (e *ReactEngine) executeToolsWithEvents(
 		wg            sync.WaitGroup
 		attachmentsMu sync.Mutex
 	)
+
 	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
 	subagentSnapshots := make([]*ports.TaskState, len(calls))
+	expandedCalls := make([]ToolCall, len(calls))
 	for i, call := range calls {
-		if call.Name == "subagent" {
-			subagentSnapshots[i] = buildSubagentStateSnapshot(state, call)
+		tc := call
+		tc.Arguments = e.expandPlaceholders(tc.Arguments, state)
+		expandedCalls[i] = tc
+		if tc.Name == "subagent" {
+			subagentSnapshots[i] = buildSubagentStateSnapshot(state, tc)
 		}
 	}
-	for i, call := range calls {
+	for i, call := range expandedCalls {
 		wg.Add(1)
 		go func(idx int, tc ToolCall) {
 			defer wg.Done()
@@ -544,8 +549,6 @@ func (e *ReactEngine) executeToolsWithEvents(
 			tc.SessionID = state.SessionID
 			tc.TaskID = state.TaskID
 			tc.ParentTaskID = state.ParentTaskID
-
-			tc.Arguments = e.expandPlaceholders(tc.Arguments, state)
 
 			startTime := e.clock.Now()
 
