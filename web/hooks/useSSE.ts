@@ -58,6 +58,7 @@ export function useSSE(
     seen: new Set(),
     order: [],
   });
+  const previousSessionIdRef = useRef<string | null>(sessionId);
 
   const resetDedupe = useCallback(() => {
     dedupeRef.current = {
@@ -238,13 +239,23 @@ export function useSSE(
   }, []);
 
   useEffect(() => {
+    const previousSessionId = previousSessionIdRef.current;
+    previousSessionIdRef.current = sessionId;
+
     cleanup();
-    setEvents([]);
-    resetAttachmentRegistry();
-    resetDedupe();
     reconnectAttemptsRef.current = 0;
     setReconnectAttempts(0);
     setError(null);
+
+    const shouldResetState =
+      sessionId === null ||
+      (Boolean(previousSessionId) && previousSessionId !== sessionId);
+
+    if (shouldResetState) {
+      setEvents([]);
+      resetAttachmentRegistry();
+      resetDedupe();
+    }
 
     if (sessionId && enabled) {
       void connectInternal();
@@ -253,7 +264,7 @@ export function useSSE(
     return () => {
       cleanup();
     };
-  }, [sessionId, enabled, connectInternal, cleanup]);
+  }, [sessionId, enabled, connectInternal, cleanup, resetDedupe]);
 
   const reconnect = useCallback(() => {
     cleanup();

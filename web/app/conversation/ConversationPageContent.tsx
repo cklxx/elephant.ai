@@ -205,36 +205,40 @@ export function ConversationPageContent() {
     cancelIntentRef.current = false;
     setCancelRequested(false);
 
+    const submissionTimestamp = new Date();
+    const provisionalSessionId = useMockStream
+      ? sessionId || currentSessionId || `mock-${submissionTimestamp.getTime().toString(36)}`
+      : resolvedSessionId ?? 'pending-session';
+
+    const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
+      acc[att.name] = {
+        name: att.name,
+        media_type: att.media_type,
+        data: att.data,
+        uri: att.uri,
+        source: att.source,
+        description: att.description,
+      };
+      return acc;
+    }, {});
+
+    addEvent({
+      event_type: 'user_task',
+      timestamp: submissionTimestamp.toISOString(),
+      agent_level: 'core',
+      session_id: provisionalSessionId,
+      task_id: taskId ?? undefined,
+      task,
+      attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
+    });
+
     if (useMockStream) {
-      const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
-        acc[att.name] = {
-          name: att.name,
-          media_type: att.media_type,
-          data: att.data,
-          uri: att.uri,
-          source: att.source,
-          description: att.description,
-        };
-        return acc;
-      }, {});
-
-      addEvent({
-        event_type: 'user_task',
-        timestamp: new Date().toISOString(),
-        agent_level: 'core',
-        session_id: resolvedSessionId ?? 'pending-session',
-        task_id: taskId ?? undefined,
-        task,
-        attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
-      });
-
-      const mockSessionId = sessionId || currentSessionId || `mock-${Date.now().toString(36)}`;
-      const mockTaskId = `mock-task-${Date.now().toString(36)}`;
-      setSessionId(mockSessionId);
+      const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
+      setSessionId(provisionalSessionId);
       setTaskId(mockTaskId);
       setActiveTaskId(mockTaskId);
-      setCurrentSession(mockSessionId);
-      addToHistory(mockSessionId);
+      setCurrentSession(provisionalSessionId);
+      addToHistory(provisionalSessionId);
       return;
     }
 

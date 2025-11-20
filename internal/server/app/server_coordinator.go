@@ -141,7 +141,14 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	confirmedSessionID := session.ID
 	s.logger.Info("[ServerCoordinator] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
 
-	// Create task record with confirmed session ID
+	// Preallocate a task ID so we can emit user_task before hitting slower stores.
+	taskID := id.NewTaskID()
+	ctx = id.WithTaskID(ctx, taskID)
+
+	// Emit user_task event immediately so the frontend gets instant feedback.
+	s.emitUserTaskEvent(ctx, confirmedSessionID, taskID, task)
+
+	// Create task record with confirmed session ID and preallocated task ID from context
 	taskRecord, err := s.taskStore.Create(ctx, confirmedSessionID, task, agentPreset, toolPreset)
 	if err != nil {
 		s.logger.Error("[ServerCoordinator] Failed to create task: %v", err)
@@ -153,19 +160,15 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		taskRecord.ParentTaskID = parentTaskID
 	}
 
-	taskID := taskRecord.ID
 	taskSessionID := taskRecord.SessionID
-	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskID, ParentTaskID: parentTaskID})
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskRecord.ID, ParentTaskID: parentTaskID})
 
 	// Verify broadcaster is initialized
 	if s.broadcaster == nil {
 		s.logger.Error("[ServerCoordinator] Broadcaster is nil!")
-		_ = s.taskStore.SetError(ctx, taskID, fmt.Errorf("broadcaster not initialized"))
+		_ = s.taskStore.SetError(ctx, taskRecord.ID, fmt.Errorf("broadcaster not initialized"))
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
-
-	// Emit user_task event immediately so the frontend gets instant feedback.
-	s.emitUserTaskEvent(ctx, confirmedSessionID, taskRecord.ID, task)
 
 	// Create a detached context so the task keeps running after the HTTP handler returns
 	// while keeping request-scoped values for logging/metrics via context.WithoutCancel
