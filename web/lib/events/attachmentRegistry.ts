@@ -113,6 +113,20 @@ class AttachmentRegistry {
     return resolved;
   }
 
+  private takeUndisplayedFromStore(): AttachmentMap | undefined {
+    const undisplayedEntries = Object.entries(this.store).filter(
+      ([key]) => !this.displayedByTool.has(key),
+    );
+
+    if (undisplayedEntries.length === 0) {
+      return undefined;
+    }
+
+    const result = Object.fromEntries(undisplayedEntries);
+    undisplayedEntries.forEach(([key]) => this.displayedByTool.add(key));
+    return result;
+  }
+
   handleEvent(event: AnyAgentEvent) {
     switch (event.event_type) {
       case "user_task":
@@ -154,6 +168,9 @@ class AttachmentRegistry {
         const rendered = this.hydrateFromContent(taskEvent.final_answer);
         if (rendered) {
           taskEvent.attachments = rendered;
+        }
+        if (!taskEvent.attachments) {
+          taskEvent.attachments = this.takeUndisplayedFromStore();
         }
         break;
       }

@@ -151,4 +151,35 @@ describe('attachmentRegistry', () => {
     expect(toolComplete.attachments).toBeDefined();
     expect(toolComplete.attachments?.['clip.mp4']).toBeDefined();
   });
+
+  it('surfaces undisplayed attachments when final results omit them', () => {
+    const userTask: UserTaskEvent = {
+      event_type: 'user_task',
+      agent_level: 'core',
+      timestamp: new Date().toISOString(),
+      session_id: 'sess-3',
+      task_id: 'task-3',
+      parent_task_id: undefined,
+      task: 'Upload assets for later',
+      attachments: {
+        'undisplayed.txt': {
+          name: 'undisplayed.txt',
+          media_type: 'text/plain',
+          data: 'bGF0ZXI=',
+        },
+      },
+    };
+
+    handleAttachmentEvent(userTask);
+
+    const taskComplete: TaskCompleteEvent = {
+      ...baseTaskCompleteEvent(),
+      final_answer: 'Task finished successfully.',
+    };
+
+    handleAttachmentEvent(taskComplete);
+
+    expect(taskComplete.attachments).toBeDefined();
+    expect(taskComplete.attachments?.['undisplayed.txt']).toBeDefined();
+  });
 });
