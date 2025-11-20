@@ -134,6 +134,8 @@ func (s *FinalAnswerSummarizer) emitStreamingUpdate(
 		TotalTokens:     result.TokensUsed,
 		StopReason:      result.StopReason,
 		Duration:        s.effectiveDuration(result, start),
+		IsStreaming:     true,
+		StreamFinished:  false,
 	})
 }
 
@@ -166,6 +168,7 @@ func (s *FinalAnswerSummarizer) emitFinal(
 		TotalTokens:     result.TokensUsed,
 		StopReason:      result.StopReason,
 		Duration:        result.Duration,
+		StreamFinished:  true,
 		Attachments:     attachments,
 	})
 }

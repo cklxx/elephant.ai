@@ -376,7 +376,14 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       break;
     case 'task_complete': {
       const complete = event as TaskCompleteEvent;
-      draft.taskStatus = 'completed';
+      const isStreaming = complete.is_streaming === true;
+      const streamFinished = complete.stream_finished !== false;
+
+      if (isStreaming && !streamFinished) {
+        draft.taskStatus = draft.taskStatus === 'idle' ? 'running' : draft.taskStatus;
+      } else {
+        draft.taskStatus = 'completed';
+      }
       draft.finalAnswer = complete.final_answer;
       if (complete.attachments !== undefined) {
         draft.finalAnswerAttachments = complete.attachments as

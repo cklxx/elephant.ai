@@ -63,12 +63,18 @@ func TestFinalAnswerSummarizerSummarizesWithoutStreaming(t *testing.T) {
 		t.Fatalf("expected a single completion event without duplicate streaming payloads, got %d", len(events))
 	}
 	finalEvent := events[0]
-	if finalEvent.StopReason != "final_answer" {
-		t.Fatalf("expected stop reason to propagate, got %q", finalEvent.StopReason)
-	}
-	if len(finalEvent.Attachments) != 1 {
-		t.Fatalf("expected attachment to be forwarded, got %d", len(finalEvent.Attachments))
-	}
+        if finalEvent.StopReason != "final_answer" {
+                t.Fatalf("expected stop reason to propagate, got %q", finalEvent.StopReason)
+        }
+        if finalEvent.IsStreaming {
+                t.Fatalf("expected non-streaming completion to disable IsStreaming")
+        }
+        if !finalEvent.StreamFinished {
+                t.Fatalf("expected non-streaming completion to be marked finished")
+        }
+        if len(finalEvent.Attachments) != 1 {
+                t.Fatalf("expected attachment to be forwarded, got %d", len(finalEvent.Attachments))
+        }
 	if finalEvent.Attachments["report.pdf"].Name != "report.pdf" {
 		t.Fatalf("unexpected attachment payload: %+v", finalEvent.Attachments["report.pdf"])
 	}
@@ -130,17 +136,26 @@ func TestFinalAnswerSummarizerStreamsDeltas(t *testing.T) {
 	if updated.Answer == "Original final answer" {
 		t.Fatalf("expected summarized answer to overwrite original")
 	}
-	if len(events) != 2 {
-		t.Fatalf("expected one streaming update and one final event, got %d", len(events))
-	}
-	if events[0].FinalAnswer == "" {
-		t.Fatalf("expected streaming updates to carry partial content")
-	}
-	last := events[len(events)-1]
-	if len(last.Attachments) != 1 {
-		t.Fatalf("expected final event to include attachments, got %d", len(last.Attachments))
-	}
-	if !strings.Contains(last.FinalAnswer, "report.pdf") {
-		t.Fatalf("expected final answer to preserve attachment reference, got %q", last.FinalAnswer)
-	}
+        if len(events) != 2 {
+                t.Fatalf("expected one streaming update and one final event, got %d", len(events))
+        }
+        if events[0].FinalAnswer == "" {
+                t.Fatalf("expected streaming updates to carry partial content")
+        }
+        if !events[0].IsStreaming || events[0].StreamFinished {
+                t.Fatalf("expected first update to be streaming and unfinished")
+        }
+        last := events[len(events)-1]
+        if len(last.Attachments) != 1 {
+                t.Fatalf("expected final event to include attachments, got %d", len(last.Attachments))
+        }
+        if !strings.Contains(last.FinalAnswer, "report.pdf") {
+                t.Fatalf("expected final answer to preserve attachment reference, got %q", last.FinalAnswer)
+        }
+        if last.IsStreaming {
+                t.Fatalf("expected final event to be non-streaming")
+        }
+        if !last.StreamFinished {
+                t.Fatalf("expected final event to mark streaming as finished")
+        }
 }

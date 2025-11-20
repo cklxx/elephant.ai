@@ -193,6 +193,8 @@ export interface TaskCompleteEvent extends AgentEvent {
   total_tokens: number;
   stop_reason: string;
   duration: number; // milliseconds
+  is_streaming?: boolean;
+  stream_finished?: boolean;
   attachments?: Record<string, AttachmentPayload>;
 }
 
