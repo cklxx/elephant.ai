@@ -116,6 +116,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           <MarkdownRenderer
             content={contentWithInlineMedia}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-600"
+            attachments={event.attachments}
             components={{
               code: ({ inline, className, children, ...props }: any) => {
                 if (inline) {

@@ -123,15 +123,34 @@ export function MarkdownRenderer({
 
   const defaultComponents: Record<string, ComponentType<any>> = {
     hr: (props: any) => <hr className="my-6 border-border" {...props} />,
-    a: ({ className: linkClassName, ...props }: any) => (
-      <a
-        className={cn(
-          "text-primary underline decoration-2 underline-offset-4 transition-colors hover:text-primary/80",
-          linkClassName,
-        )}
-        {...props}
-      />
-    ),
+    a: ({ className: linkClassName, href, children, ...props }: any) => {
+      const matchedAttachment = href ? inlineAttachmentMap.get(href) : undefined;
+
+      if (matchedAttachment?.type === "video") {
+        return (
+          <VideoPreview
+            src={href}
+            mimeType={matchedAttachment.mime || "video/mp4"}
+            description={matchedAttachment.description || (typeof children === "string" ? children : undefined)}
+            className="my-4 w-full"
+            maxHeight="20rem"
+          />
+        );
+      }
+
+      return (
+        <a
+          className={cn(
+            "text-primary underline decoration-2 underline-offset-4 transition-colors hover:text-primary/80",
+            linkClassName,
+          )}
+          href={href}
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
     blockquote: ({ className: blockquoteClass, ...props }: any) => (
       <blockquote
         className={cn(
