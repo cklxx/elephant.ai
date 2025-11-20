@@ -23,7 +23,7 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 
 // Mock EventSource
-class MockEventSource {
+  class MockEventSource {
   url: string;
   onopen: ((event: Event) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
@@ -67,6 +67,14 @@ class MockEventSource {
 
   simulateError(): void {
     this.readyState = 2; // CLOSED
+    if (this.onerror) {
+      this.onerror(new Event("error"));
+    }
+  }
+
+  simulateSoftError(): void {
+    // Leave readyState unchanged to mimic environments where the browser
+    // doesn't flip to CLOSED even though the upstream stream died.
     if (this.onerror) {
       this.onerror(new Event("error"));
     }
@@ -375,6 +383,33 @@ describe("useSSE", () => {
       await waitForConnection(3);
 
       expect(result.current.isReconnecting).toBe(true);
+    });
+
+    test("should reconnect even if readyState does not flip to CLOSED", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 2 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      act(() => {
+        mockEventSource.simulateSoftError();
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.reconnectAttempts).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitForConnection(2);
+      expect(connectionCalls).toBe(2);
     });
 
     test("should cap exponential backoff at 30 seconds", async () => {
