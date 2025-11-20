@@ -213,18 +213,23 @@ export function useSSE(
     });
 
     const unsubscribe = agentEventBus.subscribe((event) => {
-      const dedupeKey = buildEventSignature(event);
-      const cache = dedupeRef.current;
-      if (cache.seen.has(dedupeKey)) {
-        return;
-      }
+      const isStreamingTaskComplete =
+        event.event_type === "task_complete" && Boolean(event.is_streaming);
 
-      cache.seen.add(dedupeKey);
-      cache.order.push(dedupeKey);
-      if (cache.order.length > 2000) {
-        const oldest = cache.order.shift();
-        if (oldest) {
-          cache.seen.delete(oldest);
+      if (!isStreamingTaskComplete) {
+        const dedupeKey = buildEventSignature(event);
+        const cache = dedupeRef.current;
+        if (cache.seen.has(dedupeKey)) {
+          return;
+        }
+
+        cache.seen.add(dedupeKey);
+        cache.order.push(dedupeKey);
+        if (cache.order.length > 2000) {
+          const oldest = cache.order.shift();
+          if (oldest) {
+            cache.seen.delete(oldest);
+          }
         }
       }
 

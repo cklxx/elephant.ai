@@ -361,6 +361,50 @@ describe("useSSE", () => {
       expect(result.current.events[0]).toMatchObject({ final_answer: "final message" });
     });
 
+    test("should not dedupe streaming task_complete updates that only flip stream_finished", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseEvent: AnyAgentEvent = {
+        event_type: "task_complete",
+        timestamp: new Date().toISOString(),
+        session_id: "test-session-123",
+        task_id: "task-1",
+        agent_level: "core",
+        final_answer: "partial",
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: "streaming",
+        duration: 100,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      const finishedEvent: AnyAgentEvent = {
+        ...baseEvent,
+        stream_finished: true,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("task_complete", baseEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ stream_finished: false });
+
+      act(() => {
+        mockEventSource.simulateEvent("task_complete", finishedEvent);
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0]).toMatchObject({ stream_finished: true });
+    });
+
     test("should clear events when clearEvents is called", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
