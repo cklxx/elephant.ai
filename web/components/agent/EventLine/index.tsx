@@ -7,6 +7,7 @@ import {
   ToolCallCompleteEvent,
   ThinkCompleteEvent,
   TaskCompleteEvent,
+  TaskAnalysisEvent,
 } from "@/lib/types";
 import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
@@ -17,6 +18,7 @@ import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
+import { TaskAnalysisCard } from "../TaskAnalysisCard";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -130,6 +132,14 @@ export const EventLine = React.memo(function EventLine({
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (event.event_type === "task_analysis") {
+    return (
+      <div data-testid="event-task_analysis">
+        <TaskAnalysisCard event={event as TaskAnalysisEvent} />
       </div>
     );
   }

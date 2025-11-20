@@ -52,7 +52,12 @@ export function TerminalOutput({
           const key = `${event.event_type}-${event.timestamp}-${index}`;
           const panelEvents = panelAnchors.get(event);
           if (panelEvents) {
-            return <IntermediatePanel key={key} events={panelEvents} />;
+            return (
+              <div key={key} className="space-y-3">
+                <EventLine event={event} />
+                <IntermediatePanel events={panelEvents} />
+              </div>
+            );
           }
 
           return <EventLine key={key} event={event} />;
