@@ -341,14 +341,34 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
     case 'task_analysis': {
       const task = event as TaskAnalysisEvent;
       draft.taskStatus = 'analyzing';
-      draft.taskAnalysis = {
+      const minimal: TaskAnalysisSnapshot = {
         action_name: task.action_name,
         goal: task.goal,
         approach: task.approach,
-        success_criteria: task.success_criteria ?? [],
-        steps: task.steps,
-        retrieval_plan: task.retrieval_plan,
       };
+
+      if (task.success_criteria && task.success_criteria.length > 0) {
+        minimal.success_criteria = task.success_criteria;
+      }
+      if (task.steps && task.steps.length > 0) {
+        minimal.steps = task.steps;
+      }
+      if (task.retrieval_plan) {
+        const retrieval = task.retrieval_plan;
+        const hasRetrievalDetails =
+          retrieval.should_retrieve ||
+          (retrieval.local_queries && retrieval.local_queries.length > 0) ||
+          (retrieval.search_queries && retrieval.search_queries.length > 0) ||
+          (retrieval.crawl_urls && retrieval.crawl_urls.length > 0) ||
+          (retrieval.knowledge_gaps && retrieval.knowledge_gaps.length > 0) ||
+          !!retrieval.notes;
+
+        if (hasRetrievalDetails) {
+          minimal.retrieval_plan = retrieval;
+        }
+      }
+
+      draft.taskAnalysis = minimal;
       break;
     }
     case 'iteration_start': {

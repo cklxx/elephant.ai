@@ -47,7 +47,7 @@ func (s *TaskAnalysisService) Analyze(ctx context.Context, task string, llmClien
 
 	s.logger.Debug("Starting task pre-analysis")
 
-        prompt := fmt.Sprintf(`You are a planning agent focused on "Info check + defaults + actionable template". Produce a concise, immediately usable plan that surfaces missing inputs, applied defaults, and the next executable steps.
+	prompt := fmt.Sprintf(`You are a planning agent focused on "Info check + defaults + actionable template". Produce a concise, immediately usable plan that surfaces missing inputs, applied defaults, and the next executable steps.
 
 Task:
 """%s"""
@@ -127,26 +127,30 @@ func fallbackTaskAnalysis(task string) *TaskAnalysis {
 	goal := truncateRunes(trimmed, 160)
 
 	action := inferActionFromTask(trimmed)
-        approach := "Check missing inputs, apply reasonable defaults, then deliver an actionable plan."
+	approach := "Gather required details, fill gaps with explicit defaults, then provide the final, ready-to-use output without extra analysis."
 
 	return &TaskAnalysis{
 		ActionName:  action,
 		Goal:        goal,
 		Approach:    approach,
 		RawAnalysis: fmt.Sprintf("Action: %s\nGoal: %s\nApproach: %s", action, goal, approach),
-		Criteria:    []string{"Deliver a complete answer", "Document reasoning for the user"},
-                Steps: []ports.TaskAnalysisStep{
-                        {
-                                Description:          "Confirm required inputs or infer defaults for gaps",
-                                NeedsExternalContext: false,
-                                Rationale:            "Ensure the plan reflects user intent and documented assumptions",
-                        },
-                        {
-                                Description:          "Produce a concise, actionable template or step-by-step plan",
-                                NeedsExternalContext: false,
-                                Rationale:            "Give the user a ready-to-execute outline",
-                        },
-                },
+		Criteria: []string{
+			"Call out assumptions or defaults applied to missing inputs",
+			"Provide a concise, directly usable response",
+			"Avoid superfluous analysis in the final output",
+		},
+		Steps: []ports.TaskAnalysisStep{
+			{
+				Description:          "Identify missing inputs (requirements, constraints) and propose safe defaults",
+				NeedsExternalContext: false,
+				Rationale:            "Align the response with user intent while making assumptions explicit",
+			},
+			{
+				Description:          "Produce the final output or template directly, summarizing assumptions instead of extra analysis",
+				NeedsExternalContext: false,
+				Rationale:            "Keep the answer actionable and focused on deliverables",
+			},
+		},
 	}
 }
 
