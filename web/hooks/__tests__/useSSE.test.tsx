@@ -336,6 +336,7 @@ describe("useSSE", () => {
         ...baseEvent,
         timestamp: new Date(Date.now() + 2000).toISOString(),
         final_answer: "final message",
+        is_streaming: false,
         stream_finished: true,
       };
 
@@ -387,6 +388,7 @@ describe("useSSE", () => {
 
       const finishedEvent: AnyAgentEvent = {
         ...baseEvent,
+        is_streaming: false,
         stream_finished: true,
       };
 
