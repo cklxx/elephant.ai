@@ -31,7 +31,7 @@ func main() {
 	if err := seedUser(opts); err != nil {
 		log.Fatalf("seed test account: %v", err)
 	}
-	log.Printf("Test account ready: %s (password: %s)\n", opts.email, opts.password)
+	log.Printf("Test account ready: %s\n", opts.email)
 }
 
 func parseFlags() userSeedOptions {
