@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
 	id "alex/internal/utils/id"
 )
 
@@ -860,15 +861,19 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) ports.ToolRegistry {
 	// Handle subagent context filtering first
 	registry := s.toolRegistry
+	configPreset := s.config.ToolPreset
+	if configPreset == "" {
+		configPreset = string(presets.ToolPresetOrchestrator)
+	}
 	if isSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()
 		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
 
 		// Apply preset configured for subagents (context overrides allowed)
-		return s.presetResolver.ResolveToolRegistry(ctx, registry, s.config.ToolPreset)
+		return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)
 	}
 
-	return s.presetResolver.ResolveToolRegistry(ctx, registry, s.config.ToolPreset)
+	return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)
 }
 
 func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolRegistry {
