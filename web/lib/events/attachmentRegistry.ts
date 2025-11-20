@@ -91,34 +91,69 @@ class AttachmentRegistry {
     return Object.keys(resolved).length > 0 ? resolved : undefined;
   }
 
+  private hydrateFromContent(
+    content: string,
+    options: { markDisplayed?: boolean; skipDisplayed?: boolean } = {},
+  ): AttachmentMap | undefined {
+    const resolved = this.resolveFromContent(content);
+    if (!resolved) {
+      return undefined;
+    }
+
+    if (options.skipDisplayed) {
+      return this.filterUndisplayed(resolved);
+    }
+
+    if (options.markDisplayed) {
+      this.recordToolAttachments(resolved);
+    } else {
+      this.upsertMany(resolved);
+    }
+
+    return resolved;
+  }
+
   handleEvent(event: AnyAgentEvent) {
     switch (event.event_type) {
       case "user_task":
         this.upsertMany((event as UserTaskEvent).attachments);
         break;
       case "tool_call_complete":
-        this.recordToolAttachments(
-          (event as ToolCallCompleteEvent).attachments as
-            | AttachmentMap
-            | undefined,
+        const toolEvent = event as ToolCallCompleteEvent;
+        const normalizedAttachments = normalizeAttachmentMap(
+          toolEvent.attachments as AttachmentMap | undefined,
         );
+
+        if (normalizedAttachments) {
+          toolEvent.attachments = normalizedAttachments;
+          this.recordToolAttachments(normalizedAttachments);
+        } else {
+          toolEvent.attachments = this.hydrateFromContent(toolEvent.result, {
+            markDisplayed: true,
+          });
+        }
         break;
       case "task_complete": {
         const taskEvent = event as TaskCompleteEvent;
-        const normalized = this.filterUndisplayed(
-          taskEvent.attachments as AttachmentMap | undefined,
-        );
+        const normalized = this.filterUndisplayed(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {
           taskEvent.attachments = normalized;
           this.upsertMany(normalized);
           break;
         }
-        const fallback = this.filterUndisplayed(
-          this.resolveFromContent(taskEvent.final_answer),
-        );
+
+        const fallback = this.hydrateFromContent(taskEvent.final_answer, {
+          skipDisplayed: true,
+        });
         if (fallback) {
           taskEvent.attachments = fallback;
           this.upsertMany(fallback);
+          break;
+        }
+
+        const rendered = this.hydrateFromContent(taskEvent.final_answer);
+        if (rendered) {
+          taskEvent.attachments = rendered;
         }
         break;
       }

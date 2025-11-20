@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { handleAttachmentEvent, resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
-import { TaskCompleteEvent, ToolCallCompleteEvent } from '@/lib/types';
+import { TaskCompleteEvent, ToolCallCompleteEvent, UserTaskEvent } from '@/lib/types';
 
 const baseToolCallEvent = (): ToolCallCompleteEvent => ({
   event_type: 'tool_call_complete',
@@ -30,7 +30,7 @@ describe('attachmentRegistry', () => {
     resetAttachmentRegistry();
   });
 
-  it('does not duplicate attachments already shown via tool events', () => {
+  it('hydrates task_complete events even when attachments were already shown', () => {
     const toolEvent: ToolCallCompleteEvent = {
       ...baseToolCallEvent(),
       attachments: {
@@ -49,7 +49,8 @@ describe('attachmentRegistry', () => {
     };
     handleAttachmentEvent(taskComplete);
 
-    expect(taskComplete.attachments).toBeUndefined();
+    expect(taskComplete.attachments).toBeDefined();
+    expect(taskComplete.attachments?.['generated.png']).toBeDefined();
   });
 
   it('does not leak attachments after reset', () => {
@@ -119,5 +120,35 @@ describe('attachmentRegistry', () => {
 
     expect(taskComplete.attachments).toBeDefined();
     expect(taskComplete.attachments?.['analysis.png']).toBeDefined();
+  });
+
+  it('hydrates tool_call_complete events using stored attachments when missing', () => {
+    const userTask: UserTaskEvent = {
+      event_type: 'user_task',
+      agent_level: 'core',
+      timestamp: new Date().toISOString(),
+      session_id: 'sess-2',
+      task_id: 'task-2',
+      parent_task_id: undefined,
+      task: 'Summarize video',
+      attachments: {
+        'clip.mp4': {
+          name: 'clip.mp4',
+          media_type: 'video/mp4',
+          data: 'YmluYXJ5',
+        },
+      },
+    };
+    handleAttachmentEvent(userTask);
+
+    const toolComplete: ToolCallCompleteEvent = {
+      ...baseToolCallEvent(),
+      result: 'Rendered preview: [clip.mp4]',
+    };
+
+    handleAttachmentEvent(toolComplete);
+
+    expect(toolComplete.attachments).toBeDefined();
+    expect(toolComplete.attachments?.['clip.mp4']).toBeDefined();
   });
 });
