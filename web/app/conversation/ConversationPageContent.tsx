@@ -38,14 +38,12 @@ export function ConversationPageContent() {
   const buildAttachmentMap = useCallback(
     (uploads: AttachmentUpload[]) =>
       uploads.reduce<Record<string, AttachmentPayload>>((acc, att) => {
-        acc[att.name] = {
-          name: att.name,
-          media_type: att.media_type,
-          data: att.data,
-          uri: att.uri,
-          source: att.source,
-          description: att.description,
-        };
+        const { name, ...rest } = att;
+
+        acc[name] = {
+          name,
+          ...rest,
+        } as AttachmentPayload;
         return acc;
       }, {}),
     []
