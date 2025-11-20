@@ -295,7 +295,8 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serialized, err := handler.serializeEvent(tt.event)
+			sentAttachments := make(map[string]struct{})
+			serialized, err := handler.serializeEvent(tt.event, sentAttachments)
 			if err != nil {
 				t.Fatalf("Failed to serialize event: %v", err)
 			}
@@ -417,7 +418,8 @@ func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
 		MaxParallel:    2,
 	}
 
-	data, err := handler.buildEventData(subtask)
+	sentAttachments := make(map[string]struct{})
+	data, err := handler.buildEventData(subtask, sentAttachments)
 	if err != nil {
 		t.Fatalf("buildEventData returned error: %v", err)
 	}
@@ -511,7 +513,8 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		now,
 	)
 
-	payload, err := handler.serializeEvent(event)
+	sentAttachments := make(map[string]struct{})
+	payload, err := handler.serializeEvent(event, sentAttachments)
 	if err != nil {
 		t.Fatalf("serializeEvent returned error: %v", err)
 	}
