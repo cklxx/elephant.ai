@@ -133,10 +133,11 @@ func (m *manager) ShouldCompress(messages []ports.Message, limit int) bool {
 	return float64(m.EstimateTokens(messages)) > float64(limit)*m.threshold
 }
 
-// Compress keeps the system prompt and the last ten messages. When older
-// history is trimmed we inject a lightweight structured summary so the model
-// still has awareness of what was dropped without wasting tokens on verbose
-// placeholders.
+// Compress preserves all system prompts and summarizes everything else when the
+// token budget is exceeded. The summary is inserted where non-system content
+// was first removed so that later system prompts stay in their original order.
+// This keeps governance instructions intact while still giving the model
+// awareness of the trimmed conversation.
 func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
 	if targetTokens <= 0 {
 		return messages, nil
@@ -145,20 +146,43 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	if current <= targetTokens {
 		return messages, nil
 	}
-	if len(messages) <= 11 {
+
+	var (
+		compressed            []ports.Message
+		compressible          []ports.Message
+		summaryInsertionIndex = -1
+	)
+
+	for _, msg := range messages {
+		if msg.Source == ports.MessageSourceSystemPrompt {
+			compressed = append(compressed, msg)
+			continue
+		}
+		if summaryInsertionIndex == -1 {
+			summaryInsertionIndex = len(compressed)
+		}
+		compressible = append(compressible, msg)
+	}
+
+	if len(compressible) == 0 {
 		return messages, nil
 	}
-	head := messages[0]
-	tail := messages[len(messages)-10:]
-	compressed := []ports.Message{head}
-	if summary := buildCompressionSummary(messages[1 : len(messages)-10]); summary != "" {
+
+	if summary := buildCompressionSummary(compressible); summary != "" {
 		compressed = append(compressed, ports.Message{
 			Role:    "system",
 			Content: summary,
 			Source:  ports.MessageSourceSystemPrompt,
 		})
+		if summaryInsertionIndex >= 0 && summaryInsertionIndex < len(compressed)-1 {
+			insert := compressed[len(compressed)-1]
+			copy(compressed[summaryInsertionIndex+1:], compressed[summaryInsertionIndex:])
+			compressed[summaryInsertionIndex] = insert
+		}
+	} else {
+		compressed = append(compressed, compressible...)
 	}
-	compressed = append(compressed, tail...)
+
 	return compressed, nil
 }
 

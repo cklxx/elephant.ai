@@ -428,8 +428,8 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("compress returned error: %v", err)
 	}
-	if len(compressed) != 12 {
-		t.Fatalf("expected 12 messages (head + summary + last 10), got %d", len(compressed))
+	if len(compressed) != 2 {
+		t.Fatalf("expected 2 messages (system prompt + summary), got %d", len(compressed))
 	}
 	summary := compressed[1]
 	if summary.Source != ports.MessageSourceSystemPrompt {
@@ -443,6 +443,38 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	}
 	if strings.Contains(summary.Content, "Previous conversation compressed") {
 		t.Fatalf("legacy placeholder should be removed, got %q", summary.Content)
+	}
+}
+
+func TestCompressPreservesAllSystemPrompts(t *testing.T) {
+	mgr := &manager{}
+	messages := []ports.Message{
+		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "primary system"},
+		{Role: "user", Content: "first"},
+		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "second system"},
+		{Role: "assistant", Content: "second reply"},
+	}
+
+	target := mgr.EstimateTokens(messages) - 1
+	compressed, err := mgr.Compress(messages, target)
+	if err != nil {
+		t.Fatalf("compress returned error: %v", err)
+	}
+
+	if len(compressed) != 3 {
+		t.Fatalf("expected 3 messages (two system prompts + summary), got %d", len(compressed))
+	}
+
+	if compressed[0].Content != "primary system" || compressed[2].Content != "second system" {
+		t.Fatalf("system prompts should be preserved in order, got %+v", compressed)
+	}
+
+	summary := compressed[1]
+	if summary.Source != ports.MessageSourceSystemPrompt || summary.Role != "system" {
+		t.Fatalf("summary should be a system prompt, got %+v", summary)
+	}
+	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s) and 1 assistant response(s)") {
+		t.Fatalf("unexpected summary content: %q", summary.Content)
 	}
 }
 
