@@ -257,6 +257,7 @@ function DocumentRenderer({
         <MarkdownRenderer
           content={renderedContent}
           className={typographyClass}
+          attachments={document.attachments}
           showLineNumbers={showLineNumbers}
         />
         {document.attachments && Object.keys(document.attachments).length > 0 && (

@@ -5,7 +5,10 @@ import MarkdownPreview from "@uiw/react-markdown-preview";
 import remarkGfm from "remark-gfm";
 import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import { ComponentType, useState } from "react";
+import { ComponentType, useMemo, useState } from "react";
+import { VideoPreview } from "@/components/ui/video-preview";
+import { buildAttachmentUri, getAttachmentSegmentType } from "@/lib/attachments";
+import { AttachmentPayload } from "@/lib/types";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type MarkdownRendererProps = {
@@ -22,6 +25,7 @@ type MarkdownRendererProps = {
   className?: string;
   showLineNumbers?: boolean;
   components?: Record<string, ComponentType<any>>;
+  attachments?: Record<string, AttachmentPayload>;
 };
 
 export function MarkdownRenderer({
@@ -30,7 +34,44 @@ export function MarkdownRenderer({
   className,
   showLineNumbers = false,
   components,
+  attachments,
 }: MarkdownRendererProps) {
+  const inlineAttachmentMap = useMemo(() => {
+    if (!attachments) {
+      return new Map<
+        string,
+        {
+          type: string;
+          description?: string;
+          mime?: string;
+        }
+      >();
+    }
+
+    return Object.values(attachments).reduce(
+      (acc, attachment) => {
+        const uri = buildAttachmentUri(attachment);
+        if (!uri) {
+          return acc;
+        }
+        acc.set(uri, {
+          type: getAttachmentSegmentType(attachment),
+          description: attachment.description,
+          mime: attachment.media_type,
+        });
+        return acc;
+      },
+      new Map<
+        string,
+        {
+          type: string;
+          description?: string;
+          mime?: string;
+        }
+      >(),
+    );
+  }, [attachments]);
+
   const defaultCodeRenderer = ({ className, children, ...props }: any) => {
     const match = /language-(\w+)/.exec(className || "");
     const language = (match?.[1] as Language | undefined) ?? "text";
@@ -123,7 +164,24 @@ export function MarkdownRenderer({
     ol: ({ className: olClass, ...props }: any) => (
       <ol className={cn("my-4 list-decimal space-y-2 pl-6", olClass)} {...props} />
     ),
-    img: (props: any) => <MarkdownImage {...props} />,
+    img: ({ src, alt, ...imgProps }: any) => {
+      if (src) {
+        const matchedAttachment = inlineAttachmentMap.get(src);
+        if (matchedAttachment?.type === "video") {
+          return (
+            <VideoPreview
+              src={src}
+              mimeType={matchedAttachment.mime || "video/mp4"}
+              description={matchedAttachment.description || alt}
+              className="my-4 w-full"
+              maxHeight="20rem"
+            />
+          );
+        }
+      }
+
+      return <MarkdownImage src={src} alt={alt} {...imgProps} />;
+    },
   };
 
   const mergedComponents = {
