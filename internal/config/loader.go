@@ -29,7 +29,7 @@ const (
 	DefaultSeedreamTextModel   = "doubao-seedream-3-0-t2i-250415"
 	DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
 	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
-	DefaultSeedreamVideoModel  = "doubao-seedance-1-0-pro-fast-251015"
+DefaultSeedreamVideoModel  = "doubao-seedance-1-0-lite-t2v"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
