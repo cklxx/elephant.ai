@@ -10,10 +10,10 @@ import (
 	"alex/internal/agent/presets"
 )
 
-func TestSelectToolRegistryEnforcesOrchestratorPresetForCoreAgent(t *testing.T) {
-deps := ExecutionPreparationDeps{
-LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}}},
+func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}}},
 		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -27,11 +27,11 @@ ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {
 	service := NewExecutionPreparationService(deps)
 	filtered := service.selectToolRegistry(context.Background())
 
-names := sortedToolNames(filtered.List())
-expected := []string{"final", "subagent", "think", "todo_read", "todo_update"}
+	names := sortedToolNames(filtered.List())
+	expected := []string{"file_read", "final", "subagent", "think", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
-		t.Fatalf("core agent should only see %d tools, got %v", len(expected), names)
+		t.Fatalf("core agent should see %d tools from full preset, got %v", len(expected), names)
 	}
 	for i, want := range expected {
 		if names[i] != want {

@@ -8,7 +8,6 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/agent/presets"
 	id "alex/internal/utils/id"
 )
 
@@ -869,13 +868,7 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) po
 		return s.presetResolver.ResolveToolRegistry(ctx, registry, s.config.ToolPreset)
 	}
 
-	// Force the core agent to run with the orchestrator-only preset so it
-	// can only think, delegate, and finalize work products.
-	presetConfig, _ := ctx.Value(PresetContextKey{}).(PresetConfig)
-	presetConfig.ToolPreset = string(presets.ToolPresetOrchestrator)
-	ctx = context.WithValue(ctx, PresetContextKey{}, presetConfig)
-
-	return s.presetResolver.ResolveToolRegistry(ctx, registry, presetConfig.ToolPreset)
+	return s.presetResolver.ResolveToolRegistry(ctx, registry, s.config.ToolPreset)
 }
 
 func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolRegistry {
