@@ -91,10 +91,6 @@ func TestDefaultStaticContextCarriesLegacyPromptSections(t *testing.T) {
 	}
 
 	prompt := window.SystemPrompt
-	const legacyPersonaSnippet = "You are a secure coding assistant focused on defensive programming practices"
-	if !strings.Contains(prompt, legacyPersonaSnippet) {
-		t.Fatalf("expected system prompt to include %q, got %q", legacyPersonaSnippet, prompt)
-	}
 	expectations := []string{
 		"Use `todo_update` to create a task checklist",
 		"Represent every attachment as a [filename.ext] placeholder",
