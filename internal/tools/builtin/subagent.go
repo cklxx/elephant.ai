@@ -153,19 +153,19 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	// Execute based on mode
 	var results []SubtaskResult
-	var err error
+	var execErr error
 
 	if mode == "parallel" {
-		results, err = t.executeParallel(ctx, subtasks, t.maxWorkers, parentListener, sharedAttachments, sharedIterations)
+		results, execErr = t.executeParallel(ctx, subtasks, t.maxWorkers, parentListener, sharedAttachments, sharedIterations)
 	} else {
-		results, err = t.executeSerial(ctx, subtasks, parentListener, sharedAttachments, sharedIterations)
+		results, execErr = t.executeSerial(ctx, subtasks, parentListener, sharedAttachments, sharedIterations)
 	}
 
-	if err != nil {
+	if execErr != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
-			Content: fmt.Sprintf("Subagent execution failed: %v", err),
-			Error:   err,
+			Content: fmt.Sprintf("Subagent execution failed: %v", execErr),
+			Error:   execErr,
 		}, nil
 	}
 
