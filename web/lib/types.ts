@@ -64,6 +64,7 @@ export interface ThinkCompleteEvent extends AgentEvent {
   iteration: number;
   content: string;
   tool_call_count: number;
+  attachments?: Record<string, AttachmentPayload>;
 }
 
 // Assistant Message Event - emitted as assistant tokens stream in

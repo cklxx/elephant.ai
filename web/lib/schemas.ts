@@ -119,6 +119,7 @@ export const ThinkCompleteEventSchema = BaseAgentEventSchema.extend({
   iteration: z.number(),
   content: z.string(),
   tool_call_count: z.number(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
 // Assistant Message Event

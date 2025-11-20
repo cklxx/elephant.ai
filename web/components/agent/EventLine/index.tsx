@@ -183,6 +183,7 @@ export const EventLine = React.memo(function EventLine({
         task_id: thinkEvent.task_id,
         parent_task_id: thinkEvent.parent_task_id,
         final_answer: thinkEvent.content,
+        attachments: thinkEvent.attachments,
         total_iterations: thinkEvent.iteration,
         total_tokens: 0,
         stop_reason: "think_complete",
