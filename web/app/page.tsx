@@ -2,19 +2,19 @@ import Link from 'next/link';
 
 const highlights = [
   {
-    title: 'Sketch-first UX',
+    title: 'Evidence weaving',
     description:
-      'Spinner treats every fragment like a sketch—playful outlines paired with structured slots for provenance and follow-ups.',
+      'Spinner turns scattered facts, logs, and scratch notes into an actionable knowledge web with traceable connections.',
   },
   {
-    title: 'Conversational coding',
+    title: 'Layered Go backbone',
     description:
-      'Move between natural language, structured prompts, and generated code in one continuous flow without breaking your train of thought.',
+      'It runs the same layered Go backend that powers ALEX, pairing a calm surface with durable infrastructure.',
   },
   {
-    title: 'Console-grade reliability',
+    title: 'Operator-first framing',
     description:
-      'Under the playful lines is a serious developer console with audited history, collaborative sessions, and reproducible builds.',
+      'Designed for analysts, engineers, and operators who need trustworthy provenance while moving quickly.',
   },
 ];
 
@@ -46,12 +46,12 @@ export default function HomePage() {
               <span className="block h-[6px] w-[6px] rounded-full bg-gray-600" /> Spinner Loom Lab
             </p>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-              A sketchbook-style operating system for thoughtful builders.
+              A calm console for weaving fragmented context into clarity.
             </h1>
             <p className="max-w-2xl text-lg text-gray-600">
-              This is the GitHub Pages home for Spinner. Instead of dropping you directly into the conversation view,
-              we pause for a beat—share the story, the craft, and the deliberate simplicity behind a console built to
-              weave scattered evidence into one fabric.
+              Spinner is an AI agent that turns scattered facts, logs, and scratch notes into an actionable knowledge web.
+              It runs the same layered Go backend that powers ALEX, but the framing is focused on weaving together
+              fragmented context for analysts, engineers, and operators.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
@@ -111,10 +111,10 @@ export default function HomePage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
             <div className="flex-1 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Workflow</p>
-              <h2 className="text-3xl font-semibold">From notebook scribbles to production-grade runs</h2>
+              <h2 className="text-3xl font-semibold">From loose notes to production-grade runs</h2>
               <p className="text-gray-600">
-                Spinner pairs a playful surface with an opinionated developer stack. Each step keeps the hand-drawn
-                aesthetic while surfacing the power tools you need when it is time to ship.
+                Spinner pairs a calm, low-saturation surface with an opinionated Go-based stack. Each step keeps context
+                traceable while surfacing the power tools you need when it is time to ship.
               </p>
             </div>
             <div className="flex-1 space-y-6">
