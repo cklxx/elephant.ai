@@ -472,6 +472,21 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 	return sanitized, attachments
 }
 
+// obfuscateSessionID masks session identifiers when logging to avoid leaking
+// potentially sensitive values. It retains a short prefix and suffix to keep
+// logs useful for correlation while hiding the majority of the identifier.
+func obfuscateSessionID(id string) string {
+	if id == "" {
+		return ""
+	}
+
+	if len(id) <= 8 {
+		return "****"
+	}
+
+	return fmt.Sprintf("%s...%s", id[:4], id[len(id)-4:])
+}
+
 // GetLLMClient returns an LLM client
 func (c *AgentCoordinator) GetLLMClient() (ports.LLMClient, error) {
 	client, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, ports.LLMConfig{

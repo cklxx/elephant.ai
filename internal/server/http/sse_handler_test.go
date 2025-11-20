@@ -297,7 +297,8 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serialized, err := handler.serializeEvent(tt.event)
+			sentAttachments := make(map[string]struct{})
+			serialized, err := handler.serializeEvent(tt.event, sentAttachments)
 			if err != nil {
 				t.Fatalf("Failed to serialize event: %v", err)
 			}
@@ -432,7 +433,8 @@ func TestSSEHandler_BuildEventData_SubtaskEvent(t *testing.T) {
 		MaxParallel:    2,
 	}
 
-	data, err := handler.buildEventData(subtask)
+	sentAttachments := make(map[string]struct{})
+	data, err := handler.buildEventData(subtask, sentAttachments)
 	if err != nil {
 		t.Fatalf("buildEventData returned error: %v", err)
 	}
@@ -526,7 +528,8 @@ func TestSSEHandler_SerializeEvent_ContextSnapshot(t *testing.T) {
 		now,
 	)
 
-	payload, err := handler.serializeEvent(event)
+	sentAttachments := make(map[string]struct{})
+	payload, err := handler.serializeEvent(event, sentAttachments)
 	if err != nil {
 		t.Fatalf("serializeEvent returned error: %v", err)
 	}
@@ -642,5 +645,128 @@ func TestSanitizeArguments(t *testing.T) {
 
 	if sanitized["name"] != "example" {
 		t.Fatalf("non-sensitive value changed unexpectedly: %v", sanitized["name"])
+	}
+}
+
+func TestSanitizeAttachmentsForStream_RemovesImagePayloadsAndDeduplicates(t *testing.T) {
+	attachments := map[string]agentports.Attachment{
+		"img.png": {
+			Name:      "img.png",
+			MediaType: "image/png",
+			Data:      "base64-image",
+			Source:    "tool",
+		},
+		"img-no-uri.png": {
+			Name:      "img-no-uri.png",
+			MediaType: "image/png",
+			Data:      "base64-image-without-uri",
+			Source:    "tool",
+		},
+		"document.txt": {
+			Name:      "document.txt",
+			MediaType: "text/plain",
+			Data:      "text-content",
+			Source:    "tool",
+		},
+		"pdf": {
+			Name:      "pdf",
+			MediaType: "application/pdf",
+			Data:      "pdf-data",
+			URI:       "https://cdn.test/doc.pdf",
+			Source:    "tool",
+		},
+	}
+
+	sent := make(map[string]struct{})
+
+	sanitized := sanitizeAttachmentsForStream(attachments, sent)
+	if len(sanitized) != 2 {
+		t.Fatalf("expected only non-image or URI-backed attachments to remain, got %d", len(sanitized))
+	}
+
+	if _, found := sanitized["img.png"]; found {
+		t.Fatalf("expected imageless image payload to be skipped entirely")
+	}
+
+	if _, found := sanitized["img-no-uri.png"]; found {
+		t.Fatalf("expected image without URI to be skipped entirely")
+	}
+
+	if sanitized["document.txt"].Data != "text-content" {
+		t.Fatalf("expected non-image payload to remain, got %q", sanitized["document.txt"].Data)
+	}
+
+	if sanitized["pdf"].Data != "" {
+		t.Fatalf("expected URI-backed payload to be stripped, got %q", sanitized["pdf"].Data)
+	}
+
+	if len(sent) != 4 {
+		t.Fatalf("expected sent registry to include all attachments, got %d", len(sent))
+	}
+
+	// A subsequent call with the same names should be deduplicated entirely.
+	if result := sanitizeAttachmentsForStream(attachments, sent); result != nil {
+		t.Fatalf("expected duplicate attachments to be skipped, got %v", result)
+	}
+}
+
+func TestSerializeMessages_SanitizesAttachmentsAndSkipsRAGPreload(t *testing.T) {
+	msgAttachments := map[string]agentports.Attachment{
+		"img.png": {
+			Name:      "img.png",
+			MediaType: "image/png",
+			Data:      "base64-image",
+			Source:    "tool",
+		},
+		"note.txt": {
+			Name:      "note.txt",
+			MediaType: "text/plain",
+			Data:      "hello",
+			Source:    "tool",
+		},
+	}
+
+	messages := []agentports.Message{
+		{
+			Role: "system",
+			Metadata: map[string]any{
+				"rag_preload": true,
+			},
+		},
+		{
+			Role:        "assistant",
+			Content:     "here you go",
+			Attachments: msgAttachments,
+		},
+		{
+			Role:        "assistant",
+			Content:     "duplicate names should not resend",
+			Attachments: msgAttachments,
+		},
+	}
+
+	sent := make(map[string]struct{})
+	serialized := serializeMessages(messages, sent)
+
+	if got := len(serialized); got != 2 {
+		t.Fatalf("expected 2 serialized messages (skipping rag_preload), got %d", got)
+	}
+
+	attachments, ok := serialized[0]["attachments"].(map[string]agentports.Attachment)
+	if !ok {
+		t.Fatalf("expected attachments map on first assistant message")
+	}
+
+	if attachments["img.png"].Data != "" {
+		t.Fatalf("expected image payload to be stripped, got %q", attachments["img.png"].Data)
+	}
+
+	if attachments["note.txt"].Data != "hello" {
+		t.Fatalf("expected non-image payload to remain, got %q", attachments["note.txt"].Data)
+	}
+
+	// Second assistant message reuses the same attachment names, which should be deduped.
+	if _, ok := serialized[1]["attachments"]; ok {
+		t.Fatalf("expected duplicate attachments to be skipped in later messages")
 	}
 }
