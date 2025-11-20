@@ -21,7 +21,18 @@ export function buildAttachmentUri(
   }
   const data = attachment.data?.trim();
   if (!data) {
-    return null;
+    const previewAssets = attachment.preview_assets ?? [];
+    const preferredAsset = previewAssets.find((asset) => {
+      const mime = asset.mime_type?.toLowerCase() ?? '';
+      const previewType = asset.preview_type?.toLowerCase() ?? '';
+      return (
+        Boolean(asset.cdn_url?.trim()) &&
+        (mime.startsWith('video/') || previewType.includes('video'))
+      );
+    });
+    const fallbackAsset = previewAssets.find((asset) => asset.cdn_url?.trim());
+    const cdnUrl = preferredAsset?.cdn_url?.trim() || fallbackAsset?.cdn_url?.trim();
+    return cdnUrl || null;
   }
   const mediaType = attachment.media_type?.trim() || 'application/octet-stream';
   return `data:${mediaType};base64,${data}`;
@@ -254,6 +265,14 @@ export function getAttachmentSegmentType(
   const kind = attachment.kind?.toLowerCase();
   const previewAssets = attachment.preview_assets ?? [];
   const hasPreviewAssets = previewAssets.length > 0;
+  const hasVideoAsset = previewAssets.some((asset) => {
+    const mime = asset.mime_type?.toLowerCase() ?? '';
+    const previewType = asset.preview_type?.toLowerCase() ?? '';
+    return mime.startsWith('video/') || previewType.includes('video');
+  });
+  if (hasVideoAsset) {
+    return 'video';
+  }
   const hasHtmlAsset = previewAssets.some((asset) => {
     const mime = asset.mime_type?.toLowerCase() ?? '';
     const previewType = asset.preview_type?.toLowerCase() ?? '';

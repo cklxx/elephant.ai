@@ -20,6 +20,14 @@ export const BaseAgentEventSchema = z.object({
   max_parallel: z.number().optional(),
 });
 
+export const AttachmentPreviewAssetPayloadSchema = z.object({
+  asset_id: z.string().optional(),
+  label: z.string().optional(),
+  mime_type: z.string().optional(),
+  cdn_url: z.string().optional(),
+  preview_type: z.string().optional(),
+});
+
 export const AttachmentPayloadSchema = z.object({
   name: z.string(),
   media_type: z.string(),
@@ -27,6 +35,11 @@ export const AttachmentPayloadSchema = z.object({
   uri: z.string().optional(),
   source: z.string().optional(),
   description: z.string().optional(),
+  kind: z.string().optional(),
+  format: z.string().optional(),
+  preview_profile: z.string().optional(),
+  preview_assets: z.array(AttachmentPreviewAssetPayloadSchema).optional(),
+  retention_ttl_seconds: z.number().optional(),
 });
 
 export const MessageSourceSchema = z.enum([
@@ -119,6 +132,7 @@ export const ThinkCompleteEventSchema = BaseAgentEventSchema.extend({
   iteration: z.number(),
   content: z.string(),
   tool_call_count: z.number(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
 // Assistant Message Event
