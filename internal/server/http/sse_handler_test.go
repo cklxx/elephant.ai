@@ -213,6 +213,68 @@ func TestSSEHandler_SkipsContextSnapshotEvents(t *testing.T) {
 	<-done
 }
 
+func TestSSEHandler_SkipsSubtaskContextSnapshotEvents(t *testing.T) {
+	broadcaster := app.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=test-session", nil).WithContext(ctx)
+
+	var mu sync.Mutex
+	var buf bytes.Buffer
+
+	writer := &threadSafeResponseWriter{
+		mu:     &mu,
+		buf:    &buf,
+		header: make(http.Header),
+	}
+
+	done := make(chan bool)
+	go func() {
+		handler.HandleSSEStream(writer, req)
+		done <- true
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	snapshot := domain.NewContextSnapshotEvent(
+		types.LevelSubagent,
+		"test-session",
+		"task-ctx",
+		"parent-task",
+		1,
+		1,
+		"req-1",
+		nil,
+		nil,
+		time.Now(),
+	)
+
+	wrapped := &builtin.SubtaskEvent{
+		OriginalEvent:  snapshot,
+		SubtaskIndex:   0,
+		TotalSubtasks:  1,
+		SubtaskPreview: "delegated task",
+	}
+
+	broadcaster.OnEvent(wrapped)
+
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	body := buf.String()
+	mu.Unlock()
+
+	if strings.Contains(body, "context_snapshot") {
+		t.Fatalf("expected context_snapshot events to be suppressed from SSE stream, got %s", body)
+	}
+
+	cancel()
+	<-done
+}
+
 // threadSafeResponseWriter is a thread-safe ResponseWriter for testing
 type threadSafeResponseWriter struct {
 	mu     *sync.Mutex

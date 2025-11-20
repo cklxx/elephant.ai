@@ -145,11 +145,16 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
+	contextSnapshotEventType := (&domain.ContextSnapshotEvent{}).EventType()
 	shouldStream := func(event ports.AgentEvent) bool {
+		if event == nil {
+			return false
+		}
+
 		// Context snapshots are stored for debugging and analytics but contain
 		// sensitive/internal details that don't need to be pushed to clients in
 		// real time.
-		if _, ok := event.(*domain.ContextSnapshotEvent); ok {
+		if event.EventType() == contextSnapshotEventType {
 			return false
 		}
 		return true
