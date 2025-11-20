@@ -23,7 +23,7 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 
 // Mock EventSource
-  class MockEventSource {
+class MockEventSource {
   url: string;
   onopen: ((event: Event) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
@@ -69,6 +69,14 @@ vi.mock("@/lib/auth/client", () => ({
     this.readyState = 2; // CLOSED
     if (this.onerror) {
       this.onerror(new Event("error"));
+    }
+  }
+
+  simulateErrorWithPayload(data: any): void {
+    this.readyState = 2; // CLOSED
+    if (this.onerror) {
+      const payload = new MessageEvent("error", { data });
+      this.onerror(payload);
     }
   }
 
@@ -498,6 +506,66 @@ describe("useSSE", () => {
       act(() => {
         vi.runOnlyPendingTimers();
       });
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    test("should stop reconnecting when server returns terminal error payload", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-123", { maxReconnectAttempts: 5 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      act(() => {
+        mockEventSource.simulateErrorWithPayload({
+          agent_level: "core",
+          error: "LLM call failed: Fatal error",
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      expect(result.current.isReconnecting).toBe(false);
+      expect(result.current.error).toContain("LLM call failed");
+      expect(result.current.reconnectAttempts).toBe(5);
+
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    test("should read structured error payloads without stringification", async () => {
+      const { result } = renderHook(() =>
+        useSSE("test-session-456", { maxReconnectAttempts: 3 }),
+      );
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      act(() => {
+        mockEventSource.simulateErrorWithPayload({
+          agent_level: "core",
+          error: "Upstream fatal: no retries",
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      expect(result.current.isReconnecting).toBe(false);
+      expect(result.current.error).toContain("Upstream fatal");
+      expect(result.current.reconnectAttempts).toBe(3);
+
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+
       expect(vi.getTimerCount()).toBe(0);
     });
 
