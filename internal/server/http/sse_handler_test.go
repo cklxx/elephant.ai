@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -156,6 +157,60 @@ func TestSSEHandler_StreamingEvents(t *testing.T) {
 	if cacheControl != "no-cache" {
 		t.Errorf("Expected Cache-Control no-cache, got %s", cacheControl)
 	}
+}
+
+func TestSSEHandler_SkipsContextSnapshotEvents(t *testing.T) {
+	broadcaster := app.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id=test-session", nil).WithContext(ctx)
+
+	var mu sync.Mutex
+	var buf bytes.Buffer
+
+	writer := &threadSafeResponseWriter{
+		mu:     &mu,
+		buf:    &buf,
+		header: make(http.Header),
+	}
+
+	done := make(chan bool)
+	go func() {
+		handler.HandleSSEStream(writer, req)
+		done <- true
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	snapshot := domain.NewContextSnapshotEvent(
+		types.LevelCore,
+		"test-session",
+		"task-ctx",
+		"",
+		1,
+		1,
+		"req-1",
+		nil,
+		nil,
+		time.Now(),
+	)
+	broadcaster.OnEvent(snapshot)
+
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	body := buf.String()
+	mu.Unlock()
+
+	if strings.Contains(body, "context_snapshot") {
+		t.Fatalf("expected context_snapshot events to be suppressed from SSE stream, got %s", body)
+	}
+
+	cancel()
+	<-done
 }
 
 // threadSafeResponseWriter is a thread-safe ResponseWriter for testing
