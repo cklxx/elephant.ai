@@ -145,7 +145,21 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
+	shouldStream := func(event ports.AgentEvent) bool {
+		// Context snapshots are stored for debugging and analytics but contain
+		// sensitive/internal details that don't need to be pushed to clients in
+		// real time.
+		if _, ok := event.(*domain.ContextSnapshotEvent); ok {
+			return false
+		}
+		return true
+	}
+
 	sendEvent := func(event ports.AgentEvent) bool {
+		if !shouldStream(event) {
+			return true
+		}
+
 		data, err := h.serializeEvent(event, sentAttachments)
 		if err != nil {
 			h.logger.Error("Failed to serialize event: %v", err)
@@ -276,7 +290,6 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[
 //   - task_cancelled: reason, requested_by
 //   - error: iteration, phase, error, recoverable
 //   - context_compression: original_count, compressed_count, compression_rate
-//   - context_snapshot: iteration, llm_turn_seq, request_id, messages, excluded_messages
 //   - tool_filtering: preset_name, original_count, filtered_count, filtered_tools, tool_filter_ratio
 //   - browser_info: success, message, user_agent, cdp_url, vnc_url, viewport_width, viewport_height, captured
 //   - environment_snapshot: host, sandbox, captured
@@ -433,7 +446,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		data["total_tokens"] = e.TotalTokens
 		data["stop_reason"] = e.StopReason
 		data["duration"] = e.Duration.Milliseconds()
-    data["is_streaming"] = e.IsStreaming
+		data["is_streaming"] = e.IsStreaming
 		data["stream_finished"] = e.StreamFinished
 		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
 			data["attachments"] = sanitized
