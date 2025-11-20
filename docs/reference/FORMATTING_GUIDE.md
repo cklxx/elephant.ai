@@ -170,7 +170,7 @@ Use the `list_files` tool to list files.
 Executing: show me a python hello world
 
 ⏺ 💭think
-  → Analyzing task
+  → Info check + defaults + actionable template
 
 ✓ Task completed in 1 iterations
 Tokens used: 245

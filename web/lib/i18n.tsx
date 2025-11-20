@@ -395,7 +395,7 @@ const translations = {
     "events.toolCall.id": "ID",
     "events.toolCall.start": "Start",
     "events.toolCall.end": "End",
-    "events.taskAnalysis.title": "Analyzing task",
+    "events.taskAnalysis.title": "Info check + defaults + actionable template",
     "events.taskAnalysis.label": "Analysis",
     "events.taskAnalysis.goal": "Goal",
     "events.taskAnalysis.approach": "Approach",
