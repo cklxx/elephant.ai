@@ -450,7 +450,7 @@ function LoginPageContent() {
                     className={clsx(
                       "relative flex-1 rounded-[999px] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foreground))]",
                       item === mode
-                        ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))]"
+                        ? "bg-[hsl(var(--foreground))] text-[hsl(var(--primary-foreground))]"
                         : "bg-white/10 text-[hsl(var(--foreground))]",
                     )}
                     onClick={() => {
@@ -606,7 +606,7 @@ function LoginPageContent() {
 
             <button
               type="submit"
-              className="w-full rounded-[28px] bg-[hsl(var(--foreground))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.35em] text-[hsl(var(--background))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+              className="w-full rounded-[28px] bg-[hsl(var(--foreground))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.35em] text-[hsl(var(--primary-foreground))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
               disabled={isBusy || status === "authenticated"}
             >
               {submitting
