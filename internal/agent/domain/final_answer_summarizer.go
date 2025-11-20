@@ -87,15 +87,9 @@ func (s *FinalAnswerSummarizer) Summarize(
 		},
 	}
 
-	var resp *ports.CompletionResponse
-	var err error
-	if streamLLM, ok := llm.(ports.StreamingLLMClient); ok {
-		resp, err = streamLLM.StreamComplete(ctx, req, streamCallbacks)
-	} else {
-		resp, err = llm.Complete(ctx, req)
-		if err == nil && resp != nil && strings.TrimSpace(resp.Content) != "" {
-			builder.WriteString(resp.Content)
-		}
+	resp, err := llm.StreamComplete(ctx, req, streamCallbacks)
+	if err == nil && resp != nil && strings.TrimSpace(resp.Content) != "" {
+		builder.WriteString(resp.Content)
 	}
 	if err != nil {
 		s.logger.Warn("Final summarization failed: %v", err)

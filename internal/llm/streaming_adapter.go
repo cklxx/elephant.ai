@@ -14,10 +14,10 @@ type streamingAdapter struct {
 
 var _ ports.StreamingLLMClient = (*streamingAdapter)(nil)
 
-// ensureStreamingClient guarantees the returned client implements
+// EnsureStreamingClient guarantees the returned client implements
 // StreamingLLMClient by wrapping non-streaming implementations with a fallback
 // adapter.
-func ensureStreamingClient(client ports.LLMClient) ports.LLMClient {
+func EnsureStreamingClient(client ports.LLMClient) ports.LLMClient {
 	if client == nil {
 		return nil
 	}

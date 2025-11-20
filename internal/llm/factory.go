@@ -106,7 +106,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		return nil, err
 	}
 
-	client = ensureStreamingClient(client)
+	client = EnsureStreamingClient(client)
 
 	// Wrap with retry logic if enabled
 	if enableRetry {

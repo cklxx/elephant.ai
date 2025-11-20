@@ -20,7 +20,7 @@ func (c *nonStreamingClient) Model() string { return "stub" }
 func TestEnsureStreamingClientWrapsNonStreaming(t *testing.T) {
 	base := &nonStreamingClient{content: "hello"}
 
-	wrapped := ensureStreamingClient(base)
+	wrapped := EnsureStreamingClient(base)
 	streaming, ok := wrapped.(ports.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("expected wrapped client to implement StreamingLLMClient")
@@ -51,7 +51,7 @@ func TestEnsureStreamingClientWrapsNonStreaming(t *testing.T) {
 
 func TestEnsureStreamingClientPreservesStreamingImplementation(t *testing.T) {
 	mock := NewMockClient()
-	streaming := ensureStreamingClient(mock)
+	streaming := EnsureStreamingClient(mock)
 	if streaming != mock {
 		t.Fatalf("expected existing streaming client to be returned unchanged")
 	}
