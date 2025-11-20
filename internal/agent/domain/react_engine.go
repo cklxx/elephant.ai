@@ -530,6 +530,12 @@ func (e *ReactEngine) executeToolsWithEvents(
 		attachmentsMu sync.Mutex
 	)
 	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
+	subagentSnapshots := make([]*ports.TaskState, len(calls))
+	for i, call := range calls {
+		if call.Name == "subagent" {
+			subagentSnapshots[i] = buildSubagentStateSnapshot(state, call)
+		}
+	}
 	for i, call := range calls {
 		wg.Add(1)
 		go func(idx int, tc ToolCall) {
@@ -569,7 +575,7 @@ func (e *ReactEngine) executeToolsWithEvents(
 
 			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
 			if tc.Name == "subagent" {
-				if snapshot := buildSubagentStateSnapshot(state, tc); snapshot != nil {
+				if snapshot := subagentSnapshots[idx]; snapshot != nil {
 					toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
 				}
 			}
