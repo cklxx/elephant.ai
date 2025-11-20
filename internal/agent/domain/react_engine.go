@@ -524,24 +524,18 @@ func (e *ReactEngine) executeToolsWithEvents(
 	results := make([]ToolResult, len(calls))
 	e.logger.Debug("Executing %d tools in parallel", len(calls))
 
-	needsStateSnapshot := false
-	for _, call := range calls {
-		if call.Name == "subagent" {
-			needsStateSnapshot = true
-			break
-		}
-	}
-	var stateSnapshot *ports.TaskState
-	if needsStateSnapshot {
-		stateSnapshot = ports.CloneTaskState(state)
-	}
-
 	// Execute in parallel using goroutines
 	var (
 		wg            sync.WaitGroup
 		attachmentsMu sync.Mutex
 	)
 	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
+	subagentSnapshots := make([]*ports.TaskState, len(calls))
+	for i, call := range calls {
+		if call.Name == "subagent" {
+			subagentSnapshots[i] = buildSubagentStateSnapshot(state, call)
+		}
+	}
 	for i, call := range calls {
 		wg.Add(1)
 		go func(idx int, tc ToolCall) {
@@ -580,8 +574,10 @@ func (e *ReactEngine) executeToolsWithEvents(
 			}
 
 			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
-			if needsStateSnapshot && tc.Name == "subagent" {
-				toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, stateSnapshot)
+			if tc.Name == "subagent" {
+				if snapshot := subagentSnapshots[idx]; snapshot != nil {
+					toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
+				}
 			}
 
 			formattedArgs := formatToolArgumentsForLog(tc.Arguments)
