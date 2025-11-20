@@ -702,7 +702,7 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	// Fast-path: when nothing has been sent yet, reuse the original map to
 	// avoid duplicating attachment payloads in memory. We still populate the
 	// sent registry so duplicates can be skipped on later deliveries.
-	if sent == nil || len(sent) == 0 {
+	if len(sent) == 0 {
 		if sent != nil {
 			for name := range attachments {
 				sent[name] = struct{}{}
