@@ -56,22 +56,37 @@ func (m *mockLLMClient) GetCallCount() int {
 	return m.callCount
 }
 
-type nonStreamingOnlyClient struct {
-	*mockLLMClient
-	streamCalled bool
+type streamingClient struct {
+        *mockLLMClient
+        streamCalled bool
 }
 
-func newNonStreamingOnlyClient(model string) *nonStreamingOnlyClient {
-	return &nonStreamingOnlyClient{mockLLMClient: newMockLLMClient(model)}
+func newStreamingClient(model string) *streamingClient {
+	return &streamingClient{mockLLMClient: newMockLLMClient(model)}
 }
 
-func (m *nonStreamingOnlyClient) StreamComplete(
+func (m *streamingClient) StreamComplete(
 	ctx context.Context,
 	req ports.CompletionRequest,
 	callbacks ports.CompletionStreamCallbacks,
 ) (*ports.CompletionResponse, error) {
 	m.streamCalled = true
-	return nil, fmt.Errorf("streaming path should not be used")
+
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Delta: "chunk1"})
+		callbacks.OnContentDelta(ports.ContentDelta{Delta: "chunk2"})
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+	}
+
+	return &ports.CompletionResponse{
+		Content: "chunk1chunk2",
+		Usage: ports.TokenUsage{
+			PromptTokens:     10,
+			CompletionTokens: 5,
+			TotalTokens:      15,
+		},
+		StopReason: "stop",
+	}, nil
 }
 
 // mockCostTracker implements ports.CostTracker with thread-safe storage
@@ -217,16 +232,69 @@ func (m *mockLogger) Warn(format string, args ...interface{}) {
 	m.messages = append(m.messages, fmt.Sprintf(format, args...))
 }
 
-func TestCostTrackingWrapperStreamCompleteUsesNonStreamingPath(t *testing.T) {
+func TestCostTrackingWrapperStreamCompleteDelegatesToStreamingClient(t *testing.T) {
 	t.Parallel()
 
 	tracker := newMockCostTracker()
 	logger := newMockLogger()
 	clock := newMockClock(time.Now())
 	decorator := NewCostTrackingDecorator(tracker, logger, clock)
-	baseClient := newNonStreamingOnlyClient("gpt-4o")
+	baseClient := newStreamingClient("gpt-4o")
 
 	wrapped := decorator.Wrap(context.Background(), "session-stream", baseClient)
+	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	if !ok {
+		t.Fatalf("wrapped client does not implement StreamingLLMClient")
+	}
+
+	var deltas []string
+	var finalCount int
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				deltas = append(deltas, delta.Delta)
+			}
+			if delta.Final {
+				finalCount++
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("StreamComplete returned error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("StreamComplete returned nil response")
+	}
+
+	if !baseClient.streamCalled {
+		t.Fatalf("expected streaming client path to be used")
+	}
+	if got := strings.Join(deltas, ""); got != "chunk1chunk2" {
+		t.Errorf("unexpected aggregated content: %q", got)
+	}
+	if finalCount != 1 {
+		t.Fatalf("expected final event once, got %d", finalCount)
+	}
+
+	records := tracker.GetRecordsBySession("session-stream")
+	if len(records) != 1 {
+		t.Fatalf("expected 1 usage record, got %d", len(records))
+	}
+	if records[0].TotalTokens != resp.Usage.TotalTokens {
+		t.Errorf("recorded tokens mismatch: got %d want %d", records[0].TotalTokens, resp.Usage.TotalTokens)
+	}
+}
+
+func TestCostTrackingWrapperStreamCompleteFallsBackForNonStreamingClient(t *testing.T) {
+	t.Parallel()
+
+	tracker := newMockCostTracker()
+	logger := newMockLogger()
+	clock := newMockClock(time.Now())
+	decorator := NewCostTrackingDecorator(tracker, logger, clock)
+	baseClient := newMockLLMClient("gpt-4o")
+
+	wrapped := decorator.Wrap(context.Background(), "session-fallback", baseClient)
 	streaming, ok := wrapped.(ports.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("wrapped client does not implement StreamingLLMClient")
@@ -257,14 +325,50 @@ func TestCostTrackingWrapperStreamCompleteUsesNonStreamingPath(t *testing.T) {
 	if finalCount != 1 {
 		t.Fatalf("expected final event once, got %d", finalCount)
 	}
-	if baseClient.streamCalled {
-		t.Fatalf("expected streaming path to remain unused")
-	}
 	if baseClient.GetCallCount() != 1 {
 		t.Fatalf("expected single Complete call, got %d", baseClient.GetCallCount())
 	}
 
-	records := tracker.GetRecordsBySession("session-stream")
+	records := tracker.GetRecordsBySession("session-fallback")
+	if len(records) != 1 {
+		t.Fatalf("expected 1 usage record, got %d", len(records))
+	}
+	if records[0].TotalTokens != resp.Usage.TotalTokens {
+		t.Errorf("recorded tokens mismatch: got %d want %d", records[0].TotalTokens, resp.Usage.TotalTokens)
+	}
+}
+
+func TestCostTrackingWrapperStreamCompletePrefersNonStreamingWithoutCallbacks(t *testing.T) {
+	t.Parallel()
+
+	tracker := newMockCostTracker()
+	logger := newMockLogger()
+	clock := newMockClock(time.Now())
+	decorator := NewCostTrackingDecorator(tracker, logger, clock)
+	baseClient := newStreamingClient("gpt-4o")
+
+	wrapped := decorator.Wrap(context.Background(), "session-nonstream", baseClient)
+	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	if !ok {
+		t.Fatalf("wrapped client does not implement StreamingLLMClient")
+	}
+
+	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{}, ports.CompletionStreamCallbacks{})
+	if err != nil {
+		t.Fatalf("StreamComplete returned error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("StreamComplete returned nil response")
+	}
+
+	if baseClient.streamCalled {
+		t.Fatalf("expected streaming path to be skipped when no callbacks are provided")
+	}
+	if baseClient.GetCallCount() != 1 {
+		t.Fatalf("expected Complete to be invoked once, got %d", baseClient.GetCallCount())
+	}
+
+	records := tracker.GetRecordsBySession("session-nonstream")
 	if len(records) != 1 {
 		t.Fatalf("expected 1 usage record, got %d", len(records))
 	}
