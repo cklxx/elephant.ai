@@ -40,6 +40,36 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	}
 }
 
+func TestSelectToolRegistryDefaultsToOrchestratorWhenUnset(t *testing.T) {
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	filtered := service.selectToolRegistry(context.Background())
+
+	names := sortedToolNames(filtered.List())
+	expected := []string{"final", "subagent", "think", "todo_read", "todo_update"}
+
+	if len(names) != len(expected) {
+		t.Fatalf("core agent should default to orchestrator preset tools, got %v", names)
+	}
+	for i, want := range expected {
+		if names[i] != want {
+			t.Fatalf("unexpected tool order/content: got %v, want %v", names, expected)
+		}
+	}
+}
+
 func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
