@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
@@ -498,11 +499,23 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 	if c.contextMgr == nil {
 		return defaultSystemPrompt
 	}
+	personaKey := c.config.AgentPreset
+	toolPreset := c.config.ToolPreset
+	if c.prepService != nil && c.prepService.presetResolver != nil {
+		if resolved, _ := c.prepService.presetResolver.resolveAgentPreset(context.Background(), personaKey); resolved != "" {
+			personaKey = resolved
+		}
+		if resolved, _ := c.prepService.presetResolver.resolveToolPreset(context.Background(), toolPreset); resolved != "" {
+			toolPreset = resolved
+		}
+	} else if toolPreset == "" {
+		toolPreset = string(presets.ToolPresetFull)
+	}
 	session := &ports.Session{ID: "", Messages: nil}
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
-		PersonaKey:         c.config.AgentPreset,
-		ToolPreset:         c.config.ToolPreset,
+		PersonaKey:         personaKey,
+		ToolPreset:         toolPreset,
 		EnvironmentSummary: c.config.EnvironmentSummary,
 	})
 	if err != nil {
