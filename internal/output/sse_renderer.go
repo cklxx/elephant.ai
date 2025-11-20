@@ -49,15 +49,6 @@ func (r *SSERenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain
 	if strings.TrimSpace(event.Approach) != "" {
 		payload["approach"] = event.Approach
 	}
-	if len(event.SuccessCriteria) > 0 {
-		payload["success_criteria"] = append([]string(nil), event.SuccessCriteria...)
-	}
-	if steps := cloneStepsForSSE(event.Steps); len(steps) > 0 {
-		payload["steps"] = steps
-	}
-	if retrieval := cloneRetrievalForSSE(event.Retrieval); retrieval != nil {
-		payload["retrieval_plan"] = retrieval
-	}
 
 	sseEvent := SSEEvent{
 		Type:      "task_analysis",

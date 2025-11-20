@@ -282,7 +282,7 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[
 // backend emits. The current IDL of event_type values (and their primary
 // payload fields) is:
 //   - user_task: task, attachments
-//   - task_analysis: action_name, goal, approach, success_criteria, steps, retrieval_plan
+//   - task_analysis: action_name, goal, approach
 //   - iteration_start: iteration, total_iters
 //   - thinking: iteration, message_count
 //   - think_complete: iteration, content, tool_call_count

@@ -87,22 +87,10 @@ func TestSSERendererTaskAnalysisPayloadIncludesPlan(t *testing.T) {
 	renderer := NewSSERenderer()
 	ctx := &types.OutputContext{Level: types.LevelCore, AgentID: "core", SessionID: "session-1", TaskID: "task-1"}
 	event := &domain.TaskAnalysisEvent{
-		BaseEvent:       domain.BaseEvent{},
-		ActionName:      "Investigate issue",
-		Goal:            "Fix 500 error",
-		Approach:        "Inspect logs then reproduce",
-		SuccessCriteria: []string{"Reproduce error", "Ship patch"},
-		Steps: []ports.TaskAnalysisStep{{
-			Description:          "Collect recent logs",
-			NeedsExternalContext: true,
-			Rationale:            "Verify stack traces",
-		}},
-		Retrieval: ports.TaskRetrievalPlan{
-			ShouldRetrieve: false,
-			LocalQueries:   []string{"error.log", "stack trace"},
-			KnowledgeGaps:  []string{"Root cause hypotheses"},
-			Notes:          "Check staging if prod data insufficient",
-		},
+		BaseEvent:  domain.BaseEvent{},
+		ActionName: "Investigate issue",
+		Goal:       "Fix 500 error",
+		Approach:   "Inspect logs then reproduce",
 	}
 
 	rendered := renderer.RenderTaskAnalysis(ctx, event)
@@ -117,22 +105,13 @@ func TestSSERendererTaskAnalysisPayloadIncludesPlan(t *testing.T) {
 	if payload.Data["approach"] != "Inspect logs then reproduce" {
 		t.Fatalf("expected approach to be present, got %v", payload.Data["approach"])
 	}
-	criteria, ok := payload.Data["success_criteria"].([]interface{})
-	if !ok || len(criteria) != 2 {
-		t.Fatalf("expected success criteria serialized, got %v", payload.Data["success_criteria"])
+	if _, ok := payload.Data["success_criteria"]; ok {
+		t.Fatalf("expected success criteria omitted, got %v", payload.Data["success_criteria"])
 	}
-	steps, ok := payload.Data["steps"].([]interface{})
-	if !ok || len(steps) != 1 {
-		t.Fatalf("expected steps array, got %v", payload.Data["steps"])
+	if _, ok := payload.Data["steps"]; ok {
+		t.Fatalf("expected steps omitted, got %v", payload.Data["steps"])
 	}
-	retrieval, ok := payload.Data["retrieval_plan"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected retrieval plan map, got %T", payload.Data["retrieval_plan"])
-	}
-	if retrieval["should_retrieve"] != true {
-		t.Fatalf("expected coerced retrieval flag true, got %v", retrieval["should_retrieve"])
-	}
-	if _, ok := retrieval["knowledge_gaps"].([]interface{}); !ok {
-		t.Fatalf("expected knowledge gaps slice, got %v", retrieval["knowledge_gaps"])
+	if _, ok := payload.Data["retrieval_plan"]; ok {
+		t.Fatalf("expected retrieval plan omitted, got %v", payload.Data["retrieval_plan"])
 	}
 }

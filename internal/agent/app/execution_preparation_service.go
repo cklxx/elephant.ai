@@ -204,12 +204,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}
 
 	analysis := s.analysis.Analyze(ctx, task, llmClient)
-	if (analysis == nil || strings.TrimSpace(analysis.ActionName) == "") && strings.TrimSpace(task) != "" {
-		if fallback := fallbackTaskAnalysis(task); fallback != nil {
-			s.logger.Debug("Task pre-analysis fallback used")
-			analysis = fallback
-		}
-	}
 	history := s.recallUserHistory(ctx, llmClient, task, analysis, session)
 	var taskAnalysis *ports.TaskAnalysis
 	if analysis != nil && analysis.ActionName != "" {
