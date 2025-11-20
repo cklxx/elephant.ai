@@ -291,6 +291,21 @@ export function useSSE(
 }
 
 export function buildEventSignature(event: AnyAgentEvent): string {
+  // user_task is emitted immediately when a task is created. We may also
+  // optimistically add it on the client to ensure it renders even if the SSE
+  // stream reconnects. Deduping purely by task/session keeps the UI from
+  // showing duplicates when the server replay arrives with a different
+  // timestamp.
+  if (event.event_type === "user_task") {
+    const taskEvent = event as AnyAgentEvent & { task_id?: string };
+    return [
+      event.event_type,
+      event.session_id ?? "",
+      "task_id" in taskEvent && taskEvent.task_id ? taskEvent.task_id : "",
+      taskEvent.task,
+    ].join("|");
+  }
+
   const baseParts = [
     event.event_type,
     event.timestamp ?? '',

@@ -35,6 +35,22 @@ export function ConversationPageContent() {
 
   const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
 
+  const buildAttachmentMap = useCallback(
+    (uploads: AttachmentUpload[]) =>
+      uploads.reduce<Record<string, AttachmentPayload>>((acc, att) => {
+        acc[att.name] = {
+          name: att.name,
+          media_type: att.media_type,
+          data: att.data,
+          uri: att.uri,
+          source: att.source,
+          description: att.description,
+        };
+        return acc;
+      }, {}),
+    []
+  );
+
   useEffect(() => {
     activeTaskIdRef.current = activeTaskId;
   }, [activeTaskId]);
@@ -211,17 +227,7 @@ export function ConversationPageContent() {
         sessionId || currentSessionId || `mock-${submissionTimestamp.getTime().toString(36)}`;
       const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
 
-      const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
-        acc[att.name] = {
-          name: att.name,
-          media_type: att.media_type,
-          data: att.data,
-          uri: att.uri,
-          source: att.source,
-          description: att.description,
-        };
-        return acc;
-      }, {});
+      const attachmentMap = buildAttachmentMap(attachments);
 
       addEvent({
         event_type: 'user_task',
@@ -259,6 +265,18 @@ export function ConversationPageContent() {
             setActiveTaskId(data.task_id);
             setCurrentSession(data.session_id);
             addToHistory(data.session_id);
+
+            const attachmentMap = buildAttachmentMap(attachments);
+            addEvent({
+              event_type: 'user_task',
+              timestamp: new Date().toISOString(),
+              agent_level: 'core',
+              session_id: data.session_id,
+              task_id: data.task_id,
+              parent_task_id: data.parent_task_id,
+              task,
+              attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
+            });
             if (cancelIntentRef.current) {
               setCancelRequested(true);
               performCancellation(data.task_id);
