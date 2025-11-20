@@ -148,9 +148,9 @@ export function MarkdownRenderer({
   );
 }
 
-type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
+export type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
 
-function MarkdownImage({ className, alt, src, style, ...props }: MarkdownImageProps) {
+export function MarkdownImage({ className, alt, src, style, ...props }: MarkdownImageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   if (!src) {

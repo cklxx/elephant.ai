@@ -152,6 +152,84 @@ describe('EventLRUCache', () => {
       expect(usage.eventCount).toBe(100);
       expect(usage.estimatedBytes).toBe(100 * 500); // 500 bytes per event
     });
+
+    it('should replace only the last matching event (adjacent streaming updates)', () => {
+      const first: AnyAgentEvent = {
+        event_type: 'task_complete',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        agent_level: 'core',
+        final_answer: 'first answer',
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: 'final_answer',
+        duration: 1000,
+      };
+      const second: AnyAgentEvent = {
+        ...first,
+        timestamp: '2025-01-01T10:00:01Z',
+        final_answer: 'streaming update',
+      };
+
+      cache.add(first);
+      const replaced = cache.replaceLastIf(
+        (event) => event.event_type === 'task_complete' && event.task_id === 'task-1',
+        second,
+      );
+      if (!replaced) {
+        cache.add(second);
+      }
+
+      expect(replaced).toBe(true);
+      const all = cache.getAll();
+      expect(all).toHaveLength(1);
+      expect(all[0].final_answer).toBe('streaming update');
+    });
+
+    it('should not replace non-adjacent matching events', () => {
+      const first: AnyAgentEvent = {
+        event_type: 'task_complete',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        agent_level: 'core',
+        final_answer: 'first answer',
+        total_iterations: 1,
+        total_tokens: 10,
+        stop_reason: 'final_answer',
+        duration: 1000,
+      };
+      const thinking: AnyAgentEvent = {
+        event_type: 'thinking',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'session-1',
+        agent_level: 'core',
+        iteration: 1,
+        content: '...',
+      };
+      const second: AnyAgentEvent = {
+        ...first,
+        timestamp: '2025-01-01T10:00:02Z',
+        final_answer: 'streaming update',
+      };
+
+      cache.add(first);
+      cache.add(thinking);
+      const replaced = cache.replaceLastIf(
+        (event) => event.event_type === 'task_complete' && event.task_id === 'task-1',
+        second,
+      );
+
+      expect(replaced).toBe(false);
+      if (!replaced) {
+        cache.add(second);
+      }
+      const all = cache.getAll();
+      expect(all).toHaveLength(3);
+      expect(all[0].final_answer).toBe('first answer');
+      expect(all[2].final_answer).toBe('streaming update');
+    });
   });
 });
 

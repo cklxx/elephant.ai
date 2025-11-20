@@ -1,10 +1,17 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { TaskCompleteEvent } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
-import { MarkdownRenderer } from "@/components/ui/markdown";
-import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import { MarkdownImage, MarkdownRenderer } from "@/components/ui/markdown";
+import {
+  parseContentSegments,
+  buildAttachmentUri,
+  replacePlaceholdersWithMarkdown,
+  getAttachmentSegmentType,
+} from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
@@ -21,21 +28,68 @@ interface TaskCompleteCardProps {
 export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
   const answer = event.final_answer ?? "";
+  const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
+    answer,
+    event.attachments,
+  );
+  const inlineAttachmentMap = useMemo(() => {
+    if (!event.attachments) {
+      return new Map<
+        string,
+        {
+          key: string;
+          type: string;
+          description?: string;
+          mime?: string;
+          attachment: NonNullable<TaskCompleteEvent["attachments"]>[string];
+        }
+      >();
+    }
+
+    return Object.entries(event.attachments).reduce(
+      (acc, [key, attachment]) => {
+        const uri = buildAttachmentUri(attachment);
+        if (!uri) {
+          return acc;
+        }
+        acc.set(uri, {
+          key,
+          type: getAttachmentSegmentType(attachment),
+          description: attachment.description,
+          mime: attachment.media_type,
+          attachment,
+        });
+        return acc;
+      },
+      new Map<
+        string,
+        {
+          key: string;
+          type: string;
+          description?: string;
+          mime?: string;
+          attachment: NonNullable<TaskCompleteEvent["attachments"]>[string];
+        }
+      >(),
+    );
+  }, [event.attachments]);
   const segments = parseContentSegments(answer, event.attachments);
-  const textSegments = segments.filter((segment) => segment.type === "text");
-  const textContent = textSegments
-    .map((segment) => segment.text ?? "")
-    .join("");
-  const hasAnswer = textContent.trim().length > 0;
-  const mediaSegments = segments.filter(
+  const referencedPlaceholders = new Set(
+    Array.from(answer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
+  );
+  const hasAnswer = contentWithInlineMedia.trim().length > 0;
+
+  const unreferencedMediaSegments = segments.filter(
     (segment) =>
       (segment.type === "image" || segment.type === "video") &&
-      segment.attachment,
+      segment.attachment &&
+      (!segment.placeholder || !referencedPlaceholders.has(segment.placeholder)),
   );
   const artifactSegments = segments.filter(
     (segment) =>
       (segment.type === "document" || segment.type === "embed") &&
-      segment.attachment,
+      segment.attachment &&
+      (!segment.placeholder || !referencedPlaceholders.has(segment.placeholder)),
   );
 
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
@@ -60,7 +114,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       <div className="mt-2 space-y-4">
         {hasAnswer ? (
           <MarkdownRenderer
-            content={textContent}
+            content={contentWithInlineMedia}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-600"
             components={{
               code: ({ inline, className, children, ...props }: any) => {
@@ -107,6 +161,41 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               strong: ({ children }: any) => (
                 <strong className="font-bold text-slate-600">{children}</strong>
               ),
+              img: ({ src, alt, ...imgProps }: { src?: string; alt?: string }) => {
+                if (!src) {
+                  return null;
+                }
+                const matchedAttachment = inlineAttachmentMap.get(src);
+                if (matchedAttachment?.type === "video") {
+                  return (
+                    <VideoPreview
+                      key={`task-complete-inline-video-${matchedAttachment.key}`}
+                      src={src}
+                      mimeType={matchedAttachment.mime || "video/mp4"}
+                      description={matchedAttachment.description || alt || matchedAttachment.key}
+                      className="w-full"
+                      maxHeight="20rem"
+                    />
+                  );
+                }
+
+                if (matchedAttachment && (matchedAttachment.type === "document" || matchedAttachment.type === "embed")) {
+                  return (
+                    <div className="my-4">
+                      <ArtifactPreviewCard attachment={matchedAttachment.attachment} />
+                    </div>
+                  );
+                }
+
+                return (
+                  <MarkdownImage
+                    src={src}
+                    alt={alt}
+                    className="my-4 max-h-80 w-full object-contain"
+                    {...imgProps}
+                  />
+                );
+              },
             }}
           />
         ) : (
@@ -130,9 +219,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </div>
         )}
 
-        {mediaSegments.length > 0 && (
+        {unreferencedMediaSegments.length > 0 && (
           <div className="flex flex-wrap items-start gap-3">
-            {mediaSegments.map((segment, index) => {
+            {unreferencedMediaSegments.map((segment, index) => {
               if (!segment.attachment) {
                 return null;
               }

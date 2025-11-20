@@ -260,8 +260,14 @@ type TaskCompleteEvent struct {
 	TotalTokens     int
 	StopReason      string
 	Duration        time.Duration
-	SessionStats    *ports.SessionStats // Optional: session-level cost/token accumulation
-	Attachments     map[string]ports.Attachment
+	// IsStreaming signals that this event represents an in-flight streaming
+	// update of the final answer rather than the terminal completion.
+	IsStreaming bool
+	// StreamFinished marks that the streaming sequence has delivered its
+	// final payload. Non-streamed completions set this to true by default.
+	StreamFinished bool
+	SessionStats   *ports.SessionStats // Optional: session-level cost/token accumulation
+	Attachments    map[string]ports.Attachment
 }
 
 func (e *TaskCompleteEvent) EventType() string { return "task_complete" }
@@ -537,4 +543,3 @@ type EventListenerFunc func(AgentEvent)
 func (f EventListenerFunc) OnEvent(event AgentEvent) {
 	f(event)
 }
-

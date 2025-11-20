@@ -69,16 +69,20 @@ func (s *FinalAnswerSummarizer) Summarize(
 	}
 
 	var builder strings.Builder
+	var streamedChunks int
 	streamCallbacks := ports.CompletionStreamCallbacks{
 		OnContentDelta: func(delta ports.ContentDelta) {
 			if delta.Delta != "" {
 				builder.WriteString(delta.Delta)
+				streamedChunks++
 			}
 			if delta.Final {
 				return
 			}
-			if partial := strings.TrimSpace(builder.String()); partial != "" {
-				s.emitStreamingUpdate(ctx, env, result, partial, summaryStart, listener)
+			if streamedChunks > 1 {
+				if partial := strings.TrimSpace(builder.String()); partial != "" {
+					s.emitStreamingUpdate(ctx, env, result, partial, summaryStart, listener)
+				}
 			}
 		},
 	}
@@ -91,9 +95,6 @@ func (s *FinalAnswerSummarizer) Summarize(
 		resp, err = llm.Complete(ctx, req)
 		if err == nil && resp != nil && strings.TrimSpace(resp.Content) != "" {
 			builder.WriteString(resp.Content)
-			if partial := strings.TrimSpace(builder.String()); partial != "" {
-				s.emitStreamingUpdate(ctx, env, result, partial, summaryStart, listener)
-			}
 		}
 	}
 	if err != nil {
@@ -133,6 +134,8 @@ func (s *FinalAnswerSummarizer) emitStreamingUpdate(
 		TotalTokens:     result.TokensUsed,
 		StopReason:      result.StopReason,
 		Duration:        s.effectiveDuration(result, start),
+		IsStreaming:     true,
+		StreamFinished:  false,
 	})
 }
 
@@ -165,6 +168,7 @@ func (s *FinalAnswerSummarizer) emitFinal(
 		TotalTokens:     result.TokensUsed,
 		StopReason:      result.StopReason,
 		Duration:        result.Duration,
+		StreamFinished:  true,
 		Attachments:     attachments,
 	})
 }

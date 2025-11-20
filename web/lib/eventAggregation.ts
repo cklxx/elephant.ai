@@ -426,6 +426,28 @@ export class EventLRUCache {
     }
   }
 
+  /**
+   * Replace the most recent event if it matches the predicate. This keeps streaming
+   * updates adjacent (e.g., task_complete deltas) while preserving older, non-adjacent
+   * events.
+   *
+   * @returns true if a replacement occurred, false otherwise
+   */
+  replaceLastIf(predicate: (event: AnyAgentEvent) => boolean, replacement: AnyAgentEvent): boolean {
+    const lastIndex = this.events.length - 1;
+    if (lastIndex >= 0 && predicate(this.events[lastIndex])) {
+      this.events[lastIndex] = replacement;
+      return true;
+    }
+
+    return false;
+  }
+
+  peekLast(): AnyAgentEvent | undefined {
+    if (this.events.length === 0) return undefined;
+    return this.events[this.events.length - 1];
+  }
+
   addMany(events: AnyAgentEvent[]): void {
     events.forEach((e) => this.add(e));
   }

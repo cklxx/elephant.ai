@@ -430,6 +430,8 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent) (map[string]interfac
 		data["total_tokens"] = e.TotalTokens
 		data["stop_reason"] = e.StopReason
 		data["duration"] = e.Duration.Milliseconds()
+		data["is_streaming"] = e.IsStreaming
+		data["stream_finished"] = e.StreamFinished
 		if len(e.Attachments) > 0 {
 			data["attachments"] = e.Attachments
 		}
