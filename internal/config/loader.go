@@ -27,9 +27,9 @@ const DefaultSandboxBaseURL = "http://localhost:8090"
 // Seedream defaults target the public Volcano Engine Ark deployment in mainland China.
 const (
 	DefaultSeedreamTextModel   = "doubao-seedream-3-0-t2i-250415"
-	DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
-	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
-DefaultSeedreamVideoModel  = "doubao-seedance-1-0-lite-t2v"
+    DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
+    DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
+DefaultSeedreamVideoModel  = "doubao-seedance-1-0-lite-t2v-250428"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
