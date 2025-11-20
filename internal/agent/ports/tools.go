@@ -22,7 +22,7 @@ type ToolExecutor interface {
 
 // ServiceBundle contains all dependencies required by the domain engine
 type ServiceBundle struct {
-	LLM          LLMClient
+	LLM          StreamingLLMClient
 	ToolExecutor ToolRegistry
 	Parser       FunctionCallParser
 	Context      ContextManager
