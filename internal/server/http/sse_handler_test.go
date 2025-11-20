@@ -265,8 +265,10 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 				BaseEvent:       domain.BaseEvent{},
 				FinalAnswer:     "Done",
 				TotalIterations: 3,
+				IsStreaming:     true,
+				StreamFinished:  false,
 			},
-			wantField: "final_answer",
+			wantField: "stream_finished",
 		},
 		{
 			name: "AssistantMessageEvent",
@@ -303,6 +305,19 @@ func TestSSEHandler_SerializeEvent(t *testing.T) {
 
 			if !strings.Contains(serialized, tt.wantField) {
 				t.Errorf("Expected field %s in JSON, got: %s", tt.wantField, serialized)
+			}
+
+			if tc, ok := tt.event.(*domain.TaskCompleteEvent); ok {
+				var payload map[string]any
+				if err := json.Unmarshal([]byte(serialized), &payload); err != nil {
+					t.Fatalf("failed to unmarshal task_complete payload: %v", err)
+				}
+				if payload["is_streaming"] != tc.IsStreaming {
+					t.Fatalf("expected is_streaming=%v, got %v", tc.IsStreaming, payload["is_streaming"])
+				}
+				if payload["stream_finished"] != tc.StreamFinished {
+					t.Fatalf("expected stream_finished=%v, got %v", tc.StreamFinished, payload["stream_finished"])
+				}
 			}
 
 			if ta, ok := tt.event.(*domain.TaskAnalysisEvent); ok {

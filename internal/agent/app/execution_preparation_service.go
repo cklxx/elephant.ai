@@ -112,7 +112,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 
 // Prepare builds the execution environment for a task.
 func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
-	s.logger.Info("PrepareExecution called: task='%s', sessionID='%s'", task, sessionID)
+	s.logger.Info("PrepareExecution called: task='%s'", task)
 
 	session, err := s.loadSession(ctx, sessionID)
 	if err != nil {

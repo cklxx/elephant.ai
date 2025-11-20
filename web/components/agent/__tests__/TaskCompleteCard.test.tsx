@@ -63,4 +63,72 @@ describe('TaskCompleteCard', () => {
       /3 iterations/i,
     );
   });
+
+  it('renders inline images from attachment placeholders', () => {
+    const imageAnswer = 'Here is the preview: [draft.png] with caption.';
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: imageAnswer,
+      stop_reason: 'final_answer',
+      attachments: {
+        'draft.png': {
+          name: 'draft.png',
+          description: 'Draft image',
+          media_type: 'image/png',
+          data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOunS9QAAAAASUVORK5CYII=',
+        },
+      },
+    });
+
+    const img = screen.getByRole('img', { name: /Draft image/i });
+    expect(img).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+  });
+
+  it('renders inline video placeholders with VideoPreview', () => {
+    const videoAnswer = 'Inline demo: [demo.mp4] finished here.';
+    const { container } = renderWithProvider({
+      ...baseEvent,
+      final_answer: videoAnswer,
+      stop_reason: 'final_answer',
+      attachments: {
+        'demo.mp4': {
+          name: 'demo.mp4',
+          description: 'Walkthrough video',
+          media_type: 'video/mp4',
+          uri: 'https://example.com/demo.mp4',
+        },
+      },
+    });
+
+    const video = container.querySelector('video');
+    expect(video).toBeInTheDocument();
+    expect(video?.querySelector('source')?.getAttribute('src')).toBe(
+      'https://example.com/demo.mp4',
+    );
+  });
+
+  it('renders inline document placeholders with artifact preview', () => {
+    const docAnswer = 'See the spec: [plan.pdf]';
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: docAnswer,
+      stop_reason: 'final_answer',
+      attachments: {
+        'plan.pdf': {
+          name: 'plan.pdf',
+          description: 'Project plan',
+          media_type: 'application/pdf',
+          uri: 'https://example.com/plan.pdf',
+          format: 'pdf',
+        },
+      },
+    });
+
+    expect(screen.getByText(/Project plan/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /View/i })).toHaveAttribute(
+      'href',
+      'https://example.com/plan.pdf',
+    );
+  });
 });

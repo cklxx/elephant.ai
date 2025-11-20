@@ -231,6 +231,7 @@ func (e *ReactEngine) SolveTask(
 				TotalTokens:     finalResult.TokensUsed,
 				StopReason:      "cancelled",
 				Duration:        e.clock.Now().Sub(startTime),
+				StreamFinished:  true,
 				Attachments:     attachments,
 			})
 

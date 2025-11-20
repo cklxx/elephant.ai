@@ -376,7 +376,14 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       break;
     case 'task_complete': {
       const complete = event as TaskCompleteEvent;
-      draft.taskStatus = 'completed';
+      const isStreaming = complete.is_streaming === true;
+      const streamFinished = complete.stream_finished !== false;
+
+      if (isStreaming && !streamFinished) {
+        draft.taskStatus = draft.taskStatus === 'idle' ? 'running' : draft.taskStatus;
+      } else {
+        draft.taskStatus = 'completed';
+      }
       draft.finalAnswer = complete.final_answer;
       if (complete.attachments !== undefined) {
         draft.finalAnswerAttachments = complete.attachments as
@@ -427,7 +434,19 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   addEvent: (event: AnyAgentEvent) => {
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
-        draft.eventCache.add(event);
+        if (event.event_type === 'task_complete') {
+          const complete = event as TaskCompleteEvent;
+          const matcher = (existing: AnyAgentEvent) =>
+            existing.event_type === 'task_complete' &&
+            existing.session_id === complete.session_id &&
+            existing.task_id === complete.task_id;
+          const replaced = draft.eventCache.replaceLastIf(matcher, event);
+          if (!replaced) {
+            draft.eventCache.add(event);
+          }
+        } else {
+          draft.eventCache.add(event);
+        }
         applyEventToDraft(draft, event);
       }),
     );
@@ -436,8 +455,20 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   addEvents: (events: AnyAgentEvent[]) => {
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
-        draft.eventCache.addMany(events);
         events.forEach((event) => {
+          if (event.event_type === 'task_complete') {
+            const complete = event as TaskCompleteEvent;
+            const matcher = (existing: AnyAgentEvent) =>
+              existing.event_type === 'task_complete' &&
+              existing.session_id === complete.session_id &&
+              existing.task_id === complete.task_id;
+            const replaced = draft.eventCache.replaceLastIf(matcher, event);
+            if (!replaced) {
+              draft.eventCache.add(event);
+            }
+          } else {
+            draft.eventCache.add(event);
+          }
           applyEventToDraft(draft, event);
         });
       }),
