@@ -157,7 +157,7 @@ func NewUserTaskEvent(
 ) *UserTaskEvent {
 	var cloned map[string]ports.Attachment
 	if len(attachments) > 0 {
-		cloned = cloneAttachmentMap(attachments)
+		cloned = ports.CloneAttachmentMap(attachments)
 	}
 
 	return &UserTaskEvent{
@@ -481,17 +481,6 @@ func cloneStringMap(values map[string]string) map[string]string {
 	return clone
 }
 
-func cloneAttachmentMap(values map[string]ports.Attachment) map[string]ports.Attachment {
-	if values == nil {
-		return nil
-	}
-	clone := make(map[string]ports.Attachment, len(values))
-	for k, v := range values {
-		clone[k] = v
-	}
-	return clone
-}
-
 func cloneMessageSlice(values []ports.Message) []ports.Message {
 	if len(values) == 0 {
 		return nil
@@ -522,7 +511,7 @@ func cloneMessage(msg ports.Message) ports.Message {
 		cloned.Metadata = metadata
 	}
 	if len(msg.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentMap(msg.Attachments)
+		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
 	}
 	return cloned
 }
@@ -537,7 +526,7 @@ func cloneToolResult(result ports.ToolResult) ports.ToolResult {
 		cloned.Metadata = metadata
 	}
 	if len(result.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentMap(result.Attachments)
+		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
 	}
 	return cloned
 }

@@ -23,6 +23,7 @@ import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
 import { AttachmentPayload } from '@/lib/types';
 import { ImagePreview } from '@/components/ui/image-preview';
 import { VideoPreview } from '@/components/ui/video-preview';
+import { ArtifactPreviewCard } from './ArtifactPreviewCard';
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -539,6 +540,10 @@ function GenericOutput({
   const mediaSegments = segments.filter(
     (segment) => segment.type === 'image' || segment.type === 'video',
   );
+  const artifactSegments = segments.filter(
+    (segment) =>
+      (segment.type === 'document' || segment.type === 'embed') && segment.attachment,
+  );
   return (
     <div
       className={cn(
@@ -579,6 +584,23 @@ function GenericOutput({
                 minHeight={fullscreen ? "18rem" : "12rem"}
                 maxHeight={fullscreen ? "28rem" : "18rem"}
                 sizes="(min-width: 1280px) 50vw, (min-width: 768px) 66vw, 100vw"
+              />
+            );
+          })}
+        </div>
+      )}
+      {artifactSegments.length > 0 && (
+        <div className="space-y-3">
+          {artifactSegments.map((segment, index) => {
+            if (!segment.attachment) {
+              return null;
+            }
+            const key = segment.placeholder || `artifact-${index}`;
+            return (
+              <ArtifactPreviewCard
+                key={`generic-output-artifact-${key}`}
+                attachment={segment.attachment}
+                className={fullscreen ? undefined : 'bg-white/80'}
               />
             );
           })}

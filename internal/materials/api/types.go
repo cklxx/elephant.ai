@@ -23,6 +23,15 @@ const (
 	VisibilityPublic      Visibility = 3
 )
 
+// MaterialKind distinguishes attachments from long-lived artifacts.
+type MaterialKind int32
+
+const (
+	MaterialKindUnspecified MaterialKind = 0
+	MaterialKindAttachment  MaterialKind = 1
+	MaterialKindArtifact    MaterialKind = 2
+)
+
 // RequestContext binds a material to a particular runtime invocation.
 type RequestContext struct {
 	RequestID      string
@@ -54,6 +63,10 @@ type MaterialInput struct {
 	SystemAttributes    *SystemAttributes
 	AccessBindings      []*AccessBinding
 	RetentionTTLSeconds uint64
+	Kind                MaterialKind
+	Format              string
+	PreviewProfile      string
+	PreviewAssets       []*PreviewAsset
 }
 
 // LineageEdgeInput describes the parent edge for a newly created material.
@@ -99,6 +112,10 @@ type MaterialDescriptor struct {
 	Tags                map[string]string
 	Annotations         map[string]string
 	RetentionTTLSeconds uint64
+	Kind                MaterialKind
+	Format              string
+	PreviewProfile      string
+	PreviewAssets       []*PreviewAsset
 }
 
 // MaterialStorage captures persistent storage information.
@@ -151,4 +168,13 @@ type MaterialEvent struct {
 	RequestID   string
 	Material    *Material
 	TombstoneID string
+}
+
+// PreviewAsset captures metadata for derived previews (slides, screenshots, etc.).
+type PreviewAsset struct {
+	AssetID     string
+	Label       string
+	MimeType    string
+	CDNURL      string
+	PreviewType string
 }

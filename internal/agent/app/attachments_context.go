@@ -16,7 +16,9 @@ func WithUserAttachments(ctx context.Context, attachments []ports.Attachment) co
 		return ctx
 	}
 	cloned := make([]ports.Attachment, len(attachments))
-	copy(cloned, attachments)
+	for i, att := range attachments {
+		cloned[i] = ports.CloneAttachment(att)
+	}
 	return context.WithValue(ctx, userAttachmentsKey{}, cloned)
 }
 
@@ -43,7 +45,7 @@ func WithInheritedAttachments(ctx context.Context, attachments map[string]ports.
 		return ctx
 	}
 	payload := inheritedAttachmentPayload{
-		attachments: cloneAttachmentMap(attachments),
+		attachments: ports.CloneAttachmentMap(attachments),
 		iterations:  cloneIterationMap(iterations),
 	}
 	return context.WithValue(ctx, inheritedAttachmentsKey{}, payload)
@@ -59,18 +61,7 @@ func GetInheritedAttachments(ctx context.Context) (map[string]ports.Attachment, 
 	if !ok {
 		return nil, nil
 	}
-	return cloneAttachmentMap(value.attachments), cloneIterationMap(value.iterations)
-}
-
-func cloneAttachmentMap(src map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make(map[string]ports.Attachment, len(src))
-	for key, att := range src {
-		cloned[key] = att
-	}
-	return cloned
+	return ports.CloneAttachmentMap(value.attachments), cloneIterationMap(value.iterations)
 }
 
 func cloneIterationMap(src map[string]int) map[string]int {

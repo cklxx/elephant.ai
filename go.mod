@@ -21,6 +21,7 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/posthog/posthog-go v1.6.12
 	github.com/prometheus/client_golang v1.23.2
+	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sergi/go-diff v1.0.0
 	github.com/stretchr/testify v1.11.1
@@ -104,3 +105,5 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace golang.org/x/crypto => golang.org/x/crypto v0.39.0

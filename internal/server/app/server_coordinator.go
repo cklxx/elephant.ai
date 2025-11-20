@@ -725,7 +725,7 @@ func cloneMessage(msg ports.Message) ports.Message {
 		cloned.Metadata = metadata
 	}
 	if len(msg.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentsMap(msg.Attachments)
+		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
 	}
 	return cloned
 }
@@ -740,18 +740,7 @@ func cloneToolResult(result ports.ToolResult) ports.ToolResult {
 		cloned.Metadata = metadata
 	}
 	if len(result.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentsMap(result.Attachments)
-	}
-	return cloned
-}
-
-func cloneAttachmentsMap(values map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]ports.Attachment, len(values))
-	for key, att := range values {
-		cloned[key] = att
+		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
 	}
 	return cloned
 }

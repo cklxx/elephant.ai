@@ -1105,7 +1105,7 @@ func cloneMessageForLLM(msg Message) Message {
 		cloned.Metadata = metadata
 	}
 	if len(msg.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentMapForLLM(msg.Attachments)
+		cloned.Attachments = ports.CloneAttachmentMap(msg.Attachments)
 	}
 	return cloned
 }
@@ -1120,18 +1120,7 @@ func cloneToolResultForLLM(result ToolResult) ToolResult {
 		cloned.Metadata = metadata
 	}
 	if len(result.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentMapForLLM(result.Attachments)
-	}
-	return cloned
-}
-
-func cloneAttachmentMapForLLM(values map[string]ports.Attachment) map[string]ports.Attachment {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]ports.Attachment, len(values))
-	for key, att := range values {
-		cloned[key] = att
+		cloned.Attachments = ports.CloneAttachmentMap(result.Attachments)
 	}
 	return cloned
 }
@@ -1493,7 +1482,7 @@ func registerMessageAttachments(state *TaskState, msg Message) bool {
 		if att.Name == "" {
 			att.Name = placeholder
 		}
-		if existing, ok := state.Attachments[placeholder]; !ok || existing != att {
+		if existing, ok := state.Attachments[placeholder]; !ok || !attachmentsEqual(existing, att) {
 			state.Attachments[placeholder] = att
 			changed = true
 		}
@@ -1503,6 +1492,33 @@ func registerMessageAttachments(state *TaskState, msg Message) bool {
 		state.AttachmentIterations[placeholder] = state.Iterations
 	}
 	return changed
+}
+
+func attachmentsEqual(a, b ports.Attachment) bool {
+	if a.Name != b.Name ||
+		a.MediaType != b.MediaType ||
+		a.Data != b.Data ||
+		a.URI != b.URI ||
+		a.Source != b.Source ||
+		a.Description != b.Description ||
+		a.Kind != b.Kind ||
+		a.Format != b.Format ||
+		a.PreviewProfile != b.PreviewProfile {
+		return false
+	}
+	return previewAssetsEqual(a.PreviewAssets, b.PreviewAssets)
+}
+
+func previewAssetsEqual(a, b []ports.AttachmentPreviewAsset) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 const attachmentCatalogMetadataKey = "attachment_catalog"

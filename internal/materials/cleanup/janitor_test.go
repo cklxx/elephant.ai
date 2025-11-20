@@ -24,6 +24,10 @@ func (f *fakeStore) DeleteExpiredMaterials(ctx context.Context, req store.Delete
 	return f.deleted, f.err
 }
 
+func (f *fakeStore) UpdateRetention(ctx context.Context, materialID string, ttlSeconds uint64) error {
+	return nil
+}
+
 type fakePublisher struct {
 	requestID  string
 	materialID string
@@ -38,16 +42,16 @@ func (f *fakePublisher) PublishTombstone(ctx context.Context, requestID, materia
 
 type trackingMapper struct {
 	storage.Mapper
-	deletedKey string
-	refreshed  bool
-	err        error
+	deletedKeys   []string
+	refreshedKeys []string
+	err           error
 }
 
 func (t *trackingMapper) Delete(ctx context.Context, key string) error {
 	if t.err != nil {
 		return t.err
 	}
-	t.deletedKey = key
+	t.deletedKeys = append(t.deletedKeys, key)
 	return nil
 }
 
@@ -55,13 +59,18 @@ func (t *trackingMapper) Refresh(ctx context.Context, key string) error {
 	if t.err != nil {
 		return t.err
 	}
-	t.refreshed = true
+	t.refreshedKeys = append(t.refreshedKeys, key)
 	return nil
 }
 
 func TestJanitorDeletesAndPublishes(t *testing.T) {
 	mapper := &trackingMapper{Mapper: storage.NewInMemoryMapper("https://cdn")}
-	store := &fakeStore{deleted: []store.DeletedMaterial{{MaterialID: "mat-1", RequestID: "req-1", StorageKey: "materials/foo"}}}
+	store := &fakeStore{deleted: []store.DeletedMaterial{{
+		MaterialID:       "mat-1",
+		RequestID:        "req-1",
+		StorageKey:       "materials/foo",
+		PreviewAssetKeys: []string{"materials/foo-rendered"},
+	}}}
 	publisher := &fakePublisher{}
 	janitor := &Janitor{Store: store, Storage: mapper, Publisher: publisher, Statuses: []materialapi.MaterialStatus{materialapi.MaterialStatusIntermediate}, Now: func() time.Time { return time.Unix(123, 0) }}
 	count, err := janitor.Sweep(context.Background())
@@ -71,8 +80,11 @@ func TestJanitorDeletesAndPublishes(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("expected 1 deletion, got %d", count)
 	}
-	if mapper.deletedKey != "materials/foo" || !mapper.refreshed {
-		t.Fatalf("expected storage cleanup, got %+v", mapper)
+	if len(mapper.deletedKeys) != 2 || mapper.deletedKeys[0] != "materials/foo" || mapper.deletedKeys[1] != "materials/foo-rendered" {
+		t.Fatalf("expected storage cleanup, got %+v", mapper.deletedKeys)
+	}
+	if len(mapper.refreshedKeys) != len(mapper.deletedKeys) {
+		t.Fatalf("expected refresh per deleted key, got %+v", mapper.refreshedKeys)
 	}
 	if publisher.requestID != "req-1" || publisher.materialID != "mat-1" {
 		t.Fatalf("expected tombstone event, got %+v", publisher)

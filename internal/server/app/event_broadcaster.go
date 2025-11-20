@@ -44,6 +44,7 @@ type EventBroadcaster struct {
 const (
 	assistantMessageEventType = "assistant_message"
 	assistantMessageLogBatch  = 10
+	globalHighVolumeSessionID = "__global__"
 )
 
 // broadcasterMetrics tracks broadcaster performance metrics
@@ -411,27 +412,22 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
 	switch e := event.(type) {
 	case *domain.ToolCallCompleteEvent:
-		return cloneAttachmentPayload(e.Attachments)
+		return agentports.CloneAttachmentMap(e.Attachments)
 	case *domain.TaskCompleteEvent:
-		return cloneAttachmentPayload(e.Attachments)
+		return agentports.CloneAttachmentMap(e.Attachments)
 	default:
 		return nil
 	}
 }
 
-func cloneAttachmentPayload(values map[string]agentports.Attachment) map[string]agentports.Attachment {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make(map[string]agentports.Attachment, len(values))
-	for key, att := range values {
-		cloned[key] = att
-	}
-	return cloned
-}
-
+// shouldSuppressHighVolumeLogs determines whether verbose logs should be
+// suppressed for the provided event type. Assistant streaming events are very
+// high volume and can flood the logs, so we only log these events in batches.
 func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEvent) bool {
-	return event != nil && event.EventType() == assistantMessageEventType
+	if event == nil {
+		return false
+	}
+	return event.EventType() == assistantMessageEventType
 }
 
 func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
@@ -440,24 +436,27 @@ func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
 	}
 	sessionID := event.GetSessionID()
 	if sessionID == "" {
-		return
+		sessionID = globalHighVolumeSessionID
 	}
+
 	b.highVolumeMu.Lock()
-	defer b.highVolumeMu.Unlock()
-	count := b.highVolumeCounters[sessionID] + 1
-	b.highVolumeCounters[sessionID] = count
-	if count == 1 || count%assistantMessageLogBatch == 0 {
-		b.logger.Debug("[OnEvent][aggregated] Received %d %s events for session=%s (batch=%d)", count, event.EventType(), sessionID, assistantMessageLogBatch)
+	b.highVolumeCounters[sessionID]++
+	count := b.highVolumeCounters[sessionID]
+	b.highVolumeMu.Unlock()
+
+	if count%assistantMessageLogBatch == 0 {
+		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, event.EventType(), sessionID)
 	}
 }
 
 func (b *EventBroadcaster) clearHighVolumeCounter(sessionID string) {
 	if sessionID == "" {
-		return
+		sessionID = globalHighVolumeSessionID
 	}
+
 	b.highVolumeMu.Lock()
-	defer b.highVolumeMu.Unlock()
 	delete(b.highVolumeCounters, sessionID)
+	b.highVolumeMu.Unlock()
 }
 
 // Metrics helper methods

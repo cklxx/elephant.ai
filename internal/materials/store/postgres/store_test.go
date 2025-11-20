@@ -36,6 +36,16 @@ func TestInsertMaterialsPersistsRowsAndLineage(t *testing.T) {
 			Visibility:          materialapi.VisibilityShared,
 			Tags:                map[string]string{"placeholder": "[material:browser.png]"},
 			RetentionTTLSeconds: 3600,
+			Kind:                materialapi.MaterialKindArtifact,
+			Format:              "png",
+			PreviewProfile:      "image.card",
+			PreviewAssets: []*materialapi.PreviewAsset{{
+				AssetID:     "mat-123-page-1",
+				Label:       "Page 1",
+				MimeType:    "image/png",
+				CDNURL:      "https://cdn/materials/hash/page-1.png",
+				PreviewType: "page",
+			}},
 		},
 		Storage: &materialapi.MaterialStorage{
 			StorageKey:  "materials/hash",
@@ -77,6 +87,10 @@ func TestInsertMaterialsPersistsRowsAndLineage(t *testing.T) {
 		record.Storage.SizeBytes,
 		pgxmock.AnyArg(),
 		record.Descriptor.RetentionTTLSeconds,
+		"artifact",
+		record.Descriptor.Format,
+		record.Descriptor.PreviewProfile,
+		pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	pool.ExpectExec("INSERT INTO material_lineage").WithArgs(
 		record.Lineage[0].ParentMaterialID,
@@ -122,7 +136,9 @@ func TestDeleteExpiredMaterialsRemovesRows(t *testing.T) {
 	s, _ := New(pool)
 	cutoff := time.Unix(123, 0).UTC()
 	pool.ExpectBegin()
-	rows := pgxmock.NewRows([]string{"material_id", "request_id", "storage_key"}).AddRow("mat-1", "req", "materials/foo")
+	rows := pgxmock.NewRows([]string{"material_id", "request_id", "storage_key", "preview_assets"}).AddRow(
+		"mat-1", "req", "materials/foo", []byte(`[{"asset_id":"materials/foo-rendered"}]`),
+	)
 	pool.ExpectQuery("WITH expired").WithArgs(cutoff, []string{"intermediate"}, 50).WillReturnRows(rows)
 	pool.ExpectCommit()
 	deleted, err := s.DeleteExpiredMaterials(context.Background(), store.DeleteExpiredMaterialsRequest{
@@ -135,6 +151,27 @@ func TestDeleteExpiredMaterialsRemovesRows(t *testing.T) {
 	}
 	if len(deleted) != 1 || deleted[0].MaterialID != "mat-1" {
 		t.Fatalf("unexpected deleted materials: %+v", deleted)
+	}
+	if len(deleted[0].PreviewAssetKeys) != 1 || deleted[0].PreviewAssetKeys[0] != "materials/foo-rendered" {
+		t.Fatalf("expected preview asset keys, got %+v", deleted[0].PreviewAssetKeys)
+	}
+	if err := pool.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUpdateRetentionPersistsTTL(t *testing.T) {
+	pool, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("mock pool: %v", err)
+	}
+	defer pool.Close()
+	s, _ := New(pool)
+	pool.ExpectBegin()
+	pool.ExpectExec("UPDATE materials").WithArgs(int64(3600), "mat-ttl").WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	pool.ExpectCommit()
+	if err := s.UpdateRetention(context.Background(), "mat-ttl", 3600); err != nil {
+		t.Fatalf("update retention: %v", err)
 	}
 	if err := pool.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet expectations: %v", err)

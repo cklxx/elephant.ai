@@ -72,6 +72,10 @@ func (s *Store) InsertMaterials(ctx context.Context, materials []store.MaterialR
 		if err != nil {
 			return fmt.Errorf("material %s system attributes: %w", material.MaterialID, err)
 		}
+		previewAssetsJSON, err := marshalPreviewAssets(descriptor.PreviewAssets)
+		if err != nil {
+			return fmt.Errorf("material %s preview assets: %w", material.MaterialID, err)
+		}
 
 		_, err = tx.Exec(ctx, `
 INSERT INTO materials (
@@ -97,9 +101,13 @@ INSERT INTO materials (
     content_hash,
     size_bytes,
     system_attributes,
-    retention_ttl_seconds
+    retention_ttl_seconds,
+    kind,
+    format,
+    preview_profile,
+    preview_assets
 ) VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
 )
 ON CONFLICT (material_id) DO UPDATE SET
     request_id = EXCLUDED.request_id,
@@ -123,7 +131,11 @@ ON CONFLICT (material_id) DO UPDATE SET
     content_hash = EXCLUDED.content_hash,
     size_bytes = EXCLUDED.size_bytes,
     system_attributes = EXCLUDED.system_attributes,
-    retention_ttl_seconds = EXCLUDED.retention_ttl_seconds;
+    retention_ttl_seconds = EXCLUDED.retention_ttl_seconds,
+    kind = EXCLUDED.kind,
+    format = EXCLUDED.format,
+    preview_profile = EXCLUDED.preview_profile,
+    preview_assets = EXCLUDED.preview_assets;
 `,
 			material.MaterialID,
 			contextValue(contextInfo, func(c *materialapi.RequestContext) string { return c.RequestID }),
@@ -148,6 +160,10 @@ ON CONFLICT (material_id) DO UPDATE SET
 			storage.SizeBytes,
 			systemAttrsJSON,
 			descriptor.RetentionTTLSeconds,
+			kindString(descriptor.Kind),
+			descriptor.Format,
+			descriptor.PreviewProfile,
+			previewAssetsJSON,
 		)
 		if err != nil {
 			return fmt.Errorf("insert material %s: %w", material.MaterialID, err)
@@ -233,7 +249,7 @@ func (s *Store) DeleteExpiredMaterials(ctx context.Context, req store.DeleteExpi
 	limitPlaceholder := fmt.Sprintf("$%d", param)
 	query := fmt.Sprintf(`
 WITH expired AS (
-    SELECT material_id, request_id, storage_key
+    SELECT material_id, request_id, storage_key, preview_assets
     FROM materials
     WHERE retention_ttl_seconds > 0
       AND created_at + (retention_ttl_seconds || ' seconds')::interval <= $1
@@ -245,7 +261,7 @@ WITH expired AS (
 DELETE FROM materials m
 USING expired e
 WHERE m.material_id = e.material_id
-RETURNING e.material_id, e.request_id, e.storage_key;
+RETURNING e.material_id, e.request_id, e.storage_key, e.preview_assets;
 `, statusClause, limitPlaceholder)
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
@@ -255,9 +271,15 @@ RETURNING e.material_id, e.request_id, e.storage_key;
 	var deleted []store.DeletedMaterial
 	for rows.Next() {
 		var record store.DeletedMaterial
-		if err := rows.Scan(&record.MaterialID, &record.RequestID, &record.StorageKey); err != nil {
+		var previewAssetsJSON []byte
+		if err := rows.Scan(&record.MaterialID, &record.RequestID, &record.StorageKey, &previewAssetsJSON); err != nil {
 			return nil, fmt.Errorf("scan deleted material: %w", err)
 		}
+		previewKeys, err := parsePreviewAssetIDs(previewAssetsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse preview assets for %s: %w", record.MaterialID, err)
+		}
+		record.PreviewAssetKeys = previewKeys
 		deleted = append(deleted, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -267,6 +289,36 @@ RETURNING e.material_id, e.request_id, e.storage_key;
 		return nil, fmt.Errorf("commit cleanup tx: %w", err)
 	}
 	return deleted, nil
+}
+
+// UpdateRetention updates the stored TTL for an existing material.
+func (s *Store) UpdateRetention(ctx context.Context, materialID string, ttlSeconds uint64) error {
+	if materialID == "" {
+		return errors.New("material id is required")
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin retention tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+	commandTag, err := tx.Exec(ctx, `
+UPDATE materials
+SET retention_ttl_seconds = $1,
+    updated_at = NOW()
+WHERE material_id = $2;
+`, int64(ttlSeconds), materialID)
+	if err != nil {
+		return fmt.Errorf("update retention ttl: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("update retention ttl: material %s not found", materialID)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit retention tx: %w", err)
+	}
+	return nil
 }
 
 func statusStrings(statuses []materialapi.MaterialStatus) []string {
@@ -296,6 +348,59 @@ func marshalSystemAttributes(attrs *materialapi.SystemAttributes) ([]byte, error
 		"extra":            attrs.Extra,
 	}
 	return jsonBytes(payload)
+}
+
+func marshalPreviewAssets(assets []*materialapi.PreviewAsset) ([]byte, error) {
+	if len(assets) == 0 {
+		return []byte("[]"), nil
+	}
+	type previewAsset struct {
+		AssetID     string `json:"asset_id"`
+		Label       string `json:"label"`
+		MimeType    string `json:"mime_type"`
+		CDNURL      string `json:"cdn_url"`
+		PreviewType string `json:"preview_type"`
+	}
+	payload := make([]previewAsset, 0, len(assets))
+	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		payload = append(payload, previewAsset{
+			AssetID:     asset.AssetID,
+			Label:       asset.Label,
+			MimeType:    asset.MimeType,
+			CDNURL:      asset.CDNURL,
+			PreviewType: asset.PreviewType,
+		})
+	}
+	if len(payload) == 0 {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(payload)
+}
+
+func parsePreviewAssetIDs(payload []byte) ([]string, error) {
+	if len(payload) == 0 {
+		return nil, nil
+	}
+	var assets []struct {
+		AssetID string `json:"asset_id"`
+	}
+	if err := json.Unmarshal(payload, &assets); err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		if asset.AssetID == "" {
+			continue
+		}
+		keys = append(keys, asset.AssetID)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	return keys, nil
 }
 
 func jsonBytes(v any) ([]byte, error) {
@@ -334,4 +439,15 @@ func nullableTime(t time.Time) any {
 		return nil
 	}
 	return t.UTC()
+}
+
+func kindString(kind materialapi.MaterialKind) string {
+	switch kind {
+	case materialapi.MaterialKindArtifact:
+		return "artifact"
+	case materialapi.MaterialKindAttachment, materialapi.MaterialKindUnspecified:
+		return "attachment"
+	default:
+		return "attachment"
+	}
 }

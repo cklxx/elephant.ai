@@ -81,11 +81,14 @@ type apiErrorResponse struct {
 
 // AttachmentPayload represents an attachment sent from the client.
 type AttachmentPayload struct {
-	Name        string `json:"name"`
-	MediaType   string `json:"media_type"`
-	Data        string `json:"data,omitempty"`
-	URI         string `json:"uri,omitempty"`
-	Description string `json:"description,omitempty"`
+	Name                string `json:"name"`
+	MediaType           string `json:"media_type"`
+	Data                string `json:"data,omitempty"`
+	URI                 string `json:"uri,omitempty"`
+	Description         string `json:"description,omitempty"`
+	Kind                string `json:"kind,omitempty"`
+	Format              string `json:"format,omitempty"`
+	RetentionTTLSeconds uint64 `json:"retention_ttl_seconds,omitempty"`
 }
 
 type ContextSnapshotItem struct {
@@ -291,12 +294,15 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 		}
 
 		attachment := agentports.Attachment{
-			Name:        name,
-			MediaType:   mediaType,
-			Data:        data,
-			URI:         uri,
-			Description: strings.TrimSpace(incoming.Description),
-			Source:      "user_upload",
+			Name:                name,
+			MediaType:           mediaType,
+			Data:                data,
+			URI:                 uri,
+			Description:         strings.TrimSpace(incoming.Description),
+			Source:              "user_upload",
+			Kind:                strings.TrimSpace(incoming.Kind),
+			Format:              strings.TrimSpace(incoming.Format),
+			RetentionTTLSeconds: incoming.RetentionTTLSeconds,
 		}
 		if attachment.URI == "" && attachment.Data != "" {
 			attachment.URI = fmt.Sprintf("data:%s;base64,%s", attachment.MediaType, attachment.Data)

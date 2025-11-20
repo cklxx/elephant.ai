@@ -135,4 +135,23 @@ type Attachment struct {
 	// Description provides optional human readable context about the
 	// attachment contents.
 	Description string `json:"description,omitempty"`
+	// Kind distinguishes short-lived attachments from long-lived artifacts.
+	Kind string `json:"kind,omitempty"`
+	// Format is a normalized representation of the content format (pptx, html, etc.).
+	Format string `json:"format,omitempty"`
+	// PreviewProfile hints at how clients should render complex artifacts.
+	PreviewProfile string `json:"preview_profile,omitempty"`
+	// PreviewAssets captures derived screenshots/pages for document-style artifacts.
+	PreviewAssets []AttachmentPreviewAsset `json:"preview_assets,omitempty"`
+	// RetentionTTLSeconds allows callers to override default cleanup windows.
+	RetentionTTLSeconds uint64 `json:"retention_ttl_seconds,omitempty"`
+}
+
+// AttachmentPreviewAsset describes a derived preview asset for an attachment.
+type AttachmentPreviewAsset struct {
+	AssetID     string `json:"asset_id,omitempty"`
+	Label       string `json:"label,omitempty"`
+	MimeType    string `json:"mime_type,omitempty"`
+	CDNURL      string `json:"cdn_url,omitempty"`
+	PreviewType string `json:"preview_type,omitempty"`
 }

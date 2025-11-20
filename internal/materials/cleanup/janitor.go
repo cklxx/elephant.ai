@@ -48,12 +48,22 @@ func (j *Janitor) Sweep(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	for _, material := range deleted {
-		if j.Storage != nil && material.StorageKey != "" {
-			if err := j.Storage.Delete(ctx, material.StorageKey); err != nil {
-				return len(deleted), fmt.Errorf("delete storage object %s: %w", material.StorageKey, err)
+		if j.Storage != nil {
+			keys := make([]string, 0, 1+len(material.PreviewAssetKeys))
+			if material.StorageKey != "" {
+				keys = append(keys, material.StorageKey)
 			}
-			if err := j.Storage.Refresh(ctx, material.StorageKey); err != nil {
-				return len(deleted), fmt.Errorf("refresh cdn for %s: %w", material.StorageKey, err)
+			keys = append(keys, material.PreviewAssetKeys...)
+			for _, key := range keys {
+				if key == "" {
+					continue
+				}
+				if err := j.Storage.Delete(ctx, key); err != nil {
+					return len(deleted), fmt.Errorf("delete storage object %s: %w", key, err)
+				}
+				if err := j.Storage.Refresh(ctx, key); err != nil {
+					return len(deleted), fmt.Errorf("refresh cdn for %s: %w", key, err)
+				}
 			}
 		}
 		if j.Publisher != nil && material.RequestID != "" {
