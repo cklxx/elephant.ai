@@ -40,7 +40,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	}
 }
 
-func TestSelectToolRegistryDefaultsToOrchestratorWhenUnset(t *testing.T) {
+func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
@@ -58,10 +58,10 @@ func TestSelectToolRegistryDefaultsToOrchestratorWhenUnset(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background())
 
 	names := sortedToolNames(filtered.List())
-	expected := []string{"final", "subagent", "think", "todo_read", "todo_update"}
+	expected := []string{"bash", "file_read", "final", "subagent", "think", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
-		t.Fatalf("core agent should default to orchestrator preset tools, got %v", names)
+		t.Fatalf("core agent should default to full preset tools, got %v", names)
 	}
 	for i, want := range expected {
 		if names[i] != want {

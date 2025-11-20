@@ -871,7 +871,7 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) po
 	}
 
 	if configPreset == "" {
-		configPreset = string(presets.ToolPresetOrchestrator)
+		configPreset = string(presets.ToolPresetFull)
 	}
 
 	return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)

@@ -12,43 +12,43 @@ import (
 // PresetResolver handles preset resolution for both agent and tool presets.
 // It resolves presets from context (highest priority), config (fallback), or defaults.
 type PresetResolver struct {
-logger       ports.Logger
-clock        ports.Clock
-eventEmitter ports.EventListener
+	logger       ports.Logger
+	clock        ports.Clock
+	eventEmitter ports.EventListener
 }
 
 // PresetResolverDeps enumerates dependencies for PresetResolver
 type PresetResolverDeps struct {
-Logger       ports.Logger
-Clock        ports.Clock
-EventEmitter ports.EventListener
+	Logger       ports.Logger
+	Clock        ports.Clock
+	EventEmitter ports.EventListener
 }
 
 // NewPresetResolver creates a new preset resolver instance.
 func NewPresetResolver(logger ports.Logger) *PresetResolver {
-return NewPresetResolverWithDeps(PresetResolverDeps{Logger: logger})
+	return NewPresetResolverWithDeps(PresetResolverDeps{Logger: logger})
 }
 
 // NewPresetResolverWithDeps creates a new preset resolver with full dependencies
 func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
-logger := deps.Logger
-if logger == nil {
-logger = ports.NoopLogger{}
-}
-clock := deps.Clock
-if clock == nil {
-clock = ports.SystemClock{}
-}
+	logger := deps.Logger
+	if logger == nil {
+		logger = ports.NoopLogger{}
+	}
+	clock := deps.Clock
+	if clock == nil {
+		clock = ports.SystemClock{}
+	}
 	eventEmitter := deps.EventEmitter
 	if eventEmitter == nil {
 		eventEmitter = ports.NoopEventListener{}
 	}
 
-return &PresetResolver{
-logger:       logger,
-clock:        clock,
-eventEmitter: eventEmitter,
-}
+	return &PresetResolver{
+		logger:       logger,
+		clock:        clock,
+		eventEmitter: eventEmitter,
+	}
 }
 
 // ResolveToolRegistry resolves the tool registry based on tool preset configuration.
@@ -162,7 +162,6 @@ func (r *PresetResolver) resolveToolPreset(ctx context.Context, configPreset str
 		return configPreset, "config"
 	}
 
-	// No preset configured
-	return "", ""
+	// No preset configured, default to full tool access
+	return string(presets.ToolPresetFull), "default"
 }
-
