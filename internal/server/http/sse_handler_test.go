@@ -665,12 +665,12 @@ func TestSanitizeAttachmentsForStream_RemovesImagePayloadsAndDeduplicates(t *tes
 	sent := make(map[string]struct{})
 
 	sanitized := sanitizeAttachmentsForStream(attachments, sent)
-	if len(sanitized) != 3 {
-		t.Fatalf("expected 3 attachments (skipping imageless payloads), got %d", len(sanitized))
+	if len(sanitized) != 2 {
+		t.Fatalf("expected only non-image or URI-backed attachments to remain, got %d", len(sanitized))
 	}
 
-	if sanitized["img.png"].Data != "" {
-		t.Fatalf("expected image payload to be stripped, got %q", sanitized["img.png"].Data)
+	if _, found := sanitized["img.png"]; found {
+		t.Fatalf("expected imageless image payload to be skipped entirely")
 	}
 
 	if _, found := sanitized["img-no-uri.png"]; found {
