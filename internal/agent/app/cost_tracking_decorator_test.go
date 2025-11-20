@@ -56,27 +56,9 @@ func (m *mockLLMClient) GetCallCount() int {
 	return m.callCount
 }
 
-type nonStreamingOnlyClient struct {
-	*mockLLMClient
-	streamCalled bool
-}
-
-func newNonStreamingOnlyClient(model string) *nonStreamingOnlyClient {
-	return &nonStreamingOnlyClient{mockLLMClient: newMockLLMClient(model)}
-}
-
-func (m *nonStreamingOnlyClient) StreamComplete(
-	ctx context.Context,
-	req ports.CompletionRequest,
-	callbacks ports.CompletionStreamCallbacks,
-) (*ports.CompletionResponse, error) {
-	m.streamCalled = true
-	return nil, fmt.Errorf("streaming path should not be used")
-}
-
 type streamingClient struct {
-	*mockLLMClient
-	streamCalled bool
+        *mockLLMClient
+        streamCalled bool
 }
 
 func newStreamingClient(model string) *streamingClient {
