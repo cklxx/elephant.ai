@@ -77,14 +77,11 @@ export class SSEClient {
     eventSource.onerror = (error) => {
       if (this.isDisposed) return;
 
-      // Only trigger error callback if connection is actually broken
-      // EventSource.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
-      const closedState =
-        (eventSource as unknown as { CLOSED?: number }).CLOSED ??
-        (typeof EventSource !== "undefined" ? EventSource.CLOSED : undefined);
-      if (closedState === undefined || eventSource.readyState === closedState) {
-        this.options.onError?.(error);
-      }
+      // Always surface errors so callers can decide whether to reconnect.
+      // Some environments do not update readyState reliably when upstream
+      // proxies terminate the stream, which would previously suppress the
+      // callback and leave the UI stuck waiting for events.
+      this.options.onError?.(error);
     };
 
     this.options.eventTypes.forEach((type) => {
