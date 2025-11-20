@@ -105,6 +105,10 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
  * Only show key results and important milestones
  */
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
+  if (event.agent_level === "subagent") {
+    return false;
+  }
+
   switch (event.event_type) {
     // Show user input
     case "user_task":
@@ -129,8 +133,10 @@ function buildDisplayEvents(
   events: AnyAgentEvent[],
 ): AnyAgentEvent[] {
   return events.filter((event) => {
-    return (
-      event.event_type !== "assistant_message" && !shouldSkipEvent(event)
-    );
+    if (event.agent_level === "subagent") {
+      return true;
+    }
+
+    return event.event_type !== "assistant_message" && !shouldSkipEvent(event);
   });
 }

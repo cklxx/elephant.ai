@@ -26,16 +26,38 @@ test.describe('Subagent event rendering', () => {
     await textarea.fill('Review nested tool call output for subagents.');
     await textarea.press('Enter');
 
-    await expect(page.getByText('Subagent Task 1/2')).toBeVisible({ timeout: 30000 });
+    const firstSubagentTimeline = page
+      .getByTestId('event-subagent-iteration_start')
+      .first();
+    await expect(firstSubagentTimeline).toBeVisible({ timeout: 30000 });
     await expect(
-      page.getByText('Research comparable console UX patterns')
+      firstSubagentTimeline.getByText('Research comparable console UX patterns')
     ).toBeVisible();
-    await expect(page.getByText('Parallel ×2').first()).toBeVisible();
+    await expect(firstSubagentTimeline.getByText('Parallel ×2')).toBeVisible();
 
-    await expect(page.getByText('Subagent Task 2/2')).toBeVisible();
+    const secondSubagentTimeline = page
+      .getByTestId('event-subagent-iteration_start')
+      .nth(1);
+    await expect(secondSubagentTimeline).toBeVisible();
     await expect(
-      page.getByText('Inspect tool output rendering implementation')
+      secondSubagentTimeline.getByText(
+        'Inspect tool output rendering implementation'
+      )
     ).toBeVisible();
+
+    const subagentToolStreams = page.getByTestId('event-subagent-tool_call_stream');
+    await expect(subagentToolStreams.nth(0)).toContainText(
+      'Summarizing multi-panel timelines'
+    );
+    await expect(subagentToolStreams.nth(2)).toContainText(
+      'Traced ToolOutputCard props'
+    );
+
+    const subagentToolCompletions = page.getByTestId(
+      'event-subagent-tool_call_complete'
+    );
+    await expect(subagentToolCompletions.first()).toContainText('web_search');
+    await expect(subagentToolCompletions.nth(1)).toContainText('code_search');
 
     const subagentCompletions = page.getByTestId('event-subagent-task_complete');
     await expect(subagentCompletions.first()).toContainText('Validated layout guidance');

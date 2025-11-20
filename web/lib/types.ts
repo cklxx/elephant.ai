@@ -185,6 +185,15 @@ export interface IterationCompleteEvent extends AgentEvent {
   tools_run: number;
 }
 
+// Subagent Progress Event - emitted as delegated agents make progress
+export interface SubagentProgressEvent extends AgentEvent {
+  event_type: 'subagent_progress';
+  completed: number;
+  total: number;
+  tokens: number;
+  tool_calls: number;
+}
+
 // Task Complete Event - emitted when entire task finishes
 export interface TaskCompleteEvent extends AgentEvent {
   event_type: 'task_complete';
@@ -210,6 +219,16 @@ export interface ErrorEvent extends AgentEvent {
   phase: string; // "think", "execute", "observe"
   error: string;
   recoverable: boolean;
+}
+
+// Subagent Complete Event - emitted when delegated agent completes
+export interface SubagentCompleteEvent extends AgentEvent {
+  event_type: 'subagent_complete';
+  total: number;
+  success: number;
+  failed: number;
+  tokens: number;
+  tool_calls: number;
 }
 
 // Research Plan Event - emitted when agent creates a research/execution plan
@@ -382,9 +401,11 @@ export type AnyAgentEvent =
   | ToolCallStreamEvent
   | ToolCallCompleteEvent
   | IterationCompleteEvent
+  | SubagentProgressEvent
   | TaskCancelledEvent
   | TaskCompleteEvent
   | ErrorEvent
+  | SubagentCompleteEvent
   | ResearchPlanEvent
   | StepStartedEvent
   | StepCompletedEvent
