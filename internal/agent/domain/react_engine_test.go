@@ -60,11 +60,11 @@ func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
 			return &ports.CompletionResponse{Content: "Done.", StopReason: "stop"}, nil
 		},
 	}
-services := domain.Services{
-LLM:          mockLLM,
-ToolExecutor: &mocks.MockToolRegistry{},
-Parser:       &mocks.MockParser{},
-Context:      &mocks.MockContextManager{},
+	services := domain.Services{
+		LLM:          mockLLM,
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
 	}
 	engine := newReactEngineForTest(1)
 	state := &domain.TaskState{
@@ -415,9 +415,22 @@ func TestReactEngine_EventListenerReceivesEvents(t *testing.T) {
 		t.Fatalf("expected listener to be registered")
 	}
 
-	_, err := engine.SolveTask(context.Background(), "summarize", &domain.TaskState{SessionID: "sess"}, services)
+	state := &domain.TaskState{SessionID: "sess"}
+	result, err := engine.SolveTask(context.Background(), "summarize", state, services)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
+	}
+
+	env := &ports.ExecutionEnvironment{
+		State: state,
+		Services: ports.ServiceBundle{
+			LLM: mockLLM,
+		},
+	}
+
+	summarizer := domain.NewFinalAnswerSummarizer(ports.NoopLogger{}, ports.SystemClock{})
+	if _, err := summarizer.Summarize(context.Background(), env, result, listener); err != nil {
+		t.Fatalf("expected summarization to succeed, got %v", err)
 	}
 
 	if len(listener.events) == 0 {
@@ -475,12 +488,12 @@ func TestReactEngine_TaskCompleteSkipsUnreferencedGeneratedAttachments(t *testin
 		Iterations: 0,
 	}
 
-result, err := engine.SolveTask(context.Background(), "Describe the latest assets", state, services)
-if err != nil {
-t.Fatalf("expected no error, got %v", err)
-}
+	result, err := engine.SolveTask(context.Background(), "Describe the latest assets", state, services)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 
-if result.Answer != "All done." {
-t.Fatalf("expected final answer to remain unchanged, got %q", result.Answer)
-}
+	if result.Answer != "All done." {
+		t.Fatalf("expected final answer to remain unchanged, got %q", result.Answer)
+	}
 }
