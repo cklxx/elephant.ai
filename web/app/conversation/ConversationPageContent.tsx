@@ -205,35 +205,34 @@ export function ConversationPageContent() {
     cancelIntentRef.current = false;
     setCancelRequested(false);
 
-    const submissionTimestamp = new Date();
-    const provisionalSessionId = useMockStream
-      ? sessionId || currentSessionId || `mock-${submissionTimestamp.getTime().toString(36)}`
-      : resolvedSessionId ?? 'pending-session';
-
-    const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
-      acc[att.name] = {
-        name: att.name,
-        media_type: att.media_type,
-        data: att.data,
-        uri: att.uri,
-        source: att.source,
-        description: att.description,
-      };
-      return acc;
-    }, {});
-
-    addEvent({
-      event_type: 'user_task',
-      timestamp: submissionTimestamp.toISOString(),
-      agent_level: 'core',
-      session_id: provisionalSessionId,
-      task_id: taskId ?? undefined,
-      task,
-      attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
-    });
-
     if (useMockStream) {
+      const submissionTimestamp = new Date();
+      const provisionalSessionId =
+        sessionId || currentSessionId || `mock-${submissionTimestamp.getTime().toString(36)}`;
       const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
+
+      const attachmentMap = attachments.reduce<Record<string, AttachmentPayload>>((acc, att) => {
+        acc[att.name] = {
+          name: att.name,
+          media_type: att.media_type,
+          data: att.data,
+          uri: att.uri,
+          source: att.source,
+          description: att.description,
+        };
+        return acc;
+      }, {});
+
+      addEvent({
+        event_type: 'user_task',
+        timestamp: submissionTimestamp.toISOString(),
+        agent_level: 'core',
+        session_id: provisionalSessionId,
+        task_id: mockTaskId,
+        task,
+        attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
+      });
+
       setSessionId(provisionalSessionId);
       setTaskId(mockTaskId);
       setActiveTaskId(mockTaskId);
