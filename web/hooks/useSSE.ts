@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { AnyAgentEvent } from "@/lib/types";
+import { AnyAgentEvent, UserTaskEvent } from "@/lib/types";
 import { agentEventBus } from "@/lib/events/eventBus";
 import { defaultEventRegistry } from "@/lib/events/eventRegistry";
 import { resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
@@ -297,11 +297,11 @@ export function buildEventSignature(event: AnyAgentEvent): string {
   // showing duplicates when the server replay arrives with a different
   // timestamp.
   if (event.event_type === "user_task") {
-    const taskEvent = event as AnyAgentEvent & { task_id?: string };
+    const taskEvent = event as UserTaskEvent;
     return [
-      event.event_type,
-      event.session_id ?? "",
-      "task_id" in taskEvent && taskEvent.task_id ? taskEvent.task_id : "",
+      taskEvent.event_type,
+      taskEvent.session_id ?? "",
+      taskEvent.task_id ?? "",
       taskEvent.task,
     ].join("|");
   }
