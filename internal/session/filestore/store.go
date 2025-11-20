@@ -72,14 +72,14 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("session not found: %s", id)
+		return nil, fmt.Errorf("session not found")
 	}
 	var session ports.Session
 	if err := json.Unmarshal(data, &session); err != nil {
 		if s.logger != nil {
 			s.logger.Error("Failed to decode session file %s: %v. Preview: %s", path, err, previewJSON(data))
 		}
-		return nil, fmt.Errorf("failed to decode session %s: %w", id, err)
+		return nil, fmt.Errorf("failed to decode session: %w", err)
 	}
 	return &session, nil
 }
