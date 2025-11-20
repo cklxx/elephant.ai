@@ -765,7 +765,7 @@ func TestSanitizeArguments(t *testing.T) {
 	}
 }
 
-func TestSanitizeAttachmentsForStream_RemovesImagePayloadsAndDeduplicates(t *testing.T) {
+func TestSanitizeAttachmentsForStream_DeduplicatesWithoutReplacing(t *testing.T) {
 	attachments := map[string]agentports.Attachment{
 		"img.png": {
 			Name:      "img.png",
@@ -797,24 +797,24 @@ func TestSanitizeAttachmentsForStream_RemovesImagePayloadsAndDeduplicates(t *tes
 	sent := make(map[string]struct{})
 
 	sanitized := sanitizeAttachmentsForStream(attachments, sent)
-	if len(sanitized) != 2 {
-		t.Fatalf("expected only non-image or URI-backed attachments to remain, got %d", len(sanitized))
+	if len(sanitized) != 4 {
+		t.Fatalf("expected all attachments to remain on first delivery, got %d", len(sanitized))
 	}
 
-	if _, found := sanitized["img.png"]; found {
-		t.Fatalf("expected imageless image payload to be skipped entirely")
+	if sanitized["img.png"].Data != "base64-image" {
+		t.Fatalf("expected image payload to remain, got %q", sanitized["img.png"].Data)
 	}
 
-	if _, found := sanitized["img-no-uri.png"]; found {
-		t.Fatalf("expected image without URI to be skipped entirely")
+	if sanitized["img-no-uri.png"].Data != "base64-image-without-uri" {
+		t.Fatalf("expected image without URI to remain, got %q", sanitized["img-no-uri.png"].Data)
 	}
 
 	if sanitized["document.txt"].Data != "text-content" {
 		t.Fatalf("expected non-image payload to remain, got %q", sanitized["document.txt"].Data)
 	}
 
-	if sanitized["pdf"].Data != "" {
-		t.Fatalf("expected URI-backed payload to be stripped, got %q", sanitized["pdf"].Data)
+	if sanitized["pdf"].Data != "pdf-data" {
+		t.Fatalf("expected URI-backed payload to remain, got %q", sanitized["pdf"].Data)
 	}
 
 	if len(sent) != 4 {
@@ -824,6 +824,27 @@ func TestSanitizeAttachmentsForStream_RemovesImagePayloadsAndDeduplicates(t *tes
 	// A subsequent call with the same names should be deduplicated entirely.
 	if result := sanitizeAttachmentsForStream(attachments, sent); result != nil {
 		t.Fatalf("expected duplicate attachments to be skipped, got %v", result)
+	}
+}
+
+func TestSanitizeAttachmentsForStream_ReusesOriginalMapWhenFresh(t *testing.T) {
+	attachments := map[string]agentports.Attachment{
+		"img.png": {Name: "img.png", MediaType: "image/png", Data: "iVBORw0"},
+	}
+
+	sent := make(map[string]struct{})
+	sanitized := sanitizeAttachmentsForStream(attachments, sent)
+
+	// Mutate the original map after sanitization to confirm the returned
+	// map shares the same backing storage instead of duplicating payloads.
+	attachments["extra.bin"] = agentports.Attachment{MediaType: "application/octet-stream", Data: "payload"}
+
+	if _, ok := sanitized["extra.bin"]; !ok {
+		t.Fatalf("expected sanitized map to reuse original attachments backing map")
+	}
+
+	if len(sent) != 1 {
+		t.Fatalf("expected sent registry to include original attachments, got %d", len(sent))
 	}
 }
 
@@ -874,8 +895,8 @@ func TestSerializeMessages_SanitizesAttachmentsAndSkipsRAGPreload(t *testing.T) 
 		t.Fatalf("expected attachments map on first assistant message")
 	}
 
-	if attachments["img.png"].Data != "" {
-		t.Fatalf("expected image payload to be stripped, got %q", attachments["img.png"].Data)
+	if attachments["img.png"].Data != "base64-image" {
+		t.Fatalf("expected image payload to remain, got %q", attachments["img.png"].Data)
 	}
 
 	if attachments["note.txt"].Data != "hello" {

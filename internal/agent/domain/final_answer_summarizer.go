@@ -113,10 +113,10 @@ func (s *FinalAnswerSummarizer) Summarize(
 }
 
 func (s *FinalAnswerSummarizer) emitStreamingUpdate(
-	ctx context.Context,
-	env *ports.ExecutionEnvironment,
-	result *TaskResult,
-	content string,
+        ctx context.Context,
+        env *ports.ExecutionEnvironment,
+        result *TaskResult,
+        content string,
 	start time.Time,
 	listener EventListener,
 ) {
@@ -125,37 +125,36 @@ func (s *FinalAnswerSummarizer) emitStreamingUpdate(
 	}
 	partial := strings.TrimSpace(content)
 	if partial == "" {
-		return
-	}
-	listener.OnEvent(&TaskCompleteEvent{
-		BaseEvent:       s.baseEvent(ctx, env.State),
-		FinalAnswer:     ensureAttachmentPlaceholders(partial, env.State.Attachments),
-		TotalIterations: result.Iterations,
-		TotalTokens:     result.TokensUsed,
-		StopReason:      result.StopReason,
-		Duration:        s.effectiveDuration(result, start),
-		IsStreaming:     true,
+                return
+        }
+        listener.OnEvent(&TaskCompleteEvent{
+                BaseEvent:       s.baseEvent(ctx, env.State),
+                FinalAnswer:     partial,
+                TotalIterations: result.Iterations,
+                TotalTokens:     result.TokensUsed,
+                StopReason:      result.StopReason,
+                Duration:        s.effectiveDuration(result, start),
+                IsStreaming:     true,
 		StreamFinished:  false,
 	})
 }
 
 func (s *FinalAnswerSummarizer) emitFinal(
-	ctx context.Context,
-	env *ports.ExecutionEnvironment,
-	result *TaskResult,
-	content string,
-	start time.Time,
-	listener EventListener,
+        ctx context.Context,
+        env *ports.ExecutionEnvironment,
+        result *TaskResult,
+        content string,
+        start time.Time,
+        listener EventListener,
 ) {
-	finalAnswer := strings.TrimSpace(content)
-	if finalAnswer == "" {
-		finalAnswer = strings.TrimSpace(result.Answer)
-	}
-	attachments := resolveContentAttachments(finalAnswer, env.State)
-	finalAnswer = ensureAttachmentPlaceholders(finalAnswer, attachments)
+        finalAnswer := strings.TrimSpace(content)
+        if finalAnswer == "" {
+                finalAnswer = strings.TrimSpace(result.Answer)
+        }
+        attachments := resolveContentAttachments(finalAnswer, env.State)
 
-	result.Answer = finalAnswer
-	result.Duration = s.effectiveDuration(result, start)
+        result.Answer = finalAnswer
+        result.Duration = s.effectiveDuration(result, start)
 
 	if listener == nil {
 		return

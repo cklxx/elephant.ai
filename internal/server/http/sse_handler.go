@@ -717,43 +717,31 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 		return nil
 	}
 
-	result := make(map[string]ports.Attachment, len(attachments))
-	for name, attachment := range attachments {
+	// Fast-path: when nothing has been sent yet, reuse the original map to
+	// avoid duplicating attachment payloads in memory. We still populate the
+	// sent registry so duplicates can be skipped on later deliveries.
+	if len(sent) == 0 {
 		if sent != nil {
-			if _, alreadySent := sent[name]; alreadySent {
-				continue
-			}
-		}
-
-		copy := attachment
-		mediaType := strings.ToLower(copy.MediaType)
-		if strings.TrimSpace(copy.Data) != "" {
-			if strings.HasPrefix(mediaType, "image/") || copy.URI != "" {
-				copy.Data = ""
-			}
-		}
-
-		// If an image has no URI fallback, it is only useful to the backend and
-		// should not be streamed to the frontend. Mark it as sent so subsequent
-		// events still deduplicate properly.
-		if strings.HasPrefix(mediaType, "image/") && strings.TrimSpace(copy.URI) == "" && copy.Data == "" {
-			if sent != nil {
+			for name := range attachments {
 				sent[name] = struct{}{}
 			}
+		}
+		return attachments
+	}
+
+	var unsent map[string]ports.Attachment
+	for name, attachment := range attachments {
+		if _, alreadySent := sent[name]; alreadySent {
 			continue
 		}
-
-		result[name] = copy
-		if sent != nil {
-			sent[name] = struct{}{}
+		if unsent == nil {
+			unsent = make(map[string]ports.Attachment)
 		}
+		unsent[name] = attachment
+		sent[name] = struct{}{}
 	}
 
-	if len(result) == 0 {
-		return nil
-	}
-
-	return result
+	return unsent
 }
 
 func serializeMessages(messages []ports.Message, sentAttachments map[string]struct{}) []map[string]any {

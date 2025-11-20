@@ -22,9 +22,11 @@ func TestFinalAnswerSummarizerSummarizesWithoutStreaming(t *testing.T) {
 		},
 		SessionID:            "sess-123",
 		TaskID:               "task-abc",
-		Attachments:          map[string]ports.Attachment{"report.pdf": {Name: "report.pdf", MediaType: "application/pdf"}},
-		AttachmentIterations: map[string]int{"report.pdf": 1},
-	}
+                Attachments: map[string]ports.Attachment{
+                        "report.pdf": {Name: "report.pdf", MediaType: "application/pdf", URI: "https://cdn.example/report.pdf"},
+                },
+                AttachmentIterations: map[string]int{"report.pdf": 1},
+        }
 
 	var capturedRequest ports.CompletionRequest
 	mockLLM := &mocks.MockLLMClient{
@@ -59,10 +61,10 @@ func TestFinalAnswerSummarizerSummarizesWithoutStreaming(t *testing.T) {
 		t.Fatalf("expected duration to be preserved, got %v", updated.Duration)
 	}
 
-	if len(events) != 1 {
-		t.Fatalf("expected a single completion event without duplicate streaming payloads, got %d", len(events))
-	}
-	finalEvent := events[0]
+        if len(events) != 1 {
+                t.Fatalf("expected a single completion event without duplicate streaming payloads, got %d", len(events))
+        }
+        finalEvent := events[0]
         if finalEvent.StopReason != "final_answer" {
                 t.Fatalf("expected stop reason to propagate, got %q", finalEvent.StopReason)
         }
@@ -75,9 +77,12 @@ func TestFinalAnswerSummarizerSummarizesWithoutStreaming(t *testing.T) {
         if len(finalEvent.Attachments) != 1 {
                 t.Fatalf("expected attachment to be forwarded, got %d", len(finalEvent.Attachments))
         }
-	if finalEvent.Attachments["report.pdf"].Name != "report.pdf" {
-		t.Fatalf("unexpected attachment payload: %+v", finalEvent.Attachments["report.pdf"])
-	}
+        if finalEvent.Attachments["report.pdf"].Name != "report.pdf" {
+                t.Fatalf("unexpected attachment payload: %+v", finalEvent.Attachments["report.pdf"])
+        }
+        if strings.Contains(finalEvent.FinalAnswer, "(https://cdn.example/report.pdf)") {
+                t.Fatalf("expected summarizer to avoid replacing attachment references in final answer, got %q", finalEvent.FinalAnswer)
+        }
 
 	if len(capturedRequest.Messages) != 2 {
 		t.Fatalf("expected summarizer prompt to include 2 messages, got %d", len(capturedRequest.Messages))
@@ -98,9 +103,11 @@ func TestFinalAnswerSummarizerStreamsDeltas(t *testing.T) {
 		},
 		SessionID:            "sess-999",
 		TaskID:               "task-999",
-		Attachments:          map[string]ports.Attachment{"report.pdf": {Name: "report.pdf", MediaType: "application/pdf"}},
-		AttachmentIterations: map[string]int{"report.pdf": 1},
-	}
+                Attachments: map[string]ports.Attachment{
+                        "report.pdf": {Name: "report.pdf", MediaType: "application/pdf", URI: "https://cdn.example/report.pdf"},
+                },
+                AttachmentIterations: map[string]int{"report.pdf": 1},
+        }
 
 	streamCalled := false
 	mockLLM := &mocks.MockLLMClient{
@@ -142,6 +149,9 @@ func TestFinalAnswerSummarizerStreamsDeltas(t *testing.T) {
         if events[0].FinalAnswer == "" {
                 t.Fatalf("expected streaming updates to carry partial content")
         }
+        if strings.Contains(events[0].FinalAnswer, "(https://cdn.example/report.pdf)") {
+                t.Fatalf("expected streaming update to leave attachment references untouched, got %q", events[0].FinalAnswer)
+        }
         if !events[0].IsStreaming || events[0].StreamFinished {
                 t.Fatalf("expected first update to be streaming and unfinished")
         }
@@ -151,6 +161,9 @@ func TestFinalAnswerSummarizerStreamsDeltas(t *testing.T) {
         }
         if !strings.Contains(last.FinalAnswer, "report.pdf") {
                 t.Fatalf("expected final answer to preserve attachment reference, got %q", last.FinalAnswer)
+        }
+        if strings.Contains(last.FinalAnswer, "(https://cdn.example/report.pdf)") {
+                t.Fatalf("expected final streaming result to avoid replacing attachments, got %q", last.FinalAnswer)
         }
         if last.IsStreaming {
                 t.Fatalf("expected final event to be non-streaming")
