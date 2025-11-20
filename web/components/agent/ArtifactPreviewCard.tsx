@@ -57,20 +57,26 @@ export function ArtifactPreviewCard({
         </div>
         <div className="flex items-center gap-2">
           {viewUri && (
-            <Button asChild size="sm" variant="outline" className="h-8 px-3">
-              <a href={viewUri} target="_blank" rel="noreferrer">
-                <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                View
-              </a>
-            </Button>
+            <a
+              href={viewUri}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/40 text-primary hover:bg-primary/10 h-8 px-3 text-sm"
+            >
+              <ExternalLink className="mr-1 h-3.5 w-3.5" />
+              View
+            </a>
           )}
           {downloadUri && downloadUri !== viewUri && (
-            <Button asChild size="sm" className="h-8 px-3">
-              <a href={downloadUri} target="_blank" rel="noreferrer">
-                <Download className="mr-1 h-3.5 w-3.5" />
-                Download
-              </a>
-            </Button>
+            <a
+              href={downloadUri}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3 text-sm"
+            >
+              <Download className="mr-1 h-3.5 w-3.5" />
+              Download
+            </a>
           )}
         </div>
       </div>
