@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { type ComponentPropsWithoutRef, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +85,17 @@ export function VideoPreview({
         <source src={src} type={mimeType} />
         Your browser does not support video playback.
       </video>
+      {src ? (
+        <a
+          href={src}
+          download
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white shadow transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          aria-label={description ? `下载 ${description}` : "下载视频"}
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">下载</span>
+        </a>
+      ) : null}
     </div>
   );
 }
