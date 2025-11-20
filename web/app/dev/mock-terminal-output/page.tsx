@@ -67,7 +67,7 @@ export default function MockTerminalOutputPage() {
               </Button>
               <Button
                 size="sm"
-                variant="secondary"
+                variant="default"
                 onClick={() => {
                   clearEvents();
                   setSessionId(createSessionId());

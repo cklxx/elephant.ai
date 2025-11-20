@@ -62,7 +62,7 @@ export default function MockConsolePage() {
               </Button>
               <Button
                 size="sm"
-                variant="secondary"
+                variant="default"
                 onClick={() => {
                   clearEvents();
                   setSessionId(createSessionId());
