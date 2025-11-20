@@ -862,15 +862,16 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context) po
 	// Handle subagent context filtering first
 	registry := s.toolRegistry
 	configPreset := s.config.ToolPreset
-	if configPreset == "" {
-		configPreset = string(presets.ToolPresetOrchestrator)
-	}
 	if isSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()
 		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
 
 		// Apply preset configured for subagents (context overrides allowed)
 		return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)
+	}
+
+	if configPreset == "" {
+		configPreset = string(presets.ToolPresetOrchestrator)
 	}
 
 	return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)

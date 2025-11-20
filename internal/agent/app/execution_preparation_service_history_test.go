@@ -342,6 +342,17 @@ func (r *registryWithList) List() []ports.ToolDefinition {
 
 func (r *registryWithList) Unregister(name string) error { return nil }
 
+func (r *registryWithList) WithoutSubagent() ports.ToolRegistry {
+	filtered := make([]ports.ToolDefinition, 0, len(r.defs))
+	for _, def := range r.defs {
+		if def.Name == "subagent" {
+			continue
+		}
+		filtered = append(filtered, def)
+	}
+	return &registryWithList{defs: filtered}
+}
+
 func TestPrepareCarriesSessionHistoryIntoState(t *testing.T) {
 	session := &ports.Session{
 		ID: "session-history-merge",
