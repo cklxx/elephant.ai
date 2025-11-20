@@ -82,6 +82,10 @@ export function useEventFormatter(
           return 'text-destructive font-semibold';
         case 'research_plan':
           return 'text-primary';
+        case 'subagent_progress':
+          return 'text-muted-foreground';
+        case 'subagent_complete':
+          return 'text-emerald-600 font-semibold';
         case 'tool_call_start':
           return 'text-primary';
         case 'tool_call_complete':
@@ -276,6 +280,16 @@ export function useEventFormatter(
             return `✓ Step ${event.step_index + 1} complete: ${event.step_result.slice(0, 80)}`;
           }
           return 'Step completed';
+
+        case 'subagent_progress':
+          // Keep delegated subagent display strings even though the backend currently
+          // does not emit these event types; retained for UI resilience and tests.
+          return `↺ Subagent progress ${event.completed}/${event.total} · ${event.tokens} tokens · ${event.tool_calls} tool calls`;
+
+        case 'subagent_complete':
+          // Keep delegated subagent display strings even though the backend currently
+          // does not emit these event types; retained for UI resilience and tests.
+          return `✓ Subagent summary ${event.success}/${event.total} succeeded (${event.failed} failed, ${event.tokens} tokens, ${event.tool_calls} tool calls)`;
 
         case 'browser_info':
           if ('message' in event && event.message) {

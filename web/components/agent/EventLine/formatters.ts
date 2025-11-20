@@ -136,6 +136,16 @@ export function formatContent(event: AnyAgentEvent): string {
       }
       return 'Step completed';
 
+    case 'subagent_progress':
+      // Keep delegated subagent display strings even though the backend currently
+      // does not emit these event types; retained for UI resilience and tests.
+      return `↺ Subagent progress ${event.completed}/${event.total} · ${event.tokens} tokens · ${event.tool_calls} tool calls`;
+
+    case 'subagent_complete':
+      // Keep delegated subagent display strings even though the backend currently
+      // does not emit these event types; retained for UI resilience and tests.
+      return `✓ Subagent summary ${event.success}/${event.total} succeeded (${event.failed} failed, ${event.tokens} tokens, ${event.tool_calls} tool calls)`;
+
     case 'browser_info':
       if ('message' in event && event.message) {
         return `🧭 Browser diagnostics: ${event.message}`;

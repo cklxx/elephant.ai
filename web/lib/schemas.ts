@@ -169,6 +169,15 @@ export const IterationCompleteEventSchema = BaseAgentEventSchema.extend({
   tools_run: z.number(),
 });
 
+// Subagent Progress Event
+export const SubagentProgressEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('subagent_progress'),
+  completed: z.number(),
+  total: z.number(),
+  tokens: z.number(),
+  tool_calls: z.number(),
+});
+
 // Task Complete Event
 export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('task_complete'),
@@ -193,6 +202,16 @@ export const ErrorEventSchema = BaseAgentEventSchema.extend({
   phase: z.string(),
   error: z.string(),
   recoverable: z.boolean(),
+});
+
+// Subagent Complete Event
+export const SubagentCompleteEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('subagent_complete'),
+  total: z.number(),
+  success: z.number(),
+  failed: z.number(),
+  tokens: z.number(),
+  tool_calls: z.number(),
 });
 
 // Research Plan Event
@@ -309,9 +328,11 @@ export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
   ToolCallStreamEventSchema,
   ToolCallCompleteEventSchema,
   IterationCompleteEventSchema,
+  SubagentProgressEventSchema,
   TaskCancelledEventSchema,
   TaskCompleteEventSchema,
   ErrorEventSchema,
+  SubagentCompleteEventSchema,
   ResearchPlanEventSchema,
   StepStartedEventSchema,
   StepCompletedEventSchema,
@@ -441,6 +462,8 @@ function normalizeEventData(data: unknown): unknown {
       normalized.event_type = 'thinking';
     } else if ('iteration' in normalized && 'total_iters' in normalized) {
       normalized.event_type = 'iteration_start';
+    } else if ('completed' in normalized && 'tool_calls' in normalized) {
+      normalized.event_type = 'subagent_progress';
     } else if ('action_name' in normalized && 'goal' in normalized) {
       normalized.event_type = 'task_analysis';
     } else if ('plan_steps' in normalized) {
@@ -451,6 +474,8 @@ function normalizeEventData(data: unknown): unknown {
       normalized.event_type = 'step_completed';
     } else if ('phase' in normalized && 'recoverable' in normalized) {
       normalized.event_type = 'error';
+    } else if ('success' in normalized && 'failed' in normalized && 'total' in normalized) {
+      normalized.event_type = 'subagent_complete';
     } else if ('status' in normalized && 'stage' in normalized && 'step' in normalized) {
       normalized.event_type = 'sandbox_progress';
     } else if ('user_agent' in normalized || 'cdp_url' in normalized) {

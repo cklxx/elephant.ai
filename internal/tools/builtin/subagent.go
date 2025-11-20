@@ -379,7 +379,7 @@ func (t *subagent) executeSubtask(
 	// 1. Detect marked context via agentApp.IsSubagentContext()
 	// 2. Use GetToolRegistryWithoutSubagent() to get filtered registry
 	// 3. This prevents nested subagent calls (recursion prevention)
-	taskResult, err := t.coordinator.ExecuteTask(subtaskCtx, task, "", listener)
+	taskResult, err := t.coordinator.ExecuteTask(subtaskCtx, task, ids.SessionID, listener)
 
 	if err != nil {
 		return SubtaskResult{
