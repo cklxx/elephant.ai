@@ -80,7 +80,7 @@ export function InputBar({
   };
 
   return (
-    <div className="border-t border-slate-200 bg-white px-6 py-4">
+    <div className="layout-input-bar px-6 py-4">
       <form
         onSubmit={handleSubmit}
         className="grid grid-cols-[auto,1fr,auto] items-start gap-3"
@@ -131,9 +131,9 @@ export function InputBar({
             disabled={disabled || loading}
             rows={1}
             className={cn(
-              'w-full resize-none overflow-y-auto rounded-lg border border-slate-300 bg-white px-4 py-3',
-              'text-sm text-slate-700 placeholder:text-slate-400',
-              'transition focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/30',
+              'w-full resize-none overflow-y-auto rounded-lg border border-input bg-background/80 px-4 py-3',
+              'text-sm text-foreground placeholder:text-muted-foreground',
+              'transition focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring',
               'disabled:cursor-not-allowed disabled:opacity-60',
               'max-h-32'
             )}
@@ -158,7 +158,7 @@ export function InputBar({
         </button>
       </form>
 
-      <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         <span>{t('inputBar.hint.shortcut')}</span>
         {text.length > 0 && (
           <span className="font-mono">

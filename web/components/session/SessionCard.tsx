@@ -19,14 +19,14 @@ export function SessionCard({ session, onDelete, onFork }: SessionCardProps) {
   const locale = getLanguageLocale(language);
 
   return (
-    <Card className="hover:shadow-lg transition-shadow">
+    <Card className="transition hover:bg-white/10 backdrop-blur">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <CardTitle className="text-lg">
               {t('sessions.card.title', { id: session.id.slice(0, 8) })}
             </CardTitle>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               {formatRelativeTime(session.created_at, locale)}
             </p>
           </div>
@@ -41,15 +41,15 @@ export function SessionCard({ session, onDelete, onFork }: SessionCardProps) {
         <div className="space-y-3">
           {session.last_task && (
             <div>
-              <p className="text-xs font-medium text-gray-600 mb-1">
+              <p className="text-xs font-medium text-muted-foreground mb-1">
                 {t('sessions.card.lastTask')}
               </p>
-              <p className="text-sm text-gray-900">
+              <p className="text-sm text-foreground">
                 {truncate(session.last_task, 100)}
               </p>
             </div>
           )}
-          <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{t('sessions.card.taskCount', { count: session.task_count })}</span>
             <span>
               {t('sessions.card.updated', {

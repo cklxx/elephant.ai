@@ -25,52 +25,52 @@
    */
     :root {
         /* Base colors */
-        --background: 0 0% 97%;
+        --background: 0 0% 100% / 0.04;
         --foreground: 0 0% 10%;
 
         /* Card backgrounds */
-        --card: 0 0% 100%;
+        --card: 0 0% 100% / 0.08;
         --card-foreground: 0 0% 10%;
 
         /* Primary accent */
-        --primary: 0 0% 10%;
-        --primary-foreground: 0 0% 96%;
+        --primary: 0 0% 10% / 0.85;
+        --primary-foreground: 0 0% 96% / 0.9;
 
         /* Secondary elements */
-        --secondary: 0 0% 90%;
-        --secondary-foreground: 0 0% 10%;
+        --secondary: 0 0% 100% / 0.12;
+        --secondary-foreground: 0 0% 10% / 0.9;
 
         /* Muted elements */
-        --muted: 0 0% 85%;
-        --muted-foreground: 0 0% 35%;
+        --muted: 0 0% 100% / 0.14;
+        --muted-foreground: 0 0% 35% / 0.9;
 
         /* Accent (neutral highlight) */
-        --accent: 0 0% 100%;
-        --accent-foreground: 0 0% 10%;
+        --accent: 0 0% 100% / 0.1;
+        --accent-foreground: 0 0% 10% / 0.9;
 
         /* Destructive */
-        --destructive: 0 0% 20%;
-        --destructive-foreground: 0 0% 96%;
+        --destructive: 0 0% 20% / 0.85;
+        --destructive-foreground: 0 0% 96% / 0.9;
 
         /* Borders and inputs */
-        --border: 0 0% 18%;
-        --input: 0 0% 22%;
+        --border: 0 0% 18% / 0.5;
+        --input: 0 0% 22% / 0.5;
 
         /* Focus ring */
-        --ring: 0 0% 15%;
+        --ring: 0 0% 15% / 0.6;
 
         /* Grayscale palette */
-        --gray-50: 0 0% 98%;
-        --gray-100: 0 0% 94%;
-        --gray-200: 0 0% 88%;
-        --gray-300: 0 0% 80%;
-        --gray-400: 0 0% 65%;
-        --gray-500: 0 0% 45%;
-        --gray-600: 0 0% 35%;
-        --gray-700: 0 0% 25%;
-        --gray-800: 0 0% 15%;
-        --gray-900: 0 0% 10%;
-        --gray-950: 0 0% 5%;
+        --gray-50: 0 0% 98% / 0.4;
+        --gray-100: 0 0% 94% / 0.4;
+        --gray-200: 0 0% 88% / 0.4;
+        --gray-300: 0 0% 80% / 0.4;
+        --gray-400: 0 0% 65% / 0.6;
+        --gray-500: 0 0% 45% / 0.7;
+        --gray-600: 0 0% 35% / 0.75;
+        --gray-700: 0 0% 25% / 0.8;
+        --gray-800: 0 0% 15% / 0.85;
+        --gray-900: 0 0% 10% / 0.9;
+        --gray-950: 0 0% 5% / 0.95;
     }
 
     /**
@@ -80,39 +80,39 @@
    */
     .dark {
         /* Base colors */
-        --background: 0 0% 5%;
+        --background: 0 0% 0% / 0.15;
         --foreground: 0 0% 92%;
 
         /* Card backgrounds */
-        --card: 0 0% 9%;
+        --card: 0 0% 15% / 0.2;
         --card-foreground: 0 0% 92%;
 
         /* Primary accent */
-        --primary: 0 0% 92%;
-        --primary-foreground: 0 0% 8%;
+        --primary: 0 0% 92% / 0.85;
+        --primary-foreground: 0 0% 8% / 0.9;
 
         /* Secondary elements */
-        --secondary: 0 0% 18%;
-        --secondary-foreground: 0 0% 92%;
+        --secondary: 0 0% 25% / 0.25;
+        --secondary-foreground: 0 0% 92% / 0.9;
 
         /* Muted elements */
-        --muted: 0 0% 22%;
-        --muted-foreground: 0 0% 70%;
+        --muted: 0 0% 28% / 0.3;
+        --muted-foreground: 0 0% 70% / 0.9;
 
         /* Accent */
-        --accent: 0 0% 15%;
-        --accent-foreground: 0 0% 92%;
+        --accent: 0 0% 20% / 0.3;
+        --accent-foreground: 0 0% 92% / 0.9;
 
         /* Destructive */
-        --destructive: 0 0% 85%;
-        --destructive-foreground: 0 0% 6%;
+        --destructive: 0 0% 85% / 0.8;
+        --destructive-foreground: 0 0% 6% / 0.9;
 
         /* Borders and inputs */
-        --border: 0 0% 40%;
-        --input: 0 0% 32%;
+        --border: 0 0% 40% / 0.4;
+        --input: 0 0% 32% / 0.45;
 
         /* Focus ring */
-        --ring: 0 0% 85%;
+        --ring: 0 0% 85% / 0.6;
 
         /* Grayscale palette (dark) */
         --gray-50: 0 0% 6%;
@@ -134,12 +134,23 @@
    ======================================================================== */
 
 @layer base {
-    * {
-        @apply border-border;
+    *:not(input):not(textarea):not(select) {
+        border-color: transparent;
+        border-width: 0;
+        border-style: none !important;
+    }
+
+    input,
+    textarea,
+    select {
+        border-width: 1px;
+        border-style: solid;
+        border-color: hsl(var(--input));
+        background-color: hsla(var(--background) / 0.85);
     }
 
     body {
-        @apply bg-background text-foreground;
+        @apply bg-transparent text-foreground;
         font-feature-settings:
             "rlig" 1,
             "calt" 1; /* Enable ligatures */
@@ -194,18 +205,20 @@
      * - Subtle hover lift on interactive cards
      */
     .console-card {
-        background: hsl(var(--card));
-        border: 1.5px solid hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.04);
+        border: none;
         border-radius: 12px;
         box-shadow: none;
+        backdrop-filter: blur(6px);
         transition: transform 0.15s ease;
     }
 
     .console-card-interactive {
-        background: hsl(var(--card));
-        border: 1.5px solid hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.05);
+        border: none;
         border-radius: 12px;
         box-shadow: none;
+        backdrop-filter: blur(8px);
         transition:
             transform 0.15s ease,
             background-color 0.15s ease;
@@ -223,13 +236,10 @@
    * - Generous padding for readability
    */
     .console-section {
-        border-bottom: 1.5px solid hsl(var(--foreground));
         padding-top: 1.5rem;
         padding-bottom: 1.5rem;
-    }
-
-    .console-section:last-child {
-        border-bottom: 0;
+        background: hsla(var(--foreground) / 0.03);
+        border-bottom: none;
     }
 
     /**
@@ -269,8 +279,8 @@
     .console-button {
         @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold uppercase tracking-[0.12em] transition-transform duration-150 cursor-pointer select-none;
         color: hsl(var(--foreground));
-        background: hsl(var(--card));
-        border: 1.5px solid hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.06);
+        border: none;
         box-shadow: none;
     }
 
@@ -285,7 +295,7 @@
     }
 
     .console-button:focus-visible {
-        outline: 2px solid hsl(var(--foreground));
+        outline: 2px solid hsla(var(--foreground) / 0.3);
         outline-offset: 3px;
     }
 
@@ -303,12 +313,12 @@
     }
 
     .console-button-primary {
-        background: hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.85);
         color: hsl(var(--primary-foreground));
     }
 
     .console-button-secondary {
-        background: hsl(var(--secondary));
+        background: hsla(var(--secondary));
         color: hsl(var(--secondary-foreground));
     }
 
@@ -322,9 +332,9 @@
 
     .console-primary-action {
         @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-transform duration-150;
-        background: hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.85);
         color: hsl(var(--primary-foreground));
-        border: 1.5px solid hsl(var(--foreground));
+        border: none;
         box-shadow: none;
     }
 
@@ -339,7 +349,7 @@
     }
 
     .console-primary-action:focus-visible {
-        outline: 2px solid hsl(var(--foreground));
+        outline: 2px solid hsla(var(--foreground) / 0.3);
         outline-offset: 3px;
     }
 
@@ -358,8 +368,8 @@
 
     .console-icon-button {
         @apply inline-flex items-center justify-center rounded-full transition-transform duration-150;
-        border: 1.5px solid hsl(var(--foreground));
-        background: hsl(var(--card));
+        border: none;
+        background: hsla(var(--foreground) / 0.08);
         color: hsl(var(--foreground));
         padding: 0.4rem;
         box-shadow: none;
@@ -376,7 +386,7 @@
     }
 
     .console-icon-button:focus-visible {
-        outline: 2px solid hsl(var(--foreground));
+        outline: 2px solid hsla(var(--foreground) / 0.3);
         outline-offset: 3px;
     }
 
@@ -394,7 +404,7 @@
     }
 
     .console-icon-button-primary {
-        background: hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.85);
         color: hsl(var(--primary-foreground));
     }
 
@@ -403,7 +413,7 @@
     }
 
     .console-icon-button-danger {
-        background: hsl(var(--destructive));
+        background: hsla(var(--destructive));
         color: hsl(var(--destructive-foreground));
     }
 
@@ -426,15 +436,15 @@
    */
     .console-badge {
         @apply inline-flex items-center rounded px-2 py-1 text-xs font-semibold uppercase tracking-[0.18em];
-        background: hsl(var(--card));
+        background: hsla(var(--foreground) / 0.07);
         color: hsl(var(--foreground));
-        border: 1.5px solid hsl(var(--foreground));
+        border: none;
         box-shadow: none;
     }
 
     .console-badge-primary {
         @apply console-badge;
-        background: hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.85);
         color: hsl(var(--primary-foreground));
     }
 
@@ -449,18 +459,18 @@
         background-image:
             radial-gradient(
                 circle at 20% -10%,
-                hsla(0, 0%, 96%, 0.7),
+                hsla(0, 0%, 96%, 0.25),
                 transparent 52%
             ),
             radial-gradient(
                 circle at 90% 10%,
-                hsla(0, 0%, 82%, 0.28),
+                hsla(0, 0%, 82%, 0.12),
                 transparent 55%
             ),
             linear-gradient(
                 180deg,
                 hsl(var(--background)) 0%,
-                hsl(0 0% 92%) 100%
+                transparent 100%
             );
     }
 
@@ -470,9 +480,10 @@
 
     .console-panel {
         border-radius: 28px;
-        background: hsl(var(--card));
-        border: 1.5px solid hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.05);
+        border: none;
         box-shadow: none;
+        backdrop-filter: blur(10px);
     }
 
     .console-pane-title {
@@ -499,8 +510,8 @@
         display: inline-flex;
         align-items: center;
         border-radius: 9999px;
-        border: 1.5px solid hsl(var(--foreground));
-        background: hsl(var(--card));
+        border: none;
+        background: hsla(var(--foreground) / 0.08);
         padding: 0.25rem 0.75rem;
         font-size: 11px;
         font-weight: 600;
@@ -612,7 +623,6 @@
     .console-assistant-bubble {
         width: min(720px, 100%);
         border-radius: 22px;
-        border: 1px solid hsla(var(--foreground) / 0.08);
         background: linear-gradient(
                 180deg,
                 hsla(var(--foreground) / 0.04),
@@ -669,7 +679,6 @@
         justify-content: center;
         gap: 0.75rem;
         border-radius: 16px;
-        border: 3px dashed hsla(var(--foreground) / 0.4);
         background: hsla(var(--foreground) / 0.03);
         padding: 3rem 1.5rem;
         color: hsl(var(--muted-foreground));
@@ -701,9 +710,10 @@
         top: 0;
         height: 100vh;
         width: 16rem;
-        background: hsl(var(--card));
-        border-right: 3px solid hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.06);
+        border-right: none;
         box-shadow: none;
+        backdrop-filter: blur(12px);
     }
 
     .layout-main {
@@ -711,30 +721,32 @@
         display: flex;
         height: 100vh;
         flex-direction: column;
-        background: hsl(var(--background));
+        background: transparent;
     }
 
     .layout-header {
         position: sticky;
         top: 0;
         z-index: 10;
-        background: hsl(var(--card));
-        border-bottom: 3px solid hsl(var(--foreground));
+        background: transparent;
+        border-bottom: none;
         box-shadow: none;
+        backdrop-filter: none;
     }
 
     .layout-content {
         flex: 1;
         overflow-y: auto;
-        background: hsl(var(--background));
+        background: transparent;
     }
 
     .layout-input-bar {
         position: sticky;
         bottom: 0;
-        background: hsl(var(--card));
-        border-top: 3px solid hsl(var(--foreground));
+        background: hsla(var(--foreground) / 0.05);
+        border-top: none;
         box-shadow: none;
+        backdrop-filter: blur(12px);
     }
 }
 

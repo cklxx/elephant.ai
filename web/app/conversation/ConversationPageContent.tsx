@@ -507,30 +507,33 @@ export function ConversationPageContent() {
   }, [timelineSteps, showTimelineDialog]);
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="relative flex h-screen bg-app-canvas text-foreground">
+      <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.14),transparent_38%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.12),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.18)_0%,transparent_60%)]" aria-hidden />
       <ConfirmDialog />
       {/* Left Sidebar */}
       <div
         id="conversation-sidebar"
-        className={`relative z-30 h-full overflow-hidden border-r border-slate-200 transition-[width] duration-300 ease-in-out ${
-          isSidebarOpen ? 'w-64' : 'w-0 border-r-0'
+        className={`relative z-30 h-full overflow-hidden transition-[width] duration-300 ease-in-out ${
+          isSidebarOpen ? 'w-72' : 'w-0'
         }`}
       >
         <div
           className={`h-full ${isSidebarOpen ? '' : 'pointer-events-none opacity-0'}`}
           aria-hidden={!isSidebarOpen}
         >
-          <Sidebar
-            sessionHistory={sessionHistory}
-            pinnedSessions={pinnedSessions}
-            sessionLabels={sessionLabels}
-            currentSessionId={resolvedSessionId}
-            onSessionSelect={handleSessionSelect}
-            onSessionRename={renameSession}
-            onSessionPin={togglePinSession}
-            onSessionDelete={handleSessionDelete}
-            onNewSession={handleNewSession}
-          />
+          <div className="h-full bg-white/5 pb-4 backdrop-blur-xl">
+            <Sidebar
+              sessionHistory={sessionHistory}
+              pinnedSessions={pinnedSessions}
+              sessionLabels={sessionLabels}
+              currentSessionId={resolvedSessionId}
+              onSessionSelect={handleSessionSelect}
+              onSessionRename={renameSession}
+              onSessionPin={togglePinSession}
+              onSessionDelete={handleSessionDelete}
+              onNewSession={handleNewSession}
+            />
+          </div>
         </div>
       </div>
 
@@ -595,7 +598,7 @@ export function ConversationPageContent() {
                   });
                   setShowTimelineDialog(true);
                 }}
-                className="mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm"
+                className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-none backdrop-blur transition hover:bg-white/25"
               >
                 {t('console.timeline.mobileLabel')}
               </button>
@@ -615,7 +618,7 @@ export function ConversationPageContent() {
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 sm:hidden"
+            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 backdrop-blur-sm sm:hidden"
           >
             <button
               type="button"
@@ -623,14 +626,14 @@ export function ConversationPageContent() {
               aria-label={t('plan.collapse')}
               onClick={() => setShowTimelineDialog(false)}
             />
-            <div className="relative rounded-t-2xl bg-white p-4 shadow-xl">
+            <div className="relative rounded-t-3xl bg-white/15 p-4 text-foreground shadow-none backdrop-blur-xl">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-900">
+                <h2 className="text-sm font-semibold text-foreground">
                   {t('console.timeline.dialogTitle')}
                 </h2>
                 <button
                   type="button"
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500"
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:bg-white/20"
                   onClick={() => setShowTimelineDialog(false)}
                 >
                   {t('plan.collapse')}
@@ -643,11 +646,11 @@ export function ConversationPageContent() {
                     type="button"
                     role="button"
                     onClick={() => setShowTimelineDialog(false)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left"
+                    className="w-full rounded-xl bg-white/10 px-3 py-2 text-left text-foreground backdrop-blur transition hover:bg-white/20"
                   >
-                    <p className="text-sm font-semibold text-slate-800">{step.title}</p>
+                    <p className="text-sm font-semibold text-foreground">{step.title}</p>
                     {step.description && (
-                      <p className="text-xs text-slate-500">{step.description}</p>
+                      <p className="text-xs text-foreground/70">{step.description}</p>
                     )}
                   </button>
                 ))}

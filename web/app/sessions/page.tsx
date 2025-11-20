@@ -22,24 +22,24 @@ export default function SessionsPage() {
                     <p className="console-pane-title">
                       {t("sessions.archiveLabel")}
                     </p>
-                    <h1 className="text-3xl font-semibold text-slate-900">
+                    <h1 className="text-3xl font-semibold text-foreground">
                       {t("sessions.title")}
                     </h1>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {t("sessions.description")}
                     </p>
                   </div>
                 </div>
                 <Link href="/" className="inline-flex w-full sm:w-auto">
-                  <Button className="w-full rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600 sm:w-auto">
+                  <Button className="w-full rounded-2xl bg-foreground/80 px-4 py-2 text-sm font-semibold text-primary-foreground shadow-none transition hover:bg-foreground sm:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     {t("sessions.newConversation")}
                   </Button>
                 </Link>
               </header>
 
-              <Card className="border-none bg-slate-50/40 p-0 shadow-none">
-                <div className="rounded-2xl border border-slate-100 bg-white p-6">
+              <Card className="bg-white/5 p-0 shadow-none">
+                <div className="rounded-2xl bg-white/5 p-6 backdrop-blur">
                   <SessionList />
                 </div>
               </Card>

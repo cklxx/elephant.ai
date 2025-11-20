@@ -485,10 +485,10 @@ export function TaskInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full"
+      className="w-full rounded-3xl bg-white/5 p-4 shadow-none backdrop-blur-xl"
       data-testid="task-input-form"
     >
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:gap-2.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
         <div className="relative flex-1 sm:items-center">
           <textarea
             ref={textareaRef}
@@ -506,7 +506,7 @@ export function TaskInput({
             rows={1}
             aria-label={t("task.input.ariaLabel")}
             data-testid="task-input"
-            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-slate-300 bg-white px-3.5 pr-12 py-2.5 text-[13px] text-slate-700 transition focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-2xl border border-white/40 bg-white/60 px-3.5 pr-12 py-2.5 text-[13px] text-foreground placeholder:text-foreground/60 shadow-none backdrop-blur focus:border-white focus:outline-none focus:ring-2 focus:ring-white/40 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ fieldSizing: "content" } as any}
           />
           <button
@@ -514,7 +514,7 @@ export function TaskInput({
             onClick={openFilePicker}
             disabled={isInputDisabled}
             className={cn(
-              "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500  transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50",
+              "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-foreground/70 backdrop-blur transition hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-50",
             )}
             title={attachLabel}
             aria-label={attachLabel}
@@ -539,8 +539,8 @@ export function TaskInput({
             disabled={stopButtonDisabled}
             className={cn(
               "console-primary-action h-[2.75rem]",
-              "bg-destructive text-destructive-foreground border-destructive hover:bg-destructive/90",
-              "disabled:bg-destructive disabled:text-destructive-foreground",
+              "bg-destructive/85 text-destructive-foreground hover:bg-destructive/90",
+              "disabled:bg-destructive/70 disabled:text-destructive-foreground",
             )}
             title={t("task.stop.title")}
             data-testid="task-stop"
@@ -592,9 +592,9 @@ export function TaskInput({
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
-              className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:flex-row"
+              className="flex flex-col overflow-hidden rounded-2xl bg-white/10 shadow-none backdrop-blur sm:flex-row"
             >
-              <div className="relative flex h-36 w-full items-center justify-center bg-slate-50 sm:h-auto sm:w-32">
+              <div className="relative flex h-36 w-full items-center justify-center bg-white/10 sm:h-auto sm:w-32">
                 {attachment.isImage && attachment.previewUrl ? (
                   <Image
                     src={attachment.previewUrl}
@@ -605,7 +605,7 @@ export function TaskInput({
                     unoptimized
                   />
                 ) : (
-                  <span className="px-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <span className="px-2 text-center text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
                     {attachment.format
                       ? attachment.format.slice(0, 6).toUpperCase()
                       : noPreviewLabel}
@@ -620,12 +620,12 @@ export function TaskInput({
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-slate-600">
-                <div className="text-sm font-semibold text-slate-900">
+              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-foreground/80">
+                <div className="text-sm font-semibold text-foreground">
                   {attachment.name}
                 </div>
                 <div>{attachment.mediaType}</div>
-                <div className="text-slate-400">{formatFileSize(attachment.size)}</div>
+                <div className="text-foreground/60">{formatFileSize(attachment.size)}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {(["attachment", "artifact"] as AttachmentKind[]).map((kind) => {
                     const isActive = attachment.kind === kind;
@@ -635,10 +635,10 @@ export function TaskInput({
                         type="button"
                         onClick={() => handleAttachmentKindChange(attachment.id, kind)}
                         className={cn(
-                          "rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition",
+                          "rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground transition backdrop-blur",
                           isActive
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300",
+                            ? "bg-foreground text-primary-foreground shadow-none"
+                            : "bg-white/15 text-foreground hover:bg-white/25",
                         )}
                       >
                         {attachmentKindLabels[kind]}
@@ -647,7 +647,7 @@ export function TaskInput({
                   })}
                 </div>
                 {attachment.kind === "artifact" && (
-                  <p className="mt-1 text-[10px] text-slate-500">{artifactHint}</p>
+                  <p className="mt-1 text-[10px] text-foreground/70">{artifactHint}</p>
                 )}
               </div>
             </div>
@@ -655,7 +655,7 @@ export function TaskInput({
         </div>
       )}
 
-      <div className="mt-1 flex justify-end text-[10px] font-medium uppercase tracking-[0.35em] text-slate-300">
+      <div className="mt-2 flex justify-end text-[10px] font-medium uppercase tracking-[0.35em] text-foreground/50">
         {t("console.input.hotkeyHint")}
       </div>
     </form>
