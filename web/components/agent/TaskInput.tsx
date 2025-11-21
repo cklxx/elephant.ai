@@ -455,7 +455,7 @@ export function TaskInput({
       className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <div className="group relative rounded-[52px] border border-neutral-300/80 bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)] transition focus-within:border-neutral-400 focus-within:ring-4 focus-within:ring-neutral-200/70 focus-within:shadow-[0_40px_120px_-64px_rgba(15,23,42,0.55)]">
+      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)] transition focus-within:ring-4 focus-within:ring-neutral-200/70 focus-within:shadow-[0_40px_120px_-64px_rgba(15,23,42,0.55)]">
         <textarea
           ref={textareaRef}
           value={task}
