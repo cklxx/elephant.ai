@@ -12,6 +12,8 @@ func DefaultEnvAliases() map[string][]string {
 		"LLM_TEMPERATURE":            {"ALEX_LLM_TEMPERATURE"},
 		"LLM_TOP_P":                  {"ALEX_LLM_TOP_P"},
 		"LLM_STOP":                   {"ALEX_LLM_STOP"},
+		"USER_LLM_RPS":               {"ALEX_USER_LLM_RPS"},
+		"USER_LLM_BURST":             {"ALEX_USER_LLM_BURST"},
 		"TAVILY_API_KEY":             {"ALEX_TAVILY_API_KEY"},
 		"ARK_API_KEY":                {"ALEX_ARK_API_KEY"},
 		"SEEDREAM_TEXT_ENDPOINT_ID":  {"ALEX_SEEDREAM_TEXT_ENDPOINT_ID"},

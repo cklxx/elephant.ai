@@ -5,6 +5,8 @@ import (
 	alexerrors "alex/internal/errors"
 	"fmt"
 	"sync"
+
+	"golang.org/x/time/rate"
 )
 
 // Ensure Factory implements ports.LLMClientFactory interface
@@ -16,6 +18,8 @@ type Factory struct {
 	enableRetry          bool
 	retryConfig          alexerrors.RetryConfig
 	circuitBreakerConfig alexerrors.CircuitBreakerConfig
+	userRateLimit        rate.Limit
+	userRateBurst        int
 }
 
 func NewFactory() *Factory {
@@ -24,6 +28,7 @@ func NewFactory() *Factory {
 		enableRetry:          true, // Enabled by default
 		retryConfig:          alexerrors.DefaultRetryConfig(),
 		circuitBreakerConfig: alexerrors.DefaultCircuitBreakerConfig(),
+		userRateBurst:        1,
 	}
 }
 
@@ -34,7 +39,20 @@ func NewFactoryWithRetryConfig(retryConfig alexerrors.RetryConfig, circuitBreake
 		enableRetry:          true,
 		retryConfig:          retryConfig,
 		circuitBreakerConfig: circuitBreakerConfig,
+		userRateBurst:        1,
 	}
+}
+
+// EnableUserRateLimit enforces a per-user limiter around LLM calls.
+func (f *Factory) EnableUserRateLimit(limit rate.Limit, burst int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.userRateLimit = limit
+	if burst < 1 {
+		burst = 1
+	}
+	f.userRateBurst = burst
 }
 
 // DisableRetry disables retry logic for all clients created by this factory
@@ -111,6 +129,10 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	// Wrap with retry logic if enabled
 	if enableRetry {
 		client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
+	}
+
+	if f.userRateLimit > 0 {
+		client = WrapWithUserRateLimit(client, f.userRateLimit, f.userRateBurst)
 	}
 
 	// Cache only if requested

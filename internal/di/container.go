@@ -23,6 +23,7 @@ import (
 	toolregistry "alex/internal/toolregistry"
 	"alex/internal/tools"
 	"alex/internal/utils"
+	"golang.org/x/time/rate"
 )
 
 // Container holds all application dependencies
@@ -62,6 +63,8 @@ type Config struct {
 	SandboxBaseURL          string
 	MaxTokens               int
 	MaxIterations           int
+	UserRateLimitRPS        float64
+	UserRateLimitBurst      int
 	Temperature             float64
 	TemperatureSet          bool
 	TopP                    float64
@@ -159,6 +162,9 @@ func BuildContainer(config Config) (*Container, error) {
 
 	// Infrastructure Layer
 	llmFactory := llm.NewFactory()
+	if config.UserRateLimitRPS > 0 {
+		llmFactory.EnableUserRateLimit(rate.Limit(config.UserRateLimitRPS), config.UserRateLimitBurst)
+	}
 	executionMode := tools.ExecutionModeLocal
 	var sandboxManager *tools.SandboxManager
 	sandboxBaseURL := strings.TrimSpace(config.SandboxBaseURL)
@@ -241,6 +247,8 @@ func BuildContainer(config Config) (*Container, error) {
 		FollowStream:            config.FollowStream,
 		MaxIterations:           config.MaxIterations,
 		MaxTokens:               config.MaxTokens,
+		UserRateLimitRPS:        config.UserRateLimitRPS,
+		UserRateLimitBurst:      config.UserRateLimitBurst,
 		Temperature:             config.Temperature,
 		TemperatureProvided:     config.TemperatureSet,
 		TopP:                    config.TopP,

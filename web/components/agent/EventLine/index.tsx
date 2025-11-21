@@ -20,6 +20,7 @@ import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 
 interface EventLineProps {
   event: AnyAgentEvent;
+  showSubagentContext?: boolean;
 }
 
 /**
@@ -28,13 +29,16 @@ interface EventLineProps {
  */
 export const EventLine = React.memo(function EventLine({
   event,
+  showSubagentContext = true,
 }: EventLineProps) {
   const isSubtaskEvent =
     event.agent_level === "subagent" ||
     ("is_subtask" in event && Boolean(event.is_subtask));
 
   if (isSubtaskEvent) {
-    return <SubagentEventLine event={event} />;
+    return (
+      <SubagentEventLine event={event} showContext={showSubagentContext} />
+    );
   }
 
   if (event.event_type === "user_task") {
@@ -206,7 +210,10 @@ interface SubagentEventLineProps {
   event: AnyAgentEvent;
 }
 
-function SubagentEventLine({ event }: SubagentEventLineProps) {
+function SubagentEventLine({
+  event,
+  showContext = true,
+}: SubagentEventLineProps & { showContext?: boolean }) {
   const context = getSubagentContext(event);
 
   if (event.event_type === "tool_call_complete") {
@@ -218,7 +225,7 @@ function SubagentEventLine({ event }: SubagentEventLineProps) {
         className="space-y-3"
         data-testid={`event-subagent-${event.event_type}`}
       >
-        <SubagentHeader context={context} />
+        {showContext && <SubagentHeader context={context} />}
         <ToolOutputCard
           toolName={completeEvent.tool_name}
           parameters={completeEvent.arguments}
@@ -240,7 +247,7 @@ function SubagentEventLine({ event }: SubagentEventLineProps) {
         className="space-y-3"
         data-testid="event-subagent-task_complete"
       >
-        <SubagentHeader context={context} />
+        {showContext && <SubagentHeader context={context} />}
         <TaskCompleteCard event={event as TaskCompleteEvent} />
       </div>
     );
@@ -258,7 +265,7 @@ function SubagentEventLine({ event }: SubagentEventLineProps) {
       className="space-y-2"
       data-testid={`event-subagent-${event.event_type}`}
     >
-      <SubagentHeader context={context} />
+      {showContext && <SubagentHeader context={context} />}
       <div
         className={cn(
           "console-event-line flex rounded-lg border border-primary/30 bg-primary/5 px-3 py-2",
@@ -273,13 +280,13 @@ function SubagentEventLine({ event }: SubagentEventLineProps) {
   );
 }
 
-interface SubagentContext {
+export interface SubagentContext {
   title: string;
   preview?: string;
   concurrency?: string;
 }
 
-function getSubagentContext(event: AnyAgentEvent): SubagentContext {
+export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   const index =
     "subtask_index" in event && typeof event.subtask_index === "number"
       ? event.subtask_index + 1
@@ -312,7 +319,7 @@ interface SubagentHeaderProps {
   context: SubagentContext;
 }
 
-function SubagentHeader({ context }: SubagentHeaderProps) {
+export function SubagentHeader({ context }: SubagentHeaderProps) {
   return (
     <div className="space-y-1">
       <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary">

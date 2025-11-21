@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { TerminalOutput } from '../TerminalOutput';
 import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
@@ -123,5 +123,63 @@ describe('TerminalOutput', () => {
 
     // Ensure the completion is shown once in the event stream
     expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
+  });
+
+  it('aggregates subagent events under a single panel', () => {
+    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'tool_call_complete',
+        agent_level: 'subagent',
+        call_id: 'subagent:1',
+        tool_name: 'web_search',
+        result: 'Fetched references',
+        duration: 120,
+        timestamp: subagentTimestamp,
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        subtask_index: 0,
+        total_subtasks: 2,
+        subtask_preview: 'Collect references',
+      },
+      {
+        event_type: 'task_complete',
+        agent_level: 'subagent',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        subtask_index: 0,
+        total_subtasks: 2,
+        final_answer: 'Ready to merge findings',
+        total_iterations: 1,
+        total_tokens: 1200,
+        stop_reason: 'complete',
+        duration: 3200,
+        timestamp: new Date(Date.now() + 800).toISOString(),
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    const aggregatePanel = screen.getByTestId('subagent-aggregate-panel');
+    expect(aggregatePanel).toBeInTheDocument();
+    expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(2);
+    expect(aggregatePanel).toHaveTextContent(/Subagent Task 1\/2/i);
+
+    const conversationEvents = screen.getByTestId('conversation-events');
+    expect(within(conversationEvents).getAllByTestId(/event-user_task/)).toHaveLength(1);
   });
 });

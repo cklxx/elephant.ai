@@ -27,9 +27,9 @@ const DefaultSandboxBaseURL = "http://localhost:8090"
 // Seedream defaults target the public Volcano Engine Ark deployment in mainland China.
 const (
 	DefaultSeedreamTextModel   = "doubao-seedream-3-0-t2i-250415"
-    DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
-    DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
-DefaultSeedreamVideoModel  = "doubao-seedance-1-0-pro-fast-251015"
+	DefaultSeedreamImageModel  = "doubao-seedream-4-0-250828"
+	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
+	DefaultSeedreamVideoModel  = "doubao-seedance-1-0-pro-fast-251015"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -54,6 +54,8 @@ type RuntimeConfig struct {
 	FollowStream            bool     `json:"follow_stream"`
 	MaxIterations           int      `json:"max_iterations"`
 	MaxTokens               int      `json:"max_tokens"`
+	UserRateLimitRPS        float64  `json:"user_rate_limit_rps"`
+	UserRateLimitBurst      int      `json:"user_rate_limit_burst"`
 	Temperature             float64  `json:"temperature"`
 	TemperatureProvided     bool     `json:"temperature_provided"`
 	TopP                    float64  `json:"top_p"`
@@ -120,6 +122,8 @@ type Overrides struct {
 	FollowStream            *bool     `json:"follow_stream,omitempty"`
 	MaxIterations           *int      `json:"max_iterations,omitempty"`
 	MaxTokens               *int      `json:"max_tokens,omitempty"`
+	UserRateLimitRPS        *float64  `json:"user_rate_limit_rps,omitempty"`
+	UserRateLimitBurst      *int      `json:"user_rate_limit_burst,omitempty"`
 	Temperature             *float64  `json:"temperature,omitempty"`
 	TopP                    *float64  `json:"top_p,omitempty"`
 	StopSequences           *[]string `json:"stop_sequences,omitempty"`
@@ -230,6 +234,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		FollowStream:        true,
 		MaxIterations:       150,
 		MaxTokens:           100000,
+		UserRateLimitRPS:    1.0,
+		UserRateLimitBurst:  3,
 		Temperature:         0.7,
 		TopP:                1.0,
 		SessionDir:          "~/.alex-sessions",
@@ -285,6 +291,8 @@ type fileConfig struct {
 	FollowStream            *bool                  `json:"follow_stream"`
 	MaxIterations           *int                   `json:"max_iterations"`
 	MaxTokens               *int                   `json:"max_tokens"`
+	UserRateLimitRPS        *float64               `json:"user_rate_limit_rps"`
+	UserRateLimitBurst      *int                   `json:"user_rate_limit_burst"`
 	Temperature             *float64               `json:"temperature"`
 	TopP                    *float64               `json:"top_p"`
 	StopSequences           []string               `json:"stop_sequences"`
@@ -402,6 +410,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.MaxTokens != nil {
 		cfg.MaxTokens = *parsed.MaxTokens
 		meta.sources["max_tokens"] = SourceFile
+	}
+	if parsed.UserRateLimitRPS != nil {
+		cfg.UserRateLimitRPS = *parsed.UserRateLimitRPS
+		meta.sources["user_rate_limit_rps"] = SourceFile
+	}
+	if parsed.UserRateLimitBurst != nil {
+		cfg.UserRateLimitBurst = *parsed.UserRateLimitBurst
+		meta.sources["user_rate_limit_burst"] = SourceFile
 	}
 	if parsed.Temperature != nil {
 		cfg.Temperature = *parsed.Temperature
@@ -625,6 +641,22 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.MaxTokens = parsed
 		meta.sources["max_tokens"] = SourceEnv
 	}
+	if value, ok := lookup("USER_LLM_RPS"); ok && value != "" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("parse USER_LLM_RPS: %w", err)
+		}
+		cfg.UserRateLimitRPS = parsed
+		meta.sources["user_rate_limit_rps"] = SourceEnv
+	}
+	if value, ok := lookup("USER_LLM_BURST"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse USER_LLM_BURST: %w", err)
+		}
+		cfg.UserRateLimitBurst = parsed
+		meta.sources["user_rate_limit_burst"] = SourceEnv
+	}
 	if value, ok := lookup("LLM_TEMPERATURE"); ok && value != "" {
 		parsed, err := strconv.ParseFloat(value, 64)
 		if err != nil {
@@ -753,6 +785,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.MaxTokens != nil {
 		cfg.MaxTokens = *overrides.MaxTokens
 		meta.sources["max_tokens"] = SourceOverride
+	}
+	if overrides.UserRateLimitRPS != nil {
+		cfg.UserRateLimitRPS = *overrides.UserRateLimitRPS
+		meta.sources["user_rate_limit_rps"] = SourceOverride
+	}
+	if overrides.UserRateLimitBurst != nil {
+		cfg.UserRateLimitBurst = *overrides.UserRateLimitBurst
+		meta.sources["user_rate_limit_burst"] = SourceOverride
 	}
 	if overrides.Temperature != nil {
 		cfg.Temperature = *overrides.Temperature

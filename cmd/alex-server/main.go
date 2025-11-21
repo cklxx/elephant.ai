@@ -350,6 +350,8 @@ func buildContainer(config Config) (*di.Container, error) {
 		SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 		MaxTokens:               config.Runtime.MaxTokens,
 		MaxIterations:           config.Runtime.MaxIterations,
+		UserRateLimitRPS:        config.Runtime.UserRateLimitRPS,
+		UserRateLimitBurst:      config.Runtime.UserRateLimitBurst,
 		Temperature:             config.Runtime.Temperature,
 		TemperatureSet:          config.Runtime.TemperatureProvided,
 		TopP:                    config.Runtime.TopP,

@@ -92,6 +92,16 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 		set("ALEX_LLM_MAX_TOKENS", strconv.Itoa(cfg.MaxTokens))
 	}
 
+	if cfg.UserRateLimitRPS > 0 {
+		set("USER_LLM_RPS", formatFloat(cfg.UserRateLimitRPS))
+		set("ALEX_USER_LLM_RPS", formatFloat(cfg.UserRateLimitRPS))
+	}
+
+	if cfg.UserRateLimitBurst > 0 {
+		set("USER_LLM_BURST", strconv.Itoa(cfg.UserRateLimitBurst))
+		set("ALEX_USER_LLM_BURST", strconv.Itoa(cfg.UserRateLimitBurst))
+	}
+
 	if cfg.TemperatureProvided || cfg.Temperature != 0 {
 		set("LLM_TEMPERATURE", formatFloat(cfg.Temperature))
 		set("ALEX_MODEL_TEMPERATURE", formatFloat(cfg.Temperature))
