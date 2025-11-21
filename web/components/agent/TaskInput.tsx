@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { ArrowUp, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, Square, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AttachmentUpload } from "@/lib/types";
@@ -157,7 +157,6 @@ export function TaskInput({
   const [task, setTask] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useTranslation();
   const resolvedPlaceholder =
     placeholder ?? t("console.input.placeholder.idle");
@@ -344,8 +343,6 @@ export function TaskInput({
     [insertContentAtCursor, processFiles],
   );
 
-  const isInputDisabled = disabled || loading || isRunning;
-
   const handleRemoveAttachment = useCallback(
     (id: string) => {
       const target = attachments.find((item) => item.id === id);
@@ -358,22 +355,6 @@ export function TaskInput({
       );
     },
     [attachments],
-  );
-
-  const handleFileButtonClick = useCallback(() => {
-    if (isInputDisabled) return;
-    fileInputRef.current?.click();
-  }, [isInputDisabled]);
-
-  const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFiles = event.target.files;
-      if (!selectedFiles?.length) return;
-
-      await processFiles(Array.from(selectedFiles));
-      event.target.value = "";
-    },
-    [processFiles],
   );
 
   const handleAttachmentKindChange = useCallback(
@@ -421,6 +402,7 @@ export function TaskInput({
     }
   };
 
+  const isInputDisabled = disabled || loading || isRunning;
   const showStopButton = (loading || isRunning) && typeof onStop === "function";
   const stopButtonDisabled = stopDisabled || stopPending;
 
@@ -473,15 +455,7 @@ export function TaskInput({
       className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={handleFileChange}
-        data-testid="task-attachment-input"
-      />
-      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)] transition focus-within:ring-4 focus-within:ring-neutral-200/70 focus-within:shadow-[0_40px_120px_-64px_rgba(15,23,42,0.55)]">
+      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
         <textarea
           ref={textareaRef}
           value={task}
@@ -501,28 +475,6 @@ export function TaskInput({
           className="min-h-[220px] max-h-[380px] w-full resize-none bg-transparent px-1 pb-8 pr-20 pt-2 text-[18px] leading-8 text-neutral-900 placeholder:text-neutral-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           style={{ fieldSizing: "content" } as any}
         />
-
-        <div className="absolute bottom-6 left-6">
-          <button
-            type="button"
-            onClick={handleFileButtonClick}
-            disabled={isInputDisabled}
-            className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-[0_12px_38px_-32px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-200 disabled:translate-y-0 disabled:border-neutral-100 disabled:bg-neutral-50 disabled:text-neutral-400 disabled:shadow-none"
-            aria-label={translateWithFallback(
-              "task.input.attachments.addFromDevice",
-              undefined,
-              "Attach a file",
-            )}
-            data-testid="task-attachment-trigger"
-          >
-            <Paperclip className="h-4 w-4" />
-            {translateWithFallback(
-              "task.input.attachments.addFromDevice",
-              undefined,
-              "Attach a file",
-            )}
-          </button>
-        </div>
 
         <div className="absolute bottom-6 right-6">
           {showStopButton ? (
