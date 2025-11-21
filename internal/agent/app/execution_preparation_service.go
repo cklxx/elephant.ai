@@ -559,45 +559,6 @@ func (s *ExecutionPreparationService) estimateHistoryTokens(messages []ports.Mes
 	return total
 }
 
-func appendUniqueStrings(base []string, values ...string) []string {
-	if len(values) == 0 {
-		if len(base) == 0 {
-			return nil
-		}
-		return base
-	}
-	seen := make(map[string]struct{}, len(base)+len(values))
-	result := make([]string, 0, len(base)+len(values))
-	for _, value := range base {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		key := strings.ToLower(trimmed)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, trimmed)
-	}
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		key := strings.ToLower(trimmed)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, trimmed)
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
 func collectSessionAttachments(session *ports.Session) map[string]ports.Attachment {
 	attachments := make(map[string]ports.Attachment)
 	if session == nil {

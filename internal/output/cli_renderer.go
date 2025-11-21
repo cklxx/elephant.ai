@@ -462,37 +462,6 @@ func (r *CLIRenderer) formatReasoningOutput(result, indent string, style lipglos
 	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 }
 
-// Helper functions
-
-func renderPurpleGradient(text string) string {
-	colors := []string{
-		"#E0B0FF", "#D8A7F5", "#C78EEB",
-		"#B678E0", "#9F5FD6", "#8B47CC",
-	}
-
-	runes := []rune(text)
-	if len(runes) == 0 {
-		return text
-	}
-
-	var result strings.Builder
-	colorsLen := len(colors)
-	runesLen := len(runes)
-
-	for i, r := range runes {
-		colorIdx := (i * (colorsLen - 1)) / max(runesLen-1, 1)
-		if colorIdx >= colorsLen {
-			colorIdx = colorsLen - 1
-		}
-
-		color := colors[colorIdx]
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
-		result.WriteString(style.Render(string(r)))
-	}
-
-	return result.String()
-}
-
 func (r *CLIRenderer) renderMarkdown(content string) string {
 	if strings.TrimSpace(content) == "" {
 		return ""
@@ -541,13 +510,6 @@ func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNe
 		rendered += "\n"
 	}
 	return rendered
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // filterSystemReminders removes <system-reminder> tags from output
