@@ -98,7 +98,6 @@ Add to events array
 React re-renders AgentOutput
      ↓
 Route to appropriate card:
-  - task_analysis → TaskAnalysisCard
   - thinking → ThinkingIndicator
   - tool_call_start → ToolCallCard (running)
   - tool_call_complete → ToolCallCard (complete)
@@ -206,7 +205,6 @@ Create EventSource
      ↓
 Register event listeners:
   - onopen
-  - task_analysis
   - thinking
   - tool_call_start
   - tool_call_complete
@@ -291,19 +289,6 @@ type TaskAnalysisEvent struct {
     Goal       string
 }
 ```
-
-**TypeScript:**
-```typescript
-interface TaskAnalysisEvent extends AgentEvent {
-  event_type: 'task_analysis';
-  action_name: string;
-  goal: string;
-  timestamp: string;
-  agent_level: 'core' | 'subagent';
-}
-```
-
----
 
 ## Styling Architecture
 

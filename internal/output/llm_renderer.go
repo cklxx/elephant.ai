@@ -23,12 +23,6 @@ func (r *LLMRenderer) Target() OutputTarget {
 	return TargetLLM
 }
 
-// RenderTaskAnalysis renders task analysis (not needed for LLM)
-func (r *LLMRenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain.TaskAnalysisEvent) string {
-	// Task analysis is for user display only, LLM doesn't need it
-	return ""
-}
-
 // RenderToolCallStart renders tool call start (not needed for LLM)
 func (r *LLMRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string {
 	// Tool call visualization is for user only
