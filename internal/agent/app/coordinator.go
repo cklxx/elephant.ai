@@ -24,10 +24,9 @@ type AgentCoordinator struct {
 	logger       ports.Logger
 	clock        ports.Clock
 
-	prepService     *ExecutionPreparationService
-	analysisService *TaskAnalysisService
-	costDecorator   *CostTrackingDecorator
-	summarizer      *domain.FinalAnswerSummarizer
+	prepService   *ExecutionPreparationService
+	costDecorator *CostTrackingDecorator
+	summarizer    *domain.FinalAnswerSummarizer
 }
 
 type Config struct {
@@ -84,9 +83,6 @@ func NewAgentCoordinator(
 	}
 
 	// Create services only if not provided via options
-	if coordinator.analysisService == nil {
-		coordinator.analysisService = NewTaskAnalysisService(coordinator.logger)
-	}
 	if coordinator.costDecorator == nil {
 		coordinator.costDecorator = NewCostTrackingDecorator(costTracker, coordinator.logger, coordinator.clock)
 	}
@@ -103,7 +99,6 @@ func NewAgentCoordinator(
 		Config:        config,
 		Logger:        coordinator.logger,
 		Clock:         coordinator.clock,
-		Analysis:      coordinator.analysisService,
 		CostDecorator: coordinator.costDecorator,
 		CostTracker:   coordinator.costTracker,
 	})
@@ -158,15 +153,6 @@ func (c *AgentCoordinator) ExecuteTask(
 		c.logger.Info("Event listener successfully set on ReactEngine")
 	} else {
 		c.logger.Warn("No listener provided to ExecuteTask")
-	}
-
-	// If there's task analysis, emit the event before starting execution
-	if env.TaskAnalysis != nil && env.TaskAnalysis.ActionName != "" && listener != nil {
-		// Get agent level from context
-		agentLevel := ports.GetOutputContext(ctx).Level
-
-		event := domain.NewTaskAnalysisEvent(agentLevel, env.Session.ID, ensuredTaskID, parentTaskID, env.TaskAnalysis, c.clock.Now())
-		listener.OnEvent(event)
 	}
 
 	result, err := reactEngine.SolveTask(ctx, task, env.State, env.Services)
@@ -278,7 +264,6 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 			Config:        c.config,
 			Logger:        c.logger,
 			Clock:         c.clock,
-			Analysis:      c.analysisService,
 			CostDecorator: c.costDecorator,
 			EventEmitter:  listener, // Pass the listener for event emission
 			CostTracker:   c.costTracker,

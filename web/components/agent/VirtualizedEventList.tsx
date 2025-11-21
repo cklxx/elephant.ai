@@ -3,7 +3,6 @@
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
-import { TaskAnalysisCard } from './TaskAnalysisCard';
 import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
@@ -29,27 +28,12 @@ export function VirtualizedEventList({
 }: VirtualizedEventListProps) {
   const t = useTranslation();
   const { visibleEvents, indexMap } = useMemo(() => {
-    const filtered: AnyAgentEvent[] = [];
     const mapping = new Map<number, number>();
-    let lastTaskAnalysisIndex = -1;
-
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      if (events[index]?.event_type === 'task_analysis') {
-        lastTaskAnalysisIndex = index;
-        break;
-      }
-    }
-
-    events.forEach((event, index) => {
-      if (event.event_type === 'task_analysis' && index !== lastTaskAnalysisIndex) {
-        return;
-      }
-
-      mapping.set(index, filtered.length);
-      filtered.push(event);
+    events.forEach((_, index) => {
+      mapping.set(index, index);
     });
 
-    return { visibleEvents: filtered, indexMap: mapping };
+    return { visibleEvents: events, indexMap: mapping };
   }, [events]);
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -344,9 +328,6 @@ function EventCard({
   );
 
   switch (event.event_type) {
-    case 'task_analysis':
-      return wrapWithContext(<TaskAnalysisCard event={event} />);
-
     case 'thinking':
       return <ThinkingIndicator />;
 

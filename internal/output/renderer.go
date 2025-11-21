@@ -1,9 +1,9 @@
 package output
 
 import (
-	"alex/internal/agent/domain"
 	"time"
 
+	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
 )
 
@@ -21,9 +21,6 @@ const (
 type Renderer interface {
 	// Target returns the output target this renderer is for
 	Target() OutputTarget
-
-	// RenderTaskAnalysis renders the task analysis event
-	RenderTaskAnalysis(ctx *types.OutputContext, event *domain.TaskAnalysisEvent) string
 
 	// RenderToolCallStart renders tool call start
 	RenderToolCallStart(ctx *types.OutputContext, toolName string, args map[string]interface{}) string

@@ -147,7 +147,6 @@ The `AgentOutput` component renders events in real-time:
 
 All events correspond to Go types in `internal/agent/domain/events.go`:
 
-- `task_analysis` - Initial task analysis
 - `iteration_start` - ReAct iteration start
 - `thinking` - LLM is generating response
 - `think_complete` - LLM response received

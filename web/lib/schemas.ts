@@ -84,34 +84,6 @@ export const MessageSchema = z.object({
   source: MessageSourceSchema.optional(),
 });
 
-// Task Analysis Event
-export const TaskAnalysisEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('task_analysis'),
-  action_name: z.string(),
-  goal: z.string(),
-  approach: z.string().optional(),
-  success_criteria: z.array(z.string()).optional(),
-  steps: z
-    .array(
-      z.object({
-        description: z.string(),
-        rationale: z.string().optional(),
-        needs_external_context: z.boolean().optional(),
-      }),
-    )
-    .optional(),
-  retrieval_plan: z
-    .object({
-      should_retrieve: z.boolean().optional(),
-      local_queries: z.array(z.string()).optional(),
-      search_queries: z.array(z.string()).optional(),
-      crawl_urls: z.array(z.string()).optional(),
-      knowledge_gaps: z.array(z.string()).optional(),
-      notes: z.string().optional(),
-    })
-    .optional(),
-});
-
 // Iteration Start Event
 export const IterationStartEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('iteration_start'),
@@ -335,7 +307,6 @@ export const UserTaskEventSchema = BaseAgentEventSchema.extend({
 
 // Union schema for all agent events
 export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
-  TaskAnalysisEventSchema,
   IterationStartEventSchema,
   ThinkingEventSchema,
   ThinkCompleteEventSchema,
@@ -480,8 +451,6 @@ function normalizeEventData(data: unknown): unknown {
       normalized.event_type = 'iteration_start';
     } else if ('completed' in normalized && 'tool_calls' in normalized) {
       normalized.event_type = 'subagent_progress';
-    } else if ('action_name' in normalized && 'goal' in normalized) {
-      normalized.event_type = 'task_analysis';
     } else if ('plan_steps' in normalized) {
       normalized.event_type = 'research_plan';
     } else if ('step_index' in normalized && 'step_description' in normalized && !('step_result' in normalized)) {

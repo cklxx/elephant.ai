@@ -82,21 +82,14 @@ function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyA
   });
 
   if (userTaskIndices.length === 0) {
-    const anchor =
-      events.find((event) => event.event_type === "task_analysis") ?? events[0];
-    if (anchor) {
-      anchorMap.set(anchor, events);
-    }
+    anchorMap.set(events[0], events);
     return anchorMap;
   }
 
   userTaskIndices.forEach((startIdx, idx) => {
     const endIdx = userTaskIndices[idx + 1] ?? events.length;
     const segmentEvents = events.slice(startIdx, endIdx);
-    const analysisAnchor = segmentEvents.find(
-      (event) => event.event_type === "task_analysis",
-    );
-    const anchorEvent = analysisAnchor ?? events[startIdx];
+    const anchorEvent = events[startIdx];
     if (anchorEvent) {
       anchorMap.set(anchorEvent, segmentEvents);
     }
@@ -117,7 +110,6 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   switch (event.event_type) {
     // Show user input
     case "user_task":
-    case "task_analysis":
     // Show task completion
     case "task_complete":
     case "task_cancelled":

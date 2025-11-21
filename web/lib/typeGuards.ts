@@ -3,7 +3,6 @@
 
 import {
   AnyAgentEvent,
-  TaskAnalysisEvent,
   IterationStartEvent,
   ThinkingEvent,
   ThinkCompleteEvent,
@@ -30,11 +29,6 @@ export function isAgentEvent(event: unknown): event is AnyAgentEvent {
     'timestamp' in event &&
     'agent_level' in event
   );
-}
-
-// Task Analysis Event
-export function isTaskAnalysisEvent(event: AnyAgentEvent): event is TaskAnalysisEvent {
-  return event.event_type === 'task_analysis';
 }
 
 // Iteration Start Event

@@ -413,7 +413,6 @@ func (e *ReactEngine) SolveTask(ctx context.Context, task string) error {
 ```go
 // Add new event types to SSE stream
 eventTypes := []string{
-    "task_analysis",
     "iteration_start",
     "thinking",
     "think_complete",
@@ -480,13 +479,12 @@ describe('useAgentStreamIntegration', () => {
 
     // Simulate SSE event
     act(() => {
-      const event = { event_type: 'task_analysis', action_name: 'Test', ... };
+      const event = { event_type: 'iteration_start', iteration: 1, total_iters: 3, ... };
       result.current.onEvent(event);
     });
 
-    // Check store state
     const storeState = useAgentStreamStore.getState();
-    expect(storeState.taskAnalysis.action_name).toBe('Test');
+    expect(storeState.currentIteration).toBe(1);
   });
 });
 ```

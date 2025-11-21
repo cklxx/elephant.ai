@@ -26,9 +26,6 @@ curl -X POST http://localhost:8080/api/tasks \
 event: connected
 data: {"session_id":"demo"}
 
-event: task_analysis
-data: {"event_type":"task_analysis","action_name":"Solving math problem",...}
-
 event: thinking
 data: {"event_type":"thinking","iteration":1,...}
 
@@ -55,7 +52,6 @@ data: {"event_type":"task_complete","final_answer":"2+2 equals 4",...}
 Events you'll receive via SSE:
 
 - `connected` - Connection established
-- `task_analysis` - Task pre-analysis complete
 - `thinking` - LLM generating response
 - `tool_call_start` - Tool execution starting
 - `tool_call_complete` - Tool execution finished
