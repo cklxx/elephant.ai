@@ -485,12 +485,12 @@ export function TaskInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto w-full max-w-4xl rounded-3xl bg-white/5 p-4 shadow-none backdrop-blur-xl"
+      className="mx-auto w-full max-w-4xl rounded-3xl border border-black/5 bg-white p-4 shadow-[0_20px_70px_-45px_rgba(15,23,42,0.35)]"
       data-testid="task-input-form"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
         <div
-          className="relative flex flex-1 items-center rounded-2xl border border-white/40 bg-white/10 px-3.5 py-2.5 shadow-none backdrop-blur focus-within:border-white focus-within:ring-2 focus-within:ring-white/40"
+          className="relative flex flex-1 items-center rounded-2xl border border-neutral-200 bg-white px-3.5 py-2.5 shadow-[0_6px_28px_-22px_rgba(15,23,42,0.45)] focus-within:border-neutral-300 focus-within:ring-4 focus-within:ring-neutral-100"
         >
           <textarea
             ref={textareaRef}
@@ -508,7 +508,7 @@ export function TaskInput({
             rows={1}
             aria-label={t("task.input.ariaLabel")}
             data-testid="task-input"
-            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-xl bg-transparent px-2 py-1.5 pr-12 text-[13px] leading-6 text-foreground placeholder:text-foreground/60 shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-xl bg-white px-2 py-1.5 pr-12 text-[13px] leading-6 text-foreground placeholder:text-muted-foreground shadow-none focus:outline-none focus-visible:bg-white focus-visible:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
             style={{ fieldSizing: "content" } as any}
           />
           <button
@@ -516,7 +516,7 @@ export function TaskInput({
             onClick={openFilePicker}
             disabled={isInputDisabled}
             className={cn(
-              "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-foreground/70 backdrop-blur transition hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-50",
+              "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-neutral-100 text-foreground/70 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50",
             )}
             title={attachLabel}
             aria-label={attachLabel}
