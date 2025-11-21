@@ -81,90 +81,98 @@ export function InputBar({
 
   return (
     <div className="layout-input-bar px-6 py-4">
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-[auto,1fr,auto] items-start gap-3"
-      >
-        <div className="flex items-center gap-2 self-start">
-          {showAttachment && (
-            <button
-              type="button"
-              onClick={onAttachment}
-              disabled={disabled || loading}
-              className={cn(
-                'console-icon-button h-10 w-10 !rounded-lg',
-                'disabled:opacity-50'
-              )}
-              title={t('inputBar.actions.attach')}
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-          )}
-          {showVoice && (
-            <button
-              type="button"
-              onClick={onVoice}
-              disabled={disabled || loading}
-              className={cn(
-                'console-icon-button h-10 w-10 !rounded-lg',
-                'disabled:opacity-50'
-              )}
-              title={t('inputBar.actions.voice')}
-            >
-              <Mic className="h-4 w-4" />
-            </button>
-          )}
+      <div className="mx-auto max-w-5xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="console-pill console-pill-quiet">Borderless input rail</span>
+          <span className="uppercase tracking-[0.22em]">{t('inputBar.hint.shortcut')}</span>
         </div>
 
-        <div className="relative flex-1">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder={resolvedPlaceholder}
-            disabled={disabled || loading}
-            rows={1}
-            className={cn(
-              'w-full resize-none overflow-y-auto rounded-lg border border-input bg-background/80 px-4 py-3',
-              'text-sm text-foreground placeholder:text-muted-foreground',
-              'transition focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring',
-              'disabled:cursor-not-allowed disabled:opacity-60',
-              'max-h-32'
-            )}
-            style={{ fieldSizing: 'content' } as any}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={disabled || loading || !text.trim()}
-          className={cn(
-            'console-icon-button console-icon-button-primary h-10 w-10 !rounded-lg',
-            'flex-shrink-0 self-start'
-          )}
-          title={loading ? t('inputBar.actions.sending') : t('inputBar.actions.send')}
+        <form
+          onSubmit={handleSubmit}
+          className="console-card-interactive grid grid-cols-[auto,1fr,auto] items-start gap-3 p-3"
         >
-          {loading ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </button>
-      </form>
+          <div className="flex items-center gap-2 self-start">
+            {showAttachment && (
+              <button
+                type="button"
+                onClick={onAttachment}
+                disabled={disabled || loading}
+                className={cn(
+                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.06)]',
+                  'disabled:opacity-50'
+                )}
+                title={t('inputBar.actions.attach')}
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+            )}
+            {showVoice && (
+              <button
+                type="button"
+                onClick={onVoice}
+                disabled={disabled || loading}
+                className={cn(
+                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.06)]',
+                  'disabled:opacity-50'
+                )}
+                title={t('inputBar.actions.voice')}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{t('inputBar.hint.shortcut')}</span>
-        {text.length > 0 && (
-          <span className="font-mono">
-            {text.length} / 4000
-          </span>
-        )}
+          <div className="relative flex-1">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+              placeholder={resolvedPlaceholder}
+              disabled={disabled || loading}
+              rows={1}
+              className={cn(
+                'w-full resize-none overflow-y-auto rounded-2xl bg-[hsla(var(--foreground)/0.04)] px-4 py-3',
+                'text-sm text-foreground placeholder:text-muted-foreground',
+                'shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.08),0_18px_48px_-36px_hsla(var(--foreground)/0.45)]',
+                'transition duration-150 focus:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.18),0_18px_48px_-30px_hsla(var(--foreground)/0.55)]',
+                'disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.08)]',
+                'max-h-32'
+              )}
+              style={{ fieldSizing: 'content' } as any}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={disabled || loading || !text.trim()}
+            className={cn(
+              'console-icon-button console-icon-button-primary h-10 w-10 !rounded-lg',
+              'flex-shrink-0 self-start'
+            )}
+            title={loading ? t('inputBar.actions.sending') : t('inputBar.actions.send')}
+          >
+            {loading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </button>
+        </form>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{t('inputBar.placeholder')}</span>
+          {text.length > 0 && (
+            <span className="font-mono">
+              {text.length} / 4000
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
