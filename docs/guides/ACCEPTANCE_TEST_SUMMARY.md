@@ -122,7 +122,6 @@ All 5 P0 issues identified in ACCEPTANCE_TEST_PLAN.md have been successfully fix
 - Heartbeat mechanism ✅
 
 **What's Broken**:
-- Task events (task_analysis, iteration_start, thinking) not delivered
 - Integration between AgentCoordinator and EventBroadcaster
 
 **Files**:

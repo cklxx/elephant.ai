@@ -85,28 +85,6 @@ func TestWithClock(t *testing.T) {
 	}
 }
 
-func TestWithTaskAnalysisService(t *testing.T) {
-	logger := &testLogger{}
-	analysisService := NewTaskAnalysisService(logger)
-
-	coordinator := NewAgentCoordinator(
-		llm.NewFactory(),
-		stubToolRegistry{},
-		&stubSessionStore{},
-		stubContextManager{},
-		stubParser{},
-		nil,
-		Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 5},
-		WithLogger(logger),
-		WithTaskAnalysisService(analysisService),
-	)
-
-	// Verify analysis service is set
-	if coordinator.analysisService != analysisService {
-		t.Fatal("expected custom analysis service to be set")
-	}
-}
-
 func TestWithCostTrackingDecorator(t *testing.T) {
 	logger := &testLogger{}
 	clock := &testClock{fixedTime: time.Now()}
@@ -207,9 +185,6 @@ func TestOptionsBackwardCompatibility(t *testing.T) {
 	}
 	if coordinator.clock == nil {
 		t.Fatal("expected default clock to be set")
-	}
-	if coordinator.analysisService == nil {
-		t.Fatal("expected default analysis service to be set")
 	}
 	if coordinator.costDecorator == nil {
 		t.Fatal("expected default cost decorator to be set")

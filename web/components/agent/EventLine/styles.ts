@@ -17,10 +17,6 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
     content: "font-semibold text-foreground",
     line: "is-highlighted",
   },
-  task_analysis: {
-    content: "text-muted-foreground text-sm",
-    line: "is-task-analysis pr-0",
-  },
   task_complete: {
     content: "font-semibold text-foreground",
     line: "is-highlighted",

@@ -87,12 +87,8 @@ test.describe('ALEX console layout', () => {
     await page.keyboard.press('Enter');
 
     await expect(page.getByTestId('session-list-recent')).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByTestId('event-task_analysis')
-    ).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId('console-header-title')).toHaveText(
-      /Understanding task requirements/i
-    );
+    await expect(page.getByTestId('event-user_task')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('console-header-title')).toHaveText(/.+/);
   });
 
   test('home route redirects to conversation view', async ({ page }) => {

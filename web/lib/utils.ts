@@ -95,7 +95,6 @@ export function getToolColor(toolName: string): string {
 // Get event card style based on event type
 export function getEventCardStyle(eventType: string): string {
   const styleMap: Record<string, string> = {
-    task_analysis: 'border-primary/30 bg-primary/10',
     thinking: 'border-border bg-muted',
     think_complete: 'border-primary/30 bg-primary/10',
     tool_call_start: 'border-primary/30 bg-primary/10',

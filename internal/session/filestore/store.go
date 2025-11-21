@@ -1,9 +1,6 @@
 package filestore
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/utils"
-	id "alex/internal/utils/id"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +10,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"alex/internal/agent/ports"
+	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 type store struct {
@@ -22,12 +23,16 @@ type store struct {
 
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
+// New creates a file-backed session store rooted at baseDir.
 func New(baseDir string) ports.SessionStore {
 	if strings.HasPrefix(baseDir, "~/") {
-		home, _ := os.UserHomeDir()
-		baseDir = filepath.Join(home, baseDir[2:])
+		if home, err := os.UserHomeDir(); err == nil {
+			baseDir = filepath.Join(home, baseDir[2:])
+		}
 	}
-	_ = os.MkdirAll(baseDir, 0755) // Ignore error - directory may already exist
+	baseDir = filepath.Clean(baseDir)
+	_ = os.MkdirAll(baseDir, 0o755) // ignore error – directory may already exist
+
 	return &store{
 		baseDir: baseDir,
 		logger:  utils.NewComponentLogger("SessionFileStore"),
@@ -35,8 +40,11 @@ func New(baseDir string) ports.SessionStore {
 }
 
 func (s *store) Create(ctx context.Context) (*ports.Session, error) {
-	sessionID := id.NewSessionID()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
+	sessionID := id.NewSessionID()
 	if !isSafeSessionID(sessionID) {
 		return nil, fmt.Errorf("invalid session ID")
 	}
@@ -57,8 +65,7 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 		return nil, err
 	}
 
-	// Create file exclusively (fail if exists)
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session file: %w", err)
 	}
@@ -76,6 +83,9 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 }
 
 func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !isSafeSessionID(id) {
 		return nil, fmt.Errorf("invalid session ID")
 	}
@@ -85,6 +95,7 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("session not found")
 	}
+
 	var session ports.Session
 	if err := json.Unmarshal(data, &session); err != nil {
 		if s.logger != nil {
@@ -96,6 +107,9 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 }
 
 func (s *store) Save(ctx context.Context, session *ports.Session) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if session == nil {
 		return fmt.Errorf("session cannot be nil")
 	}
@@ -109,10 +123,14 @@ func (s *store) Save(ctx context.Context, session *ports.Session) error {
 		return err
 	}
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0o644)
 }
 
 func (s *store) List(ctx context.Context) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	entries, err := os.ReadDir(s.baseDir)
 	if err != nil {
 		return nil, err
@@ -127,6 +145,9 @@ func (s *store) List(ctx context.Context) ([]string, error) {
 }
 
 func (s *store) Delete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !isSafeSessionID(id) {
 		return fmt.Errorf("invalid session ID")
 	}

@@ -268,9 +268,6 @@ curl -X POST http://localhost:8080/api/tasks \
 event: connected
 data: {"session_id":"test-123","task_id":"","parent_task_id":""}
 
-event: task_analysis
-data: {"event_type":"task_analysis","timestamp":"2025-10-02T10:00:00Z","action_name":"Listing files","goal":"Find all Go source files","session_id":"test-123","task_id":"task-test-001","parent_task_id":""}
-
 event: tool_call_start
 data: {"event_type":"tool_call_start","tool_name":"bash","arguments":{"command":"find . -name '*.go'"},"session_id":"test-123","task_id":"task-test-001","parent_task_id":""}
 
@@ -428,7 +425,7 @@ const useSSE = (sessionId: string) => {
       `http://localhost:8080/api/sse?session_id=${sessionId}`
     );
 
-    eventSource.addEventListener('task_analysis', (e) => {
+    eventSource.addEventListener('iteration_start', (e) => {
       setEvents(prev => [...prev, JSON.parse(e.data)]);
     });
 

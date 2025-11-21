@@ -35,23 +35,16 @@ func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
 		t.Fatalf("expected state to be populated")
 	}
 
-	if len(env.State.Plans) == 0 {
-		t.Fatalf("expected derived plan nodes, got none")
-	}
-	if len(env.State.Plans[0].Children) == 0 {
-		t.Fatalf("expected nested plan steps, got %+v", env.State.Plans)
+	if len(env.State.Plans) != 0 {
+		t.Fatalf("expected no derived plans after task analysis removal, got %+v", env.State.Plans)
 	}
 
-	if len(env.State.Beliefs) < 2 {
-		t.Fatalf("expected beliefs from success criteria, got %+v", env.State.Beliefs)
+	if len(env.State.Beliefs) != 0 {
+		t.Fatalf("expected no beliefs seeded without task analysis, got %+v", env.State.Beliefs)
 	}
 
-	if len(env.State.KnowledgeRefs) == 0 {
-		t.Fatalf("expected knowledge references from retrieval plan")
-	}
-	ref := env.State.KnowledgeRefs[0]
-	if len(ref.SOPRefs) == 0 || len(ref.RAGCollections) == 0 {
-		t.Fatalf("expected reference to capture queries and targets, got %+v", ref)
+	if len(env.State.KnowledgeRefs) != 0 {
+		t.Fatalf("expected no knowledge references seeded without task analysis, got %+v", env.State.KnowledgeRefs)
 	}
 }
 

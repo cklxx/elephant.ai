@@ -13,9 +13,6 @@ import {
   StepCompletedEvent,
   IterationStartEvent,
   IterationCompleteEvent,
-  TaskAnalysisEvent,
-  TaskAnalysisStepDetail,
-  TaskRetrievalPlanDetail,
   TaskCancelledEvent,
   TaskCompleteEvent,
   ErrorEvent,
@@ -96,8 +93,7 @@ interface AgentStreamState {
   currentIteration: number | null;
   activeToolCallId: string | null;
   activeResearchStepId: string | null;
-  taskAnalysis: TaskAnalysisSnapshot;
-  taskStatus: 'idle' | 'analyzing' | 'running' | 'completed' | 'cancelled' | 'error';
+  taskStatus: 'idle' | 'running' | 'completed' | 'cancelled' | 'error';
   finalAnswer?: string;
   finalAnswerAttachments?: Record<string, AttachmentPayload>;
   totalIterations?: number;
@@ -111,15 +107,6 @@ interface AgentStreamState {
 
 type AgentStreamDraft = AgentStreamState;
 
-type TaskAnalysisSnapshot = {
-  action_name?: string;
-  goal?: string;
-  approach?: string;
-  success_criteria?: string[];
-  steps?: TaskAnalysisStepDetail[];
-  retrieval_plan?: TaskRetrievalPlanDetail;
-};
-
 const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' | 'clearEvents' | 'recomputeAggregations'> => ({
   eventCache: new EventLRUCache(MAX_EVENT_COUNT),
   toolCalls: new Map(),
@@ -131,7 +118,6 @@ const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' |
   currentIteration: null,
   activeToolCallId: null,
   activeResearchStepId: null,
-  taskAnalysis: {} as TaskAnalysisSnapshot,
   taskStatus: 'idle',
   finalAnswer: undefined,
   finalAnswerAttachments: undefined,
@@ -338,39 +324,6 @@ const applyBrowserInfo = (draft: AgentStreamDraft, event: BrowserInfoEvent) => {
 
 const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
   switch (event.event_type) {
-    case 'task_analysis': {
-      const task = event as TaskAnalysisEvent;
-      draft.taskStatus = 'analyzing';
-      const minimal: TaskAnalysisSnapshot = {
-        action_name: task.action_name,
-        goal: task.goal,
-        approach: task.approach,
-      };
-
-      if (task.success_criteria && task.success_criteria.length > 0) {
-        minimal.success_criteria = task.success_criteria;
-      }
-      if (task.steps && task.steps.length > 0) {
-        minimal.steps = task.steps;
-      }
-      if (task.retrieval_plan) {
-        const retrieval = task.retrieval_plan;
-        const hasRetrievalDetails =
-          retrieval.should_retrieve ||
-          (retrieval.local_queries && retrieval.local_queries.length > 0) ||
-          (retrieval.search_queries && retrieval.search_queries.length > 0) ||
-          (retrieval.crawl_urls && retrieval.crawl_urls.length > 0) ||
-          (retrieval.knowledge_gaps && retrieval.knowledge_gaps.length > 0) ||
-          !!retrieval.notes;
-
-        if (hasRetrievalDetails) {
-          minimal.retrieval_plan = retrieval;
-        }
-      }
-
-      draft.taskAnalysis = minimal;
-      break;
-    }
     case 'iteration_start': {
       const iterationEvent = event as IterationStartEvent;
       ensureIteration(draft, iterationEvent);
@@ -577,12 +530,6 @@ export const useErrorStates = () => {
 
 export const useTaskSummary = () => {
   return useAgentStreamStore((state) => ({
-    actionName: state.taskAnalysis.action_name,
-    goal: state.taskAnalysis.goal,
-    approach: state.taskAnalysis.approach,
-    successCriteria: state.taskAnalysis.success_criteria ?? [],
-    steps: state.taskAnalysis.steps ?? [],
-    retrievalPlan: state.taskAnalysis.retrieval_plan,
     status: state.taskStatus,
     currentIteration: state.currentIteration,
     totalIterations: state.totalIterations,

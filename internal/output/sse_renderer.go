@@ -5,7 +5,6 @@ import (
 	"alex/internal/agent/types"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -32,29 +31,6 @@ type SSEEvent struct {
 	Type      string                 `json:"type"`
 	Timestamp time.Time              `json:"timestamp"`
 	Data      map[string]interface{} `json:"data"`
-}
-
-// RenderTaskAnalysis renders task analysis as SSE event with hierarchy
-func (r *SSERenderer) RenderTaskAnalysis(ctx *types.OutputContext, event *domain.TaskAnalysisEvent) string {
-	payload := map[string]interface{}{
-		"action_name":    event.ActionName,
-		"goal":           event.Goal,
-		"level":          string(ctx.Level),
-		"agent_id":       ctx.AgentID,
-		"session_id":     ctx.SessionID,
-		"task_id":        event.GetTaskID(),
-		"parent_task_id": event.GetParentTaskID(),
-	}
-	if strings.TrimSpace(event.Approach) != "" {
-		payload["approach"] = event.Approach
-	}
-
-	sseEvent := SSEEvent{
-		Type:      "task_analysis",
-		Timestamp: event.Timestamp(),
-		Data:      payload,
-	}
-	return r.toSSE(sseEvent)
 }
 
 // RenderToolCallStart renders tool call start as SSE event with hierarchy

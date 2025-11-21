@@ -344,14 +344,8 @@ func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
 	outCtx := types.GetOutputContext(l.ui.ctx)
 
 	switch e := event.(type) {
-	case *domain.TaskAnalysisEvent:
-		// Show task analysis with purple gradient
-		rendered := l.renderer.RenderTaskAnalysis(outCtx, e)
-		if rendered != "" {
-			fmt.Print(rendered)
-		}
 	case *domain.IterationStartEvent:
-		// Optional: show iteration info
+	// Optional: show iteration info
 	case *domain.ThinkingEvent:
 		// Optional: show thinking indicator
 	case *domain.ThinkCompleteEvent:

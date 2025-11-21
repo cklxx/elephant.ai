@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { ImageUp, Send, Square, X } from "lucide-react";
+import { ArrowUp, Square, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AttachmentUpload } from "@/lib/types";
@@ -342,18 +342,18 @@ export function TaskInput({
         return;
       }
 
-      const images: File[] = [];
+      const files: File[] = [];
       for (let i = 0; i < items.length; i += 1) {
         const item = items[i];
         if (item.kind === "file") {
           const file = item.getAsFile();
-          if (file && file.type.startsWith("image/")) {
-            images.push(file);
+          if (file) {
+            files.push(file);
           }
         }
       }
 
-      if (!images.length) {
+      if (!files.length) {
         return;
       }
 
@@ -362,7 +362,7 @@ export function TaskInput({
       if (text) {
         insertContentAtCursor(text);
       }
-      await processFiles(images);
+      await processFiles(files);
     },
     [insertContentAtCursor, processFiles],
   );
@@ -403,10 +403,6 @@ export function TaskInput({
     [],
   );
 
-  const openFilePicker = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (task.trim() && !loading && !disabled && !isRunning) {
@@ -434,11 +430,6 @@ export function TaskInput({
   const showStopButton = (loading || isRunning) && typeof onStop === "function";
   const stopButtonDisabled = stopDisabled || stopPending;
 
-  const attachLabel = translateWithFallback(
-    "task.input.attachImage",
-    undefined,
-    "Attach file",
-  );
   const getRemoveLabel = useCallback(
     (name: string) =>
       translateWithFallback(
@@ -482,121 +473,111 @@ export function TaskInput({
     [translateWithFallback],
   );
 
+  const openFilePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full rounded-3xl bg-white/5 p-4 shadow-none backdrop-blur-xl"
+      className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-        <div
-          className="relative flex-1 rounded-2xl border border-white/40 bg-white/10 px-3.5 py-2.5 shadow-none backdrop-blur focus-within:border-white focus-within:ring-2 focus-within:ring-white/40 sm:items-center"
+      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
+        <button
+          type="button"
+          onClick={openFilePicker}
+          disabled={isInputDisabled}
+          className="sr-only"
+          data-testid="task-attachment-trigger"
         >
-          <textarea
-            ref={textareaRef}
-            value={task}
-            onChange={(e) => setTask(e.target.value)}
-            onPaste={handlePaste}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder={resolvedPlaceholder}
-            disabled={isInputDisabled}
-            rows={1}
-            aria-label={t("task.input.ariaLabel")}
-            data-testid="task-input"
-            className="min-h-[2.75rem] max-h-32 w-full resize-none overflow-y-auto rounded-xl bg-transparent p-0 pr-12 text-[13px] text-foreground placeholder:text-foreground/60 shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-            style={{ fieldSizing: "content" } as any}
-          />
-          <button
-            type="button"
-            onClick={openFilePicker}
-            disabled={isInputDisabled}
-            className={cn(
-              "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-foreground/70 backdrop-blur transition hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-50",
-            )}
-            title={attachLabel}
-            aria-label={attachLabel}
-            data-testid="task-attach-image"
-          >
-            <ImageUp className="h-4 w-4" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={acceptedFileTypes}
-            multiple
-            className="hidden"
-            onChange={handleFileInputChange}
-          />
-        </div>
+          Add attachment
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={acceptedFileTypes}
+          multiple
+          className="hidden"
+          onChange={handleFileInputChange}
+          data-testid="task-attachment-input"
+        />
 
-        {showStopButton ? (
-          <button
-            type="button"
-            onClick={onStop}
-            disabled={stopButtonDisabled}
-            className={cn(
-              "console-primary-action h-[2.75rem]",
-              "bg-destructive/85 text-destructive-foreground hover:bg-destructive/90",
-              "disabled:bg-destructive/70 disabled:text-destructive-foreground",
-            )}
-            title={t("task.stop.title")}
-            data-testid="task-stop"
-          >
-            {stopPending ? (
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
-                {t("task.stop.pending")}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <Square className="h-3.5 w-3.5" />
-                {t("task.stop.label")}
-              </span>
-            )}
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={isInputDisabled || !task.trim()}
-            className="console-primary-action h-[2.75rem]"
-            title={
-              loading
-                ? t("task.submit.title.running")
-                : t("task.submit.title.default")
+        <textarea
+          ref={textareaRef}
+          value={task}
+          onChange={(e) => setTask(e.target.value)}
+          onPaste={handlePaste}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
             }
-            data-testid="task-submit"
-          >
-            {loading ? (
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
-                {t("task.submit.running")}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <Send className="h-3.5 w-3.5" />
-                {t("task.submit.label")}
-              </span>
-            )}
-          </button>
-        )}
+          }}
+          placeholder={resolvedPlaceholder}
+          disabled={isInputDisabled}
+          rows={1}
+          aria-label={t("task.input.ariaLabel")}
+          data-testid="task-input"
+          className="min-h-[220px] max-h-[380px] w-full resize-none border-0 bg-transparent px-1 pb-8 pr-20 pt-2 text-[18px] leading-8 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ fieldSizing: "content", boxShadow: "none" } as any}
+        />
+
+        <div className="absolute bottom-6 right-6">
+          {showStopButton ? (
+            <button
+              type="button"
+              onClick={onStop}
+              disabled={stopButtonDisabled}
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-rose-500 px-5 text-sm font-semibold text-white shadow-[0_18px_50px_-36px_rgba(244,63,94,0.8)] transition hover:-translate-y-0.5 hover:bg-rose-500/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-100 disabled:translate-y-0 disabled:bg-rose-400 disabled:opacity-80"
+              aria-label={t("task.stop.title")}
+              data-testid="task-stop"
+            >
+              {stopPending ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
+                  {t("task.stop.pending")}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <Square className="h-3.5 w-3.5" />
+                  {t("task.stop.label")}
+                </span>
+              )}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isInputDisabled || !task.trim()}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-neutral-200 bg-neutral-900 text-white shadow-[0_18px_52px_-34px_rgba(15,23,42,0.75)] transition hover:-translate-y-0.5 hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-200 disabled:translate-y-0 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:shadow-none"
+              aria-label={
+                loading
+                  ? t("task.submit.title.running")
+                  : t("task.submit.title.default")
+              }
+              data-testid="task-submit"
+            >
+              {loading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/80 border-t-transparent" />
+              ) : (
+                <ArrowUp className="h-5 w-5" />
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {attachments.length > 0 && (
         <div
-          className="mt-3 flex flex-col gap-3"
+          className="flex flex-col gap-3"
           data-testid="task-attachments"
         >
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
-              className="flex flex-col overflow-hidden rounded-2xl bg-white/10 shadow-none backdrop-blur sm:flex-row"
+              className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_14px_45px_-36px_rgba(15,23,42,0.6)] sm:flex-row"
             >
-              <div className="relative flex h-36 w-full items-center justify-center bg-white/10 sm:h-auto sm:w-32">
+              <div className="relative flex h-36 w-full items-center justify-center bg-neutral-50 sm:h-auto sm:w-32">
                 {attachment.isImage && attachment.previewUrl ? (
                   <Image
                     src={attachment.previewUrl}
@@ -607,7 +588,7 @@ export function TaskInput({
                     unoptimized
                   />
                 ) : (
-                  <span className="px-2 text-center text-[11px] font-semibold uppercase tracking-wide text-foreground/60">
+                  <span className="px-2 text-center text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
                     {attachment.format
                       ? attachment.format.slice(0, 6).toUpperCase()
                       : noPreviewLabel}
@@ -616,18 +597,18 @@ export function TaskInput({
                 <button
                   type="button"
                   onClick={() => handleRemoveAttachment(attachment.id)}
-                  className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/70"
+                  className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900/70 text-white transition hover:bg-neutral-900"
                   aria-label={getRemoveLabel(attachment.name)}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-foreground/80">
-                <div className="text-sm font-semibold text-foreground">
+              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-neutral-700 sm:px-4 sm:py-3.5">
+                <div className="text-sm font-semibold text-neutral-900">
                   {attachment.name}
                 </div>
-                <div>{attachment.mediaType}</div>
-                <div className="text-foreground/60">{formatFileSize(attachment.size)}</div>
+                <div className="text-neutral-600">{attachment.mediaType}</div>
+                <div className="text-neutral-500">{formatFileSize(attachment.size)}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {(["attachment", "artifact"] as AttachmentKind[]).map((kind) => {
                     const isActive = attachment.kind === kind;
@@ -637,10 +618,10 @@ export function TaskInput({
                         type="button"
                         onClick={() => handleAttachmentKindChange(attachment.id, kind)}
                         className={cn(
-                          "rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground transition backdrop-blur",
+                          "rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition",
                           isActive
-                            ? "bg-foreground text-primary-foreground shadow-none"
-                            : "bg-white/15 text-foreground hover:bg-white/25",
+                            ? "bg-neutral-900 text-white shadow-[0_10px_30px_-24px_rgba(15,23,42,0.8)]"
+                            : "border border-neutral-200 bg-white text-neutral-700 hover:-translate-y-0.5 hover:border-neutral-300 hover:text-neutral-900",
                         )}
                       >
                         {attachmentKindLabels[kind]}
@@ -649,7 +630,7 @@ export function TaskInput({
                   })}
                 </div>
                 {attachment.kind === "artifact" && (
-                  <p className="mt-1 text-[10px] text-foreground/70">{artifactHint}</p>
+                  <p className="mt-1 text-[10px] text-neutral-600">{artifactHint}</p>
                 )}
               </div>
             </div>
@@ -657,7 +638,7 @@ export function TaskInput({
         </div>
       )}
 
-      <div className="mt-2 flex justify-end text-[10px] font-medium uppercase tracking-[0.35em] text-foreground/50">
+      <div className="flex justify-end text-[11px] font-medium uppercase tracking-[0.3em] text-neutral-500">
         {t("console.input.hotkeyHint")}
       </div>
     </form>

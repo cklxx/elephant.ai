@@ -72,8 +72,6 @@ export function useEventFormatter(
       switch (eventType) {
         case 'user_task':
           return 'text-primary font-semibold';
-        case 'task_analysis':
-          return 'text-primary';
         case 'task_complete':
           return 'text-emerald-600 font-semibold';
         case 'task_cancelled':
@@ -179,19 +177,6 @@ export function useEventFormatter(
             return `👤 User: ${event.task}`;
           }
           return 'User task';
-
-        case 'task_analysis':
-          if ('action_name' in event) {
-            const parts = [event.action_name];
-            if ('goal' in event && event.goal) {
-              parts.push(event.goal);
-            }
-            if ('approach' in event && event.approach) {
-              parts.push(event.approach);
-            }
-            return `📋 ${parts.filter(Boolean).join(' · ')}`;
-          }
-          return 'Task analysis';
 
         case 'iteration_start':
           if ('iteration' in event) {

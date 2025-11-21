@@ -31,7 +31,6 @@ type ExecutionPreparationDeps struct {
 	Config         Config
 	Logger         ports.Logger
 	Clock          ports.Clock
-	Analysis       *TaskAnalysisService
 	CostDecorator  *CostTrackingDecorator
 	PresetResolver *PresetResolver // Optional: if nil, one will be created
 	EventEmitter   ports.EventListener
@@ -48,7 +47,6 @@ type ExecutionPreparationService struct {
 	config         Config
 	logger         ports.Logger
 	clock          ports.Clock
-	analysis       *TaskAnalysisService
 	costDecorator  *CostTrackingDecorator
 	presetResolver *PresetResolver
 	eventEmitter   ports.EventListener
@@ -68,11 +66,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	clock := deps.Clock
 	if clock == nil {
 		clock = ports.SystemClock{}
-	}
-
-	analysis := deps.Analysis
-	if analysis == nil {
-		analysis = NewTaskAnalysisService(logger)
 	}
 
 	costDecorator := deps.CostDecorator
@@ -103,7 +96,6 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		config:         deps.Config,
 		logger:         logger,
 		clock:          clock,
-		analysis:       analysis,
 		costDecorator:  costDecorator,
 		presetResolver: presetResolver,
 		eventEmitter:   eventEmitter,
@@ -203,25 +195,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
 	}
 
-	analysis := s.analysis.Analyze(ctx, task, llmClient)
-	history := s.recallUserHistory(ctx, llmClient, task, analysis, session)
-	var taskAnalysis *ports.TaskAnalysis
-	if analysis != nil && analysis.ActionName != "" {
-		s.logger.Debug("Task pre-analysis: action=%s, goal=%s", analysis.ActionName, analysis.Goal)
-		taskAnalysis = &ports.TaskAnalysis{
-			ActionName:      analysis.ActionName,
-			Goal:            analysis.Goal,
-			Approach:        analysis.Approach,
-			SuccessCriteria: append([]string(nil), analysis.Criteria...),
-			TaskBreakdown:   cloneTaskAnalysisSteps(analysis.Steps),
-			Retrieval:       cloneTaskRetrievalPlan(analysis.Retrieval),
-		}
-	} else {
-		s.logger.Debug("Task pre-analysis skipped or failed")
-	}
-	planNodes := buildPlanNodesFromTaskAnalysis(taskAnalysis)
-	beliefs := deriveBeliefsFromTaskAnalysis(taskAnalysis)
-	knowledgeRefs := buildKnowledgeRefsFromTaskAnalysis(taskAnalysis)
+	history := s.recallUserHistory(ctx, llmClient, task, session)
 
 	preloadedAttachments := collectSessionAttachments(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
@@ -265,9 +239,9 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ParentTaskID:         ids.ParentTaskID,
 		Attachments:          preloadedAttachments,
 		AttachmentIterations: make(map[string]int),
-		Plans:                planNodes,
-		Beliefs:              beliefs,
-		KnowledgeRefs:        knowledgeRefs,
+		Plans:                nil,
+		Beliefs:              nil,
+		KnowledgeRefs:        nil,
 		WorldState:           initialWorldState,
 		WorldDiff:            initialWorldDiff,
 	}
@@ -332,11 +306,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		Services:     services,
 		Session:      session,
 		SystemPrompt: systemPrompt,
-		TaskAnalysis: taskAnalysis,
 	}, nil
 }
 
-func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, analysis *TaskAnalysis, session *ports.Session) *historyRecall {
+func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, session *ports.Session) *historyRecall {
 	if session == nil || len(session.Messages) == 0 {
 		return nil
 	}
@@ -584,186 +557,6 @@ func (s *ExecutionPreparationService) estimateHistoryTokens(messages []ports.Mes
 		total += len(msg.Content) / 4
 	}
 	return total
-}
-
-func buildPlanNodesFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.PlanNode {
-	if analysis == nil {
-		return nil
-	}
-	rootTitle := strings.TrimSpace(analysis.ActionName)
-	if rootTitle == "" {
-		rootTitle = strings.TrimSpace(analysis.Goal)
-	}
-	if rootTitle == "" && len(analysis.TaskBreakdown) == 0 {
-		return nil
-	}
-	root := ports.PlanNode{
-		ID:          "task_plan_root",
-		Title:       rootTitle,
-		Status:      "pending",
-		Description: strings.TrimSpace(analysis.Approach),
-	}
-	if len(analysis.TaskBreakdown) == 0 {
-		return []ports.PlanNode{root}
-	}
-	children := make([]ports.PlanNode, 0, len(analysis.TaskBreakdown))
-	for idx, step := range analysis.TaskBreakdown {
-		desc := strings.TrimSpace(step.Description)
-		if desc == "" {
-			continue
-		}
-		status := "pending"
-		if step.NeedsExternalContext {
-			status = "needs_context"
-		}
-		child := ports.PlanNode{
-			ID:          fmt.Sprintf("plan_step_%d", idx+1),
-			Title:       desc,
-			Status:      status,
-			Description: strings.TrimSpace(step.Rationale),
-		}
-		children = append(children, child)
-	}
-	if len(children) == 0 {
-		return []ports.PlanNode{root}
-	}
-	root.Children = children
-	return []ports.PlanNode{root}
-}
-
-func deriveBeliefsFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.Belief {
-	if analysis == nil {
-		return nil
-	}
-	beliefs := make([]ports.Belief, 0, len(analysis.SuccessCriteria)+len(analysis.Retrieval.KnowledgeGaps))
-	for _, criterion := range analysis.SuccessCriteria {
-		statement := strings.TrimSpace(criterion)
-		if statement == "" {
-			continue
-		}
-		beliefs = append(beliefs, ports.Belief{
-			Statement:  statement,
-			Confidence: 0.7,
-			Source:     "success_criteria",
-		})
-	}
-	for _, gap := range analysis.Retrieval.KnowledgeGaps {
-		trimmed := strings.TrimSpace(gap)
-		if trimmed == "" {
-			continue
-		}
-		beliefs = append(beliefs, ports.Belief{
-			Statement:  fmt.Sprintf("Unresolved gap: %s", trimmed),
-			Confidence: 0.35,
-			Source:     "retrieval_plan",
-		})
-	}
-	if len(beliefs) == 0 {
-		return nil
-	}
-	return beliefs
-}
-
-func buildKnowledgeRefsFromTaskAnalysis(analysis *ports.TaskAnalysis) []ports.KnowledgeReference {
-	if analysis == nil {
-		return nil
-	}
-	plan := analysis.Retrieval
-	if !plan.ShouldRetrieve && len(plan.LocalQueries) == 0 && len(plan.SearchQueries) == 0 && len(plan.CrawlURLs) == 0 && len(plan.KnowledgeGaps) == 0 {
-		return nil
-	}
-	ref := ports.KnowledgeReference{
-		ID:          "task_analysis_retrieval",
-		Description: strings.TrimSpace(plan.Notes),
-	}
-	ref.SOPRefs = appendUniqueStrings(nil, plan.LocalQueries...)
-	ref.RAGCollections = appendUniqueStrings(nil, plan.SearchQueries...)
-	ref.RAGCollections = appendUniqueStrings(ref.RAGCollections, plan.CrawlURLs...)
-	ref.MemoryKeys = appendUniqueStrings(nil, plan.KnowledgeGaps...)
-	if ref.Description == "" && plan.ShouldRetrieve {
-		ref.Description = "Auto-generated retrieval plan"
-	}
-	if len(ref.SOPRefs) == 0 && len(ref.RAGCollections) == 0 && len(ref.MemoryKeys) == 0 && strings.TrimSpace(ref.Description) == "" {
-		return nil
-	}
-	return []ports.KnowledgeReference{ref}
-}
-
-func cloneTaskAnalysisSteps(steps []ports.TaskAnalysisStep) []ports.TaskAnalysisStep {
-	if len(steps) == 0 {
-		return nil
-	}
-	cloned := make([]ports.TaskAnalysisStep, 0, len(steps))
-	for _, step := range steps {
-		if strings.TrimSpace(step.Description) == "" {
-			continue
-		}
-		cloned = append(cloned, ports.TaskAnalysisStep{
-			Description:          strings.TrimSpace(step.Description),
-			NeedsExternalContext: step.NeedsExternalContext,
-			Rationale:            strings.TrimSpace(step.Rationale),
-		})
-	}
-	if len(cloned) == 0 {
-		return nil
-	}
-	return cloned
-}
-
-func cloneTaskRetrievalPlan(plan ports.TaskRetrievalPlan) ports.TaskRetrievalPlan {
-	cloned := ports.TaskRetrievalPlan{
-		ShouldRetrieve: plan.ShouldRetrieve,
-		Notes:          strings.TrimSpace(plan.Notes),
-	}
-	cloned.LocalQueries = append([]string(nil), plan.LocalQueries...)
-	cloned.SearchQueries = append([]string(nil), plan.SearchQueries...)
-	cloned.CrawlURLs = append([]string(nil), plan.CrawlURLs...)
-	cloned.KnowledgeGaps = append([]string(nil), plan.KnowledgeGaps...)
-	if !cloned.ShouldRetrieve {
-		if len(cloned.LocalQueries) > 0 || len(cloned.SearchQueries) > 0 || len(cloned.CrawlURLs) > 0 {
-			cloned.ShouldRetrieve = true
-		}
-	}
-	return cloned
-}
-
-func appendUniqueStrings(base []string, values ...string) []string {
-	if len(values) == 0 {
-		if len(base) == 0 {
-			return nil
-		}
-		return base
-	}
-	seen := make(map[string]struct{}, len(base)+len(values))
-	result := make([]string, 0, len(base)+len(values))
-	for _, value := range base {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		key := strings.ToLower(trimmed)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, trimmed)
-	}
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		key := strings.ToLower(trimmed)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, trimmed)
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
 }
 
 func collectSessionAttachments(session *ports.Session) map[string]ports.Attachment {

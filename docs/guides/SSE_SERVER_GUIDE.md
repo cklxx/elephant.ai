@@ -65,9 +65,6 @@ Content-Type: text/event-stream
 event: connected
 data: {"session_id":"abc123"}
 
-event: task_analysis
-data: {"event_type":"task_analysis","timestamp":"2025-10-02T10:00:00Z","action_name":"Info check + defaults + actionable template","goal":"Complete the task"}
-
 event: tool_call_start
 data: {"event_type":"tool_call_start","tool_name":"bash","arguments":{"command":"ls -la"}}
 
@@ -231,7 +228,6 @@ The server emits the following event types (from `internal/agent/domain/events.g
 | Event Type | Description |
 |------------|-------------|
 | `connected` | Initial connection established |
-| `task_analysis` | Task pre-analysis complete |
 | `iteration_start` | New ReAct iteration starting |
 | `thinking` | LLM is generating response |
 | `think_complete` | LLM response received |

@@ -42,19 +42,6 @@ export function formatContent(event: AnyAgentEvent): string {
       }
       return 'User task';
 
-    case 'task_analysis':
-      if ('action_name' in event) {
-        const parts: string[] = [event.action_name];
-        if ('goal' in event && event.goal) {
-          parts.push(event.goal);
-        }
-        if ('approach' in event && event.approach) {
-          parts.push(event.approach);
-        }
-        return parts.filter(Boolean).join(' · ');
-      }
-      return 'Task analysis';
-
     case 'iteration_start':
       if ('iteration' in event) {
         return `Iteration ${event.iteration}/${event.total_iters}`;

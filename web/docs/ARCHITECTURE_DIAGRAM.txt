@@ -12,7 +12,7 @@
 │         │                          │                          │              │
 │         │ Emits Events             │ Event Stream             │ Server-Sent  │
 │         ▼                          ▼                          ▼ Events       │
-│  • task_analysis            • iteration_start          /api/sessions/       │
+│  • user_task                • iteration_start          /api/sessions/       │
 │  • thinking                 • tool_call_start          {id}/events          │
 │  • tool_call_complete       • task_complete                                 │
 │  • research_plan (future)   • browser_info (future)                        │

@@ -243,14 +243,6 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'task_analysis',
-    timestamp: atOffset(8),
-    agent_level: 'core',
-    action_name: '梳理现有遥测与告警体系',
-    goal: '了解现有链路瓶颈，确认可复用的事件与指标。',
-  },
-  {
-    ...baseEventContext,
     event_type: 'research_plan',
     timestamp: atOffset(12),
     agent_level: 'core',

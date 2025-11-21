@@ -240,24 +240,11 @@ describe("useSSE", () => {
       });
 
       const event1: AnyAgentEvent = {
-        event_type: "task_analysis",
+        event_type: "user_task",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
-        action_name: "Plan",
-        goal: "Test event 1",
-        approach: "Review state and plan",
-        success_criteria: ["Emit events"],
-        steps: [
-          {
-            description: "Collect signals",
-            needs_external_context: false,
-          },
-        ],
-        retrieval_plan: {
-          should_retrieve: false,
-          local_queries: ["docs"],
-        },
+        task: "Test event 1",
       };
 
       const event2: AnyAgentEvent = {
@@ -270,7 +257,7 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_analysis", event1);
+        mockEventSource.simulateEvent("user_task", event1);
         mockEventSource.simulateEvent("thinking", event2);
       });
 
@@ -950,9 +937,9 @@ describe("useSSE", () => {
       });
 
       // Manually trigger event with bad JSON
-      const listeners = (mockEventSource as any).listeners.get("task_analysis");
+      const listeners = (mockEventSource as any).listeners.get("thinking");
       if (listeners) {
-        const badEvent = new MessageEvent("task_analysis", {
+        const badEvent = new MessageEvent("thinking", {
           data: "invalid json",
         });
         act(() => {
