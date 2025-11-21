@@ -845,7 +845,13 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 
 	var existing map[string]ports.Attachment
 	if state != nil {
-		existing = normalizeAttachmentMap(state.Attachments)
+		if attachmentsMu != nil {
+			attachmentsMu.Lock()
+			existing = normalizeAttachmentMap(state.Attachments)
+			attachmentsMu.Unlock()
+		} else {
+			existing = normalizeAttachmentMap(state.Attachments)
+		}
 	}
 
 	merged := mergeAttachmentMutations(normalized, mutations, existing)
