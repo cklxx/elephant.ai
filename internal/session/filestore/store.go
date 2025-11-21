@@ -12,12 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"regexp"
 )
 
-type store struct {
-	baseDir string
-	logger  *utils.Logger
-}
 
 func New(baseDir string) ports.SessionStore {
 	if strings.HasPrefix(baseDir, "~/") {
@@ -67,6 +64,9 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 
 	return session, nil
 }
+	if !isSafeSessionID(id) {
+		return nil, fmt.Errorf("invalid session ID")
+	}
 
 func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
@@ -83,6 +83,9 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	}
 	return &session, nil
 }
+	if !isSafeSessionID(session.ID) {
+		return fmt.Errorf("invalid session ID")
+	}
 
 func (s *store) Save(ctx context.Context, session *ports.Session) error {
 	session.UpdatedAt = time.Now()
