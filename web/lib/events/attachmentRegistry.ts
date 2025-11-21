@@ -10,6 +10,13 @@ const PLACEHOLDER_PATTERN = /\[([^\[\]]+)\]/g;
 
 type AttachmentMap = Record<string, AttachmentPayload>;
 
+type AttachmentMutations = {
+  replace?: AttachmentMap;
+  add?: AttachmentMap;
+  update?: AttachmentMap;
+  remove?: string[];
+};
+
 function normalizeAttachmentMap(
   map?: AttachmentMap,
 ): AttachmentMap | undefined {
@@ -28,6 +35,38 @@ function normalizeAttachmentMap(
     };
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function normalizeAttachmentMutations(
+  metadata?: Record<string, any>,
+): AttachmentMutations | null {
+  if (!metadata) {
+    return null;
+  }
+
+  const raw = metadata.attachment_mutations || metadata.attachments_mutations;
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const replace = normalizeAttachmentMap(
+    raw.replace || raw.snapshot || raw.catalog,
+  );
+  const add = normalizeAttachmentMap(raw.add || raw.create);
+  const update = normalizeAttachmentMap(raw.update || raw.upsert);
+  const remove = Array.isArray(raw.remove || raw.delete)
+    ? (raw.remove || raw.delete)
+        .map((key: unknown) =>
+          typeof key === "string" ? key.trim() : String(key || "").trim(),
+        )
+        .filter((key: string) => Boolean(key))
+    : [];
+
+  if (replace || add || update || remove.length > 0) {
+    return { replace, add, update, remove };
+  }
+
+  return null;
 }
 
 class AttachmentRegistry {
@@ -56,6 +95,62 @@ class AttachmentRegistry {
     }
     Object.keys(normalized).forEach((key) => this.displayedByTool.add(key));
     this.upsertMany(normalized);
+  }
+
+  private removeMany(keys?: string[]) {
+    if (!keys || keys.length === 0) {
+      return;
+    }
+    keys.forEach((key) => {
+      const normalizedKey = (key || "").trim();
+      if (!normalizedKey) {
+        return;
+      }
+      delete this.store[normalizedKey];
+      this.displayedByTool.delete(normalizedKey);
+    });
+  }
+
+  private replaceStore(map?: AttachmentMap) {
+    if (!map || Object.keys(map).length === 0) {
+      return;
+    }
+    this.store = { ...map };
+    this.displayedByTool.clear();
+  }
+
+  private mergeMutations(
+    base?: AttachmentMap,
+    mutations?: AttachmentMutations | null,
+  ): AttachmentMap | undefined {
+    const merged: AttachmentMap = { ...(base || {}) };
+
+    if (!mutations) {
+      return Object.keys(merged).length > 0 ? merged : undefined;
+    }
+
+    if (mutations.replace) {
+      Object.assign(merged, mutations.replace);
+    }
+
+    if (mutations.add) {
+      Object.assign(merged, mutations.add);
+    }
+
+    if (mutations.update) {
+      Object.assign(merged, mutations.update);
+    }
+
+    if (mutations.remove && mutations.remove.length > 0) {
+      mutations.remove.forEach((key) => {
+        const normalizedKey = (key || "").trim();
+        if (normalizedKey) {
+          delete merged[normalizedKey];
+        }
+      });
+    }
+
+    return Object.keys(merged).length > 0 ? merged : undefined;
   }
 
   private filterUndisplayed(attachments?: AttachmentMap): AttachmentMap | undefined {
@@ -137,10 +232,34 @@ class AttachmentRegistry {
         const normalizedAttachments = normalizeAttachmentMap(
           toolEvent.attachments as AttachmentMap | undefined,
         );
+        const attachmentMutations = normalizeAttachmentMutations(
+          toolEvent.metadata,
+        );
 
-        if (normalizedAttachments) {
-          toolEvent.attachments = normalizedAttachments;
-          this.recordToolAttachments(normalizedAttachments);
+        if (attachmentMutations?.replace) {
+          this.replaceStore(attachmentMutations.replace);
+        }
+
+        if (attachmentMutations?.remove?.length) {
+          this.removeMany(attachmentMutations.remove);
+        }
+
+        if (attachmentMutations?.add) {
+          this.upsertMany(attachmentMutations.add);
+        }
+
+        if (attachmentMutations?.update) {
+          this.upsertMany(attachmentMutations.update);
+        }
+
+        const mergedAttachments = this.mergeMutations(
+          normalizedAttachments,
+          attachmentMutations,
+        );
+
+        if (mergedAttachments) {
+          toolEvent.attachments = mergedAttachments;
+          this.recordToolAttachments(mergedAttachments);
         } else {
           toolEvent.attachments = this.hydrateFromContent(toolEvent.result, {
             markDisplayed: true,

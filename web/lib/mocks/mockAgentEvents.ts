@@ -9,6 +9,12 @@ const MARKDOWN_ARTIFACT_PREVIEW =
 const MARKDOWN_ARTIFACT_SOURCE =
   'data:text/markdown;base64,IyBRMyBSZXNlYXJjaCBNZW1vCgotIEdvYWxzOiBzaGFyZSBhcnRpZmFjdCBkZW1vCi0gT3duZXJzOiBDb25zb2xlIHNxdWFkCg==';
 
+const ONBOARDING_MARKDOWN_SOURCE =
+  'data:text/markdown;base64,IyMgT25ib2FyZGluZyBHdWlkZQoKLSBDbG9uZSB0aGUgcmVwbyBhbmQgaW5zdGFsbCBkZXBzLgotIFJ1biB0aGUgbW9jayBjb25zb2xlIHRvIHByZXZpZXcgYXJ0aWZhY3RzLgotIFZlcmlmeSBhdHRhY2htZW50cyByZW5kZXIgYmVmb3JlIHNoaXBwaW5nLgo=';
+
+const CHECKLIST_MARKDOWN_SOURCE =
+  'data:text/markdown;base64,IyBEZXByZWNhdGVkIENoZWNrbGlzdAoKLSBSZW1vdmUgc3RhbGUgc2NyZWVuc2hvdHMuCi0gQXJjaGl2ZSBvbGQgc3R1ZHkgZG9jcy4KLSBSZXBsYWNlIHdpdGggZnJlc2ggbWFya2Rvd24gcHJldmlld3MuCg==';
+
 function createSvgDataUrl(color: string, label: string) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" rx="24" fill="${color}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, sans-serif" font-size="32" fill="#ffffff">${label}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -71,6 +77,56 @@ const mockAttachmentGallery: Record<string, AttachmentPayload> = {
       {
         asset_id: 'markdown-preview',
         label: 'Rendered memo',
+        mime_type: 'text/html',
+        preview_type: 'iframe',
+        cdn_url: MARKDOWN_ARTIFACT_PREVIEW,
+      },
+    ],
+  },
+  'Onboarding Guide': {
+    name: 'Onboarding Guide',
+    description: 'Markdown onboarding guide with preview thumbnail',
+    media_type: 'text/markdown',
+    format: 'md',
+    kind: 'artifact',
+    uri: ONBOARDING_MARKDOWN_SOURCE,
+    preview_profile: 'document.markdown',
+    preview_assets: [
+      {
+        asset_id: 'guide-thumb',
+        label: 'Guide thumbnail',
+        mime_type: 'image/svg+xml',
+        preview_type: 'image',
+        cdn_url: createSvgDataUrl('#22c55e', 'Guide'),
+      },
+      {
+        asset_id: 'guide-rendered',
+        label: 'Rendered guide',
+        mime_type: 'text/html',
+        preview_type: 'iframe',
+        cdn_url: MARKDOWN_ARTIFACT_PREVIEW,
+      },
+    ],
+  },
+  'Deprecated Checklist': {
+    name: 'Deprecated Checklist',
+    description: 'Cleanup list slated for removal',
+    media_type: 'text/markdown',
+    format: 'md',
+    kind: 'artifact',
+    uri: CHECKLIST_MARKDOWN_SOURCE,
+    preview_profile: 'document.markdown',
+    preview_assets: [
+      {
+        asset_id: 'checklist-thumb',
+        label: 'Archive thumb',
+        mime_type: 'image/svg+xml',
+        preview_type: 'image',
+        cdn_url: createSvgDataUrl('#f59e0b', 'Archive'),
+      },
+      {
+        asset_id: 'checklist-render',
+        label: 'Checklist details',
         mime_type: 'text/html',
         preview_type: 'iframe',
         cdn_url: MARKDOWN_ARTIFACT_PREVIEW,
@@ -301,6 +357,21 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
       },
     },
     {
+      delay: 2625,
+      event: {
+        event_type: 'tool_call_start',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'mock-artifact-write',
+        tool_name: 'artifacts_write',
+        arguments: {
+          path: 'attachments/onboarding-guide.md',
+          format: 'markdown',
+          operation: 'create',
+        },
+      },
+    },
+    {
       delay: 2750,
       event: {
         event_type: 'browser_info',
@@ -316,12 +387,77 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
       },
     },
     {
+      delay: 2850,
+      event: {
+        event_type: 'tool_call_complete',
+        agent_level: 'core',
+        call_id: 'mock-artifact-write',
+        tool_name: 'artifacts_write',
+        result:
+          'Persisted markdown notes as [Onboarding Guide] and staged cleanup for [Deprecated Checklist].',
+        duration: 360,
+        attachments: pickAttachments('Onboarding Guide', 'Deprecated Checklist'),
+        metadata: {
+          attachment_mutations: {
+            add: pickAttachments('Onboarding Guide'),
+            update: pickAttachments('Deprecated Checklist'),
+          },
+        },
+      },
+    },
+    {
       delay: 2950,
       event: {
         event_type: 'step_completed',
         agent_level: 'core',
         step_index: 0,
         step_result: 'Collected baseline UI findings',
+      },
+    },
+    {
+      delay: 2975,
+      event: {
+        event_type: 'tool_call_start',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'mock-artifact-list',
+        tool_name: 'artifacts_list',
+        arguments: {
+          kind: 'artifact',
+          include_thumbnails: true,
+        },
+      },
+    },
+    {
+      delay: 3150,
+      event: {
+        event_type: 'tool_call_complete',
+        agent_level: 'core',
+        call_id: 'mock-artifact-list',
+        tool_name: 'artifacts_list',
+        result:
+          'Synced attachment catalog with thumbnails for downstream document views.',
+        duration: 310,
+        attachments: pickAttachments(
+          'Executive Review Slides',
+          'Console Architecture Prototype',
+          'Q3 Research Memo',
+          'Status Heatmap',
+          'Latency Report',
+          'Onboarding Guide',
+        ),
+        metadata: {
+          attachment_mutations: {
+            replace: pickAttachments(
+              'Executive Review Slides',
+              'Console Architecture Prototype',
+              'Q3 Research Memo',
+              'Status Heatmap',
+              'Latency Report',
+              'Onboarding Guide',
+            ),
+          },
+        },
       },
     },
     {
@@ -332,6 +468,37 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         iteration: 1,
         tokens_used: 865,
         tools_run: 1,
+      },
+    },
+    {
+      delay: 3225,
+      event: {
+        event_type: 'tool_call_start',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: 'mock-artifact-delete',
+        tool_name: 'artifacts_delete',
+        arguments: {
+          names: ['Deprecated Checklist'],
+          reason: 'remove temporary scratchpad',
+        },
+      },
+    },
+    {
+      delay: 3285,
+      event: {
+        event_type: 'tool_call_complete',
+        agent_level: 'core',
+        call_id: 'mock-artifact-delete',
+        tool_name: 'artifacts_delete',
+        result:
+          'Archived scratch attachment [Deprecated Checklist] to keep the gallery focused on final assets.',
+        duration: 240,
+        metadata: {
+          attachment_mutations: {
+            remove: ['Deprecated Checklist'],
+          },
+        },
       },
     },
     {
@@ -561,12 +728,19 @@ export function createMockEventSequence(task: string): TimedMockEvent[] {
         event_type: 'task_complete',
         agent_level: 'core',
         final_answer:
-          '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
+          '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Team onboarding: [Onboarding Guide]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
         total_iterations: 1,
         total_tokens: 865,
         stop_reason: 'completed',
         duration: 3600,
-        attachments: cloneAttachmentMap(mockAttachmentGallery),
+        attachments: pickAttachments(
+          'Executive Review Slides',
+          'Console Architecture Prototype',
+          'Q3 Research Memo',
+          'Onboarding Guide',
+          'Status Heatmap',
+          'Latency Report',
+        ),
       },
     },
   ];
