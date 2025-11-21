@@ -4,7 +4,12 @@ import { useMemo } from "react";
 import { AnyAgentEvent } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
-import { EventLine } from "./EventLine";
+import {
+  EventLine,
+  SubagentContext,
+  SubagentHeader,
+  getSubagentContext,
+} from "./EventLine";
 
 interface TerminalOutputProps {
   events: AnyAgentEvent[];
@@ -23,14 +28,14 @@ export function TerminalOutput({
   reconnectAttempts,
   onReconnect,
 }: TerminalOutputProps) {
-  const panelAnchors = useMemo(
-    () => buildPanelAnchors(events),
+  const { displayEvents, subagentThreads } = useMemo(
+    () => partitionEvents(events),
     [events],
   );
 
-  const displayEvents = useMemo(
-    () => buildDisplayEvents(events),
-    [events],
+  const panelAnchors = useMemo(
+    () => buildPanelAnchors(displayEvents),
+    [displayEvents],
   );
 
   // Show connection banner if disconnected
@@ -47,6 +52,13 @@ export function TerminalOutput({
   }
   return (
     <div className="space-y-5" data-testid="conversation-stream">
+      {subagentThreads.length > 0 && (
+        <div className="space-y-3" data-testid="subagent-aggregate-panel">
+          {subagentThreads.map((thread) => (
+            <SubagentAggregate key={thread.key} thread={thread} />
+          ))}
+        </div>
+      )}
       <div className="space-y-4" data-testid="conversation-events">
         {displayEvents.map((event, index) => {
           const key = `${event.event_type}-${event.timestamp}-${index}`;
@@ -64,6 +76,32 @@ export function TerminalOutput({
         })}
       </div>
 
+    </div>
+  );
+}
+
+interface SubagentThread {
+  key: string;
+  context: SubagentContext;
+  events: AnyAgentEvent[];
+}
+
+function SubagentAggregate({ thread }: { thread: SubagentThread }) {
+  return (
+    <div
+      className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3"
+      data-testid="subagent-aggregate"
+    >
+      <SubagentHeader context={thread.context} />
+      <div className="space-y-2">
+        {thread.events.map((event, index) => (
+          <EventLine
+            key={`${thread.key}-${event.event_type}-${event.timestamp}-${index}`}
+            event={event}
+            showSubagentContext={index === 0}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -126,14 +164,71 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   }
 }
 
-function buildDisplayEvents(
+function partitionEvents(
   events: AnyAgentEvent[],
-): AnyAgentEvent[] {
-  return events.filter((event) => {
-    if (event.agent_level === "subagent") {
-      return true;
+): { displayEvents: AnyAgentEvent[]; subagentThreads: SubagentThread[] } {
+  const displayEvents: AnyAgentEvent[] = [];
+  const threadOrder: string[] = [];
+  const threads = new Map<string, SubagentThread>();
+
+  events.forEach((event) => {
+    const isSubagentEvent =
+      event.agent_level === "subagent" ||
+      ("is_subtask" in event && Boolean(event.is_subtask));
+
+    if (isSubagentEvent) {
+      const key = getSubagentKey(event);
+      const context = getSubagentContext(event);
+
+      if (!threads.has(key)) {
+        threadOrder.push(key);
+        threads.set(key, { key, context, events: [] });
+      }
+
+      const thread = threads.get(key)!;
+      if (!thread.context.preview && context.preview) {
+        thread.context = { ...thread.context, preview: context.preview };
+      }
+      if (!thread.context.concurrency && context.concurrency) {
+        thread.context = { ...thread.context, concurrency: context.concurrency };
+      }
+
+      thread.events.push(event);
+      return;
     }
 
-    return event.event_type !== "assistant_message" && !shouldSkipEvent(event);
+    if (event.event_type !== "assistant_message" && !shouldSkipEvent(event)) {
+      displayEvents.push(event);
+    }
   });
+
+  return {
+    displayEvents,
+    subagentThreads: threadOrder.map((key) => threads.get(key)!),
+  };
+}
+
+function getSubagentKey(event: AnyAgentEvent): string {
+  const parentTaskId =
+    "parent_task_id" in event && typeof event.parent_task_id === "string"
+      ? event.parent_task_id
+      : undefined;
+
+  const subtaskIndex =
+    "subtask_index" in event && typeof event.subtask_index === "number"
+      ? event.subtask_index
+      : undefined;
+
+  if (parentTaskId) {
+    if (typeof subtaskIndex === "number") {
+      return `${parentTaskId}:${subtaskIndex}`;
+    }
+    return `parent:${parentTaskId}`;
+  }
+
+  if ("call_id" in event && typeof event.call_id === "string") {
+    return `call:${event.call_id}`;
+  }
+
+  return `task:${event.task_id ?? "unknown"}`;
 }

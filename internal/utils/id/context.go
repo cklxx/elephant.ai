@@ -12,6 +12,7 @@ const (
 	sessionKey    contextKey = "alex_session_id"
 	taskKey       contextKey = "alex_task_id"
 	parentTaskKey contextKey = "alex_parent_task_id"
+	userKey       contextKey = "alex_user_id"
 )
 
 // IDs captures the identifiers propagated across agent execution boundaries.
@@ -30,6 +31,14 @@ func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	ctx = context.WithValue(ctx, sessionKey, sessionID)
 	ctx = context.WithValue(ctx, agentports.SessionContextKey{}, sessionID)
 	return ctx
+}
+
+// WithUserID stores the authenticated user identifier on the context.
+func WithUserID(ctx context.Context, userID string) context.Context {
+	if userID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, userKey, userID)
 }
 
 // WithTaskID stores the current task identifier on the context.
@@ -94,6 +103,17 @@ func ParentTaskIDFromContext(ctx context.Context) string {
 	}
 	if parentID, ok := ctx.Value(parentTaskKey).(string); ok {
 		return parentID
+	}
+	return ""
+}
+
+// UserIDFromContext extracts the authenticated user identifier from context.
+func UserIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if userID, ok := ctx.Value(userKey).(string); ok {
+		return userID
 	}
 	return ""
 }
