@@ -40,6 +40,17 @@ type PendingAttachment = {
 
 const artifactRetentionDays = 90;
 const artifactRetentionSeconds = artifactRetentionDays * 24 * 60 * 60;
+const acceptedFileTypes = [
+  "image/*",
+  ".pdf",
+  ".ppt",
+  ".pptx",
+  ".html",
+  ".htm",
+  ".md",
+  ".markdown",
+  ".txt",
+].join(",");
 
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -157,6 +168,7 @@ export function TaskInput({
   const [task, setTask] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useTranslation();
   const resolvedPlaceholder =
     placeholder ?? t("console.input.placeholder.idle");
@@ -311,6 +323,18 @@ export function TaskInput({
     [attachments, insertPlaceholder],
   );
 
+  const handleFileInputChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { files } = event.target;
+      if (!files || files.length === 0) {
+        return;
+      }
+      await processFiles(Array.from(files));
+      event.target.value = "";
+    },
+    [processFiles],
+  );
+
   const handlePaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const items = event.clipboardData?.items;
@@ -449,6 +473,10 @@ export function TaskInput({
     [translateWithFallback],
   );
 
+  const openFilePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -456,6 +484,25 @@ export function TaskInput({
       data-testid="task-input-form"
     >
       <div className="group relative rounded-[52px] bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
+        <button
+          type="button"
+          onClick={openFilePicker}
+          disabled={isInputDisabled}
+          className="sr-only"
+          data-testid="task-attachment-trigger"
+        >
+          Add attachment
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={acceptedFileTypes}
+          multiple
+          className="hidden"
+          onChange={handleFileInputChange}
+          data-testid="task-attachment-input"
+        />
+
         <textarea
           ref={textareaRef}
           value={task}
@@ -472,8 +519,8 @@ export function TaskInput({
           rows={1}
           aria-label={t("task.input.ariaLabel")}
           data-testid="task-input"
-          className="min-h-[220px] max-h-[380px] w-full resize-none bg-transparent px-1 pb-8 pr-20 pt-2 text-[18px] leading-8 text-neutral-900 placeholder:text-neutral-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ fieldSizing: "content" } as any}
+          className="min-h-[220px] max-h-[380px] w-full resize-none border-0 bg-transparent px-1 pb-8 pr-20 pt-2 text-[18px] leading-8 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ fieldSizing: "content", boxShadow: "none" } as any}
         />
 
         <div className="absolute bottom-6 right-6">
