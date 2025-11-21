@@ -455,7 +455,7 @@ export function TaskInput({
       className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <div className="group relative overflow-hidden rounded-[46px] border border-neutral-300/80 bg-white/95 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)] transition focus-within:border-neutral-400 focus-within:ring-4 focus-within:ring-neutral-200/70 focus-within:shadow-[0_40px_120px_-64px_rgba(15,23,42,0.55)]">
+      <div className="group relative rounded-[52px] border border-neutral-300/80 bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)] transition focus-within:border-neutral-400 focus-within:ring-4 focus-within:ring-neutral-200/70 focus-within:shadow-[0_40px_120px_-64px_rgba(15,23,42,0.55)]">
         <textarea
           ref={textareaRef}
           value={task}
@@ -472,11 +472,11 @@ export function TaskInput({
           rows={1}
           aria-label={t("task.input.ariaLabel")}
           data-testid="task-input"
-          className="min-h-[220px] max-h-[380px] w-full resize-none bg-transparent px-7 pb-16 pr-24 pt-6 text-[18px] leading-8 text-neutral-900 placeholder:text-neutral-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-[220px] max-h-[380px] w-full resize-none bg-transparent px-1 pb-8 pr-20 pt-2 text-[18px] leading-8 text-neutral-900 placeholder:text-neutral-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           style={{ fieldSizing: "content" } as any}
         />
 
-        <div className="absolute bottom-5 right-5">
+        <div className="absolute bottom-6 right-6">
           {showStopButton ? (
             <button
               type="button"
