@@ -98,7 +98,8 @@ export function InputBar({
                 onClick={onAttachment}
                 disabled={disabled || loading}
                 className={cn(
-                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.06)]',
+                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.12)]',
+                  'shadow-[0_10px_30px_-22px_hsla(var(--foreground)/0.38)] transition-colors hover:bg-[hsla(var(--foreground)/0.16)]',
                   'disabled:opacity-50'
                 )}
                 title={t('inputBar.actions.attach')}
@@ -112,7 +113,8 @@ export function InputBar({
                 onClick={onVoice}
                 disabled={disabled || loading}
                 className={cn(
-                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.06)]',
+                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.12)]',
+                  'shadow-[0_10px_30px_-22px_hsla(var(--foreground)/0.38)] transition-colors hover:bg-[hsla(var(--foreground)/0.16)]',
                   'disabled:opacity-50'
                 )}
                 title={t('inputBar.actions.voice')}
@@ -137,11 +139,11 @@ export function InputBar({
               disabled={disabled || loading}
               rows={1}
               className={cn(
-                'w-full resize-none overflow-y-auto rounded-2xl bg-[hsla(var(--foreground)/0.04)] px-4 py-3',
+                'w-full resize-none overflow-y-auto rounded-2xl bg-[hsla(var(--foreground)/0.1)] px-4 py-3',
                 'text-sm text-foreground placeholder:text-muted-foreground',
-                'shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.08),0_18px_48px_-36px_hsla(var(--foreground)/0.45)]',
-                'transition duration-150 focus:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.18),0_18px_48px_-30px_hsla(var(--foreground)/0.55)]',
-                'disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.08)]',
+                'shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.14),0_18px_48px_-30px_hsla(var(--foreground)/0.55)]',
+                'transition duration-150 focus:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.22),0_18px_48px_-22px_hsla(var(--foreground)/0.62)]',
+                'disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.12)]',
                 'max-h-32'
               )}
               style={{ fieldSizing: 'content' } as any}
