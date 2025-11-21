@@ -34,8 +34,8 @@ export function TerminalOutput({
   );
 
   const panelAnchors = useMemo(
-    () => buildPanelAnchors(displayEvents),
-    [displayEvents],
+    () => buildPanelAnchors(events, displayEvents),
+    [events, displayEvents],
   );
 
   // Show connection banner if disconnected
@@ -106,31 +106,41 @@ function SubagentAggregate({ thread }: { thread: SubagentThread }) {
   );
 }
 
-function buildPanelAnchors(events: AnyAgentEvent[]): WeakMap<AnyAgentEvent, AnyAgentEvent[]> {
+function buildPanelAnchors(
+  events: AnyAgentEvent[],
+  anchorEvents: AnyAgentEvent[],
+): WeakMap<AnyAgentEvent, AnyAgentEvent[]> {
   const anchorMap = new WeakMap<AnyAgentEvent, AnyAgentEvent[]>();
-  if (events.length === 0) {
+  if (events.length === 0 || anchorEvents.length === 0) {
     return anchorMap;
   }
 
-  const userTaskIndices: number[] = [];
+  const eventIndexLookup = new WeakMap<AnyAgentEvent, number>();
   events.forEach((event, index) => {
-    if (event.event_type === "user_task") {
-      userTaskIndices.push(index);
-    }
+    eventIndexLookup.set(event, index);
   });
 
-  if (userTaskIndices.length === 0) {
-    anchorMap.set(events[0], events);
+  const sortedAnchors = anchorEvents
+    .map((event) => {
+      const index = eventIndexLookup.get(event);
+      if (typeof index !== "number") {
+        return null;
+      }
+      return { event, index };
+    })
+    .filter((anchor): anchor is { event: AnyAgentEvent; index: number } =>
+      Boolean(anchor),
+    )
+    .sort((a, b) => a.index - b.index);
+
+  if (sortedAnchors.length === 0) {
     return anchorMap;
   }
 
-  userTaskIndices.forEach((startIdx, idx) => {
-    const endIdx = userTaskIndices[idx + 1] ?? events.length;
-    const segmentEvents = events.slice(startIdx, endIdx);
-    const anchorEvent = events[startIdx];
-    if (anchorEvent) {
-      anchorMap.set(anchorEvent, segmentEvents);
-    }
+  sortedAnchors.forEach(({ event, index }, idx) => {
+    const endIdx = sortedAnchors[idx + 1]?.index ?? events.length;
+    const segmentEvents = events.slice(index, endIdx);
+    anchorMap.set(event, segmentEvents);
   });
 
   return anchorMap;
