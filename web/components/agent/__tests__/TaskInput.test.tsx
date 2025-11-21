@@ -119,21 +119,26 @@ describe('TaskInput', () => {
       </LanguageProvider>,
     );
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['foo'], 'diagram.png', { type: 'image/png' });
-    Object.defineProperty(fileInput, 'files', {
-      value: [file],
-      writable: false,
-    });
 
-    await user.click(screen.getByTestId('task-attach-image'));
-    fireEvent.change(fileInput);
+    const textarea = await screen.findByTestId('task-input');
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => file,
+          },
+        ],
+        getData: vi.fn().mockReturnValue(''),
+      },
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('task-attachments')).toBeInTheDocument();
     });
 
-    const textarea = await screen.findByTestId('task-input');
     expect(textarea).toHaveValue('[diagram.png]');
 
     await user.click(screen.getByTestId('task-submit'));
@@ -161,17 +166,23 @@ describe('TaskInput', () => {
       </LanguageProvider>,
     );
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['foo'], 'deck.pptx', {
       type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     });
-    Object.defineProperty(fileInput, 'files', {
-      value: [file],
-      writable: false,
-    });
 
-    await user.click(screen.getByTestId('task-attach-image'));
-    fireEvent.change(fileInput);
+    const textarea = await screen.findByTestId('task-input');
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: file.type,
+            getAsFile: () => file,
+          },
+        ],
+        getData: vi.fn().mockReturnValue(''),
+      },
+    });
 
     await screen.findByTestId('task-attachments');
 
@@ -186,6 +197,48 @@ describe('TaskInput', () => {
           name: 'deck.pptx',
           kind: 'artifact',
           retention_ttl_seconds: 90 * 24 * 60 * 60,
+        }),
+      ]);
+    });
+  });
+
+  it('allows selecting attachments via the file picker', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <LanguageProvider>
+        <TaskInput onSubmit={onSubmit} />
+      </LanguageProvider>,
+    );
+
+    const file = new File(['hello'], 'notes.pdf', { type: 'application/pdf' });
+
+    const trigger = await screen.findByTestId('task-attachment-trigger');
+    const input = await screen.findByTestId('task-attachment-input');
+
+    await user.click(trigger);
+
+    fireEvent.change(input, {
+      target: { files: [file] },
+    });
+
+    const textarea = await screen.findByTestId('task-input');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('task-attachments')).toBeInTheDocument();
+      expect(textarea).toHaveValue('[notes.pdf]');
+    });
+
+    await user.click(screen.getByTestId('task-submit'));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('[notes.pdf]', [
+        expect.objectContaining({
+          name: 'notes.pdf',
+          media_type: 'application/pdf',
+          data: 'Zm9v',
+          source: 'user_upload',
         }),
       ]);
     });
