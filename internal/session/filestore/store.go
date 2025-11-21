@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +20,8 @@ type store struct {
 	baseDir string
 	logger  *utils.Logger
 }
+
+var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // New creates a file-backed session store rooted at baseDir.
 func New(baseDir string) ports.SessionStore {
@@ -42,6 +45,10 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 	}
 
 	sessionID := id.NewSessionID()
+	if !isSafeSessionID(sessionID) {
+		return nil, fmt.Errorf("invalid session ID")
+	}
+
 	session := &ports.Session{
 		ID:        sessionID,
 		Messages:  []ports.Message{},
@@ -79,6 +86,9 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if !isSafeSessionID(id) {
+		return nil, fmt.Errorf("invalid session ID")
+	}
 
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
 	data, err := os.ReadFile(path)
@@ -99,6 +109,12 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 func (s *store) Save(ctx context.Context, session *ports.Session) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if session == nil {
+		return fmt.Errorf("session cannot be nil")
+	}
+	if !isSafeSessionID(session.ID) {
+		return fmt.Errorf("invalid session ID")
 	}
 
 	session.UpdatedAt = time.Now()
@@ -132,6 +148,9 @@ func (s *store) Delete(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if !isSafeSessionID(id) {
+		return fmt.Errorf("invalid session ID")
+	}
 
 	var combined error
 
@@ -153,6 +172,10 @@ func (s *store) Delete(ctx context.Context, id string) error {
 	}
 
 	return combined
+}
+
+func isSafeSessionID(id string) bool {
+	return sessionIDPattern.MatchString(id)
 }
 
 func previewJSON(data []byte) string {

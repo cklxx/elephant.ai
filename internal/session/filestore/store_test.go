@@ -4,6 +4,8 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"alex/internal/agent/ports"
 )
 
 func TestStore_SavePersistsParentTaskMetadata(t *testing.T) {
@@ -60,5 +62,28 @@ func TestStore_SaveCreatesFilesRelativeToBaseDir(t *testing.T) {
 
 	if got := reloaded.Metadata["last_parent_task_id"]; got != "parent-789" {
 		t.Fatalf("expected last_parent_task_id %q, got %q", "parent-789", got)
+	}
+}
+
+func TestStore_RejectsUnsafeIDs(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store := New(baseDir)
+
+	if _, err := store.Get(context.Background(), "../escape"); err == nil {
+		t.Fatalf("Get() expected invalid session ID error")
+	}
+
+	session := &ports.Session{
+		ID:       "../escape",
+		Metadata: map[string]string{},
+	}
+	if err := store.Save(context.Background(), session); err == nil {
+		t.Fatalf("Save() expected invalid session ID error")
+	}
+
+	if err := store.Delete(context.Background(), "../escape"); err == nil {
+		t.Fatalf("Delete() expected invalid session ID error")
 	}
 }

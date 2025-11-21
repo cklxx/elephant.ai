@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -507,6 +508,90 @@ func TestRegisterMessageAttachmentsDetectsChanges(t *testing.T) {
 	}
 	if registerMessageAttachments(state, msg) {
 		t.Fatal("expected duplicate registration to report no changes")
+	}
+}
+
+func TestApplyToolAttachmentMutationsUpdatesState(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"old.txt": {Name: "old.txt", MediaType: "text/plain", Source: "user_upload"},
+		},
+		AttachmentIterations: map[string]int{"old.txt": 1},
+		Iterations:           3,
+	}
+
+	call := ToolCall{ID: "call-1", Name: "artifacts_write"}
+	metadata := map[string]any{
+		"attachment_mutations": map[string]any{
+			"replace": map[string]any{
+				"note.md": map[string]any{
+					"media_type": "text/markdown",
+					"data":       "YmFzZSBjb250ZW50",
+				},
+			},
+			"add": map[string]any{
+				"thumb.png": map[string]any{
+					"uri":        "https://cdn.example.com/thumb.png",
+					"media_type": "image/png",
+				},
+			},
+			"remove": []any{"old.txt"},
+		},
+	}
+
+	attachments := map[string]ports.Attachment{
+		"note.md": {MediaType: "text/markdown", Data: "YmFzZSBjb250ZW50"},
+	}
+
+	var mu sync.Mutex
+	merged := engine.applyToolAttachmentMutations(context.Background(), state, call, attachments, metadata, &mu)
+
+	if len(merged) != 2 {
+		t.Fatalf("expected merged attachments to include replace and add, got %d", len(merged))
+	}
+	if _, ok := merged["thumb.png"]; !ok {
+		t.Fatalf("expected merged attachments to include new thumbnail: %+v", merged)
+	}
+	if _, ok := state.Attachments["old.txt"]; ok {
+		t.Fatalf("expected old attachment to be removed, got %+v", state.Attachments)
+	}
+	if iter, ok := state.AttachmentIterations["note.md"]; !ok || iter != 3 {
+		t.Fatalf("expected iteration for note.md to be updated to 3, got %d", iter)
+	}
+	if source := state.Attachments["note.md"].Source; source != "artifacts_write" {
+		t.Fatalf("expected default source to be tool name, got %q", source)
+	}
+}
+
+func TestApplyToolAttachmentMutationsRemoveOnly(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"keep.txt": {Name: "keep.txt", URI: "https://cdn/keep.txt"},
+			"drop.txt": {Name: "drop.txt", URI: "https://cdn/drop.txt"},
+		},
+		AttachmentIterations: map[string]int{"keep.txt": 1, "drop.txt": 2},
+		Iterations:           3,
+	}
+
+	metadata := map[string]any{
+		"attachment_mutations": map[string]any{
+			"remove": []any{"drop.txt"},
+		},
+	}
+
+	var mu sync.Mutex
+	merged := engine.applyToolAttachmentMutations(context.Background(), state, ToolCall{Name: "artifacts_delete"}, nil, metadata, &mu)
+
+	if len(merged) != 1 {
+		t.Fatalf("expected merged attachments to keep remaining entries, got %+v", merged)
+	}
+	if _, ok := merged["drop.txt"]; ok {
+		t.Fatalf("expected removed attachment to be pruned from merged set: %+v", merged)
+	}
+	if iter := state.AttachmentIterations["keep.txt"]; iter != 3 {
+		t.Fatalf("expected surviving attachment to record current iteration, got %d", iter)
 	}
 }
 

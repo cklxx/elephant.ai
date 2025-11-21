@@ -264,6 +264,11 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["todo_read"] = builtin.NewTodoRead()
 	r.static["todo_update"] = builtin.NewTodoUpdate()
 
+	// Attachment and artifact operations
+	r.static["artifacts_write"] = builtin.NewArtifactsWrite()
+	r.static["artifacts_list"] = builtin.NewArtifactsList()
+	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
+
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{
 		BaseURL:        config.SandboxBaseURL,
