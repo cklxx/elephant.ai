@@ -191,14 +191,10 @@ export function useSSE(
 
         if (serverErrorMessage) {
           console.warn(
-            "[SSE] Server returned terminal error, stopping auto-reconnect:",
+            "[SSE] Server returned error payload, continuing to reconnect:",
             serverErrorMessage,
           );
-          reconnectAttemptsRef.current = maxReconnectAttempts;
-          setReconnectAttempts(maxReconnectAttempts);
           setError(serverErrorMessage);
-          setIsReconnecting(false);
-          return;
         }
 
         const nextAttempts = reconnectAttemptsRef.current + 1;

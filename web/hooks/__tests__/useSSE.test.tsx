@@ -601,7 +601,7 @@ describe("useSSE", () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    test("should stop reconnecting when server returns terminal error payload", async () => {
+    test("should keep reconnecting when server returns error payload", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: 5 }),
       );
@@ -620,18 +620,26 @@ describe("useSSE", () => {
         });
       });
 
-      expect(result.current.isReconnecting).toBe(false);
+      expect(result.current.isReconnecting).toBe(true);
       expect(result.current.error).toContain("LLM call failed");
-      expect(result.current.reconnectAttempts).toBe(5);
+      expect(result.current.reconnectAttempts).toBe(1);
 
       act(() => {
-        vi.runOnlyPendingTimers();
+        vi.advanceTimersByTime(1000);
       });
 
-      expect(vi.getTimerCount()).toBe(0);
+      await waitForConnection(2);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.error).toBe(null);
+      expect(result.current.reconnectAttempts).toBe(0);
     });
 
-    test("should read structured error payloads without stringification", async () => {
+    test("should read structured error payloads and reconnect", async () => {
       const { result } = renderHook(() =>
         useSSE("test-session-456", { maxReconnectAttempts: 3 }),
       );
@@ -650,15 +658,23 @@ describe("useSSE", () => {
         });
       });
 
-      expect(result.current.isReconnecting).toBe(false);
+      expect(result.current.isReconnecting).toBe(true);
       expect(result.current.error).toContain("Upstream fatal");
-      expect(result.current.reconnectAttempts).toBe(3);
+      expect(result.current.reconnectAttempts).toBe(1);
 
       act(() => {
-        vi.runOnlyPendingTimers();
+        vi.advanceTimersByTime(1000);
       });
 
-      expect(vi.getTimerCount()).toBe(0);
+      await waitForConnection(2);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.error).toBe(null);
+      expect(result.current.reconnectAttempts).toBe(0);
     });
 
     test("should reset reconnection attempts on successful connection", async () => {
