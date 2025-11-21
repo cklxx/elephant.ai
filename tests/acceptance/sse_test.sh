@@ -237,23 +237,20 @@ test_sse_event_types() {
 
     # Capture SSE stream for 15 seconds (give task time to complete)
     timeout 15s curl -s -N "$BASE_URL/api/events/$session_id" > "$RESULTS_DIR/sse_event_types_${session_id}.txt" 2>&1
-
     if [ -s "$RESULTS_DIR/sse_event_types_${session_id}.txt" ]; then
         # Look for various event types
-        has_task_analysis=$(grep -c '"type":"task_analysis"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
         has_thinking=$(grep -c '"type":"thinking"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
         has_tool_call=$(grep -c '"type":"tool_call' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
         has_task_complete=$(grep -c '"type":"task_complete"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
 
         log_info "Event type counts:"
-        log_info "  task_analysis: $has_task_analysis"
         log_info "  thinking: $has_thinking"
         log_info "  tool_call*: $has_tool_call"
         log_info "  task_complete: $has_task_complete"
 
-        found_types=$((has_task_analysis + has_thinking + has_tool_call + has_task_complete))
+        found_types=$((has_thinking + has_tool_call + has_task_complete))
 
-        if [ "$found_types" -ge 3 ]; then
+        if [ "$found_types" -ge 2 ]; then
             log_pass "Multiple SSE event types detected (found $found_types type categories)"
             return 0
         else
@@ -261,7 +258,7 @@ test_sse_event_types() {
             return 1
         fi
     else
-        log_fail "No SSE events captured for event types test"
+        log_fail "No events captured for session $session_id"
         return 1
     fi
 }

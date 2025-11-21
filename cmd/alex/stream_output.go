@@ -248,8 +248,6 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 
 	// Handle regular events
 	switch e := event.(type) {
-	case *domain.TaskAnalysisEvent:
-		b.handler.onTaskAnalysis(e)
 	case *domain.IterationStartEvent:
 		b.handler.onIterationStart(e)
 	case *domain.ThinkingEvent:
@@ -267,22 +265,6 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 	case *domain.TaskCompleteEvent:
 		b.handler.onTaskComplete(e)
 	}
-}
-
-// Event handlers
-
-func (h *StreamingOutputHandler) onTaskAnalysis(event *domain.TaskAnalysisEvent) {
-	// Use agent level from event (events now carry their source info)
-	outCtx := &types.OutputContext{
-		Level:        event.GetAgentLevel(),
-		AgentID:      string(event.GetAgentLevel()),
-		Verbose:      h.verbose,
-		SessionID:    event.GetSessionID(),
-		TaskID:       event.GetTaskID(),
-		ParentTaskID: event.GetParentTaskID(),
-	}
-	rendered := h.renderer.RenderTaskAnalysis(outCtx, event)
-	h.write(rendered)
 }
 
 func (h *StreamingOutputHandler) onIterationStart(event *domain.IterationStartEvent) {

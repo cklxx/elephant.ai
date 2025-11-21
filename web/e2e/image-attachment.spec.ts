@@ -37,7 +37,7 @@ test.describe('Task input image attachments', () => {
     await textarea.press('Enter');
 
     await expect(
-      page.getByTestId('event-task_analysis')
+      page.getByTestId('event-user_task')
     ).toContainText('image.png', { timeout: 15000 });
   });
 });

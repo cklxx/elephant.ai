@@ -13,13 +13,11 @@ describe('useAgentStreamStore', () => {
   describe('LRU Event Caching', () => {
     it('should add events to cache', () => {
       const event: AnyAgentEvent = {
-        event_type: 'task_analysis',
+        event_type: 'user_task',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
-        action_name: 'Test Action',
-        goal: 'Test Goal',
+        task: 'Review repository state',
       };
 
       act(() => {
@@ -212,44 +210,6 @@ describe('useAgentStreamStore', () => {
   });
 
   describe('Task Status Management', () => {
-    it('should transition from idle to analyzing', () => {
-      expect(useAgentStreamStore.getState().taskStatus).toBe('idle');
-
-      const analysisEvent: AnyAgentEvent = {
-        event_type: 'task_analysis',
-        timestamp: new Date().toISOString(),
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        action_name: 'Test Task',
-        goal: 'Complete the test',
-        approach: 'Outline plan and execute checks',
-        success_criteria: ['Pass regression tests'],
-        steps: [
-          {
-            description: 'Review existing coverage',
-            needs_external_context: true,
-          },
-        ],
-        retrieval_plan: {
-          should_retrieve: true,
-          local_queries: ['coverage report'],
-        },
-      };
-
-      act(() => {
-        useAgentStreamStore.getState().addEvent(analysisEvent);
-      });
-
-      const state = useAgentStreamStore.getState();
-      expect(state.taskStatus).toBe('analyzing');
-      expect(state.taskAnalysis.action_name).toBe('Test Task');
-      expect(state.taskAnalysis.approach).toBe('Outline plan and execute checks');
-      expect(state.taskAnalysis.success_criteria).toEqual(['Pass regression tests']);
-      expect(state.taskAnalysis.steps?.[0]?.description).toBe('Review existing coverage');
-      expect(state.taskAnalysis.retrieval_plan?.local_queries).toEqual(['coverage report']);
-    });
-
     it('should transition to running on iteration start', () => {
       const iterStartEvent: AnyAgentEvent = {
         event_type: 'iteration_start',
@@ -425,13 +385,11 @@ describe('useAgentStreamStore', () => {
       // Add some events
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'task_analysis',
+          event_type: 'user_task',
           timestamp: new Date().toISOString(),
           session_id: 'test-123',
           agent_level: 'core',
-          iteration: 1,
-          action_name: 'Test',
-          goal: 'Test goal',
+          task: 'Test goal',
         },
         {
           event_type: 'iteration_start',

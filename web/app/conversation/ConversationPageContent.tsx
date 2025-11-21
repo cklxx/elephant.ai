@@ -17,7 +17,6 @@ import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
-import { isFallbackActionName } from '@/lib/taskAnalysis';
 
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -105,24 +104,6 @@ export function ConversationPageContent() {
     useMock: useMockStream,
     onEvent: handleAgentEvent,
   });
-
-  // Auto-set session name from first task_analysis event
-  const hasSetSessionNameRef = useRef(false);
-  useEffect(() => {
-    if (!resolvedSessionId || hasSetSessionNameRef.current) return;
-
-    const taskAnalysisEvent = events.find((e) => e.event_type === 'task_analysis');
-    if (taskAnalysisEvent && 'action_name' in taskAnalysisEvent) {
-      renameSession(resolvedSessionId, taskAnalysisEvent.action_name);
-      hasSetSessionNameRef.current = true;
-    }
-  }, [events, resolvedSessionId, renameSession]);
-
-  // Reset flag when session changes
-  useEffect(() => {
-    hasSetSessionNameRef.current = false;
-  }, [resolvedSessionId]);
-
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
     if (contentRef.current) {
@@ -446,31 +427,6 @@ export function ConversationPageContent() {
   const stopPending = cancelRequested || isCancelPending;
   const inputDisabled = cancelRequested || isCancelPending;
 
-  const hasConversation = Boolean(resolvedSessionId) || events.length > 0;
-
-  const firstTaskAnalysis = useMemo(
-    () => events.find((event) => event.event_type === 'task_analysis'),
-    [events],
-  );
-  const analysisApproach =
-    firstTaskAnalysis && 'approach' in firstTaskAnalysis && firstTaskAnalysis.approach
-      ? firstTaskAnalysis.approach.trim()
-      : null;
-  const analysisActionName =
-    firstTaskAnalysis && 'action_name' in firstTaskAnalysis && firstTaskAnalysis.action_name
-      ? firstTaskAnalysis.action_name.trim()
-      : null;
-  const analysisGoal =
-    firstTaskAnalysis && 'goal' in firstTaskAnalysis && firstTaskAnalysis.goal
-      ? firstTaskAnalysis.goal.trim()
-      : null;
-  const hasMeaningfulActionName = Boolean(
-    analysisActionName && !isFallbackActionName(analysisActionName),
-  );
-  const analysisTitle = analysisApproach || (hasMeaningfulActionName ? analysisActionName : null);
-  const analysisSubtitle =
-    !analysisApproach && hasMeaningfulActionName && analysisGoal ? analysisGoal : null;
-
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
     : null;
@@ -540,14 +496,8 @@ export function ConversationPageContent() {
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
-          title={analysisTitle || sessionBadge || t('conversation.header.idle')}
-          subtitle={
-            analysisTitle
-              ? analysisSubtitle || sessionBadge || undefined
-              : resolvedSessionId
-                ? t('conversation.header.subtitle')
-                : undefined
-          }
+          title={sessionBadge || t('conversation.header.idle')}
+          subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
           leadingSlot={
             <button
               type="button"

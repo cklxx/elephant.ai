@@ -507,7 +507,6 @@ GET /api/sse?session_id=xxx
 ```
 
 **Events to emit:**
-- `task_analysis`
 - `iteration_start`
 - `thinking`
 - `think_complete`

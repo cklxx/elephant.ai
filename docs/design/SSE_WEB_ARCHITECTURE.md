@@ -449,7 +449,7 @@ export function useSSE(sessionId: string | null) {
 
     // Listen to specific event types from domain/events.go
     const eventTypes = [
-      'task_analysis',
+      'user_task',
       'iteration_start',
       'thinking',
       'think_complete',
@@ -520,8 +520,8 @@ export function AgentOutput({ sessionId }: Props) {
 
 function EventCard({ event }: { event: AgentEvent }) {
   switch (event.event_type) {
-    case 'task_analysis':
-      return <TaskAnalysisCard event={event} />;
+    case 'user_task':
+      return <UserTaskCard event={event} />;
 
     case 'thinking':
       return <ThinkingIndicator />;
@@ -707,7 +707,7 @@ const toolColors = {
 
 // Event type colors
 const eventColors = {
-  task_analysis: 'bg-purple-50 border-purple-200',
+  user_task: 'bg-purple-50 border-purple-200',
   tool_call_start: 'bg-blue-50 border-blue-200',
   tool_call_complete: 'bg-green-50 border-green-200',
   error: 'bg-red-50 border-red-200',
@@ -756,10 +756,9 @@ export interface AgentEvent {
   agent_level: 'core' | 'subagent';
 }
 
-export interface TaskAnalysisEvent extends AgentEvent {
-  event_type: 'task_analysis';
-  action_name: string;
-  goal: string;
+export interface UserTaskEvent extends AgentEvent {
+  event_type: 'user_task';
+  task: string;
 }
 
 export interface ToolCallStartEvent extends AgentEvent {

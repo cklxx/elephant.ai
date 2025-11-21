@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
 )
 
@@ -79,38 +78,5 @@ func TestSSERendererTruncatesLongArgumentsPreview(t *testing.T) {
 	}
 	if cmd, _ := arguments["command"].(string); strings.Contains(cmd, longCommand) {
 		t.Fatalf("expected arguments map to contain summarized command, got %q", cmd)
-	}
-}
-
-func TestSSERendererTaskAnalysisPayloadIncludesPlan(t *testing.T) {
-	renderer := NewSSERenderer()
-	ctx := &types.OutputContext{Level: types.LevelCore, AgentID: "core", SessionID: "session-1", TaskID: "task-1"}
-	event := &domain.TaskAnalysisEvent{
-		BaseEvent:  domain.BaseEvent{},
-		ActionName: "Investigate issue",
-		Goal:       "Fix 500 error",
-		Approach:   "Inspect logs then reproduce",
-	}
-
-	rendered := renderer.RenderTaskAnalysis(ctx, event)
-	payload := decodeSSEPayload(t, rendered)
-
-	if payload.Type != "task_analysis" {
-		t.Fatalf("expected task_analysis type, got %s", payload.Type)
-	}
-	if payload.Data["action_name"] != "Investigate issue" {
-		t.Fatalf("expected action name, got %v", payload.Data["action_name"])
-	}
-	if payload.Data["approach"] != "Inspect logs then reproduce" {
-		t.Fatalf("expected approach to be present, got %v", payload.Data["approach"])
-	}
-	if _, ok := payload.Data["success_criteria"]; ok {
-		t.Fatalf("expected success criteria omitted, got %v", payload.Data["success_criteria"])
-	}
-	if _, ok := payload.Data["steps"]; ok {
-		t.Fatalf("expected steps omitted, got %v", payload.Data["steps"])
-	}
-	if _, ok := payload.Data["retrieval_plan"]; ok {
-		t.Fatalf("expected retrieval plan omitted, got %v", payload.Data["retrieval_plan"])
 	}
 }

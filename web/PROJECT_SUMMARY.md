@@ -270,7 +270,6 @@ The frontend expects the ALEX backend server to provide:
 - `GET /api/sse?session_id=xxx` - Event stream
 
 Server must emit events matching these types:
-- task_analysis
 - iteration_start
 - thinking
 - think_complete

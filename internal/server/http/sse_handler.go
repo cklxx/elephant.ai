@@ -282,7 +282,6 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[
 // backend emits. The current IDL of event_type values (and their primary
 // payload fields) is:
 //   - user_task: task, attachments
-//   - task_analysis: action_name, goal, approach
 //   - iteration_start: iteration, total_iters
 //   - thinking: iteration, message_count
 //   - think_complete: iteration, content, tool_call_count
@@ -361,22 +360,6 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
-	case *domain.TaskAnalysisEvent:
-		data["action_name"] = e.ActionName
-		data["goal"] = e.Goal
-		if strings.TrimSpace(e.Approach) != "" {
-			data["approach"] = e.Approach
-		}
-		if len(e.SuccessCriteria) > 0 {
-			data["success_criteria"] = append([]string(nil), e.SuccessCriteria...)
-		}
-		if len(e.Steps) > 0 {
-			data["steps"] = serializeAnalysisSteps(e.Steps)
-		}
-		if retrieval := serializeRetrievalPlan(e.Retrieval); retrieval != nil {
-			data["retrieval_plan"] = retrieval
-		}
-
 	case *domain.IterationStartEvent:
 		data["iteration"] = e.Iteration
 		data["total_iters"] = e.TotalIters
@@ -586,64 +569,6 @@ func sanitizeArguments(arguments map[string]interface{}) map[string]interface{} 
 	}
 
 	return sanitized
-}
-
-func serializeAnalysisSteps(steps []ports.TaskAnalysisStep) []map[string]any {
-	if len(steps) == 0 {
-		return nil
-	}
-	serialized := make([]map[string]any, 0, len(steps))
-	for _, step := range steps {
-		if strings.TrimSpace(step.Description) == "" {
-			continue
-		}
-		entry := map[string]any{
-			"description": step.Description,
-		}
-		if strings.TrimSpace(step.Rationale) != "" {
-			entry["rationale"] = step.Rationale
-		}
-		if step.NeedsExternalContext {
-			entry["needs_external_context"] = true
-		}
-		serialized = append(serialized, entry)
-	}
-	if len(serialized) == 0 {
-		return nil
-	}
-	return serialized
-}
-
-func serializeRetrievalPlan(plan ports.TaskRetrievalPlan) map[string]any {
-	hasQueries := len(plan.LocalQueries) > 0 || len(plan.SearchQueries) > 0 || len(plan.CrawlURLs) > 0 || len(plan.KnowledgeGaps) > 0
-	if !plan.ShouldRetrieve && !hasQueries && strings.TrimSpace(plan.Notes) == "" {
-		return nil
-	}
-
-	payload := map[string]any{
-		"should_retrieve": plan.ShouldRetrieve,
-	}
-	if len(plan.LocalQueries) > 0 {
-		payload["local_queries"] = append([]string(nil), plan.LocalQueries...)
-	}
-	if len(plan.SearchQueries) > 0 {
-		payload["search_queries"] = append([]string(nil), plan.SearchQueries...)
-	}
-	if len(plan.CrawlURLs) > 0 {
-		payload["crawl_urls"] = append([]string(nil), plan.CrawlURLs...)
-	}
-	if len(plan.KnowledgeGaps) > 0 {
-		payload["knowledge_gaps"] = append([]string(nil), plan.KnowledgeGaps...)
-	}
-	if strings.TrimSpace(plan.Notes) != "" {
-		payload["notes"] = plan.Notes
-	}
-
-	if !plan.ShouldRetrieve && hasQueries {
-		payload["should_retrieve"] = true
-	}
-
-	return payload
 }
 
 func sanitizeValue(parentKey string, value interface{}) interface{} {

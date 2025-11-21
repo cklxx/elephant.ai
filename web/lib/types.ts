@@ -18,32 +18,6 @@ export interface AgentEvent {
   max_parallel?: number;
 }
 
-export interface TaskAnalysisStepDetail {
-  description: string;
-  rationale?: string;
-  needs_external_context?: boolean;
-}
-
-export interface TaskRetrievalPlanDetail {
-  should_retrieve: boolean;
-  local_queries?: string[];
-  search_queries?: string[];
-  crawl_urls?: string[];
-  knowledge_gaps?: string[];
-  notes?: string;
-}
-
-// Task Analysis Event - emitted after task pre-analysis
-export interface TaskAnalysisEvent extends AgentEvent {
-  event_type: 'task_analysis';
-  action_name: string; // e.g., "Optimizing context collection pipeline"
-  goal: string; // Brief description of what needs to be achieved
-  approach?: string;
-  success_criteria?: string[];
-  steps?: TaskAnalysisStepDetail[];
-  retrieval_plan?: TaskRetrievalPlanDetail;
-}
-
 // Iteration Start Event - emitted at start of each ReAct iteration
 export interface IterationStartEvent extends AgentEvent {
   event_type: 'iteration_start';
@@ -395,7 +369,6 @@ export interface UserTaskEvent extends AgentEvent {
 
 // Union type for all agent events
 export type AnyAgentEvent =
-  | TaskAnalysisEvent
   | IterationStartEvent
   | ThinkingEvent
   | ThinkCompleteEvent

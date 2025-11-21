@@ -5,8 +5,6 @@ import {
   type TimedMockEvent,
 } from '../mockAgentEvents';
 
-const FALLBACK_TASK = 'Analyze the repository and suggest improvements';
-
 const isSubagentEvent = (event: MockEventPayload) => event.agent_level === 'subagent';
 
 const asSubtaskMeta = (event: MockEventPayload) =>
@@ -20,11 +18,10 @@ const asSubtaskMeta = (event: MockEventPayload) =>
 describe('createMockEventSequence', () => {
   const sequence = createMockEventSequence('');
 
-  it('falls back to default task description when no task provided', () => {
+  it('excludes task analysis events from the mock stream', () => {
     const analysisEvent = sequence.find(({ event }) => event.event_type === 'task_analysis');
 
-    expect(analysisEvent).toBeDefined();
-    expect((analysisEvent?.event as MockEventPayload).goal).toBe(FALLBACK_TASK);
+    expect(analysisEvent).toBeUndefined();
   });
 
   it('ensures subagent tool events include subtask metadata', () => {

@@ -12,7 +12,6 @@ export interface SSEClientOptions {
 
 const DEFAULT_EVENTS: AnyAgentEvent["event_type"][] = [
   "connected",
-  "task_analysis",
   "iteration_start",
   "thinking",
   "think_complete",

@@ -25,16 +25,6 @@ func WithClock(clock ports.Clock) CoordinatorOption {
 	}
 }
 
-// WithTaskAnalysisService overrides the default task analysis service.
-// This allows injecting a custom analysis service for testing or alternative analysis strategies.
-func WithTaskAnalysisService(service *TaskAnalysisService) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if service != nil {
-			c.analysisService = service
-		}
-	}
-}
-
 // WithCostTrackingDecorator overrides the default cost tracking decorator.
 // This allows injecting a custom decorator for testing or alternative cost tracking strategies.
 func WithCostTrackingDecorator(decorator *CostTrackingDecorator) CoordinatorOption {
