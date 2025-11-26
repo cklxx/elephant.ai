@@ -1,0 +1,4 @@
+user: "Recent user intent: {{.Snippet}}"
+assistant: "Assistant reply: {{.Snippet}}"
+tool: "Tool signals: {{.Snippet}}"
+last_raw: "Last raw turn preserved ({{.Provenance}}): {{.Snippet}}"

@@ -36,12 +36,24 @@ type SessionContextKey struct{}
 
 // ContextWindowConfig drives context composition behaviour.
 type ContextWindowConfig struct {
-	TokenLimit         int
-	PersonaKey         string
-	GoalKey            string
-	WorldKey           string
-	ToolPreset         string
-	EnvironmentSummary string
+	TokenLimit           int
+	Budgets              ContextBudgets
+	PersonaKey           string
+	GoalKey              string
+	WorldKey             string
+	ToolPreset           string
+	EnvironmentSummary   string
+	ExpectedEnvelopeHash string `json:"expected_envelope_hash" yaml:"expected_envelope_hash"`
+}
+
+// ContextBudgets defines per-section token limits and an optional threshold.
+// If limits are zero, defaults configured in the context manager are used.
+type ContextBudgets struct {
+	Threshold float64 `json:"threshold" yaml:"threshold"`
+	System    int     `json:"system" yaml:"system"`
+	Static    int     `json:"static" yaml:"static"`
+	Dynamic   int     `json:"dynamic" yaml:"dynamic"`
+	Meta      int     `json:"meta" yaml:"meta"`
 }
 
 // ContextWindow exposes the layered context returned by the manager.
@@ -52,6 +64,18 @@ type ContextWindow struct {
 	Static       StaticContext  `json:"static"`
 	Dynamic      DynamicContext `json:"dynamic"`
 	Meta         MetaContext    `json:"meta"`
+
+	// EnvelopeHash pins the exact combination of static/dynamic/meta slices used
+	// to build this window so caches can detect churn.
+	EnvelopeHash string `json:"envelope_hash,omitempty"`
+
+	// Budgets captures per-section token utilization and whether compression is
+	// advised. Keys align to section names used by the context manager (system,
+	// static, dynamic, meta).
+	Budgets []SectionBudgetStatus `json:"budgets,omitempty"`
+
+	// TokensBySection exposes raw token estimates for observability and UI display.
+	TokensBySection map[string]int `json:"tokens_by_section,omitempty"`
 }
 
 // StaticContext captures persona, goals, rules and knowledge packs.
@@ -79,9 +103,9 @@ type DynamicContext struct {
 
 // MetaContext tracks long-horizon memories and persona bookkeeping.
 type MetaContext struct {
-	Memories        []MemoryFragment `json:"memories"`
-	Recommendations []string         `json:"recommendations"`
-	PersonaVersion  string           `json:"persona_version"`
+	Memories        []MemoryFragment `json:"memories" yaml:"memories"`
+	Recommendations []string         `json:"recommendations" yaml:"recommendations"`
+	PersonaVersion  string           `json:"persona_version" yaml:"persona_version"`
 }
 
 // PersonaProfile models persona level instructions.
@@ -151,12 +175,21 @@ type FeedbackSignal struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// SectionBudgetStatus reports current token usage against a section budget.
+type SectionBudgetStatus struct {
+	Section        string  `json:"section"`
+	Limit          int     `json:"limit"`
+	Threshold      float64 `json:"threshold"`
+	Tokens         int     `json:"tokens"`
+	ShouldCompress bool    `json:"should_compress"`
+}
+
 // MemoryFragment references retained memories.
 type MemoryFragment struct {
-	Key       string    `json:"key"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	Source    string    `json:"source"`
+	Key       string    `json:"key" yaml:"key"`
+	Content   string    `json:"content" yaml:"content"`
+	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
+	Source    string    `json:"source" yaml:"source"`
 }
 
 // ContextTurnRecord is persisted each time the LLM is invoked.

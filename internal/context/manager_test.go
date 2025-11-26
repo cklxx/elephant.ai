@@ -6,13 +6,38 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"alex/internal/agent/ports"
 	"alex/internal/analytics/journal"
+	"alex/internal/observability"
 	sessionstate "alex/internal/session/state_store"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
+
+type memoryCompressionStore struct {
+	mu         sync.Mutex
+	artifacts  []CompressionArtifact
+	saveCalls  int
+	lastSaved  CompressionArtifact
+	failWrites bool
+}
+
+func (m *memoryCompressionStore) Save(_ context.Context, artifact CompressionArtifact) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.saveCalls++
+	m.lastSaved = artifact
+	m.artifacts = append(m.artifacts, artifact)
+	if m.failWrites {
+		return fmt.Errorf("forced failure")
+	}
+	return nil
+}
 
 func TestSelectWorldPrefersExplicitKey(t *testing.T) {
 	worlds := map[string]ports.WorldProfile{
@@ -77,6 +102,75 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	}
 	if !strings.Contains(window.SystemPrompt, "Identity & Persona") {
 		t.Fatalf("expected persona section, got %q", window.SystemPrompt)
+	}
+}
+
+func TestBuildWindowExposesEnvelopeMetadata(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+	session := &ports.Session{ID: "sess-hash", Messages: []ports.Message{{Role: "user", Content: "hash me"}}}
+
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if window.EnvelopeHash == "" {
+		t.Fatalf("expected envelope hash to be populated")
+	}
+	if len(window.Budgets) == 0 {
+		t.Fatalf("expected budget summaries to be exposed")
+	}
+	if tokens := window.TokensBySection["system"]; tokens == 0 {
+		t.Fatalf("expected token snapshot to include system section, got %+v", window.TokensBySection)
+	}
+}
+
+func TestBuildWindowHonorsBudgetOverridesAndArtifacts(t *testing.T) {
+	root := buildStaticContextTree(t)
+	store := &memoryCompressionStore{}
+	mgr := NewManager(
+		WithConfigRoot(root),
+		WithSectionBudgets(SectionBudgets{Dynamic: SectionBudget{Limit: 40}, Threshold: 0.6}),
+		WithCompressionStore(store),
+	)
+
+	// Exceeds the dynamic budget once threshold is applied, forcing compression.
+	session := &ports.Session{ID: "sess-budget", Messages: []ports.Message{{Role: "user", Content: strings.Repeat("x", 200)}, {Role: "assistant", Content: strings.Repeat("y", 120)}}}
+	cfg := ports.ContextWindowConfig{Budgets: ports.ContextBudgets{Dynamic: 40, Threshold: 0.6}}
+
+	window, err := mgr.BuildWindow(context.Background(), session, cfg)
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	if len(window.Messages) >= len(session.Messages) {
+		t.Fatalf("expected compression to reduce message count, got %d vs %d", len(window.Messages), len(session.Messages))
+	}
+	if len(store.artifacts) != 1 {
+		t.Fatalf("expected a single artifact saved, got %d", len(store.artifacts))
+	}
+	artifact := store.artifacts[0]
+	if artifact.Section != SectionDynamic {
+		t.Fatalf("expected dynamic section artifact, got %s", artifact.Section)
+	}
+	if artifact.PreTokens == 0 || artifact.PostTokens == 0 {
+		t.Fatalf("expected token counts recorded, got %+v", artifact)
+	}
+	if len(artifact.KeptRefs) == 0 {
+		t.Fatalf("expected kept refs captured, got %+v", artifact)
+	}
+	var dynamicBudget ports.SectionBudgetStatus
+	for _, status := range window.Budgets {
+		if status.Section == "dynamic" {
+			dynamicBudget = status
+			break
+		}
+	}
+	if dynamicBudget.Limit != 40 {
+		t.Fatalf("expected dynamic budget limit 40, got %+v", dynamicBudget)
+	}
+	if !dynamicBudget.ShouldCompress {
+		t.Fatalf("expected dynamic section to signal compression pressure")
 	}
 }
 
@@ -325,6 +419,49 @@ func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
 	}
 }
 
+func TestBuildWindowMergesStewardedMeta(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+
+	session := &ports.Session{
+		ID: "sess-stewarded-meta",
+		Messages: []ports.Message{
+			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
+			{Role: "user", Content: "请记录昨天的决策"},
+			{Role: "assistant", Content: "我们采用 checklist 流程"},
+		},
+	}
+
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	meta := window.Meta
+	if meta.PersonaVersion != "steward-v1" {
+		t.Fatalf("expected stewarded persona version to win, got %q", meta.PersonaVersion)
+	}
+
+	hasStewardMemory := false
+	for _, memory := range meta.Memories {
+		if memory.Source == "meta-steward" {
+			hasStewardMemory = true
+			break
+		}
+	}
+	if !hasStewardMemory {
+		t.Fatalf("expected stewarded memories to be merged, got %#v", meta.Memories)
+	}
+
+	recs := strings.Join(meta.Recommendations, " ")
+	if !strings.Contains(recs, "checklist") {
+		t.Fatalf("expected stewarded recommendation to persist, got %q", recs)
+	}
+	if !strings.Contains(recs, "Latest user request") {
+		t.Fatalf("expected derived recommendation to be merged, got %q", recs)
+	}
+}
+
 func TestBuildWindowMetaContextIncludesHistoryTimeline(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
@@ -428,8 +565,8 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("compress returned error: %v", err)
 	}
-	if len(compressed) != 2 {
-		t.Fatalf("expected 2 messages (system prompt + summary), got %d", len(compressed))
+	if len(compressed) != 3 {
+		t.Fatalf("expected 3 messages (system prompt + summary + last raw), got %d", len(compressed))
 	}
 	summary := compressed[1]
 	if summary.Source != ports.MessageSourceSystemPrompt {
@@ -438,11 +575,36 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	if summary.Role != "system" {
 		t.Fatalf("expected summary role system, got %s", summary.Role)
 	}
-	if !strings.Contains(summary.Content, "Earlier conversation had") {
-		t.Fatalf("expected structured summary content, got %q", summary.Content)
+	if !strings.Contains(summary.Content, "[Earlier context compressed]") {
+		t.Fatalf("expected structured summary header, got %q", summary.Content)
 	}
-	if strings.Contains(summary.Content, "Previous conversation compressed") {
-		t.Fatalf("legacy placeholder should be removed, got %q", summary.Content)
+	if !strings.Contains(summary.Content, "citations:") {
+		t.Fatalf("expected citations to be embedded, got %q", summary.Content)
+	}
+	last := compressed[len(compressed)-1]
+	if last.Content != messages[len(messages)-1].Content {
+		t.Fatalf("expected last raw turn to be preserved, got %q", last.Content)
+	}
+}
+
+func TestCompressPersistsArtifactsWithSummary(t *testing.T) {
+	store := &memoryCompressionStore{}
+	mgr := &manager{compressionStore: store}
+	messages := []ports.Message{{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "sys"}}
+	for i := 0; i < 6; i++ {
+		messages = append(messages, ports.Message{Role: "user", Content: fmt.Sprintf("long content %d with many tokens", i)})
+	}
+	target := mgr.EstimateTokens(messages) - 2
+	if _, err := mgr.Compress(messages, target); err != nil {
+		t.Fatalf("compress returned error: %v", err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if store.lastSaved.Summary == nil || len(store.lastSaved.Summary.Bullets) == 0 {
+		t.Fatalf("expected persisted summary with bullets, got %+v", store.lastSaved.Summary)
+	}
+	if len(store.lastSaved.KeptRefs) == 0 {
+		t.Fatalf("expected kept refs to be recorded, got %+v", store.lastSaved.KeptRefs)
 	}
 }
 
@@ -461,8 +623,8 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 		t.Fatalf("compress returned error: %v", err)
 	}
 
-	if len(compressed) != 3 {
-		t.Fatalf("expected 3 messages (two system prompts + summary), got %d", len(compressed))
+	if len(compressed) != 4 {
+		t.Fatalf("expected 4 messages (two system prompts + summary + last raw), got %d", len(compressed))
 	}
 
 	if compressed[0].Content != "primary system" || compressed[2].Content != "second system" {
@@ -473,8 +635,37 @@ func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	if summary.Source != ports.MessageSourceSystemPrompt || summary.Role != "system" {
 		t.Fatalf("summary should be a system prompt, got %+v", summary)
 	}
-	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s) and 1 assistant response(s)") {
+	if !strings.Contains(summary.Content, "[Earlier context compressed]") {
 		t.Fatalf("unexpected summary content: %q", summary.Content)
+	}
+	last := compressed[len(compressed)-1]
+	if last.Role != "assistant" || last.Content != "second reply" {
+		t.Fatalf("last raw turn should be preserved, got %+v", last)
+	}
+}
+
+func TestBuildWindowRecordsCacheMissAndCompressionMetrics(t *testing.T) {
+	root := buildStaticContextTree(t)
+	reg := prometheus.NewRegistry()
+	metrics := observability.NewContextMetricsWithRegisterer(reg)
+	store := &memoryCompressionStore{}
+	mgr := NewManager(WithConfigRoot(root), WithMetrics(metrics), WithCompressionStore(store))
+
+	session := &ports.Session{ID: "sess-miss"}
+	for i := 0; i < 40; i++ {
+		session.Messages = append(session.Messages, ports.Message{Role: "user", Content: fmt.Sprintf("message %d with repeated tokens", i)})
+	}
+
+	cfg := ports.ContextWindowConfig{TokenLimit: 40, ExpectedEnvelopeHash: "wrong-hash"}
+	if _, err := mgr.BuildWindow(context.Background(), session, cfg); err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+
+	if got := testutil.ToFloat64(metrics.cacheMisses.WithLabelValues("envelope_hash")); got != 1 {
+		t.Fatalf("expected cache miss to be recorded, got %v", got)
+	}
+	if len(store.artifacts) == 0 {
+		t.Fatalf("expected compression artifact to be persisted when budgets exceeded")
 	}
 }
 
@@ -530,6 +721,15 @@ hard_constraints:
   - Always follow company policies`)
 	writeContextFile(t, root, "knowledge", "default.yaml", `id: default
 description: base knowledge`)
+	writeContextFile(t, root, "meta", "default.yaml", `persona_version: steward-v1
+memories:
+  - key: onboarding_pref
+    content: Prefers concise checklists and citations
+    created_at: 2024-01-02T00:00:00Z
+    source: meta-steward
+recommendations:
+  - Keep updates concise and checklist-driven.
+  - Prefer citation-backed summaries for compressed history.`)
 	writeContextFile(t, root, "worlds", "prod.yaml", `id: prod
 environment: production
 capabilities:

@@ -26,12 +26,14 @@ import (
 )
 
 type manager struct {
-	threshold  float64
-	configRoot string
-	logger     *utils.Logger
-	stateStore sessionstate.Store
-	metrics    *observability.ContextMetrics
-	journal    journal.Writer
+	threshold        float64
+	configRoot       string
+	logger           *utils.Logger
+	stateStore       sessionstate.Store
+	metrics          *observability.ContextMetrics
+	journal          journal.Writer
+	sectionBudgets   SectionBudgets
+	compressionStore CompressionStore
 
 	static      *staticRegistry
 	preloadOnce sync.Once
@@ -43,6 +45,19 @@ const (
 	defaultStaticTTL    = 30 * time.Minute
 	contextConfigEnvVar = "ALEX_CONTEXT_CONFIG_DIR"
 )
+
+// CompressionArtifact records compression outputs for later replay or auditing.
+type CompressionArtifact struct {
+	Section    SectionName     `json:"section"`
+	PreTokens  int             `json:"pre_tokens"`
+	PostTokens int             `json:"post_tokens"`
+	KeptRefs   []string        `json:"kept_refs"`
+	Summary    *HistorySummary `json:"summary,omitempty"`
+}
+
+type noopCompressionStore struct{}
+
+func (noopCompressionStore) Save(context.Context, CompressionArtifact) error { return nil }
 
 // Option configures the context manager.
 type Option func(*manager)
@@ -90,6 +105,27 @@ func WithMetrics(metrics *observability.ContextMetrics) Option {
 	}
 }
 
+// WithSectionBudgets overrides the default per-section budget limits and threshold.
+func WithSectionBudgets(budgets SectionBudgets) Option {
+	return func(m *manager) {
+		m.sectionBudgets = budgets
+	}
+}
+
+// CompressionStore captures compression artifacts for durability/replay.
+type CompressionStore interface {
+	Save(ctx context.Context, artifact CompressionArtifact) error
+}
+
+// WithCompressionStore configures where compression artifacts are persisted.
+func WithCompressionStore(store CompressionStore) Option {
+	return func(m *manager) {
+		if store != nil {
+			m.compressionStore = store
+		}
+	}
+}
+
 // NewManager constructs a layered context manager implementation.
 func NewManager(opts ...Option) ports.ContextManager {
 	root := resolveContextConfigRoot()
@@ -100,6 +136,14 @@ func NewManager(opts ...Option) ports.ContextManager {
 		logger:     utils.NewComponentLogger("ContextManager"),
 		metrics:    observability.NewContextMetrics(),
 		journal:    journal.NopWriter(),
+		sectionBudgets: SectionBudgets{
+			Threshold: defaultThreshold,
+			System:    SectionBudget{Limit: 600},
+			Static:    SectionBudget{Limit: 800},
+			Dynamic:   SectionBudget{Limit: 900},
+			Meta:      SectionBudget{Limit: 180},
+		},
+		compressionStore: noopCompressionStore{},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -133,6 +177,29 @@ func (m *manager) ShouldCompress(messages []ports.Message, limit int) bool {
 	return float64(m.EstimateTokens(messages)) > float64(limit)*m.threshold
 }
 
+func (m *manager) resolveBudgets(cfg ports.ContextWindowConfig) SectionBudgets {
+	budgets := m.sectionBudgets
+	if cfg.Budgets.Threshold > 0 {
+		budgets.Threshold = cfg.Budgets.Threshold
+	}
+	if cfg.Budgets.System > 0 {
+		budgets.System.Limit = cfg.Budgets.System
+	}
+	if cfg.Budgets.Static > 0 {
+		budgets.Static.Limit = cfg.Budgets.Static
+	}
+	if cfg.Budgets.Dynamic > 0 {
+		budgets.Dynamic.Limit = cfg.Budgets.Dynamic
+	}
+	if cfg.Budgets.Meta > 0 {
+		budgets.Meta.Limit = cfg.Budgets.Meta
+	}
+	if budgets.Threshold == 0 {
+		budgets.Threshold = defaultThreshold
+	}
+	return budgets
+}
+
 // Compress preserves all system prompts and summarizes everything else when the
 // token budget is exceeded. The summary is inserted where non-system content
 // was first removed so that later system prompts stay in their original order.
@@ -142,8 +209,8 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	if targetTokens <= 0 {
 		return messages, nil
 	}
-	current := m.EstimateTokens(messages)
-	if current <= targetTokens {
+	preTokens := m.EstimateTokens(messages)
+	if preTokens <= targetTokens {
 		return messages, nil
 	}
 
@@ -168,78 +235,118 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 		return messages, nil
 	}
 
-	if summary := buildCompressionSummary(compressible); summary != "" {
-		compressed = append(compressed, ports.Message{
-			Role:    "system",
-			Content: summary,
-			Source:  ports.MessageSourceSystemPrompt,
-		})
-		if summaryInsertionIndex >= 0 && summaryInsertionIndex < len(compressed)-1 {
-			insert := compressed[len(compressed)-1]
-			copy(compressed[summaryInsertionIndex+1:], compressed[summaryInsertionIndex:])
-			compressed[summaryInsertionIndex] = insert
-		}
-	} else {
-		compressed = append(compressed, compressible...)
+	summary := NewHistorySummarizer().Summarize(compressible)
+	summaryContent := formatHistorySummaryContent(summary)
+	if summaryContent == "" {
+		return messages, nil
 	}
+
+	summaryMessage := ports.Message{
+		Role:    "system",
+		Content: summaryContent,
+		Source:  ports.MessageSourceSystemPrompt,
+	}
+
+	if summaryInsertionIndex < 0 {
+		summaryInsertionIndex = len(compressed)
+	}
+	compressed = insertMessage(compressed, summaryMessage, summaryInsertionIndex)
+
+	if summary.LastRawTurn.Content != "" {
+		compressed = append(compressed, summary.LastRawTurn)
+	}
+
+	postTokens := m.EstimateTokens(compressed)
+	if m.metrics != nil {
+		m.metrics.RecordCompression("conversation")
+	}
+
+	artifact := CompressionArtifact{Section: SectionDynamic, PreTokens: preTokens, PostTokens: postTokens, KeptRefs: collectSummaryRefs(summary), Summary: &summary}
+	m.persistCompressionArtifact(context.Background(), artifact)
 
 	return compressed, nil
 }
 
-func buildCompressionSummary(messages []ports.Message) string {
-	if len(messages) == 0 {
+func (m *manager) persistCompressionArtifact(ctx context.Context, artifact CompressionArtifact) {
+	if m.compressionStore == nil {
+		return
+	}
+	if err := m.compressionStore.Save(ctx, artifact); err != nil && m.logger != nil {
+		m.logger.Warn("Failed to persist compression artifact: %v", err)
+	}
+}
+
+func insertMessage(messages []ports.Message, msg ports.Message, index int) []ports.Message {
+	if index < 0 || index > len(messages) {
+		index = len(messages)
+	}
+	messages = append(messages, ports.Message{})
+	copy(messages[index+1:], messages[index:])
+	messages[index] = msg
+	return messages
+}
+
+func formatHistorySummaryContent(summary HistorySummary) string {
+	if len(summary.Bullets) == 0 && summary.LastRawTurn.Content == "" {
 		return ""
 	}
 
-	var userCount, assistantCount, toolMentions int
-	var firstUser, lastUser, firstAssistant, lastAssistant string
-
-	for _, msg := range messages {
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
-		snippet := buildCompressionSnippet(msg.Content, 140)
-		switch role {
-		case "user":
-			userCount++
-			if firstUser == "" {
-				firstUser = snippet
-			}
-			lastUser = snippet
-		case "assistant":
-			assistantCount++
-			toolMentions += len(msg.ToolCalls)
-			if firstAssistant == "" {
-				firstAssistant = snippet
-			}
-			lastAssistant = snippet
-		case "tool":
-			toolMentions++
+	var lines []string
+	lines = append(lines, "[Earlier context compressed]")
+	for _, bullet := range summary.Bullets {
+		text := strings.TrimSpace(bullet.Text)
+		if text == "" {
+			continue
 		}
-		toolMentions += len(msg.ToolResults)
+		citationText := formatCitations(bullet.Citations)
+		if citationText != "" {
+			lines = append(lines, fmt.Sprintf("- %s (citations: %s)", text, citationText))
+			continue
+		}
+		lines = append(lines, "- "+text)
 	}
 
-	parts := []string{fmt.Sprintf("Earlier conversation had %d user message(s) and %d assistant response(s)", userCount, assistantCount)}
-	if toolMentions > 0 {
-		parts = append(parts, fmt.Sprintf("tools were referenced %d time(s)", toolMentions))
+	if summary.LastRawTurn.Content != "" {
+		provenance := describeMessageProvenance(summary.LastRawTurn)
+		rendered := DefaultHistoryTemplates().RenderLastRaw(buildCompressionSnippet(summary.LastRawTurn.Content, 320), provenance)
+		lines = append(lines, rendered)
 	}
 
-	var contextParts []string
-	if firstUser != "" {
-		contextParts = append(contextParts, fmt.Sprintf("user first asked: %s", firstUser))
-	}
-	if firstAssistant != "" {
-		contextParts = append(contextParts, fmt.Sprintf("assistant first replied: %s", firstAssistant))
-	}
-	if lastUser != "" && lastUser != firstUser {
-		contextParts = append(contextParts, fmt.Sprintf("recent user request: %s", lastUser))
-	}
-	if lastAssistant != "" && lastAssistant != firstAssistant {
-		contextParts = append(contextParts, fmt.Sprintf("recent assistant reply: %s", lastAssistant))
-	}
-	if len(contextParts) > 0 {
-		parts = append(parts, strings.Join(contextParts, " | "))
-	}
+	return strings.Join(lines, "\n")
+}
 
-	return fmt.Sprintf("[Earlier context compressed] %s.", strings.Join(parts, "; "))
+func formatCitations(citations []Citation) string {
+	if len(citations) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(citations))
+	for _, citation := range citations {
+		source := strings.TrimSpace(string(citation.Source))
+		if source == "" {
+			source = "unknown"
+		}
+		if citation.Ref != "" {
+			parts = append(parts, fmt.Sprintf("%s:%s", source, citation.Ref))
+			continue
+		}
+		parts = append(parts, source)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func describeMessageProvenance(msg ports.Message) string {
+	role := strings.TrimSpace(msg.Role)
+	source := strings.TrimSpace(string(msg.Source))
+	switch {
+	case role != "" && source != "":
+		return fmt.Sprintf("%s/%s", role, source)
+	case role != "":
+		return role
+	case source != "":
+		return source
+	default:
+		return "unknown"
+	}
 }
 
 func buildCompressionSnippet(content string, limit int) string {
@@ -252,6 +359,30 @@ func buildCompressionSnippet(content string, limit int) string {
 		return trimmed
 	}
 	return strings.TrimSpace(string(runes[:limit])) + "…"
+}
+
+func collectSummaryRefs(summary HistorySummary) []string {
+	refs := make(map[string]struct{})
+	for _, bullet := range summary.Bullets {
+		for _, cite := range bullet.Citations {
+			if cite.Ref == "" {
+				continue
+			}
+			refs[cite.Ref] = struct{}{}
+		}
+	}
+	if summary.LastRawTurn.Content != "" {
+		refs["last_raw_turn"] = struct{}{}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(refs))
+	for ref := range refs {
+		out = append(out, ref)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (m *manager) Preload(ctx context.Context) error {
@@ -274,6 +405,16 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		return ports.ContextWindow{}, err
 	}
 
+	budgets := m.resolveBudgets(cfg)
+	threshold := budgets.Threshold
+	if threshold == 0 {
+		threshold = defaultThreshold
+	}
+	limit := cfg.TokenLimit
+	if limit <= 0 {
+		limit = budgets.Dynamic.Limit
+	}
+
 	persona := selectPersona(cfg.PersonaKey, session, staticSnapshot.Personas)
 	goal := selectGoal(cfg.GoalKey, staticSnapshot.Goals)
 	world := selectWorld(cfg.WorldKey, session, staticSnapshot.Worlds)
@@ -281,8 +422,8 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 	knowledge := mapToSlice(staticSnapshot.Knowledge)
 
 	messages := append([]ports.Message(nil), session.Messages...)
-	if cfg.TokenLimit > 0 && m.ShouldCompress(messages, cfg.TokenLimit) {
-		if compressed, err := m.Compress(messages, int(float64(cfg.TokenLimit)*0.8)); err == nil {
+	if limit > 0 && float64(m.EstimateTokens(messages)) > float64(limit)*threshold {
+		if compressed, err := m.Compress(messages, int(float64(limit)*threshold)); err == nil {
 			messages = compressed
 		} else if m.logger != nil {
 			m.logger.Warn("Context compression failed: %v", err)
@@ -299,7 +440,17 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		}
 	}
 
-	meta := deriveHistoryAwareMeta(messages, persona.ID)
+	stewardedMeta := staticSnapshot.Meta[persona.ID]
+	if m.metrics != nil {
+		hasMeta := len(stewardedMeta.Memories) > 0 || len(stewardedMeta.Recommendations) > 0
+		m.metrics.RecordMetaUsage(hasMeta)
+	}
+	personaVersion := stewardedMeta.PersonaVersion
+	if personaVersion == "" {
+		personaVersion = persona.ID
+	}
+	derivedMeta := deriveHistoryAwareMeta(messages, personaVersion)
+	meta := mergeMetaContexts(stewardedMeta, derivedMeta)
 
 	window := ports.ContextWindow{
 		SessionID: session.ID,
@@ -318,6 +469,19 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		Meta:    meta,
 	}
 	window.SystemPrompt = composeSystemPrompt(window.Static, window.Dynamic, window.Meta)
+
+	envelope := BuildEnvelope(window, session, budgets)
+	window.EnvelopeHash = envelope.Hash
+	window.Budgets = envelope.BudgetSummaries()
+	window.TokensBySection = envelope.TokenSummaries()
+	if cfg.ExpectedEnvelopeHash != "" && cfg.ExpectedEnvelopeHash != envelope.Hash && m.metrics != nil {
+		m.metrics.RecordCacheMiss("envelope_hash")
+	}
+	if m.metrics != nil {
+		for section, tokens := range envelope.TokensBySection {
+			m.metrics.RecordTokensBySection(string(section), tokens)
+		}
+	}
 	return window, nil
 }
 
@@ -404,6 +568,51 @@ func convertRecordToJournal(record ports.ContextTurnRecord) journal.TurnJournalE
 }
 
 const historyTimelineLimit = 8
+
+func mergeMetaContexts(stewarded, derived ports.MetaContext) ports.MetaContext {
+	merged := ports.MetaContext{}
+	merged.PersonaVersion = derived.PersonaVersion
+	if merged.PersonaVersion == "" {
+		merged.PersonaVersion = stewarded.PersonaVersion
+	}
+
+	memorySeen := make(map[string]struct{})
+	appendMemory := func(fragment ports.MemoryFragment) {
+		key := fragment.Key + "::" + fragment.Content
+		if _, exists := memorySeen[key]; exists {
+			return
+		}
+		memorySeen[key] = struct{}{}
+		merged.Memories = append(merged.Memories, fragment)
+	}
+	for _, fragment := range stewarded.Memories {
+		appendMemory(fragment)
+	}
+	for _, fragment := range derived.Memories {
+		appendMemory(fragment)
+	}
+
+	recSeen := make(map[string]struct{})
+	appendRec := func(rec string) {
+		rec = strings.TrimSpace(rec)
+		if rec == "" {
+			return
+		}
+		if _, exists := recSeen[rec]; exists {
+			return
+		}
+		recSeen[rec] = struct{}{}
+		merged.Recommendations = append(merged.Recommendations, rec)
+	}
+	for _, rec := range stewarded.Recommendations {
+		appendRec(rec)
+	}
+	for _, rec := range derived.Recommendations {
+		appendRec(rec)
+	}
+
+	return merged
+}
 
 func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) ports.MetaContext {
 	meta := ports.MetaContext{PersonaVersion: personaVersion}
@@ -919,6 +1128,7 @@ type staticSnapshot struct {
 	Policies  map[string]ports.PolicyRule
 	Knowledge map[string]ports.KnowledgeReference
 	Worlds    map[string]ports.WorldProfile
+	Meta      map[string]ports.MetaContext
 }
 
 func newStaticRegistry(root string, ttl time.Duration, logger *utils.Logger, metrics *observability.ContextMetrics) *staticRegistry {
@@ -992,8 +1202,12 @@ func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
 	if err != nil {
 		return staticSnapshot{}, err
 	}
+	meta, err := loadMeta(filepath.Join(r.root, "meta"))
+	if err != nil {
+		return staticSnapshot{}, err
+	}
 
-	version := hashStaticSnapshot(personas, goals, policies, knowledge, worlds)
+	version := hashStaticSnapshot(personas, goals, policies, knowledge, worlds, meta)
 	snap := staticSnapshot{
 		Version:   version,
 		LoadedAt:  time.Now(),
@@ -1002,6 +1216,7 @@ func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
 		Policies:  policies,
 		Knowledge: knowledge,
 		Worlds:    worlds,
+		Meta:      meta,
 	}
 	if r.logger != nil {
 		r.logger.Info("Static context cache refreshed (personas=%d goals=%d)", len(personas), len(goals))
@@ -1115,6 +1330,42 @@ func loadWorlds(dir string) (map[string]ports.WorldProfile, error) {
 	return worlds, nil
 }
 
+func loadMeta(dir string) (map[string]ports.MetaContext, error) {
+	info, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]ports.MetaContext{}, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", dir)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	meta := make(map[string]ports.MetaContext, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read meta file %s: %w", path, err)
+		}
+		var ctx ports.MetaContext
+		if err := yaml.Unmarshal(raw, &ctx); err != nil {
+			return nil, fmt.Errorf("decode meta %s: %w", path, err)
+		}
+		key := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		meta[key] = ctx
+	}
+	return meta, nil
+}
+
 func readYAMLDir(dir string) ([][]byte, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -1153,6 +1404,7 @@ func hashStaticSnapshot(
 	policies map[string]ports.PolicyRule,
 	knowledge map[string]ports.KnowledgeReference,
 	worlds map[string]ports.WorldProfile,
+	meta map[string]ports.MetaContext,
 ) string {
 	h := sha256.New()
 	encodeMapForHash(h, "personas", personas)
@@ -1160,6 +1412,7 @@ func hashStaticSnapshot(
 	encodeMapForHash(h, "policies", policies)
 	encodeMapForHash(h, "knowledge", knowledge)
 	encodeMapForHash(h, "worlds", worlds)
+	encodeMapForHash(h, "meta", meta)
 	return hex.EncodeToString(h.Sum(nil))
 }
 

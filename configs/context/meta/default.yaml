@@ -1,0 +1,9 @@
+persona_version: steward-v1
+memories:
+  - key: onboarding_pref
+    content: Prefers concise checklists and citation-backed summaries
+    created_at: 2024-01-02T00:00:00Z
+    source: meta-steward
+recommendations:
+  - Keep updates concise and checklist-driven with citations when compressing history.
+  - Reinforce persona guardrails during long sessions.
