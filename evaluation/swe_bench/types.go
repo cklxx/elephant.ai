@@ -2,6 +2,8 @@ package swe_bench
 
 import (
 	"time"
+
+	"alex/internal/workflow"
 )
 
 // Instance represents a single SWE-Bench problem instance
@@ -89,11 +91,12 @@ type WorkerResult struct {
 	Commands     []string `json:"commands,omitempty"`
 
 	// Execution metadata
-	StartTime  time.Time     `json:"start_time"`
-	EndTime    time.Time     `json:"end_time"`
-	Duration   time.Duration `json:"duration"`
-	TokensUsed int           `json:"tokens_used,omitempty"`
-	Cost       float64       `json:"cost,omitempty"`
+	StartTime  time.Time                  `json:"start_time"`
+	EndTime    time.Time                  `json:"end_time"`
+	Duration   time.Duration              `json:"duration"`
+	TokensUsed int                        `json:"tokens_used,omitempty"`
+	Cost       float64                    `json:"cost,omitempty"`
+	Workflow   *workflow.WorkflowSnapshot `json:"workflow,omitempty"`
 
 	// Error information
 	Error      string `json:"error,omitempty"`

@@ -12,6 +12,7 @@ import (
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
 	id "alex/internal/utils/id"
+	"alex/internal/workflow"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -283,12 +284,13 @@ func filterEmptyStrings(values []string) []string {
 
 // SubtaskResult holds the result of a single subtask execution
 type SubtaskResult struct {
-	Index      int    `json:"index"`
-	Task       string `json:"task"`
-	Answer     string `json:"answer,omitempty"`
-	Iterations int    `json:"iterations,omitempty"`
-	TokensUsed int    `json:"tokens_used,omitempty"`
-	Error      error  `json:"error,omitempty"`
+	Index      int                        `json:"index"`
+	Task       string                     `json:"task"`
+	Answer     string                     `json:"answer,omitempty"`
+	Iterations int                        `json:"iterations,omitempty"`
+	TokensUsed int                        `json:"tokens_used,omitempty"`
+	Workflow   *workflow.WorkflowSnapshot `json:"workflow,omitempty"`
+	Error      error                      `json:"error,omitempty"`
 }
 
 // executeParallel runs subtasks concurrently using the coordinator
@@ -385,6 +387,12 @@ func (t *subagent) executeSubtask(
 		return SubtaskResult{
 			Index: index,
 			Task:  task,
+			Workflow: func() *workflow.WorkflowSnapshot {
+				if taskResult != nil {
+					return taskResult.Workflow
+				}
+				return nil
+			}(),
 			Error: err,
 		}
 	}
@@ -395,6 +403,7 @@ func (t *subagent) executeSubtask(
 		Answer:     taskResult.Answer,
 		Iterations: taskResult.Iterations,
 		TokensUsed: taskResult.TokensUsed,
+		Workflow:   taskResult.Workflow,
 	}
 }
 

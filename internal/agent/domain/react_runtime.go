@@ -1,0 +1,436 @@
+package domain
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"alex/internal/agent/ports"
+	materialapi "alex/internal/materials/api"
+	"alex/internal/materials/legacy"
+)
+
+// reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
+// engine can focus on business rules while the runtime owns iteration control,
+// workflow transitions, and cancellation handling.
+type reactRuntime struct {
+	engine    *ReactEngine
+	ctx       context.Context
+	task      string
+	state     *TaskState
+	services  Services
+	tracker   *reactWorkflow
+	startTime time.Time
+	finalizer sync.Once
+	finalize  sync.Once
+}
+
+type reactIteration struct {
+	runtime    *reactRuntime
+	index      int
+	thought    Message
+	toolCalls  []ToolCall
+	plan       toolExecutionPlan
+	toolResult []ToolResult
+}
+
+type toolExecutionPlan struct {
+	iteration int
+	nodeID    string
+	calls     []ToolCall
+}
+
+func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, state *TaskState, services Services) *reactRuntime {
+	return &reactRuntime{
+		engine:    engine,
+		ctx:       ctx,
+		task:      task,
+		state:     state,
+		services:  services,
+		tracker:   newReactWorkflow(engine.workflow),
+		startTime: engine.clock.Now(),
+	}
+}
+
+func (r *reactRuntime) run() (*TaskResult, error) {
+	r.tracker.startContext(r.task)
+	r.prepareContext()
+
+	for r.state.Iterations < r.engine.maxIterations {
+		if result, stop, err := r.handleCancellation(); stop || err != nil {
+			return result, err
+		}
+
+		r.state.Iterations++
+		r.engine.logger.Info("=== Iteration %d/%d ===", r.state.Iterations, r.engine.maxIterations)
+
+		result, done, err := r.runIteration()
+		if err != nil {
+			return nil, err
+		}
+		if done {
+			return result, nil
+		}
+	}
+
+	return r.handleMaxIterations()
+}
+
+func (r *reactRuntime) prepareContext() {
+	ensureAttachmentStore(r.state)
+	r.engine.normalizeMessageHistoryAttachments(r.ctx, r.state)
+
+	attachmentsChanged := false
+	for idx := range r.state.Messages {
+		if registerMessageAttachments(r.state, r.state.Messages[idx]) {
+			attachmentsChanged = true
+		}
+	}
+	if attachmentsChanged {
+		r.engine.updateAttachmentCatalogMessage(r.state)
+	}
+
+	preloadedContext := r.engine.extractPreloadedContextMessages(r.state)
+	r.engine.ensureSystemPromptMessage(r.state)
+
+	userMessage := Message{
+		Role:    "user",
+		Content: r.task,
+		Source:  ports.MessageSourceUserInput,
+	}
+	if len(r.state.PendingUserAttachments) > 0 {
+		attachments := make(map[string]ports.Attachment, len(r.state.PendingUserAttachments))
+		for key, att := range r.state.PendingUserAttachments {
+			attachments[key] = att
+		}
+		userMessage.Attachments = attachments
+		userMessage.Attachments = r.engine.normalizeAttachmentsWithMigrator(r.ctx, r.state, legacy.MigrationRequest{
+			Context:     r.engine.materialRequestContext(r.state, ""),
+			Attachments: userMessage.Attachments,
+			Status:      materialapi.MaterialStatusInput,
+			Origin:      string(userMessage.Source),
+		})
+		r.state.PendingUserAttachments = nil
+	}
+
+	r.state.Messages = append(r.state.Messages, userMessage)
+	if registerMessageAttachments(r.state, userMessage) {
+		r.engine.updateAttachmentCatalogMessage(r.state)
+	}
+	if len(preloadedContext) > 0 {
+		r.state.Messages = append(r.state.Messages, preloadedContext...)
+	}
+
+	r.tracker.completeContext(workflowContextOutput(r.state))
+}
+
+func (r *reactRuntime) handleCancellation() (*TaskResult, bool, error) {
+	if r.ctx.Err() == nil {
+		return nil, false, nil
+	}
+
+	r.engine.logger.Info("Context cancelled, stopping execution: %v", r.ctx.Err())
+	finalResult := r.finalizeResult("cancelled", nil, true, nil)
+	return finalResult, true, r.ctx.Err()
+}
+
+func (r *reactRuntime) runIteration() (*TaskResult, bool, error) {
+	iteration := r.newIteration()
+
+	if err := iteration.think(); err != nil {
+		return nil, true, err
+	}
+
+	result, done, err := iteration.planTools()
+	if done || err != nil {
+		return result, done, err
+	}
+
+	if len(iteration.plan.calls) == 0 && iteration.plan.nodeID == "" && result == nil {
+		return nil, false, nil
+	}
+
+	iteration.executeTools()
+	iteration.observeTools()
+	iteration.finish()
+
+	return nil, false, nil
+}
+
+func (r *reactRuntime) newIteration() *reactIteration {
+	return &reactIteration{runtime: r, index: r.state.Iterations}
+}
+
+func (r *reactRuntime) emitToolCallStartEvents(calls []ToolCall) {
+	if len(calls) == 0 {
+		return
+	}
+
+	state := r.state
+	for idx := range calls {
+		call := calls[idx]
+		r.engine.emitEvent(&ToolCallStartEvent{
+			BaseEvent: r.engine.newBaseEvent(r.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+			Iteration: state.Iterations,
+			CallID:    call.ID,
+			ToolName:  call.Name,
+			Arguments: call.Arguments,
+		})
+	}
+}
+
+func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
+	r.engine.logger.Warn("Max iterations (%d) reached, requesting final answer", r.engine.maxIterations)
+	finalResult := r.engine.finalize(r.state, "max_iterations", r.engine.clock.Now().Sub(r.startTime))
+
+	if strings.TrimSpace(finalResult.Answer) == "" {
+		r.state.Messages = append(r.state.Messages, Message{
+			Role:    "user",
+			Content: "Please provide your final answer to the user's question now.",
+			Source:  ports.MessageSourceSystemPrompt,
+		})
+
+		finalThought, err := r.engine.think(r.ctx, r.state, r.services)
+		if err == nil && finalThought.Content != "" {
+			if att := resolveContentAttachments(finalThought.Content, r.state); len(att) > 0 {
+				finalThought.Attachments = att
+			}
+			r.state.Messages = append(r.state.Messages, finalThought)
+			if registerMessageAttachments(r.state, finalThought) {
+				r.engine.updateAttachmentCatalogMessage(r.state)
+			}
+			finalResult.Answer = finalThought.Content
+			r.engine.logger.Info("Got final answer from retry: %d chars", len(finalResult.Answer))
+		}
+	}
+
+	return r.finalizeResult("max_iterations", finalResult, false, nil), nil
+}
+
+func (r *reactRuntime) filterValidToolCalls(toolCalls []ToolCall) []ToolCall {
+	var validCalls []ToolCall
+	for _, tc := range toolCalls {
+		if strings.Contains(tc.Name, "<|") || strings.Contains(tc.Name, "functions.") || strings.Contains(tc.Name, "user<") {
+			r.engine.logger.Warn("Filtering out invalid tool call with leaked markers: %s", tc.Name)
+			continue
+		}
+		validCalls = append(validCalls, tc)
+		r.engine.logger.Debug("Tool call: %s (id=%s)", tc.Name, tc.ID)
+	}
+	return validCalls
+}
+
+func (r *reactRuntime) finishWorkflow(stopReason string, result *TaskResult, err error) {
+	r.finalize.Do(func() {
+		if r.tracker != nil {
+			r.tracker.finalize(stopReason, result, err)
+		}
+	})
+}
+
+func (it *reactIteration) think() error {
+	tracker := it.runtime.tracker
+	state := it.runtime.state
+	services := it.runtime.services
+
+	tracker.startThink(it.index)
+
+	it.runtime.engine.emitEvent(&IterationStartEvent{
+		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		Iteration:  it.index,
+		TotalIters: it.runtime.engine.maxIterations,
+	})
+
+	it.runtime.engine.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
+	it.runtime.engine.emitEvent(&ThinkingEvent{
+		BaseEvent:    it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		Iteration:    it.index,
+		MessageCount: len(state.Messages),
+	})
+
+	thought, err := it.runtime.engine.think(it.runtime.ctx, state, services)
+	if err != nil {
+		it.runtime.engine.logger.Error("Think step failed: %v", err)
+
+		it.runtime.engine.emitEvent(&ErrorEvent{
+			BaseEvent:   it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+			Iteration:   it.index,
+			Phase:       "think",
+			Error:       err,
+			Recoverable: false,
+		})
+		tracker.completeThink(it.index, Message{}, nil, err)
+		it.runtime.finishWorkflow("error", nil, err)
+		return fmt.Errorf("think step failed: %w", err)
+	}
+
+	it.recordThought(&thought)
+	it.toolCalls = it.runtime.engine.parseToolCalls(thought, services.Parser)
+	it.runtime.engine.logger.Info("Parsed %d tool calls", len(it.toolCalls))
+
+	tracker.completeThink(it.index, thought, it.toolCalls, nil)
+
+	it.runtime.engine.emitEvent(&ThinkCompleteEvent{
+		BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		Iteration:     it.index,
+		Content:       thought.Content,
+		ToolCallCount: len(thought.ToolCalls),
+	})
+
+	it.thought = thought
+	return nil
+}
+
+func (it *reactIteration) planTools() (*TaskResult, bool, error) {
+	it.runtime.tracker.startPlan(it.index, len(it.toolCalls))
+
+	validCalls := it.runtime.filterValidToolCalls(it.toolCalls)
+	it.runtime.tracker.completePlan(it.index, validCalls, nil)
+	if len(validCalls) == 0 {
+		return it.handleNoTools()
+	}
+
+	it.plan = toolExecutionPlan{
+		iteration: it.index,
+		nodeID:    iterationToolsNode(it.index),
+		calls:     validCalls,
+	}
+
+	it.runtime.tracker.startTools(it.plan.iteration, it.plan.nodeID, len(validCalls))
+
+	if it.thought.Content != "" {
+		it.thought.Content = it.runtime.engine.cleanToolCallMarkers(it.thought.Content)
+	}
+
+	it.runtime.engine.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
+	it.runtime.emitToolCallStartEvents(validCalls)
+
+	return nil, false, nil
+}
+
+func (it *reactIteration) executeTools() {
+	if len(it.plan.calls) == 0 {
+		return
+	}
+
+	it.toolResult = newToolCallBatch(
+		it.runtime.engine,
+		it.runtime.ctx,
+		it.runtime.state,
+		it.plan.iteration,
+		it.plan.calls,
+		it.runtime.services.ToolExecutor,
+		it.runtime.tracker,
+	).execute()
+}
+
+func (it *reactIteration) observeTools() {
+	if len(it.plan.calls) == 0 {
+		return
+	}
+
+	state := it.runtime.state
+	state.ToolResults = append(state.ToolResults, it.toolResult...)
+	it.runtime.engine.observeToolResults(state, it.plan.iteration, it.toolResult)
+
+	for i, res := range it.toolResult {
+		if res.Error != nil {
+			it.runtime.engine.logger.Warn("Tool %d failed: %v", i, res.Error)
+			continue
+		}
+		it.runtime.engine.logger.Debug("Tool %d succeeded: result_length=%d", i, len(res.Content))
+	}
+
+	toolMessages := it.runtime.engine.buildToolMessages(it.toolResult)
+	state.Messages = append(state.Messages, toolMessages...)
+	attachmentsChanged := false
+	for _, msg := range toolMessages {
+		if registerMessageAttachments(state, msg) {
+			attachmentsChanged = true
+		}
+	}
+	if attachmentsChanged {
+		it.runtime.engine.updateAttachmentCatalogMessage(state)
+	}
+	it.runtime.engine.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
+
+	it.runtime.tracker.completeTools(it.plan.iteration, it.plan.nodeID, it.toolResult, nil)
+}
+
+func (it *reactIteration) finish() {
+	state := it.runtime.state
+	services := it.runtime.services
+
+	tokenCount := services.Context.EstimateTokens(state.Messages)
+	state.TokenCount = tokenCount
+	it.runtime.engine.logger.Debug("Current token count: %d", tokenCount)
+
+	it.runtime.engine.emitEvent(&IterationCompleteEvent{
+		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		Iteration:  it.index,
+		TokensUsed: state.TokenCount,
+		ToolsRun:   len(it.toolResult),
+	})
+
+	it.runtime.engine.logger.Debug("Iteration %d complete, continuing to next iteration", it.index)
+}
+
+func (it *reactIteration) handleNoTools() (*TaskResult, bool, error) {
+	trimmed := strings.TrimSpace(it.thought.Content)
+	if trimmed == "" {
+		it.runtime.engine.logger.Warn("No tool calls and empty content - continuing loop")
+		return nil, false, nil
+	}
+
+	it.runtime.engine.logger.Info("No tool calls with content - treating response as final answer")
+	finalResult := it.runtime.finalizeResult("final_answer", nil, false, nil)
+	return finalResult, true, nil
+}
+
+func (it *reactIteration) recordThought(thought *Message) {
+	if thought == nil {
+		return
+	}
+
+	state := it.runtime.state
+	if att := resolveContentAttachments(thought.Content, state); len(att) > 0 {
+		thought.Attachments = att
+	}
+	if trimmed := strings.TrimSpace(thought.Content); trimmed != "" || len(thought.ToolCalls) > 0 {
+		state.Messages = append(state.Messages, *thought)
+	}
+	it.runtime.engine.logger.Debug("LLM response: content_length=%d, tool_calls=%d", len(thought.Content), len(thought.ToolCalls))
+}
+
+func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emitCompletionEvent bool, workflowErr error) *TaskResult {
+	r.finalizer.Do(func() {
+		if result == nil {
+			result = r.engine.finalize(r.state, stopReason, r.engine.clock.Now().Sub(r.startTime))
+		} else {
+			result.StopReason = stopReason
+			if result.Duration == 0 {
+				result.Duration = r.engine.clock.Now().Sub(r.startTime)
+			}
+		}
+
+		attachments := r.engine.decorateFinalResult(r.state, result)
+		if emitCompletionEvent {
+			r.engine.emitEvent(&TaskCompleteEvent{
+				BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.TaskID, r.state.ParentTaskID),
+				FinalAnswer:     result.Answer,
+				TotalIterations: result.Iterations,
+				TotalTokens:     result.TokensUsed,
+				StopReason:      stopReason,
+				Duration:        result.Duration,
+				StreamFinished:  true,
+				Attachments:     attachments,
+			})
+		}
+
+		r.finishWorkflow(stopReason, result, workflowErr)
+	})
+
+	return result
+}

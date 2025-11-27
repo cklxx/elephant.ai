@@ -360,6 +360,45 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
+	case *domain.WorkflowLifecycleEvent:
+		data["workflow_id"] = e.WorkflowID
+		data["workflow_event_type"] = string(e.WorkflowEventType)
+		if e.Phase != "" {
+			data["phase"] = e.Phase
+		}
+		if e.Node != nil {
+			data["node"] = e.Node
+		}
+		if e.Workflow != nil {
+			data["workflow"] = e.Workflow
+		}
+	case *domain.StepStartedEvent:
+		data["step_index"] = e.StepIndex
+		data["step_description"] = e.StepDescription
+		if e.Iteration > 0 {
+			data["iteration"] = e.Iteration
+		}
+		if e.Input != nil {
+			data["input"] = e.Input
+		}
+		if e.Workflow != nil {
+			data["workflow"] = e.Workflow
+		}
+	case *domain.StepCompletedEvent:
+		data["step_index"] = e.StepIndex
+		data["step_description"] = e.StepDescription
+		if e.StepResult != nil {
+			data["step_result"] = e.StepResult
+		}
+		if e.Status != "" {
+			data["status"] = e.Status
+		}
+		if e.Iteration > 0 {
+			data["iteration"] = e.Iteration
+		}
+		if e.Workflow != nil {
+			data["workflow"] = e.Workflow
+		}
 	case *domain.IterationStartEvent:
 		data["iteration"] = e.Iteration
 		data["total_iters"] = e.TotalIters

@@ -645,6 +645,22 @@ func (s *ExecutionPreparationService) SetEnvironmentSummary(summary string) {
 	s.config.EnvironmentSummary = summary
 }
 
+func (s *ExecutionPreparationService) ResolveAgentPreset(ctx context.Context, preset string) string {
+	if s.presetResolver == nil {
+		return ""
+	}
+	resolved, _ := s.presetResolver.resolveAgentPreset(ctx, preset)
+	return resolved
+}
+
+func (s *ExecutionPreparationService) ResolveToolPreset(ctx context.Context, preset string) string {
+	if s.presetResolver == nil {
+		return ""
+	}
+	resolved, _ := s.presetResolver.resolveToolPreset(ctx, preset)
+	return resolved
+}
+
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*ports.Session, error) {
 	if id == "" {
 		session, err := s.sessionStore.Create(ctx)

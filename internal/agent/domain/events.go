@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/workflow"
 )
 
 // Re-export the event listener contract defined at the port layer.
@@ -47,6 +48,13 @@ func newBaseEventWithIDs(level ports.AgentLevel, sessionID, taskID, parentTaskID
 		taskID:       taskID,
 		parentTaskID: parentTaskID,
 	}
+}
+
+// NewBaseEvent exposes construction of BaseEvent for adapters that need to bridge
+// external lifecycle systems (e.g., workflows) into the agent event stream while
+// preserving field encapsulation.
+func NewBaseEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID string, ts time.Time) BaseEvent {
+	return newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts)
 }
 
 // UserTaskEvent - emitted when a user submits a new task
@@ -105,6 +113,44 @@ type ThinkCompleteEvent struct {
 }
 
 func (e *ThinkCompleteEvent) EventType() string { return "think_complete" }
+
+// StepStartedEvent - emitted when a workflow step begins
+type StepStartedEvent struct {
+	BaseEvent
+	StepIndex       int
+	StepDescription string
+	Iteration       int
+	Input           any
+	Workflow        *workflow.WorkflowSnapshot
+}
+
+func (e *StepStartedEvent) EventType() string { return "step_started" }
+
+// StepCompletedEvent - emitted when a workflow step finishes
+type StepCompletedEvent struct {
+	BaseEvent
+	StepIndex       int
+	StepDescription string
+	StepResult      any
+	Status          string
+	Iteration       int
+	Workflow        *workflow.WorkflowSnapshot
+}
+
+func (e *StepCompletedEvent) EventType() string { return "step_completed" }
+
+// WorkflowLifecycleEvent mirrors raw workflow transitions so consumers can render
+// timeline updates without inferring state from step events alone.
+type WorkflowLifecycleEvent struct {
+	BaseEvent
+	WorkflowID        string
+	WorkflowEventType workflow.EventType
+	Phase             workflow.WorkflowPhase
+	Node              *workflow.NodeSnapshot
+	Workflow          *workflow.WorkflowSnapshot
+}
+
+func (e *WorkflowLifecycleEvent) EventType() string { return "workflow_event" }
 
 // AssistantMessageEvent is emitted as assistant content tokens stream in.
 type AssistantMessageEvent struct {

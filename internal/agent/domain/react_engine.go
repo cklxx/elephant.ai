@@ -23,6 +23,64 @@ type ReactEngine struct {
 	eventListener      EventListener // Optional event listener for TUI
 	completion         completionConfig
 	attachmentMigrator legacy.Migrator
+	workflow           WorkflowTracker
+}
+
+type workflowRecorder struct {
+	tracker WorkflowTracker
+}
+
+type reactWorkflow struct {
+	recorder *workflowRecorder
+}
+
+type toolCallBatch struct {
+	engine               *ReactEngine
+	ctx                  context.Context
+	state                *TaskState
+	iteration            int
+	registry             ports.ToolRegistry
+	tracker              *reactWorkflow
+	attachments          map[string]ports.Attachment
+	attachmentIterations map[string]int
+	subagentSnapshots    []*ports.TaskState
+	calls                []ToolCall
+	callNodes            []string
+	results              []ToolResult
+	attachmentsMu        sync.Mutex
+}
+
+func newWorkflowRecorder(tracker WorkflowTracker) *workflowRecorder {
+	if tracker == nil {
+		return nil
+	}
+	return &workflowRecorder{tracker: tracker}
+}
+
+func (r *workflowRecorder) ensure(nodeID string, input any) string {
+	if r == nil || nodeID == "" {
+		return ""
+	}
+	r.tracker.EnsureNode(nodeID, input)
+	return nodeID
+}
+
+func (r *workflowRecorder) start(nodeID string, input any) {
+	if r.ensure(nodeID, input) == "" {
+		return
+	}
+	r.tracker.StartNode(nodeID)
+}
+
+func (r *workflowRecorder) complete(nodeID string, output any, err error) {
+	if r == nil || nodeID == "" {
+		return
+	}
+	if err != nil {
+		r.tracker.CompleteNodeFailure(nodeID, err)
+		return
+	}
+	r.tracker.CompleteNodeSuccess(nodeID, output)
 }
 
 type completionConfig struct {
@@ -30,6 +88,264 @@ type completionConfig struct {
 	maxTokens     int
 	topP          float64
 	stopSequences []string
+}
+
+func newReactWorkflow(tracker WorkflowTracker) *reactWorkflow {
+	return &reactWorkflow{recorder: newWorkflowRecorder(tracker)}
+}
+
+func newToolCallBatch(
+	engine *ReactEngine,
+	ctx context.Context,
+	state *TaskState,
+	iteration int,
+	calls []ToolCall,
+	registry ports.ToolRegistry,
+	tracker *reactWorkflow,
+) *toolCallBatch {
+	expanded := make([]ToolCall, len(calls))
+	subagentSnapshots := make([]*ports.TaskState, len(calls))
+	for i, call := range calls {
+		tc := call
+		tc.Arguments = engine.expandPlaceholders(tc.Arguments, state)
+		expanded[i] = tc
+
+		if tc.Name == "subagent" {
+			subagentSnapshots[i] = buildSubagentStateSnapshot(state, tc)
+		}
+	}
+
+	var nodes []string
+	if tracker != nil {
+		nodes = make([]string, len(expanded))
+		for i, call := range expanded {
+			nodes[i] = tracker.ensureToolCall(iteration, call)
+		}
+	}
+
+	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
+
+	return &toolCallBatch{
+		engine:               engine,
+		ctx:                  ctx,
+		state:                state,
+		iteration:            iteration,
+		registry:             registry,
+		tracker:              tracker,
+		attachments:          attachmentsSnapshot,
+		attachmentIterations: iterationSnapshot,
+		subagentSnapshots:    subagentSnapshots,
+		calls:                expanded,
+		callNodes:            nodes,
+	}
+}
+
+func (rw *reactWorkflow) startContext(task string) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.start(workflowNodeContext, map[string]any{"task": task})
+}
+
+func (rw *reactWorkflow) completeContext(output map[string]any) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.complete(workflowNodeContext, output, nil)
+}
+
+func (rw *reactWorkflow) startThink(iteration int) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.start(iterationThinkNode(iteration), map[string]any{"iteration": iteration})
+}
+
+func (rw *reactWorkflow) startPlan(iteration, requested int) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.start(iterationPlanNode(iteration), map[string]any{"iteration": iteration, "requested_calls": requested})
+}
+
+func (rw *reactWorkflow) completePlan(iteration int, planned []ToolCall, err error) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.complete(iterationPlanNode(iteration), workflowPlanOutput(iteration, planned), err)
+}
+
+func (rw *reactWorkflow) completeThink(iteration int, thought Message, toolCalls []ToolCall, err error) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.complete(iterationThinkNode(iteration), workflowThinkOutput(iteration, thought, toolCalls), err)
+}
+
+func (rw *reactWorkflow) startTools(iteration int, nodeID string, calls int) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.start(nodeID, map[string]any{"iteration": iteration, "tool_calls": calls})
+}
+
+func (rw *reactWorkflow) completeTools(iteration int, nodeID string, results []ToolResult, err error) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.complete(nodeID, workflowToolOutput(iteration, results), err)
+}
+
+func (rw *reactWorkflow) ensureToolCall(iteration int, call ToolCall) string {
+	id := iterationToolCallNode(iteration, call.ID)
+	if rw == nil || rw.recorder == nil {
+		return id
+	}
+	return rw.recorder.ensure(id, workflowToolCallInput(iteration, call))
+}
+
+func (rw *reactWorkflow) startToolCall(nodeID string) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.start(nodeID, nil)
+}
+
+func (rw *reactWorkflow) completeToolCall(nodeID string, iteration int, call ToolCall, result ToolResult, err error) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.complete(nodeID, workflowToolCallOutput(iteration, call, result), err)
+}
+
+func (b *toolCallBatch) execute() []ToolResult {
+	b.results = make([]ToolResult, len(b.calls))
+
+	var wg sync.WaitGroup
+	for i, call := range b.calls {
+		wg.Add(1)
+		go func(idx int, tc ToolCall) {
+			defer wg.Done()
+			b.runCall(idx, tc)
+		}(i, call)
+	}
+
+	wg.Wait()
+	return b.results
+}
+
+func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
+	tc.SessionID = b.state.SessionID
+	tc.TaskID = b.state.TaskID
+	tc.ParentTaskID = b.state.ParentTaskID
+
+	nodeID := ""
+	if b.tracker != nil {
+		nodeID = b.callNodes[idx]
+		if nodeID == "" {
+			nodeID = b.tracker.ensureToolCall(b.iteration, tc)
+		}
+		b.tracker.startToolCall(nodeID)
+	}
+
+	startTime := b.engine.clock.Now()
+
+	b.engine.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
+	tool, err := b.registry.Get(tc.Name)
+	if err != nil {
+		missing := fmt.Errorf("tool not found: %s", tc.Name)
+		b.finalize(idx, tc, nodeID, ToolResult{Error: missing}, startTime)
+		return
+	}
+
+	toolCtx := ports.WithAttachmentContext(b.ctx, b.attachments, b.attachmentIterations)
+	if tc.Name == "subagent" {
+		if snapshot := b.subagentSnapshots[idx]; snapshot != nil {
+			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
+		}
+	}
+
+	formattedArgs := formatToolArgumentsForLog(tc.Arguments)
+	b.engine.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, formattedArgs)
+	result, execErr := tool.Execute(toolCtx, ports.ToolCall(tc))
+	if execErr != nil {
+		b.finalize(idx, tc, nodeID, ToolResult{Error: execErr}, startTime)
+		return
+	}
+
+	if result == nil {
+		b.finalize(idx, tc, nodeID, ToolResult{Error: fmt.Errorf("tool %s returned no result", tc.Name)}, startTime)
+		return
+	}
+
+	result.Attachments = b.engine.applyToolAttachmentMutations(
+		b.ctx,
+		b.state,
+		tc,
+		result.Attachments,
+		result.Metadata,
+		&b.attachmentsMu,
+	)
+
+	if result.Metadata != nil {
+		if info, ok := result.Metadata["browser_info"].(map[string]any); ok {
+			b.engine.emitBrowserInfoEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID, info)
+		}
+	}
+
+	b.finalize(idx, tc, nodeID, *result, startTime)
+}
+
+func (b *toolCallBatch) finalize(idx int, tc ToolCall, nodeID string, result ToolResult, startTime time.Time) {
+	normalized := b.engine.normalizeToolResult(tc, b.state, result)
+	b.results[idx] = normalized
+
+	duration := b.engine.clock.Now().Sub(startTime)
+	b.engine.emitToolCallCompleteEvent(b.ctx, b.state, tc, normalized, duration)
+
+	if b.tracker != nil {
+		b.tracker.completeToolCall(nodeID, b.iteration, tc, normalized, normalized.Error)
+	}
+}
+
+func (rw *reactWorkflow) finalize(stopReason string, result *TaskResult, err error) {
+	if rw == nil || rw.recorder == nil {
+		return
+	}
+	rw.recorder.start(workflowNodeFinalize, map[string]any{"stop_reason": stopReason})
+	rw.recorder.complete(workflowNodeFinalize, workflowFinalizeOutput(result), err)
+}
+
+// WorkflowTracker captures the minimal workflow operations the ReAct engine
+// needs for debugging and event emission. Implementations are provided by the
+// application layer (e.g., agentWorkflow) to avoid domain-level coupling to a
+// specific workflow implementation.
+type WorkflowTracker interface {
+	EnsureNode(id string, input any)
+	StartNode(id string)
+	CompleteNodeSuccess(id string, output any)
+	CompleteNodeFailure(id string, err error)
+}
+
+const (
+	workflowNodeContext  = "react:context"
+	workflowNodeFinalize = "react:finalize"
+)
+
+func iterationThinkNode(iteration int) string {
+	return fmt.Sprintf("react:iter:%d:think", iteration)
+}
+
+func iterationPlanNode(iteration int) string {
+	return fmt.Sprintf("react:iter:%d:plan", iteration)
+}
+
+func iterationToolsNode(iteration int) string {
+	return fmt.Sprintf("react:iter:%d:tools", iteration)
+}
+
+func iterationToolCallNode(iteration int, callID string) string {
+	return fmt.Sprintf("react:iter:%d:tool:%s", iteration, callID)
 }
 
 // CompletionDefaults defines optional overrides for LLM completion behaviour.
@@ -49,6 +365,7 @@ type ReactEngineConfig struct {
 	EventListener      EventListener
 	CompletionDefaults CompletionDefaults
 	AttachmentMigrator legacy.Migrator
+	Workflow           WorkflowTracker
 }
 
 // SetEventListener configures event emission for TUI/streaming
@@ -95,242 +412,8 @@ func (e *ReactEngine) SolveTask(
 	state *TaskState,
 	services Services,
 ) (*TaskResult, error) {
-	e.logger.Info("Starting ReAct loop for task: %s", task)
-	startTime := e.clock.Now()
-
-	ensureAttachmentStore(state)
-	e.normalizeMessageHistoryAttachments(ctx, state)
-
-	attachmentsChanged := false
-	for idx := range state.Messages {
-		if registerMessageAttachments(state, state.Messages[idx]) {
-			attachmentsChanged = true
-		}
-	}
-	if attachmentsChanged {
-		e.updateAttachmentCatalogMessage(state)
-	}
-
-	preloadedContext := e.extractPreloadedContextMessages(state)
-
-	e.ensureSystemPromptMessage(state)
-
-	userMessage := Message{
-		Role:    "user",
-		Content: task,
-		Source:  ports.MessageSourceUserInput,
-	}
-	if len(state.PendingUserAttachments) > 0 {
-		attachments := make(map[string]ports.Attachment, len(state.PendingUserAttachments))
-		for key, att := range state.PendingUserAttachments {
-			attachments[key] = att
-		}
-		userMessage.Attachments = attachments
-		userMessage.Attachments = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
-			Context:     e.materialRequestContext(state, ""),
-			Attachments: userMessage.Attachments,
-			Status:      materialapi.MaterialStatusInput,
-			Origin:      string(userMessage.Source),
-		})
-		state.PendingUserAttachments = nil
-	}
-
-	state.Messages = append(state.Messages, userMessage)
-	if registerMessageAttachments(state, userMessage) {
-		e.updateAttachmentCatalogMessage(state)
-	}
-	if len(userMessage.Attachments) > 0 {
-		e.logger.Debug("Registered %d user attachments", len(userMessage.Attachments))
-	}
-	if len(preloadedContext) > 0 {
-		state.Messages = append(state.Messages, preloadedContext...)
-	}
-	e.logger.Debug("Added user task to messages. Total messages: %d", len(state.Messages))
-
-	for state.Iterations < e.maxIterations {
-
-		if ctx.Err() != nil {
-			e.logger.Info("Context cancelled, stopping execution: %v", ctx.Err())
-			finalResult := e.finalize(state, "cancelled", e.clock.Now().Sub(startTime))
-			attachments := e.decorateFinalResult(state, finalResult)
-
-			e.emitEvent(&TaskCompleteEvent{
-				BaseEvent:       e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				FinalAnswer:     finalResult.Answer,
-				TotalIterations: finalResult.Iterations,
-				TotalTokens:     finalResult.TokensUsed,
-				StopReason:      "cancelled",
-				Duration:        e.clock.Now().Sub(startTime),
-				StreamFinished:  true,
-				Attachments:     attachments,
-			})
-
-			return nil, ctx.Err()
-		}
-
-		state.Iterations++
-		e.logger.Info("=== Iteration %d/%d ===", state.Iterations, e.maxIterations)
-
-		e.emitEvent(&IterationStartEvent{
-			BaseEvent:  e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-			Iteration:  state.Iterations,
-			TotalIters: e.maxIterations,
-		})
-
-		e.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
-
-		e.emitEvent(&ThinkingEvent{
-			BaseEvent:    e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-			Iteration:    state.Iterations,
-			MessageCount: len(state.Messages),
-		})
-
-		thought, err := e.think(ctx, state, services)
-		if err != nil {
-			e.logger.Error("Think step failed: %v", err)
-
-			e.emitEvent(&ErrorEvent{
-				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				Iteration:   state.Iterations,
-				Phase:       "think",
-				Error:       err,
-				Recoverable: false,
-			})
-			return nil, fmt.Errorf("think step failed: %w", err)
-		}
-
-		if att := resolveContentAttachments(thought.Content, state); len(att) > 0 {
-			thought.Attachments = att
-		}
-		trimmedThought := strings.TrimSpace(thought.Content)
-		if trimmedThought != "" || len(thought.ToolCalls) > 0 {
-			state.Messages = append(state.Messages, thought)
-		}
-		e.logger.Debug("LLM response: content_length=%d, tool_calls=%d",
-			len(thought.Content), len(thought.ToolCalls))
-
-		toolCalls := e.parseToolCalls(thought, services.Parser)
-		e.logger.Info("Parsed %d tool calls", len(toolCalls))
-
-		if len(toolCalls) == 0 {
-			trimmed := strings.TrimSpace(thought.Content)
-			if trimmed == "" {
-				e.logger.Warn("No tool calls and empty content - continuing loop")
-				continue
-			}
-
-			e.logger.Info("No tool calls with content - treating response as final answer")
-			finalResult := e.finalize(state, "final_answer", e.clock.Now().Sub(startTime))
-			return finalResult, nil
-		} else {
-
-			e.emitEvent(&ThinkCompleteEvent{
-				BaseEvent:     e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				Iteration:     state.Iterations,
-				Content:       thought.Content,
-				ToolCallCount: len(thought.ToolCalls),
-			})
-		}
-
-		// Filter valid tool calls (no stdout printing)
-		var validCalls []ToolCall
-		for _, tc := range toolCalls {
-
-			if strings.Contains(tc.Name, "<|") || strings.Contains(tc.Name, "functions.") || strings.Contains(tc.Name, "user<") {
-				e.logger.Warn("Filtering out invalid tool call with leaked markers: %s", tc.Name)
-				continue
-			}
-			validCalls = append(validCalls, tc)
-			e.logger.Debug("Tool call: %s (id=%s)", tc.Name, tc.ID)
-		}
-
-		if len(validCalls) == 0 {
-			e.logger.Warn("All tool calls were invalid, continuing loop")
-			continue
-		}
-
-		if thought.Content != "" {
-			thought.Content = e.cleanToolCallMarkers(thought.Content)
-		}
-
-		e.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
-
-		for idx := range validCalls {
-			call := validCalls[idx]
-			e.emitEvent(&ToolCallStartEvent{
-				BaseEvent: e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				Iteration: state.Iterations,
-				CallID:    call.ID,
-				ToolName:  call.Name,
-				Arguments: call.Arguments,
-			})
-		}
-
-		results := e.executeToolsWithEvents(ctx, state, state.Iterations, validCalls, services.ToolExecutor)
-		state.ToolResults = append(state.ToolResults, results...)
-		e.observeToolResults(state, state.Iterations, results)
-
-		for i, r := range results {
-			if r.Error != nil {
-				e.logger.Warn("Tool %d failed: %v", i, r.Error)
-			} else {
-				e.logger.Debug("Tool %d succeeded: result_length=%d", i, len(r.Content))
-			}
-		}
-
-		toolMessages := e.buildToolMessages(results)
-		state.Messages = append(state.Messages, toolMessages...)
-		attachmentsChanged := false
-		for _, msg := range toolMessages {
-			if registerMessageAttachments(state, msg) {
-				attachmentsChanged = true
-			}
-		}
-		if attachmentsChanged {
-			e.updateAttachmentCatalogMessage(state)
-		}
-		e.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
-
-		tokenCount := services.Context.EstimateTokens(state.Messages)
-		state.TokenCount = tokenCount
-		e.logger.Debug("Current token count: %d", tokenCount)
-
-		e.emitEvent(&IterationCompleteEvent{
-			BaseEvent:  e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-			Iteration:  state.Iterations,
-			TokensUsed: state.TokenCount,
-			ToolsRun:   len(results),
-		})
-
-		e.logger.Debug("Iteration %d complete, continuing to next iteration", state.Iterations)
-	}
-
-	e.logger.Warn("Max iterations (%d) reached, requesting final answer", e.maxIterations)
-	finalResult := e.finalize(state, "max_iterations", e.clock.Now().Sub(startTime))
-
-	if finalResult.Answer == "" || len(strings.TrimSpace(finalResult.Answer)) == 0 {
-		e.logger.Info("No final answer found, requesting explicit answer")
-		state.Messages = append(state.Messages, Message{
-			Role:    "user",
-			Content: "Please provide your final answer to the user's question now.",
-			Source:  ports.MessageSourceSystemPrompt,
-		})
-
-		finalThought, err := e.think(ctx, state, services)
-		if err == nil && finalThought.Content != "" {
-			if att := resolveContentAttachments(finalThought.Content, state); len(att) > 0 {
-				finalThought.Attachments = att
-			}
-			state.Messages = append(state.Messages, finalThought)
-			if registerMessageAttachments(state, finalThought) {
-				e.updateAttachmentCatalogMessage(state)
-			}
-			finalResult.Answer = finalThought.Content
-			e.logger.Info("Got final answer from retry: %d chars", len(finalResult.Answer))
-		}
-	}
-
-	return finalResult, nil
+	runtime := newReactRuntime(e, ctx, task, state, services)
+	return runtime.run()
 }
 
 // think sends current state to LLM for reasoning
@@ -424,159 +507,34 @@ func (e *ReactEngine) think(
 	}, nil
 }
 
-// executeToolsWithEvents runs all tool calls in parallel and emits completion events
-func (e *ReactEngine) executeToolsWithEvents(
-	ctx context.Context,
-	state *TaskState,
-	iteration int,
-	calls []ToolCall,
-	registry ports.ToolRegistry,
-) []ToolResult {
-	results := make([]ToolResult, len(calls))
-	e.logger.Debug("Executing %d tools in parallel", len(calls))
-
-	// Execute in parallel using goroutines
-	var (
-		wg            sync.WaitGroup
-		attachmentsMu sync.Mutex
-	)
-
-	attachmentsSnapshot, iterationSnapshot := snapshotAttachments(state)
-	subagentSnapshots := make([]*ports.TaskState, len(calls))
-	expandedCalls := make([]ToolCall, len(calls))
-	for i, call := range calls {
-		tc := call
-		tc.Arguments = e.expandPlaceholders(tc.Arguments, state)
-		expandedCalls[i] = tc
-		if tc.Name == "subagent" {
-			subagentSnapshots[i] = buildSubagentStateSnapshot(state, tc)
-		}
+func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result ToolResult) ToolResult {
+	normalized := result
+	if normalized.CallID == "" {
+		normalized.CallID = tc.ID
 	}
-	for i, call := range expandedCalls {
-		wg.Add(1)
-		go func(idx int, tc ToolCall) {
-			defer wg.Done()
-
-			tc.SessionID = state.SessionID
-			tc.TaskID = state.TaskID
-			tc.ParentTaskID = state.ParentTaskID
-
-			startTime := e.clock.Now()
-
-			e.logger.Debug("Tool %d: Getting tool '%s' from registry", idx, tc.Name)
-			tool, err := registry.Get(tc.Name)
-			if err != nil {
-				e.logger.Error("Tool %d: Tool '%s' not found in registry", idx, tc.Name)
-
-				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-					CallID:    tc.ID,
-					ToolName:  tc.Name,
-					Result:    "",
-					Error:     fmt.Errorf("tool not found: %s", tc.Name),
-					Duration:  e.clock.Now().Sub(startTime),
-				})
-				results[idx] = ToolResult{
-					CallID:       tc.ID,
-					Content:      "",
-					Error:        fmt.Errorf("tool not found: %s", tc.Name),
-					SessionID:    state.SessionID,
-					TaskID:       state.TaskID,
-					ParentTaskID: state.ParentTaskID,
-				}
-				return
-			}
-
-			toolCtx := ports.WithAttachmentContext(ctx, attachmentsSnapshot, iterationSnapshot)
-			if tc.Name == "subagent" {
-				if snapshot := subagentSnapshots[idx]; snapshot != nil {
-					toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
-				}
-			}
-
-			formattedArgs := formatToolArgumentsForLog(tc.Arguments)
-			e.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, formattedArgs)
-			result, err := tool.Execute(toolCtx, ports.ToolCall(tc))
-
-			if err != nil {
-				e.logger.Error("Tool %d: Execution failed: %v", idx, err)
-
-				e.emitEvent(&ToolCallCompleteEvent{
-					BaseEvent: e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-					CallID:    tc.ID,
-					ToolName:  tc.Name,
-					Result:    "",
-					Error:     err,
-					Duration:  e.clock.Now().Sub(startTime),
-				})
-				results[idx] = ToolResult{
-					CallID:       tc.ID,
-					Content:      "",
-					Error:        err,
-					SessionID:    state.SessionID,
-					TaskID:       state.TaskID,
-					ParentTaskID: state.ParentTaskID,
-				}
-				return
-			}
-
-			e.logger.Debug("Tool %d: Success, result=%d bytes", idx, len(result.Content))
-
-			result.Attachments = e.applyToolAttachmentMutations(
-				ctx,
-				state,
-				tc,
-				result.Attachments,
-				result.Metadata,
-				&attachmentsMu,
-			)
-
-			e.emitEvent(&ToolCallCompleteEvent{
-				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-				CallID:      result.CallID,
-				ToolName:    tc.Name,
-				Result:      result.Content,
-				Error:       result.Error,
-				Duration:    e.clock.Now().Sub(startTime),
-				Metadata:    result.Metadata,
-				Attachments: result.Attachments,
-			})
-
-			if result.CallID == "" {
-				result.CallID = tc.ID
-			}
-			if result.SessionID == "" {
-				result.SessionID = state.SessionID
-			}
-			if result.TaskID == "" {
-				result.TaskID = state.TaskID
-			}
-			if result.ParentTaskID == "" {
-				result.ParentTaskID = state.ParentTaskID
-			}
-
-			results[idx] = ToolResult{
-				CallID:       result.CallID,
-				Content:      result.Content,
-				Error:        result.Error,
-				Metadata:     result.Metadata,
-				SessionID:    result.SessionID,
-				TaskID:       result.TaskID,
-				ParentTaskID: result.ParentTaskID,
-				Attachments:  result.Attachments,
-			}
-
-			if result.Metadata != nil {
-				if info, ok := result.Metadata["browser_info"].(map[string]any); ok {
-					e.emitBrowserInfoEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID, info)
-				}
-			}
-		}(i, call)
+	if normalized.SessionID == "" {
+		normalized.SessionID = state.SessionID
 	}
+	if normalized.TaskID == "" {
+		normalized.TaskID = state.TaskID
+	}
+	if normalized.ParentTaskID == "" {
+		normalized.ParentTaskID = state.ParentTaskID
+	}
+	return normalized
+}
 
-	wg.Wait()
-	e.logger.Debug("All %d tools completed execution", len(calls))
-	return results
+func (e *ReactEngine) emitToolCallCompleteEvent(ctx context.Context, state *TaskState, tc ToolCall, result ToolResult, duration time.Duration) {
+	e.emitEvent(&ToolCallCompleteEvent{
+		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		CallID:      result.CallID,
+		ToolName:    tc.Name,
+		Result:      result.Content,
+		Error:       result.Error,
+		Duration:    duration,
+		Metadata:    result.Metadata,
+		Attachments: result.Attachments,
+	})
 }
 
 const (
@@ -710,6 +668,147 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 		return nil
 	}
 	return attachments
+}
+
+func workflowContextOutput(state *TaskState) map[string]any {
+	if state == nil {
+		return nil
+	}
+
+	snapshot := ports.CloneTaskState(state)
+	if snapshot == nil {
+		return nil
+	}
+
+	pending := snapshot.PendingUserAttachments
+	if pending == nil && len(snapshot.Attachments) > 0 {
+		pending = snapshot.Attachments
+	}
+
+	return map[string]any{
+		"messages":              snapshot.Messages,
+		"attachments":           snapshot.Attachments,
+		"pending_attachments":   pending,
+		"iteration":             snapshot.Iterations,
+		"token_count":           snapshot.TokenCount,
+		"attachment_iterations": snapshot.AttachmentIterations,
+	}
+}
+
+func workflowThinkOutput(iteration int, thought Message, toolCalls []ToolCall) map[string]any {
+	output := map[string]any{
+		"iteration":  iteration,
+		"tool_calls": len(toolCalls),
+	}
+
+	if trimmed := strings.TrimSpace(thought.Content); trimmed != "" {
+		output["content"] = trimmed
+	}
+	if len(thought.Attachments) > 0 {
+		output["attachments"] = ports.CloneAttachmentMap(thought.Attachments)
+	}
+
+	return output
+}
+
+func workflowPlanOutput(iteration int, toolCalls []ToolCall) map[string]any {
+	output := map[string]any{
+		"iteration": iteration,
+	}
+
+	if len(toolCalls) > 0 {
+		names := make([]string, 0, len(toolCalls))
+		for _, call := range toolCalls {
+			if call.Name != "" {
+				names = append(names, call.Name)
+			}
+		}
+		output["tool_calls"] = len(toolCalls)
+		if len(names) > 0 {
+			output["tools"] = names
+		}
+	}
+
+	return output
+}
+
+func workflowToolCallInput(iteration int, call ToolCall) map[string]any {
+	input := map[string]any{
+		"iteration": iteration,
+		"call_id":   call.ID,
+		"tool":      call.Name,
+	}
+
+	if len(call.Arguments) > 0 {
+		args := make(map[string]any, len(call.Arguments))
+		for k, v := range call.Arguments {
+			args[k] = v
+		}
+		input["arguments"] = args
+	}
+
+	return input
+}
+
+func workflowToolCallOutput(iteration int, call ToolCall, result ToolResult) map[string]any {
+	output := map[string]any{
+		"iteration": iteration,
+		"call_id":   call.ID,
+		"tool":      call.Name,
+	}
+
+	cloned := ports.CloneToolResults([]ToolResult{result})
+	if len(cloned) > 0 {
+		output["result"] = cloned[0]
+	}
+
+	return output
+}
+
+func workflowToolOutput(iteration int, results []ToolResult) map[string]any {
+	output := map[string]any{
+		"iteration": iteration,
+	}
+
+	if len(results) > 0 {
+		output["results"] = ports.CloneToolResults(results)
+	}
+
+	successes := 0
+	failures := 0
+	for _, result := range results {
+		if result.Error != nil {
+			failures++
+			continue
+		}
+		successes++
+	}
+
+	output["success"] = successes
+	output["failed"] = failures
+
+	return output
+}
+
+func workflowFinalizeOutput(result *TaskResult) map[string]any {
+	if result == nil {
+		return map[string]any{"stop_reason": "error"}
+	}
+
+	output := map[string]any{
+		"stop_reason": result.StopReason,
+		"iterations":  result.Iterations,
+		"tokens_used": result.TokensUsed,
+	}
+
+	if trimmed := strings.TrimSpace(result.Answer); trimmed != "" {
+		output["answer_preview"] = trimmed
+	}
+	if len(result.Messages) > 0 {
+		output["messages"] = ports.CloneMessages(result.Messages)
+	}
+
+	return output
 }
 
 // cleanToolCallMarkers removes leaked tool call XML markers from content

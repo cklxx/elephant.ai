@@ -44,6 +44,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		eventListener:      cfg.EventListener,
 		completion:         completion,
 		attachmentMigrator: cfg.AttachmentMigrator,
+		workflow:           cfg.Workflow,
 	}
 }
 
