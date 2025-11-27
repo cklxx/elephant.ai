@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,16 +20,29 @@ import (
 type sseResponseRecorder struct {
 	header http.Header
 	body   strings.Builder
+	mu     sync.Mutex
 }
 
 func newSSERecorder() *sseResponseRecorder {
 	return &sseResponseRecorder{header: make(http.Header)}
 }
 
-func (r *sseResponseRecorder) Header() http.Header         { return r.header }
-func (r *sseResponseRecorder) Write(p []byte) (int, error) { return r.body.Write(p) }
-func (r *sseResponseRecorder) WriteHeader(statusCode int)  {}
-func (r *sseResponseRecorder) Flush()                      {}
+func (r *sseResponseRecorder) Header() http.Header { return r.header }
+func (r *sseResponseRecorder) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.body.Write(p)
+}
+func (r *sseResponseRecorder) WriteHeader(statusCode int) {}
+func (r *sseResponseRecorder) Flush()                     {}
+
+func (r *sseResponseRecorder) BodyString() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.body.String()
+}
 
 type streamedEvent struct {
 	event string
@@ -118,7 +132,8 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if strings.Contains(rec.body.String(), "workflow_event") && strings.Contains(rec.body.String(), "step_completed") {
+		payload := rec.BodyString()
+		if strings.Contains(payload, "workflow_event") && strings.Contains(payload, "step_completed") {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -131,7 +146,7 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 		t.Fatal("SSE handler did not terminate after context cancellation")
 	}
 
-	events := parseSSEStream(t, rec.body.String())
+	events := parseSSEStream(t, rec.BodyString())
 	if len(events) < 3 { // connected + two replayed events
 		t.Fatalf("expected at least 3 events, got %d", len(events))
 	}

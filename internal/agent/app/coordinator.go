@@ -153,12 +153,11 @@ func (c *AgentCoordinator) ExecuteTask(
 		wf.fail(stagePrepare, err)
 		return attachWorkflow(nil, env), err
 	}
+	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level)
 	wf.succeed(stagePrepare, map[string]string{
 		"session": env.Session.ID,
 		"task":    task,
 	})
-
-	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level)
 	ctx = id.WithSessionID(ctx, env.Session.ID)
 
 	// Create ReactEngine and configure listener
