@@ -273,7 +273,8 @@ func (e *ReactEngine) SolveTask(
         }
 
         // Execute tools (parallel)
-        results := e.executeToolsWithEvents(ctx, toolCalls, services.ToolExecutor)
+        batch := newToolCallBatch(e, ctx, state, state.Iterations, toolCalls, services.ToolExecutor, tracker)
+        results := batch.execute()
 
         // 3. OBSERVE
         // ...
@@ -304,67 +305,11 @@ func (e *ReactEngine) SolveTask(
 
 ### 5. Tool Execution with Events
 
+Tool execution now flows through a `toolCallBatch`, which pre-registers workflow nodes, clones attachment state, and normalizes every result before emitting `ToolCallCompleteEvent` notifications. Each tool call runs in its own goroutine, but ordering stays deterministic because the workflow tracker captures node insertion order.
+
 ```go
-func (e *ReactEngine) executeToolsWithEvents(
-    ctx context.Context,
-    calls []ToolCall,
-    registry ports.ToolRegistry,
-) []ToolResult {
-    results := make([]ToolResult, len(calls))
-    var wg sync.WaitGroup
-
-    for i, call := range calls {
-        wg.Add(1)
-        go func(idx int, tc ToolCall) {
-            defer wg.Done()
-
-            startTime := time.Now()
-
-            tool, err := registry.Get(tc.Name)
-            if err != nil {
-                // EMIT: Tool error
-                e.emit(&ToolCallCompleteEvent{
-                    timestamp: time.Now(),
-                    CallID:    tc.ID,
-                    ToolName:  tc.Name,
-                    Error:     err,
-                    Duration:  time.Since(startTime),
-                })
-                results[idx] = ToolResult{
-                    CallID:  tc.ID,
-                    Error:   err,
-                }
-                return
-            }
-
-            result, err := tool.Execute(ctx, ports.ToolCall{
-                ID:        tc.ID,
-                Name:      tc.Name,
-                Arguments: tc.Arguments,
-            })
-
-            // EMIT: Tool complete
-            e.emit(&ToolCallCompleteEvent{
-                timestamp: time.Now(),
-                CallID:    tc.ID,
-                ToolName:  tc.Name,
-                Result:    result.Content,
-                Error:     err,
-                Duration:  time.Since(startTime),
-            })
-
-            results[idx] = ToolResult{
-                CallID:   result.CallID,
-                Content:  result.Content,
-                Error:    result.Error,
-                Metadata: result.Metadata,
-            }
-        }(i, call)
-    }
-
-    wg.Wait()
-    return results
-}
+batch := newToolCallBatch(e, ctx, state, iteration, calls, services.ToolExecutor, tracker)
+results := batch.execute()
 ```
 
 ---

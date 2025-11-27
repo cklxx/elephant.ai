@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
+	"alex/internal/workflow"
 )
 
 // AlexAgent implements the Agent interface using the new hexagonal architecture
@@ -204,11 +206,18 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 		TokensUsed:   tokensUsed,
 		Cost:         cost,
 		Trace:        trace,
+		Workflow:     result.Workflow,
 	}, nil
 }
 
 // buildTraceFromResult builds a trace from domain task result
 func (aa *AlexAgent) buildTraceFromResult(result *ports.TaskResult, instance Instance, startTime time.Time) []TraceStep {
+	if result != nil && result.Workflow != nil {
+		if trace := buildTraceFromWorkflow(result.Workflow); len(trace) > 0 {
+			return trace
+		}
+	}
+
 	trace := []TraceStep{}
 
 	// Create trace steps based on iterations
@@ -231,6 +240,229 @@ func (aa *AlexAgent) buildTraceFromResult(result *ports.TaskResult, instance Ins
 	}
 
 	return trace
+}
+
+func buildTraceFromWorkflow(snapshot *workflow.WorkflowSnapshot) []TraceStep {
+	if snapshot == nil || len(snapshot.Nodes) == 0 {
+		return nil
+	}
+
+	nodes := make(map[string]workflow.NodeSnapshot, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
+		nodes[node.ID] = node
+	}
+
+	steps := make([]TraceStep, 0, len(snapshot.Nodes))
+	for _, id := range snapshot.Order {
+		node, ok := nodes[id]
+		if !ok {
+			continue
+		}
+
+		if step, ok := traceStepFromNode(node, len(steps)+1); ok {
+			steps = append(steps, step)
+		}
+	}
+
+	return steps
+}
+
+func traceStepFromNode(node workflow.NodeSnapshot, index int) (TraceStep, bool) {
+	timestamp := node.StartedAt
+	if timestamp.IsZero() {
+		timestamp = node.CompletedAt
+	}
+	if timestamp.IsZero() {
+		timestamp = time.Now()
+	}
+
+	step := TraceStep{
+		Step:      index,
+		Timestamp: timestamp,
+	}
+
+	switch {
+	case node.ID == "react:context":
+		step.Action = "context_setup"
+		step.Observation = "Prepared context and attachments"
+		return step, true
+
+	case node.ID == "react:finalize":
+		step.Action = "finalize"
+		step.Observation = describeFinalize(node.Output)
+		return step, true
+
+	case strings.HasPrefix(node.ID, "react:iter:"):
+		parts := strings.Split(node.ID, ":")
+		if len(parts) < 4 {
+			return TraceStep{}, false
+		}
+
+		iteration := parts[2]
+		stage := parts[3]
+		if stage == "tool" && len(parts) >= 5 {
+			step.Action = "tool_call"
+			step.ToolCall = toolCallFromNode(node)
+			if step.ToolCall != nil {
+				step.ToolCall.Duration = node.Duration
+			}
+			step.Observation = fmt.Sprintf("Iteration %s tool call", iteration)
+			if node.Error != "" {
+				step.Observation += ": " + node.Error
+			}
+			return step, true
+		}
+
+		switch stage {
+		case "think":
+			step.Action = "think"
+			step.Observation = fmt.Sprintf("Iteration %s think", iteration)
+			step.Thought = stringFromAny(mapFromAny(node.Output)["content"])
+			return step, true
+		case "plan":
+			step.Action = "plan"
+			planned := toolList(mapFromAny(node.Output))
+			if len(planned) > 0 {
+				step.Observation = fmt.Sprintf("Iteration %s planned tools: %s", iteration, strings.Join(planned, ", "))
+			} else {
+				step.Observation = fmt.Sprintf("Iteration %s plan ready", iteration)
+			}
+			return step, true
+		case "tools":
+			step.Action = "tool_batch"
+			summary := mapFromAny(node.Output)
+			success := intFromAny(summary["success"])
+			failed := intFromAny(summary["failed"])
+			step.Observation = fmt.Sprintf("Iteration %s executed tools (success=%d, failed=%d)", iteration, success, failed)
+			if node.Error != "" {
+				step.Observation += ": " + node.Error
+			}
+			return step, true
+		}
+	}
+
+	return TraceStep{}, false
+}
+
+func toolCallFromNode(node workflow.NodeSnapshot) *ToolCall {
+	output := mapFromAny(node.Output)
+	input := mapFromAny(node.Input)
+	toolCall := &ToolCall{}
+
+	if len(input) > 0 {
+		toolCall.Arguments = mapFromAny(input["arguments"])
+		toolCall.Name = stringFromAny(input["tool"])
+	}
+
+	if resultAny, ok := output["result"]; ok {
+		switch res := resultAny.(type) {
+		case ports.ToolResult:
+			if toolCall.Name == "" {
+				toolCall.Name = res.CallID
+			}
+			toolCall.Result = res.Content
+			if res.Error != nil {
+				toolCall.Error = res.Error.Error()
+			}
+		case map[string]any:
+			toolCall.Result = res["content"]
+			if toolCall.Name == "" {
+				toolCall.Name = stringFromAny(res["tool"])
+			}
+			if errVal, exists := res["error"]; exists {
+				toolCall.Error = stringFromAny(errVal)
+			}
+		}
+	}
+
+	if name := stringFromAny(output["tool"]); toolCall.Name == "" {
+		toolCall.Name = name
+	}
+
+	if toolCall.Name == "" && len(toolCall.Arguments) == 0 && toolCall.Result == nil && toolCall.Error == "" {
+		return nil
+	}
+
+	return toolCall
+}
+
+func describeFinalize(output any) string {
+	values := mapFromAny(output)
+	if values == nil {
+		return "Finalized run"
+	}
+
+	parts := []string{}
+	if reason := stringFromAny(values["stop_reason"]); reason != "" {
+		parts = append(parts, "stop="+reason)
+	}
+	if preview := stringFromAny(values["answer_preview"]); preview != "" {
+		parts = append(parts, "answer="+preview)
+	}
+	if len(parts) == 0 {
+		return "Finalized run"
+	}
+	return strings.Join(parts, ", ")
+}
+
+func mapFromAny(value any) map[string]any {
+	switch v := value.(type) {
+	case map[string]any:
+		return v
+	}
+	return nil
+}
+
+func stringFromAny(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	case error:
+		return v.Error()
+	}
+	return ""
+}
+
+func intFromAny(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	}
+	return 0
+}
+
+func toolList(values map[string]any) []string {
+	if values == nil {
+		return nil
+	}
+
+	var tools []string
+	if list, ok := values["tools"].([]string); ok {
+		tools = append(tools, list...)
+	} else if listAny, ok := values["tools"].([]any); ok {
+		for _, item := range listAny {
+			if name := stringFromAny(item); name != "" {
+				tools = append(tools, name)
+			}
+		}
+	}
+
+	if len(tools) == 0 {
+		return nil
+	}
+
+	sort.Strings(tools)
+	return tools
 }
 
 // buildTaskPrompt creates a task prompt from the SWE-Bench instance

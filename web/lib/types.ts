@@ -3,6 +3,37 @@
 
 export type AgentLevel = 'core' | 'subagent';
 
+export type WorkflowPhase = 'pending' | 'running' | 'succeeded' | 'failed';
+export type WorkflowNodeStatus = 'pending' | 'running' | 'succeeded' | 'failed';
+export type WorkflowEventType =
+  | 'node_added'
+  | 'node_started'
+  | 'node_succeeded'
+  | 'node_failed'
+  | 'workflow_updated';
+
+export interface WorkflowNodeSnapshot {
+  id: string;
+  status: WorkflowNodeStatus;
+  input?: any;
+  output?: any;
+  error?: string;
+  started_at?: string;
+  completed_at?: string;
+  duration?: number;
+}
+
+export interface WorkflowSnapshot {
+  id: string;
+  phase: WorkflowPhase;
+  order: string[];
+  nodes: WorkflowNodeSnapshot[];
+  started_at?: string;
+  completed_at?: string;
+  duration?: number;
+  summary: Record<WorkflowNodeStatus, number>;
+}
+
 // Base interface for all agent events
 export interface AgentEvent {
   event_type: string;
@@ -271,12 +302,23 @@ export interface RuntimeConfigOverridesPayload {
   overrides: RuntimeConfigOverrides;
 }
 
+// Workflow lifecycle event emitted for every workflow transition.
+export interface WorkflowLifecycleEvent extends AgentEvent {
+  event_type: 'workflow_event';
+  workflow_id: string;
+  workflow_event_type: WorkflowEventType;
+  phase?: WorkflowPhase;
+  node?: WorkflowNodeSnapshot;
+  workflow?: WorkflowSnapshot;
+}
+
 // Step Started Event - emitted when a research step begins
 export interface StepStartedEvent extends AgentEvent {
   event_type: 'step_started';
   step_index: number;
   step_description: string;
   iteration?: number;
+  workflow?: WorkflowSnapshot;
 }
 
 // Step Completed Event - emitted when a research step finishes
@@ -286,6 +328,8 @@ export interface StepCompletedEvent extends AgentEvent {
   step_result: string;
   iteration?: number;
   step_description?: string;
+  status?: WorkflowNodeStatus;
+  workflow?: WorkflowSnapshot;
 }
 
 // Browser Info Event - emitted when sandbox browser diagnostics are captured

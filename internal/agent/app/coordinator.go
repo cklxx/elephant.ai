@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"alex/internal/agent/domain"
@@ -24,9 +25,16 @@ type AgentCoordinator struct {
 	logger       ports.Logger
 	clock        ports.Clock
 
-	prepService   *ExecutionPreparationService
+	prepService   preparationService
 	costDecorator *CostTrackingDecorator
 	summarizer    *domain.FinalAnswerSummarizer
+}
+
+type preparationService interface {
+	Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error)
+	SetEnvironmentSummary(summary string)
+	ResolveAgentPreset(ctx context.Context, preset string) string
+	ResolveToolPreset(ctx context.Context, preset string) string
 }
 
 type Config struct {
@@ -125,14 +133,31 @@ func (c *AgentCoordinator) ExecuteTask(
 		ensuredTaskID = id.TaskIDFromContext(ctx)
 	}
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	outCtx := ports.GetOutputContext(ctx)
 	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
+
+	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), listener, outCtx)
+	wf.start(stagePrepare)
+
+	attachWorkflow := func(result *ports.TaskResult, env *ports.ExecutionEnvironment) *ports.TaskResult {
+		session := sessionID
+		if env != nil && env.Session != nil && env.Session.ID != "" {
+			session = env.Session.ID
+		}
+		return attachWorkflowSnapshot(result, wf, session, ensuredTaskID, parentTaskID)
+	}
 
 	// Prepare execution environment with event listener support
 	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, listener)
 	if err != nil {
-		return nil, err
+		wf.fail(stagePrepare, err)
+		return attachWorkflow(nil, env), err
 	}
-
+	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level)
+	wf.succeed(stagePrepare, map[string]string{
+		"session": env.Session.ID,
+		"task":    task,
+	})
 	ctx = id.WithSessionID(ctx, env.Session.ID)
 
 	// Create ReactEngine and configure listener
@@ -144,6 +169,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		Logger:             c.logger,
 		Clock:              c.clock,
 		CompletionDefaults: completionDefaults,
+		Workflow:           wf,
 	})
 
 	if listener != nil {
@@ -155,28 +181,39 @@ func (c *AgentCoordinator) ExecuteTask(
 		c.logger.Warn("No listener provided to ExecuteTask")
 	}
 
+	wf.start(stageExecute)
 	result, err := reactEngine.SolveTask(ctx, task, env.State, env.Services)
 	if err != nil {
+		wf.fail(stageExecute, err)
 		// Check if it's a context cancellation error
 		if ctx.Err() != nil {
 			c.logger.Info("Task execution cancelled: %v", ctx.Err())
 			c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
-			return nil, ctx.Err()
+			return attachWorkflow(result, env), ctx.Err()
 		}
 		c.logger.Error("Task execution failed: %v", err)
 		c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "error")
-		return nil, fmt.Errorf("task execution failed: %w", err)
+		return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", err)
 	}
+	wf.succeed(stageExecute, map[string]any{
+		"iterations": result.Iterations,
+		"stop":       result.StopReason,
+	})
 	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
 		result.Iterations, result.TokensUsed, result.StopReason)
 
+	wf.start(stageSummarize)
 	if c.summarizer != nil {
 		summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, listener)
 		if sumErr != nil {
+			wf.fail(stageSummarize, sumErr)
 			c.logger.Warn("Final answer summarization failed: %v", sumErr)
 		} else {
 			result = summarizedResult
+			wf.succeed(stageSummarize, map[string]any{"answer_preview": summarizedResult.Answer})
 		}
+	} else {
+		wf.succeed(stageSummarize, "skipped (no summarizer configured)")
 	}
 
 	// Log session-level cost/token metrics
@@ -194,34 +231,23 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	// Save session unless this is a delegated subagent run (which should not
 	// mutate the parent session state).
+	wf.start(stagePersist)
 	if isSubagentContext(ctx) {
 		c.logger.Debug("Skipping session persistence for subagent execution")
+		wf.succeed(stagePersist, "skipped (subagent context)")
 	} else {
 		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
-			return nil, err
+			wf.fail(stagePersist, err)
+			return attachWorkflow(result, env), err
 		}
+		wf.succeed(stagePersist, map[string]string{"session": env.Session.ID})
 	}
 
-	taskResultTaskID := result.TaskID
-	if taskResultTaskID == "" {
-		taskResultTaskID = ensuredTaskID
-	}
-	parentResultID := result.ParentTaskID
-	if parentResultID == "" {
-		parentResultID = parentTaskID
-	}
+	result.SessionID = env.Session.ID
+	result.TaskID = defaultString(result.TaskID, ensuredTaskID)
+	result.ParentTaskID = defaultString(result.ParentTaskID, parentTaskID)
 
-	return &ports.TaskResult{
-		Answer:       result.Answer,
-		Messages:     result.Messages,
-		Iterations:   result.Iterations,
-		TokensUsed:   result.TokensUsed,
-		StopReason:   result.StopReason,
-		SessionID:    env.Session.ID,
-		TaskID:       taskResultTaskID,
-		ParentTaskID: parentResultID,
-		Duration:     result.Duration,
-	}, nil
+	return attachWorkflow(result, env), nil
 }
 
 func buildCompletionDefaultsFromConfig(cfg Config) domain.CompletionDefaults {
@@ -244,6 +270,29 @@ func buildCompletionDefaultsFromConfig(cfg Config) domain.CompletionDefaults {
 	}
 
 	return defaults
+}
+
+func attachWorkflowSnapshot(result *ports.TaskResult, wf *agentWorkflow, sessionID, taskID, parentTaskID string) *ports.TaskResult {
+	if result == nil {
+		result = &ports.TaskResult{}
+	}
+	result.SessionID = defaultString(result.SessionID, sessionID)
+	result.TaskID = defaultString(result.TaskID, taskID)
+	result.ParentTaskID = defaultString(result.ParentTaskID, parentTaskID)
+
+	if wf != nil {
+		snapshot := wf.snapshot()
+		result.Workflow = &snapshot
+	}
+
+	return result
+}
+
+func defaultString(value, fallback string) string {
+	if value != "" {
+		return value
+	}
+	return fallback
 }
 
 // PrepareExecution prepares the execution environment without running the task
@@ -501,11 +550,11 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 	}
 	personaKey := c.config.AgentPreset
 	toolPreset := c.config.ToolPreset
-	if c.prepService != nil && c.prepService.presetResolver != nil {
-		if resolved, _ := c.prepService.presetResolver.resolveAgentPreset(context.Background(), personaKey); resolved != "" {
+	if c.prepService != nil {
+		if resolved := c.prepService.ResolveAgentPreset(context.Background(), personaKey); resolved != "" {
 			personaKey = resolved
 		}
-		if resolved, _ := c.prepService.presetResolver.resolveToolPreset(context.Background(), toolPreset); resolved != "" {
+		if resolved := c.prepService.ResolveToolPreset(context.Background(), toolPreset); resolved != "" {
 			toolPreset = resolved
 		}
 	} else if toolPreset == "" {

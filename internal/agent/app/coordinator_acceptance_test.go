@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/llm"
+	"alex/internal/workflow"
 )
 
 // TestAgentCoordinatorEndToEndExecutionPerformance exercises the coordinator through
@@ -21,13 +22,13 @@ func TestAgentCoordinatorEndToEndExecutionPerformance(t *testing.T) {
 
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
-coordinator := NewAgentCoordinator(
-llmFactory,
-stubToolRegistry{},
-sessionStore,
-stubContextManager{},
-stubParser{},
-nil,
+	coordinator := NewAgentCoordinator(
+		llmFactory,
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		stubParser{},
+		nil,
 		Config{
 			LLMProvider:   "mock",
 			LLMModel:      "acceptance",
@@ -52,6 +53,28 @@ nil,
 
 		if result == nil {
 			t.Fatalf("run %d returned nil result", i+1)
+		}
+
+		if result.Workflow == nil {
+			t.Fatalf("run %d missing workflow snapshot", i+1)
+		}
+		if result.Workflow.Phase != workflow.PhaseSucceeded {
+			t.Fatalf("run %d unexpected workflow phase: %s", i+1, result.Workflow.Phase)
+		}
+		statusByNode := make(map[string]workflow.NodeStatus)
+		for _, node := range result.Workflow.Nodes {
+			statusByNode[node.ID] = node.Status
+		}
+		expected := map[string]workflow.NodeStatus{
+			"prepare":   workflow.NodeStatusSucceeded,
+			"execute":   workflow.NodeStatusSucceeded,
+			"summarize": workflow.NodeStatusSucceeded,
+			"persist":   workflow.NodeStatusSucceeded,
+		}
+		for node, status := range expected {
+			if statusByNode[node] != status {
+				t.Fatalf("run %d node %s expected %s got %s", i+1, node, status, statusByNode[node])
+			}
 		}
 
 		if got := strings.TrimSpace(result.Answer); got != "Mock LLM response" {

@@ -2,12 +2,14 @@ package builtin
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"alex/internal/agent/ports"
 	id "alex/internal/utils/id"
+	"alex/internal/workflow"
 )
 
 type stubEvent struct{}
@@ -92,6 +94,51 @@ func (r *sessionIDRecorder) GetParser() ports.FunctionCallParser     { return ni
 func (r *sessionIDRecorder) GetContextManager() ports.ContextManager { return nil }
 func (r *sessionIDRecorder) GetSystemPrompt() string                 { return "" }
 
+type workflowRecordingCoordinator struct {
+	mu    sync.Mutex
+	tasks []string
+}
+
+func (w *workflowRecordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	idx := len(w.tasks)
+	w.tasks = append(w.tasks, task)
+
+	snapshot := &workflow.WorkflowSnapshot{
+		ID:    fmt.Sprintf("wf-%d", idx+1),
+		Phase: workflow.PhaseSucceeded,
+		Order: []string{"node"},
+		Nodes: []workflow.NodeSnapshot{{ID: "node", Status: workflow.NodeStatusSucceeded}},
+	}
+
+	return &ports.TaskResult{
+		Answer:     fmt.Sprintf("result-%d", idx+1),
+		Iterations: idx + 1,
+		TokensUsed: (idx + 1) * 10,
+		Workflow:   snapshot,
+	}, nil
+}
+
+func (*workflowRecordingCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+	return nil, nil
+}
+
+func (*workflowRecordingCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+	return nil
+}
+
+func (*workflowRecordingCoordinator) ListSessions(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+func (*workflowRecordingCoordinator) GetConfig() ports.AgentConfig                       { return ports.AgentConfig{} }
+func (*workflowRecordingCoordinator) GetLLMClient() (ports.LLMClient, error)             { return nil, nil }
+func (*workflowRecordingCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry { return nil }
+func (*workflowRecordingCoordinator) GetParser() ports.FunctionCallParser                { return nil }
+func (*workflowRecordingCoordinator) GetContextManager() ports.ContextManager            { return nil }
+func (*workflowRecordingCoordinator) GetSystemPrompt() string                            { return "" }
+
 func TestSubagentUsesParentSessionID(t *testing.T) {
 	recorder := &sessionIDRecorder{}
 	tool := NewSubAgent(recorder, 1)
@@ -118,5 +165,48 @@ func TestSubagentUsesParentSessionID(t *testing.T) {
 
 	if recorder.ctxIDs.SessionID != sessionID {
 		t.Fatalf("expected context to retain session id %s, got %s", sessionID, recorder.ctxIDs.SessionID)
+	}
+}
+
+func TestSubagentExposesWorkflowMetadata(t *testing.T) {
+	coordinator := &workflowRecordingCoordinator{}
+	tool := NewSubAgent(coordinator, 1)
+
+	call := ports.ToolCall{
+		ID:        "call-1",
+		Name:      "subagent",
+		Arguments: map[string]any{"subtasks": []any{"task a", "task b"}, "mode": "serial"},
+	}
+
+	result, err := tool.Execute(context.Background(), call)
+	if err != nil {
+		t.Fatalf("subagent execute failed: %v", err)
+	}
+
+	structured, ok := result.Metadata["results_struct"].([]subtaskMetadata)
+	if !ok {
+		t.Fatalf("expected structured results metadata to be available, got %T", result.Metadata["results_struct"])
+	}
+
+	if len(structured) != 2 {
+		t.Fatalf("expected two structured results, got %d", len(structured))
+	}
+
+	for i, entry := range structured {
+		if entry.Workflow == nil {
+			t.Fatalf("expected workflow snapshot for result %d", i)
+		}
+		if entry.Workflow.Phase != workflow.PhaseSucceeded {
+			t.Fatalf("unexpected workflow phase %s for result %d", entry.Workflow.Phase, i)
+		}
+	}
+
+	workflows, ok := result.Metadata["workflows"].([]*workflow.WorkflowSnapshot)
+	if !ok {
+		t.Fatalf("expected workflows metadata to be available, got %T", result.Metadata["workflows"])
+	}
+
+	if len(workflows) != len(structured) {
+		t.Fatalf("expected %d workflows, got %d", len(structured), len(workflows))
 	}
 }

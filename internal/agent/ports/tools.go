@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"alex/internal/workflow"
 )
 
 // ToolExecutor executes a single tool call
@@ -144,6 +146,7 @@ type TaskResult struct {
 	TaskID       string // The unique task identifier for this execution
 	ParentTaskID string // The parent task identifier when invoked as a subtask
 	Duration     time.Duration
+	Workflow     *workflow.WorkflowSnapshot
 }
 
 // StreamCallback is called during task execution to stream events
