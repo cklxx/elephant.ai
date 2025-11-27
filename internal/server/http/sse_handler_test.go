@@ -203,3 +203,40 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 		t.Fatalf("unexpected iteration: %v", stepEvent.data)
 	}
 }
+
+func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
+	sent := make(map[string]string)
+	attachments := map[string]ports.Attachment{
+		"note.txt": {
+			Name:      "note.txt",
+			MediaType: "text/plain",
+			Data:      "ZmlsZSBkYXRh",
+		},
+	}
+
+	first := sanitizeAttachmentsForStream(attachments, sent)
+	if first == nil || len(first) != 1 {
+		t.Fatalf("expected initial attachments to be forwarded, got %#v", first)
+	}
+
+	// Re-sending the same attachment payload should be suppressed.
+	if dup := sanitizeAttachmentsForStream(attachments, sent); dup != nil {
+		t.Fatalf("expected duplicate attachments to be filtered: %#v", dup)
+	}
+
+	updated := map[string]ports.Attachment{
+		"note.txt": {
+			Name:      "note.txt",
+			MediaType: "text/plain",
+			URI:       "https://cdn.example.com/note.txt",
+		},
+	}
+
+	resent := sanitizeAttachmentsForStream(updated, sent)
+	if resent == nil || len(resent) != 1 {
+		t.Fatalf("expected updated attachment to be forwarded, got %#v", resent)
+	}
+	if resent["note.txt"].URI == "" {
+		t.Fatalf("expected updated attachment URI to be preserved: %#v", resent)
+	}
+}

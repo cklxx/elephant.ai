@@ -214,10 +214,10 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("Creating task: task='%s', sessionID='%s'", req.Task, req.SessionID)
 
-ctx := id.WithSessionID(r.Context(), req.SessionID)
-if user, ok := CurrentUser(r.Context()); ok {
-ctx = id.WithUserID(ctx, user.ID)
-}
+	ctx := id.WithSessionID(r.Context(), req.SessionID)
+	if user, ok := CurrentUser(r.Context()); ok {
+		ctx = id.WithUserID(ctx, user.ID)
+	}
 	if len(attachments) > 0 {
 		ctx = agentapp.WithUserAttachments(ctx, attachments)
 	}
@@ -770,7 +770,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		Snapshots: make([]ContextSnapshotItem, len(snapshots)),
 	}
 
-	sentAttachments := make(map[string]struct{})
+	sentAttachments := make(map[string]string)
 
 	for i, snapshot := range snapshots {
 		item := ContextSnapshotItem{
@@ -790,7 +790,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 	h.writeJSON(w, http.StatusOK, response)
 }
 
-func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments map[string]struct{}) []agentports.Message {
+func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments map[string]string) []agentports.Message {
 	if len(messages) == 0 {
 		return nil
 	}
