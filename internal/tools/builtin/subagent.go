@@ -448,9 +448,13 @@ func (t *subagent) formatResults(call ports.ToolCall, subtasks []string, results
 		"total_iterations": totalIterations,
 	}
 
+	structured := buildSubtaskMetadata(results)
+
 	// Add individual results to metadata
 	resultsJSON, _ := json.Marshal(results)
 	metadata["results"] = string(resultsJSON)
+	metadata["results_struct"] = structured
+	metadata["workflows"] = extractWorkflows(structured)
 
 	return &ports.ToolResult{
 		CallID:       call.ID,
@@ -460,6 +464,45 @@ func (t *subagent) formatResults(call ports.ToolCall, subtasks []string, results
 		TaskID:       call.TaskID,
 		ParentTaskID: call.ParentTaskID,
 	}, nil
+}
+
+type subtaskMetadata struct {
+	Index      int                        `json:"index"`
+	Task       string                     `json:"task"`
+	Answer     string                     `json:"answer,omitempty"`
+	Iterations int                        `json:"iterations,omitempty"`
+	TokensUsed int                        `json:"tokens_used,omitempty"`
+	Workflow   *workflow.WorkflowSnapshot `json:"workflow,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+}
+
+func buildSubtaskMetadata(results []SubtaskResult) []subtaskMetadata {
+	structured := make([]subtaskMetadata, 0, len(results))
+	for _, r := range results {
+		item := subtaskMetadata{
+			Index:      r.Index,
+			Task:       r.Task,
+			Answer:     r.Answer,
+			Iterations: r.Iterations,
+			TokensUsed: r.TokensUsed,
+			Workflow:   r.Workflow,
+		}
+		if r.Error != nil {
+			item.Error = r.Error.Error()
+		}
+		structured = append(structured, item)
+	}
+	return structured
+}
+
+func extractWorkflows(results []subtaskMetadata) []*workflow.WorkflowSnapshot {
+	workflows := make([]*workflow.WorkflowSnapshot, 0, len(results))
+	for _, r := range results {
+		if r.Workflow != nil {
+			workflows = append(workflows, r.Workflow)
+		}
+	}
+	return workflows
 }
 
 // Context key for parent listener
