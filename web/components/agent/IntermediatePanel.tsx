@@ -1,6 +1,12 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { MarkdownRenderer } from "@/components/ui/markdown";
 import {
@@ -54,7 +60,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     status: "running" | "completed" | "failed";
   }
 
-  const summarizeToolHint = (call: AggregatedToolCall) => {
+  const summarizeToolHint = useCallback((call: AggregatedToolCall) => {
     const parameters = call.parameters ?? {};
     const metadata = call.metadata ?? {};
     const preferredKeys = [
@@ -98,7 +104,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     }
 
     return undefined;
-  };
+  }, []);
 
   // Aggregate tool calls and model outputs
   const { toolCalls, thinkStreamItems } = useMemo(() => {
@@ -267,7 +273,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       return headlineCall.toolName;
     }
     return `${headlineCall.toolName} · ${hint}`;
-  }, [headlineCall, runningSummary, toolSummary]);
+  }, [headlineCall, runningSummary, summarizeToolHint, toolSummary]);
 
   const headlinePreview = useMemo(() => {
     if (!headlineCall) {
