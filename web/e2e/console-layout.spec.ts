@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { primeAuthSession } from './utils/auth';
+import {
+  capturePageScreenshot,
+  shouldCaptureScreenshots,
+} from './utils/screenshots';
 
 const STORAGE_KEY = 'alex-session-storage';
 
@@ -22,6 +26,10 @@ test.describe('ALEX console layout', () => {
 
     const input = page.getByTestId('task-input');
     await expect(input).toBeVisible();
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'console-empty-state');
+    }
   });
 
   test('supports persisted sessions and selection', async ({ page }) => {
@@ -66,6 +74,10 @@ test.describe('ALEX console layout', () => {
     await expect(recentSessionButton).toBeVisible();
 
     await recentSessionButton.click({ force: true });
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'console-persisted-session');
+    }
   });
 
   test('supports mock stream mode', async ({ page }) => {
@@ -89,6 +101,10 @@ test.describe('ALEX console layout', () => {
     await expect(page.getByTestId('session-list-recent')).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('event-user_task')).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('console-header-title')).toHaveText(/.+/);
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'console-mock-stream');
+    }
   });
 
   test('home route redirects to conversation view', async ({ page }) => {
@@ -98,5 +114,9 @@ test.describe('ALEX console layout', () => {
 
     await expect(page).toHaveURL(/\/conversation$/);
     await expect(page.getByTestId('console-header-title')).toBeVisible({ timeout: 60000 });
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'console-redirect');
+    }
   });
 });

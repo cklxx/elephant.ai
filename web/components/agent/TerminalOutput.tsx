@@ -196,13 +196,7 @@ function partitionEvents(
       }
 
       const thread = threads.get(key)!;
-      if (!thread.context.preview && context.preview) {
-        thread.context = { ...thread.context, preview: context.preview };
-      }
-      if (!thread.context.concurrency && context.concurrency) {
-        thread.context = { ...thread.context, concurrency: context.concurrency };
-      }
-
+      thread.context = mergeSubagentContext(thread.context, context);
       thread.events.push(event);
       return;
     }
@@ -215,6 +209,24 @@ function partitionEvents(
   return {
     displayEvents,
     subagentThreads: threadOrder.map((key) => threads.get(key)!),
+  };
+}
+
+function mergeSubagentContext(
+  existing: SubagentContext,
+  incoming: SubagentContext,
+): SubagentContext {
+  const resolvedTitle = incoming.title ?? existing.title;
+  return {
+    ...existing,
+    ...incoming,
+    title: resolvedTitle,
+    preview: incoming.preview ?? existing.preview,
+    concurrency: incoming.concurrency ?? existing.concurrency,
+    progress: incoming.progress ?? existing.progress,
+    stats: incoming.stats ?? existing.stats,
+    status: incoming.status ?? existing.status,
+    statusTone: incoming.statusTone ?? existing.statusTone,
   };
 }
 

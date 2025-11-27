@@ -284,6 +284,10 @@ export interface SubagentContext {
   title: string;
   preview?: string;
   concurrency?: string;
+  progress?: string;
+  stats?: string;
+  status?: string;
+  statusTone?: 'info' | 'success' | 'warning' | 'danger';
 }
 
 export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
@@ -312,7 +316,52 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
       ? `Parallel ×${event.max_parallel}`
       : undefined;
 
-  return { title, preview, concurrency };
+  const progressParts: string[] = [];
+  if ("completed" in event && typeof event.completed === "number") {
+    const totalLabel =
+      "total" in event && typeof event.total === "number"
+        ? `${event.total}`
+        : "?";
+    progressParts.push(`Progress ${event.completed}/${totalLabel}`);
+  }
+
+  const statsParts: string[] = [];
+  if ("tool_calls" in event && typeof event.tool_calls === "number") {
+    statsParts.push(`${event.tool_calls} tool call${event.tool_calls === 1 ? "" : "s"}`);
+  }
+  const tokenCount =
+    ("tokens" in event && typeof event.tokens === "number" && event.tokens) ||
+    ("total_tokens" in event && typeof event.total_tokens === "number" && event.total_tokens) ||
+    undefined;
+  if (typeof tokenCount === "number") {
+    statsParts.push(`${tokenCount} tokens`);
+  }
+
+  let status: SubagentContext["status"];
+  let statusTone: SubagentContext["statusTone"];
+  if (
+    event.event_type === "subagent_complete" &&
+    "success" in event &&
+    typeof event.success === "number" &&
+    "failed" in event &&
+    typeof event.failed === "number"
+  ) {
+    status = `${event.success}/${event.total ?? event.success + event.failed} succeeded`;
+    statusTone = event.failed > 0 ? "warning" : "success";
+  } else if (event.event_type === "error") {
+    status = "Subagent reported an error";
+    statusTone = "danger";
+  }
+
+  return {
+    title,
+    preview,
+    concurrency,
+    progress: progressParts.join(" · ") || undefined,
+    stats: statsParts.join(" · ") || undefined,
+    status,
+    statusTone,
+  };
 }
 
 interface SubagentHeaderProps {
@@ -320,6 +369,21 @@ interface SubagentHeaderProps {
 }
 
 export function SubagentHeader({ context }: SubagentHeaderProps) {
+  const pillClassName = (
+    tone: SubagentContext["statusTone"] | "info" = "info",
+  ) => {
+    const base =
+      "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]";
+    const toneClass: Record<NonNullable<SubagentContext["statusTone"]> | "info", string> = {
+      info: "border-primary/30 bg-primary/5 text-primary",
+      success: "border-emerald-200/70 bg-emerald-500/10 text-emerald-600 dark:text-emerald-200",
+      warning: "border-amber-200/70 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+      danger: "border-rose-200/70 bg-rose-500/10 text-rose-700 dark:text-rose-200",
+    };
+
+    return cn(base, toneClass[tone]);
+  };
+
   return (
     <div className="space-y-1">
       <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary">
@@ -332,9 +396,16 @@ export function SubagentHeader({ context }: SubagentHeaderProps) {
           </span>
         )}
         {context.concurrency && (
-          <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            {context.concurrency}
-          </span>
+          <span className={pillClassName("info")}>{context.concurrency}</span>
+        )}
+        {context.progress && (
+          <span className={pillClassName()}>{context.progress}</span>
+        )}
+        {context.status && (
+          <span className={pillClassName(context.statusTone)}>{context.status}</span>
+        )}
+        {context.stats && (
+          <span className="text-[11px] text-muted-foreground">{context.stats}</span>
         )}
       </div>
     </div>
