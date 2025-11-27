@@ -138,7 +138,7 @@ export function ToolOutputCard({
       metadata?.todos);
 
   return (
-    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border/60 bg-background/80 shadow-sm">
+    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border/60 bg-background shadow-sm">
       <CardHeader className="px-4 py-3 space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
@@ -189,7 +189,7 @@ export function ToolOutputCard({
       </CardHeader>
 
       {showBody && (
-        <div className="bg-muted/20">
+        <div className="bg-muted">
           {(isExpanded || !shouldShowToggle) && (
             <CardContent className="space-y-3 px-4 pb-4 pt-3">
               {hasError && (
