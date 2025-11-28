@@ -118,19 +118,35 @@ Session cleanup helpers:
 
 Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox routing. `docker compose up` bind-mounts your host configuration into the container so Spinner reads the same credentials everywhere.
 
-### Unified Deployment Script
+### Production Deployment
 
-`deploy.sh` drives local development and the nginx-backed production stack while hydrating secrets from `~/.alex-config.json` (override with `ALEX_CONFIG_PATH`). Key helpers:
+1. **配置密钥与模型**：在 `~/.alex-config.json` 中填入 `api_key`、`base_url`、`model`，并导出 `OPENAI_API_KEY`、`TAVILY_API_KEY` 等环境变量。参考完整示例见《[ALEX Operations Guide](docs/operations/README.md#production-configuration)》的生产配置段落。
+2. **一次性启动**：不带参数运行 `./deploy.sh`，即可通过 nginx 在 80 端口直接拉起前后端，同源访问无需暴露 8000 端口也不会有跨域问题；在中国大陆网络可使用 `./deploy.sh cn` 自动切换 Docker/npm/Go 镜像源与预置 Sandbox 镜像；用 `./deploy.sh pro status`/`pro logs`/`pro down` 巡检、查看日志与停止，本地开发模式改用独立的 `./dev.sh`。【F:docs/operations/README.md†L64-L94】
+3. **容器化部署**：生产环境建议使用 `docker-compose.yml`：
+   ```bash
+   echo "OPENAI_API_KEY=sk-your-key" > .env
+   docker-compose up -d
+   docker-compose logs -f alex-server
+   ```
+   相关命令和健康检查示例见《Operations Guide》的 Docker Compose 小节。【F:docs/operations/README.md†L96-L109】
+4. **健康探针与监控**：上线前配置 `/health` 探针（Compose 或 K8s livenessProbe），并接入日志/指标收集，详见运维指南的健康监控章节。【F:docs/operations/README.md†L111-L188】
+5. **分环境参数**：通过 `dev.json` / `staging.json` / `prod.json` 或环境变量开启/关闭 MCP、调整日志与迭代次数，避免在生产启用调试日志。【F:docs/operations/README.md†L190-L228】
+
+### Deployment Scripts
+
+`deploy.sh` handles the nginx-backed production stack (hydrating secrets from `~/.alex-config.json`, override with `ALEX_CONFIG_PATH`). `dev.sh` is now dedicated to local development. Key helpers:
 
 ```bash
+./deploy.sh
 ./deploy.sh pro up
 ./deploy.sh pro logs web
 ./deploy.sh pro down
-./deploy.sh start
-./deploy.sh test
+./deploy.sh cn deploy
+./dev.sh start
+./dev.sh test
 ```
 
-Set `COMPOSE_FILE=/path/to/compose.yml` to target a different stack definition.
+Set `COMPOSE_FILE=/path/to/compose.yml` to target a different stack definition for production.
 
 ### Development Workflow
 

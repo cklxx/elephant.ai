@@ -66,16 +66,43 @@ export ALEX_ENABLE_MCP=true
 #### Local Development
 ```bash
 # Start backend + frontend
-./deploy.sh start
+./dev.sh start
 
 # Check status
-./deploy.sh status
+./dev.sh status
 
 # View logs
-./deploy.sh logs
+./dev.sh logs
 
 # Stop services
-./deploy.sh down
+./dev.sh down
+```
+
+#### Production via nginx (default)
+```bash
+# Run production stack on port 80 with same-origin frontend/API
+./deploy.sh
+
+# Check status
+./deploy.sh pro status
+
+# View logs
+./deploy.sh pro logs
+
+# Stop services
+./deploy.sh pro down
+```
+
+#### Production with China mirrors
+```bash
+# Use Docker/npm/Go mirrors and the prebuilt China sandbox image
+./deploy.sh cn
+
+# Inspect running services
+./deploy.sh cn status
+
+# Tail nginx logs
+./deploy.sh cn logs
 ```
 
 #### Docker Compose

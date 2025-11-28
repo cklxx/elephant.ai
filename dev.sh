@@ -1,17 +1,19 @@
 #!/bin/bash
 ###############################################################################
-# ALEX SSE Service - Deployment Helper
+# ALEX SSE Service - Local Development Helper
 #
 # Design Philosophy:
-#   - Production-first stack
+#   - One script, one purpose: local development
 #   - Fast, reliable, debuggable
 #   - Clear output, proper cleanup
 #   - Port conflict detection
 #
 # Usage:
-#   ./deploy.sh          # Start production stack behind nginx on :80 (default)
-#   ./deploy.sh pro down # Stop production stack
-#   ./deploy.sh docker   # Manage docker-compose helpers
+#   ./dev.sh          # Start local dev processes (backend on :8080, web on :3000)
+#   ./dev.sh status   # Check status
+#   ./dev.sh logs     # Tail logs
+#   ./dev.sh test     # Run full test suite
+#   ./dev.sh down     # Stop local dev processes
 ###############################################################################
 
 set -euo pipefail
@@ -69,15 +71,6 @@ log_error() {
 
 log_warn() {
     echo -e "${C_YELLOW}⚠${C_RESET} $*"
-}
-
-print_cn_mirrors() {
-    log_info "Using China mirrors for deployment:"
-    [[ -n "${DOCKER_REGISTRY_MIRROR:-}" ]] && log_info "  Docker mirror: ${DOCKER_REGISTRY_MIRROR}"
-    [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  Sandbox image: ${SANDBOX_IMAGE}"
-    [[ -n "${NPM_CONFIG_REGISTRY:-}" ]] && log_info "  npm registry: ${NPM_CONFIG_REGISTRY}"
-    [[ -n "${GOPROXY:-}" ]] && log_info "  Go proxy: ${GOPROXY}"
-    [[ -n "${GOSUMDB:-}" ]] && log_info "  Go checksum DB: ${GOSUMDB}"
 }
 
 banner() {
@@ -1247,20 +1240,6 @@ cmd_pro() {
     esac
 }
 
-cmd_cn() {
-    export DOCKER_REGISTRY_MIRROR="${DOCKER_REGISTRY_MIRROR:-https://registry.docker-cn.com}"
-    export SANDBOX_IMAGE="${SANDBOX_IMAGE:-$SANDBOX_CHINA_IMAGE}"
-    export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
-    export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com/}"
-    export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
-    export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
-    export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
-
-    print_cn_mirrors
-
-    cmd_pro "$@"
-}
-
 cmd_pro_help() {
     cat << EOF
 
@@ -1313,22 +1292,28 @@ EOF
 cmd_help() {
     cat << EOF
 
-${C_CYAN}ALEX SSE Service - Production Deployment${C_RESET}
+${C_CYAN}ALEX SSE Service - Local Development${C_RESET}
 
 ${C_YELLOW}Usage:${C_RESET}
-  ./deploy.sh [command]
+  ./dev.sh [command]
 
 ${C_YELLOW}Commands:${C_RESET}
-  ${C_GREEN}pro [command]${C_RESET}      Run production stack on :80 via nginx (default)
-  ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
-  ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/go)
+  ${C_GREEN}start${C_RESET}              Start local dev processes (backend :8080, web :3000)
+  ${C_GREEN}down, stop${C_RESET}         Stop local dev processes
+  ${C_GREEN}test${C_RESET}               Run Go, web unit, and Playwright tests
+  ${C_GREEN}status${C_RESET}             Show service status
+  ${C_GREEN}logs [service]${C_RESET}     Tail logs (all/server/web/sandbox)
   ${C_GREEN}help${C_RESET}               Show this help
 
 ${C_YELLOW}Examples:${C_RESET}
-  ./deploy.sh              # Production on :80 via nginx (same-origin frontend/API)
-  ./deploy.sh pro status   # Inspect running services
-  ./deploy.sh cn deploy    # Production deploy with China mirrors
-  ./deploy.sh pro logs web # Tail frontend logs via docker-compose
+  ./dev.sh start        # Local dev backend (:8080) + frontend (:3000)
+  ./dev.sh logs server  # Tail backend logs
+  ./dev.sh down         # Stop local dev processes
+
+${C_YELLOW}Log Files:${C_RESET}
+  Backend:  logs/server.log
+  Frontend: logs/web.log
+  Build:    logs/build.log
 
 ${C_YELLOW}Environment:${C_RESET}
   Edit .env to configure API keys and settings
@@ -1345,20 +1330,26 @@ main() {
 
     hydrate_env_from_config
 
-    local cmd=${1:-pro}
+    local cmd=${1:-start}
     if (($# > 0)); then
         shift
     fi
 
     case $cmd in
-        docker)
-            cmd_docker "$@"
+        start|up|run)
+            cmd_start
             ;;
-        pro)
-            cmd_pro "${1:-up}" "${@:2}"
+        stop|down|kill)
+            cmd_stop
             ;;
-        cn)
-            cmd_cn "${1:-up}" "${@:2}"
+        test)
+            cmd_test
+            ;;
+        status|ps)
+            cmd_status
+            ;;
+        logs|log|tail)
+            cmd_logs "${1:-all}"
             ;;
         help|-h|--help)
             cmd_help
