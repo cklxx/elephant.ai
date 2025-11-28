@@ -357,7 +357,9 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       } else {
         draft.taskStatus = 'completed';
       }
-      draft.finalAnswer = complete.final_answer;
+      const delta = complete.final_answer ?? '';
+      const prevAnswer = draft.finalAnswer ?? '';
+      draft.finalAnswer = prevAnswer + delta;
       if (complete.attachments !== undefined) {
         draft.finalAnswerAttachments = complete.attachments as
           | Record<string, AttachmentPayload>
