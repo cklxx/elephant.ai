@@ -1,11 +1,16 @@
 # Multi-stage build for ALEX Server
 ARG BASE_GO_IMAGE=golang:1.24-alpine
 ARG BASE_RUNTIME_IMAGE=alpine:latest
+ARG GO_PROXY=https://proxy.golang.org,direct
+ARG GO_SUMDB=sum.golang.org
 
 FROM ${BASE_GO_IMAGE} AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make
+
+ENV GOPROXY=${GO_PROXY} \
+    GOSUMDB=${GO_SUMDB}
 
 WORKDIR /app
 
