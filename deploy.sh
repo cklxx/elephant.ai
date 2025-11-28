@@ -80,6 +80,8 @@ print_cn_mirrors() {
     [[ -n "${GOSUMDB:-}" ]] && log_info "  Go checksum DB: ${GOSUMDB}"
     [[ -n "${REDIS_IMAGE:-}" ]] && log_info "  Redis image: ${REDIS_IMAGE}"
     [[ -n "${NGINX_IMAGE:-}" ]] && log_info "  nginx image: ${NGINX_IMAGE}"
+    [[ -n "${AUTH_DB_IMAGE:-}" ]] && log_info "  auth-db image: ${AUTH_DB_IMAGE}"
+    [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  sandbox image: ${SANDBOX_IMAGE}"
 }
 
 banner() {
@@ -1264,8 +1266,11 @@ cmd_cn() {
     export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
     export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
     export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
-    export REDIS_IMAGE="${REDIS_IMAGE:-registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine}"
-    export NGINX_IMAGE="${NGINX_IMAGE:-registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine}"
+    export SANDBOX_IMAGE="${SANDBOX_IMAGE:-enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest}"
+    export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
+    export REDIS_IMAGE="${REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}"
+    export NGINX_IMAGE="${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:alpine}"
+    export AUTH_DB_IMAGE="${AUTH_DB_IMAGE:-docker.m.daocloud.io/library/postgres:15}"
 
     print_cn_mirrors
 
