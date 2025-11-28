@@ -325,7 +325,7 @@ export interface StepStartedEvent extends AgentEvent {
 export interface StepCompletedEvent extends AgentEvent {
   event_type: 'step_completed';
   step_index: number;
-  step_result: string;
+  step_result?: string;
   iteration?: number;
   step_description?: string;
   status?: WorkflowNodeStatus;

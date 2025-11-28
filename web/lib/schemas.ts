@@ -223,7 +223,7 @@ export const StepStartedEventSchema = BaseAgentEventSchema.extend({
 export const StepCompletedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('step_completed'),
   step_index: z.number(),
-  step_result: z.string(),
+  step_result: z.string().optional(),
   iteration: z.number().optional(),
   step_description: z.string().optional(),
 });
