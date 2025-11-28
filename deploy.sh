@@ -433,10 +433,10 @@ prepare_compose_environment() {
     compose_reset_var_tracking
     source_root_env_if_present
 
-    compose_resolve_required_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key'
-    compose_resolve_required_var AUTH_JWT_SECRET '.auth.jwtSecret'
-    compose_resolve_required_var AUTH_DATABASE_URL '.auth.databaseUrl'
-    compose_resolve_required_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto
+    compose_resolve_required_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key' || true
+    compose_resolve_required_var AUTH_JWT_SECRET '.auth.jwtSecret' || true
+    compose_resolve_required_var AUTH_DATABASE_URL '.auth.databaseUrl' || true
+    compose_resolve_required_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto || true
 
     compose_resolve_optional_var OPENAI_BASE_URL '.base_url // .models.basic.base_url // .models.reasoning.base_url'
     compose_resolve_optional_var ALEX_MODEL '.llm_model // .model // .models.basic.model'
