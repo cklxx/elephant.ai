@@ -26,7 +26,7 @@ export function VideoPreview({
   className,
   videoClassName,
   maxHeight = "480px",
-  maxWidth = "min(100%, 720px)",
+  maxWidth = "min(100%, 480px)",
   controls = false,
   preload = "metadata",
   ...videoProps
@@ -71,7 +71,7 @@ export function VideoPreview({
         "relative inline-flex max-w-full overflow-hidden rounded-2xl bg-black align-middle",
         className,
       )}
-      style={{ maxHeight: resolvedMaxHeight, maxWidth: resolvedMaxWidth }}
+      style={{ maxHeight: resolvedMaxHeight, maxWidth: resolvedMaxWidth, width: resolvedMaxWidth }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

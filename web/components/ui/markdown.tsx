@@ -134,7 +134,7 @@ export function MarkdownRenderer({
             description={matchedAttachment.description || (typeof children === "string" ? children : undefined)}
             className="my-2 max-w-full"
             maxHeight="320px"
-            maxWidth="520px"
+            maxWidth="480px"
           />
         );
       }
@@ -195,7 +195,7 @@ export function MarkdownRenderer({
               description={matchedAttachment.description || alt}
               className="my-2 max-w-full"
               maxHeight="320px"
-              maxWidth="520px"
+              maxWidth="480px"
             />
           );
         }

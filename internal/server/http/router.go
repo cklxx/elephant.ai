@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
@@ -15,9 +16,10 @@ import (
 func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, obs *observability.Observability) http.Handler {
 	logger := utils.NewComponentLogger("Router")
 	latencyLogger := utils.NewLatencyLogger("HTTP")
+	dataCache := NewDataCache(256, 30*time.Minute)
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
+	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEDataCache(dataCache))
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
 	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode, WithAPIObservability(obs))
 
@@ -55,6 +57,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// SSE endpoint
 	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
+	mux.Handle("/api/data/", routeHandler("/api/data", wrap(dataCache.Handler())))
 	mux.Handle("/api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
 
 	if authHandler != nil {

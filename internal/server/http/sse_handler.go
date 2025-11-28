@@ -31,6 +31,7 @@ type SSEHandler struct {
 	logger      *utils.Logger
 	formatter   *domain.ToolFormatter
 	obs         *observability.Observability
+	dataCache   *DataCache
 }
 
 // SSEHandlerOption configures optional instrumentation for the SSE handler.
@@ -40,6 +41,13 @@ type SSEHandlerOption func(*SSEHandler)
 func WithSSEObservability(obs *observability.Observability) SSEHandlerOption {
 	return func(handler *SSEHandler) {
 		handler.obs = obs
+	}
+}
+
+// WithSSEDataCache wires a data cache used to offload large inline payloads.
+func WithSSEDataCache(cache *DataCache) SSEHandlerOption {
+	return func(handler *SSEHandler) {
+		handler.dataCache = cache
 	}
 }
 
@@ -55,6 +63,9 @@ func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) 
 			continue
 		}
 		opt(handler)
+	}
+	if handler.dataCache == nil {
+		handler.dataCache = NewDataCache(128, 30*time.Minute)
 	}
 	return handler
 }
@@ -388,7 +399,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		data["step_index"] = e.StepIndex
 		data["step_description"] = e.StepDescription
 		if e.StepResult != nil {
-			data["step_result"] = e.StepResult
+			data["step_result"] = sanitizeValue(h.dataCache, "step_result", e.StepResult)
 		}
 		if e.Status != "" {
 			data["status"] = e.Status
@@ -433,13 +444,13 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 			for key, value := range presentation.Args {
 				sanitizedArgs[key] = value
 			}
-			data["arguments"] = sanitizeArguments(sanitizedArgs)
+			data["arguments"] = sanitizeArguments(sanitizedArgs, h.dataCache)
 		} else {
 			data["arguments"] = map[string]interface{}{}
 		}
 
 		if presentation.InlinePreview != "" {
-			data["arguments_preview"] = sanitizeValue("preview", presentation.InlinePreview)
+			data["arguments_preview"] = sanitizeValue(h.dataCache, "preview", presentation.InlinePreview)
 		}
 
 	case *domain.ToolCallCompleteEvent:
@@ -650,20 +661,20 @@ const redactedPlaceholder = redaction.Placeholder
 
 // sanitizeArguments creates a deep copy of the provided arguments map and redacts any values that
 // appear to contain sensitive information such as API keys or authorization tokens.
-func sanitizeArguments(arguments map[string]interface{}) map[string]interface{} {
+func sanitizeArguments(arguments map[string]interface{}, cache *DataCache) map[string]interface{} {
 	if len(arguments) == 0 {
 		return nil
 	}
 
 	sanitized := make(map[string]interface{}, len(arguments))
 	for key, value := range arguments {
-		sanitized[key] = sanitizeValue(key, value)
+		sanitized[key] = sanitizeValue(cache, key, value)
 	}
 
 	return sanitized
 }
 
-func sanitizeValue(parentKey string, value interface{}) interface{} {
+func sanitizeValue(cache *DataCache, parentKey string, value interface{}) interface{} {
 	if redaction.IsSensitiveKey(parentKey) {
 		return redactedPlaceholder
 	}
@@ -675,6 +686,11 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 	if str, ok := value.(string); ok {
 		if redaction.LooksLikeSecret(str) {
 			return redactedPlaceholder
+		}
+		if cache != nil {
+			if replaced := cache.MaybeStoreDataURI(str); replaced != nil {
+				return replaced
+			}
 		}
 		return str
 	}
@@ -689,7 +705,7 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 
 	switch rv.Kind() {
 	case reflect.Map:
-		return sanitizeMap(rv)
+		return sanitizeMap(rv, cache)
 	case reflect.Slice:
 		if rv.Type().Elem().Kind() == reflect.Uint8 {
 			bytesCopy := make([]byte, rv.Len())
@@ -698,13 +714,18 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 			if redaction.LooksLikeSecret(str) {
 				return redactedPlaceholder
 			}
+			if cache != nil {
+				if replaced := cache.MaybeStoreDataURI(str); replaced != nil {
+					return replaced
+				}
+			}
 			return str
 		}
 		fallthrough
 	case reflect.Array:
 		sanitizedSlice := make([]interface{}, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
-			sanitizedSlice[i] = sanitizeValue("", rv.Index(i).Interface())
+			sanitizedSlice[i] = sanitizeValue(cache, "", rv.Index(i).Interface())
 		}
 		return sanitizedSlice
 	case reflect.String:
@@ -712,18 +733,23 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 		if redaction.LooksLikeSecret(str) {
 			return redactedPlaceholder
 		}
+		if cache != nil {
+			if replaced := cache.MaybeStoreDataURI(str); replaced != nil {
+				return replaced
+			}
+		}
 		return str
 	default:
 		return value
 	}
 }
 
-func sanitizeMap(rv reflect.Value) map[string]interface{} {
+func sanitizeMap(rv reflect.Value, cache *DataCache) map[string]interface{} {
 	sanitized := make(map[string]interface{}, rv.Len())
 	for _, key := range rv.MapKeys() {
 		keyValue := key.Interface()
 		keyString := fmt.Sprint(keyValue)
-		sanitized[keyString] = sanitizeValue(keyString, rv.MapIndex(key).Interface())
+		sanitized[keyString] = sanitizeValue(cache, keyString, rv.MapIndex(key).Interface())
 	}
 
 	return sanitized
