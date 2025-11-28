@@ -61,7 +61,7 @@ services:
 
   # Redis (optional - for session persistence)
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     container_name: alex-redis
     ports:
       - "6379:6379"
@@ -99,7 +99,7 @@ services:
 
   # Nginx reverse proxy (optional - for production)
   nginx:
-    image: nginx:alpine
+    image: ${NGINX_IMAGE:-nginx:alpine}
     container_name: alex-nginx
     ports:
       - "80:80"

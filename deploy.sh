@@ -78,6 +78,8 @@ print_cn_mirrors() {
     [[ -n "${NPM_CONFIG_REGISTRY:-}" ]] && log_info "  npm registry: ${NPM_CONFIG_REGISTRY}"
     [[ -n "${GOPROXY:-}" ]] && log_info "  Go proxy: ${GOPROXY}"
     [[ -n "${GOSUMDB:-}" ]] && log_info "  Go checksum DB: ${GOSUMDB}"
+    [[ -n "${REDIS_IMAGE:-}" ]] && log_info "  Redis image: ${REDIS_IMAGE}"
+    [[ -n "${NGINX_IMAGE:-}" ]] && log_info "  nginx image: ${NGINX_IMAGE}"
 }
 
 banner() {
@@ -1262,6 +1264,8 @@ cmd_cn() {
     export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
     export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
     export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
+    export REDIS_IMAGE="${REDIS_IMAGE:-registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine}"
+    export NGINX_IMAGE="${NGINX_IMAGE:-registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine}"
 
     print_cn_mirrors
 
