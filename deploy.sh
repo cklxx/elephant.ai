@@ -82,6 +82,9 @@ print_cn_mirrors() {
     [[ -n "${NGINX_IMAGE:-}" ]] && log_info "  nginx image: ${NGINX_IMAGE}"
     [[ -n "${AUTH_DB_IMAGE:-}" ]] && log_info "  auth-db image: ${AUTH_DB_IMAGE}"
     [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  sandbox image: ${SANDBOX_IMAGE}"
+    [[ -n "${BASE_GO_IMAGE:-}" ]] && log_info "  base Go builder: ${BASE_GO_IMAGE}"
+    [[ -n "${BASE_RUNTIME_IMAGE:-}" ]] && log_info "  base runtime: ${BASE_RUNTIME_IMAGE}"
+    [[ -n "${BASE_NODE_IMAGE:-}" ]] && log_info "  base Node image: ${BASE_NODE_IMAGE}"
 }
 
 banner() {
@@ -1271,6 +1274,9 @@ cmd_cn() {
     export REDIS_IMAGE="${REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}"
     export NGINX_IMAGE="${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:alpine}"
     export AUTH_DB_IMAGE="${AUTH_DB_IMAGE:-docker.m.daocloud.io/library/postgres:15}"
+    export BASE_GO_IMAGE="${BASE_GO_IMAGE:-docker.m.daocloud.io/library/golang:1.24-alpine}"
+    export BASE_RUNTIME_IMAGE="${BASE_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:latest}"
+    export BASE_NODE_IMAGE="${BASE_NODE_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}"
 
     print_cn_mirrors
 

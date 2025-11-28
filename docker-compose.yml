@@ -6,6 +6,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.server
+      args:
+        BASE_GO_IMAGE: ${BASE_GO_IMAGE:-golang:1.24-alpine}
+        BASE_RUNTIME_IMAGE: ${BASE_RUNTIME_IMAGE:-alpine:latest}
     container_name: alex-server
     expose:
       - "8080"
@@ -42,6 +45,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-auto}
+        BASE_NODE_IMAGE: ${BASE_NODE_IMAGE:-node:20-alpine}
     container_name: alex-web
     expose:
       - "3000"

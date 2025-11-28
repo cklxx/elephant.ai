@@ -1,5 +1,8 @@
 # Multi-stage build for ALEX Server
-FROM golang:1.24-alpine AS builder
+ARG BASE_GO_IMAGE=golang:1.24-alpine
+ARG BASE_RUNTIME_IMAGE=alpine:latest
+
+FROM ${BASE_GO_IMAGE} AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make
@@ -17,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o alex-server ./cmd/alex-server
 
 # Final stage - minimal runtime image
-FROM alpine:latest
+FROM ${BASE_RUNTIME_IMAGE}
 
 # Install ca-certificates for HTTPS
 RUN apk --no-cache add ca-certificates
