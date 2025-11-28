@@ -519,11 +519,11 @@ export function TaskInput({
           rows={1}
           aria-label={t("task.input.ariaLabel")}
           data-testid="task-input"
-          className="min-h-[120px] max-h-[240px] w-full resize-none border-0 bg-transparent px-1 pr-16 pb-2 pt-2 text-[18px] leading-7 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-[120px] max-h-[240px] w-full resize-none border-0 bg-transparent px-1 pr-24 pb-4 pt-2 text-[18px] leading-7 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           style={{ fieldSizing: "content", boxShadow: "none" } as any}
         />
 
-        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+        <div className="absolute right-4 bottom-4">
           {showStopButton ? (
             <button
               type="button"
