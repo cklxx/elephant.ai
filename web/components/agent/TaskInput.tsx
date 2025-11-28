@@ -483,7 +483,7 @@ export function TaskInput({
       className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-8 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
+      <div className="group relative rounded-[52px] bg-white px-6 pb-8 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
         <button
           type="button"
           onClick={openFilePicker}
