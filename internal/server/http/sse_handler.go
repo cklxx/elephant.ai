@@ -123,6 +123,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	// Create event channel for this client
 	clientChan := make(chan ports.AgentEvent, 100)
 	sentAttachments := make(map[string]string)
+	finalAnswerCache := make(map[string]string)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -476,15 +477,25 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		data["tools_run"] = e.ToolsRun
 
 	case *domain.TaskCompleteEvent:
-		data["final_answer"] = e.FinalAnswer
+		key := e.GetTaskID()
+		delta := e.FinalAnswer
+		if prev, ok := finalAnswerCache[key]; ok && strings.HasPrefix(e.FinalAnswer, prev) {
+			delta = strings.TrimPrefix(e.FinalAnswer, prev)
+		}
+		if key != "" && e.IsStreaming {
+			finalAnswerCache[key] = e.FinalAnswer
+		}
+		data["final_answer"] = delta
 		data["total_iterations"] = e.TotalIterations
 		data["total_tokens"] = e.TotalTokens
 		data["stop_reason"] = e.StopReason
 		data["duration"] = e.Duration.Milliseconds()
 		data["is_streaming"] = e.IsStreaming
 		data["stream_finished"] = e.StreamFinished
-		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
-			data["attachments"] = sanitized
+		if (!e.IsStreaming || e.StreamFinished) && len(e.Attachments) > 0 {
+			if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
+				data["attachments"] = sanitized
+			}
 		}
 
 	case *domain.TaskCancelledEvent:
