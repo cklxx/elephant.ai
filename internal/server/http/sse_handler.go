@@ -398,8 +398,8 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 	case *domain.StepCompletedEvent:
 		data["step_index"] = e.StepIndex
 		data["step_description"] = e.StepDescription
-		if e.StepResult != nil {
-			data["step_result"] = sanitizeValue(h.dataCache, "step_result", e.StepResult)
+		if summary := summarizeStepResult(e.StepResult, h.dataCache); len(summary) > 0 {
+			data["step_result"] = summary
 		}
 		if e.Status != "" {
 			data["status"] = e.Status
@@ -628,6 +628,30 @@ func sanitizeWorkflowSnapshot(snapshot *workflow.WorkflowSnapshot) map[string]in
 	}
 
 	return sanitized
+}
+
+// summarizeStepResult trims noisy fields like messages/attachments and preserves a compact payload.
+func summarizeStepResult(stepResult any, cache *DataCache) map[string]any {
+	result := make(map[string]any)
+	switch typed := stepResult.(type) {
+	case map[string]any:
+		for key, value := range typed {
+			if key == "messages" || key == "attachments" {
+				continue
+			}
+			result[key] = sanitizeValue(cache, key, value)
+		}
+	case string:
+		result["text"] = typed
+	default:
+		result["value"] = sanitizeValue(cache, "step_result", typed)
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
 }
 
 type responseWriterUnwrapper interface {
