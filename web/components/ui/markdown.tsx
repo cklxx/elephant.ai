@@ -133,7 +133,8 @@ export function MarkdownRenderer({
             mimeType={matchedAttachment.mime || "video/mp4"}
             description={matchedAttachment.description || (typeof children === "string" ? children : undefined)}
             className="my-2 max-w-full"
-            maxHeight="360px"
+            maxHeight="320px"
+            maxWidth="520px"
           />
         );
       }
@@ -193,7 +194,8 @@ export function MarkdownRenderer({
               mimeType={matchedAttachment.mime || "video/mp4"}
               description={matchedAttachment.description || alt}
               className="my-2 max-w-full"
-              maxHeight="360px"
+              maxHeight="320px"
+              maxWidth="520px"
             />
           );
         }

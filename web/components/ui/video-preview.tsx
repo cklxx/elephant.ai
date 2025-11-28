@@ -16,6 +16,7 @@ interface VideoPreviewProps extends NativeVideoProps {
   className?: string;
   videoClassName?: string;
   maxHeight?: string | number;
+  maxWidth?: string | number;
 }
 
 export function VideoPreview({
@@ -25,6 +26,7 @@ export function VideoPreview({
   className,
   videoClassName,
   maxHeight = "480px",
+  maxWidth = "min(100%, 720px)",
   controls = false,
   preload = "metadata",
   ...videoProps
@@ -60,6 +62,8 @@ export function VideoPreview({
   const showControls = controls || (canHover ? isHovered : true) || isFocused;
   const resolvedMaxHeight =
     typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight;
+  const resolvedMaxWidth =
+    typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth;
 
   return (
     <div
@@ -67,7 +71,7 @@ export function VideoPreview({
         "relative inline-flex max-w-full overflow-hidden rounded-2xl bg-black align-middle",
         className,
       )}
-      style={{ maxHeight: resolvedMaxHeight }}
+      style={{ maxHeight: resolvedMaxHeight, maxWidth: resolvedMaxWidth }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
