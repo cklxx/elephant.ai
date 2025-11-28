@@ -1,304 +1,273 @@
-name: CI
+name: 🧪 CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "**/*.mdx"
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: write
+  security-events: write
+
+defaults:
+  run:
+    shell: bash
 
 env:
-  GO_VERSION: '1.24.9'
+  GO_VERSION: "1.24.9"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-          
-    - name: Download dependencies
-      run: go mod download
-      
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
-      
-    - name: Generate coverage report
-      run: go tool cover -html=coverage.out -o coverage.html
-      
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        
-    - name: Upload coverage artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: coverage.html
-
   lint:
-    name: Lint
+    name: 🔍 Lint
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m --out-format=colored-line-number
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🚦 Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m --out-format=colored-line-number
+
+  test:
+    name: 🧪 Test
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 Download dependencies
+        run: go mod download
+
+      - name: 🧪 Run unit tests
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: 📝 Generate coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: ☁️ Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.html
+          if-no-files-found: error
+
+      - name: 📈 Upload to Codecov
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
 
   build:
-    name: Build Multi-Platform
+    name: 🏗️ Build
     runs-on: ubuntu-latest
-    needs: [test, lint]
-    
+    needs: [lint, test]
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Build for Linux (amd64)
-      env:
-        GOOS: linux
-        GOARCH: amd64
-      run: |
-        mkdir -p build
-        go build -ldflags="-w -s" -o "build/alex-linux-amd64" ./cmd/alex
-        
-    - name: Build for macOS (amd64)
-      env:
-        GOOS: darwin
-        GOARCH: amd64
-      run: |
-        go build -ldflags="-w -s" -o "build/alex-darwin-amd64" ./cmd/alex
-        
-    - name: Build for macOS (arm64)
-      env:
-        GOOS: darwin
-        GOARCH: arm64
-      run: |
-        go build -ldflags="-w -s" -o "build/alex-darwin-arm64" ./cmd/alex
-        
-        
-    - name: Create release packages
-      run: |
-        cd build
-        
-        # Create Linux package
-        tar -czf alex-linux-amd64.tar.gz alex-linux-amd64
-        
-        # Create macOS Intel package
-        tar -czf alex-darwin-amd64.tar.gz alex-darwin-amd64
-        
-        # Create macOS Apple Silicon package
-        tar -czf alex-darwin-arm64.tar.gz alex-darwin-arm64
-        
-        
-        # List all artifacts
-        ls -la
-        
-    - name: Upload Linux artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: alex-linux-amd64
-        path: |
-          build/alex-linux-amd64
-          build/alex-linux-amd64.tar.gz
-          
-    - name: Upload macOS Intel artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: alex-darwin-amd64
-        path: |
-          build/alex-darwin-amd64
-          build/alex-darwin-amd64.tar.gz
-          
-    - name: Upload macOS Apple Silicon artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: alex-darwin-arm64
-        path: |
-          build/alex-darwin-arm64
-          build/alex-darwin-arm64.tar.gz
-          
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🏗️ Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p build
+          go build -trimpath -ldflags="-w -s" -o "build/alex-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/alex
+
+      - name: 📦 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alex-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            build/alex-${{ matrix.goos }}-${{ matrix.goarch }}
 
   integration-test:
-    name: Integration Tests
+    name: 🔗 Integration Tests
     runs-on: ${{ matrix.os }}
-    needs: [build]
-    
+    needs: build
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-    
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Build binary
-      run: go build -o alex ./cmd/alex
-      
-    - name: Make binary executable
-      run: chmod +x alex
-      
-    - name: Test CLI commands
-      run: |
-        ./alex --help
-        ./alex config show
-        echo "exit" | ./alex -i
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🏗️ Build binary
+        run: go build -o alex ./cmd/alex
+
+      - name: 🔧 Make binary executable
+        run: chmod +x alex
+
+      - name: 🧭 Test CLI commands
+        run: |
+          ./alex --help
+          ./alex config show
+          echo "exit" | ./alex -i
 
   performance-test:
-    name: Performance Tests
+    name: ⚡ Performance Smoke
     runs-on: ubuntu-latest
-    needs: [build]
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Build binary
-      run: go build -o alex ./cmd/alex
-      
-    - name: Create test files
-      run: |
-        mkdir -p perf_test
-        for i in {1..20}; do
-          cat > perf_test/test$i.go << 'EOF'
-        package main
-        import "fmt"
-        func main() { fmt.Println("Hello") }
-        func test() int { return 42 }
-        EOF
-        done
-        
-    - name: Run performance tests
-      run: |
-        # Test basic CLI response time
-        start_time=$(date +%s%N)
-        ./alex --help > /dev/null
-        end_time=$(date +%s%N)
-        duration=$(( (end_time - start_time) / 1000000 ))
-        echo "CLI help took ${duration}ms"
-        
-        if [ $duration -gt 1000 ]; then
-          echo "Performance test failed: CLI too slow (${duration}ms > 1000ms)"
-          exit 1
-        fi
-        
-        # Test config command performance
-        start_time=$(date +%s%N)
-        ./alex config show > /dev/null
-        end_time=$(date +%s%N)
-        duration=$(( (end_time - start_time) / 1000000 ))
-        echo "Config command took ${duration}ms"
-        
-        if [ $duration -gt 500 ]; then
-          echo "Performance test failed: Config too slow (${duration}ms > 500ms)"
-          exit 1
-        fi
+    needs: build
 
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Run Gosec Security Scanner
-      run: |
-        # Download and install gosec binary directly
-        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
-        gosec -fmt sarif -out gosec.sarif ./... || echo "Gosec scan completed with issues"
-        ls -la gosec.* || echo "No gosec output files found"
-      continue-on-error: true
-        
-    - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v3
-      if: always() && hashFiles('gosec.sarif') != ''
-      with:
-        sarif_file: gosec.sarif
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
 
-  dependency-check:
-    name: Dependency Check
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🏗️ Build binary
+        run: go build -o alex ./cmd/alex
+
+      - name: 🗂️ Create test files
+        run: |
+          mkdir -p perf_test
+          for i in {1..20}; do
+            cat > perf_test/test$i.go << 'EOF'
+          package main
+          import "fmt"
+          func main() { fmt.Println("Hello") }
+          func test() int { return 42 }
+          EOF
+          done
+
+      - name: ⏱️ Run performance tests
+        run: |
+          start_time=$(date +%s%N)
+          ./alex --help > /dev/null
+          end_time=$(date +%s%N)
+          duration=$(( (end_time - start_time) / 1000000 ))
+          echo "CLI help took ${duration}ms"
+
+          if [ $duration -gt 1000 ]; then
+            echo "Performance test failed: CLI too slow (${duration}ms > 1000ms)"
+            exit 1
+          fi
+
+          start_time=$(date +%s%N)
+          ./alex config show > /dev/null
+          end_time=$(date +%s%N)
+          duration=$(( (end_time - start_time) / 1000000 ))
+          echo "Config command took ${duration}ms"
+
+          if [ $duration -gt 500 ]; then
+            echo "Performance test failed: Config too slow (${duration}ms > 500ms)"
+            exit 1
+          fi
+
+  security:
+    name: 🔒 Security & Dependencies
     runs-on: ubuntu-latest
-    
+    needs: [lint, test]
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Check for vulnerabilities
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@v1.1.3
-        govulncheck ./...
-        
-    - name: Check module tidiness
-      run: |
-        go mod tidy
-        git diff --exit-code go.mod go.sum
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🔍 govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.3
+          govulncheck ./...
+
+      - name: 🛡️ gosec (non-blocking)
+        continue-on-error: true
+        run: |
+          curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+          gosec -fmt sarif -out gosec.sarif ./...
+          ls -la gosec.* || echo "No gosec output files found"
+
+      - name: ☁️ Upload SARIF (if present)
+        if: always() && hashFiles('gosec.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gosec.sarif
+
+      - name: 📦 Verify module tidiness
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
 
   documentation:
-    name: Documentation Check
+    name: 📚 Documentation Check
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Check README exists
-      run: test -f README.md
-      
-    - name: Check for godoc comments
-      run: |
-        go install golang.org/x/tools/cmd/godoc@latest
-        # Check that main packages have proper documentation
-        missing_docs=$(find . -name "*.go" -not -path "./vendor/*" -exec grep -L "// Package\|// Command" {} \; | grep -v "_test.go" | wc -l)
-        if [ "$missing_docs" -gt 10 ]; then
-          echo "Warning: Many files missing documentation comments"
-        fi
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ✅ Ensure README exists
+        run: test -f README.md
+
+      - name: 🔎 Spot-check package comments
+        run: |
+          files=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" -not -name "*_test.go")
+          missing=$(echo "$files" | xargs -r grep -L "// Package\|// Command" || true)
+          if [ -n "$missing" ]; then
+            echo "These files might need package-level comments:"
+            echo "$missing"
+          fi
