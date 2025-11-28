@@ -25,6 +25,7 @@ services:
     depends_on:
       - redis
       - sandbox
+      - auth-db
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -94,6 +95,25 @@ services:
     restart: unless-stopped
     security_opt:
       - ${SANDBOX_SECURITY_OPT:-apparmor=unconfined}
+    networks:
+      - alex-network
+
+  # Auth DB for login flows (optional; enable via AUTH_DATABASE_URL)
+  auth-db:
+    image: ${AUTH_DB_IMAGE:-postgres:15}
+    container_name: alex-auth-db
+    environment:
+      - POSTGRES_USER=${AUTH_DB_USER:-alex}
+      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-alex}
+      - POSTGRES_DB=${AUTH_DB_NAME:-alex_auth}
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-alex} -d ${AUTH_DB_NAME:-alex_auth}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - alex-network
 
