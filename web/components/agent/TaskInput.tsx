@@ -483,7 +483,7 @@ export function TaskInput({
       className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-16 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
+      <div className="group relative rounded-[52px] bg-white/95 px-6 pb-8 pt-6 shadow-[0_38px_110px_-68px_rgba(15,23,42,0.6)]">
         <button
           type="button"
           onClick={openFilePicker}
@@ -519,11 +519,11 @@ export function TaskInput({
           rows={1}
           aria-label={t("task.input.ariaLabel")}
           data-testid="task-input"
-          className="min-h-[120px] max-h-[240px] w-full resize-none border-0 bg-transparent px-1 pb-8 pr-20 pt-2 text-[18px] leading-7 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-[120px] max-h-[240px] w-full resize-none border-0 bg-transparent px-1 pr-16 pb-2 pt-2 text-[18px] leading-7 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           style={{ fieldSizing: "content", boxShadow: "none" } as any}
         />
 
-        <div className="absolute bottom-6 right-6">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2">
           {showStopButton ? (
             <button
               type="button"
