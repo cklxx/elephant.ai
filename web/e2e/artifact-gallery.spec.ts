@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { primeAuthSession } from './utils/auth';
+import {
+  capturePageScreenshot,
+  shouldCaptureScreenshots,
+} from './utils/screenshots';
 
 const clearStorage = () => {
   window.localStorage.clear();
@@ -68,5 +72,9 @@ test.describe('Artifact previews in mock mode', () => {
     await expect(page.getByText('Latency Report')).toBeVisible();
     await expect(page.getByText('Executive Review Slides')).not.toBeVisible();
     await searchInput.fill('');
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'artifact-gallery');
+    }
   });
 });

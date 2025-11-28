@@ -1,6 +1,12 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { MarkdownRenderer } from "@/components/ui/markdown";
 import {
@@ -11,6 +17,7 @@ import {
 } from "@/lib/types";
 import { PanelRightOpen, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
+import { Badge } from "@/components/ui/badge";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
@@ -52,6 +59,52 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     isComplete: boolean;
     status: "running" | "completed" | "failed";
   }
+
+  const summarizeToolHint = useCallback((call: AggregatedToolCall) => {
+    const parameters = call.parameters ?? {};
+    const metadata = call.metadata ?? {};
+    const preferredKeys = [
+      "url",
+      "path",
+      "file_path",
+      "filePath",
+      "command",
+      "input",
+      "query",
+      "prompt",
+      "message",
+    ];
+
+    const candidate = preferredKeys
+      .map((key) => parameters?.[key])
+      .find((value) => typeof value === "string" && value.trim().length > 0);
+
+    if (typeof candidate === "string") {
+      return candidate;
+    }
+
+    const browserMetadata =
+      metadata && typeof metadata === "object" && metadata.browser
+        ? (metadata.browser as Record<string, unknown>)
+        : undefined;
+    const metadataUrl =
+      typeof metadata.url === "string"
+        ? metadata.url
+        : typeof browserMetadata?.url === "string"
+          ? browserMetadata.url
+          : undefined;
+    if (metadataUrl && typeof metadataUrl === "string") {
+      return metadataUrl;
+    }
+
+    const result = call.error || call.result;
+    if (typeof result === "string" && result.trim().length > 0) {
+      const trimmed = result.trim();
+      return trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
+    }
+
+    return undefined;
+  }, []);
 
   // Aggregate tool calls and model outputs
   const { toolCalls, thinkStreamItems } = useMemo(() => {
@@ -182,24 +235,6 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     .map((call) => call.toolName)
     .join(", ");
 
-  const thinkPreviewItems = thinkStreamItems;
-  const timelineItems = useMemo(() => {
-    const thinkEntries = thinkPreviewItems.map((item) => ({
-      kind: "think" as const,
-      timestamp: item.timestamp,
-      item,
-    }));
-    const toolEntries = toolCalls.map((item) => ({
-      kind: "tool" as const,
-      timestamp: item.timestamp,
-      item,
-    }));
-    return [...thinkEntries, ...toolEntries].sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    );
-  }, [thinkPreviewItems, toolCalls]);
-
   const toolSummary = useMemo(() => {
     if (toolCalls.length === 0) {
       return "";
@@ -218,6 +253,65 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     }
     return `${names.slice(0, 2).join(" -> ")} +${names.length - 2}`;
   }, [toolCalls]);
+
+  const latestRunning = runningTools[0];
+  const latestCompleted = [...toolCalls]
+    .filter((call) => call.status !== "running")
+    .sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    )[0];
+
+  const headlineCall = latestRunning ?? latestCompleted;
+  const headlineText = useMemo(() => {
+    if (!headlineCall) {
+      return runningSummary || toolSummary || "Tool activity";
+    }
+
+    const hint = summarizeToolHint(headlineCall);
+    if (!hint) {
+      return headlineCall.toolName;
+    }
+    return `${headlineCall.toolName} · ${hint}`;
+  }, [headlineCall, runningSummary, summarizeToolHint, toolSummary]);
+
+  const headlinePreview = useMemo(() => {
+    if (!headlineCall) {
+      return "";
+    }
+    const previewSource = headlineCall.error || headlineCall.result;
+    if (typeof previewSource !== "string") {
+      return "";
+    }
+    const trimmed = previewSource.trim();
+    if (!trimmed) {
+      return "";
+    }
+    return trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
+  }, [headlineCall]);
+
+  const completedCount = toolCalls.filter(
+    (call) => call.status === "completed",
+  ).length;
+  const failedCount = toolCalls.filter((call) => call.status === "failed").length;
+
+  const thinkPreviewItems = thinkStreamItems;
+  const timelineItems = useMemo(() => {
+    const thinkEntries = thinkPreviewItems.map((item) => ({
+      kind: "think" as const,
+      timestamp: item.timestamp,
+      item,
+    }));
+    const toolEntries = toolCalls.map((item) => ({
+      kind: "tool" as const,
+      timestamp: item.timestamp,
+      item,
+    }));
+    return [...thinkEntries, ...toolEntries].sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+  }, [thinkPreviewItems, toolCalls]);
 
   // Don't show panel if there are no tool calls
   if (toolCalls.length === 0) {
@@ -238,21 +332,47 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         title={
           runningSummaryFull.length > 0
             ? `Running: ${runningSummaryFull}`
-            : undefined
+            : headlineText
         }
       >
-        <span className="max-w-full truncate text-[11px] text-muted-foreground">
-          {runningSummary || toolSummary}
-        </span>
-        {hasRunningTool && (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/90">
-            <span
-              className="h-2 w-2 animate-pulse rounded-full bg-primary"
-              aria-hidden="true"
-            />
-            running
-          </span>
-        )}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-start gap-2">
+            <span className="max-w-full truncate text-[11px] text-foreground">
+              {headlineText}
+            </span>
+            {hasRunningTool && (
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/90">
+                <span
+                  className="h-2 w-2 animate-pulse rounded-full bg-primary"
+                  aria-hidden="true"
+                />
+                running
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            {headlinePreview && (
+              <span className="max-w-full truncate text-muted-foreground">
+                {headlinePreview}
+              </span>
+            )}
+            <div className="flex flex-wrap items-center gap-1">
+              {runningTools.length > 0 && (
+                <Badge variant="outline" className="border-primary/50 bg-primary/5 text-primary">
+                  {runningTools.length} running
+                </Badge>
+              )}
+              {completedCount > 0 && (
+                <Badge variant="secondary" className="text-foreground/80">
+                  {completedCount} completed
+                </Badge>
+              )}
+              {failedCount > 0 && (
+                <Badge variant="destructive">{failedCount} failed</Badge>
+              )}
+            </div>
+          </div>
+        </div>
       </button>
 
       <ToolCallDetailsPanel

@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { primeAuthSession } from './utils/auth';
+import {
+  capturePageScreenshot,
+  shouldCaptureScreenshots,
+} from './utils/screenshots';
 
 const STORAGE_KEY = 'alex-session-storage';
 
@@ -62,5 +66,9 @@ test.describe('Subagent event rendering', () => {
     const subagentCompletions = page.getByTestId('event-subagent-task_complete');
     await expect(subagentCompletions.first()).toContainText('Validated layout guidance');
     await expect(subagentCompletions.nth(1)).toContainText('Confirmed ToolOutputCard handles metadata');
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'subagent-events');
+    }
   });
 });

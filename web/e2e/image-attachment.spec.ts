@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import path from 'path';
 import { primeAuthSession } from './utils/auth';
+import {
+  capturePageScreenshot,
+  shouldCaptureScreenshots,
+} from './utils/screenshots';
 
 const imageFixture = path.join(process.cwd(), 'e2e/fixtures/test-image.png');
 
@@ -39,5 +43,9 @@ test.describe('Task input image attachments', () => {
     await expect(
       page.getByTestId('event-user_task')
     ).toContainText('image.png', { timeout: 15000 });
+
+    if (shouldCaptureScreenshots) {
+      await capturePageScreenshot(page, 'image-attachment');
+    }
   });
 });
