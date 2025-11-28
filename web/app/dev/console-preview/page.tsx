@@ -588,11 +588,11 @@ export default function ConsolePreviewPage() {
           </p>
         </header>
 
-        <section className="rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-white/70">
+        <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-white/70">
           <OrchestrationBoard />
         </section>
 
-        <section className="rounded-3xl bg-white/60 p-6 shadow-sm ring-1 ring-white/70">
+        <section className="rounded-3xl bg-white/60 p-6 ring-1 ring-white/70">
           <TerminalOutput
             events={mockEvents}
             isConnected
@@ -603,7 +603,7 @@ export default function ConsolePreviewPage() {
           />
         </section>
 
-        <section className="rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-white/70">
+        <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-white/70">
           <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-slate-900">
@@ -727,7 +727,7 @@ function MainAgentColumn({
   subagentTitles: Record<string, string>;
 }) {
   return (
-    <div className="space-y-4 rounded-3xl border border-slate-200/70 bg-white/90 p-5 shadow-sm">
+    <div className="space-y-4 rounded-3xl border border-slate-200/70 bg-white/90 p-5">
       {isRunning && <ThinkingStatusCard />}
       <div className="space-y-4">
         {thinkMoments.map((moment) => (
@@ -855,7 +855,7 @@ function SubagentCard({ task }: { task: SubagentMission }) {
       : '待启动';
 
   return (
-    <article className="space-y-4 rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm">
+    <article className="space-y-4 rounded-3xl border border-slate-200/80 bg-white/90 p-5">
       <header className="flex items-start gap-3">
         <span
           className={`mt-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
@@ -974,7 +974,7 @@ function FinalToolCard({
 }) {
   const isReady = state === 'ready';
   return (
-    <div className="space-y-4 rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-emerald-50 p-5 shadow-sm">
+    <div className="space-y-4 rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-emerald-50 p-5">
       <div className="flex flex-wrap items-center gap-3">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-indigo-600">
           <Sparkles className="h-5 w-5" />

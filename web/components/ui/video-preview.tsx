@@ -68,7 +68,7 @@ export function VideoPreview({
   return (
     <div
       className={cn(
-        "relative inline-flex max-w-full overflow-hidden rounded-2xl bg-black align-middle",
+        "relative inline-flex max-w-full overflow-hidden align-middle",
         className,
       )}
       style={{ maxHeight: resolvedMaxHeight, maxWidth: resolvedMaxWidth, width: resolvedMaxWidth }}
@@ -82,7 +82,7 @@ export function VideoPreview({
         aria-label={accessibleLabel}
         title={description}
         className={cn(
-          "block h-auto w-full max-h-full object-contain object-center bg-black",
+          "block h-auto w-full max-h-full object-contain object-center",
           videoClassName,
         )}
         onFocus={() => setIsFocused(true)}
@@ -95,7 +95,7 @@ export function VideoPreview({
         <a
           href={src}
           download
-          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white shadow transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 text-xs"
           aria-label={description ? `下载 ${description}` : "下载视频"}
         >
           <Download className="h-4 w-4" aria-hidden="true" />

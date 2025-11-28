@@ -80,7 +80,7 @@ export function MarkdownRenderer({
     if (isInline) {
       return (
         <code
-          className="bg-muted text-foreground px-1.5 py-0.5 rounded font-mono text-[0.9em] whitespace-nowrap"
+          className={cn(className)}
           {...props}
         >
           {children}
@@ -98,7 +98,7 @@ export function MarkdownRenderer({
           <pre
             className={cn(
               resolvedClassName,
-              "markdown-code-block rounded-xl border border-border bg-gray-950/95 p-4 text-sm leading-relaxed text-gray-100 shadow-sm",
+              className,
             )}
             style={style}
             {...props}
@@ -122,7 +122,7 @@ export function MarkdownRenderer({
   };
 
   const defaultComponents: Record<string, ComponentType<any>> = {
-    hr: (props: any) => <hr className="my-6 border-border" {...props} />,
+    hr: (props: any) => <hr className={cn("my-6", props.className)} {...props} />,
     a: ({ className: linkClassName, href, children, ...props }: any) => {
       const matchedAttachment = href ? inlineAttachmentMap.get(href) : undefined;
 
@@ -141,10 +141,7 @@ export function MarkdownRenderer({
 
       return (
         <a
-          className={cn(
-            "text-primary underline decoration-2 underline-offset-4 transition-colors hover:text-primary/80",
-            linkClassName,
-          )}
+          className={cn(linkClassName)}
           href={href}
           {...props}
         >
@@ -153,36 +150,24 @@ export function MarkdownRenderer({
       );
     },
     blockquote: ({ className: blockquoteClass, ...props }: any) => (
-      <blockquote
-        className={cn(
-          "border-l-4 border-primary/40 bg-primary/5 py-2 pl-4 pr-3 text-sm italic text-muted-foreground",
-          blockquoteClass,
-        )}
-        {...props}
-      />
+      <blockquote className={cn(blockquoteClass)} {...props} />
     ),
     table: ({ className: tableClass, ...props }: any) => (
-      <div className="my-4 overflow-x-auto rounded-xl border border-border">
-        <table className={cn("w-full border-collapse text-sm", tableClass)} {...props} />
+      <div className="my-4 overflow-x-auto">
+        <table className={cn("w-full", tableClass)} {...props} />
       </div>
     ),
     th: ({ className: thClass, ...props }: any) => (
-      <th
-        className={cn(
-          "bg-muted/60 px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground",
-          thClass,
-        )}
-        {...props}
-      />
+      <th className={cn("px-4 py-2 text-left", thClass)} {...props} />
     ),
     td: ({ className: tdClass, ...props }: any) => (
-      <td className={cn("border-t border-border px-4 py-2 align-top text-sm", tdClass)} {...props} />
+      <td className={cn("px-4 py-2 align-top", tdClass)} {...props} />
     ),
     ul: ({ className: ulClass, ...props }: any) => (
-      <ul className={cn("my-4 list-disc space-y-2 pl-6", ulClass)} {...props} />
+      <ul className={cn("my-4 pl-6", ulClass)} {...props} />
     ),
     ol: ({ className: olClass, ...props }: any) => (
-      <ol className={cn("my-4 list-decimal space-y-2 pl-6", olClass)} {...props} />
+      <ol className={cn("my-4 pl-6", olClass)} {...props} />
     ),
     img: ({ src, alt, ...imgProps }: any) => {
       if (src) {
