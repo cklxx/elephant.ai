@@ -233,7 +233,7 @@ kubectl rollout undo deployment/alex-server -n alex-system
 
 | 变量 | 必需 | 默认值 | 说明 |
 |------|------|--------|------|
-| `NEXT_PUBLIC_API_URL` | ✅ | - | ALEX Server API 地址 |
+| `NEXT_PUBLIC_API_URL` | ❌ | `auto` | ALEX Server API 地址（nginx 同源默认 auto 即可） |
 | `NODE_ENV` | ❌ | `development` | 运行环境 |
 | `PORT` | ❌ | `3000` | HTTP 监听端口 |
 
@@ -312,7 +312,7 @@ annotations:
 **症状**: 前端显示 "Disconnected"
 
 **解决方案**:
-1. 检查 `NEXT_PUBLIC_API_URL` 配置
+1. 确认 nginx 同源代理是否生效（默认 `NEXT_PUBLIC_API_URL=auto` 即可）
 2. 验证 CORS 设置
 3. 检查 Nginx 代理配置（`proxy_buffering off`）
 4. 查看浏览器控制台错误

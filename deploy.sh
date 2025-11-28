@@ -405,9 +405,6 @@ with structure similar to:
   "auth": {
     "jwtSecret": "super-secret",
     "databaseUrl": "postgres://user:pass@host:5432/alex?sslmode=disable"
-  },
-  "web": {
-    "apiUrl": "auto"
   }
 }
 EOF
@@ -434,16 +431,26 @@ prepare_compose_environment() {
     source_root_env_if_present
 
     compose_resolve_required_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key' || true
-    compose_resolve_required_var AUTH_JWT_SECRET '.auth.jwtSecret' || true
-    compose_resolve_required_var AUTH_DATABASE_URL '.auth.databaseUrl' || true
-    compose_resolve_required_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto || true
+    compose_resolve_optional_var AUTH_JWT_SECRET '.auth.jwtSecret'
+    compose_resolve_optional_var AUTH_DATABASE_URL '.auth.databaseUrl'
+    compose_resolve_optional_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto
 
     compose_resolve_optional_var OPENAI_BASE_URL '.base_url // .models.basic.base_url // .models.reasoning.base_url'
     compose_resolve_optional_var ALEX_MODEL '.llm_model // .model // .models.basic.model'
     compose_resolve_optional_var ALEX_SANDBOX_BASE_URL '.sandbox_base_url'
 
-    if [[ "${NEXT_PUBLIC_API_URL}" != "auto" ]]; then
+    if [[ -z "${NEXT_PUBLIC_API_URL:-}" ]]; then
+        export NEXT_PUBLIC_API_URL=auto
+    fi
+
+    if [[ "${NEXT_PUBLIC_API_URL}" == "auto" ]]; then
+        log_info "NEXT_PUBLIC_API_URL=auto (nginx same-origin default)"
+    else
         log_warn "NEXT_PUBLIC_API_URL='${NEXT_PUBLIC_API_URL}'. nginx already proxies all exits, so 'auto' keeps the same-origin flow."
+    fi
+
+    if [[ -z "${AUTH_JWT_SECRET:-}" || -z "${AUTH_DATABASE_URL:-}" ]]; then
+        log_warn "Auth DB/secret not set; login flows stay disabled (set AUTH_JWT_SECRET and AUTH_DATABASE_URL to enable)."
     fi
 
     if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
