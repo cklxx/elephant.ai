@@ -139,6 +139,8 @@ volumes:
     driver: local
   redis-data:
     driver: local
+  auth-db-data:
+    driver: local
 
 networks:
   alex-network:
