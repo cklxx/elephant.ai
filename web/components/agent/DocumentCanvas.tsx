@@ -58,8 +58,8 @@ export function DocumentCanvas({
 
   if (!document) {
     return (
-      <Card className={cn("glass-card shadow-medium", className)}>
-        <CardContent className="flex flex-col items-center justify-center h-64 text-gray-500">
+      <Card className={cn(className)}>
+        <CardContent className="flex h-64 flex-col items-center justify-center text-muted-foreground">
           <FileText className="h-16 w-16 mb-4 text-gray-300" />
           <p className="font-medium">{t("document.empty.title")}</p>
           <p className="text-sm mt-1">{t("document.empty.description")}</p>
@@ -72,24 +72,22 @@ export function DocumentCanvas({
     <div
       className={cn(
         "transition-all duration-300",
-        isExpanded && "fixed inset-0 z-50 bg-white p-6 overflow-auto",
+        isExpanded && "fixed inset-0 z-50 bg-background p-6 overflow-auto",
         className,
       )}
     >
-      <Card className="glass-card shadow-medium h-full">
+      <Card className="h-full">
         {/* Header */}
-        <div className="border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="border-b border-border p-4">
+          <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg">
-                <FileText className="h-5 w-5 text-white" />
+              <div className="rounded-lg border border-border bg-muted p-2">
+                <FileText className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">
-                  {document.title}
-                </h3>
+                <h3 className="font-semibold text-foreground">{document.title}</h3>
                 {document.timestamp && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {new Date(document.timestamp).toLocaleString()}
                   </p>
                 )}
@@ -114,7 +112,7 @@ export function DocumentCanvas({
           </div>
 
           {/* View mode toggle */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={() => setViewMode("default")}
               variant={viewMode === "default" ? "default" : "outline"}
@@ -148,7 +146,7 @@ export function DocumentCanvas({
 
           {/* Metadata (hidden in reading mode) */}
           {viewMode !== "reading" && document.metadata && (
-            <div className="flex items-center gap-2 flex-wrap mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {Object.entries(document.metadata).map(([key, value]) => (
                 <Badge key={key} variant="default" className="text-xs">
                   {key}: {String(value)}

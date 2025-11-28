@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDuration, cn } from "@/lib/utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -138,25 +139,27 @@ export function ToolOutputCard({
       metadata?.todos);
 
   return (
-    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm">
+    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border bg-card">
       <CardHeader className="px-4 py-3 space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2">
               {showBody && shouldShowToggle && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   aria-expanded={isExpanded}
                   aria-label={isExpanded ? "折叠工具调用" : "展开工具调用"}
                   onClick={() => setIsExpanded((prev) => !prev)}
-                  className="rounded-md border border-border/60 p-1 text-muted-foreground transition hover:bg-muted/40"
+                  className="h-8 w-8"
                 >
                   {isExpanded ? (
                     <ChevronUp className="h-4 w-4" />
                   ) : (
                     <ChevronDown className="h-4 w-4" />
                   )}
-                </button>
+                </Button>
               )}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm">
                 <span
@@ -189,7 +192,7 @@ export function ToolOutputCard({
       </CardHeader>
 
       {showBody && (
-        <div className="bg-white">
+        <div className="bg-card">
           {(isExpanded || !shouldShowToggle) && (
             <CardContent className="space-y-3 px-4 pb-4 pt-3">
               {hasError && (
@@ -212,29 +215,29 @@ export function ToolOutputCard({
                       <h3 className="text-sm font-semibold text-slate-700">
                         📋 Todos
                       </h3>
-                      {metadata.total_count > 0 && (
-                        <div className="flex gap-3 text-xs">
-                          {metadata.in_progress_count > 0 && (
-                            <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-600">
-                              <span className="text-blue-500">→</span>
-                              {metadata.in_progress_count}
-                            </span>
-                          )}
-                          {metadata.pending_count > 0 && (
-                            <span className="flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 font-medium text-yellow-700">
-                              <span className="text-yellow-600">☐</span>
-                              {metadata.pending_count}
-                            </span>
-                          )}
-                          {metadata.completed_count > 0 && (
-                            <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 font-medium text-green-600">
-                              <span className="text-green-600">✓</span>
-                              {metadata.completed_count}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    {metadata.total_count > 0 && (
+                      <div className="flex gap-3 text-xs">
+                        {metadata.in_progress_count > 0 && (
+                          <Badge variant="info" className="gap-1">
+                            <span>→</span>
+                            {metadata.in_progress_count}
+                          </Badge>
+                        )}
+                        {metadata.pending_count > 0 && (
+                          <Badge variant="warning" className="gap-1">
+                            <span>☐</span>
+                            {metadata.pending_count}
+                          </Badge>
+                        )}
+                        {metadata.completed_count > 0 && (
+                          <Badge variant="success" className="gap-1">
+                            <span>✓</span>
+                            {metadata.completed_count}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                     {/* Todo List Items */}
                     {metadata.todos.length > 0 ? (
@@ -280,14 +283,14 @@ export function ToolOutputCard({
                                 <div className="flex items-center gap-2 ">
                                   <p
                                     className={cn(
-                                      "text-sm leading-relaxed",
-                                      todo.status === "completed"
-                                        ? "text-slate-400 line-through"
-                                        : "text-slate-700",
-                                    )}
-                                  >
-                                    {todo.content}
-                                  </p>
+                                "text-sm leading-relaxed",
+                                todo.status === "completed"
+                                  ? "text-slate-400 line-through"
+                                  : "text-foreground",
+                              )}
+                            >
+                              {todo.content}
+                            </p>
                                 </div>
                               </div>
                             </div>

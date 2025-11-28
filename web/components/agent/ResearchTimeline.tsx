@@ -57,12 +57,12 @@ export function ResearchTimeline({ steps, className, focusedStepId, onStepSelect
   const planProgress = usePlanProgress(steps);
 
   return (
-    <Card className={cn('console-card px-6 py-6', className)}>
-      <header className="mb-6 space-y-3">
+    <Card className={cn('rounded-2xl border bg-card p-6', className)}>
+      <header className="mb-6 flex flex-col gap-3">
         <h3 className="text-base font-semibold uppercase tracking-[0.22em] text-foreground">
           {t('timeline.card.title')}
         </h3>
-        <p className="console-microcopy text-muted-foreground">{t('timeline.card.subtitle')}</p>
+        <p className="text-sm text-muted-foreground">{t('timeline.card.subtitle')}</p>
         {planProgress && (
           <PlanProgressSummary
             progress={planProgress}
@@ -114,12 +114,12 @@ interface StepColumnProps {
 
 function StepColumn({ title, steps, tone, emptyLabel, focusedStepId, onStepSelect }: StepColumnProps) {
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-card/90 p-4">
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card/90 p-4">
       <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">{title}</h4>
       {steps.length === 0 ? (
-        <p className="console-microcopy text-muted-foreground/70">{emptyLabel}</p>
+        <p className="text-sm text-muted-foreground/70">{emptyLabel}</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="flex flex-col gap-3">
           {steps.map((step) => (
             <StepItem
               key={step.id}
@@ -164,19 +164,19 @@ function StepItem({
           <span className={cn('mt-0.5 rounded-full border border-border p-1', meta.className)}>
             <Icon className="h-3.5 w-3.5" />
           </span>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{step.title}</p>
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 {meta.label}
               </span>
             </div>
-            {step.description && <p className="console-microcopy text-muted-foreground/80">{step.description}</p>}
+            {step.description && <p className="text-sm text-muted-foreground/80">{step.description}</p>}
             {step.result && step.status === 'done' && (
-              <p className="console-microcopy text-foreground/80">{step.result}</p>
+              <p className="text-sm text-foreground/80">{step.result}</p>
             )}
             {step.error && step.status === 'failed' && (
-              <p className="console-microcopy text-destructive">{step.error}</p>
+              <p className="text-sm text-destructive">{step.error}</p>
             )}
           </div>
         </div>

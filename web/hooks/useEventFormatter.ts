@@ -261,8 +261,9 @@ export function useEventFormatter(
           return 'Step started';
 
         case 'step_completed':
-          if ('step_result' in event) {
-            return `✓ Step ${event.step_index + 1} complete: ${event.step_result.slice(0, 80)}`;
+          if ('step_result' in event && typeof event.step_result === 'string') {
+            const preview = event.step_result ? event.step_result.slice(0, 80) : '';
+            return `✓ Step ${event.step_index + 1} complete: ${preview}`;
           }
           return 'Step completed';
 

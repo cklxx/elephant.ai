@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { TerminalOutput } from '@/components/agent/TerminalOutput';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
@@ -17,7 +17,20 @@ import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
+const LazyTerminalOutput = dynamic(
+  () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+        Preparing event stream…
+      </div>
+    ),
+  },
+);
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -25,7 +38,7 @@ export function ConversationPageContent() {
   const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -445,10 +458,7 @@ export function ConversationPageContent() {
       >
         {t('console.empty.title')}
       </p>
-      <p
-        className="console-microcopy max-w-sm text-slate-400"
-        data-testid="conversation-empty-prompt"
-      >
+      <p className="max-w-sm text-sm text-muted-foreground" data-testid="conversation-empty-prompt">
         {t('console.empty.prompt')}
       </p>
     </div>
@@ -463,44 +473,17 @@ export function ConversationPageContent() {
   }, [timelineSteps, showTimelineDialog]);
 
   return (
-    <div className="relative flex h-screen bg-app-canvas text-foreground">
-      <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.14),transparent_38%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.12),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.18)_0%,transparent_60%)]" aria-hidden />
+    <div className="relative min-h-screen bg-muted/10 text-foreground">
       <ConfirmDialog />
-      {/* Left Sidebar */}
-      <div
-        id="conversation-sidebar"
-        className={`relative z-30 h-full overflow-hidden transition-[width] duration-300 ease-in-out ${
-          isSidebarOpen ? 'w-72' : 'w-0'
-        }`}
-      >
-        <div
-          className={`h-full ${isSidebarOpen ? '' : 'pointer-events-none opacity-0'}`}
-          aria-hidden={!isSidebarOpen}
-        >
-          <div className="h-full bg-white/5 pb-4 backdrop-blur-xl">
-            <Sidebar
-              sessionHistory={sessionHistory}
-              pinnedSessions={pinnedSessions}
-              sessionLabels={sessionLabels}
-              currentSessionId={resolvedSessionId}
-              onSessionSelect={handleSessionSelect}
-              onSessionRename={renameSession}
-              onSessionPin={togglePinSession}
-              onSessionDelete={handleSessionDelete}
-              onNewSession={handleNewSession}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-4 pb-10 pt-6 lg:px-8">
         <Header
           title={sessionBadge || t('conversation.header.idle')}
           subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
           leadingSlot={
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               data-testid="session-list-toggle"
               onClick={() =>
                 setIsSidebarOpen((prev) => {
@@ -512,7 +495,7 @@ export function ConversationPageContent() {
                   return next;
                 })
               }
-              className="console-button console-button-secondary flex items-center justify-center !px-3 !py-2"
+              className="h-10 w-10 rounded-full border border-border/60"
               aria-expanded={isSidebarOpen}
               aria-controls="conversation-sidebar"
             >
@@ -526,107 +509,135 @@ export function ConversationPageContent() {
                   ? t('sidebar.toggle.close')
                   : t('sidebar.toggle.open')}
               </span>
-            </button>
+            </Button>
           }
         />
 
-        {/* Content Area */}
-        <ContentArea
-          ref={contentRef}
-          isEmpty={events.length === 0}
-          emptyState={emptyState}
-        >
-          {timelineSteps.length > 0 && (
-            <div className="sm:hidden">
-              <button
-                type="button"
-                data-testid="mobile-timeline-trigger"
-                onClick={() => {
-                  captureEvent(AnalyticsEvent.TimelineViewed, {
-                    session_id: resolvedSessionId ?? null,
-                    step_count: timelineSteps.length,
-                  });
-                  setShowTimelineDialog(true);
-                }}
-                className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-none backdrop-blur transition hover:bg-white/25"
-              >
-                {t('console.timeline.mobileLabel')}
-              </button>
-            </div>
-          )}
-          <TerminalOutput
-            events={events}
-            isConnected={isConnected}
-            isReconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={reconnect}
-          />
-        </ContentArea>
-
-        {showTimelineDialog && (
+        <div className="flex flex-1 flex-col gap-5 lg:flex-row">
           <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 backdrop-blur-sm sm:hidden"
+            id="conversation-sidebar"
+            className={cn(
+              "overflow-hidden transition-all duration-300 lg:w-72 lg:flex-none",
+              isSidebarOpen ? "block" : "hidden"
+            )}
+            aria-hidden={!isSidebarOpen}
           >
-            <button
-              type="button"
-              className="absolute inset-0 h-full w-full"
-              aria-label={t('plan.collapse')}
-              onClick={() => setShowTimelineDialog(false)}
+            <Sidebar
+              sessionHistory={sessionHistory}
+              pinnedSessions={pinnedSessions}
+              sessionLabels={sessionLabels}
+              currentSessionId={resolvedSessionId}
+              onSessionSelect={handleSessionSelect}
+              onSessionRename={renameSession}
+              onSessionPin={togglePinSession}
+              onSessionDelete={handleSessionDelete}
+              onNewSession={handleNewSession}
             />
-            <div className="relative rounded-t-3xl bg-white/15 p-4 text-foreground shadow-none backdrop-blur-xl">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">
-                  {t('console.timeline.dialogTitle')}
-                </h2>
+          </div>
+
+          <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card">
+            <ContentArea
+              ref={contentRef}
+              isEmpty={events.length === 0}
+              emptyState={emptyState}
+              className="flex-1"
+            >
+              {timelineSteps.length > 0 && (
+                <div className="sm:hidden">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-testid="mobile-timeline-trigger"
+                    onClick={() => {
+                      captureEvent(AnalyticsEvent.TimelineViewed, {
+                        session_id: resolvedSessionId ?? null,
+                        step_count: timelineSteps.length,
+                      });
+                      setShowTimelineDialog(true);
+                    }}
+                    className="mb-3 rounded-full border-border/70 bg-background/60 text-[11px] font-semibold uppercase tracking-[0.24em]"
+                  >
+                    {t('console.timeline.mobileLabel')}
+                  </Button>
+                </div>
+              )}
+              <LazyTerminalOutput
+                events={events}
+                isConnected={isConnected}
+                isReconnecting={isReconnecting}
+                error={error}
+                reconnectAttempts={reconnectAttempts}
+                onReconnect={reconnect}
+              />
+            </ContentArea>
+
+            {showTimelineDialog && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 backdrop-blur-sm sm:hidden"
+              >
                 <button
                   type="button"
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:bg-white/20"
+                  className="absolute inset-0 h-full w-full"
+                  aria-label={t('plan.collapse')}
                   onClick={() => setShowTimelineDialog(false)}
-                >
-                  {t('plan.collapse')}
-                </button>
+                />
+                <div className="relative rounded-t-3xl border border-border/60 bg-card/80 p-4 text-foreground backdrop-blur">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-foreground">
+                      {t('console.timeline.dialogTitle')}
+                    </h2>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full"
+                      onClick={() => setShowTimelineDialog(false)}
+                    >
+                      {t('plan.collapse')}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {timelineSteps.map((step) => (
+                      <button
+                        key={step.id}
+                        type="button"
+                        role="button"
+                        onClick={() => setShowTimelineDialog(false)}
+                        className="w-full rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-left text-foreground transition hover:bg-background"
+                      >
+                        <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                        {step.description && (
+                          <p className="text-xs text-foreground/70">{step.description}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                {timelineSteps.map((step) => (
-                  <button
-                    key={step.id}
-                    type="button"
-                    role="button"
-                    onClick={() => setShowTimelineDialog(false)}
-                    className="w-full rounded-xl bg-white/10 px-3 py-2 text-left text-foreground backdrop-blur transition hover:bg-white/20"
-                  >
-                    <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                    {step.description && (
-                      <p className="text-xs text-foreground/70">{step.description}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
+            )}
+
+            <div className="border-t border-border/60 bg-background/70 px-3 py-4 sm:px-6 sm:py-6">
+              <TaskInput
+                onSubmit={handleTaskSubmit}
+                placeholder={
+                  resolvedSessionId
+                    ? t('console.input.placeholder.active')
+                    : t('console.input.placeholder.idle')
+                }
+                disabled={inputDisabled}
+                loading={creationPending}
+                prefill={prefillTask}
+                onPrefillApplied={() => setPrefillTask(null)}
+                onStop={handleStop}
+                isRunning={isTaskRunning}
+                stopPending={stopPending}
+                stopDisabled={isCancelPending}
+              />
             </div>
           </div>
-        )}
-
-        {/* Input Bar */}
-        <div className="px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6">
-          <TaskInput
-            onSubmit={handleTaskSubmit}
-            placeholder={
-              resolvedSessionId
-                ? t('console.input.placeholder.active')
-                : t('console.input.placeholder.idle')
-            }
-            disabled={inputDisabled}
-            loading={creationPending}
-            prefill={prefillTask}
-            onPrefillApplied={() => setPrefillTask(null)}
-            onStop={handleStop}
-            isRunning={isTaskRunning}
-            stopPending={stopPending}
-            stopDisabled={isCancelPending}
-          />
         </div>
       </div>
     </div>

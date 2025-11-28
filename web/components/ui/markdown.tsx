@@ -11,7 +11,7 @@ import { buildAttachmentUri, getAttachmentSegmentType } from "@/lib/attachments"
 import { AttachmentPayload } from "@/lib/types";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-type MarkdownRendererProps = {
+export type MarkdownRendererProps = {
   content: string;
   /**
    * Optional classes applied to the rendered markdown container. This is

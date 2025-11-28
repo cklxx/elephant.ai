@@ -5,7 +5,6 @@ import { useMemo } from "react";
 import { TaskCompleteEvent } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
-import { MarkdownImage, MarkdownRenderer } from "@/components/ui/markdown";
 import {
   parseContentSegments,
   buildAttachmentUri,
@@ -15,6 +14,8 @@ import {
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
+import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface StopReasonCopy {
   title: string;
@@ -106,14 +107,33 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     metrics.push(t("events.taskComplete.metrics.duration", { duration: formatDuration(event.duration) }));
   }
 
+  const InlineMarkdownImage = ({
+    src,
+    alt,
+  }: {
+    src?: string;
+    alt?: string;
+  }) => {
+    if (!src) {
+      return null;
+    }
+    return (
+      <ImagePreview
+        src={src}
+        alt={alt}
+        className="my-4 max-h-80 w-full object-contain"
+        minHeight="8rem"
+        maxHeight="20rem"
+        imageClassName="object-contain"
+      />
+    );
+  };
+
   return (
-    <div
-      className="border-l border-green-100/80 bg-green-50/30 pl-3"
-      data-testid="task-complete-event"
-    >
-      <div className="mt-2 space-y-4">
+    <Card data-testid="task-complete-event">
+      <CardContent className="mt-2 space-y-4 p-4">
         {hasAnswer ? (
-          <MarkdownRenderer
+          <LazyMarkdownRenderer
             content={contentWithInlineMedia}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
             attachments={event.attachments}
@@ -162,7 +182,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               strong: ({ children }: any) => (
                 <strong className="font-bold text-slate-900">{children}</strong>
               ),
-              img: ({ src, alt, ...imgProps }: { src?: string; alt?: string }) => {
+              img: ({ src, alt }: { src?: string; alt?: string }) => {
                 if (!src) {
                   return null;
                 }
@@ -188,14 +208,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   );
                 }
 
-                return (
-                  <MarkdownImage
-                    src={src}
-                    alt={alt}
-                    className="my-4 max-h-80 w-full object-contain"
-                    {...imgProps}
-                  />
-                );
+                return <InlineMarkdownImage src={src} alt={alt} />;
               },
             }}
           />
@@ -278,8 +291,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             })}
           </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

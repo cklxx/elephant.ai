@@ -5,6 +5,8 @@ import { Send, Paperclip, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 import type { AttachmentUpload } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 interface InputBarProps {
   onSubmit: (text: string, attachments: AttachmentUpload[]) => void;
@@ -80,52 +82,50 @@ export function InputBar({
   };
 
   return (
-    <div className="layout-input-bar px-6 py-4">
-      <div className="mx-auto max-w-5xl space-y-3">
+    <div className="px-6 py-4">
+      <div className="mx-auto flex max-w-5xl flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span className="console-pill console-pill-quiet">Borderless input rail</span>
+          <span className="rounded-full border border-border px-3 py-1 text-[11px] uppercase tracking-[0.18em]">
+            {t('inputBar.placeholder')}
+          </span>
           <span className="uppercase tracking-[0.22em]">{t('inputBar.hint.shortcut')}</span>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="console-card-interactive grid grid-cols-[auto,1fr,auto] items-start gap-3 p-3"
+          className="grid grid-cols-[auto,1fr,auto] items-start gap-3 rounded-2xl border border-border bg-card p-3"
         >
           <div className="flex items-center gap-2 self-start">
             {showAttachment && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 onClick={onAttachment}
                 disabled={disabled || loading}
-                className={cn(
-                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.12)]',
-                  'shadow-[0_10px_30px_-22px_hsla(var(--foreground)/0.38)] transition-colors hover:bg-[hsla(var(--foreground)/0.16)]',
-                  'disabled:opacity-50'
-                )}
+                className="h-10 w-10 rounded-lg"
                 title={t('inputBar.actions.attach')}
               >
                 <Paperclip className="h-4 w-4" />
-              </button>
+              </Button>
             )}
             {showVoice && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 onClick={onVoice}
                 disabled={disabled || loading}
-                className={cn(
-                  'console-icon-button h-10 w-10 !rounded-lg bg-[hsla(var(--foreground)/0.12)]',
-                  'shadow-[0_10px_30px_-22px_hsla(var(--foreground)/0.38)] transition-colors hover:bg-[hsla(var(--foreground)/0.16)]',
-                  'disabled:opacity-50'
-                )}
+                className="h-10 w-10 rounded-lg"
                 title={t('inputBar.actions.voice')}
               >
                 <Mic className="h-4 w-4" />
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="relative flex-1">
-            <textarea
+            <Textarea
               ref={textareaRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -138,33 +138,24 @@ export function InputBar({
               placeholder={resolvedPlaceholder}
               disabled={disabled || loading}
               rows={1}
-              className={cn(
-                'w-full resize-none overflow-y-auto rounded-2xl bg-[hsla(var(--foreground)/0.1)] px-4 py-3',
-                'text-sm text-foreground placeholder:text-muted-foreground',
-                'shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.14),0_18px_48px_-30px_hsla(var(--foreground)/0.55)]',
-                'transition duration-150 focus:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.22),0_18px_48px_-22px_hsla(var(--foreground)/0.62)]',
-                'disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-[inset_0_0_0_1px_hsla(var(--foreground)/0.12)]',
-                'max-h-32'
-              )}
+              className="min-h-[56px] max-h-32 resize-none"
               style={{ fieldSizing: 'content' } as any}
             />
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={disabled || loading || !text.trim()}
-            className={cn(
-              'console-icon-button console-icon-button-primary h-10 w-10 !rounded-lg',
-              'flex-shrink-0 self-start'
-            )}
+            className="h-10 w-10 rounded-lg"
+            size="icon"
             title={loading ? t('inputBar.actions.sending') : t('inputBar.actions.send')}
           >
             {loading ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
             ) : (
               <Send className="h-4 w-4" />
             )}
-          </button>
+          </Button>
         </form>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">

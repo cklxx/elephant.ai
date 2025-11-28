@@ -2,6 +2,9 @@
 // Extracted from TerminalOutput.tsx for better component separation
 
 import { AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface ConnectionBannerProps {
   isConnected: boolean;
@@ -28,43 +31,43 @@ export function ConnectionBanner({
   }
 
   return (
-    <div className="console-card mx-auto flex h-full max-w-md flex-col items-center justify-center gap-4 px-6 py-6 text-center">
-      <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-        {isReconnecting ? (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>
-              Reconnecting
-              {typeof reconnectAttempts === 'number' && reconnectAttempts > 0 && (
-                <span className="ml-1 text-xs font-medium text-muted-foreground">
-                  ({reconnectAttempts})
-                </span>
-              )}
-            </span>
-          </>
-        ) : (
-          <>
-            <WifiOff className="h-5 w-5" />
-            <span>Offline</span>
-          </>
-        )}
-      </div>
+    <Card className="mx-auto flex h-full max-w-md flex-col items-center justify-center text-center">
+      <CardContent className="flex flex-col items-center justify-center gap-4 px-6 py-6">
+        <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+          {isReconnecting ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>
+                Reconnecting
+                {typeof reconnectAttempts === 'number' && reconnectAttempts > 0 && (
+                  <span className="ml-1 text-xs font-medium text-muted-foreground">
+                    ({reconnectAttempts})
+                  </span>
+                )}
+              </span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="h-5 w-5" />
+              <span>Offline</span>
+            </>
+          )}
+        </div>
 
-      {error && (
-        <div className="console-card bg-destructive/10 border-destructive/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-destructive shadow-none">
-          <div className="flex items-center justify-center gap-2">
+        {error && (
+          <Badge
+            variant="destructive"
+            className="flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-[0.22em]"
+          >
             <AlertCircle className="h-4 w-4" />
             <span>{error}</span>
-          </div>
-        </div>
-      )}
+          </Badge>
+        )}
 
-      <button
-        onClick={onReconnect}
-        className="console-button console-button-primary text-xs uppercase"
-      >
-        Retry
-      </button>
-    </div>
+        <Button onClick={onReconnect} className="text-xs uppercase">
+          Retry
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

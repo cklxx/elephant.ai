@@ -81,7 +81,7 @@ const browserRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="browser-metadata">
         <PanelHeader title={ctx.labels.metadataTitle} />
-        <p className="console-microcopy text-foreground/80">
+        <p className="text-sm text-foreground/80">
           {ctx.completeEvent.metadata.url}
         </p>
       </SimplePanel>,
@@ -97,7 +97,7 @@ const shellRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="shell-command">
         <PanelHeader title="Command" />
-        <pre className="console-scrollbar max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-foreground/90">
+        <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-2 font-mono text-[10px] leading-snug text-foreground/90">
           {ctx.startEvent.arguments.command}
         </pre>
       </SimplePanel>,
@@ -117,7 +117,7 @@ const codeExecuteRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="code-execute-source">
         <PanelHeader title="Code" />
-        <pre className="console-scrollbar max-h-64 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90">
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-3 font-mono text-[11px] leading-relaxed text-foreground/90">
           {code}
         </pre>
       </SimplePanel>,
@@ -133,7 +133,7 @@ const fileRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="file-target">
         <PanelHeader title="File" />
-        <p className="console-microcopy font-mono text-[11px] text-foreground/70">{ctx.startEvent.arguments.path}</p>
+        <p className="font-mono text-[11px] text-foreground/70">{ctx.startEvent.arguments.path}</p>
       </SimplePanel>,
     );
   }

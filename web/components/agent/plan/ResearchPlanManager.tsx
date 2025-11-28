@@ -21,6 +21,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Check,
   X,
@@ -189,17 +191,16 @@ export function ResearchPlanManager({
   );
 
   return (
-    <Card className="console-card border-l-4 border-primary animate-fadeIn overflow-hidden">
-
-      <CardHeader className="pb-3 relative">
+    <Card className="rounded-2xl border-l-4 border-primary bg-card">
+      <CardHeader className="relative pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary rounded-md">
+            <div className="rounded-md bg-primary p-3">
               <Lightbulb className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h3 className="console-heading text-lg">{t('plan.title')}</h3>
-              <p className="console-caption">
+              <h3 className="text-lg font-semibold text-foreground">{t('plan.title')}</h3>
+              <p className="text-sm text-muted-foreground">
                 {readonly ? t('plan.caption.readonly') : t('plan.caption.default')}
               </p>
             </div>
@@ -220,16 +221,15 @@ export function ResearchPlanManager({
       </CardHeader>
 
       {isExpanded && (
-        <CardContent className="space-y-4 animate-fadeIn relative">
+        <CardContent className="relative flex flex-col gap-4">
           {progress && <PlanProgressSummary progress={progress} />}
-          {/* Goal Section */}
-          <div>
-            <p className="console-subheading text-sm mb-2 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
+          <div className="flex flex-col gap-2">
+            <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {t('plan.goal.label')}
             </p>
             {isEditing && planForEditing ? (
-              <textarea
+              <Textarea
                 value={planForEditing.goal}
                 onChange={(e) =>
                   updateDraftPlan((current) => ({
@@ -237,23 +237,22 @@ export function ResearchPlanManager({
                     goal: e.target.value,
                   }))
                 }
-                className="console-input text-sm leading-relaxed min-h-[80px]"
+                className="min-h-[120px]"
                 aria-label={t('plan.edit.goal')}
               />
             ) : (
-              <div className="console-card p-4">
-                <p className="console-body text-sm">{displayedPlan.goal}</p>
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <p className="text-sm leading-relaxed text-foreground">{displayedPlan.goal}</p>
               </div>
             )}
           </div>
 
-          {/* Steps Section */}
-          <div>
-            <p className="console-subheading text-sm mb-2 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
+          <div className="flex flex-col gap-2">
+            <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {t('plan.steps.label', { count: displayedPlan.steps.length })}
             </p>
-            <div className="console-card p-4 space-y-2">
+            <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/20 p-4">
               {isEditing && planForEditing ? (
                 <DndContext
                   sensors={sensors}
@@ -289,38 +288,36 @@ export function ResearchPlanManager({
               ) : (
                 displayedPlan.steps.map((step, idx) => (
                   <div key={idx} className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
+                    <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
                       {idx + 1}
                     </div>
-                    <p className="flex-1 console-body text-sm">{step}</p>
+                    <p className="flex-1 text-sm leading-relaxed text-foreground">{step}</p>
                   </div>
                 ))
               )}
             </div>
           </div>
 
-          {/* Metadata Section */}
           <PlanMetadata plan={displayedPlan} />
 
-          {/* Action Buttons */}
           {!readonly && (
-            <div className="space-y-4 border-t border-border pt-4">
+            <div className="flex flex-col gap-4 border-t border-border pt-4">
               {isEditing ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={handleSaveEdit}
-                    className="flex-1 console-button console-button-primary"
+                    className="flex-1"
                     disabled={!canSave}
                   >
-                    <Check className="h-4 w-4 mr-2" />
+                    <Check className="mr-2 h-4 w-4" />
                     {t('plan.actions.saveChanges')}
                   </Button>
                   <Button
                     onClick={handleCancelEdit}
                     variant="outline"
-                    className="flex-1 console-button console-button-secondary"
+                    className="flex-1"
                   >
-                    <X className="h-4 w-4 mr-2" />
+                    <X className="mr-2 h-4 w-4" />
                     {t('plan.actions.cancel')}
                   </Button>
                 </div>
@@ -328,18 +325,18 @@ export function ResearchPlanManager({
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={onApprove}
-                    className="flex-1 console-button console-button-primary"
+                    className="flex-1"
                     disabled={loading}
                   >
-                    <Check className="h-4 w-4 mr-2" />
+                    <Check className="mr-2 h-4 w-4" />
                     {t('plan.actions.approve')}
                   </Button>
                   <Button
                     onClick={handleStartEditing}
                     variant="outline"
-                    className="flex-1 console-button console-button-secondary"
+                    className="flex-1"
                   >
-                    <Edit3 className="h-4 w-4 mr-2" />
+                    <Edit3 className="mr-2 h-4 w-4" />
                     {t('plan.actions.modify')}
                   </Button>
                   <Button
@@ -347,35 +344,36 @@ export function ResearchPlanManager({
                       setRejectReason('');
                       setIsRejecting(true);
                     }}
-                    variant="outline"
-                    className="flex-1 border-destructive/40 text-destructive hover:border-destructive hover:text-destructive"
+                    variant="destructive"
+                    className="flex-1"
                   >
-                    <Ban className="h-4 w-4 mr-2" />
+                    <Ban className="mr-2 h-4 w-4" />
                     {t('plan.actions.reject')}
                   </Button>
                 </div>
               )}
 
               {isRejecting && (
-                <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                  <div className="space-y-2">
+                <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                  <div className="flex flex-col gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
                       {t('plan.reject.reasonLabel')}
                     </p>
-                    <textarea
+                    <Textarea
                       value={rejectReason}
                       onChange={(event) => setRejectReason(event.target.value)}
-                      className="console-input min-h-[80px] text-sm"
+                      className="min-h-[120px]"
                       placeholder={t('plan.reject.placeholder')}
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Button
                       onClick={handleRejectConfirm}
-                      className="flex-1 console-button console-button-secondary"
+                      variant="destructive"
+                      className="flex-1"
                       disabled={!rejectReason.trim()}
                     >
-                      <Ban className="h-4 w-4 mr-2" />
+                      <Ban className="mr-2 h-4 w-4" />
                       {t('plan.reject.confirm')}
                     </Button>
                     <Button
@@ -399,24 +397,24 @@ export function ResearchPlanManager({
 
 function ResearchPlanSkeleton() {
   return (
-    <Card className="console-card border-l-4 border-primary animate-fadeIn overflow-hidden">
+    <Card className="rounded-2xl border-l-4 border-primary bg-card">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <Skeleton className="h-12 w-12 rounded-md" />
-          <div className="space-y-2 flex-1">
+          <div className="flex flex-1 flex-col gap-2">
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-64" />
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Skeleton className="h-4 w-16 mb-2" />
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="mb-2 h-4 w-16" />
           <Skeleton className="h-20 w-full" />
         </div>
-        <div>
-          <Skeleton className="h-4 w-32 mb-2" />
-          <div className="space-y-2">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="mb-2 h-4 w-32" />
+          <div className="flex flex-col gap-2">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
@@ -465,7 +463,7 @@ function SortablePlanStep({
       style={style}
       className={cn(
         'flex items-start gap-3 rounded-md border border-transparent bg-background/80 p-2',
-        isDragging && 'border-primary/40 bg-primary/5 shadow-sm'
+        isDragging && 'border-primary/40 bg-primary/5'
       )}
     >
       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold mt-1">
@@ -481,11 +479,11 @@ function SortablePlanStep({
         >
           <GripVertical className="h-3.5 w-3.5" />
         </button>
-        <input
+        <Input
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="flex-1 console-input px-3 py-1.5 text-sm"
+          className="flex-1 text-sm"
           aria-label={t('plan.edit.stepLabel', { index: index + 1 })}
         />
       </div>

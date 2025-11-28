@@ -1,18 +1,19 @@
 'use client';
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 export interface SkeletonProps {
   className?: string;
-  variant?: 'default' | 'shimmer';
+  variant?: "default" | "shimmer";
 }
 
-export function Skeleton({ className, variant = 'shimmer' }: SkeletonProps) {
+export function Skeleton({ className, variant = "shimmer" }: SkeletonProps) {
   return (
     <div
       className={cn(
-        'rounded-lg bg-gray-200',
-        variant === 'shimmer' && 'animate-shimmer bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 bg-[length:400%_100%]',
+        "rounded-md bg-muted animate-pulse",
+        variant === "shimmer" &&
+          "animate-shimmer bg-gradient-to-r from-muted via-muted/60 to-muted bg-[length:300%_100%]",
         className
       )}
     />
@@ -40,10 +41,7 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
       {Array.from({ length: lines }).map((_, i) => (
         <Skeleton
           key={i}
-          className={cn(
-            'h-4',
-            i === lines - 1 ? 'w-3/4' : 'w-full'
-          )}
+          className={cn("h-4", i === lines - 1 ? "w-3/4" : "w-full")}
         />
       ))}
     </div>

@@ -40,6 +40,7 @@ export function useSSE(
   sessionId: string | null,
   options: UseSSEOptions = {},
 ): UseSSEReturn {
+  const MAX_EVENT_HISTORY = 1000;
   const { enabled = true, onEvent, maxReconnectAttempts = 5 } = options;
 
   const [events, setEvents] = useState<AnyAgentEvent[]>([]);
@@ -372,11 +373,11 @@ export function useSSE(
           if (matchIndex !== -1) {
             const nextEvents = [...prev];
             nextEvents[matchIndex] = enrichedEvent;
-            return nextEvents;
+            return clampEvents(nextEvents, MAX_EVENT_HISTORY);
           }
         }
 
-        return [...prev, enrichedEvent];
+        return clampEvents([...prev, enrichedEvent], MAX_EVENT_HISTORY);
       });
       onEventRef.current?.(enrichedEvent);
     });
@@ -447,6 +448,13 @@ export function useSSE(
     reconnect,
     addEvent,
   };
+}
+
+function clampEvents(events: AnyAgentEvent[], maxHistory: number): AnyAgentEvent[] {
+  if (events.length <= maxHistory) {
+    return events;
+  }
+  return events.slice(events.length - maxHistory);
 }
 
 function findLastStreamingTaskCompleteIndex(

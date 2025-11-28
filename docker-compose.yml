@@ -9,8 +9,8 @@ services:
       args:
         BASE_GO_IMAGE: ${BASE_GO_IMAGE:-golang:1.24-alpine}
         BASE_RUNTIME_IMAGE: ${BASE_RUNTIME_IMAGE:-alpine:latest}
-        GO_PROXY: ${GO_PROXY:-https://proxy.golang.org,direct}
-        GO_SUMDB: ${GO_SUMDB:-sum.golang.org}
+        GO_PROXY: ${GO_PROXY:-https://goproxy.cn,direct}
+        GO_SUMDB: ${GO_SUMDB:-sum.golang.google.cn}
     container_name: alex-server
     expose:
       - "8080"

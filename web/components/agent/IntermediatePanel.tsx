@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { MarkdownRenderer } from "@/components/ui/markdown";
 import {
   AnyAgentEvent,
   AssistantMessageEvent,
@@ -18,6 +17,7 @@ import {
 import { PanelRightOpen, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { Badge } from "@/components/ui/badge";
+import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
@@ -363,12 +363,12 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 </Badge>
               )}
               {completedCount > 0 && (
-                <Badge variant="secondary" className="text-foreground/80">
+                <Badge variant="success" className="text-foreground/80">
                   {completedCount} completed
                 </Badge>
               )}
               {failedCount > 0 && (
-                <Badge variant="destructive">{failedCount} failed</Badge>
+                <Badge variant="error">{failedCount} failed</Badge>
               )}
             </div>
           </div>
@@ -489,7 +489,7 @@ function ThinkStreamCard({ item }: { item: ThinkPreviewItem }) {
             </span>
           )}
         </div>
-        <MarkdownRenderer
+        <LazyMarkdownRenderer
           content={item.content}
           containerClassName="markdown-body text-sm"
           className="prose prose-sm max-w-none text-muted-foreground"

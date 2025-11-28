@@ -1,6 +1,8 @@
 'use client';
 
 import { ReactNode, forwardRef } from 'react';
+
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 interface ContentAreaProps {
@@ -13,24 +15,21 @@ interface ContentAreaProps {
 export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
   ({ children, className, emptyState, isEmpty = false }, ref) => {
     return (
-      <div
+      <ScrollArea
         ref={ref}
-        className={cn(
-          'flex-1 overflow-y-auto bg-transparent',
-          'console-scrollbar',
-          className
-        )}
+        className={cn('flex-1', className)}
+        viewportClassName="h-full"
       >
         {isEmpty ? (
-          <div className="flex h-full items-center justify-center">
+          <div className="flex h-full items-center justify-center px-6 py-10">
             {emptyState}
           </div>
         ) : (
-          <div className="px-6 py-6">
+          <div className="mx-auto flex h-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
             {children}
           </div>
         )}
-      </div>
+      </ScrollArea>
     );
   }
 );

@@ -22,11 +22,11 @@ export function ErrorCard({ event }: ErrorCardProps) {
         <h3 className="text-lg font-semibold uppercase tracking-[0.2em]">
           {t('events.error.title')}
         </h3>
-        <span className="console-microcopy uppercase tracking-[0.28em] text-destructive/70">
+        <span className="text-[11px] uppercase tracking-[0.28em] text-destructive/70">
           {t('events.error.label')}
         </span>
         {event.recoverable && (
-          <span className="console-microcopy font-semibold uppercase tracking-[0.28em] text-foreground">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground">
             {t('events.error.recoverable')}
           </span>
         )}
@@ -37,10 +37,10 @@ export function ErrorCard({ event }: ErrorCardProps) {
       </p>
 
       <div className="space-y-2">
-        <p className="console-microcopy font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
           {t('events.error.details')}
         </p>
-        <pre className="console-card bg-destructive/10 border-destructive/40 p-3 font-mono text-xs leading-relaxed text-destructive shadow-none">
+        <pre className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs leading-relaxed text-destructive">
           {event.error}
         </pre>
       </div>

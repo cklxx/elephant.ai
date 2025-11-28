@@ -18,6 +18,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { TaskCompleteCard } from './TaskCompleteCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 interface ConsoleAgentOutputProps {
   events: AnyAgentEvent[];
@@ -206,20 +209,17 @@ export function ConsoleAgentOutput({
 
   return (
     <div className="space-y-6">
-      {/* Connection status */}
-      <div className="console-section">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight">
-            {t('agent.output.heading')}
-          </h2>
-          <ConnectionStatus
-            connected={isConnected}
-            reconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={onReconnect}
-          />
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold tracking-tight">
+          {t('agent.output.heading')}
+        </h2>
+        <ConnectionStatus
+          connected={isConnected}
+          reconnecting={isReconnecting}
+          error={error}
+          reconnectAttempts={reconnectAttempts}
+          onReconnect={onReconnect}
+        />
       </div>
 
       {/* Plan approval card (if awaiting approval) */}
@@ -235,8 +235,8 @@ export function ConsoleAgentOutput({
       )}
 
       {latestTaskComplete && (
-        <div className="console-card space-y-3 p-4">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <Card>
+          <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Final answer
@@ -247,19 +247,17 @@ export function ConsoleAgentOutput({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
               {latestAttachmentCount > 0 && (
-                <span className="rounded-full bg-muted px-3 py-1 font-semibold text-foreground">
-                  {latestAttachmentCount} attachments
-                </span>
+                <Badge variant="outline">{latestAttachmentCount} attachments</Badge>
               )}
               {typeof latestTaskComplete.duration === 'number' && (
-                <span className="rounded-full bg-muted px-3 py-1 font-semibold text-foreground">
-                  {(latestTaskComplete.duration / 1000).toFixed(1)}s elapsed
-                </span>
+                <Badge variant="outline">{(latestTaskComplete.duration / 1000).toFixed(1)}s elapsed</Badge>
               )}
             </div>
-          </div>
-          <TaskCompleteCard event={latestTaskComplete} />
-        </div>
+          </CardHeader>
+          <CardContent>
+            <TaskCompleteCard event={latestTaskComplete} />
+          </CardContent>
+        </Card>
       )}
 
       {/* Plan summary (after approval) */}
@@ -277,12 +275,13 @@ export function ConsoleAgentOutput({
       )}
 
       {/* Main content area with tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left pane: Timeline/Events */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="console-card">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timeline' | 'events' | 'document')}>
-              <TabsList className="grid w-full grid-cols-3 mb-4 bg-muted p-1 rounded-md">
+        <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <CardContent className="p-4">
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timeline' | 'events' | 'document')}>
+                <TabsList className="mb-4 grid w-full grid-cols-3">
                 <TabsTrigger value="timeline" className="text-xs">
                   <Activity className="h-3 w-3 mr-1.5" />
                   {t('agent.output.tabs.timeline')}
@@ -308,8 +307,8 @@ export function ConsoleAgentOutput({
                     }}
                   />
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                  <div className="py-12 text-center text-muted-foreground">
+                    <Activity className="mx-auto mb-2 h-8 w-8 opacity-20" />
                     <p className="text-xs">{t('agent.output.timeline.empty')}</p>
                   </div>
                 )}
@@ -335,32 +334,37 @@ export function ConsoleAgentOutput({
                     initialMode={documentViewMode}
                   />
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                  <div className="py-12 text-center text-muted-foreground">
+                    <FileText className="mx-auto mb-2 h-8 w-8 opacity-20" />
                     <p className="text-xs">{t('agent.output.document.empty')}</p>
                   </div>
                 )}
               </TabsContent>
             </Tabs>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right pane: Computer View */}
         <div className="lg:col-span-1">
-          <div className="console-card p-4">
-            <h3 className="text-xs font-semibold mb-3 tracking-tight">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold tracking-tight">
               {t('agent.output.toolOutputs.title')}
-            </h3>
-            {toolOutputs.length > 0 ? (
-              <WebViewport outputs={toolOutputs} />
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Monitor className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                <p className="text-xs">{t('agent.output.toolOutputs.empty')}</p>
-                <p className="text-xs mt-1">{t('agent.output.toolOutputs.emptyHint')}</p>
-              </div>
-            )}
-          </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {toolOutputs.length > 0 ? (
+                <WebViewport outputs={toolOutputs} />
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Monitor className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                  <p className="text-xs">{t('agent.output.toolOutputs.empty')}</p>
+                  <p className="mt-1 text-xs">{t('agent.output.toolOutputs.emptyHint')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

@@ -1,8 +1,8 @@
 # Multi-stage build for ALEX Server
 ARG BASE_GO_IMAGE=golang:1.24-alpine
 ARG BASE_RUNTIME_IMAGE=alpine:latest
-ARG GO_PROXY=https://proxy.golang.org,direct
-ARG GO_SUMDB=sum.golang.org
+ARG GO_PROXY=https://goproxy.cn,direct
+ARG GO_SUMDB=sum.golang.google.cn
 
 FROM ${BASE_GO_IMAGE} AS builder
 

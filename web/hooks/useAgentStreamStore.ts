@@ -371,12 +371,18 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
 
       if (isStreaming && !streamFinished) {
         draft.taskStatus = draft.taskStatus === 'idle' ? 'running' : draft.taskStatus;
+        const prevAnswer = draft.finalAnswer ?? '';
+        draft.finalAnswer = prevAnswer + (complete.final_answer ?? '');
       } else {
         draft.taskStatus = 'completed';
+        const prevAnswer = draft.finalAnswer ?? '';
+        const nextAnswer =
+          complete.final_answer !== undefined && complete.final_answer !== null
+            ? complete.final_answer
+            : prevAnswer;
+        draft.finalAnswer = nextAnswer;
       }
-      const delta = complete.final_answer ?? '';
-      const prevAnswer = draft.finalAnswer ?? '';
-      draft.finalAnswer = prevAnswer + delta;
+
       if (complete.attachments !== undefined) {
         draft.finalAnswerAttachments = complete.attachments as
           | Record<string, AttachmentPayload>

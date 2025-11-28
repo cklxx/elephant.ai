@@ -9,6 +9,9 @@ import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ReactNode } from 'react';
 
 interface VirtualizedEventListProps {
@@ -200,18 +203,14 @@ export function VirtualizedEventList({
   }, [visibleEvents]);
 
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-[28px] border-4 border-border bg-card/95',
-        className,
-      )}
-    >
+    <Card className={cn('relative overflow-hidden shadow-none', className)}>
+      <CardContent className="p-0">
       <span id={descriptionId} className="sr-only">
         {t('events.stream.ariaDescription')}
       </span>
       <div
         ref={parentRef}
-        className="console-scrollbar min-h-[420px] max-h-[820px] overflow-y-auto px-5 pb-10 pt-8 scroll-smooth"
+        className="min-h-[420px] max-h-[820px] overflow-y-auto px-5 pb-10 pt-8 scroll-smooth"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
@@ -225,14 +224,14 @@ export function VirtualizedEventList({
         }}
       >
         {visibleEvents.length === 0 ? (
-          <div className="console-empty-state h-[320px]">
+          <div className="flex h-[320px] flex-col items-center justify-center gap-2 text-center">
             <span className="text-3xl" aria-hidden>
               💭
             </span>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground">
               {t('events.emptyTitle')}
             </p>
-            <p className="console-microcopy max-w-xs">{t('events.emptyHint')}</p>
+            <p className="text-xs text-muted-foreground max-w-xs">{t('events.emptyHint')}</p>
           </div>
         ) : (
           <div
@@ -262,13 +261,13 @@ export function VirtualizedEventList({
                     className={cn('pb-6', isFocused && 'scroll-mt-40')}
                     data-focused={isFocused ? 'true' : undefined}
                   >
-                    <div
-                    className={cn(
-                        'console-card bg-card/98 px-5 py-4 transition-all duration-150 ease-out',
-                        'hover:-translate-y-1 hover:-translate-x-1',
+                    <Card
+                      className={cn(
+                        'bg-card/95 transition-all duration-150 ease-out',
                         isFocused && 'outline outline-2 outline-offset-4 outline-foreground',
                       )}
                     >
+                      <CardContent className="px-5 py-4">
                       <EventCard
                         event={event}
                         pairedStart={
@@ -278,7 +277,8 @@ export function VirtualizedEventList({
                         }
                         isFocused={isFocused}
                       />
-                    </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               );
@@ -288,24 +288,27 @@ export function VirtualizedEventList({
       </div>
 
       {!isPinnedToLatest && visibleEvents.length > 0 && (
-        <button
+        <Button
           type="button"
           onClick={() => {
             scrollToLatest('smooth');
             onJumpToLatest?.();
           }}
-          className="console-button console-button-secondary absolute bottom-5 right-5 inline-flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase"
+          className="absolute bottom-5 right-5 inline-flex items-center gap-2 text-[11px] uppercase"
+          size="sm"
+          variant="secondary"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           {t('events.scrollToLatest') ?? 'View latest'}
-        </button>
+        </Button>
       )}
       {liveMessage && (
         <div aria-live="polite" className="sr-only">
           {liveMessage}
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -321,7 +324,7 @@ function EventCard({
   const t = useTranslation();
 
   const wrapWithContext = (content: ReactNode) => (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <EventContextMeta event={event} />
       {content}
     </div>
@@ -368,11 +371,11 @@ function EventCard({
 
     case 'iteration_complete':
       return wrapWithContext(
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="console-quiet-chip text-xs uppercase">
+        <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.24em]">
+          <Badge variant="outline">
             {t('events.iteration.complete', { iteration: event.iteration })}
-          </span>
-          <span className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
+          </Badge>
+          <span className="text-muted-foreground">
             {t('events.iteration.tokens', { count: event.tokens_used })}
           </span>
         </div>
@@ -381,11 +384,11 @@ function EventCard({
     // New event types (backend not yet emitting, but ready for when they do)
     case 'research_plan':
       return wrapWithContext(
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
             {t('events.researchPlan.title', { count: event.estimated_iterations })}
           </h3>
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/75">
+          <ol className="list-decimal pl-5 text-sm text-foreground/75">
             {event.plan_steps.map((step, idx) => (
               <li key={idx}>{step}</li>
             ))}
@@ -408,7 +411,7 @@ function EventCard({
 
     case 'step_completed':
       return (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
             {t('events.step.completed', { index: event.step_index + 1 })}
           </p>
@@ -444,15 +447,15 @@ function EventCard({
       }
 
       return (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{t('events.browserInfo.title')}</h3>
-          <p className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
             {t('events.browserInfo.captured', {
               timestamp: new Date(event.captured).toLocaleString(),
             })}
           </p>
           {details.length > 0 ? (
-            <dl className="space-y-2 text-sm text-foreground/80">
+            <dl className="flex flex-col gap-2 text-sm text-foreground/80">
               {details.map(([label, value]) => (
                 <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
                   <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
@@ -461,7 +464,7 @@ function EventCard({
               ))}
             </dl>
           ) : (
-            <p className="console-microcopy text-muted-foreground">{t('events.browserInfo.noData')}</p>
+            <p className="text-sm text-muted-foreground">{t('events.browserInfo.noData')}</p>
           )}
         </div>
       );
@@ -489,7 +492,7 @@ function EventContextMeta({ event }: { event: AnyAgentEvent }) {
   }
 
   return (
-    <p className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
+    <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
       {parts.join(' · ')}
     </p>
   );

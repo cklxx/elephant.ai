@@ -59,12 +59,12 @@ export function ResearchPlanCard({
   const stepStatuses = progress?.stepStatuses ?? {};
 
   return (
-    <Card className={cn('console-card border-l-4 border-primary animate-fadeIn overflow-hidden', className)}>
+    <Card className={cn('rounded-2xl border-l-4 border-primary bg-card', className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h3 className="console-heading text-lg">{t('plan.title')}</h3>
-            <p className="console-caption">{t('plan.caption.readonly')}</p>
+          <div className="flex flex-col gap-1">
+            <h3 className="text-lg font-semibold text-foreground">{t('plan.title')}</h3>
+            <p className="text-sm text-muted-foreground">{t('plan.caption.readonly')}</p>
           </div>
           <Button
             type="button"
@@ -80,7 +80,7 @@ export function ResearchPlanCard({
       </CardHeader>
 
       {isExpanded && (
-        <CardContent className="space-y-5">
+        <CardContent className="flex flex-col gap-5">
           {progress && (
             <PlanProgressSummary
               progress={progress}
@@ -88,16 +88,16 @@ export function ResearchPlanCard({
             />
           )}
 
-          <section className="space-y-2">
-            <h4 className="console-subheading text-sm">{t('plan.goal.label')}</h4>
-            <div className="console-card p-4">
-              <p className="console-body text-sm leading-relaxed">{plan.goal}</p>
+          <section className="flex flex-col gap-2">
+            <h4 className="text-sm font-semibold text-foreground">{t('plan.goal.label')}</h4>
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <p className="text-sm leading-relaxed text-foreground">{plan.goal}</p>
             </div>
           </section>
 
-          <section className="space-y-3">
+          <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h4 className="console-subheading text-sm">
+              <h4 className="text-sm font-semibold text-foreground">
                 {t('plan.steps.label', { count: plan.steps.length })}
               </h4>
               {onStepFocus && progress?.activeStepId && (
@@ -112,7 +112,7 @@ export function ResearchPlanCard({
                 </Button>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               {plan.steps.map((step, index) => {
                 const stepId = `step-${index}`;
                 const status = stepStatuses[stepId] ?? 'planned';
@@ -125,13 +125,13 @@ export function ResearchPlanCard({
                     key={stepId}
                     className={cn(
                       'flex items-start gap-3 rounded-xl border border-border/60 bg-background/80 p-3 transition-colors',
-                      isFocused && 'border-primary bg-primary/5 shadow-sm'
+                      isFocused && 'border-primary bg-primary/5'
                     )}
                   >
                     <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground text-xs font-semibold">
                       {index + 1}
                     </div>
-                    <div className="flex-1 space-y-1">
+                    <div className="flex flex-1 flex-col gap-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-foreground">{step}</p>
                         <Badge variant={toneToVariant(meta.tone)} className="text-[10px] uppercase">
@@ -178,20 +178,20 @@ function toneToVariant(tone: StatusMeta['tone']): 'default' | 'info' | 'success'
 
 function ResearchPlanSkeleton({ className }: { className?: string }) {
   return (
-    <Card className={cn('console-card border-l-4 border-primary animate-fadeIn overflow-hidden', className)}>
+    <Card className={cn('rounded-2xl border-l-4 border-primary bg-card', className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <Skeleton className="h-10 w-10 rounded-md" />
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-3 w-40" />
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex flex-col gap-4">
         <Skeleton className="h-4 w-16" />
         <Skeleton className="h-20 w-full" />
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />

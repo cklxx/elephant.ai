@@ -17,6 +17,8 @@ import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -55,86 +57,93 @@ export const EventLine = React.memo(function EventLine({
         segment.attachment,
     );
     return (
-      <div className="console-user-task" data-testid="event-user_task">
-        <div className="console-user-task-bubble">
-          <div className="console-user-task-meta">
-            {formatTimestamp(event.timestamp)}
+      <Card data-testid="event-user_task">
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{formatTimestamp(event.timestamp)}</span>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+              User Task
+            </Badge>
           </div>
-          <div className="console-user-task-content">
+          <div className="space-y-2">
             {textSegments.map((segment, index) => (
               <p
                 key={`text-segment-${index}`}
-                className="m-0 whitespace-pre-wrap"
+                className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground"
               >
                 {segment.text}
               </p>
             ))}
-            {mediaSegments.map((segment, index) => {
-              if (!segment.attachment) {
-                return null;
-              }
-              const uri = buildAttachmentUri(segment.attachment);
-              if (!uri) {
-                return null;
-              }
-              const key = segment.placeholder || `${segment.type}-${index}`;
-              const attachmentName =
-                segment.attachment.description ||
-                segment.attachment.name ||
-                key;
-              if (segment.type === "video") {
+          </div>
+          {mediaSegments.length > 0 && (
+            <div className="space-y-3">
+              {mediaSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const uri = buildAttachmentUri(segment.attachment);
+                if (!uri) {
+                  return null;
+                }
+                const key = segment.placeholder || `${segment.type}-${index}`;
+                const attachmentName =
+                  segment.attachment.description ||
+                  segment.attachment.name ||
+                  key;
+                if (segment.type === "video") {
+                  return (
+                    <div
+                      key={`task-media-${key}`}
+                      className="mt-1"
+                      data-testid="event-attachment-video"
+                      data-attachment-name={attachmentName}
+                    >
+                      <VideoPreview
+                        src={uri}
+                        mimeType={segment.attachment.media_type || "video/mp4"}
+                        description={segment.attachment.description}
+                        maxHeight="20rem"
+                      />
+                    </div>
+                  );
+                }
                 return (
                   <div
                     key={`task-media-${key}`}
-                    className="mt-3"
-                    data-testid="event-attachment-video"
+                    className="mt-1"
+                    data-testid="event-attachment-image"
                     data-attachment-name={attachmentName}
                   >
-                    <VideoPreview
+                    <ImagePreview
                       src={uri}
-                      mimeType={segment.attachment.media_type || "video/mp4"}
-                      description={segment.attachment.description}
+                      alt={segment.attachment.description || segment.attachment.name}
+                      minHeight="12rem"
                       maxHeight="20rem"
+                      sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
                     />
                   </div>
                 );
-              }
-              return (
-                <div
-                  key={`task-media-${key}`}
-                  className="mt-3"
-                  data-testid="event-attachment-image"
-                  data-attachment-name={attachmentName}
-                >
-                  <ImagePreview
-                    src={uri}
-                    alt={segment.attachment.description || segment.attachment.name}
-                    minHeight="12rem"
-                    maxHeight="20rem"
-                    sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
+              })}
+            </div>
+          )}
+          {artifactSegments.length > 0 && (
+            <div className="mt-2 space-y-3">
+              {artifactSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const key = segment.placeholder || `artifact-${index}`;
+                return (
+                  <ArtifactPreviewCard
+                    key={`task-artifact-${key}`}
+                    attachment={segment.attachment}
                   />
-                </div>
-              );
-            })}
-            {artifactSegments.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {artifactSegments.map((segment, index) => {
-                  if (!segment.attachment) {
-                    return null;
-                  }
-                  const key = segment.placeholder || `artifact-${index}`;
-                  return (
-                    <ArtifactPreviewCard
-                      key={`task-artifact-${key}`}
-                      attachment={segment.attachment}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     );
   }
 
@@ -195,14 +204,12 @@ export const EventLine = React.memo(function EventLine({
     return null;
   }
   return (
-    <div
-      className={cn("console-event-line items-center flex", style.line)}
-      data-testid={`event-${event.event_type}`}
-    >
-      <div className={cn("console-event-content", style.content)}>
-        {content}
-      </div>
-    </div>
+    <Card data-testid={`event-${event.event_type}`}>
+      <CardContent className={cn("text-sm leading-relaxed", style.content)}>
+        <div className="text-xs text-muted-foreground">{timestamp}</div>
+        <div className="mt-1">{content}</div>
+      </CardContent>
+    </Card>
   );
 });
 
@@ -266,16 +273,12 @@ function SubagentEventLine({
       data-testid={`event-subagent-${event.event_type}`}
     >
       {showContext && <SubagentHeader context={context} />}
-      <div
-        className={cn(
-          "console-event-line flex rounded-lg border border-primary/30 bg-primary/5 px-3 py-2",
-          style.line,
-        )}
-      >
-        <div className={cn("console-event-content", style.content)}>
-          {content}
-        </div>
-      </div>
+      <Card>
+        <CardContent className={cn("text-sm leading-relaxed", style.content)}>
+          <div className="text-xs text-muted-foreground">{formatTimestamp(event.timestamp)}</div>
+          <div className="mt-1">{content}</div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -369,23 +372,8 @@ interface SubagentHeaderProps {
 }
 
 export function SubagentHeader({ context }: SubagentHeaderProps) {
-  const pillClassName = (
-    tone: SubagentContext["statusTone"] | "info" = "info",
-  ) => {
-    const base =
-      "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]";
-    const toneClass: Record<NonNullable<SubagentContext["statusTone"]> | "info", string> = {
-      info: "border-primary/30 bg-primary/5 text-primary",
-      success: "border-emerald-200/70 bg-emerald-500/10 text-emerald-600 dark:text-emerald-200",
-      warning: "border-amber-200/70 bg-amber-500/10 text-amber-700 dark:text-amber-200",
-      danger: "border-rose-200/70 bg-rose-500/10 text-rose-700 dark:text-rose-200",
-    };
-
-    return cn(base, toneClass[tone]);
-  };
-
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary">
         {context.title}
       </p>
@@ -396,16 +384,35 @@ export function SubagentHeader({ context }: SubagentHeaderProps) {
           </span>
         )}
         {context.concurrency && (
-          <span className={pillClassName("info")}>{context.concurrency}</span>
+          <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+            {context.concurrency}
+          </Badge>
         )}
         {context.progress && (
-          <span className={pillClassName()}>{context.progress}</span>
-        )}
-        {context.status && (
-          <span className={pillClassName(context.statusTone)}>{context.status}</span>
+          <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+            {context.progress}
+          </Badge>
         )}
         {context.stats && (
-          <span className="text-[11px] text-muted-foreground">{context.stats}</span>
+          <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+            {context.stats}
+          </Badge>
+        )}
+        {context.status && (
+          <Badge
+            variant={
+              context.statusTone === "success"
+                ? "success"
+                : context.statusTone === "warning"
+                ? "warning"
+                : context.statusTone === "danger"
+                ? "destructive"
+                : "info"
+            }
+            className="text-[10px] uppercase tracking-[0.18em]"
+          >
+            {context.status}
+          </Badge>
         )}
       </div>
     </div>
