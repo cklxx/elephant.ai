@@ -347,6 +347,23 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       applyIterationComplete(draft, event as IterationCompleteEvent);
       draft.totalTokens = (event as IterationCompleteEvent).tokens_used ?? draft.totalTokens;
       break;
+    case 'user_task': {
+      // New task -> reset final answer state and attachments
+      draft.taskStatus = 'running';
+      draft.finalAnswer = undefined;
+      draft.finalAnswerAttachments = undefined;
+      draft.errorMessage = undefined;
+      draft.totalIterations = undefined;
+      draft.totalTokens = undefined;
+      draft.currentIteration = null;
+      draft.activeToolCallId = null;
+      draft.toolCalls.clear();
+      draft.iterations.clear();
+      draft.steps.clear();
+      draft.stepOrder = [];
+      draft.researchSteps = [];
+      break;
+    }
     case 'task_complete': {
       const complete = event as TaskCompleteEvent;
       const isStreaming = complete.is_streaming === true;
