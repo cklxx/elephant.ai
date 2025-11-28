@@ -132,8 +132,8 @@ export function MarkdownRenderer({
             src={href}
             mimeType={matchedAttachment.mime || "video/mp4"}
             description={matchedAttachment.description || (typeof children === "string" ? children : undefined)}
-            className="my-4 w-full"
-            maxHeight="20rem"
+            className="my-2 max-w-full"
+            maxHeight="360px"
           />
         );
       }
@@ -192,8 +192,8 @@ export function MarkdownRenderer({
               src={src}
               mimeType={matchedAttachment.mime || "video/mp4"}
               description={matchedAttachment.description || alt}
-              className="my-4 w-full"
-              maxHeight="20rem"
+              className="my-2 max-w-full"
+              maxHeight="360px"
             />
           );
         }
@@ -235,18 +235,25 @@ export function MarkdownImage({ className, alt, src, style, ...props }: Markdown
   }
 
   const altText = typeof alt === "string" ? alt : "";
-  const thumbnailStyle = { ...(style || {}), width: "100px", height: "auto" };
+  const thumbnailStyle = {
+    ...(style || {}),
+    maxWidth: style?.maxWidth ?? "min(100%, 360px)",
+    height: "auto",
+  };
 
   return (
     <>
       <button
         type="button"
         onClick={() => setIsPreviewOpen(true)}
-        className="my-4 block overflow-hidden rounded-2xl bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-zoom-in"
+        className="my-2 mr-2 inline-flex max-w-full overflow-hidden rounded-2xl bg-transparent p-0 align-middle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-zoom-in"
         aria-label={altText ? `查看 ${altText} 大图` : "查看大图"}
       >
         <img
-          className={cn("h-auto max-w-full object-contain transition-transform duration-300 hover:scale-[1.02]", className)}
+          className={cn(
+            "h-auto max-h-[360px] max-w-full object-contain transition-transform duration-300 hover:scale-[1.01]",
+            className,
+          )}
           alt={altText}
           src={src}
           style={thumbnailStyle}
@@ -261,7 +268,7 @@ export function MarkdownImage({ className, alt, src, style, ...props }: Markdown
           unstyled
         >
           <img
-            className="h-auto w-full rounded-lg"
+            className="h-auto max-h-[80vh] w-full max-w-[90vw] rounded-lg object-contain"
             alt={altText}
             src={src}
             {...props}

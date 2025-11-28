@@ -15,7 +15,7 @@ interface VideoPreviewProps extends NativeVideoProps {
   description?: string;
   className?: string;
   videoClassName?: string;
-  maxHeight?: string;
+  maxHeight?: string | number;
 }
 
 export function VideoPreview({
@@ -24,7 +24,7 @@ export function VideoPreview({
   description,
   className,
   videoClassName,
-  maxHeight = "20rem",
+  maxHeight = "480px",
   controls = false,
   preload = "metadata",
   ...videoProps
@@ -58,14 +58,16 @@ export function VideoPreview({
   }, []);
 
   const showControls = controls || (canHover ? isHovered : true) || isFocused;
+  const resolvedMaxHeight =
+    typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight;
 
   return (
     <div
       className={cn(
-        "self-center relative w-full overflow-hidden rounded-2xl bg-black",
+        "relative inline-flex max-w-full overflow-hidden rounded-2xl bg-black align-middle",
         className,
       )}
-      style={{ maxHeight }}
+      style={{ maxHeight: resolvedMaxHeight }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -76,7 +78,7 @@ export function VideoPreview({
         aria-label={accessibleLabel}
         title={description}
         className={cn(
-          "block h-full w-full object-cover object-center bg-black",
+          "block h-auto w-full max-h-full object-contain object-center bg-black",
           videoClassName,
         )}
         onFocus={() => setIsFocused(true)}
