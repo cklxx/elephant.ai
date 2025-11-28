@@ -21,7 +21,7 @@ export const InCard: Story = {
   args: {},
   decorators: [
     (Story) => (
-      <div className="p-4 border rounded-lg bg-white shadow">
+      <div className="p-4 border rounded-lg bg-white">
         <Story />
       </div>
     ),

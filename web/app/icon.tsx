@@ -28,7 +28,6 @@ export default function Icon() {
           style={{
             width: "80%",
             height: "80%",
-            filter: "drop-shadow(0 6px 12px rgba(15, 23, 42, 0.12))",
           }}
         >
           <rect

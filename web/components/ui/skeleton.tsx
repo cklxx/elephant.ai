@@ -11,9 +11,7 @@ export function Skeleton({ className, variant = "shimmer" }: SkeletonProps) {
   return (
     <div
       className={cn(
-        "rounded-md bg-muted animate-pulse",
-        variant === "shimmer" &&
-          "animate-shimmer bg-gradient-to-r from-muted via-muted/60 to-muted bg-[length:300%_100%]",
+        "w-full",
         className
       )}
     />
@@ -22,9 +20,9 @@ export function Skeleton({ className, variant = "shimmer" }: SkeletonProps) {
 
 export function SkeletonCard() {
   return (
-    <div className="glass-card p-6 rounded-xl shadow-soft space-y-4">
+    <div className="p-6 space-y-4">
       <div className="flex items-center gap-3">
-        <Skeleton className="h-12 w-12 rounded-xl" />
+        <Skeleton className="h-12 w-12" />
         <div className="space-y-2 flex-1">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-4 w-48" />
@@ -53,7 +51,7 @@ export function SkeletonTimeline({ steps = 4 }: { steps?: number }) {
     <div className="space-y-3">
       {Array.from({ length: steps }).map((_, i) => (
         <div key={i} className="flex items-start gap-3">
-          <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+          <Skeleton className="h-8 w-8 flex-shrink-0" />
           <div className="flex-1 space-y-2">
             <Skeleton className="h-5 w-48" />
             <Skeleton className="h-4 w-full" />

@@ -676,7 +676,7 @@ function LoginPageContent() {
                   width={192}
                   height={192}
                   unoptimized
-                  className="h-48 w-48 rounded-[24px] bg-white/80 p-3 shadow-none"
+                  className="h-48 w-48 rounded-[24px] bg-white/80 p-3"
                 />
               ) : wechatGenerating ? (
                 <div className="flex h-48 w-48 items-center justify-center rounded-[24px] bg-white/50 px-4 text-center text-sm text-gray-700">

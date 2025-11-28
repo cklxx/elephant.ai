@@ -203,7 +203,7 @@ export function VirtualizedEventList({
   }, [visibleEvents]);
 
   return (
-    <Card className={cn('relative overflow-hidden shadow-none', className)}>
+    <Card className={cn('relative overflow-hidden', className)}>
       <CardContent className="p-0">
       <span id={descriptionId} className="sr-only">
         {t('events.stream.ariaDescription')}

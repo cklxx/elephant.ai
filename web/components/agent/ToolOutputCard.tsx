@@ -200,7 +200,7 @@ export function ToolOutputCard({
                   <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
                     {t("tool.section.error")}
                   </p>
-                  <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 shadow-none overflow-x-auto whitespace-pre-wrap">
+                  <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 overflow-x-auto whitespace-pre-wrap">
                     {error}
                   </pre>
                 </div>

@@ -172,7 +172,6 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
               onClick={() => setIsFullscreen(false)}
               variant="outline"
               size="sm"
-              className="shadow-sm"
               aria-label={t("viewport.aria.exitFullscreen")}
             >
               <X className="h-4 w-4 mr-2" />

@@ -36,7 +36,7 @@ export function ImagePreview({
         onClick={() => setOpen(true)}
         aria-label={label}
         className={cn(
-          "group relative block w-full overflow-hidden rounded-2xl cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+          "group relative block w-full overflow-hidden cursor-zoom-in",
           className,
         )}
       >
@@ -56,7 +56,7 @@ export function ImagePreview({
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="bg-background/95 p-0 max-w-none w-screen sm:w-[90vw]"
+          className="p-0 max-w-none w-screen sm:w-[90vw]"
           onClose={() => setOpen(false)}
           showCloseButton={false}
           unstyled
@@ -65,7 +65,7 @@ export function ImagePreview({
             <img
               src={src}
               alt={altText}
-              className="h-auto max-h-[80vh] w-auto max-w-full rounded-3xl object-contain shadow-2xl"
+              className="h-auto max-h-[80vh] w-auto max-w-full object-contain"
             />
           </div>
         </DialogContent>
