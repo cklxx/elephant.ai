@@ -1344,6 +1344,7 @@ ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}pro [command]${C_RESET}      Run production stack on :80 via nginx (default)
   ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
   ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/go)
+  ${C_GREEN}logs [service]${C_RESET}     Tail production logs (alias for: pro logs [service])
   ${C_GREEN}help${C_RESET}               Show this help
 
 ${C_YELLOW}Examples:${C_RESET}
@@ -1375,6 +1376,9 @@ main() {
     case $cmd in
         docker)
             cmd_docker "$@"
+            ;;
+        logs)
+            cmd_pro logs "$@"
             ;;
         pro)
             cmd_pro "${1:-up}" "${@:2}"
