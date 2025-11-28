@@ -206,6 +206,7 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 
 func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 	sent := make(map[string]string)
+	cache := NewDataCache(4, time.Minute)
 	attachments := map[string]ports.Attachment{
 		"note.txt": {
 			Name:      "note.txt",
@@ -214,13 +215,16 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 		},
 	}
 
-	first := sanitizeAttachmentsForStream(attachments, sent)
+	first := sanitizeAttachmentsForStream(attachments, sent, cache, false)
 	if first == nil || len(first) != 1 {
 		t.Fatalf("expected initial attachments to be forwarded, got %#v", first)
 	}
+	if first["note.txt"].URI == "" || strings.HasPrefix(first["note.txt"].URI, "data:") {
+		t.Fatalf("expected inline payload to be cached with URL, got %#v", first["note.txt"])
+	}
 
 	// Re-sending the same attachment payload should be suppressed.
-	if dup := sanitizeAttachmentsForStream(attachments, sent); dup != nil {
+	if dup := sanitizeAttachmentsForStream(attachments, sent, cache, false); dup != nil {
 		t.Fatalf("expected duplicate attachments to be filtered: %#v", dup)
 	}
 
@@ -232,7 +236,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 		},
 	}
 
-	resent := sanitizeAttachmentsForStream(updated, sent)
+	resent := sanitizeAttachmentsForStream(updated, sent, cache, false)
 	if resent == nil || len(resent) != 1 {
 		t.Fatalf("expected updated attachment to be forwarded, got %#v", resent)
 	}

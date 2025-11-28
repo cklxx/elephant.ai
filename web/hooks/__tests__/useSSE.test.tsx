@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { useSSE } from "../useSSE";
 import { apiClient } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
-import { AnyAgentEvent } from "@/lib/types";
+import { AnyAgentEvent, TaskCompleteEvent } from "@/lib/types";
 
 // Mock the apiClient
 vi.mock("@/lib/api", () => ({
@@ -297,7 +297,7 @@ describe("useSSE", () => {
       expect(onEvent).toHaveBeenCalledWith(event);
     });
 
-    test("should replace streaming task_complete updates instead of duplicating", async () => {
+    test("should accumulate streaming task_complete updates while keeping a single event", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
       await waitForConnection(1);
@@ -312,7 +312,7 @@ describe("useSSE", () => {
         session_id: "test-session-123",
         task_id: "task-1",
         agent_level: "core",
-        final_answer: "partial",
+        final_answer: "Hello ",
         total_iterations: 1,
         total_tokens: 10,
         stop_reason: "streaming",
@@ -324,13 +324,13 @@ describe("useSSE", () => {
       const updatedEvent: AnyAgentEvent = {
         ...baseEvent,
         timestamp: new Date(Date.now() + 1000).toISOString(),
-        final_answer: "partial update",
+        final_answer: "world",
       };
 
       const finalEvent: AnyAgentEvent = {
         ...baseEvent,
         timestamp: new Date(Date.now() + 2000).toISOString(),
-        final_answer: "final message",
+        final_answer: "!",
         is_streaming: false,
         stream_finished: true,
       };
@@ -340,21 +340,21 @@ describe("useSSE", () => {
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ final_answer: "partial" });
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello " });
 
       act(() => {
         mockEventSource.simulateEvent("task_complete", updatedEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ final_answer: "partial update" });
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world" });
 
       act(() => {
         mockEventSource.simulateEvent("task_complete", finalEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ final_answer: "final message" });
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world!" });
     });
 
     test("should not dedupe streaming task_complete updates that only flip stream_finished", async () => {
@@ -385,6 +385,7 @@ describe("useSSE", () => {
         ...baseEvent,
         is_streaming: false,
         stream_finished: true,
+        final_answer: "",
       };
 
       act(() => {
@@ -399,7 +400,140 @@ describe("useSSE", () => {
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ stream_finished: true });
+      expect(result.current.events[0]).toMatchObject({ stream_finished: true, final_answer: "partial" });
+    });
+
+    test("rehydrates attachments for streaming task_complete placeholders after merge", async () => {
+      const { result } = renderHook(() => useSSE("session-attachments"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const attachmentName = "表达的艺术.md";
+      const toolEvent: AnyAgentEvent = {
+        event_type: "tool_call_complete",
+        agent_level: "core",
+        timestamp: new Date().toISOString(),
+        session_id: "session-attachments",
+        task_id: "task-attachments",
+        call_id: "call-attachments",
+        tool_name: "artifacts_write",
+        result: "saved",
+        duration: 10,
+        metadata: {
+          attachment_mutations: JSON.stringify({
+            add: {
+              [attachmentName]: {
+                name: attachmentName,
+                media_type: "text/markdown",
+                uri: "https://example.com/file.md",
+              },
+            },
+          }),
+        },
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("tool_call_complete", toolEvent);
+      });
+
+      const baseTimestamp = Date.now();
+      const baseStream: AnyAgentEvent = {
+        event_type: "task_complete",
+        agent_level: "core",
+        session_id: "session-attachments",
+        task_id: "task-attachments",
+        timestamp: new Date(baseTimestamp).toISOString(),
+        final_answer: "",
+        total_iterations: 1,
+        total_tokens: 0,
+        stop_reason: "streaming",
+        duration: 10,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("task_complete", {
+          ...baseStream,
+          final_answer: "输出分片 ",
+        });
+        mockEventSource.simulateEvent("task_complete", {
+          ...baseStream,
+          timestamp: new Date(baseTimestamp + 10).toISOString(),
+          final_answer: "包含 [表达",
+        });
+        mockEventSource.simulateEvent("task_complete", {
+          ...baseStream,
+          timestamp: new Date(baseTimestamp + 20).toISOString(),
+          final_answer: "的艺术.md]",
+          stream_finished: true,
+        });
+      });
+
+      const taskEvents = result.current.events.filter(
+        (evt) => evt.event_type === "task_complete",
+      );
+      expect(taskEvents).toHaveLength(1);
+      const finalEvent = taskEvents[0] as TaskCompleteEvent;
+      expect(finalEvent.final_answer).toContain(`[${attachmentName}]`);
+      expect(finalEvent.attachments?.[attachmentName]).toBeDefined();
+    });
+
+    test("should fall back to assistant_message buffer when task_complete answer is empty", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseTimestamp = Date.now();
+      const assistantMessage1: AnyAgentEvent = {
+        event_type: "assistant_message",
+        timestamp: new Date(baseTimestamp).toISOString(),
+        session_id: "test-session-123",
+        task_id: "task-2",
+        agent_level: "core",
+        iteration: 1,
+        delta: "Hello ",
+        final: false,
+        created_at: new Date(baseTimestamp).toISOString(),
+      };
+
+      const assistantMessage2: AnyAgentEvent = {
+        ...assistantMessage1,
+        timestamp: new Date(baseTimestamp + 500).toISOString(),
+        delta: "world",
+        final: true,
+        created_at: new Date(baseTimestamp + 500).toISOString(),
+      };
+
+      const taskComplete: AnyAgentEvent = {
+        event_type: "task_complete",
+        timestamp: new Date(baseTimestamp + 1000).toISOString(),
+        session_id: "test-session-123",
+        task_id: "task-2",
+        agent_level: "core",
+        final_answer: "",
+        total_iterations: 1,
+        total_tokens: 0,
+        stop_reason: "final_answer",
+        duration: 1000,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("assistant_message", assistantMessage1);
+        mockEventSource.simulateEvent("assistant_message", assistantMessage2);
+        mockEventSource.simulateEvent("task_complete", taskComplete);
+      });
+
+      const lastEvent = result.current.events[result.current.events.length - 1];
+      expect(lastEvent).toMatchObject({ final_answer: "Hello world" });
     });
 
     test("should clear events when clearEvents is called", async () => {

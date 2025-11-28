@@ -96,14 +96,16 @@ func contentSnippet(content string, max int) string {
 // previewProfile normalizes the attachment preview profile based on MIME type
 // or format so downstream consumers can pick a renderer.
 func previewProfile(mediaType, format string) string {
-	if strings.Contains(mediaType, "markdown") || format == "markdown" {
-		return "markdown"
-	}
-	if strings.Contains(mediaType, "html") || format == "html" {
-		return "html"
-	}
-	if strings.HasPrefix(mediaType, "image/") {
-		return "image"
+	media := strings.ToLower(mediaType)
+	fmtFormat := strings.ToLower(format)
+
+	switch {
+	case strings.Contains(media, "markdown") || fmtFormat == "markdown" || fmtFormat == "md":
+		return "document.markdown"
+	case strings.Contains(media, "html") || fmtFormat == "html":
+		return "document.html"
+	case strings.HasPrefix(media, "image/"):
+		return "document.image"
 	}
 	return "document"
 }

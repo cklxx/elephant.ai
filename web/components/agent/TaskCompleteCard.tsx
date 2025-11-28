@@ -115,14 +115,14 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         {hasAnswer ? (
           <MarkdownRenderer
             content={contentWithInlineMedia}
-            className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-600"
+            className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
             attachments={event.attachments}
             components={{
               code: ({ inline, className, children, ...props }: any) => {
                 if (inline) {
                   return (
                     <code
-                      className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600"
+                      className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800"
                       {...props}
                     >
                       {children}
@@ -131,7 +131,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 }
                 return (
                   <code
-                    className="block overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-600"
+                    className="block overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800"
                     {...props}
                   >
                     {children}
@@ -142,25 +142,25 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 <div className="my-4">{children}</div>
               ),
               p: ({ children }: any) => (
-                <p className="mb-4 leading-relaxed text-slate-600">
+                <p className="mb-4 leading-relaxed text-slate-900">
                   {children}
                 </p>
               ),
               ul: ({ children }: any) => (
-                <ul className="mb-4 space-y-2 leading-relaxed text-slate-600">
+                <ul className="mb-4 space-y-2 leading-relaxed text-slate-900">
                   {children}
                 </ul>
               ),
               ol: ({ children }: any) => (
-                <ol className="mb-4 space-y-2 leading-relaxed text-slate-600">
+                <ol className="mb-4 space-y-2 leading-relaxed text-slate-900">
                   {children}
                 </ol>
               ),
               li: ({ children }: any) => (
-                <li className="leading-relaxed text-slate-600">{children}</li>
+                <li className="leading-relaxed text-slate-900">{children}</li>
               ),
               strong: ({ children }: any) => (
-                <strong className="font-bold text-slate-600">{children}</strong>
+                <strong className="font-bold text-slate-900">{children}</strong>
               ),
               img: ({ src, alt, ...imgProps }: { src?: string; alt?: string }) => {
                 if (!src) {
@@ -213,7 +213,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
 
         {metrics.length > 0 && (
           <div
-            className="text-xs uppercase tracking-wide text-slate-400"
+            className="text-xs uppercase tracking-wide text-slate-500"
             data-testid="task-complete-metrics"
           >
             {metrics.join(" · ")}

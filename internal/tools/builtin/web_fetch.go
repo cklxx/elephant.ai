@@ -406,12 +406,14 @@ func (t *webFetch) buildContentAttachments(url, content string) map[string]ports
 
 	return map[string]ports.Attachment{
 		name: {
-			Name:        name,
-			MediaType:   "text/markdown",
-			Data:        encoded,
-			URI:         fmt.Sprintf("data:text/markdown;base64,%s", encoded),
-			Source:      "web_fetch",
-			Description: fmt.Sprintf("Cleaned content captured from %s", url),
+			Name:           name,
+			MediaType:      "text/markdown",
+			Format:         "markdown",
+			PreviewProfile: "document.markdown",
+			Data:           encoded,
+			URI:            fmt.Sprintf("data:text/markdown;base64,%s", encoded),
+			Source:         "web_fetch",
+			Description:    fmt.Sprintf("Cleaned content captured from %s", url),
 		},
 	}
 }

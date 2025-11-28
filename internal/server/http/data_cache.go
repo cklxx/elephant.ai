@@ -38,6 +38,21 @@ func NewDataCache(maxEntries int, ttl time.Duration) *DataCache {
 	}
 }
 
+// StoreBytes caches an arbitrary payload and returns a stable URL for retrieval.
+func (c *DataCache) StoreBytes(mediaType string, data []byte) string {
+	if len(data) == 0 || c == nil {
+		return ""
+	}
+	if strings.TrimSpace(mediaType) == "" {
+		mediaType = "application/octet-stream"
+	}
+
+	hash := sha256.Sum256(data)
+	id := fmt.Sprintf("%x", hash[:])
+	c.store(id, mediaType, data)
+	return "/api/data/" + id
+}
+
 // MaybeStoreDataURI returns a lightweight descriptor when given a data URI; non-data URIs are returned as nil.
 func (c *DataCache) MaybeStoreDataURI(value string) map[string]any {
 	if !strings.HasPrefix(value, "data:") || !strings.Contains(value, ";base64,") {

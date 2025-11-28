@@ -182,4 +182,54 @@ describe('attachmentRegistry', () => {
     expect(taskComplete.attachments).toBeDefined();
     expect(taskComplete.attachments?.['undisplayed.txt']).toBeDefined();
   });
+
+  it('hydrates attachments from metadata mutations even when attachments are absent', () => {
+    const toolEvent: ToolCallCompleteEvent = {
+      ...baseToolCallEvent(),
+      metadata: {
+        attachment_mutations: JSON.stringify({
+          add: {
+            'report.md': {
+              name: 'report.md',
+              media_type: 'text/markdown',
+              uri: 'https://example.com/report.md',
+            },
+          },
+        }),
+      },
+      attachments: undefined,
+    };
+
+    handleAttachmentEvent(toolEvent);
+    expect(toolEvent.attachments?.['report.md']).toBeDefined();
+
+    const camelCaseEvent: ToolCallCompleteEvent = {
+      ...baseToolCallEvent(),
+      call_id: 'call-2',
+      metadata: {
+        attachmentMutations: {
+          add: {
+            'summary.pdf': {
+              name: 'summary.pdf',
+              media_type: 'application/pdf',
+              uri: 'https://example.com/summary.pdf',
+            },
+          },
+        },
+      },
+    };
+
+    handleAttachmentEvent(camelCaseEvent);
+    expect(camelCaseEvent.attachments?.['summary.pdf']).toBeDefined();
+
+    const taskComplete: TaskCompleteEvent = {
+      ...baseTaskCompleteEvent(),
+      final_answer: 'See [report.md] and [summary.pdf] for details.',
+    };
+    handleAttachmentEvent(taskComplete);
+
+    expect(taskComplete.attachments).toBeDefined();
+    expect(taskComplete.attachments?.['report.md']).toBeDefined();
+    expect(taskComplete.attachments?.['summary.pdf']).toBeDefined();
+  });
 });

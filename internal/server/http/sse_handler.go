@@ -2,6 +2,7 @@ package http
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -372,7 +373,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 	switch e := event.(type) {
 	case *domain.UserTaskEvent:
 		data["task"] = e.Task
-		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
 	case *domain.WorkflowLifecycleEvent:
@@ -462,7 +463,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		if len(e.Metadata) > 0 {
 			data["metadata"] = e.Metadata
 		}
-		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
 
@@ -493,7 +494,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		data["is_streaming"] = e.IsStreaming
 		data["stream_finished"] = e.StreamFinished
 		if (!e.IsStreaming || e.StreamFinished) && len(e.Attachments) > 0 {
-			if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
+			if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments, h.dataCache, true); len(sanitized) > 0 {
 				data["attachments"] = sanitized
 			}
 		}
@@ -572,12 +573,12 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		data["iteration"] = e.Iteration
 		data["llm_turn_seq"] = e.LLMTurnSeq
 		data["request_id"] = e.RequestID
-		messages := serializeMessages(e.Messages, sentAttachments)
+		messages := serializeMessages(e.Messages, sentAttachments, h.dataCache)
 		if messages == nil {
 			messages = []map[string]any{}
 		}
 		data["messages"] = messages
-		if excluded := serializeMessages(e.Excluded, sentAttachments); len(excluded) > 0 {
+		if excluded := serializeMessages(e.Excluded, sentAttachments, h.dataCache); len(excluded) > 0 {
 			data["excluded_messages"] = excluded
 		}
 	}
@@ -763,9 +764,23 @@ func sanitizeMap(rv reflect.Value, cache *DataCache) map[string]interface{} {
 	return sanitized
 }
 
-func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string) map[string]ports.Attachment {
+func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string, cache *DataCache, forceInclude bool) map[string]ports.Attachment {
 	if len(attachments) == 0 {
 		return nil
+	}
+
+	sanitized := make(map[string]ports.Attachment, len(attachments))
+	for name, attachment := range attachments {
+		sanitized[name] = normalizeAttachmentPayload(attachment, cache)
+	}
+
+	if forceInclude {
+		if sent != nil {
+			for name, attachment := range sanitized {
+				sent[name] = attachmentDigest(attachment)
+			}
+		}
+		return sanitized
 	}
 
 	// Fast-path: when nothing has been sent yet, reuse the original map to
@@ -773,15 +788,15 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	// sent registry so duplicates can be skipped on later deliveries.
 	if len(sent) == 0 {
 		if sent != nil {
-			for name, attachment := range attachments {
+			for name, attachment := range sanitized {
 				sent[name] = attachmentDigest(attachment)
 			}
 		}
-		return attachments
+		return sanitized
 	}
 
 	var unsent map[string]ports.Attachment
-	for name, attachment := range attachments {
+	for name, attachment := range sanitized {
 		digest := attachmentDigest(attachment)
 		if prevDigest, alreadySent := sent[name]; alreadySent && prevDigest == digest {
 			continue
@@ -796,6 +811,56 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	return unsent
 }
 
+// normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
+// so SSE streams do not push large base64 blobs to the client.
+func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.Attachment {
+	if cache == nil {
+		return att
+	}
+
+	// Already points to an external or cached resource.
+	if att.Data == "" && att.URI != "" && !strings.HasPrefix(att.URI, "data:") {
+		return att
+	}
+
+	mediaType := strings.TrimSpace(att.MediaType)
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+
+	// Prefer explicit data payloads.
+	if att.Data != "" {
+		if decoded, err := base64.StdEncoding.DecodeString(att.Data); err == nil && len(decoded) > 0 {
+			if url := cache.StoreBytes(mediaType, decoded); url != "" {
+				att.URI = url
+				att.Data = ""
+				if att.MediaType == "" {
+					att.MediaType = mediaType
+				}
+				return att
+			}
+		}
+	}
+
+	// Fallback to data URIs when present.
+	if strings.HasPrefix(att.URI, "data:") {
+		if cached := cache.MaybeStoreDataURI(att.URI); cached != nil {
+			if url, ok := cached["url"].(string); ok && url != "" {
+				att.URI = url
+			}
+			if ct, ok := cached["content_type"].(string); ok && ct != "" {
+				att.MediaType = ct
+			} else if att.MediaType == "" {
+				att.MediaType = mediaType
+			}
+			att.Data = ""
+			return att
+		}
+	}
+
+	return att
+}
+
 func attachmentDigest(att ports.Attachment) string {
 	encoded, err := json.Marshal(att)
 	if err != nil {
@@ -805,7 +870,7 @@ func attachmentDigest(att ports.Attachment) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func serializeMessages(messages []ports.Message, sentAttachments map[string]string) []map[string]any {
+func serializeMessages(messages []ports.Message, sentAttachments map[string]string, cache *DataCache) []map[string]any {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -833,7 +898,7 @@ func serializeMessages(messages []ports.Message, sentAttachments map[string]stri
 		if len(msg.Metadata) > 0 {
 			entry["metadata"] = msg.Metadata
 		}
-		if sanitized := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments, cache, false); len(sanitized) > 0 {
 			entry["attachments"] = sanitized
 		}
 		if msg.Source != ports.MessageSourceUnknown && msg.Source != "" {

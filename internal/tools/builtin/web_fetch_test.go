@@ -28,6 +28,12 @@ func TestWebFetchBuildResultCreatesAttachment(t *testing.T) {
 		if att.Data == "" || !strings.HasPrefix(att.URI, "data:text/markdown;base64,") {
 			t.Fatalf("expected data URI payload, got %+v", att)
 		}
+		if att.Format != "markdown" {
+			t.Fatalf("expected markdown format, got %s", att.Format)
+		}
+		if att.PreviewProfile != "document.markdown" {
+			t.Fatalf("expected markdown preview profile, got %s", att.PreviewProfile)
+		}
 		if att.Source != "web_fetch" {
 			t.Fatalf("expected web_fetch source, got %s", att.Source)
 		}

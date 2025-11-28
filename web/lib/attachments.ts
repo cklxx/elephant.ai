@@ -256,11 +256,16 @@ export function getAttachmentSegmentType(
   attachment: AttachmentPayload,
 ): AttachmentSegmentType {
   const mediaType = attachment.media_type?.toLowerCase() ?? '';
+  const mediaSubtype =
+    mediaType.includes('/') && mediaType.split('/').length > 1
+      ? mediaType.split('/')[1]?.split(';')[0]
+      : '';
   if (mediaType.startsWith('video/')) {
     return 'video';
   }
 
   const format = attachment.format?.toLowerCase();
+  const normalizedFormat = format || mediaSubtype;
   const previewProfile = attachment.preview_profile?.toLowerCase() ?? '';
   const kind = attachment.kind?.toLowerCase();
   const previewAssets = attachment.preview_assets ?? [];
@@ -280,7 +285,7 @@ export function getAttachmentSegmentType(
   });
   const htmlLike =
     mediaType === 'text/html' ||
-    format === 'html' ||
+    normalizedFormat === 'html' ||
     previewProfile.includes('html') ||
     hasHtmlAsset;
   if (htmlLike) {
@@ -288,9 +293,18 @@ export function getAttachmentSegmentType(
   }
 
   const documentProfile = previewProfile.startsWith('document.');
-  const documentFormat = (format && DOCUMENT_FORMATS.has(format)) || format === 'pdf';
+  const markdownFormat =
+    normalizedFormat === 'markdown' || normalizedFormat === 'md' || normalizedFormat === 'x-markdown';
+  const documentFormat =
+    (normalizedFormat && DOCUMENT_FORMATS.has(normalizedFormat)) || normalizedFormat === 'pdf' || markdownFormat;
   const isArtifact = kind === 'artifact';
-  if (isArtifact || documentProfile || documentFormat || hasPreviewAssets) {
+  if (
+    isArtifact ||
+    documentProfile ||
+    documentFormat ||
+    hasPreviewAssets ||
+    (mediaType.startsWith('text/') && !htmlLike)
+  ) {
     return 'document';
   }
 

@@ -17,6 +17,31 @@ type AttachmentMutations = {
   remove?: string[];
 };
 
+function parseMutationsPayload(
+  value: unknown,
+): Record<string, any> | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, any>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === "object") {
+    return value as Record<string, any>;
+  }
+
+  return null;
+}
+
 function normalizeAttachmentMap(
   map?: AttachmentMap,
 ): AttachmentMap | undefined {
@@ -44,18 +69,23 @@ function normalizeAttachmentMutations(
     return null;
   }
 
-  const raw = metadata.attachment_mutations || metadata.attachments_mutations;
-  if (!raw || typeof raw !== "object") {
+  const raw =
+    metadata.attachment_mutations ||
+    metadata.attachments_mutations ||
+    metadata.attachmentMutations ||
+    metadata.attachmentsMutations;
+  const parsed = parseMutationsPayload(raw);
+  if (!parsed || typeof parsed !== "object") {
     return null;
   }
 
   const replace = normalizeAttachmentMap(
-    raw.replace || raw.snapshot || raw.catalog,
+    parsed.replace || parsed.snapshot || parsed.catalog,
   );
-  const add = normalizeAttachmentMap(raw.add || raw.create);
-  const update = normalizeAttachmentMap(raw.update || raw.upsert);
-  const remove = Array.isArray(raw.remove || raw.delete)
-    ? (raw.remove || raw.delete)
+  const add = normalizeAttachmentMap(parsed.add || parsed.create);
+  const update = normalizeAttachmentMap(parsed.update || parsed.upsert);
+  const remove = Array.isArray(parsed.remove || parsed.delete)
+    ? (parsed.remove || parsed.delete)
         .map((key: unknown) =>
           typeof key === "string" ? key.trim() : String(key || "").trim(),
         )
@@ -67,6 +97,13 @@ function normalizeAttachmentMutations(
   }
 
   return null;
+}
+
+function shouldIncludeDisplayedAttachments(taskEvent: TaskCompleteEvent): boolean {
+  if (taskEvent.is_streaming === true && taskEvent.stream_finished === false) {
+    return false;
+  }
+  return true;
 }
 
 class AttachmentRegistry {
@@ -209,16 +246,20 @@ class AttachmentRegistry {
   }
 
   private takeUndisplayedFromStore(): AttachmentMap | undefined {
-    const undisplayedEntries = Object.entries(this.store).filter(
-      ([key]) => !this.displayedByTool.has(key),
+    return this.takeFromStore();
+  }
+
+  private takeFromStore(options: { includeDisplayed?: boolean } = {}): AttachmentMap | undefined {
+    const entries = Object.entries(this.store).filter(
+      ([key]) => options.includeDisplayed || !this.displayedByTool.has(key),
     );
 
-    if (undisplayedEntries.length === 0) {
+    if (entries.length === 0) {
       return undefined;
     }
 
-    const result = Object.fromEntries(undisplayedEntries);
-    undisplayedEntries.forEach(([key]) => this.displayedByTool.add(key));
+    const result = Object.fromEntries(entries);
+    entries.forEach(([key]) => this.displayedByTool.add(key));
     return result;
   }
 
@@ -289,7 +330,10 @@ class AttachmentRegistry {
           taskEvent.attachments = rendered;
         }
         if (!taskEvent.attachments) {
-          taskEvent.attachments = this.takeUndisplayedFromStore();
+          const allowDisplayed = shouldIncludeDisplayedAttachments(taskEvent);
+          taskEvent.attachments = this.takeFromStore({
+            includeDisplayed: allowDisplayed,
+          });
         }
         break;
       }

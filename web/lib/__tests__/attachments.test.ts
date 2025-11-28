@@ -45,4 +45,17 @@ describe('attachments helpers', () => {
 
     expect(type).toBe('video');
   });
+
+  it('treats markdown attachments as documents even without explicit format', () => {
+    const attachment = {
+      name: 'web_example_20240101.md',
+      media_type: 'text/markdown',
+      data: 'IyBIZWxsbw==',
+      uri: 'data:text/markdown;base64,IyBIZWxsbw==',
+    };
+
+    const type = getAttachmentSegmentType(attachment as any);
+
+    expect(type).toBe('document');
+  });
 });

@@ -427,14 +427,14 @@ function normalizeEventData(data: unknown): unknown {
   }
 
   // Handle missing event_type - try to infer or skip
-    if (!normalized.event_type || typeof normalized.event_type !== 'string') {
-      // Try to infer event type from available fields
-      if ('final_answer' in normalized && 'total_iterations' in normalized) {
-        normalized.event_type = 'task_complete';
-      } else if ('reason' in normalized && normalized.reason !== undefined) {
-        normalized.event_type = 'task_cancelled';
-      } else if ('tool_name' in normalized && 'result' in normalized && 'call_id' in normalized) {
-        normalized.event_type = 'tool_call_complete';
+  if (!normalized.event_type || typeof normalized.event_type !== 'string') {
+    // Try to infer event type from available fields
+    if ('final_answer' in normalized) {
+      normalized.event_type = 'task_complete';
+    } else if ('reason' in normalized && normalized.reason !== undefined) {
+      normalized.event_type = 'task_cancelled';
+    } else if ('tool_name' in normalized && 'result' in normalized && 'call_id' in normalized) {
+      normalized.event_type = 'tool_call_complete';
     } else if ('tool_name' in normalized && 'call_id' in normalized && !('result' in normalized)) {
       normalized.event_type = 'tool_call_start';
     } else if ('call_id' in normalized && 'chunk' in normalized) {
@@ -475,6 +475,25 @@ function normalizeEventData(data: unknown): unknown {
       // Cannot infer - log and skip this event
       console.debug('[Schema Normalization] Cannot infer event_type, available fields:', Object.keys(normalized));
       return null;
+    }
+  }
+
+  // Fill required defaults for inferred task_complete events to avoid validation drops
+  if (normalized.event_type === 'task_complete') {
+    if (typeof normalized.total_iterations !== 'number') {
+      normalized.total_iterations = 0;
+    }
+    if (typeof normalized.total_tokens !== 'number') {
+      normalized.total_tokens = 0;
+    }
+    if (typeof normalized.duration !== 'number') {
+      normalized.duration = 0;
+    }
+    if (typeof normalized.stop_reason !== 'string' || !normalized.stop_reason) {
+      normalized.stop_reason = 'complete';
+    }
+    if (typeof normalized.final_answer !== 'string') {
+      normalized.final_answer = '';
     }
   }
 

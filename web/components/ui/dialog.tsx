@@ -79,8 +79,7 @@ export function DialogContent({
   const contentClassName = unstyled
     ? cn('relative mx-4 w-full max-w-5xl overflow-hidden rounded-2xl', className)
     : cn(
-        'glass-card p-6 rounded-2xl shadow-strong max-w-lg w-full mx-4',
-        'border border-gray-200/50',
+        'relative mx-4 w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-2xl',
         className
       );
 

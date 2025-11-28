@@ -11,10 +11,10 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { AnyAgentEvent, UserTaskEvent } from "@/lib/types";
+import { AnyAgentEvent, AssistantMessageEvent, UserTaskEvent } from "@/lib/types";
 import { agentEventBus } from "@/lib/events/eventBus";
 import { defaultEventRegistry } from "@/lib/events/eventRegistry";
-import { resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
+import { handleAttachmentEvent, resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
 import { EventPipeline } from "@/lib/events/eventPipeline";
 import { SSEClient } from "@/lib/events/sseClient";
 import { authClient } from "@/lib/auth/client";
@@ -53,6 +53,10 @@ export function useSSE(
   const isConnectingRef = useRef(false);
   const clientRef = useRef<SSEClient | null>(null);
   const pipelineRef = useRef<EventPipeline | null>(null);
+  const streamingAnswerBufferRef = useRef<Map<string, string>>(new Map());
+  const assistantMessageBufferRef = useRef<Map<string, AssistantBufferEntry>>(
+    new Map(),
+  );
   const sessionIdRef = useRef(sessionId);
   const dedupeRef = useRef<{ seen: Set<string>; order: string[] }>({
     seen: new Set(),
@@ -67,10 +71,63 @@ export function useSSE(
     };
   }, []);
 
+  const resetStreamingBuffer = useCallback(() => {
+    streamingAnswerBufferRef.current.clear();
+  }, []);
+
+  const resetAssistantMessageBuffer = useCallback(() => {
+    assistantMessageBufferRef.current.clear();
+  }, []);
+
   const onEventRef = useRef(onEvent);
   useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
+
+  const applyAssistantAnswerFallback = useCallback(
+    (event: AnyAgentEvent): AnyAgentEvent => {
+      if (event.event_type !== "task_complete") return event;
+
+      const taskId =
+        "task_id" in event && typeof event.task_id === "string"
+          ? event.task_id
+          : undefined;
+      const sessionId =
+        "session_id" in event && typeof event.session_id === "string"
+          ? event.session_id
+          : "";
+
+      if (!taskId) return event;
+
+      const key = `${sessionId}|${taskId}`;
+      const entry = assistantMessageBufferRef.current.get(key);
+      const existingAnswer =
+        typeof event.final_answer === "string" ? event.final_answer : "";
+      const streamFinished =
+        event.stream_finished === true || event.is_streaming === false;
+
+      if (streamFinished) {
+        assistantMessageBufferRef.current.delete(key);
+      }
+
+      if (existingAnswer.trim().length > 0) {
+        return event;
+      }
+
+      if (entry && entry.content.trim().length > 0) {
+        if (streamFinished) {
+          assistantMessageBufferRef.current.delete(key);
+        }
+        return {
+          ...event,
+          final_answer: entry.content,
+        };
+      }
+
+      return event;
+    },
+    [],
+  );
 
   const parseServerError = useCallback((err: Event | Error) => {
     if (err instanceof MessageEvent) {
@@ -119,7 +176,9 @@ export function useSSE(
     setEvents([]);
     resetAttachmentRegistry();
     resetDedupe();
-  }, [resetDedupe]);
+    resetStreamingBuffer();
+    resetAssistantMessageBuffer();
+  }, [resetDedupe, resetStreamingBuffer, resetAssistantMessageBuffer]);
 
   const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -262,12 +321,30 @@ export function useSSE(
     });
 
     const unsubscribe = agentEventBus.subscribe((event) => {
+      const bufferedEvent = mergeStreamingTaskComplete(
+        event,
+        streamingAnswerBufferRef.current,
+      );
+      if (bufferedEvent.event_type === "assistant_message") {
+        trackAssistantMessage(
+          bufferedEvent as AssistantMessageEvent,
+          assistantMessageBufferRef.current,
+        );
+      }
+
+      const enrichedEvent = applyAssistantAnswerFallback(bufferedEvent);
+
+      if (enrichedEvent.event_type === "task_complete") {
+        handleAttachmentEvent(enrichedEvent);
+      }
+
       const isStreamingTaskComplete =
-        event.event_type === "task_complete" &&
-        (Boolean(event.is_streaming) || Boolean(event.stream_finished));
+        enrichedEvent.event_type === "task_complete" &&
+        (Boolean(enrichedEvent.is_streaming) ||
+          Boolean(enrichedEvent.stream_finished));
 
       if (!isStreamingTaskComplete) {
-        const dedupeKey = buildEventSignature(event);
+        const dedupeKey = buildEventSignature(enrichedEvent);
         const cache = dedupeRef.current;
         if (cache.seen.has(dedupeKey)) {
           return;
@@ -285,20 +362,23 @@ export function useSSE(
 
       setEvents((prev) => {
         if (
-          event.event_type === "task_complete" &&
-          (event.is_streaming || event.stream_finished)
+          enrichedEvent.event_type === "task_complete" &&
+          (enrichedEvent.is_streaming || enrichedEvent.stream_finished)
         ) {
-          const matchIndex = findLastStreamingTaskCompleteIndex(prev, event);
+          const matchIndex = findLastStreamingTaskCompleteIndex(
+            prev,
+            enrichedEvent,
+          );
           if (matchIndex !== -1) {
             const nextEvents = [...prev];
-            nextEvents[matchIndex] = event;
+            nextEvents[matchIndex] = enrichedEvent;
             return nextEvents;
           }
         }
 
-        return [...prev, event];
+        return [...prev, enrichedEvent];
       });
-      onEventRef.current?.(event);
+      onEventRef.current?.(enrichedEvent);
     });
 
     return () => {
@@ -324,6 +404,8 @@ export function useSSE(
       setEvents([]);
       resetAttachmentRegistry();
       resetDedupe();
+      resetStreamingBuffer();
+      resetAssistantMessageBuffer();
     }
 
     if (sessionId && enabled) {
@@ -333,7 +415,15 @@ export function useSSE(
     return () => {
       cleanup();
     };
-  }, [sessionId, enabled, connectInternal, cleanup, resetDedupe]);
+  }, [
+    sessionId,
+    enabled,
+    connectInternal,
+    cleanup,
+    resetDedupe,
+    resetStreamingBuffer,
+    resetAssistantMessageBuffer,
+  ]);
 
   const reconnect = useCallback(() => {
     cleanup();
@@ -384,6 +474,109 @@ function findLastStreamingTaskCompleteIndex(
   }
 
   return -1;
+}
+
+function mergeStreamingTaskComplete(
+  event: AnyAgentEvent,
+  buffer: Map<string, string>,
+): AnyAgentEvent {
+  if (event.event_type !== "task_complete") return event;
+
+  const taskId =
+    "task_id" in event && typeof event.task_id === "string"
+      ? event.task_id
+      : undefined;
+  const sessionId =
+    "session_id" in event && typeof event.session_id === "string"
+      ? event.session_id
+      : "";
+
+  if (!taskId) return event;
+
+  const key = `${sessionId}|${taskId}`;
+  const chunk = event.final_answer ?? "";
+  const previous = buffer.get(key) ?? "";
+  const isStreaming = event.is_streaming === true;
+  const streamFinished = event.stream_finished === true;
+  const streamInProgress = isStreaming || event.stream_finished === false;
+
+  if (streamInProgress) {
+    const combined = combineChunks(previous, chunk);
+    buffer.set(key, combined);
+    return {
+      ...event,
+      final_answer: combined,
+    };
+  }
+
+  if (streamFinished) {
+    const combined = combineChunks(previous, chunk);
+    buffer.delete(key);
+    return {
+      ...event,
+      final_answer: combined,
+    };
+  }
+
+  if (previous) {
+    const combined = combineChunks(previous, chunk);
+    buffer.delete(key);
+    return {
+      ...event,
+      final_answer: combined,
+    };
+  }
+
+  return event;
+}
+
+type AssistantBufferEntry = {
+  iteration: number;
+  content: string;
+};
+
+function trackAssistantMessage(
+  event: AssistantMessageEvent,
+  buffer: Map<string, AssistantBufferEntry>,
+) {
+  const taskId =
+    "task_id" in event && typeof event.task_id === "string"
+      ? event.task_id
+      : undefined;
+  const sessionId =
+    "session_id" in event && typeof event.session_id === "string"
+      ? event.session_id
+      : "";
+  if (!taskId) return;
+
+  const iteration =
+    typeof event.iteration === "number" ? event.iteration : Number.MIN_SAFE_INTEGER;
+  const key = `${sessionId}|${taskId}`;
+  const existing = buffer.get(key);
+
+  const baseContent =
+    existing && existing.iteration === iteration ? existing.content : "";
+  const combined = combineChunks(baseContent, event.delta ?? "");
+
+  buffer.set(key, {
+    iteration,
+    content: combined,
+  });
+}
+
+function combineChunks(previous: string, chunk: string): string {
+  if (!chunk) return previous;
+  if (!previous) return chunk;
+
+  if (chunk.startsWith(previous)) {
+    return chunk;
+  }
+
+  if (previous.endsWith(chunk)) {
+    return previous;
+  }
+
+  return previous + chunk;
 }
 
 export function buildEventSignature(event: AnyAgentEvent): string {

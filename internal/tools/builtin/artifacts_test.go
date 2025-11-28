@@ -36,6 +36,12 @@ func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
 	if att.Source != "artifacts_write" {
 		t.Fatalf("expected source to default to tool name, got %q", att.Source)
 	}
+	if att.Format != "markdown" {
+		t.Fatalf("expected markdown format normalization, got %q", att.Format)
+	}
+	if att.PreviewProfile != "document.markdown" {
+		t.Fatalf("expected markdown preview profile, got %q", att.PreviewProfile)
+	}
 
 	mutationsRaw, ok := result.Metadata["attachment_mutations"]
 	if !ok || mutationsRaw == nil {

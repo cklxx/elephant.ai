@@ -48,14 +48,17 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 	if mediaType == "" {
 		mediaType = "text/markdown"
 	}
+
 	description := strings.TrimSpace(stringArg(call.Arguments, "description"))
 	format := strings.TrimSpace(stringArg(call.Arguments, "format"))
 	if format == "" {
 		format = strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), ".")
 	}
-	if format == "" && strings.Contains(mediaType, "markdown") {
+	if format == "" && strings.Contains(strings.ToLower(mediaType), "markdown") {
 		format = "markdown"
 	}
+	format = normalizeFormat(format)
+
 	kind := strings.TrimSpace(stringArg(call.Arguments, "kind"))
 	if kind == "" {
 		kind = "artifact"
@@ -222,4 +225,15 @@ func (t *artifactsDelete) Definition() ports.ToolDefinition {
 
 func (t *artifactsDelete) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{Name: "artifacts_delete", Version: "1.0.0", Category: "attachments"}
+}
+
+func normalizeFormat(format string) string {
+	normalized := strings.ToLower(strings.TrimSpace(format))
+	switch normalized {
+	case "md", "markdown", "mkd", "mdown":
+		return "markdown"
+	case "htm":
+		return "html"
+	}
+	return normalized
 }
