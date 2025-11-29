@@ -106,7 +106,7 @@
 │  │                      React Components                                   │  │
 │  │                                                                         │  │
 │  │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────┐  │  │
-│  │  │  AgentOutput     │  │ ResearchTimeline │  │  IterationDetails   │  │  │
+│  │  │  AgentOutput     │  │ TimelineStepList │  │  IterationDetails   │  │  │
 │  │  │  • Connection    │  │  • Step progress │  │  • Thinking content │  │  │
 │  │  │  • Memory stats  │  │  • Current step  │  │  • Tool calls       │  │  │
 │  │  │  • Event list    │  │  • Completed     │  │  • Errors           │  │  │
@@ -133,7 +133,7 @@
 │  │  │                                                                   │  │  │
 │  │  │  • TaskAnalysisCard      • IterationStartBanner                 │  │  │
 │  │  │  • ToolCallCard          • IterationCompleteBanner              │  │  │
-│  │  │  • ThinkingIndicator     • ResearchPlanCard (new)               │  │  │
+│  │  │  • ThinkingIndicator     • TimelineStepList                     │  │  │
 │  │  │  • TaskCompleteCard      • StepStartedBanner (new)              │  │  │
 │  │  │  • ErrorCard             • StepCompletedCard (new)              │  │  │
 │  │  │                          • BrowserDiagnosticsCard (new)         │  │  │

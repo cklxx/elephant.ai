@@ -26,13 +26,52 @@ interface TaskCompleteCardProps {
   event: TaskCompleteEvent;
 }
 
+const INLINE_MEDIA_REGEX = /(data:image\/[^\s)]+|\/api\/data\/[A-Za-z0-9]+)/g;
+
+function convertInlineMediaToMarkdown(text: string): string {
+  if (!text) return text;
+  let result = text;
+  const matches = Array.from(text.matchAll(INLINE_MEDIA_REGEX));
+  // Replace from the end to keep indexes stable
+  for (let i = matches.length - 1; i >= 0; i -= 1) {
+    const m = matches[i];
+    if (!m || m.index === undefined) continue;
+    const start = m.index;
+    const end = start + m[0].length;
+    const before = text.slice(Math.max(0, start - 3), start);
+    if (before.includes("![")) {
+      continue;
+    }
+    result = `${result.slice(0, start)}![inline media](${m[0]})${result.slice(end)}`;
+  }
+  return result;
+}
+
 export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
   const answer = event.final_answer ?? "";
+  const markdownAnswer = convertInlineMediaToMarkdown(answer);
   const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
-    answer,
+    markdownAnswer,
     event.attachments,
   );
+  const inlineImageMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = imageRegex.exec(contentWithInlineMedia)) !== null) {
+      const alt = (match[1] || "").trim();
+      const url = (match[2] || "").trim();
+      if (!url) {
+        continue;
+      }
+      const key = alt || url;
+      if (!map.has(key)) {
+        map.set(key, url);
+      }
+    }
+    return map;
+  }, [contentWithInlineMedia]);
   const inlineAttachmentMap = useMemo(() => {
     if (!event.attachments) {
       return new Map<
@@ -73,10 +112,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         }
       >(),
     );
-  }, [event.attachments]);
-  const segments = parseContentSegments(answer, event.attachments);
+  }, [event.attachments, markdownAnswer]);
+  const segments = parseContentSegments(markdownAnswer, event.attachments);
   const referencedPlaceholders = new Set(
-    Array.from(answer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
+    Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
   );
   const hasAnswer = contentWithInlineMedia.trim().length > 0;
 
@@ -183,7 +222,11 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 <strong className="font-bold text-slate-900">{children}</strong>
               ),
               img: ({ src, alt }: { src?: string; alt?: string }) => {
-                if (!src) {
+                const recoveredSrc =
+                  (src && src.trim()) ||
+                  inlineImageMap.get((alt || "").trim()) ||
+                  undefined;
+                if (!recoveredSrc) {
                   return null;
                 }
                 const matchedAttachment = inlineAttachmentMap.get(src);
@@ -191,7 +234,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   return (
                     <VideoPreview
                       key={`task-complete-inline-video-${matchedAttachment.key}`}
-                      src={src}
+                      src={recoveredSrc}
                       mimeType={matchedAttachment.mime || "video/mp4"}
                       description={matchedAttachment.description || alt || matchedAttachment.key}
                       className="w-full"
@@ -208,7 +251,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   );
                 }
 
-                return <InlineMarkdownImage src={src} alt={alt} />;
+                return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
               },
             }}
           />

@@ -1544,35 +1544,31 @@ func extractRewardValue(metadata map[string]any) (float64, bool) {
 func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.Attachment) string {
 	normalized := strings.TrimSpace(answer)
 
-	var used map[string]bool
+	// Strip unknown placeholders entirely when we have no attachment catalog.
+	if len(attachments) == 0 {
+		replaced := contentPlaceholderPattern.ReplaceAllString(normalized, "")
+		return strings.TrimSpace(replaced)
+	}
+
+	used := make(map[string]bool, len(attachments))
 	replaced := contentPlaceholderPattern.ReplaceAllStringFunc(normalized, func(match string) string {
 		name := strings.TrimSpace(match[1 : len(match)-1])
 		if name == "" {
 			return ""
 		}
-		if len(attachments) == 0 {
+		if _, ok := attachments[name]; !ok {
 			return ""
-		}
-		att, ok := attachments[name]
-		if !ok {
-			return ""
-		}
-		if used == nil {
-			used = make(map[string]bool, len(attachments))
 		}
 		used[name] = true
-		return attachmentMarkdown(name, att)
+		return fmt.Sprintf("[%s]", name)
 	})
 
 	replaced = strings.TrimSpace(replaced)
-	if len(attachments) == 0 {
-		return replaced
-	}
 
 	var missing []string
 	for key := range attachments {
 		name := strings.TrimSpace(key)
-		if name == "" || (used != nil && used[name]) {
+		if name == "" || used[name] {
 			continue
 		}
 		missing = append(missing, name)
@@ -1588,9 +1584,9 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 		builder.WriteString(replaced)
 		builder.WriteString("\n\n")
 	}
+	builder.WriteString("Attachments available:\n")
 	for _, name := range missing {
-		builder.WriteString(attachmentMarkdown(name, attachments[name]))
-		builder.WriteString("\n\n")
+		fmt.Fprintf(&builder, "- [%s]\n", name)
 	}
 	return strings.TrimSpace(builder.String())
 }

@@ -4,19 +4,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 const MAX_HISTORY = 10;
-const MAX_PINNED = 5;
 
 interface SessionState {
   currentSessionId: string | null;
   sessionHistory: string[];
-  pinnedSessions: string[];
   sessionLabels: Record<string, string>;
   setCurrentSession: (sessionId: string) => void;
   clearCurrentSession: () => void;
   addToHistory: (sessionId: string) => void;
   removeSession: (sessionId: string) => void;
   renameSession: (sessionId: string, label: string) => void;
-  togglePinSession: (sessionId: string) => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -24,7 +21,6 @@ export const useSessionStore = create<SessionState>()(
     (set) => ({
       currentSessionId: null,
       sessionHistory: [],
-      pinnedSessions: [],
       sessionLabels: {},
 
       setCurrentSession: (sessionId: string) =>
@@ -35,25 +31,11 @@ export const useSessionStore = create<SessionState>()(
 
       addToHistory: (sessionId: string) =>
         set((state) => {
-          const currentPinned = state.pinnedSessions ?? [];
-          const pinnedSet = new Set(currentPinned);
-
-          if (pinnedSet.has(sessionId)) {
-            return {
-              pinnedSessions: [
-                sessionId,
-                ...currentPinned.filter((id) => id !== sessionId),
-              ],
-            };
-          }
-
           const currentHistory = state.sessionHistory ?? [];
-          const recentSessions = currentHistory.filter(
-            (id) => id !== sessionId && !pinnedSet.has(id)
-          );
+          const nextHistory = [sessionId, ...currentHistory.filter((id) => id !== sessionId)];
 
           return {
-            sessionHistory: [sessionId, ...recentSessions].slice(0, MAX_HISTORY),
+            sessionHistory: nextHistory.slice(0, MAX_HISTORY),
           };
         }),
 
@@ -61,24 +43,16 @@ export const useSessionStore = create<SessionState>()(
         set((state) => {
           const nextState: Partial<SessionState> = {};
 
-          // Remove from history
           if (state.sessionHistory.includes(sessionId)) {
             nextState.sessionHistory = state.sessionHistory.filter((id) => id !== sessionId);
           }
 
-          // Remove from pinned
-          if (state.pinnedSessions.includes(sessionId)) {
-            nextState.pinnedSessions = state.pinnedSessions.filter((id) => id !== sessionId);
-          }
-
-          // Remove label
           if (state.sessionLabels[sessionId]) {
             const nextLabels = { ...state.sessionLabels };
             delete nextLabels[sessionId];
             nextState.sessionLabels = nextLabels;
           }
 
-          // Clear current session if it's the deleted one
           if (state.currentSessionId === sessionId) {
             nextState.currentSessionId = null;
           }
@@ -99,48 +73,24 @@ export const useSessionStore = create<SessionState>()(
 
           return { sessionLabels: nextLabels };
         }),
-
-      togglePinSession: (sessionId: string) =>
-        set((state) => {
-          const currentPinned = state.pinnedSessions ?? [];
-          const currentHistory = state.sessionHistory ?? [];
-          const isPinned = currentPinned.includes(sessionId);
-
-          if (isPinned) {
-            const updatedPinned = currentPinned.filter(
-              (id) => id !== sessionId
-            );
-
-            const updatedHistory = [
-              sessionId,
-              ...currentHistory.filter((id) => id !== sessionId),
-            ].slice(0, MAX_HISTORY);
-
-            return {
-              pinnedSessions: updatedPinned,
-              sessionHistory: updatedHistory,
-            };
-          }
-
-          const nextPinnedRaw = [
-            sessionId,
-            ...currentPinned.filter((id) => id !== sessionId),
-          ];
-          const nextPinned = nextPinnedRaw.slice(0, MAX_PINNED);
-          const overflow = nextPinnedRaw.slice(MAX_PINNED);
-
-          const filteredHistory = currentHistory.filter(
-            (id) => id !== sessionId && !overflow.includes(id)
-          );
-
-          return {
-            pinnedSessions: nextPinned,
-            sessionHistory: [...overflow, ...filteredHistory].slice(0, MAX_HISTORY),
-          };
-        }),
     }),
     {
       name: 'alex-session-storage',
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState as Partial<SessionState>) ?? {};
+
+        return {
+          ...currentState,
+          currentSessionId: persisted.currentSessionId ?? null,
+          sessionHistory: persisted.sessionHistory ?? [],
+          sessionLabels: persisted.sessionLabels ?? {},
+        };
+      },
+      partialize: (state) => ({
+        currentSessionId: state.currentSessionId,
+        sessionHistory: state.sessionHistory,
+        sessionLabels: state.sessionLabels,
+      }),
     }
   )
 );

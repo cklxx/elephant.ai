@@ -176,12 +176,12 @@ p-6: 1.5rem   /* Section */
 |---------|------|------|---------|
 | `TerminalOutput.tsx` | ✅ 生产中 | 事件流显示 + Plan 审批逻辑 | 114 行 |
 | `EventList.tsx` | ✅ 生产中 | 虚拟化事件列表 (性能优化) | ~200 行 |
-| `ResearchPlanCard.tsx` | ✅ 生产中 | Plan 审批/修改 UI | ~150 行 |
+| `usePlanApproval.ts` | ✅ 生产中 | Plan 自动审批 (无 UI) | ~150 行 |
 | `TaskInput.tsx` | ✅ 生产中 | 自动调整高度的输入框 | ~100 行 |
 | `ConnectionBanner.tsx` | ✅ 生产中 | 连接状态提示 + 重连按钮 | ~50 行 |
 | `Research ConsoleAgentOutput.tsx` | ⚠️ 存在但未使用 | 包含 Tab 切换逻辑 (Computer/Timeline) | ~200 行 |
 | `WebViewport.tsx` | ⚠️ 存在但未使用 | 工具输出轮播查看器 | ~150 行 |
-| `ResearchTimeline.tsx` | ❓ 待确认 | 步骤时间线组件 | 未知 |
+| `TimelineStepList.tsx` | ✅ 生产中 | 步骤时间线组件 | ~120 行 |
 | `DocumentCanvas.tsx` | ❓ 待确认 | 多模式文档查看 (Default/Reading/Compare) | 未知 |
 
 ### 2.3 已有优点
@@ -211,8 +211,7 @@ useEffect(() => {
 
 #### ✅ **Plan 审批集成**
 - 从事件流解析 `research_plan` 事件
-- 显示 `ResearchPlanCard` 组件
-- 支持 Approve/Edit/Reject 操作
+- 自动调用 `usePlanApproval` 直接批准计划（无独立 UI）
 - API 调用: `POST /api/plans/approve`
 
 ### 2.4 存在不足
@@ -446,10 +445,10 @@ npm install --save-dev @types/react-syntax-highlighter
     {/* 左侧: 时间线 (仅桌面端显示) */}
     {steps.length > 0 && (
       <aside className="hidden lg:block w-64 flex-shrink-0">
-        <ResearchTimeline
+        <TimelineStepList
           steps={steps}
-          activeStep={currentStep}
-          onStepClick={handleStepClick}
+          focusedStepId={currentStep}
+          onStepSelect={handleStepClick}
         />
       </aside>
     )}
@@ -471,43 +470,43 @@ npm install --save-dev @types/react-syntax-highlighter
 </div>
 ```
 
-#### **新建组件**: `web/components/agent/ResearchTimeline.tsx`
+#### **新建组件**: `web/components/agent/TimelineStepList.tsx`
 
 ```typescript
 interface Step {
   id: string;
   title: string;
-  status: 'pending' | 'active' | 'completed' | 'error';
+  status: 'planned' | 'active' | 'done' | 'failed';
   duration?: number;
   toolsUsed?: string[];
 }
 
-interface ResearchTimelineProps {
+interface TimelineStepListProps {
   steps: Step[];
-  activeStep: string | null;
-  onStepClick: (stepId: string) => void;
+  focusedStepId: string | null;
+  onStepSelect: (stepId: string) => void;
 }
 
-export function ResearchTimeline({ steps, activeStep, onStepClick }: ResearchTimelineProps) {
+export function TimelineStepList({ steps, focusedStepId, onStepSelect }: TimelineStepListProps) {
   const activeRef = useRef<HTMLDivElement>(null);
 
   // 自动滚动到活跃步骤
   useEffect(() => {
     activeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [activeStep]);
+  }, [focusedStepId]);
 
   return (
     <nav className="space-y-1" aria-label="Research progress">
       {steps.map((step, idx) => {
-        const isActive = step.id === activeStep;
-        const isCompleted = step.status === 'completed';
-        const isError = step.status === 'error';
+        const isActive = step.id === focusedStepId;
+        const isCompleted = step.status === 'done';
+        const isError = step.status === 'failed';
 
         return (
           <button
             key={step.id}
             ref={isActive ? activeRef : null}
-            onClick={() => onStepClick(step.id)}
+            onClick={() => onStepSelect(step.id)}
             className={cn(
               'w-full text-left px-3 py-2 rounded-md transition-colors',
               'flex items-start gap-2 group',
@@ -575,7 +574,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): Step[] {
           toolsUsed: [],
         };
       } else if (event.event_type === 'step_complete' && currentStep) {
-        currentStep.status = 'completed';
+        currentStep.status = 'done';
         currentStep.duration = event.duration_ms;
         steps.push(currentStep as Step);
         currentStep = null;
@@ -614,7 +613,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): Step[] {
 
 #### **目标**: 优化 Plan 审批流程
 
-#### **修改**: `web/components/agent/ResearchPlanCard.tsx`
+#### **修改**: `usePlanApproval`（自动审批，无 UI）
 
 新增功能:
 1. **Reject 按钮**: 添加拒绝按钮和理由输入
@@ -672,9 +671,9 @@ const [isRejecting, setIsRejecting] = useState(false);
 ---
 
 #### 实现进展更新 (2025-10-10)
-- ✅ `ResearchPlanCard` 在计划审批状态下展示执行概览，包括完成率、耗时、Token 消耗与工具覆盖情况，帮助评审者快速复盘执行效率。
-- ✅ 新增 `usePlanProgress` 指标聚合 Hook，将时间线步骤数据转换为可复用的统计指标，方便未来接入看板与报告模块。
-- ✅ 支持通过拖拽快速重排计划步骤，并在元信息区展示预计迭代次数、执行耗时与工具覆盖，配合中英文文案增强审批阶段的决策效率。
+- ✅ 计划事件到达后自动调用 `usePlanApproval` 直接批准，避免等待人工确认。
+- ✅ 保留 `usePlanProgress` 指标聚合 Hook，将时间线步骤数据转换为可复用的统计指标，便于看板与报告复用。
+- ❌ 原有计划编辑/拖拽 UI 已移除，审批流程走无界面路径以简化交互。
 
 #### 实现进展更新 (2025-10-11)
 - ❌ 移除了控制台会话中的 Plan 审批卡片，避免在研究流程中出现与截图参考不符的确认界面。

@@ -9,34 +9,29 @@ Successfully implemented all research console-style interaction patterns for the
 ### 1. Plan Approval Flow ✅
 
 **Components:**
-- `ResearchPlanCard.tsx` - Fully interactive plan review UI
-- `usePlanApproval.ts` - State management hook
+- `usePlanApproval.ts` - State management hook (auto-approves plans)
 
 **Features:**
-- Display research plan before execution
-- Inline editing of plan steps
-- Three actions: APPROVE | MODIFY | CANCEL
+- Auto-approve research plans on receipt (no dedicated UI)
 - API integration with `/api/plans/approve`
-- Loading states with skeleton UI
-- Toast notifications for state changes
 
 **User Flow:**
 ```
-Submit Task → Generate Plan → Review → Approve/Modify/Cancel → Execute
+Submit Task → Generate Plan → Auto-Approve → Execute
 ```
 
 ### 2. Real-Time Timeline ✅
 
 **Components:**
-- `ResearchTimeline.tsx` - Step-by-step execution timeline
+- `TimelineStepList.tsx` - Step-by-step execution timeline
 - `useTimelineSteps.ts` - Event-to-step converter
+- `usePlanProgress.ts` - Progress metrics calculator (shared hook)
 
 **Features:**
 - Visual status indicators: ⏸️ pending | ▶️ active | ✅ complete | ❌ error
-- Auto-scroll to active step
-- Expandable step details (tools, duration, tokens)
-- Collapsible completed steps
-- Smooth animations
+- Auto-scroll to active step with manual focus override
+- Compact status badges with text + icon
+- Keyboard-friendly step selection
 
 ### 3. Computer View ✅
 
@@ -103,8 +98,7 @@ web/
 ├── components/
 │   ├── agent/
 │   │   ├── ConsoleAgentOutput.tsx      # 🆕 Main integration
-│   │   ├── ResearchPlanCard.tsx      # ✅ Existing (enhanced)
-│   │   ├── ResearchTimeline.tsx      # ✅ Existing (enhanced)
+│   │   ├── TimelineStepList.tsx         # 🆕 Timeline list
 │   │   ├── WebViewport.tsx           # ✅ Existing (enhanced)
 │   │   ├── DocumentCanvas.tsx        # ✅ Existing (enhanced)
 │   │   ├── AgentOutput.tsx           # Existing (preserved)
@@ -121,12 +115,14 @@ web/
 │   ├── usePlanApproval.ts           # 🆕 New hook
 │   ├── useToolOutputs.ts            # 🆕 New hook
 │   ├── useTimelineSteps.ts          # 🆕 New hook
+│   ├── usePlanProgress.ts           # 🆕 Progress metrics hook
 │   ├── useTaskExecution.ts          # Existing
 │   ├── useSSE.ts                    # Existing
 │   └── useSessionStore.ts           # Existing
 ├── lib/
 │   ├── api.ts                       # ✏️ Updated (added approvePlan)
-│   └── types.ts                     # ✏️ Updated (added plan types)
+│   ├── types.ts                     # ✏️ Updated (plan events)
+│   └── planTypes.ts                 # 🆕 Timeline step types
 ├── app/
 │   └── page.tsx                     # ✏️ Updated (research console UI integration)
 └── docs/                            # 🆕 New directory
@@ -245,8 +241,8 @@ web/hooks/__tests__/useToolOutputs.test.ts
 web/hooks/__tests__/useTimelineSteps.test.ts
 
 # Test components
-web/components/agent/__tests__/ResearchPlanCard.test.tsx
-web/components/agent/__tests__/ConsoleAgentOutput.test.tsx
+web/components/agent/__tests__/TaskInput.test.tsx
+web/components/agent/__tests__/TerminalOutput.test.tsx
 ```
 
 ### Integration Tests

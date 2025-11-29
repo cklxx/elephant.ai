@@ -1,4 +1,4 @@
-// Hook to convert agent events to timeline steps for ResearchTimeline
+// Hook to convert agent events to timeline steps for plan/timeline summaries
 
 import { useMemo } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
@@ -11,7 +11,7 @@ import {
   isToolCallStartEvent,
   isResearchPlanEvent,
 } from '@/lib/typeGuards';
-import { TimelineStep } from '@/components/agent/ResearchTimeline';
+import { TimelineStep } from '@/lib/planTypes';
 
 export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
   return useMemo(() => {

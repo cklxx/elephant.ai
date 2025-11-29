@@ -57,7 +57,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// SSE endpoint
 	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
-	mux.Handle("/api/data/", routeHandler("/api/data", wrap(dataCache.Handler())))
+	// Attachment blobs served from the in-memory cache must stay publicly readable so the
+	// frontend can load them without propagating auth tokens. The contents are already
+	// sanitized when stored.
+	mux.Handle("/api/data/", routeHandler("/api/data", dataCache.Handler()))
 	mux.Handle("/api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
 
 	if authHandler != nil {

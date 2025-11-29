@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 type cachedPayload struct {
@@ -55,6 +56,7 @@ func (c *DataCache) StoreBytes(mediaType string, data []byte) string {
 
 // MaybeStoreDataURI returns a lightweight descriptor when given a data URI; non-data URIs are returned as nil.
 func (c *DataCache) MaybeStoreDataURI(value string) map[string]any {
+	value = strings.TrimSpace(value)
 	if !strings.HasPrefix(value, "data:") || !strings.Contains(value, ";base64,") {
 		return nil
 	}
@@ -110,7 +112,7 @@ func (c *DataCache) evictLocked() {
 // Handler returns an http.Handler that serves cached payloads by id.
 func (c *DataCache) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimPrefix(r.URL.Path, "/api/data/")
+		id := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/data/"))
 		if id == "" {
 			http.NotFound(w, r)
 			return
@@ -143,12 +145,18 @@ func (c *DataCache) lookup(id string) (cachedPayload, bool) {
 }
 
 func decodeDataURI(value string) (string, []byte, bool) {
-	parts := strings.SplitN(value, ",", 2)
+	trimmed := strings.TrimSpace(value)
+	parts := strings.SplitN(trimmed, ",", 2)
 	if len(parts) != 2 {
 		return "", nil, false
 	}
 	header := parts[0]
-	payload := parts[1]
+	payload := strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, parts[1])
 
 	mediaType := strings.TrimPrefix(header, "data:")
 	mediaType = strings.TrimSuffix(mediaType, ";base64")

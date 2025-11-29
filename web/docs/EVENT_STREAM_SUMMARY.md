@@ -63,7 +63,7 @@ A complete event stream state management system has been implemented for the ALE
 - ✅ **web/docs/QUICK_START_STORE.md** - Quick reference guide (300+ lines):
   - Basic usage examples
   - All selector documentation
-  - Example components (ResearchTimeline, IterationList)
+  - Example components (TimelineStepList, IterationList)
   - Performance tips
   - Debugging tools
 
@@ -230,7 +230,7 @@ eventTypes := []string{
 
 ## Example Usage
 
-### Research Timeline Component
+### Timeline Step List Component
 
 ```typescript
 import {
@@ -239,7 +239,7 @@ import {
   useCurrentResearchStep,
 } from '@/hooks/useAgentStreamStore';
 
-function ResearchTimeline() {
+function TimelineStepListExample() {
   const { actionName, goal } = useTaskSummary();
   const completedSteps = useCompletedResearchSteps();
   const currentStep = useCurrentResearchStep();

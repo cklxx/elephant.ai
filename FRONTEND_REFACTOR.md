@@ -205,14 +205,12 @@ const { planState, currentPlan } = useMemo(() => {
   };
 }, [events]);
 
-// 条件渲染 Plan 卡片
-{planState === 'awaiting_approval' && currentPlan && (
-  <ResearchPlanCard
-    plan={currentPlan}
-    onApprove={handleApprove}
-    onReject={handleReject}
-  />
-)}
+// 自动审批 Plan（无独立 UI）
+useEffect(() => {
+  if (planState === 'awaiting_approval' && currentPlan) {
+    handleApprove();
+  }
+}, [planState, currentPlan, handleApprove]);
 ```
 
 ## 样式规范

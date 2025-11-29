@@ -290,7 +290,7 @@ import {
   useMemoryStats,
 } from '@/hooks/useAgentStreamStore';
 
-function ResearchTimeline() {
+function TimelineStepListExample() {
   const currentStep = useCurrentResearchStep();
   const completedSteps = useCompletedResearchSteps();
   const taskSummary = useTaskSummary();

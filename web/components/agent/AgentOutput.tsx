@@ -6,9 +6,10 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
-import { ResearchTimeline } from './ResearchTimeline';
+import { TimelineStepList } from './TimelineStepList';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useMemoryStats } from '@/hooks/useAgentStreamStore';
+import { useTranslation } from '@/lib/i18n';
 
 interface AgentOutputProps {
   events: AnyAgentEvent[];
@@ -27,6 +28,7 @@ export function AgentOutput({
   reconnectAttempts,
   onReconnect,
 }: AgentOutputProps) {
+  const t = useTranslation();
   const memoryStats = useMemoryStats() as {
     eventCount: number;
     estimatedBytes: number;
@@ -111,14 +113,22 @@ export function AgentOutput({
       </Card>
 
       {hasTimeline && (
-        <ResearchTimeline
-          steps={timelineSteps}
-          focusedStepId={focusedStepId}
-          onStepSelect={(stepId) => {
-            setFocusedStepId(stepId);
-            setHasUserSelectedStep(true);
-          }}
-        />
+        <Card className="rounded-2xl border bg-card p-6">
+          <header className="mb-4 space-y-1">
+            <h3 className="text-base font-semibold uppercase tracking-[0.22em] text-foreground">
+              {t('timeline.card.title')}
+            </h3>
+            <p className="text-sm text-muted-foreground">{t('timeline.card.subtitle')}</p>
+          </header>
+          <TimelineStepList
+            steps={timelineSteps}
+            focusedStepId={focusedStepId}
+            onStepSelect={(stepId) => {
+              setFocusedStepId(stepId);
+              setHasUserSelectedStep(true);
+            }}
+          />
+        </Card>
       )}
 
       {/* Virtualized event stream */}

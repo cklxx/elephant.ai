@@ -1,193 +1,162 @@
+import type { ComponentType, SVGProps } from "react";
 import Link from "next/link";
+import { ArrowRight, CheckCircle2, Layers, LineChart, PlayCircle, Sparkles, Timer } from "lucide-react";
 
-import {
-  PageContainer,
-  PageShell,
-  ResponsiveGrid,
-  SectionBlock,
-  SectionHeader,
-} from "@/components/layout/page-shell";
+import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-const featureCards = [
-  {
-    title: "实时控制台",
-    description: "对话、工具输出与事件同步呈现，像产品控制台一样可视。",
-    action: { label: "进入会话", href: "/conversation" },
-  },
-  {
-    title: "团队入口",
-    description: "登录即可共享历史与预设，保持团队上下文一致。",
-    action: { label: "登录", href: "/login" },
-  },
-  {
-    title: "清爽布局",
-    description: "为宽屏与移动端优化的响应式骨架，无多余装饰。",
-    action: { label: "浏览历史", href: "/sessions" },
-  },
-];
+type LogTone = "info" | "primary" | "muted" | "success";
 
-const workflow = [
-  {
-    title: "开启会话",
-    description: "从登录或历史记录进入，快速拉起上下文。",
-  },
-  {
-    title: "协作处理",
-    description: "对话流、工具回调与事件时间线同屏协同。",
-  },
-  {
-    title: "复盘交付",
-    description: "归档会话并再次访问，保持链路透明可追溯。",
-  },
-];
-
-const quickLinks = [
-  { label: "进入实时会话", href: "/conversation" },
-  { label: "查看历史记录", href: "/sessions" },
-  { label: "登录团队空间", href: "/login" },
-];
-
-function HomeHero() {
+function HeroSection() {
   return (
-    <SectionBlock>
-      <ResponsiveGrid variant="split" className="items-start">
-        <div className="flex flex-col gap-5">
-          <SectionHeader
-            overline="Spinner 控制台"
-            title="对话、协作与观测的一体化界面"
-            description="参考常见云端产品的控制台信息架构，保持少量文案与清晰入口。"
-            titleElement="h1"
-            actions={
-              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                <Link href="/conversation" className="w-full sm:w-auto">
-                  <Button className="w-full sm:w-auto">开始对话</Button>
-                </Link>
-                <Link href="/login" className="w-full sm:w-auto">
-                  <Button variant="outline" className="w-full sm:w-auto">
-                    登录团队
-                  </Button>
-                </Link>
-              </div>
-            }
-          />
-          <ul className="grid gap-3 sm:grid-cols-2">
-            <li className="flex flex-col gap-1">
-              <p>统一流</p>
-              <p>消息、工具响应与事件时间线保持同一个视角。</p>
-            </li>
-            <li className="flex flex-col gap-1">
-              <p>随时重访</p>
-              <p>历史记录、登录入口和实时会话统一在首屏。</p>
-            </li>
-          </ul>
+    <div className="relative isolate flex min-h-screen items-center overflow-hidden bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(59,130,246,0.24),transparent_32%),radial-gradient(circle_at_88%_18%,rgba(16,185,129,0.2),transparent_32%),radial-gradient(circle_at_30%_86%,rgba(148,163,184,0.2),transparent_40%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(15,23,42,0.58),rgba(15,23,42,0.42))]" />
+      </div>
+      <div className="relative mx-auto flex w-full max-w-screen-2xl flex-col gap-8 px-6 py-12 sm:px-10 lg:flex-row lg:items-center lg:gap-12 lg:px-16">
+        <div className="space-y-6 lg:pr-4">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/80 backdrop-blur">
+            Standard console homepage
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-3xl font-semibold leading-tight sm:text-4xl lg:text-[44px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)]">
+              Run, watch, and replay every agent task
+            </h1>
+            <p className="max-w-2xl text-base text-slate-100/90 sm:text-lg drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]">
+              A dependable landing for operators: start a console session, follow live tool output, and jump back to any saved timeline without extra setup.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/conversation">
+              <Button className="group rounded-xl border border-cyan-200/50 bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_40px_-18px_rgba(6,182,212,0.9)] transition hover:-translate-y-0.5 hover:border-cyan-50 hover:bg-cyan-300">
+                <PlayCircle className="h-5 w-5" />
+                Start console
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </Button>
+            </Link>
+            <Link href="/sessions">
+              <Button className="rounded-xl border border-white/35 bg-white/15 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:border-white/55 hover:bg-white/25">
+                View sessions
+              </Button>
+            </Link>
+            <Link
+              href="/login"
+              className="text-sm font-semibold text-slate-100 underline-offset-4 transition hover:text-white hover:underline"
+            >
+              Team login
+            </Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatPill label="Live SSE stream" value="Realtime" />
+            <StatPill label="Timeline replays" value="Saved & recent" />
+            <StatPill label="Team controls" value="Plan + cancel" />
+          </div>
         </div>
-        <Card className="w-full">
-          <CardHeader className="gap-2">
-            <CardTitle>常用入口</CardTitle>
-            <CardDescription>按需进入实时对话、历史或团队空间。</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {quickLinks.map((item) => (
-              <Link key={item.href} href={item.href} className="w-full">
-                <Button variant="outline" className="w-full">
-                  {item.label}
-                </Button>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
-      </ResponsiveGrid>
-    </SectionBlock>
+        <div className="w-full max-w-xl lg:max-w-lg">
+          <LivePreviewCard />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function FeatureSection() {
+function StatPill({ label, value }: { label: string; value: string }) {
   return (
-    <SectionBlock>
-      <SectionHeader
-        title="核心体验"
-        description="基于行业控制台常见模块，突出实时、协同与可复用。"
-      />
-      <ResponsiveGrid className="grid-cols-1" variant="three">
-        {featureCards.map((item) => (
-          <Card key={item.title} className="h-full">
-            <CardHeader className="gap-2">
-              <CardTitle>{item.title}</CardTitle>
-              <CardDescription>{item.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Link href={item.action.href} className="w-full sm:w-auto">
-                <Button variant="outline" className="w-full sm:w-auto">
-                  {item.action.label}
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+    <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white backdrop-blur">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/70">{label}</div>
+      <div className="mt-1 flex items-center gap-2 text-base font-semibold">
+        {value}
+        <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
+      </div>
+    </div>
+  );
+}
+
+function LivePreviewCard() {
+  const logLines = [
+    {
+      icon: Sparkles,
+      label: "Plan",
+      text: "Research console workspace scaffolded",
+      tone: "info" as const,
+    },
+    {
+      icon: Layers,
+      label: "Tool",
+      text: "file_read -> web/app/conversation/page.tsx",
+      tone: "primary" as const,
+    },
+    {
+      icon: Timer,
+      label: "Working",
+      text: "Running quick audit on session timeline",
+      tone: "muted" as const,
+    },
+    {
+      icon: CheckCircle2,
+      label: "Complete",
+      text: "Console view ready - open conversation to continue",
+      tone: "success" as const,
+    },
+  ];
+
+  return (
+    <div className="rounded-[24px] border border-white/15 bg-white/10 p-5 text-white shadow-[0_24px_60px_-36px_rgba(0,0,0,0.8)] backdrop-blur">
+      <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/80">
+        <span>Live console feed</span>
+        <span className="flex items-center gap-2">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
+          Active
+        </span>
+      </div>
+      <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 p-3 font-mono text-[13px] leading-6 shadow-inner shadow-black/20">
+        {logLines.map((line) => (
+          <LogLine key={line.label} {...line} />
         ))}
-      </ResponsiveGrid>
-    </SectionBlock>
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-xs text-white/80">
+        <LineChart className="h-4 w-4" />
+        Streaming SSE / Auto-reconnect / Timeline-friendly
+      </div>
+    </div>
   );
 }
 
-function WorkflowSection() {
-  return (
-    <SectionBlock>
-      <SectionHeader title="三步上手" description="遵循常见云端产品的引导节奏。" />
-      <ResponsiveGrid className="grid-cols-1" variant="three">
-        {workflow.map((item, index) => (
-          <Card key={item.title} className="h-full">
-            <CardHeader className="gap-2">
-              <CardTitle>
-                {index + 1}. {item.title}
-              </CardTitle>
-              <CardDescription>{item.description}</CardDescription>
-            </CardHeader>
-          </Card>
-        ))}
-      </ResponsiveGrid>
-    </SectionBlock>
-  );
-}
+function LogLine({
+  icon: Icon,
+  label,
+  text,
+  tone,
+}: {
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  label: string;
+  text: string;
+  tone: LogTone;
+}) {
+  const toneClasses: Record<LogTone, string> = {
+    info: "text-indigo-200",
+    primary: "text-cyan-200",
+    muted: "text-slate-200/80",
+    success: "text-emerald-200",
+  };
 
-function QuickStartSection() {
   return (
-    <SectionBlock>
-      <Card>
-        <CardHeader className="gap-2 text-center">
-          <CardTitle>立即使用</CardTitle>
-          <CardDescription>常见操作集中在一个卡片中，桌面与移动端一致。</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap justify-center gap-3">
-          <Link href="/login" className="w-full sm:w-auto">
-            <Button className="w-full sm:w-auto">登录团队</Button>
-          </Link>
-          <Link href="/conversation" className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto">
-              打开会话
-            </Button>
-          </Link>
-          <Link href="/sessions" className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto">
-              浏览历史
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-    </SectionBlock>
+    <div className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-white/5">
+      <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+        <Icon className="h-4 w-4" />
+        <span className={toneClasses[tone]}>{label}</span>
+      </div>
+      <div className="text-[13px] text-slate-100">{text}</div>
+    </div>
   );
 }
 
 export default function HomePage() {
   return (
-    <PageShell>
-      <PageContainer>
-        <HomeHero />
-        <FeatureSection />
-        <WorkflowSection />
-        <QuickStartSection />
-      </PageContainer>
+    <PageShell padding="none">
+      <HeroSection />
     </PageShell>
   );
 }

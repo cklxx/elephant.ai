@@ -130,7 +130,7 @@ function ClearButton() {
 }
 ```
 
-## Example: Research Timeline Component
+## Example: Timeline Step List Component
 
 ```typescript
 import {
@@ -139,7 +139,7 @@ import {
   useCurrentResearchStep,
 } from '@/hooks/useAgentStreamStore';
 
-function ResearchTimeline() {
+function TimelineStepListExample() {
   const { actionName, goal, status } = useTaskSummary();
   const completedSteps = useCompletedResearchSteps();
   const currentStep = useCurrentResearchStep();

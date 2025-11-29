@@ -37,8 +37,7 @@ test.describe('ALEX console layout', () => {
     const storagePayload = JSON.stringify({
       state: {
         currentSessionId: 'session-123456',
-        sessionHistory: ['session-abcdef'],
-        pinnedSessions: ['session-123456'],
+        sessionHistory: ['session-123456', 'session-abcdef'],
         sessionLabels: {
           'session-123456': 'Primary workflow',
         },
@@ -60,13 +59,12 @@ test.describe('ALEX console layout', () => {
     await expect(openSidebar).toBeVisible({ timeout: 60000 });
     await openSidebar.click();
 
-    await expect(page.getByTestId('session-list-pinned')).toBeVisible();
-    await expect(page.getByTestId('session-list-recent')).toBeVisible();
+    await expect(page.getByTestId('session-list')).toBeVisible();
 
-    const pinnedSessionButton = page.locator(
+    const primarySessionButton = page.locator(
       '[data-testid="session-list-item"][data-session-id="session-123456"]'
     );
-    await expect(pinnedSessionButton).toBeVisible();
+    await expect(primarySessionButton).toBeVisible();
 
     const recentSessionButton = page.locator(
       '[data-testid="session-list-item"][data-session-id="session-abcdef"]'
@@ -98,7 +96,9 @@ test.describe('ALEX console layout', () => {
     await page.keyboard.type('Mock stream task');
     await page.keyboard.press('Enter');
 
-    await expect(page.getByTestId('session-list-recent')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-testid="session-list-item"]')).toBeVisible({
+      timeout: 15000,
+    });
     await expect(page.getByTestId('event-user_task')).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('console-header-title')).toHaveText(/.+/);
 

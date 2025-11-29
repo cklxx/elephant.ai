@@ -3,12 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
-import { useConfirmDialog } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea } from '@/components/layout';
 import { TaskInput } from '@/components/agent/TaskInput';
@@ -39,6 +46,8 @@ export function ConversationPageContent() {
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -68,7 +77,6 @@ export function ConversationPageContent() {
   const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution();
   const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
   const deleteSessionMutation = useDeleteSession();
-  const { confirm, ConfirmDialog } = useConfirmDialog();
   const {
     currentSessionId,
     setCurrentSession,
@@ -76,13 +84,15 @@ export function ConversationPageContent() {
     clearCurrentSession,
     removeSession,
     sessionHistory = [],
-    pinnedSessions = [],
     sessionLabels = {},
-    renameSession,
-    togglePinSession,
   } = useSessionStore();
 
   const resolvedSessionId = sessionId || currentSessionId;
+  const formatSessionBadge = useCallback(
+    (value: string) =>
+      value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
+    []
+  );
 
   const handleAgentEvent = useCallback(
     (event: AnyAgentEvent) => {
@@ -366,7 +376,6 @@ export function ConversationPageContent() {
       previous_session_id: resolvedSessionId ?? null,
       had_active_session: Boolean(resolvedSessionId),
       history_count: sessionHistory.length,
-      pinned_count: pinnedSessions.length,
     });
   };
 
@@ -383,55 +392,52 @@ export function ConversationPageContent() {
     captureEvent(AnalyticsEvent.SessionSelected, {
       session_id: id,
       previous_session_id: resolvedSessionId ?? null,
-      was_pinned: pinnedSessions.includes(id),
       was_in_history: sessionHistory.includes(id),
     });
   };
 
-  const handleSessionDelete = async (id: string) => {
-    const confirmed = await confirm({
-      title: t('sidebar.session.confirmDelete.title'),
-      description: t('sidebar.session.confirmDelete.description'),
-      confirmText: t('sidebar.session.confirmDelete.confirm'),
-      cancelText: t('sidebar.session.confirmDelete.cancel'),
-      variant: 'danger',
-    });
+  const handleSessionDeleteRequest = (id: string) => {
+    setDeleteTargetId(id);
+  };
 
-    if (confirmed) {
-      try {
-        await deleteSessionMutation.mutateAsync(id);
-        removeSession(id);
-        if (resolvedSessionId === id) {
-          clearEvents();
-          setSessionId(null);
-          setTaskId(null);
-          setActiveTaskId(null);
-          setCancelRequested(false);
-          cancelIntentRef.current = false;
-          clearCurrentSession();
-        }
-        toast.success(t('sidebar.session.toast.deleteSuccess'));
-        captureEvent(AnalyticsEvent.SessionDeleted, {
-          session_id: id,
-          status: 'success',
-        });
-      } catch (err) {
-        console.error(
-          '[ConversationPage] Failed to delete session:',
-          getErrorLogPayload(err)
-        );
-        const parsed = parseError(err, t('common.error.unknown'));
-        toast.error(
-          t('sidebar.session.toast.deleteError'),
-          formatParsedError(parsed)
-        );
-        captureEvent(AnalyticsEvent.SessionDeleted, {
-          session_id: id,
-          status: 'error',
-          error_kind: isAPIError(err) ? 'api' : 'unknown',
-          ...(isAPIError(err) ? { status_code: err.status } : {}),
-        });
+  const handleDeleteCancel = () => {
+    if (deleteInProgress) return;
+    setDeleteTargetId(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteInProgress(true);
+    try {
+      await deleteSessionMutation.mutateAsync(deleteTargetId);
+      removeSession(deleteTargetId);
+      if (resolvedSessionId === deleteTargetId) {
+        clearEvents();
+        setSessionId(null);
+        setTaskId(null);
+        setActiveTaskId(null);
+        setCancelRequested(false);
+        cancelIntentRef.current = false;
+        clearCurrentSession();
       }
+      toast.success(t('sidebar.session.toast.deleteSuccess'));
+      captureEvent(AnalyticsEvent.SessionDeleted, {
+        session_id: deleteTargetId,
+        status: 'success',
+      });
+      setDeleteTargetId(null);
+    } catch (err) {
+      console.error('[ConversationPage] Failed to delete session:', getErrorLogPayload(err));
+      const parsed = parseError(err, t('common.error.unknown'));
+      toast.error(t('sidebar.session.toast.deleteError'), formatParsedError(parsed));
+      captureEvent(AnalyticsEvent.SessionDeleted, {
+        session_id: deleteTargetId,
+        status: 'error',
+        error_kind: isAPIError(err) ? 'api' : 'unknown',
+        ...(isAPIError(err) ? { status_code: err.status } : {}),
+      });
+    } finally {
+      setDeleteInProgress(false);
     }
   };
 
@@ -444,7 +450,11 @@ export function ConversationPageContent() {
     ? sessionLabels[resolvedSessionId]?.trim()
     : null;
   const sessionBadge = resolvedSessionId
-    ? activeSessionLabel || (resolvedSessionId.length > 8 ? `${resolvedSessionId.slice(0, 4)}…${resolvedSessionId.slice(-4)}` : resolvedSessionId)
+    ? activeSessionLabel || formatSessionBadge(resolvedSessionId)
+    : null;
+  const deleteTargetLabel = deleteTargetId
+    ? sessionLabels[deleteTargetId]?.trim() ||
+      t('console.history.itemPrefix', { id: deleteTargetId.slice(0, 8) })
     : null;
 
   const emptyState = (
@@ -474,7 +484,54 @@ export function ConversationPageContent() {
 
   return (
     <div className="relative min-h-screen bg-muted/10 text-foreground">
-      <ConfirmDialog />
+      <Dialog
+        open={Boolean(deleteTargetId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleDeleteCancel();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-lg font-semibold">
+              {t('sidebar.session.confirmDelete.title')}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {t('sidebar.session.confirmDelete.description')}
+            </DialogDescription>
+            {deleteTargetId && (
+              <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-muted/30 px-3 py-2">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-foreground">
+                    {deleteTargetLabel}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatSessionBadge(deleteTargetId)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={handleDeleteCancel}
+              disabled={deleteInProgress}
+            >
+              {t('sidebar.session.confirmDelete.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteInProgress}
+            >
+              {deleteInProgress && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('sidebar.session.confirmDelete.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-4 pb-10 pt-6 lg:px-8">
         <Header
           title={sessionBadge || t('conversation.header.idle')}
@@ -524,13 +581,10 @@ export function ConversationPageContent() {
           >
             <Sidebar
               sessionHistory={sessionHistory}
-              pinnedSessions={pinnedSessions}
               sessionLabels={sessionLabels}
               currentSessionId={resolvedSessionId}
               onSessionSelect={handleSessionSelect}
-              onSessionRename={renameSession}
-              onSessionPin={togglePinSession}
-              onSessionDelete={handleSessionDelete}
+              onSessionDelete={handleSessionDeleteRequest}
               onNewSession={handleNewSession}
             />
           </div>

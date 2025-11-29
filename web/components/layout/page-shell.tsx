@@ -7,13 +7,15 @@ type ResponsiveLayout = "auto" | "two" | "three" | "split";
 export function PageShell({
   children,
   className,
+  padding = "default",
 }: {
   children: ReactNode;
   className?: string;
+  padding?: "default" | "none";
 }) {
-  return (
-    <main className={cn("px-4 py-8 sm:px-6 lg:px-10", className)}>{children}</main>
-  );
+  const basePadding = padding === "none" ? "" : "px-4 py-8 sm:px-6 lg:px-10";
+
+  return <main className={cn(basePadding, className)}>{children}</main>;
 }
 
 export function PageContainer({

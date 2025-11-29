@@ -36,12 +36,22 @@ vi.mock('@/components/ui/toast', () => ({
   },
 }));
 
-vi.mock('@/components/ui/dialog', () => ({
-  useConfirmDialog: () => ({
-    confirm: vi.fn().mockResolvedValue(true),
-    ConfirmDialog: () => <div data-testid="confirm-dialog" />,
-  }),
-}));
+vi.mock('@/components/ui/dialog', () => {
+  const React = require('react');
+  const DialogStub = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  return {
+    Dialog: DialogStub,
+    DialogContent: DialogStub,
+    DialogHeader: DialogStub,
+    DialogFooter: DialogStub,
+    DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    useConfirmDialog: () => ({
+      confirm: vi.fn().mockResolvedValue(true),
+      ConfirmDialog: () => <div data-testid="confirm-dialog" />,
+    }),
+  };
+});
 
 vi.mock('@/lib/eventAggregation', () => ({
   buildToolCallSummaries: () => [],
@@ -119,7 +129,6 @@ describe('ConversationPageContent - stale session handling', () => {
     useSessionStore.setState({
       currentSessionId: 'stale-session',
       sessionHistory: ['stale-session'],
-      pinnedSessions: [],
       sessionLabels: {},
     });
 
@@ -206,4 +215,3 @@ describe('ConversationPageContent - stale session handling', () => {
     expect(state.sessionHistory[0]).toBe('new-session');
   });
 });
-

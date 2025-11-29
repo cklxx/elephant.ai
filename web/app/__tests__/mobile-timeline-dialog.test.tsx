@@ -51,7 +51,6 @@ const mockAddToHistory = vi.fn();
 const mockClearCurrentSession = vi.fn();
 const mockRemoveSession = vi.fn();
 const mockRenameSession = vi.fn();
-const mockTogglePinSession = vi.fn();
 const mockDeleteSession = vi.fn();
 
 vi.mock("@/hooks/useSessionStore", () => ({
@@ -62,9 +61,7 @@ vi.mock("@/hooks/useSessionStore", () => ({
     clearCurrentSession: mockClearCurrentSession,
     removeSession: mockRemoveSession,
     renameSession: mockRenameSession,
-    togglePinSession: mockTogglePinSession,
     sessionHistory: [],
-    pinnedSessions: [],
     sessionLabels: {},
   }),
   useDeleteSession: () => ({

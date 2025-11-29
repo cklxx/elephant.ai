@@ -124,7 +124,7 @@ App
         ├── ConversationPage (/conversation)
         │   ├── SessionSidebar
         │   │   ├── ConnectionStatus
-        │   │   └── SessionHistory (pinned + recent)
+        │   │   └── SessionHistory (recent list)
         │   ├── ConversationStream
         │   │   ├── Header (language switch + timeline status)
         │   │   ├── TerminalOutput

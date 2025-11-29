@@ -17,7 +17,7 @@ conversation/page.tsx (Research console workspace)
   └─ ConversationPageContent
      ├─ SessionSidebar
      │   ├─ ConnectionStatus
-     │   └─ SessionHistory (pinned & recent)
+     │   └─ SessionHistory (recent list)
      ├─ ConversationStream
      │   ├─ Header (language switch + timeline status)
      │   ├─ TerminalOutput (event cards, plan approval, tool statuses)
@@ -61,7 +61,7 @@ SSE Connection (/api/sse)
          │                        │
          ▼                        ▼
 ┌────────────────────┐   ┌────────────────────┐
-│ ResearchTimeline   │   │   WebViewport      │
+│ TimelineStepList   │   │   WebViewport      │
 │                    │   │                    │
 │ Displays steps     │   │ Displays outputs   │
 └────────────────────┘   └────────────────────┘
@@ -91,38 +91,14 @@ SSE Connection (/api/sse)
                   ▼
         ┌───────────────────────────┐
         │ usePlanApproval           │
-        │ state: 'awaiting_approval'│
+        │ auto-approves plan          │
         └─────────┬─────────────────┘
                   │
                   ▼
-        ┌─────────────────────────┐
-        │ ResearchPlanCard shows  │
-        │ [APPROVE|MODIFY|CANCEL] │
-        └─────────┬───────────────┘
-                  │
-    ┌─────────────┼─────────────┐
-    │             │             │
-APPROVE        MODIFY        CANCEL
-    │             │             │
-    ▼             ▼             ▼
-┌────────┐  ┌──────────┐  ┌─────────┐
-│POST    │  │Edit plan │  │POST     │
-│approve │  │inline    │  │reject   │
-└───┬────┘  └────┬─────┘  └────┬────┘
-    │            │              │
-    │            ▼              ▼
-    │      ┌──────────┐    ┌─────────┐
-    │      │POST      │    │Task     │
-    │      │approve   │    │cancelled│
-    │      │modified  │    └─────────┘
-    │      └────┬─────┘
-    │           │
-    └───────────┴────────────┐
-                             ▼
-                    ┌──────────────────┐
-                    │Execution starts  │
-                    │Timeline activates│
-                    └──────────────────┘
+         ┌──────────────────┐
+         │Execution starts  │
+         │Timeline activates│
+         └──────────────────┘
 ```
 
 ## Layout Structure
@@ -135,15 +111,6 @@ APPROVE        MODIFY        CANCEL
 ┌─────────────────────────────────────────────────────────────────┐
 │  Connection Status Bar                                           │
 │  [●] Connected | 234 events (45KB) | Session: abc123...         │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│  Research Plan Card (if awaiting approval)                       │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Goal: Optimize database queries                          │  │
-│  │ Steps: [1. Analyze, 2. Index, 3. Test]                   │  │
-│  │ [APPROVE & START] [MODIFY PLAN] [CANCEL]                 │  │
-│  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌───────────────────────────────┬─────────────────────────────────┐
@@ -189,47 +156,23 @@ page.tsx
   │     ├─► sessionId: string
   │     ├─► taskId: string
   │     └─► isConnected: boolean
-  │
-  └─► ResearchPlanCard
-        │
-        ├─► plan: ResearchPlan
-        ├─► onApprove: () => void
-        ├─► onModify: (plan) => void
-        └─► onReject: (reason) => void
 
 Callback Flow (Bottom-up):
 ──────────────────────────
-ResearchPlanCard
-  │ onApprove()
-  ▼
-usePlanApproval
-  │ handleApprove()
+usePlanApproval (inside ConsoleAgentOutput)
+  │ auto-approves latest plan event
   ▼
 API Call: POST /api/plans/approve
   │
   ▼
-Toast Notification: "Plan approved"
-  │
-  ▼
 Timeline: Execution starts
-
-ResearchPlanCard
-  │ onReject(reason)
-  ▼
-usePlanApproval
-  │ handleReject(reason)
-  ▼
-Toast Notification: "Plan rejected"
-  │
-  ▼
-Plan remains editable for revision
 
 
 Hook Dependencies:
 ──────────────────
-useSSE → events → useTimelineSteps → ResearchTimeline
+useSSE → events → useTimelineSteps → TimelineStepList
                   useToolOutputs → WebViewport
-                  usePlanApproval → ResearchPlanCard
+                  usePlanApproval → auto-approve plan
 ```
 
 ## State Management

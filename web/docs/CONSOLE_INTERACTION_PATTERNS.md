@@ -7,15 +7,13 @@ This document describes the research console interaction patterns implemented in
 ## Implemented Features
 
 ### 1. Plan Approval Flow
-- ResearchPlanCard with approve/modify/cancel actions
-- usePlanApproval hook for state management
-- Inline plan editing with validation
-- API integration for plan submission
+- Plan approval is auto-submitted via `usePlanApproval` (no dedicated UI)
+- Research plans are accepted immediately to keep execution flowing
+- API integration for plan submission remains in place
 
 ### 2. Real-Time Timeline
-- ResearchTimeline with step highlighting
-- Auto-scroll to active step
-- Expandable step details (tools, duration, tokens)
+- TimelineStepList with step highlighting
+- Auto-scroll to active step with manual focus override
 - Visual indicators: pending → active → complete/error
 
 ### 3. Computer View
@@ -43,8 +41,7 @@ web/
 ├── components/
 │   ├── agent/
 │   │   ├── ConsoleAgentOutput.tsx      # Main integration component
-│   │   ├── ResearchPlanCard.tsx      # Plan approval UI
-│   │   ├── ResearchTimeline.tsx      # Step-by-step timeline
+│   │   ├── TimelineStepList.tsx         # Step-by-step timeline
 │   │   ├── WebViewport.tsx           # Tool output inspector
 │   │   ├── DocumentCanvas.tsx        # Document viewer
 │   │   └── VirtualizedEventList.tsx  # Event stream

@@ -26,15 +26,15 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full min-w-[280px] max-w-sm items-center gap-3 overflow-hidden p-4",
+  "group pointer-events-auto relative flex w-full min-w-[280px] max-w-sm items-center gap-3 overflow-hidden rounded-2xl border p-4 shadow-xl shadow-black/20 backdrop-blur-sm bg-card text-foreground",
   {
     variants: {
       variant: {
-        default: "",
-        destructive: "",
-        success: "",
-        warning: "",
-        info: "",
+        default: "border-border/70",
+        destructive: "border-destructive/40 bg-destructive/10 text-destructive",
+        success: "border-emerald-500/40 bg-emerald-500/10 text-foreground",
+        warning: "border-amber-500/50 bg-amber-500/10 text-foreground",
+        info: "border-primary/40 bg-primary/10 text-foreground",
       },
     },
     defaultVariants: {

@@ -46,7 +46,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden p-1",
+      "z-50 min-w-[8rem] overflow-hidden rounded-2xl border border-border/70 bg-card p-1 shadow-xl shadow-black/25",
       className
     )}
     {...props}
@@ -63,7 +63,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[12rem] overflow-hidden p-1",
+        "z-50 min-w-[12rem] overflow-hidden rounded-2xl border border-border/70 bg-card p-1 shadow-xl shadow-black/25",
         className
       )}
       {...props}

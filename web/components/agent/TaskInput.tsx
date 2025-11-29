@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { ArrowUp, Square, X } from "lucide-react";
+import { ArrowUp, Paperclip, Square, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AttachmentUpload } from "@/lib/types";
@@ -486,98 +486,104 @@ export function TaskInput({
       className="mx-auto w-full max-w-5xl space-y-4"
       data-testid="task-input-form"
     >
-      <Card className="border border-border/80 bg-card/90">
-        <CardContent className="relative space-y-3 px-4 pb-10 pt-6 sm:px-6">
-          <button
-            type="button"
-            onClick={openFilePicker}
-            disabled={isInputDisabled}
-            className="sr-only"
-            data-testid="task-attachment-trigger"
-          >
-            Add attachment
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={acceptedFileTypes}
-            multiple
-            className="hidden"
-            onChange={handleFileInputChange}
-            data-testid="task-attachment-input"
-          />
+      <Card className="border-none bg-transparent shadow-none">
+        <CardContent className="px-3 py-3 sm:px-4 sm:py-4">
+          <div className="flex flex-col gap-3">
+            <div className="relative rounded-3xl border border-border/80 bg-background/70 px-3 py-3 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:px-4 sm:py-4">
+              <Textarea
+                ref={textareaRef}
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+                onPaste={handlePaste}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder={resolvedPlaceholder}
+                disabled={isInputDisabled}
+                rows={3}
+                aria-label={t("task.input.ariaLabel")}
+                data-testid="task-input"
+                className="min-h-[140px] max-h-[260px] w-full resize-none rounded-2xl border-none bg-transparent px-0 py-2 pl-12 pr-24 text-base leading-7 shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:ring-transparent sm:pl-14"
+                style={{ fieldSizing: "content", boxShadow: "none" } as any}
+              />
 
-          <Textarea
-            ref={textareaRef}
-            value={task}
-            onChange={(e) => setTask(e.target.value)}
-            onPaste={handlePaste}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder={resolvedPlaceholder}
-            disabled={isInputDisabled}
-            rows={3}
-            aria-label={t("task.input.ariaLabel")}
-            data-testid="task-input"
-            className="min-h-[120px] max-h-[240px] resize-none bg-background text-base leading-7"
-            style={{ fieldSizing: "content" } as any}
-          />
+              <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={openFilePicker}
+                  disabled={isInputDisabled}
+                  className="flex h-10 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold"
+                  aria-label={t("task.input.attachImage")}
+                  data-testid="task-attachment-trigger"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </div>
 
-          <div className="absolute right-4 bottom-4">
-            {showStopButton ? (
-              <Button
-                type="button"
-                onClick={onStop}
-                disabled={stopButtonDisabled}
-                variant="destructive"
-                className="h-11 rounded-full px-5 text-sm"
-                aria-label={t("task.stop.title")}
-                data-testid="task-stop"
-              >
-                {stopPending ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
-                    {t("task.stop.pending")}
-                  </span>
+              <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2 sm:bottom-4 sm:right-4">
+                {showStopButton ? (
+                  <Button
+                    type="button"
+                    onClick={onStop}
+                    disabled={stopButtonDisabled}
+                    variant="destructive"
+                    className="h-11 w-14 rounded-2xl text-sm"
+                    aria-label={t("task.stop.title")}
+                    data-testid="task-stop"
+                  >
+                    {stopPending ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" />
+                        {t("task.stop.pending")}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <Square className="h-3.5 w-3.5" />
+                        {t("task.stop.label")}
+                      </span>
+                    )}
+                  </Button>
                 ) : (
-                  <span className="flex items-center gap-1.5">
-                    <Square className="h-3.5 w-3.5" />
-                    {t("task.stop.label")}
-                  </span>
+                  <Button
+                    type="submit"
+                    disabled={isInputDisabled || !task.trim()}
+                    className="flex h-11 w-14 items-center justify-center rounded-2xl"
+                    aria-label={
+                      loading
+                        ? t("task.submit.title.running")
+                        : t("task.submit.title.default")
+                    }
+                    data-testid="task-submit"
+                  >
+                    {loading ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-background/80 border-t-transparent" />
+                    ) : (
+                      <ArrowUp className="h-5 w-5" />
+                    )}
+                  </Button>
                 )}
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={isInputDisabled || !task.trim()}
-                className="flex h-12 w-12 items-center justify-center rounded-full"
-                aria-label={
-                  loading
-                    ? t("task.submit.title.running")
-                    : t("task.submit.title.default")
-                }
-                data-testid="task-submit"
-              >
-                {loading ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-background/80 border-t-transparent" />
-                ) : (
-                  <ArrowUp className="h-5 w-5" />
-                )}
-              </Button>
-            )}
+              </div>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={acceptedFileTypes}
+              multiple
+              className="hidden"
+              onChange={handleFileInputChange}
+              data-testid="task-attachment-input"
+            />
           </div>
         </CardContent>
       </Card>
 
       {attachments.length > 0 && (
-        <div
-          className="flex flex-col gap-3"
-          data-testid="task-attachments"
-        >
+        <div className="flex flex-col gap-3" data-testid="task-attachments">
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
@@ -614,36 +620,40 @@ export function TaskInput({
                   {attachment.name}
                 </div>
                 <div className="text-neutral-600">{attachment.mediaType}</div>
-                <div className="text-neutral-500">{formatFileSize(attachment.size)}</div>
+                <div className="text-neutral-500">
+                  {formatFileSize(attachment.size)}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {(["attachment", "artifact"] as AttachmentKind[]).map((kind) => {
-                    const isActive = attachment.kind === kind;
-                    return (
-                      <Button
-                        key={kind}
-                        type="button"
-                        size="sm"
-                        variant={isActive ? "default" : "outline"}
-                        onClick={() => handleAttachmentKindChange(attachment.id, kind)}
-                        className="h-8 px-3 text-[10px] uppercase tracking-wide"
-                      >
-                        {attachmentKindLabels[kind]}
-                      </Button>
-                    );
-                  })}
+                  {(["attachment", "artifact"] as AttachmentKind[]).map(
+                    (kind) => {
+                      const isActive = attachment.kind === kind;
+                      return (
+                        <Button
+                          key={kind}
+                          type="button"
+                          size="sm"
+                          variant={isActive ? "default" : "outline"}
+                          onClick={() =>
+                            handleAttachmentKindChange(attachment.id, kind)
+                          }
+                          className="h-8 px-3 text-[10px] uppercase tracking-wide"
+                        >
+                          {attachmentKindLabels[kind]}
+                        </Button>
+                      );
+                    },
+                  )}
                 </div>
                 {attachment.kind === "artifact" && (
-                  <p className="mt-1 text-[10px] text-neutral-600">{artifactHint}</p>
+                  <p className="mt-1 text-[10px] text-neutral-600">
+                    {artifactHint}
+                  </p>
                 )}
               </div>
             </div>
           ))}
         </div>
       )}
-
-      <div className="flex justify-end text-[11px] font-medium uppercase tracking-[0.3em] text-neutral-500">
-        {t("console.input.hotkeyHint")}
-      </div>
     </form>
   );
 }

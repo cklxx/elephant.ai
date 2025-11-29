@@ -5,22 +5,18 @@ import { AnyAgentEvent } from '@/lib/types';
 import { isResearchPlanEvent, isTaskCompleteEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
-import { ResearchPlanCard } from './ResearchPlanCard';
-import { ResearchPlanManager } from './plan/ResearchPlanManager';
-import { ResearchTimeline } from './ResearchTimeline';
+import { TimelineStepList } from './TimelineStepList';
 import { WebViewport } from './WebViewport';
 import { DocumentCanvas, DocumentContent, ViewMode } from './DocumentCanvas';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useToolOutputs } from '@/hooks/useToolOutputs';
 import { usePlanApproval } from '@/hooks/usePlanApproval';
-import { usePlanProgress } from '@/hooks/usePlanProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 
 interface ConsoleAgentOutputProps {
   events: AnyAgentEvent[];
@@ -43,8 +39,9 @@ export function ConsoleAgentOutput({
   onReconnect,
   sessionId,
   taskId,
-  autoApprovePlan = false,
+  autoApprovePlan: _autoApprovePlan = false,
 }: ConsoleAgentOutputProps) {
+  void _autoApprovePlan;
   const t = useTranslation();
   const timelineSteps = useTimelineSteps(events);
   const toolOutputs = useToolOutputs(events);
@@ -69,7 +66,6 @@ export function ConsoleAgentOutput({
     [timelineSteps, focusedStepId]
   );
   const focusedEventIndex = focusedTimelineStep?.anchorEventIndex ?? null;
-  const planProgress = usePlanProgress(timelineSteps);
 
   // Extract research plan from events
   const latestPlanEvent = useMemo(() => {
@@ -133,8 +129,6 @@ export function ConsoleAgentOutput({
     isSubmitting,
     handlePlanGenerated,
     handleApprove,
-    handleModify,
-    handleReject,
   } = usePlanApproval({
     sessionId,
     taskId,
@@ -155,15 +149,10 @@ export function ConsoleAgentOutput({
   }, [handlePlanGenerated, latestPlanEvent, planState, researchPlan]);
 
   useEffect(() => {
-    if (
-      autoApprovePlan &&
-      planState === 'awaiting_approval' &&
-      currentPlan &&
-      !isSubmitting
-    ) {
+    if (planState === 'awaiting_approval' && currentPlan && !isSubmitting) {
       handleApprove();
     }
-  }, [autoApprovePlan, currentPlan, handleApprove, isSubmitting, planState]);
+  }, [currentPlan, handleApprove, isSubmitting, planState]);
 
   const latestTaskComplete = useMemo(() => {
     for (let idx = events.length - 1; idx >= 0; idx -= 1) {
@@ -222,18 +211,6 @@ export function ConsoleAgentOutput({
         />
       </div>
 
-      {/* Plan approval card (if awaiting approval) */}
-      {planState === 'awaiting_approval' && currentPlan && !autoApprovePlan && (
-        <ResearchPlanManager
-          plan={currentPlan}
-          loading={isSubmitting}
-          onApprove={handleApprove}
-          onModify={handleModify}
-          onReject={handleReject}
-          progress={planProgress}
-        />
-      )}
-
       {latestTaskComplete && (
         <Card>
           <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -260,20 +237,6 @@ export function ConsoleAgentOutput({
         </Card>
       )}
 
-      {/* Plan summary (after approval) */}
-      {planState === 'approved' && currentPlan && (
-        <ResearchPlanCard
-          plan={currentPlan}
-          progress={planProgress}
-          focusedStepId={focusedStepId}
-          onStepFocus={(stepId) => {
-            setFocusedStepId(stepId);
-            setHasUserSelectedStep(true);
-            setActiveTab('timeline');
-          }}
-        />
-      )}
-
       {/* Main content area with tabs */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left pane: Timeline/Events */}
@@ -282,65 +245,65 @@ export function ConsoleAgentOutput({
             <CardContent className="p-4">
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timeline' | 'events' | 'document')}>
                 <TabsList className="mb-4 grid w-full grid-cols-3">
-                <TabsTrigger value="timeline" className="text-xs">
-                  <Activity className="h-3 w-3 mr-1.5" />
-                  {t('agent.output.tabs.timeline')}
-                </TabsTrigger>
-                <TabsTrigger value="events" className="text-xs">
-                  <LayoutGrid className="h-3 w-3 mr-1.5" />
-                  {t('agent.output.tabs.events')}
-                </TabsTrigger>
-                <TabsTrigger value="document" className="text-xs">
-                  <FileText className="h-3 w-3 mr-1.5" />
-                  {t('agent.output.tabs.document')}
-                </TabsTrigger>
-              </TabsList>
+                  <TabsTrigger value="timeline" className="text-xs">
+                    <Activity className="h-3 w-3 mr-1.5" />
+                    {t('agent.output.tabs.timeline')}
+                  </TabsTrigger>
+                  <TabsTrigger value="events" className="text-xs">
+                    <LayoutGrid className="h-3 w-3 mr-1.5" />
+                    {t('agent.output.tabs.events')}
+                  </TabsTrigger>
+                  <TabsTrigger value="document" className="text-xs">
+                    <FileText className="h-3 w-3 mr-1.5" />
+                    {t('agent.output.tabs.document')}
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="timeline" className="mt-0">
-                {timelineSteps.length > 0 ? (
-                  <ResearchTimeline
-                    steps={timelineSteps}
-                    focusedStepId={focusedStepId}
-                    onStepSelect={(stepId) => {
-                      setFocusedStepId(stepId);
-                      setHasUserSelectedStep(true);
+                <TabsContent value="timeline" className="mt-0 space-y-4">
+                  {timelineSteps.length > 0 ? (
+                    <TimelineStepList
+                      steps={timelineSteps}
+                      focusedStepId={focusedStepId}
+                      onStepSelect={(stepId) => {
+                        setFocusedStepId(stepId);
+                        setHasUserSelectedStep(true);
+                      }}
+                    />
+                  ) : (
+                    <div className="py-12 text-center text-muted-foreground">
+                      <Activity className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                      <p className="text-xs">{t('agent.output.timeline.empty')}</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="events" className="mt-0">
+                  <VirtualizedEventList
+                    events={events}
+                    autoScroll={!hasUserSelectedStep}
+                    focusedEventIndex={focusedEventIndex}
+                    onJumpToLatest={() => {
+                      const targetStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
+                      setFocusedStepId(targetStepId);
+                      setHasUserSelectedStep(false);
                     }}
                   />
-                ) : (
-                  <div className="py-12 text-center text-muted-foreground">
-                    <Activity className="mx-auto mb-2 h-8 w-8 opacity-20" />
-                    <p className="text-xs">{t('agent.output.timeline.empty')}</p>
-                  </div>
-                )}
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="events" className="mt-0">
-                <VirtualizedEventList
-                  events={events}
-                  autoScroll={!hasUserSelectedStep}
-                  focusedEventIndex={focusedEventIndex}
-                  onJumpToLatest={() => {
-                    const targetStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
-                    setFocusedStepId(targetStepId);
-                    setHasUserSelectedStep(false);
-                  }}
-                />
-              </TabsContent>
-
-              <TabsContent value="document" className="mt-0">
-                {document ? (
-                  <DocumentCanvas
-                    document={document}
-                    initialMode={documentViewMode}
-                  />
-                ) : (
-                  <div className="py-12 text-center text-muted-foreground">
-                    <FileText className="mx-auto mb-2 h-8 w-8 opacity-20" />
-                    <p className="text-xs">{t('agent.output.document.empty')}</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
+                <TabsContent value="document" className="mt-0">
+                  {document ? (
+                    <DocumentCanvas
+                      document={document}
+                      initialMode={documentViewMode}
+                    />
+                  ) : (
+                    <div className="py-12 text-center text-muted-foreground">
+                      <FileText className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                      <p className="text-xs">{t('agent.output.document.empty')}</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </div>

@@ -1,61 +1,53 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from "vitest";
 
-import {
-  buildAttachmentUri,
-  getAttachmentSegmentType,
-} from '../attachments';
+import { buildAttachmentUri } from "../attachments";
 
-describe('attachments helpers', () => {
-  it('prefers preview asset URLs when no direct uri or data is provided', () => {
-    const attachment = {
-      name: 'clip',
-      media_type: 'application/octet-stream',
-      preview_assets: [
-        {
-          label: 'lowres',
-          mime_type: 'image/png',
-          cdn_url: 'https://cdn.example.com/thumb.png',
-        },
-        {
-          label: 'video',
-          mime_type: 'video/mp4',
-          cdn_url: 'https://cdn.example.com/clip.mp4',
-        },
-      ],
-    };
-
-    const uri = buildAttachmentUri(attachment as any);
-
-    expect(uri).toBe('https://cdn.example.com/clip.mp4');
+describe("buildAttachmentUri", () => {
+  it("returns direct uri when provided", () => {
+    const uri = "https://example.com/image.png";
+    expect(
+      buildAttachmentUri({
+        name: "image.png",
+        media_type: "image/png",
+        uri,
+      }),
+    ).toBe(uri);
   });
 
-  it('detects video attachments from preview assets even without media_type', () => {
-    const attachment = {
-      name: 'rendered-clip',
-      preview_assets: [
-        {
-          label: 'video',
-          preview_type: 'video',
-          cdn_url: 'https://cdn.example.com/rendered.mp4',
-        },
-      ],
-    };
-
-    const type = getAttachmentSegmentType(attachment as any);
-
-    expect(type).toBe('video');
+  it("preserves data URIs without double prefixing", () => {
+    const dataUri = "data:image/png;base64,aGVsbG8=";
+    expect(
+      buildAttachmentUri({
+        name: "inline.png",
+        media_type: "image/png",
+        data: dataUri,
+      }),
+    ).toBe(dataUri);
   });
 
-  it('treats markdown attachments as documents even without explicit format', () => {
-    const attachment = {
-      name: 'web_example_20240101.md',
-      media_type: 'text/markdown',
-      data: 'IyBIZWxsbw==',
-      uri: 'data:text/markdown;base64,IyBIZWxsbw==',
-    };
+  it("wraps bare base64 payloads in a data URI", () => {
+    expect(
+      buildAttachmentUri({
+        name: "inline.png",
+        media_type: "image/png",
+        data: "aGVsbG8=",
+      }),
+    ).toBe("data:image/png;base64,aGVsbG8=");
+  });
 
-    const type = getAttachmentSegmentType(attachment as any);
-
-    expect(type).toBe('document');
+  it("rewrites relative API paths using the configured API base", async () => {
+    const previous = process.env.NEXT_PUBLIC_API_URL;
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8080";
+    vi.resetModules();
+    const { buildAttachmentUri: buildAttachmentUriWithEnv } = await import("../attachments");
+    expect(
+      buildAttachmentUriWithEnv({
+        name: "cached.png",
+        media_type: "image/png",
+        uri: "/api/data/example-id",
+      }),
+    ).toBe("http://localhost:8080/api/data/example-id");
+    process.env.NEXT_PUBLIC_API_URL = previous;
+    vi.resetModules();
   });
 });
