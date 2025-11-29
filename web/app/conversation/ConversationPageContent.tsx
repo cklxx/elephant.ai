@@ -449,13 +449,13 @@ export function ConversationPageContent() {
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
     : null;
-  const sessionBadge = resolvedSessionId
-    ? activeSessionLabel || formatSessionBadge(resolvedSessionId)
-    : null;
   const deleteTargetLabel = deleteTargetId
     ? sessionLabels[deleteTargetId]?.trim() ||
       t('console.history.itemPrefix', { id: deleteTargetId.slice(0, 8) })
     : null;
+  const headerTitle = resolvedSessionId
+    ? activeSessionLabel || t('conversation.header.activeLabel')
+    : t('conversation.header.idle');
 
   const emptyState = (
     <div
@@ -534,8 +534,8 @@ export function ConversationPageContent() {
       </Dialog>
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-4 pb-10 pt-6 lg:px-8">
         <Header
-          title={sessionBadge || t('conversation.header.idle')}
-          subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
+          title={headerTitle}
+          showEnvironmentStrip={false}
           leadingSlot={
             <Button
               type="button"

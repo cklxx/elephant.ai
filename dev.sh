@@ -1024,9 +1024,9 @@ cmd_start() {
     echo -e "  ${C_CYAN}Health:${C_RESET}  http://localhost:$SERVER_PORT/health"
     echo ""
     echo -e "${C_YELLOW}Commands:${C_RESET}"
-    echo -e "  ./deploy.sh logs     # Tail logs"
-    echo -e "  ./deploy.sh status   # Check status"
-    echo -e "  ./deploy.sh down     # Stop services"
+    echo -e "  ./dev.sh logs     # Tail logs"
+    echo -e "  ./dev.sh status   # Check status"
+    echo -e "  ./dev.sh down     # Stop services"
     echo ""
 }
 
@@ -1300,7 +1300,7 @@ cmd_pro_help() {
 ${C_CYAN}Production Deployment (nginx reverse proxy)${C_RESET}
 
 ${C_YELLOW}Usage:${C_RESET}
-  ./deploy.sh pro [command]
+  ./dev.sh pro [command]
 
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}up|start|deploy${C_RESET}   Build and start the production stack (default)
@@ -1326,7 +1326,7 @@ cmd_docker_help() {
 ${C_CYAN}Docker Compose Deployment${C_RESET}
 
 ${C_YELLOW}Usage:${C_RESET}
-  ./deploy.sh docker [command]
+  ./dev.sh docker [command]
 
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}up|start${C_RESET}          Start reverse-proxy stack on :80 (default)

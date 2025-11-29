@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 
 import { TaskCompleteEvent } from "@/lib/types";
-import { formatDuration } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import {
   parseContentSegments,
@@ -134,18 +133,6 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
 
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
 
-  // Build metrics string
-  const metrics: string[] = [];
-  if (typeof event.total_iterations === "number") {
-    metrics.push(t("events.taskComplete.metrics.iterations", { count: event.total_iterations }));
-  }
-  if (typeof event.total_tokens === "number") {
-    metrics.push(t("events.taskComplete.metrics.tokens", { count: event.total_tokens }));
-  }
-  if (typeof event.duration === "number") {
-    metrics.push(t("events.taskComplete.metrics.duration", { duration: formatDuration(event.duration) }));
-  }
-
   const InlineMarkdownImage = ({
     src,
     alt,
@@ -264,15 +251,6 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             {stopReasonCopy.body && (
               <p className="mt-1 text-slate-500">{stopReasonCopy.body}</p>
             )}
-          </div>
-        )}
-
-        {metrics.length > 0 && (
-          <div
-            className="text-xs uppercase tracking-wide text-slate-500"
-            data-testid="task-complete-metrics"
-          >
-            {metrics.join(" · ")}
           </div>
         )}
 

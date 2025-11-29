@@ -136,6 +136,7 @@ const translations = {
     "console.thread.autosave": "Autosave on",
     "conversation.header.label": "Conversation",
     "conversation.header.active": "Session {id}",
+    "conversation.header.activeLabel": "Active session",
     "conversation.header.idle": "Start new run",
     "conversation.header.subtitle": "Agent activity stays in the stream.",
     "conversation.quickstart.subtitle": "Pick a prompt.",

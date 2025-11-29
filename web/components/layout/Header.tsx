@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Download, History, LogOut, MoreVertical, Trash2, UserCircle2 } from "lucide-react";
+import {
+  Download,
+  History,
+  LogOut,
+  MoreVertical,
+  Trash2,
+  UserCircle2,
+} from "lucide-react";
 
 import { EnvironmentStrip } from "@/components/status/EnvironmentStrip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,11 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth/context";
-import {
-  getLanguageLocale,
-  useI18n,
-  type TranslationKey,
-} from "@/lib/i18n";
+import { getLanguageLocale, useI18n, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -32,6 +35,7 @@ interface HeaderProps {
   className?: string;
   leadingSlot?: ReactNode;
   actionsSlot?: ReactNode;
+  showEnvironmentStrip?: boolean;
 }
 
 export function Header({
@@ -42,6 +46,7 @@ export function Header({
   className,
   leadingSlot,
   actionsSlot,
+  showEnvironmentStrip = true,
 }: HeaderProps) {
   const { t, language } = useI18n();
   const router = useRouter();
@@ -89,7 +94,11 @@ export function Header({
   const accountNode: ReactNode = (() => {
     if (authStatus === "loading") {
       return (
-        <Button variant="ghost" disabled className="rounded-full px-4 py-2 text-xs">
+        <Button
+          variant="ghost"
+          disabled
+          className="rounded-full px-4 py-2 text-xs"
+        >
           {t("auth.account.loading")}
         </Button>
       );
@@ -100,9 +109,8 @@ export function Header({
         .trim()
         .charAt(0)
         .toUpperCase();
-      const tierKey = (
-        `auth.subscription.tier.${user.subscription.tier}` as TranslationKey
-      );
+      const tierKey =
+        `auth.subscription.tier.${user.subscription.tier}` as TranslationKey;
       const tierLabel = t(tierKey);
       const subscriptionLabel = user.subscription.isPaid
         ? t("auth.account.subscriptionPaid", {
@@ -115,9 +123,7 @@ export function Header({
       const expiryLabel =
         user.subscription.isPaid && user.subscription.expiresAt
           ? t("auth.account.subscriptionExpires", {
-              date: dateFormatter.format(
-                new Date(user.subscription.expiresAt),
-              ),
+              date: dateFormatter.format(new Date(user.subscription.expiresAt)),
             })
           : null;
       const pointsLabel = t("auth.account.points", {
@@ -143,9 +149,6 @@ export function Header({
               <span className="hidden text-left text-xs leading-tight sm:block">
                 <span className="block font-semibold text-foreground">
                   {user.displayName || user.email}
-                </span>
-                <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                  {t("auth.account.menuTitle")}
                 </span>
               </span>
             </Button>
@@ -229,9 +232,11 @@ export function Header({
               {subtitle}
             </p>
           )}
-          <div className="mt-2">
-            <EnvironmentStrip />
-          </div>
+          {showEnvironmentStrip && (
+            <div className="mt-2">
+              <EnvironmentStrip />
+            </div>
+          )}
         </div>
       </div>
 

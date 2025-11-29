@@ -446,6 +446,10 @@ const NOISE_LINE_PATTERNS = [
   /^iteration\s+\d+/i,
   /^seedream.*response$/i,
   /^.*text-to-image response$/i,
+  /^seedream.*response.*$/i,
+  /^use these placeholders?.*/i,
+  /^\[?doubao[-\w]*seedream[^\]]*\]?$/i,
+  /^image[s]?\s+generated[:：]?\s*\[.*\]$/i,
 ];
 
 function stripNoisyLines(input: string): string {
@@ -456,16 +460,20 @@ function stripNoisyLines(input: string): string {
   const filtered: string[] = [];
   lines.forEach((line) => {
     const trimmed = line.trim();
-    if (!trimmed) {
+    const scrubbed = trimmed
+      .replace(/\[doubao[-\w]*seedream[^\]]*\]/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (!scrubbed) {
       if (filtered.length > 0 && filtered[filtered.length - 1] !== "") {
         filtered.push("");
       }
       return;
     }
-    if (NOISE_LINE_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+    if (NOISE_LINE_PATTERNS.some((pattern) => pattern.test(scrubbed))) {
       return;
     }
-    filtered.push(trimmed);
+    filtered.push(scrubbed);
   });
   return filtered.join("\n").trim();
 }
@@ -563,6 +571,7 @@ function renderToolResult(
   const normalizedToolName = toolName.toLowerCase();
   const isSeedream = isSeedreamTool(toolName);
   const hasResultText = typeof result === "string" && result.trim().length > 0;
+  const friendlySeedreamSummary = isSeedream ? "Image ready" : undefined;
 
   // Code execute - show executed code and output
   if (toolName === "code_execute") {
@@ -847,14 +856,18 @@ function renderToolResult(
   if (attachmentsAvailable) {
     return (
       <div className="rounded-lg bg-muted/15 p-3 space-y-4">
-        {isSeedream && normalizedDescriptor && (
+        {isSeedream && (
           <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-              Prompt
-            </p>
-            <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
-              {normalizedDescriptor}
-            </p>
+            {friendlySeedreamSummary && (
+              <p className="text-sm font-semibold text-foreground">
+                {friendlySeedreamSummary}
+              </p>
+            )}
+            {normalizedDescriptor && (
+              <p className="text-xs text-muted-foreground">
+                {normalizedDescriptor}
+              </p>
+            )}
           </div>
         )}
         {filteredTextSegments.length > 0 && (
@@ -926,6 +939,11 @@ function renderToolResult(
 
     return (
       <div className="rounded-lg bg-muted/15 p-3 space-y-3">
+        {friendlySeedreamSummary && (
+          <p className="text-sm font-semibold text-foreground">
+            {friendlySeedreamSummary}
+          </p>
+        )}
         {showPrompt && (
           <div className="space-y-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">

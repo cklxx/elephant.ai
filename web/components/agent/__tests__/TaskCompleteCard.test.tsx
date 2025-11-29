@@ -42,9 +42,7 @@ describe('TaskCompleteCard', () => {
     expect(
       screen.getByText(/Submit another prompt to continue working/i),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('task-complete-metrics')).toHaveTextContent(
-      /2 iterations/i,
-    );
+    expect(screen.queryByTestId('task-complete-metrics')).not.toBeInTheDocument();
   });
 
   it('renders markdown answer when final answer is present', () => {
@@ -59,9 +57,7 @@ describe('TaskCompleteCard', () => {
 
     expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
     expect(screen.getByText(/This is the answer\./i)).toBeInTheDocument();
-    expect(screen.getByTestId('task-complete-metrics')).toHaveTextContent(
-      /3 iterations/i,
-    );
+    expect(screen.queryByTestId('task-complete-metrics')).not.toBeInTheDocument();
   });
 
   it('renders inline images from attachment placeholders', () => {
