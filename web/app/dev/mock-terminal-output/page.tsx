@@ -48,7 +48,7 @@ export default function MockTerminalOutputPage() {
                 Final answer inline replay
               </h1>
               <p className="text-sm text-slate-600">
-                Preview the TerminalOutput component with mocked streaming task_complete updates and attachments.
+                Preview the TerminalOutput component with mocked streaming workflow.result.final updates and attachments.
               </p>
               {latestTaskId && (
                 <p className="text-xs text-slate-500">Current task id: {latestTaskId}</p>

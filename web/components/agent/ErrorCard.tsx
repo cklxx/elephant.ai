@@ -1,11 +1,11 @@
 'use client';
 
-import { ErrorEvent } from '@/lib/types';
+import { WorkflowNodeFailedEvent } from '@/lib/types';
 import { AlertCircle } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ErrorCardProps {
-  event: ErrorEvent;
+  event: WorkflowNodeFailedEvent;
 }
 
 export function ErrorCard({ event }: ErrorCardProps) {

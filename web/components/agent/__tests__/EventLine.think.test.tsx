@@ -3,9 +3,9 @@ import { render } from '@testing-library/react';
 
 import { EventLine } from '../EventLine';
 import { LanguageProvider } from '@/lib/i18n';
-import { ThinkCompleteEvent } from '@/lib/types';
+import { WorkflowNodeOutputSummaryEvent } from '@/lib/types';
 
-function renderThinkEvent(event: ThinkCompleteEvent) {
+function renderThinkEvent(event: WorkflowNodeOutputSummaryEvent) {
   return render(
     <LanguageProvider>
       <EventLine event={event} />
@@ -13,10 +13,10 @@ function renderThinkEvent(event: ThinkCompleteEvent) {
   );
 }
 
-describe('EventLine (think_complete)', () => {
+describe('EventLine (workflow.node.output.summary)', () => {
   it('renders attachments using the task complete card', () => {
-    const thinkEvent: ThinkCompleteEvent = {
-      event_type: 'think_complete',
+    const thinkEvent: WorkflowNodeOutputSummaryEvent = {
+      event_type: 'workflow.node.output.summary',
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'session-123',
@@ -45,8 +45,8 @@ describe('EventLine (think_complete)', () => {
   });
 
   it('renders preview asset videos when the attachment lacks a direct uri', () => {
-    const thinkEvent: ThinkCompleteEvent = {
-      event_type: 'think_complete',
+    const thinkEvent: WorkflowNodeOutputSummaryEvent = {
+      event_type: 'workflow.node.output.summary',
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'session-456',

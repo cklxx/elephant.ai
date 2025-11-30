@@ -76,6 +76,7 @@ print_cn_mirrors() {
     [[ -n "${DOCKER_REGISTRY_MIRROR:-}" ]] && log_info "  Docker mirror: ${DOCKER_REGISTRY_MIRROR}"
     [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  Sandbox image: ${SANDBOX_IMAGE}"
     [[ -n "${NPM_CONFIG_REGISTRY:-}" ]] && log_info "  npm registry: ${NPM_CONFIG_REGISTRY}"
+    [[ -n "${PIP_INDEX_URL:-}" ]] && log_info "  pip index: ${PIP_INDEX_URL}"
     [[ -n "${GOPROXY:-}" ]] && log_info "  Go proxy: ${GOPROXY}"
     [[ -n "${GOSUMDB:-}" ]] && log_info "  Go checksum DB: ${GOSUMDB}"
     [[ -n "${GO_PROXY:-}" ]] && log_info "  Go proxy (override): ${GO_PROXY}"
@@ -1269,6 +1270,7 @@ cmd_cn() {
     export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
     export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com/}"
     export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
+    export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
     export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
     export GO_PROXY="${GO_PROXY:-${GOPROXY}}"
     export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
@@ -1347,7 +1349,7 @@ ${C_YELLOW}Usage:${C_RESET}
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}pro [command]${C_RESET}      Run production stack on :80 via nginx (default)
   ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
-  ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/go)
+  ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/pip/go)
   ${C_GREEN}logs [service]${C_RESET}     Tail production logs (alias for: pro logs [service])
   ${C_GREEN}help${C_RESET}               Show this help
 

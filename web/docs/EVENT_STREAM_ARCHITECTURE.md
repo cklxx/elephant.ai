@@ -8,22 +8,19 @@ This document describes the robust event stream state management system for the 
 
 The goal is a single workflow-originated event stream with semantic, namespaced `event_type` values. Every message uses a shared envelope and an explicit version for compatibility.
 
-- **Envelope (all events)**: `version` (e.g., `1`), `event_type`, `timestamp` (RFC3339), `agent_level`, `workflow_id`, `run_id` (or `task_id`), `parent_task_id`, `session_id`, `node_id`, `node_kind`, `payload`, optional `legacy_type` (for dual-emission), optional `attachments`.
+- **Envelope (all events)**: `version` (e.g., `1`), `event_type`, `timestamp` (RFC3339), `agent_level`, `workflow_id`, `run_id` (or `task_id`), `parent_task_id`, `session_id`, `node_id`, `node_kind`, `payload`, optional `attachments`.
 - **Namespaces** (examples):
   - `workflow.lifecycle.updated` – full workflow snapshot (phase, summary, nodes).
-  - `workflow.plan.generated` – planned steps/estimates (replaces `research_plan`).
   - `workflow.node.started|completed|failed` – node lifecycle (replaces `step_started/step_completed`).
-  - `workflow.node.output.delta` – token stream (replaces `assistant_message`).
-  - `workflow.node.output.summary` – completed turn/thought (replaces `think_complete`).
-  - `workflow.tool.started|progress|completed` – tool runs (replaces `tool_call_start/stream/complete`).
+  - `workflow.node.output.delta` – token stream (replaces `workflow.node.output.delta`).
+  - `workflow.node.output.summary` – completed turn/thought (replaces `workflow.node.output.summary`).
+  - `workflow.tool.started|progress|completed` – tool runs (replaces `workflow.tool.started/stream/complete`).
   - `workflow.subflow.progress|completed` – delegated agent/subagent aggregation (replaces frontend-synthesized `subagent_*`).
-  - `workflow.result.final` – final answer/attachments (replaces `task_complete`).
-  - `workflow.result.cancelled` – cancellation (replaces `task_cancelled`).
-  - `workflow.diagnostic.*` – `context_compaction`, `tool_filtering`, `browser_info`, `environment_snapshot`, `sandbox_progress`.
+  - `workflow.result.final` – final answer/attachments (replaces `workflow.result.final`).
+  - `workflow.result.cancelled` – cancellation (replaces `workflow.result.cancelled`).
+  - `workflow.diagnostic.*` – `context_compaction`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.browser_info`, `workflow.diagnostic.environment_snapshot`, `workflow.diagnostic.sandbox_progress`.
 - **Compatibility strategy**:
-  - Backend dual-emits `event_type` (new) + `legacy_type` in payload during the migration window; frontend accepts both but prefers new.
-  - SSE handler stays single-transport; no additional channels.
-  - Tracking/analytics lists must mirror the new names; tests enforce parity (see `internal/analytics/tracking_plan_test.go`).
+  - No legacy dual-emission; only workflow.* event types are streamed. Tracking/analytics lists must mirror the new names; tests enforce parity (see `internal/analytics/tracking_plan_test.go`).
 
 ### Field conventions
 
@@ -34,16 +31,14 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
 
 ### Required backend emissions (to align with UI expectations)
 
-- Emit `workflow.plan.generated` before execution (currently missing).
 - Emit `workflow.subflow.progress|completed` from the delegating agent instead of frontend synthesis.
-- Emit `workflow.tool.progress` for streaming tool output instead of overloading `tool_call_stream`.
-- Ensure diagnostics (`context_compaction`, `tool_filtering`, `browser_info`, `environment_snapshot`, `sandbox_progress`) use the `workflow.diagnostic.*` namespace.
-
+- Emit `workflow.tool.progress` for streaming tool output instead of overloading `workflow.tool.progress`.
+- Ensure diagnostics (`context_compaction`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.browser_info`, `workflow.diagnostic.environment_snapshot`, `workflow.diagnostic.sandbox_progress`) use the `workflow.diagnostic.*` namespace.
 ## Cleanup and validation (post-migration checklist)
 
 - **Remove legacy-only code**: drop `event_type` inference branches in `web/lib/schemas.ts`; delete `subagentDeriver` once backend emits subflow events.
 - **Schema/test parity**: keep Go/TS event lists in sync (`internal/analytics/tracking_plan_test.go` ↔ `web/lib/schemas.ts`/`types.ts`); add a golden SSE sample covering every new `event_type`.
-- **E2E validation**: run SSE → store → UI flow with a scripted event fixture (plan, node lifecycle, tool stream, subflow, diagnostics, final/cancel). Confirm rendering and aggregation paths (iterations, tools, steps, result).
+- **E2E validation**: run SSE → store → UI flow with a scripted event fixture (node lifecycle, tool stream, subflow, diagnostics, final/cancel). Confirm rendering and aggregation paths (iterations, tools, steps, result).
 - **Telemetry**: update analytics/tracking plan to the new names; remove legacy labels once dual-read window closes.
 - **Docs**: keep this spec as the single source; reference it from implementation notes/PRs to avoid drift.
 
@@ -118,7 +113,7 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
 
 ### 1. Tool Call Aggregation
 
-**Purpose**: Merge `workflow.tool.started`, `workflow.tool.progress`, and `workflow.tool.completed` events (legacy: `tool_call_start/stream/complete`) into a single `AggregatedToolCall` object.
+**Purpose**: Merge `workflow.tool.started`, `workflow.tool.progress`, and `workflow.tool.completed` events (legacy: `workflow.tool.started/stream/complete`) into a single `AggregatedToolCall` object.
 
 **Algorithm**:
 ```typescript
@@ -160,7 +155,7 @@ interface IterationGroup {
   status: 'running' | 'complete';
   started_at: string;
   completed_at?: string;
-  thinking?: string;
+  workflow.node.output.delta?: string;
   tool_calls: AggregatedToolCall[];
   tokens_used?: number;
   tools_run?: number;
@@ -168,11 +163,11 @@ interface IterationGroup {
 }
 
 // Process:
-// 1. iteration_start → Create group with status='running'
-// 2. think_complete → Add thinking content
+// 1. workflow.node.started → Create group with status='running'
+// 2. workflow.node.output.summary → Add workflow.node.output.delta content
 // 3. tool_call_* → Add to tool_calls array
 // 4. error → Append to errors array
-// 5. iteration_complete → Update status, metrics
+// 5. workflow.node.completed → Update status, metrics
 ```
 
 **Benefits**:
@@ -198,13 +193,12 @@ interface ResearchStep {
 }
 
 // Process:
-// 1. research_plan → Create steps from plan_steps array
-// 2. step_started → Update status to 'in_progress'
-// 3. step_completed → Update status to 'completed', add result
+// 1. workflow.node.started → Update status to 'in_progress'
+// 2. workflow.node.completed → Update status to 'completed', add result
 ```
 
 **Benefits**:
-- research console-style research timeline
+- research console-style timeline
 - Step progress tracking
 - Iteration-to-step mapping
 
@@ -385,21 +379,14 @@ To emit new event types, update Go backend:
 **File**: `internal/agent/domain/events.go`
 
 ```go
-// Add new event types
-type ResearchPlanEvent struct {
-    BaseEvent
-    PlanSteps          []string `json:"plan_steps"`
-    EstimatedIterations int     `json:"estimated_iterations"`
-}
-
-type StepStartedEvent struct {
+type WorkflowNodeStartedEvent struct {
     BaseEvent
     StepIndex       int    `json:"step_index"`
     StepDescription string `json:"step_description"`
     Iteration       int    `json:"iteration,omitempty"`
 }
 
-type StepCompletedEvent struct {
+type WorkflowNodeCompletedEvent struct {
     BaseEvent
     StepIndex       int    `json:"step_index"`
     StepResult      string `json:"step_result"`
@@ -407,7 +394,7 @@ type StepCompletedEvent struct {
     Iteration       int    `json:"iteration,omitempty"`
 }
 
-type BrowserInfoEvent struct {
+type WorkflowDiagnosticBrowserInfoEvent struct {
     BaseEvent
     Success        *bool  `json:"success,omitempty"`
     Message        string `json:"message,omitempty"`
@@ -420,35 +407,6 @@ type BrowserInfoEvent struct {
 }
 ```
 
-**File**: `internal/agent/domain/react_engine.go`
-
-```go
-// Emit research plan before execution
-func (e *ReactEngine) SolveTask(ctx context.Context, task string) error {
-    // Analyze and create plan
-    plan := e.analyzeTask(ctx, task)
-    e.eventBus.Emit(ResearchPlanEvent{
-        PlanSteps: plan.Steps,
-        EstimatedIterations: plan.EstimatedIterations,
-    })
-
-    // Execute plan steps
-    for i, step := range plan.Steps {
-        e.eventBus.Emit(StepStartedEvent{
-            StepIndex: i,
-            StepDescription: step,
-        })
-
-        result := e.executeStep(ctx, step)
-
-        e.eventBus.Emit(StepCompletedEvent{
-            StepIndex: i,
-            StepResult: result,
-        })
-    }
-}
-```
-
 ### SSE Event Registration
 
 **File**: `cmd/server/handlers/sse.go`
@@ -458,7 +416,6 @@ func (e *ReactEngine) SolveTask(ctx context.Context, task string) error {
 eventTypes := []string{
     "connected",
     "workflow.lifecycle.updated",
-    "workflow.plan.generated",
     "workflow.node.started",
     "workflow.node.completed",
     "workflow.node.failed",
@@ -478,9 +435,9 @@ eventTypes := []string{
     "workflow.diagnostic.tool_filtering",
     "workflow.diagnostic.context_snapshot",
     // Transitional legacy registrations (remove after dual-emission window)
-    "tool_call_start",
-    "tool_call_stream",
-    "tool_call_complete",
+    "workflow.tool.started",
+    "workflow.tool.progress",
+    "workflow.tool.completed",
 }
 ```
 
@@ -533,7 +490,7 @@ describe('useAgentStreamIntegration', () => {
 
     // Simulate SSE event
     act(() => {
-      const event = { event_type: 'iteration_start', iteration: 1, total_iters: 3, ... };
+      const event = { event_type: 'workflow.node.started', iteration: 1, total_iters: 3, ... };
       result.current.onEvent(event);
     });
 

@@ -3,9 +3,12 @@
 
 import {
   AnyAgentEvent,
-  ToolCallStartEvent,
-  ToolCallStreamEvent,
-  ToolCallCompleteEvent,
+  WorkflowToolStartedEvent,
+  WorkflowToolProgressEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowNodeStartedEvent,
+  WorkflowNodeCompletedEvent,
+  WorkflowNodeFailedEvent,
   AttachmentPayload,
   eventMatches,
 } from './types';
@@ -42,7 +45,7 @@ export interface IterationGroup {
   status: 'running' | 'complete';
   started_at: string;
   completed_at?: string;
-  thinking?: string;
+  delta?: string;
   tool_calls: AggregatedToolCall[];
   tokens_used?: number;
   tools_run?: number;
@@ -86,8 +89,8 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
   const toolCallMap = new Map<string, AggregatedToolCall>();
 
   for (const event of events) {
-    if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
-      const startEvent = event as ToolCallStartEvent;
+    if (eventMatches(event, 'workflow.tool.started')) {
+      const startEvent = event as WorkflowToolStartedEvent;
       toolCallMap.set(startEvent.call_id, {
         id: startEvent.call_id,
         call_id: startEvent.call_id,
@@ -97,18 +100,18 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
         status: 'running',
         stream_chunks: [],
         timestamp: startEvent.timestamp,
-        iteration: startEvent.iteration,
+        iteration: startEvent.iteration ?? 0,
       });
-    } else if (eventMatches(event, 'workflow.tool.progress', 'tool_call_stream')) {
-      const streamEvent = event as ToolCallStreamEvent;
+    } else if (eventMatches(event, 'workflow.tool.progress')) {
+      const streamEvent = event as WorkflowToolProgressEvent;
       const existing = toolCallMap.get(streamEvent.call_id);
       if (existing) {
         existing.status = 'streaming';
         existing.stream_chunks.push(streamEvent.chunk);
         existing.last_stream_at = streamEvent.timestamp;
       }
-    } else if (eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')) {
-      const completeEvent = event as ToolCallCompleteEvent;
+    } else if (eventMatches(event, 'workflow.tool.completed')) {
+      const completeEvent = event as WorkflowToolCompletedEvent;
       const existing = toolCallMap.get(completeEvent.call_id);
       if (existing) {
         existing.status = completeEvent.error ? 'error' : 'complete';
@@ -272,54 +275,61 @@ export function groupByIteration(events: AnyAgentEvent[]): Map<number, Iteration
   const toolCallMap = aggregateToolCalls(events);
 
   for (const event of events) {
+    const nodeKind = 'node_kind' in event ? (event as any).node_kind : undefined;
+    const nodeId = 'node_id' in event ? (event as any).node_id : undefined;
+    const hasIteration = typeof (event as any).iteration === 'number';
+    const hasStepIndex = typeof (event as any).step_index === 'number';
+    const iterationValue = hasIteration ? (event as any).iteration as number : undefined;
     const isIterationKind =
-      event.node_kind === 'iteration' ||
-      (event.node_id && event.node_id.startsWith('iteration-')) ||
-      (event as any).legacy_type === 'iteration_start' ||
-      (event as any).legacy_type === 'iteration_complete';
+      nodeKind === 'iteration' ||
+      (typeof nodeId === 'string' && nodeId.startsWith('iteration-')) ||
+      (!hasStepIndex && hasIteration);
 
     if (
-      eventMatches(event, 'workflow.node.started', 'iteration_start') &&
+      eventMatches(event, 'workflow.node.started') &&
       isIterationKind &&
-      typeof event.iteration === 'number'
+      iterationValue !== undefined
     ) {
-      iterationMap.set(event.iteration, {
-        id: `iter-${event.iteration}`,
-        iteration: event.iteration,
-        total_iters: event.total_iters,
+      const startedEvent = event as WorkflowNodeStartedEvent;
+      iterationMap.set(iterationValue, {
+        id: `iter-${iterationValue}`,
+        iteration: iterationValue,
+        total_iters: startedEvent.total_iters ?? 0,
         status: 'running',
-        started_at: event.timestamp,
+        started_at: startedEvent.timestamp,
         tool_calls: [],
         errors: [],
       });
-    } else if (
-      eventMatches(event, 'workflow.node.output.summary', 'think_complete') &&
-      typeof event.iteration === 'number'
-    ) {
-      const group = iterationMap.get(event.iteration);
+    } else if (eventMatches(event, 'workflow.node.output.summary') && iterationValue !== undefined) {
+      const group = iterationMap.get(iterationValue);
       if (group) {
-        group.thinking = (event as any).content;
+        group.delta = (event as any).content ?? (event as any).delta;
       }
     } else if (
-      eventMatches(event, 'workflow.node.completed', 'iteration_complete') &&
+      eventMatches(event, 'workflow.node.completed') &&
       isIterationKind &&
-      typeof event.iteration === 'number'
+      iterationValue !== undefined
     ) {
-      const group = iterationMap.get(event.iteration);
+      const completedEvent = event as WorkflowNodeCompletedEvent;
+      const group = iterationMap.get(iterationValue);
       if (group) {
         group.status = 'complete';
-        group.completed_at = event.timestamp;
-        group.tokens_used = (event as any).tokens_used;
-        group.tools_run = (event as any).tools_run;
+        group.completed_at = completedEvent.timestamp;
+        group.tokens_used = completedEvent.tokens_used;
+        group.tools_run = completedEvent.tools_run;
       }
     } else if (
-      eventMatches(event, 'workflow.node.failed', 'error') &&
+      eventMatches(event, 'workflow.node.failed') &&
       isIterationKind &&
-      typeof event.iteration === 'number'
+      iterationValue !== undefined
     ) {
-      const group = iterationMap.get(event.iteration);
+      const failedEvent = event as WorkflowNodeFailedEvent;
+      const group = iterationMap.get(iterationValue);
       if (group) {
-        group.errors.push((event as any).error);
+        const errorMessage = failedEvent.error;
+        if (typeof errorMessage === 'string' && errorMessage.length > 0) {
+          group.errors.push(errorMessage);
+        }
       }
     }
   }
@@ -367,37 +377,33 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
 
   for (const event of events) {
     switch (true) {
-      case eventMatches(event, 'workflow.plan.generated', 'research_plan'):
-        event.plan_steps.forEach((description, index) => {
-          plannedDescriptions.set(index, description);
-          ensureStep(index, description);
-        });
-        break;
-      case eventMatches(event, 'workflow.node.started', 'step_started'): {
+      case eventMatches(event, 'workflow.node.started'): {
         if (typeof (event as any).step_index !== 'number') {
           break;
         }
-        const step = ensureStep(event.step_index, (event as any).step_description);
+        const stepEvent = event as WorkflowNodeStartedEvent & { step_index: number };
+        const step = ensureStep(stepEvent.step_index, stepEvent.step_description);
         step.status = 'in_progress';
-        step.started_at = event.timestamp;
-        if (typeof event.iteration === 'number' && !step.iterations.includes(event.iteration)) {
-          step.iterations.push(event.iteration);
+        step.started_at = stepEvent.timestamp;
+        if (typeof stepEvent.iteration === 'number' && !step.iterations.includes(stepEvent.iteration)) {
+          step.iterations.push(stepEvent.iteration);
         }
         break;
       }
-      case eventMatches(event, 'workflow.node.completed', 'step_completed'): {
+      case eventMatches(event, 'workflow.node.completed'): {
         if (typeof (event as any).step_index !== 'number') {
           break;
         }
-        const step = ensureStep(event.step_index, (event as any).step_description);
+        const stepEvent = event as WorkflowNodeCompletedEvent & { step_index: number };
+        const step = ensureStep(stepEvent.step_index, stepEvent.step_description);
         step.status = 'completed';
-        step.completed_at = event.timestamp;
-        step.result = (event as any).step_result;
+        step.completed_at = stepEvent.timestamp;
+        step.result = stepEvent.step_result;
         if (!step.started_at) {
-          step.started_at = event.timestamp;
+          step.started_at = stepEvent.timestamp;
         }
-        if (typeof event.iteration === 'number' && !step.iterations.includes(event.iteration)) {
-          step.iterations.push(event.iteration);
+        if (typeof stepEvent.iteration === 'number' && !step.iterations.includes(stepEvent.iteration)) {
+          step.iterations.push(stepEvent.iteration);
         }
         break;
       }
@@ -420,8 +426,8 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
  */
 export function extractBrowserDiagnostics(events: AnyAgentEvent[]): BrowserDiagnostics[] {
   return events
-    .filter((e): e is import('./types').BrowserInfoEvent =>
-      eventMatches(e, 'workflow.diagnostic.browser_info', 'browser_info'),
+    .filter((e): e is import('./types').WorkflowDiagnosticBrowserInfoEvent =>
+      eventMatches(e, 'workflow.diagnostic.browser_info'),
     )
     .map((e) => ({
       id: `browser-info-${e.timestamp}`,
@@ -460,7 +466,7 @@ export class EventLRUCache {
 
   /**
    * Replace the most recent event if it matches the predicate. This keeps streaming
-   * updates adjacent (e.g., task_complete deltas) while preserving older, non-adjacent
+   * updates adjacent (e.g., workflow.result.final deltas) while preserving older, non-adjacent
    * events.
    *
    * @returns true if a replacement occurred, false otherwise

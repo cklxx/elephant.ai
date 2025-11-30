@@ -13,7 +13,7 @@ describe('Memory Usage Tests', () => {
   it('should keep memory bounded with 1000 events', () => {
     // Generate 1000 typical events
     const events: AnyAgentEvent[] = Array.from({ length: 1000 }, (_, i) => ({
-      event_type: 'tool_call_complete' as const,
+      event_type: 'workflow.tool.completed' as const,
       timestamp: new Date().toISOString(),
       session_id: 'test-session',
       agent_level: 'core' as const,
@@ -47,7 +47,7 @@ describe('Memory Usage Tests', () => {
   it('should evict old events when exceeding 1000', () => {
     // Add 1500 events
     const events: AnyAgentEvent[] = Array.from({ length: 1500 }, (_, i) => ({
-      event_type: 'thinking' as const,
+      event_type: 'workflow.node.output.delta' as const,
       timestamp: new Date().toISOString(),
       session_id: 'test-session',
       agent_level: 'core' as const,
@@ -73,7 +73,7 @@ describe('Memory Usage Tests', () => {
 
     const events: AnyAgentEvent[] = Array.from({ length: 100 }, (_, i) => [
       {
-        event_type: 'tool_call_start' as const,
+        event_type: 'workflow.tool.started' as const,
         timestamp: new Date().toISOString(),
         session_id: 'test-session',
         agent_level: 'core' as const,
@@ -83,7 +83,7 @@ describe('Memory Usage Tests', () => {
         arguments: { path: `/file-${i}.txt` },
       },
       {
-        event_type: 'tool_call_complete' as const,
+        event_type: 'workflow.tool.completed' as const,
         timestamp: new Date().toISOString(),
         session_id: 'test-session',
         agent_level: 'core' as const,
@@ -110,7 +110,7 @@ describe('Memory Usage Tests', () => {
   it('should clear memory efficiently', () => {
     // Fill with events
     const events: AnyAgentEvent[] = Array.from({ length: 1000 }, (_, i) => ({
-      event_type: 'thinking' as const,
+      event_type: 'workflow.node.output.delta' as const,
       timestamp: new Date().toISOString(),
       session_id: 'test-session',
       agent_level: 'core' as const,
@@ -141,7 +141,7 @@ describe('Memory Usage Tests', () => {
     const callId = 'streaming-call';
 
     const startEvent: AnyAgentEvent = {
-      event_type: 'tool_call_start',
+      event_type: 'workflow.tool.started',
       timestamp: new Date().toISOString(),
       session_id: 'test-session',
       agent_level: 'core',
@@ -152,7 +152,7 @@ describe('Memory Usage Tests', () => {
     };
 
     const streamEvents: AnyAgentEvent[] = Array.from({ length: 500 }, (_, i) => ({
-      event_type: 'tool_call_stream' as const,
+      event_type: 'workflow.tool.progress' as const,
       timestamp: new Date().toISOString(),
       session_id: 'test-session',
       agent_level: 'core' as const,
@@ -162,7 +162,7 @@ describe('Memory Usage Tests', () => {
     }));
 
     const completeEvent: AnyAgentEvent = {
-      event_type: 'tool_call_complete',
+      event_type: 'workflow.tool.completed',
       timestamp: new Date().toISOString(),
       session_id: 'test-session',
       agent_level: 'core',

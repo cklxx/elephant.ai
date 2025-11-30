@@ -2,14 +2,14 @@
 
 import { ReactNode } from 'react';
 import {
-  ToolCallStartEvent,
-  ToolCallCompleteEvent,
+  WorkflowToolStartedEvent,
+  WorkflowToolCompletedEvent,
 } from '@/lib/types';
 import { ToolArgumentsPanel, ToolResultPanel, ToolStreamPanel, SimplePanel, PanelHeader } from './ToolPanels';
 
 export interface RendererContext {
-  startEvent: ToolCallStartEvent | null;
-  completeEvent: ToolCallCompleteEvent | null;
+  startEvent: WorkflowToolStartedEvent | null;
+  completeEvent: WorkflowToolCompletedEvent | null;
   status: 'running' | 'done' | 'error';
   toolName: string;
   labels: {
@@ -64,7 +64,7 @@ const buildResult = (ctx: RendererContext): ReactNode | null => {
       copyLabel={ctx.labels.copyResult}
       copyErrorLabel={ctx.labels.copyError}
       copiedLabel={ctx.labels.copied}
-      attachments={ctx.completeEvent?.attachments}
+      attachments={ctx.completeEvent?.attachments ?? undefined}
     />
   );
 };

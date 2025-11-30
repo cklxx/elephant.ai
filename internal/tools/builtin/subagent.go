@@ -59,7 +59,7 @@ ORCHESTRATOR CONTEXT:
 
 SUBAGENT TOOLING & PRESETS:
 - Each subtask spawns a fresh agent that inherits the user-selected preset (full, read-only, code-only, web-only, or safe).
-- Within that preset the subagent can call the entire toolset it allows—e.g., file_read/file_write/file_edit, list_files, grep/ripgrep/find, todo_read/todo_update, bash, code_execute, browser_info, explore, web_search/web_fetch, text_to_image, image_to_image, vision_analyze, etc.
+- Within that preset the subagent can call the entire toolset it allows—e.g., file_read/file_write/file_edit, list_files, grep/ripgrep/find, todo_read/todo_update, bash, code_execute, workflow.diagnostic.browser_info, explore, web_search/web_fetch, text_to_image, image_to_image, vision_analyze, etc.
 - Subagents CANNOT call the subagent tool themselves (recursion prevention enforced at runtime).
 
 PARALLEL FAN-OUT MODEL:

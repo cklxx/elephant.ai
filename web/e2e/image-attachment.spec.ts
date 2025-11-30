@@ -41,7 +41,7 @@ test.describe('Task input image attachments', () => {
     await textarea.press('Enter');
 
     await expect(
-      page.getByTestId('event-user_task')
+      page.getByTestId('event-workflow.input.received')
     ).toContainText('image.png', { timeout: 15000 });
 
     if (shouldCaptureScreenshots) {

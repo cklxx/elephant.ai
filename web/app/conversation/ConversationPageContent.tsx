@@ -103,9 +103,9 @@ export function ConversationPageContent() {
       }
 
       if (
-        eventMatches(event, 'workflow.result.final', 'task_complete') ||
-        eventMatches(event, 'workflow.result.cancelled', 'task_cancelled') ||
-        eventMatches(event, 'workflow.node.failed', 'error')
+        eventMatches(event, 'workflow.result.final', 'workflow.result.final') ||
+        eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled') ||
+        eventMatches(event, 'workflow.node.failed')
       ) {
         setActiveTaskId(null);
         setCancelRequested(false);
@@ -233,7 +233,7 @@ export function ConversationPageContent() {
       const attachmentMap = buildAttachmentMap(attachments);
 
       addEvent({
-        event_type: 'user_task',
+        event_type: 'workflow.input.received',
         timestamp: submissionTimestamp.toISOString(),
         agent_level: 'core',
         session_id: provisionalSessionId,
@@ -271,12 +271,12 @@ export function ConversationPageContent() {
 
             const attachmentMap = buildAttachmentMap(attachments);
             addEvent({
-              event_type: 'user_task',
+              event_type: 'workflow.input.received',
               timestamp: new Date().toISOString(),
               agent_level: 'core',
               session_id: data.session_id,
               task_id: data.task_id,
-              parent_task_id: data.parent_task_id,
+              parent_task_id: data.parent_task_id ?? undefined,
               task,
               attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
             });

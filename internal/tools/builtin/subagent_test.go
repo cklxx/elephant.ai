@@ -14,7 +14,7 @@ import (
 
 type stubEvent struct{}
 
-func (stubEvent) EventType() string               { return "tool_call_complete" }
+func (stubEvent) EventType() string               { return "workflow.tool.completed" }
 func (stubEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (stubEvent) GetAgentLevel() ports.AgentLevel { return ports.AgentLevel("subagent") }
 func (stubEvent) GetSessionID() string            { return "session" }
@@ -23,7 +23,7 @@ func (stubEvent) GetParentTaskID() string         { return "parent" }
 
 type stubCoreEvent struct{}
 
-func (stubCoreEvent) EventType() string               { return "assistant_message" }
+func (stubCoreEvent) EventType() string               { return "workflow.node.output.delta" }
 func (stubCoreEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (stubCoreEvent) GetAgentLevel() ports.AgentLevel { return ports.LevelCore }
 func (stubCoreEvent) GetSessionID() string            { return "session" }
@@ -33,7 +33,7 @@ func (stubCoreEvent) GetParentTaskID() string         { return "parent" }
 func TestSubtaskEventEventTypeMatchesOriginal(t *testing.T) {
 	evt := &SubtaskEvent{OriginalEvent: stubEvent{}}
 
-	if got := evt.EventType(); got != "tool_call_complete" {
+	if got := evt.EventType(); got != "workflow.tool.completed" {
 		t.Fatalf("expected event type to match original event, got %q", got)
 	}
 }

@@ -6,14 +6,9 @@ Successfully implemented all research console-style interaction patterns for the
 
 ## What Was Implemented
 
-### 1. Plan Approval Flow ✅
+### 1. Plan Approval Flow (removed)
 
-**Components:**
-- `usePlanApproval.ts` - State management hook (auto-approves plans)
-
-**Features:**
-- Auto-approve research plans on receipt (no dedicated UI)
-- API integration with `/api/plans/approve`
+Plan approval is no longer part of the console; execution continues from step events without a dedicated hook or API.
 
 **User Flow:**
 ```
@@ -112,7 +107,6 @@ web/
 │       ├── badge.tsx                 # Existing
 │       └── skeleton.tsx              # Existing
 ├── hooks/
-│   ├── usePlanApproval.ts           # 🆕 New hook
 │   ├── useToolOutputs.ts            # 🆕 New hook
 │   ├── useTimelineSteps.ts          # 🆕 New hook
 │   ├── usePlanProgress.ts           # 🆕 Progress metrics hook
@@ -120,8 +114,8 @@ web/
 │   ├── useSSE.ts                    # Existing
 │   └── useSessionStore.ts           # Existing
 ├── lib/
-│   ├── api.ts                       # ✏️ Updated (added approvePlan)
-│   ├── types.ts                     # ✏️ Updated (plan events)
+│   ├── api.ts                       # ✏️ Updated (stream handling)
+│   ├── types.ts                     # ✏️ Updated (workflow events)
 │   └── planTypes.ts                 # 🆕 Timeline step types
 ├── app/
 │   └── page.tsx                     # ✏️ Updated (research console UI integration)
@@ -156,54 +150,28 @@ Response: { "success": true, "message": "..." }
 ### New SSE Events
 
 ```typescript
-// Research plan generated
-{
-  "event_type": "research_plan",
-  "plan_steps": ["Step 1", "Step 2"],
-  "estimated_iterations": 5
-}
-
 // Step execution started
 {
-  "event_type": "step_started",
+  "event_type": "workflow.node.started",
   "step_index": 0,
   "step_description": "Analyze codebase"
 }
 
 // Step execution completed
 {
-  "event_type": "step_completed",
+  "event_type": "workflow.node.completed",
   "step_index": 0,
   "step_result": "Found 5 files"
 }
 
 // Browser diagnostics (for sandbox visibility)
 {
-  "event_type": "browser_info",
+  "event_type": "workflow.diagnostic.browser_info",
   "captured": "2025-01-01T10:00:00Z",
   "success": true,
   "message": "Browser ready",
   "user_agent": "AgentBrowser/1.0",
   "cdp_url": "ws://example.com/devtools"
-}
-```
-
-### Updated Request
-
-```typescript
-POST /api/tasks
-{
-  "task": "...",
-  "session_id": "...",
-  "auto_approve_plan": false  // 🆕 New field
-}
-
-Response:
-{
-  "task_id": "...",
-  "session_id": "...",
-  "status": "pending",
-  "requires_plan_approval": true  // 🆕 New field
 }
 ```
 
@@ -236,7 +204,6 @@ See `PERFORMANCE_OPTIMIZATION.md` for details.
 
 ```bash
 # Test hooks
-web/hooks/__tests__/usePlanApproval.test.ts
 web/hooks/__tests__/useToolOutputs.test.ts
 web/hooks/__tests__/useTimelineSteps.test.ts
 
@@ -298,21 +265,9 @@ const [useResearch ConsoleUI, setUseResearch ConsoleUI] = useState(true);
 
 ### Backend Implementation (Required)
 
-1. **Add Plan Approval Endpoint**
-   - `POST /api/plans/approve`
-   - Store approved/modified plans
-   - Resume execution after approval
-
-2. **Add SSE Events**
-   - `research_plan` - Generated plan
-   - `step_started` - Research step begins
-   - `step_completed` - Research step ends
-  - `browser_info` - Sandbox browser diagnostics
-
-3. **Update Task Creation**
-   - Add `auto_approve_plan` field
-   - Return `requires_plan_approval` flag
-   - Wait for approval before starting execution
+1. Ensure `workflow.node.started` / `workflow.node.completed` emissions are present so the timeline can render.
+2. Stream `workflow.diagnostic.browser_info` diagnostics when available for sandbox visibility.
+3. Keep task creation payloads unchanged; no plan approval flow is required.
 
 ### Frontend Enhancements (Optional)
 
@@ -337,10 +292,9 @@ const [useResearch ConsoleUI, setUseResearch ConsoleUI] = useState(true);
 
 ## Known Limitations
 
-1. **Plan Generation**: Requires backend implementation to emit `research_plan` event
-2. **Step Tracking**: Falls back to iteration-based steps if step events not available
-3. **Tool Output Parsing**: Assumes JSON format, falls back to plain text
-4. **Screenshot Size**: No compression, may be slow for large images
+1. **Step Tracking**: Falls back to iteration-based steps if step events not available
+2. **Tool Output Parsing**: Assumes JSON format, falls back to plain text
+3. **Screenshot Size**: No compression, may be slow for large images
 
 ## Conclusion
 

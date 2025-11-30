@@ -177,7 +177,7 @@ function VirtualEventList() {
   // 2. Custom formatters
   const { formatContent } = useEventFormatter({
     formatOverrides: {
-      user_task: (e) => `🎯 ${e.task}`
+      workflow.input.received: (e) => `🎯 ${e.task}`
     }
   });
 
@@ -298,14 +298,14 @@ if (sessionId) {
 ```tsx
 // ✅ Good - stable overrides
 const formatOverrides = useMemo(() => ({
-  user_task: (e) => `🎯 ${e.task}`
+  workflow.input.received: (e) => `🎯 ${e.task}`
 }), []);
 
 const formatter = useEventFormatter({ formatOverrides });
 
 // ❌ Bad - creates new object every render
 const formatter = useEventFormatter({
-  formatOverrides: { user_task: (e) => `🎯 ${e.task}` }
+  formatOverrides: { workflow.input.received: (e) => `🎯 ${e.task}` }
 });
 ```
 
@@ -457,11 +457,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useEventFormatter } from './useEventFormatter';
 
 describe('useEventFormatter', () => {
-  it('should format user_task events', () => {
+  it('should format workflow.input.received events', () => {
     const { result } = renderHook(() => useEventFormatter());
 
     const event = {
-      event_type: 'user_task',
+      event_type: 'workflow.input.received',
       task: 'Test task',
       timestamp: Date.now()
     };
@@ -473,12 +473,12 @@ describe('useEventFormatter', () => {
     const { result } = renderHook(() =>
       useEventFormatter({
         formatOverrides: {
-          user_task: (e) => `Custom: ${e.task}`
+          workflow.input.received: (e) => `Custom: ${e.task}`
         }
       })
     );
 
-    const event = { event_type: 'user_task', task: 'Test' };
+    const event = { event_type: 'workflow.input.received', task: 'Test' };
     expect(result.current.formatContent(event)).toBe('Custom: Test');
   });
 });
@@ -555,7 +555,7 @@ Higher-level abstraction over useSSE:
 ```typescript
 const { events, send, isLive } = useEventStream({
   endpoint: '/api/agent/stream',
-  filters: ['error', 'task_complete'],
+  filters: ['error', 'workflow.result.final'],
   transform: (event) => enhanceEvent(event)
 });
 ```

@@ -78,7 +78,7 @@ func (d *SubagentDisplay) Handle(event *builtin.SubtaskEvent) []string {
 
 	if !state.started {
 		switch event.OriginalEvent.(type) {
-		case *domain.TaskCompleteEvent, *domain.ErrorEvent:
+		case *domain.WorkflowResultFinalEvent, *domain.WorkflowNodeFailedEvent:
 			state.started = true
 		default:
 			state.started = true
@@ -87,11 +87,11 @@ func (d *SubagentDisplay) Handle(event *builtin.SubtaskEvent) []string {
 	}
 
 	switch e := event.OriginalEvent.(type) {
-	case *domain.ToolCallCompleteEvent:
+	case *domain.WorkflowToolCompletedEvent:
 		if !state.done {
 			state.toolCalls++
 		}
-	case *domain.TaskCompleteEvent:
+	case *domain.WorkflowResultFinalEvent:
 		if state.done {
 			break
 		}
@@ -101,7 +101,7 @@ func (d *SubagentDisplay) Handle(event *builtin.SubtaskEvent) []string {
 		d.tokens += e.TotalTokens
 		d.toolCalls += state.toolCalls
 		lines = append(lines, d.renderCompletionLine(event.SubtaskIndex, state))
-	case *domain.ErrorEvent:
+	case *domain.WorkflowNodeFailedEvent:
 		if state.done {
 			break
 		}

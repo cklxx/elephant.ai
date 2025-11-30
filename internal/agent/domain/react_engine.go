@@ -288,8 +288,8 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	)
 
 	if result.Metadata != nil {
-		if info, ok := result.Metadata["browser_info"].(map[string]any); ok {
-			b.engine.emitBrowserInfoEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID, info)
+		if info, ok := result.Metadata["workflow.diagnostic.browser_info"].(map[string]any); ok {
+			b.engine.emitWorkflowDiagnosticBrowserInfoEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID, info)
 		}
 	}
 
@@ -301,7 +301,7 @@ func (b *toolCallBatch) finalize(idx int, tc ToolCall, nodeID string, result Too
 	b.results[idx] = normalized
 
 	duration := b.engine.clock.Now().Sub(startTime)
-	b.engine.emitToolCallCompleteEvent(b.ctx, b.state, tc, normalized, duration)
+	b.engine.emitWorkflowToolCompletedEvent(b.ctx, b.state, tc, normalized, duration)
 
 	if b.tracker != nil {
 		b.tracker.completeToolCall(nodeID, b.iteration, tc, normalized, normalized.Error)
@@ -452,7 +452,7 @@ func (e *ReactEngine) think(
 	}
 
 	timestamp := e.clock.Now()
-	snapshot := NewContextSnapshotEvent(
+	snapshot := NewWorkflowDiagnosticContextSnapshotEvent(
 		e.getAgentLevel(ctx),
 		state.SessionID,
 		state.TaskID,
@@ -487,7 +487,7 @@ func (e *ReactEngine) think(
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
 	}
 
-	e.emitEvent(&AssistantMessageEvent{
+	e.emitEvent(&WorkflowNodeOutputDeltaEvent{
 		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:   state.Iterations,
 		Delta:       resp.Content,
@@ -524,8 +524,8 @@ func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result 
 	return normalized
 }
 
-func (e *ReactEngine) emitToolCallCompleteEvent(ctx context.Context, state *TaskState, tc ToolCall, result ToolResult, duration time.Duration) {
-	e.emitEvent(&ToolCallCompleteEvent{
+func (e *ReactEngine) emitWorkflowToolCompletedEvent(ctx context.Context, state *TaskState, tc ToolCall, result ToolResult, duration time.Duration) {
+	e.emitEvent(&WorkflowToolCompletedEvent{
 		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		CallID:      result.CallID,
 		ToolName:    tc.Name,
@@ -598,7 +598,7 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 	return messages
 }
 
-func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID, taskID, parentTaskID string, metadata map[string]any) {
+func (e *ReactEngine) emitWorkflowDiagnosticBrowserInfoEvent(ctx context.Context, sessionID, taskID, parentTaskID string, metadata map[string]any) {
 	level := ports.GetOutputContext(ctx).Level
 	captured := e.clock.Now()
 	if tsRaw, ok := metadata["captured_at"].(string); ok {
@@ -624,7 +624,7 @@ func (e *ReactEngine) emitBrowserInfoEvent(ctx context.Context, sessionID, taskI
 	viewportWidth := coerceToInt(metadata["viewport_width"])
 	viewportHeight := coerceToInt(metadata["viewport_height"])
 
-	event := NewBrowserInfoEvent(level, sessionID, taskID, parentTaskID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
+	event := NewWorkflowDiagnosticBrowserInfoEvent(level, sessionID, taskID, parentTaskID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
 	e.emitEvent(event)
 }
 

@@ -95,7 +95,7 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 	}
 	firstNode := snapshot.Nodes[0]
 
-	lifecycle := &domain.WorkflowLifecycleEvent{
+	lifecycleEvent := &domain.WorkflowLifecycleUpdatedEvent{
 		BaseEvent:         base,
 		WorkflowID:        snapshot.ID,
 		WorkflowEventType: workflow.EventWorkflowUpdated,
@@ -103,8 +103,22 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 		Node:              &firstNode,
 		Workflow:          snapshot,
 	}
+	lifecycle := domain.NewWorkflowEnvelopeFromEvent(lifecycleEvent, "workflow.lifecycle.updated")
+	if lifecycle == nil {
+		t.Fatal("failed to create lifecycle envelope")
+	}
+	lifecycle.WorkflowID = snapshot.ID
+	lifecycle.RunID = snapshot.ID
+	lifecycle.NodeID = firstNode.ID
+	lifecycle.NodeKind = "node"
+	lifecycle.Payload = map[string]any{
+		"workflow.lifecycle.updated_type": string(workflow.EventWorkflowUpdated),
+		"phase":               snapshot.Phase,
+		"node":                firstNode,
+		"workflow":            snapshot,
+	}
 
-	stepCompleted := &domain.StepCompletedEvent{
+	stepEvent := &domain.WorkflowNodeCompletedEvent{
 		BaseEvent:       base,
 		StepIndex:       0,
 		StepDescription: "context",
@@ -113,10 +127,25 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 		Iteration:       1,
 		Workflow:        snapshot,
 	}
+	stepEnvelope := domain.NewWorkflowEnvelopeFromEvent(stepEvent, "workflow.node.completed")
+	if stepEnvelope == nil {
+		t.Fatal("failed to create step envelope")
+	}
+	stepEnvelope.WorkflowID = snapshot.ID
+	stepEnvelope.RunID = snapshot.ID
+	stepEnvelope.NodeID = "context"
+	stepEnvelope.NodeKind = "step"
+	stepEnvelope.Payload = map[string]any{
+		"step_index":       stepEvent.StepIndex,
+		"step_description": stepEvent.StepDescription,
+		"status":           stepEvent.Status,
+		"iteration":        stepEvent.Iteration,
+		"workflow":         snapshot,
+	}
 
 	// Seed history before establishing the connection to simulate a reconnecting client.
 	broadcaster.OnEvent(lifecycle)
-	broadcaster.OnEvent(stepCompleted)
+	broadcaster.OnEvent(stepEnvelope)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -133,7 +162,7 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		payload := rec.BodyString()
-		if strings.Contains(payload, "workflow_event") && strings.Contains(payload, "step_completed") {
+		if strings.Contains(payload, "workflow.lifecycle.updated") && strings.Contains(payload, "workflow.node.completed") {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -152,24 +181,28 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 	}
 
 	var workflowEvent streamedEvent
-	var stepEvent streamedEvent
+	var stepEnvelopeEvent streamedEvent
 	for _, evt := range events {
 		switch evt.event {
-		case lifecycle.EventType():
+		case "workflow.lifecycle.updated":
 			workflowEvent = evt
-		case stepCompleted.EventType():
-			stepEvent = evt
+		case "workflow.node.completed":
+			stepEnvelopeEvent = evt
 		}
 	}
 
 	if workflowEvent.event == "" {
-		t.Fatalf("workflow_event not replayed: %v", events)
+		t.Fatalf("workflow.lifecycle.updated not replayed: %v", events)
 	}
-	if stepEvent.event == "" {
+	if stepEnvelopeEvent.event == "" {
 		t.Fatalf("step_completed not replayed: %v", events)
 	}
 
-	workflowPayload, ok := workflowEvent.data["workflow"].(map[string]any)
+	payload, ok := workflowEvent.data["payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("workflow payload missing or wrong type: %v", workflowEvent.data)
+	}
+	workflowPayload, ok := payload["workflow"].(map[string]any)
 	if !ok {
 		t.Fatalf("workflow payload missing or wrong type: %v", workflowEvent.data)
 	}
@@ -192,15 +225,19 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 		t.Fatalf("workflow order missing: %v", workflowPayload)
 	}
 
-	if phase := workflowEvent.data["phase"]; phase != string(snapshot.Phase) {
+	if phase := payload["phase"]; phase != string(snapshot.Phase) {
 		t.Fatalf("unexpected workflow phase: %v", workflowEvent.data)
 	}
 
-	if status := stepEvent.data["status"]; status != stepCompleted.Status {
-		t.Fatalf("unexpected step status: %v", stepEvent.data)
+	stepPayload, ok := stepEnvelopeEvent.data["payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("step payload missing or wrong type: %v", stepEnvelopeEvent.data)
 	}
-	if iteration := stepEvent.data["iteration"]; iteration != float64(stepCompleted.Iteration) { // JSON numbers decode to float64
-		t.Fatalf("unexpected iteration: %v", stepEvent.data)
+	if status := stepPayload["status"]; status != stepEvent.Status {
+		t.Fatalf("unexpected step status: %v", stepEnvelopeEvent.data)
+	}
+	if iteration := stepPayload["iteration"]; iteration != float64(stepEvent.Iteration) { // JSON numbers decode to float64
+		t.Fatalf("unexpected iteration: %v", stepEnvelopeEvent.data)
 	}
 }
 
@@ -242,5 +279,89 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 	}
 	if resent["note.txt"].URI == "" {
 		t.Fatalf("expected updated attachment URI to be preserved: %#v", resent)
+	}
+}
+
+func TestSanitizeWorkflowEnvelopePayloadStripsStepResultMessages(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	env := &domain.WorkflowEventEnvelope{
+		Event:    "workflow.node.completed",
+		NodeKind: "step",
+		Payload: map[string]any{
+			"result": map[string]any{
+				"summary": "done",
+				"messages": []any{
+					map[string]any{"role": "system", "content": "very long prompt"},
+				},
+				"attachments": map[string]any{
+					"inline.png": map[string]any{
+						"name":       "inline.png",
+						"media_type": "image/png",
+						"data":       "aGVsbG8=",
+					},
+				},
+			},
+		},
+	}
+
+	payload := sanitizeWorkflowEnvelopePayload(env, make(map[string]string), cache)
+	res, ok := payload["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sanitized result map, got %T", payload["result"])
+	}
+	if _, hasMessages := res["messages"]; hasMessages {
+		t.Fatalf("expected messages to be stripped from result")
+	}
+
+	stepResult, ok := payload["step_result"].(string)
+	if !ok || stepResult != "done" {
+		t.Fatalf("expected step_result summary, got %v", payload["step_result"])
+	}
+
+	attachments, ok := res["attachments"].(map[string]ports.Attachment)
+	if !ok {
+		t.Fatalf("expected attachments map, got %T", res["attachments"])
+	}
+	att := attachments["inline.png"]
+	if att.Data != "" || !strings.HasPrefix(att.URI, "/api/data/") {
+		t.Fatalf("expected attachment data to be cached with URI, got %#v", att)
+	}
+}
+
+func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	raw := map[string]any{
+		"status": "succeeded",
+		"attachments": map[string]any{
+			"inline.png": map[string]any{
+				"name":       "inline.png",
+				"media_type": "image/png",
+				"data":       "aGVsbG8=", // "hello" base64
+			},
+		},
+	}
+
+	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache)
+	if sanitized == nil {
+		t.Fatalf("expected sanitized payload")
+	}
+
+	attachments, ok := sanitized["attachments"].(map[string]ports.Attachment)
+	if !ok {
+		t.Fatalf("expected attachments map, got %T", sanitized["attachments"])
+	}
+
+	att, ok := attachments["inline.png"]
+	if !ok {
+		t.Fatalf("expected inline attachment to be preserved")
+	}
+	if att.Data != "" {
+		t.Fatalf("expected attachment data to be stripped, got %q", att.Data)
+	}
+	if att.URI == "" || !strings.HasPrefix(att.URI, "/api/data/") {
+		t.Fatalf("expected attachment URI to reference data cache, got %q", att.URI)
+	}
+	if att.MediaType != "image/png" {
+		t.Fatalf("expected media type to be preserved, got %q", att.MediaType)
 	}
 }

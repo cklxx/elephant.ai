@@ -156,10 +156,10 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   }
 
   if (
-    event.event_type === "user_task" ||
-    eventMatches(event, "workflow.result.final", "task_complete") ||
-    eventMatches(event, "workflow.result.cancelled", "task_cancelled") ||
-    eventMatches(event, "workflow.node.failed", "error")
+    event.event_type === "workflow.input.received" ||
+    eventMatches(event, "workflow.result.final", "workflow.result.final") ||
+    eventMatches(event, "workflow.result.cancelled", "workflow.result.cancelled") ||
+    eventMatches(event, "workflow.node.failed", "workflow.node.failed")
   ) {
     return false;
   }
@@ -170,11 +170,11 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
       "workflow.tool.started",
       "workflow.tool.completed",
       "workflow.tool.progress",
-      "tool_call_start",
-      "tool_call_complete",
-      "tool_call_stream",
+      "workflow.tool.started",
+      "workflow.tool.completed",
+      "workflow.tool.progress",
       "workflow.node.output.summary",
-      "think_complete",
+      "workflow.node.output.summary",
     )
   ) {
     return true;
@@ -211,7 +211,7 @@ function partitionEvents(
     }
 
     if (
-      !eventMatches(event, "workflow.node.output.delta", "assistant_message", "thinking") &&
+      !eventMatches(event, "workflow.node.output.delta", "workflow.node.output.delta", "workflow.node.output.delta") &&
       !shouldSkipEvent(event)
     ) {
       displayEvents.push(event);

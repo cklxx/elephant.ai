@@ -14,7 +14,7 @@ type browserInfo struct {
 	config BrowserToolConfig
 }
 
-// NewBrowserInfo creates the sandbox-only browser_info tool.
+// NewBrowserInfo creates the sandbox-only workflow.diagnostic.browser_info tool.
 func NewBrowserInfo(cfg BrowserToolConfig) ports.ToolExecutor {
 	mode := cfg.Mode
 	if mode == tools.ExecutionModeUnknown {
@@ -37,7 +37,7 @@ func (t *browserInfo) Mode() tools.ExecutionMode {
 
 func (t *browserInfo) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:      "browser_info",
+		Name:      "workflow.diagnostic.browser_info",
 		Version:   "0.1.0",
 		Category:  string(ports.CategoryWeb),
 		Tags:      []string{"browser", "diagnostics", "sandbox"},
@@ -47,7 +47,7 @@ func (t *browserInfo) Metadata() ports.ToolMetadata {
 
 func (t *browserInfo) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "browser_info",
+		Name:        "workflow.diagnostic.browser_info",
 		Description: "Retrieve sandbox browser diagnostics including connection details and viewport sizing.",
 		Parameters: ports.ParameterSchema{
 			Type:       "object",
@@ -58,7 +58,7 @@ func (t *browserInfo) Definition() ports.ToolDefinition {
 
 func (t *browserInfo) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if t.config.Mode != tools.ExecutionModeSandbox {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("browser_info is only available in sandbox mode")}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("workflow.diagnostic.browser_info is only available in sandbox mode")}, nil
 	}
 	if t.config.SandboxManager == nil {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("sandbox manager is required")}, nil
@@ -112,7 +112,7 @@ func (t *browserInfo) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		CallID:  call.ID,
 		Content: string(contentBytes),
 		Metadata: map[string]any{
-			"browser_info": payload,
+			"workflow.diagnostic.browser_info": payload,
 		},
 	}, nil
 }

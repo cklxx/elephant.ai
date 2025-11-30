@@ -174,9 +174,8 @@ p-6: 1.5rem   /* Section */
 
 | 组件文件 | 状态 | 用途 | 代码行数 |
 |---------|------|------|---------|
-| `TerminalOutput.tsx` | ✅ 生产中 | 事件流显示 + Plan 审批逻辑 | 114 行 |
+| `TerminalOutput.tsx` | ✅ 生产中 | 事件流显示 | 114 行 |
 | `EventList.tsx` | ✅ 生产中 | 虚拟化事件列表 (性能优化) | ~200 行 |
-| `usePlanApproval.ts` | ✅ 生产中 | Plan 自动审批 (无 UI) | ~150 行 |
 | `TaskInput.tsx` | ✅ 生产中 | 自动调整高度的输入框 | ~100 行 |
 | `ConnectionBanner.tsx` | ✅ 生产中 | 连接状态提示 + 重连按钮 | ~50 行 |
 | `Research ConsoleAgentOutput.tsx` | ⚠️ 存在但未使用 | 包含 Tab 切换逻辑 (Computer/Timeline) | ~200 行 |
@@ -197,7 +196,7 @@ p-6: 1.5rem   /* Section */
   - `task_started`: 绿色
   - `tool_call`: 青色 + `▸` 符号
   - `tool_result`: 青色 + `✓`/`✗`
-  - `thinking`: 紫色 + `💭`
+  - `workflow.node.output.delta`: 紫色 + `💭`
   - `task_failed`: 红色 + `✗`
 
 #### ✅ **自动滚动**
@@ -210,9 +209,7 @@ useEffect(() => {
 ```
 
 #### ✅ **Plan 审批集成**
-- 从事件流解析 `research_plan` 事件
-- 自动调用 `usePlanApproval` 直接批准计划（无独立 UI）
-- API 调用: `POST /api/plans/approve`
+- 已移除研究计划事件解析，直接依赖步骤事件，当前无审批流程
 
 ### 2.4 存在不足
 
@@ -609,69 +606,14 @@ export function useTimelineSteps(events: AnyAgentEvent[]): Step[] {
 
 ---
 
-### Phase 3: Plan 编辑增强 (1 天)
+### Phase 3: Plan 编辑增强 (已取消)
 
-#### **目标**: 优化 Plan 审批流程
-
-#### **修改**: `usePlanApproval`（自动审批，无 UI）
-
-新增功能:
-1. **Reject 按钮**: 添加拒绝按钮和理由输入
-2. **估计耗时显示**: 显示预计工具调用次数和时间
-3. **步骤重排**: 拖拽调整步骤顺序
-
-```typescript
-// 新增 Reject 功能
-const [rejectReason, setRejectReason] = useState('');
-const [isRejecting, setIsRejecting] = useState(false);
-
-<div className="flex gap-2">
-  <button
-    onClick={onApprove}
-    className="flex-1 console-button-primary"
-  >
-    ✓ Approve Plan
-  </button>
-
-  <button
-    onClick={() => setIsRejecting(true)}
-    className="console-button-ghost text-destructive"
-  >
-    ✗ Reject
-  </button>
-</div>
-
-{/* Reject 理由输入 */}
-{isRejecting && (
-  <div className="mt-3 space-y-2">
-    <textarea
-      value={rejectReason}
-      onChange={(e) => setRejectReason(e.target.value)}
-      placeholder="Why are you rejecting this plan? (optional)"
-      className="console-input min-h-[60px]"
-    />
-    <div className="flex gap-2">
-      <button
-        onClick={() => onReject(rejectReason)}
-        className="console-button-secondary"
-      >
-        Confirm Rejection
-      </button>
-      <button
-        onClick={() => setIsRejecting(false)}
-        className="console-button-ghost"
-      >
-        Cancel
-      </button>
-    </div>
-  </div>
-)}
-```
+Plan 审批与编辑相关的 UI/流程已移除，直接依赖步骤事件驱动时间线。
 
 ---
 
 #### 实现进展更新 (2025-10-10)
-- ✅ 计划事件到达后自动调用 `usePlanApproval` 直接批准，避免等待人工确认。
+- ✅ 已移除计划事件审批流程，直接进入执行。
 - ✅ 保留 `usePlanProgress` 指标聚合 Hook，将时间线步骤数据转换为可复用的统计指标，便于看板与报告复用。
 - ❌ 原有计划编辑/拖拽 UI 已移除，审批流程走无界面路径以简化交互。
 
@@ -773,12 +715,12 @@ const [isRejecting, setIsRejecting] = useState(false);
 ```typescript
 const EVENT_STYLES = {
   task_started: 'text-green-600 dark:text-green-400',
-  task_completed: 'text-green-600 dark:text-green-400 font-semibold',
+  workflow.result.finald: 'text-green-600 dark:text-green-400 font-semibold',
   task_failed: 'text-red-500 dark:text-red-400',
   plan_created: 'text-blue-600 dark:text-blue-400',
   tool_call: 'text-cyan-600 dark:text-cyan-400',
   tool_result: 'text-cyan-600 dark:text-cyan-400',
-  thinking: 'text-purple-600 dark:text-purple-400',
+  workflow.node.output.delta: 'text-purple-600 dark:text-purple-400',
   step_start: 'text-yellow-600 dark:text-yellow-400',
   step_complete: 'text-yellow-600 dark:text-yellow-400',
 };

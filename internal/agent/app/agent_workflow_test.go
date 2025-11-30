@@ -45,11 +45,11 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("expected 1 event after node added, got %d", len(events))
 	}
 
-	lifecycle, ok := events[0].(*domain.WorkflowLifecycleEvent)
+	lifecycle, ok := events[0].(*domain.WorkflowLifecycleUpdatedEvent)
 	if !ok {
 		t.Fatalf("expected workflow lifecycle event, got %T", events[0])
 	}
-	if lifecycle.EventType() != "workflow_event" {
+	if lifecycle.EventType() != "workflow.lifecycle.updated" {
 		t.Fatalf("unexpected event type: %s", lifecycle.EventType())
 	}
 	if lifecycle.WorkflowID != "wf-1" || lifecycle.WorkflowEventType != workflow.EventNodeAdded {
@@ -82,7 +82,7 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("expected lifecycle + step start events, got %d", len(events))
 	}
 
-	startLifecycle, ok := events[1].(*domain.WorkflowLifecycleEvent)
+	startLifecycle, ok := events[1].(*domain.WorkflowLifecycleUpdatedEvent)
 	if !ok {
 		t.Fatalf("expected lifecycle event for node start, got %T", events[1])
 	}
@@ -90,7 +90,7 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("expected running phase on lifecycle event, got %s", startLifecycle.Phase)
 	}
 
-	stepStarted, ok := events[2].(*domain.StepStartedEvent)
+	stepStarted, ok := events[2].(*domain.WorkflowNodeStartedEvent)
 	if !ok {
 		t.Fatalf("expected step started event, got %T", events[2])
 	}

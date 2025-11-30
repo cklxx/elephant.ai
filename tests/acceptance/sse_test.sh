@@ -239,16 +239,16 @@ test_sse_event_types() {
     timeout 15s curl -s -N "$BASE_URL/api/events/$session_id" > "$RESULTS_DIR/sse_event_types_${session_id}.txt" 2>&1
     if [ -s "$RESULTS_DIR/sse_event_types_${session_id}.txt" ]; then
         # Look for various event types
-        has_thinking=$(grep -c '"type":"thinking"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
+        has_workflow.node.output.delta=$(grep -c '"type":"workflow.node.output.delta"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
         has_tool_call=$(grep -c '"type":"tool_call' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
-        has_task_complete=$(grep -c '"type":"task_complete"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
+        has_workflow.result.final=$(grep -c '"type":"workflow.result.final"' "$RESULTS_DIR/sse_event_types_${session_id}.txt" || true)
 
         log_info "Event type counts:"
-        log_info "  thinking: $has_thinking"
+        log_info "  workflow.node.output.delta: $has_workflow.node.output.delta"
         log_info "  tool_call*: $has_tool_call"
-        log_info "  task_complete: $has_task_complete"
+        log_info "  workflow.result.final: $has_workflow.result.final"
 
-        found_types=$((has_thinking + has_tool_call + has_task_complete))
+        found_types=$((has_workflow.node.output.delta + has_tool_call + has_workflow.result.final))
 
         if [ "$found_types" -ge 2 ]; then
             log_pass "Multiple SSE event types detected (found $found_types type categories)"

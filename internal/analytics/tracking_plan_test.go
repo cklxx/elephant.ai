@@ -102,7 +102,9 @@ func parseFrontendEvents(t *testing.T, path string) map[string]struct{} {
 		t.Fatalf("failed to read frontend analytics events: %v", err)
 	}
 
-	pattern := regexp.MustCompile(`:\s*'([a-z0-9_]+)'`)
+	// Support underscore and dotted event names (workflow.*) so analytics can
+	// track both legacy and namespaced identifiers.
+	pattern := regexp.MustCompile(`:\s*'([A-Za-z0-9_.-]+)'`)
 	matches := pattern.FindAllStringSubmatch(string(data), -1)
 	events := make(map[string]struct{}, len(matches))
 	for _, match := range matches {

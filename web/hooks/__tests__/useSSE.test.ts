@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildEventSignature } from '../useSSE';
-import { AssistantMessageEvent } from '@/lib/types';
+import { buildEventSignature } from '@/lib/events/signature';
+import { WorkflowNodeOutputDeltaEvent } from '@/lib/types';
 
-const baseAssistantEvent: AssistantMessageEvent = {
-  event_type: 'assistant_message',
+const baseAssistantEvent: WorkflowNodeOutputDeltaEvent = {
+  event_type: 'workflow.node.output.delta',
   agent_level: 'core',
   session_id: 'session-123',
   task_id: 'task-abc',
@@ -17,7 +17,7 @@ const baseAssistantEvent: AssistantMessageEvent = {
 describe('buildEventSignature', () => {
   it('includes created_at so duplicate deltas within the same second remain unique', () => {
     const first = baseAssistantEvent;
-    const second: AssistantMessageEvent = {
+    const second: WorkflowNodeOutputDeltaEvent = {
       ...baseAssistantEvent,
       created_at: '2025-01-01T00:00:00.000000002Z',
     };

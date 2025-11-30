@@ -28,7 +28,7 @@ func NewFinalAnswerSummarizer(logger ports.Logger, clock ports.Clock) *FinalAnsw
 }
 
 // Summarize composes a short final response from the completed task state and
-// emits the completion via task_complete events for UI consumption.
+// emits the completion via workflow.result.final events for UI consumption.
 func (s *FinalAnswerSummarizer) Summarize(
 	ctx context.Context,
 	env *ports.ExecutionEnvironment,
@@ -121,7 +121,7 @@ func (s *FinalAnswerSummarizer) emitStreamingUpdate(
 	if partial == "" {
                 return
         }
-        listener.OnEvent(&TaskCompleteEvent{
+        listener.OnEvent(&WorkflowResultFinalEvent{
                 BaseEvent:       s.baseEvent(ctx, env.State),
                 FinalAnswer:     partial,
                 TotalIterations: result.Iterations,
@@ -154,7 +154,7 @@ func (s *FinalAnswerSummarizer) emitFinal(
 		return
 	}
 
-	listener.OnEvent(&TaskCompleteEvent{
+	listener.OnEvent(&WorkflowResultFinalEvent{
 		BaseEvent:       s.baseEvent(ctx, env.State),
 		FinalAnswer:     finalAnswer,
 		TotalIterations: result.Iterations,

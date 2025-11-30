@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { TaskCompleteEvent } from "@/lib/types";
+import { WorkflowResultFinalEvent } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n";
 import {
   parseContentSegments,
@@ -22,7 +22,7 @@ interface StopReasonCopy {
 }
 
 interface TaskCompleteCardProps {
-  event: TaskCompleteEvent;
+  event: WorkflowResultFinalEvent;
 }
 
 const INLINE_MEDIA_REGEX = /(data:image\/[^\s)]+|\/api\/data\/[A-Za-z0-9]+)/g;
@@ -50,9 +50,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const t = useTranslation();
   const answer = event.final_answer ?? "";
   const markdownAnswer = convertInlineMediaToMarkdown(answer);
+  const attachments = event.attachments ?? undefined;
   const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
     markdownAnswer,
-    event.attachments,
+    attachments,
   );
   const inlineImageMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -72,7 +73,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     return map;
   }, [contentWithInlineMedia]);
   const inlineAttachmentMap = useMemo(() => {
-    if (!event.attachments) {
+    if (!attachments) {
       return new Map<
         string,
         {
@@ -80,12 +81,12 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           type: string;
           description?: string;
           mime?: string;
-          attachment: NonNullable<TaskCompleteEvent["attachments"]>[string];
+          attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
         }
       >();
     }
 
-    return Object.entries(event.attachments).reduce(
+    return Object.entries(attachments).reduce(
       (acc, [key, attachment]) => {
         const uri = buildAttachmentUri(attachment);
         if (!uri) {
@@ -107,12 +108,12 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           type: string;
           description?: string;
           mime?: string;
-          attachment: NonNullable<TaskCompleteEvent["attachments"]>[string];
+          attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
         }
       >(),
     );
-  }, [event.attachments, markdownAnswer]);
-  const segments = parseContentSegments(markdownAnswer, event.attachments);
+  }, [attachments]);
+  const segments = parseContentSegments(markdownAnswer, attachments);
   const referencedPlaceholders = new Set(
     Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
   );
@@ -162,7 +163,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           <LazyMarkdownRenderer
             content={contentWithInlineMedia}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
-            attachments={event.attachments}
+            attachments={attachments}
             components={{
               code: ({ inline, className, children, ...props }: any) => {
                 if (inline) {
@@ -216,7 +217,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 if (!recoveredSrc) {
                   return null;
                 }
-                const matchedAttachment = inlineAttachmentMap.get(src);
+                const matchedAttachment = inlineAttachmentMap.get(recoveredSrc);
                 if (matchedAttachment?.type === "video") {
                   return (
                     <VideoPreview

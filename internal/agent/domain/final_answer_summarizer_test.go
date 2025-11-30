@@ -39,9 +39,9 @@ func TestFinalAnswerSummarizerSummarizesWithoutStreaming(t *testing.T) {
 	env := &ports.ExecutionEnvironment{State: state, Services: ports.ServiceBundle{LLM: mockLLM}}
 	result := &TaskResult{Answer: "Original final answer", StopReason: "final_answer", Iterations: 2, TokensUsed: 12, SessionID: "sess-123", TaskID: "task-abc", Duration: 5 * time.Second}
 
-	var events []*TaskCompleteEvent
+	var events []*WorkflowResultFinalEvent
 	listener := EventListenerFunc(func(evt AgentEvent) {
-		if tc, ok := evt.(*TaskCompleteEvent); ok {
+		if tc, ok := evt.(*WorkflowResultFinalEvent); ok {
 			events = append(events, tc)
 		}
 	})
@@ -125,9 +125,9 @@ func TestFinalAnswerSummarizerStreamsDeltas(t *testing.T) {
 	env := &ports.ExecutionEnvironment{State: state, Services: ports.ServiceBundle{LLM: mockLLM}}
 	result := &TaskResult{Answer: "Original final answer", StopReason: "final_answer", Iterations: 2, TokensUsed: 12, SessionID: "sess-999", TaskID: "task-999"}
 
-	var events []*TaskCompleteEvent
+	var events []*WorkflowResultFinalEvent
 	listener := EventListenerFunc(func(evt AgentEvent) {
-		if tc, ok := evt.(*TaskCompleteEvent); ok {
+		if tc, ok := evt.(*WorkflowResultFinalEvent); ok {
 			events = append(events, tc)
 		}
 	})

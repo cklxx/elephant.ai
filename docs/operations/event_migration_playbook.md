@@ -11,16 +11,15 @@ This playbook assigns concrete actions for the workflow-first event stream migra
 ## Backend (mapper + emission)
 
 1. Implement an event translation layer near `internal/agent/app/agent_workflow.go`:
-   - Build a shared envelope `{version,event_type,timestamp,agent_level,workflow_id,run_id|task_id,parent_task_id,session_id,node_id,node_kind,payload,legacy_type?}`.
-   - Map existing domain events to new namespaced `event_type` values (see IDL), add `legacy_type` during the migration window.
+   - Build a shared envelope `{version,event_type,timestamp,agent_level,workflow_id,run_id|task_id,parent_task_id,session_id,node_id,node_kind,payload}`.
+   - Map existing domain events to new namespaced `event_type` values (see IDL).
 2. Emit missing events:
-   - `workflow.plan.generated` (plan steps/estimates).
    - `workflow.subflow.progress|completed` (delegated agent aggregation).
    - `workflow.tool.progress` for streaming tool output.
 3. Diagnostics namespace:
-   - Emit `workflow.diagnostic.context_compaction`, `tool_filtering`, `browser_info`, `environment_snapshot`, `sandbox_progress`.
+- Emit `workflow.diagnostic.context_compression`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.browser_info`, `workflow.diagnostic.environment_snapshot`, `workflow.diagnostic.sandbox_progress`.
 4. SSE handler:
-   - Serialize the envelope; optionally dual-emit legacy `event_type` inside `legacy_type`.
+   - Serialize the envelope; stream only workflow.* envelopes plus `workflow.input.received` (drop legacy domain event types).
    - Update metrics to track new `event_type` values.
 
 ## Frontend (schemas + pipeline + UI)
@@ -36,7 +35,7 @@ This playbook assigns concrete actions for the workflow-first event stream migra
 ## QA/Analytics (validation + tracking)
 
 1. Fixtures:
-   - Use `docs/operations/event_fixture_sample.json` as a golden SSE fixture covering all new event types: plan, lifecycle, node start/complete, tool start/progress/complete, subflow progress/complete, diagnostics, final.
+   - Use `docs/operations/event_fixture_sample.json` as a golden SSE fixture covering lifecycle, node start/complete, tool start/progress/complete, subflow progress/complete, diagnostics, final.
    - Extend/clone the fixture for cancel/error cases; use it for store/UI regression and SSE serialization tests.
 2. Tracking parity:
    - Sync `internal/analytics/tracking_plan_test.go` with frontend event list; update analytics event registry to new names.
@@ -46,5 +45,4 @@ This playbook assigns concrete actions for the workflow-first event stream migra
 
 ## Migration control
 
-- Dual period: backend emits `legacy_type`, frontend accepts both but prefers new `event_type`.
-- Exit criteria: all consumers updated, no legacy event usage in telemetry; then remove dual emission and inference logic.
+- Legacy event types should no longer be streamed; ensure all consumers render workflow.* envelopes and remove inference logic.

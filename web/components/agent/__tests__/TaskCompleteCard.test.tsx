@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TaskCompleteCard } from '../TaskCompleteCard';
 import { LanguageProvider } from '@/lib/i18n';
-import { TaskCompleteEvent } from '@/lib/types';
+import { WorkflowResultFinalEvent } from '@/lib/types';
 
-const baseEvent: TaskCompleteEvent = {
-  event_type: 'task_complete',
+const baseEvent: WorkflowResultFinalEvent = {
+  event_type: 'workflow.result.final',
   timestamp: new Date().toISOString(),
   agent_level: 'core',
   session_id: 'session-123',
@@ -18,7 +18,7 @@ const baseEvent: TaskCompleteEvent = {
   duration: 0,
 };
 
-function renderWithProvider(event: TaskCompleteEvent) {
+function renderWithProvider(event: WorkflowResultFinalEvent) {
   return render(
     <LanguageProvider>
       <TaskCompleteCard event={event} />

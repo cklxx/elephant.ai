@@ -41,8 +41,8 @@ func TestNewRegistryLocalModeSetsLocalTools(t *testing.T) {
 		t.Fatalf("expected local mode, got %v", mode)
 	}
 
-	if _, err := registry.Get("browser_info"); err == nil {
-		t.Fatalf("browser_info should not be registered in local mode")
+	if _, err := registry.Get("workflow.diagnostic.browser_info"); err == nil {
+		t.Fatalf("workflow.diagnostic.browser_info should not be registered in local mode")
 	}
 }
 
@@ -65,12 +65,12 @@ func TestNewRegistrySandboxRegistersBrowserTools(t *testing.T) {
 		t.Fatalf("expected sandbox mode, got %v", mode)
 	}
 
-	browserTool, err := registry.Get("browser_info")
+	browserTool, err := registry.Get("workflow.diagnostic.browser_info")
 	if err != nil {
-		t.Fatalf("expected browser_info in sandbox registry: %v", err)
+		t.Fatalf("expected workflow.diagnostic.browser_info in sandbox registry: %v", err)
 	}
 	if _, ok := browserTool.(interface{ Mode() tools.ExecutionMode }); !ok {
-		t.Fatalf("browser_info does not expose Mode accessor")
+		t.Fatalf("workflow.diagnostic.browser_info does not expose Mode accessor")
 	}
 }
 

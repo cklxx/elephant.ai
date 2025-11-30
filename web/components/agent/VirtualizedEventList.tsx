@@ -2,7 +2,13 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnyAgentEvent, ToolCallStartEvent, eventMatches } from '@/lib/types';
+import { AnyAgentEvent, WorkflowToolStartedEvent, eventMatches } from '@/lib/types';
+import {
+  isWorkflowNodeFailedEvent,
+  isWorkflowResultFinalEvent,
+  isWorkflowToolCompletedEvent,
+  isWorkflowToolStartedEvent,
+} from '@/lib/typeGuards';
 import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
@@ -31,12 +37,13 @@ export function VirtualizedEventList({
 }: VirtualizedEventListProps) {
   const t = useTranslation();
   const { visibleEvents, indexMap } = useMemo(() => {
+    const collapsed = collapseFinalResults(events);
     const mapping = new Map<number, number>();
-    events.forEach((_, index) => {
+    collapsed.forEach((_, index) => {
       mapping.set(index, index);
     });
 
-    return { visibleEvents: events, indexMap: mapping };
+    return { visibleEvents: collapsed, indexMap: mapping };
   }, [events]);
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -193,9 +200,9 @@ export function VirtualizedEventList({
   }, [visibleEvents, t]);
 
   const toolCallStartEvents = useMemo(() => {
-    const map = new Map<string, ToolCallStartEvent>();
+    const map = new Map<string, WorkflowToolStartedEvent>();
     for (const event of visibleEvents) {
-      if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
+      if (isWorkflowToolStartedEvent(event)) {
         map.set(event.call_id, event);
       }
     }
@@ -243,6 +250,7 @@ export function VirtualizedEventList({
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const event = visibleEvents[virtualItem.index];
+              const completedEvent = isWorkflowToolCompletedEvent(event) ? event : null;
               const isFocused = effectiveFocusedEventIndex === virtualItem.index;
               return (
                 <div
@@ -271,8 +279,8 @@ export function VirtualizedEventList({
                       <EventCard
                         event={event}
                         pairedStart={
-                          eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')
-                            ? toolCallStartEvents.get(event.call_id)
+                          completedEvent
+                            ? toolCallStartEvents.get(completedEvent.call_id)
                             : undefined
                         }
                         isFocused={isFocused}
@@ -318,7 +326,7 @@ function EventCard({
   isFocused = false,
 }: {
   event: AnyAgentEvent;
-  pairedStart?: ToolCallStartEvent;
+  pairedStart?: WorkflowToolStartedEvent;
   isFocused?: boolean;
 }) {
   const t = useTranslation();
@@ -330,18 +338,18 @@ function EventCard({
     </div>
   );
 
-  if (eventMatches(event, 'workflow.node.output.delta', 'thinking')) {
+  if (eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
     return <ThinkingIndicator />;
   }
 
-  if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
+  if (isWorkflowToolStartedEvent(event)) {
     return wrapWithContext(
       <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />,
     );
   }
 
-  if (eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')) {
-    const hasError = 'error' in event && event.error;
+  if (isWorkflowToolCompletedEvent(event)) {
+    const hasError = Boolean(event.error);
     return wrapWithContext(
       <ToolCallCard
         event={event}
@@ -352,15 +360,15 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.result.final', 'task_complete')) {
+  if (isWorkflowResultFinalEvent(event)) {
     return wrapWithContext(<TaskCompleteCard event={event} />);
   }
 
-  if (eventMatches(event, 'workflow.node.failed', 'error')) {
+  if (isWorkflowNodeFailedEvent(event)) {
     return wrapWithContext(<ErrorCard event={event} />);
   }
 
-  if (eventMatches(event, 'workflow.node.started', 'iteration_start') && typeof (event as any).iteration === 'number') {
+  if (eventMatches(event, 'workflow.node.started', 'workflow.node.started') && typeof (event as any).iteration === 'number') {
     return (
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
@@ -374,7 +382,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.node.completed', 'iteration_complete') && typeof (event as any).iteration === 'number') {
+  if (eventMatches(event, 'workflow.node.completed', 'workflow.node.completed') && typeof (event as any).iteration === 'number') {
     return wrapWithContext(
       <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.24em]">
         <Badge variant="outline">
@@ -387,22 +395,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.plan.generated', 'research_plan')) {
-    return wrapWithContext(
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
-          {t('events.researchPlan.title', { count: (event as any).estimated_iterations })}
-        </h3>
-        <ol className="list-decimal pl-5 text-sm text-foreground/75">
-          {(event as any).plan_steps.map((step: string, idx: number) => (
-            <li key={idx}>{step}</li>
-          ))}
-        </ol>
-      </div>,
-    );
-  }
-
-  if (eventMatches(event, 'workflow.node.started', 'step_started') && typeof (event as any).step_index === 'number') {
+  if (eventMatches(event, 'workflow.node.started') && typeof (event as any).step_index === 'number') {
     return wrapWithContext(
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
@@ -416,7 +409,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.node.completed', 'step_completed') && typeof (event as any).step_index === 'number') {
+  if (eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number') {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
@@ -427,7 +420,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.diagnostic.browser_info', 'browser_info')) {
+  if (eventMatches(event, 'workflow.diagnostic.browser_info')) {
     const details: Array<[string, string]> = [];
     if (typeof (event as any).success === 'boolean') {
       details.push([
@@ -502,4 +495,25 @@ function EventContextMeta({ event }: { event: AnyAgentEvent }) {
       {parts.join(' · ')}
     </p>
   );
+}
+
+function collapseFinalResults(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  const latestByTask = new Map<string, AnyAgentEvent>();
+  const ordered: AnyAgentEvent[] = [];
+
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const evt = events[i];
+    if (eventMatches(evt, 'workflow.result.final', 'workflow.result.final') && 'task_id' in evt && 'session_id' in evt) {
+      const key = `${evt.session_id}|${evt.task_id}`;
+      if (latestByTask.has(key)) {
+        continue;
+      }
+      latestByTask.set(key, evt);
+      ordered.push(evt);
+      continue;
+    }
+    ordered.push(evt);
+  }
+
+  return ordered.reverse();
 }

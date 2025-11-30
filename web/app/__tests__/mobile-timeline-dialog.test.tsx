@@ -134,7 +134,7 @@ describe("Conversation page mobile timeline dialog", () => {
     const baseTimestamp = new Date().toISOString();
     mockEventsRef.current = [
       {
-        event_type: "step_started",
+        event_type: "workflow.node.started",
         step_index: 0,
         step_description: "Research existing implementations",
         timestamp: baseTimestamp,

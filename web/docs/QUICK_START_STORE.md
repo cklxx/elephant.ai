@@ -208,10 +208,10 @@ function IterationCard({ iteration }) {
       {expanded && (
         <div>
           {/* Thinking */}
-          {iteration.thinking && (
-            <div className="thinking">
+          {iteration.workflow.node.output.delta && (
+            <div className="workflow.node.output.delta">
               <h4>Thinking:</h4>
-              <p>{iteration.thinking}</p>
+              <p>{iteration.workflow.node.output.delta}</p>
             </div>
           )}
 

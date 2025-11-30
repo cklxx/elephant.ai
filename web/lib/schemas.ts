@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import type { AnyAgentEvent } from './types';
-import { LegacyEventType, LegacyEventTypeToWorkflowType, WorkflowEventType } from './types';
+import { WorkflowEventType } from './types';
 
 const AgentLevelSchema = z.enum(['core', 'subagent']);
 
@@ -19,7 +19,6 @@ const BaseAgentEventSchema = z.object({
   run_id: z.string().optional(),
   node_id: z.string().optional(),
   node_kind: z.string().optional(),
-  legacy_type: z.string().optional(),
   is_subtask: z.boolean().optional(),
   subtask_index: z.number().optional(),
   total_subtasks: z.number().optional(),
@@ -64,7 +63,7 @@ export const ToolResultSchema = z.object({
   content: z.string(),
   error: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
 export const MessageSchema = z.object({
@@ -74,7 +73,7 @@ export const MessageSchema = z.object({
   tool_results: z.array(ToolResultSchema).optional(),
   tool_call_id: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
   source: z.string().optional(),
 });
 
@@ -108,14 +107,6 @@ const WorkflowLifecycleUpdatedEventSchema = BaseAgentEventSchema.extend({
   phase: z.enum(['pending', 'running', 'succeeded', 'failed']).optional(),
   node: WorkflowNodeSnapshotSchema.optional(),
   workflow: WorkflowSnapshotSchema.optional(),
-});
-
-const WorkflowPlanGeneratedEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('workflow.plan.generated'),
-  plan_steps: z.array(z.string()),
-  estimated_iterations: z.number(),
-  estimated_tools: z.array(z.string()).optional(),
-  estimated_duration_minutes: z.number().optional(),
 });
 
 const WorkflowNodeStartedEventSchema = BaseAgentEventSchema.extend({
@@ -172,7 +163,7 @@ const WorkflowNodeOutputSummaryEventSchema = BaseAgentEventSchema.extend({
   iteration: z.number().optional(),
   content: z.string(),
   tool_call_count: z.number(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
 const WorkflowToolStartedEventSchema = BaseAgentEventSchema.extend({
@@ -199,7 +190,7 @@ const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
   error: z.string().optional(),
   duration: z.number().default(0),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
 const WorkflowResultFinalEventSchema = BaseAgentEventSchema.extend({
@@ -211,7 +202,7 @@ const WorkflowResultFinalEventSchema = BaseAgentEventSchema.extend({
   duration: z.number().default(0),
   is_streaming: z.boolean().optional(),
   stream_finished: z.boolean().optional(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
 const WorkflowResultCancelledEventSchema = BaseAgentEventSchema.extend({
@@ -301,20 +292,26 @@ const ConnectedEventSchema = z.object({
   agent_level: AgentLevelSchema.optional(),
 });
 
-const UserTaskEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('user_task'),
+const WorkflowDiagnosticErrorEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.error'),
+  iteration: z.number().optional(),
+  phase: z.string().optional(),
+  recoverable: z.boolean().optional(),
+  error: z.string().optional(),
+});
+
+const WorkflowInputReceivedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.input.received'),
   task: z.string(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
 const EVENT_TYPE_ALIASES: Record<string, WorkflowEventType> = {
-  workflow_event: 'workflow.lifecycle.updated',
   'workflow.diagnostic.sandbox.progress': 'workflow.diagnostic.sandbox_progress',
 };
 
 const EventSchemas = [
   WorkflowLifecycleUpdatedEventSchema,
-  WorkflowPlanGeneratedEventSchema,
   WorkflowNodeStartedEventSchema,
   WorkflowNodeCompletedEventSchema,
   WorkflowNodeFailedEventSchema,
@@ -333,13 +330,19 @@ const EventSchemas = [
   WorkflowDiagnosticContextCompressionEventSchema,
   WorkflowDiagnosticToolFilteringEventSchema,
   WorkflowDiagnosticContextSnapshotEventSchema,
+  WorkflowDiagnosticErrorEventSchema,
   ConnectedEventSchema,
-  UserTaskEventSchema,
+  WorkflowInputReceivedEventSchema,
 ] as const;
+
+const eventSchemaList = [...EventSchemas] as [
+  (typeof EventSchemas)[number],
+  ...(typeof EventSchemas)[number][],
+];
 
 export const AnyAgentEventSchema = z.discriminatedUnion(
   'event_type',
-  EventSchemas as [typeof EventSchemas[number], ...typeof EventSchemas[number][]],
+  eventSchemaList,
 );
 
 function normalizeEventData(data: unknown): Record<string, any> | null {
@@ -353,6 +356,13 @@ function normalizeEventData(data: unknown): Record<string, any> | null {
     payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, any>) : null;
   const normalized: Record<string, any> = payloadObject ? { ...payloadObject, ...event } : { ...event };
   normalized.payload = payloadObject ?? event.payload ?? null;
+
+  if (payloadObject && normalized.final_answer === undefined && typeof payloadObject.final_answer === 'string') {
+    normalized.final_answer = payloadObject.final_answer;
+  }
+  if (payloadObject && normalized.duration === undefined && typeof payloadObject.duration_ms === 'number') {
+    normalized.duration = payloadObject.duration_ms;
+  }
 
   if (!normalized.timestamp) {
     normalized.timestamp = new Date().toISOString();
@@ -370,19 +380,11 @@ function normalizeEventData(data: unknown): Record<string, any> | null {
   const rawEventType = normalized.event_type as string | undefined;
   const aliasTarget = rawEventType ? EVENT_TYPE_ALIASES[rawEventType] : undefined;
   if (aliasTarget) {
-    normalized.legacy_type = normalized.legacy_type ?? rawEventType;
     normalized.event_type = aliasTarget;
   }
 
-  const legacyFromEvent = rawEventType && (LegacyEventTypeToWorkflowType as Record<string, WorkflowEventType>)[rawEventType];
-  if (legacyFromEvent) {
-    normalized.legacy_type = normalized.legacy_type ?? rawEventType;
-    normalized.event_type = legacyFromEvent;
-  } else if (normalized.legacy_type && typeof normalized.legacy_type === 'string') {
-    const mapped = (LegacyEventTypeToWorkflowType as Record<string, WorkflowEventType>)[normalized.legacy_type];
-    if (mapped) {
-      normalized.event_type = mapped;
-    }
+  if (!rawEventType) {
+    return null;
   }
 
   return normalized;

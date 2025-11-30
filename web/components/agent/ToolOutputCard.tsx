@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDuration, cn } from "@/lib/utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -95,12 +95,12 @@ export function ToolOutputCard({
     }
   }, [resolvedStatus, t]);
 
-  const statusVariant: "success" | "error" | "info" = useMemo(() => {
+  const statusVariant: BadgeProps["variant"] = useMemo(() => {
     switch (resolvedStatus) {
       case "running":
         return "info";
       case "failed":
-        return "error";
+        return "destructive";
       default:
         return "success";
     }
@@ -633,7 +633,7 @@ function renderToolResult(
             {status !== undefined && (
               <span className="flex items-center gap-2">
                 {t("tool.code_execute.status") ?? "Status"}:
-                <Badge variant={status ? "success" : "error"}>
+                <Badge variant={status ? "success" : "destructive"}>
                   {status
                     ? t("tool.code_execute.success") ?? "Succeeded"
                     : t("tool.code_execute.failed") ?? "Failed"}
@@ -695,7 +695,7 @@ function renderToolResult(
               <span className="text-xs font-semibold text-muted-foreground">
                 Exit Code:
               </span>
-              <Badge variant={bashResult.exit_code === 0 ? "success" : "error"}>
+              <Badge variant={bashResult.exit_code === 0 ? "success" : "destructive"}>
                 {bashResult.exit_code}
               </Badge>
             </div>

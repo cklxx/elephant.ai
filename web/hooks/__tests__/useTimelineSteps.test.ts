@@ -8,7 +8,7 @@ describe('useTimelineSteps', () => {
     it('should create steps from step_started events', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'step_started',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -32,7 +32,7 @@ describe('useTimelineSteps', () => {
     it('should complete steps when step_completed events arrive', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'step_started',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -41,7 +41,7 @@ describe('useTimelineSteps', () => {
           step_description: 'Analyze the codebase',
         },
         {
-          event_type: 'step_completed',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:05:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -66,7 +66,7 @@ describe('useTimelineSteps', () => {
     it('should handle multiple steps in sequence', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'step_started',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -75,7 +75,7 @@ describe('useTimelineSteps', () => {
           step_description: 'Step 1',
         },
         {
-          event_type: 'step_completed',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:05:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -84,7 +84,7 @@ describe('useTimelineSteps', () => {
           step_result: 'Step 1 done',
         },
         {
-          event_type: 'step_started',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:05:30Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -103,10 +103,10 @@ describe('useTimelineSteps', () => {
   });
 
   describe('Iteration-based Steps (Fallback)', () => {
-    it('should create steps from iteration_start events', () => {
+    it('should create steps from workflow.node.started events', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -125,10 +125,10 @@ describe('useTimelineSteps', () => {
       });
     });
 
-    it('should complete iterations when iteration_complete events arrive', () => {
+    it('should complete iterations when workflow.node.completed events arrive', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -136,7 +136,7 @@ describe('useTimelineSteps', () => {
           total_iters: 5,
         },
         {
-          event_type: 'iteration_complete',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:01:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -161,7 +161,7 @@ describe('useTimelineSteps', () => {
     it('should track tools used in iterations', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -169,7 +169,7 @@ describe('useTimelineSteps', () => {
           total_iters: 3,
         },
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:10Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -179,7 +179,7 @@ describe('useTimelineSteps', () => {
           arguments: { path: '/test.txt' },
         },
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:20Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -189,7 +189,7 @@ describe('useTimelineSteps', () => {
           arguments: { command: 'ls' },
         },
         {
-          event_type: 'iteration_complete',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:01:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -210,7 +210,7 @@ describe('useTimelineSteps', () => {
     it('should mark iterations as error when error events occur', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -218,7 +218,7 @@ describe('useTimelineSteps', () => {
           total_iters: 5,
         },
         {
-          event_type: 'error',
+          event_type: 'workflow.node.failed',
           timestamp: '2025-01-01T10:01:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -245,7 +245,7 @@ describe('useTimelineSteps', () => {
     it('should sort steps by start time', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:02:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -253,7 +253,7 @@ describe('useTimelineSteps', () => {
           total_iters: 3,
         },
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -261,7 +261,7 @@ describe('useTimelineSteps', () => {
           total_iters: 3,
         },
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:04:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -283,7 +283,7 @@ describe('useTimelineSteps', () => {
     it('should handle both research steps and iteration steps', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'step_started',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -292,7 +292,7 @@ describe('useTimelineSteps', () => {
           step_description: 'Research step',
         },
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:01:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -300,7 +300,7 @@ describe('useTimelineSteps', () => {
           total_iters: 3,
         },
         {
-          event_type: 'iteration_complete',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:02:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -330,7 +330,7 @@ describe('useTimelineSteps', () => {
     it('should memoize results when events do not change', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -354,7 +354,7 @@ describe('useTimelineSteps', () => {
     it('should recompute when events change', () => {
       const events1: AnyAgentEvent[] = [
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -366,7 +366,7 @@ describe('useTimelineSteps', () => {
       const events2: AnyAgentEvent[] = [
         ...events1,
         {
-          event_type: 'iteration_complete',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:01:00Z',
           session_id: 'test-123',
           agent_level: 'core',

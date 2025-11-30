@@ -47,7 +47,7 @@ Memoized event formatting functions for consistent event display.
 const { formatContent, getEventStyle, formatTimestamp } = useEventFormatter({
   maxContentLength: 150,
   formatOverrides: {
-    user_task: (event) => `🎯 ${event.task}`
+    workflow.input.received: (event) => `🎯 ${event.task}`
   }
 });
 
@@ -296,9 +296,9 @@ import { renderHook } from '@testing-library/react';
 import { useEventFormatter } from '@/hooks/useEventFormatter';
 
 describe('useEventFormatter', () => {
-  it('should format user_task events', () => {
+  it('should format workflow.input.received events', () => {
     const { result } = renderHook(() => useEventFormatter());
-    const event = { event_type: 'user_task', task: 'Test task' };
+    const event = { event_type: 'workflow.input.received', task: 'Test task' };
 
     expect(result.current.formatContent(event)).toBe('👤 User: Test task');
   });
@@ -307,12 +307,12 @@ describe('useEventFormatter', () => {
     const { result } = renderHook(() =>
       useEventFormatter({
         formatOverrides: {
-          user_task: (e) => `Custom: ${e.task}`
+          workflow.input.received: (e) => `Custom: ${e.task}`
         }
       })
     );
 
-    const event = { event_type: 'user_task', task: 'Test' };
+    const event = { event_type: 'workflow.input.received', task: 'Test' };
     expect(result.current.formatContent(event)).toBe('Custom: Test');
   });
 });

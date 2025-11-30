@@ -489,49 +489,49 @@ export function TaskInput({
       <Card className="border-none bg-transparent shadow-none">
         <CardContent className="px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex flex-col gap-3">
-            <div className="relative rounded-3xl border border-border/80 bg-background/70 px-3 py-3 transition focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:px-4 sm:py-4">
-              <Textarea
-                ref={textareaRef}
-                value={task}
-                onChange={(e) => setTask(e.target.value)}
-                onPaste={handlePaste}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }
-                }}
-                placeholder={resolvedPlaceholder}
-                disabled={isInputDisabled}
-                rows={3}
-                aria-label={t("task.input.ariaLabel")}
-                data-testid="task-input"
-                className="min-h-[140px] max-h-[260px] w-full resize-none rounded-2xl border-none bg-transparent px-0 py-2 pl-12 pr-24 text-base leading-7 shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:ring-transparent sm:pl-14"
-                style={{ fieldSizing: "content", boxShadow: "none" } as any}
-              />
+            <div className="rounded-[18px] border-2 border-neutral-900 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4">
+              <div className="rounded-2xl border-2 border-neutral-300 bg-white px-3 py-2 transition focus-within:border-neutral-900 focus-within:ring-1 focus-within:ring-neutral-900 sm:px-4 sm:py-3">
+                <Textarea
+                  ref={textareaRef}
+                  value={task}
+                  onChange={(e) => setTask(e.target.value)}
+                  onPaste={handlePaste}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
+                  placeholder={resolvedPlaceholder}
+                  disabled={isInputDisabled}
+                  rows={3}
+                  aria-label={t("task.input.ariaLabel")}
+                  data-testid="task-input"
+                  className="min-h-[120px] max-h-[260px] w-full resize-none rounded-xl border-none bg-transparent p-0 text-base leading-7 text-neutral-900 placeholder:text-neutral-500 shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  style={{ fieldSizing: "content", boxShadow: "none" } as any}
+                />
+              </div>
 
-              <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4">
+              <div className="mt-3 flex items-center justify-between px-1">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={openFilePicker}
                   disabled={isInputDisabled}
-                  className="flex h-10 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-300 text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 disabled:opacity-60"
                   aria-label={t("task.input.attachImage")}
                   data-testid="task-attachment-trigger"
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
-              </div>
 
-              <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2 sm:bottom-4 sm:right-4">
                 {showStopButton ? (
                   <Button
                     type="button"
                     onClick={onStop}
                     disabled={stopButtonDisabled}
                     variant="destructive"
-                    className="h-11 w-14 rounded-2xl text-sm"
+                    className="flex h-11 min-w-[88px] items-center justify-center rounded-xl border-2 border-neutral-900 bg-neutral-900 px-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-neutral-500"
                     aria-label={t("task.stop.title")}
                     data-testid="task-stop"
                   >
@@ -551,7 +551,7 @@ export function TaskInput({
                   <Button
                     type="submit"
                     disabled={isInputDisabled || !task.trim()}
-                    className="flex h-11 w-14 items-center justify-center rounded-2xl"
+                    className="flex h-11 w-12 items-center justify-center rounded-xl border-2 border-neutral-900 bg-white text-neutral-900 transition hover:bg-neutral-50 disabled:border-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400"
                     aria-label={
                       loading
                         ? t("task.submit.title.running")
@@ -560,7 +560,7 @@ export function TaskInput({
                     data-testid="task-submit"
                   >
                     {loading ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-background/80 border-t-transparent" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-900/30 border-t-transparent" />
                     ) : (
                       <ArrowUp className="h-5 w-5" />
                     )}

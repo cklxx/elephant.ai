@@ -141,12 +141,12 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	confirmedSessionID := session.ID
 	s.logger.Info("[ServerCoordinator] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
 
-	// Preallocate a task ID so we can emit user_task before hitting slower stores.
+	// Preallocate a task ID so we can emit workflow.input.received before hitting slower stores.
 	taskID := id.NewTaskID()
 	ctx = id.WithTaskID(ctx, taskID)
 
-	// Emit user_task event immediately so the frontend gets instant feedback.
-	s.emitUserTaskEvent(ctx, confirmedSessionID, taskID, task)
+	// Emit workflow.input.received event immediately so the frontend gets instant feedback.
+	s.emitWorkflowInputReceivedEvent(ctx, confirmedSessionID, taskID, task)
 
 	// Create task record with confirmed session ID and preallocated task ID from context
 	taskRecord, err := s.taskStore.Create(ctx, confirmedSessionID, task, agentPreset, toolPreset)
@@ -480,7 +480,7 @@ func (s *ServerCoordinator) captureAnalytics(ctx context.Context, distinctID str
 	}
 }
 
-func (s *ServerCoordinator) emitUserTaskEvent(ctx context.Context, sessionID, taskID, task string) {
+func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, sessionID, taskID, task string) {
 	if s.broadcaster == nil {
 		return
 	}
@@ -505,8 +505,8 @@ func (s *ServerCoordinator) emitUserTaskEvent(ctx context.Context, sessionID, ta
 		}
 	}
 
-	event := domain.NewUserTaskEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
-	s.logger.Debug("[Background] Emitting user_task event for session=%s task=%s", sessionID, taskID)
+	event := domain.NewWorkflowInputReceivedEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
+	s.logger.Debug("[Background] Emitting workflow.input.received event for session=%s task=%s", sessionID, taskID)
 	s.broadcaster.OnEvent(event)
 
 	attachmentCount := len(attachmentMap)
@@ -538,7 +538,7 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 
 	snapshots := make([]ContextSnapshotRecord, 0)
 	for _, event := range events {
-		snapshot, ok := event.(*domain.ContextSnapshotEvent)
+		snapshot, ok := event.(*domain.WorkflowDiagnosticContextSnapshotEvent)
 		if !ok {
 			continue
 		}
@@ -557,7 +557,7 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 	return snapshots
 }
 
-func (s *ServerCoordinator) emitTaskCancelledEvent(ctx context.Context, task *serverPorts.Task, reason, requestedBy string) {
+func (s *ServerCoordinator) emitWorkflowResultCancelledEvent(ctx context.Context, task *serverPorts.Task, reason, requestedBy string) {
 	if s.broadcaster == nil || task == nil {
 		return
 	}
@@ -568,7 +568,7 @@ func (s *ServerCoordinator) emitTaskCancelledEvent(ctx context.Context, task *se
 		level = ports.LevelCore
 	}
 
-	event := domain.NewTaskCancelledEvent(
+	event := domain.NewWorkflowResultCancelledEvent(
 		level,
 		task.SessionID,
 		task.ID,
@@ -577,7 +577,18 @@ func (s *ServerCoordinator) emitTaskCancelledEvent(ctx context.Context, task *se
 		requestedBy,
 		time.Now(),
 	)
-	s.logger.Info("[CancelTask] Emitting task_cancelled event: sessionID=%s taskID=%s", task.SessionID, task.ID)
+	envelope := domain.NewWorkflowEnvelopeFromEvent(event, "workflow.result.cancelled")
+	if envelope != nil {
+		envelope.NodeKind = "result"
+		envelope.Payload = map[string]any{
+			"reason":       reason,
+			"requested_by": requestedBy,
+		}
+		s.logger.Info("[CancelTask] Emitting workflow.result.cancelled envelope: sessionID=%s taskID=%s", task.SessionID, task.ID)
+		s.broadcaster.OnEvent(envelope)
+	}
+
+	s.logger.Info("[CancelTask] Emitting workflow.result.cancelled event: sessionID=%s taskID=%s", task.SessionID, task.ID)
 	s.broadcaster.OnEvent(event)
 }
 
@@ -639,7 +650,7 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 	if exists && cancelFunc != nil {
 		s.logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
 		cancelFunc(fmt.Errorf("task cancelled by user"))
-		s.emitTaskCancelledEvent(ctx, task, "cancelled", "user")
+		s.emitWorkflowResultCancelledEvent(ctx, task, "cancelled", "user")
 		status = "dispatched"
 	} else {
 		s.logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
@@ -650,7 +661,7 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 		if err := s.taskStore.SetTerminationReason(ctx, taskID, serverPorts.TerminationReasonCancelled); err != nil {
 			s.logger.Warn("[CancelTask] Failed to set termination reason for taskID=%s: %v", taskID, err)
 		}
-		s.emitTaskCancelledEvent(ctx, task, "cancelled", "user")
+		s.emitWorkflowResultCancelledEvent(ctx, task, "cancelled", "user")
 	}
 
 	props := map[string]any{

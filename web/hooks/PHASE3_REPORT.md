@@ -114,7 +114,7 @@ function CustomEventDisplay({ event }) {
   const { formatContent, getEventStyle } = useEventFormatter({
     maxContentLength: 200,
     formatOverrides: {
-      user_task: (e) => `🎯 User says: ${e.task}`
+      workflow.input.received: (e) => `🎯 User says: ${e.task}`
     }
   });
 
@@ -501,7 +501,7 @@ export function CompactEventDisplay({ events }: { events: AnyAgentEvent[] }) {
   const { formatContent, getEventStyle } = useEventFormatter({
     maxContentLength: 80,
     formatOverrides: {
-      user_task: (e) => `🎯 ${e.task}`,
+      workflow.input.received: (e) => `🎯 ${e.task}`,
       error: (e) => `❌ ${e.error}`,
     }
   });

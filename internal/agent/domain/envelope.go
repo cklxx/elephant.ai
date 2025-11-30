@@ -15,8 +15,6 @@ type WorkflowEventEnvelope struct {
 	Version int
 	// Event contains the semantic event_type (e.g., workflow.node.started).
 	Event string
-	// LegacyType carries the original domain EventType for dual-publish transitions.
-	LegacyType string
 	// WorkflowID references the workflow instance producing the event.
 	WorkflowID string
 	// RunID mirrors WorkflowID for compatibility with run-scoped consumers.
@@ -25,6 +23,12 @@ type WorkflowEventEnvelope struct {
 	NodeID string
 	// NodeKind classifies the node (step, plan, tool, subflow, result, diagnostic, etc.).
 	NodeKind string
+	// Subtask metadata allows clients to render delegated workstreams.
+	IsSubtask      bool
+	SubtaskIndex   int
+	TotalSubtasks  int
+	SubtaskPreview string
+	MaxParallel    int
 	// Payload holds event-specific data. It is sanitized at the streaming layer.
 	Payload map[string]any
 }
@@ -45,9 +49,8 @@ func NewWorkflowEnvelopeFromEvent(event ports.AgentEvent, eventType string) *Wor
 		ts = time.Now()
 	}
 	return &WorkflowEventEnvelope{
-		BaseEvent:  NewBaseEvent(event.GetAgentLevel(), event.GetSessionID(), event.GetTaskID(), event.GetParentTaskID(), ts),
-		Event:      eventType,
-		LegacyType: event.EventType(),
-		Version:    1,
+		BaseEvent: NewBaseEvent(event.GetAgentLevel(), event.GetSessionID(), event.GetTaskID(), event.GetParentTaskID(), ts),
+		Event:     eventType,
+		Version:   1,
 	}
 }

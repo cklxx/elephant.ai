@@ -1,7 +1,7 @@
 'use client';
 
 import { ComponentType, useMemo } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
@@ -100,15 +100,15 @@ export function TimelineStepList({
   );
 }
 
-function toneToVariant(tone: StatusMeta['tone']): 'default' | 'info' | 'success' | 'error' {
+function toneToVariant(tone: StatusMeta['tone']): BadgeProps['variant'] {
   switch (tone) {
     case 'info':
       return 'info';
     case 'success':
       return 'success';
     case 'danger':
-      return 'error';
+      return 'destructive';
     default:
-      return 'default';
+      return 'secondary';
   }
 }

@@ -149,7 +149,9 @@ function useToast() {
 
   React.useEffect(() => {
     listeners.add(setState);
-    return () => listeners.delete(setState);
+    return () => {
+      listeners.delete(setState);
+    };
   }, []);
 
   return {

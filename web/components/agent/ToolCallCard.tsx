@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { ToolCallStartEvent, ToolCallCompleteEvent } from '@/lib/types';
-import { isToolCallStartEvent } from '@/lib/typeGuards';
+import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
+import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
 import { getToolIcon, formatDuration } from '@/lib/utils';
 import { CheckCircle2, Loader2, XCircle, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
@@ -12,9 +12,9 @@ import { resolveToolRenderer } from './tooling/toolRenderers';
 import { adaptToolCallForRenderer } from './tooling/toolDataAdapters';
 
 interface ToolCallCardProps {
-  event: ToolCallStartEvent | ToolCallCompleteEvent;
+  event: WorkflowToolStartedEvent | WorkflowToolCompletedEvent;
   status: 'running' | 'done' | 'error';
-  pairedStart?: ToolCallStartEvent;
+  pairedStart?: WorkflowToolStartedEvent;
   isFocused?: boolean;
 }
 
@@ -134,19 +134,19 @@ function VideoWaitHint() {
 }
 
 function getArgumentsPreview(
-  event: ToolCallStartEvent | ToolCallCompleteEvent,
-  startEvent?: ToolCallStartEvent | null
+  event: WorkflowToolStartedEvent | WorkflowToolCompletedEvent,
+  startEvent?: WorkflowToolStartedEvent | null
 ): string | undefined {
   const preview =
     startEvent?.arguments_preview ??
-    (isToolCallStartEvent(event) ? event.arguments_preview : undefined);
+    (isWorkflowToolStartedEvent(event) ? event.arguments_preview : undefined);
   if (preview && preview.trim().length > 0) {
     return preview.trim();
   }
 
   const args =
     startEvent?.arguments ??
-    (isToolCallStartEvent(event) ? event.arguments : undefined);
+    (isWorkflowToolStartedEvent(event) ? event.arguments : undefined);
   return summarizeArguments(args);
 }
 

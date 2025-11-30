@@ -17,28 +17,13 @@
         "succeeded": 0,
         "failed": 0
       },
-      "order": ["prepare", "execute", "delegate", "summarize"]
+      "order": [
+        "prepare",
+        "execute",
+        "delegate",
+        "summarize"
+      ]
     }
-  },
-  {
-    "version": 1,
-    "event_type": "workflow.plan.generated",
-    "timestamp": "2025-01-10T10:00:01Z",
-    "agent_level": "core",
-    "workflow_id": "wf-123",
-    "run_id": "task-123",
-    "session_id": "session-1",
-    "payload": {
-      "goal": "Find recent Go 1.24 changes",
-      "steps": [
-        "Collect release notes",
-        "Summarize breaking changes",
-        "List migration steps"
-      ],
-      "estimated_iterations": 3,
-      "estimated_tools": ["browser.search", "browser.read"]
-    },
-    "legacy_type": "research_plan"
   },
   {
     "version": 1,
@@ -53,8 +38,7 @@
     "payload": {
       "description": "analyze task",
       "iteration": 1
-    },
-    "legacy_type": "step_started"
+    }
   },
   {
     "version": 1,
@@ -70,8 +54,7 @@
       "iteration": 1,
       "content": "Plan ready; will search Go 1.24 release notes.",
       "tool_call_count": 0
-    },
-    "legacy_type": "think_complete"
+    }
   },
   {
     "version": 1,
@@ -87,8 +70,7 @@
       "status": "succeeded",
       "result": "Prepared plan",
       "iteration": 1
-    },
-    "legacy_type": "step_completed"
+    }
   },
   {
     "version": 1,
@@ -103,8 +85,7 @@
     "payload": {
       "description": "run searches",
       "iteration": 2
-    },
-    "legacy_type": "step_started"
+    }
   },
   {
     "version": 1,
@@ -122,8 +103,7 @@
       "arguments": {
         "query": "Go 1.24 release notes"
       }
-    },
-    "legacy_type": "tool_call_start"
+    }
   },
   {
     "version": 1,
@@ -139,8 +119,7 @@
       "call_id": "tool-1",
       "chunk": "Found Go 1.24 blog post...",
       "is_complete": false
-    },
-    "legacy_type": "tool_call_stream"
+    }
   },
   {
     "version": 1,
@@ -156,9 +135,8 @@
       "call_id": "tool-1",
       "tool_name": "browser.search",
       "result": "https://go.dev/doc/go1.24",
-      "duration_ms": 850
-    },
-    "legacy_type": "tool_call_complete"
+      "duration": 850
+    }
   },
   {
     "version": 1,
@@ -174,8 +152,7 @@
       "iteration": 2,
       "content": "Captured release link, moving to summarize.",
       "tool_call_count": 1
-    },
-    "legacy_type": "think_complete"
+    }
   },
   {
     "version": 1,
@@ -193,8 +170,7 @@
       "total": 2,
       "tokens": 400,
       "tool_calls": 1
-    },
-    "legacy_type": "subagent_progress"
+    }
   },
   {
     "version": 1,
@@ -213,8 +189,7 @@
       "failed": 0,
       "tokens": 600,
       "tool_calls": 1
-    },
-    "legacy_type": "subagent_complete"
+    }
   },
   {
     "version": 1,
@@ -230,8 +205,7 @@
       "status": "succeeded",
       "iteration": 2,
       "result": "Links collected"
-    },
-    "legacy_type": "step_completed"
+    }
   },
   {
     "version": 1,
@@ -253,8 +227,7 @@
           "media_type": "text/html"
         }
       }
-    },
-    "legacy_type": "task_complete"
+    }
   },
   {
     "version": 1,
@@ -268,8 +241,7 @@
       "original_count": 20,
       "compressed_count": 8,
       "compression_rate": 40.0
-    },
-    "legacy_type": "context_compression"
+    }
   },
   {
     "version": 1,
@@ -285,7 +257,6 @@
       "step": 3,
       "total_steps": 3,
       "message": "Sandbox warmed"
-    },
-    "legacy_type": "sandbox_progress"
+    }
   }
 ]

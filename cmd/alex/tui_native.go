@@ -344,13 +344,13 @@ func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
 	outCtx := types.GetOutputContext(l.ui.ctx)
 
 	switch e := event.(type) {
-	case *domain.IterationStartEvent:
+	case *domain.WorkflowNodeStartedEvent:
 	// Optional: show iteration info
-	case *domain.ThinkingEvent:
-		// Optional: show thinking indicator
-	case *domain.ThinkCompleteEvent:
+	case *domain.WorkflowNodeOutputDeltaEvent:
+		// Optional: show workflow.node.output.delta indicator
+	case *domain.WorkflowNodeOutputSummaryEvent:
 		// Optional: show thought
-	case *domain.ToolCallStartEvent:
+	case *domain.WorkflowToolStartedEvent:
 		// Store tool info for duration calculation
 		l.activeTools[e.CallID] = ToolInfo{
 			Name:      e.ToolName,
@@ -363,7 +363,7 @@ func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
 		if rendered != "" {
 			fmt.Print(rendered)
 		}
-	case *domain.ToolCallCompleteEvent:
+	case *domain.WorkflowToolCompletedEvent:
 		// Show tool result using unified renderer
 		info, exists := l.activeTools[e.CallID]
 		if exists {
@@ -375,11 +375,11 @@ func (l *NativeEventListener) OnEvent(event ports.AgentEvent) {
 			}
 			delete(l.activeTools, e.CallID)
 		}
-	case *domain.IterationCompleteEvent:
+	case *domain.WorkflowNodeCompletedEvent:
 		// Optional: show iteration stats
-	case *domain.TaskCompleteEvent:
+	case *domain.WorkflowResultFinalEvent:
 		// Optional: show completion stats
-	case *domain.ErrorEvent:
+	case *domain.WorkflowNodeFailedEvent:
 		fmt.Printf("%s\n", styleError.Render(fmt.Sprintf("✗ Error: %v", e.Error)))
 	}
 }

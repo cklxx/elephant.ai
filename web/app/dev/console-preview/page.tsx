@@ -1,7 +1,7 @@
 'use client';
 
 import { TerminalOutput } from '@/components/agent/TerminalOutput';
-import { AnyAgentEvent, AssistantMessageEvent } from '@/lib/types';
+import { AnyAgentEvent, WorkflowNodeOutputDeltaEvent } from '@/lib/types';
 import { Brain, CheckCircle2, ChevronDown, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -58,7 +58,7 @@ interface SubagentMission {
   preview: string;
   status: SubagentStatus;
   outcome: string;
-  thinking: string[];
+  outputDeltas: string[];
   tools: SubagentToolEntry[];
 }
 
@@ -90,7 +90,7 @@ const orchestrationSubagents: SubagentMission[] = [
     preview: '沉浸式事件流体验对标调研',
     status: 'completed',
     outcome: '整理 4 套竞品 UI，输出可直接复用的 badge 与分栏节奏。',
-    thinking: [
+    outputDeltas: [
       '列出 Cursor、GitHub Copilot 等对标产品的控制台。',
       '抓取滚动节奏与实时状态标记。',
       '提炼哪些视觉 token 可以在当前排版沿用。',
@@ -120,7 +120,7 @@ const orchestrationSubagents: SubagentMission[] = [
     preview: '验证工具输出组件的子任务样式',
     status: 'completed',
     outcome: '确认 ToolOutputCard 在 subagent 流中保持折叠/展开策略。',
-    thinking: [
+    outputDeltas: [
       '确认 mock 事件里包含 parent_task_id、max_parallel。',
       '为工具输出补充 metadata, attachments 情况。',
       '设计子任务完成后的结果摘要。',
@@ -150,7 +150,7 @@ const orchestrationSubagents: SubagentMission[] = [
     preview: '录制自动化脚本，回放 Subagent 时间线',
     status: 'running',
     outcome: '构建浏览器脚本，确保事件流在回放模式下同步滚动。',
-    thinking: [
+    outputDeltas: [
       '拆分录制脚本与可视化组件的耦合。',
       '确定滚动锚点与“跳转最新”行为。',
     ],
@@ -236,28 +236,14 @@ const subagentTitleMap: Record<string, string> = Object.fromEntries(
 const mockEvents: AnyAgentEvent[] = [
   {
     ...baseEventContext,
-    event_type: 'user_task',
+    event_type: 'workflow.input.received',
     timestamp: atOffset(0),
     agent_level: 'core',
     task: '调研自动化代理的实时回传方案，并输出总结报告。',
   },
   {
     ...baseEventContext,
-    event_type: 'research_plan',
-    timestamp: atOffset(12),
-    agent_level: 'core',
-    plan_steps: [
-      '快速扫面业内方案与指标',
-      '对比事件流 UI 的实时反馈模式',
-      '整理最佳实践并建议落地步骤',
-    ],
-    estimated_iterations: 3,
-    estimated_tools: ['web_search', 'browser', 'bash'],
-    estimated_duration_minutes: 32,
-  },
-  {
-    ...baseEventContext,
-    event_type: 'iteration_start',
+    event_type: 'workflow.node.started',
     timestamp: atOffset(18),
     agent_level: 'core',
     iteration: 1,
@@ -265,7 +251,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(22),
     agent_level: 'core',
     iteration: 1,
@@ -277,7 +263,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_stream',
+    event_type: 'workflow.tool.progress',
     timestamp: atOffset(26),
     agent_level: 'core',
     call_id: 'think-core-1',
@@ -286,7 +272,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(30),
     agent_level: 'core',
     call_id: 'think-core-1',
@@ -296,7 +282,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(34),
     agent_level: 'core',
     iteration: 1,
@@ -309,7 +295,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(37),
     agent_level: 'core',
     call_id: 'delegate-core-1',
@@ -319,7 +305,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentOneContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(48),
     iteration: 1,
     call_id: 'sub-call-1',
@@ -330,7 +316,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentOneContext,
-    event_type: 'tool_call_stream',
+    event_type: 'workflow.tool.progress',
     timestamp: atOffset(50),
     call_id: 'sub-call-1',
     chunk: '📚 收集 GitHub Copilot 与 Cursor 控制台的排版策略...\n',
@@ -338,7 +324,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentOneContext,
-    event_type: 'tool_call_stream',
+    event_type: 'workflow.tool.progress',
     timestamp: atOffset(52),
     call_id: 'sub-call-1',
     chunk: '强调「工具列 + 时间线」分屏，加上高对比 badge。\n',
@@ -346,7 +332,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentOneContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(54),
     call_id: 'sub-call-1',
     tool_name: 'web_search',
@@ -355,7 +341,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentTwoContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(64),
     iteration: 1,
     call_id: 'sub-call-2',
@@ -367,7 +353,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentTwoContext,
-    event_type: 'tool_call_stream',
+    event_type: 'workflow.tool.progress',
     timestamp: atOffset(66),
     call_id: 'sub-call-2',
     chunk: '比对 props 传递链路，确认 subtask metadata 是否完整...',
@@ -375,7 +361,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentTwoContext,
-    event_type: 'tool_call_stream',
+    event_type: 'workflow.tool.progress',
     timestamp: atOffset(69),
     call_id: 'sub-call-2',
     chunk: '需要在 mock 数据中加入 parent_task_id 与并行系数。',
@@ -383,7 +369,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentTwoContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(72),
     call_id: 'sub-call-2',
     tool_name: 'code_search',
@@ -392,7 +378,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentOneContext,
-    event_type: 'task_complete',
+    event_type: 'workflow.result.final',
     timestamp: atOffset(73),
     final_answer: '完成对标调研，输出 badge 体系建议。',
     total_iterations: 1,
@@ -402,7 +388,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...subagentTwoContext,
-    event_type: 'task_complete',
+    event_type: 'workflow.result.final',
     timestamp: atOffset(74),
     final_answer: '补齐子任务工具事件 Mock，确保 UI 预览对齐。',
     total_iterations: 1,
@@ -412,7 +398,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'iteration_complete',
+    event_type: 'workflow.node.completed',
     timestamp: atOffset(70),
     agent_level: 'core',
     iteration: 1,
@@ -421,7 +407,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'assistant_message',
+    event_type: 'workflow.node.output.delta',
     timestamp: atOffset(74),
     created_at: atOffset(74),
     agent_level: 'core',
@@ -431,7 +417,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'assistant_message',
+    event_type: 'workflow.node.output.delta',
     timestamp: atOffset(76),
     created_at: atOffset(76),
     agent_level: 'core',
@@ -441,7 +427,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'iteration_start',
+    event_type: 'workflow.node.started',
     timestamp: atOffset(78),
     agent_level: 'core',
     iteration: 2,
@@ -449,7 +435,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(82),
     agent_level: 'core',
     iteration: 2,
@@ -461,7 +447,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_stream',
+    event_type: 'workflow.tool.progress',
     timestamp: atOffset(84),
     agent_level: 'core',
     call_id: 'think-core-2',
@@ -470,7 +456,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(86),
     agent_level: 'core',
     call_id: 'think-core-2',
@@ -480,7 +466,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(86),
     agent_level: 'core',
     iteration: 2,
@@ -493,7 +479,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(90),
     agent_level: 'core',
     call_id: 'delegate-core-2',
@@ -503,7 +489,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'iteration_complete',
+    event_type: 'workflow.node.completed',
     timestamp: atOffset(112),
     agent_level: 'core',
     iteration: 2,
@@ -512,7 +498,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'assistant_message',
+    event_type: 'workflow.node.output.delta',
     timestamp: atOffset(120),
     created_at: atOffset(120),
     agent_level: 'core',
@@ -522,7 +508,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'assistant_message',
+    event_type: 'workflow.node.output.delta',
     timestamp: atOffset(132),
     created_at: atOffset(132),
     agent_level: 'core',
@@ -532,7 +518,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_start',
+    event_type: 'workflow.tool.started',
     timestamp: atOffset(134),
     agent_level: 'core',
     iteration: 2,
@@ -545,7 +531,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'tool_call_complete',
+    event_type: 'workflow.tool.completed',
     timestamp: atOffset(140),
     agent_level: 'core',
     call_id: 'final-call',
@@ -556,7 +542,7 @@ const mockEvents: AnyAgentEvent[] = [
   },
   {
     ...baseEventContext,
-    event_type: 'task_complete',
+    event_type: 'workflow.result.final',
     timestamp: atOffset(150),
     agent_level: 'core',
     final_answer:
@@ -626,7 +612,7 @@ export default function ConsolePreviewPage() {
                 </p>
               </div>
 
-              {previewInput.supporting && (
+              {previewInput.supporting.length > 0 && (
                 <div className="rounded-xl border border-slate-200 bg-white/80 p-4 text-xs leading-6 text-slate-600">
                   <p className="font-medium text-slate-500">研究计划</p>
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-slate-600">
@@ -797,17 +783,17 @@ function ThinkingStatusCard() {
           <p className="text-sm font-semibold text-slate-900">主 Agent 正在思考下一步</p>
           <p className="text-xs text-slate-500">等待子任务回传并准备最终汇总</p>
         </div>
-        <span className="thinking-pill ml-auto inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-700">
+        <span className="workflow-node-output-delta-pill ml-auto inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-700">
           <Sparkles className="h-3.5 w-3.5" />
           <span>思考中</span>
         </span>
       </div>
       <style jsx>{`
-        .thinking-pill {
+        .workflow-node-output-delta-pill {
           position: relative;
           overflow: hidden;
         }
-        .thinking-pill::after {
+        .workflow-node-output-delta-pill::after {
           content: '';
           position: absolute;
           inset: 0;
@@ -815,8 +801,8 @@ function ThinkingStatusCard() {
           transform: translateX(-100%);
           animation: shimmer 1.6s linear infinite;
         }
-        .thinking-pill span,
-        .thinking-pill svg {
+        .workflow-node-output-delta-pill span,
+        .workflow-node-output-delta-pill svg {
           position: relative;
           z-index: 1;
         }
@@ -826,7 +812,7 @@ function ThinkingStatusCard() {
           }
         }
         @media (prefers-reduced-motion: reduce) {
-          .thinking-pill::after {
+          .workflow-node-output-delta-pill::after {
             animation: none;
           }
         }
@@ -885,7 +871,7 @@ function SubagentCard({ task }: { task: SubagentMission }) {
 
       <CollapsibleSection title="思考过程">
         <ol className="space-y-2 text-sm text-slate-600">
-          {task.thinking.map((step, index) => (
+          {task.outputDeltas.map((step, index) => (
             <li key={`${task.id}-think-${index}`} className="flex gap-2">
               <span className="text-xs font-semibold text-slate-400">{index + 1}.</span>
               <span className="flex-1">{step}</span>
@@ -1035,7 +1021,7 @@ function findEvent<TEventType extends AnyAgentEvent['event_type']>(
 }
 
 function buildSummaryLine(events: AnyAgentEvent[]): string {
-  const taskComplete = findEvent(events, 'task_complete');
+  const taskComplete = findEvent(events, 'workflow.result.final');
 
   const iterations = taskComplete?.total_iterations;
   const tokens = taskComplete?.total_tokens;
@@ -1057,15 +1043,14 @@ function buildSummaryLine(events: AnyAgentEvent[]): string {
   return parts.join(' · ');
 }
 
-function buildPreviewInput(events: AnyAgentEvent[]) {
-  const userTask = findEvent(events, 'user_task');
-  const planEvent = findEvent(events, 'research_plan');
-  const taskComplete = findEvent(events, 'task_complete');
+function buildPreviewInput(events: AnyAgentEvent[]): { primary: string; supporting: string[]; summary: string | null } {
+  const userTask = findEvent(events, 'workflow.input.received');
+  const taskComplete = findEvent(events, 'workflow.result.final');
 
   return {
     primary:
       userTask?.task ?? '暂无输入，等待用户任务。',
-    supporting: planEvent?.plan_steps ?? null,
+    supporting: [],
     summary: taskComplete?.final_answer ?? null,
   };
 }
@@ -1080,11 +1065,11 @@ function buildPreviewOutputs(events: AnyAgentEvent[]): {
   const bucketMap = new Map<string, PreviewBucket>();
 
   events.forEach((event) => {
-    if (event.event_type !== 'assistant_message') {
+    if (event.event_type !== 'workflow.node.output.delta') {
       return;
     }
 
-    const assistantEvent = event as AssistantMessageEvent;
+    const assistantEvent = event as WorkflowNodeOutputDeltaEvent;
     const iteration = assistantEvent.iteration ?? 0;
     const key = `${assistantEvent.task_id ?? 'task'}:${assistantEvent.parent_task_id ?? 'root'}:${iteration}`;
     let bucket = bucketMap.get(key);

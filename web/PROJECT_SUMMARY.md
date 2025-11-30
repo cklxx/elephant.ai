@@ -29,15 +29,15 @@ Complete TypeScript type definitions matching Go events:
 ```typescript
 - AgentEvent (base interface)
 - TaskAnalysisEvent
-- IterationStartEvent
-- ThinkingEvent
-- ThinkCompleteEvent
-- ToolCallStartEvent
-- ToolCallStreamEvent
-- ToolCallCompleteEvent
-- IterationCompleteEvent
-- TaskCompleteEvent
-- ErrorEvent
+- WorkflowNodeStartedEvent
+- WorkflowNodeOutputDeltaEvent
+- WorkflowNodeOutputSummaryEvent
+- WorkflowToolStartedEvent
+- WorkflowToolProgressEvent
+- WorkflowToolCompletedEvent
+- WorkflowNodeCompletedEvent
+- WorkflowResultFinalEvent
+- WorkflowNodeFailedEvent
 - Session, TaskStatusResponse, etc.
 ```
 
@@ -85,7 +85,7 @@ Fully typed API client with error handling:
 - **AgentOutput.tsx** - Main event stream container
 - **ToolCallCard.tsx** - Tool execution display with expand/collapse
 - **TaskAnalysisCard.tsx** - Task analysis with gradient background
-- **ThinkingIndicator.tsx** - Animated thinking state
+- **ThinkingIndicator.tsx** - Animated workflow.node.output.delta state
 - **TaskCompleteCard.tsx** - Final answer with markdown rendering
 - **ErrorCard.tsx** - Error display with recoverable flag
 - **ConnectionStatus.tsx** - SSE connection indicator
@@ -270,14 +270,14 @@ The frontend expects the ALEX backend server to provide:
 - `GET /api/sse?session_id=xxx` - Event stream
 
 Server must emit events matching these types:
-- iteration_start
-- thinking
-- think_complete
-- tool_call_start
-- tool_call_stream
-- tool_call_complete
-- iteration_complete
-- task_complete
+- workflow.node.started
+- workflow.node.output.delta
+- workflow.node.output.summary
+- workflow.tool.started
+- workflow.tool.progress
+- workflow.tool.completed
+- workflow.node.completed
+- workflow.result.final
 - error
 
 ## Environment Variables

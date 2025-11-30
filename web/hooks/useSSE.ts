@@ -11,12 +11,14 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { AnyAgentEvent, AssistantMessageEvent, UserTaskEvent, eventMatches } from "@/lib/types";
+import { AnyAgentEvent, WorkflowNodeOutputDeltaEvent, eventMatches } from "@/lib/types";
+import { isWorkflowResultFinalEvent } from "@/lib/typeGuards";
 import { agentEventBus } from "@/lib/events/eventBus";
 import { defaultEventRegistry } from "@/lib/events/eventRegistry";
 import { handleAttachmentEvent, resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
 import { EventPipeline } from "@/lib/events/eventPipeline";
 import { SSEClient } from "@/lib/events/sseClient";
+import { buildEventSignature } from "@/lib/events/signature";
 import { authClient } from "@/lib/auth/client";
 
 export interface UseSSEOptions {
@@ -72,6 +74,10 @@ export function useSSE(
     };
   }, []);
 
+  const resetPipelineDedupe = useCallback(() => {
+    pipelineRef.current?.reset();
+  }, []);
+
   const resetStreamingBuffer = useCallback(() => {
     streamingAnswerBufferRef.current.clear();
   }, []);
@@ -87,7 +93,7 @@ export function useSSE(
 
   const applyAssistantAnswerFallback = useCallback(
     (event: AnyAgentEvent): AnyAgentEvent => {
-      if (!eventMatches(event, "workflow.result.final", "task_complete")) return event;
+      if (!isWorkflowResultFinalEvent(event)) return event;
 
       const taskId =
         "task_id" in event && typeof event.task_id === "string"
@@ -177,9 +183,10 @@ export function useSSE(
     setEvents([]);
     resetAttachmentRegistry();
     resetDedupe();
+    resetPipelineDedupe();
     resetStreamingBuffer();
     resetAssistantMessageBuffer();
-  }, [resetDedupe, resetStreamingBuffer, resetAssistantMessageBuffer]);
+  }, [resetDedupe, resetPipelineDedupe, resetStreamingBuffer, resetAssistantMessageBuffer]);
 
   const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -326,23 +333,22 @@ export function useSSE(
         event,
         streamingAnswerBufferRef.current,
       );
-      if (eventMatches(bufferedEvent, "workflow.node.output.delta", "assistant_message", "thinking")) {
+      if (eventMatches(bufferedEvent, "workflow.node.output.delta", "workflow.node.output.delta", "workflow.node.output.delta")) {
         trackAssistantMessage(
-          bufferedEvent as AssistantMessageEvent,
+          bufferedEvent as WorkflowNodeOutputDeltaEvent,
           assistantMessageBufferRef.current,
         );
       }
 
       const enrichedEvent = applyAssistantAnswerFallback(bufferedEvent);
 
-      if (eventMatches(enrichedEvent, "workflow.result.final", "task_complete")) {
+      if (eventMatches(enrichedEvent, "workflow.result.final", "workflow.result.final")) {
         handleAttachmentEvent(enrichedEvent);
       }
 
       const isStreamingTaskComplete =
-        eventMatches(enrichedEvent, "workflow.result.final", "task_complete") &&
-        (Boolean(enrichedEvent.is_streaming) ||
-          Boolean(enrichedEvent.stream_finished));
+        isWorkflowResultFinalEvent(enrichedEvent) &&
+        (Boolean(enrichedEvent.is_streaming) || Boolean(enrichedEvent.stream_finished));
 
       if (!isStreamingTaskComplete) {
         const dedupeKey = buildEventSignature(enrichedEvent);
@@ -362,8 +368,10 @@ export function useSSE(
       }
 
       setEvents((prev) => {
+        let nextEvents = prev;
+
         if (
-          eventMatches(enrichedEvent, "workflow.result.final", "task_complete") &&
+          isWorkflowResultFinalEvent(enrichedEvent) &&
           (enrichedEvent.is_streaming || enrichedEvent.stream_finished)
         ) {
           const matchIndex = findLastStreamingTaskCompleteIndex(
@@ -371,13 +379,21 @@ export function useSSE(
             enrichedEvent,
           );
           if (matchIndex !== -1) {
-            const nextEvents = [...prev];
+            nextEvents = [...prev];
             nextEvents[matchIndex] = enrichedEvent;
-            return clampEvents(nextEvents, MAX_EVENT_HISTORY);
+          } else {
+            const filtered = prev.filter(
+              (evt) =>
+                !eventMatches(evt, "workflow.result.final", "workflow.result.final") ||
+                !isSameTask(evt, enrichedEvent),
+            );
+            nextEvents = [...filtered, enrichedEvent];
           }
+        } else {
+          nextEvents = [...prev, enrichedEvent];
         }
 
-        return clampEvents([...prev, enrichedEvent], MAX_EVENT_HISTORY);
+        return clampEvents(squashFinalEvents(nextEvents), MAX_EVENT_HISTORY);
       });
       onEventRef.current?.(enrichedEvent);
     });
@@ -405,6 +421,7 @@ export function useSSE(
       setEvents([]);
       resetAttachmentRegistry();
       resetDedupe();
+      resetPipelineDedupe();
       resetStreamingBuffer();
       resetAssistantMessageBuffer();
     }
@@ -422,6 +439,7 @@ export function useSSE(
     connectInternal,
     cleanup,
     resetDedupe,
+    resetPipelineDedupe,
     resetStreamingBuffer,
     resetAssistantMessageBuffer,
   ]);
@@ -462,7 +480,7 @@ function findLastStreamingTaskCompleteIndex(
   incoming: AnyAgentEvent,
 ): number {
   const incomingTaskId =
-    eventMatches(incoming, "workflow.result.final", "task_complete") && "task_id" in incoming
+    eventMatches(incoming, "workflow.result.final", "workflow.result.final") && "task_id" in incoming
       ? incoming.task_id
       : undefined;
 
@@ -470,7 +488,7 @@ function findLastStreamingTaskCompleteIndex(
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const candidate = events[i];
-    if (!eventMatches(candidate, "workflow.result.final", "task_complete")) continue;
+    if (!eventMatches(candidate, "workflow.result.final", "workflow.result.final")) continue;
     const candidateTaskId = "task_id" in candidate ? candidate.task_id : undefined;
     if (
       candidateTaskId &&
@@ -484,20 +502,41 @@ function findLastStreamingTaskCompleteIndex(
   return -1;
 }
 
+function isSameTask(a: AnyAgentEvent, b: AnyAgentEvent): boolean {
+  const taskA = 'task_id' in a ? a.task_id : undefined;
+  const taskB = 'task_id' in b ? b.task_id : undefined;
+  const sessionA = 'session_id' in a ? a.session_id : undefined;
+  const sessionB = 'session_id' in b ? b.session_id : undefined;
+  return Boolean(taskA && taskB && sessionA && sessionB && taskA === taskB && sessionA === sessionB);
+}
+
+function squashFinalEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  const seenTasks = new Set<string>();
+  const result: AnyAgentEvent[] = [];
+
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const evt = events[i];
+    if (eventMatches(evt, "workflow.result.final", "workflow.result.final") && "task_id" in evt && "session_id" in evt) {
+      const key = `${evt.session_id}|${evt.task_id}`;
+      if (seenTasks.has(key)) {
+        continue;
+      }
+      seenTasks.add(key);
+    }
+    result.push(evt);
+  }
+
+  return result.reverse();
+}
+
 function mergeStreamingTaskComplete(
   event: AnyAgentEvent,
   buffer: Map<string, string>,
 ): AnyAgentEvent {
-  if (!eventMatches(event, "workflow.result.final", "task_complete")) return event;
+  if (!isWorkflowResultFinalEvent(event)) return event;
 
-  const taskId =
-    "task_id" in event && typeof event.task_id === "string"
-      ? event.task_id
-      : undefined;
-  const sessionId =
-    "session_id" in event && typeof event.session_id === "string"
-      ? event.session_id
-      : "";
+  const taskId = event.task_id;
+  const sessionId = event.session_id ?? "";
 
   if (!taskId) return event;
 
@@ -544,7 +583,7 @@ type AssistantBufferEntry = {
 };
 
 function trackAssistantMessage(
-  event: AssistantMessageEvent,
+  event: WorkflowNodeOutputDeltaEvent,
   buffer: Map<string, AssistantBufferEntry>,
 ) {
   const taskId =
@@ -585,61 +624,4 @@ function combineChunks(previous: string, chunk: string): string {
   }
 
   return previous + chunk;
-}
-
-export function buildEventSignature(event: AnyAgentEvent): string {
-  // user_task is emitted immediately when a task is created. We may also
-  // optimistically add it on the client to ensure it renders even if the SSE
-  // stream reconnects. Deduping purely by task/session keeps the UI from
-  // showing duplicates when the server replay arrives with a different
-  // timestamp.
-  if (event.event_type === "user_task") {
-    const taskEvent = event as UserTaskEvent;
-    return [
-      taskEvent.event_type,
-      taskEvent.session_id ?? "",
-      taskEvent.task_id ?? "",
-      taskEvent.task,
-    ].join("|");
-  }
-
-  const baseParts = [
-    event.event_type,
-    event.timestamp ?? '',
-    event.session_id ?? '',
-    'task_id' in event && event.task_id ? event.task_id : '',
-  ];
-
-  if ('call_id' in event && event.call_id) {
-    baseParts.push(event.call_id);
-  }
-  if ('iteration' in event && typeof event.iteration === 'number') {
-    baseParts.push(String(event.iteration));
-  }
-  if ('chunk' in event && typeof event.chunk === 'string') {
-    baseParts.push(event.chunk);
-  }
-  if ('delta' in event && typeof event.delta === 'string') {
-    baseParts.push(event.delta);
-  }
-  if ('result' in event && typeof event.result === 'string') {
-    baseParts.push(event.result);
-  }
-  if ('error' in event && typeof event.error === 'string') {
-    baseParts.push(event.error);
-  }
-  if ('final_answer' in event && typeof event.final_answer === 'string') {
-    baseParts.push(event.final_answer);
-  }
-  if ('task' in event && typeof event.task === 'string') {
-    baseParts.push(event.task);
-  }
-  if ('created_at' in event) {
-    const createdAt = (event as { created_at?: unknown }).created_at;
-    if (typeof createdAt === 'string') {
-      baseParts.push(createdAt);
-    }
-  }
-
-  return baseParts.join('|');
 }

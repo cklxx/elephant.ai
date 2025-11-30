@@ -4,9 +4,10 @@
 import React from "react";
 import {
   AnyAgentEvent,
-  ToolCallCompleteEvent,
-  ThinkCompleteEvent,
-  TaskCompleteEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowNodeOutputSummaryEvent,
+  WorkflowResultFinalEvent,
+  eventMatches,
 } from "@/lib/types";
 import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
@@ -43,8 +44,8 @@ export const EventLine = React.memo(function EventLine({
     );
   }
 
-  if (event.event_type === "user_task") {
-    const segments = parseContentSegments(event.task, event.attachments);
+  if (event.event_type === "workflow.input.received") {
+    const segments = parseContentSegments(event.task, event.attachments ?? undefined);
     const textSegments = segments.filter(
       (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
     );
@@ -57,7 +58,7 @@ export const EventLine = React.memo(function EventLine({
         segment.attachment,
     );
     return (
-      <Card data-testid="event-user_task">
+      <Card data-testid="event-workflow.input.received">
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{formatTimestamp(event.timestamp)}</span>
@@ -148,12 +149,12 @@ export const EventLine = React.memo(function EventLine({
   }
 
   // Tool call complete - use ToolOutputCard
-  if (event.event_type === "tool_call_complete") {
-    const completeEvent = event as ToolCallCompleteEvent & {
+  if (event.event_type === "workflow.tool.completed") {
+    const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
     return (
-      <div data-testid="event-tool_call_complete">
+      <div data-testid="event-workflow.tool.completed">
         <ToolOutputCard
           toolName={completeEvent.tool_name}
           parameters={completeEvent.arguments}
@@ -163,23 +164,23 @@ export const EventLine = React.memo(function EventLine({
           timestamp={completeEvent.timestamp}
           callId={completeEvent.call_id}
           metadata={completeEvent.metadata}
-          attachments={completeEvent.attachments}
+          attachments={completeEvent.attachments ?? undefined}
         />
       </div>
     );
   }
 
   // Task complete - use TaskCompleteCard
-  if (event.event_type === "task_complete") {
-    return <TaskCompleteCard event={event as TaskCompleteEvent} />;
+  if (event.event_type === "workflow.result.final") {
+    return <TaskCompleteCard event={event as WorkflowResultFinalEvent} />;
   }
 
   // Think complete - convert to TaskCompleteCard format
-  if (event.event_type === "think_complete") {
-    const thinkEvent = event as ThinkCompleteEvent;
+  if (event.event_type === "workflow.node.output.summary") {
+    const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
     if (thinkEvent.content) {
-      const mockTaskCompleteEvent: TaskCompleteEvent = {
-        event_type: "task_complete",
+      const mockWorkflowResultFinalEvent: WorkflowResultFinalEvent = {
+        event_type: "workflow.result.final",
         timestamp: thinkEvent.timestamp,
         agent_level: thinkEvent.agent_level,
         session_id: thinkEvent.session_id,
@@ -187,12 +188,12 @@ export const EventLine = React.memo(function EventLine({
         parent_task_id: thinkEvent.parent_task_id,
         final_answer: thinkEvent.content,
         attachments: thinkEvent.attachments,
-        total_iterations: thinkEvent.iteration,
+        total_iterations: thinkEvent.iteration ?? 0,
         total_tokens: 0,
-        stop_reason: "think_complete",
+        stop_reason: "workflow.node.output.summary",
         duration: 0,
       };
-      return <TaskCompleteCard event={mockTaskCompleteEvent} />;
+      return <TaskCompleteCard event={mockWorkflowResultFinalEvent} />;
     }
   }
 
@@ -223,8 +224,8 @@ function SubagentEventLine({
 }: SubagentEventLineProps & { showContext?: boolean }) {
   const context = getSubagentContext(event);
 
-  if (event.event_type === "tool_call_complete") {
-    const completeEvent = event as ToolCallCompleteEvent & {
+  if (event.event_type === "workflow.tool.completed") {
+    const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
     return (
@@ -241,21 +242,21 @@ function SubagentEventLine({
           duration={completeEvent.duration}
           callId={completeEvent.call_id}
           metadata={completeEvent.metadata}
-          attachments={completeEvent.attachments}
+          attachments={completeEvent.attachments ?? undefined}
           status={completeEvent.error ? "failed" : "completed"}
         />
       </div>
     );
   }
 
-  if (event.event_type === "task_complete") {
+  if (event.event_type === "workflow.result.final") {
     return (
       <div
         className="space-y-3"
-        data-testid="event-subagent-task_complete"
+        data-testid="event-subagent-workflow.result.final"
       >
         {showContext && <SubagentHeader context={context} />}
-        <TaskCompleteCard event={event as TaskCompleteEvent} />
+        <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
       </div>
     );
   }
@@ -343,7 +344,7 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   let status: SubagentContext["status"];
   let statusTone: SubagentContext["statusTone"];
   if (
-    event.event_type === "subagent_complete" &&
+    event.event_type === "workflow.subflow.completed" &&
     "success" in event &&
     typeof event.success === "number" &&
     "failed" in event &&
@@ -351,7 +352,7 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   ) {
     status = `${event.success}/${event.total ?? event.success + event.failed} succeeded`;
     statusTone = event.failed > 0 ? "warning" : "success";
-  } else if (event.event_type === "error") {
+  } else if (eventMatches(event, "workflow.node.failed")) {
     status = "Subagent reported an error";
     statusTone = "danger";
   }

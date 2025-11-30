@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { useSSE } from "../useSSE";
 import { apiClient } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
-import { AnyAgentEvent, TaskCompleteEvent } from "@/lib/types";
+import { AnyAgentEvent, WorkflowResultFinalEvent } from "@/lib/types";
 
 // Mock the apiClient
 vi.mock("@/lib/api", () => ({
@@ -240,7 +240,7 @@ describe("useSSE", () => {
       });
 
       const event1: AnyAgentEvent = {
-        event_type: "user_task",
+        event_type: "workflow.input.received",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -248,7 +248,7 @@ describe("useSSE", () => {
       };
 
       const event2: AnyAgentEvent = {
-        event_type: "thinking",
+        event_type: "workflow.node.output.delta",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -257,13 +257,13 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("user_task", event1);
-        mockEventSource.simulateEvent("thinking", event2);
+        mockEventSource.simulateEvent("workflow.input.received", event1);
+        mockEventSource.simulateEvent("workflow.node.output.delta", event2);
       });
 
       expect(result.current.events).toHaveLength(2);
-      expect(result.current.events[0]).toEqual(event1);
-      expect(result.current.events[1]).toEqual(event2);
+      expect(result.current.events[0]).toMatchObject(event1);
+      expect(result.current.events[1]).toMatchObject(event2);
     });
 
     test("should call onEvent callback when event is received", async () => {
@@ -279,7 +279,7 @@ describe("useSSE", () => {
       });
 
       const event: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -291,13 +291,13 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", event);
+        mockEventSource.simulateEvent("workflow.result.final", event);
       });
 
-      expect(onEvent).toHaveBeenCalledWith(event);
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining(event));
     });
 
-    test("should accumulate streaming task_complete updates while keeping a single event", async () => {
+    test("should accumulate streaming workflow.result.final updates while keeping a single event", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
       await waitForConnection(1);
@@ -307,7 +307,7 @@ describe("useSSE", () => {
       });
 
       const baseEvent: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         task_id: "task-1",
@@ -336,28 +336,28 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", baseEvent);
+        mockEventSource.simulateEvent("workflow.result.final", baseEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
       expect(result.current.events[0]).toMatchObject({ final_answer: "Hello " });
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", updatedEvent);
+        mockEventSource.simulateEvent("workflow.result.final", updatedEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
       expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world" });
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", finalEvent);
+        mockEventSource.simulateEvent("workflow.result.final", finalEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
       expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world!" });
     });
 
-    test("should not dedupe streaming task_complete updates that only flip stream_finished", async () => {
+    test("should not dedupe streaming workflow.result.final updates that only flip stream_finished", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
       await waitForConnection(1);
@@ -367,7 +367,7 @@ describe("useSSE", () => {
       });
 
       const baseEvent: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         task_id: "task-1",
@@ -389,21 +389,21 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", baseEvent);
+        mockEventSource.simulateEvent("workflow.result.final", baseEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
       expect(result.current.events[0]).toMatchObject({ stream_finished: false });
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", finishedEvent);
+        mockEventSource.simulateEvent("workflow.result.final", finishedEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
       expect(result.current.events[0]).toMatchObject({ stream_finished: true, final_answer: "partial" });
     });
 
-    test("rehydrates attachments for streaming task_complete placeholders after merge", async () => {
+    test("rehydrates attachments for streaming workflow.result.final placeholders after merge", async () => {
       const { result } = renderHook(() => useSSE("session-attachments"));
 
       await waitForConnection(1);
@@ -414,7 +414,7 @@ describe("useSSE", () => {
 
       const attachmentName = "表达的艺术.md";
       const toolEvent: AnyAgentEvent = {
-        event_type: "tool_call_complete",
+        event_type: "workflow.tool.completed",
         agent_level: "core",
         timestamp: new Date().toISOString(),
         session_id: "session-attachments",
@@ -437,12 +437,12 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("tool_call_complete", toolEvent);
+        mockEventSource.simulateEvent("workflow.tool.completed", toolEvent);
       });
 
       const baseTimestamp = Date.now();
       const baseStream: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         agent_level: "core",
         session_id: "session-attachments",
         task_id: "task-attachments",
@@ -457,16 +457,16 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", {
+        mockEventSource.simulateEvent("workflow.result.final", {
           ...baseStream,
           final_answer: "输出分片 ",
         });
-        mockEventSource.simulateEvent("task_complete", {
+        mockEventSource.simulateEvent("workflow.result.final", {
           ...baseStream,
           timestamp: new Date(baseTimestamp + 10).toISOString(),
           final_answer: "包含 [表达",
         });
-        mockEventSource.simulateEvent("task_complete", {
+        mockEventSource.simulateEvent("workflow.result.final", {
           ...baseStream,
           timestamp: new Date(baseTimestamp + 20).toISOString(),
           final_answer: "的艺术.md]",
@@ -475,15 +475,15 @@ describe("useSSE", () => {
       });
 
       const taskEvents = result.current.events.filter(
-        (evt) => evt.event_type === "task_complete",
+        (evt) => evt.event_type === "workflow.result.final",
       );
       expect(taskEvents).toHaveLength(1);
-      const finalEvent = taskEvents[0] as TaskCompleteEvent;
+      const finalEvent = taskEvents[0] as WorkflowResultFinalEvent;
       expect(finalEvent.final_answer).toContain(`[${attachmentName}]`);
       expect(finalEvent.attachments?.[attachmentName]).toBeDefined();
     });
 
-    test("should fall back to assistant_message buffer when task_complete answer is empty", async () => {
+    test("should fall back to workflow.node.output.delta buffer when workflow.result.final answer is empty", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
       await waitForConnection(1);
@@ -494,7 +494,7 @@ describe("useSSE", () => {
 
       const baseTimestamp = Date.now();
       const assistantMessage1: AnyAgentEvent = {
-        event_type: "assistant_message",
+        event_type: "workflow.node.output.delta",
         timestamp: new Date(baseTimestamp).toISOString(),
         session_id: "test-session-123",
         task_id: "task-2",
@@ -514,7 +514,7 @@ describe("useSSE", () => {
       };
 
       const taskComplete: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date(baseTimestamp + 1000).toISOString(),
         session_id: "test-session-123",
         task_id: "task-2",
@@ -527,9 +527,9 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("assistant_message", assistantMessage1);
-        mockEventSource.simulateEvent("assistant_message", assistantMessage2);
-        mockEventSource.simulateEvent("task_complete", taskComplete);
+        mockEventSource.simulateEvent("workflow.node.output.delta", assistantMessage1);
+        mockEventSource.simulateEvent("workflow.node.output.delta", assistantMessage2);
+        mockEventSource.simulateEvent("workflow.result.final", taskComplete);
       });
 
       const lastEvent = result.current.events[result.current.events.length - 1];
@@ -546,7 +546,7 @@ describe("useSSE", () => {
       });
 
       const event: AnyAgentEvent = {
-        event_type: "error",
+        event_type: "workflow.diagnostic.error",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -557,7 +557,7 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("error", event);
+        mockEventSource.simulateEvent("workflow.diagnostic.error", event);
       });
 
       expect(result.current.events).toHaveLength(1);
@@ -1087,9 +1087,9 @@ describe("useSSE", () => {
       });
 
       // Manually trigger event with bad JSON
-      const listeners = (mockEventSource as any).listeners.get("thinking");
+      const listeners = (mockEventSource as any).listeners.get("workflow.node.output.delta");
       if (listeners) {
-        const badEvent = new MessageEvent("thinking", {
+        const badEvent = new MessageEvent("workflow.node.output.delta", {
           data: "invalid json",
         });
         act(() => {

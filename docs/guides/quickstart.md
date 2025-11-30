@@ -80,7 +80,7 @@ Configure your AI provider (OpenAI or compatible):
 # Set max iterations for complex tasks
 ./alex config --set reactMaxIterations=10
 
-# Enable thinking process display
+# Enable workflow.node.output.delta process display
 ./alex config --set reactThinkingEnabled=true
 
 # Configure allowed tools
@@ -206,10 +206,10 @@ Get structured responses for integration with other tools:
 ReAct (Reasoning and Acting) mode enables the agent to think through problems step by step:
 
 ```bash
-# Enable ReAct mode with thinking display
+# Enable ReAct mode with workflow.node.output.delta display
 ./alex config --set reactMode=true --set reactThinkingEnabled=true
 
-# The agent will show its thinking process:
+# The agent will show its workflow.node.output.delta process:
 # 🤔 Thinking: The user wants to analyze the project structure...
 # 🛠️ Action: I'll use the file_list tool to see the directory structure
 # 📋 Observation: Found 15 Go files and 3 directories...

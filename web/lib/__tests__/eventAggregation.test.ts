@@ -19,7 +19,7 @@ describe('EventLRUCache', () => {
   describe('Basic Operations', () => {
     it('should add events to cache', () => {
       const event: AnyAgentEvent = {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -35,14 +35,14 @@ describe('EventLRUCache', () => {
     it('should add multiple events', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'thinking',
+          event_type: 'workflow.node.output.delta',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
         },
         {
-          event_type: 'thinking',
+          event_type: 'workflow.node.output.delta',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -57,7 +57,7 @@ describe('EventLRUCache', () => {
 
     it('should clear all events', () => {
       const event: AnyAgentEvent = {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -79,28 +79,28 @@ describe('EventLRUCache', () => {
 
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'thinking',
+          event_type: 'workflow.node.output.delta',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
         },
         {
-          event_type: 'thinking',
+          event_type: 'workflow.node.output.delta',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 2,
         },
         {
-          event_type: 'thinking',
+          event_type: 'workflow.node.output.delta',
           timestamp: '2025-01-01T10:00:02Z',
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 3,
         },
         {
-          event_type: 'thinking',
+          event_type: 'workflow.node.output.delta',
           timestamp: '2025-01-01T10:00:03Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -119,7 +119,7 @@ describe('EventLRUCache', () => {
 
     it('should maintain exactly max size when adding many events', () => {
       const events: AnyAgentEvent[] = Array.from({ length: 1500 }, (_, i) => ({
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -139,7 +139,7 @@ describe('EventLRUCache', () => {
   describe('Memory Usage', () => {
     it('should estimate memory usage', () => {
       const events: AnyAgentEvent[] = Array.from({ length: 100 }, (_, i) => ({
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -155,7 +155,7 @@ describe('EventLRUCache', () => {
 
     it('should replace only the last matching event (adjacent streaming updates)', () => {
       const first: AnyAgentEvent = {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -174,7 +174,7 @@ describe('EventLRUCache', () => {
 
       cache.add(first);
       const replaced = cache.replaceLastIf(
-        (event) => event.event_type === 'task_complete' && event.task_id === 'task-1',
+        (event) => event.event_type === 'workflow.result.final' && event.task_id === 'task-1',
         second,
       );
       if (!replaced) {
@@ -189,7 +189,7 @@ describe('EventLRUCache', () => {
 
     it('should not replace non-adjacent matching events', () => {
       const first: AnyAgentEvent = {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -200,13 +200,13 @@ describe('EventLRUCache', () => {
         stop_reason: 'final_answer',
         duration: 1000,
       };
-      const thinking: AnyAgentEvent = {
-        event_type: 'thinking',
+      const deltaEvent: AnyAgentEvent = {
+        event_type: 'workflow.node.output.delta',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'session-1',
         agent_level: 'core',
         iteration: 1,
-        content: '...',
+        delta: '...',
       };
       const second: AnyAgentEvent = {
         ...first,
@@ -215,9 +215,9 @@ describe('EventLRUCache', () => {
       };
 
       cache.add(first);
-      cache.add(thinking);
+      cache.add(deltaEvent);
       const replaced = cache.replaceLastIf(
-        (event) => event.event_type === 'task_complete' && event.task_id === 'task-1',
+        (event) => event.event_type === 'workflow.result.final' && event.task_id === 'task-1',
         second,
       );
 
@@ -237,7 +237,7 @@ describe('aggregateToolCalls', () => {
   it('should aggregate tool call start events', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -264,7 +264,7 @@ describe('aggregateToolCalls', () => {
   it('should aggregate streaming chunks', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -274,7 +274,7 @@ describe('aggregateToolCalls', () => {
         arguments: { command: 'ls' },
       },
       {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -283,7 +283,7 @@ describe('aggregateToolCalls', () => {
         chunk: 'file1.txt\n',
       },
       {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         timestamp: '2025-01-01T10:00:02Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -304,7 +304,7 @@ describe('aggregateToolCalls', () => {
   it('should complete tool calls', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -314,7 +314,7 @@ describe('aggregateToolCalls', () => {
         arguments: { command: 'ls' },
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: '2025-01-01T10:00:05Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -338,7 +338,7 @@ describe('aggregateToolCalls', () => {
   it('should handle tool call errors', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -348,7 +348,7 @@ describe('aggregateToolCalls', () => {
         arguments: { command: 'invalid' },
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -372,7 +372,7 @@ describe('aggregateToolCalls', () => {
   it('should handle complete without start (orphaned complete)', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -399,7 +399,7 @@ describe('buildToolCallSummaries', () => {
   it('creates summaries with sandbox recommendations', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -409,7 +409,7 @@ describe('buildToolCallSummaries', () => {
         arguments: { language: 'python', source: 'print("hi")' },
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: '2025-01-01T10:00:02Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -435,7 +435,7 @@ describe('buildToolCallSummaries', () => {
   it('marks running tools without completion', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -458,7 +458,7 @@ describe('buildToolCallSummaries', () => {
   it('elevates sandbox level for system and filesystem tools', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -468,7 +468,7 @@ describe('buildToolCallSummaries', () => {
         arguments: { command: 'ls' },
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: '2025-01-01T10:00:03Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -479,7 +479,7 @@ describe('buildToolCallSummaries', () => {
         duration: 3000,
       },
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T11:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -498,10 +498,10 @@ describe('buildToolCallSummaries', () => {
 });
 
 describe('groupByIteration', () => {
-  it('should create iteration groups from iteration_start events', () => {
+  it('should create iteration groups from workflow.node.started events', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -527,7 +527,7 @@ describe('groupByIteration', () => {
   it('should complete iterations', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -535,7 +535,7 @@ describe('groupByIteration', () => {
         total_iters: 5,
       },
       {
-        event_type: 'iteration_complete',
+        event_type: 'workflow.node.completed',
         timestamp: '2025-01-01T10:01:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -553,10 +553,10 @@ describe('groupByIteration', () => {
     expect(group?.tools_run).toBe(2);
   });
 
-  it('should add thinking to iterations', () => {
+  it('should add workflow.node.output.delta to iterations', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -564,7 +564,7 @@ describe('groupByIteration', () => {
         total_iters: 5,
       },
       {
-        event_type: 'think_complete',
+        event_type: 'workflow.node.output.summary',
         timestamp: '2025-01-01T10:00:30Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -576,13 +576,13 @@ describe('groupByIteration', () => {
     const result = groupByIteration(events);
 
     const group = result.get(1);
-    expect(group?.thinking).toBe('I need to analyze the code');
+    expect(group?.delta).toBe('I need to analyze the code');
   });
 
   it('should group tool calls by iteration', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -590,7 +590,7 @@ describe('groupByIteration', () => {
         total_iters: 3,
       },
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: '2025-01-01T10:00:10Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -600,7 +600,7 @@ describe('groupByIteration', () => {
         arguments: { command: 'ls' },
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: '2025-01-01T10:00:11Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -622,7 +622,7 @@ describe('groupByIteration', () => {
   it('should track errors in iterations', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -630,7 +630,7 @@ describe('groupByIteration', () => {
         total_iters: 3,
       },
       {
-        event_type: 'error',
+        event_type: 'workflow.node.failed',
         timestamp: '2025-01-01T10:00:30Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -649,43 +649,10 @@ describe('groupByIteration', () => {
 });
 
 describe('extractResearchSteps', () => {
-  it('should extract steps from research_plan event', () => {
-    const events: AnyAgentEvent[] = [
-      {
-        event_type: 'research_plan',
-        timestamp: '2025-01-01T10:00:00Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        plan_steps: ['Step 1: Analyze', 'Step 2: Implement', 'Step 3: Test'],
-        estimated_iterations: 5,
-      },
-    ];
-
-    const result = extractResearchSteps(events);
-
-    expect(result).toHaveLength(3);
-    expect(result[0]).toMatchObject({
-      id: 'step-0',
-      step_index: 0,
-      description: 'Step 1: Analyze',
-      status: 'pending',
-    });
-  });
-
   it('should update step status on step_started', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'research_plan',
-        timestamp: '2025-01-01T10:00:00Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        plan_steps: ['Step 1: Analyze'],
-        estimated_iterations: 3,
-      },
-      {
-        event_type: 'step_started',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:30Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -704,16 +671,7 @@ describe('extractResearchSteps', () => {
   it('should update step status on step_completed', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'research_plan',
-        timestamp: '2025-01-01T10:00:00Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        plan_steps: ['Step 1: Analyze'],
-        estimated_iterations: 3,
-      },
-      {
-        event_type: 'step_started',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:30Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -722,7 +680,7 @@ describe('extractResearchSteps', () => {
         step_description: 'Step 1: Analyze',
       },
       {
-        event_type: 'step_completed',
+        event_type: 'workflow.node.completed',
         timestamp: '2025-01-01T10:05:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -742,7 +700,7 @@ describe('extractResearchSteps', () => {
   it('should handle no research plan', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -761,7 +719,7 @@ describe('extractBrowserDiagnostics', () => {
   it('should extract browser diagnostics events', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'browser_info',
+        event_type: 'workflow.diagnostic.browser_info',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -791,14 +749,14 @@ describe('extractBrowserDiagnostics', () => {
   it('should filter out non-diagnostics events', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
         iteration: 1,
       },
       {
-        event_type: 'browser_info',
+        event_type: 'workflow.diagnostic.browser_info',
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
@@ -815,7 +773,7 @@ describe('extractBrowserDiagnostics', () => {
   it('should handle no diagnostics', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',

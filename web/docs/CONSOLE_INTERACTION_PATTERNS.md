@@ -6,10 +6,9 @@ This document describes the research console interaction patterns implemented in
 
 ## Implemented Features
 
-### 1. Plan Approval Flow
-- Plan approval is auto-submitted via `usePlanApproval` (no dedicated UI)
-- Research plans are accepted immediately to keep execution flowing
-- API integration for plan submission remains in place
+### 1. Plan Approval Flow (removed)
+- Plan approval is no longer part of the console flow
+- Execution proceeds directly from step events without separate approval
 
 ### 2. Real-Time Timeline
 - TimelineStepList with step highlighting
@@ -50,11 +49,10 @@ web/
 │       ├── toast.tsx                 # Toast notifications
 │       └── dialog.tsx                # Modal dialogs
 ├── hooks/
-│   ├── usePlanApproval.ts           # Plan approval logic
 │   ├── useToolOutputs.ts            # Parse events to tool outputs
 │   └── useTimelineSteps.ts          # Parse events to timeline
 └── lib/
-    ├── api.ts                       # API client with plan approval
+    ├── api.ts                       # API client
     └── types.ts                     # TypeScript definitions
 ```
 
@@ -76,12 +74,11 @@ All components are fully keyboard-accessible with:
 ## Backend Requirements
 
 New API endpoints needed:
-- POST /api/plans/approve
+- None beyond existing task creation and SSE streaming.
 
 New SSE events needed:
-- research_plan
-- step_started
-- step_completed
-- browser_info
+- workflow.node.started
+- workflow.node.completed
+- workflow.diagnostic.browser_info
 
 See full API spec in this document.

@@ -325,7 +325,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 			Mode:           config.ExecutionMode,
 			SandboxManager: config.SandboxManager,
 		})
-		r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
+		r.static["workflow.diagnostic.browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
 			Mode:           config.ExecutionMode,
 			SandboxManager: config.SandboxManager,
 		})

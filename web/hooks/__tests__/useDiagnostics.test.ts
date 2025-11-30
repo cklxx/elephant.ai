@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { handleEnvironmentSnapshot, resetDiagnostics, useDiagnostics } from '../useDiagnostics';
-import { EnvironmentSnapshotEvent } from '@/lib/types';
+import { WorkflowDiagnosticEnvironmentSnapshotEvent } from '@/lib/types';
 
 describe('useDiagnostics', () => {
   beforeEach(() => {
@@ -13,8 +13,8 @@ describe('useDiagnostics', () => {
   });
 
   it('updates environments when snapshot event is handled', () => {
-    const event: EnvironmentSnapshotEvent = {
-      event_type: 'environment_snapshot',
+    const event: WorkflowDiagnosticEnvironmentSnapshotEvent = {
+      event_type: 'workflow.diagnostic.environment_snapshot',
       timestamp: new Date().toISOString(),
       agent_level: 'core',
       captured: new Date().toISOString(),

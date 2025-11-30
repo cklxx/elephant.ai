@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { SandboxProgressEvent } from '@/lib/types';
+import { WorkflowDiagnosticSandboxProgressEvent } from '@/lib/types';
 
 type SandboxProgressSnapshot = {
-  status: SandboxProgressEvent['status'];
+  status: WorkflowDiagnosticSandboxProgressEvent['status'];
   stage: string;
   message?: string;
   step: number;
@@ -13,7 +13,7 @@ type SandboxProgressSnapshot = {
 
 interface SandboxProgressState {
   progress: SandboxProgressSnapshot | null;
-  setProgress: (event: SandboxProgressEvent) => void;
+  setProgress: (event: WorkflowDiagnosticSandboxProgressEvent) => void;
 }
 
 const useSandboxProgressStore = create<SandboxProgressState>((set) => ({
@@ -36,7 +36,7 @@ export function useSandboxProgress() {
   return useSandboxProgressStore((state) => state);
 }
 
-export function handleSandboxProgress(event: SandboxProgressEvent) {
+export function handleSandboxProgress(event: WorkflowDiagnosticSandboxProgressEvent) {
   useSandboxProgressStore.getState().setProgress(event);
 }
 

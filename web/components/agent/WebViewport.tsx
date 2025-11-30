@@ -402,7 +402,7 @@ function BashOutput({
       {exitCode !== undefined && (
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-600">{t('viewport.bash.exitCode')}</span>
-          <Badge variant={exitCode === 0 ? 'success' : 'error'}>{exitCode}</Badge>
+          <Badge variant={exitCode === 0 ? 'success' : 'destructive'}>{exitCode}</Badge>
         </div>
       )}
     </div>

@@ -84,14 +84,14 @@ SSE Connection (/api/sse)
                   │
                   ▼
         ┌───────────────────┐
-        │ SSE: research_plan│
+        │ SSE: workflow.node.started │
         │ event arrives     │
         └─────────┬─────────┘
                   │
                   ▼
         ┌───────────────────────────┐
-        │ usePlanApproval           │
-        │ auto-approves plan          │
+        │ Timeline updates          │
+        │ active step state         │
         └─────────┬─────────────────┘
                   │
                   ▼
@@ -159,20 +159,17 @@ page.tsx
 
 Callback Flow (Bottom-up):
 ──────────────────────────
-usePlanApproval (inside ConsoleAgentOutput)
-  │ auto-approves latest plan event
+Plan approval flow removed
+  │ no approval hook
   ▼
-API Call: POST /api/plans/approve
-  │
-  ▼
-Timeline: Execution starts
+Timeline: Execution starts from step events
 
 
 Hook Dependencies:
 ──────────────────
 useSSE → events → useTimelineSteps → TimelineStepList
                   useToolOutputs → WebViewport
-                  usePlanApproval → auto-approve plan
+                  (no plan approval hook)
 ```
 
 ## State Management
@@ -186,11 +183,6 @@ Server State (React Query):
 ────────────────────────────
 ┌───────────────────────┐
 │ useTaskExecution      │  ← POST /api/tasks
-│ (mutation)            │
-└───────────────────────┘
-
-┌───────────────────────┐
-│ usePlanApproval       │  ← POST /api/plans/approve
 │ (mutation)            │
 └───────────────────────┘
 
@@ -258,16 +250,6 @@ ConnectionStatus (shows error + reconnect button)
   │
   ▼
 Toast.error("Connection lost", "Attempting to reconnect...")
-
-Plan Approval Errors:
-─────────────────────
-usePlanApproval
-  │ onError
-  ▼
-Toast.error("Plan approval failed", error.message)
-  │
-  ▼
-State resets to 'awaiting_approval' (allow retry)
 
 Execution Errors:
 ─────────────────

@@ -1,9 +1,9 @@
 import { apiClient } from '@/lib/api';
-import { LegacyEventType, WorkflowEventType } from '@/lib/types';
+import { WorkflowEventType } from '@/lib/types';
 import { EventPipeline } from './eventPipeline';
 
 export interface SSEClientOptions {
-  eventTypes: Array<WorkflowEventType | LegacyEventType | 'connected' | 'user_task'>;
+  eventTypes: Array<WorkflowEventType | 'connected'>;
   onOpen?: () => void;
   onError?: (error: Event | Error) => void;
   onClose?: () => void;
@@ -12,7 +12,6 @@ export interface SSEClientOptions {
 
 const WORKFLOW_EVENTS: WorkflowEventType[] = [
   'workflow.lifecycle.updated',
-  'workflow.plan.generated',
   'workflow.node.started',
   'workflow.node.completed',
   'workflow.node.failed',
@@ -21,10 +20,12 @@ const WORKFLOW_EVENTS: WorkflowEventType[] = [
   'workflow.tool.started',
   'workflow.tool.progress',
   'workflow.tool.completed',
+  'workflow.input.received',
   'workflow.subflow.progress',
   'workflow.subflow.completed',
   'workflow.result.final',
   'workflow.result.cancelled',
+  'workflow.diagnostic.error',
   'workflow.diagnostic.context_compression',
   'workflow.diagnostic.tool_filtering',
   'workflow.diagnostic.browser_info',
@@ -33,34 +34,7 @@ const WORKFLOW_EVENTS: WorkflowEventType[] = [
   'workflow.diagnostic.context_snapshot',
 ];
 
-const LEGACY_EVENTS: LegacyEventType[] = [
-  'workflow_event',
-  'iteration_start',
-  'thinking',
-  'assistant_message',
-  'think_complete',
-  'tool_call_start',
-  'tool_call_stream',
-  'tool_call_complete',
-  'iteration_complete',
-  'subagent_progress',
-  'subagent_complete',
-  'task_cancelled',
-  'task_complete',
-  'error',
-  'research_plan',
-  'step_started',
-  'step_completed',
-  'browser_info',
-  'environment_snapshot',
-  'sandbox_progress',
-  'context_compression',
-  'tool_filtering',
-  'context_snapshot',
-];
-
-const DEFAULT_EVENTS: Array<WorkflowEventType | LegacyEventType | 'connected' | 'user_task'> =
-  Array.from(new Set(['connected', 'user_task', ...WORKFLOW_EVENTS, ...LEGACY_EVENTS]));
+const DEFAULT_EVENTS: Array<WorkflowEventType | 'connected'> = Array.from(new Set(['connected', ...WORKFLOW_EVENTS]));
 
 export class SSEClient {
   private sessionId: string;

@@ -197,7 +197,7 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 		Attachments: attachments,
 	}
 
-	broadcaster.OnEvent(domain.NewContextSnapshotEvent(
+	broadcaster.OnEvent(domain.NewWorkflowDiagnosticContextSnapshotEvent(
 		agentPorts.LevelCore,
 		"sess-ctx",
 		"task-1",
@@ -210,7 +210,7 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 		time.Now(),
 	))
 
-	broadcaster.OnEvent(domain.NewContextSnapshotEvent(
+	broadcaster.OnEvent(domain.NewWorkflowDiagnosticContextSnapshotEvent(
 		agentPorts.LevelCore,
 		"sess-ctx",
 		"task-1",

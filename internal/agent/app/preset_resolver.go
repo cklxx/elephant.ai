@@ -97,7 +97,7 @@ func (r *PresetResolver) ResolveToolRegistry(
 		for _, tool := range filteredTools {
 			toolNames = append(toolNames, tool.Name)
 		}
-		filterEvent := domain.NewToolFilteringEvent(
+		filterEvent := domain.NewWorkflowDiagnosticToolFilteringEvent(
 			ports.LevelCore,
 			sessionID,
 			ids.TaskID,

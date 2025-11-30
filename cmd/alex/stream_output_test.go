@@ -21,7 +21,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	handler.SetOutputWriter(&out)
 
 	startEvent := &builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallStartEvent{
+		OriginalEvent: &domain.WorkflowToolStartedEvent{
 			CallID:   "call-1",
 			ToolName: "test-tool",
 			Arguments: map[string]interface{}{
@@ -40,7 +40,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	out.Reset()
 
 	completeEvent := &builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallCompleteEvent{
+		OriginalEvent: &domain.WorkflowToolCompletedEvent{
 			CallID:   "call-1",
 			ToolName: "test-tool",
 			Result:   "ok",
@@ -53,7 +53,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	require.Equal(t, "", out.String(), "tool completion should not emit output directly")
 
 	taskCompleteEvent := &builtin.SubtaskEvent{
-		OriginalEvent: &domain.TaskCompleteEvent{
+		OriginalEvent: &domain.WorkflowResultFinalEvent{
 			TotalTokens: 128,
 		},
 		SubtaskIndex:  0,
@@ -72,7 +72,7 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 	handler.SetOutputWriter(&out)
 
 	errEvent := &builtin.SubtaskEvent{
-		OriginalEvent: &domain.ErrorEvent{
+		OriginalEvent: &domain.WorkflowNodeFailedEvent{
 			Error: errors.New("boom"),
 		},
 		SubtaskIndex:   1,
@@ -89,7 +89,7 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 
 func TestStreamingOutputHandlerStoresCompletionEvent(t *testing.T) {
 	handler := NewStreamingOutputHandler(nil, false)
-	event := &domain.TaskCompleteEvent{TotalIterations: 4, TotalTokens: 512}
+	event := &domain.WorkflowResultFinalEvent{TotalIterations: 4, TotalTokens: 512}
 
 	handler.onTaskComplete(event)
 
@@ -118,7 +118,7 @@ func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	event := &domain.TaskCompleteEvent{TotalIterations: 3, TotalTokens: 256}
+	event := &domain.WorkflowResultFinalEvent{TotalIterations: 3, TotalTokens: 256}
 	handler.printCancellation(event)
 
 	output := out.String()
@@ -132,8 +132,8 @@ func TestStreamingOutputHandlerAssistantMessageStream(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	handler.onAssistantMessage(&domain.AssistantMessageEvent{Delta: "Hello", Final: false})
-	handler.onAssistantMessage(&domain.AssistantMessageEvent{Final: true})
+	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Delta: "Hello", Final: false})
+	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Final: true})
 
 	require.Contains(t, out.String(), "Hello")
 	require.True(t, strings.HasSuffix(out.String(), "\n"))
@@ -145,8 +145,8 @@ func TestStreamingOutputHandlerAssistantMessageBuffersMarkdownLines(t *testing.T
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	handler.onAssistantMessage(&domain.AssistantMessageEvent{Delta: "Hello\nWorld", Final: false})
-	handler.onAssistantMessage(&domain.AssistantMessageEvent{Final: true})
+	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Delta: "Hello\nWorld", Final: false})
+	handler.onAssistantMessage(&domain.WorkflowNodeOutputDeltaEvent{Final: true})
 
 	require.Contains(t, out.String(), "Hello")
 	require.Contains(t, out.String(), "World")

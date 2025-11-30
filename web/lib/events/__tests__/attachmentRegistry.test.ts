@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { handleAttachmentEvent, resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
-import { TaskCompleteEvent, ToolCallCompleteEvent, UserTaskEvent } from '@/lib/types';
+import { WorkflowResultFinalEvent, WorkflowToolCompletedEvent, WorkflowInputReceivedEvent } from '@/lib/types';
 
-const baseToolCallEvent = (): ToolCallCompleteEvent => ({
-  event_type: 'tool_call_complete',
+const baseToolCallEvent = (): WorkflowToolCompletedEvent => ({
+  event_type: 'workflow.tool.completed',
   agent_level: 'core',
   timestamp: new Date().toISOString(),
   session_id: 'sess-1',
@@ -13,8 +13,8 @@ const baseToolCallEvent = (): ToolCallCompleteEvent => ({
   duration: 1200,
 });
 
-const baseTaskCompleteEvent = (): TaskCompleteEvent => ({
-  event_type: 'task_complete',
+const baseWorkflowResultFinalEvent = (): WorkflowResultFinalEvent => ({
+  event_type: 'workflow.result.final',
   agent_level: 'core',
   timestamp: new Date().toISOString(),
   session_id: 'sess-1',
@@ -30,8 +30,8 @@ describe('attachmentRegistry', () => {
     resetAttachmentRegistry();
   });
 
-  it('hydrates task_complete events even when attachments were already shown', () => {
-    const toolEvent: ToolCallCompleteEvent = {
+  it('hydrates workflow.result.final events even when attachments were already shown', () => {
+    const toolEvent: WorkflowToolCompletedEvent = {
       ...baseToolCallEvent(),
       attachments: {
         'generated.png': {
@@ -43,8 +43,8 @@ describe('attachmentRegistry', () => {
     };
     handleAttachmentEvent(toolEvent);
 
-    const taskComplete: TaskCompleteEvent = {
-      ...baseTaskCompleteEvent(),
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
       final_answer: 'Artifacts ready: [generated.png]',
     };
     handleAttachmentEvent(taskComplete);
@@ -54,7 +54,7 @@ describe('attachmentRegistry', () => {
   });
 
   it('does not leak attachments after reset', () => {
-    const toolEvent: ToolCallCompleteEvent = {
+    const toolEvent: WorkflowToolCompletedEvent = {
       ...baseToolCallEvent(),
       attachments: {
         'temporary.png': {
@@ -67,8 +67,8 @@ describe('attachmentRegistry', () => {
     handleAttachmentEvent(toolEvent);
     resetAttachmentRegistry();
 
-    const taskComplete: TaskCompleteEvent = {
-      ...baseTaskCompleteEvent(),
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
       final_answer: 'Check this out: [temporary.png]',
     };
     handleAttachmentEvent(taskComplete);
@@ -76,9 +76,9 @@ describe('attachmentRegistry', () => {
     expect(taskComplete.attachments).toBeUndefined();
   });
 
-  it('retains task_complete attachments that were not previously displayed', () => {
-    const taskComplete: TaskCompleteEvent = {
-      ...baseTaskCompleteEvent(),
+  it('retains workflow.result.final attachments that were not previously displayed', () => {
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
       attachments: {
         'fresh.png': {
           name: 'fresh.png',
@@ -93,9 +93,9 @@ describe('attachmentRegistry', () => {
     expect(taskComplete.attachments?.['fresh.png']).toBeDefined();
   });
 
-  it('hydrates task_complete events from registry when assets were not displayed', () => {
-    const userTask: UserTaskEvent = {
-      event_type: 'user_task',
+  it('hydrates workflow.result.final events from registry when assets were not displayed', () => {
+    const userTask: WorkflowInputReceivedEvent = {
+      event_type: 'workflow.input.received',
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'sess-1',
@@ -112,8 +112,8 @@ describe('attachmentRegistry', () => {
     };
     handleAttachmentEvent(userTask);
 
-    const taskComplete: TaskCompleteEvent = {
-      ...baseTaskCompleteEvent(),
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
       final_answer: 'See [analysis.png] for reference.',
     };
     handleAttachmentEvent(taskComplete);
@@ -122,9 +122,9 @@ describe('attachmentRegistry', () => {
     expect(taskComplete.attachments?.['analysis.png']).toBeDefined();
   });
 
-  it('hydrates tool_call_complete events using stored attachments when missing', () => {
-    const userTask: UserTaskEvent = {
-      event_type: 'user_task',
+  it('hydrates workflow.tool.completed events using stored attachments when missing', () => {
+    const userTask: WorkflowInputReceivedEvent = {
+      event_type: 'workflow.input.received',
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'sess-2',
@@ -141,7 +141,7 @@ describe('attachmentRegistry', () => {
     };
     handleAttachmentEvent(userTask);
 
-    const toolComplete: ToolCallCompleteEvent = {
+    const toolComplete: WorkflowToolCompletedEvent = {
       ...baseToolCallEvent(),
       result: 'Rendered preview: [clip.mp4]',
     };
@@ -153,8 +153,8 @@ describe('attachmentRegistry', () => {
   });
 
   it('surfaces undisplayed attachments when final results omit them', () => {
-    const userTask: UserTaskEvent = {
-      event_type: 'user_task',
+    const userTask: WorkflowInputReceivedEvent = {
+      event_type: 'workflow.input.received',
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'sess-3',
@@ -172,8 +172,8 @@ describe('attachmentRegistry', () => {
 
     handleAttachmentEvent(userTask);
 
-    const taskComplete: TaskCompleteEvent = {
-      ...baseTaskCompleteEvent(),
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
       final_answer: 'Task finished successfully.',
     };
 
@@ -184,7 +184,7 @@ describe('attachmentRegistry', () => {
   });
 
   it('hydrates attachments from metadata mutations even when attachments are absent', () => {
-    const toolEvent: ToolCallCompleteEvent = {
+    const toolEvent: WorkflowToolCompletedEvent = {
       ...baseToolCallEvent(),
       metadata: {
         attachment_mutations: JSON.stringify({
@@ -203,7 +203,7 @@ describe('attachmentRegistry', () => {
     handleAttachmentEvent(toolEvent);
     expect(toolEvent.attachments?.['report.md']).toBeDefined();
 
-    const camelCaseEvent: ToolCallCompleteEvent = {
+    const camelCaseEvent: WorkflowToolCompletedEvent = {
       ...baseToolCallEvent(),
       call_id: 'call-2',
       metadata: {
@@ -222,8 +222,8 @@ describe('attachmentRegistry', () => {
     handleAttachmentEvent(camelCaseEvent);
     expect(camelCaseEvent.attachments?.['summary.pdf']).toBeDefined();
 
-    const taskComplete: TaskCompleteEvent = {
-      ...baseTaskCompleteEvent(),
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
       final_answer: 'See [report.md] and [summary.pdf] for details.',
     };
     handleAttachmentEvent(taskComplete);

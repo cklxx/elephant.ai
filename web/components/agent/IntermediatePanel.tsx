@@ -10,9 +10,11 @@ import {
 import { createPortal } from "react-dom";
 import {
   AnyAgentEvent,
-  AssistantMessageEvent,
+  WorkflowNodeOutputDeltaEvent,
   AttachmentPayload,
-  ThinkCompleteEvent,
+  WorkflowNodeOutputSummaryEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowToolStartedEvent,
   eventMatches,
 } from "@/lib/types";
 import { PanelRightOpen, X } from "lucide-react";
@@ -33,7 +35,7 @@ interface ThinkPreviewItem {
 }
 
 const getThinkStreamKey = (
-  event: AssistantMessageEvent | ThinkCompleteEvent,
+  event: WorkflowNodeOutputDeltaEvent | WorkflowNodeOutputSummaryEvent,
   iteration: number,
 ) => {
   const taskIdentifier =
@@ -43,6 +45,31 @@ const getThinkStreamKey = (
       : event.session_id);
   return `${taskIdentifier}:${iteration}`;
 };
+
+const isWorkflowToolStartedEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowToolStartedEvent =>
+  eventMatches(event, "workflow.tool.started", "workflow.tool.started");
+
+const isWorkflowToolCompletedEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowToolCompletedEvent =>
+  eventMatches(event, "workflow.tool.completed", "workflow.tool.completed");
+
+const isWorkflowNodeOutputDeltaEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowNodeOutputDeltaEvent =>
+  eventMatches(
+    event,
+    "workflow.node.output.delta",
+    "workflow.node.output.delta",
+    "workflow.node.output.delta",
+  );
+
+const isWorkflowNodeOutputSummaryEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowNodeOutputSummaryEvent =>
+  eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary");
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -113,7 +140,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     const thinkStreams = new Map<string, ThinkPreviewItem>();
 
     events.forEach((event) => {
-      if (eventMatches(event, "workflow.tool.started", "tool_call_start")) {
+      if (isWorkflowToolStartedEvent(event)) {
         // Initialize with start event data
         toolCallsMap.set(event.call_id, {
           callId: event.call_id,
@@ -123,7 +150,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           isComplete: false,
           status: "running",
         });
-      } else if (eventMatches(event, "workflow.tool.completed", "tool_call_complete")) {
+      } else if (isWorkflowToolCompletedEvent(event)) {
         // Update with complete event data (including metadata)
         const toolCall = toolCallsMap.get(event.call_id);
         if (toolCall) {
@@ -158,8 +185,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 : "completed",
           });
         }
-      } else if (eventMatches(event, "workflow.node.output.delta", "assistant_message", "thinking")) {
-        const assistantEvent = event as AssistantMessageEvent;
+      } else if (isWorkflowNodeOutputDeltaEvent(event)) {
+        const assistantEvent = event;
         const iteration = assistantEvent.iteration;
         if (typeof iteration !== "number") {
           return;
@@ -180,8 +207,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           assistantEvent.created_at ?? assistantEvent.timestamp;
         existing.isFinal = Boolean(assistantEvent.final);
         thinkStreams.set(streamKey, existing);
-      } else if (eventMatches(event, "workflow.node.output.summary", "think_complete")) {
-        const thinkEvent = event as ThinkCompleteEvent;
+      } else if (isWorkflowNodeOutputSummaryEvent(event)) {
+        const thinkEvent = event;
         const iteration = thinkEvent.iteration;
         if (typeof iteration !== "number") {
           return;
@@ -369,7 +396,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 </Badge>
               )}
               {failedCount > 0 && (
-                <Badge variant="error">{failedCount} failed</Badge>
+                <Badge variant="destructive">{failedCount} failed</Badge>
               )}
             </div>
           </div>

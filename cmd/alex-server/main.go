@@ -189,14 +189,14 @@ func main() {
 
 	// Broadcast environment diagnostics to all connected SSE clients.
 	unsubscribeEnv := diagnostics.SubscribeEnvironments(func(payload diagnostics.EnvironmentPayload) {
-		event := agentdomain.NewEnvironmentSnapshotEvent(payload.Host, payload.Sandbox, payload.Captured)
+		event := agentdomain.NewWorkflowDiagnosticEnvironmentSnapshotEvent(payload.Host, payload.Sandbox, payload.Captured)
 		broadcaster.OnEvent(event)
 	})
 	defer unsubscribeEnv()
 
 	// Broadcast sandbox initialization progress so the UI can surface long-running steps.
 	unsubscribeSandboxProgress := diagnostics.SubscribeSandboxProgress(func(payload diagnostics.SandboxProgressPayload) {
-		event := agentdomain.NewSandboxProgressEvent(
+		event := agentdomain.NewWorkflowDiagnosticSandboxProgressEvent(
 			string(payload.Status),
 			payload.Stage,
 			payload.Message,

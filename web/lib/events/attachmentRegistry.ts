@@ -1,9 +1,9 @@
 import {
   AnyAgentEvent,
   AttachmentPayload,
-  TaskCompleteEvent,
-  ToolCallCompleteEvent,
-  UserTaskEvent,
+  WorkflowResultFinalEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowInputReceivedEvent,
   eventMatches,
 } from '@/lib/types';
 
@@ -100,7 +100,7 @@ function normalizeAttachmentMutations(
   return null;
 }
 
-function shouldIncludeDisplayedAttachments(taskEvent: TaskCompleteEvent): boolean {
+function shouldIncludeDisplayedAttachments(taskEvent: WorkflowResultFinalEvent): boolean {
   if (taskEvent.is_streaming === true && taskEvent.stream_finished === false) {
     return false;
   }
@@ -266,11 +266,11 @@ class AttachmentRegistry {
 
   handleEvent(event: AnyAgentEvent) {
     switch (true) {
-      case event.event_type === 'user_task':
-        this.upsertMany((event as UserTaskEvent).attachments);
+      case event.event_type === 'workflow.input.received':
+        this.upsertMany((event as WorkflowInputReceivedEvent).attachments ?? undefined);
         break;
-      case eventMatches(event, 'workflow.tool.completed', 'tool_call_complete'):
-        const toolEvent = event as ToolCallCompleteEvent;
+      case eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed'):
+        const toolEvent = event as WorkflowToolCompletedEvent;
         const normalizedAttachments = normalizeAttachmentMap(
           toolEvent.attachments as AttachmentMap | undefined,
         );
@@ -308,8 +308,8 @@ class AttachmentRegistry {
           });
         }
         break;
-      case eventMatches(event, 'workflow.result.final', 'task_complete'): {
-        const taskEvent = event as TaskCompleteEvent;
+      case eventMatches(event, 'workflow.result.final', 'workflow.result.final'): {
+        const taskEvent = event as WorkflowResultFinalEvent;
         const normalized = this.filterUndisplayed(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {
           taskEvent.attachments = normalized;

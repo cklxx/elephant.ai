@@ -99,7 +99,7 @@ test.describe('ALEX console layout', () => {
     await expect(page.locator('[data-testid="session-list-item"]')).toBeVisible({
       timeout: 15000,
     });
-    await expect(page.getByTestId('event-user_task')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('event-workflow.input.received')).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('console-header-title')).toHaveText(/.+/);
 
     if (shouldCaptureScreenshots) {

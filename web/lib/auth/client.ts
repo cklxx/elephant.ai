@@ -17,6 +17,7 @@ type RawAuthUser = {
   display_name: string;
   points_balance?: number;
   subscription?: RawSubscription;
+  photo_url?: string | null;
 };
 
 type TokenResponse = {
@@ -59,6 +60,7 @@ export interface AuthUser {
   displayName: string;
   pointsBalance: number;
   subscription: SubscriptionInfo;
+  photoURL?: string | null;
 }
 
 export interface AuthSession {
@@ -97,7 +99,8 @@ function sessionsEqual(a: AuthSession | null, b: AuthSession | null): boolean {
     userA.id !== userB.id ||
     userA.email !== userB.email ||
     userA.displayName !== userB.displayName ||
-    userA.pointsBalance !== userB.pointsBalance
+    userA.pointsBalance !== userB.pointsBalance ||
+    userA.photoURL !== userB.photoURL
   ) {
     return false;
   }
@@ -152,6 +155,14 @@ function normalizePoints(value: unknown): number {
   return 0;
 }
 
+function normalizePhotoUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function mapUser(rawUser: RawAuthUser): AuthUser {
   return {
     id: rawUser.id,
@@ -159,6 +170,7 @@ function mapUser(rawUser: RawAuthUser): AuthUser {
     displayName: rawUser.display_name,
     pointsBalance: normalizePoints(rawUser.points_balance),
     subscription: mapSubscription(rawUser.subscription),
+    photoURL: normalizePhotoUrl(rawUser.photo_url),
   };
 }
 

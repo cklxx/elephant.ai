@@ -27,7 +27,7 @@ web/
 │   │   ├── TaskAnalysisCard.tsx       # Task analysis display with gradient
 │   │   ├── TaskCompleteCard.tsx       # Final answer with markdown rendering
 │   │   ├── ErrorCard.tsx              # Error display with phase/recovery info
-│   │   ├── ThinkingIndicator.tsx      # Animated thinking state indicator
+│   │   ├── ThinkingIndicator.tsx      # Animated workflow.node.output.delta state indicator
 │   │   └── ConnectionStatus.tsx       # SSE connection status badge
 │   │
 │   └── session/                       # Session management components

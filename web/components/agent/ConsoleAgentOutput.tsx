@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
-import { isResearchPlanEvent, isTaskCompleteEvent } from '@/lib/typeGuards';
+import { isWorkflowResultFinalEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
 import { TimelineStepList } from './TimelineStepList';
@@ -10,7 +10,6 @@ import { WebViewport } from './WebViewport';
 import { DocumentCanvas, DocumentContent, ViewMode } from './DocumentCanvas';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useToolOutputs } from '@/hooks/useToolOutputs';
-import { usePlanApproval } from '@/hooks/usePlanApproval';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
@@ -27,7 +26,6 @@ interface ConsoleAgentOutputProps {
   onReconnect?: () => void;
   sessionId: string | null;
   taskId: string | null;
-  autoApprovePlan?: boolean;
 }
 
 export function ConsoleAgentOutput({
@@ -39,9 +37,7 @@ export function ConsoleAgentOutput({
   onReconnect,
   sessionId,
   taskId,
-  autoApprovePlan: _autoApprovePlan = false,
 }: ConsoleAgentOutputProps) {
-  void _autoApprovePlan;
   const t = useTranslation();
   const timelineSteps = useTimelineSteps(events);
   const toolOutputs = useToolOutputs(events);
@@ -49,8 +45,6 @@ export function ConsoleAgentOutput({
   const [documentViewMode, setDocumentViewMode] = useState<ViewMode>('default');
   const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
   const [hasUserSelectedStep, setHasUserSelectedStep] = useState(false);
-  const lastHandledPlanKeyRef = useRef<string | null>(null);
-
   const hasTimeline = timelineSteps.length > 0;
   const activeTimelineStep = useMemo(
     () => timelineSteps.find((step) => step.status === 'active') ?? null,
@@ -66,17 +60,6 @@ export function ConsoleAgentOutput({
     [timelineSteps, focusedStepId]
   );
   const focusedEventIndex = focusedTimelineStep?.anchorEventIndex ?? null;
-
-  // Extract research plan from events
-  const latestPlanEvent = useMemo(() => {
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      const candidate = events[index];
-      if (isResearchPlanEvent(candidate)) {
-        return candidate;
-      }
-    }
-    return null;
-  }, [events]);
 
   useEffect(() => {
     if (!hasTimeline) {
@@ -109,55 +92,10 @@ export function ConsoleAgentOutput({
     fallbackTimelineStepId,
   ]);
 
-  const researchPlan = useMemo(() => {
-    if (!latestPlanEvent) {
-      return null;
-    }
-
-    return {
-      goal: t('agent.output.plan.defaultGoal'),
-      steps: latestPlanEvent.plan_steps,
-      estimated_tools: latestPlanEvent.estimated_tools ?? [],
-      estimated_iterations: latestPlanEvent.estimated_iterations,
-      estimated_duration_minutes: latestPlanEvent.estimated_duration_minutes,
-    };
-  }, [latestPlanEvent, t]);
-
-  const {
-    state: planState,
-    currentPlan,
-    isSubmitting,
-    handlePlanGenerated,
-    handleApprove,
-  } = usePlanApproval({
-    sessionId,
-    taskId,
-  });
-
-  useEffect(() => {
-    if (!researchPlan || !latestPlanEvent) {
-      return;
-    }
-
-    const planKey = `${latestPlanEvent.timestamp}:${latestPlanEvent.plan_steps.join('|')}`;
-    if (lastHandledPlanKeyRef.current === planKey && planState !== 'idle') {
-      return;
-    }
-
-    lastHandledPlanKeyRef.current = planKey;
-    handlePlanGenerated(researchPlan);
-  }, [handlePlanGenerated, latestPlanEvent, planState, researchPlan]);
-
-  useEffect(() => {
-    if (planState === 'awaiting_approval' && currentPlan && !isSubmitting) {
-      handleApprove();
-    }
-  }, [currentPlan, handleApprove, isSubmitting, planState]);
-
   const latestTaskComplete = useMemo(() => {
     for (let idx = events.length - 1; idx >= 0; idx -= 1) {
       const current = events[idx];
-      if (isTaskCompleteEvent(current)) {
+      if (isWorkflowResultFinalEvent(current)) {
         return current;
       }
     }
@@ -174,12 +112,12 @@ export function ConsoleAgentOutput({
     let taskComplete: AnyAgentEvent | undefined;
     for (let idx = events.length - 1; idx >= 0; idx -= 1) {
       const current = events[idx];
-      if (isTaskCompleteEvent(current)) {
+      if (isWorkflowResultFinalEvent(current)) {
         taskComplete = current;
         break;
       }
     }
-    if (!taskComplete || !isTaskCompleteEvent(taskComplete)) return null;
+    if (!taskComplete || !isWorkflowResultFinalEvent(taskComplete)) return null;
 
     return {
       id: 'task-result',
@@ -192,7 +130,7 @@ export function ConsoleAgentOutput({
         tokens: taskComplete.total_tokens,
         stop_reason: taskComplete.stop_reason,
       },
-      attachments: taskComplete.attachments,
+      attachments: taskComplete.attachments ?? undefined,
     };
   }, [events, t]);
 
