@@ -43,6 +43,7 @@ describe('TaskCompleteCard', () => {
       screen.getByText(/Submit another prompt to continue working/i),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('task-complete-metrics')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-answer-divider')).not.toBeInTheDocument();
   });
 
   it('renders markdown answer when final answer is present', () => {
@@ -58,6 +59,7 @@ describe('TaskCompleteCard', () => {
     expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
     expect(screen.getByText(/This is the answer\./i)).toBeInTheDocument();
     expect(screen.queryByTestId('task-complete-metrics')).not.toBeInTheDocument();
+    expect(screen.getByTestId('task-complete-answer-divider')).toBeInTheDocument();
   });
 
   it('renders inline images from attachment placeholders', () => {

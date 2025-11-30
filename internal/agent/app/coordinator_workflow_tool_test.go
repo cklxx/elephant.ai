@@ -31,20 +31,6 @@ type capturingListener struct{ events []ports.AgentEvent }
 
 func (c *capturingListener) OnEvent(evt ports.AgentEvent) { c.events = append(c.events, evt) }
 
-func (c *capturingListener) byType(eventType string) []ports.AgentEvent {
-	filtered := make([]ports.AgentEvent, 0, len(c.events))
-	for _, evt := range c.events {
-		if evt == nil || evt.EventType() != eventType {
-			continue
-		}
-		if _, isEnvelope := evt.(*domain.WorkflowEventEnvelope); isEnvelope {
-			continue
-		}
-		filtered = append(filtered, evt)
-	}
-	return filtered
-}
-
 func (c *capturingListener) envelopes(eventName string) []*domain.WorkflowEventEnvelope {
 	var out []*domain.WorkflowEventEnvelope
 	for _, evt := range c.events {

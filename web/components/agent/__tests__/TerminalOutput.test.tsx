@@ -174,7 +174,7 @@ describe('TerminalOutput', () => {
       </LanguageProvider>,
     );
 
-    const aggregatePanel = screen.getByTestId('subagent-aggregate-panel');
+    const aggregatePanel = screen.getByTestId('subagent-aggregate');
     expect(aggregatePanel).toBeInTheDocument();
     expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(2);
     expect(aggregatePanel).toHaveTextContent(/Subagent Task 1\/2/i);
@@ -182,5 +182,81 @@ describe('TerminalOutput', () => {
 
     const conversationEvents = screen.getByTestId('conversation-events');
     expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);
+  });
+
+  it('ignores delegation-only subagent tool events', () => {
+    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'subagent',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        subtask_index: 0,
+        total_subtasks: 1,
+        tool_name: 'subagent',
+        result: 'delegation summary',
+        duration: 200,
+        timestamp: subagentTimestamp,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.queryByTestId('subagent-aggregate')).not.toBeInTheDocument();
+    expect(screen.getByTestId('conversation-stream')).toBeInTheDocument();
+  });
+
+  it('routes core-level events with parent_task_id into the subagent aggregate', () => {
+    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'subtask-123',
+        parent_task_id: 'parent-1',
+        tool_name: 'text_to_image',
+        result: 'image generated',
+        duration: 200,
+        timestamp: subagentTimestamp,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    const aggregatePanel = screen.getByTestId('subagent-aggregate');
+    expect(aggregatePanel).toBeInTheDocument();
+    expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(1);
+
+    const conversationEvents = screen.getByTestId('conversation-events');
+    expect(within(conversationEvents).queryByTestId(/event-workflow.tool.completed/)).not.toBeInTheDocument();
   });
 });

@@ -269,10 +269,6 @@ func (h *StreamingOutputHandler) onIterationStart(event *domain.WorkflowNodeStar
 	// Silent - don't print iteration headers in simple mode
 }
 
-func (h *StreamingOutputHandler) onThinking(event *domain.WorkflowNodeOutputDeltaEvent) {
-	// Silent - analysis is shown in think complete
-}
-
 func (h *StreamingOutputHandler) onThinkComplete(event *domain.WorkflowNodeOutputSummaryEvent) {
 	// Silent - don't print analysis output
 	// Analysis is internal reasoning, not user-facing output

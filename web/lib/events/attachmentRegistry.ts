@@ -18,6 +18,11 @@ type AttachmentMutations = {
   remove?: string[];
 };
 
+type StoredAttachment = {
+  attachment: AttachmentPayload;
+  firstSeen: number;
+};
+
 function parseMutationsPayload(
   value: unknown,
 ): Record<string, any> | null {
@@ -108,31 +113,41 @@ function shouldIncludeDisplayedAttachments(taskEvent: WorkflowResultFinalEvent):
 }
 
 class AttachmentRegistry {
-  private store: AttachmentMap = {};
+  private store: Map<string, StoredAttachment> = new Map();
   private displayedByTool = new Set<string>();
 
   clear() {
-    this.store = {};
+    this.store = new Map();
     this.displayedByTool.clear();
   }
 
-  private upsertMany(attachments?: AttachmentMap) {
+  private getEventTimestamp(event: AnyAgentEvent): number {
+    const parsed = event && typeof (event as any).timestamp === "string"
+      ? Date.parse((event as any).timestamp)
+      : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : Date.now();
+  }
+
+  private upsertMany(attachments?: AttachmentMap, firstSeen?: number) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
       return;
     }
+    const seenAt = typeof firstSeen === "number" && Number.isFinite(firstSeen) ? firstSeen : Date.now();
     Object.entries(normalized).forEach(([key, attachment]) => {
-      this.store[key] = attachment;
+      const existing = this.store.get(key);
+      const firstSeenAt = existing ? Math.min(existing.firstSeen, seenAt) : seenAt;
+      this.store.set(key, { attachment, firstSeen: firstSeenAt });
     });
   }
 
-  private recordToolAttachments(attachments?: AttachmentMap) {
+  private recordToolAttachments(attachments?: AttachmentMap, firstSeen?: number) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
       return;
     }
     Object.keys(normalized).forEach((key) => this.displayedByTool.add(key));
-    this.upsertMany(normalized);
+    this.upsertMany(normalized, firstSeen);
   }
 
   private removeMany(keys?: string[]) {
@@ -144,16 +159,17 @@ class AttachmentRegistry {
       if (!normalizedKey) {
         return;
       }
-      delete this.store[normalizedKey];
+      this.store.delete(normalizedKey);
       this.displayedByTool.delete(normalizedKey);
     });
   }
 
-  private replaceStore(map?: AttachmentMap) {
+  private replaceStore(map?: AttachmentMap, firstSeen?: number) {
     if (!map || Object.keys(map).length === 0) {
       return;
     }
-    this.store = { ...map };
+    this.store = new Map();
+    this.upsertMany(map, firstSeen);
     this.displayedByTool.clear();
   }
 
@@ -191,7 +207,9 @@ class AttachmentRegistry {
     return Object.keys(merged).length > 0 ? merged : undefined;
   }
 
-  private filterUndisplayed(attachments?: AttachmentMap): AttachmentMap | undefined {
+  private filterUndisplayed(
+    attachments?: AttachmentMap,
+  ): AttachmentMap | undefined {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
       return undefined;
@@ -205,7 +223,21 @@ class AttachmentRegistry {
     return Object.fromEntries(filteredEntries);
   }
 
-  private resolveFromContent(content: string): AttachmentMap | undefined {
+  private isAvailable(key: string, cutoff?: number): boolean {
+    if (!this.store.has(key)) {
+      return false;
+    }
+    if (typeof cutoff !== "number" || !Number.isFinite(cutoff)) {
+      return true;
+    }
+    const stored = this.store.get(key);
+    return Boolean(stored && stored.firstSeen <= cutoff);
+  }
+
+  private resolveFromContent(
+    content: string,
+    cutoff?: number,
+  ): AttachmentMap | undefined {
     if (!content || !content.includes("[")) {
       return undefined;
     }
@@ -216,9 +248,9 @@ class AttachmentRegistry {
       if (!name || resolved[name]) {
         continue;
       }
-      const attachment = this.store[name];
-      if (attachment) {
-        resolved[name] = attachment;
+      const stored = this.store.get(name);
+      if (stored && this.isAvailable(name, cutoff)) {
+        resolved[name] = stored.attachment;
       }
     }
     return Object.keys(resolved).length > 0 ? resolved : undefined;
@@ -226,9 +258,9 @@ class AttachmentRegistry {
 
   private hydrateFromContent(
     content: string,
-    options: { markDisplayed?: boolean; skipDisplayed?: boolean } = {},
+    options: { markDisplayed?: boolean; skipDisplayed?: boolean; timestamp?: number } = {},
   ): AttachmentMap | undefined {
-    const resolved = this.resolveFromContent(content);
+    const resolved = this.resolveFromContent(content, options.timestamp);
     if (!resolved) {
       return undefined;
     }
@@ -238,9 +270,9 @@ class AttachmentRegistry {
     }
 
     if (options.markDisplayed) {
-      this.recordToolAttachments(resolved);
+      this.recordToolAttachments(resolved, options.timestamp);
     } else {
-      this.upsertMany(resolved);
+      this.upsertMany(resolved, options.timestamp);
     }
 
     return resolved;
@@ -250,26 +282,30 @@ class AttachmentRegistry {
     return this.takeFromStore();
   }
 
-  private takeFromStore(options: { includeDisplayed?: boolean } = {}): AttachmentMap | undefined {
-    const entries = Object.entries(this.store).filter(
-      ([key]) => options.includeDisplayed || !this.displayedByTool.has(key),
+  private takeFromStore(options: { includeDisplayed?: boolean; timestamp?: number } = {}): AttachmentMap | undefined {
+    const entries = Array.from(this.store.entries()).filter(
+      ([key, stored]) =>
+        (options.includeDisplayed || !this.displayedByTool.has(key)) &&
+        this.isAvailable(key, options.timestamp),
     );
 
     if (entries.length === 0) {
       return undefined;
     }
 
-    const result = Object.fromEntries(entries);
+    const result = Object.fromEntries(entries.map(([key, stored]) => [key, stored.attachment]));
     entries.forEach(([key]) => this.displayedByTool.add(key));
     return result;
   }
 
   handleEvent(event: AnyAgentEvent) {
+    const eventTimestamp = this.getEventTimestamp(event);
     switch (true) {
-      case event.event_type === 'workflow.input.received':
-        this.upsertMany((event as WorkflowInputReceivedEvent).attachments ?? undefined);
+      case event.event_type === 'workflow.input.received': {
+        this.upsertMany((event as WorkflowInputReceivedEvent).attachments ?? undefined, eventTimestamp);
         break;
-      case eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed'):
+      }
+      case eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed'): {
         const toolEvent = event as WorkflowToolCompletedEvent;
         const normalizedAttachments = normalizeAttachmentMap(
           toolEvent.attachments as AttachmentMap | undefined,
@@ -279,7 +315,7 @@ class AttachmentRegistry {
         );
 
         if (attachmentMutations?.replace) {
-          this.replaceStore(attachmentMutations.replace);
+          this.replaceStore(attachmentMutations.replace, eventTimestamp);
         }
 
         if (attachmentMutations?.remove?.length) {
@@ -287,11 +323,11 @@ class AttachmentRegistry {
         }
 
         if (attachmentMutations?.add) {
-          this.upsertMany(attachmentMutations.add);
+          this.upsertMany(attachmentMutations.add, eventTimestamp);
         }
 
         if (attachmentMutations?.update) {
-          this.upsertMany(attachmentMutations.update);
+          this.upsertMany(attachmentMutations.update, eventTimestamp);
         }
 
         const mergedAttachments = this.mergeMutations(
@@ -301,32 +337,37 @@ class AttachmentRegistry {
 
         if (mergedAttachments) {
           toolEvent.attachments = mergedAttachments;
-          this.recordToolAttachments(mergedAttachments);
+          this.recordToolAttachments(mergedAttachments, eventTimestamp);
         } else {
           toolEvent.attachments = this.hydrateFromContent(toolEvent.result, {
             markDisplayed: true,
+            timestamp: eventTimestamp,
           });
         }
         break;
+      }
       case eventMatches(event, 'workflow.result.final', 'workflow.result.final'): {
         const taskEvent = event as WorkflowResultFinalEvent;
         const normalized = this.filterUndisplayed(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {
           taskEvent.attachments = normalized;
-          this.upsertMany(normalized);
+          this.upsertMany(normalized, eventTimestamp);
           break;
         }
 
         const fallback = this.hydrateFromContent(taskEvent.final_answer, {
           skipDisplayed: true,
+          timestamp: eventTimestamp,
         });
         if (fallback) {
           taskEvent.attachments = fallback;
-          this.upsertMany(fallback);
+          this.upsertMany(fallback, eventTimestamp);
           break;
         }
 
-        const rendered = this.hydrateFromContent(taskEvent.final_answer);
+        const rendered = this.hydrateFromContent(taskEvent.final_answer, {
+          timestamp: eventTimestamp,
+        });
         if (rendered) {
           taskEvent.attachments = rendered;
         }
@@ -334,6 +375,7 @@ class AttachmentRegistry {
           const allowDisplayed = shouldIncludeDisplayedAttachments(taskEvent);
           taskEvent.attachments = this.takeFromStore({
             includeDisplayed: allowDisplayed,
+            timestamp: eventTimestamp,
           });
         }
         break;

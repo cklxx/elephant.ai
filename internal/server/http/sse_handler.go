@@ -9,14 +9,12 @@ import (
 	"io"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/observability"
-	"alex/internal/security/redaction"
 	"alex/internal/server/app"
 	"alex/internal/tools/builtin"
 	"alex/internal/utils"
@@ -225,6 +223,10 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 			return true
 		}
 
+		if isDelegationToolEvent(event) {
+			return true
+		}
+
 		data, err := h.serializeEvent(event, sentAttachments, finalAnswerCache)
 		if err != nil {
 			h.logger.Error("Failed to serialize event: %v", err)
@@ -365,10 +367,8 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		if err != nil {
 			return nil, err
 		}
-		if base != nil {
-			for k, v := range base {
-				data[k] = v
-			}
+		for k, v := range base {
+			data[k] = v
 		}
 		data["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339Nano)
 		data["agent_level"] = subtaskEvent.GetAgentLevel()
@@ -542,42 +542,13 @@ func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
 	return nil, false
 }
 
-const redactedPlaceholder = redaction.Placeholder
-
-// sanitizeArguments creates a deep copy of the provided arguments map and redacts any values that
-// appear to contain sensitive information such as API keys or authorization tokens.
-func sanitizeArguments(arguments map[string]interface{}, cache *DataCache) map[string]interface{} {
-	if len(arguments) == 0 {
-		return nil
-	}
-
-	sanitized := make(map[string]interface{}, len(arguments))
-	for key, value := range arguments {
-		sanitized[key] = sanitizeValue(cache, key, value)
-	}
-
-	return sanitized
-}
-
-func sanitizeValue(cache *DataCache, parentKey string, value interface{}) interface{} {
-	if redaction.IsSensitiveKey(parentKey) {
-		return redactedPlaceholder
-	}
-
+func sanitizeValue(cache *DataCache, value interface{}) interface{} {
 	if value == nil {
 		return nil
 	}
 
 	if str, ok := value.(string); ok {
-		if redaction.LooksLikeSecret(str) {
-			return redactedPlaceholder
-		}
-		if cache != nil {
-			if replaced := cache.MaybeStoreDataURI(str); replaced != nil {
-				return replaced
-			}
-		}
-		return str
+		return sanitizeStringValue(cache, str)
 	}
 
 	rv := reflect.ValueOf(value)
@@ -595,35 +566,17 @@ func sanitizeValue(cache *DataCache, parentKey string, value interface{}) interf
 		if rv.Type().Elem().Kind() == reflect.Uint8 {
 			bytesCopy := make([]byte, rv.Len())
 			reflect.Copy(reflect.ValueOf(bytesCopy), rv)
-			str := string(bytesCopy)
-			if redaction.LooksLikeSecret(str) {
-				return redactedPlaceholder
-			}
-			if cache != nil {
-				if replaced := cache.MaybeStoreDataURI(str); replaced != nil {
-					return replaced
-				}
-			}
-			return str
+			return sanitizeStringValue(cache, string(bytesCopy))
 		}
 		fallthrough
 	case reflect.Array:
 		sanitizedSlice := make([]interface{}, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
-			sanitizedSlice[i] = sanitizeValue(cache, "", rv.Index(i).Interface())
+			sanitizedSlice[i] = sanitizeValue(cache, rv.Index(i).Interface())
 		}
 		return sanitizedSlice
 	case reflect.String:
-		str := rv.String()
-		if redaction.LooksLikeSecret(str) {
-			return redactedPlaceholder
-		}
-		if cache != nil {
-			if replaced := cache.MaybeStoreDataURI(str); replaced != nil {
-				return replaced
-			}
-		}
-		return str
+		return sanitizeStringValue(cache, rv.String())
 	default:
 		return value
 	}
@@ -634,10 +587,22 @@ func sanitizeMap(rv reflect.Value, cache *DataCache) map[string]interface{} {
 	for _, key := range rv.MapKeys() {
 		keyValue := key.Interface()
 		keyString := fmt.Sprint(keyValue)
-		sanitized[keyString] = sanitizeValue(cache, keyString, rv.MapIndex(key).Interface())
+		sanitized[keyString] = sanitizeValue(cache, rv.MapIndex(key).Interface())
 	}
 
 	return sanitized
+}
+
+func sanitizeStringValue(cache *DataCache, value string) interface{} {
+	if cache == nil {
+		return value
+	}
+
+	if replaced := cache.MaybeStoreDataURI(value); replaced != nil {
+		return replaced
+	}
+
+	return value
 }
 
 func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string, cache *DataCache, forceInclude bool) map[string]ports.Attachment {
@@ -833,7 +798,7 @@ func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) 
 		}
 		return out
 	default:
-		return sanitizeValue(cache, "", v)
+		return sanitizeValue(cache, v)
 	}
 }
 
@@ -1011,90 +976,40 @@ func attachmentDigest(att ports.Attachment) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func serializeMessages(messages []ports.Message, sentAttachments map[string]string, cache *DataCache) []map[string]any {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	serialized := make([]map[string]any, 0, len(messages))
-	for _, msg := range messages {
-		if isRAGPreloadMessage(msg) {
-			continue
-		}
-
-		entry := map[string]any{
-			"role":    msg.Role,
-			"content": msg.Content,
-		}
-
-		if len(msg.ToolCalls) > 0 {
-			entry["tool_calls"] = msg.ToolCalls
-		}
-		if len(msg.ToolResults) > 0 {
-			entry["tool_results"] = msg.ToolResults
-		}
-		if msg.ToolCallID != "" {
-			entry["tool_call_id"] = msg.ToolCallID
-		}
-		if len(msg.Metadata) > 0 {
-			entry["metadata"] = msg.Metadata
-		}
-		if sanitized := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments, cache, false); len(sanitized) > 0 {
-			entry["attachments"] = sanitized
-		}
-		if msg.Source != ports.MessageSourceUnknown && msg.Source != "" {
-			entry["source"] = msg.Source
-		}
-
-		serialized = append(serialized, entry)
-	}
-
-	if len(serialized) == 0 {
-		return nil
-	}
-
-	return serialized
-}
-
-func isRAGPreloadMessage(msg ports.Message) bool {
-	if len(msg.Metadata) == 0 {
+// isDelegationToolEvent identifies subagent delegation tool calls so they can be
+// filtered from UX-facing streams (the delegated subflow emits its own events).
+func isDelegationToolEvent(event ports.AgentEvent) bool {
+	env, ok := app.BaseAgentEvent(event).(*domain.WorkflowEventEnvelope)
+	if !ok || env == nil {
 		return false
 	}
-	value, ok := msg.Metadata["rag_preload"]
-	if !ok {
-		return false
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
-		return err == nil && parsed
-	case float64:
-		return v != 0
-	case float32:
-		return v != 0
-	case int:
-		return v != 0
-	case int8:
-		return v != 0
-	case int16:
-		return v != 0
-	case int32:
-		return v != 0
-	case int64:
-		return v != 0
-	case uint:
-		return v != 0
-	case uint8:
-		return v != 0
-	case uint16:
-		return v != 0
-	case uint32:
-		return v != 0
-	case uint64:
-		return v != 0
+
+	switch env.Event {
+	case "workflow.tool.started", "workflow.tool.progress", "workflow.tool.completed":
 	default:
 		return false
 	}
+
+	if toolName := normalizedToolName(env.Payload); toolName != "" {
+		return toolName == "subagent"
+	}
+
+	return strings.HasPrefix(strings.ToLower(env.NodeID), "subagent:")
+}
+
+func normalizedToolName(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	for _, key := range []string{"tool_name", "tool"} {
+		if raw, ok := payload[key]; ok {
+			if name, ok := raw.(string); ok {
+				normalized := strings.ToLower(strings.TrimSpace(name))
+				if normalized != "" {
+					return normalized
+				}
+			}
+		}
+	}
+	return ""
 }

@@ -8,12 +8,30 @@ import { cn } from '@/lib/utils';
 interface ContentAreaProps {
   children: ReactNode;
   className?: string;
+  contentClassName?: string;
   emptyState?: ReactNode;
   isEmpty?: boolean;
+  fullWidth?: boolean;
 }
 
 export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
-  ({ children, className, emptyState, isEmpty = false }, ref) => {
+  (
+    {
+      children,
+      className,
+      contentClassName,
+      emptyState,
+      isEmpty = false,
+      fullWidth = false,
+    },
+    ref
+  ) => {
+    const containerClasses = cn(
+      'flex h-full w-full flex-col gap-4 px-4 py-6 sm:px-6',
+      fullWidth ? 'max-w-none' : 'mx-auto max-w-5xl',
+      contentClassName
+    );
+
     return (
       <ScrollArea
         ref={ref}
@@ -25,9 +43,7 @@ export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
             {emptyState}
           </div>
         ) : (
-          <div className="mx-auto flex h-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
-            {children}
-          </div>
+          <div className={containerClasses}>{children}</div>
         )}
       </ScrollArea>
     );

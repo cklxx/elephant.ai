@@ -27,6 +27,7 @@ import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AttachmentPanel } from '@/components/agent/AttachmentPanel';
 
 const LazyTerminalOutput = dynamic(
   () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
@@ -533,7 +534,7 @@ export function ConversationPageContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-4 pb-10 pt-6 lg:px-8">
+      <div className="relative mx-auto flex min-h-screen w-full flex-col gap-6 px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
         <Header
           title={headerTitle}
           showEnvironmentStrip={false}
@@ -593,9 +594,9 @@ export function ConversationPageContent() {
           <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card">
             <ContentArea
               ref={contentRef}
-              isEmpty={events.length === 0}
-              emptyState={emptyState}
               className="flex-1"
+              fullWidth
+              contentClassName="space-y-4"
             >
               {timelineSteps.length > 0 && (
                 <div className="sm:hidden">
@@ -604,27 +605,36 @@ export function ConversationPageContent() {
                     variant="outline"
                     size="sm"
                     data-testid="mobile-timeline-trigger"
-                  onClick={() => {
-                    captureEvent(AnalyticsEvent.TimelineViewed, {
-                      session_id: resolvedSessionId ?? null,
-                      step_count: timelineSteps.length,
-                    });
-                    setShowTimelineDialog(true);
-                  }}
+                    onClick={() => {
+                      captureEvent(AnalyticsEvent.TimelineViewed, {
+                        session_id: resolvedSessionId ?? null,
+                        step_count: timelineSteps.length,
+                      });
+                      setShowTimelineDialog(true);
+                    }}
                     className="mb-3 rounded-full border-border/70 bg-background/60 text-[11px] font-semibold"
                   >
                     {t('console.timeline.mobileLabel')}
                   </Button>
                 </div>
               )}
-              <LazyTerminalOutput
-                events={events}
-                isConnected={isConnected}
-                isReconnecting={isReconnecting}
-                error={error}
-                reconnectAttempts={reconnectAttempts}
-                onReconnect={reconnect}
-              />
+              {events.length === 0 ? (
+                <div className="flex min-h-[60vh] items-center justify-center">
+                  {emptyState}
+                </div>
+              ) : (
+                <LazyTerminalOutput
+                  events={events}
+                  isConnected={isConnected}
+                  isReconnecting={isReconnecting}
+                  error={error}
+                  reconnectAttempts={reconnectAttempts}
+                  onReconnect={reconnect}
+                />
+              )}
+              <div className="lg:hidden">
+                <AttachmentPanel events={events} />
+              </div>
             </ContentArea>
 
             {showTimelineDialog && (
@@ -691,6 +701,11 @@ export function ConversationPageContent() {
                 stopPending={stopPending}
                 stopDisabled={isCancelPending}
               />
+            </div>
+          </div>
+          <div className="hidden lg:flex w-[380px] flex-none justify-end xl:w-[440px]">
+            <div className="sticky top-24 w-full max-w-[440px]">
+              <AttachmentPanel events={events} />
             </div>
           </div>
         </div>

@@ -232,4 +232,32 @@ describe('attachmentRegistry', () => {
     expect(taskComplete.attachments?.['report.md']).toBeDefined();
     expect(taskComplete.attachments?.['summary.pdf']).toBeDefined();
   });
+
+  it('does not leak attachments from newer tasks when events are processed in reverse order', () => {
+    const newerTaskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
+      task_id: 'task-2',
+      timestamp: '2024-01-02T12:00:00.000Z',
+      attachments: {
+        'future.md': {
+          name: 'future.md',
+          media_type: 'text/markdown',
+          uri: 'https://example.com/future.md',
+        },
+      },
+    };
+
+    const earlierTaskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
+      task_id: 'task-1',
+      timestamp: '2024-01-01T12:00:00.000Z',
+      final_answer: 'First task complete with no attachments.',
+    };
+
+    handleAttachmentEvent(newerTaskComplete);
+    handleAttachmentEvent(earlierTaskComplete);
+
+    expect(newerTaskComplete.attachments?.['future.md']).toBeDefined();
+    expect(earlierTaskComplete.attachments).toBeUndefined();
+  });
 });

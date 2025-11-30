@@ -245,7 +245,6 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     () => toolCalls.filter((call) => call.status === "running"),
     [toolCalls],
   );
-  const hasRunningTool = runningTools.length > 0;
   const runningSummary = useMemo(() => {
     if (runningTools.length === 0) {
       return "";
@@ -368,15 +367,6 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             <span className="max-w-full truncate text-[11px] text-foreground">
               {headlineText}
             </span>
-            {hasRunningTool && (
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/90">
-                <span
-                  className="h-2 w-2 animate-pulse rounded-full bg-primary"
-                  aria-hidden="true"
-                />
-                running
-              </span>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             {headlinePreview && (

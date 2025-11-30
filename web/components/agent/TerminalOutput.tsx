@@ -9,6 +9,7 @@ import {
   SubagentContext,
   SubagentHeader,
   getSubagentContext,
+  isSubagentLike,
 } from "./EventLine";
 
 interface TerminalOutputProps {
@@ -33,6 +34,34 @@ export function TerminalOutput({
     [events],
   );
 
+  const combinedEntries = useMemo(() => {
+    type CombinedEntry =
+      | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
+      | { kind: "subagent"; thread: SubagentThread; ts: number; order: number };
+
+    const entries: CombinedEntry[] = displayEvents.map((event, idx) => ({
+      kind: "event",
+      event,
+      ts: Date.parse(event.timestamp ?? "") || 0,
+      order: idx,
+    }));
+
+    subagentThreads.forEach((thread, idx) => {
+      const first = thread.events[0];
+      entries.push({
+        kind: "subagent",
+        thread,
+        ts: (first && Date.parse(first.timestamp ?? "")) || 0,
+        order: idx,
+      });
+    });
+
+    return entries.sort((a, b) => {
+      if (a.ts !== b.ts) return a.ts - b.ts;
+      return a.order - b.order;
+    });
+  }, [displayEvents, subagentThreads]);
+
   const panelAnchors = useMemo(
     () => buildPanelAnchors(events, displayEvents),
     [events, displayEvents],
@@ -52,15 +81,14 @@ export function TerminalOutput({
   }
   return (
     <div className="space-y-5" data-testid="conversation-stream">
-      {subagentThreads.length > 0 && (
-        <div className="space-y-3" data-testid="subagent-aggregate-panel">
-          {subagentThreads.map((thread) => (
-            <SubagentAggregate key={thread.key} thread={thread} />
-          ))}
-        </div>
-      )}
       <div className="space-y-4" data-testid="conversation-events">
-        {displayEvents.map((event, index) => {
+        {combinedEntries.map((entry, index) => {
+          if (entry.kind === "subagent") {
+            return (
+              <SubagentAggregate key={entry.thread.key} thread={entry.thread} />
+            );
+          }
+          const event = entry.event;
           const key = `${event.event_type}-${event.timestamp}-${index}`;
           const panelEvents = panelAnchors.get(event);
           if (panelEvents) {
@@ -189,13 +217,17 @@ function partitionEvents(
 ): { displayEvents: AnyAgentEvent[]; subagentThreads: SubagentThread[] } {
   const displayEvents: AnyAgentEvent[] = [];
   const threads = new Map<string, SubagentThread>();
+  const arrivalOrder = new WeakMap<AnyAgentEvent, number>();
   let arrival = 0;
 
   events.forEach((event) => {
     arrival += 1;
-    const isSubagentEvent =
-      event.agent_level === "subagent" ||
-      ("is_subtask" in event && Boolean(event.is_subtask));
+    arrivalOrder.set(event, arrival);
+    if (isDelegationToolEvent(event)) {
+      return;
+    }
+
+    const isSubagentEvent = isSubagentLike(event);
 
     if (isSubagentEvent) {
       if (!shouldDisplaySubagentEvent(event)) {
@@ -211,7 +243,7 @@ function partitionEvents(
 
       const thread = threads.get(key)!;
       thread.context = mergeSubagentContext(thread.context, context);
-      thread.events.push({ ...event, __arrival: arrival } as AnyAgentEvent);
+      thread.events.push(event);
       return;
     }
 
@@ -228,7 +260,7 @@ function partitionEvents(
     subagentThreads: Array.from(threads.values())
       .map((thread) => ({
         ...thread,
-        events: sortSubagentEvents(thread.events),
+        events: sortSubagentEvents(thread.events, arrivalOrder),
       }))
       .sort((a, b) => {
         if (a.subtaskIndex !== b.subtaskIndex) {
@@ -309,13 +341,35 @@ function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
   );
 }
 
-function sortSubagentEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+function sortSubagentEvents(
+  events: AnyAgentEvent[],
+  arrivalOrder: WeakMap<AnyAgentEvent, number>,
+): AnyAgentEvent[] {
   return [...events].sort((a, b) => {
     const tA = Date.parse(a.timestamp ?? "") || 0;
     const tB = Date.parse(b.timestamp ?? "") || 0;
     if (tA !== tB) return tA - tB;
-    const aArrival = (a as any).__arrival ?? 0;
-    const bArrival = (b as any).__arrival ?? 0;
+    const aArrival = arrivalOrder.get(a) ?? 0;
+    const bArrival = arrivalOrder.get(b) ?? 0;
     return aArrival - bArrival;
   });
+}
+
+function isDelegationToolEvent(event: AnyAgentEvent): boolean {
+  if (
+    !eventMatches(
+      event,
+      "workflow.tool.started",
+      "workflow.tool.progress",
+      "workflow.tool.completed",
+    )
+  ) {
+    return false;
+  }
+
+  const name =
+    ("tool_name" in event && typeof (event as any).tool_name === "string" && (event as any).tool_name) ||
+    ("tool" in event && typeof (event as any).tool === "string" && (event as any).tool) ||
+    "";
+  return name.trim().toLowerCase() === "subagent";
 }

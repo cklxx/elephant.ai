@@ -34,9 +34,7 @@ export const EventLine = React.memo(function EventLine({
   event,
   showSubagentContext = true,
 }: EventLineProps) {
-  const isSubtaskEvent =
-    event.agent_level === "subagent" ||
-    ("is_subtask" in event && Boolean(event.is_subtask));
+  const isSubtaskEvent = isSubagentLike(event);
 
   if (isSubtaskEvent) {
     return (
@@ -366,6 +364,46 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
     status,
     statusTone,
   };
+}
+
+export function isSubagentLike(event: AnyAgentEvent): boolean {
+  if (!event) return false;
+
+  if (event.agent_level === "subagent") return true;
+  if ("is_subtask" in event && Boolean((event as any).is_subtask)) return true;
+
+  const parentTask =
+    "parent_task_id" in event && typeof (event as any).parent_task_id === "string"
+      ? (event as any).parent_task_id.trim()
+      : "";
+  if (parentTask) return true;
+
+  const nodeId =
+    "node_id" in event && typeof (event as any).node_id === "string"
+      ? (event as any).node_id.toLowerCase()
+      : "";
+  if (nodeId.startsWith("subagent") || nodeId.startsWith("subflow-")) {
+    return true;
+  }
+
+  const callId =
+    "call_id" in event && typeof (event as any).call_id === "string"
+      ? (event as any).call_id.toLowerCase()
+      : "";
+  if (callId.startsWith("subagent")) {
+    return true;
+  }
+
+  const taskId = typeof event.task_id === "string" ? event.task_id.toLowerCase() : "";
+  if (taskId.startsWith("subagent")) {
+    return true;
+  }
+
+  return eventMatches(
+    event,
+    "workflow.subflow.progress",
+    "workflow.subflow.completed",
+  );
 }
 
 interface SubagentHeaderProps {

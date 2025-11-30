@@ -163,91 +163,98 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     <Card data-testid="task-complete-event">
       <CardContent className="mt-2 space-y-4 p-4">
         {shouldRenderMarkdown ? (
-          <StreamingMarkdownRenderer
-            content={contentWithInlineMedia}
-            className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
-            attachments={attachments}
-            isStreaming={isStreaming}
-            streamFinished={streamFinished}
-            components={{
-              code: ({ inline, className, children, ...props }: any) => {
-                if (inline) {
+          <>
+            <StreamingMarkdownRenderer
+              content={contentWithInlineMedia}
+              className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
+              attachments={attachments}
+              isStreaming={isStreaming}
+              streamFinished={streamFinished}
+              components={{
+                code: ({ inline, className, children, ...props }: any) => {
+                  if (inline) {
+                    return (
+                      <code
+                        className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
                   return (
                     <code
-                      className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800"
+                      className="block overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800"
                       {...props}
                     >
                       {children}
                     </code>
                   );
-                }
-                return (
-                  <code
-                    className="block overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800"
-                    {...props}
-                  >
+                },
+                pre: ({ children }: any) => (
+                  <div className="my-4">{children}</div>
+                ),
+                p: ({ children }: any) => (
+                  <p className="mb-4 leading-relaxed text-slate-900">
                     {children}
-                  </code>
-                );
-              },
-              pre: ({ children }: any) => (
-                <div className="my-4">{children}</div>
-              ),
-              p: ({ children }: any) => (
-                <p className="mb-4 leading-relaxed text-slate-900">
-                  {children}
-                </p>
-              ),
-              ul: ({ children }: any) => (
-                <ul className="mb-4 space-y-2 leading-relaxed text-slate-900">
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }: any) => (
-                <ol className="mb-4 space-y-2 leading-relaxed text-slate-900">
-                  {children}
-                </ol>
-              ),
-              li: ({ children }: any) => (
-                <li className="leading-relaxed text-slate-900">{children}</li>
-              ),
-              strong: ({ children }: any) => (
-                <strong className="font-bold text-slate-900">{children}</strong>
-              ),
-              img: ({ src, alt }: { src?: string; alt?: string }) => {
-                const recoveredSrc =
-                  (src && src.trim()) ||
-                  inlineImageMap.get((alt || "").trim()) ||
-                  undefined;
-                if (!recoveredSrc) {
-                  return null;
-                }
-                const matchedAttachment = inlineAttachmentMap.get(recoveredSrc);
-                if (matchedAttachment?.type === "video") {
-                  return (
-                    <VideoPreview
-                      key={`task-complete-inline-video-${matchedAttachment.key}`}
-                      src={recoveredSrc}
-                      mimeType={matchedAttachment.mime || "video/mp4"}
-                      description={matchedAttachment.description || alt || matchedAttachment.key}
-                      className="w-full"
-                      maxHeight="20rem"
-                    />
-                  );
-                }
+                  </p>
+                ),
+                ul: ({ children }: any) => (
+                  <ul className="mb-4 space-y-2 leading-relaxed text-slate-900">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }: any) => (
+                  <ol className="mb-4 space-y-2 leading-relaxed text-slate-900">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }: any) => (
+                  <li className="leading-relaxed text-slate-900">{children}</li>
+                ),
+                strong: ({ children }: any) => (
+                  <strong className="font-bold text-slate-900">{children}</strong>
+                ),
+                img: ({ src, alt }: { src?: string; alt?: string }) => {
+                  const recoveredSrc =
+                    (src && src.trim()) ||
+                    inlineImageMap.get((alt || "").trim()) ||
+                    undefined;
+                  if (!recoveredSrc) {
+                    return null;
+                  }
+                  const matchedAttachment = inlineAttachmentMap.get(recoveredSrc);
+                  if (matchedAttachment?.type === "video") {
+                    return (
+                      <VideoPreview
+                        key={`task-complete-inline-video-${matchedAttachment.key}`}
+                        src={recoveredSrc}
+                        mimeType={matchedAttachment.mime || "video/mp4"}
+                        description={matchedAttachment.description || alt || matchedAttachment.key}
+                        className="w-full"
+                        maxHeight="20rem"
+                      />
+                    );
+                  }
 
-                if (matchedAttachment && (matchedAttachment.type === "document" || matchedAttachment.type === "embed")) {
-                  return (
-                    <div className="my-4">
-                      <ArtifactPreviewCard attachment={matchedAttachment.attachment} />
-                    </div>
-                  );
-                }
+                  if (matchedAttachment && (matchedAttachment.type === "document" || matchedAttachment.type === "embed")) {
+                    return (
+                      <div className="my-4">
+                        <ArtifactPreviewCard attachment={matchedAttachment.attachment} />
+                      </div>
+                    );
+                  }
 
-                return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
-              },
-            }}
-          />
+                  return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
+                },
+              }}
+            />
+            <div
+              className="h-px w-full bg-border/70"
+              aria-hidden="true"
+              data-testid="task-complete-answer-divider"
+            />
+          </>
         ) : (
           <div
             className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"

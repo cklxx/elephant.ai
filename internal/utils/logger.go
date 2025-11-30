@@ -5,13 +5,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
-
-	"alex/internal/security/redaction"
 )
 
 const logDirEnvVar = "ALEX_LOG_DIR"
@@ -271,45 +268,6 @@ func Error(format string, args ...interface{}) {
 	GetLogger().Error(format, args...)
 }
 
-var (
-	authorizationBearerPattern = regexp.MustCompile(
-		`(?i)((?:"|')?authorization(?:"|')?\s*(?:=|:)\s*)(bearer\s+)([^"'\s,;]+)`,
-	)
-	sensitiveKeyValuePattern = regexp.MustCompile(
-		`(?i)((?:"|')?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|session|cookie|credential)(?:"|')?\s*(?:=|:)\s*)(?:"|')?([^"'\s,;]+)((?:"|')?)`,
-	)
-	bearerTokenPattern      = regexp.MustCompile(`(?i)(bearer\s+)([A-Za-z0-9\-\._~+/]+=*)`)
-	standaloneSecretPattern = regexp.MustCompile(
-		`(?i)(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9\-]{10,}|ya29\.[A-Za-z0-9\-_]+|pat_[A-Za-z0-9]{16,})`,
-	)
-)
-
 func sanitizeLogLine(line string) string {
-	sanitized := authorizationBearerPattern.ReplaceAllStringFunc(line, func(match string) string {
-		submatches := authorizationBearerPattern.FindStringSubmatch(match)
-		if len(submatches) != 4 {
-			return match
-		}
-		return submatches[1] + submatches[2] + redaction.Placeholder
-	})
-
-	sanitized = sensitiveKeyValuePattern.ReplaceAllStringFunc(sanitized, func(match string) string {
-		submatches := sensitiveKeyValuePattern.FindStringSubmatch(match)
-		if len(submatches) != 4 {
-			return match
-		}
-
-		return submatches[1] + redaction.Placeholder + submatches[3]
-	})
-
-	sanitized = bearerTokenPattern.ReplaceAllStringFunc(sanitized, func(match string) string {
-		parts := bearerTokenPattern.FindStringSubmatch(match)
-		if len(parts) != 3 {
-			return match
-		}
-		return parts[1] + redaction.Placeholder
-	})
-
-	sanitized = standaloneSecretPattern.ReplaceAllString(sanitized, redaction.Placeholder)
-	return sanitized
+	return line
 }

@@ -1590,30 +1590,3 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 	}
 	return strings.TrimSpace(builder.String())
 }
-
-// attachmentMarkdown formats a single attachment into markdown with a stable
-// placeholder that the model can cite in later turns.
-func attachmentMarkdown(name string, att ports.Attachment) string {
-	display := strings.TrimSpace(att.Description)
-	if display == "" {
-		display = strings.TrimSpace(att.Name)
-	}
-	if display == "" {
-		display = name
-	}
-
-	uri := strings.TrimSpace(att.URI)
-	if uri == "" {
-		uri = attachmentReferenceValue(att)
-	}
-
-	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
-	if uri == "" {
-		return display
-	}
-
-	if strings.HasPrefix(mediaType, "image/") || strings.HasPrefix(uri, "data:image") {
-		return fmt.Sprintf("![%s](%s)", display, uri)
-	}
-	return fmt.Sprintf("[%s](%s)", display, uri)
-}

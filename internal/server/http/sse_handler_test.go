@@ -78,6 +78,30 @@ func parseSSEStream(t *testing.T, payload string) []streamedEvent {
 	return events
 }
 
+func TestIsDelegationToolEvent(t *testing.T) {
+	now := time.Now()
+	env := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "session-1", "task-1", "", now),
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "subagent:0",
+		Payload: map[string]any{
+			"tool_name": "subagent",
+			"result":    "delegation summary",
+		},
+	}
+
+	if !isDelegationToolEvent(env) {
+		t.Fatalf("expected subagent tool envelope to be treated as delegation")
+	}
+
+	env.Payload["tool_name"] = "bash"
+	env.NodeID = "bash:1"
+	if isDelegationToolEvent(env) {
+		t.Fatalf("expected non-subagent tool envelope to pass through")
+	}
+}
+
 func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)

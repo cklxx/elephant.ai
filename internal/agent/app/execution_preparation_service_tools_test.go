@@ -100,7 +100,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "explore"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -118,6 +118,9 @@ func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset
 
 	if containsString(names, "subagent") {
 		t.Fatalf("subagents should not be able to call other subagents: %v", names)
+	}
+	if containsString(names, "explore") {
+		t.Fatalf("subagents should not be able to call explore (delegates to subagent): %v", names)
 	}
 	if !containsString(names, "bash") || !containsString(names, "file_read") {
 		t.Fatalf("subagents should retain execution tools when preset unset, got: %v", names)

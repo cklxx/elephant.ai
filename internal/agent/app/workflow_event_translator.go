@@ -512,13 +512,7 @@ func isToolRecorderNodeID(id string) bool {
 	if id == "" || !strings.HasPrefix(id, "react:iter:") {
 		return false
 	}
-	parts := strings.Split(id, ":")
-	for _, part := range parts {
-		if part == "tool" || part == "tools" {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(id, ":tools")
 }
 
 func baseEnvelope(evt ports.AgentEvent, eventType string) *domain.WorkflowEventEnvelope {
