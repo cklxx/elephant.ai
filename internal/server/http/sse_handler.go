@@ -51,6 +51,14 @@ var sseAllowlist = map[string]bool{
 	"workflow.diagnostic.sandbox_progress":     true,
 }
 
+var blockedNodeIDs = map[string]bool{
+	"react:context": true,
+}
+
+var blockedNodePrefixes = []string{
+	"react:",
+}
+
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
@@ -212,6 +220,16 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		// Only stream workflow envelopes and explicit user task submissions.
 		switch base.(type) {
 		case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
+			if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+				if blockedNodeIDs[env.NodeID] {
+					return false
+				}
+				for _, prefix := range blockedNodePrefixes {
+					if strings.HasPrefix(env.NodeID, prefix) {
+						return false
+					}
+				}
+			}
 			return true
 		default:
 			return false

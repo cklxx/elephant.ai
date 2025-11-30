@@ -121,6 +121,16 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   );
   const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
   const shouldRenderMarkdown = hasAnswerContent || isStreaming;
+  const hasAttachments = attachments && Object.keys(attachments).length > 0;
+  const attachmentNames = useMemo(
+    () =>
+      attachments
+        ? Object.entries(attachments)
+            .map(([key, att]) => att.description || att.name || key)
+            .filter(Boolean)
+        : [],
+    [attachments],
+  );
 
   const unreferencedMediaSegments = segments.filter(
     (segment) =>
@@ -136,7 +146,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   );
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
-  const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments;
+  const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
+  const shouldShowAttachmentNotice =
+    !shouldRenderMarkdown && !hasUnrenderedAttachments && hasAttachments;
 
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
 
@@ -154,9 +166,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       <ImagePreview
         src={src}
         alt={alt}
-        className="my-4 max-h-80 w-full object-contain"
+        className="my-2 mr-3 inline-block w-[220px] max-w-full align-middle"
         minHeight="8rem"
-        maxHeight="20rem"
+        maxHeight="14rem"
+        sizes="220px"
         imageClassName="object-contain"
       />
     );
@@ -266,6 +279,22 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             <p className="font-medium text-slate-700">{stopReasonCopy.title}</p>
             {stopReasonCopy.body && (
               <p className="mt-1 text-slate-500">{stopReasonCopy.body}</p>
+            )}
+          </div>
+        ) : shouldShowAttachmentNotice ? (
+          <div className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm">
+            <p className="font-medium text-slate-700">
+              {t("events.taskComplete.empty")}
+            </p>
+            <p className="mt-1 text-slate-500">
+              {t("task.input.attachments.kind.attachments")} available in attachments
+            </p>
+            {attachmentNames.length > 0 && (
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">
+                {attachmentNames.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
             )}
           </div>
         ) : null}

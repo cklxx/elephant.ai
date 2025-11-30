@@ -355,7 +355,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       <button
         type="button"
         onClick={openDetails}
-        className="group inline-flex max-w-full items-start gap-3 overflow-hidden rounded-2xl bg-background/70 px-3 py-2 text-left text-xs font-medium text-foreground transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+        className="group flex w-full max-w-full items-start gap-3 overflow-hidden rounded-2xl bg-background/70 px-3 py-2 text-left text-xs font-medium text-foreground transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
         title={
           runningSummaryFull.length > 0
             ? `Running: ${runningSummaryFull}`
@@ -363,14 +363,14 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         }
       >
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-start gap-2">
-            <span className="max-w-full truncate text-[11px] text-foreground">
+          <div className="flex min-w-0 items-start gap-2">
+            <span className="block max-w-full truncate text-[11px] text-foreground">
               {headlineText}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             {headlinePreview && (
-              <span className="max-w-full truncate text-muted-foreground">
+              <span className="block max-w-full truncate text-muted-foreground">
                 {headlinePreview}
               </span>
             )}

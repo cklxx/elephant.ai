@@ -348,7 +348,7 @@ class AttachmentRegistry {
       }
       case eventMatches(event, 'workflow.result.final', 'workflow.result.final'): {
         const taskEvent = event as WorkflowResultFinalEvent;
-        const normalized = this.filterUndisplayed(taskEvent.attachments as AttachmentMap | undefined);
+        const normalized = normalizeAttachmentMap(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {
           taskEvent.attachments = normalized;
           this.upsertMany(normalized, eventTimestamp);
