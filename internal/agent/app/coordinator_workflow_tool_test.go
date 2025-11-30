@@ -94,6 +94,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		registry,
 		sessionStore,
 		stubContextManager{},
+		nil,
 		&mocks.MockParser{},
 		nil,
 		Config{

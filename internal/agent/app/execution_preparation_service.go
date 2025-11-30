@@ -27,6 +27,7 @@ type ExecutionPreparationDeps struct {
 	ToolRegistry   ports.ToolRegistry
 	SessionStore   ports.SessionStore
 	ContextMgr     ports.ContextManager
+	HistoryMgr     ports.HistoryManager
 	Parser         ports.FunctionCallParser
 	Config         Config
 	Logger         ports.Logger
@@ -43,6 +44,7 @@ type ExecutionPreparationService struct {
 	toolRegistry   ports.ToolRegistry
 	sessionStore   ports.SessionStore
 	contextMgr     ports.ContextManager
+	historyMgr     ports.HistoryManager
 	parser         ports.FunctionCallParser
 	config         Config
 	logger         ports.Logger
@@ -92,6 +94,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		toolRegistry:   deps.ToolRegistry,
 		sessionStore:   deps.SessionStore,
 		contextMgr:     deps.ContextMgr,
+		historyMgr:     deps.HistoryMgr,
 		parser:         deps.Parser,
 		config:         deps.Config,
 		logger:         logger,
@@ -115,6 +118,12 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	ids := id.IDsFromContext(ctx)
 	if session != nil {
 		ids.SessionID = session.ID
+	}
+
+	sessionHistory := s.loadSessionHistory(ctx, session)
+	rawHistory := ports.CloneMessages(sessionHistory)
+	if session != nil {
+		session.Messages = sessionHistory
 	}
 
 	var inheritedState *ports.TaskState
@@ -195,7 +204,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
 	}
 
-	history := s.recallUserHistory(ctx, llmClient, task, session)
+	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
 
 	preloadedAttachments := collectSessionAttachments(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
@@ -309,12 +318,32 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}, nil
 }
 
-func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, session *ports.Session) *historyRecall {
-	if session == nil || len(session.Messages) == 0 {
+func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, session *ports.Session) []ports.Message {
+	if session == nil {
+		return nil
+	}
+	if s.historyMgr != nil {
+		history, err := s.historyMgr.Replay(ctx, session.ID, 0)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("Failed to replay session history (session=%s): %v", session.ID, err)
+			}
+		} else if len(history) > 0 {
+			return ports.CloneMessages(history)
+		}
+	}
+	if len(session.Messages) == 0 {
+		return nil
+	}
+	return ports.CloneMessages(session.Messages)
+}
+
+func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, messages []ports.Message) *historyRecall {
+	if len(messages) == 0 {
 		return nil
 	}
 
-	rawMessages := historyMessagesFromSession(session.Messages)
+	rawMessages := historyMessagesFromSession(messages)
 	if len(rawMessages) == 0 {
 		return nil
 	}

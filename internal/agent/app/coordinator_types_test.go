@@ -94,17 +94,18 @@ func (stubParser) Parse(content string) ([]ports.ToolCall, error)               
 func (stubParser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error { return nil }
 
 func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
-llmFactory := llm.NewFactory()
-sessionStore := &stubSessionStore{}
-coordinator := NewAgentCoordinator(
-llmFactory,
-stubToolRegistry{},
-sessionStore,
-stubContextManager{},
-stubParser{},
-nil,
-Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 5},
-)
+	llmFactory := llm.NewFactory()
+	sessionStore := &stubSessionStore{}
+	coordinator := NewAgentCoordinator(
+		llmFactory,
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		stubParser{},
+		nil,
+		Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 5},
+	)
 
 	env, err := coordinator.PrepareExecution(context.Background(), "test", "")
 	if err != nil {
@@ -217,6 +218,7 @@ llmFactory,
 stubToolRegistry{},
 sessionStore,
 stubContextManager{},
+nil,
 stubParser{},
 nil,
 		Config{
@@ -260,6 +262,7 @@ llmFactory,
 stubToolRegistry{},
 sessionStore,
 stubContextManager{},
+nil,
 stubParser{},
 nil,
 		Config{
