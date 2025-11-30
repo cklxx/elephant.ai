@@ -605,3 +605,24 @@ func (e *SubtaskEvent) GetTaskID() string {
 func (e *SubtaskEvent) GetParentTaskID() string {
 	return e.OriginalEvent.GetParentTaskID()
 }
+
+// SubtaskDetails exposes metadata for downstream consumers without importing the concrete type.
+func (e *SubtaskEvent) SubtaskDetails() ports.SubtaskMetadata {
+	if e == nil {
+		return ports.SubtaskMetadata{}
+	}
+	return ports.SubtaskMetadata{
+		Index:       e.SubtaskIndex,
+		Total:       e.TotalSubtasks,
+		Preview:     e.SubtaskPreview,
+		MaxParallel: e.MaxParallel,
+	}
+}
+
+// WrappedEvent returns the underlying agent event carried by the subtask envelope.
+func (e *SubtaskEvent) WrappedEvent() ports.AgentEvent {
+	if e == nil {
+		return nil
+	}
+	return e.OriginalEvent
+}

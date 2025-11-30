@@ -1,6 +1,7 @@
 import {
   ToolCallStartEvent,
   ToolCallCompleteEvent,
+  eventMatches,
 } from '@/lib/types';
 import { isToolCallStartEvent } from '@/lib/typeGuards';
 import { RendererContext } from './toolRenderers';
@@ -26,7 +27,7 @@ export function adaptToolCallForRenderer({
   status,
 }: ToolCallAdapterInput): ToolCallAdapterResult {
   const startEvent = isToolCallStartEvent(event) ? event : pairedStart ?? null;
-  const completeEvent = event.event_type === 'tool_call_complete' ? event : null;
+  const completeEvent = eventMatches(event, 'workflow.tool.completed', 'tool_call_complete') ? event : null;
   const toolName = completeEvent?.tool_name ?? startEvent?.tool_name ?? event.tool_name;
   const callId = completeEvent?.call_id ?? startEvent?.call_id ?? event.call_id;
 

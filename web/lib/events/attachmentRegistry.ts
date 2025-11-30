@@ -4,7 +4,8 @@ import {
   TaskCompleteEvent,
   ToolCallCompleteEvent,
   UserTaskEvent,
-} from "@/lib/types";
+  eventMatches,
+} from '@/lib/types';
 
 const PLACEHOLDER_PATTERN = /\[([^\[\]]+)\]/g;
 
@@ -264,11 +265,11 @@ class AttachmentRegistry {
   }
 
   handleEvent(event: AnyAgentEvent) {
-    switch (event.event_type) {
-      case "user_task":
+    switch (true) {
+      case event.event_type === 'user_task':
         this.upsertMany((event as UserTaskEvent).attachments);
         break;
-      case "tool_call_complete":
+      case eventMatches(event, 'workflow.tool.completed', 'tool_call_complete'):
         const toolEvent = event as ToolCallCompleteEvent;
         const normalizedAttachments = normalizeAttachmentMap(
           toolEvent.attachments as AttachmentMap | undefined,
@@ -307,7 +308,7 @@ class AttachmentRegistry {
           });
         }
         break;
-      case "task_complete": {
+      case eventMatches(event, 'workflow.result.final', 'task_complete'): {
         const taskEvent = event as TaskCompleteEvent;
         const normalized = this.filterUndisplayed(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {

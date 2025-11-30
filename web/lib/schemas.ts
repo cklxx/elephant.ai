@@ -1,23 +1,31 @@
 // Zod schemas for runtime validation of SSE events
-// Corresponds to TypeScript types in lib/types.ts
+// Aligns with the workflow-first envelope defined in ./types
 
 import { z } from 'zod';
+import type { AnyAgentEvent } from './types';
+import { LegacyEventType, LegacyEventTypeToWorkflowType, WorkflowEventType } from './types';
 
-// Base schema for all agent events
-export const AgentLevelSchema = z.enum(['core', 'subagent']);
+const AgentLevelSchema = z.enum(['core', 'subagent']);
 
-export const BaseAgentEventSchema = z.object({
+const BaseAgentEventSchema = z.object({
+  version: z.number().optional().default(1),
   event_type: z.string(),
-  timestamp: z.string(),
-  agent_level: AgentLevelSchema,
-  session_id: z.string(),
+  timestamp: z.string().default(() => new Date().toISOString()),
+  agent_level: AgentLevelSchema.default('core'),
+  session_id: z.string().default(''),
   task_id: z.string().optional(),
   parent_task_id: z.string().optional(),
+  workflow_id: z.string().optional(),
+  run_id: z.string().optional(),
+  node_id: z.string().optional(),
+  node_kind: z.string().optional(),
+  legacy_type: z.string().optional(),
   is_subtask: z.boolean().optional(),
   subtask_index: z.number().optional(),
   total_subtasks: z.number().optional(),
   subtask_preview: z.string().optional(),
   max_parallel: z.number().optional(),
+  payload: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export const AttachmentPreviewAssetPayloadSchema = z.object({
@@ -42,16 +50,6 @@ export const AttachmentPayloadSchema = z.object({
   retention_ttl_seconds: z.number().optional(),
 });
 
-export const MessageSourceSchema = z.enum([
-  'system_prompt',
-  'user_input',
-  'user_history',
-  'assistant_reply',
-  'tool_result',
-  'debug',
-  'evaluation',
-]);
-
 export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -66,9 +64,7 @@ export const ToolResultSchema = z.object({
   content: z.string(),
   error: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
-  attachments: z
-    .record(z.string(), AttachmentPayloadSchema)
-    .optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
 export const MessageSchema = z.object({
@@ -78,159 +74,171 @@ export const MessageSchema = z.object({
   tool_results: z.array(ToolResultSchema).optional(),
   tool_call_id: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
-  attachments: z
-    .record(z.string(), AttachmentPayloadSchema)
-    .optional(),
-  source: MessageSourceSchema.optional(),
-});
-
-// Iteration Start Event
-export const IterationStartEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('iteration_start'),
-  iteration: z.number(),
-  total_iters: z.number(),
-});
-
-// Thinking Event
-export const ThinkingEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('thinking'),
-  iteration: z.number(),
-  message_count: z.number(),
-});
-
-// Think Complete Event
-export const ThinkCompleteEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('think_complete'),
-  iteration: z.number(),
-  content: z.string(),
-  tool_call_count: z.number(),
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  source: z.string().optional(),
 });
 
-// Assistant Message Event
-export const AssistantMessageEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('assistant_message'),
-  iteration: z.number(),
-  delta: z.string().optional().default(''),
-  final: z.boolean(),
-  created_at: z.string(),
-  source_model: z.string().optional(),
-});
-
-// Tool Call Start Event
-export const ToolCallStartEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('tool_call_start'),
-  iteration: z.number(),
-  call_id: z.string(),
-  tool_name: z.string(),
-  arguments: z.record(z.string(), z.any()),
-  arguments_preview: z.string().optional(),
-});
-
-// Tool Call Stream Event
-export const ToolCallStreamEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('tool_call_stream'),
-  call_id: z.string(),
-  chunk: z.string(),
-  is_complete: z.boolean(),
-});
-
-// Tool Call Complete Event
-export const ToolCallCompleteEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('tool_call_complete'),
-  call_id: z.string(),
-  tool_name: z.string(),
-  result: z.string(),
+export const WorkflowNodeSnapshotSchema = z.object({
+  id: z.string(),
+  status: z.enum(['pending', 'running', 'succeeded', 'failed']),
+  kind: z.string().optional(),
+  input: z.any().optional(),
+  output: z.any().optional(),
   error: z.string().optional(),
-  duration: z.number(),
-  metadata: z.record(z.string(), z.any()).optional(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+  started_at: z.string().optional(),
+  completed_at: z.string().optional(),
+  duration: z.number().optional(),
 });
 
-// Iteration Complete Event
-export const IterationCompleteEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('iteration_complete'),
-  iteration: z.number(),
-  tokens_used: z.number(),
-  tools_run: z.number(),
+export const WorkflowSnapshotSchema = z.object({
+  id: z.string(),
+  phase: z.enum(['pending', 'running', 'succeeded', 'failed']),
+  order: z.array(z.string()),
+  nodes: z.array(WorkflowNodeSnapshotSchema),
+  started_at: z.string().optional(),
+  completed_at: z.string().optional(),
+  duration: z.number().optional(),
+  summary: z.record(z.string(), z.number()),
 });
 
-// Subagent Progress Event
-export const SubagentProgressEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('subagent_progress'),
-  completed: z.number(),
-  total: z.number(),
-  tokens: z.number(),
-  tool_calls: z.number(),
+const WorkflowLifecycleUpdatedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.lifecycle.updated'),
+  workflow_id: z.string().optional(),
+  workflow_event_type: z.enum(['node_added', 'node_started', 'node_succeeded', 'node_failed', 'workflow_updated']),
+  phase: z.enum(['pending', 'running', 'succeeded', 'failed']).optional(),
+  node: WorkflowNodeSnapshotSchema.optional(),
+  workflow: WorkflowSnapshotSchema.optional(),
 });
 
-// Task Complete Event
-export const TaskCompleteEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('task_complete'),
-  final_answer: z.string(),
-  total_iterations: z.number(),
-  total_tokens: z.number(),
-  stop_reason: z.string(),
-  duration: z.number(),
-  is_streaming: z.boolean().optional(),
-  stream_finished: z.boolean().optional(),
-  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
-});
-
-export const TaskCancelledEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('task_cancelled'),
-  reason: z.string(),
-  requested_by: z.enum(['user', 'system']).optional(),
-});
-
-// Error Event
-export const ErrorEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('error'),
-  iteration: z.number(),
-  phase: z.string(),
-  error: z.string(),
-  recoverable: z.boolean(),
-});
-
-// Subagent Complete Event
-export const SubagentCompleteEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('subagent_complete'),
-  total: z.number(),
-  success: z.number(),
-  failed: z.number(),
-  tokens: z.number(),
-  tool_calls: z.number(),
-});
-
-// Research Plan Event
-export const ResearchPlanEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('research_plan'),
+const WorkflowPlanGeneratedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.plan.generated'),
   plan_steps: z.array(z.string()),
   estimated_iterations: z.number(),
   estimated_tools: z.array(z.string()).optional(),
   estimated_duration_minutes: z.number().optional(),
 });
 
-// Step Started Event
-export const StepStartedEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('step_started'),
-  step_index: z.number(),
-  step_description: z.string(),
-  iteration: z.number().optional(),
-});
-
-// Step Completed Event
-export const StepCompletedEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('step_completed'),
-  step_index: z.number(),
-  step_result: z.string().optional(),
-  iteration: z.number().optional(),
+const WorkflowNodeStartedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.node.started'),
+  node_id: z.string().optional(),
+  node_kind: z.string().optional(),
+  step_index: z.number().optional(),
   step_description: z.string().optional(),
+  iteration: z.number().optional(),
+  total_iters: z.number().optional(),
+  workflow: WorkflowSnapshotSchema.optional(),
 });
 
-// Browser Info Event
-export const BrowserInfoEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('browser_info'),
+const WorkflowNodeCompletedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.node.completed'),
+  node_id: z.string().optional(),
+  node_kind: z.string().optional(),
+  step_index: z.number().optional(),
+  step_description: z.string().optional(),
+  step_result: z.any().optional(),
+  status: z.enum(['pending', 'running', 'succeeded', 'failed']).optional(),
+  iteration: z.number().optional(),
+  tokens_used: z.number().optional(),
+  tools_run: z.number().optional(),
+  workflow: WorkflowSnapshotSchema.optional(),
+});
+
+const WorkflowNodeFailedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.node.failed'),
+  node_id: z.string().optional(),
+  node_kind: z.string().optional(),
+  iteration: z.number().optional(),
+  error: z.string(),
+  phase: z.string().optional(),
+  recoverable: z.boolean().optional(),
+});
+
+const WorkflowNodeOutputDeltaEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.node.output.delta'),
+  node_id: z.string().optional(),
+  node_kind: z.string().optional(),
+  iteration: z.number().optional(),
+  delta: z.string().default(''),
+  final: z.boolean().optional().default(false),
+  created_at: z.string().optional(),
+  source_model: z.string().optional(),
+  message_count: z.number().optional(),
+});
+
+const WorkflowNodeOutputSummaryEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.node.output.summary'),
+  node_id: z.string().optional(),
+  node_kind: z.string().optional(),
+  iteration: z.number().optional(),
+  content: z.string(),
+  tool_call_count: z.number(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+});
+
+const WorkflowToolStartedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.tool.started'),
+  call_id: z.string(),
+  tool_name: z.string(),
+  arguments: z.record(z.string(), z.unknown()).default({}),
+  arguments_preview: z.string().optional(),
+  iteration: z.number().optional(),
+});
+
+const WorkflowToolProgressEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.tool.progress'),
+  call_id: z.string(),
+  chunk: z.string().default(''),
+  is_complete: z.boolean().optional(),
+});
+
+const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.tool.completed'),
+  call_id: z.string(),
+  tool_name: z.string(),
+  result: z.string().default(''),
+  error: z.string().optional(),
+  duration: z.number().default(0),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+});
+
+const WorkflowResultFinalEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.result.final'),
+  final_answer: z.string().default(''),
+  total_iterations: z.number().default(0),
+  total_tokens: z.number().default(0),
+  stop_reason: z.string().default('complete'),
+  duration: z.number().default(0),
+  is_streaming: z.boolean().optional(),
+  stream_finished: z.boolean().optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
+});
+
+const WorkflowResultCancelledEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.result.cancelled'),
+  reason: z.string().default('cancelled'),
+  requested_by: z.enum(['user', 'system']).optional(),
+});
+
+const WorkflowSubflowProgressEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.subflow.progress'),
+  completed: z.number().default(0),
+  total: z.number().default(0),
+  tokens: z.number().default(0),
+  tool_calls: z.number().default(0),
+});
+
+const WorkflowSubflowCompletedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.subflow.completed'),
+  total: z.number().default(0),
+  success: z.number().default(0),
+  failed: z.number().default(0),
+  tokens: z.number().default(0),
+  tool_calls: z.number().default(0),
+});
+
+const WorkflowDiagnosticBrowserInfoEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.browser_info'),
   success: z.boolean().optional(),
   message: z.string().optional(),
   user_agent: z.string().optional(),
@@ -241,17 +249,15 @@ export const BrowserInfoEventSchema = BaseAgentEventSchema.extend({
   captured: z.string(),
 });
 
-// Environment Snapshot Event
-export const EnvironmentSnapshotEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('environment_snapshot'),
+const WorkflowDiagnosticEnvironmentSnapshotEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.environment_snapshot'),
   host: z.record(z.string(), z.string()).nullable().optional(),
   sandbox: z.record(z.string(), z.string()).nullable().optional(),
   captured: z.string(),
 });
 
-// Sandbox Progress Event
-export const SandboxProgressEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('sandbox_progress'),
+const WorkflowDiagnosticSandboxProgressEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.sandbox_progress'),
   status: z.enum(['pending', 'running', 'ready', 'error']),
   stage: z.string(),
   message: z.string().optional(),
@@ -261,17 +267,15 @@ export const SandboxProgressEventSchema = BaseAgentEventSchema.extend({
   updated: z.string(),
 });
 
-// Context Compression Event
-export const ContextCompressionEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('context_compression'),
+const WorkflowDiagnosticContextCompressionEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.context_compression'),
   original_count: z.number(),
   compressed_count: z.number(),
   compression_rate: z.number(),
 });
 
-// Tool Filtering Event
-export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('tool_filtering'),
+const WorkflowDiagnosticToolFilteringEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.tool_filtering'),
   preset_name: z.string(),
   original_count: z.number(),
   filtered_count: z.number(),
@@ -279,8 +283,8 @@ export const ToolFilteringEventSchema = BaseAgentEventSchema.extend({
   tool_filter_ratio: z.number(),
 });
 
-export const ContextSnapshotEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('context_snapshot'),
+const WorkflowDiagnosticContextSnapshotEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.diagnostic.context_snapshot'),
   iteration: z.number(),
   llm_turn_seq: z.number(),
   request_id: z.string(),
@@ -288,8 +292,7 @@ export const ContextSnapshotEventSchema = BaseAgentEventSchema.extend({
   excluded_messages: z.array(MessageSchema).optional(),
 });
 
-// Connected Event
-export const ConnectedEventSchema = z.object({
+const ConnectedEventSchema = z.object({
   event_type: z.literal('connected'),
   session_id: z.string(),
   task_id: z.string().optional(),
@@ -298,219 +301,100 @@ export const ConnectedEventSchema = z.object({
   agent_level: AgentLevelSchema.optional(),
 });
 
-// User Task Event (emitted when user submits a task)
-export const UserTaskEventSchema = BaseAgentEventSchema.extend({
+const UserTaskEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('user_task'),
   task: z.string(),
   attachments: z.record(z.string(), AttachmentPayloadSchema).optional(),
 });
 
-// Union schema for all agent events
-export const AnyAgentEventSchema = z.discriminatedUnion('event_type', [
-  IterationStartEventSchema,
-  ThinkingEventSchema,
-  ThinkCompleteEventSchema,
-  AssistantMessageEventSchema,
-  ToolCallStartEventSchema,
-  ToolCallStreamEventSchema,
-  ToolCallCompleteEventSchema,
-  IterationCompleteEventSchema,
-  SubagentProgressEventSchema,
-  TaskCancelledEventSchema,
-  TaskCompleteEventSchema,
-  ErrorEventSchema,
-  SubagentCompleteEventSchema,
-  ResearchPlanEventSchema,
-  StepStartedEventSchema,
-  StepCompletedEventSchema,
-  BrowserInfoEventSchema,
-  EnvironmentSnapshotEventSchema,
-  SandboxProgressEventSchema,
-  ContextCompressionEventSchema,
-  ToolFilteringEventSchema,
-  ContextSnapshotEventSchema,
+const EVENT_TYPE_ALIASES: Record<string, WorkflowEventType> = {
+  workflow_event: 'workflow.lifecycle.updated',
+  'workflow.diagnostic.sandbox.progress': 'workflow.diagnostic.sandbox_progress',
+};
+
+const EventSchemas = [
+  WorkflowLifecycleUpdatedEventSchema,
+  WorkflowPlanGeneratedEventSchema,
+  WorkflowNodeStartedEventSchema,
+  WorkflowNodeCompletedEventSchema,
+  WorkflowNodeFailedEventSchema,
+  WorkflowNodeOutputDeltaEventSchema,
+  WorkflowNodeOutputSummaryEventSchema,
+  WorkflowToolStartedEventSchema,
+  WorkflowToolProgressEventSchema,
+  WorkflowToolCompletedEventSchema,
+  WorkflowResultFinalEventSchema,
+  WorkflowResultCancelledEventSchema,
+  WorkflowSubflowProgressEventSchema,
+  WorkflowSubflowCompletedEventSchema,
+  WorkflowDiagnosticBrowserInfoEventSchema,
+  WorkflowDiagnosticEnvironmentSnapshotEventSchema,
+  WorkflowDiagnosticSandboxProgressEventSchema,
+  WorkflowDiagnosticContextCompressionEventSchema,
+  WorkflowDiagnosticToolFilteringEventSchema,
+  WorkflowDiagnosticContextSnapshotEventSchema,
   ConnectedEventSchema,
   UserTaskEventSchema,
-]);
+] as const;
 
-// API Request/Response Schemas
+export const AnyAgentEventSchema = z.discriminatedUnion(
+  'event_type',
+  EventSchemas as [typeof EventSchemas[number], ...typeof EventSchemas[number][]],
+);
 
-export const CreateTaskRequestSchema = z.object({
-  task: z.string(),
-  session_id: z.string().optional(),
-  auto_approve_plan: z.boolean().optional(),
-  attachments: z.array(AttachmentPayloadSchema).optional(),
-});
-
-export const CreateTaskResponseSchema = z.object({
-  task_id: z.string(),
-  session_id: z.string(),
-  parent_task_id: z.string().optional(),
-  status: z.enum(['pending', 'running', 'completed', 'failed']),
-  requires_plan_approval: z.boolean().optional(),
-});
-
-export const ResearchPlanSchema = z.object({
-  goal: z.string(),
-  steps: z.array(z.string()),
-  estimated_tools: z.array(z.string()),
-  estimated_iterations: z.number(),
-});
-
-export const ApprovePlanRequestSchema = z.object({
-  session_id: z.string(),
-  task_id: z.string(),
-  approved: z.boolean(),
-  modified_plan: ResearchPlanSchema.optional(),
-});
-
-export const ApprovePlanResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-});
-
-export const TaskStatusResponseSchema = z.object({
-  task_id: z.string(),
-  session_id: z.string(),
-  parent_task_id: z.string().optional(),
-  status: z.enum(['pending', 'running', 'completed', 'failed', 'error', 'cancelled']),
-  created_at: z.string(),
-  completed_at: z.string().optional(),
-  error: z.string().optional(),
-});
-
-export const SessionSchema = z.object({
-  id: z.string(),
-  created_at: z.string(),
-  updated_at: z.string(),
-  task_count: z.number(),
-  last_task: z.string().optional(),
-});
-
-export const SessionListResponseSchema = z.object({
-  sessions: z.array(SessionSchema),
-  total: z.number(),
-});
-
-export const SessionDetailsResponseSchema = z.object({
-  session: SessionSchema,
-  tasks: z.array(TaskStatusResponseSchema),
-});
-
-// Helper function to normalize and complete event data
-function normalizeEventData(data: unknown): unknown {
+function normalizeEventData(data: unknown): Record<string, any> | null {
   if (typeof data !== 'object' || data === null) {
-    return data;
+    return null;
   }
 
   const event = data as Record<string, any>;
-  const normalized: Record<string, any> = { ...event };
+  const payload = event.payload;
+  const payloadObject =
+    payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, any>) : null;
+  const normalized: Record<string, any> = payloadObject ? { ...payloadObject, ...event } : { ...event };
+  normalized.payload = payloadObject ?? event.payload ?? null;
 
-  // Ensure timestamp exists
   if (!normalized.timestamp) {
     normalized.timestamp = new Date().toISOString();
   }
-
-  // Ensure agent_level exists
-  if (!normalized.agent_level) {
+  if (normalized.agent_level === undefined) {
     normalized.agent_level = 'core';
   }
-
-  // Ensure session_id exists
-  if (!normalized.session_id) {
+  if (normalized.session_id === undefined) {
     normalized.session_id = '';
   }
-
-  // For tool_call_start events, ensure arguments exists
-  if (normalized.event_type === 'tool_call_start' && !normalized.arguments) {
-    normalized.arguments = {};
+  if (normalized.version === undefined || normalized.version === null) {
+    normalized.version = 1;
   }
 
-  // Handle missing event_type - try to infer or skip
-  if (!normalized.event_type || typeof normalized.event_type !== 'string') {
-    // Try to infer event type from available fields
-    if ('final_answer' in normalized) {
-      normalized.event_type = 'task_complete';
-    } else if ('reason' in normalized && normalized.reason !== undefined) {
-      normalized.event_type = 'task_cancelled';
-    } else if ('tool_name' in normalized && 'result' in normalized && 'call_id' in normalized) {
-      normalized.event_type = 'tool_call_complete';
-    } else if ('tool_name' in normalized && 'call_id' in normalized && !('result' in normalized)) {
-      normalized.event_type = 'tool_call_start';
-    } else if ('call_id' in normalized && 'chunk' in normalized) {
-      normalized.event_type = 'tool_call_stream';
-    } else if ('content' in normalized && 'tool_call_count' in normalized) {
-      normalized.event_type = 'think_complete';
-    } else if ('delta' in normalized && 'final' in normalized) {
-      normalized.event_type = 'assistant_message';
-    } else if ('iteration' in normalized && 'tokens_used' in normalized) {
-      normalized.event_type = 'iteration_complete';
-    } else if ('iteration' in normalized && 'message_count' in normalized) {
-      normalized.event_type = 'thinking';
-    } else if ('iteration' in normalized && 'total_iters' in normalized) {
-      normalized.event_type = 'iteration_start';
-    } else if ('completed' in normalized && 'tool_calls' in normalized) {
-      normalized.event_type = 'subagent_progress';
-    } else if ('plan_steps' in normalized) {
-      normalized.event_type = 'research_plan';
-    } else if ('step_index' in normalized && 'step_description' in normalized && !('step_result' in normalized)) {
-      normalized.event_type = 'step_started';
-    } else if ('step_index' in normalized && 'step_result' in normalized) {
-      normalized.event_type = 'step_completed';
-    } else if ('phase' in normalized && 'recoverable' in normalized) {
-      normalized.event_type = 'error';
-    } else if ('success' in normalized && 'failed' in normalized && 'total' in normalized) {
-      normalized.event_type = 'subagent_complete';
-    } else if ('status' in normalized && 'stage' in normalized && 'step' in normalized) {
-      normalized.event_type = 'sandbox_progress';
-    } else if ('user_agent' in normalized || 'cdp_url' in normalized) {
-      normalized.event_type = 'browser_info';
-    } else if ('host' in normalized || 'sandbox' in normalized) {
-      normalized.event_type = 'environment_snapshot';
-    } else if ('original_count' in normalized && 'compressed_count' in normalized) {
-      normalized.event_type = 'context_compression';
-    } else if ('preset_name' in normalized && 'filtered_tools' in normalized) {
-      normalized.event_type = 'tool_filtering';
-    } else {
-      // Cannot infer - log and skip this event
-      console.debug('[Schema Normalization] Cannot infer event_type, available fields:', Object.keys(normalized));
-      return null;
-    }
+  const rawEventType = normalized.event_type as string | undefined;
+  const aliasTarget = rawEventType ? EVENT_TYPE_ALIASES[rawEventType] : undefined;
+  if (aliasTarget) {
+    normalized.legacy_type = normalized.legacy_type ?? rawEventType;
+    normalized.event_type = aliasTarget;
   }
 
-  // Fill required defaults for inferred task_complete events to avoid validation drops
-  if (normalized.event_type === 'task_complete') {
-    if (typeof normalized.total_iterations !== 'number') {
-      normalized.total_iterations = 0;
-    }
-    if (typeof normalized.total_tokens !== 'number') {
-      normalized.total_tokens = 0;
-    }
-    if (typeof normalized.duration !== 'number') {
-      normalized.duration = 0;
-    }
-    if (typeof normalized.stop_reason !== 'string' || !normalized.stop_reason) {
-      normalized.stop_reason = 'complete';
-    }
-    if (typeof normalized.final_answer !== 'string') {
-      normalized.final_answer = '';
+  const legacyFromEvent = rawEventType && (LegacyEventTypeToWorkflowType as Record<string, WorkflowEventType>)[rawEventType];
+  if (legacyFromEvent) {
+    normalized.legacy_type = normalized.legacy_type ?? rawEventType;
+    normalized.event_type = legacyFromEvent;
+  } else if (normalized.legacy_type && typeof normalized.legacy_type === 'string') {
+    const mapped = (LegacyEventTypeToWorkflowType as Record<string, WorkflowEventType>)[normalized.legacy_type];
+    if (mapped) {
+      normalized.event_type = mapped;
     }
   }
 
   return normalized;
 }
 
-// Helper function to validate and parse events
-export function validateEvent(data: unknown): z.infer<typeof AnyAgentEventSchema> | null {
+export function validateEvent(data: unknown): AnyAgentEvent | null {
   try {
-    // First try to normalize the data
     const normalized = normalizeEventData(data);
-    if (normalized === null) {
-      console.warn('[Schema Validation] Could not normalize event, skipping:', data);
+    if (!normalized) {
       return null;
     }
-
-    return AnyAgentEventSchema.parse(normalized);
+    return AnyAgentEventSchema.parse(normalized) as AnyAgentEvent;
   } catch (error) {
     console.error('[Schema Validation] Failed to validate event:', error);
     console.debug('[Schema Validation] Raw event data:', data);
@@ -518,28 +402,27 @@ export function validateEvent(data: unknown): z.infer<typeof AnyAgentEventSchema
   }
 }
 
-// Helper function to safely validate without throwing
-export function safeValidateEvent(data: unknown): { success: true; data: z.infer<typeof AnyAgentEventSchema> } | { success: false; error: z.ZodError; raw: unknown } {
-  // First try to normalize the data
+export function safeValidateEvent(
+  data: unknown,
+): { success: true; data: AnyAgentEvent } | { success: false; error: z.ZodError; raw: unknown } {
   const normalized = normalizeEventData(data);
-
-  if (normalized === null) {
-    console.warn('[Schema Validation] Could not normalize event, skipping:', data);
-    // Return a synthetic error for skipped events
+  if (!normalized) {
     return {
       success: false,
-      error: new z.ZodError([{
-        code: 'custom',
-        path: ['event_type'],
-        message: 'Event type could not be inferred',
-      }]),
-      raw: data
+      error: new z.ZodError([
+        {
+          code: 'custom',
+          path: ['event_type'],
+          message: 'Event type could not be normalized',
+        },
+      ]),
+      raw: data,
     };
   }
 
   const result = AnyAgentEventSchema.safeParse(normalized);
   if (result.success) {
-    return { success: true, data: result.data };
+    return { success: true, data: result.data as AnyAgentEvent };
   }
 
   return { success: false, error: result.error, raw: data };

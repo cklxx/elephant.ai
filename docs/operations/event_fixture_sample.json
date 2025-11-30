@@ -1,0 +1,291 @@
+[
+  {
+    "version": 1,
+    "event_type": "workflow.lifecycle.updated",
+    "timestamp": "2025-01-10T10:00:00Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "",
+    "node_kind": "",
+    "payload": {
+      "phase": "pending",
+      "summary": {
+        "pending": 4,
+        "running": 0,
+        "succeeded": 0,
+        "failed": 0
+      },
+      "order": ["prepare", "execute", "delegate", "summarize"]
+    }
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.plan.generated",
+    "timestamp": "2025-01-10T10:00:01Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "payload": {
+      "goal": "Find recent Go 1.24 changes",
+      "steps": [
+        "Collect release notes",
+        "Summarize breaking changes",
+        "List migration steps"
+      ],
+      "estimated_iterations": 3,
+      "estimated_tools": ["browser.search", "browser.read"]
+    },
+    "legacy_type": "research_plan"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.node.started",
+    "timestamp": "2025-01-10T10:00:02Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "prepare",
+    "node_kind": "stage",
+    "payload": {
+      "description": "analyze task",
+      "iteration": 1
+    },
+    "legacy_type": "step_started"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.node.output.summary",
+    "timestamp": "2025-01-10T10:00:04Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "prepare",
+    "node_kind": "stage",
+    "payload": {
+      "iteration": 1,
+      "content": "Plan ready; will search Go 1.24 release notes.",
+      "tool_call_count": 0
+    },
+    "legacy_type": "think_complete"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.node.completed",
+    "timestamp": "2025-01-10T10:00:05Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "prepare",
+    "node_kind": "stage",
+    "payload": {
+      "status": "succeeded",
+      "result": "Prepared plan",
+      "iteration": 1
+    },
+    "legacy_type": "step_completed"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.node.started",
+    "timestamp": "2025-01-10T10:00:06Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "execute",
+    "node_kind": "stage",
+    "payload": {
+      "description": "run searches",
+      "iteration": 2
+    },
+    "legacy_type": "step_started"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.tool.started",
+    "timestamp": "2025-01-10T10:00:07Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "execute",
+    "node_kind": "tool",
+    "payload": {
+      "call_id": "tool-1",
+      "tool_name": "browser.search",
+      "arguments": {
+        "query": "Go 1.24 release notes"
+      }
+    },
+    "legacy_type": "tool_call_start"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.tool.progress",
+    "timestamp": "2025-01-10T10:00:08Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "execute",
+    "node_kind": "tool",
+    "payload": {
+      "call_id": "tool-1",
+      "chunk": "Found Go 1.24 blog post...",
+      "is_complete": false
+    },
+    "legacy_type": "tool_call_stream"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.tool.completed",
+    "timestamp": "2025-01-10T10:00:09Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "execute",
+    "node_kind": "tool",
+    "payload": {
+      "call_id": "tool-1",
+      "tool_name": "browser.search",
+      "result": "https://go.dev/doc/go1.24",
+      "duration_ms": 850
+    },
+    "legacy_type": "tool_call_complete"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.node.output.summary",
+    "timestamp": "2025-01-10T10:00:10Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "execute",
+    "node_kind": "stage",
+    "payload": {
+      "iteration": 2,
+      "content": "Captured release link, moving to summarize.",
+      "tool_call_count": 1
+    },
+    "legacy_type": "think_complete"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.subflow.progress",
+    "timestamp": "2025-01-10T10:00:11Z",
+    "agent_level": "subagent",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "parent_task_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "delegate-1",
+    "node_kind": "delegate",
+    "payload": {
+      "completed": 1,
+      "total": 2,
+      "tokens": 400,
+      "tool_calls": 1
+    },
+    "legacy_type": "subagent_progress"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.subflow.completed",
+    "timestamp": "2025-01-10T10:00:12Z",
+    "agent_level": "subagent",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "parent_task_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "delegate-1",
+    "node_kind": "delegate",
+    "payload": {
+      "total": 2,
+      "success": 2,
+      "failed": 0,
+      "tokens": 600,
+      "tool_calls": 1
+    },
+    "legacy_type": "subagent_complete"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.node.completed",
+    "timestamp": "2025-01-10T10:00:13Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "node_id": "execute",
+    "node_kind": "stage",
+    "payload": {
+      "status": "succeeded",
+      "iteration": 2,
+      "result": "Links collected"
+    },
+    "legacy_type": "step_completed"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.result.final",
+    "timestamp": "2025-01-10T10:00:15Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "payload": {
+      "final_answer": "Go 1.24 adds ...",
+      "total_iterations": 2,
+      "total_tokens": 1200,
+      "stop_reason": "complete",
+      "attachments": {
+        "release_notes": {
+          "name": "go1.24",
+          "uri": "https://go.dev/doc/go1.24",
+          "media_type": "text/html"
+        }
+      }
+    },
+    "legacy_type": "task_complete"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.diagnostic.context_compaction",
+    "timestamp": "2025-01-10T10:00:16Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "payload": {
+      "original_count": 20,
+      "compressed_count": 8,
+      "compression_rate": 40.0
+    },
+    "legacy_type": "context_compression"
+  },
+  {
+    "version": 1,
+    "event_type": "workflow.diagnostic.sandbox_progress",
+    "timestamp": "2025-01-10T10:00:17Z",
+    "agent_level": "core",
+    "workflow_id": "wf-123",
+    "run_id": "task-123",
+    "session_id": "session-1",
+    "payload": {
+      "status": "ready",
+      "stage": "runtime",
+      "step": 3,
+      "total_steps": 3,
+      "message": "Sandbox warmed"
+    },
+    "legacy_type": "sandbox_progress"
+  }
+]

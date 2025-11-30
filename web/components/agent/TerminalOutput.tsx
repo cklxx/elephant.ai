@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { AnyAgentEvent } from "@/lib/types";
+import { AnyAgentEvent, eventMatches } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
 import {
@@ -155,23 +155,32 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     return false;
   }
 
-  switch (event.event_type) {
-    // Show user input
-    case "user_task":
-    // Show task completion
-    case "task_complete":
-    case "task_cancelled":
-    // Show failures
-    case "error":
-      return false;
-    case "tool_call_start":
-    case "tool_call_complete":
-    case "tool_call_stream":
-    case "think_complete":
-    // Skip everything else
-    default:
-      return true;
+  if (
+    event.event_type === "user_task" ||
+    eventMatches(event, "workflow.result.final", "task_complete") ||
+    eventMatches(event, "workflow.result.cancelled", "task_cancelled") ||
+    eventMatches(event, "workflow.node.failed", "error")
+  ) {
+    return false;
   }
+
+  if (
+    eventMatches(
+      event,
+      "workflow.tool.started",
+      "workflow.tool.completed",
+      "workflow.tool.progress",
+      "tool_call_start",
+      "tool_call_complete",
+      "tool_call_stream",
+      "workflow.node.output.summary",
+      "think_complete",
+    )
+  ) {
+    return true;
+  }
+
+  return true;
 }
 
 function partitionEvents(
@@ -201,7 +210,10 @@ function partitionEvents(
       return;
     }
 
-    if (event.event_type !== "assistant_message" && !shouldSkipEvent(event)) {
+    if (
+      !eventMatches(event, "workflow.node.output.delta", "assistant_message", "thinking") &&
+      !shouldSkipEvent(event)
+    ) {
       displayEvents.push(event);
     }
   });

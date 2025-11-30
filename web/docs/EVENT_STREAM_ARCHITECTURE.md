@@ -4,6 +4,49 @@
 
 This document describes the robust event stream state management system for the ALEX web UI. The architecture addresses memory accumulation, performance, and research step tracking using Zustand + Immer for state management and TanStack Virtual for efficient rendering.
 
+## Workflow-first Event IDL (migration spec)
+
+The goal is a single workflow-originated event stream with semantic, namespaced `event_type` values. Every message uses a shared envelope and an explicit version for compatibility.
+
+- **Envelope (all events)**: `version` (e.g., `1`), `event_type`, `timestamp` (RFC3339), `agent_level`, `workflow_id`, `run_id` (or `task_id`), `parent_task_id`, `session_id`, `node_id`, `node_kind`, `payload`, optional `legacy_type` (for dual-emission), optional `attachments`.
+- **Namespaces** (examples):
+  - `workflow.lifecycle.updated` – full workflow snapshot (phase, summary, nodes).
+  - `workflow.plan.generated` – planned steps/estimates (replaces `research_plan`).
+  - `workflow.node.started|completed|failed` – node lifecycle (replaces `step_started/step_completed`).
+  - `workflow.node.output.delta` – token stream (replaces `assistant_message`).
+  - `workflow.node.output.summary` – completed turn/thought (replaces `think_complete`).
+  - `workflow.tool.started|progress|completed` – tool runs (replaces `tool_call_start/stream/complete`).
+  - `workflow.subflow.progress|completed` – delegated agent/subagent aggregation (replaces frontend-synthesized `subagent_*`).
+  - `workflow.result.final` – final answer/attachments (replaces `task_complete`).
+  - `workflow.result.cancelled` – cancellation (replaces `task_cancelled`).
+  - `workflow.diagnostic.*` – `context_compaction`, `tool_filtering`, `browser_info`, `environment_snapshot`, `sandbox_progress`.
+- **Compatibility strategy**:
+  - Backend dual-emits `event_type` (new) + `legacy_type` in payload during the migration window; frontend accepts both but prefers new.
+  - SSE handler stays single-transport; no additional channels.
+  - Tracking/analytics lists must mirror the new names; tests enforce parity (see `internal/analytics/tracking_plan_test.go`).
+
+### Field conventions
+
+- `workflow_id` is stable for the run; `run_id` may alias `task_id` until the runtime supplies a dedicated ID.
+- `node_id`/`node_kind` describe the workflow node (e.g., `prepare`, `execute`, `tool`, `delegate`).
+- `agent_level` remains `core|subagent`; delegated streams still carry `parent_task_id`.
+- Payloads keep type-specific fields but avoid implicit inference; streaming deltas (tokens/final answer) must be additive or include `stream_finished`.
+
+### Required backend emissions (to align with UI expectations)
+
+- Emit `workflow.plan.generated` before execution (currently missing).
+- Emit `workflow.subflow.progress|completed` from the delegating agent instead of frontend synthesis.
+- Emit `workflow.tool.progress` for streaming tool output instead of overloading `tool_call_stream`.
+- Ensure diagnostics (`context_compaction`, `tool_filtering`, `browser_info`, `environment_snapshot`, `sandbox_progress`) use the `workflow.diagnostic.*` namespace.
+
+## Cleanup and validation (post-migration checklist)
+
+- **Remove legacy-only code**: drop `event_type` inference branches in `web/lib/schemas.ts`; delete `subagentDeriver` once backend emits subflow events.
+- **Schema/test parity**: keep Go/TS event lists in sync (`internal/analytics/tracking_plan_test.go` ↔ `web/lib/schemas.ts`/`types.ts`); add a golden SSE sample covering every new `event_type`.
+- **E2E validation**: run SSE → store → UI flow with a scripted event fixture (plan, node lifecycle, tool stream, subflow, diagnostics, final/cancel). Confirm rendering and aggregation paths (iterations, tools, steps, result).
+- **Telemetry**: update analytics/tracking plan to the new names; remove legacy labels once dual-read window closes.
+- **Docs**: keep this spec as the single source; reference it from implementation notes/PRs to avoid drift.
+
 ## Architecture Diagram
 
 ```
@@ -75,7 +118,7 @@ This document describes the robust event stream state management system for the 
 
 ### 1. Tool Call Aggregation
 
-**Purpose**: Merge `tool_call_start`, `tool_call_stream`, and `tool_call_complete` events into a single `AggregatedToolCall` object.
+**Purpose**: Merge `workflow.tool.started`, `workflow.tool.progress`, and `workflow.tool.completed` events (legacy: `tool_call_start/stream/complete`) into a single `AggregatedToolCall` object.
 
 **Algorithm**:
 ```typescript
@@ -94,9 +137,9 @@ interface AggregatedToolCall {
 }
 
 // Process:
-// 1. tool_call_start → Create entry with status='running'
-// 2. tool_call_stream → Append to stream_chunks, status='streaming'
-// 3. tool_call_complete → Update status, set result/error, duration
+// 1. workflow.tool.started → Create entry with status='running'
+// 2. workflow.tool.progress → Append to stream_chunks, status='streaming'
+// 3. workflow.tool.completed → Update status, set result/error, duration
 ```
 
 **Benefits**:
@@ -413,20 +456,31 @@ func (e *ReactEngine) SolveTask(ctx context.Context, task string) error {
 ```go
 // Add new event types to SSE stream
 eventTypes := []string{
-    "iteration_start",
-    "thinking",
-    "think_complete",
+    "connected",
+    "workflow.lifecycle.updated",
+    "workflow.plan.generated",
+    "workflow.node.started",
+    "workflow.node.completed",
+    "workflow.node.failed",
+    "workflow.node.output.delta",
+    "workflow.node.output.summary",
+    "workflow.tool.started",
+    "workflow.tool.progress",
+    "workflow.tool.completed",
+    "workflow.subflow.progress",
+    "workflow.subflow.completed",
+    "workflow.result.final",
+    "workflow.result.cancelled",
+    "workflow.diagnostic.browser_info",
+    "workflow.diagnostic.environment_snapshot",
+    "workflow.diagnostic.sandbox_progress",
+    "workflow.diagnostic.context_compression",
+    "workflow.diagnostic.tool_filtering",
+    "workflow.diagnostic.context_snapshot",
+    // Transitional legacy registrations (remove after dual-emission window)
     "tool_call_start",
     "tool_call_stream",
     "tool_call_complete",
-    "iteration_complete",
-    "task_complete",
-    "error",
-    // New event types
-    "research_plan",
-    "step_started",
-    "step_completed",
-    "browser_info",
 }
 ```
 
@@ -439,9 +493,9 @@ eventTypes := []string{
 describe('aggregateToolCalls', () => {
   it('should merge start, stream, and complete events', () => {
     const events = [
-      { event_type: 'tool_call_start', call_id: '123', tool_name: 'bash', ... },
-      { event_type: 'tool_call_stream', call_id: '123', chunk: 'output', ... },
-      { event_type: 'tool_call_complete', call_id: '123', result: 'done', ... },
+      { event_type: 'workflow.tool.started', call_id: '123', tool_name: 'bash', ... },
+      { event_type: 'workflow.tool.progress', call_id: '123', chunk: 'output', ... },
+      { event_type: 'workflow.tool.completed', call_id: '123', result: 'done', ... },
     ];
 
     const result = aggregateToolCalls(events);

@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { AnyAgentEvent, AssistantMessageEvent, UserTaskEvent } from "@/lib/types";
+import { AnyAgentEvent, AssistantMessageEvent, UserTaskEvent, eventMatches } from "@/lib/types";
 import { agentEventBus } from "@/lib/events/eventBus";
 import { defaultEventRegistry } from "@/lib/events/eventRegistry";
 import { handleAttachmentEvent, resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
@@ -87,7 +87,7 @@ export function useSSE(
 
   const applyAssistantAnswerFallback = useCallback(
     (event: AnyAgentEvent): AnyAgentEvent => {
-      if (event.event_type !== "task_complete") return event;
+      if (!eventMatches(event, "workflow.result.final", "task_complete")) return event;
 
       const taskId =
         "task_id" in event && typeof event.task_id === "string"
@@ -326,7 +326,7 @@ export function useSSE(
         event,
         streamingAnswerBufferRef.current,
       );
-      if (bufferedEvent.event_type === "assistant_message") {
+      if (eventMatches(bufferedEvent, "workflow.node.output.delta", "assistant_message", "thinking")) {
         trackAssistantMessage(
           bufferedEvent as AssistantMessageEvent,
           assistantMessageBufferRef.current,
@@ -335,12 +335,12 @@ export function useSSE(
 
       const enrichedEvent = applyAssistantAnswerFallback(bufferedEvent);
 
-      if (enrichedEvent.event_type === "task_complete") {
+      if (eventMatches(enrichedEvent, "workflow.result.final", "task_complete")) {
         handleAttachmentEvent(enrichedEvent);
       }
 
       const isStreamingTaskComplete =
-        enrichedEvent.event_type === "task_complete" &&
+        eventMatches(enrichedEvent, "workflow.result.final", "task_complete") &&
         (Boolean(enrichedEvent.is_streaming) ||
           Boolean(enrichedEvent.stream_finished));
 
@@ -363,7 +363,7 @@ export function useSSE(
 
       setEvents((prev) => {
         if (
-          enrichedEvent.event_type === "task_complete" &&
+          eventMatches(enrichedEvent, "workflow.result.final", "task_complete") &&
           (enrichedEvent.is_streaming || enrichedEvent.stream_finished)
         ) {
           const matchIndex = findLastStreamingTaskCompleteIndex(
@@ -462,7 +462,7 @@ function findLastStreamingTaskCompleteIndex(
   incoming: AnyAgentEvent,
 ): number {
   const incomingTaskId =
-    incoming.event_type === "task_complete" && "task_id" in incoming
+    eventMatches(incoming, "workflow.result.final", "task_complete") && "task_id" in incoming
       ? incoming.task_id
       : undefined;
 
@@ -470,7 +470,7 @@ function findLastStreamingTaskCompleteIndex(
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const candidate = events[i];
-    if (candidate.event_type !== "task_complete") continue;
+    if (!eventMatches(candidate, "workflow.result.final", "task_complete")) continue;
     const candidateTaskId = "task_id" in candidate ? candidate.task_id : undefined;
     if (
       candidateTaskId &&
@@ -488,7 +488,7 @@ function mergeStreamingTaskComplete(
   event: AnyAgentEvent,
   buffer: Map<string, string>,
 ): AnyAgentEvent {
-  if (event.event_type !== "task_complete") return event;
+  if (!eventMatches(event, "workflow.result.final", "task_complete")) return event;
 
   const taskId =
     "task_id" in event && typeof event.task_id === "string"

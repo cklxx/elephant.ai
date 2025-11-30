@@ -96,11 +96,17 @@ export function getToolColor(toolName: string): string {
 export function getEventCardStyle(eventType: string): string {
   const styleMap: Record<string, string> = {
     thinking: 'border-border bg-muted',
+    'workflow.node.output.delta': 'border-border bg-muted',
     think_complete: 'border-primary/30 bg-primary/10',
+    'workflow.node.output.summary': 'border-primary/30 bg-primary/10',
     tool_call_start: 'border-primary/30 bg-primary/10',
+    'workflow.tool.started': 'border-primary/30 bg-primary/10',
     tool_call_complete: 'border-emerald-200 bg-emerald-50',
+    'workflow.tool.completed': 'border-emerald-200 bg-emerald-50',
     task_complete: 'border-emerald-300 bg-emerald-50',
+    'workflow.result.final': 'border-emerald-300 bg-emerald-50',
     error: 'border-destructive/40 bg-destructive/10',
+    'workflow.node.failed': 'border-destructive/40 bg-destructive/10',
   };
   return styleMap[eventType] || 'border-border bg-card';
 }

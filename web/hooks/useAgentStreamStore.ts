@@ -18,6 +18,7 @@ import {
   ErrorEvent,
   BrowserInfoEvent,
   AttachmentPayload,
+  eventMatches,
 } from '@/lib/types';
 import { EventLRUCache } from '@/lib/eventAggregation';
 
@@ -323,31 +324,45 @@ const applyBrowserInfo = (draft: AgentStreamDraft, event: BrowserInfoEvent) => {
 };
 
 const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
-  switch (event.event_type) {
-    case 'iteration_start': {
+  const isIterationStart =
+    eventMatches(event, 'workflow.node.started', 'iteration_start') &&
+    (event.node_kind === 'iteration' ||
+      (event as any).legacy_type === 'iteration_start' ||
+      (event.node_id ?? '').startsWith('iteration-')) &&
+    typeof event.iteration === 'number';
+
+  const isIterationComplete =
+    eventMatches(event, 'workflow.node.completed', 'iteration_complete') &&
+    (event.node_kind === 'iteration' ||
+      (event as any).legacy_type === 'iteration_complete' ||
+      (event.node_id ?? '').startsWith('iteration-')) &&
+    typeof event.iteration === 'number';
+
+  switch (true) {
+    case isIterationStart: {
       const iterationEvent = event as IterationStartEvent;
       ensureIteration(draft, iterationEvent);
       draft.currentIteration = iterationEvent.iteration;
       draft.taskStatus = 'running';
       break;
     }
-    case 'tool_call_start':
+    case eventMatches(event, 'workflow.tool.started', 'tool_call_start'):
       applyToolCallStart(draft, event as ToolCallStartEvent);
       break;
-    case 'tool_call_stream':
+    case eventMatches(event, 'workflow.tool.progress', 'tool_call_stream'):
       applyToolCallStream(draft, event as ToolCallStreamEvent);
       break;
-    case 'tool_call_complete':
+    case eventMatches(event, 'workflow.tool.completed', 'tool_call_complete'):
       applyToolCallComplete(draft, event as ToolCallCompleteEvent);
       if (draft.activeToolCallId === (event as ToolCallCompleteEvent).call_id) {
         draft.activeToolCallId = null;
       }
       break;
-    case 'iteration_complete':
+    case isIterationComplete:
       applyIterationComplete(draft, event as IterationCompleteEvent);
       draft.totalTokens = (event as IterationCompleteEvent).tokens_used ?? draft.totalTokens;
       break;
-    case 'user_task': {
+    case event.event_type === 'user_task': {
       // New task -> reset final answer state and attachments
       draft.taskStatus = 'running';
       draft.finalAnswer = undefined;
@@ -364,7 +379,7 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       draft.researchSteps = [];
       break;
     }
-    case 'task_complete': {
+    case eventMatches(event, 'workflow.result.final', 'task_complete'): {
       const complete = event as TaskCompleteEvent;
       const isStreaming = complete.is_streaming === true;
       const streamFinished = complete.stream_finished !== false;
@@ -394,31 +409,36 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       draft.activeToolCallId = null;
       break;
     }
-    case 'task_cancelled': {
+    case eventMatches(event, 'workflow.result.cancelled', 'task_cancelled'): {
       const cancelled = event as TaskCancelledEvent;
       draft.taskStatus = 'cancelled';
       draft.currentIteration = null;
       draft.activeToolCallId = null;
-      draft.errorMessage = cancelled.reason && cancelled.reason !== 'cancelled' ? cancelled.reason : undefined;
+      draft.errorMessage =
+        cancelled.reason && cancelled.reason !== 'cancelled' ? cancelled.reason : undefined;
       draft.finalAnswer = undefined;
       draft.finalAnswerAttachments = undefined;
       draft.totalIterations = undefined;
       draft.totalTokens = undefined;
       break;
     }
-    case 'error':
+    case eventMatches(event, 'workflow.node.failed', 'error'):
       applyErrorEvent(draft, event as ErrorEvent);
       break;
-    case 'research_plan':
+    case eventMatches(event, 'workflow.plan.generated', 'research_plan'):
       applyResearchPlan(draft, event as ResearchPlanEvent);
       break;
-    case 'step_started':
-      applyStepStarted(draft, event as StepStartedEvent);
+    case eventMatches(event, 'workflow.node.started', 'step_started'):
+      if (typeof (event as any).step_index === 'number') {
+        applyStepStarted(draft, event as StepStartedEvent);
+      }
       break;
-    case 'step_completed':
-      applyStepCompleted(draft, event as StepCompletedEvent);
+    case eventMatches(event, 'workflow.node.completed', 'step_completed'):
+      if (typeof (event as any).step_index === 'number') {
+        applyStepCompleted(draft, event as StepCompletedEvent);
+      }
       break;
-    case 'browser_info':
+    case eventMatches(event, 'workflow.diagnostic.browser_info', 'browser_info'):
       applyBrowserInfo(draft, event as BrowserInfoEvent);
       break;
     default:
@@ -432,10 +452,10 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
   addEvent: (event: AnyAgentEvent) => {
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
-        if (event.event_type === 'task_complete') {
+        if (eventMatches(event, 'workflow.result.final', 'task_complete')) {
           const complete = event as TaskCompleteEvent;
           const matcher = (existing: AnyAgentEvent) =>
-            existing.event_type === 'task_complete' &&
+            eventMatches(existing, 'workflow.result.final', 'task_complete') &&
             existing.session_id === complete.session_id &&
             existing.task_id === complete.task_id;
           const replaced = draft.eventCache.replaceLastIf(matcher, event);
@@ -454,10 +474,10 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
     set((state) =>
       produce(state, (draft: AgentStreamDraft) => {
         events.forEach((event) => {
-          if (event.event_type === 'task_complete') {
+          if (eventMatches(event, 'workflow.result.final', 'task_complete')) {
             const complete = event as TaskCompleteEvent;
             const matcher = (existing: AnyAgentEvent) =>
-              existing.event_type === 'task_complete' &&
+              eventMatches(existing, 'workflow.result.final', 'task_complete') &&
               existing.session_id === complete.session_id &&
               existing.task_id === complete.task_id;
             const replaced = draft.eventCache.replaceLastIf(matcher, event);

@@ -7,6 +7,7 @@ import {
   ToolCallStreamEvent,
   ToolCallCompleteEvent,
   AttachmentPayload,
+  eventMatches,
 } from './types';
 
 /**
@@ -85,7 +86,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
   const toolCallMap = new Map<string, AggregatedToolCall>();
 
   for (const event of events) {
-    if (event.event_type === 'tool_call_start') {
+    if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
       const startEvent = event as ToolCallStartEvent;
       toolCallMap.set(startEvent.call_id, {
         id: startEvent.call_id,
@@ -98,7 +99,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
         timestamp: startEvent.timestamp,
         iteration: startEvent.iteration,
       });
-    } else if (event.event_type === 'tool_call_stream') {
+    } else if (eventMatches(event, 'workflow.tool.progress', 'tool_call_stream')) {
       const streamEvent = event as ToolCallStreamEvent;
       const existing = toolCallMap.get(streamEvent.call_id);
       if (existing) {
@@ -106,7 +107,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
         existing.stream_chunks.push(streamEvent.chunk);
         existing.last_stream_at = streamEvent.timestamp;
       }
-    } else if (event.event_type === 'tool_call_complete') {
+    } else if (eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')) {
       const completeEvent = event as ToolCallCompleteEvent;
       const existing = toolCallMap.get(completeEvent.call_id);
       if (existing) {
@@ -271,7 +272,17 @@ export function groupByIteration(events: AnyAgentEvent[]): Map<number, Iteration
   const toolCallMap = aggregateToolCalls(events);
 
   for (const event of events) {
-    if (event.event_type === 'iteration_start') {
+    const isIterationKind =
+      event.node_kind === 'iteration' ||
+      (event.node_id && event.node_id.startsWith('iteration-')) ||
+      (event as any).legacy_type === 'iteration_start' ||
+      (event as any).legacy_type === 'iteration_complete';
+
+    if (
+      eventMatches(event, 'workflow.node.started', 'iteration_start') &&
+      isIterationKind &&
+      typeof event.iteration === 'number'
+    ) {
       iterationMap.set(event.iteration, {
         id: `iter-${event.iteration}`,
         iteration: event.iteration,
@@ -281,23 +292,34 @@ export function groupByIteration(events: AnyAgentEvent[]): Map<number, Iteration
         tool_calls: [],
         errors: [],
       });
-    } else if (event.event_type === 'think_complete') {
+    } else if (
+      eventMatches(event, 'workflow.node.output.summary', 'think_complete') &&
+      typeof event.iteration === 'number'
+    ) {
       const group = iterationMap.get(event.iteration);
       if (group) {
-        group.thinking = event.content;
+        group.thinking = (event as any).content;
       }
-    } else if (event.event_type === 'iteration_complete') {
+    } else if (
+      eventMatches(event, 'workflow.node.completed', 'iteration_complete') &&
+      isIterationKind &&
+      typeof event.iteration === 'number'
+    ) {
       const group = iterationMap.get(event.iteration);
       if (group) {
         group.status = 'complete';
         group.completed_at = event.timestamp;
-        group.tokens_used = event.tokens_used;
-        group.tools_run = event.tools_run;
+        group.tokens_used = (event as any).tokens_used;
+        group.tools_run = (event as any).tools_run;
       }
-    } else if (event.event_type === 'error') {
+    } else if (
+      eventMatches(event, 'workflow.node.failed', 'error') &&
+      isIterationKind &&
+      typeof event.iteration === 'number'
+    ) {
       const group = iterationMap.get(event.iteration);
       if (group) {
-        group.errors.push(event.error);
+        group.errors.push((event as any).error);
       }
     }
   }
@@ -344,15 +366,18 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
   };
 
   for (const event of events) {
-    switch (event.event_type) {
-      case 'research_plan':
+    switch (true) {
+      case eventMatches(event, 'workflow.plan.generated', 'research_plan'):
         event.plan_steps.forEach((description, index) => {
           plannedDescriptions.set(index, description);
           ensureStep(index, description);
         });
         break;
-      case 'step_started': {
-        const step = ensureStep(event.step_index, event.step_description);
+      case eventMatches(event, 'workflow.node.started', 'step_started'): {
+        if (typeof (event as any).step_index !== 'number') {
+          break;
+        }
+        const step = ensureStep(event.step_index, (event as any).step_description);
         step.status = 'in_progress';
         step.started_at = event.timestamp;
         if (typeof event.iteration === 'number' && !step.iterations.includes(event.iteration)) {
@@ -360,11 +385,14 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
         }
         break;
       }
-      case 'step_completed': {
-        const step = ensureStep(event.step_index, event.step_description);
+      case eventMatches(event, 'workflow.node.completed', 'step_completed'): {
+        if (typeof (event as any).step_index !== 'number') {
+          break;
+        }
+        const step = ensureStep(event.step_index, (event as any).step_description);
         step.status = 'completed';
         step.completed_at = event.timestamp;
-        step.result = event.step_result;
+        step.result = (event as any).step_result;
         if (!step.started_at) {
           step.started_at = event.timestamp;
         }
@@ -373,6 +401,8 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
         }
         break;
       }
+      default:
+        break;
     }
   }
 
@@ -390,7 +420,9 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
  */
 export function extractBrowserDiagnostics(events: AnyAgentEvent[]): BrowserDiagnostics[] {
   return events
-    .filter((e): e is import('./types').BrowserInfoEvent => e.event_type === 'browser_info')
+    .filter((e): e is import('./types').BrowserInfoEvent =>
+      eventMatches(e, 'workflow.diagnostic.browser_info', 'browser_info'),
+    )
     .map((e) => ({
       id: `browser-info-${e.timestamp}`,
       timestamp: e.timestamp,

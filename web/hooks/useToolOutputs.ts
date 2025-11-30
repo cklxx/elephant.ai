@@ -9,6 +9,7 @@ import {
   AttachmentPayload,
 } from '@/lib/types';
 import { ToolOutput, ToolOutputType } from '@/components/agent/WebViewport';
+import { eventMatches } from '@/lib/types';
 
 export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
   return useMemo(() => {
@@ -17,7 +18,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
 
     events.forEach((event) => {
       // Track tool call starts
-      if (event.event_type === 'tool_call_start') {
+      if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
         const e = event as ToolCallStartEvent;
         toolCalls.set(e.call_id, {
           id: e.call_id,
@@ -28,7 +29,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
       }
 
       // Complete tool calls
-      if (event.event_type === 'tool_call_complete') {
+      if (eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')) {
         const e = event as ToolCallCompleteEvent;
         const existing = toolCalls.get(e.call_id);
 
@@ -51,7 +52,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
       }
 
       // Browser diagnostics
-      if (event.event_type === 'browser_info') {
+      if (eventMatches(event, 'workflow.diagnostic.browser_info', 'browser_info')) {
         const e = event as BrowserInfoEvent;
         const details: string[] = [];
         if (typeof e.success === 'boolean') {

@@ -22,6 +22,7 @@ import { TaskInput } from '@/components/agent/TaskInput';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
+import { eventMatches } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
 import { Button } from '@/components/ui/button';
@@ -102,9 +103,9 @@ export function ConversationPageContent() {
       }
 
       if (
-        event.event_type === 'task_complete' ||
-        event.event_type === 'task_cancelled' ||
-        event.event_type === 'error'
+        eventMatches(event, 'workflow.result.final', 'task_complete') ||
+        eventMatches(event, 'workflow.result.cancelled', 'task_cancelled') ||
+        eventMatches(event, 'workflow.node.failed', 'error')
       ) {
         setActiveTaskId(null);
         setCancelRequested(false);

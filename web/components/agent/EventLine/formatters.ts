@@ -1,7 +1,7 @@
 // Formatting utilities for agent events
 // Extracted from TerminalOutput.tsx for better maintainability
 
-import { AnyAgentEvent } from '@/lib/types';
+import { AnyAgentEvent, eventMatches } from '@/lib/types';
 
 /**
  * Format tool call arguments for display
@@ -35,114 +35,106 @@ export function formatResult(result: any): string {
  * Returns human-readable string representation of the event
  */
 export function formatContent(event: AnyAgentEvent): string {
-  switch (event.event_type) {
-    case 'user_task':
+  switch (true) {
+    case event.event_type === 'user_task':
       if ('task' in event) {
         return event.task;
       }
       return 'User task';
 
-    case 'iteration_start':
-      if ('iteration' in event) {
-        return `Iteration ${event.iteration}/${event.total_iters}`;
-      }
-      return 'Iteration started';
+    case eventMatches(event, 'workflow.node.started', 'iteration_start') &&
+      typeof (event as any).iteration === 'number': {
+      return `Iteration ${event.iteration}/${(event as any).total_iters}`;
+    }
 
-    case 'thinking':
-      return 'Thinking...';
+    case eventMatches(event, 'workflow.node.output.delta', 'thinking'):
+      return eventMatches(event, 'thinking') ? 'Thinking...' : (event as any).delta ?? 'Thinking...';
 
-    case 'think_complete':
+    case eventMatches(event, 'workflow.node.output.summary', 'think_complete'):
       if ('content' in event) {
-        return event.content;
+        return (event as any).content;
       }
       return 'Response received';
 
-    case 'tool_call_start':
+    case eventMatches(event, 'workflow.tool.started', 'tool_call_start'):
       if ('tool_name' in event) {
         const preview =
           'arguments_preview' in event && event.arguments_preview
             ? event.arguments_preview
-            : formatArgs(event.arguments);
+            : formatArgs((event as any).arguments);
         return preview ? `▸ ${event.tool_name}(${preview})` : `▸ ${event.tool_name}`;
       }
       return 'Tool executing';
 
-    case 'tool_call_complete':
+    case eventMatches(event, 'workflow.tool.completed', 'tool_call_complete'):
       if ('tool_name' in event) {
-        const icon = event.error ? '✗' : '✓';
-        const content = event.error || formatResult(event.result);
+        const icon = (event as any).error ? '✗' : '✓';
+        const content = (event as any).error || formatResult((event as any).result);
         return `${icon} ${event.tool_name} → ${content}`;
       }
       return 'Tool complete';
 
-    case 'iteration_complete':
-      if ('iteration' in event) {
-        return `✓ Iteration ${event.iteration} complete (${event.tokens_used} tokens, ${event.tools_run} tools)`;
-      }
-      return 'Iteration complete';
+    case eventMatches(event, 'workflow.node.completed', 'iteration_complete') &&
+      typeof (event as any).iteration === 'number':
+      return `✓ Iteration ${event.iteration} complete (${(event as any).tokens_used} tokens, ${(event as any).tools_run} tools)`;
 
-    case 'task_complete':
+    case eventMatches(event, 'workflow.result.final', 'task_complete'):
       if ('final_answer' in event) {
-        const preview = event.final_answer.slice(0, 150);
-        const suffix = event.final_answer.length > 150 ? '...' : '';
+        const preview = (event as any).final_answer.slice(0, 150);
+        const suffix = (event as any).final_answer.length > 150 ? '...' : '';
         return `✓ Task Complete\n${preview}${suffix}`;
       }
       return '✓ Task complete';
 
-    case 'task_cancelled': {
-      const requestedBy = 'requested_by' in event ? event.requested_by : undefined;
+    case eventMatches(event, 'workflow.result.cancelled', 'task_cancelled'): {
+      const requestedBy = 'requested_by' in event ? (event as any).requested_by : undefined;
       const actorPrefix = requestedBy === 'user' ? '⏹ You stopped the agent' : '⏹ Task cancelled';
       const reason =
-        'reason' in event && event.reason && event.reason !== 'cancelled'
-          ? ` · Reason: ${event.reason}`
+        'reason' in event && (event as any).reason && (event as any).reason !== 'cancelled'
+          ? ` · Reason: ${(event as any).reason}`
           : '';
       return `${actorPrefix}${reason}`;
     }
 
-    case 'error':
+    case eventMatches(event, 'workflow.node.failed', 'error'):
       if ('error' in event) {
-        return `✗ Error: ${event.error}`;
+        return `✗ Error: ${(event as any).error}`;
       }
       return '✗ Error occurred';
 
-    case 'research_plan':
+    case eventMatches(event, 'workflow.plan.generated', 'research_plan'):
       if ('plan_steps' in event) {
-        return `→ Research plan created (${event.plan_steps.length} steps, ~${event.estimated_iterations} iterations)`;
+        return `→ Research plan created (${(event as any).plan_steps.length} steps, ~${(event as any).estimated_iterations} iterations)`;
       }
       return 'Research plan created';
 
-    case 'step_started':
-      if ('step_description' in event) {
-        return `→ Step ${event.step_index + 1}: ${event.step_description}`;
-      }
-      return 'Step started';
+    case eventMatches(event, 'workflow.node.started', 'step_started') &&
+      typeof (event as any).step_index === 'number':
+      return `→ Step ${(event as any).step_index + 1}: ${(event as any).step_description ?? ''}`;
 
-    case 'step_completed':
-      if ('step_result' in event && typeof event.step_result === 'string') {
-        const preview = event.step_result ? event.step_result.slice(0, 80) : '';
-        return `✓ Step ${event.step_index + 1} complete: ${preview}`;
+    case eventMatches(event, 'workflow.node.completed', 'step_completed') &&
+      typeof (event as any).step_index === 'number':
+      if ('step_result' in event && typeof (event as any).step_result === 'string') {
+        const preview = (event as any).step_result ? (event as any).step_result.slice(0, 80) : '';
+        return `✓ Step ${(event as any).step_index + 1} complete: ${preview}`;
       }
       return 'Step completed';
 
-    case 'subagent_progress':
-      // Keep delegated subagent display strings even though the backend currently
-      // does not emit these event types; retained for UI resilience and tests.
-      return `↺ Subagent progress ${event.completed}/${event.total} · ${event.tokens} tokens · ${event.tool_calls} tool calls`;
+    case eventMatches(event, 'workflow.subflow.progress', 'subagent_progress'):
+      return `↺ Subagent progress ${(event as any).completed}/${(event as any).total} · ${(event as any).tokens} tokens · ${(event as any).tool_calls} tool calls`;
 
-    case 'subagent_complete':
-      // Keep delegated subagent display strings even though the backend currently
-      // does not emit these event types; retained for UI resilience and tests.
-      return `✓ Subagent summary ${event.success}/${event.total} succeeded (${event.failed} failed, ${event.tokens} tokens, ${event.tool_calls} tool calls)`;
+    case eventMatches(event, 'workflow.subflow.completed', 'subagent_complete'):
+      return `✓ Subagent summary ${(event as any).success}/${(event as any).total} succeeded (${(event as any).failed} failed, ${(event as any).tokens} tokens, ${(event as any).tool_calls} tool calls)`;
 
-    case 'browser_info':
-      if ('message' in event && event.message) {
-        return `🧭 Browser diagnostics: ${event.message}`;
+    case eventMatches(event, 'workflow.diagnostic.browser_info', 'browser_info'):
+      if ('message' in event && (event as any).message) {
+        return `🧭 Browser diagnostics: ${(event as any).message}`;
       }
       return 'Browser diagnostics captured';
 
-    case 'tool_call_stream':
+    case eventMatches(event, 'workflow.tool.progress', 'tool_call_stream'):
       if ('chunk' in event) {
-        return event.chunk;
+        return (event as any).chunk;
       }
       return '';
 

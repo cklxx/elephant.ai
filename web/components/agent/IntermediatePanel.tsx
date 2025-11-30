@@ -13,6 +13,7 @@ import {
   AssistantMessageEvent,
   AttachmentPayload,
   ThinkCompleteEvent,
+  eventMatches,
 } from "@/lib/types";
 import { PanelRightOpen, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
@@ -112,7 +113,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     const thinkStreams = new Map<string, ThinkPreviewItem>();
 
     events.forEach((event) => {
-      if (event.event_type === "tool_call_start") {
+      if (eventMatches(event, "workflow.tool.started", "tool_call_start")) {
         // Initialize with start event data
         toolCallsMap.set(event.call_id, {
           callId: event.call_id,
@@ -122,7 +123,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           isComplete: false,
           status: "running",
         });
-      } else if (event.event_type === "tool_call_complete") {
+      } else if (eventMatches(event, "workflow.tool.completed", "tool_call_complete")) {
         // Update with complete event data (including metadata)
         const toolCall = toolCallsMap.get(event.call_id);
         if (toolCall) {
@@ -157,7 +158,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 : "completed",
           });
         }
-      } else if (event.event_type === "assistant_message") {
+      } else if (eventMatches(event, "workflow.node.output.delta", "assistant_message", "thinking")) {
         const assistantEvent = event as AssistantMessageEvent;
         const iteration = assistantEvent.iteration;
         if (typeof iteration !== "number") {
@@ -179,7 +180,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           assistantEvent.created_at ?? assistantEvent.timestamp;
         existing.isFinal = Boolean(assistantEvent.final);
         thinkStreams.set(streamKey, existing);
-      } else if (event.event_type === "think_complete") {
+      } else if (eventMatches(event, "workflow.node.output.summary", "think_complete")) {
         const thinkEvent = event as ThinkCompleteEvent;
         const iteration = thinkEvent.iteration;
         if (typeof iteration !== "number") {

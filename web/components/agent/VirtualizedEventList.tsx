@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
+import { AnyAgentEvent, ToolCallStartEvent, eventMatches } from '@/lib/types';
 import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
@@ -195,7 +195,7 @@ export function VirtualizedEventList({
   const toolCallStartEvents = useMemo(() => {
     const map = new Map<string, ToolCallStartEvent>();
     for (const event of visibleEvents) {
-      if (event.event_type === 'tool_call_start') {
+      if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
         map.set(event.call_id, event);
       }
     }
@@ -271,7 +271,7 @@ export function VirtualizedEventList({
                       <EventCard
                         event={event}
                         pairedStart={
-                          event.event_type === 'tool_call_complete'
+                          eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')
                             ? toolCallStartEvents.get(event.call_id)
                             : undefined
                         }
@@ -330,149 +330,155 @@ function EventCard({
     </div>
   );
 
-  switch (event.event_type) {
-    case 'thinking':
-      return <ThinkingIndicator />;
+  if (eventMatches(event, 'workflow.node.output.delta', 'thinking')) {
+    return <ThinkingIndicator />;
+  }
 
-    case 'tool_call_start':
-      return wrapWithContext(
-        <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />
-      );
+  if (eventMatches(event, 'workflow.tool.started', 'tool_call_start')) {
+    return wrapWithContext(
+      <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />,
+    );
+  }
 
-    case 'tool_call_complete':
-      const hasError = 'error' in event && event.error;
-      return wrapWithContext(
-        <ToolCallCard
-          event={event}
-          status={hasError ? 'error' : 'done'}
-          pairedStart={pairedStart}
-          isFocused={isFocused}
-        />
-      );
+  if (eventMatches(event, 'workflow.tool.completed', 'tool_call_complete')) {
+    const hasError = 'error' in event && event.error;
+    return wrapWithContext(
+      <ToolCallCard
+        event={event}
+        status={hasError ? 'error' : 'done'}
+        pairedStart={pairedStart}
+        isFocused={isFocused}
+      />,
+    );
+  }
 
-    case 'task_complete':
-      return wrapWithContext(<TaskCompleteCard event={event} />);
+  if (eventMatches(event, 'workflow.result.final', 'task_complete')) {
+    return wrapWithContext(<TaskCompleteCard event={event} />);
+  }
 
-    case 'error':
-      return wrapWithContext(<ErrorCard event={event} />);
+  if (eventMatches(event, 'workflow.node.failed', 'error')) {
+    return wrapWithContext(<ErrorCard event={event} />);
+  }
 
-    case 'iteration_start':
-      return (
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
-          <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-            {t('events.iteration.progress', {
-              iteration: event.iteration,
-              total: event.total_iters,
-            })}
-          </span>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.started', 'iteration_start') && typeof (event as any).iteration === 'number') {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
+        <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+          {t('events.iteration.progress', {
+            iteration: (event as any).iteration,
+            total: (event as any).total_iters,
+          })}
+        </span>
+      </div>
+    );
+  }
 
-    case 'iteration_complete':
-      return wrapWithContext(
-        <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.24em]">
-          <Badge variant="outline">
-            {t('events.iteration.complete', { iteration: event.iteration })}
-          </Badge>
-          <span className="text-muted-foreground">
-            {t('events.iteration.tokens', { count: event.tokens_used })}
-          </span>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.completed', 'iteration_complete') && typeof (event as any).iteration === 'number') {
+    return wrapWithContext(
+      <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.24em]">
+        <Badge variant="outline">
+          {t('events.iteration.complete', { iteration: (event as any).iteration })}
+        </Badge>
+        <span className="text-muted-foreground">
+          {t('events.iteration.tokens', { count: (event as any).tokens_used })}
+        </span>
+      </div>,
+    );
+  }
 
-    // New event types (backend not yet emitting, but ready for when they do)
-    case 'research_plan':
-      return wrapWithContext(
-        <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
-            {t('events.researchPlan.title', { count: event.estimated_iterations })}
-          </h3>
-          <ol className="list-decimal pl-5 text-sm text-foreground/75">
-            {event.plan_steps.map((step, idx) => (
-              <li key={idx}>{step}</li>
-            ))}
-          </ol>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.plan.generated', 'research_plan')) {
+    return wrapWithContext(
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
+          {t('events.researchPlan.title', { count: (event as any).estimated_iterations })}
+        </h3>
+        <ol className="list-decimal pl-5 text-sm text-foreground/75">
+          {(event as any).plan_steps.map((step: string, idx: number) => (
+            <li key={idx}>{step}</li>
+          ))}
+        </ol>
+      </div>,
+    );
+  }
 
-    case 'step_started':
-      return wrapWithContext(
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
-          <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-            {t('events.step.started', {
-              index: event.step_index + 1,
-              description: event.step_description,
-            })}
-          </span>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.started', 'step_started') && typeof (event as any).step_index === 'number') {
+    return wrapWithContext(
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
+        <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+          {t('events.step.started', {
+            index: (event as any).step_index + 1,
+            description: (event as any).step_description,
+          })}
+        </span>
+      </div>,
+    );
+  }
 
-    case 'step_completed':
-      return (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-            {t('events.step.completed', { index: event.step_index + 1 })}
-          </p>
-          <p className="text-sm text-foreground/75">{event.step_result}</p>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.completed', 'step_completed') && typeof (event as any).step_index === 'number') {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+          {t('events.step.completed', { index: (event as any).step_index + 1 })}
+        </p>
+        <p className="text-sm text-foreground/75">{(event as any).step_result}</p>
+      </div>
+    );
+  }
 
-    case 'browser_info': {
-      const details: Array<[string, string]> = [];
-      if (typeof event.success === 'boolean') {
-        details.push([
-          t('events.browserInfo.statusLabel'),
-          event.success ? t('events.browserInfo.statusAvailable') : t('events.browserInfo.statusUnavailable'),
-        ]);
-      }
-      if (event.message) {
-        details.push([t('events.browserInfo.messageLabel'), event.message]);
-      }
-      if (event.user_agent) {
-        details.push([t('events.browserInfo.userAgentLabel'), event.user_agent]);
-      }
-      if (event.cdp_url) {
-        details.push([t('events.browserInfo.cdpLabel'), event.cdp_url]);
-      }
-      if (event.vnc_url) {
-        details.push([t('events.browserInfo.vncLabel'), event.vnc_url]);
-      }
-      if (event.viewport_width && event.viewport_height) {
-        details.push([
-          t('events.browserInfo.viewportLabel'),
-          `${event.viewport_width} × ${event.viewport_height}`,
-        ]);
-      }
-
-      return (
-        <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{t('events.browserInfo.title')}</h3>
-          <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-            {t('events.browserInfo.captured', {
-              timestamp: new Date(event.captured).toLocaleString(),
-            })}
-          </p>
-          {details.length > 0 ? (
-            <dl className="flex flex-col gap-2 text-sm text-foreground/80">
-              {details.map(([label, value]) => (
-                <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
-                  <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
-                  <dd className="break-words text-sm text-foreground">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t('events.browserInfo.noData')}</p>
-          )}
-        </div>
-      );
+  if (eventMatches(event, 'workflow.diagnostic.browser_info', 'browser_info')) {
+    const details: Array<[string, string]> = [];
+    if (typeof (event as any).success === 'boolean') {
+      details.push([
+        t('events.browserInfo.statusLabel'),
+        (event as any).success ? t('events.browserInfo.statusAvailable') : t('events.browserInfo.statusUnavailable'),
+      ]);
+    }
+    if ((event as any).message) {
+      details.push([t('events.browserInfo.messageLabel'), (event as any).message]);
+    }
+    if ((event as any).user_agent) {
+      details.push([t('events.browserInfo.userAgentLabel'), (event as any).user_agent]);
+    }
+    if ((event as any).cdp_url) {
+      details.push([t('events.browserInfo.cdpLabel'), (event as any).cdp_url]);
+    }
+    if ((event as any).vnc_url) {
+      details.push([t('events.browserInfo.vncLabel'), (event as any).vnc_url]);
+    }
+    if ((event as any).viewport_width && (event as any).viewport_height) {
+      details.push([
+        t('events.browserInfo.viewportLabel'),
+        `${(event as any).viewport_width} × ${(event as any).viewport_height}`,
+      ]);
     }
 
-    default:
-      return null;
+    return (
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{t('events.browserInfo.title')}</h3>
+        <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
+          {t('events.browserInfo.captured', {
+            timestamp: new Date((event as any).captured).toLocaleString(),
+          })}
+        </p>
+        {details.length > 0 ? (
+          <dl className="flex flex-col gap-2 text-sm text-foreground/80">
+            {details.map(([label, value]) => (
+              <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
+                <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
+                <dd className="break-words text-sm text-foreground">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('events.browserInfo.noData')}</p>
+        )}
+      </div>
+    );
   }
+
+  return null;
 }
 
 function EventContextMeta({ event }: { event: AnyAgentEvent }) {

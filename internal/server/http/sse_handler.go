@@ -376,6 +376,26 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
+	case *domain.WorkflowEventEnvelope:
+		data["version"] = e.Version
+		if e.LegacyType != "" {
+			data["legacy_type"] = e.LegacyType
+		}
+		if e.WorkflowID != "" {
+			data["workflow_id"] = e.WorkflowID
+		}
+		if e.RunID != "" {
+			data["run_id"] = e.RunID
+		}
+		if e.NodeID != "" {
+			data["node_id"] = e.NodeID
+		}
+		if e.NodeKind != "" {
+			data["node_kind"] = e.NodeKind
+		}
+		if sanitized := sanitizeEnvelopePayload(e.Payload, sentAttachments, h.dataCache); len(sanitized) > 0 {
+			data["payload"] = sanitized
+		}
 	case *domain.WorkflowLifecycleEvent:
 		data["workflow_id"] = e.WorkflowID
 		data["workflow_event_type"] = string(e.WorkflowEventType)
@@ -859,6 +879,58 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 	}
 
 	return att
+}
+
+func sanitizeEnvelopePayload(payload map[string]any, sent map[string]string, cache *DataCache) map[string]any {
+	if len(payload) == 0 {
+		return nil
+	}
+	sanitized := make(map[string]any, len(payload))
+	for key, value := range payload {
+		sanitized[key] = sanitizeEnvelopeValue(value, sent, cache)
+	}
+	return sanitized
+}
+
+func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) any {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case map[string]ports.Attachment:
+		return sanitizeAttachmentsForStream(v, sent, cache, false)
+	case ports.Attachment:
+		if sanitized := sanitizeAttachmentsForStream(map[string]ports.Attachment{"attachment": v}, sent, cache, false); len(sanitized) > 0 {
+			return sanitized["attachment"]
+		}
+		return nil
+	case workflow.NodeSnapshot:
+		return sanitizeWorkflowNode(v)
+	case *workflow.NodeSnapshot:
+		if v == nil {
+			return nil
+		}
+		return sanitizeWorkflowNode(*v)
+	case *workflow.WorkflowSnapshot:
+		return sanitizeWorkflowSnapshot(v)
+	case workflow.WorkflowSnapshot:
+		snap := v
+		return sanitizeWorkflowSnapshot(&snap)
+	case time.Time:
+		if v.IsZero() {
+			return nil
+		}
+		return v.Format(time.RFC3339Nano)
+	case map[string]any:
+		return sanitizeEnvelopePayload(v, sent, cache)
+	case []any:
+		out := make([]any, len(v))
+		for i, entry := range v {
+			out[i] = sanitizeEnvelopeValue(entry, sent, cache)
+		}
+		return out
+	default:
+		return sanitizeValue(cache, "", v)
+	}
 }
 
 func attachmentDigest(att ports.Attachment) string {
