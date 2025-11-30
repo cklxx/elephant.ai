@@ -1,7 +1,9 @@
-'use client';
+"use client";
 
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface ConnectionStatusProps {
   connected: boolean;
@@ -25,32 +27,28 @@ export function ConnectionStatus({
 
   if (reconnecting) {
     return (
-      <span className="console-quiet-chip animate-pulse gap-2 bg-muted/60 text-xs uppercase">
+      <Badge variant="outline" className="gap-2 text-[11px] font-medium">
         <RefreshCw className="h-4 w-4 animate-spin" />
         <span>{t('connection.reconnecting')}</span>
-      </span>
+      </Badge>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 animate-fadeIn">
-      <span className="console-quiet-chip bg-destructive/15 text-destructive">
+    <div className="flex flex-wrap items-center gap-3">
+      <Badge variant="destructive" className="gap-2">
         <WifiOff className="h-4 w-4 animate-pulse" />
         <span>{t('connection.disconnected')}</span>
-      </span>
+      </Badge>
       {error && (
-        <span className="console-card bg-destructive/10 border-destructive/30 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-destructive shadow-none">
+        <Badge variant="destructive" className="px-3 py-1 text-[11px] font-medium">
           {error}
-        </span>
+        </Badge>
       )}
       {onReconnect && (
-        <button
-          type="button"
-          onClick={onReconnect}
-          className="console-button console-button-primary text-xs uppercase"
-        >
+        <Button type="button" size="sm" onClick={onReconnect} className="text-[11px] font-semibold">
           {t('connection.reconnect')}
-        </button>
+        </Button>
       )}
     </div>
   );

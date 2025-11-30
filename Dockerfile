@@ -1,6 +1,15 @@
+ARG GO_PROXY=https://goproxy.cn,direct
+ARG GO_SUMDB=sum.golang.google.cn
+
 FROM golang:1.24-alpine AS builder
 
+ARG GO_PROXY
+ARG GO_SUMDB
+
 RUN apk add --no-cache git ca-certificates tzdata build-base
+
+ENV GOPROXY=${GO_PROXY} \
+    GOSUMDB=${GO_SUMDB}
 
 WORKDIR /app
 

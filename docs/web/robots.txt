@@ -1,8 +1,0 @@
-User-agent: *
-Allow: /
-
-# Sitemap
-Sitemap: https://cklxx.github.io/Alex-Code/sitemap.xml
-
-# Crawl-delay (optional)
-Crawl-delay: 1

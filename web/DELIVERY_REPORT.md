@@ -61,15 +61,15 @@ Successfully implemented a complete, production-ready Next.js web frontend for t
 **Types Implemented:**
 - `AgentEvent` - Base interface
 - `TaskAnalysisEvent` - Task analysis
-- `IterationStartEvent` - Iteration start
-- `ThinkingEvent` - LLM thinking
-- `ThinkCompleteEvent` - LLM response
-- `ToolCallStartEvent` - Tool execution start
-- `ToolCallStreamEvent` - Streaming output
-- `ToolCallCompleteEvent` - Tool complete
-- `IterationCompleteEvent` - Iteration end
-- `TaskCompleteEvent` - Task finished
-- `ErrorEvent` - Error handling
+- `WorkflowNodeStartedEvent` - Iteration start
+- `WorkflowNodeOutputDeltaEvent` - LLM workflow.node.output.delta
+- `WorkflowNodeOutputSummaryEvent` - LLM response
+- `WorkflowToolStartedEvent` - Tool execution start
+- `WorkflowToolProgressEvent` - Streaming output
+- `WorkflowToolCompletedEvent` - Tool complete
+- `WorkflowNodeCompletedEvent` - Iteration end
+- `WorkflowResultFinalEvent` - Task finished
+- `WorkflowNodeFailedEvent` - Error handling
 - API request/response types
 - Session types
 
@@ -507,14 +507,14 @@ GET /api/sse?session_id=xxx
 ```
 
 **Events to emit:**
-- `iteration_start`
-- `thinking`
-- `think_complete`
-- `tool_call_start`
-- `tool_call_stream`
-- `tool_call_complete`
-- `iteration_complete`
-- `task_complete`
+- `workflow.node.started`
+- `workflow.node.output.delta`
+- `workflow.node.output.summary`
+- `workflow.tool.started`
+- `workflow.tool.progress`
+- `workflow.tool.completed`
+- `workflow.node.completed`
+- `workflow.result.final`
 - `error`
 
 ### CORS Configuration

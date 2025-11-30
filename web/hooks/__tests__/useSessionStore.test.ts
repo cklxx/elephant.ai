@@ -9,10 +9,10 @@ describe('useSessionStore', () => {
       useSessionStore.setState({
         currentSessionId: null,
         sessionHistory: [],
-        pinnedSessions: [],
         sessionLabels: {},
       });
     });
+    useSessionStore.persist?.clearStorage?.();
   });
 
   describe('Current Session Management', () => {
@@ -85,36 +85,6 @@ describe('useSessionStore', () => {
       expect(result.current.sessionHistory).not.toContain('session-1');
     });
 
-    it('reorders pinned sessions when receiving new activity', () => {
-      const { result } = renderHook(() => useSessionStore());
-
-      act(() => {
-        result.current.togglePinSession('session-1');
-        result.current.togglePinSession('session-2');
-      });
-
-      expect(result.current.pinnedSessions).toEqual(['session-2', 'session-1']);
-
-      act(() => {
-        result.current.addToHistory('session-1');
-      });
-
-      expect(result.current.pinnedSessions).toEqual(['session-1', 'session-2']);
-    });
-
-    it('excludes pinned sessions from the recent history list', () => {
-      const { result } = renderHook(() => useSessionStore());
-
-      act(() => {
-        result.current.addToHistory('session-1');
-        result.current.togglePinSession('session-1');
-        result.current.addToHistory('session-1');
-      });
-
-      expect(result.current.pinnedSessions).toEqual(['session-1']);
-      expect(result.current.sessionHistory).not.toContain('session-1');
-    });
-
     it('moves existing sessions to the front when re-added', () => {
       const { result } = renderHook(() => useSessionStore());
 
@@ -149,7 +119,6 @@ describe('useSessionStore', () => {
       act(() => {
         result.current.setCurrentSession('session-123');
         result.current.addToHistory('session-123');
-        result.current.togglePinSession('session-999');
         result.current.renameSession('session-123', 'Important workflow');
       });
 
@@ -159,8 +128,8 @@ describe('useSessionStore', () => {
       const parsed = JSON.parse(stored!);
       expect(parsed.state.currentSessionId).toBe('session-123');
       expect(parsed.state.sessionHistory).toEqual(['session-123']);
-      expect(parsed.state.pinnedSessions).toEqual(['session-999']);
       expect(parsed.state.sessionLabels['session-123']).toBe('Important workflow');
+      expect(parsed.state.pinnedSessions).toBeUndefined();
     });
 
     it('restores persisted state on rehydrate', async () => {
@@ -168,9 +137,8 @@ describe('useSessionStore', () => {
         state: {
           currentSessionId: 'restored-session',
           sessionHistory: ['old-session'],
-          pinnedSessions: ['restored-session'],
           sessionLabels: {
-            'restored-session': 'Pinned session',
+            'restored-session': 'Primary workflow',
           },
         },
         version: 0,
@@ -185,15 +153,15 @@ describe('useSessionStore', () => {
 
       expect(result.current.currentSessionId).toBe('restored-session');
       expect(result.current.sessionHistory).toEqual(['old-session']);
-      expect(result.current.pinnedSessions).toEqual(['restored-session']);
-      expect(result.current.sessionLabels['restored-session']).toBe('Pinned session');
+      expect(result.current.sessionLabels['restored-session']).toBe('Primary workflow');
     });
 
-    it('migrates legacy state without pinned metadata', async () => {
+    it('drops legacy pinned metadata on persist', async () => {
       const legacyState = {
         state: {
           currentSessionId: 'legacy-session',
           sessionHistory: ['legacy-session'],
+          pinnedSessions: ['legacy-session'],
         },
         version: 0,
       };
@@ -204,19 +172,25 @@ describe('useSessionStore', () => {
       });
 
       const { result } = renderHook(() => useSessionStore());
+      expect((result.current as Record<string, unknown>).pinnedSessions).toBeUndefined();
 
-      expect(result.current.currentSessionId).toBe('legacy-session');
-      expect(result.current.pinnedSessions).toEqual([]);
-      expect(result.current.sessionLabels).toEqual({});
+      act(() => {
+        result.current.addToHistory('legacy-session');
+      });
+
+      const stored = localStorage.getItem('alex-session-storage');
+      expect(stored).toBeTruthy();
+      const parsed = JSON.parse(stored!);
+      expect(parsed.state.pinnedSessions).toBeUndefined();
+      expect(parsed.state.sessionHistory).toEqual(['legacy-session']);
     });
   });
 
   describe('Edge Cases', () => {
-    it('handles empty history and pinned lists', () => {
+    it('handles empty history', () => {
       const { result } = renderHook(() => useSessionStore());
 
       expect(result.current.sessionHistory).toEqual([]);
-      expect(result.current.pinnedSessions).toEqual([]);
     });
 
     it('handles rapid session switches', () => {
@@ -245,28 +219,6 @@ describe('useSessionStore', () => {
       });
 
       expect(result.current.sessionLabels['session-1']).toBeUndefined();
-    });
-
-    it('caps the maximum number of pinned sessions', () => {
-      const { result } = renderHook(() => useSessionStore());
-
-      act(() => {
-        for (let i = 1; i <= 7; i++) {
-          result.current.togglePinSession(`session-${i}`);
-        }
-      });
-
-      expect(result.current.pinnedSessions).toEqual([
-        'session-7',
-        'session-6',
-        'session-5',
-        'session-4',
-        'session-3',
-      ]);
-      expect(result.current.sessionHistory.slice(0, 2)).toEqual([
-        'session-2',
-        'session-1',
-      ]);
     });
   });
 });

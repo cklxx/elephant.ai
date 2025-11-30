@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { TimelineStep, StepStatus } from '@/components/agent/ResearchTimeline';
+import { TimelineStep, StepStatus } from '@/lib/planTypes';
 
 export interface PlanProgressMetrics {
   totalSteps: number;

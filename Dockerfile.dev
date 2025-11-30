@@ -1,4 +1,10 @@
+ARG GO_PROXY=https://goproxy.cn,direct
+ARG GO_SUMDB=sum.golang.google.cn
+
 FROM golang:1.24-alpine AS base
+
+ARG GO_PROXY
+ARG GO_SUMDB
 
 RUN apk add --no-cache \
     bash \
@@ -9,6 +15,9 @@ RUN apk add --no-cache \
     make \
     musl-dev \
     tzdata
+
+ENV GOPROXY=${GO_PROXY} \
+    GOSUMDB=${GO_SUMDB}
 
 RUN go install golang.org/x/tools/cmd/goimports@latest \
     github.com/golangci/golangci-lint/cmd/golangci-lint@latest \

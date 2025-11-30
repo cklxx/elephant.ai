@@ -36,6 +36,8 @@ readonly WEB_LOG="${LOG_DIR}/web.log"
 readonly BIN_DIR="${SCRIPT_DIR}/.bin"
 readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
 readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex-config.json}"
+# Enable backend hot-reload by default; set START_WITH_WATCH=0 to disable.
+START_WITH_WATCH=${START_WITH_WATCH:-1}
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
 
 COMPOSE_CORE_VARS=()
@@ -905,6 +907,50 @@ start_backend() {
     fi
 }
 
+start_backend_watch() {
+    # Ensure port is available
+    if ! is_port_available "$SERVER_PORT"; then
+        kill_process_on_port "$SERVER_PORT"
+    fi
+
+    log_info "Starting backend with watch mode on :$SERVER_PORT..."
+
+    # Rotate logs
+    if [[ -f "$SERVER_LOG" ]]; then
+        mv "$SERVER_LOG" "$SERVER_LOG.old"
+    fi
+
+    local watcher=""
+    if command_exists air; then
+        watcher="air"
+        ALEX_SERVER_MODE=deploy air \
+            --build.cmd "./scripts/go-with-toolchain.sh go build -o ./alex-server ./cmd/alex-server" \
+            --build.bin "./alex-server" \
+            --build.stop-on-error=false \
+            --build.delay 50ms > "$SERVER_LOG" 2>&1 &
+    elif command_exists reflex; then
+        watcher="reflex"
+        ALEX_SERVER_MODE=deploy reflex -r '\\.go$' -s -- sh -c './scripts/go-with-toolchain.sh go run ./cmd/alex-server' > "$SERVER_LOG" 2>&1 &
+    else
+        log_warn "No watcher found (install air or reflex); falling back to normal start"
+        build_backend || die "Backend build failed"
+        start_backend
+        return
+    fi
+
+    local pid=$!
+    echo "$pid" > "$SERVER_PID_FILE"
+
+    log_success "Backend watcher started (PID: $pid, tool: $watcher)"
+
+    # Give it a moment before health check
+    sleep 1
+    if ! wait_for_health "http://localhost:$SERVER_PORT/health" "Backend"; then
+        log_warn "Watcher started but health check failed; check $SERVER_LOG"
+        return 1
+    fi
+}
+
 start_frontend() {
     # Ensure port is available
     if ! is_port_available "$WEB_PORT"; then
@@ -953,10 +999,18 @@ cmd_start() {
     ensure_local_auth_db
 
     # Build & start
-    build_backend || die "Backend build failed"
+    if [[ "${START_WITH_WATCH}" == "1" ]]; then
+        log_info "Watch mode enabled: skipping upfront backend build (watcher will rebuild)"
+    else
+        build_backend || die "Backend build failed"
+    fi
     install_frontend_deps || die "Frontend dependency installation failed"
     start_sandbox || die "Sandbox failed to start"
-    start_backend || die "Backend failed to start"
+    if [[ "${START_WITH_WATCH}" == "1" ]]; then
+        start_backend_watch || die "Backend watch failed to start"
+    else
+        start_backend || die "Backend failed to start"
+    fi
     start_frontend || die "Frontend failed to start"
 
     # Success message
@@ -970,9 +1024,9 @@ cmd_start() {
     echo -e "  ${C_CYAN}Health:${C_RESET}  http://localhost:$SERVER_PORT/health"
     echo ""
     echo -e "${C_YELLOW}Commands:${C_RESET}"
-    echo -e "  ./deploy.sh logs     # Tail logs"
-    echo -e "  ./deploy.sh status   # Check status"
-    echo -e "  ./deploy.sh down     # Stop services"
+    echo -e "  ./dev.sh logs     # Tail logs"
+    echo -e "  ./dev.sh status   # Check status"
+    echo -e "  ./dev.sh down     # Stop services"
     echo ""
 }
 
@@ -1246,7 +1300,7 @@ cmd_pro_help() {
 ${C_CYAN}Production Deployment (nginx reverse proxy)${C_RESET}
 
 ${C_YELLOW}Usage:${C_RESET}
-  ./deploy.sh pro [command]
+  ./dev.sh pro [command]
 
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}up|start|deploy${C_RESET}   Build and start the production stack (default)
@@ -1272,7 +1326,7 @@ cmd_docker_help() {
 ${C_CYAN}Docker Compose Deployment${C_RESET}
 
 ${C_YELLOW}Usage:${C_RESET}
-  ./deploy.sh docker [command]
+  ./dev.sh docker [command]
 
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}up|start${C_RESET}          Start reverse-proxy stack on :80 (default)
@@ -1298,7 +1352,8 @@ ${C_YELLOW}Usage:${C_RESET}
   ./dev.sh [command]
 
 ${C_YELLOW}Commands:${C_RESET}
-  ${C_GREEN}start${C_RESET}              Start local dev processes (backend :8080, web :3000)
+  ${C_GREEN}start${C_RESET}              Start local dev processes with backend hot-reload (default)
+  ${C_GREEN}watch${C_RESET}              Start with backend hot-reload (air/reflex) + frontend
   ${C_GREEN}down, stop${C_RESET}         Stop local dev processes
   ${C_GREEN}test${C_RESET}               Run Go, web unit, and Playwright tests
   ${C_GREEN}status${C_RESET}             Show service status
@@ -1307,6 +1362,7 @@ ${C_YELLOW}Commands:${C_RESET}
 
 ${C_YELLOW}Examples:${C_RESET}
   ./dev.sh start        # Local dev backend (:8080) + frontend (:3000)
+  START_WITH_WATCH=0 ./dev.sh start   # Disable watch/reload if needed
   ./dev.sh logs server  # Tail backend logs
   ./dev.sh down         # Stop local dev processes
 
@@ -1338,6 +1394,9 @@ main() {
     case $cmd in
         start|up|run)
             cmd_start
+            ;;
+        watch|fast)
+            START_WITH_WATCH=1 cmd_start
             ;;
         stop|down|kill)
             cmd_stop

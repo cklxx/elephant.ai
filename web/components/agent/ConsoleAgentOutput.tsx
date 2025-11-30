@@ -1,23 +1,21 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
-import { isResearchPlanEvent, isTaskCompleteEvent } from '@/lib/typeGuards';
+import { isWorkflowResultFinalEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
-import { ResearchPlanCard } from './ResearchPlanCard';
-import { ResearchPlanManager } from './plan/ResearchPlanManager';
-import { ResearchTimeline } from './ResearchTimeline';
+import { TimelineStepList } from './TimelineStepList';
 import { WebViewport } from './WebViewport';
 import { DocumentCanvas, DocumentContent, ViewMode } from './DocumentCanvas';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useToolOutputs } from '@/hooks/useToolOutputs';
-import { usePlanApproval } from '@/hooks/usePlanApproval';
-import { usePlanProgress } from '@/hooks/usePlanProgress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Activity, Monitor, LayoutGrid } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { TaskCompleteCard } from './TaskCompleteCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface ConsoleAgentOutputProps {
   events: AnyAgentEvent[];
@@ -28,7 +26,6 @@ interface ConsoleAgentOutputProps {
   onReconnect?: () => void;
   sessionId: string | null;
   taskId: string | null;
-  autoApprovePlan?: boolean;
 }
 
 export function ConsoleAgentOutput({
@@ -40,7 +37,6 @@ export function ConsoleAgentOutput({
   onReconnect,
   sessionId,
   taskId,
-  autoApprovePlan = false,
 }: ConsoleAgentOutputProps) {
   const t = useTranslation();
   const timelineSteps = useTimelineSteps(events);
@@ -49,8 +45,6 @@ export function ConsoleAgentOutput({
   const [documentViewMode, setDocumentViewMode] = useState<ViewMode>('default');
   const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
   const [hasUserSelectedStep, setHasUserSelectedStep] = useState(false);
-  const lastHandledPlanKeyRef = useRef<string | null>(null);
-
   const hasTimeline = timelineSteps.length > 0;
   const activeTimelineStep = useMemo(
     () => timelineSteps.find((step) => step.status === 'active') ?? null,
@@ -66,18 +60,6 @@ export function ConsoleAgentOutput({
     [timelineSteps, focusedStepId]
   );
   const focusedEventIndex = focusedTimelineStep?.anchorEventIndex ?? null;
-  const planProgress = usePlanProgress(timelineSteps);
-
-  // Extract research plan from events
-  const latestPlanEvent = useMemo(() => {
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      const candidate = events[index];
-      if (isResearchPlanEvent(candidate)) {
-        return candidate;
-      }
-    }
-    return null;
-  }, [events]);
 
   useEffect(() => {
     if (!hasTimeline) {
@@ -110,62 +92,10 @@ export function ConsoleAgentOutput({
     fallbackTimelineStepId,
   ]);
 
-  const researchPlan = useMemo(() => {
-    if (!latestPlanEvent) {
-      return null;
-    }
-
-    return {
-      goal: t('agent.output.plan.defaultGoal'),
-      steps: latestPlanEvent.plan_steps,
-      estimated_tools: latestPlanEvent.estimated_tools ?? [],
-      estimated_iterations: latestPlanEvent.estimated_iterations,
-      estimated_duration_minutes: latestPlanEvent.estimated_duration_minutes,
-    };
-  }, [latestPlanEvent, t]);
-
-  const {
-    state: planState,
-    currentPlan,
-    isSubmitting,
-    handlePlanGenerated,
-    handleApprove,
-    handleModify,
-    handleReject,
-  } = usePlanApproval({
-    sessionId,
-    taskId,
-  });
-
-  useEffect(() => {
-    if (!researchPlan || !latestPlanEvent) {
-      return;
-    }
-
-    const planKey = `${latestPlanEvent.timestamp}:${latestPlanEvent.plan_steps.join('|')}`;
-    if (lastHandledPlanKeyRef.current === planKey && planState !== 'idle') {
-      return;
-    }
-
-    lastHandledPlanKeyRef.current = planKey;
-    handlePlanGenerated(researchPlan);
-  }, [handlePlanGenerated, latestPlanEvent, planState, researchPlan]);
-
-  useEffect(() => {
-    if (
-      autoApprovePlan &&
-      planState === 'awaiting_approval' &&
-      currentPlan &&
-      !isSubmitting
-    ) {
-      handleApprove();
-    }
-  }, [autoApprovePlan, currentPlan, handleApprove, isSubmitting, planState]);
-
   const latestTaskComplete = useMemo(() => {
     for (let idx = events.length - 1; idx >= 0; idx -= 1) {
       const current = events[idx];
-      if (isTaskCompleteEvent(current)) {
+      if (isWorkflowResultFinalEvent(current)) {
         return current;
       }
     }
@@ -182,12 +112,12 @@ export function ConsoleAgentOutput({
     let taskComplete: AnyAgentEvent | undefined;
     for (let idx = events.length - 1; idx >= 0; idx -= 1) {
       const current = events[idx];
-      if (isTaskCompleteEvent(current)) {
+      if (isWorkflowResultFinalEvent(current)) {
         taskComplete = current;
         break;
       }
     }
-    if (!taskComplete || !isTaskCompleteEvent(taskComplete)) return null;
+    if (!taskComplete || !isWorkflowResultFinalEvent(taskComplete)) return null;
 
     return {
       id: 'task-result',
@@ -200,167 +130,142 @@ export function ConsoleAgentOutput({
         tokens: taskComplete.total_tokens,
         stop_reason: taskComplete.stop_reason,
       },
-      attachments: taskComplete.attachments,
+      attachments: taskComplete.attachments ?? undefined,
     };
   }, [events, t]);
 
   return (
     <div className="space-y-6">
-      {/* Connection status */}
-      <div className="console-section">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight">
-            {t('agent.output.heading')}
-          </h2>
-          <ConnectionStatus
-            connected={isConnected}
-            reconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={onReconnect}
-          />
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold tracking-tight">
+          {t('agent.output.heading')}
+        </h2>
+        <ConnectionStatus
+          connected={isConnected}
+          reconnecting={isReconnecting}
+          error={error}
+          reconnectAttempts={reconnectAttempts}
+          onReconnect={onReconnect}
+        />
       </div>
 
-      {/* Plan approval card (if awaiting approval) */}
-      {planState === 'awaiting_approval' && currentPlan && !autoApprovePlan && (
-        <ResearchPlanManager
-          plan={currentPlan}
-          loading={isSubmitting}
-          onApprove={handleApprove}
-          onModify={handleModify}
-          onReject={handleReject}
-          progress={planProgress}
-        />
-      )}
-
       {latestTaskComplete && (
-        <div className="console-card space-y-3 p-4">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <Card>
+          <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-[11px] font-semibold text-muted-foreground">
                 Final answer
               </p>
               <p className="text-xs text-muted-foreground">
                 Streaming summary with resolved attachments and metrics.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               {latestAttachmentCount > 0 && (
-                <span className="rounded-full bg-muted px-3 py-1 font-semibold text-foreground">
-                  {latestAttachmentCount} attachments
-                </span>
+                <Badge variant="outline">{latestAttachmentCount} attachments</Badge>
               )}
               {typeof latestTaskComplete.duration === 'number' && (
-                <span className="rounded-full bg-muted px-3 py-1 font-semibold text-foreground">
-                  {(latestTaskComplete.duration / 1000).toFixed(1)}s elapsed
-                </span>
+                <Badge variant="outline">{(latestTaskComplete.duration / 1000).toFixed(1)}s elapsed</Badge>
               )}
             </div>
-          </div>
-          <TaskCompleteCard event={latestTaskComplete} />
-        </div>
-      )}
-
-      {/* Plan summary (after approval) */}
-      {planState === 'approved' && currentPlan && (
-        <ResearchPlanCard
-          plan={currentPlan}
-          progress={planProgress}
-          focusedStepId={focusedStepId}
-          onStepFocus={(stepId) => {
-            setFocusedStepId(stepId);
-            setHasUserSelectedStep(true);
-            setActiveTab('timeline');
-          }}
-        />
+          </CardHeader>
+          <CardContent>
+            <TaskCompleteCard event={latestTaskComplete} />
+          </CardContent>
+        </Card>
       )}
 
       {/* Main content area with tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left pane: Timeline/Events */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="console-card">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timeline' | 'events' | 'document')}>
-              <TabsList className="grid w-full grid-cols-3 mb-4 bg-muted p-1 rounded-md">
-                <TabsTrigger value="timeline" className="text-xs">
-                  <Activity className="h-3 w-3 mr-1.5" />
-                  {t('agent.output.tabs.timeline')}
-                </TabsTrigger>
-                <TabsTrigger value="events" className="text-xs">
-                  <LayoutGrid className="h-3 w-3 mr-1.5" />
-                  {t('agent.output.tabs.events')}
-                </TabsTrigger>
-                <TabsTrigger value="document" className="text-xs">
-                  <FileText className="h-3 w-3 mr-1.5" />
-                  {t('agent.output.tabs.document')}
-                </TabsTrigger>
-              </TabsList>
+        <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <CardContent className="p-4">
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timeline' | 'events' | 'document')}>
+                <TabsList className="mb-4 grid w-full grid-cols-3">
+                  <TabsTrigger value="timeline" className="text-xs">
+                    <Activity className="h-3 w-3 mr-1.5" />
+                    {t('agent.output.tabs.timeline')}
+                  </TabsTrigger>
+                  <TabsTrigger value="events" className="text-xs">
+                    <LayoutGrid className="h-3 w-3 mr-1.5" />
+                    {t('agent.output.tabs.events')}
+                  </TabsTrigger>
+                  <TabsTrigger value="document" className="text-xs">
+                    <FileText className="h-3 w-3 mr-1.5" />
+                    {t('agent.output.tabs.document')}
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="timeline" className="mt-0">
-                {timelineSteps.length > 0 ? (
-                  <ResearchTimeline
-                    steps={timelineSteps}
-                    focusedStepId={focusedStepId}
-                    onStepSelect={(stepId) => {
-                      setFocusedStepId(stepId);
-                      setHasUserSelectedStep(true);
+                <TabsContent value="timeline" className="mt-0 space-y-4">
+                  {timelineSteps.length > 0 ? (
+                    <TimelineStepList
+                      steps={timelineSteps}
+                      focusedStepId={focusedStepId}
+                      onStepSelect={(stepId) => {
+                        setFocusedStepId(stepId);
+                        setHasUserSelectedStep(true);
+                      }}
+                    />
+                  ) : (
+                    <div className="py-12 text-center text-muted-foreground">
+                      <Activity className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                      <p className="text-xs">{t('agent.output.timeline.empty')}</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="events" className="mt-0">
+                  <VirtualizedEventList
+                    events={events}
+                    autoScroll={!hasUserSelectedStep}
+                    focusedEventIndex={focusedEventIndex}
+                    onJumpToLatest={() => {
+                      const targetStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
+                      setFocusedStepId(targetStepId);
+                      setHasUserSelectedStep(false);
                     }}
                   />
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                    <p className="text-xs">{t('agent.output.timeline.empty')}</p>
-                  </div>
-                )}
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="events" className="mt-0">
-                <VirtualizedEventList
-                  events={events}
-                  autoScroll={!hasUserSelectedStep}
-                  focusedEventIndex={focusedEventIndex}
-                  onJumpToLatest={() => {
-                    const targetStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
-                    setFocusedStepId(targetStepId);
-                    setHasUserSelectedStep(false);
-                  }}
-                />
-              </TabsContent>
-
-              <TabsContent value="document" className="mt-0">
-                {document ? (
-                  <DocumentCanvas
-                    document={document}
-                    initialMode={documentViewMode}
-                  />
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                    <p className="text-xs">{t('agent.output.document.empty')}</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
+                <TabsContent value="document" className="mt-0">
+                  {document ? (
+                    <DocumentCanvas
+                      document={document}
+                      initialMode={documentViewMode}
+                    />
+                  ) : (
+                    <div className="py-12 text-center text-muted-foreground">
+                      <FileText className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                      <p className="text-xs">{t('agent.output.document.empty')}</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right pane: Computer View */}
         <div className="lg:col-span-1">
-          <div className="console-card p-4">
-            <h3 className="text-xs font-semibold mb-3 tracking-tight">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold tracking-tight">
               {t('agent.output.toolOutputs.title')}
-            </h3>
-            {toolOutputs.length > 0 ? (
-              <WebViewport outputs={toolOutputs} />
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Monitor className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                <p className="text-xs">{t('agent.output.toolOutputs.empty')}</p>
-                <p className="text-xs mt-1">{t('agent.output.toolOutputs.emptyHint')}</p>
-              </div>
-            )}
-          </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {toolOutputs.length > 0 ? (
+                <WebViewport outputs={toolOutputs} />
+              ) : (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Monitor className="mx-auto mb-2 h-8 w-8 opacity-20" />
+                  <p className="text-xs">{t('agent.output.toolOutputs.empty')}</p>
+                  <p className="mt-1 text-xs">{t('agent.output.toolOutputs.emptyHint')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

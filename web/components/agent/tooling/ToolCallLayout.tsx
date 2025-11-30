@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { Badge } from '@/components/ui/badge';
 
 interface ToolCallLayoutProps {
   toolName: string;
@@ -24,7 +25,7 @@ export function ToolCallLayout({
   children,
 }: ToolCallLayoutProps) {
   return (
-    <section className="relative space-y-5" data-testid="tool-call-card">
+    <section className="relative flex flex-col gap-5" data-testid="tool-call-card">
       {isFocused && (
         <span
           aria-hidden
@@ -46,9 +47,9 @@ export function ToolCallLayout({
               <div className="flex flex-wrap items-center gap-2 text-base font-semibold leading-tight">
                 <span className="truncate">{toolName}</span>
                 {callId && (
-                  <span className="console-quiet-chip break-all text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                  <Badge variant="outline" className="break-all text-[10px] font-medium">
                     {callId}
-                  </span>
+                  </Badge>
                 )}
               </div>
               {summary && (
@@ -60,7 +61,7 @@ export function ToolCallLayout({
             <div className="flex-shrink-0">{statusChip}</div>
           </div>
           {metadata && (
-            <p className="console-microcopy uppercase tracking-[0.2em] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               {metadata}
             </p>
           )}

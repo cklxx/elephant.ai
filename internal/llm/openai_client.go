@@ -690,6 +690,9 @@ func shouldEmbedAttachmentsInContent(msg ports.Message) bool {
 func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 	result := make([]map[string]any, 0, len(calls))
 	for _, call := range calls {
+		if !isValidToolName(call.Name) {
+			continue
+		}
 		args := "{}"
 		if len(call.Arguments) > 0 {
 			if data, err := json.Marshal(call.Arguments); err == nil {
@@ -710,23 +713,33 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 }
 
 func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
-        result := make([]map[string]any, len(tools))
-        for i, tool := range tools {
-                // 注意：ToolDefinition 中的 alex_material_capabilities 仅供前端和
-                // middleware 判断素材上传、产物生成等能力，并不是 OpenAI 工具参数
-                // 支持的字段。这里不要把它透传给 LLM，以避免发送无效字段导致请求失败
-                // 或额外泄露实现细节。
-                entry := map[string]any{
-                        "type": "function",
-                        "function": map[string]any{
-                                "name":        tool.Name,
-                                "description": tool.Description,
+	result := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		if !isValidToolName(tool.Name) {
+			c.logger.Warn("Skipping tool with invalid function name for OpenAI: %s", tool.Name)
+			continue
+		}
+		// 注意：ToolDefinition 中的 alex_material_capabilities 仅供前端和
+		// middleware 判断素材上传、产物生成等能力，并不是 OpenAI 工具参数
+		// 支持的字段。这里不要把它透传给 LLM，以避免发送无效字段导致请求失败
+		// 或额外泄露实现细节。
+		entry := map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name":        tool.Name,
+				"description": tool.Description,
 				"parameters":  tool.Parameters,
 			},
 		}
-		result[i] = entry
+		result = append(result, entry)
 	}
 	return result
+}
+
+var validToolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
+
+func isValidToolName(name string) bool {
+	return validToolNamePattern.MatchString(strings.TrimSpace(name))
 }
 
 func (c *openaiClient) wrapRequestError(err error) error {

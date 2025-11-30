@@ -1,5 +1,7 @@
 # Multi-stage build for Next.js Web Frontend
-FROM node:20-alpine AS deps
+ARG BASE_NODE_IMAGE=node:20-alpine
+
+FROM ${BASE_NODE_IMAGE} AS deps
 
 WORKDIR /app
 
@@ -10,7 +12,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --only=production
 
 # Builder stage
-FROM node:20-alpine AS builder
+FROM ${BASE_NODE_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -31,7 +33,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM ${BASE_NODE_IMAGE} AS runner
 
 WORKDIR /app
 

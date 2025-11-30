@@ -14,7 +14,7 @@ import (
 
 type stubEvent struct{}
 
-func (stubEvent) EventType() string               { return "tool_call_complete" }
+func (stubEvent) EventType() string               { return "workflow.tool.completed" }
 func (stubEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (stubEvent) GetAgentLevel() ports.AgentLevel { return ports.AgentLevel("subagent") }
 func (stubEvent) GetSessionID() string            { return "session" }
@@ -23,7 +23,7 @@ func (stubEvent) GetParentTaskID() string         { return "parent" }
 
 type stubCoreEvent struct{}
 
-func (stubCoreEvent) EventType() string               { return "assistant_message" }
+func (stubCoreEvent) EventType() string               { return "workflow.node.output.delta" }
 func (stubCoreEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (stubCoreEvent) GetAgentLevel() ports.AgentLevel { return ports.LevelCore }
 func (stubCoreEvent) GetSessionID() string            { return "session" }
@@ -33,7 +33,7 @@ func (stubCoreEvent) GetParentTaskID() string         { return "parent" }
 func TestSubtaskEventEventTypeMatchesOriginal(t *testing.T) {
 	evt := &SubtaskEvent{OriginalEvent: stubEvent{}}
 
-	if got := evt.EventType(); got != "tool_call_complete" {
+	if got := evt.EventType(); got != "workflow.tool.completed" {
 		t.Fatalf("expected event type to match original event, got %q", got)
 	}
 }
@@ -149,7 +149,7 @@ func TestSubagentUsesParentSessionID(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-1",
 		Name:      "subagent",
-		Arguments: map[string]any{"subtasks": []any{"capture session"}},
+		Arguments: map[string]any{"prompt": "capture session"},
 	}
 
 	if _, err := tool.Execute(ctx, call); err != nil {
@@ -175,7 +175,7 @@ func TestSubagentExposesWorkflowMetadata(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-1",
 		Name:      "subagent",
-		Arguments: map[string]any{"subtasks": []any{"task a", "task b"}, "mode": "serial"},
+		Arguments: map[string]any{"prompt": "task a\n- task b"},
 	}
 
 	result, err := tool.Execute(context.Background(), call)
@@ -188,17 +188,16 @@ func TestSubagentExposesWorkflowMetadata(t *testing.T) {
 		t.Fatalf("expected structured results metadata to be available, got %T", result.Metadata["results_struct"])
 	}
 
-	if len(structured) != 2 {
-		t.Fatalf("expected two structured results, got %d", len(structured))
+	if len(structured) != 1 {
+		t.Fatalf("expected one structured result, got %d", len(structured))
 	}
 
-	for i, entry := range structured {
-		if entry.Workflow == nil {
-			t.Fatalf("expected workflow snapshot for result %d", i)
-		}
-		if entry.Workflow.Phase != workflow.PhaseSucceeded {
-			t.Fatalf("unexpected workflow phase %s for result %d", entry.Workflow.Phase, i)
-		}
+	entry := structured[0]
+	if entry.Workflow == nil {
+		t.Fatalf("expected workflow snapshot for result")
+	}
+	if entry.Workflow.Phase != workflow.PhaseSucceeded {
+		t.Fatalf("unexpected workflow phase %s for result", entry.Workflow.Phase)
 	}
 
 	workflows, ok := result.Metadata["workflows"].([]*workflow.WorkflowSnapshot)

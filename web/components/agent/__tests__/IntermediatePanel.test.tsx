@@ -17,7 +17,7 @@ describe('IntermediatePanel', () => {
     const timestamp = new Date().toISOString();
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         call_id: 'call-1',
         tool_name: 'web_fetch',
@@ -28,7 +28,7 @@ describe('IntermediatePanel', () => {
         parent_task_id: undefined,
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
         call_id: 'call-1',
         tool_name: 'web_fetch',
@@ -40,7 +40,7 @@ describe('IntermediatePanel', () => {
         parent_task_id: undefined,
       },
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         call_id: 'call-2',
         tool_name: 'bash',
@@ -64,7 +64,7 @@ describe('IntermediatePanel', () => {
   it('falls back to completed tool previews when nothing is running', () => {
     const events: AnyAgentEvent[] = [
       {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         call_id: 'call-3',
         tool_name: 'web_fetch',
@@ -75,7 +75,7 @@ describe('IntermediatePanel', () => {
         parent_task_id: undefined,
       },
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
         call_id: 'call-3',
         tool_name: 'web_fetch',

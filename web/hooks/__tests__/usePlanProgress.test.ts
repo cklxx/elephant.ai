@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { usePlanProgress } from '../usePlanProgress';
-import { TimelineStep } from '@/components/agent/ResearchTimeline';
+import { TimelineStep } from '@/lib/planTypes';
 
 describe('usePlanProgress', () => {
   it('returns null when no steps are provided', () => {

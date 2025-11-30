@@ -58,8 +58,8 @@ export function DocumentCanvas({
 
   if (!document) {
     return (
-      <Card className={cn("glass-card shadow-medium", className)}>
-        <CardContent className="flex flex-col items-center justify-center h-64 text-gray-500">
+      <Card className={cn(className)}>
+        <CardContent className="flex h-64 flex-col items-center justify-center text-muted-foreground">
           <FileText className="h-16 w-16 mb-4 text-gray-300" />
           <p className="font-medium">{t("document.empty.title")}</p>
           <p className="text-sm mt-1">{t("document.empty.description")}</p>
@@ -72,24 +72,22 @@ export function DocumentCanvas({
     <div
       className={cn(
         "transition-all duration-300",
-        isExpanded && "fixed inset-0 z-50 bg-white p-6 overflow-auto",
+        isExpanded && "fixed inset-0 z-50 bg-background p-6 overflow-auto",
         className,
       )}
     >
-      <Card className="glass-card shadow-medium h-full">
+      <Card className="h-full">
         {/* Header */}
-        <div className="border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="border-b border-border p-4">
+          <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg">
-                <FileText className="h-5 w-5 text-white" />
+              <div className="rounded-lg border border-border bg-muted p-2">
+                <FileText className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">
-                  {document.title}
-                </h3>
+                <h3 className="font-semibold text-foreground">{document.title}</h3>
                 {document.timestamp && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {new Date(document.timestamp).toLocaleString()}
                   </p>
                 )}
@@ -114,7 +112,7 @@ export function DocumentCanvas({
           </div>
 
           {/* View mode toggle */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={() => setViewMode("default")}
               variant={viewMode === "default" ? "default" : "outline"}
@@ -148,7 +146,7 @@ export function DocumentCanvas({
 
           {/* Metadata (hidden in reading mode) */}
           {viewMode !== "reading" && document.metadata && (
-            <div className="flex items-center gap-2 flex-wrap mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {Object.entries(document.metadata).map(([key, value]) => (
                 <Badge key={key} variant="default" className="text-xs">
                   {key}: {String(value)}
@@ -418,7 +416,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
     <div className="mt-6 space-y-4">
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
         <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-[0.65rem] font-semibold text-slate-500">
             {t("document.attachments.filters.heading")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -437,7 +435,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {availableFormats.length > 0 && (
-            <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-[0.65rem] font-semibold text-slate-500">
               {t("document.attachments.filters.format.label")}
               <select
                 className="mt-1 block h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
@@ -456,7 +454,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
             </label>
           )}
           <div className="flex-1">
-            <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-[0.65rem] font-semibold text-slate-500">
               {t("document.attachments.filters.search.label")}
               <input
                 type="search"

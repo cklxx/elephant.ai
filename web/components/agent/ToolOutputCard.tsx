@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDuration, cn } from "@/lib/utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -94,12 +95,12 @@ export function ToolOutputCard({
     }
   }, [resolvedStatus, t]);
 
-  const statusVariant: "success" | "error" | "info" = useMemo(() => {
+  const statusVariant: BadgeProps["variant"] = useMemo(() => {
     switch (resolvedStatus) {
       case "running":
         return "info";
       case "failed":
-        return "error";
+        return "destructive";
       default:
         return "success";
     }
@@ -138,25 +139,27 @@ export function ToolOutputCard({
       metadata?.todos);
 
   return (
-    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border/60 bg-background shadow-sm">
+    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border bg-card">
       <CardHeader className="px-4 py-3 space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2">
               {showBody && shouldShowToggle && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   aria-expanded={isExpanded}
                   aria-label={isExpanded ? "折叠工具调用" : "展开工具调用"}
                   onClick={() => setIsExpanded((prev) => !prev)}
-                  className="rounded-md border border-border/60 p-1 text-muted-foreground transition hover:bg-muted/40"
+                  className="h-8 w-8"
                 >
                   {isExpanded ? (
                     <ChevronUp className="h-4 w-4" />
                   ) : (
                     <ChevronDown className="h-4 w-4" />
                   )}
-                </button>
+                </Button>
               )}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm">
                 <span
@@ -189,15 +192,15 @@ export function ToolOutputCard({
       </CardHeader>
 
       {showBody && (
-        <div className="bg-muted">
+        <div className="bg-card">
           {(isExpanded || !shouldShowToggle) && (
             <CardContent className="space-y-3 px-4 pb-4 pt-3">
               {hasError && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
+                  <p className="text-xs font-semibold text-destructive">
                     {t("tool.section.error")}
                   </p>
-                  <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 shadow-none overflow-x-auto whitespace-pre-wrap">
+                  <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 overflow-x-auto whitespace-pre-wrap">
                     {error}
                   </pre>
                 </div>
@@ -212,29 +215,29 @@ export function ToolOutputCard({
                       <h3 className="text-sm font-semibold text-slate-700">
                         📋 Todos
                       </h3>
-                      {metadata.total_count > 0 && (
-                        <div className="flex gap-3 text-xs">
-                          {metadata.in_progress_count > 0 && (
-                            <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-600">
-                              <span className="text-blue-500">→</span>
-                              {metadata.in_progress_count}
-                            </span>
-                          )}
-                          {metadata.pending_count > 0 && (
-                            <span className="flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 font-medium text-yellow-700">
-                              <span className="text-yellow-600">☐</span>
-                              {metadata.pending_count}
-                            </span>
-                          )}
-                          {metadata.completed_count > 0 && (
-                            <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 font-medium text-green-600">
-                              <span className="text-green-600">✓</span>
-                              {metadata.completed_count}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    {metadata.total_count > 0 && (
+                      <div className="flex gap-3 text-xs">
+                        {metadata.in_progress_count > 0 && (
+                          <Badge variant="info" className="gap-1">
+                            <span>→</span>
+                            {metadata.in_progress_count}
+                          </Badge>
+                        )}
+                        {metadata.pending_count > 0 && (
+                          <Badge variant="warning" className="gap-1">
+                            <span>☐</span>
+                            {metadata.pending_count}
+                          </Badge>
+                        )}
+                        {metadata.completed_count > 0 && (
+                          <Badge variant="success" className="gap-1">
+                            <span>✓</span>
+                            {metadata.completed_count}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                     {/* Todo List Items */}
                     {metadata.todos.length > 0 ? (
@@ -280,14 +283,14 @@ export function ToolOutputCard({
                                 <div className="flex items-center gap-2 ">
                                   <p
                                     className={cn(
-                                      "text-sm leading-relaxed",
-                                      todo.status === "completed"
-                                        ? "text-slate-400 line-through"
-                                        : "text-slate-700",
-                                    )}
-                                  >
-                                    {todo.content}
-                                  </p>
+                                "text-sm leading-relaxed",
+                                todo.status === "completed"
+                                  ? "text-slate-400 line-through"
+                                  : "text-foreground",
+                              )}
+                            >
+                              {todo.content}
+                            </p>
                                 </div>
                               </div>
                             </div>
@@ -316,7 +319,7 @@ export function ToolOutputCard({
 
               {metadata?.screenshot && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-semibold text-muted-foreground">
                     Screenshot
                   </p>
                   <div className="rounded-lg bg-muted/15 overflow-hidden">
@@ -443,6 +446,10 @@ const NOISE_LINE_PATTERNS = [
   /^iteration\s+\d+/i,
   /^seedream.*response$/i,
   /^.*text-to-image response$/i,
+  /^seedream.*response.*$/i,
+  /^use these placeholders?.*/i,
+  /^\[?doubao[-\w]*seedream[^\]]*\]?$/i,
+  /^image[s]?\s+generated[:：]?\s*\[.*\]$/i,
 ];
 
 function stripNoisyLines(input: string): string {
@@ -453,16 +460,20 @@ function stripNoisyLines(input: string): string {
   const filtered: string[] = [];
   lines.forEach((line) => {
     const trimmed = line.trim();
-    if (!trimmed) {
+    const scrubbed = trimmed
+      .replace(/\[doubao[-\w]*seedream[^\]]*\]/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (!scrubbed) {
       if (filtered.length > 0 && filtered[filtered.length - 1] !== "") {
         filtered.push("");
       }
       return;
     }
-    if (NOISE_LINE_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+    if (NOISE_LINE_PATTERNS.some((pattern) => pattern.test(scrubbed))) {
       return;
     }
-    filtered.push(trimmed);
+    filtered.push(scrubbed);
   });
   return filtered.join("\n").trim();
 }
@@ -560,6 +571,7 @@ function renderToolResult(
   const normalizedToolName = toolName.toLowerCase();
   const isSeedream = isSeedreamTool(toolName);
   const hasResultText = typeof result === "string" && result.trim().length > 0;
+  const friendlySeedreamSummary = isSeedream ? "Image ready" : undefined;
 
   // Code execute - show executed code and output
   if (toolName === "code_execute") {
@@ -581,7 +593,7 @@ function renderToolResult(
       <div className="space-y-3">
         {codeSnippet && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               {t("tool.code_execute.code") ?? "Code"}
             </p>
             <div className="rounded-lg bg-muted/20 overflow-auto">
@@ -621,7 +633,7 @@ function renderToolResult(
             {status !== undefined && (
               <span className="flex items-center gap-2">
                 {t("tool.code_execute.status") ?? "Status"}:
-                <Badge variant={status ? "success" : "error"}>
+                <Badge variant={status ? "success" : "destructive"}>
                   {status
                     ? t("tool.code_execute.success") ?? "Succeeded"
                     : t("tool.code_execute.failed") ?? "Failed"}
@@ -650,7 +662,7 @@ function renderToolResult(
         <div className="space-y-3">
           {bashResult.command && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">
                 Command
               </p>
               <div className="rounded-lg bg-gray-900 text-emerald-400 p-3 overflow-x-auto">
@@ -683,7 +695,7 @@ function renderToolResult(
               <span className="text-xs font-semibold text-muted-foreground">
                 Exit Code:
               </span>
-              <Badge variant={bashResult.exit_code === 0 ? "success" : "error"}>
+              <Badge variant={bashResult.exit_code === 0 ? "success" : "destructive"}>
                 {bashResult.exit_code}
               </Badge>
             </div>
@@ -718,7 +730,7 @@ function renderToolResult(
         {/* File path */}
         {filePath && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               File Path
             </p>
             <div className="rounded-lg bg-muted/15 p-3">
@@ -731,7 +743,7 @@ function renderToolResult(
         {metadata &&
           (metadata.lines !== undefined || metadata.chars !== undefined) && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">
                 Write Summary
               </p>
               <div className="flex gap-4 text-xs">
@@ -752,7 +764,7 @@ function renderToolResult(
         {/* File content from parameters */}
         {content && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               Content Written
             </p>
             <div className="rounded-lg bg-muted/20 overflow-auto">
@@ -844,14 +856,18 @@ function renderToolResult(
   if (attachmentsAvailable) {
     return (
       <div className="rounded-lg bg-muted/15 p-3 space-y-4">
-        {isSeedream && normalizedDescriptor && (
+        {isSeedream && (
           <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-              Prompt
-            </p>
-            <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
-              {normalizedDescriptor}
-            </p>
+            {friendlySeedreamSummary && (
+              <p className="text-sm font-semibold text-foreground">
+                {friendlySeedreamSummary}
+              </p>
+            )}
+            {normalizedDescriptor && (
+              <p className="text-xs text-muted-foreground">
+                {normalizedDescriptor}
+              </p>
+            )}
           </div>
         )}
         {filteredTextSegments.length > 0 && (
@@ -923,9 +939,14 @@ function renderToolResult(
 
     return (
       <div className="rounded-lg bg-muted/15 p-3 space-y-3">
+        {friendlySeedreamSummary && (
+          <p className="text-sm font-semibold text-foreground">
+            {friendlySeedreamSummary}
+          </p>
+        )}
         {showPrompt && (
           <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            <p className="text-[10px] font-semibold text-muted-foreground">
               Prompt
             </p>
             <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">

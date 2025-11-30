@@ -130,7 +130,7 @@ function ClearButton() {
 }
 ```
 
-## Example: Research Timeline Component
+## Example: Timeline Step List Component
 
 ```typescript
 import {
@@ -139,7 +139,7 @@ import {
   useCurrentResearchStep,
 } from '@/hooks/useAgentStreamStore';
 
-function ResearchTimeline() {
+function TimelineStepListExample() {
   const { actionName, goal, status } = useTaskSummary();
   const completedSteps = useCompletedResearchSteps();
   const currentStep = useCurrentResearchStep();
@@ -208,10 +208,10 @@ function IterationCard({ iteration }) {
       {expanded && (
         <div>
           {/* Thinking */}
-          {iteration.thinking && (
-            <div className="thinking">
+          {iteration.workflow.node.output.delta && (
+            <div className="workflow.node.output.delta">
               <h4>Thinking:</h4>
-              <p>{iteration.thinking}</p>
+              <p>{iteration.workflow.node.output.delta}</p>
             </div>
           )}
 

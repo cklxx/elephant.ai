@@ -163,7 +163,7 @@ func (r *reactRuntime) newIteration() *reactIteration {
 	return &reactIteration{runtime: r, index: r.state.Iterations}
 }
 
-func (r *reactRuntime) emitToolCallStartEvents(calls []ToolCall) {
+func (r *reactRuntime) emitWorkflowToolStartedEvents(calls []ToolCall) {
 	if len(calls) == 0 {
 		return
 	}
@@ -171,7 +171,7 @@ func (r *reactRuntime) emitToolCallStartEvents(calls []ToolCall) {
 	state := r.state
 	for idx := range calls {
 		call := calls[idx]
-		r.engine.emitEvent(&ToolCallStartEvent{
+		r.engine.emitEvent(&WorkflowToolStartedEvent{
 			BaseEvent: r.engine.newBaseEvent(r.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration: state.Iterations,
 			CallID:    call.ID,
@@ -237,14 +237,14 @@ func (it *reactIteration) think() error {
 
 	tracker.startThink(it.index)
 
-	it.runtime.engine.emitEvent(&IterationStartEvent{
+	it.runtime.engine.emitEvent(&WorkflowNodeStartedEvent{
 		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:  it.index,
 		TotalIters: it.runtime.engine.maxIterations,
 	})
 
 	it.runtime.engine.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
-	it.runtime.engine.emitEvent(&ThinkingEvent{
+	it.runtime.engine.emitEvent(&WorkflowNodeOutputDeltaEvent{
 		BaseEvent:    it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:    it.index,
 		MessageCount: len(state.Messages),
@@ -254,7 +254,7 @@ func (it *reactIteration) think() error {
 	if err != nil {
 		it.runtime.engine.logger.Error("Think step failed: %v", err)
 
-		it.runtime.engine.emitEvent(&ErrorEvent{
+		it.runtime.engine.emitEvent(&WorkflowNodeFailedEvent{
 			BaseEvent:   it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration:   it.index,
 			Phase:       "think",
@@ -272,7 +272,7 @@ func (it *reactIteration) think() error {
 
 	tracker.completeThink(it.index, thought, it.toolCalls, nil)
 
-	it.runtime.engine.emitEvent(&ThinkCompleteEvent{
+	it.runtime.engine.emitEvent(&WorkflowNodeOutputSummaryEvent{
 		BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:     it.index,
 		Content:       thought.Content,
@@ -305,7 +305,7 @@ func (it *reactIteration) planTools() (*TaskResult, bool, error) {
 	}
 
 	it.runtime.engine.logger.Debug("EXECUTE phase: Running %d tools in parallel", len(validCalls))
-	it.runtime.emitToolCallStartEvents(validCalls)
+	it.runtime.emitWorkflowToolStartedEvents(validCalls)
 
 	return nil, false, nil
 }
@@ -367,7 +367,7 @@ func (it *reactIteration) finish() {
 	state.TokenCount = tokenCount
 	it.runtime.engine.logger.Debug("Current token count: %d", tokenCount)
 
-	it.runtime.engine.emitEvent(&IterationCompleteEvent{
+	it.runtime.engine.emitEvent(&WorkflowNodeCompletedEvent{
 		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:  it.index,
 		TokensUsed: state.TokenCount,
@@ -417,7 +417,7 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 
 		attachments := r.engine.decorateFinalResult(r.state, result)
 		if emitCompletionEvent {
-			r.engine.emitEvent(&TaskCompleteEvent{
+			r.engine.emitEvent(&WorkflowResultFinalEvent{
 				BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.TaskID, r.state.ParentTaskID),
 				FinalAnswer:     result.Answer,
 				TotalIterations: result.Iterations,

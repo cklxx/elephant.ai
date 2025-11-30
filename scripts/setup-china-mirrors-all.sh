@@ -158,8 +158,7 @@ else
     cat << 'EOF'
 {
   "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com"
+    "https://mirror.ccs.tencentyun.com"
   ]
 }
 EOF

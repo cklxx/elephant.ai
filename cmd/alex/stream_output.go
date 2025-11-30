@@ -39,7 +39,7 @@ type StreamingOutputHandler struct {
 	subagentDisplay                 *SubagentDisplay
 	verbose                         bool
 	mu                              sync.Mutex
-	lastCompletion                  *domain.TaskCompleteEvent
+	lastCompletion                  *domain.WorkflowResultFinalEvent
 	streamedContent                 bool
 	mdBuffer                        *markdownStreamBuffer
 	lastStreamChunkEndedWithNewline bool
@@ -248,39 +248,33 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 
 	// Handle regular events
 	switch e := event.(type) {
-	case *domain.IterationStartEvent:
+	case *domain.WorkflowNodeStartedEvent:
 		b.handler.onIterationStart(e)
-	case *domain.ThinkingEvent:
-		b.handler.onThinking(e)
-	case *domain.ThinkCompleteEvent:
+	case *domain.WorkflowNodeOutputSummaryEvent:
 		b.handler.onThinkComplete(e)
-	case *domain.AssistantMessageEvent:
+	case *domain.WorkflowNodeOutputDeltaEvent:
 		b.handler.onAssistantMessage(e)
-	case *domain.ToolCallStartEvent:
+	case *domain.WorkflowToolStartedEvent:
 		b.handler.onToolCallStart(e)
-	case *domain.ToolCallCompleteEvent:
+	case *domain.WorkflowToolCompletedEvent:
 		b.handler.onToolCallComplete(e)
-	case *domain.ErrorEvent:
+	case *domain.WorkflowNodeFailedEvent:
 		b.handler.onError(e)
-	case *domain.TaskCompleteEvent:
+	case *domain.WorkflowResultFinalEvent:
 		b.handler.onTaskComplete(e)
 	}
 }
 
-func (h *StreamingOutputHandler) onIterationStart(event *domain.IterationStartEvent) {
+func (h *StreamingOutputHandler) onIterationStart(event *domain.WorkflowNodeStartedEvent) {
 	// Silent - don't print iteration headers in simple mode
 }
 
-func (h *StreamingOutputHandler) onThinking(event *domain.ThinkingEvent) {
-	// Silent - analysis is shown in think complete
-}
-
-func (h *StreamingOutputHandler) onThinkComplete(event *domain.ThinkCompleteEvent) {
+func (h *StreamingOutputHandler) onThinkComplete(event *domain.WorkflowNodeOutputSummaryEvent) {
 	// Silent - don't print analysis output
 	// Analysis is internal reasoning, not user-facing output
 }
 
-func (h *StreamingOutputHandler) onAssistantMessage(event *domain.AssistantMessageEvent) {
+func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaEvent) {
 	h.streamedContent = true
 	if event.Delta != "" {
 		for _, chunk := range h.mdBuffer.Append(event.Delta) {
@@ -311,7 +305,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.AssistantMessa
 	}
 }
 
-func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEvent) {
+func (h *StreamingOutputHandler) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
 	h.activeTools[event.CallID] = ToolInfo{
 		Name:      event.ToolName,
 		StartTime: event.Timestamp(),
@@ -332,7 +326,7 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.ToolCallStartEven
 	h.write(rendered)
 }
 
-func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallCompleteEvent) {
+func (h *StreamingOutputHandler) onToolCallComplete(event *domain.WorkflowToolCompletedEvent) {
 	info, exists := h.activeTools[event.CallID]
 	if !exists {
 		return
@@ -356,7 +350,7 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.ToolCallComple
 	delete(h.activeTools, event.CallID)
 }
 
-func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
+func (h *StreamingOutputHandler) onError(event *domain.WorkflowNodeFailedEvent) {
 	outCtx := &types.OutputContext{
 		Level:        event.GetAgentLevel(),
 		AgentID:      string(event.GetAgentLevel()),
@@ -369,7 +363,7 @@ func (h *StreamingOutputHandler) onError(event *domain.ErrorEvent) {
 	h.write(rendered)
 }
 
-func (h *StreamingOutputHandler) onTaskComplete(event *domain.TaskCompleteEvent) {
+func (h *StreamingOutputHandler) onTaskComplete(event *domain.WorkflowResultFinalEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.lastCompletion = event
@@ -401,7 +395,7 @@ func (h *StreamingOutputHandler) printForcedExit() {
 	h.write("\n⏹️  Force exit requested – terminating immediately.\n")
 }
 
-func (h *StreamingOutputHandler) printCancellation(event *domain.TaskCompleteEvent) {
+func (h *StreamingOutputHandler) printCancellation(event *domain.WorkflowResultFinalEvent) {
 	summary := "⚠️ Task interrupted"
 	if event != nil {
 		summary = fmt.Sprintf("⚠️ Task interrupted | %d iteration(s) | %d tokens", event.TotalIterations, event.TotalTokens)
@@ -409,7 +403,7 @@ func (h *StreamingOutputHandler) printCancellation(event *domain.TaskCompleteEve
 	h.write("\n" + summary + "\n")
 }
 
-func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.TaskCompleteEvent {
+func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.WorkflowResultFinalEvent {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	event := h.lastCompletion

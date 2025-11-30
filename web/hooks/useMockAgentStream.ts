@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnyAgentEvent, AssistantMessageEvent } from '@/lib/types';
+import { AnyAgentEvent, WorkflowNodeOutputDeltaEvent, eventMatches } from '@/lib/types';
 import { UseSSEOptions, UseSSEReturn } from './useSSE';
 import {
   createMockEventSequence,
@@ -55,8 +55,8 @@ export function useMockAgentStream(
             timestamp: eventTimestamp,
           } as AnyAgentEvent;
 
-          if (timestampedEvent.event_type === 'assistant_message') {
-            const assistantEvent = timestampedEvent as AssistantMessageEvent;
+          if (eventMatches(timestampedEvent, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
+            const assistantEvent = timestampedEvent as WorkflowNodeOutputDeltaEvent;
             if (!assistantEvent.created_at) {
               assistantEvent.created_at = eventTimestamp;
             }
@@ -79,11 +79,11 @@ export function useMockAgentStream(
   }, []);
 
   const addEvent = useCallback((event: AnyAgentEvent) => {
-    if (event.event_type === 'user_task' && 'task' in event) {
+    if (event.event_type === 'workflow.input.received' && 'task' in event) {
       lastUserTaskRef.current = event.task;
     }
-    if (event.event_type === 'assistant_message') {
-      const assistantEvent = event as AssistantMessageEvent;
+    if (eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
+      const assistantEvent = event as WorkflowNodeOutputDeltaEvent;
       if (!assistantEvent.created_at) {
         assistantEvent.created_at = assistantEvent.timestamp ?? new Date().toISOString();
       }

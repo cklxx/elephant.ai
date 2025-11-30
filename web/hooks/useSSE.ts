@@ -11,12 +11,14 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { AnyAgentEvent, UserTaskEvent } from "@/lib/types";
+import { AnyAgentEvent, WorkflowNodeOutputDeltaEvent, eventMatches } from "@/lib/types";
+import { isWorkflowResultFinalEvent } from "@/lib/typeGuards";
 import { agentEventBus } from "@/lib/events/eventBus";
 import { defaultEventRegistry } from "@/lib/events/eventRegistry";
-import { resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
+import { handleAttachmentEvent, resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
 import { EventPipeline } from "@/lib/events/eventPipeline";
 import { SSEClient } from "@/lib/events/sseClient";
+import { buildEventSignature } from "@/lib/events/signature";
 import { authClient } from "@/lib/auth/client";
 
 export interface UseSSEOptions {
@@ -40,6 +42,7 @@ export function useSSE(
   sessionId: string | null,
   options: UseSSEOptions = {},
 ): UseSSEReturn {
+  const MAX_EVENT_HISTORY = 1000;
   const { enabled = true, onEvent, maxReconnectAttempts = 5 } = options;
 
   const [events, setEvents] = useState<AnyAgentEvent[]>([]);
@@ -53,6 +56,10 @@ export function useSSE(
   const isConnectingRef = useRef(false);
   const clientRef = useRef<SSEClient | null>(null);
   const pipelineRef = useRef<EventPipeline | null>(null);
+  const streamingAnswerBufferRef = useRef<Map<string, string>>(new Map());
+  const assistantMessageBufferRef = useRef<Map<string, AssistantBufferEntry>>(
+    new Map(),
+  );
   const sessionIdRef = useRef(sessionId);
   const dedupeRef = useRef<{ seen: Set<string>; order: string[] }>({
     seen: new Set(),
@@ -67,10 +74,67 @@ export function useSSE(
     };
   }, []);
 
+  const resetPipelineDedupe = useCallback(() => {
+    pipelineRef.current?.reset();
+  }, []);
+
+  const resetStreamingBuffer = useCallback(() => {
+    streamingAnswerBufferRef.current.clear();
+  }, []);
+
+  const resetAssistantMessageBuffer = useCallback(() => {
+    assistantMessageBufferRef.current.clear();
+  }, []);
+
   const onEventRef = useRef(onEvent);
   useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
+
+  const applyAssistantAnswerFallback = useCallback(
+    (event: AnyAgentEvent): AnyAgentEvent => {
+      if (!isWorkflowResultFinalEvent(event)) return event;
+
+      const taskId =
+        "task_id" in event && typeof event.task_id === "string"
+          ? event.task_id
+          : undefined;
+      const sessionId =
+        "session_id" in event && typeof event.session_id === "string"
+          ? event.session_id
+          : "";
+
+      if (!taskId) return event;
+
+      const key = `${sessionId}|${taskId}`;
+      const entry = assistantMessageBufferRef.current.get(key);
+      const existingAnswer =
+        typeof event.final_answer === "string" ? event.final_answer : "";
+      const streamFinished =
+        event.stream_finished === true || event.is_streaming === false;
+
+      if (streamFinished) {
+        assistantMessageBufferRef.current.delete(key);
+      }
+
+      if (existingAnswer.trim().length > 0) {
+        return event;
+      }
+
+      if (entry && entry.content.trim().length > 0) {
+        if (streamFinished) {
+          assistantMessageBufferRef.current.delete(key);
+        }
+        return {
+          ...event,
+          final_answer: entry.content,
+        };
+      }
+
+      return event;
+    },
+    [],
+  );
 
   const parseServerError = useCallback((err: Event | Error) => {
     if (err instanceof MessageEvent) {
@@ -119,7 +183,10 @@ export function useSSE(
     setEvents([]);
     resetAttachmentRegistry();
     resetDedupe();
-  }, [resetDedupe]);
+    resetPipelineDedupe();
+    resetStreamingBuffer();
+    resetAssistantMessageBuffer();
+  }, [resetDedupe, resetPipelineDedupe, resetStreamingBuffer, resetAssistantMessageBuffer]);
 
   const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -262,12 +329,29 @@ export function useSSE(
     });
 
     const unsubscribe = agentEventBus.subscribe((event) => {
+      const bufferedEvent = mergeStreamingTaskComplete(
+        event,
+        streamingAnswerBufferRef.current,
+      );
+      if (eventMatches(bufferedEvent, "workflow.node.output.delta", "workflow.node.output.delta", "workflow.node.output.delta")) {
+        trackAssistantMessage(
+          bufferedEvent as WorkflowNodeOutputDeltaEvent,
+          assistantMessageBufferRef.current,
+        );
+      }
+
+      const enrichedEvent = applyAssistantAnswerFallback(bufferedEvent);
+
+      if (eventMatches(enrichedEvent, "workflow.result.final", "workflow.result.final")) {
+        handleAttachmentEvent(enrichedEvent);
+      }
+
       const isStreamingTaskComplete =
-        event.event_type === "task_complete" &&
-        (Boolean(event.is_streaming) || Boolean(event.stream_finished));
+        isWorkflowResultFinalEvent(enrichedEvent) &&
+        (Boolean(enrichedEvent.is_streaming) || Boolean(enrichedEvent.stream_finished));
 
       if (!isStreamingTaskComplete) {
-        const dedupeKey = buildEventSignature(event);
+        const dedupeKey = buildEventSignature(enrichedEvent);
         const cache = dedupeRef.current;
         if (cache.seen.has(dedupeKey)) {
           return;
@@ -284,21 +368,34 @@ export function useSSE(
       }
 
       setEvents((prev) => {
+        let nextEvents = prev;
+
         if (
-          event.event_type === "task_complete" &&
-          (event.is_streaming || event.stream_finished)
+          isWorkflowResultFinalEvent(enrichedEvent) &&
+          (enrichedEvent.is_streaming || enrichedEvent.stream_finished)
         ) {
-          const matchIndex = findLastStreamingTaskCompleteIndex(prev, event);
+          const matchIndex = findLastStreamingTaskCompleteIndex(
+            prev,
+            enrichedEvent,
+          );
           if (matchIndex !== -1) {
-            const nextEvents = [...prev];
-            nextEvents[matchIndex] = event;
-            return nextEvents;
+            nextEvents = [...prev];
+            nextEvents[matchIndex] = enrichedEvent;
+          } else {
+            const filtered = prev.filter(
+              (evt) =>
+                !eventMatches(evt, "workflow.result.final", "workflow.result.final") ||
+                !isSameTask(evt, enrichedEvent),
+            );
+            nextEvents = [...filtered, enrichedEvent];
           }
+        } else {
+          nextEvents = [...prev, enrichedEvent];
         }
 
-        return [...prev, event];
+        return clampEvents(squashFinalEvents(nextEvents), MAX_EVENT_HISTORY);
       });
-      onEventRef.current?.(event);
+      onEventRef.current?.(enrichedEvent);
     });
 
     return () => {
@@ -324,6 +421,9 @@ export function useSSE(
       setEvents([]);
       resetAttachmentRegistry();
       resetDedupe();
+      resetPipelineDedupe();
+      resetStreamingBuffer();
+      resetAssistantMessageBuffer();
     }
 
     if (sessionId && enabled) {
@@ -333,7 +433,16 @@ export function useSSE(
     return () => {
       cleanup();
     };
-  }, [sessionId, enabled, connectInternal, cleanup, resetDedupe]);
+  }, [
+    sessionId,
+    enabled,
+    connectInternal,
+    cleanup,
+    resetDedupe,
+    resetPipelineDedupe,
+    resetStreamingBuffer,
+    resetAssistantMessageBuffer,
+  ]);
 
   const reconnect = useCallback(() => {
     cleanup();
@@ -359,12 +468,19 @@ export function useSSE(
   };
 }
 
+function clampEvents(events: AnyAgentEvent[], maxHistory: number): AnyAgentEvent[] {
+  if (events.length <= maxHistory) {
+    return events;
+  }
+  return events.slice(events.length - maxHistory);
+}
+
 function findLastStreamingTaskCompleteIndex(
   events: AnyAgentEvent[],
   incoming: AnyAgentEvent,
 ): number {
   const incomingTaskId =
-    incoming.event_type === "task_complete" && "task_id" in incoming
+    eventMatches(incoming, "workflow.result.final", "workflow.result.final") && "task_id" in incoming
       ? incoming.task_id
       : undefined;
 
@@ -372,7 +488,7 @@ function findLastStreamingTaskCompleteIndex(
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const candidate = events[i];
-    if (candidate.event_type !== "task_complete") continue;
+    if (!eventMatches(candidate, "workflow.result.final", "workflow.result.final")) continue;
     const candidateTaskId = "task_id" in candidate ? candidate.task_id : undefined;
     if (
       candidateTaskId &&
@@ -386,59 +502,126 @@ function findLastStreamingTaskCompleteIndex(
   return -1;
 }
 
-export function buildEventSignature(event: AnyAgentEvent): string {
-  // user_task is emitted immediately when a task is created. We may also
-  // optimistically add it on the client to ensure it renders even if the SSE
-  // stream reconnects. Deduping purely by task/session keeps the UI from
-  // showing duplicates when the server replay arrives with a different
-  // timestamp.
-  if (event.event_type === "user_task") {
-    const taskEvent = event as UserTaskEvent;
-    return [
-      taskEvent.event_type,
-      taskEvent.session_id ?? "",
-      taskEvent.task_id ?? "",
-      taskEvent.task,
-    ].join("|");
-  }
+function isSameTask(a: AnyAgentEvent, b: AnyAgentEvent): boolean {
+  const taskA = 'task_id' in a ? a.task_id : undefined;
+  const taskB = 'task_id' in b ? b.task_id : undefined;
+  const sessionA = 'session_id' in a ? a.session_id : undefined;
+  const sessionB = 'session_id' in b ? b.session_id : undefined;
+  return Boolean(taskA && taskB && sessionA && sessionB && taskA === taskB && sessionA === sessionB);
+}
 
-  const baseParts = [
-    event.event_type,
-    event.timestamp ?? '',
-    event.session_id ?? '',
-    'task_id' in event && event.task_id ? event.task_id : '',
-  ];
+function squashFinalEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  const seenTasks = new Set<string>();
+  const result: AnyAgentEvent[] = [];
 
-  if ('call_id' in event && event.call_id) {
-    baseParts.push(event.call_id);
-  }
-  if ('iteration' in event && typeof event.iteration === 'number') {
-    baseParts.push(String(event.iteration));
-  }
-  if ('chunk' in event && typeof event.chunk === 'string') {
-    baseParts.push(event.chunk);
-  }
-  if ('delta' in event && typeof event.delta === 'string') {
-    baseParts.push(event.delta);
-  }
-  if ('result' in event && typeof event.result === 'string') {
-    baseParts.push(event.result);
-  }
-  if ('error' in event && typeof event.error === 'string') {
-    baseParts.push(event.error);
-  }
-  if ('final_answer' in event && typeof event.final_answer === 'string') {
-    baseParts.push(event.final_answer);
-  }
-  if ('task' in event && typeof event.task === 'string') {
-    baseParts.push(event.task);
-  }
-  if ('created_at' in event) {
-    const createdAt = (event as { created_at?: unknown }).created_at;
-    if (typeof createdAt === 'string') {
-      baseParts.push(createdAt);
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const evt = events[i];
+    if (eventMatches(evt, "workflow.result.final", "workflow.result.final") && "task_id" in evt && "session_id" in evt) {
+      const key = `${evt.session_id}|${evt.task_id}`;
+      if (seenTasks.has(key)) {
+        continue;
+      }
+      seenTasks.add(key);
     }
+    result.push(evt);
   }
 
-  return baseParts.join('|');
+  return result.reverse();
+}
+
+function mergeStreamingTaskComplete(
+  event: AnyAgentEvent,
+  buffer: Map<string, string>,
+): AnyAgentEvent {
+  if (!isWorkflowResultFinalEvent(event)) return event;
+
+  const taskId = event.task_id;
+  const sessionId = event.session_id ?? "";
+
+  if (!taskId) return event;
+
+  const key = `${sessionId}|${taskId}`;
+  const chunk = event.final_answer ?? "";
+  const previous = buffer.get(key) ?? "";
+  const isStreaming = event.is_streaming === true;
+  const streamFinished = event.stream_finished === true;
+  const streamInProgress = isStreaming || event.stream_finished === false;
+
+  if (streamInProgress) {
+    const combined = combineChunks(previous, chunk);
+    buffer.set(key, combined);
+    return {
+      ...event,
+      final_answer: combined,
+    };
+  }
+
+  if (streamFinished) {
+    const combined = combineChunks(previous, chunk);
+    buffer.delete(key);
+    return {
+      ...event,
+      final_answer: combined,
+    };
+  }
+
+  if (previous) {
+    const combined = combineChunks(previous, chunk);
+    buffer.delete(key);
+    return {
+      ...event,
+      final_answer: combined,
+    };
+  }
+
+  return event;
+}
+
+type AssistantBufferEntry = {
+  iteration: number;
+  content: string;
+};
+
+function trackAssistantMessage(
+  event: WorkflowNodeOutputDeltaEvent,
+  buffer: Map<string, AssistantBufferEntry>,
+) {
+  const taskId =
+    "task_id" in event && typeof event.task_id === "string"
+      ? event.task_id
+      : undefined;
+  const sessionId =
+    "session_id" in event && typeof event.session_id === "string"
+      ? event.session_id
+      : "";
+  if (!taskId) return;
+
+  const iteration =
+    typeof event.iteration === "number" ? event.iteration : Number.MIN_SAFE_INTEGER;
+  const key = `${sessionId}|${taskId}`;
+  const existing = buffer.get(key);
+
+  const baseContent =
+    existing && existing.iteration === iteration ? existing.content : "";
+  const combined = combineChunks(baseContent, event.delta ?? "");
+
+  buffer.set(key, {
+    iteration,
+    content: combined,
+  });
+}
+
+function combineChunks(previous: string, chunk: string): string {
+  if (!chunk) return previous;
+  if (!previous) return chunk;
+
+  if (chunk.startsWith(previous)) {
+    return chunk;
+  }
+
+  if (previous.endsWith(chunk)) {
+    return previous;
+  }
+
+  return previous + chunk;
 }

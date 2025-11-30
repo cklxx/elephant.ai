@@ -57,91 +57,74 @@ func NewBaseEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID string
 	return newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts)
 }
 
-// UserTaskEvent - emitted when a user submits a new task
-type UserTaskEvent struct {
+// WorkflowInputReceivedEvent - emitted when a user submits a new task
+type WorkflowInputReceivedEvent struct {
 	BaseEvent
 	Task        string
 	Attachments map[string]ports.Attachment
 }
 
-func (e *UserTaskEvent) EventType() string { return "user_task" }
+func (e *WorkflowInputReceivedEvent) EventType() string { return "workflow.input.received" }
 
-// NewUserTaskEvent constructs a user task event with the provided metadata.
-func NewUserTaskEvent(
+// NewWorkflowInputReceivedEvent constructs a user task event with the provided metadata.
+func NewWorkflowInputReceivedEvent(
 	level ports.AgentLevel,
 	sessionID, taskID, parentTaskID string,
 	task string,
 	attachments map[string]ports.Attachment,
 	ts time.Time,
-) *UserTaskEvent {
+) *WorkflowInputReceivedEvent {
 	var cloned map[string]ports.Attachment
 	if len(attachments) > 0 {
 		cloned = ports.CloneAttachmentMap(attachments)
 	}
 
-	return &UserTaskEvent{
+	return &WorkflowInputReceivedEvent{
 		BaseEvent:   newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		Task:        task,
 		Attachments: cloned,
 	}
 }
 
-// IterationStartEvent - emitted at start of each ReAct iteration
-type IterationStartEvent struct {
+// WorkflowNodeStartedEvent - emitted at start of a workflow node (iteration or step)
+type WorkflowNodeStartedEvent struct {
 	BaseEvent
-	Iteration  int
-	TotalIters int
+	Iteration       int
+	TotalIters      int
+	StepIndex       int
+	StepDescription string
+	Input           any
+	Workflow        *workflow.WorkflowSnapshot
 }
 
-func (e *IterationStartEvent) EventType() string { return "iteration_start" }
+func (e *WorkflowNodeStartedEvent) EventType() string { return "workflow.node.started" }
 
-// ThinkingEvent - emitted when LLM is generating response
-type ThinkingEvent struct {
+// WorkflowNodeOutputDeltaEvent - emitted when LLM is generating response or streaming content
+type WorkflowNodeOutputDeltaEvent struct {
 	BaseEvent
 	Iteration    int
 	MessageCount int
+	Delta        string
+	Final        bool
+	CreatedAt    time.Time
+	SourceModel  string
 }
 
-func (e *ThinkingEvent) EventType() string { return "thinking" }
+func (e *WorkflowNodeOutputDeltaEvent) EventType() string { return "workflow.node.output.delta" }
 
-// ThinkCompleteEvent - emitted when LLM response received
-type ThinkCompleteEvent struct {
+// WorkflowNodeOutputSummaryEvent - emitted when an LLM response finishes
+type WorkflowNodeOutputSummaryEvent struct {
 	BaseEvent
 	Iteration     int
 	Content       string
 	ToolCallCount int
 }
 
-func (e *ThinkCompleteEvent) EventType() string { return "think_complete" }
+func (e *WorkflowNodeOutputSummaryEvent) EventType() string { return "workflow.node.output.summary" }
 
-// StepStartedEvent - emitted when a workflow step begins
-type StepStartedEvent struct {
-	BaseEvent
-	StepIndex       int
-	StepDescription string
-	Iteration       int
-	Input           any
-	Workflow        *workflow.WorkflowSnapshot
-}
-
-func (e *StepStartedEvent) EventType() string { return "step_started" }
-
-// StepCompletedEvent - emitted when a workflow step finishes
-type StepCompletedEvent struct {
-	BaseEvent
-	StepIndex       int
-	StepDescription string
-	StepResult      any
-	Status          string
-	Iteration       int
-	Workflow        *workflow.WorkflowSnapshot
-}
-
-func (e *StepCompletedEvent) EventType() string { return "step_completed" }
-
-// WorkflowLifecycleEvent mirrors raw workflow transitions so consumers can render
+// WorkflowLifecycleUpdatedEvent mirrors raw workflow transitions so consumers can render
 // timeline updates without inferring state from step events alone.
-type WorkflowLifecycleEvent struct {
+type WorkflowLifecycleUpdatedEvent struct {
 	BaseEvent
 	WorkflowID        string
 	WorkflowEventType workflow.EventType
@@ -150,22 +133,25 @@ type WorkflowLifecycleEvent struct {
 	Workflow          *workflow.WorkflowSnapshot
 }
 
-func (e *WorkflowLifecycleEvent) EventType() string { return "workflow_event" }
+func (e *WorkflowLifecycleUpdatedEvent) EventType() string { return "workflow.lifecycle.updated" }
 
-// AssistantMessageEvent is emitted as assistant content tokens stream in.
-type AssistantMessageEvent struct {
+// WorkflowNodeCompletedEvent - emitted when a workflow node finishes (step or iteration)
+type WorkflowNodeCompletedEvent struct {
 	BaseEvent
-	Iteration   int
-	Delta       string
-	Final       bool
-	CreatedAt   time.Time
-	SourceModel string
+	StepIndex       int
+	StepDescription string
+	StepResult      any
+	Status          string
+	Iteration       int
+	TokensUsed      int
+	ToolsRun        int
+	Workflow        *workflow.WorkflowSnapshot
 }
 
-func (e *AssistantMessageEvent) EventType() string { return "assistant_message" }
+func (e *WorkflowNodeCompletedEvent) EventType() string { return "workflow.node.completed" }
 
-// ToolCallStartEvent - emitted when tool execution begins
-type ToolCallStartEvent struct {
+// WorkflowToolStartedEvent - emitted when tool execution begins
+type WorkflowToolStartedEvent struct {
 	BaseEvent
 	Iteration int
 	CallID    string
@@ -173,20 +159,20 @@ type ToolCallStartEvent struct {
 	Arguments map[string]interface{}
 }
 
-func (e *ToolCallStartEvent) EventType() string { return "tool_call_start" }
+func (e *WorkflowToolStartedEvent) EventType() string { return "workflow.tool.started" }
 
-// ToolCallStreamEvent - emitted during tool execution (for streaming tools)
-type ToolCallStreamEvent struct {
+// WorkflowToolProgressEvent - emitted during tool execution (for streaming tools)
+type WorkflowToolProgressEvent struct {
 	BaseEvent
 	CallID     string
 	Chunk      string
 	IsComplete bool
 }
 
-func (e *ToolCallStreamEvent) EventType() string { return "tool_call_stream" }
+func (e *WorkflowToolProgressEvent) EventType() string { return "workflow.tool.progress" }
 
-// ToolCallCompleteEvent - emitted when tool execution finishes
-type ToolCallCompleteEvent struct {
+// WorkflowToolCompletedEvent - emitted when tool execution finishes
+type WorkflowToolCompletedEvent struct {
 	BaseEvent
 	CallID      string
 	ToolName    string
@@ -197,20 +183,10 @@ type ToolCallCompleteEvent struct {
 	Attachments map[string]ports.Attachment
 }
 
-func (e *ToolCallCompleteEvent) EventType() string { return "tool_call_complete" }
+func (e *WorkflowToolCompletedEvent) EventType() string { return "workflow.tool.completed" }
 
-// IterationCompleteEvent - emitted at end of iteration
-type IterationCompleteEvent struct {
-	BaseEvent
-	Iteration  int
-	TokensUsed int
-	ToolsRun   int
-}
-
-func (e *IterationCompleteEvent) EventType() string { return "iteration_complete" }
-
-// TaskCompleteEvent - emitted when entire task finishes
-type TaskCompleteEvent struct {
+// WorkflowResultFinalEvent - emitted when entire task finishes
+type WorkflowResultFinalEvent struct {
 	BaseEvent
 	FinalAnswer     string
 	TotalIterations int
@@ -227,33 +203,33 @@ type TaskCompleteEvent struct {
 	Attachments    map[string]ports.Attachment
 }
 
-func (e *TaskCompleteEvent) EventType() string { return "task_complete" }
+func (e *WorkflowResultFinalEvent) EventType() string { return "workflow.result.final" }
 
-// TaskCancelledEvent - emitted when a running task receives an explicit cancellation request
-type TaskCancelledEvent struct {
+// WorkflowResultCancelledEvent - emitted when a running task receives an explicit cancellation request
+type WorkflowResultCancelledEvent struct {
 	BaseEvent
 	Reason      string
 	RequestedBy string
 }
 
-func (e *TaskCancelledEvent) EventType() string { return "task_cancelled" }
+func (e *WorkflowResultCancelledEvent) EventType() string { return "workflow.result.cancelled" }
 
-// NewTaskCancelledEvent constructs a cancellation notification event for SSE consumers.
-func NewTaskCancelledEvent(
+// NewWorkflowResultCancelledEvent constructs a cancellation notification event for SSE consumers.
+func NewWorkflowResultCancelledEvent(
 	level ports.AgentLevel,
 	sessionID, taskID, parentTaskID string,
 	reason, requestedBy string,
 	ts time.Time,
-) *TaskCancelledEvent {
-	return &TaskCancelledEvent{
+) *WorkflowResultCancelledEvent {
+	return &WorkflowResultCancelledEvent{
 		BaseEvent:   newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		Reason:      reason,
 		RequestedBy: requestedBy,
 	}
 }
 
-// ErrorEvent - emitted on errors
-type ErrorEvent struct {
+// WorkflowNodeFailedEvent - emitted on errors
+type WorkflowNodeFailedEvent struct {
 	BaseEvent
 	Iteration   int
 	Phase       string // "think", "execute", "observe"
@@ -261,25 +237,27 @@ type ErrorEvent struct {
 	Recoverable bool
 }
 
-func (e *ErrorEvent) EventType() string { return "error" }
+func (e *WorkflowNodeFailedEvent) EventType() string { return "workflow.node.failed" }
 
-// ContextCompressionEvent - emitted when context is compressed
-type ContextCompressionEvent struct {
+// WorkflowDiagnosticContextCompressionEvent - emitted when context is compressed
+type WorkflowDiagnosticContextCompressionEvent struct {
 	BaseEvent
 	OriginalCount   int
 	CompressedCount int
 	CompressionRate float64 // percentage of messages retained
 }
 
-func (e *ContextCompressionEvent) EventType() string { return "context_compression" }
+func (e *WorkflowDiagnosticContextCompressionEvent) EventType() string {
+	return "workflow.diagnostic.context_compression"
+}
 
-// NewContextCompressionEvent creates a new context compression event
-func NewContextCompressionEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID string, originalCount, compressedCount int, ts time.Time) *ContextCompressionEvent {
+// NewWorkflowDiagnosticContextCompressionEvent creates a new context compression event
+func NewWorkflowDiagnosticContextCompressionEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID string, originalCount, compressedCount int, ts time.Time) *WorkflowDiagnosticContextCompressionEvent {
 	compressionRate := 0.0
 	if originalCount > 0 {
 		compressionRate = float64(compressedCount) / float64(originalCount) * 100.0
 	}
-	return &ContextCompressionEvent{
+	return &WorkflowDiagnosticContextCompressionEvent{
 		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		OriginalCount:   originalCount,
 		CompressedCount: compressedCount,
@@ -287,8 +265,8 @@ func NewContextCompressionEvent(level ports.AgentLevel, sessionID, taskID, paren
 	}
 }
 
-// ContextSnapshotEvent - emitted with the exact messages provided to the LLM.
-type ContextSnapshotEvent struct {
+// WorkflowDiagnosticContextSnapshotEvent - emitted with the exact messages provided to the LLM.
+type WorkflowDiagnosticContextSnapshotEvent struct {
 	BaseEvent
 	Iteration  int
 	LLMTurnSeq int
@@ -297,10 +275,12 @@ type ContextSnapshotEvent struct {
 	Excluded   []ports.Message
 }
 
-func (e *ContextSnapshotEvent) EventType() string { return "context_snapshot" }
+func (e *WorkflowDiagnosticContextSnapshotEvent) EventType() string {
+	return "workflow.diagnostic.context_snapshot"
+}
 
-// NewContextSnapshotEvent creates an immutable snapshot of the LLM context payload.
-func NewContextSnapshotEvent(
+// NewWorkflowDiagnosticContextSnapshotEvent creates an immutable snapshot of the LLM context payload.
+func NewWorkflowDiagnosticContextSnapshotEvent(
 	level ports.AgentLevel,
 	sessionID, taskID, parentTaskID string,
 	iteration int,
@@ -308,8 +288,8 @@ func NewContextSnapshotEvent(
 	requestID string,
 	messages, excluded []ports.Message,
 	ts time.Time,
-) *ContextSnapshotEvent {
-	return &ContextSnapshotEvent{
+) *WorkflowDiagnosticContextSnapshotEvent {
+	return &WorkflowDiagnosticContextSnapshotEvent{
 		BaseEvent:  newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		Iteration:  iteration,
 		LLMTurnSeq: llmTurnSeq,
@@ -319,8 +299,8 @@ func NewContextSnapshotEvent(
 	}
 }
 
-// ToolFilteringEvent - emitted when tools are filtered by preset
-type ToolFilteringEvent struct {
+// WorkflowDiagnosticToolFilteringEvent - emitted when tools are filtered by preset
+type WorkflowDiagnosticToolFilteringEvent struct {
 	BaseEvent
 	PresetName      string
 	OriginalCount   int
@@ -329,15 +309,17 @@ type ToolFilteringEvent struct {
 	ToolFilterRatio float64 // percentage of tools retained
 }
 
-func (e *ToolFilteringEvent) EventType() string { return "tool_filtering" }
+func (e *WorkflowDiagnosticToolFilteringEvent) EventType() string {
+	return "workflow.diagnostic.tool_filtering"
+}
 
-// NewToolFilteringEvent creates a new tool filtering event
-func NewToolFilteringEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *ToolFilteringEvent {
+// NewWorkflowDiagnosticToolFilteringEvent creates a new tool filtering event
+func NewWorkflowDiagnosticToolFilteringEvent(level ports.AgentLevel, sessionID, taskID, parentTaskID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *WorkflowDiagnosticToolFilteringEvent {
 	filterRatio := 0.0
 	if originalCount > 0 {
 		filterRatio = float64(filteredCount) / float64(originalCount) * 100.0
 	}
-	return &ToolFilteringEvent{
+	return &WorkflowDiagnosticToolFilteringEvent{
 		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
 		PresetName:      presetName,
 		OriginalCount:   originalCount,
@@ -347,8 +329,8 @@ func NewToolFilteringEvent(level ports.AgentLevel, sessionID, taskID, parentTask
 	}
 }
 
-// BrowserInfoEvent - emitted when sandbox browser diagnostics are captured
-type BrowserInfoEvent struct {
+// WorkflowDiagnosticBrowserInfoEvent - emitted when sandbox browser diagnostics are captured
+type WorkflowDiagnosticBrowserInfoEvent struct {
 	BaseEvent
 	Success        *bool
 	Message        string
@@ -360,18 +342,20 @@ type BrowserInfoEvent struct {
 	Captured       time.Time
 }
 
-func (e *BrowserInfoEvent) EventType() string { return "browser_info" }
+func (e *WorkflowDiagnosticBrowserInfoEvent) EventType() string {
+	return "workflow.diagnostic.browser_info"
+}
 
-// NewBrowserInfoEvent creates a new browser diagnostics event
-func NewBrowserInfoEvent(
+// NewWorkflowDiagnosticBrowserInfoEvent creates a new browser diagnostics event
+func NewWorkflowDiagnosticBrowserInfoEvent(
 	level ports.AgentLevel,
 	sessionID, taskID, parentTaskID string,
 	captured time.Time,
 	success *bool,
 	message, userAgent, cdpURL, vncURL string,
 	viewportWidth, viewportHeight int,
-) *BrowserInfoEvent {
-	event := &BrowserInfoEvent{
+) *WorkflowDiagnosticBrowserInfoEvent {
+	event := &WorkflowDiagnosticBrowserInfoEvent{
 		BaseEvent:      newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, captured),
 		Success:        success,
 		Message:        message,
@@ -385,19 +369,21 @@ func NewBrowserInfoEvent(
 	return event
 }
 
-// EnvironmentSnapshotEvent - emitted when host/sandbox environments are captured
-type EnvironmentSnapshotEvent struct {
+// WorkflowDiagnosticEnvironmentSnapshotEvent - emitted when host/sandbox environments are captured
+type WorkflowDiagnosticEnvironmentSnapshotEvent struct {
 	BaseEvent
 	Host     map[string]string
 	Sandbox  map[string]string
 	Captured time.Time
 }
 
-func (e *EnvironmentSnapshotEvent) EventType() string { return "environment_snapshot" }
+func (e *WorkflowDiagnosticEnvironmentSnapshotEvent) EventType() string {
+	return "workflow.diagnostic.environment_snapshot"
+}
 
-// NewEnvironmentSnapshotEvent constructs a new environment snapshot event.
-func NewEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.Time) *EnvironmentSnapshotEvent {
-	return &EnvironmentSnapshotEvent{
+// NewWorkflowDiagnosticEnvironmentSnapshotEvent constructs a new environment snapshot event.
+func NewWorkflowDiagnosticEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.Time) *WorkflowDiagnosticEnvironmentSnapshotEvent {
+	return &WorkflowDiagnosticEnvironmentSnapshotEvent{
 		BaseEvent: newBaseEventWithIDs(ports.LevelCore, "", "", "", captured),
 		Host:      cloneStringMap(host),
 		Sandbox:   cloneStringMap(sandbox),
@@ -405,8 +391,8 @@ func NewEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.
 	}
 }
 
-// SandboxProgressEvent captures initialization progress for the shared sandbox runtime.
-type SandboxProgressEvent struct {
+// WorkflowDiagnosticSandboxProgressEvent captures initialization progress for the shared sandbox runtime.
+type WorkflowDiagnosticSandboxProgressEvent struct {
 	BaseEvent
 	Status     string
 	Stage      string
@@ -417,11 +403,13 @@ type SandboxProgressEvent struct {
 	Updated    time.Time
 }
 
-func (e *SandboxProgressEvent) EventType() string { return "sandbox_progress" }
+func (e *WorkflowDiagnosticSandboxProgressEvent) EventType() string {
+	return "workflow.diagnostic.sandbox_progress"
+}
 
-// NewSandboxProgressEvent constructs a sandbox progress event.
-func NewSandboxProgressEvent(status, stage, message string, step, totalSteps int, errMessage string, updated time.Time) *SandboxProgressEvent {
-	return &SandboxProgressEvent{
+// NewWorkflowDiagnosticSandboxProgressEvent constructs a sandbox progress event.
+func NewWorkflowDiagnosticSandboxProgressEvent(status, stage, message string, step, totalSteps int, errMessage string, updated time.Time) *WorkflowDiagnosticSandboxProgressEvent {
+	return &WorkflowDiagnosticSandboxProgressEvent{
 		BaseEvent:  newBaseEventWithIDs(ports.LevelCore, "", "", "", updated),
 		Status:     status,
 		Stage:      stage,

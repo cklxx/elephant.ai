@@ -74,7 +74,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-destructive/10 via-amber-50 to-primary/10 p-4">
           <div className="max-w-2xl w-full">
-            <div className="bg-white rounded-xl shadow-xl p-8 border border-destructive/30">
+            <div className="bg-white rounded-xl p-8 border border-destructive/30">
               {/* Header */}
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-destructive/10 rounded-full">

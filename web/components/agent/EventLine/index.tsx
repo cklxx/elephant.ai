@@ -4,9 +4,10 @@
 import React from "react";
 import {
   AnyAgentEvent,
-  ToolCallCompleteEvent,
-  ThinkCompleteEvent,
-  TaskCompleteEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowNodeOutputSummaryEvent,
+  WorkflowResultFinalEvent,
+  eventMatches,
 } from "@/lib/types";
 import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
@@ -17,6 +18,8 @@ import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -31,9 +34,7 @@ export const EventLine = React.memo(function EventLine({
   event,
   showSubagentContext = true,
 }: EventLineProps) {
-  const isSubtaskEvent =
-    event.agent_level === "subagent" ||
-    ("is_subtask" in event && Boolean(event.is_subtask));
+  const isSubtaskEvent = isSubagentLike(event);
 
   if (isSubtaskEvent) {
     return (
@@ -41,8 +42,8 @@ export const EventLine = React.memo(function EventLine({
     );
   }
 
-  if (event.event_type === "user_task") {
-    const segments = parseContentSegments(event.task, event.attachments);
+  if (event.event_type === "workflow.input.received") {
+    const segments = parseContentSegments(event.task, event.attachments ?? undefined);
     const textSegments = segments.filter(
       (segment) => segment.type === "text" && segment.text && segment.text.length > 0,
     );
@@ -55,96 +56,103 @@ export const EventLine = React.memo(function EventLine({
         segment.attachment,
     );
     return (
-      <div className="console-user-task" data-testid="event-user_task">
-        <div className="console-user-task-bubble">
-          <div className="console-user-task-meta">
-            {formatTimestamp(event.timestamp)}
+      <Card data-testid="event-workflow.input.received">
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{formatTimestamp(event.timestamp)}</span>
+            <Badge variant="outline" className="text-[10px] font-medium">
+              User Task
+            </Badge>
           </div>
-          <div className="console-user-task-content">
+          <div className="space-y-2">
             {textSegments.map((segment, index) => (
               <p
                 key={`text-segment-${index}`}
-                className="m-0 whitespace-pre-wrap"
+                className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground"
               >
                 {segment.text}
               </p>
             ))}
-            {mediaSegments.map((segment, index) => {
-              if (!segment.attachment) {
-                return null;
-              }
-              const uri = buildAttachmentUri(segment.attachment);
-              if (!uri) {
-                return null;
-              }
-              const key = segment.placeholder || `${segment.type}-${index}`;
-              const attachmentName =
-                segment.attachment.description ||
-                segment.attachment.name ||
-                key;
-              if (segment.type === "video") {
+          </div>
+          {mediaSegments.length > 0 && (
+            <div className="space-y-3">
+              {mediaSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const uri = buildAttachmentUri(segment.attachment);
+                if (!uri) {
+                  return null;
+                }
+                const key = segment.placeholder || `${segment.type}-${index}`;
+                const attachmentName =
+                  segment.attachment.description ||
+                  segment.attachment.name ||
+                  key;
+                if (segment.type === "video") {
+                  return (
+                    <div
+                      key={`task-media-${key}`}
+                      className="mt-1"
+                      data-testid="event-attachment-video"
+                      data-attachment-name={attachmentName}
+                    >
+                      <VideoPreview
+                        src={uri}
+                        mimeType={segment.attachment.media_type || "video/mp4"}
+                        description={segment.attachment.description}
+                        maxHeight="20rem"
+                      />
+                    </div>
+                  );
+                }
                 return (
                   <div
                     key={`task-media-${key}`}
-                    className="mt-3"
-                    data-testid="event-attachment-video"
+                    className="mt-1"
+                    data-testid="event-attachment-image"
                     data-attachment-name={attachmentName}
                   >
-                    <VideoPreview
+                    <ImagePreview
                       src={uri}
-                      mimeType={segment.attachment.media_type || "video/mp4"}
-                      description={segment.attachment.description}
+                      alt={segment.attachment.description || segment.attachment.name}
+                      minHeight="12rem"
                       maxHeight="20rem"
+                      sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
                     />
                   </div>
                 );
-              }
-              return (
-                <div
-                  key={`task-media-${key}`}
-                  className="mt-3"
-                  data-testid="event-attachment-image"
-                  data-attachment-name={attachmentName}
-                >
-                  <ImagePreview
-                    src={uri}
-                    alt={segment.attachment.description || segment.attachment.name}
-                    minHeight="12rem"
-                    maxHeight="20rem"
-                    sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
+              })}
+            </div>
+          )}
+          {artifactSegments.length > 0 && (
+            <div className="mt-2 space-y-3">
+              {artifactSegments.map((segment, index) => {
+                if (!segment.attachment) {
+                  return null;
+                }
+                const key = segment.placeholder || `artifact-${index}`;
+                return (
+                  <ArtifactPreviewCard
+                    key={`task-artifact-${key}`}
+                    attachment={segment.attachment}
                   />
-                </div>
-              );
-            })}
-            {artifactSegments.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {artifactSegments.map((segment, index) => {
-                  if (!segment.attachment) {
-                    return null;
-                  }
-                  const key = segment.placeholder || `artifact-${index}`;
-                  return (
-                    <ArtifactPreviewCard
-                      key={`task-artifact-${key}`}
-                      attachment={segment.attachment}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     );
   }
 
   // Tool call complete - use ToolOutputCard
-  if (event.event_type === "tool_call_complete") {
-    const completeEvent = event as ToolCallCompleteEvent & {
+  if (event.event_type === "workflow.tool.completed") {
+    const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
     return (
-      <div data-testid="event-tool_call_complete">
+      <div data-testid="event-workflow.tool.completed">
         <ToolOutputCard
           toolName={completeEvent.tool_name}
           parameters={completeEvent.arguments}
@@ -154,23 +162,23 @@ export const EventLine = React.memo(function EventLine({
           timestamp={completeEvent.timestamp}
           callId={completeEvent.call_id}
           metadata={completeEvent.metadata}
-          attachments={completeEvent.attachments}
+          attachments={completeEvent.attachments ?? undefined}
         />
       </div>
     );
   }
 
   // Task complete - use TaskCompleteCard
-  if (event.event_type === "task_complete") {
-    return <TaskCompleteCard event={event as TaskCompleteEvent} />;
+  if (event.event_type === "workflow.result.final") {
+    return <TaskCompleteCard event={event as WorkflowResultFinalEvent} />;
   }
 
   // Think complete - convert to TaskCompleteCard format
-  if (event.event_type === "think_complete") {
-    const thinkEvent = event as ThinkCompleteEvent;
+  if (event.event_type === "workflow.node.output.summary") {
+    const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
     if (thinkEvent.content) {
-      const mockTaskCompleteEvent: TaskCompleteEvent = {
-        event_type: "task_complete",
+      const mockWorkflowResultFinalEvent: WorkflowResultFinalEvent = {
+        event_type: "workflow.result.final",
         timestamp: thinkEvent.timestamp,
         agent_level: thinkEvent.agent_level,
         session_id: thinkEvent.session_id,
@@ -178,12 +186,12 @@ export const EventLine = React.memo(function EventLine({
         parent_task_id: thinkEvent.parent_task_id,
         final_answer: thinkEvent.content,
         attachments: thinkEvent.attachments,
-        total_iterations: thinkEvent.iteration,
+        total_iterations: thinkEvent.iteration ?? 0,
         total_tokens: 0,
-        stop_reason: "think_complete",
+        stop_reason: "workflow.node.output.summary",
         duration: 0,
       };
-      return <TaskCompleteCard event={mockTaskCompleteEvent} />;
+      return <TaskCompleteCard event={mockWorkflowResultFinalEvent} />;
     }
   }
 
@@ -195,14 +203,12 @@ export const EventLine = React.memo(function EventLine({
     return null;
   }
   return (
-    <div
-      className={cn("console-event-line items-center flex", style.line)}
-      data-testid={`event-${event.event_type}`}
-    >
-      <div className={cn("console-event-content", style.content)}>
-        {content}
-      </div>
-    </div>
+    <Card data-testid={`event-${event.event_type}`}>
+      <CardContent className={cn("text-sm leading-relaxed", style.content)}>
+        <div className="text-xs text-muted-foreground">{timestamp}</div>
+        <div className="mt-1">{content}</div>
+      </CardContent>
+    </Card>
   );
 });
 
@@ -216,8 +222,8 @@ function SubagentEventLine({
 }: SubagentEventLineProps & { showContext?: boolean }) {
   const context = getSubagentContext(event);
 
-  if (event.event_type === "tool_call_complete") {
-    const completeEvent = event as ToolCallCompleteEvent & {
+  if (event.event_type === "workflow.tool.completed") {
+    const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
     return (
@@ -234,21 +240,21 @@ function SubagentEventLine({
           duration={completeEvent.duration}
           callId={completeEvent.call_id}
           metadata={completeEvent.metadata}
-          attachments={completeEvent.attachments}
+          attachments={completeEvent.attachments ?? undefined}
           status={completeEvent.error ? "failed" : "completed"}
         />
       </div>
     );
   }
 
-  if (event.event_type === "task_complete") {
+  if (event.event_type === "workflow.result.final") {
     return (
       <div
         className="space-y-3"
-        data-testid="event-subagent-task_complete"
+        data-testid="event-subagent-workflow.result.final"
       >
         {showContext && <SubagentHeader context={context} />}
-        <TaskCompleteCard event={event as TaskCompleteEvent} />
+        <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
       </div>
     );
   }
@@ -266,16 +272,12 @@ function SubagentEventLine({
       data-testid={`event-subagent-${event.event_type}`}
     >
       {showContext && <SubagentHeader context={context} />}
-      <div
-        className={cn(
-          "console-event-line flex rounded-lg border border-primary/30 bg-primary/5 px-3 py-2",
-          style.line,
-        )}
-      >
-        <div className={cn("console-event-content", style.content)}>
-          {content}
-        </div>
-      </div>
+      <Card>
+        <CardContent className={cn("text-sm leading-relaxed", style.content)}>
+          <div className="text-xs text-muted-foreground">{formatTimestamp(event.timestamp)}</div>
+          <div className="mt-1">{content}</div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -340,7 +342,7 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   let status: SubagentContext["status"];
   let statusTone: SubagentContext["statusTone"];
   if (
-    event.event_type === "subagent_complete" &&
+    event.event_type === "workflow.subflow.completed" &&
     "success" in event &&
     typeof event.success === "number" &&
     "failed" in event &&
@@ -348,7 +350,7 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   ) {
     status = `${event.success}/${event.total ?? event.success + event.failed} succeeded`;
     statusTone = event.failed > 0 ? "warning" : "success";
-  } else if (event.event_type === "error") {
+  } else if (eventMatches(event, "workflow.node.failed")) {
     status = "Subagent reported an error";
     statusTone = "danger";
   }
@@ -364,29 +366,54 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   };
 }
 
+export function isSubagentLike(event: AnyAgentEvent): boolean {
+  if (!event) return false;
+
+  if (event.agent_level === "subagent") return true;
+  if ("is_subtask" in event && Boolean((event as any).is_subtask)) return true;
+
+  const parentTask =
+    "parent_task_id" in event && typeof (event as any).parent_task_id === "string"
+      ? (event as any).parent_task_id.trim()
+      : "";
+  if (parentTask) return true;
+
+  const nodeId =
+    "node_id" in event && typeof (event as any).node_id === "string"
+      ? (event as any).node_id.toLowerCase()
+      : "";
+  if (nodeId.startsWith("subagent") || nodeId.startsWith("subflow-")) {
+    return true;
+  }
+
+  const callId =
+    "call_id" in event && typeof (event as any).call_id === "string"
+      ? (event as any).call_id.toLowerCase()
+      : "";
+  if (callId.startsWith("subagent")) {
+    return true;
+  }
+
+  const taskId = typeof event.task_id === "string" ? event.task_id.toLowerCase() : "";
+  if (taskId.startsWith("subagent")) {
+    return true;
+  }
+
+  return eventMatches(
+    event,
+    "workflow.subflow.progress",
+    "workflow.subflow.completed",
+  );
+}
+
 interface SubagentHeaderProps {
   context: SubagentContext;
 }
 
 export function SubagentHeader({ context }: SubagentHeaderProps) {
-  const pillClassName = (
-    tone: SubagentContext["statusTone"] | "info" = "info",
-  ) => {
-    const base =
-      "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]";
-    const toneClass: Record<NonNullable<SubagentContext["statusTone"]> | "info", string> = {
-      info: "border-primary/30 bg-primary/5 text-primary",
-      success: "border-emerald-200/70 bg-emerald-500/10 text-emerald-600 dark:text-emerald-200",
-      warning: "border-amber-200/70 bg-amber-500/10 text-amber-700 dark:text-amber-200",
-      danger: "border-rose-200/70 bg-rose-500/10 text-rose-700 dark:text-rose-200",
-    };
-
-    return cn(base, toneClass[tone]);
-  };
-
   return (
-    <div className="space-y-1">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary">
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold text-primary">
         {context.title}
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -396,16 +423,35 @@ export function SubagentHeader({ context }: SubagentHeaderProps) {
           </span>
         )}
         {context.concurrency && (
-          <span className={pillClassName("info")}>{context.concurrency}</span>
+          <Badge variant="outline" className="text-[10px] font-medium">
+            {context.concurrency}
+          </Badge>
         )}
         {context.progress && (
-          <span className={pillClassName()}>{context.progress}</span>
-        )}
-        {context.status && (
-          <span className={pillClassName(context.statusTone)}>{context.status}</span>
+          <Badge variant="outline" className="text-[10px] font-medium">
+            {context.progress}
+          </Badge>
         )}
         {context.stats && (
-          <span className="text-[11px] text-muted-foreground">{context.stats}</span>
+          <Badge variant="outline" className="text-[10px] font-medium">
+            {context.stats}
+          </Badge>
+        )}
+        {context.status && (
+          <Badge
+            variant={
+              context.statusTone === "success"
+                ? "success"
+                : context.statusTone === "warning"
+                ? "warning"
+                : context.statusTone === "danger"
+                ? "destructive"
+                : "info"
+            }
+            className="text-[10px] font-medium"
+          >
+            {context.status}
+          </Badge>
         )}
       </div>
     </div>

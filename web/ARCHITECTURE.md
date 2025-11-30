@@ -98,10 +98,10 @@ Add to events array
 React re-renders AgentOutput
      ↓
 Route to appropriate card:
-  - thinking → ThinkingIndicator
-  - tool_call_start → ToolCallCard (running)
-  - tool_call_complete → ToolCallCard (complete)
-  - task_complete → TaskCompleteCard
+  - workflow.node.output.delta → ThinkingIndicator
+  - workflow.tool.started → ToolCallCard (running)
+  - workflow.tool.completed → ToolCallCard (complete)
+  - workflow.result.final → TaskCompleteCard
   - error → ErrorCard
      ↓
 Auto-scroll to bottom
@@ -124,7 +124,7 @@ App
         ├── ConversationPage (/conversation)
         │   ├── SessionSidebar
         │   │   ├── ConnectionStatus
-        │   │   └── SessionHistory (pinned + recent)
+        │   │   └── SessionHistory (recent list)
         │   ├── ConversationStream
         │   │   ├── Header (language switch + timeline status)
         │   │   ├── TerminalOutput
@@ -205,10 +205,10 @@ Create EventSource
      ↓
 Register event listeners:
   - onopen
-  - thinking
-  - tool_call_start
-  - tool_call_complete
-  - task_complete
+  - workflow.node.output.delta
+  - workflow.tool.started
+  - workflow.tool.completed
+  - workflow.result.final
   - error
   - onerror
      ↓
@@ -254,7 +254,7 @@ const eventSource = new EventSource(
 );
 
 // Listen to events
-eventSource.addEventListener('tool_call_start', (e) => {
+eventSource.addEventListener('workflow.tool.started', (e) => {
   const event = JSON.parse(e.data);
   // Handle event
 });

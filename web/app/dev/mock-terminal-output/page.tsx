@@ -38,17 +38,17 @@ export default function MockTerminalOutputPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 lg:gap-6">
-        <header className="flex flex-col gap-3 rounded-2xl bg-white/90 p-6 shadow-sm ring-1 ring-slate-200/60">
+        <header className="flex flex-col gap-3 rounded-2xl bg-white/90 p-6 ring-1 ring-slate-200/60">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-[11px] font-semibold text-slate-400">
                 Mock Streaming · Terminal Output
               </p>
               <h1 className="text-xl font-semibold text-slate-900 lg:text-2xl">
                 Final answer inline replay
               </h1>
               <p className="text-sm text-slate-600">
-                Preview the TerminalOutput component with mocked streaming task_complete updates and attachments.
+                Preview the TerminalOutput component with mocked streaming workflow.result.final updates and attachments.
               </p>
               {latestTaskId && (
                 <p className="text-xs text-slate-500">Current task id: {latestTaskId}</p>
@@ -113,7 +113,7 @@ export default function MockTerminalOutputPage() {
           </div>
         </header>
 
-        <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-200/60 lg:p-6">
+        <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/60 lg:p-6">
           <TerminalOutput
             events={events}
             isConnected={isConnected}

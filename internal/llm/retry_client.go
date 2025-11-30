@@ -93,9 +93,9 @@ func (c *retryClient) StreamComplete(
 	req ports.CompletionRequest,
 	callbacks ports.CompletionStreamCallbacks,
 ) (*ports.CompletionResponse, error) {
-	streamingClient, ok := c.underlying.(ports.StreamingLLMClient)
-	if !ok {
-		c.logger.Debug("Underlying LLM client %T does not support streaming – falling back to Complete", c.underlying)
+	streamingClient := c.streamingClient()
+	if streamingClient == nil {
+		// Preserve legacy fallback but avoid logging noisy warnings.
 		resp, err := c.Complete(ctx, req)
 		if err != nil {
 			return nil, err
@@ -134,6 +134,16 @@ func (c *retryClient) StreamComplete(
 	}
 
 	return resp, nil
+}
+
+func (c *retryClient) streamingClient() ports.StreamingLLMClient {
+	if streaming, ok := c.underlying.(ports.StreamingLLMClient); ok {
+		return streaming
+	}
+	if adapted, ok := EnsureStreamingClient(c.underlying).(ports.StreamingLLMClient); ok {
+		return adapted
+	}
+	return nil
 }
 
 // classifyLLMError detects transient errors from LLM API

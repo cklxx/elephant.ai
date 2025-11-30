@@ -101,41 +101,12 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		notes = strings.TrimSpace(noteStr)
 	}
 
-	mode := "parallel"
-	if raw, exists := call.Arguments["mode"]; exists {
-		modeStr, ok := raw.(string)
-		if !ok {
-			err := fmt.Errorf("mode must be a string when provided")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-		}
-		normalized := strings.ToLower(strings.TrimSpace(modeStr))
-		if normalized != "parallel" && normalized != "serial" {
-			err := fmt.Errorf("mode must be either 'parallel' or 'serial'")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-		}
-		mode = normalized
-	}
-
-	subtasks := buildExploreSubtasks(objective, localScope, webScope, customTasks, notes)
-	if len(subtasks) == 0 {
-		base := fmt.Sprintf("[CUSTOM] %s", objective)
-		subtasks = []string{appendNotes(base, notes)}
-	}
-
-	subagentSubtasks := make([]any, len(subtasks))
-	for i, task := range subtasks {
-		subagentSubtasks[i] = task
-	}
-
-	delegationArgs := map[string]any{
-		"subtasks": subagentSubtasks,
-		"mode":     mode,
-	}
+	prompt := buildExplorePrompt(objective, localScope, webScope, customTasks, notes)
 
 	delegationCall := ports.ToolCall{
 		ID:        call.ID + ":explore",
 		Name:      "subagent",
-		Arguments: delegationArgs,
+		Arguments: map[string]any{"prompt": prompt},
 	}
 
 	delegateResult, execErr := e.subagent.Execute(ctx, delegationCall)
@@ -146,66 +117,27 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 	delegationMetadata := cloneMetadata(delegateResult.Metadata)
 	delegationDetails := map[string]any{
 		"call": map[string]any{
-			"tool": delegationCall.Name,
-			"arguments": map[string]any{
-				"mode":     mode,
-				"subtasks": subtasks,
-			},
+			"tool":      delegationCall.Name,
+			"arguments": map[string]any{"prompt": prompt},
 		},
 		"result_metadata": delegationMetadata,
 		"result_content":  delegateResult.Content,
 	}
-	if delegateResult.Error != nil {
-		delegationDetails["error"] = delegateResult.Error.Error()
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("Delegation failed: %s", delegateResult.Error.Error()),
-			Error:   delegateResult.Error,
-			Metadata: map[string]any{
-				"objective":     objective,
-				"local_scope":   localScope,
-				"web_scope":     webScope,
-				"custom_tasks":  customTasks,
-				"notes":         notes,
-				"mode":          mode,
-				"subtasks":      subtasks,
-				"delegation":    delegationDetails,
-				"total_tasks":   len(subtasks),
-				"success_count": 0,
-				"failure_count": len(subtasks),
-			},
-		}, nil
-	}
-
-	parsedResults := parseDelegationResults(delegationMetadata)
-	successCount, failureCount := countDelegationOutcomes(parsedResults, delegationMetadata)
-	totalTasks := len(parsedResults)
-	if totalTasks == 0 {
-		totalTasks = len(subtasks)
-	}
-
-	highlights := buildDelegationHighlights(parsedResults)
-
-	summary := buildExploreSummary(objective, len(localScope), len(webScope), len(customTasks), totalTasks, successCount, failureCount, highlights, notes)
+	content := fmt.Sprintf("Delegated objective \"%s\" to subagent.\n\nPrompt:\n%s\n\nSubagent output:\n%s", objective, prompt, delegateResult.Content)
 
 	resultMetadata := map[string]any{
-		"objective":          objective,
-		"local_scope":        localScope,
-		"web_scope":          webScope,
-		"custom_tasks":       customTasks,
-		"notes":              notes,
-		"mode":               mode,
-		"subtasks":           subtasks,
-		"total_tasks":        totalTasks,
-		"success_count":      successCount,
-		"failure_count":      failureCount,
-		"summary_highlights": highlights,
-		"delegation":         delegationDetails,
+		"objective":    objective,
+		"local_scope":  localScope,
+		"web_scope":    webScope,
+		"custom_tasks": customTasks,
+		"notes":        notes,
+		"prompt":       prompt,
+		"delegation":   delegationDetails,
 	}
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  summary,
+		Content:  content,
 		Metadata: resultMetadata,
 	}, nil
 }
@@ -263,6 +195,23 @@ func buildExploreSubtasks(objective string, localScope, webScope, customTasks []
 	}
 
 	return subtasks
+}
+
+func buildExplorePrompt(objective string, localScope, webScope, customTasks []string, notes string) string {
+	subtasks := buildExploreSubtasks(objective, localScope, webScope, customTasks, notes)
+	if len(subtasks) == 0 {
+		base := fmt.Sprintf("[CUSTOM] %s", objective)
+		subtasks = []string{appendNotes(base, notes)}
+	}
+
+	var builder strings.Builder
+	builder.WriteString(strings.TrimSpace(objective))
+	builder.WriteString("\n\nTasks:\n")
+	for i, task := range subtasks {
+		builder.WriteString(fmt.Sprintf("%d) %s\n", i+1, task))
+	}
+
+	return strings.TrimSpace(builder.String())
 }
 
 func appendNotes(base, notes string) string {

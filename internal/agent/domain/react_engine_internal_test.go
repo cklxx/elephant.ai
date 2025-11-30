@@ -114,11 +114,11 @@ func TestEnsureAttachmentPlaceholdersUsesURIWhenAvailable(t *testing.T) {
 	}
 
 	result := ensureAttachmentPlaceholders("", attachments)
-	if !strings.Contains(result, "https://example.com/seed.png") {
-		t.Fatalf("expected markdown to reference attachment URI, got %q", result)
+	if strings.Contains(result, "https://example.com/seed.png") {
+		t.Fatalf("expected placeholders instead of direct URIs, got %q", result)
 	}
-	if strings.Contains(result, "data:image/png") {
-		t.Fatalf("expected markdown to avoid embedding base64 data, got %q", result)
+	if !strings.Contains(result, "[seed.png]") {
+		t.Fatalf("expected placeholder reference for attachment, got %q", result)
 	}
 }
 
@@ -134,11 +134,11 @@ func TestEnsureAttachmentPlaceholdersReplacesInlinePlaceholders(t *testing.T) {
 	answer := "Latest render: [seed.png]"
 	result := ensureAttachmentPlaceholders(answer, attachments)
 
-	if strings.Contains(result, " [seed.png]") {
-		t.Fatalf("expected placeholder brackets to be removed from plain text, got %q", result)
+	if !strings.Contains(result, "[seed.png]") {
+		t.Fatalf("expected placeholder to remain for frontend replacement, got %q", result)
 	}
-	if !strings.Contains(result, "![seed.png](https://example.com/seed.png)") {
-		t.Fatalf("expected inline image markdown, got %q", result)
+	if strings.Contains(result, "https://example.com/seed.png") {
+		t.Fatalf("expected to avoid embedding attachment URI, got %q", result)
 	}
 }
 
@@ -487,8 +487,11 @@ func TestDecorateFinalResultIncludesReferencedAttachments(t *testing.T) {
 	if _, ok := attachments["seed.png"]; !ok {
 		t.Fatalf("expected placeholder to resolve to attachment, got %+v", attachments)
 	}
-	if !strings.Contains(result.Answer, "![seed.png](https://example.com/seed.png)") {
-		t.Fatalf("expected placeholder to be converted to markdown reference, got %q", result.Answer)
+	if !strings.Contains(result.Answer, "[seed.png]") {
+		t.Fatalf("expected placeholder to remain for frontend rendering, got %q", result.Answer)
+	}
+	if strings.Contains(result.Answer, "https://example.com/seed.png") {
+		t.Fatalf("expected to avoid embedding attachment URI, got %q", result.Answer)
 	}
 }
 

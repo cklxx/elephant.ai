@@ -3,12 +3,13 @@
 import { useMemo } from 'react';
 import {
   AnyAgentEvent,
-  ToolCallStartEvent,
-  ToolCallCompleteEvent,
-  BrowserInfoEvent,
+  WorkflowToolStartedEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowDiagnosticBrowserInfoEvent,
   AttachmentPayload,
 } from '@/lib/types';
 import { ToolOutput, ToolOutputType } from '@/components/agent/WebViewport';
+import { eventMatches } from '@/lib/types';
 
 export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
   return useMemo(() => {
@@ -17,19 +18,19 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
 
     events.forEach((event) => {
       // Track tool call starts
-      if (event.event_type === 'tool_call_start') {
-        const e = event as ToolCallStartEvent;
+      if (eventMatches(event, 'workflow.tool.started', 'workflow.tool.started')) {
+        const e = event as WorkflowToolStartedEvent;
         toolCalls.set(e.call_id, {
           id: e.call_id,
           toolName: e.tool_name,
-          timestamp: new Date(event.timestamp).getTime(),
+          timestamp: new Date(e.timestamp).getTime(),
           type: mapToolNameToType(e.tool_name),
         });
       }
 
       // Complete tool calls
-      if (event.event_type === 'tool_call_complete') {
-        const e = event as ToolCallCompleteEvent;
+      if (eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed')) {
+        const e = event as WorkflowToolCompletedEvent;
         const existing = toolCalls.get(e.call_id);
 
         if (existing) {
@@ -39,7 +40,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
           const output: ToolOutput = {
             id: e.call_id,
             toolName: e.tool_name,
-            timestamp: existing.timestamp || new Date(event.timestamp).getTime(),
+            timestamp: existing.timestamp || new Date(e.timestamp).getTime(),
             type: existing.type || mapToolNameToType(e.tool_name),
             attachments,
             ...parseToolResult(e.tool_name, e.result, e.error, e.metadata),
@@ -51,8 +52,8 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
       }
 
       // Browser diagnostics
-      if (event.event_type === 'browser_info') {
-        const e = event as BrowserInfoEvent;
+      if (eventMatches(event, 'workflow.diagnostic.browser_info')) {
+        const e = event as WorkflowDiagnosticBrowserInfoEvent;
         const details: string[] = [];
         if (typeof e.success === 'boolean') {
           details.push(`Status: ${e.success ? 'available' : 'unavailable'}`);
@@ -74,10 +75,10 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
         }
 
         outputs.push({
-          id: `browser-info-${event.timestamp}`,
+          id: `browser-info-${e.timestamp}`,
           type: 'generic',
-          toolName: 'browser_info',
-          timestamp: new Date(event.timestamp).getTime(),
+          toolName: 'workflow.diagnostic.browser_info',
+          timestamp: new Date(e.timestamp).getTime(),
           result: details.length > 0 ? details.join('\n') : 'No browser diagnostics available.',
         });
       }

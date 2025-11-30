@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
-import { ResearchTimeline } from './ResearchTimeline';
+import { TimelineStepList } from './TimelineStepList';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import { useMemoryStats } from '@/hooks/useAgentStreamStore';
+import { useTranslation } from '@/lib/i18n';
 
 interface AgentOutputProps {
   events: AnyAgentEvent[];
@@ -25,6 +28,7 @@ export function AgentOutput({
   reconnectAttempts,
   onReconnect,
 }: AgentOutputProps) {
+  const t = useTranslation();
   const memoryStats = useMemoryStats() as {
     eventCount: number;
     estimatedBytes: number;
@@ -85,18 +89,17 @@ export function AgentOutput({
   ]);
 
   return (
-    <div className="space-y-6">
-      {/* Connection status */}
-      <section className="console-card flex items-center justify-between gap-6 px-6 py-5">
-        <div className="space-y-2">
-          <h2 className="console-pane-title">Agent Output</h2>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">
-            <span className="console-quiet-chip text-[11px] uppercase">
-              {memoryStats.eventCount.toLocaleString()} EVENTS
-            </span>
+    <div className="flex flex-col gap-6">
+      <Card className="flex items-center justify-between gap-6 border border-border bg-card px-6 py-5">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold text-foreground">Agent Output</h2>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
+            <Badge variant="outline" className="text-[11px] font-medium">
+              {memoryStats.eventCount.toLocaleString()} events
+            </Badge>
             <span>
-              {Math.round(memoryStats.estimatedBytes / 1024)} KB · {memoryStats.toolCallCount} TOOL CALLS · {memoryStats.iterationCount}{' '}
-              ITERATIONS
+              {Math.round(memoryStats.estimatedBytes / 1024)} KB · {memoryStats.toolCallCount} tool calls · {memoryStats.iterationCount}{' '}
+              iterations
             </span>
           </div>
         </div>
@@ -107,17 +110,25 @@ export function AgentOutput({
           reconnectAttempts={reconnectAttempts}
           onReconnect={onReconnect}
         />
-      </section>
+      </Card>
 
       {hasTimeline && (
-        <ResearchTimeline
-          steps={timelineSteps}
-          focusedStepId={focusedStepId}
-          onStepSelect={(stepId) => {
-            setFocusedStepId(stepId);
-            setHasUserSelectedStep(true);
-          }}
-        />
+        <Card className="rounded-2xl border bg-card p-6">
+          <header className="mb-4 space-y-1">
+            <h3 className="text-base font-semibold text-foreground">
+              {t('timeline.card.title')}
+            </h3>
+            <p className="text-sm text-muted-foreground">{t('timeline.card.subtitle')}</p>
+          </header>
+          <TimelineStepList
+            steps={timelineSteps}
+            focusedStepId={focusedStepId}
+            onStepSelect={(stepId) => {
+              setFocusedStepId(stepId);
+              setHasUserSelectedStep(true);
+            }}
+          />
+        </Card>
       )}
 
       {/* Virtualized event stream */}

@@ -5,7 +5,7 @@ import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
 
 const baseEvent: AnyAgentEvent = {
-  event_type: 'user_task',
+  event_type: 'workflow.input.received',
   timestamp: new Date().toISOString(),
   agent_level: 'core',
   session_id: 'session-1',
@@ -14,14 +14,14 @@ const baseEvent: AnyAgentEvent = {
 };
 
 describe('TerminalOutput', () => {
-  it('filters assistant_message events from the output stream', () => {
+  it('filters workflow.node.output.delta events from the output stream', () => {
     const firstTimestamp = new Date().toISOString();
     const thirdTimestamp = new Date(Date.now() + 2000).toISOString();
 
     const events: AnyAgentEvent[] = [
       baseEvent,
       {
-        event_type: 'assistant_message',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -33,7 +33,7 @@ describe('TerminalOutput', () => {
         created_at: firstTimestamp,
       },
       {
-        event_type: 'assistant_message',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -65,14 +65,14 @@ describe('TerminalOutput', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the latest task_complete event inline without duplication', () => {
+  it('renders the latest workflow.result.final event inline without duplication', () => {
     const firstTimestamp = new Date().toISOString();
     const completionTimestamp = new Date(Date.now() + 1500).toISOString();
 
     const events: AnyAgentEvent[] = [
       baseEvent,
       {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         agent_level: 'core',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -92,7 +92,7 @@ describe('TerminalOutput', () => {
         timestamp: completionTimestamp,
       },
       {
-        event_type: 'assistant_message',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -131,7 +131,7 @@ describe('TerminalOutput', () => {
     const events: AnyAgentEvent[] = [
       baseEvent,
       {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
         call_id: 'subagent:1',
         tool_name: 'web_search',
@@ -145,7 +145,7 @@ describe('TerminalOutput', () => {
         subtask_preview: 'Collect references',
       },
       {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         agent_level: 'subagent',
         session_id: 'session-1',
         task_id: 'task-1',
@@ -174,12 +174,89 @@ describe('TerminalOutput', () => {
       </LanguageProvider>,
     );
 
-    const aggregatePanel = screen.getByTestId('subagent-aggregate-panel');
+    const aggregatePanel = screen.getByTestId('subagent-aggregate');
     expect(aggregatePanel).toBeInTheDocument();
     expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(2);
     expect(aggregatePanel).toHaveTextContent(/Subagent Task 1\/2/i);
+    expect(within(aggregatePanel).getAllByText(/Subagent Task 1\/2/i)).toHaveLength(1);
 
     const conversationEvents = screen.getByTestId('conversation-events');
-    expect(within(conversationEvents).getAllByTestId(/event-user_task/)).toHaveLength(1);
+    expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);
+  });
+
+  it('ignores delegation-only subagent tool events', () => {
+    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'subagent',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        subtask_index: 0,
+        total_subtasks: 1,
+        tool_name: 'subagent',
+        result: 'delegation summary',
+        duration: 200,
+        timestamp: subagentTimestamp,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.queryByTestId('subagent-aggregate')).not.toBeInTheDocument();
+    expect(screen.getByTestId('conversation-stream')).toBeInTheDocument();
+  });
+
+  it('routes core-level events with parent_task_id into the subagent aggregate', () => {
+    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'subtask-123',
+        parent_task_id: 'parent-1',
+        tool_name: 'text_to_image',
+        result: 'image generated',
+        duration: 200,
+        timestamp: subagentTimestamp,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <TerminalOutput
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    const aggregatePanel = screen.getByTestId('subagent-aggregate');
+    expect(aggregatePanel).toBeInTheDocument();
+    expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(1);
+
+    const conversationEvents = screen.getByTestId('conversation-events');
+    expect(within(conversationEvents).queryByTestId(/event-workflow.tool.completed/)).not.toBeInTheDocument();
   });
 });

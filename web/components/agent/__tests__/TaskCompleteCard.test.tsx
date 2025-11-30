@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TaskCompleteCard } from '../TaskCompleteCard';
 import { LanguageProvider } from '@/lib/i18n';
-import { TaskCompleteEvent } from '@/lib/types';
+import { WorkflowResultFinalEvent } from '@/lib/types';
 
-const baseEvent: TaskCompleteEvent = {
-  event_type: 'task_complete',
+const baseEvent: WorkflowResultFinalEvent = {
+  event_type: 'workflow.result.final',
   timestamp: new Date().toISOString(),
   agent_level: 'core',
   session_id: 'session-123',
@@ -18,7 +18,7 @@ const baseEvent: TaskCompleteEvent = {
   duration: 0,
 };
 
-function renderWithProvider(event: TaskCompleteEvent) {
+function renderWithProvider(event: WorkflowResultFinalEvent) {
   return render(
     <LanguageProvider>
       <TaskCompleteCard event={event} />
@@ -42,9 +42,8 @@ describe('TaskCompleteCard', () => {
     expect(
       screen.getByText(/Submit another prompt to continue working/i),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('task-complete-metrics')).toHaveTextContent(
-      /2 iterations/i,
-    );
+    expect(screen.queryByTestId('task-complete-metrics')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-answer-divider')).not.toBeInTheDocument();
   });
 
   it('renders markdown answer when final answer is present', () => {
@@ -59,9 +58,8 @@ describe('TaskCompleteCard', () => {
 
     expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
     expect(screen.getByText(/This is the answer\./i)).toBeInTheDocument();
-    expect(screen.getByTestId('task-complete-metrics')).toHaveTextContent(
-      /3 iterations/i,
-    );
+    expect(screen.queryByTestId('task-complete-metrics')).not.toBeInTheDocument();
+    expect(screen.getByTestId('task-complete-answer-divider')).toBeInTheDocument();
   });
 
   it('renders inline images from attachment placeholders', () => {
@@ -130,5 +128,45 @@ describe('TaskCompleteCard', () => {
       'href',
       'https://example.com/plan.pdf',
     );
+  });
+
+  it('shows streaming indicator while final answer is streaming', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: 'Partial stream chunk',
+      is_streaming: true,
+      stream_finished: false,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.getByTestId('markdown-streaming-indicator')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+    expect(screen.getByText(/Partial stream chunk/i)).toBeInTheDocument();
+  });
+
+  it('renders streaming state before any content arrives', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: '',
+      is_streaming: true,
+      stream_finished: false,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.getByTestId('markdown-streaming-indicator')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+  });
+
+  it('hides streaming indicator once stream is finished', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: 'All set.',
+      is_streaming: false,
+      stream_finished: true,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.queryByTestId('markdown-streaming-indicator')).not.toBeInTheDocument();
+    expect(screen.getByText(/All set\./i)).toBeInTheDocument();
   });
 });

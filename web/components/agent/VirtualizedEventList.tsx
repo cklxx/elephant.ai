@@ -2,13 +2,22 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnyAgentEvent, ToolCallStartEvent } from '@/lib/types';
+import { AnyAgentEvent, WorkflowToolStartedEvent, eventMatches } from '@/lib/types';
+import {
+  isWorkflowNodeFailedEvent,
+  isWorkflowResultFinalEvent,
+  isWorkflowToolCompletedEvent,
+  isWorkflowToolStartedEvent,
+} from '@/lib/typeGuards';
 import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ReactNode } from 'react';
 
 interface VirtualizedEventListProps {
@@ -28,12 +37,13 @@ export function VirtualizedEventList({
 }: VirtualizedEventListProps) {
   const t = useTranslation();
   const { visibleEvents, indexMap } = useMemo(() => {
+    const collapsed = collapseFinalResults(events);
     const mapping = new Map<number, number>();
-    events.forEach((_, index) => {
+    collapsed.forEach((_, index) => {
       mapping.set(index, index);
     });
 
-    return { visibleEvents: events, indexMap: mapping };
+    return { visibleEvents: collapsed, indexMap: mapping };
   }, [events]);
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -190,9 +200,9 @@ export function VirtualizedEventList({
   }, [visibleEvents, t]);
 
   const toolCallStartEvents = useMemo(() => {
-    const map = new Map<string, ToolCallStartEvent>();
+    const map = new Map<string, WorkflowToolStartedEvent>();
     for (const event of visibleEvents) {
-      if (event.event_type === 'tool_call_start') {
+      if (isWorkflowToolStartedEvent(event)) {
         map.set(event.call_id, event);
       }
     }
@@ -200,18 +210,14 @@ export function VirtualizedEventList({
   }, [visibleEvents]);
 
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-[28px] border-4 border-border bg-card/95',
-        className,
-      )}
-    >
+    <Card className={cn('relative overflow-hidden', className)}>
+      <CardContent className="p-0">
       <span id={descriptionId} className="sr-only">
         {t('events.stream.ariaDescription')}
       </span>
       <div
         ref={parentRef}
-        className="console-scrollbar min-h-[420px] max-h-[820px] overflow-y-auto px-5 pb-10 pt-8 scroll-smooth"
+        className="min-h-[420px] max-h-[820px] overflow-y-auto px-5 pb-10 pt-8 scroll-smooth"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
@@ -225,14 +231,14 @@ export function VirtualizedEventList({
         }}
       >
         {visibleEvents.length === 0 ? (
-          <div className="console-empty-state h-[320px]">
+          <div className="flex h-[320px] flex-col items-center justify-center gap-2 text-center">
             <span className="text-3xl" aria-hidden>
               💭
             </span>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground">
+            <p className="text-sm font-semibold text-foreground">
               {t('events.emptyTitle')}
             </p>
-            <p className="console-microcopy max-w-xs">{t('events.emptyHint')}</p>
+            <p className="text-xs text-muted-foreground max-w-xs">{t('events.emptyHint')}</p>
           </div>
         ) : (
           <div
@@ -244,6 +250,7 @@ export function VirtualizedEventList({
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const event = visibleEvents[virtualItem.index];
+              const completedEvent = isWorkflowToolCompletedEvent(event) ? event : null;
               const isFocused = effectiveFocusedEventIndex === virtualItem.index;
               return (
                 <div
@@ -262,23 +269,24 @@ export function VirtualizedEventList({
                     className={cn('pb-6', isFocused && 'scroll-mt-40')}
                     data-focused={isFocused ? 'true' : undefined}
                   >
-                    <div
-                    className={cn(
-                        'console-card bg-card/98 px-5 py-4 transition-all duration-150 ease-out',
-                        'hover:-translate-y-1 hover:-translate-x-1',
+                    <Card
+                      className={cn(
+                        'bg-card/95 transition-all duration-150 ease-out',
                         isFocused && 'outline outline-2 outline-offset-4 outline-foreground',
                       )}
                     >
+                      <CardContent className="px-5 py-4">
                       <EventCard
                         event={event}
                         pairedStart={
-                          event.event_type === 'tool_call_complete'
-                            ? toolCallStartEvents.get(event.call_id)
+                          completedEvent
+                            ? toolCallStartEvents.get(completedEvent.call_id)
                             : undefined
                         }
                         isFocused={isFocused}
                       />
-                    </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               );
@@ -288,24 +296,27 @@ export function VirtualizedEventList({
       </div>
 
       {!isPinnedToLatest && visibleEvents.length > 0 && (
-        <button
+        <Button
           type="button"
           onClick={() => {
             scrollToLatest('smooth');
             onJumpToLatest?.();
           }}
-          className="console-button console-button-secondary absolute bottom-5 right-5 inline-flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase"
+          className="absolute bottom-5 right-5 inline-flex items-center gap-2 text-[11px] font-semibold"
+          size="sm"
+          variant="secondary"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           {t('events.scrollToLatest') ?? 'View latest'}
-        </button>
+        </Button>
       )}
       {liveMessage && (
         <div aria-live="polite" className="sr-only">
           {liveMessage}
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -315,161 +326,152 @@ function EventCard({
   isFocused = false,
 }: {
   event: AnyAgentEvent;
-  pairedStart?: ToolCallStartEvent;
+  pairedStart?: WorkflowToolStartedEvent;
   isFocused?: boolean;
 }) {
   const t = useTranslation();
 
   const wrapWithContext = (content: ReactNode) => (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <EventContextMeta event={event} />
       {content}
     </div>
   );
 
-  switch (event.event_type) {
-    case 'thinking':
-      return <ThinkingIndicator />;
+  if (eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
+    return <ThinkingIndicator />;
+  }
 
-    case 'tool_call_start':
-      return wrapWithContext(
-        <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />
-      );
+  if (isWorkflowToolStartedEvent(event)) {
+    return wrapWithContext(
+      <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />,
+    );
+  }
 
-    case 'tool_call_complete':
-      const hasError = 'error' in event && event.error;
-      return wrapWithContext(
-        <ToolCallCard
-          event={event}
-          status={hasError ? 'error' : 'done'}
-          pairedStart={pairedStart}
-          isFocused={isFocused}
-        />
-      );
+  if (isWorkflowToolCompletedEvent(event)) {
+    const hasError = Boolean(event.error);
+    return wrapWithContext(
+      <ToolCallCard
+        event={event}
+        status={hasError ? 'error' : 'done'}
+        pairedStart={pairedStart}
+        isFocused={isFocused}
+      />,
+    );
+  }
 
-    case 'task_complete':
-      return wrapWithContext(<TaskCompleteCard event={event} />);
+  if (isWorkflowResultFinalEvent(event)) {
+    return wrapWithContext(<TaskCompleteCard event={event} />);
+  }
 
-    case 'error':
-      return wrapWithContext(<ErrorCard event={event} />);
+  if (isWorkflowNodeFailedEvent(event)) {
+    return wrapWithContext(<ErrorCard event={event} />);
+  }
 
-    case 'iteration_start':
-      return (
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
-          <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-            {t('events.iteration.progress', {
-              iteration: event.iteration,
-              total: event.total_iters,
-            })}
-          </span>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.started', 'workflow.node.started') && typeof (event as any).iteration === 'number') {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
+        <span className="text-sm font-semibold text-foreground">
+          {t('events.iteration.progress', {
+            iteration: (event as any).iteration,
+            total: (event as any).total_iters,
+          })}
+        </span>
+      </div>
+    );
+  }
 
-    case 'iteration_complete':
-      return wrapWithContext(
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="console-quiet-chip text-xs uppercase">
-            {t('events.iteration.complete', { iteration: event.iteration })}
-          </span>
-          <span className="console-microcopy uppercase tracking-[0.24em] text-muted-foreground">
-            {t('events.iteration.tokens', { count: event.tokens_used })}
-          </span>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.completed', 'workflow.node.completed') && typeof (event as any).iteration === 'number') {
+    return wrapWithContext(
+      <div className="flex flex-wrap items-center gap-3 text-xs text-foreground">
+        <Badge variant="outline">
+          {t('events.iteration.complete', { iteration: (event as any).iteration })}
+        </Badge>
+        <span className="text-muted-foreground">
+          {t('events.iteration.tokens', { count: (event as any).tokens_used })}
+        </span>
+      </div>,
+    );
+  }
 
-    // New event types (backend not yet emitting, but ready for when they do)
-    case 'research_plan':
-      return wrapWithContext(
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">
-            {t('events.researchPlan.title', { count: event.estimated_iterations })}
-          </h3>
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/75">
-            {event.plan_steps.map((step, idx) => (
-              <li key={idx}>{step}</li>
-            ))}
-          </ol>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.started') && typeof (event as any).step_index === 'number') {
+    return wrapWithContext(
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
+        <span className="text-sm font-semibold text-foreground">
+          {t('events.step.started', {
+            index: (event as any).step_index + 1,
+            description: (event as any).step_description,
+          })}
+        </span>
+      </div>,
+    );
+  }
 
-    case 'step_started':
-      return wrapWithContext(
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
-          <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-            {t('events.step.started', {
-              index: event.step_index + 1,
-              description: event.step_description,
-            })}
-          </span>
-        </div>
-      );
+  if (eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number') {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-semibold text-foreground">
+          {t('events.step.completed', { index: (event as any).step_index + 1 })}
+        </p>
+        <p className="text-sm text-foreground/75">{(event as any).step_result}</p>
+      </div>
+    );
+  }
 
-    case 'step_completed':
-      return (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
-            {t('events.step.completed', { index: event.step_index + 1 })}
-          </p>
-          <p className="text-sm text-foreground/75">{event.step_result}</p>
-        </div>
-      );
-
-    case 'browser_info': {
-      const details: Array<[string, string]> = [];
-      if (typeof event.success === 'boolean') {
-        details.push([
-          t('events.browserInfo.statusLabel'),
-          event.success ? t('events.browserInfo.statusAvailable') : t('events.browserInfo.statusUnavailable'),
-        ]);
-      }
-      if (event.message) {
-        details.push([t('events.browserInfo.messageLabel'), event.message]);
-      }
-      if (event.user_agent) {
-        details.push([t('events.browserInfo.userAgentLabel'), event.user_agent]);
-      }
-      if (event.cdp_url) {
-        details.push([t('events.browserInfo.cdpLabel'), event.cdp_url]);
-      }
-      if (event.vnc_url) {
-        details.push([t('events.browserInfo.vncLabel'), event.vnc_url]);
-      }
-      if (event.viewport_width && event.viewport_height) {
-        details.push([
-          t('events.browserInfo.viewportLabel'),
-          `${event.viewport_width} × ${event.viewport_height}`,
-        ]);
-      }
-
-      return (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{t('events.browserInfo.title')}</h3>
-          <p className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
-            {t('events.browserInfo.captured', {
-              timestamp: new Date(event.captured).toLocaleString(),
-            })}
-          </p>
-          {details.length > 0 ? (
-            <dl className="space-y-2 text-sm text-foreground/80">
-              {details.map(([label, value]) => (
-                <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
-                  <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
-                  <dd className="break-words text-sm text-foreground">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="console-microcopy text-muted-foreground">{t('events.browserInfo.noData')}</p>
-          )}
-        </div>
-      );
+  if (eventMatches(event, 'workflow.diagnostic.browser_info')) {
+    const details: Array<[string, string]> = [];
+    if (typeof (event as any).success === 'boolean') {
+      details.push([
+        t('events.browserInfo.statusLabel'),
+        (event as any).success ? t('events.browserInfo.statusAvailable') : t('events.browserInfo.statusUnavailable'),
+      ]);
+    }
+    if ((event as any).message) {
+      details.push([t('events.browserInfo.messageLabel'), (event as any).message]);
+    }
+    if ((event as any).user_agent) {
+      details.push([t('events.browserInfo.userAgentLabel'), (event as any).user_agent]);
+    }
+    if ((event as any).cdp_url) {
+      details.push([t('events.browserInfo.cdpLabel'), (event as any).cdp_url]);
+    }
+    if ((event as any).vnc_url) {
+      details.push([t('events.browserInfo.vncLabel'), (event as any).vnc_url]);
+    }
+    if ((event as any).viewport_width && (event as any).viewport_height) {
+      details.push([
+        t('events.browserInfo.viewportLabel'),
+        `${(event as any).viewport_width} × ${(event as any).viewport_height}`,
+      ]);
     }
 
-    default:
-      return null;
+    return (
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-semibold text-foreground">{t('events.browserInfo.title')}</h3>
+        <p className="text-[11px] text-muted-foreground">
+          {t('events.browserInfo.captured', {
+            timestamp: new Date((event as any).captured).toLocaleString(),
+          })}
+        </p>
+        {details.length > 0 ? (
+          <dl className="flex flex-col gap-2 text-sm text-foreground/80">
+            {details.map(([label, value]) => (
+              <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
+                <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+                <dd className="break-words text-sm text-foreground">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('events.browserInfo.noData')}</p>
+        )}
+      </div>
+    );
   }
+
+  return null;
 }
 
 function EventContextMeta({ event }: { event: AnyAgentEvent }) {
@@ -489,8 +491,29 @@ function EventContextMeta({ event }: { event: AnyAgentEvent }) {
   }
 
   return (
-    <p className="console-microcopy uppercase tracking-[0.28em] text-muted-foreground">
+    <p className="text-[11px] text-muted-foreground">
       {parts.join(' · ')}
     </p>
   );
+}
+
+function collapseFinalResults(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  const latestByTask = new Map<string, AnyAgentEvent>();
+  const ordered: AnyAgentEvent[] = [];
+
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const evt = events[i];
+    if (eventMatches(evt, 'workflow.result.final', 'workflow.result.final') && 'task_id' in evt && 'session_id' in evt) {
+      const key = `${evt.session_id}|${evt.task_id}`;
+      if (latestByTask.has(key)) {
+        continue;
+      }
+      latestByTask.set(key, evt);
+      ordered.push(evt);
+      continue;
+    }
+    ordered.push(evt);
+  }
+
+  return ordered.reverse();
 }

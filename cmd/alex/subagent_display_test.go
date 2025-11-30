@@ -12,7 +12,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	display := NewSubagentDisplay()
 
 	initialLines := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent:  &domain.ToolCallStartEvent{},
+		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:   0,
 		TotalSubtasks:  2,
 		SubtaskPreview: "Investigate login bug",
@@ -26,7 +26,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	noOutput := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallCompleteEvent{},
+		OriginalEvent: &domain.WorkflowToolCompletedEvent{},
 		SubtaskIndex:  0,
 	})
 	if len(noOutput) != 0 {
@@ -34,7 +34,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	lines := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.TaskCompleteEvent{TotalTokens: 120},
+		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 120},
 		SubtaskIndex:  0,
 	})
 	if len(lines) != 1 {
@@ -51,7 +51,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	secondStart := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent:  &domain.ToolCallStartEvent{},
+		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:   1,
 		TotalSubtasks:  2,
 		SubtaskPreview: "Prepare release plan",
@@ -61,12 +61,12 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	}
 
 	display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallCompleteEvent{},
+		OriginalEvent: &domain.WorkflowToolCompletedEvent{},
 		SubtaskIndex:  1,
 	})
 
 	completion := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.TaskCompleteEvent{TotalTokens: 80},
+		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 80},
 		SubtaskIndex:  1,
 	})
 
@@ -94,7 +94,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 	display := NewSubagentDisplay()
 
 	firstLines := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent:  &domain.ToolCallStartEvent{},
+		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:   0,
 		TotalSubtasks:  1,
 		SubtaskPreview: "Draft release notes",
@@ -111,7 +111,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 	}
 
 	failure := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ErrorEvent{Error: assertError("timeout exceeded")},
+		OriginalEvent: &domain.WorkflowNodeFailedEvent{Error: assertError("timeout exceeded")},
 		SubtaskIndex:  0,
 	})
 	if len(failure) != 2 {
@@ -138,7 +138,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	display := NewSubagentDisplay()
 
 	header := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallStartEvent{},
+		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  0,
 		TotalSubtasks: 1,
 	})
@@ -147,7 +147,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	}
 
 	firstCompletion := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.TaskCompleteEvent{TotalTokens: 10},
+		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 10},
 		SubtaskIndex:  0,
 	})
 	if len(firstCompletion) != 2 {
@@ -159,7 +159,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 
 	// Introduce another subtask with an updated total count.
 	secondStart := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallStartEvent{},
+		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  1,
 		TotalSubtasks: 2,
 	})
@@ -174,7 +174,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	}
 
 	secondCompletion := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.TaskCompleteEvent{TotalTokens: 20},
+		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 20},
 		SubtaskIndex:  1,
 	})
 	if len(secondCompletion) != 2 {
@@ -192,7 +192,7 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	display := NewSubagentDisplay()
 
 	initial := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallStartEvent{},
+		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  0,
 		TotalSubtasks: 2,
 		MaxParallel:   1,
@@ -205,7 +205,7 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	}
 
 	update := display.Handle(&builtin.SubtaskEvent{
-		OriginalEvent: &domain.ToolCallStartEvent{},
+		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  1,
 		TotalSubtasks: 2,
 		MaxParallel:   3,

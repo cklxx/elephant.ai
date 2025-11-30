@@ -8,7 +8,7 @@ describe('useToolOutputs', () => {
     it('should aggregate tool call start and complete events', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -18,7 +18,7 @@ describe('useToolOutputs', () => {
           arguments: { command: 'ls -la' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:05Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -50,7 +50,7 @@ describe('useToolOutputs', () => {
     it('should handle tool calls with errors', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -60,7 +60,7 @@ describe('useToolOutputs', () => {
           arguments: { command: 'invalid-command' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -94,7 +94,7 @@ describe('useToolOutputs', () => {
     it('should map web_fetch tool type', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -104,7 +104,7 @@ describe('useToolOutputs', () => {
           arguments: { url: 'https://example.com' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:05Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -128,7 +128,7 @@ describe('useToolOutputs', () => {
     it('should map browser tool type and parse screenshot', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -138,7 +138,7 @@ describe('useToolOutputs', () => {
           arguments: { url: 'https://example.com' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:04Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -167,7 +167,7 @@ describe('useToolOutputs', () => {
     it('should map file_read tool type', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -177,7 +177,7 @@ describe('useToolOutputs', () => {
           arguments: { path: '/test/file.txt' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -202,7 +202,7 @@ describe('useToolOutputs', () => {
     it('should extract web metadata when JSON parsing fails', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -212,7 +212,7 @@ describe('useToolOutputs', () => {
           arguments: { url: 'https://example.com' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:05Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -243,7 +243,7 @@ describe('useToolOutputs', () => {
     it('should extract browser metadata when JSON parsing fails', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -253,7 +253,7 @@ describe('useToolOutputs', () => {
           arguments: { url: 'https://example.com' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:03Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -285,7 +285,7 @@ describe('useToolOutputs', () => {
     it('should map file_write tool type', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -295,7 +295,7 @@ describe('useToolOutputs', () => {
           arguments: { path: '/test/output.txt', content: 'Written content' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -319,7 +319,7 @@ describe('useToolOutputs', () => {
     it('should map file_edit tool type', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -329,7 +329,7 @@ describe('useToolOutputs', () => {
           arguments: { path: '/test/file.txt' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -356,7 +356,7 @@ describe('useToolOutputs', () => {
     it('should default to generic type for unknown tools', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -366,7 +366,7 @@ describe('useToolOutputs', () => {
           arguments: {},
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -389,7 +389,7 @@ describe('useToolOutputs', () => {
     it('should extract browser diagnostics', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'browser_info',
+          event_type: 'workflow.diagnostic.browser_info',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -406,7 +406,7 @@ describe('useToolOutputs', () => {
       expect(result.current).toHaveLength(1);
       expect(result.current[0]).toMatchObject({
         type: 'generic',
-        toolName: 'browser_info',
+        toolName: 'workflow.diagnostic.browser_info',
         result: expect.stringContaining('Browser ready'),
       });
     });
@@ -416,7 +416,7 @@ describe('useToolOutputs', () => {
     it('should handle plain text results', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -426,7 +426,7 @@ describe('useToolOutputs', () => {
           arguments: {},
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -446,7 +446,7 @@ describe('useToolOutputs', () => {
     it('should handle invalid JSON gracefully', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -456,7 +456,7 @@ describe('useToolOutputs', () => {
           arguments: {},
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -478,7 +478,7 @@ describe('useToolOutputs', () => {
     it('should sort outputs by timestamp', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:02:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -488,7 +488,7 @@ describe('useToolOutputs', () => {
           arguments: { command: 'pwd' },
         },
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -498,7 +498,7 @@ describe('useToolOutputs', () => {
           arguments: { command: 'ls' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -509,7 +509,7 @@ describe('useToolOutputs', () => {
           duration: 1000,
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:02:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -541,7 +541,7 @@ describe('useToolOutputs', () => {
     it('should memoize results when events do not change', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -568,7 +568,7 @@ describe('useToolOutputs', () => {
     it('should recompute when events change', () => {
       const events1: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -582,7 +582,7 @@ describe('useToolOutputs', () => {
       const events2: AnyAgentEvent[] = [
         ...events1,
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -613,7 +613,7 @@ describe('useToolOutputs', () => {
     it('should handle complete without start event', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -635,7 +635,7 @@ describe('useToolOutputs', () => {
     it('should handle multiple complete events for same call_id', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'tool_call_start',
+          event_type: 'workflow.tool.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -645,7 +645,7 @@ describe('useToolOutputs', () => {
           arguments: { command: 'ls' },
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:01Z',
           session_id: 'test-123',
           agent_level: 'core',
@@ -656,7 +656,7 @@ describe('useToolOutputs', () => {
           duration: 1000,
         },
         {
-          event_type: 'tool_call_complete',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T10:00:02Z',
           session_id: 'test-123',
           agent_level: 'core',

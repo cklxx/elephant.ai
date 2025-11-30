@@ -147,14 +147,14 @@ The `AgentOutput` component renders events in real-time:
 
 All events correspond to Go types in `internal/agent/domain/events.go`:
 
-- `iteration_start` - ReAct iteration start
-- `thinking` - LLM is generating response
-- `think_complete` - LLM response received
-- `tool_call_start` - Tool execution begins
-- `tool_call_stream` - Streaming tool output
-- `tool_call_complete` - Tool execution complete
-- `iteration_complete` - Iteration complete
-- `task_complete` - Task finished
+- `workflow.node.started` - ReAct iteration start
+- `workflow.node.output.delta` - LLM is generating response
+- `workflow.node.output.summary` - LLM response received
+- `workflow.tool.started` - Tool execution begins
+- `workflow.tool.progress` - Streaming tool output
+- `workflow.tool.completed` - Tool execution complete
+- `workflow.node.completed` - Iteration complete
+- `workflow.result.final` - Task finished
 - `error` - Error occurred
 
 ## Tool Icons and Colors

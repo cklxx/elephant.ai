@@ -169,8 +169,10 @@ func (w *idAwareExecutor) Mode() tools.ExecutionMode {
 // This prevents nested subagent calls at registration level
 func (r *Registry) WithoutSubagent() ports.ToolRegistry {
 	return &filteredRegistry{
-		parent:  r,
-		exclude: map[string]bool{"subagent": true},
+		parent: r,
+		// Exclude both subagent and explore (which wraps subagent) to prevent
+		// recursive delegation chains inside subagents.
+		exclude: map[string]bool{"subagent": true, "explore": true},
 	}
 }
 
@@ -325,7 +327,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 			Mode:           config.ExecutionMode,
 			SandboxManager: config.SandboxManager,
 		})
-		r.static["browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
+		r.static["workflow.diagnostic.browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
 			Mode:           config.ExecutionMode,
 			SandboxManager: config.SandboxManager,
 		})

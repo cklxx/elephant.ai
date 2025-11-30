@@ -15,7 +15,7 @@ function renderWithI18n(event: AnyAgentEvent) {
 describe('SubagentEventLine', () => {
   it('renders contextual header for subagent tool call start', () => {
     const event: AnyAgentEvent = {
-      event_type: 'tool_call_start',
+      event_type: 'workflow.tool.started',
       agent_level: 'subagent',
       session_id: 'session-123',
       task_id: 'task-abc',
@@ -44,7 +44,7 @@ describe('SubagentEventLine', () => {
 
   it('renders tool output card for subagent completion', () => {
     const event: AnyAgentEvent = {
-      event_type: 'tool_call_complete',
+      event_type: 'workflow.tool.completed',
       agent_level: 'subagent',
       session_id: 'session-123',
       task_id: 'task-xyz',
@@ -68,7 +68,7 @@ describe('SubagentEventLine', () => {
 
   it('shows progress and stats badges for subagent summary events', () => {
     const progressEvent: AnyAgentEvent = {
-      event_type: 'subagent_progress',
+      event_type: 'workflow.subflow.progress',
       agent_level: 'subagent',
       session_id: 'session-123',
       task_id: 'task-abc',

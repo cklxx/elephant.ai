@@ -1,17 +1,16 @@
-// Hook to convert agent events to timeline steps for ResearchTimeline
+// Hook to convert agent events to timeline steps for plan/timeline summaries
 
 import { useMemo } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
 import {
-  isStepStartedEvent,
-  isStepCompletedEvent,
-  isIterationStartEvent,
-  isIterationCompleteEvent,
-  isErrorEvent,
-  isToolCallStartEvent,
-  isResearchPlanEvent,
+  isIterationNodeStartedEvent,
+  isIterationNodeCompletedEvent,
+  isWorkflowNodeStartedEvent,
+  isWorkflowNodeCompletedEvent,
+  isWorkflowNodeFailedEvent,
+  isWorkflowToolStartedEvent,
 } from '@/lib/typeGuards';
-import { TimelineStep } from '@/components/agent/ResearchTimeline';
+import { TimelineStep } from '@/lib/planTypes';
 
 export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
   return useMemo(() => {
@@ -19,21 +18,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
     const iterationFallback = new Map<number, TimelineStep>();
 
     events.forEach((event, index) => {
-      if (isResearchPlanEvent(event)) {
-        event.plan_steps.forEach((description, idx) => {
-          const id = `step-${idx}`;
-          if (!steps.has(id)) {
-            steps.set(id, {
-              id,
-              title: `Step ${idx + 1}`,
-              description,
-              status: 'planned',
-            });
-          }
-        });
-      }
-
-      if (isStepStartedEvent(event)) {
+      if (isWorkflowNodeStartedEvent(event)) {
         const id = `step-${event.step_index}`;
         const step = steps.get(id) ?? {
           id,
@@ -49,7 +34,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         });
       }
 
-      if (isStepCompletedEvent(event)) {
+      if (isWorkflowNodeCompletedEvent(event)) {
         const id = `step-${event.step_index}`;
         const prev = steps.get(id);
         const endTime = new Date(event.timestamp).getTime();
@@ -66,7 +51,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         });
       }
 
-      if (isIterationStartEvent(event)) {
+      if (isIterationNodeStartedEvent(event)) {
         const id = `iteration-${event.iteration}`;
         iterationFallback.set(event.iteration, {
           id,
@@ -78,7 +63,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         });
       }
 
-      if (isToolCallStartEvent(event)) {
+      if (isWorkflowToolStartedEvent(event) && typeof event.iteration === 'number') {
         const iteration = iterationFallback.get(event.iteration);
         if (iteration) {
           const tools = iteration.toolsUsed ?? [];
@@ -92,7 +77,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         }
       }
 
-      if (isIterationCompleteEvent(event)) {
+      if (isIterationNodeCompletedEvent(event)) {
         const iteration = iterationFallback.get(event.iteration);
         if (iteration) {
           const endTime = new Date(event.timestamp).getTime();
@@ -106,7 +91,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         }
       }
 
-      if (isErrorEvent(event)) {
+      if (isWorkflowNodeFailedEvent(event) && typeof event.iteration === 'number') {
         const iteration = iterationFallback.get(event.iteration);
         if (iteration) {
           const endTime = new Date(event.timestamp).getTime();

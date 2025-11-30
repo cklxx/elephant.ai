@@ -6,16 +6,13 @@ This document describes the research console interaction patterns implemented in
 
 ## Implemented Features
 
-### 1. Plan Approval Flow
-- ResearchPlanCard with approve/modify/cancel actions
-- usePlanApproval hook for state management
-- Inline plan editing with validation
-- API integration for plan submission
+### 1. Plan Approval Flow (removed)
+- Plan approval is no longer part of the console flow
+- Execution proceeds directly from step events without separate approval
 
 ### 2. Real-Time Timeline
-- ResearchTimeline with step highlighting
-- Auto-scroll to active step
-- Expandable step details (tools, duration, tokens)
+- TimelineStepList with step highlighting
+- Auto-scroll to active step with manual focus override
 - Visual indicators: pending → active → complete/error
 
 ### 3. Computer View
@@ -43,8 +40,7 @@ web/
 ├── components/
 │   ├── agent/
 │   │   ├── ConsoleAgentOutput.tsx      # Main integration component
-│   │   ├── ResearchPlanCard.tsx      # Plan approval UI
-│   │   ├── ResearchTimeline.tsx      # Step-by-step timeline
+│   │   ├── TimelineStepList.tsx         # Step-by-step timeline
 │   │   ├── WebViewport.tsx           # Tool output inspector
 │   │   ├── DocumentCanvas.tsx        # Document viewer
 │   │   └── VirtualizedEventList.tsx  # Event stream
@@ -53,11 +49,10 @@ web/
 │       ├── toast.tsx                 # Toast notifications
 │       └── dialog.tsx                # Modal dialogs
 ├── hooks/
-│   ├── usePlanApproval.ts           # Plan approval logic
 │   ├── useToolOutputs.ts            # Parse events to tool outputs
 │   └── useTimelineSteps.ts          # Parse events to timeline
 └── lib/
-    ├── api.ts                       # API client with plan approval
+    ├── api.ts                       # API client
     └── types.ts                     # TypeScript definitions
 ```
 
@@ -79,12 +74,11 @@ All components are fully keyboard-accessible with:
 ## Backend Requirements
 
 New API endpoints needed:
-- POST /api/plans/approve
+- None beyond existing task creation and SSE streaming.
 
 New SSE events needed:
-- research_plan
-- step_started
-- step_completed
-- browser_info
+- workflow.node.started
+- workflow.node.completed
+- workflow.diagnostic.browser_info
 
 See full API spec in this document.

@@ -105,12 +105,12 @@ function EventLine({ event }) {
 
 **事件类型样式:**
 - `task_started` - 绿色
-- `task_completed` - 粗体绿色 + ✓
+- `workflow.result.finald` - 粗体绿色 + ✓
 - `task_failed` - 红色 + ✗
 - `plan_created` - 蓝色
 - `tool_call` - 青色 + ▸
 - `tool_result` - 青色 + ✓/✗
-- `thinking` - 紫色 + 💭
+- `workflow.node.output.delta` - 紫色 + 💭
 - `step_start/complete` - 黄色
 
 **内容格式化:**
@@ -124,7 +124,7 @@ function EventLine({ event }) {
 // step_start
 → Step 1: Analyzing codebase structure
 
-// thinking
+// workflow.node.output.delta
 💭 I need to first understand the project...
 ```
 
@@ -205,14 +205,12 @@ const { planState, currentPlan } = useMemo(() => {
   };
 }, [events]);
 
-// 条件渲染 Plan 卡片
-{planState === 'awaiting_approval' && currentPlan && (
-  <ResearchPlanCard
-    plan={currentPlan}
-    onApprove={handleApprove}
-    onReject={handleReject}
-  />
-)}
+// 自动审批 Plan（无独立 UI）
+useEffect(() => {
+  if (planState === 'awaiting_approval' && currentPlan) {
+    handleApprove();
+  }
+}, [planState, currentPlan, handleApprove]);
 ```
 
 ## 样式规范

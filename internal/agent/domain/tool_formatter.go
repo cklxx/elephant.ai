@@ -252,14 +252,12 @@ func (tf *ToolFormatter) simplePathArgs(args map[string]any) map[string]string {
 }
 
 func (tf *ToolFormatter) subagentArgs(args map[string]any) map[string]string {
-	result := make(map[string]string)
-	if mode := tf.getStringArg(args, "mode", ""); mode != "" {
-		result["mode"] = mode
+	if prompt := tf.getStringArg(args, "prompt", ""); prompt != "" {
+		return map[string]string{
+			"prompt": tf.summarizeString(prompt, 120),
+		}
 	}
-	if subtasks, ok := args["subtasks"].([]any); ok {
-		result["tasks"] = strconv.Itoa(len(subtasks))
-	}
-	return result
+	return map[string]string{}
 }
 
 func (tf *ToolFormatter) finalArgs(args map[string]any) map[string]string {

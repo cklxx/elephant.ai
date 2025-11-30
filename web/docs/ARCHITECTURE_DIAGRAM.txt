@@ -12,10 +12,10 @@
 │         │                          │                          │              │
 │         │ Emits Events             │ Event Stream             │ Server-Sent  │
 │         ▼                          ▼                          ▼ Events       │
-│  • user_task                • iteration_start          /api/sessions/       │
-│  • thinking                 • tool_call_start          {id}/events          │
-│  • tool_call_complete       • task_complete                                 │
-│  • research_plan (future)   • browser_info (future)                        │
+│  • workflow.input.received                • workflow.node.started          /api/sessions/       │
+│  • workflow.node.output.delta                 • workflow.tool.started          {id}/events          │
+│  • workflow.tool.completed       • workflow.result.final                                 │
+│  • workflow.diagnostic.browser_info (future)                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
                                        │
                                        │ SSE Stream (HTTP)
@@ -56,10 +56,10 @@
 │  │  │                                                                   │  │  │
 │  │  │  groupByIteration()       ─────▶  Map<number, IterationGroup>    │  │  │
 │  │  │    • Group all events by iteration number                        │  │  │
-│  │  │    • Include thinking, tool_calls, errors, metrics               │  │  │
+│  │  │    • Include workflow.node.output.delta, tool_calls, errors, metrics               │  │  │
 │  │  │                                                                   │  │  │
 │  │  │  extractResearchSteps()   ─────▶  ResearchStep[]                 │  │  │
-│  │  │    • Build step timeline from research_plan events               │  │  │
+│  │  │    • Build step timeline from workflow.node.started/completed    │  │  │
 │  │  │    • Track status: pending → in_progress → completed             │  │  │
 │  │  │                                                                   │  │  │
 │  │  │  extractBrowserDiagnostics() ─────▶ BrowserDiagnostics[]         │  │  │
@@ -106,7 +106,7 @@
 │  │                      React Components                                   │  │
 │  │                                                                         │  │
 │  │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────┐  │  │
-│  │  │  AgentOutput     │  │ ResearchTimeline │  │  IterationDetails   │  │  │
+│  │  │  AgentOutput     │  │ TimelineStepList │  │  IterationDetails   │  │  │
 │  │  │  • Connection    │  │  • Step progress │  │  • Thinking content │  │  │
 │  │  │  • Memory stats  │  │  • Current step  │  │  • Tool calls       │  │  │
 │  │  │  • Event list    │  │  • Completed     │  │  • Errors           │  │  │
@@ -133,7 +133,7 @@
 │  │  │                                                                   │  │  │
 │  │  │  • TaskAnalysisCard      • IterationStartBanner                 │  │  │
 │  │  │  • ToolCallCard          • IterationCompleteBanner              │  │  │
-│  │  │  • ThinkingIndicator     • ResearchPlanCard (new)               │  │  │
+│  │  │  • ThinkingIndicator     • TimelineStepList                     │  │  │
 │  │  │  • TaskCompleteCard      • StepStartedBanner (new)              │  │  │
 │  │  │  • ErrorCard             • StepCompletedCard (new)              │  │  │
 │  │  │                          • BrowserDiagnosticsCard (new)         │  │  │
@@ -148,7 +148,7 @@
 1. BACKEND EMITS EVENT
    ┌──────────────────────────────────────────────────────┐
    │ {                                                     │
-   │   "event_type": "tool_call_start",                   │
+   │   "event_type": "workflow.tool.started",                   │
    │   "call_id": "abc123",                               │
    │   "tool_name": "bash",                               │
    │   "arguments": { "command": "ls -la" },              │
@@ -161,7 +161,7 @@
                           ▼
 2. USEESSE RECEIVES & PARSES
    ┌──────────────────────────────────────────────────────┐
-   │ eventSource.addEventListener('tool_call_start', ...) │
+   │ eventSource.addEventListener('workflow.tool.started', ...) │
    │ onEvent(parsedEvent)                                 │
    └──────────────────────────────────────────────────────┘
                           │

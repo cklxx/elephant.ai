@@ -2,16 +2,10 @@
 
 ## Keyboard Navigation
 
-### ResearchPlanCard
-- [x] Tab to navigate buttons
-- [x] Enter/Space to activate
-- [x] Escape to collapse expanded sections
-- [x] Focus visible on all interactive elements
-
-### ResearchTimeline
+### TimelineStepList
 - [x] Tab to navigate steps
-- [x] Enter to expand/collapse
-- [x] Auto-scroll maintains focus
+- [x] Enter/Space to select step
+- [x] Selection retains focus state
 - [x] Visual focus indicators
 
 ### WebViewport

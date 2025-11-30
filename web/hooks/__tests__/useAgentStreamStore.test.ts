@@ -13,7 +13,7 @@ describe('useAgentStreamStore', () => {
   describe('LRU Event Caching', () => {
     it('should add events to cache', () => {
       const event: AnyAgentEvent = {
-        event_type: 'user_task',
+        event_type: 'workflow.input.received',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -31,7 +31,7 @@ describe('useAgentStreamStore', () => {
     it('should evict oldest events when cache exceeds 1000 events', () => {
       // Add 1001 events
       const events: AnyAgentEvent[] = Array.from({ length: 1001 }, (_, i) => ({
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -51,7 +51,7 @@ describe('useAgentStreamStore', () => {
     it('should maintain memory bounds under 5MB for typical events', () => {
       // Add 1000 typical events
       const events: AnyAgentEvent[] = Array.from({ length: 1000 }, (_, i) => ({
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -73,7 +73,7 @@ describe('useAgentStreamStore', () => {
 
     it('should handle event deduplication by call_id', () => {
       const startEvent: AnyAgentEvent = {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -84,7 +84,7 @@ describe('useAgentStreamStore', () => {
       };
 
       const streamEvent: AnyAgentEvent = {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -94,7 +94,7 @@ describe('useAgentStreamStore', () => {
       };
 
       const completeEvent: AnyAgentEvent = {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -122,18 +122,8 @@ describe('useAgentStreamStore', () => {
 
   describe('Step Tree Aggregation', () => {
     it('should track research steps correctly', () => {
-      const planEvent: AnyAgentEvent = {
-        event_type: 'research_plan',
-        timestamp: new Date().toISOString(),
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        plan_steps: ['Step 1: Research', 'Step 2: Implement', 'Step 3: Test'],
-        estimated_iterations: 5,
-      };
-
       const stepStartedEvent: AnyAgentEvent = {
-        event_type: 'step_started',
+        event_type: 'workflow.node.started',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -143,7 +133,7 @@ describe('useAgentStreamStore', () => {
       };
 
       const stepCompletedEvent: AnyAgentEvent = {
-        event_type: 'step_completed',
+        event_type: 'workflow.node.completed',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -154,13 +144,12 @@ describe('useAgentStreamStore', () => {
 
       act(() => {
         const store = useAgentStreamStore.getState();
-        store.addEvent(planEvent);
         store.addEvent(stepStartedEvent);
         store.addEvent(stepCompletedEvent);
       });
 
       const state = useAgentStreamStore.getState();
-      expect(state.researchSteps).toHaveLength(3);
+      expect(state.researchSteps).toHaveLength(1);
       const firstStep = state.researchSteps.find((step) => step.id === '0');
       expect(firstStep?.status).toBe('done');
       expect(firstStep?.result).toBe('Research completed successfully');
@@ -168,7 +157,7 @@ describe('useAgentStreamStore', () => {
 
     it('should group events by iteration', () => {
       const iterStartEvent: AnyAgentEvent = {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -176,8 +165,8 @@ describe('useAgentStreamStore', () => {
         total_iterations: 5,
       };
 
-      const thinkingEvent: AnyAgentEvent = {
-        event_type: 'thinking',
+      const workflowNodeDeltaEvent: AnyAgentEvent = {
+        event_type: 'workflow.node.output.delta',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -185,7 +174,7 @@ describe('useAgentStreamStore', () => {
       };
 
       const iterCompleteEvent: AnyAgentEvent = {
-        event_type: 'iteration_complete',
+        event_type: 'workflow.node.completed',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -197,7 +186,7 @@ describe('useAgentStreamStore', () => {
       act(() => {
         const store = useAgentStreamStore.getState();
         store.addEvent(iterStartEvent);
-        store.addEvent(thinkingEvent);
+        store.addEvent(workflowNodeDeltaEvent);
         store.addEvent(iterCompleteEvent);
       });
 
@@ -212,7 +201,7 @@ describe('useAgentStreamStore', () => {
   describe('Task Status Management', () => {
     it('should transition to running on iteration start', () => {
       const iterStartEvent: AnyAgentEvent = {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -231,7 +220,7 @@ describe('useAgentStreamStore', () => {
 
     it('should transition to completed on task complete', () => {
       const completeEvent: AnyAgentEvent = {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -256,7 +245,7 @@ describe('useAgentStreamStore', () => {
 
     it('should apply the latest task completion payload when streaming summaries', () => {
       const partial: AnyAgentEvent = {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -269,7 +258,7 @@ describe('useAgentStreamStore', () => {
       };
 
       const final: AnyAgentEvent = {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -302,7 +291,7 @@ describe('useAgentStreamStore', () => {
 
     it('should transition to cancelled on task cancelled', () => {
       const cancelledEvent: AnyAgentEvent = {
-        event_type: 'task_cancelled',
+        event_type: 'workflow.result.cancelled',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -321,7 +310,7 @@ describe('useAgentStreamStore', () => {
 
     it('should transition to error on error event', () => {
       const errorEvent: AnyAgentEvent = {
-        event_type: 'error',
+        event_type: 'workflow.node.failed',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -345,7 +334,7 @@ describe('useAgentStreamStore', () => {
     it('should track active tool call', () => {
 
       const startEvent: AnyAgentEvent = {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -362,7 +351,7 @@ describe('useAgentStreamStore', () => {
       expect(useAgentStreamStore.getState().activeToolCallId).toBe('call-456');
 
       const completeEvent: AnyAgentEvent = {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
@@ -385,14 +374,14 @@ describe('useAgentStreamStore', () => {
       // Add some events
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'user_task',
+          event_type: 'workflow.input.received',
           timestamp: new Date().toISOString(),
           session_id: 'test-123',
           agent_level: 'core',
           task: 'Test goal',
         },
         {
-          event_type: 'iteration_start',
+          event_type: 'workflow.node.started',
           timestamp: new Date().toISOString(),
           session_id: 'test-123',
           agent_level: 'core',
@@ -423,7 +412,7 @@ describe('useAgentStreamStore', () => {
   describe('Browser Diagnostics Tracking', () => {
     it('should track browser diagnostics events', () => {
       const diagnosticsEvent: AnyAgentEvent = {
-        event_type: 'browser_info',
+        event_type: 'workflow.diagnostic.browser_info',
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',

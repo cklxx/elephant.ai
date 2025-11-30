@@ -129,7 +129,7 @@ func TestPresetResolver_ContextPriorityOverConfigForTools(t *testing.T) {
 	}
 }
 
-func TestPresetResolver_EmitsToolFilteringEvent(t *testing.T) {
+func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) {
 	logger := &testLogger{}
 	mockClk := newMockClock(time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC))
 	eventCapturer := &eventCapturer{}
@@ -151,9 +151,9 @@ func TestPresetResolver_EmitsToolFilteringEvent(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(eventCapturer.events))
 	}
 	event := eventCapturer.events[0]
-	filterEvent, ok := event.(*domain.ToolFilteringEvent)
+	filterEvent, ok := event.(*domain.WorkflowDiagnosticToolFilteringEvent)
 	if !ok {
-		t.Fatalf("expected ToolFilteringEvent, got %T", event)
+		t.Fatalf("expected WorkflowDiagnosticToolFilteringEvent, got %T", event)
 	}
 	if filterEvent.GetSessionID() != "test-session-123" {
 		t.Errorf("expected sessionID 'test-session-123', got '%s'", filterEvent.GetSessionID())
@@ -178,9 +178,9 @@ func TestPresetResolver_DefaultPresetStillEmitsEvent(t *testing.T) {
 	if len(eventCapturer.events) != 1 {
 		t.Fatalf("expected an event for default preset application, got %d", len(eventCapturer.events))
 	}
-	filterEvent, ok := eventCapturer.events[0].(*domain.ToolFilteringEvent)
+	filterEvent, ok := eventCapturer.events[0].(*domain.WorkflowDiagnosticToolFilteringEvent)
 	if !ok {
-		t.Fatalf("expected ToolFilteringEvent, got %T", eventCapturer.events[0])
+		t.Fatalf("expected WorkflowDiagnosticToolFilteringEvent, got %T", eventCapturer.events[0])
 	}
 	if filterEvent.PresetName != "Full Access" {
 		t.Fatalf("expected Full Access preset name, got %s", filterEvent.PresetName)
@@ -227,8 +227,8 @@ func (e *eventCapturer) OnEvent(event ports.AgentEvent) {
 	e.events = append(e.events, event)
 }
 
-func TestToolFilteringEventImplementation(t *testing.T) {
-	event := domain.NewToolFilteringEvent(
+func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
+	event := domain.NewWorkflowDiagnosticToolFilteringEvent(
 		ports.LevelCore,
 		"test-session",
 		"task-1",
@@ -240,8 +240,8 @@ func TestToolFilteringEventImplementation(t *testing.T) {
 		time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
 	)
 
-	if event.EventType() != "tool_filtering" {
-		t.Errorf("Expected event type 'tool_filtering', got '%s'", event.EventType())
+	if event.EventType() != "workflow.diagnostic.tool_filtering" {
+		t.Errorf("Expected event type 'workflow.diagnostic.tool_filtering', got '%s'", event.EventType())
 	}
 	if event.GetSessionID() != "test-session" {
 		t.Errorf("Expected session ID 'test-session', got '%s'", event.GetSessionID())

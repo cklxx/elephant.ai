@@ -4,8 +4,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"alex/internal/security/redaction"
 )
 
 func TestPublishAndLatestEnvironment(t *testing.T) {
@@ -47,7 +45,7 @@ func TestSubscribeEnvironmentsReceivesUpdates(t *testing.T) {
 	}
 }
 
-func TestPublishEnvironmentsRedactsSensitiveValues(t *testing.T) {
+func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 	payload := EnvironmentPayload{
 		Host: map[string]string{
 			"API_KEY": "sk-secret-value",
@@ -70,11 +68,11 @@ func TestPublishEnvironmentsRedactsSensitiveValues(t *testing.T) {
 
 	select {
 	case received := <-ch:
-		if received.Host["API_KEY"] != redaction.Placeholder {
-			t.Fatalf("expected host API_KEY to be redacted, got %q", received.Host["API_KEY"])
+		if received.Host["API_KEY"] != "sk-secret-value" {
+			t.Fatalf("expected host API_KEY to be preserved, got %q", received.Host["API_KEY"])
 		}
-		if received.Sandbox["token"] != redaction.Placeholder {
-			t.Fatalf("expected sandbox token to be redacted, got %q", received.Sandbox["token"])
+		if received.Sandbox["token"] != "my-token" {
+			t.Fatalf("expected sandbox token to be preserved, got %q", received.Sandbox["token"])
 		}
 		if received.Host["PATH"] != "/usr/bin" {
 			t.Fatalf("expected non-sensitive host value to remain, got %q", received.Host["PATH"])
@@ -83,18 +81,18 @@ func TestPublishEnvironmentsRedactsSensitiveValues(t *testing.T) {
 			t.Fatalf("expected non-sensitive sandbox value to remain, got %q", received.Sandbox["LANG"])
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for redacted payload")
+		t.Fatal("timed out waiting for environment payload")
 	}
 
 	latest, ok := LatestEnvironments()
 	if !ok {
-		t.Fatal("expected redacted payload to be stored")
+		t.Fatal("expected payload to be stored")
 	}
 
-	if latest.Host["API_KEY"] != redaction.Placeholder {
-		t.Fatalf("expected stored host API_KEY to be redacted, got %q", latest.Host["API_KEY"])
+	if latest.Host["API_KEY"] != "sk-secret-value" {
+		t.Fatalf("expected stored host API_KEY to be preserved, got %q", latest.Host["API_KEY"])
 	}
-	if latest.Sandbox["token"] != redaction.Placeholder {
-		t.Fatalf("expected stored sandbox token to be redacted, got %q", latest.Sandbox["token"])
+	if latest.Sandbox["token"] != "my-token" {
+		t.Fatalf("expected stored sandbox token to be preserved, got %q", latest.Sandbox["token"])
 	}
 }

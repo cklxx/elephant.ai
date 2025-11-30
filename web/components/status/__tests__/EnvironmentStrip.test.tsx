@@ -12,7 +12,7 @@ describe('EnvironmentStrip', () => {
   it('renders formatted environment metadata', () => {
     act(() => {
       handleEnvironmentSnapshot({
-        event_type: 'environment_snapshot',
+        event_type: 'workflow.diagnostic.environment_snapshot',
         timestamp: new Date().toISOString(),
         agent_level: 'core',
         captured: new Date().toISOString(),
@@ -36,7 +36,7 @@ describe('EnvironmentStrip', () => {
   it('shows progress message when sandbox is initializing', () => {
     act(() => {
       handleSandboxProgress({
-        event_type: 'sandbox_progress',
+        event_type: 'workflow.diagnostic.sandbox_progress',
         timestamp: new Date().toISOString(),
         agent_level: 'core',
         status: 'running',
@@ -57,7 +57,7 @@ describe('EnvironmentStrip', () => {
   it('prefers progress message when sandbox fails', () => {
     act(() => {
       handleSandboxProgress({
-        event_type: 'sandbox_progress',
+        event_type: 'workflow.diagnostic.sandbox_progress',
         timestamp: new Date().toISOString(),
         agent_level: 'core',
         status: 'error',

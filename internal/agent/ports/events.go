@@ -13,6 +13,21 @@ type AgentEvent interface {
 	GetParentTaskID() string
 }
 
+// SubtaskMetadata describes contextual fields emitted alongside delegated subflows.
+type SubtaskMetadata struct {
+	Index       int
+	Total       int
+	Preview     string
+	MaxParallel int
+}
+
+// SubtaskWrapper identifies events that wrap another AgentEvent with subtask context.
+type SubtaskWrapper interface {
+	AgentEvent
+	SubtaskDetails() SubtaskMetadata
+	WrappedEvent() AgentEvent
+}
+
 // EventListener consumes agent events (used by TUI/streaming layers)
 type EventListener interface {
 	OnEvent(event AgentEvent)

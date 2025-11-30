@@ -31,14 +31,18 @@ type capturingListener struct{ events []ports.AgentEvent }
 
 func (c *capturingListener) OnEvent(evt ports.AgentEvent) { c.events = append(c.events, evt) }
 
-func (c *capturingListener) byType(eventType string) []ports.AgentEvent {
-	filtered := make([]ports.AgentEvent, 0, len(c.events))
+func (c *capturingListener) envelopes(eventName string) []*domain.WorkflowEventEnvelope {
+	var out []*domain.WorkflowEventEnvelope
 	for _, evt := range c.events {
-		if evt != nil && evt.EventType() == eventType {
-			filtered = append(filtered, evt)
+		env, ok := evt.(*domain.WorkflowEventEnvelope)
+		if !ok || env == nil {
+			continue
+		}
+		if env.Event == eventName {
+			out = append(out, env)
 		}
 	}
-	return filtered
+	return out
 }
 
 func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
@@ -134,27 +138,41 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		t.Fatalf("expected tool attachments to propagate into result messages")
 	}
 
-	stepEvents := listener.byType((&domain.StepCompletedEvent{}).EventType())
-	if len(stepEvents) == 0 {
-		t.Fatalf("expected step completion events to be emitted")
+	completed := listener.envelopes("workflow.node.completed")
+	if len(completed) == 0 {
+		t.Fatalf("expected workflow.node.completed envelopes to be emitted")
 	}
 	hasToolStep := false
-	for _, evt := range stepEvents {
-		completed := evt.(*domain.StepCompletedEvent)
-		if strings.Contains(completed.StepDescription, "react:iter:1:tool:call-1") {
+	for _, env := range completed {
+		stepDesc, _ := env.Payload["step_description"].(string)
+		if stepDesc == "" {
+			stepDesc = env.NodeID
+		}
+		if strings.Contains(stepDesc, "react:iter:1:tool:call-1") {
 			hasToolStep = true
-			if completed.Workflow == nil {
-				t.Fatalf("expected workflow snapshot on step event")
+			rawWorkflow, ok := env.Payload["workflow"]
+			if !ok || rawWorkflow == nil {
+				t.Fatalf("expected workflow snapshot on step envelope")
 			}
-			if completed.Workflow.Phase != workflow.PhaseRunning && completed.Workflow.Phase != workflow.PhaseSucceeded {
-				t.Fatalf("unexpected workflow phase on step event: %s", completed.Workflow.Phase)
+			wfSnap, ok := rawWorkflow.(*workflow.WorkflowSnapshot)
+			if !ok || wfSnap == nil {
+				t.Fatalf("expected workflow snapshot type on step envelope")
 			}
-			if completed.Iteration != 1 {
-				t.Fatalf("expected iteration 1 on tool completion, got %d", completed.Iteration)
+			if wfSnap.Phase != workflow.PhaseRunning && wfSnap.Phase != workflow.PhaseSucceeded {
+				t.Fatalf("unexpected workflow phase on step envelope: %s", wfSnap.Phase)
+			}
+			iter, _ := env.Payload["iteration"].(int)
+			if iter == 0 {
+				if floatIter, ok := env.Payload["iteration"].(float64); ok {
+					iter = int(floatIter)
+				}
+			}
+			if iter != 1 {
+				t.Fatalf("expected iteration 1 on tool completion, got %d", iter)
 			}
 		}
 	}
 	if !hasToolStep {
-		t.Fatalf("expected tool call step completion event")
+		t.Fatalf("expected tool call step completion envelope")
 	}
 }

@@ -99,19 +99,19 @@ def analyze_evaluation_results(results_dir: str = "ultra_think_results"):
     print("-" * 40)
     
     # 检查是否有深度思考迹象
-    deep_thinking_indicators = 0
+    deep_workflow.node.output.delta_indicators = 0
     for result in detailed:
         if 'trace' in result:
             # 检查思考步骤
             if len(result['trace']) >= 4:
-                deep_thinking_indicators += 1
+                deep_workflow.node.output.delta_indicators += 1
             # 检查是否有分析和推理步骤
             for step in result['trace']:
                 if any(keyword in step['action'].lower() for keyword in ['analyze', 'identify', 'reason']):
-                    deep_thinking_indicators += 0.5
+                    deep_workflow.node.output.delta_indicators += 0.5
                     break
     
-    ultra_think_score = min(100, (deep_thinking_indicators / len(detailed)) * 100)
+    ultra_think_score = min(100, (deep_workflow.node.output.delta_indicators / len(detailed)) * 100)
     print(f"  深度思考指标: {ultra_think_score:.1f}%")
     print(f"  推理模型使用: {'是' if 'r1' in summary['model_name'] else '否'}")
     print(f"  平均思考步骤: {sum([len(r.get('trace', [])) for r in detailed]) / len(detailed):.1f}步")

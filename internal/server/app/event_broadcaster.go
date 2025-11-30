@@ -42,7 +42,7 @@ type EventBroadcaster struct {
 }
 
 const (
-	assistantMessageEventType = "assistant_message"
+	assistantMessageEventType = "workflow.node.output.delta"
 	assistantMessageLogBatch  = 10
 	globalHighVolumeSessionID = "__global__"
 )
@@ -81,25 +81,36 @@ func (b *EventBroadcaster) SetAttachmentArchiver(archiver AttachmentArchiver) {
 
 // OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
 func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
-	suppressLogs := b.shouldSuppressHighVolumeLogs(event)
+	if event == nil {
+		return
+	}
+
+	baseEvent := BaseAgentEvent(event)
+	if baseEvent == nil {
+		return
+	}
+
+	suppressLogs := b.shouldSuppressHighVolumeLogs(baseEvent)
 	if suppressLogs {
-		b.trackHighVolumeEvent(event)
+		b.trackHighVolumeEvent(baseEvent)
 	} else {
-		b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
+		b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", baseEvent.EventType(), baseEvent.GetSessionID())
 	}
 
 	// Store event in history for session replay
-	sessionID := event.GetSessionID()
-	if sessionID != "" {
-		b.storeEventHistory(sessionID, event)
-	} else {
-		b.storeGlobalEvent(event)
+	sessionID := baseEvent.GetSessionID()
+	if shouldPersistToHistory(baseEvent) {
+		if sessionID != "" {
+			b.storeEventHistory(sessionID, event)
+		} else {
+			b.storeGlobalEvent(event)
+		}
 	}
 
 	// Run side effects before we broadcast to keep task progress/attachments consistent
 	// with what clients receive, even if those operations are slow.
-	b.archiveAttachments(event)
-	b.updateTaskProgress(event)
+	b.archiveAttachments(baseEvent)
+	b.updateTaskProgress(baseEvent)
 
 	b.mu.RLock()
 	if !suppressLogs {
@@ -138,7 +149,12 @@ func (b *EventBroadcaster) getSessionIDs() []string {
 
 // updateTaskProgress updates task progress based on event type
 func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
-	if b.taskStore == nil {
+	if b.taskStore == nil || event == nil {
+		return
+	}
+
+	event = BaseAgentEvent(event)
+	if event == nil {
 		return
 	}
 
@@ -164,25 +180,40 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 
 	// Update progress based on event type
 	switch e := event.(type) {
-	case *domain.IterationStartEvent:
-		// Update current iteration only, preserve tokens
+	case *domain.WorkflowEventEnvelope:
+		iter := intFromPayload(e.Payload, "iteration")
+		switch e.EventType() {
+		case "workflow.node.started":
+			task, err := b.taskStore.Get(ctx, taskID)
+			if err == nil {
+				_ = b.taskStore.UpdateProgress(ctx, taskID, iter, task.TokensUsed)
+			}
+		case "workflow.node.completed":
+			tokens := intFromPayload(e.Payload, "tokens_used")
+			_ = b.taskStore.UpdateProgress(ctx, taskID, iter, tokens)
+		case "workflow.result.final":
+			totalIters := intFromPayload(e.Payload, "total_iterations")
+			totalTokens := intFromPayload(e.Payload, "total_tokens")
+			_ = b.taskStore.UpdateProgress(ctx, taskID, totalIters, totalTokens)
+		}
+	case *domain.WorkflowResultFinalEvent:
+		_ = b.taskStore.UpdateProgress(ctx, taskID, e.TotalIterations, e.TotalTokens)
+	case *domain.WorkflowNodeCompletedEvent:
+		_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, e.TokensUsed)
+	case *domain.WorkflowNodeStartedEvent:
 		task, err := b.taskStore.Get(ctx, taskID)
 		if err == nil {
 			_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, task.TokensUsed)
 		}
-
-	case *domain.IterationCompleteEvent:
-		// Update current iteration and tokens
-		_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, e.TokensUsed)
-
-	case *domain.TaskCompleteEvent:
-		// Final update is handled by SetResult, but we can update one more time
-		_ = b.taskStore.UpdateProgress(ctx, taskID, e.TotalIterations, e.TotalTokens)
 	}
 }
 
 func (b *EventBroadcaster) archiveAttachments(event agentports.AgentEvent) {
 	if b.attachmentArchiver == nil {
+		return
+	}
+	event = BaseAgentEvent(event)
+	if event == nil {
 		return
 	}
 	sessionID := event.GetSessionID()
@@ -262,7 +293,7 @@ func isCriticalEvent(event agentports.AgentEvent) bool {
 		return false
 	}
 	switch event.EventType() {
-	case "task_complete", "task_cancelled":
+	case "workflow.result.final", "workflow.result.cancelled":
 		return true
 	default:
 		return false
@@ -406,13 +437,56 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 }
 
 func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
+	event = BaseAgentEvent(event)
+	if event == nil {
+		return nil
+	}
 	switch e := event.(type) {
-	case *domain.ToolCallCompleteEvent:
+	case *domain.WorkflowEventEnvelope:
+		if e == nil || e.Payload == nil {
+			return nil
+		}
+		if att, ok := e.Payload["attachments"].(map[string]agentports.Attachment); ok {
+			return agentports.CloneAttachmentMap(att)
+		}
+		return nil
+	case *domain.WorkflowToolCompletedEvent:
 		return agentports.CloneAttachmentMap(e.Attachments)
-	case *domain.TaskCompleteEvent:
+	case *domain.WorkflowResultFinalEvent:
 		return agentports.CloneAttachmentMap(e.Attachments)
 	default:
 		return nil
+	}
+}
+
+func intFromPayload(payload map[string]any, key string) int {
+	if payload == nil {
+		return 0
+	}
+	switch val := payload[key].(type) {
+	case int:
+		return val
+	case int32:
+		return int(val)
+	case int64:
+		return int(val)
+	case float64:
+		return int(val)
+	default:
+		return 0
+	}
+}
+
+func shouldPersistToHistory(event agentports.AgentEvent) bool {
+	event = BaseAgentEvent(event)
+	if event == nil {
+		return false
+	}
+	switch event.(type) {
+	case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -420,17 +494,19 @@ func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.
 // suppressed for the provided event type. Assistant streaming events are very
 // high volume and can flood the logs, so we only log these events in batches.
 func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEvent) bool {
-	if event == nil {
+	base := BaseAgentEvent(event)
+	if base == nil {
 		return false
 	}
-	return event.EventType() == assistantMessageEventType
+	return base.EventType() == assistantMessageEventType
 }
 
 func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
-	if event == nil {
+	base := BaseAgentEvent(event)
+	if base == nil {
 		return
 	}
-	sessionID := event.GetSessionID()
+	sessionID := base.GetSessionID()
 	if sessionID == "" {
 		sessionID = globalHighVolumeSessionID
 	}
@@ -441,7 +517,7 @@ func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
 	b.highVolumeMu.Unlock()
 
 	if count%assistantMessageLogBatch == 0 {
-		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, event.EventType(), sessionID)
+		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, base.EventType(), sessionID)
 	}
 }
 

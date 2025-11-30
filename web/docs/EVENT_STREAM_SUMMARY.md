@@ -12,12 +12,12 @@ A complete event stream state management system has been implemented for the ALE
 
 - ✅ **web/lib/types.ts** - Extended with 4 new event types:
   - `ResearchPlanEvent` - Research plan with steps and estimated iterations
-  - `StepStartedEvent` - Research step start tracking
-  - `StepCompletedEvent` - Research step completion with result
-- `BrowserInfoEvent` - Sandbox browser diagnostics (status, endpoints, viewport)
+  - `WorkflowNodeStartedEvent` - Research step start tracking
+  - `WorkflowNodeCompletedEvent` - Research step completion with result
+- `WorkflowDiagnosticBrowserInfoEvent` - Sandbox browser diagnostics (status, endpoints, viewport)
 
 - ✅ **web/lib/eventAggregation.ts** - Event processing logic (260 lines):
-  - `aggregateToolCalls()` - Merges tool_call_start/stream/complete into single objects
+  - `aggregateToolCalls()` - Merges workflow.tool.started/stream/complete into single objects
   - `groupByIteration()` - Groups events by ReAct iteration
   - `extractResearchSteps()` - Builds research step timeline
 - `extractBrowserDiagnostics()` - Extracts sandbox browser diagnostics
@@ -63,7 +63,7 @@ A complete event stream state management system has been implemented for the ALE
 - ✅ **web/docs/QUICK_START_STORE.md** - Quick reference guide (300+ lines):
   - Basic usage examples
   - All selector documentation
-  - Example components (ResearchTimeline, IterationList)
+  - Example components (TimelineStepList, IterationList)
   - Performance tips
   - Debugging tools
 
@@ -90,7 +90,7 @@ A complete event stream state management system has been implemented for the ALE
 
 **Tool Call Grouping**: Merges 3 separate events into 1 card
 ```
-tool_call_start → tool_call_stream → tool_call_complete
+workflow.tool.started → workflow.tool.progress → workflow.tool.completed
                          ↓
               AggregatedToolCall
 ```
@@ -99,7 +99,7 @@ tool_call_start → tool_call_stream → tool_call_complete
 ```typescript
 IterationGroup {
   iteration: 1,
-  thinking: "I need to...",
+  workflow.node.output.delta: "I need to...",
   tool_calls: [AggregatedToolCall, ...],
   tokens_used: 150,
   tools_run: 3,
@@ -186,25 +186,19 @@ The frontend is ready to handle new event types. Backend needs to emit:
 
 **File**: `internal/agent/domain/events.go`
 ```go
-type ResearchPlanEvent struct {
-    BaseEvent
-    PlanSteps          []string `json:"plan_steps"`
-    EstimatedIterations int     `json:"estimated_iterations"`
-}
-
-type StepStartedEvent struct {
+type WorkflowNodeStartedEvent struct {
     BaseEvent
     StepIndex       int    `json:"step_index"`
     StepDescription string `json:"step_description"`
 }
 
-type StepCompletedEvent struct {
+type WorkflowNodeCompletedEvent struct {
     BaseEvent
     StepIndex  int    `json:"step_index"`
     StepResult string `json:"step_result"`
 }
 
-type BrowserInfoEvent struct {
+type WorkflowDiagnosticBrowserInfoEvent struct {
     BaseEvent
     Success        *bool  `json:"success,omitempty"`
     Message        string `json:"message,omitempty"`
@@ -221,16 +215,15 @@ type BrowserInfoEvent struct {
 ```go
 eventTypes := []string{
     // ... existing types
-    "research_plan",
-    "step_started",
-    "step_completed",
-    "browser_info",
+    "workflow.node.started",
+    "workflow.node.completed",
+    "workflow.diagnostic.browser_info",
 }
 ```
 
 ## Example Usage
 
-### Research Timeline Component
+### Timeline Step List Component
 
 ```typescript
 import {
@@ -239,7 +232,7 @@ import {
   useCurrentResearchStep,
 } from '@/hooks/useAgentStreamStore';
 
-function ResearchTimeline() {
+function TimelineStepListExample() {
   const { actionName, goal } = useTaskSummary();
   const completedSteps = useCompletedResearchSteps();
   const currentStep = useCurrentResearchStep();

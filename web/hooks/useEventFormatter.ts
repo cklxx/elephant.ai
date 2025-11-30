@@ -12,14 +12,14 @@
  * const { formatContent, getEventStyle } = useEventFormatter({
  *   maxContentLength: 150,
  *   formatOverrides: {
- *     user_task: (event) => `Custom: ${event.task}`
+ *     workflow.input.received: (event) => `Custom: ${event.task}`
  *   }
  * });
  * ```
  */
 
 import { useMemo } from 'react';
-import { AnyAgentEvent } from '@/lib/types';
+import { AnyAgentEvent, eventMatches } from '@/lib/types';
 
 /**
  * Custom formatter function type
@@ -69,40 +69,41 @@ export function useEventFormatter(
    */
   const getEventStyle = useMemo(
     () => (eventType: AnyAgentEvent['event_type']): string => {
-      switch (eventType) {
-        case 'user_task':
-          return 'text-primary font-semibold';
-        case 'task_complete':
-          return 'text-emerald-600 font-semibold';
-        case 'task_cancelled':
-          return 'text-amber-600 font-semibold';
-        case 'error':
-          return 'text-destructive font-semibold';
-        case 'research_plan':
-          return 'text-primary';
-        case 'subagent_progress':
-          return 'text-muted-foreground';
-        case 'subagent_complete':
-          return 'text-emerald-600 font-semibold';
-        case 'tool_call_start':
-          return 'text-primary';
-        case 'tool_call_complete':
-          return 'text-primary';
-        case 'thinking':
-          return 'text-muted-foreground';
-        case 'think_complete':
-          return 'text-muted-foreground';
-        case 'step_started':
-          return 'text-primary';
-        case 'step_completed':
-          return 'text-emerald-600 font-medium';
-        case 'iteration_start':
-          return 'text-muted-foreground';
-        case 'iteration_complete':
-          return 'text-muted-foreground';
-        default:
-          return 'text-muted-foreground';
+      if (eventType === 'workflow.input.received') return 'text-primary font-semibold';
+      if (['workflow.result.final', 'workflow.result.final'].includes(eventType)) {
+        return 'text-emerald-600 font-semibold';
       }
+      if (['workflow.result.cancelled', 'workflow.result.cancelled'].includes(eventType)) {
+        return 'text-amber-600 font-semibold';
+      }
+      if (['workflow.node.failed'].includes(eventType)) {
+        return 'text-destructive font-semibold';
+      }
+      if (['workflow.subflow.progress', 'workflow.subflow.progress'].includes(eventType)) {
+        return 'text-muted-foreground';
+      }
+      if (['workflow.subflow.completed', 'workflow.subflow.completed'].includes(eventType)) {
+        return 'text-emerald-600 font-semibold';
+      }
+      if (['workflow.tool.started', 'workflow.tool.started'].includes(eventType)) {
+        return 'text-primary';
+      }
+      if (['workflow.tool.completed', 'workflow.tool.completed'].includes(eventType)) {
+        return 'text-primary';
+      }
+      if (['workflow.node.output.delta', 'workflow.node.output.delta'].includes(eventType)) {
+        return 'text-muted-foreground';
+      }
+      if (['workflow.node.output.summary', 'workflow.node.output.summary'].includes(eventType)) {
+        return 'text-muted-foreground';
+      }
+      if (['workflow.node.started'].includes(eventType)) {
+        return 'text-muted-foreground';
+      }
+      if (['workflow.node.completed'].includes(eventType)) {
+        return 'text-emerald-600 font-medium';
+      }
+      return 'text-muted-foreground';
     },
     []
   );
@@ -171,120 +172,104 @@ export function useEventFormatter(
       }
 
       // Default formatting logic
-      switch (event.event_type) {
-        case 'user_task':
+      switch (true) {
+        case event.event_type === 'workflow.input.received':
           if ('task' in event) {
-            return `👤 User: ${event.task}`;
+            return `👤 User: ${(event as any).task}`;
           }
           return 'User task';
 
-        case 'iteration_start':
-          if ('iteration' in event) {
-            return `→ Iteration ${event.iteration}/${event.total_iters}`;
-          }
-          return 'Iteration started';
+        case eventMatches(event, 'workflow.node.started', 'workflow.node.started') &&
+          typeof (event as any).iteration === 'number':
+          return `→ Iteration ${(event as any).iteration}/${(event as any).total_iters}`;
 
-        case 'thinking':
-          if ('iteration' in event) {
-            return `💭 Thinking... (iteration ${event.iteration})`;
+        case eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta'):
+          if ('iteration' in event && typeof (event as any).iteration === 'number') {
+            return `💭 Thinking... (iteration ${(event as any).iteration})`;
           }
           return '💭 Thinking...';
 
-        case 'think_complete':
+        case eventMatches(event, 'workflow.node.output.summary', 'workflow.node.output.summary'):
           if ('content' in event) {
-            const preview = event.content.slice(0, maxContentLength);
-            const suffix = event.content.length > maxContentLength ? '...' : '';
+            const preview = (event as any).content.slice(0, maxContentLength);
+            const suffix = (event as any).content.length > maxContentLength ? '...' : '';
             return `✓ Response: ${preview}${suffix}`;
           }
           return '✓ Response received';
 
-        case 'tool_call_start':
+        case eventMatches(event, 'workflow.tool.started', 'workflow.tool.started'):
           if ('tool_name' in event) {
             const preview =
-              'arguments_preview' in event && event.arguments_preview
-                ? event.arguments_preview
-                : formatArgs(event.arguments);
-            return preview
-              ? `▸ ${event.tool_name}(${preview})`
-              : `▸ ${event.tool_name}`;
+              'arguments_preview' in event && (event as any).arguments_preview
+                ? (event as any).arguments_preview
+                : formatArgs((event as any).arguments);
+            return preview ? `▸ ${event.tool_name}(${preview})` : `▸ ${event.tool_name}`;
           }
           return 'Tool executing';
 
-        case 'tool_call_complete':
+        case eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed'):
           if ('tool_name' in event) {
-            const icon = event.error ? '✗' : '✓';
-            const content = event.error || formatResult(event.result);
+            const icon = (event as any).error ? '✗' : '✓';
+            const content = (event as any).error || formatResult((event as any).result);
             return `${icon} ${event.tool_name} → ${content}`;
           }
           return 'Tool complete';
 
-        case 'iteration_complete':
-          if ('iteration' in event) {
-            return `✓ Iteration ${event.iteration} complete (${event.tokens_used} tokens, ${event.tools_run} tools)`;
-          }
-          return 'Iteration complete';
+        case eventMatches(event, 'workflow.node.completed', 'workflow.node.completed') &&
+          typeof (event as any).iteration === 'number':
+          return `✓ Iteration ${(event as any).iteration} complete (${(event as any).tokens_used} tokens, ${(event as any).tools_run} tools)`;
 
-        case 'task_complete':
+        case eventMatches(event, 'workflow.result.final', 'workflow.result.final'):
           if ('final_answer' in event) {
-            const preview = event.final_answer.slice(0, maxContentLength + 50);
-            const suffix = event.final_answer.length > maxContentLength + 50 ? '...' : '';
+            const preview = (event as any).final_answer.slice(0, maxContentLength + 50);
+            const suffix = (event as any).final_answer.length > maxContentLength + 50 ? '...' : '';
             return `✓ Task Complete\n${preview}${suffix}`;
           }
           return '✓ Task complete';
 
-        case 'task_cancelled': {
-          const requestedBy = 'requested_by' in event ? event.requested_by : undefined;
+        case eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled'): {
+          const requestedBy = 'requested_by' in event ? (event as any).requested_by : undefined;
           const prefix = requestedBy === 'user' ? '⏹ You stopped the agent' : '⏹ Task cancelled';
           const reason =
-            'reason' in event && event.reason && event.reason !== 'cancelled'
-              ? ` · Reason: ${event.reason}`
+            'reason' in event && (event as any).reason && (event as any).reason !== 'cancelled'
+              ? ` · Reason: ${(event as any).reason}`
               : '';
           return `${prefix}${reason}`;
         }
 
-        case 'error':
+        case eventMatches(event, 'workflow.node.failed'):
           if ('error' in event) {
-            return `✗ Error: ${event.error}`;
+            return `✗ Error: ${(event as any).error}`;
           }
           return '✗ Error occurred';
 
-        case 'research_plan':
-          if ('plan_steps' in event) {
-            return `→ Research plan created (${event.plan_steps.length} steps, ~${event.estimated_iterations} iterations)`;
-          }
-          return 'Research plan created';
+        case eventMatches(event, 'workflow.node.started') &&
+          typeof (event as any).step_index === 'number':
+          return `→ Step ${(event as any).step_index + 1}: ${(event as any).step_description ?? ''}`;
 
-        case 'step_started':
-          if ('step_description' in event) {
-            return `→ Step ${event.step_index + 1}: ${event.step_description}`;
-          }
-          return 'Step started';
-
-        case 'step_completed':
-          if ('step_result' in event) {
-            return `✓ Step ${event.step_index + 1} complete: ${event.step_result.slice(0, 80)}`;
+        case eventMatches(event, 'workflow.node.completed') &&
+          typeof (event as any).step_index === 'number':
+          if ('step_result' in event && typeof (event as any).step_result === 'string') {
+            const preview = (event as any).step_result ? (event as any).step_result.slice(0, 80) : '';
+            return `✓ Step ${(event as any).step_index + 1} complete: ${preview}`;
           }
           return 'Step completed';
 
-        case 'subagent_progress':
-          // Keep delegated subagent display strings even though the backend currently
-          // does not emit these event types; retained for UI resilience and tests.
-          return `↺ Subagent progress ${event.completed}/${event.total} · ${event.tokens} tokens · ${event.tool_calls} tool calls`;
+        case eventMatches(event, 'workflow.subflow.progress', 'workflow.subflow.progress'):
+          return `↺ Subagent progress ${(event as any).completed}/${(event as any).total} · ${(event as any).tokens} tokens · ${(event as any).tool_calls} tool calls`;
 
-        case 'subagent_complete':
-          // Keep delegated subagent display strings even though the backend currently
-          // does not emit these event types; retained for UI resilience and tests.
-          return `✓ Subagent summary ${event.success}/${event.total} succeeded (${event.failed} failed, ${event.tokens} tokens, ${event.tool_calls} tool calls)`;
+        case eventMatches(event, 'workflow.subflow.completed', 'workflow.subflow.completed'):
+          return `✓ Subagent summary ${(event as any).success}/${(event as any).total} succeeded (${(event as any).failed} failed, ${(event as any).tokens} tokens, ${(event as any).tool_calls} tool calls)`;
 
-        case 'browser_info':
-          if ('message' in event && event.message) {
-            return `🧭 Browser diagnostics: ${event.message}`;
+        case eventMatches(event, 'workflow.diagnostic.browser_info'):
+          if ('message' in event && (event as any).message) {
+            return `🧭 Browser diagnostics: ${(event as any).message}`;
           }
           return '🧭 Browser diagnostics captured';
 
-        case 'tool_call_stream':
+        case eventMatches(event, 'workflow.tool.progress', 'workflow.tool.progress'):
           if ('chunk' in event) {
-            return event.chunk;
+            return (event as any).chunk;
           }
           return '';
 

@@ -406,7 +406,7 @@ function LoginPageContent() {
         <div className="flex w-full max-w-6xl flex-col items-center gap-10 lg:flex-row lg:items-center">
           <div className="relative w-full max-w-2xl space-y-8 rounded-[40px] bg-white/5 p-8 backdrop-blur">
             <div className="relative space-y-8 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gray-500">
+              <p className="text-xs font-semibold text-gray-500">
                 {t("console.brand")}
               </p>
               <div className="space-y-2">
@@ -448,7 +448,7 @@ function LoginPageContent() {
                     key={item}
                     type="button"
                     className={clsx(
-                      "relative flex-1 rounded-[999px] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foreground))]",
+                      "relative flex-1 rounded-[999px] px-4 py-2 text-xs font-semibold transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foreground))]",
                       item === mode
                         ? "bg-[hsl(var(--foreground))] text-[hsl(var(--primary-foreground))]"
                         : "bg-white/10 text-[hsl(var(--foreground))]",
@@ -472,7 +472,7 @@ function LoginPageContent() {
               <button
                 type="button"
                 onClick={() => handleOAuth("google")}
-                className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-white/10 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60 backdrop-blur"
+                className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-white/10 px-4 py-3 text-sm font-semibold text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60 backdrop-blur"
                 disabled={isBusy}
               >
                 <Chrome className="h-4 w-4" aria-hidden="true" />
@@ -483,7 +483,7 @@ function LoginPageContent() {
               <button
                 type="button"
                 onClick={() => handleOAuth("wechat")}
-                className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-emerald-500/15 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-900 transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60 backdrop-blur"
+                className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-900 transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60 backdrop-blur"
                 disabled={isBusy}
               >
                 <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -493,7 +493,7 @@ function LoginPageContent() {
               </button>
             </div>
 
-            <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-gray-500">
+            <div className="flex items-center gap-3 text-xs font-semibold text-gray-500">
               <span className="h-px flex-1 bg-white/20" aria-hidden="true" />
               <span>
                 {mode === "login"
@@ -511,7 +511,7 @@ function LoginPageContent() {
                 <div className="space-y-2">
                   <label
                     htmlFor="displayName"
-                    className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground"
+                    className="text-xs font-semibold text-muted-foreground"
                   >
                     {t("auth.register.displayNameLabel")}
                   </label>
@@ -533,7 +533,7 @@ function LoginPageContent() {
             <div className="space-y-2">
               <label
                 htmlFor="email"
-                className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground"
+                className="text-xs font-semibold text-muted-foreground"
               >
                 {t("auth.login.emailLabel")}
               </label>
@@ -554,7 +554,7 @@ function LoginPageContent() {
             <div className="space-y-2">
               <label
                 htmlFor="password"
-                className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground"
+                className="text-xs font-semibold text-muted-foreground"
               >
                 {mode === "login"
                   ? t("auth.login.passwordLabel")
@@ -578,7 +578,7 @@ function LoginPageContent() {
               <div className="space-y-2">
                 <label
                   htmlFor="confirmPassword"
-                  className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground"
+                  className="text-xs font-semibold text-muted-foreground"
                 >
                   {t("auth.register.confirmPasswordLabel")}
                 </label>
@@ -606,7 +606,7 @@ function LoginPageContent() {
 
             <button
               type="submit"
-              className="w-full rounded-[28px] bg-[hsl(var(--foreground))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.35em] text-[hsl(var(--primary-foreground))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+              className="w-full rounded-[28px] bg-[hsl(var(--foreground))] px-4 py-3 text-sm font-semibold text-[hsl(var(--primary-foreground))] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
               disabled={isBusy || status === "authenticated"}
             >
               {submitting
@@ -676,7 +676,7 @@ function LoginPageContent() {
                   width={192}
                   height={192}
                   unoptimized
-                  className="h-48 w-48 rounded-[24px] bg-white/80 p-3 shadow-none"
+                  className="h-48 w-48 rounded-[24px] bg-white/80 p-3"
                 />
               ) : wechatGenerating ? (
                 <div className="flex h-48 w-48 items-center justify-center rounded-[24px] bg-white/50 px-4 text-center text-sm text-gray-700">
@@ -700,7 +700,7 @@ function LoginPageContent() {
             <button
               type="button"
               onClick={cancelWeChatLogin}
-              className="w-full rounded-[24px] bg-white/15 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5"
+              className="w-full rounded-[24px] bg-white/15 px-4 py-3 text-sm font-semibold text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5"
             >
               {t("auth.oauth.wechat.cancel")}
             </button>

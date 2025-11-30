@@ -1,23 +1,45 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { TerminalOutput } from '@/components/agent/TerminalOutput';
+import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
 import { toast } from '@/components/ui/toast';
-import { useConfirmDialog } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea } from '@/components/layout';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
+import { eventMatches } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { AttachmentPanel } from '@/components/agent/AttachmentPanel';
 
+const LazyTerminalOutput = dynamic(
+  () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+        Preparing event stream…
+      </div>
+    ),
+  },
+);
 export function ConversationPageContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -25,7 +47,9 @@ export function ConversationPageContent() {
   const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -55,7 +79,6 @@ export function ConversationPageContent() {
   const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution();
   const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
   const deleteSessionMutation = useDeleteSession();
-  const { confirm, ConfirmDialog } = useConfirmDialog();
   const {
     currentSessionId,
     setCurrentSession,
@@ -63,13 +86,15 @@ export function ConversationPageContent() {
     clearCurrentSession,
     removeSession,
     sessionHistory = [],
-    pinnedSessions = [],
     sessionLabels = {},
-    renameSession,
-    togglePinSession,
   } = useSessionStore();
 
   const resolvedSessionId = sessionId || currentSessionId;
+  const formatSessionBadge = useCallback(
+    (value: string) =>
+      value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
+    []
+  );
 
   const handleAgentEvent = useCallback(
     (event: AnyAgentEvent) => {
@@ -79,9 +104,9 @@ export function ConversationPageContent() {
       }
 
       if (
-        event.event_type === 'task_complete' ||
-        event.event_type === 'task_cancelled' ||
-        event.event_type === 'error'
+        eventMatches(event, 'workflow.result.final', 'workflow.result.final') ||
+        eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled') ||
+        eventMatches(event, 'workflow.node.failed')
       ) {
         setActiveTaskId(null);
         setCancelRequested(false);
@@ -209,7 +234,7 @@ export function ConversationPageContent() {
       const attachmentMap = buildAttachmentMap(attachments);
 
       addEvent({
-        event_type: 'user_task',
+        event_type: 'workflow.input.received',
         timestamp: submissionTimestamp.toISOString(),
         agent_level: 'core',
         session_id: provisionalSessionId,
@@ -247,12 +272,12 @@ export function ConversationPageContent() {
 
             const attachmentMap = buildAttachmentMap(attachments);
             addEvent({
-              event_type: 'user_task',
+              event_type: 'workflow.input.received',
               timestamp: new Date().toISOString(),
               agent_level: 'core',
               session_id: data.session_id,
               task_id: data.task_id,
-              parent_task_id: data.parent_task_id,
+              parent_task_id: data.parent_task_id ?? undefined,
               task,
               attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
             });
@@ -353,7 +378,6 @@ export function ConversationPageContent() {
       previous_session_id: resolvedSessionId ?? null,
       had_active_session: Boolean(resolvedSessionId),
       history_count: sessionHistory.length,
-      pinned_count: pinnedSessions.length,
     });
   };
 
@@ -370,55 +394,52 @@ export function ConversationPageContent() {
     captureEvent(AnalyticsEvent.SessionSelected, {
       session_id: id,
       previous_session_id: resolvedSessionId ?? null,
-      was_pinned: pinnedSessions.includes(id),
       was_in_history: sessionHistory.includes(id),
     });
   };
 
-  const handleSessionDelete = async (id: string) => {
-    const confirmed = await confirm({
-      title: t('sidebar.session.confirmDelete.title'),
-      description: t('sidebar.session.confirmDelete.description'),
-      confirmText: t('sidebar.session.confirmDelete.confirm'),
-      cancelText: t('sidebar.session.confirmDelete.cancel'),
-      variant: 'danger',
-    });
+  const handleSessionDeleteRequest = (id: string) => {
+    setDeleteTargetId(id);
+  };
 
-    if (confirmed) {
-      try {
-        await deleteSessionMutation.mutateAsync(id);
-        removeSession(id);
-        if (resolvedSessionId === id) {
-          clearEvents();
-          setSessionId(null);
-          setTaskId(null);
-          setActiveTaskId(null);
-          setCancelRequested(false);
-          cancelIntentRef.current = false;
-          clearCurrentSession();
-        }
-        toast.success(t('sidebar.session.toast.deleteSuccess'));
-        captureEvent(AnalyticsEvent.SessionDeleted, {
-          session_id: id,
-          status: 'success',
-        });
-      } catch (err) {
-        console.error(
-          '[ConversationPage] Failed to delete session:',
-          getErrorLogPayload(err)
-        );
-        const parsed = parseError(err, t('common.error.unknown'));
-        toast.error(
-          t('sidebar.session.toast.deleteError'),
-          formatParsedError(parsed)
-        );
-        captureEvent(AnalyticsEvent.SessionDeleted, {
-          session_id: id,
-          status: 'error',
-          error_kind: isAPIError(err) ? 'api' : 'unknown',
-          ...(isAPIError(err) ? { status_code: err.status } : {}),
-        });
+  const handleDeleteCancel = () => {
+    if (deleteInProgress) return;
+    setDeleteTargetId(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteInProgress(true);
+    try {
+      await deleteSessionMutation.mutateAsync(deleteTargetId);
+      removeSession(deleteTargetId);
+      if (resolvedSessionId === deleteTargetId) {
+        clearEvents();
+        setSessionId(null);
+        setTaskId(null);
+        setActiveTaskId(null);
+        setCancelRequested(false);
+        cancelIntentRef.current = false;
+        clearCurrentSession();
       }
+      toast.success(t('sidebar.session.toast.deleteSuccess'));
+      captureEvent(AnalyticsEvent.SessionDeleted, {
+        session_id: deleteTargetId,
+        status: 'success',
+      });
+      setDeleteTargetId(null);
+    } catch (err) {
+      console.error('[ConversationPage] Failed to delete session:', getErrorLogPayload(err));
+      const parsed = parseError(err, t('common.error.unknown'));
+      toast.error(t('sidebar.session.toast.deleteError'), formatParsedError(parsed));
+      captureEvent(AnalyticsEvent.SessionDeleted, {
+        session_id: deleteTargetId,
+        status: 'error',
+        error_kind: isAPIError(err) ? 'api' : 'unknown',
+        ...(isAPIError(err) ? { status_code: err.status } : {}),
+      });
+    } finally {
+      setDeleteInProgress(false);
     }
   };
 
@@ -430,9 +451,13 @@ export function ConversationPageContent() {
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
     : null;
-  const sessionBadge = resolvedSessionId
-    ? activeSessionLabel || (resolvedSessionId.length > 8 ? `${resolvedSessionId.slice(0, 4)}…${resolvedSessionId.slice(-4)}` : resolvedSessionId)
+  const deleteTargetLabel = deleteTargetId
+    ? sessionLabels[deleteTargetId]?.trim() ||
+      t('console.history.itemPrefix', { id: deleteTargetId.slice(0, 8) })
     : null;
+  const headerTitle = resolvedSessionId
+    ? activeSessionLabel || t('conversation.header.activeLabel')
+    : t('conversation.header.idle');
 
   const emptyState = (
     <div
@@ -445,10 +470,7 @@ export function ConversationPageContent() {
       >
         {t('console.empty.title')}
       </p>
-      <p
-        className="console-microcopy max-w-sm text-slate-400"
-        data-testid="conversation-empty-prompt"
-      >
+      <p className="max-w-sm text-sm text-muted-foreground" data-testid="conversation-empty-prompt">
         {t('console.empty.prompt')}
       </p>
     </div>
@@ -463,44 +485,64 @@ export function ConversationPageContent() {
   }, [timelineSteps, showTimelineDialog]);
 
   return (
-    <div className="relative flex h-screen bg-app-canvas text-foreground">
-      <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.14),transparent_38%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.12),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.18)_0%,transparent_60%)]" aria-hidden />
-      <ConfirmDialog />
-      {/* Left Sidebar */}
-      <div
-        id="conversation-sidebar"
-        className={`relative z-30 h-full overflow-hidden transition-[width] duration-300 ease-in-out ${
-          isSidebarOpen ? 'w-72' : 'w-0'
-        }`}
+    <div className="relative min-h-screen bg-muted/10 text-foreground">
+      <Dialog
+        open={Boolean(deleteTargetId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleDeleteCancel();
+          }
+        }}
       >
-        <div
-          className={`h-full ${isSidebarOpen ? '' : 'pointer-events-none opacity-0'}`}
-          aria-hidden={!isSidebarOpen}
-        >
-          <div className="h-full bg-white/5 pb-4 backdrop-blur-xl">
-            <Sidebar
-              sessionHistory={sessionHistory}
-              pinnedSessions={pinnedSessions}
-              sessionLabels={sessionLabels}
-              currentSessionId={resolvedSessionId}
-              onSessionSelect={handleSessionSelect}
-              onSessionRename={renameSession}
-              onSessionPin={togglePinSession}
-              onSessionDelete={handleSessionDelete}
-              onNewSession={handleNewSession}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-lg font-semibold">
+              {t('sidebar.session.confirmDelete.title')}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {t('sidebar.session.confirmDelete.description')}
+            </DialogDescription>
+            {deleteTargetId && (
+              <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-muted/30 px-3 py-2">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-foreground">
+                    {deleteTargetLabel}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatSessionBadge(deleteTargetId)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={handleDeleteCancel}
+              disabled={deleteInProgress}
+            >
+              {t('sidebar.session.confirmDelete.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteInProgress}
+            >
+              {deleteInProgress && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('sidebar.session.confirmDelete.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <div className="relative mx-auto flex min-h-screen w-full flex-col gap-6 px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
         <Header
-          title={sessionBadge || t('conversation.header.idle')}
-          subtitle={resolvedSessionId ? t('conversation.header.subtitle') : undefined}
+          title={headerTitle}
+          showEnvironmentStrip={false}
           leadingSlot={
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               data-testid="session-list-toggle"
               onClick={() =>
                 setIsSidebarOpen((prev) => {
@@ -512,7 +554,7 @@ export function ConversationPageContent() {
                   return next;
                 })
               }
-              className="console-button console-button-secondary flex items-center justify-center !px-3 !py-2"
+              className="h-10 w-10 rounded-full border border-border/60"
               aria-expanded={isSidebarOpen}
               aria-controls="conversation-sidebar"
             >
@@ -526,107 +568,146 @@ export function ConversationPageContent() {
                   ? t('sidebar.toggle.close')
                   : t('sidebar.toggle.open')}
               </span>
-            </button>
+            </Button>
           }
         />
 
-        {/* Content Area */}
-        <ContentArea
-          ref={contentRef}
-          isEmpty={events.length === 0}
-          emptyState={emptyState}
-        >
-          {timelineSteps.length > 0 && (
-            <div className="sm:hidden">
-              <button
-                type="button"
-                data-testid="mobile-timeline-trigger"
-                onClick={() => {
-                  captureEvent(AnalyticsEvent.TimelineViewed, {
-                    session_id: resolvedSessionId ?? null,
-                    step_count: timelineSteps.length,
-                  });
-                  setShowTimelineDialog(true);
-                }}
-                className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-none backdrop-blur transition hover:bg-white/25"
-              >
-                {t('console.timeline.mobileLabel')}
-              </button>
-            </div>
-          )}
-          <TerminalOutput
-            events={events}
-            isConnected={isConnected}
-            isReconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={reconnect}
-          />
-        </ContentArea>
-
-        {showTimelineDialog && (
+        <div className="flex flex-1 flex-col gap-5 lg:flex-row">
           <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 backdrop-blur-sm sm:hidden"
+            id="conversation-sidebar"
+            className={cn(
+              "overflow-hidden transition-all duration-300 lg:w-72 lg:flex-none",
+              isSidebarOpen ? "block" : "hidden"
+            )}
+            aria-hidden={!isSidebarOpen}
           >
-            <button
-              type="button"
-              className="absolute inset-0 h-full w-full"
-              aria-label={t('plan.collapse')}
-              onClick={() => setShowTimelineDialog(false)}
+            <Sidebar
+              sessionHistory={sessionHistory}
+              sessionLabels={sessionLabels}
+              currentSessionId={resolvedSessionId}
+              onSessionSelect={handleSessionSelect}
+              onSessionDelete={handleSessionDeleteRequest}
+              onNewSession={handleNewSession}
             />
-            <div className="relative rounded-t-3xl bg-white/15 p-4 text-foreground shadow-none backdrop-blur-xl">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">
-                  {t('console.timeline.dialogTitle')}
-                </h2>
+          </div>
+
+          <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card">
+            <ContentArea
+              ref={contentRef}
+              className="flex-1"
+              fullWidth
+              contentClassName="space-y-4"
+            >
+              {timelineSteps.length > 0 && (
+                <div className="sm:hidden">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-testid="mobile-timeline-trigger"
+                    onClick={() => {
+                      captureEvent(AnalyticsEvent.TimelineViewed, {
+                        session_id: resolvedSessionId ?? null,
+                        step_count: timelineSteps.length,
+                      });
+                      setShowTimelineDialog(true);
+                    }}
+                    className="mb-3 rounded-full border-border/70 bg-background/60 text-[11px] font-semibold"
+                  >
+                    {t('console.timeline.mobileLabel')}
+                  </Button>
+                </div>
+              )}
+              {events.length === 0 ? (
+                <div className="flex min-h-[60vh] items-center justify-center">
+                  {emptyState}
+                </div>
+              ) : (
+                <LazyTerminalOutput
+                  events={events}
+                  isConnected={isConnected}
+                  isReconnecting={isReconnecting}
+                  error={error}
+                  reconnectAttempts={reconnectAttempts}
+                  onReconnect={reconnect}
+                />
+              )}
+              <div className="lg:hidden">
+                <AttachmentPanel events={events} />
+              </div>
+            </ContentArea>
+
+            {showTimelineDialog && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 backdrop-blur-sm sm:hidden"
+              >
                 <button
                   type="button"
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:bg-white/20"
+                  className="absolute inset-0 h-full w-full"
+                  aria-label={t('plan.collapse')}
                   onClick={() => setShowTimelineDialog(false)}
-                >
-                  {t('plan.collapse')}
-                </button>
+                />
+                <div className="relative rounded-t-3xl border border-border/60 bg-card/80 p-4 text-foreground backdrop-blur">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-foreground">
+                      {t('console.timeline.dialogTitle')}
+                    </h2>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full"
+                      onClick={() => setShowTimelineDialog(false)}
+                    >
+                      {t('plan.collapse')}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {timelineSteps.map((step) => (
+                      <button
+                        key={step.id}
+                        type="button"
+                        role="button"
+                        onClick={() => setShowTimelineDialog(false)}
+                        className="w-full rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-left text-foreground transition hover:bg-background"
+                      >
+                        <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                        {step.description && (
+                          <p className="text-xs text-foreground/70">{step.description}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                {timelineSteps.map((step) => (
-                  <button
-                    key={step.id}
-                    type="button"
-                    role="button"
-                    onClick={() => setShowTimelineDialog(false)}
-                    className="w-full rounded-xl bg-white/10 px-3 py-2 text-left text-foreground backdrop-blur transition hover:bg-white/20"
-                  >
-                    <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                    {step.description && (
-                      <p className="text-xs text-foreground/70">{step.description}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
+            )}
+
+            <div className="border-t border-border/60 bg-background/70 px-3 py-4 sm:px-6 sm:py-6">
+              <TaskInput
+                onSubmit={handleTaskSubmit}
+                placeholder={
+                  resolvedSessionId
+                    ? t('console.input.placeholder.active')
+                    : t('console.input.placeholder.idle')
+                }
+                disabled={inputDisabled}
+                loading={creationPending}
+                prefill={prefillTask}
+                onPrefillApplied={() => setPrefillTask(null)}
+                onStop={handleStop}
+                isRunning={isTaskRunning}
+                stopPending={stopPending}
+                stopDisabled={isCancelPending}
+              />
             </div>
           </div>
-        )}
-
-        {/* Input Bar */}
-        <div className="px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6">
-          <TaskInput
-            onSubmit={handleTaskSubmit}
-            placeholder={
-              resolvedSessionId
-                ? t('console.input.placeholder.active')
-                : t('console.input.placeholder.idle')
-            }
-            disabled={inputDisabled}
-            loading={creationPending}
-            prefill={prefillTask}
-            onPrefillApplied={() => setPrefillTask(null)}
-            onStop={handleStop}
-            isRunning={isTaskRunning}
-            stopPending={stopPending}
-            stopDisabled={isCancelPending}
-          />
+          <div className="hidden lg:flex w-[380px] flex-none justify-end xl:w-[440px]">
+            <div className="sticky top-24 w-full max-w-[440px]">
+              <AttachmentPanel events={events} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

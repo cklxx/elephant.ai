@@ -1,40 +1,38 @@
-import { apiClient } from "@/lib/api";
-import { AnyAgentEvent } from "@/lib/types";
-import { EventPipeline } from "./eventPipeline";
+import { apiClient } from '@/lib/api';
+import { WorkflowEventType } from '@/lib/types';
+import { EventPipeline } from './eventPipeline';
 
 export interface SSEClientOptions {
-  eventTypes: AnyAgentEvent["event_type"][];
+  eventTypes: Array<WorkflowEventType | 'connected'>;
   onOpen?: () => void;
   onError?: (error: Event | Error) => void;
   onClose?: () => void;
   reconnect?: boolean;
 }
 
-const DEFAULT_EVENTS: AnyAgentEvent["event_type"][] = [
-  "connected",
-  "iteration_start",
-  "thinking",
-  "think_complete",
-  "tool_call_start",
-  "tool_call_stream",
-  "tool_call_complete",
-  "iteration_complete",
-  "subagent_progress",
-  "assistant_message",
-  "task_cancelled",
-  "task_complete",
-  "subagent_complete",
-  "error",
-  "research_plan",
-  "step_started",
-  "step_completed",
-  "browser_info",
-  "environment_snapshot",
-  "sandbox_progress",
-  "context_compression",
-  "tool_filtering",
-  "user_task",
+const WORKFLOW_EVENTS: WorkflowEventType[] = [
+  'workflow.node.started',
+  'workflow.node.completed',
+  'workflow.node.failed',
+  'workflow.node.output.delta',
+  'workflow.node.output.summary',
+  'workflow.tool.started',
+  'workflow.tool.progress',
+  'workflow.tool.completed',
+  'workflow.input.received',
+  'workflow.subflow.progress',
+  'workflow.subflow.completed',
+  'workflow.result.final',
+  'workflow.result.cancelled',
+  'workflow.diagnostic.error',
+  'workflow.diagnostic.context_compression',
+  'workflow.diagnostic.tool_filtering',
+  'workflow.diagnostic.browser_info',
+  'workflow.diagnostic.environment_snapshot',
+  'workflow.diagnostic.sandbox_progress',
 ];
+
+const DEFAULT_EVENTS: Array<WorkflowEventType | 'connected'> = Array.from(new Set(['connected', ...WORKFLOW_EVENTS]));
 
 export class SSEClient {
   private sessionId: string;

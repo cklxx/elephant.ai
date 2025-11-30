@@ -19,8 +19,8 @@ export function LoadingSpinner({ size = 'md', className, label }: LoadingSpinner
 
   return (
     <div className={cn('flex flex-col items-center justify-center gap-3', className)}>
-      <Loader2 className={cn('animate-spin text-primary', sizeClasses[size])} />
-      {label && <p className="text-sm text-gray-600 font-medium">{label}</p>}
+      <Loader2 className={cn('animate-spin', sizeClasses[size])} />
+      {label && <p>{label}</p>}
     </div>
   );
 }
@@ -43,23 +43,23 @@ export function LoadingState({
   if (status === 'idle') return null;
 
   return (
-    <div className={cn('flex items-center gap-3 p-4 rounded-lg', className)}>
+    <div className={cn('flex items-center gap-3 p-4', className)}>
       {status === 'loading' && (
         <>
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span className="text-sm text-gray-700">{loadingText}</span>
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>{loadingText}</span>
         </>
       )}
       {status === 'success' && (
         <>
-          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          <span className="text-sm text-emerald-700 font-medium">{successText}</span>
+          <CheckCircle2 className="h-5 w-5" />
+          <span>{successText}</span>
         </>
       )}
       {status === 'error' && (
         <>
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <span className="text-sm text-destructive font-medium">{errorText}</span>
+          <AlertCircle className="h-5 w-5" />
+          <span>{errorText}</span>
         </>
       )}
     </div>
@@ -80,11 +80,11 @@ export function LoadingOverlay({
   return (
     <div
       className={cn(
-        'flex items-center justify-center bg-white/80 backdrop-blur-sm z-50',
+        'flex items-center justify-center z-50',
         fullscreen ? 'fixed inset-0' : 'absolute inset-0'
       )}
     >
-      <div className="glass-card p-8 rounded-2xl shadow-strong">
+      <div className="p-8">
         <LoadingSpinner size="lg" label={message} />
       </div>
     </div>
@@ -93,21 +93,21 @@ export function LoadingOverlay({
 
 export function PulsingDot({ color = 'primary' }: { color?: 'primary' | 'green' | 'red' | 'yellow' }) {
   const colorClasses = {
-    primary: 'bg-primary',
-    green: 'bg-emerald-500',
-    red: 'bg-destructive',
-    yellow: 'bg-amber-400',
+    primary: '',
+    green: '',
+    red: '',
+    yellow: '',
   };
 
   return (
     <span className="relative flex h-3 w-3">
       <span
         className={cn(
-          'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75',
+          'animate-ping absolute inline-flex h-full w-full',
           colorClasses[color]
         )}
       ></span>
-      <span className={cn('relative inline-flex rounded-full h-3 w-3', colorClasses[color])}></span>
+      <span className={cn('relative inline-flex h-3 w-3', colorClasses[color])}></span>
     </span>
   );
 }
@@ -128,18 +128,15 @@ export function ProgressBar({
   return (
     <div className={cn('space-y-2', className)}>
       {label && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-700 font-medium">{label}</span>
-          <span className="text-gray-500">
+        <div className="flex items-center justify-between">
+          <span>{label}</span>
+          <span>
             {progress}/{total} ({percentage}%)
           </span>
         </div>
       )}
-      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-        <div
-          className="bg-gradient-to-r from-primary/80 to-primary h-full rounded-full transition-all duration-500 ease-out"
-          style={{ width: `${percentage}%` }}
-        />
+      <div className="w-full h-2 overflow-hidden">
+        <div className="h-full" style={{ width: `${percentage}%` }} />
       </div>
     </div>
   );
@@ -149,13 +146,13 @@ export function StreamingIndicator({ active = true }: { active?: boolean }) {
   if (!active) return null;
 
   return (
-    <div className="flex items-center gap-2 text-sm text-gray-600">
+    <div className="flex items-center gap-2">
       <div className="flex gap-1">
-        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+        <span className="w-2 h-2 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+        <span className="w-2 h-2 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+        <span className="w-2 h-2 animate-bounce" style={{ animationDelay: '300ms' }}></span>
       </div>
-      <span className="font-medium">Streaming...</span>
+      <span>Streaming...</span>
     </div>
   );
 }
@@ -176,8 +173,8 @@ export function TaskListSkeleton() {
   return (
     <div className="space-y-3">
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg">
-          <Skeleton className="h-10 w-10 rounded-full" />
+        <div key={i} className="flex items-center gap-3 p-4">
+          <Skeleton className="h-10 w-10" />
           <div className="flex-1 space-y-2">
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-3 w-1/2" />
@@ -191,7 +188,7 @@ export function TaskListSkeleton() {
 
 export function SessionCardSkeleton() {
   return (
-    <div className="glass-card p-6 rounded-xl shadow-soft space-y-4">
+    <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <Skeleton className="h-6 w-32" />
         <Skeleton className="h-6 w-16" />

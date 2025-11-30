@@ -134,9 +134,9 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	require.Equal(t, "cancelled", result.StopReason)
 
 	events := listener.collected()
-	var completes []*TaskCompleteEvent
+	var completes []*WorkflowResultFinalEvent
 	for _, evt := range events {
-		if tc, ok := evt.(*TaskCompleteEvent); ok {
+		if tc, ok := evt.(*WorkflowResultFinalEvent); ok {
 			completes = append(completes, tc)
 		}
 	}

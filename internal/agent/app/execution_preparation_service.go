@@ -159,7 +159,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		session.Messages = window.Messages
 		initialWorldState, initialWorldDiff = buildWorldStateFromWindow(window)
 		if compressedCount := len(window.Messages); compressedCount < originalCount {
-			compressionEvent := domain.NewContextCompressionEvent(
+			compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
 				ports.LevelCore,
 				session.ID,
 				ids.TaskID,

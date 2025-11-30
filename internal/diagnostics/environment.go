@@ -3,8 +3,6 @@ package diagnostics
 import (
 	"sync"
 	"time"
-
-	"alex/internal/security/redaction"
 )
 
 type EnvironmentPayload struct {
@@ -82,8 +80,8 @@ func clonePayload(payload EnvironmentPayload) EnvironmentPayload {
 
 func sanitizeEnvironmentPayload(payload EnvironmentPayload) EnvironmentPayload {
 	return EnvironmentPayload{
-		Host:     redaction.RedactStringMap(payload.Host),
-		Sandbox:  redaction.RedactStringMap(payload.Sandbox),
+		Host:     cloneMap(payload.Host),
+		Sandbox:  cloneMap(payload.Sandbox),
 		Captured: payload.Captured,
 	}
 }

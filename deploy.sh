@@ -76,12 +76,18 @@ print_cn_mirrors() {
     [[ -n "${DOCKER_REGISTRY_MIRROR:-}" ]] && log_info "  Docker mirror: ${DOCKER_REGISTRY_MIRROR}"
     [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  Sandbox image: ${SANDBOX_IMAGE}"
     [[ -n "${NPM_CONFIG_REGISTRY:-}" ]] && log_info "  npm registry: ${NPM_CONFIG_REGISTRY}"
+    [[ -n "${PIP_INDEX_URL:-}" ]] && log_info "  pip index: ${PIP_INDEX_URL}"
     [[ -n "${GOPROXY:-}" ]] && log_info "  Go proxy: ${GOPROXY}"
     [[ -n "${GOSUMDB:-}" ]] && log_info "  Go checksum DB: ${GOSUMDB}"
+    [[ -n "${GO_PROXY:-}" ]] && log_info "  Go proxy (override): ${GO_PROXY}"
+    [[ -n "${GO_SUMDB:-}" ]] && log_info "  Go checksum DB (override): ${GO_SUMDB}"
     [[ -n "${REDIS_IMAGE:-}" ]] && log_info "  Redis image: ${REDIS_IMAGE}"
     [[ -n "${NGINX_IMAGE:-}" ]] && log_info "  nginx image: ${NGINX_IMAGE}"
     [[ -n "${AUTH_DB_IMAGE:-}" ]] && log_info "  auth-db image: ${AUTH_DB_IMAGE}"
     [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  sandbox image: ${SANDBOX_IMAGE}"
+    [[ -n "${BASE_GO_IMAGE:-}" ]] && log_info "  base Go builder: ${BASE_GO_IMAGE}"
+    [[ -n "${BASE_RUNTIME_IMAGE:-}" ]] && log_info "  base runtime: ${BASE_RUNTIME_IMAGE}"
+    [[ -n "${BASE_NODE_IMAGE:-}" ]] && log_info "  base Node image: ${BASE_NODE_IMAGE}"
 }
 
 banner() {
@@ -1259,18 +1265,24 @@ cmd_pro() {
 }
 
 cmd_cn() {
-    export DOCKER_REGISTRY_MIRROR="${DOCKER_REGISTRY_MIRROR:-https://registry.docker-cn.com}"
+    export DOCKER_REGISTRY_MIRROR="${DOCKER_REGISTRY_MIRROR:-https://mirror.ccs.tencentyun.com}"
     export SANDBOX_IMAGE="${SANDBOX_IMAGE:-$SANDBOX_CHINA_IMAGE}"
     export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
     export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com/}"
     export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
-    export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
+    export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+    export GOPROXY="${GOPROXY:-https://mirrors.tencent.com/repository/goproxy/,direct}"
+    export GO_PROXY="${GO_PROXY:-${GOPROXY}}"
     export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
+    export GO_SUMDB="${GO_SUMDB:-${GOSUMDB}}"
     export SANDBOX_IMAGE="${SANDBOX_IMAGE:-enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest}"
     export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
     export REDIS_IMAGE="${REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}"
     export NGINX_IMAGE="${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:alpine}"
     export AUTH_DB_IMAGE="${AUTH_DB_IMAGE:-docker.m.daocloud.io/library/postgres:15}"
+    export BASE_GO_IMAGE="${BASE_GO_IMAGE:-docker.m.daocloud.io/library/golang:1.24-alpine}"
+    export BASE_RUNTIME_IMAGE="${BASE_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:latest}"
+    export BASE_NODE_IMAGE="${BASE_NODE_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}"
 
     print_cn_mirrors
 
@@ -1337,7 +1349,8 @@ ${C_YELLOW}Usage:${C_RESET}
 ${C_YELLOW}Commands:${C_RESET}
   ${C_GREEN}pro [command]${C_RESET}      Run production stack on :80 via nginx (default)
   ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
-  ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/go)
+  ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/pip/go)
+  ${C_GREEN}logs [service]${C_RESET}     Tail production logs (alias for: pro logs [service])
   ${C_GREEN}help${C_RESET}               Show this help
 
 ${C_YELLOW}Examples:${C_RESET}
@@ -1369,6 +1382,9 @@ main() {
     case $cmd in
         docker)
             cmd_docker "$@"
+            ;;
+        logs)
+            cmd_pro logs "$@"
             ;;
         pro)
             cmd_pro "${1:-up}" "${@:2}"

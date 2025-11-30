@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { useSSE } from "../useSSE";
 import { apiClient } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
-import { AnyAgentEvent } from "@/lib/types";
+import { AnyAgentEvent, WorkflowResultFinalEvent } from "@/lib/types";
 
 // Mock the apiClient
 vi.mock("@/lib/api", () => ({
@@ -240,7 +240,7 @@ describe("useSSE", () => {
       });
 
       const event1: AnyAgentEvent = {
-        event_type: "user_task",
+        event_type: "workflow.input.received",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -248,7 +248,7 @@ describe("useSSE", () => {
       };
 
       const event2: AnyAgentEvent = {
-        event_type: "thinking",
+        event_type: "workflow.node.output.delta",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -257,13 +257,13 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("user_task", event1);
-        mockEventSource.simulateEvent("thinking", event2);
+        mockEventSource.simulateEvent("workflow.input.received", event1);
+        mockEventSource.simulateEvent("workflow.node.output.delta", event2);
       });
 
       expect(result.current.events).toHaveLength(2);
-      expect(result.current.events[0]).toEqual(event1);
-      expect(result.current.events[1]).toEqual(event2);
+      expect(result.current.events[0]).toMatchObject(event1);
+      expect(result.current.events[1]).toMatchObject(event2);
     });
 
     test("should call onEvent callback when event is received", async () => {
@@ -279,7 +279,7 @@ describe("useSSE", () => {
       });
 
       const event: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -291,13 +291,13 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", event);
+        mockEventSource.simulateEvent("workflow.result.final", event);
       });
 
-      expect(onEvent).toHaveBeenCalledWith(event);
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining(event));
     });
 
-    test("should replace streaming task_complete updates instead of duplicating", async () => {
+    test("should accumulate streaming workflow.result.final updates while keeping a single event", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
       await waitForConnection(1);
@@ -307,12 +307,12 @@ describe("useSSE", () => {
       });
 
       const baseEvent: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         task_id: "task-1",
         agent_level: "core",
-        final_answer: "partial",
+        final_answer: "Hello ",
         total_iterations: 1,
         total_tokens: 10,
         stop_reason: "streaming",
@@ -324,40 +324,40 @@ describe("useSSE", () => {
       const updatedEvent: AnyAgentEvent = {
         ...baseEvent,
         timestamp: new Date(Date.now() + 1000).toISOString(),
-        final_answer: "partial update",
+        final_answer: "world",
       };
 
       const finalEvent: AnyAgentEvent = {
         ...baseEvent,
         timestamp: new Date(Date.now() + 2000).toISOString(),
-        final_answer: "final message",
+        final_answer: "!",
         is_streaming: false,
         stream_finished: true,
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", baseEvent);
+        mockEventSource.simulateEvent("workflow.result.final", baseEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ final_answer: "partial" });
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello " });
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", updatedEvent);
+        mockEventSource.simulateEvent("workflow.result.final", updatedEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ final_answer: "partial update" });
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world" });
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", finalEvent);
+        mockEventSource.simulateEvent("workflow.result.final", finalEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ final_answer: "final message" });
+      expect(result.current.events[0]).toMatchObject({ final_answer: "Hello world!" });
     });
 
-    test("should not dedupe streaming task_complete updates that only flip stream_finished", async () => {
+    test("should not dedupe streaming workflow.result.final updates that only flip stream_finished", async () => {
       const { result } = renderHook(() => useSSE("test-session-123"));
 
       await waitForConnection(1);
@@ -367,7 +367,7 @@ describe("useSSE", () => {
       });
 
       const baseEvent: AnyAgentEvent = {
-        event_type: "task_complete",
+        event_type: "workflow.result.final",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         task_id: "task-1",
@@ -385,21 +385,155 @@ describe("useSSE", () => {
         ...baseEvent,
         is_streaming: false,
         stream_finished: true,
+        final_answer: "",
       };
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", baseEvent);
+        mockEventSource.simulateEvent("workflow.result.final", baseEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
       expect(result.current.events[0]).toMatchObject({ stream_finished: false });
 
       act(() => {
-        mockEventSource.simulateEvent("task_complete", finishedEvent);
+        mockEventSource.simulateEvent("workflow.result.final", finishedEvent);
       });
 
       expect(result.current.events).toHaveLength(1);
-      expect(result.current.events[0]).toMatchObject({ stream_finished: true });
+      expect(result.current.events[0]).toMatchObject({ stream_finished: true, final_answer: "partial" });
+    });
+
+    test("rehydrates attachments for streaming workflow.result.final placeholders after merge", async () => {
+      const { result } = renderHook(() => useSSE("session-attachments"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const attachmentName = "表达的艺术.md";
+      const toolEvent: AnyAgentEvent = {
+        event_type: "workflow.tool.completed",
+        agent_level: "core",
+        timestamp: new Date().toISOString(),
+        session_id: "session-attachments",
+        task_id: "task-attachments",
+        call_id: "call-attachments",
+        tool_name: "artifacts_write",
+        result: "saved",
+        duration: 10,
+        metadata: {
+          attachment_mutations: JSON.stringify({
+            add: {
+              [attachmentName]: {
+                name: attachmentName,
+                media_type: "text/markdown",
+                uri: "https://example.com/file.md",
+              },
+            },
+          }),
+        },
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.tool.completed", toolEvent);
+      });
+
+      const baseTimestamp = Date.now();
+      const baseStream: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        agent_level: "core",
+        session_id: "session-attachments",
+        task_id: "task-attachments",
+        timestamp: new Date(baseTimestamp).toISOString(),
+        final_answer: "",
+        total_iterations: 1,
+        total_tokens: 0,
+        stop_reason: "streaming",
+        duration: 10,
+        is_streaming: true,
+        stream_finished: false,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.result.final", {
+          ...baseStream,
+          final_answer: "输出分片 ",
+        });
+        mockEventSource.simulateEvent("workflow.result.final", {
+          ...baseStream,
+          timestamp: new Date(baseTimestamp + 10).toISOString(),
+          final_answer: "包含 [表达",
+        });
+        mockEventSource.simulateEvent("workflow.result.final", {
+          ...baseStream,
+          timestamp: new Date(baseTimestamp + 20).toISOString(),
+          final_answer: "的艺术.md]",
+          stream_finished: true,
+        });
+      });
+
+      const taskEvents = result.current.events.filter(
+        (evt) => evt.event_type === "workflow.result.final",
+      );
+      expect(taskEvents).toHaveLength(1);
+      const finalEvent = taskEvents[0] as WorkflowResultFinalEvent;
+      expect(finalEvent.final_answer).toContain(`[${attachmentName}]`);
+      expect(finalEvent.attachments?.[attachmentName]).toBeDefined();
+    });
+
+    test("should fall back to workflow.node.output.delta buffer when workflow.result.final answer is empty", async () => {
+      const { result } = renderHook(() => useSSE("test-session-123"));
+
+      await waitForConnection(1);
+
+      act(() => {
+        mockEventSource.simulateOpen();
+      });
+
+      const baseTimestamp = Date.now();
+      const assistantMessage1: AnyAgentEvent = {
+        event_type: "workflow.node.output.delta",
+        timestamp: new Date(baseTimestamp).toISOString(),
+        session_id: "test-session-123",
+        task_id: "task-2",
+        agent_level: "core",
+        iteration: 1,
+        delta: "Hello ",
+        final: false,
+        created_at: new Date(baseTimestamp).toISOString(),
+      };
+
+      const assistantMessage2: AnyAgentEvent = {
+        ...assistantMessage1,
+        timestamp: new Date(baseTimestamp + 500).toISOString(),
+        delta: "world",
+        final: true,
+        created_at: new Date(baseTimestamp + 500).toISOString(),
+      };
+
+      const taskComplete: AnyAgentEvent = {
+        event_type: "workflow.result.final",
+        timestamp: new Date(baseTimestamp + 1000).toISOString(),
+        session_id: "test-session-123",
+        task_id: "task-2",
+        agent_level: "core",
+        final_answer: "",
+        total_iterations: 1,
+        total_tokens: 0,
+        stop_reason: "final_answer",
+        duration: 1000,
+      };
+
+      act(() => {
+        mockEventSource.simulateEvent("workflow.node.output.delta", assistantMessage1);
+        mockEventSource.simulateEvent("workflow.node.output.delta", assistantMessage2);
+        mockEventSource.simulateEvent("workflow.result.final", taskComplete);
+      });
+
+      const lastEvent = result.current.events[result.current.events.length - 1];
+      expect(lastEvent).toMatchObject({ final_answer: "Hello world" });
     });
 
     test("should clear events when clearEvents is called", async () => {
@@ -412,7 +546,7 @@ describe("useSSE", () => {
       });
 
       const event: AnyAgentEvent = {
-        event_type: "error",
+        event_type: "workflow.diagnostic.error",
         timestamp: new Date().toISOString(),
         session_id: "test-session-123",
         agent_level: "core",
@@ -423,7 +557,7 @@ describe("useSSE", () => {
       };
 
       act(() => {
-        mockEventSource.simulateEvent("error", event);
+        mockEventSource.simulateEvent("workflow.diagnostic.error", event);
       });
 
       expect(result.current.events).toHaveLength(1);
@@ -953,9 +1087,9 @@ describe("useSSE", () => {
       });
 
       // Manually trigger event with bad JSON
-      const listeners = (mockEventSource as any).listeners.get("thinking");
+      const listeners = (mockEventSource as any).listeners.get("workflow.node.output.delta");
       if (listeners) {
-        const badEvent = new MessageEvent("thinking", {
+        const badEvent = new MessageEvent("workflow.node.output.delta", {
           data: "invalid json",
         });
         act(() => {

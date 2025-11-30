@@ -2,20 +2,19 @@ package http
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/observability"
-	"alex/internal/security/redaction"
 	"alex/internal/server/app"
 	"alex/internal/tools/builtin"
 	"alex/internal/utils"
@@ -25,12 +24,40 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+const inlineAttachmentRetentionLimit = 128 * 1024 // Keep small text blobs inline for preview fallbacks.
+
+// sseAllowlist enumerates events that are relevant to the product surface. Any
+// envelope not present here will be suppressed to keep the frontend stream
+// lean and avoid noisy system-level lifecycle spam.
+var sseAllowlist = map[string]bool{
+	"workflow.node.started":                    true,
+	"workflow.node.completed":                  true,
+	"workflow.node.failed":                     true,
+	"workflow.node.output.delta":               true,
+	"workflow.node.output.summary":             true,
+	"workflow.tool.started":                    true,
+	"workflow.tool.progress":                   true,
+	"workflow.tool.completed":                  true,
+	"workflow.input.received":                  true,
+	"workflow.subflow.progress":                true,
+	"workflow.subflow.completed":               true,
+	"workflow.result.final":                    true,
+	"workflow.result.cancelled":                true,
+	"workflow.diagnostic.error":                true,
+	"workflow.diagnostic.context_compression":  true,
+	"workflow.diagnostic.tool_filtering":       true,
+	"workflow.diagnostic.browser_info":         true,
+	"workflow.diagnostic.environment_snapshot": true,
+	"workflow.diagnostic.sandbox_progress":     true,
+}
+
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
 	logger      *utils.Logger
 	formatter   *domain.ToolFormatter
 	obs         *observability.Observability
+	dataCache   *DataCache
 }
 
 // SSEHandlerOption configures optional instrumentation for the SSE handler.
@@ -40,6 +67,13 @@ type SSEHandlerOption func(*SSEHandler)
 func WithSSEObservability(obs *observability.Observability) SSEHandlerOption {
 	return func(handler *SSEHandler) {
 		handler.obs = obs
+	}
+}
+
+// WithSSEDataCache wires a data cache used to offload large inline payloads.
+func WithSSEDataCache(cache *DataCache) SSEHandlerOption {
+	return func(handler *SSEHandler) {
+		handler.dataCache = cache
 	}
 }
 
@@ -55,6 +89,9 @@ func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) 
 			continue
 		}
 		opt(handler)
+	}
+	if handler.dataCache == nil {
+		handler.dataCache = NewDataCache(128, 30*time.Minute)
 	}
 	return handler
 }
@@ -112,6 +149,8 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	// Create event channel for this client
 	clientChan := make(chan ports.AgentEvent, 100)
 	sentAttachments := make(map[string]string)
+	finalAnswerCache := make(map[string]string)
+	streamedTasks := make(map[string]bool)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -148,19 +187,35 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
-	contextSnapshotEventType := (&domain.ContextSnapshotEvent{}).EventType()
+	contextSnapshotEventType := (&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()
 	shouldStream := func(event ports.AgentEvent) bool {
 		if event == nil {
+			return false
+		}
+		base := app.BaseAgentEvent(event)
+		if base == nil {
 			return false
 		}
 
 		// Context snapshots are stored for debugging and analytics but contain
 		// sensitive/internal details that don't need to be pushed to clients in
 		// real time.
-		if event.EventType() == contextSnapshotEventType {
+		if base.EventType() == contextSnapshotEventType {
 			return false
 		}
-		return true
+
+		// Only stream events that are meaningful to the frontend experience.
+		if !sseAllowlist[base.EventType()] {
+			return false
+		}
+
+		// Only stream workflow envelopes and explicit user task submissions.
+		switch base.(type) {
+		case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
+			return true
+		default:
+			return false
+		}
 	}
 
 	sendEvent := func(event ports.AgentEvent) bool {
@@ -168,7 +223,11 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 			return true
 		}
 
-		data, err := h.serializeEvent(event, sentAttachments)
+		if isDelegationToolEvent(event) {
+			return true
+		}
+
+		data, err := h.serializeEvent(event, sentAttachments, finalAnswerCache)
 		if err != nil {
 			h.logger.Error("Failed to serialize event: %v", err)
 			if h.obs != nil {
@@ -184,6 +243,13 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "write_error", 0)
 			}
 			return false
+		}
+
+		// Clear streaming cache when final completes so subsequent tasks stream cleanly.
+		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+			if env.EventType() == "workflow.result.final" && env.Payload != nil && env.Payload["stream_finished"] == true {
+				delete(streamedTasks, env.GetTaskID())
+			}
 		}
 
 		flusher.Flush()
@@ -267,8 +333,8 @@ drainComplete:
 }
 
 // serializeEvent converts domain event to JSON
-func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[string]string) (string, error) {
-	data, err := h.buildEventData(event, sentAttachments)
+func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string) (string, error) {
+	data, err := h.buildEventData(event, sentAttachments, finalAnswerCache)
 	if err != nil {
 		return "", err
 	}
@@ -282,71 +348,9 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[
 }
 
 // buildEventData is the single source of truth for the SSE event envelope the
-// backend emits. The current IDL of event_type values (and their primary
-// payload fields) is:
-//   - user_task: task, attachments
-//   - iteration_start: iteration, total_iters
-//   - thinking: iteration, message_count
-//   - think_complete: iteration, content, tool_call_count
-//   - assistant_message: iteration, delta, final, created_at, source_model
-//   - tool_call_start: iteration, call_id, tool_name, arguments
-//   - tool_call_stream: call_id, chunk, is_complete
-//   - tool_call_complete: call_id, tool_name, result, error, duration, metadata, attachments
-//   - iteration_complete: iteration, tokens_used, tools_run
-//   - task_complete: final_answer, total_iterations, total_tokens, stop_reason, duration, attachments
-//   - task_cancelled: reason, requested_by
-//   - error: iteration, phase, error, recoverable
-//   - context_compression: original_count, compressed_count, compression_rate
-//   - tool_filtering: preset_name, original_count, filtered_count, filtered_tools, tool_filter_ratio
-//   - browser_info: success, message, user_agent, cdp_url, vnc_url, viewport_width, viewport_height, captured
-//   - environment_snapshot: host, sandbox, captured
-//   - sandbox_progress: status, stage, message, step, total_steps, error, updated
-//
-// Subtask-wrapped events reuse the base fields below and add:
-//   - agent_level: "subagent" for delegated work
-//   - is_subtask: true, subtask_index, total_subtasks, subtask_preview, max_parallel
-//   - parent_task_id: identifier of the delegating task
-//
-// These extra keys allow consumers to recognize delegated streams even when
-// event_type stays the same (e.g., assistant_message, tool_call_*). Note:
-// subagent_progress and subagent_complete are not generated by the server SSE
-// stream; any frontend handling of those types should treat them as client
-// side extensions synthesized from the subtask envelopes.
-func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[string]string) (map[string]interface{}, error) {
-	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
-		base, err := h.buildEventData(subtaskEvent.OriginalEvent, sentAttachments)
-		if err != nil {
-			return nil, err
-		}
-
-		// Clone base map to avoid mutating the original instance
-		cloned := make(map[string]interface{}, len(base)+6)
-		for key, value := range base {
-			cloned[key] = value
-		}
-
-		cloned["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339Nano)
-		cloned["agent_level"] = subtaskEvent.GetAgentLevel()
-		cloned["session_id"] = subtaskEvent.GetSessionID()
-		cloned["task_id"] = subtaskEvent.GetTaskID()
-		if parentTaskID := subtaskEvent.GetParentTaskID(); parentTaskID != "" {
-			cloned["parent_task_id"] = parentTaskID
-		}
-
-		cloned["event_type"] = subtaskEvent.OriginalEvent.EventType()
-		cloned["is_subtask"] = true
-		cloned["subtask_index"] = subtaskEvent.SubtaskIndex
-		cloned["total_subtasks"] = subtaskEvent.TotalSubtasks
-		if subtaskEvent.SubtaskPreview != "" {
-			cloned["subtask_preview"] = subtaskEvent.SubtaskPreview
-		}
-		if subtaskEvent.MaxParallel > 0 {
-			cloned["max_parallel"] = subtaskEvent.MaxParallel
-		}
-
-		return cloned, nil
-	}
-
+// backend emits. It assumes all events have already been translated into
+// workflow.* envelopes.
+func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string) (map[string]interface{}, error) {
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
 		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
@@ -356,211 +360,103 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		"parent_task_id": event.GetParentTaskID(),
 	}
 
-	// Add event-specific fields based on type
-	switch e := event.(type) {
-	case *domain.UserTaskEvent:
-		data["task"] = e.Task
-		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
+	// Subtask envelopes are flattened into the base envelope while retaining
+	// metadata.
+	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+		base, err := h.buildEventData(subtaskEvent.OriginalEvent, sentAttachments, finalAnswerCache)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range base {
+			data[k] = v
+		}
+		data["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339Nano)
+		data["agent_level"] = subtaskEvent.GetAgentLevel()
+		data["session_id"] = subtaskEvent.GetSessionID()
+		data["task_id"] = subtaskEvent.GetTaskID()
+		if parentTaskID := subtaskEvent.GetParentTaskID(); parentTaskID != "" {
+			data["parent_task_id"] = parentTaskID
+		}
+		data["is_subtask"] = true
+		if subtaskEvent.SubtaskIndex > 0 {
+			data["subtask_index"] = subtaskEvent.SubtaskIndex
+		}
+		if subtaskEvent.TotalSubtasks > 0 {
+			data["total_subtasks"] = subtaskEvent.TotalSubtasks
+		}
+		if subtaskEvent.SubtaskPreview != "" {
+			data["subtask_preview"] = subtaskEvent.SubtaskPreview
+		}
+		if subtaskEvent.MaxParallel > 0 {
+			data["max_parallel"] = subtaskEvent.MaxParallel
+		}
+		return data, nil
+	}
+
+	// Allow direct user input events if they have not been wrapped yet.
+	if input, ok := event.(*domain.WorkflowInputReceivedEvent); ok {
+		if sanitized := sanitizeAttachmentsForStream(input.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
-	case *domain.WorkflowLifecycleEvent:
-		data["workflow_id"] = e.WorkflowID
-		data["workflow_event_type"] = string(e.WorkflowEventType)
-		if e.Phase != "" {
-			data["phase"] = e.Phase
-		}
-		if e.Node != nil {
-			data["node"] = sanitizeWorkflowNode(*e.Node)
-		}
-		if e.Workflow != nil {
-			data["workflow"] = sanitizeWorkflowSnapshot(e.Workflow)
-		}
-	case *domain.StepStartedEvent:
-		data["step_index"] = e.StepIndex
-		data["step_description"] = e.StepDescription
-		if e.Iteration > 0 {
-			data["iteration"] = e.Iteration
-		}
-		if e.Workflow != nil {
-			data["workflow"] = sanitizeWorkflowSnapshot(e.Workflow)
-		}
-	case *domain.StepCompletedEvent:
-		data["step_index"] = e.StepIndex
-		data["step_description"] = e.StepDescription
-		if e.StepResult != nil {
-			data["step_result"] = e.StepResult
-		}
-		if e.Status != "" {
-			data["status"] = e.Status
-		}
-		if e.Iteration > 0 {
-			data["iteration"] = e.Iteration
-		}
-		if e.Workflow != nil {
-			data["workflow"] = sanitizeWorkflowSnapshot(e.Workflow)
-		}
-	case *domain.IterationStartEvent:
-		data["iteration"] = e.Iteration
-		data["total_iters"] = e.TotalIters
+		data["task"] = input.Task
+		return data, nil
+	}
 
-	case *domain.ThinkingEvent:
-		data["iteration"] = e.Iteration
-		data["message_count"] = e.MessageCount
+	envelope, ok := event.(*domain.WorkflowEventEnvelope)
+	if !ok {
+		return data, nil
+	}
 
-	case *domain.ThinkCompleteEvent:
-		data["iteration"] = e.Iteration
-		data["content"] = e.Content
-		data["tool_call_count"] = e.ToolCallCount
+	data["version"] = envelope.Version
+	if envelope.WorkflowID != "" {
+		data["workflow_id"] = envelope.WorkflowID
+	}
+	if envelope.RunID != "" {
+		data["run_id"] = envelope.RunID
+	}
+	if envelope.NodeID != "" {
+		data["node_id"] = envelope.NodeID
+	}
+	if envelope.NodeKind != "" {
+		data["node_kind"] = envelope.NodeKind
+	}
+	if envelope.IsSubtask {
+		data["is_subtask"] = true
+	}
+	if envelope.SubtaskIndex > 0 {
+		data["subtask_index"] = envelope.SubtaskIndex
+	}
+	if envelope.TotalSubtasks > 0 {
+		data["total_subtasks"] = envelope.TotalSubtasks
+	}
+	if envelope.SubtaskPreview != "" {
+		data["subtask_preview"] = envelope.SubtaskPreview
+	}
+	if envelope.MaxParallel > 0 {
+		data["max_parallel"] = envelope.MaxParallel
+	}
 
-	case *domain.AssistantMessageEvent:
-		data["iteration"] = e.Iteration
-		data["delta"] = e.Delta
-		data["final"] = e.Final
-		data["created_at"] = e.CreatedAt.Format(time.RFC3339Nano)
-		if e.SourceModel != "" {
-			data["source_model"] = e.SourceModel
-		}
-
-	case *domain.ToolCallStartEvent:
-		data["iteration"] = e.Iteration
-		data["call_id"] = e.CallID
-		data["tool_name"] = e.ToolName
-		presentation := h.formatter.PrepareArgs(e.ToolName, e.Arguments)
-
-		// Always include arguments field, even if empty
-		if len(presentation.Args) > 0 {
-			sanitizedArgs := make(map[string]interface{}, len(presentation.Args))
-			for key, value := range presentation.Args {
-				sanitizedArgs[key] = value
+	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache)
+	if envelope.Event == "workflow.result.final" {
+		if val, ok := payload["final_answer"].(string); ok {
+			key := envelope.GetTaskID()
+			delta := val
+			if prev, ok := finalAnswerCache[key]; ok && strings.HasPrefix(val, prev) {
+				delta = strings.TrimPrefix(val, prev)
 			}
-			data["arguments"] = sanitizeArguments(sanitizedArgs)
-		} else {
-			data["arguments"] = map[string]interface{}{}
+			if key != "" {
+				if isStreaming, ok := payload["is_streaming"].(bool); ok && isStreaming {
+					finalAnswerCache[key] = val
+				}
+				if finished, ok := payload["stream_finished"].(bool); ok && finished {
+					delete(finalAnswerCache, key)
+				}
+			}
+			payload["final_answer"] = delta
 		}
-
-		if presentation.InlinePreview != "" {
-			data["arguments_preview"] = sanitizeValue("preview", presentation.InlinePreview)
-		}
-
-	case *domain.ToolCallCompleteEvent:
-		data["call_id"] = e.CallID
-		data["tool_name"] = e.ToolName
-		data["result"] = e.Result
-		if e.Error != nil {
-			data["error"] = e.Error.Error()
-		}
-		data["duration"] = e.Duration.Milliseconds()
-		if len(e.Metadata) > 0 {
-			data["metadata"] = e.Metadata
-		}
-		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
-			data["attachments"] = sanitized
-		}
-
-	case *domain.ToolCallStreamEvent:
-		data["call_id"] = e.CallID
-		data["chunk"] = e.Chunk
-		data["is_complete"] = e.IsComplete
-
-	case *domain.IterationCompleteEvent:
-		data["iteration"] = e.Iteration
-		data["tokens_used"] = e.TokensUsed
-		data["tools_run"] = e.ToolsRun
-
-	case *domain.TaskCompleteEvent:
-		data["final_answer"] = e.FinalAnswer
-		data["total_iterations"] = e.TotalIterations
-		data["total_tokens"] = e.TotalTokens
-		data["stop_reason"] = e.StopReason
-		data["duration"] = e.Duration.Milliseconds()
-		data["is_streaming"] = e.IsStreaming
-		data["stream_finished"] = e.StreamFinished
-		if sanitized := sanitizeAttachmentsForStream(e.Attachments, sentAttachments); len(sanitized) > 0 {
-			data["attachments"] = sanitized
-		}
-
-	case *domain.TaskCancelledEvent:
-		if e.Reason != "" {
-			data["reason"] = e.Reason
-		}
-		if e.RequestedBy != "" {
-			data["requested_by"] = e.RequestedBy
-		}
-
-	case *domain.ErrorEvent:
-		data["iteration"] = e.Iteration
-		data["phase"] = e.Phase
-		if e.Error != nil {
-			data["error"] = e.Error.Error()
-		}
-		data["recoverable"] = e.Recoverable
-
-	case *domain.BrowserInfoEvent:
-		if e.Success != nil {
-			data["success"] = *e.Success
-		}
-		if e.Message != "" {
-			data["message"] = e.Message
-		}
-		if e.UserAgent != "" {
-			data["user_agent"] = e.UserAgent
-		}
-		if e.CDPURL != "" {
-			data["cdp_url"] = e.CDPURL
-		}
-		if e.VNCURL != "" {
-			data["vnc_url"] = e.VNCURL
-		}
-		if e.ViewportWidth != 0 {
-			data["viewport_width"] = e.ViewportWidth
-		}
-		if e.ViewportHeight != 0 {
-			data["viewport_height"] = e.ViewportHeight
-		}
-		data["captured"] = e.Captured.Format(time.RFC3339)
-
-	case *domain.EnvironmentSnapshotEvent:
-		data["host"] = e.Host
-		data["sandbox"] = e.Sandbox
-		data["captured"] = e.Captured.Format(time.RFC3339)
-
-	case *domain.SandboxProgressEvent:
-		data["status"] = e.Status
-		data["stage"] = e.Stage
-		if e.Message != "" {
-			data["message"] = e.Message
-		}
-		data["step"] = e.Step
-		data["total_steps"] = e.TotalSteps
-		if e.Error != "" {
-			data["error"] = e.Error
-		}
-		data["updated"] = e.Updated.Format(time.RFC3339)
-
-	case *domain.ContextCompressionEvent:
-		data["original_count"] = e.OriginalCount
-		data["compressed_count"] = e.CompressedCount
-		data["compression_rate"] = e.CompressionRate
-
-	case *domain.ToolFilteringEvent:
-		data["preset_name"] = e.PresetName
-		data["original_count"] = e.OriginalCount
-		data["filtered_count"] = e.FilteredCount
-		data["filtered_tools"] = e.FilteredTools
-		data["tool_filter_ratio"] = e.ToolFilterRatio
-
-	case *domain.ContextSnapshotEvent:
-		data["iteration"] = e.Iteration
-		data["llm_turn_seq"] = e.LLMTurnSeq
-		data["request_id"] = e.RequestID
-		messages := serializeMessages(e.Messages, sentAttachments)
-		if messages == nil {
-			messages = []map[string]any{}
-		}
-		data["messages"] = messages
-		if excluded := serializeMessages(e.Excluded, sentAttachments); len(excluded) > 0 {
-			data["excluded_messages"] = excluded
-		}
+	}
+	if len(payload) > 0 {
+		data["payload"] = payload
 	}
 
 	return data, nil
@@ -646,37 +542,13 @@ func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
 	return nil, false
 }
 
-const redactedPlaceholder = redaction.Placeholder
-
-// sanitizeArguments creates a deep copy of the provided arguments map and redacts any values that
-// appear to contain sensitive information such as API keys or authorization tokens.
-func sanitizeArguments(arguments map[string]interface{}) map[string]interface{} {
-	if len(arguments) == 0 {
-		return nil
-	}
-
-	sanitized := make(map[string]interface{}, len(arguments))
-	for key, value := range arguments {
-		sanitized[key] = sanitizeValue(key, value)
-	}
-
-	return sanitized
-}
-
-func sanitizeValue(parentKey string, value interface{}) interface{} {
-	if redaction.IsSensitiveKey(parentKey) {
-		return redactedPlaceholder
-	}
-
+func sanitizeValue(cache *DataCache, value interface{}) interface{} {
 	if value == nil {
 		return nil
 	}
 
 	if str, ok := value.(string); ok {
-		if redaction.LooksLikeSecret(str) {
-			return redactedPlaceholder
-		}
-		return str
+		return sanitizeStringValue(cache, str)
 	}
 
 	rv := reflect.ValueOf(value)
@@ -689,49 +561,67 @@ func sanitizeValue(parentKey string, value interface{}) interface{} {
 
 	switch rv.Kind() {
 	case reflect.Map:
-		return sanitizeMap(rv)
+		return sanitizeMap(rv, cache)
 	case reflect.Slice:
 		if rv.Type().Elem().Kind() == reflect.Uint8 {
 			bytesCopy := make([]byte, rv.Len())
 			reflect.Copy(reflect.ValueOf(bytesCopy), rv)
-			str := string(bytesCopy)
-			if redaction.LooksLikeSecret(str) {
-				return redactedPlaceholder
-			}
-			return str
+			return sanitizeStringValue(cache, string(bytesCopy))
 		}
 		fallthrough
 	case reflect.Array:
 		sanitizedSlice := make([]interface{}, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
-			sanitizedSlice[i] = sanitizeValue("", rv.Index(i).Interface())
+			sanitizedSlice[i] = sanitizeValue(cache, rv.Index(i).Interface())
 		}
 		return sanitizedSlice
 	case reflect.String:
-		str := rv.String()
-		if redaction.LooksLikeSecret(str) {
-			return redactedPlaceholder
-		}
-		return str
+		return sanitizeStringValue(cache, rv.String())
 	default:
 		return value
 	}
 }
 
-func sanitizeMap(rv reflect.Value) map[string]interface{} {
+func sanitizeMap(rv reflect.Value, cache *DataCache) map[string]interface{} {
 	sanitized := make(map[string]interface{}, rv.Len())
 	for _, key := range rv.MapKeys() {
 		keyValue := key.Interface()
 		keyString := fmt.Sprint(keyValue)
-		sanitized[keyString] = sanitizeValue(keyString, rv.MapIndex(key).Interface())
+		sanitized[keyString] = sanitizeValue(cache, rv.MapIndex(key).Interface())
 	}
 
 	return sanitized
 }
 
-func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string) map[string]ports.Attachment {
+func sanitizeStringValue(cache *DataCache, value string) interface{} {
+	if cache == nil {
+		return value
+	}
+
+	if replaced := cache.MaybeStoreDataURI(value); replaced != nil {
+		return replaced
+	}
+
+	return value
+}
+
+func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string, cache *DataCache, forceInclude bool) map[string]ports.Attachment {
 	if len(attachments) == 0 {
 		return nil
+	}
+
+	sanitized := make(map[string]ports.Attachment, len(attachments))
+	for name, attachment := range attachments {
+		sanitized[name] = normalizeAttachmentPayload(attachment, cache)
+	}
+
+	if forceInclude {
+		if sent != nil {
+			for name, attachment := range sanitized {
+				sent[name] = attachmentDigest(attachment)
+			}
+		}
+		return sanitized
 	}
 
 	// Fast-path: when nothing has been sent yet, reuse the original map to
@@ -739,15 +629,15 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	// sent registry so duplicates can be skipped on later deliveries.
 	if len(sent) == 0 {
 		if sent != nil {
-			for name, attachment := range attachments {
+			for name, attachment := range sanitized {
 				sent[name] = attachmentDigest(attachment)
 			}
 		}
-		return attachments
+		return sanitized
 	}
 
 	var unsent map[string]ports.Attachment
-	for name, attachment := range attachments {
+	for name, attachment := range sanitized {
 		digest := attachmentDigest(attachment)
 		if prevDigest, alreadySent := sent[name]; alreadySent && prevDigest == digest {
 			continue
@@ -762,6 +652,321 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	return unsent
 }
 
+func shouldRetainInlinePayload(mediaType string, size int) bool {
+	if size <= 0 || size > inlineAttachmentRetentionLimit {
+		return false
+	}
+
+	media := strings.ToLower(strings.TrimSpace(mediaType))
+	if media == "" {
+		return false
+	}
+
+	if strings.HasPrefix(media, "text/") {
+		return true
+	}
+
+	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
+}
+
+// normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
+// so SSE streams do not push large base64 blobs to the client.
+func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.Attachment {
+	if cache == nil {
+		return att
+	}
+
+	// Already points to an external or cached resource.
+	if att.Data == "" && att.URI != "" && !strings.HasPrefix(att.URI, "data:") {
+		return att
+	}
+
+	mediaType := strings.TrimSpace(att.MediaType)
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+
+	// Prefer explicit data payloads.
+	if att.Data != "" {
+		if decoded, err := base64.StdEncoding.DecodeString(att.Data); err == nil && len(decoded) > 0 {
+			if url := cache.StoreBytes(mediaType, decoded); url != "" {
+				att.URI = url
+				att.Data = ""
+				if att.MediaType == "" {
+					att.MediaType = mediaType
+				}
+				if shouldRetainInlinePayload(att.MediaType, len(decoded)) {
+					att.Data = base64.StdEncoding.EncodeToString(decoded)
+				}
+				return att
+			}
+		}
+	}
+
+	// Fallback to data URIs when present.
+	if strings.HasPrefix(att.URI, "data:") {
+		rawURI := att.URI
+		if cached := cache.MaybeStoreDataURI(rawURI); cached != nil {
+			if url, ok := cached["url"].(string); ok && url != "" {
+				att.URI = url
+			}
+			if ct, ok := cached["content_type"].(string); ok && ct != "" {
+				att.MediaType = ct
+			} else if att.MediaType == "" {
+				att.MediaType = mediaType
+			}
+			if ct, payload, ok := decodeDataURI(rawURI); ok && shouldRetainInlinePayload(ct, len(payload)) {
+				att.Data = base64.StdEncoding.EncodeToString(payload)
+				if att.MediaType == "" {
+					att.MediaType = ct
+				}
+			} else {
+				att.Data = ""
+			}
+			return att
+		}
+	}
+
+	return att
+}
+
+func sanitizeEnvelopePayload(payload map[string]any, sent map[string]string, cache *DataCache) map[string]any {
+	if len(payload) == 0 {
+		return nil
+	}
+	sanitized := make(map[string]any, len(payload))
+	for key, value := range payload {
+		if key == "attachments" {
+			sanitized[key] = sanitizeUntypedAttachments(value, sent, cache)
+			continue
+		}
+		if key == "result" && cache != nil {
+			clean := sanitizeStepResultValue(value)
+			sanitized[key] = sanitizeEnvelopeValue(clean, sent, cache)
+			continue
+		}
+		sanitized[key] = sanitizeEnvelopeValue(value, sent, cache)
+	}
+	return sanitized
+}
+
+func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) any {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case map[string]ports.Attachment:
+		return sanitizeAttachmentsForStream(v, sent, cache, false)
+	case ports.Attachment:
+		if sanitized := sanitizeAttachmentsForStream(map[string]ports.Attachment{"attachment": v}, sent, cache, false); len(sanitized) > 0 {
+			return sanitized["attachment"]
+		}
+		return nil
+	case workflow.NodeSnapshot:
+		return sanitizeWorkflowNode(v)
+	case *workflow.NodeSnapshot:
+		if v == nil {
+			return nil
+		}
+		return sanitizeWorkflowNode(*v)
+	case *workflow.WorkflowSnapshot:
+		return sanitizeWorkflowSnapshot(v)
+	case workflow.WorkflowSnapshot:
+		snap := v
+		return sanitizeWorkflowSnapshot(&snap)
+	case time.Time:
+		if v.IsZero() {
+			return nil
+		}
+		return v.Format(time.RFC3339Nano)
+	case map[string]any:
+		sanitized := make(map[string]any, len(v))
+		for key, val := range v {
+			if key == "attachments" {
+				sanitized[key] = sanitizeUntypedAttachments(val, sent, cache)
+				continue
+			}
+			if key == "messages" || key == "attachment_iterations" {
+				continue
+			}
+			sanitized[key] = sanitizeEnvelopeValue(val, sent, cache)
+		}
+		return sanitized
+	case []any:
+		out := make([]any, len(v))
+		for i, entry := range v {
+			out[i] = sanitizeEnvelopeValue(entry, sent, cache)
+		}
+		return out
+	default:
+		return sanitizeValue(cache, v)
+	}
+}
+
+func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent map[string]string, cache *DataCache) map[string]any {
+	if env == nil {
+		return nil
+	}
+
+	payload := env.Payload
+	if env.Event == "workflow.node.completed" && env.NodeKind == "step" {
+		payload = scrubStepPayload(payload)
+	}
+
+	return sanitizeEnvelopePayload(payload, sent, cache)
+}
+
+func sanitizeStepResultValue(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		clean := make(map[string]any, len(v))
+		for key, val := range v {
+			if key == "messages" || key == "attachment_iterations" {
+				continue
+			}
+			clean[key] = val
+		}
+		return clean
+	case []any:
+		return nil
+	default:
+		return value
+	}
+}
+
+func scrubStepPayload(payload map[string]any) map[string]any {
+	if len(payload) == 0 {
+		return payload
+	}
+
+	scrubbed := make(map[string]any, len(payload)+1)
+	for key, val := range payload {
+		scrubbed[key] = val
+	}
+
+	if res, ok := scrubbed["result"]; ok {
+		clean := sanitizeStepResultValue(res)
+		scrubbed["result"] = clean
+		if summary := summarizeStepResult(clean); summary != "" {
+			scrubbed["step_result"] = summary
+		}
+	} else if sr, ok := scrubbed["step_result"]; ok {
+		if summary := summarizeStepResult(sr); summary != "" {
+			scrubbed["step_result"] = summary
+		}
+	}
+
+	return scrubbed
+}
+
+func summarizeStepResult(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	case map[string]any:
+		if errMsg, ok := v["error"].(string); ok && errMsg != "" {
+			return errMsg
+		}
+		for _, key := range []string{"summary", "content", "output", "text"} {
+			if s, ok := v[key].(string); ok && s != "" {
+				return s
+			}
+		}
+
+		clean := make(map[string]any, len(v))
+		for key, val := range v {
+			if key == "messages" || key == "attachments" || key == "attachment_iterations" {
+				continue
+			}
+			clean[key] = val
+		}
+		if len(clean) == 0 {
+			return ""
+		}
+		if desc, ok := clean["description"].(string); ok && desc != "" {
+			return desc
+		}
+		return fmt.Sprint(clean)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func sanitizeUntypedAttachments(value any, sent map[string]string, cache *DataCache) any {
+	raw, ok := value.(map[string]any)
+	if !ok {
+		return sanitizeEnvelopeValue(value, sent, cache)
+	}
+
+	attachments := make(map[string]ports.Attachment)
+	for name, entry := range raw {
+		entryMap, ok := entry.(map[string]any)
+		if !ok || !isAttachmentRecord(entryMap) {
+			continue
+		}
+		att := attachmentFromMap(entryMap)
+		if att.Name == "" {
+			att.Name = name
+		}
+		attachments[name] = att
+	}
+
+	if len(attachments) == 0 {
+		return sanitizeEnvelopePayload(raw, sent, cache)
+	}
+
+	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, false)
+	if len(sanitized) == 0 {
+		return nil
+	}
+	return sanitized
+}
+
+func isAttachmentRecord(entry map[string]any) bool {
+	if entry == nil {
+		return false
+	}
+	_, hasData := entry["data"]
+	_, hasURI := entry["uri"]
+	_, hasMediaType := entry["media_type"]
+	_, hasName := entry["name"]
+	return hasData || hasURI || hasMediaType || hasName
+}
+
+func attachmentFromMap(entry map[string]any) ports.Attachment {
+	att := ports.Attachment{}
+
+	if v, ok := entry["name"].(string); ok {
+		att.Name = v
+	}
+	if v, ok := entry["media_type"].(string); ok {
+		att.MediaType = v
+	}
+	if v, ok := entry["uri"].(string); ok {
+		att.URI = v
+	}
+	if v, ok := entry["data"].(string); ok {
+		att.Data = v
+	}
+	if v, ok := entry["source"].(string); ok {
+		att.Source = v
+	}
+	if v, ok := entry["description"].(string); ok {
+		att.Description = v
+	}
+	if v, ok := entry["kind"].(string); ok {
+		att.Kind = v
+	}
+	if v, ok := entry["format"].(string); ok {
+		att.Format = v
+	}
+
+	return att
+}
+
 func attachmentDigest(att ports.Attachment) string {
 	encoded, err := json.Marshal(att)
 	if err != nil {
@@ -771,90 +976,40 @@ func attachmentDigest(att ports.Attachment) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func serializeMessages(messages []ports.Message, sentAttachments map[string]string) []map[string]any {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	serialized := make([]map[string]any, 0, len(messages))
-	for _, msg := range messages {
-		if isRAGPreloadMessage(msg) {
-			continue
-		}
-
-		entry := map[string]any{
-			"role":    msg.Role,
-			"content": msg.Content,
-		}
-
-		if len(msg.ToolCalls) > 0 {
-			entry["tool_calls"] = msg.ToolCalls
-		}
-		if len(msg.ToolResults) > 0 {
-			entry["tool_results"] = msg.ToolResults
-		}
-		if msg.ToolCallID != "" {
-			entry["tool_call_id"] = msg.ToolCallID
-		}
-		if len(msg.Metadata) > 0 {
-			entry["metadata"] = msg.Metadata
-		}
-		if sanitized := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments); len(sanitized) > 0 {
-			entry["attachments"] = sanitized
-		}
-		if msg.Source != ports.MessageSourceUnknown && msg.Source != "" {
-			entry["source"] = msg.Source
-		}
-
-		serialized = append(serialized, entry)
-	}
-
-	if len(serialized) == 0 {
-		return nil
-	}
-
-	return serialized
-}
-
-func isRAGPreloadMessage(msg ports.Message) bool {
-	if len(msg.Metadata) == 0 {
+// isDelegationToolEvent identifies subagent delegation tool calls so they can be
+// filtered from UX-facing streams (the delegated subflow emits its own events).
+func isDelegationToolEvent(event ports.AgentEvent) bool {
+	env, ok := app.BaseAgentEvent(event).(*domain.WorkflowEventEnvelope)
+	if !ok || env == nil {
 		return false
 	}
-	value, ok := msg.Metadata["rag_preload"]
-	if !ok {
-		return false
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
-		return err == nil && parsed
-	case float64:
-		return v != 0
-	case float32:
-		return v != 0
-	case int:
-		return v != 0
-	case int8:
-		return v != 0
-	case int16:
-		return v != 0
-	case int32:
-		return v != 0
-	case int64:
-		return v != 0
-	case uint:
-		return v != 0
-	case uint8:
-		return v != 0
-	case uint16:
-		return v != 0
-	case uint32:
-		return v != 0
-	case uint64:
-		return v != 0
+
+	switch env.Event {
+	case "workflow.tool.started", "workflow.tool.progress", "workflow.tool.completed":
 	default:
 		return false
 	}
+
+	if toolName := normalizedToolName(env.Payload); toolName != "" {
+		return toolName == "subagent"
+	}
+
+	return strings.HasPrefix(strings.ToLower(env.NodeID), "subagent:")
+}
+
+func normalizedToolName(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	for _, key := range []string{"tool_name", "tool"} {
+		if raw, ok := payload[key]; ok {
+			if name, ok := raw.(string); ok {
+				normalized := strings.ToLower(strings.TrimSpace(name))
+				if normalized != "" {
+					return normalized
+				}
+			}
+		}
+	}
+	return ""
 }

@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Monitor,
   ChevronLeft,
@@ -15,15 +15,15 @@ import {
   Terminal,
   Globe,
   Code,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Highlight, themes } from 'prism-react-renderer';
-import { useTranslation } from '@/lib/i18n';
-import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
-import { AttachmentPayload } from '@/lib/types';
-import { ImagePreview } from '@/components/ui/image-preview';
-import { VideoPreview } from '@/components/ui/video-preview';
-import { ArtifactPreviewCard } from './ArtifactPreviewCard';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Highlight, themes } from "prism-react-renderer";
+import { useTranslation } from "@/lib/i18n";
+import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
+import { AttachmentPayload } from "@/lib/types";
+import { ImagePreview } from "@/components/ui/image-preview";
+import { VideoPreview } from "@/components/ui/video-preview";
+import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -70,11 +70,11 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
 
   if (outputs.length === 0) {
     return (
-      <Card className={cn('glass-card shadow-medium', className)}>
-        <CardContent className="flex flex-col items-center justify-center h-64 text-gray-500">
-          <Monitor className="h-16 w-16 mb-4 text-gray-300" />
-          <p className="font-medium">{t('viewport.empty.title')}</p>
-          <p className="text-sm mt-1">{t('viewport.empty.description')}</p>
+      <Card className={cn(className)}>
+        <CardContent className="flex h-64 flex-col items-center justify-center text-muted-foreground">
+          <Monitor className="mb-4 h-16 w-16 text-muted-foreground/50" />
+          <p className="font-medium text-foreground">{t("viewport.empty.title")}</p>
+          <p className="mt-1 text-sm">{t("viewport.empty.description")}</p>
         </CardContent>
       </Card>
     );
@@ -98,17 +98,17 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
 
   return (
     <>
-      <Card className={cn('glass-card shadow-medium', className)}>
+      <Card className={cn(className)}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary text-primary-foreground">
-                <Monitor className="h-5 w-5 text-primary-foreground" />
+              <div className="rounded-lg border border-border bg-muted px-2 py-2">
+                <Monitor className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">{t('viewport.title')}</h3>
-                <p className="text-xs text-gray-500">
-                  {t('viewport.position', { index: currentIndex + 1, total: outputs.length })}
+                <h3 className="font-semibold text-foreground">{t("viewport.title")}</h3>
+                <p className="text-xs text-muted-foreground">
+                  {t("viewport.position", { index: currentIndex + 1, total: outputs.length })}
                 </p>
               </div>
             </div>
@@ -123,7 +123,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0"
-                    aria-label={t('viewport.aria.previous')}
+                    aria-label={t("viewport.aria.previous")}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -133,7 +133,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0"
-                    aria-label={t('viewport.aria.next')}
+                    aria-label={t("viewport.aria.next")}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
@@ -146,7 +146,7 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
                 variant="outline"
                 size="sm"
                 className="h-8 w-8 p-0"
-                aria-label={t('viewport.aria.enterFullscreen')}
+                aria-label={t("viewport.aria.enterFullscreen")}
               >
                 <Maximize2 className="h-4 w-4" />
               </Button>
@@ -162,24 +162,23 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
       {/* Fullscreen modal */}
       {isFullscreen && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fadeIn"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/98 text-foreground"
           role="dialog"
           aria-modal="true"
-          aria-label={t('viewport.aria.fullscreenViewer')}
+          aria-label={t("viewport.aria.fullscreenViewer")}
         >
           <div className="absolute top-4 right-4">
             <Button
               onClick={() => setIsFullscreen(false)}
               variant="outline"
               size="sm"
-              className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-              aria-label={t('viewport.aria.exitFullscreen')}
+              aria-label={t("viewport.aria.exitFullscreen")}
             >
               <X className="h-4 w-4 mr-2" />
-              {t('viewport.fullscreen.close')}
+              {t("viewport.fullscreen.close")}
             </Button>
           </div>
-          <div className="w-full h-full p-8 overflow-auto">
+          <div className="h-full w-full overflow-auto p-8">
             <OutputRenderer output={currentOutput} fullscreen />
           </div>
         </div>
@@ -195,17 +194,17 @@ function OutputRenderer({
   output: ToolOutput;
   fullscreen?: boolean;
 }) {
-  const containerClass = fullscreen ? 'text-white' : 'text-gray-900';
+  const containerClass = fullscreen ? "text-foreground" : "text-foreground";
 
   return (
-    <div className={cn('space-y-3', containerClass)}>
+    <div className={cn("space-y-3", containerClass)}>
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+      <div className="flex items-center justify-between border-b border-border pb-2">
         <div className="flex items-center gap-2">
           <ToolTypeIcon type={output.type} />
           <span className="font-semibold">{output.toolName}</span>
         </div>
-        <Badge variant="default" className="text-xs">
+        <Badge variant="outline" className="text-xs font-mono">
           {new Date(output.timestamp).toLocaleTimeString()}
         </Badge>
       </div>
@@ -403,7 +402,7 @@ function BashOutput({
       {exitCode !== undefined && (
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-600">{t('viewport.bash.exitCode')}</span>
-          <Badge variant={exitCode === 0 ? 'success' : 'error'}>{exitCode}</Badge>
+          <Badge variant={exitCode === 0 ? 'success' : 'destructive'}>{exitCode}</Badge>
         </div>
       )}
     </div>

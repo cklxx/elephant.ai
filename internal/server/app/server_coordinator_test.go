@@ -267,7 +267,7 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	coordinator.emitUserTaskEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
+	coordinator.emitWorkflowInputReceivedEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
 
 	if len(analyticsMock.captures) != 1 {
 		t.Fatalf("expected 1 analytics capture, got %d", len(analyticsMock.captures))
@@ -503,8 +503,8 @@ func TestTaskStoreProgressFields(t *testing.T) {
 		final.TotalIterations, final.TotalTokens)
 }
 
-// TestUserTaskEventEmission verifies that user-submitted attachments are emitted via SSE.
-func TestUserTaskEventEmission(t *testing.T) {
+// TestWorkflowInputReceivedEventEmission verifies that user-submitted attachments are emitted via SSE.
+func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
@@ -548,12 +548,12 @@ func TestUserTaskEventEmission(t *testing.T) {
 
 	sessionID := task.SessionID
 
-	var userTaskEvent *domain.UserTaskEvent
+	var userTaskEvent *domain.WorkflowInputReceivedEvent
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		history := broadcaster.GetEventHistory(sessionID)
 		for _, event := range history {
-			if typed, ok := event.(*domain.UserTaskEvent); ok {
+			if typed, ok := event.(*domain.WorkflowInputReceivedEvent); ok {
 				userTaskEvent = typed
 				break
 			}
@@ -565,7 +565,7 @@ func TestUserTaskEventEmission(t *testing.T) {
 	}
 
 	if userTaskEvent == nil {
-		t.Fatalf("expected user_task event to be emitted, but none was recorded for session %s", sessionID)
+		t.Fatalf("expected workflow.input.received event to be emitted, but none was recorded for session %s", sessionID)
 	}
 
 	if userTaskEvent.Task != "展示占位符 [sketch.png] 和 [diagram.svg]" {
@@ -730,13 +730,13 @@ func TestTaskCancellation(t *testing.T) {
 	events := broadcaster.GetEventHistory(task.SessionID)
 	foundCancellation := false
 	for _, evt := range events {
-		if evt.EventType() == "task_cancelled" {
+		if evt.EventType() == "workflow.result.cancelled" {
 			foundCancellation = true
 			break
 		}
 	}
 	if !foundCancellation {
-		t.Errorf("expected task_cancelled event in history for session %s", task.SessionID)
+		t.Errorf("expected workflow.result.cancelled event in history for session %s", task.SessionID)
 	}
 
 	t.Logf("✓ Task cancelled successfully: status=%s, reason=%s",

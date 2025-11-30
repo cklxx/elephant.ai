@@ -13,38 +13,31 @@ interface EventStyle {
 }
 
 const EVENT_STYLE_MAP: Record<string, EventStyle> = {
-  user_task: {
+  "workflow.input.received": {
     content: "font-semibold text-foreground",
     line: "is-highlighted",
   },
-  task_complete: {
+  "workflow.result.final": {
     content: "font-semibold text-foreground",
     line: "is-highlighted",
   },
-  task_cancelled: {
+  "workflow.result.cancelled": {
     content: "font-semibold text-amber-600",
     line: "is-highlighted",
   },
-  error: { content: "font-semibold text-destructive", line: "is-highlighted" },
-  research_plan: { content: "text-foreground/90 font-medium" },
-  tool_call_start: { content: "font-mono text-[12px] text-foreground/80" },
-  tool_call_complete: { content: "font-mono text-[12px] text-foreground/80" },
-  thinking: { content: "text-muted-foreground italic" },
-  think_complete: { content: "text-foreground" },
-  step_started: {
-    content: "text-foreground font-semibold uppercase tracking-[0.18em]",
+  "workflow.node.failed": { content: "font-semibold text-destructive", line: "is-highlighted" },
+  "workflow.tool.started": { content: "font-mono text-[12px] text-foreground/80" },
+  "workflow.tool.completed": { content: "font-mono text-[12px] text-foreground/80" },
+  "workflow.node.output.delta": { content: "text-muted-foreground italic" },
+  "workflow.node.output.summary": { content: "text-foreground" },
+  "workflow.node.started": {
+    content: "text-muted-foreground",
   },
-  step_completed: {
-    content: "text-foreground font-semibold uppercase tracking-[0.18em]",
+  "workflow.node.completed": {
+    content: "text-foreground font-semibold",
   },
-  iteration_start: {
-    content: "text-muted-foreground uppercase tracking-[0.2em]",
-  },
-  iteration_complete: {
-    content: "text-foreground font-semibold uppercase tracking-[0.2em]",
-  },
-  tool_call_stream: { content: "text-muted-foreground font-mono text-[12px]" },
-  browser_info: { content: "text-foreground/80" },
+  "workflow.tool.progress": { content: "text-muted-foreground font-mono text-[12px]" },
+  "workflow.diagnostic.browser_info": { content: "text-foreground/80" },
 };
 
 /**

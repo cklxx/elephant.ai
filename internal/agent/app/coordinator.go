@@ -127,6 +127,10 @@ func (c *AgentCoordinator) ExecuteTask(
 	sessionID string,
 	listener ports.EventListener,
 ) (*ports.TaskResult, error) {
+	// Decorate the listener with the workflow envelope translator so downstream
+	// consumers receive both legacy and semantic workflow.* events.
+	eventListener := wrapWithWorkflowEnvelope(listener, nil)
+
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx, ensuredTaskID := id.EnsureTaskID(ctx, id.NewTaskID)
 	if ensuredTaskID == "" {
@@ -136,7 +140,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	outCtx := ports.GetOutputContext(ctx)
 	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
-	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), listener, outCtx)
+	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
 
 	attachWorkflow := func(result *ports.TaskResult, env *ports.ExecutionEnvironment) *ports.TaskResult {
@@ -148,7 +152,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	// Prepare execution environment with event listener support
-	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, listener)
+	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, eventListener)
 	if err != nil {
 		wf.fail(stagePrepare, err)
 		return attachWorkflow(nil, env), err
@@ -172,10 +176,10 @@ func (c *AgentCoordinator) ExecuteTask(
 		Workflow:           wf,
 	})
 
-	if listener != nil {
+	if eventListener != nil {
 		// DO NOT log listener objects to avoid leaking sensitive information.
 		c.logger.Debug("Listener provided")
-		reactEngine.SetEventListener(listener)
+		reactEngine.SetEventListener(eventListener)
 		c.logger.Info("Event listener successfully set on ReactEngine")
 	} else {
 		c.logger.Warn("No listener provided to ExecuteTask")
@@ -204,7 +208,7 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	wf.start(stageSummarize)
 	if c.summarizer != nil {
-		summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, listener)
+		summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, eventListener)
 		if sumErr != nil {
 			wf.fail(stageSummarize, sumErr)
 			c.logger.Warn("Final answer summarization failed: %v", sumErr)

@@ -798,7 +798,7 @@ func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments 
 	sanitized := make([]agentports.Message, 0, len(messages))
 	for _, msg := range messages {
 		cloned := msg
-		if sanitizedAttachments := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments); len(sanitizedAttachments) > 0 {
+		if sanitizedAttachments := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments, nil, false); len(sanitizedAttachments) > 0 {
 			cloned.Attachments = sanitizedAttachments
 		} else {
 			cloned.Attachments = nil

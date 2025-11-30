@@ -8,16 +8,19 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { MarkdownRenderer } from "@/components/ui/markdown";
 import {
   AnyAgentEvent,
-  AssistantMessageEvent,
+  WorkflowNodeOutputDeltaEvent,
   AttachmentPayload,
-  ThinkCompleteEvent,
+  WorkflowNodeOutputSummaryEvent,
+  WorkflowToolCompletedEvent,
+  WorkflowToolStartedEvent,
+  eventMatches,
 } from "@/lib/types";
 import { PanelRightOpen, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { Badge } from "@/components/ui/badge";
+import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
@@ -32,7 +35,7 @@ interface ThinkPreviewItem {
 }
 
 const getThinkStreamKey = (
-  event: AssistantMessageEvent | ThinkCompleteEvent,
+  event: WorkflowNodeOutputDeltaEvent | WorkflowNodeOutputSummaryEvent,
   iteration: number,
 ) => {
   const taskIdentifier =
@@ -42,6 +45,31 @@ const getThinkStreamKey = (
       : event.session_id);
   return `${taskIdentifier}:${iteration}`;
 };
+
+const isWorkflowToolStartedEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowToolStartedEvent =>
+  eventMatches(event, "workflow.tool.started", "workflow.tool.started");
+
+const isWorkflowToolCompletedEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowToolCompletedEvent =>
+  eventMatches(event, "workflow.tool.completed", "workflow.tool.completed");
+
+const isWorkflowNodeOutputDeltaEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowNodeOutputDeltaEvent =>
+  eventMatches(
+    event,
+    "workflow.node.output.delta",
+    "workflow.node.output.delta",
+    "workflow.node.output.delta",
+  );
+
+const isWorkflowNodeOutputSummaryEvent = (
+  event: AnyAgentEvent,
+): event is WorkflowNodeOutputSummaryEvent =>
+  eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary");
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -112,7 +140,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     const thinkStreams = new Map<string, ThinkPreviewItem>();
 
     events.forEach((event) => {
-      if (event.event_type === "tool_call_start") {
+      if (isWorkflowToolStartedEvent(event)) {
         // Initialize with start event data
         toolCallsMap.set(event.call_id, {
           callId: event.call_id,
@@ -122,7 +150,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           isComplete: false,
           status: "running",
         });
-      } else if (event.event_type === "tool_call_complete") {
+      } else if (isWorkflowToolCompletedEvent(event)) {
         // Update with complete event data (including metadata)
         const toolCall = toolCallsMap.get(event.call_id);
         if (toolCall) {
@@ -157,8 +185,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 : "completed",
           });
         }
-      } else if (event.event_type === "assistant_message") {
-        const assistantEvent = event as AssistantMessageEvent;
+      } else if (isWorkflowNodeOutputDeltaEvent(event)) {
+        const assistantEvent = event;
         const iteration = assistantEvent.iteration;
         if (typeof iteration !== "number") {
           return;
@@ -179,8 +207,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           assistantEvent.created_at ?? assistantEvent.timestamp;
         existing.isFinal = Boolean(assistantEvent.final);
         thinkStreams.set(streamKey, existing);
-      } else if (event.event_type === "think_complete") {
-        const thinkEvent = event as ThinkCompleteEvent;
+      } else if (isWorkflowNodeOutputSummaryEvent(event)) {
+        const thinkEvent = event;
         const iteration = thinkEvent.iteration;
         if (typeof iteration !== "number") {
           return;
@@ -217,7 +245,6 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     () => toolCalls.filter((call) => call.status === "running"),
     [toolCalls],
   );
-  const hasRunningTool = runningTools.length > 0;
   const runningSummary = useMemo(() => {
     if (runningTools.length === 0) {
       return "";
@@ -328,7 +355,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       <button
         type="button"
         onClick={openDetails}
-        className="group inline-flex max-w-full items-start gap-3 overflow-hidden rounded-2xl bg-background/70 px-3 py-2 text-left text-xs font-medium text-foreground shadow-sm transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+        className="group inline-flex max-w-full items-start gap-3 overflow-hidden rounded-2xl bg-background/70 px-3 py-2 text-left text-xs font-medium text-foreground transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
         title={
           runningSummaryFull.length > 0
             ? `Running: ${runningSummaryFull}`
@@ -340,15 +367,6 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             <span className="max-w-full truncate text-[11px] text-foreground">
               {headlineText}
             </span>
-            {hasRunningTool && (
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/90">
-                <span
-                  className="h-2 w-2 animate-pulse rounded-full bg-primary"
-                  aria-hidden="true"
-                />
-                running
-              </span>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             {headlinePreview && (
@@ -363,7 +381,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
                 </Badge>
               )}
               {completedCount > 0 && (
-                <Badge variant="secondary" className="text-foreground/80">
+                <Badge variant="success" className="text-foreground/80">
                   {completedCount} completed
                 </Badge>
               )}
@@ -448,7 +466,7 @@ function ToolCallDetailsPanel({
         aria-hidden="true"
       />
       <aside
-        className="relative flex h-full w-full max-w-3xl flex-col bg-background shadow-2xl transition-transform duration-300 ease-out"
+        className="relative flex h-full w-full max-w-3xl flex-col bg-background transition-transform duration-300 ease-out"
         aria-label="Tool call activity"
       >
         <header className="flex items-center justify-end border-b border-border px-4 py-3">
@@ -474,8 +492,8 @@ function ThinkStreamCard({ item }: { item: ThinkPreviewItem }) {
   return (
     <section className="rounded-2xl bg-muted/40 px-4 py-3">
       <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
-          <span>LLM THINK</span>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-muted-foreground/80">
+          <span>LLM think</span>
           <span className="font-mono tracking-normal text-[10px] text-muted-foreground/70">
             iter {item.iteration}
           </span>
@@ -489,7 +507,7 @@ function ThinkStreamCard({ item }: { item: ThinkPreviewItem }) {
             </span>
           )}
         </div>
-        <MarkdownRenderer
+        <LazyMarkdownRenderer
           content={item.content}
           containerClassName="markdown-body text-sm"
           className="prose prose-sm max-w-none text-muted-foreground"

@@ -51,8 +51,7 @@ if [[ "$(uname -s)" != "Linux" ]]; then
     cat << 'EOF'
 {
   "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com"
+    "https://mirror.ccs.tencentyun.com"
   ]
 }
 EOF
@@ -99,10 +98,9 @@ fi
 # Create new configuration
 log_info "Configuring Docker registry mirrors..."
 
-# China registry mirrors
+# Tencent Cloud registry mirror (recommended for CN lightweight servers)
 MIRRORS='[
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com"
+    "https://mirror.ccs.tencentyun.com"
   ]'
 
 # Create or update daemon.json
@@ -189,8 +187,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${C_GREEN}✓ Docker registry mirrors configured successfully!${C_RESET}"
 echo ""
 echo "Configured mirrors:"
-echo "  - https://docker.mirrors.ustc.edu.cn"
-echo "  - https://hub-mirror.c.163.com"
+echo "  - https://mirror.ccs.tencentyun.com"
 echo ""
 echo "Backup saved to: $BACKUP_FILE"
 echo ""

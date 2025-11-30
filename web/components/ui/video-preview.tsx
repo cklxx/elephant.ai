@@ -15,7 +15,8 @@ interface VideoPreviewProps extends NativeVideoProps {
   description?: string;
   className?: string;
   videoClassName?: string;
-  maxHeight?: string;
+  maxHeight?: string | number;
+  maxWidth?: string | number;
 }
 
 export function VideoPreview({
@@ -24,7 +25,8 @@ export function VideoPreview({
   description,
   className,
   videoClassName,
-  maxHeight = "20rem",
+  maxHeight = "480px",
+  maxWidth = "min(100%, 480px)",
   controls = false,
   preload = "metadata",
   ...videoProps
@@ -58,14 +60,18 @@ export function VideoPreview({
   }, []);
 
   const showControls = controls || (canHover ? isHovered : true) || isFocused;
+  const resolvedMaxHeight =
+    typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight;
+  const resolvedMaxWidth =
+    typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth;
 
   return (
     <div
       className={cn(
-        "self-center relative w-full overflow-hidden rounded-2xl bg-black",
+        "relative inline-flex max-w-full overflow-hidden align-middle",
         className,
       )}
-      style={{ maxHeight }}
+      style={{ maxHeight: resolvedMaxHeight, maxWidth: resolvedMaxWidth, width: resolvedMaxWidth }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -76,7 +82,7 @@ export function VideoPreview({
         aria-label={accessibleLabel}
         title={description}
         className={cn(
-          "block h-full w-full object-cover object-center bg-black",
+          "block h-auto w-full max-h-full object-contain object-center",
           videoClassName,
         )}
         onFocus={() => setIsFocused(true)}
@@ -89,7 +95,7 @@ export function VideoPreview({
         <a
           href={src}
           download
-          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white shadow transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 text-xs"
           aria-label={description ? `下载 ${description}` : "下载视频"}
         >
           <Download className="h-4 w-4" aria-hidden="true" />

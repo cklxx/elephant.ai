@@ -1,20 +1,46 @@
 // TypeScript types for ALEX Web Frontend
-// Corresponds to Go event types in internal/agent/domain/events.go
+// Workflow-first event envelope with semantic, namespaced event_type values.
 
 export type AgentLevel = 'core' | 'subagent';
 
 export type WorkflowPhase = 'pending' | 'running' | 'succeeded' | 'failed';
 export type WorkflowNodeStatus = 'pending' | 'running' | 'succeeded' | 'failed';
+
 export type WorkflowEventType =
+  | 'workflow.lifecycle.updated'
+  | 'workflow.node.started'
+  | 'workflow.node.completed'
+  | 'workflow.node.failed'
+  | 'workflow.node.output.delta'
+  | 'workflow.node.output.summary'
+  | 'workflow.tool.started'
+  | 'workflow.tool.progress'
+  | 'workflow.tool.completed'
+  | 'workflow.input.received'
+  | 'workflow.subflow.progress'
+  | 'workflow.subflow.completed'
+  | 'workflow.result.final'
+  | 'workflow.result.cancelled'
+  | 'workflow.diagnostic.error'
+  | 'workflow.diagnostic.context_compression'
+  | 'workflow.diagnostic.tool_filtering'
+  | 'workflow.diagnostic.browser_info'
+  | 'workflow.diagnostic.environment_snapshot'
+  | 'workflow.diagnostic.sandbox_progress'
+  | 'workflow.diagnostic.context_snapshot';
+
+export type WorkflowLifecycleUpdatedEventType =
   | 'node_added'
   | 'node_started'
   | 'node_succeeded'
   | 'node_failed'
   | 'workflow_updated';
+export type AgentEventType = WorkflowEventType | 'connected';
 
 export interface WorkflowNodeSnapshot {
   id: string;
   status: WorkflowNodeStatus;
+  kind?: string;
   input?: any;
   output?: any;
   error?: string;
@@ -34,70 +60,12 @@ export interface WorkflowSnapshot {
   summary: Record<WorkflowNodeStatus, number>;
 }
 
-// Base interface for all agent events
-export interface AgentEvent {
-  event_type: string;
-  timestamp: string;
-  agent_level: AgentLevel;
-  session_id: string;
-  task_id?: string;
-  parent_task_id?: string;
-  is_subtask?: boolean;
-  subtask_index?: number;
-  total_subtasks?: number;
-  subtask_preview?: string;
-  max_parallel?: number;
-}
-
-// Iteration Start Event - emitted at start of each ReAct iteration
-export interface IterationStartEvent extends AgentEvent {
-  event_type: 'iteration_start';
-  iteration: number;
-  total_iters: number;
-}
-
-// Thinking Event - emitted when LLM is generating response
-export interface ThinkingEvent extends AgentEvent {
-  event_type: 'thinking';
-  iteration: number;
-  message_count: number;
-}
-
-// Think Complete Event - emitted when LLM response received
-export interface ThinkCompleteEvent extends AgentEvent {
-  event_type: 'think_complete';
-  iteration: number;
-  content: string;
-  tool_call_count: number;
-  attachments?: Record<string, AttachmentPayload>;
-}
-
-// Assistant Message Event - emitted as assistant tokens stream in
-export interface AssistantMessageEvent extends AgentEvent {
-  event_type: 'assistant_message';
-  iteration: number;
-  delta: string;
-  final: boolean;
-  created_at: string;
-  source_model?: string;
-}
-
-// Tool Call Start Event - emitted when tool execution begins
-export interface ToolCallStartEvent extends AgentEvent {
-  event_type: 'tool_call_start';
-  iteration: number;
-  call_id: string;
-  tool_name: string;
-  arguments: Record<string, any>;
-  arguments_preview?: string;
-}
-
-// Tool Call Stream Event - emitted during tool execution (for streaming tools)
-export interface ToolCallStreamEvent extends AgentEvent {
-  event_type: 'tool_call_stream';
-  call_id: string;
-  chunk: string;
-  is_complete: boolean;
+export interface AttachmentPreviewAssetPayload {
+  asset_id?: string;
+  label?: string;
+  mime_type?: string;
+  cdn_url?: string;
+  preview_type?: string;
 }
 
 export interface AttachmentPayload {
@@ -114,14 +82,6 @@ export interface AttachmentPayload {
   retention_ttl_seconds?: number;
 }
 
-export interface AttachmentPreviewAssetPayload {
-  asset_id?: string;
-  label?: string;
-  mime_type?: string;
-  cdn_url?: string;
-  preview_type?: string;
-}
-
 export interface AttachmentUpload {
   name: string;
   media_type: string;
@@ -132,6 +92,112 @@ export interface AttachmentUpload {
   kind?: 'attachment' | 'artifact' | string;
   format?: string;
   retention_ttl_seconds?: number;
+}
+
+// Task & session API types
+export interface CreateTaskRequest {
+  task: string;
+  session_id?: string;
+  parent_task_id?: string;
+  attachments?: AttachmentUpload[];
+}
+
+export interface CreateTaskResponse {
+  task_id: string;
+  session_id: string;
+  parent_task_id?: string | null;
+  status?: string;
+}
+
+export interface TaskStatusResponse {
+  task_id: string;
+  session_id?: string;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+  final_answer?: string;
+  error?: string;
+}
+
+export interface Session {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  task_count: number;
+  last_task?: string | null;
+}
+
+export interface SessionTaskSummary {
+  task_id: string;
+  parent_task_id?: string | null;
+  status: string;
+  created_at: string;
+  updated_at?: string;
+  final_answer?: string | null;
+}
+
+export interface SessionListResponse {
+  sessions: Session[];
+}
+
+export interface SessionDetailsResponse {
+  session: Session;
+  tasks: SessionTaskSummary[];
+}
+
+export type ApprovePlanRequest = Record<string, unknown>;
+export type ApprovePlanResponse = Record<string, unknown>;
+
+export type ConfigReadinessSeverity = 'critical' | 'warning' | 'info';
+
+export interface ConfigReadinessTask {
+  id: string;
+  label: string;
+  hint?: string;
+  severity?: ConfigReadinessSeverity;
+}
+
+export type RuntimeConfigOverrides = Partial<{
+  llm_provider: string;
+  llm_model: string;
+  base_url: string;
+  api_key: string;
+  ark_api_key: string;
+  tavily_api_key: string;
+  seedream_text_endpoint_id: string;
+  seedream_image_endpoint_id: string;
+  seedream_text_model: string;
+  seedream_image_model: string;
+  seedream_vision_model: string;
+  seedream_video_model: string;
+  sandbox_base_url: string;
+  environment: string;
+  agent_preset: string;
+  tool_preset: string;
+  session_dir: string;
+  cost_dir: string;
+  max_tokens: number;
+  max_iterations: number;
+  temperature: number;
+  top_p: number;
+  stop_sequences: string[];
+  verbose: boolean;
+  disable_tui: boolean;
+  follow_transcript: boolean;
+  follow_stream: boolean;
+}>;
+
+export interface RuntimeConfigOverridesPayload {
+  overrides: RuntimeConfigOverrides;
+}
+
+export interface RuntimeConfigSnapshot {
+  effective?: RuntimeConfigOverrides;
+  overrides?: RuntimeConfigOverrides;
+  readiness?: ConfigReadinessTask[];
+  sources?: Record<string, string>;
+  tasks?: ConfigReadinessTask[];
+  updated_at?: string;
 }
 
 export type MessageSource =
@@ -157,7 +223,7 @@ export interface ToolResult {
   content: string;
   error?: string;
   metadata?: Record<string, any>;
-  attachments?: Record<string, AttachmentPayload>;
+  attachments?: Record<string, AttachmentPayload> | null;
 }
 
 export interface Message {
@@ -167,71 +233,145 @@ export interface Message {
   tool_results?: ToolResult[];
   tool_call_id?: string;
   metadata?: Record<string, any>;
-  attachments?: Record<string, AttachmentPayload>;
+  attachments?: Record<string, AttachmentPayload> | null;
   source?: MessageSource;
 }
 
-// Tool Call Complete Event - emitted when tool execution finishes
-export interface ToolCallCompleteEvent extends AgentEvent {
-  event_type: 'tool_call_complete';
+export interface WorkflowEnvelope<TType extends AgentEventType = WorkflowEventType> {
+  version?: number;
+  event_type: TType;
+  timestamp: string;
+  agent_level: AgentLevel;
+  session_id: string;
+  task_id?: string;
+  parent_task_id?: string;
+  workflow_id?: string;
+  run_id?: string;
+  node_id?: string;
+  node_kind?: string;
+  is_subtask?: boolean;
+  subtask_index?: number;
+  total_subtasks?: number;
+  subtask_preview?: string;
+  max_parallel?: number;
+}
+
+export type WorkflowEvent<Payload, Type extends AgentEventType = WorkflowEventType> = WorkflowEnvelope<Type> &
+  Payload & {
+    payload?: Payload;
+  };
+
+// Backwards-compatible alias for historical base event interface
+export type AgentEvent<TPayload = Record<string, unknown>> = WorkflowEnvelope<AgentEventType> & TPayload;
+
+export interface WorkflowLifecycleUpdatedPayload {
+  workflow_id?: string;
+  workflow_event_type: WorkflowLifecycleUpdatedEventType;
+  phase?: WorkflowPhase;
+  node?: WorkflowNodeSnapshot;
+  workflow?: WorkflowSnapshot;
+}
+
+export interface WorkflowNodeStartedPayload {
+  node_id?: string;
+  node_kind?: string;
+  step_index?: number;
+  step_description?: string;
+  iteration?: number;
+  total_iters?: number;
+  workflow?: WorkflowSnapshot;
+}
+
+export interface WorkflowNodeCompletedPayload {
+  node_id?: string;
+  node_kind?: string;
+  step_index?: number;
+  step_description?: string;
+  step_result?: any;
+  status?: WorkflowNodeStatus;
+  iteration?: number;
+  tokens_used?: number;
+  tools_run?: number;
+  workflow?: WorkflowSnapshot;
+}
+
+export interface WorkflowNodeFailedPayload {
+  node_id?: string;
+  node_kind?: string;
+  iteration?: number;
+  error: string;
+  phase?: string;
+  recoverable?: boolean;
+}
+
+export interface WorkflowNodeOutputDeltaPayload {
+  node_id?: string;
+  node_kind?: string;
+  iteration?: number;
+  delta?: string;
+  final?: boolean;
+  created_at?: string;
+  source_model?: string;
+  message_count?: number;
+}
+
+export interface WorkflowNodeOutputSummaryPayload {
+  node_id?: string;
+  node_kind?: string;
+  iteration?: number;
+  content: string;
+  tool_call_count: number;
+  attachments?: Record<string, AttachmentPayload> | null;
+}
+
+export interface WorkflowToolStartedPayload {
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, any>;
+  arguments_preview?: string;
+  iteration?: number;
+}
+
+export interface WorkflowToolProgressPayload {
+  call_id: string;
+  chunk: string;
+  is_complete?: boolean;
+}
+
+export interface WorkflowToolCompletedPayload {
   call_id: string;
   tool_name: string;
   result: string;
   error?: string;
-  duration: number; // milliseconds
+  duration: number;
   metadata?: Record<string, any>;
-  attachments?: Record<string, AttachmentPayload>;
+  attachments?: Record<string, AttachmentPayload> | null;
 }
 
-// Iteration Complete Event - emitted at end of iteration
-export interface IterationCompleteEvent extends AgentEvent {
-  event_type: 'iteration_complete';
-  iteration: number;
-  tokens_used: number;
-  tools_run: number;
+export interface WorkflowResultFinalPayload {
+  final_answer: string;
+  total_iterations: number;
+  total_tokens: number;
+  stop_reason: string;
+  duration: number;
+  is_streaming?: boolean;
+  stream_finished?: boolean;
+  attachments?: Record<string, AttachmentPayload> | null;
 }
 
-// Subagent Progress Event - emitted as delegated agents make progress
-export interface SubagentProgressEvent extends AgentEvent {
-  event_type: 'subagent_progress';
+export interface WorkflowResultCancelledPayload {
+  reason: string;
+  requested_by?: 'user' | 'system';
+}
+
+export interface WorkflowSubflowProgressPayload {
   completed: number;
   total: number;
   tokens: number;
   tool_calls: number;
 }
 
-// Task Complete Event - emitted when entire task finishes
-export interface TaskCompleteEvent extends AgentEvent {
-  event_type: 'task_complete';
-  final_answer: string;
-  total_iterations: number;
-  total_tokens: number;
-  stop_reason: string;
-  duration: number; // milliseconds
-  is_streaming?: boolean;
-  stream_finished?: boolean;
-  attachments?: Record<string, AttachmentPayload>;
-}
-
-// Task Cancelled Event - emitted when a task receives a cancellation request
-export interface TaskCancelledEvent extends AgentEvent {
-  event_type: 'task_cancelled';
-  reason: string;
-  requested_by?: 'user' | 'system';
-}
-
-// Error Event - emitted on errors
-export interface ErrorEvent extends AgentEvent {
-  event_type: 'error';
-  iteration: number;
-  phase: string; // "think", "execute", "observe"
-  error: string;
-  recoverable: boolean;
-}
-
-// Subagent Complete Event - emitted when delegated agent completes
-export interface SubagentCompleteEvent extends AgentEvent {
-  event_type: 'subagent_complete';
+export interface WorkflowSubflowCompletedPayload {
   total: number;
   success: number;
   failed: number;
@@ -239,102 +379,7 @@ export interface SubagentCompleteEvent extends AgentEvent {
   tool_calls: number;
 }
 
-// Research Plan Event - emitted when agent creates a research/execution plan
-export interface ResearchPlanEvent extends AgentEvent {
-  event_type: 'research_plan';
-  plan_steps: string[];
-  estimated_iterations: number;
-  estimated_tools?: string[];
-  estimated_duration_minutes?: number;
-}
-
-// Runtime configuration payloads
-export interface RuntimeConfiguration {
-  llm_provider?: string;
-  llm_model?: string;
-  api_key?: string;
-  ark_api_key?: string;
-  base_url?: string;
-  tavily_api_key?: string;
-  seedream_text_endpoint_id?: string;
-  seedream_image_endpoint_id?: string;
-  seedream_text_model?: string;
-  seedream_image_model?: string;
-  seedream_vision_model?: string;
-  seedream_video_model?: string;
-  sandbox_base_url?: string;
-  environment?: string;
-  verbose?: boolean;
-  disable_tui?: boolean;
-  follow_transcript?: boolean;
-  follow_stream?: boolean;
-  max_iterations?: number;
-  max_tokens?: number;
-  temperature?: number;
-  top_p?: number;
-  stop_sequences?: string[];
-  session_dir?: string;
-  cost_dir?: string;
-  agent_preset?: string;
-  tool_preset?: string;
-}
-
-export type RuntimeConfigOverrides = Partial<RuntimeConfiguration>;
-
-export type ConfigReadinessSeverity = 'critical' | 'warning';
-
-export interface ConfigReadinessTask {
-  id: string;
-  label: string;
-  hint?: string;
-  severity: ConfigReadinessSeverity;
-}
-
-export interface RuntimeConfigSnapshot {
-  effective: RuntimeConfiguration;
-  overrides?: RuntimeConfigOverrides;
-  sources?: Record<string, string>;
-  updated_at?: string;
-  tasks?: ConfigReadinessTask[];
-}
-
-export interface RuntimeConfigOverridesPayload {
-  overrides: RuntimeConfigOverrides;
-}
-
-// Workflow lifecycle event emitted for every workflow transition.
-export interface WorkflowLifecycleEvent extends AgentEvent {
-  event_type: 'workflow_event';
-  workflow_id: string;
-  workflow_event_type: WorkflowEventType;
-  phase?: WorkflowPhase;
-  node?: WorkflowNodeSnapshot;
-  workflow?: WorkflowSnapshot;
-}
-
-// Step Started Event - emitted when a research step begins
-export interface StepStartedEvent extends AgentEvent {
-  event_type: 'step_started';
-  step_index: number;
-  step_description: string;
-  iteration?: number;
-  workflow?: WorkflowSnapshot;
-}
-
-// Step Completed Event - emitted when a research step finishes
-export interface StepCompletedEvent extends AgentEvent {
-  event_type: 'step_completed';
-  step_index: number;
-  step_result: string;
-  iteration?: number;
-  step_description?: string;
-  status?: WorkflowNodeStatus;
-  workflow?: WorkflowSnapshot;
-}
-
-// Browser Info Event - emitted when sandbox browser diagnostics are captured
-export interface BrowserInfoEvent extends AgentEvent {
-  event_type: 'browser_info';
+export interface WorkflowDiagnosticBrowserInfoPayload {
   success?: boolean;
   message?: string;
   user_agent?: string;
@@ -345,9 +390,7 @@ export interface BrowserInfoEvent extends AgentEvent {
   captured: string;
 }
 
-// Environment Snapshot Event - emitted when host/sandbox environments are captured
-export interface EnvironmentSnapshotEvent extends AgentEvent {
-  event_type: 'environment_snapshot';
+export interface WorkflowDiagnosticEnvironmentSnapshotPayload {
   host?: Record<string, string> | null;
   sandbox?: Record<string, string> | null;
   captured: string;
@@ -355,9 +398,7 @@ export interface EnvironmentSnapshotEvent extends AgentEvent {
 
 export type SandboxProgressStatus = 'pending' | 'running' | 'ready' | 'error';
 
-// Sandbox Progress Event - emitted during sandbox initialization lifecycle
-export interface SandboxProgressEvent extends AgentEvent {
-  event_type: 'sandbox_progress';
+export interface WorkflowDiagnosticSandboxProgressPayload {
   status: SandboxProgressStatus;
   stage: string;
   message?: string;
@@ -367,17 +408,13 @@ export interface SandboxProgressEvent extends AgentEvent {
   updated: string;
 }
 
-// Context Compression Event - emitted when context is compressed
-export interface ContextCompressionEvent extends AgentEvent {
-  event_type: 'context_compression';
+export interface WorkflowDiagnosticContextCompressionPayload {
   original_count: number;
   compressed_count: number;
   compression_rate: number;
 }
 
-// Tool Filtering Event - emitted when tools are filtered by preset
-export interface ToolFilteringEvent extends AgentEvent {
-  event_type: 'tool_filtering';
+export interface WorkflowDiagnosticToolFilteringPayload {
   preset_name: string;
   original_count: number;
   filtered_count: number;
@@ -385,8 +422,7 @@ export interface ToolFilteringEvent extends AgentEvent {
   tool_filter_ratio: number;
 }
 
-export interface ContextSnapshotEvent extends AgentEvent {
-  event_type: 'context_snapshot';
+export interface WorkflowDiagnosticContextSnapshotPayload {
   iteration: number;
   llm_turn_seq: number;
   request_id: string;
@@ -394,7 +430,97 @@ export interface ContextSnapshotEvent extends AgentEvent {
   excluded_messages?: Message[];
 }
 
-// Connected Event - emitted when SSE connection is established
+export interface UserTaskPayload {
+  task: string;
+  attachments?: Record<string, AttachmentPayload> | null;
+}
+
+export type WorkflowLifecycleUpdatedEvent = WorkflowEvent<
+  WorkflowLifecycleUpdatedPayload,
+  'workflow.lifecycle.updated'
+>;
+export type WorkflowNodeStartedEvent = WorkflowEvent<
+  WorkflowNodeStartedPayload,
+  'workflow.node.started'
+>;
+export type WorkflowNodeCompletedEvent = WorkflowEvent<
+  WorkflowNodeCompletedPayload,
+  'workflow.node.completed'
+>;
+export type WorkflowNodeFailedEvent = WorkflowEvent<
+  WorkflowNodeFailedPayload,
+  'workflow.node.failed'
+>;
+export type WorkflowNodeOutputDeltaEvent = WorkflowEvent<
+  WorkflowNodeOutputDeltaPayload,
+  'workflow.node.output.delta'
+>;
+export type WorkflowNodeOutputSummaryEvent = WorkflowEvent<
+  WorkflowNodeOutputSummaryPayload,
+  'workflow.node.output.summary'
+>;
+export type WorkflowToolStartedEvent = WorkflowEvent<
+  WorkflowToolStartedPayload,
+  'workflow.tool.started'
+>;
+export type WorkflowToolProgressEvent = WorkflowEvent<
+  WorkflowToolProgressPayload,
+  'workflow.tool.progress'
+>;
+export type WorkflowToolCompletedEvent = WorkflowEvent<
+  WorkflowToolCompletedPayload,
+  'workflow.tool.completed'
+>;
+export type WorkflowResultFinalEvent = WorkflowEvent<
+  WorkflowResultFinalPayload,
+  'workflow.result.final'
+>;
+export type WorkflowResultCancelledEvent = WorkflowEvent<
+  WorkflowResultCancelledPayload,
+  'workflow.result.cancelled'
+>;
+export type WorkflowSubflowProgressEvent = WorkflowEvent<
+  WorkflowSubflowProgressPayload,
+  'workflow.subflow.progress'
+>;
+export type WorkflowSubflowCompletedEvent = WorkflowEvent<
+  WorkflowSubflowCompletedPayload,
+  'workflow.subflow.completed'
+>;
+export type WorkflowDiagnosticBrowserInfoEvent = WorkflowEvent<
+  WorkflowDiagnosticBrowserInfoPayload,
+  'workflow.diagnostic.browser_info'
+>;
+export type WorkflowDiagnosticEnvironmentSnapshotEvent = WorkflowEvent<
+  WorkflowDiagnosticEnvironmentSnapshotPayload,
+  'workflow.diagnostic.environment_snapshot'
+>;
+export type WorkflowDiagnosticSandboxProgressEvent = WorkflowEvent<
+  WorkflowDiagnosticSandboxProgressPayload,
+  'workflow.diagnostic.sandbox_progress'
+>;
+export type WorkflowDiagnosticContextCompressionEvent = WorkflowEvent<
+  WorkflowDiagnosticContextCompressionPayload,
+  'workflow.diagnostic.context_compression'
+>;
+export type WorkflowDiagnosticToolFilteringEvent = WorkflowEvent<
+  WorkflowDiagnosticToolFilteringPayload,
+  'workflow.diagnostic.tool_filtering'
+>;
+export type WorkflowDiagnosticContextSnapshotEvent = WorkflowEvent<
+  WorkflowDiagnosticContextSnapshotPayload,
+  'workflow.diagnostic.context_snapshot'
+>;
+export interface WorkflowDiagnosticErrorPayload {
+  iteration?: number;
+  phase?: string;
+  recoverable?: boolean;
+  error?: string;
+}
+
+export type WorkflowDiagnosticErrorEvent = WorkflowEvent<WorkflowDiagnosticErrorPayload, 'workflow.diagnostic.error'>;
+export type WorkflowInputReceivedEvent = WorkflowEvent<UserTaskPayload, 'workflow.input.received'>;
+
 export interface ConnectedEvent {
   event_type: 'connected';
   session_id: string;
@@ -404,120 +530,46 @@ export interface ConnectedEvent {
   agent_level?: AgentLevel;
 }
 
-// User Task Event - client-side only event to display user's task
-export interface UserTaskEvent extends AgentEvent {
-  event_type: 'user_task';
-  task: string;
-  attachments?: Record<string, AttachmentPayload>;
-}
-
-// Union type for all agent events
 export type AnyAgentEvent =
-  | IterationStartEvent
-  | ThinkingEvent
-  | ThinkCompleteEvent
-  | AssistantMessageEvent
-  | ToolCallStartEvent
-  | ToolCallStreamEvent
-  | ToolCallCompleteEvent
-  | IterationCompleteEvent
-  | SubagentProgressEvent
-  | TaskCancelledEvent
-  | TaskCompleteEvent
-  | ErrorEvent
-  | SubagentCompleteEvent
-  | ResearchPlanEvent
-  | StepStartedEvent
-  | StepCompletedEvent
-  | BrowserInfoEvent
-  | EnvironmentSnapshotEvent
-  | SandboxProgressEvent
-  | ContextCompressionEvent
-  | ToolFilteringEvent
-  | ContextSnapshotEvent
-  | ConnectedEvent
-  | UserTaskEvent;
+  | WorkflowLifecycleUpdatedEvent
+  | WorkflowNodeStartedEvent
+  | WorkflowNodeCompletedEvent
+  | WorkflowNodeFailedEvent
+  | WorkflowNodeOutputDeltaEvent
+  | WorkflowNodeOutputSummaryEvent
+  | WorkflowToolStartedEvent
+  | WorkflowToolProgressEvent
+  | WorkflowToolCompletedEvent
+  | WorkflowResultFinalEvent
+  | WorkflowResultCancelledEvent
+  | WorkflowSubflowProgressEvent
+  | WorkflowSubflowCompletedEvent
+  | WorkflowDiagnosticBrowserInfoEvent
+  | WorkflowDiagnosticEnvironmentSnapshotEvent
+  | WorkflowDiagnosticSandboxProgressEvent
+  | WorkflowDiagnosticContextCompressionEvent
+  | WorkflowDiagnosticToolFilteringEvent
+  | WorkflowDiagnosticContextSnapshotEvent
+  | WorkflowDiagnosticErrorEvent
+  | WorkflowInputReceivedEvent
+  | ConnectedEvent;
 
-// API Request/Response Types
+export function canonicalEventType(type: AgentEventType | string): AgentEventType {
+  const sandboxAlias =
+    type === 'workflow.diagnostic.sandbox.progress'
+      ? 'workflow.diagnostic.sandbox_progress'
+      : undefined;
+  if (sandboxAlias) {
+    return sandboxAlias as AgentEventType;
+  }
 
-export interface CreateTaskRequest {
-  task: string;
-  session_id?: string;
-  agent_preset?: string; // Agent persona preset (e.g., "default", "code-expert")
-  tool_preset?: string;  // Tool access preset (e.g., "full", "read-only")
-  attachments?: AttachmentUpload[];
+  return type as AgentEventType;
 }
 
-export interface CreateTaskResponse {
-  task_id: string;
-  session_id: string;
-  parent_task_id?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  requires_plan_approval?: boolean; // If true, wait for plan approval before execution
-}
-
-export interface ResearchPlan {
-  goal: string;
-  steps: string[];
-  estimated_tools: string[];
-  estimated_iterations: number;
-  estimated_duration_minutes?: number;
-}
-
-export interface ApprovePlanRequest {
-  session_id: string;
-  task_id: string;
-  approved: boolean;
-  modified_plan?: ResearchPlan;
-  rejection_reason?: string;
-}
-
-export interface ApprovePlanResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface TaskStatusResponse {
-  task_id: string;
-  session_id: string;
-  parent_task_id?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'error' | 'cancelled';
-  created_at: string;
-  completed_at?: string;
-  error?: string;
-}
-
-export interface Session {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  task_count: number;
-  last_task?: string;
-}
-
-export interface SessionListResponse {
-  sessions: Session[];
-  total: number;
-}
-
-export interface SessionDetailsResponse {
-  session: Session;
-  tasks: TaskStatusResponse[];
-}
-
-// UI State Types
-
-export interface ConnectionStatus {
-  connected: boolean;
-  reconnecting: boolean;
-  error?: string;
-}
-
-export interface ToolCategory {
-  file: string;
-  shell: string;
-  search: string;
-  web: string;
-  think: string;
-  task: string;
+export function eventMatches(
+  event: AnyAgentEvent,
+  ...types: (WorkflowEventType | 'connected')[]
+): boolean {
+  const canonicalEvent = canonicalEventType(event.event_type);
+  return types.some((type) => canonicalEventType(type) === canonicalEvent);
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { EnvironmentSnapshotEvent } from '@/lib/types';
+import { WorkflowDiagnosticEnvironmentSnapshotEvent } from '@/lib/types';
 
 interface EnvironmentSnapshotState {
   host: Record<string, string>;
@@ -9,7 +9,7 @@ interface EnvironmentSnapshotState {
 
 interface DiagnosticsState {
   environments: EnvironmentSnapshotState | null;
-  setEnvironment: (event: EnvironmentSnapshotEvent) => void;
+  setEnvironment: (event: WorkflowDiagnosticEnvironmentSnapshotEvent) => void;
 }
 
 const useDiagnosticsStore = create<DiagnosticsState>((set) => ({
@@ -28,7 +28,7 @@ export function useDiagnostics() {
   return useDiagnosticsStore((state) => state);
 }
 
-export function handleEnvironmentSnapshot(event: EnvironmentSnapshotEvent) {
+export function handleEnvironmentSnapshot(event: WorkflowDiagnosticEnvironmentSnapshotEvent) {
   useDiagnosticsStore.getState().setEnvironment(event);
 }
 

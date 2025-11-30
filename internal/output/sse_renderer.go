@@ -38,7 +38,7 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 	presentation := r.formatter.PrepareArgs(toolName, args)
 
 	sseEvent := SSEEvent{
-		Type:      "tool_call_start",
+		Type:      "workflow.tool.started",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"tool":           toolName,
@@ -82,7 +82,7 @@ func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 	}
 
 	sseEvent := SSEEvent{
-		Type:      "tool_call_complete",
+		Type:      "workflow.tool.completed",
 		Timestamp: time.Now(),
 		Data:      data,
 	}
@@ -92,7 +92,7 @@ func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 // RenderTaskComplete renders task completion as SSE event
 func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domain.TaskResult) string {
 	sseEvent := SSEEvent{
-		Type:      "task_complete",
+		Type:      "workflow.result.final",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"answer":         result.Answer,
@@ -112,7 +112,7 @@ func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 // RenderError renders error as SSE event with hierarchy
 func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err error) string {
 	sseEvent := SSEEvent{
-		Type:      "error",
+		Type:      "workflow.node.failed",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"phase":          phase,
@@ -130,7 +130,7 @@ func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err er
 // RenderSubagentProgress renders subagent progress as SSE event
 func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed, total int, tokens, toolCalls int) string {
 	sseEvent := SSEEvent{
-		Type:      "subagent_progress",
+		Type:      "workflow.subflow.progress",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"completed":      completed,
@@ -149,7 +149,7 @@ func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed
 // RenderSubagentComplete renders subagent completion as SSE event
 func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, success, failed int, tokens, toolCalls int) string {
 	sseEvent := SSEEvent{
-		Type:      "subagent_complete",
+		Type:      "workflow.subflow.completed",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"total":          total,

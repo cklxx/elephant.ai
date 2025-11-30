@@ -317,7 +317,7 @@ export default function ConfigAdminPage() {
   return (
     <RequireAuth>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
-        <Card className="border-primary/30 bg-white/80 shadow-lg">
+        <Card className="border-primary/30 bg-white/80">
           <CardHeader>
             <CardTitle>配置后台（内部专用）</CardTitle>
             <CardDescription>
@@ -334,7 +334,7 @@ export default function ConfigAdminPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-slate-500">状态</span>
+              <span className="text-xs text-slate-500">状态</span>
               {loading ? "加载中..." : isDirty ? "存在未保存修改" : "已同步"}
             </div>
             <div className="flex flex-1 justify-end gap-3">
@@ -355,7 +355,7 @@ export default function ConfigAdminPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90 shadow-sm">
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>就绪检查</CardTitle>
             <CardDescription>帮助快速定位仍需完善的关键配置项。</CardDescription>
@@ -390,7 +390,7 @@ export default function ConfigAdminPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90 shadow-md">
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>运行配置</CardTitle>
             <CardDescription>所有字段均会覆盖环境变量，清空以恢复默认来源。</CardDescription>
@@ -398,19 +398,19 @@ export default function ConfigAdminPage() {
           <CardContent>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {CONFIG_FIELDS.map((field) => (
-                <div key={field.key as string} className="space-y-2 rounded-lg border border-slate-200 p-4 shadow-sm">
+                <div key={field.key as string} className="space-y-2 rounded-lg border border-slate-200 p-4">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-slate-900" htmlFor={field.key as string}>
                       {field.label}
                     </label>
-                    <span className="text-xs uppercase tracking-wide text-slate-400">
+                    <span className="text-xs text-slate-400">
                       来源：{describeSource(field.key as FieldKey, snapshot)}
                     </span>
                   </div>
                   {field.type === "boolean" ? (
                     <select
                       id={field.key as string}
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-inner focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
                       value={formState[field.key as string] ?? ""}
                       onChange={(event) => handleChange(field.key as string, event.target.value)}
                     >
@@ -421,7 +421,7 @@ export default function ConfigAdminPage() {
                   ) : field.type === "stringList" ? (
                     <textarea
                       id={field.key as string}
-                      className="h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-inner focus:border-primary focus:outline-none"
+                      className="h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none"
                       placeholder="使用逗号或换行分隔多个条目"
                       value={formState[field.key as string] ?? ""}
                       onChange={(event) => handleChange(field.key as string, event.target.value)}
@@ -430,7 +430,7 @@ export default function ConfigAdminPage() {
                     <input
                       id={field.key as string}
                       type={field.type === "number" ? "number" : field.type === "secret" ? "password" : "text"}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-inner focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none"
                       value={formState[field.key as string] ?? ""}
                       onChange={(event) => handleChange(field.key as string, event.target.value)}
                     />

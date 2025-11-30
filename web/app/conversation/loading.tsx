@@ -9,7 +9,7 @@ export default function ConversationLoading() {
         </div>
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="space-y-4">
-            <div className="rounded-[28px] border border-slate-200 bg-white/70 p-6 shadow-soft">
+            <div className="rounded-[28px] border border-slate-200 bg-white/70 p-6">
               <div className="mb-4 h-4 w-32 rounded-full bg-slate-100" />
               <div className="h-5 w-40 rounded-full bg-slate-200" />
             </div>

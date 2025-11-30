@@ -203,7 +203,7 @@ func (b *workflowEventBridge) OnWorkflowEvent(evt workflow.Event) {
 
 	base := domain.NewBaseEvent(ctx.level, ctx.sessionID, ctx.taskID, ctx.parentTaskID, ts)
 
-	b.listener.OnEvent(&domain.WorkflowLifecycleEvent{
+	b.listener.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
 		BaseEvent:         base,
 		WorkflowID:        evt.Workflow,
 		WorkflowEventType: evt.Type,
@@ -224,7 +224,7 @@ func (b *workflowEventBridge) OnWorkflowEvent(evt workflow.Event) {
 
 	switch evt.Type {
 	case workflow.EventNodeStarted:
-		b.listener.OnEvent(&domain.StepStartedEvent{
+		b.listener.OnEvent(&domain.WorkflowNodeStartedEvent{
 			BaseEvent:       base,
 			StepIndex:       idx,
 			StepDescription: evt.Node.ID,
@@ -233,7 +233,7 @@ func (b *workflowEventBridge) OnWorkflowEvent(evt workflow.Event) {
 			Workflow:        evt.Snapshot,
 		})
 	case workflow.EventNodeSucceeded, workflow.EventNodeFailed:
-		b.listener.OnEvent(&domain.StepCompletedEvent{
+		b.listener.OnEvent(&domain.WorkflowNodeCompletedEvent{
 			BaseEvent:       base,
 			StepIndex:       idx,
 			StepDescription: evt.Node.ID,

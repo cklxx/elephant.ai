@@ -51,7 +51,6 @@ const mockAddToHistory = vi.fn();
 const mockClearCurrentSession = vi.fn();
 const mockRemoveSession = vi.fn();
 const mockRenameSession = vi.fn();
-const mockTogglePinSession = vi.fn();
 const mockDeleteSession = vi.fn();
 
 vi.mock("@/hooks/useSessionStore", () => ({
@@ -62,9 +61,7 @@ vi.mock("@/hooks/useSessionStore", () => ({
     clearCurrentSession: mockClearCurrentSession,
     removeSession: mockRemoveSession,
     renameSession: mockRenameSession,
-    togglePinSession: mockTogglePinSession,
     sessionHistory: [],
-    pinnedSessions: [],
     sessionLabels: {},
   }),
   useDeleteSession: () => ({
@@ -137,7 +134,7 @@ describe("Conversation page mobile timeline dialog", () => {
     const baseTimestamp = new Date().toISOString();
     mockEventsRef.current = [
       {
-        event_type: "step_started",
+        event_type: "workflow.node.started",
         step_index: 0,
         step_description: "Research existing implementations",
         timestamp: baseTimestamp,

@@ -294,7 +294,7 @@ func TestReactEngine_SolveTask_MaxIterations(t *testing.T) {
 			return &ports.CompletionResponse{
 				Content: "Let me check another thing",
 				ToolCalls: []ports.ToolCall{
-					{ID: "call", Name: "think", Arguments: map[string]any{"thought": "thinking"}},
+					{ID: "call", Name: "think", Arguments: map[string]any{"thought": "workflow.node.output.delta"}},
 				},
 				StopReason: "tool_calls",
 			}, nil
@@ -439,13 +439,13 @@ func TestReactEngine_EventListenerReceivesEvents(t *testing.T) {
 
 	foundTaskComplete := false
 	for _, evt := range listener.events {
-		if evt.EventType() == "task_complete" {
+		if evt.EventType() == "workflow.result.final" {
 			foundTaskComplete = true
 			break
 		}
 	}
 	if !foundTaskComplete {
-		t.Fatalf("expected task_complete event in captured events")
+		t.Fatalf("expected workflow.result.final event in captured events")
 	}
 }
 

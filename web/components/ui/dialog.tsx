@@ -1,181 +1,130 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
 
-export interface DialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: React.ReactNode;
-}
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
+const Dialog = DialogPrimitive.Root;
+const DialogTrigger = DialogPrimitive.Trigger;
+const DialogPortal = DialogPrimitive.Portal;
 
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && open) {
-        onOpenChange(false);
-      }
-    };
+const DialogOverlay = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Overlay>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Overlay
+    ref={ref}
+    className={cn("fixed inset-0 z-50 bg-black/40 backdrop-blur-sm", className)}
+    {...props}
+  />
+));
+DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
-        onOpenChange(false);
-      }
-    };
-
-    if (open) {
-      document.addEventListener('keydown', handleEscape);
-      document.addEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'unset';
-    };
-  }, [open, onOpenChange]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center animate-fadeIn"
-      role="dialog"
-      aria-modal="true"
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-      {/* Dialog content */}
-      <div
-        ref={dialogRef}
-        className="relative z-10 animate-scaleIn"
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-export interface DialogContentProps {
-  className?: string;
-  children: React.ReactNode;
+export interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   onClose?: () => void;
   showCloseButton?: boolean;
   unstyled?: boolean;
 }
 
-export function DialogContent({
-  className,
-  children,
-  onClose,
-  showCloseButton = true,
-  unstyled = false
-}: DialogContentProps) {
-  const contentClassName = unstyled
-    ? cn('relative mx-4 w-full max-w-5xl overflow-hidden rounded-2xl', className)
-    : cn(
-        'glass-card p-6 rounded-2xl shadow-strong max-w-lg w-full mx-4',
-        'border border-gray-200/50',
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  DialogContentProps
+>(({ className, children, onClose, showCloseButton = true, unstyled = false, ...props }, ref) => (
+  <DialogPortal>
+    <DialogOverlay />
+    <DialogPrimitive.Content
+      ref={ref}
+      className={cn(
+        unstyled
+          ? "fixed left-1/2 top-1/2 z-50 w-full max-w-5xl -translate-x-1/2 -translate-y-1/2"
+          : "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-3xl border border-border bg-card p-6 shadow-2xl shadow-black/40 focus-visible:outline-none",
         className
-      );
-
-  return (
-    <div className={contentClassName}>
-      {showCloseButton && onClose && (
-        <button
+      )}
+      {...props}
+    >
+      {showCloseButton && (
+        <DialogPrimitive.Close
+          className="absolute right-4 top-4 p-2"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          aria-label="Close dialog"
         >
-          <X className="h-5 w-5 text-gray-500" />
-        </button>
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
       )}
       {children}
-    </div>
-  );
-}
+    </DialogPrimitive.Content>
+  </DialogPortal>
+));
+DialogContent.displayName = DialogPrimitive.Content.displayName;
 
-export function DialogHeader({
-  children,
+const DialogHeader = ({
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn('mb-4', className)}>
-      {children}
-    </div>
-  );
-}
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("space-y-2 text-left", className)} {...props} />
+);
+DialogHeader.displayName = "DialogHeader";
 
-export function DialogTitle({
-  children,
+const DialogFooter = ({
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <h2 className={cn('text-2xl font-bold gradient-text', className)}>
-      {children}
-    </h2>
-  );
-}
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2", className)}
+    {...props}
+  />
+);
+DialogFooter.displayName = "DialogFooter";
 
-export function DialogDescription({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <p className={cn('mt-2 text-sm text-gray-600', className)}>
-      {children}
-    </p>
-  );
-}
+const DialogTitle = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Title
+    ref={ref}
+    className={cn(className)}
+    {...props}
+  />
+));
+DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
-export function DialogFooter({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn('mt-6 flex items-center justify-end gap-3', className)}>
-      {children}
-    </div>
-  );
-}
+const DialogDescription = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn(className)}
+    {...props}
+  />
+));
+DialogDescription.displayName = DialogPrimitive.Description.displayName;
+
+const DialogClose = DialogPrimitive.Close;
 
 // Confirmation dialog hook
 export function useConfirmDialog() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [config, setConfig] = useState<{
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [config, setConfig] = React.useState<{
     title: string;
     description: string;
     confirmText?: string;
     cancelText?: string;
     onConfirm: () => void;
     onCancel: () => void;
-    variant?: 'default' | 'danger';
+    variant?: "default" | "danger";
   } | null>(null);
-  const isHandlingCloseRef = useRef(false);
 
   const confirm = (options: {
     title: string;
     description: string;
     confirmText?: string;
     cancelText?: string;
-    variant?: 'default' | 'danger';
+    variant?: "default" | "danger";
   }): Promise<boolean> => {
     return new Promise((resolve) => {
       setConfig({
@@ -196,13 +145,7 @@ export function useConfirmDialog() {
   const ConfirmDialog = () => {
     if (!config) return null;
 
-    const confirmButtonClass = config.variant === 'danger'
-      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
-      : 'bg-primary hover:bg-primary/90 text-primary-foreground';
-
-    const handleConfirm = () => {
-      config.onConfirm();
-    };
+    const confirmVariant = config.variant === "danger" ? "destructive" : "default";
 
     const handleCancel = () => {
       config.onCancel();
@@ -216,21 +159,12 @@ export function useConfirmDialog() {
             <DialogDescription>{config.description}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button
-              onClick={handleCancel}
-              className="px-4 py-2 rounded-lg border border-border bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-            >
-              {config.cancelText || 'Cancel'}
-            </button>
-            <button
-              onClick={config.onConfirm}
-              className={cn(
-                'px-4 py-2 rounded-lg font-medium transition-colors',
-                confirmButtonClass
-              )}
-            >
-              {config.confirmText || 'Confirm'}
-            </button>
+            <Button variant="outline" onClick={handleCancel}>
+              {config.cancelText || "Cancel"}
+            </Button>
+            <Button variant={confirmVariant} onClick={config.onConfirm}>
+              {config.confirmText || "Confirm"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -239,3 +173,16 @@ export function useConfirmDialog() {
 
   return { confirm, ConfirmDialog };
 }
+
+export {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+  DialogOverlay,
+  DialogPortal,
+};

@@ -74,63 +74,26 @@ Target groups:
 
 ## Component-by-Component Analysis
 
-### 1. ResearchPlanCard
+### 1. TimelineStepList
 
 **Accessibility Features:**
-- ✅ Semantic HTML (`<Card>`, `<CardHeader>`, `<CardContent>`)
-- ✅ ARIA labels on buttons (`aria-label="Collapse plan"`)
-- ✅ Keyboard navigation (Tab, Enter, Escape)
-- ✅ Focus indicators (2px ring)
-- ✅ Screen reader announcements for state changes
-- ✅ Sufficient color contrast (text: #1f2937 on #ffffff = 16.6:1)
-
-**Keyboard Shortcuts:**
-- `Tab` - Navigate between buttons
-- `Enter` - Activate button
-- `Escape` - Cancel editing mode
-
-**ARIA Attributes:**
-```html
-<Card role="region" aria-label="Research plan">
-  <button aria-label="Expand plan" aria-expanded="true">
-    <ChevronUp />
-  </button>
-  <textarea aria-label="Edit goal" />
-</Card>
-```
-
-**Testing Results:**
-- ✅ axe: 0 violations
-- ✅ WAVE: 0 errors
-- ✅ Lighthouse: 100 accessibility score
-
----
-
-### 2. ResearchTimeline
-
-**Accessibility Features:**
-- ✅ Semantic list structure (`role="list"`, `role="listitem"`)
-- ✅ Status announcements (`aria-live="polite"`)
-- ✅ Expandable sections with proper ARIA
-- ✅ Auto-scroll respects prefers-reduced-motion
-- ✅ Visual AND text status indicators
+- ✅ Step entries rendered as focusable buttons for keyboard users
+- ✅ Status badges include both text and icon
+- ✅ Clear focus outlines on selection with high-contrast borders
+- ✅ Minimal motion; respects default reduced-motion settings
+- ✅ Supports mouse and touch activation
 
 **Keyboard Shortcuts:**
 - `Tab` - Navigate between steps
-- `Enter/Space` - Expand/collapse step details
+- `Enter/Space` - Select focused step
 
 **ARIA Attributes:**
 ```html
-<div role="list" aria-label="Execution timeline">
-  <div role="listitem">
-    <button aria-expanded="false" aria-controls="step-details-1">
-      Step 1
-    </button>
-    <div id="step-details-1" aria-hidden="true">
-      Details...
-    </div>
-  </div>
-</div>
+<button type="button" aria-label="Focus step 1: Collect requirements">
+  <span>1</span>
+  <span>Collect requirements</span>
+  <Badge>Active</Badge>
+</button>
 ```
 
 **Motion Preferences:**
@@ -387,10 +350,10 @@ All interactive elements have visible focus indicators:
 
 ### Minor Issues
 
-1. **ResearchTimeline - Rapid updates**
-   - **Issue:** Rapid step updates may cause excessive screen reader announcements
+1. **TimelineStepList - Rapid updates**
+   - **Issue:** Rapid status changes may shift focus unexpectedly
    - **Severity:** Low
-   - **Remediation:** Debounce ARIA live region updates
+   - **Remediation:** Consider debouncing focus changes when auto-focusing steps
    - **Target:** v1.1
 
 2. **WebViewport - Large outputs**

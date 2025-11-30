@@ -1,3 +1,4 @@
+import { buildApiUrl } from '@/lib/api-base';
 import { AttachmentPayload } from '@/lib/types';
 
 const PLACEHOLDER_REGEX = /\[([^\[\]]+)\]/g;
@@ -17,7 +18,7 @@ export function buildAttachmentUri(
 ): string | null {
   const direct = attachment.uri?.trim();
   if (direct) {
-    return direct;
+    return normalizeAttachmentUri(direct);
   }
   const data = attachment.data?.trim();
   if (!data) {
@@ -32,10 +33,34 @@ export function buildAttachmentUri(
     });
     const fallbackAsset = previewAssets.find((asset) => asset.cdn_url?.trim());
     const cdnUrl = preferredAsset?.cdn_url?.trim() || fallbackAsset?.cdn_url?.trim();
-    return cdnUrl || null;
+    return cdnUrl ? normalizeAttachmentUri(cdnUrl) : null;
+  }
+  // If the payload already contains a data URI or a full URL, return it directly.
+  if (
+    data.startsWith('data:') ||
+    data.startsWith('http://') ||
+    data.startsWith('https://') ||
+    data.startsWith('/')
+  ) {
+    return normalizeAttachmentUri(data);
   }
   const mediaType = attachment.media_type?.trim() || 'application/octet-stream';
   return `data:${mediaType};base64,${data}`;
+}
+
+function normalizeAttachmentUri(uri: string): string {
+  const trimmed = uri.trim();
+  if (
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://')
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/')) {
+    return buildApiUrl(trimmed);
+  }
+  return trimmed;
 }
 
 export function replacePlaceholdersWithMarkdown(
@@ -115,7 +140,21 @@ export function parseContentSegments(
           });
           return;
         }
-        segments.push({ type: 'text', text: token.raw });
+        if (token.url) {
+          const syntheticAttachment: AttachmentPayload = {
+            name: token.alt || token.url,
+            description: token.title || token.alt,
+            uri: token.url,
+            media_type: inferMediaTypeFromUrl(token.url),
+          };
+          segments.push({
+            type: 'image',
+            placeholder: token.raw,
+            attachment: syntheticAttachment,
+          });
+        } else {
+          segments.push({ type: 'text', text: token.raw });
+        }
         return;
       }
 
@@ -125,11 +164,19 @@ export function parseContentSegments(
         attachmentTypes,
         usedAttachments,
       );
-      if (textSegments.length === 0) {
-        segments.push({ type: 'text', text: token.value });
-      } else {
-        segments.push(...textSegments);
-      }
+      const expanded = (textSegments.length === 0
+        ? [{ type: 'text', text: token.value } as ContentSegment]
+        : textSegments
+      ).flatMap((segment) => {
+        if (segment.type === 'text' && segment.text) {
+          const split = splitInlineMedia(segment.text);
+          if (split.length > 0) {
+            return split;
+          }
+        }
+        return segment;
+      });
+      segments.push(...expanded);
     });
 
     if (segments.length === 0) {
@@ -158,6 +205,68 @@ export function parseContentSegments(
 type ContentToken =
   | { type: 'text'; value: string }
   | { type: 'markdownImage'; raw: string; alt?: string; url?: string; title?: string };
+
+function inferMediaTypeFromUrl(url: string | undefined): string {
+  if (!url) return 'application/octet-stream';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:')) {
+    const header = trimmed.slice(5).split(';')[0];
+    return header || 'application/octet-stream';
+  }
+  const extMatch = trimmed.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
+  if (extMatch?.[1]) {
+    const ext = extMatch[1].toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'svg':
+        return 'image/svg+xml';
+      default:
+        return `image/${ext}`;
+    }
+  }
+  return 'application/octet-stream';
+}
+
+function splitInlineMedia(text: string): ContentSegment[] {
+  if (!text) return [];
+  const segments: ContentSegment[] = [];
+  const regex = /(data:[^\s)]+base64,[A-Za-z0-9+/=]+|\/api\/data\/[A-Za-z0-9]+)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (start > lastIndex) {
+      segments.push({ type: 'text', text: text.slice(lastIndex, start) });
+    }
+    const url = match[0];
+    segments.push({
+      type: 'image',
+      placeholder: url,
+      attachment: {
+        name: url,
+        uri: url,
+        media_type: inferMediaTypeFromUrl(url),
+      },
+    });
+    lastIndex = end;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ type: 'text', text: text.slice(lastIndex) });
+  }
+
+  return segments;
+}
 
 function tokenizeContent(content: string): ContentToken[] {
   const tokens: ContentToken[] = [];
@@ -256,11 +365,16 @@ export function getAttachmentSegmentType(
   attachment: AttachmentPayload,
 ): AttachmentSegmentType {
   const mediaType = attachment.media_type?.toLowerCase() ?? '';
+  const mediaSubtype =
+    mediaType.includes('/') && mediaType.split('/').length > 1
+      ? mediaType.split('/')[1]?.split(';')[0]
+      : '';
   if (mediaType.startsWith('video/')) {
     return 'video';
   }
 
   const format = attachment.format?.toLowerCase();
+  const normalizedFormat = format || mediaSubtype;
   const previewProfile = attachment.preview_profile?.toLowerCase() ?? '';
   const kind = attachment.kind?.toLowerCase();
   const previewAssets = attachment.preview_assets ?? [];
@@ -280,7 +394,7 @@ export function getAttachmentSegmentType(
   });
   const htmlLike =
     mediaType === 'text/html' ||
-    format === 'html' ||
+    normalizedFormat === 'html' ||
     previewProfile.includes('html') ||
     hasHtmlAsset;
   if (htmlLike) {
@@ -288,9 +402,18 @@ export function getAttachmentSegmentType(
   }
 
   const documentProfile = previewProfile.startsWith('document.');
-  const documentFormat = (format && DOCUMENT_FORMATS.has(format)) || format === 'pdf';
+  const markdownFormat =
+    normalizedFormat === 'markdown' || normalizedFormat === 'md' || normalizedFormat === 'x-markdown';
+  const documentFormat =
+    (normalizedFormat && DOCUMENT_FORMATS.has(normalizedFormat)) || normalizedFormat === 'pdf' || markdownFormat;
   const isArtifact = kind === 'artifact';
-  if (isArtifact || documentProfile || documentFormat || hasPreviewAssets) {
+  if (
+    isArtifact ||
+    documentProfile ||
+    documentFormat ||
+    hasPreviewAssets ||
+    (mediaType.startsWith('text/') && !htmlLike)
+  ) {
     return 'document';
   }
 

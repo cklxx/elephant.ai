@@ -45,7 +45,7 @@ func TestBuildSubagentStateSnapshotRemovesCurrentCallAndAppendsPrompt(t *testing
 }
 
 func TestBuildSubagentStateSnapshotWithoutPrompt(t *testing.T) {
-	call := ToolCall{ID: "call-1", Arguments: map[string]any{"subtasks": []any{"task a", " task b "}}}
+	call := ToolCall{ID: "call-1", Arguments: map[string]any{}}
 
 	state := buildSubagentStateSnapshot(&TaskState{Messages: []Message{{
 		Role:      "assistant",

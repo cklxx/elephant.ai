@@ -8,21 +8,21 @@ export function ThinkingIndicator() {
 
   return (
     <>
-      <div className="thinking-indicator" data-testid="thinking-event">
-        <span className="thinking-icon" aria-hidden>
+      <div className="workflow.node.output.delta-indicator" data-testid="workflow.node.output.delta-event">
+        <span className="workflow.node.output.delta-icon" aria-hidden>
           <Brain className="h-4 w-4" />
         </span>
-        <div className="thinking-copy">
-          <span className="thinking-title">{t('events.thinking.title')}</span>
-          <span className="thinking-hint">{t('events.thinking.hint')}</span>
+        <div className="workflow.node.output.delta-copy">
+          <span className="workflow.node.output.delta-title">{t('events.workflow.node.output.delta.title')}</span>
+          <span className="workflow.node.output.delta-hint">{t('events.workflow.node.output.delta.hint')}</span>
         </div>
-        <span className="thinking-status" aria-live="polite">
+        <span className="workflow.node.output.delta-status" aria-live="polite">
           <Sparkles className="h-3.5 w-3.5" />
-          <span>{t('events.thinking.status')}</span>
+          <span>{t('events.workflow.node.output.delta.status')}</span>
         </span>
       </div>
       <style jsx>{`
-        .thinking-indicator {
+        .workflow.node.output.delta-indicator {
           position: relative;
           display: flex;
           align-items: center;
@@ -32,7 +32,7 @@ export function ThinkingIndicator() {
           background: radial-gradient(circle at top left, rgba(99, 102, 241, 0.08), transparent 50%);
           padding: 0.75rem 1rem;
         }
-        .thinking-icon {
+        .workflow.node.output.delta-icon {
           display: inline-flex;
           height: 2.5rem;
           width: 2.5rem;
@@ -43,25 +43,21 @@ export function ThinkingIndicator() {
           background: white;
           color: hsl(222, 40%, 40%);
         }
-        .thinking-copy {
+        .workflow.node.output.delta-copy {
           display: flex;
           flex-direction: column;
           gap: 0.15rem;
         }
-        .thinking-title {
+        .workflow.node.output.delta-title {
           font-size: 0.95rem;
           font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.18em;
           color: hsl(222, 15%, 20%);
         }
-        .thinking-hint {
+        .workflow.node.output.delta-hint {
           font-size: 0.65rem;
-          text-transform: uppercase;
-          letter-spacing: 0.24em;
           color: hsl(222, 10%, 50%);
         }
-        .thinking-status {
+        .workflow.node.output.delta-status {
           margin-left: auto;
           position: relative;
           display: inline-flex;
@@ -76,12 +72,12 @@ export function ThinkingIndicator() {
           color: hsl(222, 45%, 35%);
           overflow: hidden;
         }
-        .thinking-status span,
-        .thinking-status svg {
+        .workflow.node.output.delta-status span,
+        .workflow.node.output.delta-status svg {
           position: relative;
           z-index: 1;
         }
-        .thinking-status::after {
+        .workflow.node.output.delta-status::after {
           content: '';
           position: absolute;
           inset: 0;
@@ -95,7 +91,7 @@ export function ThinkingIndicator() {
           }
         }
         @media (prefers-reduced-motion: reduce) {
-          .thinking-status::after {
+          .workflow.node.output.delta-status::after {
             animation: none;
           }
         }

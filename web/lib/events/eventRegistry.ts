@@ -29,10 +29,10 @@ export class EventRegistry {
 
 export const defaultEventRegistry = new EventRegistry();
 
-defaultEventRegistry.register('environment_snapshot', handleEnvironmentSnapshot as EventSideEffect);
+defaultEventRegistry.register('workflow.diagnostic.environment_snapshot', handleEnvironmentSnapshot as EventSideEffect);
 
-defaultEventRegistry.register('sandbox_progress', handleSandboxProgress as EventSideEffect);
+defaultEventRegistry.register('workflow.diagnostic.sandbox_progress', handleSandboxProgress as EventSideEffect);
 
-defaultEventRegistry.register('user_task', handleAttachmentEvent as EventSideEffect);
-defaultEventRegistry.register('tool_call_complete', handleAttachmentEvent as EventSideEffect);
-defaultEventRegistry.register('task_complete', handleAttachmentEvent as EventSideEffect);
+defaultEventRegistry.register('workflow.tool.completed', handleAttachmentEvent as EventSideEffect);
+defaultEventRegistry.register('workflow.input.received', handleAttachmentEvent as EventSideEffect);
+defaultEventRegistry.register('workflow.result.final', handleAttachmentEvent as EventSideEffect);

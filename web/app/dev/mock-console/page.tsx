@@ -38,15 +38,15 @@ export default function MockConsolePage() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 lg:gap-6">
-        <header className="flex flex-col gap-3 rounded-2xl bg-white/90 p-6 shadow-sm ring-1 ring-slate-200/60">
+        <header className="flex flex-col gap-3 rounded-2xl bg-white/90 p-6 ring-1 ring-slate-200/60">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-[11px] font-semibold text-slate-400">
                 Mock Streaming · Agent Console
               </p>
               <h1 className="text-xl font-semibold text-slate-900 lg:text-2xl">Streaming final answer preview</h1>
               <p className="text-sm text-slate-600">
-                This sandbox replays mocked agent events, including streaming task_complete updates with attachments.
+                This sandbox replays mocked agent events, including streaming workflow.result.final updates with attachments.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -108,7 +108,7 @@ export default function MockConsolePage() {
           </div>
         </header>
 
-        <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-200/60 lg:p-6">
+        <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/60 lg:p-6">
           <ConsoleAgentOutput
             events={events}
             isConnected={isConnected}
@@ -118,7 +118,6 @@ export default function MockConsolePage() {
             onReconnect={reconnect}
             sessionId={sessionId}
             taskId={latestTaskId}
-            autoApprovePlan
           />
         </div>
       </div>

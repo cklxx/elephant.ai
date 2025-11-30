@@ -134,10 +134,9 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			name:     "subagent with tasks",
 			toolName: "subagent",
 			args: map[string]any{
-				"subtasks": []any{"task1", "task2"},
-				"mode":     "sequential",
+				"prompt": "investigate auth module",
 			},
-			wants: []string{"subagent(mode=sequential", "tasks=2"},
+			wants: []string{"subagent(prompt=investigate auth module"},
 		},
 		{
 			name:     "subagent without tasks",

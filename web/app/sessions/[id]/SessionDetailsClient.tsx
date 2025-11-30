@@ -16,6 +16,7 @@ import { toast } from '@/components/ui/toast';
 import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
 import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
 import type { AnyAgentEvent, AttachmentUpload } from '@/lib/types';
+import { eventMatches } from '@/lib/types';
 
 const statusLabels: Record<string, TranslationKey> = {
   completed: 'sessions.details.history.status.completed',
@@ -141,9 +142,9 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
         return;
       }
       if (
-        event.event_type === 'task_complete' ||
-        event.event_type === 'task_cancelled' ||
-        event.event_type === 'error'
+        eventMatches(event, 'workflow.result.final', 'workflow.result.final') ||
+        eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled') ||
+        eventMatches(event, 'workflow.node.failed')
       ) {
         setActiveTaskId(null);
         setCancelRequested(false);
@@ -259,25 +260,25 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
         onReconnect={reconnect}
       />
 
-      {sessionData.tasks && sessionData.tasks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('sessions.details.history')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {sessionData.tasks.map((task) => {
-                const statusKey = statusLabels[task.status];
-                const translatedStatus = statusKey ? t(statusKey) : task.status.toUpperCase();
+            {sessionData.tasks && sessionData.tasks.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('sessions.details.history')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {sessionData.tasks.map((task: (typeof sessionData.tasks)[number]) => {
+                    const statusKey = statusLabels[task.status];
+                    const translatedStatus = statusKey ? t(statusKey) : task.status.toUpperCase();
 
-                const badgeVariant =
-                  task.status === 'completed'
-                    ? 'success'
-                    : task.status === 'failed' || task.status === 'error'
-                      ? 'error'
-                      : task.status === 'cancelled'
-                        ? 'warning'
-                        : 'info';
+                    const badgeVariant =
+                      task.status === 'completed'
+                        ? 'success'
+                        : task.status === 'failed' || task.status === 'error'
+                          ? 'destructive'
+                          : task.status === 'cancelled'
+                            ? 'warning'
+                            : 'info';
 
                 return (
                   <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

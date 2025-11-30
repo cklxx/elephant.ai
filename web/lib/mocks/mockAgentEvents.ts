@@ -227,22 +227,9 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
 
   return [
     {
-      delay: 650,
-      event: {
-        event_type: 'research_plan',
-        agent_level: 'core',
-        plan_steps: [
-          'Audit existing project structure',
-          'Identify UI inconsistencies',
-          'Prepare actionable refactor plan',
-        ],
-        estimated_iterations: 3,
-      },
-    },
-    {
       delay: 950,
       event: {
-        event_type: 'step_started',
+        event_type: 'workflow.node.started',
         agent_level: 'core',
         step_index: 0,
         step_description: 'Collecting repository context',
@@ -251,7 +238,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 1200,
       event: {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         agent_level: 'core',
         iteration: 1,
         total_iters: 3,
@@ -260,7 +247,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 1450,
       event: {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         iteration: 1,
         message_count: 1,
@@ -269,7 +256,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 1700,
       event: {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         iteration: 1,
         call_id: callId,
@@ -282,7 +269,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 1950,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'core',
         call_id: callId,
         chunk: 'Inspecting layout composition...\n',
@@ -292,7 +279,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2150,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'core',
         call_id: callId,
         chunk: 'Detected conditional input rendering issue.\n',
@@ -302,7 +289,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2350,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'core',
         call_id: callId,
         chunk: 'Preparing remediation suggestions...\n',
@@ -312,7 +299,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2550,
       event: {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
         call_id: callId,
         tool_name: 'file_read',
@@ -331,7 +318,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2625,
       event: {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         iteration: 1,
         call_id: 'mock-artifact-write',
@@ -346,7 +333,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2750,
       event: {
-        event_type: 'browser_info',
+        event_type: 'workflow.diagnostic.browser_info',
         agent_level: 'core',
         success: true,
         message: 'Sandbox browser ready',
@@ -361,7 +348,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2850,
       event: {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
         call_id: 'mock-artifact-write',
         tool_name: 'artifacts_write',
@@ -380,7 +367,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2950,
       event: {
-        event_type: 'step_completed',
+        event_type: 'workflow.node.completed',
         agent_level: 'core',
         step_index: 0,
         step_result: 'Collected baseline UI findings',
@@ -389,7 +376,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 2975,
       event: {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         iteration: 1,
         call_id: 'mock-artifact-list',
@@ -403,7 +390,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3150,
       event: {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
         call_id: 'mock-artifact-list',
         tool_name: 'artifacts_list',
@@ -435,7 +422,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3200,
       event: {
-        event_type: 'iteration_complete',
+        event_type: 'workflow.node.completed',
         agent_level: 'core',
         iteration: 1,
         tokens_used: 865,
@@ -445,7 +432,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3225,
       event: {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         iteration: 1,
         call_id: 'mock-artifact-delete',
@@ -459,7 +446,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3285,
       event: {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
         call_id: 'mock-artifact-delete',
         tool_name: 'artifacts_delete',
@@ -476,7 +463,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3300,
       event: {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         agent_level: 'subagent',
         iteration: 1,
         total_iters: 1,
@@ -486,7 +473,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3350,
       event: {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'subagent',
         iteration: 1,
         message_count: 1,
@@ -496,7 +483,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3400,
       event: {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'subagent',
         iteration: 1,
         call_id: 'mock-subagent-call-1',
@@ -510,7 +497,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3500,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'subagent',
         call_id: 'mock-subagent-call-1',
         chunk: 'Summarizing multi-panel timelines from recent product launches...\n',
@@ -521,7 +508,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3600,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'subagent',
         call_id: 'mock-subagent-call-1',
         chunk: 'Highlighted research from Cursor, Windsurf, and Devina.\n',
@@ -532,7 +519,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3750,
       event: {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
         call_id: 'mock-subagent-call-1',
         tool_name: 'web_search',
@@ -545,7 +532,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 3950,
       event: {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         agent_level: 'subagent',
         final_answer:
           'Validated layout guidance from industry references and highlighted critical interaction affordances to emulate.',
@@ -559,7 +546,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4050,
       event: {
-        event_type: 'iteration_start',
+        event_type: 'workflow.node.started',
         agent_level: 'subagent',
         iteration: 1,
         total_iters: 1,
@@ -569,7 +556,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4100,
       event: {
-        event_type: 'thinking',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'subagent',
         iteration: 1,
         message_count: 1,
@@ -579,7 +566,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4150,
       event: {
-        event_type: 'tool_call_start',
+        event_type: 'workflow.tool.started',
         agent_level: 'subagent',
         iteration: 1,
         call_id: 'mock-subagent-call-2',
@@ -594,7 +581,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4325,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'subagent',
         call_id: 'mock-subagent-call-2',
         chunk: 'Traced ToolOutputCard props to ensure subtask metadata is surfaced...\n',
@@ -605,7 +592,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4480,
       event: {
-        event_type: 'tool_call_stream',
+        event_type: 'workflow.tool.progress',
         agent_level: 'subagent',
         call_id: 'mock-subagent-call-2',
         chunk: 'Confirmed CSS tokens apply to subagent badges and dividers.\n',
@@ -616,7 +603,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4650,
       event: {
-        event_type: 'tool_call_complete',
+        event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
         call_id: 'mock-subagent-call-2',
         tool_name: 'code_search',
@@ -629,7 +616,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4850,
       event: {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         agent_level: 'subagent',
         final_answer:
           'Confirmed ToolOutputCard handles metadata for subagent streams and recommended expanding automated coverage.',
@@ -643,7 +630,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4250,
       event: {
-        event_type: 'think_complete',
+        event_type: 'workflow.node.output.summary',
         agent_level: 'core',
         iteration: 1,
         content: 'Ready to summarize the refactor recommendations.',
@@ -653,7 +640,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4325,
       event: {
-        event_type: 'assistant_message',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         iteration: 1,
         delta: 'Here are the key findings from the console audit:\n',
@@ -663,7 +650,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4400,
       event: {
-        event_type: 'assistant_message',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         iteration: 1,
         delta: '- Keep the input dock always visible so tasks are effortless.\n',
@@ -673,7 +660,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4480,
       event: {
-        event_type: 'assistant_message',
+        event_type: 'workflow.node.output.delta',
         agent_level: 'core',
         iteration: 1,
         delta:
@@ -684,7 +671,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4510,
       event: {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         agent_level: 'core',
         final_answer:
           'Drafting summary...\n- Slides incoming: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]',
@@ -697,7 +684,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
     {
       delay: 4550,
       event: {
-        event_type: 'task_complete',
+        event_type: 'workflow.result.final',
         agent_level: 'core',
         final_answer:
           '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Team onboarding: [Onboarding Guide]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
