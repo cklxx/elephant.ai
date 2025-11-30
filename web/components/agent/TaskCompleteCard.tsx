@@ -134,6 +134,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       segment.attachment &&
       (!segment.placeholder || !referencedPlaceholders.has(segment.placeholder)),
   );
+  const hasUnrenderedAttachments =
+    unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
+  const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments;
 
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
 
@@ -255,7 +258,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               data-testid="task-complete-answer-divider"
             />
           </>
-        ) : (
+        ) : shouldShowFallback ? (
           <div
             className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"
             data-testid="task-complete-fallback"
@@ -265,7 +268,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               <p className="mt-1 text-slate-500">{stopReasonCopy.body}</p>
             )}
           </div>
-        )}
+        ) : null}
 
         {unreferencedMediaSegments.length > 0 && (
           <div className="flex flex-wrap items-start gap-3">

@@ -1271,7 +1271,7 @@ cmd_cn() {
     export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com/}"
     export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
     export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
-    export GOPROXY="${GOPROXY:-https://mirrors.tencent.com/repository/goproxy/,direct}"
+    export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
     export GO_PROXY="${GO_PROXY:-${GOPROXY}}"
     export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
     export GO_SUMDB="${GO_SUMDB:-${GOSUMDB}}"
