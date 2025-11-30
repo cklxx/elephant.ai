@@ -197,7 +197,7 @@ export function ToolOutputCard({
             <CardContent className="space-y-3 px-4 pb-4 pt-3">
               {hasError && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-destructive">
+                  <p className="text-xs font-semibold text-destructive">
                     {t("tool.section.error")}
                   </p>
                   <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 overflow-x-auto whitespace-pre-wrap">
@@ -319,7 +319,7 @@ export function ToolOutputCard({
 
               {metadata?.screenshot && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-semibold text-muted-foreground">
                     Screenshot
                   </p>
                   <div className="rounded-lg bg-muted/15 overflow-hidden">
@@ -593,7 +593,7 @@ function renderToolResult(
       <div className="space-y-3">
         {codeSnippet && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               {t("tool.code_execute.code") ?? "Code"}
             </p>
             <div className="rounded-lg bg-muted/20 overflow-auto">
@@ -662,7 +662,7 @@ function renderToolResult(
         <div className="space-y-3">
           {bashResult.command && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">
                 Command
               </p>
               <div className="rounded-lg bg-gray-900 text-emerald-400 p-3 overflow-x-auto">
@@ -730,7 +730,7 @@ function renderToolResult(
         {/* File path */}
         {filePath && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               File Path
             </p>
             <div className="rounded-lg bg-muted/15 p-3">
@@ -743,7 +743,7 @@ function renderToolResult(
         {metadata &&
           (metadata.lines !== undefined || metadata.chars !== undefined) && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">
                 Write Summary
               </p>
               <div className="flex gap-4 text-xs">
@@ -764,7 +764,7 @@ function renderToolResult(
         {/* File content from parameters */}
         {content && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               Content Written
             </p>
             <div className="rounded-lg bg-muted/20 overflow-auto">
@@ -946,7 +946,7 @@ function renderToolResult(
         )}
         {showPrompt && (
           <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            <p className="text-[10px] font-semibold text-muted-foreground">
               Prompt
             </p>
             <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">

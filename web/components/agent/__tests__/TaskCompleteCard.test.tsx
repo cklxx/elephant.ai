@@ -127,4 +127,44 @@ describe('TaskCompleteCard', () => {
       'https://example.com/plan.pdf',
     );
   });
+
+  it('shows streaming indicator while final answer is streaming', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: 'Partial stream chunk',
+      is_streaming: true,
+      stream_finished: false,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.getByTestId('markdown-streaming-indicator')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+    expect(screen.getByText(/Partial stream chunk/i)).toBeInTheDocument();
+  });
+
+  it('renders streaming state before any content arrives', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: '',
+      is_streaming: true,
+      stream_finished: false,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.getByTestId('markdown-streaming-indicator')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+  });
+
+  it('hides streaming indicator once stream is finished', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: 'All set.',
+      is_streaming: false,
+      stream_finished: true,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.queryByTestId('markdown-streaming-indicator')).not.toBeInTheDocument();
+    expect(screen.getByText(/All set\./i)).toBeInTheDocument();
+  });
 });

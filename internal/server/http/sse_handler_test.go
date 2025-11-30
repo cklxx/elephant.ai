@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	serverapp "alex/internal/server/app"
+	"alex/internal/tools/builtin"
 	"alex/internal/workflow"
 )
 
@@ -76,7 +78,7 @@ func parseSSEStream(t *testing.T, payload string) []streamedEvent {
 	return events
 }
 
-func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
+func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
 
@@ -113,9 +115,9 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 	lifecycle.NodeKind = "node"
 	lifecycle.Payload = map[string]any{
 		"workflow.lifecycle.updated_type": string(workflow.EventWorkflowUpdated),
-		"phase":               snapshot.Phase,
-		"node":                firstNode,
-		"workflow":            snapshot,
+		"phase":                           snapshot.Phase,
+		"node":                            firstNode,
+		"workflow":                        snapshot,
 	}
 
 	stepEvent := &domain.WorkflowNodeCompletedEvent{
@@ -176,57 +178,22 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 	}
 
 	events := parseSSEStream(t, rec.BodyString())
-	if len(events) < 3 { // connected + two replayed events
-		t.Fatalf("expected at least 3 events, got %d", len(events))
+	if len(events) < 2 { // connected + step envelope
+		t.Fatalf("expected at least 2 events, got %d", len(events))
 	}
 
-	var workflowEvent streamedEvent
 	var stepEnvelopeEvent streamedEvent
 	for _, evt := range events {
 		switch evt.event {
 		case "workflow.lifecycle.updated":
-			workflowEvent = evt
+			t.Fatalf("lifecycle event should not be streamed: %v", evt)
 		case "workflow.node.completed":
 			stepEnvelopeEvent = evt
 		}
 	}
 
-	if workflowEvent.event == "" {
-		t.Fatalf("workflow.lifecycle.updated not replayed: %v", events)
-	}
 	if stepEnvelopeEvent.event == "" {
 		t.Fatalf("step_completed not replayed: %v", events)
-	}
-
-	payload, ok := workflowEvent.data["payload"].(map[string]any)
-	if !ok {
-		t.Fatalf("workflow payload missing or wrong type: %v", workflowEvent.data)
-	}
-	workflowPayload, ok := payload["workflow"].(map[string]any)
-	if !ok {
-		t.Fatalf("workflow payload missing or wrong type: %v", workflowEvent.data)
-	}
-	if order, ok := workflowPayload["order"].([]any); ok {
-		got := make([]string, 0, len(order))
-		for _, value := range order {
-			if s, ok := value.(string); ok {
-				got = append(got, s)
-			}
-		}
-		if len(got) != len(snapshot.Order) {
-			t.Fatalf("workflow order length mismatch: %v", got)
-		}
-		for idx, expected := range snapshot.Order {
-			if got[idx] != expected {
-				t.Fatalf("workflow order mismatch at %d: got %v expected %v", idx, got, snapshot.Order)
-			}
-		}
-	} else {
-		t.Fatalf("workflow order missing: %v", workflowPayload)
-	}
-
-	if phase := payload["phase"]; phase != string(snapshot.Phase) {
-		t.Fatalf("unexpected workflow phase: %v", workflowEvent.data)
 	}
 
 	stepPayload, ok := stepEnvelopeEvent.data["payload"].(map[string]any)
@@ -238,6 +205,102 @@ func TestSSEHandlerReplaysWorkflowAndStepEvents(t *testing.T) {
 	}
 	if iteration := stepPayload["iteration"]; iteration != float64(stepEvent.Iteration) { // JSON numbers decode to float64
 		t.Fatalf("unexpected iteration: %v", stepEnvelopeEvent.data)
+	}
+}
+
+func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-subtask"
+	now := time.Now()
+	base := domain.NewBaseEvent(ports.LevelSubagent, sessionID, "task-sub", "parent-task", now)
+
+	toolEvent := &domain.WorkflowToolCompletedEvent{
+		BaseEvent: base,
+		CallID:    "call-123",
+		ToolName:  "web_search",
+		Result:    "done",
+		Duration:  250 * time.Millisecond,
+	}
+	envelope := domain.NewWorkflowEnvelopeFromEvent(toolEvent, "workflow.tool.completed")
+	if envelope == nil {
+		t.Fatal("failed to create tool envelope")
+	}
+	envelope.NodeID = toolEvent.CallID
+	envelope.NodeKind = "tool"
+	envelope.Payload = map[string]any{
+		"call_id":   toolEvent.CallID,
+		"tool_name": toolEvent.ToolName,
+		"result":    toolEvent.Result,
+		"duration":  toolEvent.Duration.Milliseconds(),
+	}
+
+	subtask := &builtin.SubtaskEvent{
+		OriginalEvent:  envelope,
+		SubtaskIndex:   1,
+		TotalSubtasks:  3,
+		SubtaskPreview: "inspect UI output",
+		MaxParallel:    2,
+	}
+
+	// Seed history with subtask-wrapped event.
+	broadcaster.OnEvent(subtask)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID, nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "workflow.tool.completed") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	var streamed streamedEvent
+	for _, evt := range events {
+		if evt.event == "workflow.tool.completed" {
+			streamed = evt
+			break
+		}
+	}
+
+	if streamed.event == "" {
+		t.Fatalf("subtask event not streamed: %v", events)
+	}
+	if level := streamed.data["agent_level"]; level != string(ports.LevelSubagent) {
+		t.Fatalf("expected subagent level, got %v", level)
+	}
+	if isSubtask := streamed.data["is_subtask"]; isSubtask != true {
+		t.Fatalf("expected is_subtask=true, got %v", isSubtask)
+	}
+	if idx := streamed.data["subtask_index"]; idx != float64(subtask.SubtaskIndex) {
+		t.Fatalf("unexpected subtask_index: %v", idx)
+	}
+	payload, ok := streamed.data["payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload missing or wrong type: %v", streamed.data)
+	}
+	if callID := payload["call_id"]; callID != toolEvent.CallID {
+		t.Fatalf("unexpected call_id in payload: %v", payload)
 	}
 }
 
@@ -363,5 +426,39 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 	}
 	if att.MediaType != "image/png" {
 		t.Fatalf("expected media type to be preserved, got %q", att.MediaType)
+	}
+}
+
+func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	raw := map[string]any{
+		"status": "succeeded",
+		"attachments": map[string]any{
+			"note.md": map[string]any{
+				"name":       "note.md",
+				"media_type": "text/markdown",
+				"data":       base64.StdEncoding.EncodeToString([]byte("# Title\ncontent")),
+			},
+		},
+	}
+
+	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache)
+	attachments, ok := sanitized["attachments"].(map[string]ports.Attachment)
+	if !ok {
+		t.Fatalf("expected attachments map, got %T", sanitized["attachments"])
+	}
+
+	att, ok := attachments["note.md"]
+	if !ok {
+		t.Fatalf("expected markdown attachment to be preserved")
+	}
+	if att.URI == "" || !strings.HasPrefix(att.URI, "/api/data/") {
+		t.Fatalf("expected attachment URI to reference data cache, got %q", att.URI)
+	}
+	if att.Data == "" {
+		t.Fatalf("expected inline markdown payload to be retained for fallback")
+	}
+	if att.MediaType != "text/markdown" {
+		t.Fatalf("expected markdown media type to be preserved, got %q", att.MediaType)
 	}
 }

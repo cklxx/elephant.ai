@@ -41,7 +41,7 @@ export default function MockTerminalOutputPage() {
         <header className="flex flex-col gap-3 rounded-2xl bg-white/90 p-6 ring-1 ring-slate-200/60">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-[11px] font-semibold text-slate-400">
                 Mock Streaming · Terminal Output
               </p>
               <h1 className="text-xl font-semibold text-slate-900 lg:text-2xl">

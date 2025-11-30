@@ -27,7 +27,7 @@ export function ConnectionStatus({
 
   if (reconnecting) {
     return (
-      <Badge variant="outline" className="gap-2 text-[11px] uppercase tracking-[0.2em]">
+      <Badge variant="outline" className="gap-2 text-[11px] font-medium">
         <RefreshCw className="h-4 w-4 animate-spin" />
         <span>{t('connection.reconnecting')}</span>
       </Badge>
@@ -41,12 +41,12 @@ export function ConnectionStatus({
         <span>{t('connection.disconnected')}</span>
       </Badge>
       {error && (
-        <Badge variant="destructive" className="px-3 py-1 text-[11px] uppercase tracking-[0.22em]">
+        <Badge variant="destructive" className="px-3 py-1 text-[11px] font-medium">
           {error}
         </Badge>
       )}
       {onReconnect && (
-        <Button type="button" size="sm" onClick={onReconnect} className="text-[11px] uppercase">
+        <Button type="button" size="sm" onClick={onReconnect} className="text-[11px] font-semibold">
           {t('connection.reconnect')}
         </Button>
       )}

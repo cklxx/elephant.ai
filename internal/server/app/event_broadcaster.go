@@ -81,16 +81,25 @@ func (b *EventBroadcaster) SetAttachmentArchiver(archiver AttachmentArchiver) {
 
 // OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
 func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
-	suppressLogs := b.shouldSuppressHighVolumeLogs(event)
+	if event == nil {
+		return
+	}
+
+	baseEvent := BaseAgentEvent(event)
+	if baseEvent == nil {
+		return
+	}
+
+	suppressLogs := b.shouldSuppressHighVolumeLogs(baseEvent)
 	if suppressLogs {
-		b.trackHighVolumeEvent(event)
+		b.trackHighVolumeEvent(baseEvent)
 	} else {
-		b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", event.EventType(), event.GetSessionID())
+		b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", baseEvent.EventType(), baseEvent.GetSessionID())
 	}
 
 	// Store event in history for session replay
-	sessionID := event.GetSessionID()
-	if shouldPersistToHistory(event) {
+	sessionID := baseEvent.GetSessionID()
+	if shouldPersistToHistory(baseEvent) {
 		if sessionID != "" {
 			b.storeEventHistory(sessionID, event)
 		} else {
@@ -100,8 +109,8 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 
 	// Run side effects before we broadcast to keep task progress/attachments consistent
 	// with what clients receive, even if those operations are slow.
-	b.archiveAttachments(event)
-	b.updateTaskProgress(event)
+	b.archiveAttachments(baseEvent)
+	b.updateTaskProgress(baseEvent)
 
 	b.mu.RLock()
 	if !suppressLogs {
@@ -140,7 +149,12 @@ func (b *EventBroadcaster) getSessionIDs() []string {
 
 // updateTaskProgress updates task progress based on event type
 func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
-	if b.taskStore == nil {
+	if b.taskStore == nil || event == nil {
+		return
+	}
+
+	event = BaseAgentEvent(event)
+	if event == nil {
 		return
 	}
 
@@ -196,6 +210,10 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 
 func (b *EventBroadcaster) archiveAttachments(event agentports.AgentEvent) {
 	if b.attachmentArchiver == nil {
+		return
+	}
+	event = BaseAgentEvent(event)
+	if event == nil {
 		return
 	}
 	sessionID := event.GetSessionID()
@@ -419,6 +437,10 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 }
 
 func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
+	event = BaseAgentEvent(event)
+	if event == nil {
+		return nil
+	}
 	switch e := event.(type) {
 	case *domain.WorkflowEventEnvelope:
 		if e == nil || e.Payload == nil {
@@ -456,6 +478,10 @@ func intFromPayload(payload map[string]any, key string) int {
 }
 
 func shouldPersistToHistory(event agentports.AgentEvent) bool {
+	event = BaseAgentEvent(event)
+	if event == nil {
+		return false
+	}
 	switch event.(type) {
 	case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
 		return true
@@ -468,17 +494,19 @@ func shouldPersistToHistory(event agentports.AgentEvent) bool {
 // suppressed for the provided event type. Assistant streaming events are very
 // high volume and can flood the logs, so we only log these events in batches.
 func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEvent) bool {
-	if event == nil {
+	base := BaseAgentEvent(event)
+	if base == nil {
 		return false
 	}
-	return event.EventType() == assistantMessageEventType
+	return base.EventType() == assistantMessageEventType
 }
 
 func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
-	if event == nil {
+	base := BaseAgentEvent(event)
+	if base == nil {
 		return
 	}
-	sessionID := event.GetSessionID()
+	sessionID := base.GetSessionID()
 	if sessionID == "" {
 		sessionID = globalHighVolumeSessionID
 	}
@@ -489,7 +517,7 @@ func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
 	b.highVolumeMu.Unlock()
 
 	if count%assistantMessageLogBatch == 0 {
-		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, event.EventType(), sessionID)
+		b.logger.Debug("[HighVolumeLogs] Processed %d '%s' events for session=%s", count, base.EventType(), sessionID)
 	}
 }
 

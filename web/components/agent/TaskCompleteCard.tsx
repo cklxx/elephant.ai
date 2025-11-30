@@ -13,8 +13,8 @@ import {
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
-import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 import { Card, CardContent } from "@/components/ui/card";
+import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
 
 interface StopReasonCopy {
   title: string;
@@ -51,6 +51,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const answer = event.final_answer ?? "";
   const markdownAnswer = convertInlineMediaToMarkdown(answer);
   const attachments = event.attachments ?? undefined;
+  const isStreaming = event.is_streaming === true || event.stream_finished === false;
+  const streamFinished = event.stream_finished === true;
   const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
     markdownAnswer,
     attachments,
@@ -117,7 +119,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const referencedPlaceholders = new Set(
     Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
   );
-  const hasAnswer = contentWithInlineMedia.trim().length > 0;
+  const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
+  const shouldRenderMarkdown = hasAnswerContent || isStreaming;
 
   const unreferencedMediaSegments = segments.filter(
     (segment) =>
@@ -159,11 +162,13 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   return (
     <Card data-testid="task-complete-event">
       <CardContent className="mt-2 space-y-4 p-4">
-        {hasAnswer ? (
-          <LazyMarkdownRenderer
+        {shouldRenderMarkdown ? (
+          <StreamingMarkdownRenderer
             content={contentWithInlineMedia}
             className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
             attachments={attachments}
+            isStreaming={isStreaming}
+            streamFinished={streamFinished}
             components={{
               code: ({ inline, className, children, ...props }: any) => {
                 if (inline) {

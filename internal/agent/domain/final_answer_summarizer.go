@@ -70,6 +70,7 @@ func (s *FinalAnswerSummarizer) Summarize(
 
 	var builder strings.Builder
 	var streamedChunks int
+	var lastEmitted string
 	streamCallbacks := ports.CompletionStreamCallbacks{
 		OnContentDelta: func(delta ports.ContentDelta) {
 			if delta.Delta != "" {
@@ -79,11 +80,12 @@ func (s *FinalAnswerSummarizer) Summarize(
 			if delta.Final {
 				return
 			}
-			if streamedChunks > 1 {
-				if partial := strings.TrimSpace(builder.String()); partial != "" {
-					s.emitStreamingUpdate(ctx, env, result, partial, summaryStart, listener)
-				}
+			partial := strings.TrimSpace(builder.String())
+			if partial == "" || partial == lastEmitted {
+				return
 			}
+			s.emitStreamingUpdate(ctx, env, result, partial, summaryStart, listener)
+			lastEmitted = partial
 		},
 	}
 
@@ -102,15 +104,27 @@ func (s *FinalAnswerSummarizer) Summarize(
 		finalContent = strings.TrimSpace(builder.String())
 	}
 
+	// If the upstream client didn't emit deltas, synthesize a streaming update so
+	// consumers still receive a streaming workflow.result.final before the final.
+	if listener != nil && streamedChunks == 0 {
+		partial := strings.TrimSpace(builder.String())
+		if partial == "" {
+			partial = finalContent
+		}
+		if partial != "" {
+			s.emitStreamingUpdate(ctx, env, result, partial, summaryStart, listener)
+		}
+	}
+
 	s.emitFinal(ctx, env, result, finalContent, summaryStart, listener)
 	return result, nil
 }
 
 func (s *FinalAnswerSummarizer) emitStreamingUpdate(
-        ctx context.Context,
-        env *ports.ExecutionEnvironment,
-        result *TaskResult,
-        content string,
+	ctx context.Context,
+	env *ports.ExecutionEnvironment,
+	result *TaskResult,
+	content string,
 	start time.Time,
 	listener EventListener,
 ) {
@@ -119,36 +133,36 @@ func (s *FinalAnswerSummarizer) emitStreamingUpdate(
 	}
 	partial := strings.TrimSpace(content)
 	if partial == "" {
-                return
-        }
-        listener.OnEvent(&WorkflowResultFinalEvent{
-                BaseEvent:       s.baseEvent(ctx, env.State),
-                FinalAnswer:     partial,
-                TotalIterations: result.Iterations,
-                TotalTokens:     result.TokensUsed,
-                StopReason:      result.StopReason,
-                Duration:        s.effectiveDuration(result, start),
-                IsStreaming:     true,
+		return
+	}
+	listener.OnEvent(&WorkflowResultFinalEvent{
+		BaseEvent:       s.baseEvent(ctx, env.State),
+		FinalAnswer:     partial,
+		TotalIterations: result.Iterations,
+		TotalTokens:     result.TokensUsed,
+		StopReason:      result.StopReason,
+		Duration:        s.effectiveDuration(result, start),
+		IsStreaming:     true,
 		StreamFinished:  false,
 	})
 }
 
 func (s *FinalAnswerSummarizer) emitFinal(
-        ctx context.Context,
-        env *ports.ExecutionEnvironment,
-        result *TaskResult,
-        content string,
-        start time.Time,
-        listener EventListener,
+	ctx context.Context,
+	env *ports.ExecutionEnvironment,
+	result *TaskResult,
+	content string,
+	start time.Time,
+	listener EventListener,
 ) {
-        finalAnswer := strings.TrimSpace(content)
-        if finalAnswer == "" {
-                finalAnswer = strings.TrimSpace(result.Answer)
-        }
-        attachments := resolveContentAttachments(finalAnswer, env.State)
+	finalAnswer := strings.TrimSpace(content)
+	if finalAnswer == "" {
+		finalAnswer = strings.TrimSpace(result.Answer)
+	}
+	attachments := resolveContentAttachments(finalAnswer, env.State)
 
-        result.Answer = finalAnswer
-        result.Duration = s.effectiveDuration(result, start)
+	result.Answer = finalAnswer
+	result.Duration = s.effectiveDuration(result, start)
 
 	if listener == nil {
 		return

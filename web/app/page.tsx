@@ -16,7 +16,7 @@ function HeroSection() {
       </div>
       <div className="relative mx-auto flex w-full max-w-screen-2xl flex-col gap-8 px-6 py-12 sm:px-10 lg:flex-row lg:items-center lg:gap-12 lg:px-16">
         <div className="space-y-6 lg:pr-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/80 backdrop-blur">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur">
             Standard console homepage
             <Sparkles className="h-4 w-4" />
           </div>
@@ -65,7 +65,7 @@ function HeroSection() {
 function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white backdrop-blur">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/70">{label}</div>
+      <div className="text-xs text-white/70">{label}</div>
       <div className="mt-1 flex items-center gap-2 text-base font-semibold">
         {value}
         <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
@@ -104,7 +104,7 @@ function LivePreviewCard() {
 
   return (
     <div className="rounded-[24px] border border-white/15 bg-white/10 p-5 text-white shadow-[0_24px_60px_-36px_rgba(0,0,0,0.8)] backdrop-blur">
-      <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-white/80">
+      <div className="flex items-center justify-between text-xs font-semibold text-white/80">
         <span>Live console feed</span>
         <span className="flex items-center gap-2">
           <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />

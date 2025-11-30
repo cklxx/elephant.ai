@@ -334,7 +334,7 @@ export default function ConfigAdminPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-slate-500">状态</span>
+              <span className="text-xs text-slate-500">状态</span>
               {loading ? "加载中..." : isDirty ? "存在未保存修改" : "已同步"}
             </div>
             <div className="flex flex-1 justify-end gap-3">
@@ -403,7 +403,7 @@ export default function ConfigAdminPage() {
                     <label className="text-sm font-medium text-slate-900" htmlFor={field.key as string}>
                       {field.label}
                     </label>
-                    <span className="text-xs uppercase tracking-wide text-slate-400">
+                    <span className="text-xs text-slate-400">
                       来源：{describeSource(field.key as FieldKey, snapshot)}
                     </span>
                   </div>

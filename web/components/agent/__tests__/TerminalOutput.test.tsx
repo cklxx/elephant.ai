@@ -178,6 +178,7 @@ describe('TerminalOutput', () => {
     expect(aggregatePanel).toBeInTheDocument();
     expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(2);
     expect(aggregatePanel).toHaveTextContent(/Subagent Task 1\/2/i);
+    expect(within(aggregatePanel).getAllByText(/Subagent Task 1\/2/i)).toHaveLength(1);
 
     const conversationEvents = screen.getByTestId('conversation-events');
     expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);

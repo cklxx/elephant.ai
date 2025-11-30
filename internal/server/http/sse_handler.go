@@ -26,6 +26,33 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+const inlineAttachmentRetentionLimit = 128 * 1024 // Keep small text blobs inline for preview fallbacks.
+
+// sseAllowlist enumerates events that are relevant to the product surface. Any
+// envelope not present here will be suppressed to keep the frontend stream
+// lean and avoid noisy system-level lifecycle spam.
+var sseAllowlist = map[string]bool{
+	"workflow.node.started":                    true,
+	"workflow.node.completed":                  true,
+	"workflow.node.failed":                     true,
+	"workflow.node.output.delta":               true,
+	"workflow.node.output.summary":             true,
+	"workflow.tool.started":                    true,
+	"workflow.tool.progress":                   true,
+	"workflow.tool.completed":                  true,
+	"workflow.input.received":                  true,
+	"workflow.subflow.progress":                true,
+	"workflow.subflow.completed":               true,
+	"workflow.result.final":                    true,
+	"workflow.result.cancelled":                true,
+	"workflow.diagnostic.error":                true,
+	"workflow.diagnostic.context_compression":  true,
+	"workflow.diagnostic.tool_filtering":       true,
+	"workflow.diagnostic.browser_info":         true,
+	"workflow.diagnostic.environment_snapshot": true,
+	"workflow.diagnostic.sandbox_progress":     true,
+}
+
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
@@ -125,6 +152,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	clientChan := make(chan ports.AgentEvent, 100)
 	sentAttachments := make(map[string]string)
 	finalAnswerCache := make(map[string]string)
+	streamedTasks := make(map[string]bool)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -166,22 +194,30 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		if event == nil {
 			return false
 		}
+		base := app.BaseAgentEvent(event)
+		if base == nil {
+			return false
+		}
 
 		// Context snapshots are stored for debugging and analytics but contain
 		// sensitive/internal details that don't need to be pushed to clients in
 		// real time.
-		if event.EventType() == contextSnapshotEventType {
+		if base.EventType() == contextSnapshotEventType {
+			return false
+		}
+
+		// Only stream events that are meaningful to the frontend experience.
+		if !sseAllowlist[base.EventType()] {
 			return false
 		}
 
 		// Only stream workflow envelopes and explicit user task submissions.
-		if _, ok := event.(*domain.WorkflowEventEnvelope); ok {
+		switch base.(type) {
+		case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
 			return true
+		default:
+			return false
 		}
-
-		// Drop legacy/domain events to avoid duplicate streaming now that
-		// envelopes are the canonical contract.
-		return false
 	}
 
 	sendEvent := func(event ports.AgentEvent) bool {
@@ -205,6 +241,13 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "write_error", 0)
 			}
 			return false
+		}
+
+		// Clear streaming cache when final completes so subsequent tasks stream cleanly.
+		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+			if env.EventType() == "workflow.result.final" && env.Payload != nil && env.Payload["stream_finished"] == true {
+				delete(streamedTasks, env.GetTaskID())
+			}
 		}
 
 		flusher.Flush()
@@ -404,6 +447,9 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 			if key != "" {
 				if isStreaming, ok := payload["is_streaming"].(bool); ok && isStreaming {
 					finalAnswerCache[key] = val
+				}
+				if finished, ok := payload["stream_finished"].(bool); ok && finished {
+					delete(finalAnswerCache, key)
 				}
 			}
 			payload["final_answer"] = delta
@@ -641,6 +687,23 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	return unsent
 }
 
+func shouldRetainInlinePayload(mediaType string, size int) bool {
+	if size <= 0 || size > inlineAttachmentRetentionLimit {
+		return false
+	}
+
+	media := strings.ToLower(strings.TrimSpace(mediaType))
+	if media == "" {
+		return false
+	}
+
+	if strings.HasPrefix(media, "text/") {
+		return true
+	}
+
+	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
+}
+
 // normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
 // so SSE streams do not push large base64 blobs to the client.
 func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.Attachment {
@@ -667,6 +730,9 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 				if att.MediaType == "" {
 					att.MediaType = mediaType
 				}
+				if shouldRetainInlinePayload(att.MediaType, len(decoded)) {
+					att.Data = base64.StdEncoding.EncodeToString(decoded)
+				}
 				return att
 			}
 		}
@@ -674,7 +740,8 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 
 	// Fallback to data URIs when present.
 	if strings.HasPrefix(att.URI, "data:") {
-		if cached := cache.MaybeStoreDataURI(att.URI); cached != nil {
+		rawURI := att.URI
+		if cached := cache.MaybeStoreDataURI(rawURI); cached != nil {
 			if url, ok := cached["url"].(string); ok && url != "" {
 				att.URI = url
 			}
@@ -683,7 +750,14 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 			} else if att.MediaType == "" {
 				att.MediaType = mediaType
 			}
-			att.Data = ""
+			if ct, payload, ok := decodeDataURI(rawURI); ok && shouldRetainInlinePayload(ct, len(payload)) {
+				att.Data = base64.StdEncoding.EncodeToString(payload)
+				if att.MediaType == "" {
+					att.MediaType = ct
+				}
+			} else {
+				att.Data = ""
+			}
 			return att
 		}
 	}

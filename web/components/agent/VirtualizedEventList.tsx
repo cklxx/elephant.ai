@@ -235,7 +235,7 @@ export function VirtualizedEventList({
             <span className="text-3xl" aria-hidden>
               💭
             </span>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground">
+            <p className="text-sm font-semibold text-foreground">
               {t('events.emptyTitle')}
             </p>
             <p className="text-xs text-muted-foreground max-w-xs">{t('events.emptyHint')}</p>
@@ -302,7 +302,7 @@ export function VirtualizedEventList({
             scrollToLatest('smooth');
             onJumpToLatest?.();
           }}
-          className="absolute bottom-5 right-5 inline-flex items-center gap-2 text-[11px] uppercase"
+          className="absolute bottom-5 right-5 inline-flex items-center gap-2 text-[11px] font-semibold"
           size="sm"
           variant="secondary"
         >
@@ -372,7 +372,7 @@ function EventCard({
     return (
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
-        <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+        <span className="text-sm font-semibold text-foreground">
           {t('events.iteration.progress', {
             iteration: (event as any).iteration,
             total: (event as any).total_iters,
@@ -384,7 +384,7 @@ function EventCard({
 
   if (eventMatches(event, 'workflow.node.completed', 'workflow.node.completed') && typeof (event as any).iteration === 'number') {
     return wrapWithContext(
-      <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.24em]">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-foreground">
         <Badge variant="outline">
           {t('events.iteration.complete', { iteration: (event as any).iteration })}
         </Badge>
@@ -399,7 +399,7 @@ function EventCard({
     return wrapWithContext(
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
-        <span className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+        <span className="text-sm font-semibold text-foreground">
           {t('events.step.started', {
             index: (event as any).step_index + 1,
             description: (event as any).step_description,
@@ -412,7 +412,7 @@ function EventCard({
   if (eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number') {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+        <p className="text-sm font-semibold text-foreground">
           {t('events.step.completed', { index: (event as any).step_index + 1 })}
         </p>
         <p className="text-sm text-foreground/75">{(event as any).step_result}</p>
@@ -449,8 +449,8 @@ function EventCard({
 
     return (
       <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground">{t('events.browserInfo.title')}</h3>
-        <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
+        <h3 className="text-sm font-semibold text-foreground">{t('events.browserInfo.title')}</h3>
+        <p className="text-[11px] text-muted-foreground">
           {t('events.browserInfo.captured', {
             timestamp: new Date((event as any).captured).toLocaleString(),
           })}
@@ -459,7 +459,7 @@ function EventCard({
           <dl className="flex flex-col gap-2 text-sm text-foreground/80">
             {details.map(([label, value]) => (
               <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
-                <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</dt>
+                <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
                 <dd className="break-words text-sm text-foreground">{value}</dd>
               </div>
             ))}
@@ -491,7 +491,7 @@ function EventContextMeta({ event }: { event: AnyAgentEvent }) {
   }
 
   return (
-    <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
+    <p className="text-[11px] text-muted-foreground">
       {parts.join(' · ')}
     </p>
   );

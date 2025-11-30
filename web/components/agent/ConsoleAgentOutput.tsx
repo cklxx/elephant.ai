@@ -153,14 +153,14 @@ export function ConsoleAgentOutput({
         <Card>
           <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-[11px] font-semibold text-muted-foreground">
                 Final answer
               </p>
               <p className="text-xs text-muted-foreground">
                 Streaming summary with resolved attachments and metrics.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               {latestAttachmentCount > 0 && (
                 <Badge variant="outline">{latestAttachmentCount} attachments</Badge>
               )}

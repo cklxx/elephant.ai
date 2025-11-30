@@ -30,6 +30,14 @@ type streamingUserRateLimitedClient struct {
 // WrapWithUserRateLimit wraps the provided client with a per-user limiter when
 // a positive limit is supplied. A burst less than 1 is coerced to 1.
 func WrapWithUserRateLimit(client ports.LLMClient, limit rate.Limit, burst int) ports.LLMClient {
+	if client == nil {
+		return nil
+	}
+
+	// Always preserve streaming support so callers can opt into deltas without
+	// re-wrapping the client themselves.
+	client = EnsureStreamingClient(client)
+
 	if limit <= 0 {
 		return client
 	}
@@ -48,7 +56,10 @@ func WrapWithUserRateLimit(client ports.LLMClient, limit rate.Limit, burst int) 
 		return streamingUserRateLimitedClient{userRateLimitedClient: wrapper, streaming: streaming}
 	}
 
-	return wrapper
+	return streamingUserRateLimitedClient{
+		userRateLimitedClient: wrapper,
+		streaming:             EnsureStreamingClient(client).(ports.StreamingLLMClient),
+	}
 }
 
 func (c *userRateLimitedClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {

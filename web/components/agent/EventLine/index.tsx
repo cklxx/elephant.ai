@@ -62,7 +62,7 @@ export const EventLine = React.memo(function EventLine({
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{formatTimestamp(event.timestamp)}</span>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+            <Badge variant="outline" className="text-[10px] font-medium">
               User Task
             </Badge>
           </div>
@@ -375,7 +375,7 @@ interface SubagentHeaderProps {
 export function SubagentHeader({ context }: SubagentHeaderProps) {
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-primary">
+      <p className="text-[10px] font-semibold text-primary">
         {context.title}
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -385,17 +385,17 @@ export function SubagentHeader({ context }: SubagentHeaderProps) {
           </span>
         )}
         {context.concurrency && (
-          <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+          <Badge variant="outline" className="text-[10px] font-medium">
             {context.concurrency}
           </Badge>
         )}
         {context.progress && (
-          <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+          <Badge variant="outline" className="text-[10px] font-medium">
             {context.progress}
           </Badge>
         )}
         {context.stats && (
-          <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em]">
+          <Badge variant="outline" className="text-[10px] font-medium">
             {context.stats}
           </Badge>
         )}
@@ -410,7 +410,7 @@ export function SubagentHeader({ context }: SubagentHeaderProps) {
                 ? "destructive"
                 : "info"
             }
-            className="text-[10px] uppercase tracking-[0.18em]"
+            className="text-[10px] font-medium"
           >
             {context.status}
           </Badge>

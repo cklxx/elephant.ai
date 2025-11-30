@@ -563,7 +563,7 @@ export default function ConsolePreviewPage() {
     <div className="min-h-screen bg-slate-100 px-6 py-10">
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <header className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-400">
+          <p className="text-[10px] font-semibold text-slate-400">
             Dev Preview · Mocked Data
           </p>
           <h1 className="text-2xl font-semibold text-slate-900">
@@ -604,7 +604,7 @@ export default function ConsolePreviewPage() {
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <article className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
+                <div className="text-[11px] font-semibold text-slate-400">
                   Input
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-700">
@@ -626,7 +626,7 @@ export default function ConsolePreviewPage() {
 
             <article className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-900/90 p-5 text-slate-100">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-300">
+                <div className="text-[11px] font-semibold text-slate-300">
                   Output
                 </div>
               </div>
@@ -637,7 +637,7 @@ export default function ConsolePreviewPage() {
                     key={`${output.iteration}-${output.content}`}
                     className="rounded-xl border border-white/10 bg-white/5 p-4"
                   >
-                    <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/70">
+                    <div className="text-[11px] font-medium text-white/70">
                       Iteration {output.iteration}
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-100">
@@ -672,7 +672,7 @@ function OrchestrationBoard() {
     <div className="space-y-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-400">
+          <p className="text-[10px] font-semibold text-slate-400">
             Multi-Agent Orchestration
           </p>
           <h2 className="text-xl font-semibold text-slate-900">主 Agent 调度板</h2>
@@ -766,7 +766,7 @@ function MainAgentEvent({
       <div className="min-w-0 space-y-1">
         <p className="text-sm font-semibold text-slate-900">{title}</p>
         <p className="text-xs text-slate-600">{description}</p>
-        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{accent}</p>
+        <p className="text-[10px] text-slate-400">{accent}</p>
       </div>
     </div>
   );
@@ -923,7 +923,7 @@ function SubagentCard({ task }: { task: SubagentMission }) {
                   <p className="mt-1 text-xs text-slate-500">{tool.summary}</p>
                   <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
                     <p>{tool.detail}</p>
-                    <span className="font-semibold uppercase tracking-[0.25em] text-slate-400">
+                    <span className="font-semibold text-slate-400">
                       {tool.duration}
                     </span>
                   </div>
@@ -966,7 +966,7 @@ function FinalToolCard({
           <Sparkles className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-indigo-500">
+          <p className="text-[10px] font-semibold text-indigo-500">
             Final 工具
           </p>
           <p className="text-lg font-semibold text-slate-900">{tool.title}</p>
@@ -977,7 +977,7 @@ function FinalToolCard({
       </div>
       <p className="text-sm text-slate-600">{tool.description}</p>
       <div className="rounded-2xl border border-white/60 bg-white/80 p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-400">
+        <p className="text-[10px] font-semibold text-slate-400">
           {isReady ? '最终结果' : '预期输出'}
         </p>
         <p className="mt-2 text-sm leading-6 text-slate-800">{tool.expectedResult}</p>
@@ -985,7 +985,7 @@ function FinalToolCard({
       <dl className="grid gap-4 sm:grid-cols-3">
         {tool.highlights.map((highlight) => (
           <div key={highlight.label} className="rounded-2xl border border-white/50 bg-white/70 p-3 text-center">
-            <dt className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+            <dt className="text-[10px] font-semibold text-slate-400">
               {highlight.label}
             </dt>
             <dd className="text-lg font-semibold text-slate-900">{highlight.value}</dd>

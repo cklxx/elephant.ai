@@ -11,7 +11,6 @@ export interface SSEClientOptions {
 }
 
 const WORKFLOW_EVENTS: WorkflowEventType[] = [
-  'workflow.lifecycle.updated',
   'workflow.node.started',
   'workflow.node.completed',
   'workflow.node.failed',
@@ -31,7 +30,6 @@ const WORKFLOW_EVENTS: WorkflowEventType[] = [
   'workflow.diagnostic.browser_info',
   'workflow.diagnostic.environment_snapshot',
   'workflow.diagnostic.sandbox_progress',
-  'workflow.diagnostic.context_snapshot',
 ];
 
 const DEFAULT_EVENTS: Array<WorkflowEventType | 'connected'> = Array.from(new Set(['connected', ...WORKFLOW_EVENTS]));

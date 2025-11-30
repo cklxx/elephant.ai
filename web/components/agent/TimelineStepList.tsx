@@ -54,7 +54,7 @@ export function TimelineStepList({
             <div className="flex flex-1 flex-col gap-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                <Badge variant={toneToVariant(meta.tone)} className="text-[10px] uppercase">
+                <Badge variant={toneToVariant(meta.tone)} className="text-[10px] font-medium">
                   <Icon className={cn('mr-1 h-3 w-3', step.status === 'active' && 'animate-spin')} />
                   {meta.label}
                 </Badge>

@@ -31,10 +31,10 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
   "workflow.node.output.delta": { content: "text-muted-foreground italic" },
   "workflow.node.output.summary": { content: "text-foreground" },
   "workflow.node.started": {
-    content: "text-muted-foreground uppercase tracking-[0.2em]",
+    content: "text-muted-foreground",
   },
   "workflow.node.completed": {
-    content: "text-foreground font-semibold uppercase tracking-[0.2em]",
+    content: "text-foreground font-semibold",
   },
   "workflow.tool.progress": { content: "text-muted-foreground font-mono text-[12px]" },
   "workflow.diagnostic.browser_info": { content: "text-foreground/80" },

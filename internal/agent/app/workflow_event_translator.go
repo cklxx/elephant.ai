@@ -55,12 +55,16 @@ func (t *workflowEventTranslator) OnEvent(evt ports.AgentEvent) {
 func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
 	switch e := evt.(type) {
 	case *domain.WorkflowLifecycleUpdatedEvent:
+		if e.Node != nil && isToolRecorderNodeID(e.Node.ID) {
+			return nil
+		}
 		env := baseEnvelope(evt, "workflow.lifecycle.updated")
 		if env == nil {
 			return nil
 		}
 		env.WorkflowID = e.WorkflowID
 		env.RunID = e.WorkflowID
+		snapshot := sanitizeWorkflowSnapshot(e.Workflow)
 		payload := map[string]any{
 			"workflow_event_type": string(e.WorkflowEventType),
 		}
@@ -72,13 +76,16 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 			env.NodeKind = "node"
 			payload["node"] = *e.Node
 		}
-		if e.Workflow != nil {
-			payload["workflow"] = e.Workflow
+		if snapshot != nil {
+			payload["workflow"] = snapshot
 		}
 		env.Payload = payload
 		return []*domain.WorkflowEventEnvelope{env}
 
 	case *domain.WorkflowNodeStartedEvent:
+		if isToolRecorderNodeID(e.StepDescription) {
+			return nil
+		}
 		env := baseEnvelope(evt, "workflow.node.started")
 		if env == nil {
 			return nil
@@ -109,6 +116,9 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 		return []*domain.WorkflowEventEnvelope{env}
 
 	case *domain.WorkflowNodeCompletedEvent:
+		if isToolRecorderNodeID(e.StepDescription) {
+			return nil
+		}
 		status := strings.ToLower(strings.TrimSpace(e.Status))
 		eventType := "workflow.node.completed"
 		if status == string(workflow.NodeStatusFailed) || status == "failed" {
@@ -244,6 +254,9 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 			return nil
 		}
 		env.NodeKind = "result"
+		if env.NodeID == "" {
+			env.NodeID = stageSummarize
+		}
 		env.Payload = map[string]any{
 			"final_answer":     e.FinalAnswer,
 			"total_iterations": e.TotalIterations,
@@ -439,6 +452,73 @@ func (t *workflowEventTranslator) recordSubflowStats(event ports.SubtaskWrapper,
 		return subflowSnapshot{total: details.Total}
 	}
 	return t.subflowTracker.snapshot(event, details)
+}
+
+func sanitizeWorkflowSnapshot(snapshot *workflow.WorkflowSnapshot) *workflow.WorkflowSnapshot {
+	if snapshot == nil {
+		return nil
+	}
+
+	filteredNodes := make([]workflow.NodeSnapshot, 0, len(snapshot.Nodes))
+	filteredOrder := make([]string, 0, len(snapshot.Order))
+	for _, n := range snapshot.Nodes {
+		if isToolRecorderNodeID(n.ID) {
+			continue
+		}
+		filteredNodes = append(filteredNodes, n)
+	}
+	orderSet := make(map[string]bool, len(filteredNodes))
+	for _, n := range filteredNodes {
+		orderSet[n.ID] = true
+	}
+	for _, id := range snapshot.Order {
+		if orderSet[id] {
+			filteredOrder = append(filteredOrder, id)
+		}
+	}
+
+	summary := map[string]int64{
+		"pending":   0,
+		"running":   0,
+		"succeeded": 0,
+		"failed":    0,
+	}
+	for _, n := range filteredNodes {
+		switch n.Status {
+		case workflow.NodeStatusPending:
+			summary["pending"]++
+		case workflow.NodeStatusRunning:
+			summary["running"]++
+		case workflow.NodeStatusSucceeded:
+			summary["succeeded"]++
+		case workflow.NodeStatusFailed:
+			summary["failed"]++
+		}
+	}
+
+	return &workflow.WorkflowSnapshot{
+		ID:          snapshot.ID,
+		Phase:       snapshot.Phase,
+		Order:       filteredOrder,
+		Nodes:       filteredNodes,
+		StartedAt:   snapshot.StartedAt,
+		CompletedAt: snapshot.CompletedAt,
+		Duration:    snapshot.Duration,
+		Summary:     summary,
+	}
+}
+
+func isToolRecorderNodeID(id string) bool {
+	if id == "" || !strings.HasPrefix(id, "react:iter:") {
+		return false
+	}
+	parts := strings.Split(id, ":")
+	for _, part := range parts {
+		if part == "tool" || part == "tools" {
+			return true
+		}
+	}
+	return false
 }
 
 func baseEnvelope(evt ports.AgentEvent, eventType string) *domain.WorkflowEventEnvelope {

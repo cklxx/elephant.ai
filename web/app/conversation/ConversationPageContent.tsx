@@ -604,14 +604,14 @@ export function ConversationPageContent() {
                     variant="outline"
                     size="sm"
                     data-testid="mobile-timeline-trigger"
-                    onClick={() => {
-                      captureEvent(AnalyticsEvent.TimelineViewed, {
-                        session_id: resolvedSessionId ?? null,
-                        step_count: timelineSteps.length,
-                      });
-                      setShowTimelineDialog(true);
-                    }}
-                    className="mb-3 rounded-full border-border/70 bg-background/60 text-[11px] font-semibold uppercase tracking-[0.24em]"
+                  onClick={() => {
+                    captureEvent(AnalyticsEvent.TimelineViewed, {
+                      session_id: resolvedSessionId ?? null,
+                      step_count: timelineSteps.length,
+                    });
+                    setShowTimelineDialog(true);
+                  }}
+                    className="mb-3 rounded-full border-border/70 bg-background/60 text-[11px] font-semibold"
                   >
                     {t('console.timeline.mobileLabel')}
                   </Button>

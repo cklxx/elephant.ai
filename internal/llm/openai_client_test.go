@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
+	"alex/internal/utils"
 )
 
 func TestOpenAIClientCompleteSuccess(t *testing.T) {
@@ -341,6 +342,47 @@ func TestShouldEmbedAttachmentsSkipsToolResultSources(t *testing.T) {
 
 	if shouldEmbedAttachmentsInContent(msg) {
 		t.Fatalf("expected tool-result message to skip attachment embedding")
+	}
+}
+
+func TestConvertToolsSkipsInvalidFunctionNames(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{
+		logger: utils.NewCategorizedLogger(utils.LogCategoryLLM, "test"),
+	}
+
+	tools := []ports.ToolDefinition{
+		{
+			Name:        "valid_tool",
+			Description: "valid",
+			Parameters:  ports.ParameterSchema{Type: "object"},
+		},
+		{
+			Name:        "workflow.diagnostic.browser_info",
+			Description: "invalid",
+			Parameters:  ports.ParameterSchema{Type: "object"},
+		},
+		{
+			Name:        "also-valid-1",
+			Description: "valid",
+			Parameters:  ports.ParameterSchema{Type: "object"},
+		},
+	}
+
+	converted := client.convertTools(tools)
+
+	if got, want := len(converted), 2; got != want {
+		t.Fatalf("expected %d tools after filtering, got %d", want, got)
+	}
+
+	names := []string{
+		converted[0]["function"].(map[string]any)["name"].(string),
+		converted[1]["function"].(map[string]any)["name"].(string),
+	}
+
+	if names[0] != "valid_tool" || names[1] != "also-valid-1" {
+		t.Fatalf("unexpected tool names: %v", names)
 	}
 }
 

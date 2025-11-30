@@ -20,6 +20,10 @@
 - TypeScript/React: functional components and hooks, 2-space indent, folder-kebab routes under `web/app/`; co-locate tests as `*.test.ts(x)`.
 - Use descriptive identifiers and reuse config/env names already present in `configs/` and docs.
 
+## UI and Content Guidelines
+- Banned: all-caps with forced spacing/letter-tracking (e.g., `C O N T I N U E WITH EMAIL`, `M A R K D O W N`); use normal casing and spacing everywhere.
+- Keep interfaces minimal; add new UI elements/entities only when necessary and after careful consideration.
+
 ## Testing Guidelines
 - Prefer table-driven Go tests next to code (`*_test.go`) with small fixtures and deterministic timing.
 - Run `make test` before PRs; add `make test-domain`/`test-app` when touching agent logic. CI also runs golangci-lint, gosec, govulncheck, and lightweight perf checks.

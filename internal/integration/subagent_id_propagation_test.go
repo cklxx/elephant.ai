@@ -134,7 +134,7 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	call := ports.ToolCall{
 		ID:           "call-1",
 		Name:         "subagent",
-		Arguments:    map[string]any{"subtasks": []any{"document the integration"}, "mode": "serial"},
+		Arguments:    map[string]any{"prompt": "document the integration"},
 		SessionID:    sessionID,
 		TaskID:       rootTaskID,
 		ParentTaskID: ancestorTaskID,
@@ -216,7 +216,7 @@ func TestSubagentPropagatesAttachmentsToCoordinator(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-attachments",
 		Name:      "subagent",
-		Arguments: map[string]any{"subtasks": []any{"refine the generated art"}},
+		Arguments: map[string]any{"prompt": "refine the generated art"},
 		SessionID: "session-1",
 		TaskID:    "root-task",
 	}

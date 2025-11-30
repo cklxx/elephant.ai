@@ -600,7 +600,7 @@ export function TaskInput({
                     unoptimized
                   />
                 ) : (
-                  <span className="px-2 text-center text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                  <span className="px-2 text-center text-[11px] font-semibold text-neutral-500">
                     {attachment.format
                       ? attachment.format.slice(0, 6).toUpperCase()
                       : noPreviewLabel}
@@ -636,7 +636,7 @@ export function TaskInput({
                           onClick={() =>
                             handleAttachmentKindChange(attachment.id, kind)
                           }
-                          className="h-8 px-3 text-[10px] uppercase tracking-wide"
+                          className="h-8 px-3 text-[10px] font-medium"
                         >
                           {attachmentKindLabels[kind]}
                         </Button>

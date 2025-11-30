@@ -33,7 +33,7 @@ export function ConnectionBanner({
   return (
     <Card className="mx-auto flex h-full max-w-md flex-col items-center justify-center text-center">
       <CardContent className="flex flex-col items-center justify-center gap-4 px-6 py-6">
-        <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-foreground">
+        <div className="flex items-center gap-3 text-sm font-semibold text-foreground">
           {isReconnecting ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -57,14 +57,14 @@ export function ConnectionBanner({
         {error && (
           <Badge
             variant="destructive"
-            className="flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-[0.22em]"
+            className="flex items-center gap-2 px-3 py-2 text-[11px] font-medium"
           >
             <AlertCircle className="h-4 w-4" />
             <span>{error}</span>
           </Badge>
         )}
 
-        <Button onClick={onReconnect} className="text-xs uppercase">
+        <Button onClick={onReconnect} className="text-xs font-semibold">
           Retry
         </Button>
       </CardContent>

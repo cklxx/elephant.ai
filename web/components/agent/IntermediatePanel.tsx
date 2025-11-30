@@ -502,8 +502,8 @@ function ThinkStreamCard({ item }: { item: ThinkPreviewItem }) {
   return (
     <section className="rounded-2xl bg-muted/40 px-4 py-3">
       <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
-          <span>LLM THINK</span>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-muted-foreground/80">
+          <span>LLM think</span>
           <span className="font-mono tracking-normal text-[10px] text-muted-foreground/70">
             iter {item.iteration}
           </span>

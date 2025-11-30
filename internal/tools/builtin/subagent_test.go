@@ -149,7 +149,7 @@ func TestSubagentUsesParentSessionID(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-1",
 		Name:      "subagent",
-		Arguments: map[string]any{"subtasks": []any{"capture session"}},
+		Arguments: map[string]any{"prompt": "capture session"},
 	}
 
 	if _, err := tool.Execute(ctx, call); err != nil {
@@ -175,7 +175,7 @@ func TestSubagentExposesWorkflowMetadata(t *testing.T) {
 	call := ports.ToolCall{
 		ID:        "call-1",
 		Name:      "subagent",
-		Arguments: map[string]any{"subtasks": []any{"task a", "task b"}, "mode": "serial"},
+		Arguments: map[string]any{"prompt": "task a\n- task b"},
 	}
 
 	result, err := tool.Execute(context.Background(), call)
@@ -188,17 +188,16 @@ func TestSubagentExposesWorkflowMetadata(t *testing.T) {
 		t.Fatalf("expected structured results metadata to be available, got %T", result.Metadata["results_struct"])
 	}
 
-	if len(structured) != 2 {
-		t.Fatalf("expected two structured results, got %d", len(structured))
+	if len(structured) != 1 {
+		t.Fatalf("expected one structured result, got %d", len(structured))
 	}
 
-	for i, entry := range structured {
-		if entry.Workflow == nil {
-			t.Fatalf("expected workflow snapshot for result %d", i)
-		}
-		if entry.Workflow.Phase != workflow.PhaseSucceeded {
-			t.Fatalf("unexpected workflow phase %s for result %d", entry.Workflow.Phase, i)
-		}
+	entry := structured[0]
+	if entry.Workflow == nil {
+		t.Fatalf("expected workflow snapshot for result")
+	}
+	if entry.Workflow.Phase != workflow.PhaseSucceeded {
+		t.Fatalf("unexpected workflow phase %s for result", entry.Workflow.Phase)
 	}
 
 	workflows, ok := result.Metadata["workflows"].([]*workflow.WorkflowSnapshot)

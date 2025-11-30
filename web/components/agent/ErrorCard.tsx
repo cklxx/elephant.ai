@@ -19,14 +19,14 @@ export function ErrorCard({ event }: ErrorCardProps) {
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-destructive bg-destructive/5">
           <AlertCircle className="h-4 w-4" aria-hidden />
         </span>
-        <h3 className="text-lg font-semibold uppercase tracking-[0.2em]">
+        <h3 className="text-lg font-semibold">
           {t('events.error.title')}
         </h3>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-destructive/70">
+        <span className="text-[11px] font-medium text-destructive/70">
           {t('events.error.label')}
         </span>
         {event.recoverable && (
-          <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground">
+          <span className="text-[11px] font-semibold text-foreground">
             {t('events.error.recoverable')}
           </span>
         )}
@@ -37,7 +37,7 @@ export function ErrorCard({ event }: ErrorCardProps) {
       </p>
 
       <div className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+        <p className="text-[11px] font-semibold text-muted-foreground">
           {t('events.error.details')}
         </p>
         <pre className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs leading-relaxed text-destructive">

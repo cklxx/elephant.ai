@@ -47,7 +47,7 @@ export function ToolCallLayout({
               <div className="flex flex-wrap items-center gap-2 text-base font-semibold leading-tight">
                 <span className="truncate">{toolName}</span>
                 {callId && (
-                  <Badge variant="outline" className="break-all text-[10px] uppercase tracking-[0.24em]">
+                  <Badge variant="outline" className="break-all text-[10px] font-medium">
                     {callId}
                   </Badge>
                 )}
@@ -61,7 +61,7 @@ export function ToolCallLayout({
             <div className="flex-shrink-0">{statusChip}</div>
           </div>
           {metadata && (
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               {metadata}
             </p>
           )}

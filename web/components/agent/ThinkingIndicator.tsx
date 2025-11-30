@@ -51,14 +51,10 @@ export function ThinkingIndicator() {
         .workflow.node.output.delta-title {
           font-size: 0.95rem;
           font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.18em;
           color: hsl(222, 15%, 20%);
         }
         .workflow.node.output.delta-hint {
           font-size: 0.65rem;
-          text-transform: uppercase;
-          letter-spacing: 0.24em;
           color: hsl(222, 10%, 50%);
         }
         .workflow.node.output.delta-status {

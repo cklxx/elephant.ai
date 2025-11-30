@@ -416,7 +416,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
     <div className="mt-6 space-y-4">
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
         <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-[0.65rem] font-semibold text-slate-500">
             {t("document.attachments.filters.heading")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -435,7 +435,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {availableFormats.length > 0 && (
-            <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-[0.65rem] font-semibold text-slate-500">
               {t("document.attachments.filters.format.label")}
               <select
                 className="mt-1 block h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
@@ -454,7 +454,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
             </label>
           )}
           <div className="flex-1">
-            <label className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-[0.65rem] font-semibold text-slate-500">
               {t("document.attachments.filters.search.label")}
               <input
                 type="search"

@@ -57,7 +57,7 @@ export function CopyButton({
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground transition hover:bg-muted"
+      className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[10px] font-semibold text-foreground transition hover:bg-muted"
       aria-label={copied ? successLabel : label}
     >
       {copied ? <ClipboardCheck className="h-3 w-3" /> : <Clipboard className="h-3 w-3" />}
@@ -77,7 +77,7 @@ export function SimplePanel({ children }: { children: ReactNode }) {
 export function PanelHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">{title}</p>
+      <p className="text-[11px] font-semibold text-muted-foreground">{title}</p>
       {action}
     </div>
   );

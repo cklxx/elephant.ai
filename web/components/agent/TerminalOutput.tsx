@@ -84,6 +84,7 @@ interface SubagentThread {
   key: string;
   context: SubagentContext;
   events: AnyAgentEvent[];
+  subtaskIndex: number;
 }
 
 function SubagentAggregate({ thread }: { thread: SubagentThread }) {
@@ -98,7 +99,7 @@ function SubagentAggregate({ thread }: { thread: SubagentThread }) {
           <EventLine
             key={`${thread.key}-${event.event_type}-${event.timestamp}-${index}`}
             event={event}
-            showSubagentContext={index === 0}
+            showSubagentContext={false}
           />
         ))}
       </div>
@@ -187,26 +188,30 @@ function partitionEvents(
   events: AnyAgentEvent[],
 ): { displayEvents: AnyAgentEvent[]; subagentThreads: SubagentThread[] } {
   const displayEvents: AnyAgentEvent[] = [];
-  const threadOrder: string[] = [];
   const threads = new Map<string, SubagentThread>();
+  let arrival = 0;
 
   events.forEach((event) => {
+    arrival += 1;
     const isSubagentEvent =
       event.agent_level === "subagent" ||
       ("is_subtask" in event && Boolean(event.is_subtask));
 
     if (isSubagentEvent) {
+      if (!shouldDisplaySubagentEvent(event)) {
+        return;
+      }
       const key = getSubagentKey(event);
       const context = getSubagentContext(event);
+      const subtaskIndex = getSubtaskIndex(event);
 
       if (!threads.has(key)) {
-        threadOrder.push(key);
-        threads.set(key, { key, context, events: [] });
+        threads.set(key, { key, context, events: [], subtaskIndex });
       }
 
       const thread = threads.get(key)!;
       thread.context = mergeSubagentContext(thread.context, context);
-      thread.events.push(event);
+      thread.events.push({ ...event, __arrival: arrival } as AnyAgentEvent);
       return;
     }
 
@@ -220,7 +225,17 @@ function partitionEvents(
 
   return {
     displayEvents,
-    subagentThreads: threadOrder.map((key) => threads.get(key)!),
+    subagentThreads: Array.from(threads.values())
+      .map((thread) => ({
+        ...thread,
+        events: sortSubagentEvents(thread.events),
+      }))
+      .sort((a, b) => {
+        if (a.subtaskIndex !== b.subtaskIndex) {
+          return a.subtaskIndex - b.subtaskIndex;
+        }
+        return 0;
+      }),
   };
 }
 
@@ -265,4 +280,42 @@ function getSubagentKey(event: AnyAgentEvent): string {
   }
 
   return `task:${event.task_id ?? "unknown"}`;
+}
+
+function getSubtaskIndex(event: AnyAgentEvent): number {
+  const subtaskIndex =
+    "subtask_index" in event && typeof event.subtask_index === "number"
+      ? event.subtask_index
+      : Number.POSITIVE_INFINITY;
+  return subtaskIndex;
+}
+
+function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
+  const type = event.event_type;
+  return (
+    eventMatches(
+      event,
+      "workflow.subflow.progress",
+      "workflow.subflow.completed",
+      "workflow.tool.started",
+      "workflow.tool.progress",
+      "workflow.tool.completed",
+      "workflow.result.final",
+      "workflow.result.cancelled",
+      "workflow.node.output.delta",
+      "workflow.node.output.summary",
+      "workflow.node.failed",
+    ) || false
+  );
+}
+
+function sortSubagentEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  return [...events].sort((a, b) => {
+    const tA = Date.parse(a.timestamp ?? "") || 0;
+    const tB = Date.parse(b.timestamp ?? "") || 0;
+    if (tA !== tB) return tA - tB;
+    const aArrival = (a as any).__arrival ?? 0;
+    const bArrival = (b as any).__arrival ?? 0;
+    return aArrival - bArrival;
+  });
 }
