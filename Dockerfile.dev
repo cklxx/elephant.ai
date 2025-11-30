@@ -1,4 +1,4 @@
-ARG GO_PROXY=https://mirrors.tencent.com/repository/goproxy/,direct
+ARG GO_PROXY=https://goproxy.cn,direct
 ARG GO_SUMDB=sum.golang.google.cn
 
 FROM golang:1.24-alpine AS base
