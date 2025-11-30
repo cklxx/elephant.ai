@@ -19,6 +19,7 @@ type AgentCoordinator struct {
 	toolRegistry ports.ToolRegistry
 	sessionStore ports.SessionStore
 	contextMgr   ports.ContextManager
+	historyMgr   ports.HistoryManager
 	parser       ports.FunctionCallParser
 	costTracker  ports.CostTracker
 	config       Config
@@ -58,6 +59,7 @@ func NewAgentCoordinator(
 	toolRegistry ports.ToolRegistry,
 	sessionStore ports.SessionStore,
 	contextMgr ports.ContextManager,
+	historyManager ports.HistoryManager,
 	parser ports.FunctionCallParser,
 	costTracker ports.CostTracker,
 	config Config,
@@ -79,6 +81,7 @@ func NewAgentCoordinator(
 		toolRegistry: toolRegistry,
 		sessionStore: sessionStore,
 		contextMgr:   contextMgr,
+		historyMgr:   historyManager,
 		parser:       parser,
 		costTracker:  costTracker,
 		config:       config,
@@ -103,6 +106,7 @@ func NewAgentCoordinator(
 		ToolRegistry:  toolRegistry,
 		SessionStore:  sessionStore,
 		ContextMgr:    contextMgr,
+		HistoryMgr:    historyManager,
 		Parser:        parser,
 		Config:        config,
 		Logger:        coordinator.logger,
@@ -313,6 +317,7 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 			ToolRegistry:  c.toolRegistry,
 			SessionStore:  c.sessionStore,
 			ContextMgr:    c.contextMgr,
+			HistoryMgr:    c.historyMgr,
 			Parser:        c.parser,
 			Config:        c.config,
 			Logger:        c.logger,
@@ -329,6 +334,14 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 
 // SaveSessionAfterExecution saves session state after task completion
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+	if c.historyMgr != nil && session != nil && result != nil {
+		previousHistory, _ := c.historyMgr.Replay(ctx, session.ID, 0)
+		incoming := append(ports.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
+		if err := c.historyMgr.AppendTurn(ctx, session.ID, incoming); err != nil && c.logger != nil {
+			c.logger.Warn("Failed to append turn history: %v", err)
+		}
+	}
+
 	// Update session with results
 	sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
 	session.Messages = sanitizedMessages
@@ -508,6 +521,23 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 		return sanitized, nil
 	}
 	return sanitized, attachments
+}
+
+func stripUserHistoryMessages(messages []ports.Message) []ports.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	trimmed := make([]ports.Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg.Source == ports.MessageSourceUserHistory {
+			continue
+		}
+		trimmed = append(trimmed, msg)
+	}
+	if len(trimmed) == 0 {
+		return nil
+	}
+	return trimmed
 }
 
 // obfuscateSessionID masks session identifiers when logging to avoid leaking

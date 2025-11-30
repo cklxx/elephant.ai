@@ -27,6 +27,7 @@ func TestAgentCoordinatorEndToEndExecutionPerformance(t *testing.T) {
 		stubToolRegistry{},
 		sessionStore,
 		stubContextManager{},
+		nil,
 		stubParser{},
 		nil,
 		Config{

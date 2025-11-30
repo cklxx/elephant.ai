@@ -55,6 +55,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 				newTestToolRegistry(),
 				sessionStore,
 				newTestContextManager(),
+				nil,
 				newTestParser(),
 				costTracker,
 				agentApp.Config{
@@ -164,6 +165,7 @@ func TestTaskCancellation(t *testing.T) {
 		newSlowToolRegistry(), // Slow tools that respect context cancellation
 		sessionStore,
 		newTestContextManager(),
+		nil,
 		newSlowParser(), // Parser that returns tool calls
 		costTracker,
 		agentApp.Config{
@@ -259,6 +261,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 		newSlowToolRegistry(),
 		sessionStore,
 		newTestContextManager(),
+		nil,
 		newSlowParser(),
 		costTracker,
 		agentApp.Config{

@@ -31,6 +31,7 @@ type Container struct {
 	AgentCoordinator *agentApp.AgentCoordinator
 	SessionStore     ports.SessionStore
 	StateStore       sessionstate.Store
+	HistoryManager   ports.HistoryManager
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
@@ -203,6 +204,7 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	sessionStore := filestore.New(sessionDir)
 	stateStore := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
+	historyStore := sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
 	journalDir := filepath.Join(sessionDir, "journals")
 	var journalWriter journal.Writer
 	if fileWriter, err := journal.NewFileWriter(journalDir); err != nil {
@@ -215,6 +217,7 @@ func BuildContainer(config Config) (*Container, error) {
 		ctxmgr.WithStateStore(stateStore),
 		ctxmgr.WithJournalWriter(journalWriter),
 	)
+	historyMgr := ctxmgr.NewHistoryManager(historyStore, logger, ports.SystemClock{})
 	parserImpl := parser.New()
 
 	// Cost tracking storage
@@ -267,6 +270,7 @@ func BuildContainer(config Config) (*Container, error) {
 		toolRegistry,
 		sessionStore,
 		contextMgr,
+		historyMgr,
 		parserImpl,
 		costTracker,
 		agentApp.Config{
@@ -298,6 +302,7 @@ func BuildContainer(config Config) (*Container, error) {
 		AgentCoordinator: coordinator,
 		SessionStore:     sessionStore,
 		StateStore:       stateStore,
+		HistoryManager:   historyMgr,
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
