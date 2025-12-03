@@ -403,6 +403,8 @@ const translations = {
       "The run stopped before finishing. Submit another prompt to continue working.",
     "events.taskComplete.finalAnswer": "Final answer",
     "events.taskComplete.empty": "No answer provided.",
+    "events.taskComplete.attachmentsAvailable":
+      "Attachments are available in the task input.",
     "events.taskComplete.stopReason": "Stop reason: {reason}",
     "events.error.title": "Run failed",
     "events.error.label": "Error",
