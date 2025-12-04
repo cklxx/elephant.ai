@@ -287,7 +287,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               {t("events.taskComplete.empty")}
             </p>
             <p className="mt-1 text-slate-500">
-              {t("task.input.attachments.kind.attachments")} available in attachments
+              {t("events.taskComplete.attachmentsAvailable")}
             </p>
             {attachmentNames.length > 0 && (
               <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">
