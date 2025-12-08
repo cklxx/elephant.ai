@@ -101,3 +101,34 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("expected step input to be forwarded")
 	}
 }
+
+func TestWorkflowEventBridgeUsesLatestContext(t *testing.T) {
+	listener := &recordingListener{}
+	bridge := newWorkflowEventBridge("wf-context", listener, nil, ports.LevelCore, "sess-1", "task-1", "parent-1")
+
+	bridge.updateContext("sess-2", "task-2", "parent-2", ports.LevelSubagent)
+
+	node := workflow.NodeSnapshot{ID: "step-ctx", Status: workflow.NodeStatusPending}
+	snapshot := workflow.WorkflowSnapshot{ID: "wf-context", Phase: workflow.PhasePending, Order: []string{"step-ctx"}}
+
+	bridge.OnWorkflowEvent(workflow.Event{Type: workflow.EventNodeAdded, Workflow: "wf-context", Phase: workflow.PhasePending, Node: &node, Snapshot: &snapshot})
+
+	events := listener.snapshot()
+	if len(events) != 1 {
+		t.Fatalf("expected lifecycle event only, got %d", len(events))
+	}
+
+	lifecycle, ok := events[0].(*domain.WorkflowLifecycleUpdatedEvent)
+	if !ok {
+		t.Fatalf("expected workflow lifecycle event, got %T", events[0])
+	}
+	if lifecycle.GetSessionID() != "sess-2" || lifecycle.GetTaskID() != "task-2" || lifecycle.GetParentTaskID() != "parent-2" {
+		t.Fatalf("unexpected context fields: session=%s task=%s parent=%s", lifecycle.GetSessionID(), lifecycle.GetTaskID(), lifecycle.GetParentTaskID())
+	}
+	if lifecycle.GetAgentLevel() != ports.LevelSubagent {
+		t.Fatalf("expected updated agent level, got %s", lifecycle.GetAgentLevel())
+	}
+	if lifecycle.Timestamp().IsZero() {
+		t.Fatalf("expected bridge to provide timestamp when missing on event")
+	}
+}

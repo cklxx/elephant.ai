@@ -143,42 +143,30 @@ func (aw *agentWorkflow) CompleteNodeFailure(id string, err error) {
 }
 
 type workflowEventBridge struct {
-	listener     ports.EventListener
-	logger       *slog.Logger
-	workflowID   string
-	mu           sync.RWMutex
-	sessionID    string
-	taskID       string
-	parentTaskID string
-	level        ports.AgentLevel
+	listener   ports.EventListener
+	logger     *slog.Logger
+	workflowID string
+	mu         sync.RWMutex
+	context    workflowEventContext
 }
 
 func newWorkflowEventBridge(workflowID string, listener ports.EventListener, logger *slog.Logger, level ports.AgentLevel, sessionID, taskID, parentTaskID string) *workflowEventBridge {
 	return &workflowEventBridge{
-		listener:     listener,
-		logger:       logger,
-		workflowID:   workflowID,
-		sessionID:    sessionID,
-		taskID:       taskID,
-		parentTaskID: parentTaskID,
-		level:        level,
+		listener:   listener,
+		logger:     logger,
+		workflowID: workflowID,
+		context: workflowEventContext{
+			level:        level,
+			sessionID:    sessionID,
+			taskID:       taskID,
+			parentTaskID: parentTaskID,
+		},
 	}
 }
 
 func (b *workflowEventBridge) updateContext(sessionID, taskID, parentTaskID string, level ports.AgentLevel) {
 	b.mu.Lock()
-	if sessionID != "" {
-		b.sessionID = sessionID
-	}
-	if taskID != "" {
-		b.taskID = taskID
-	}
-	if parentTaskID != "" {
-		b.parentTaskID = parentTaskID
-	}
-	if level != "" {
-		b.level = level
-	}
+	b.context.update(sessionID, taskID, parentTaskID, level)
 	b.mu.Unlock()
 }
 
@@ -187,68 +175,16 @@ func (b *workflowEventBridge) OnWorkflowEvent(evt workflow.Event) {
 		return
 	}
 
-	b.mu.RLock()
-	ctx := struct {
-		sessionID    string
-		taskID       string
-		parentTaskID string
-		level        ports.AgentLevel
-	}{b.sessionID, b.taskID, b.parentTaskID, b.level}
-	b.mu.RUnlock()
-
-	ts := evt.Timestamp
-	if ts.IsZero() {
-		ts = time.Now()
-	}
-
-	base := domain.NewBaseEvent(ctx.level, ctx.sessionID, ctx.taskID, ctx.parentTaskID, ts)
-
-	b.listener.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         base,
-		WorkflowID:        evt.Workflow,
-		WorkflowEventType: evt.Type,
-		Phase:             evt.Phase,
-		Node:              evt.Node,
-		Workflow:          evt.Snapshot,
-	})
-
-	if evt.Node == nil {
-		return
-	}
-
-	idx, ok := b.resolveIndex(evt)
-	if !ok {
-		return
-	}
-	iteration := extractIteration(evt.Node)
-
-	switch evt.Type {
-	case workflow.EventNodeStarted:
-		b.listener.OnEvent(&domain.WorkflowNodeStartedEvent{
-			BaseEvent:       base,
-			StepIndex:       idx,
-			StepDescription: evt.Node.ID,
-			Iteration:       iteration,
-			Input:           evt.Node.Input,
-			Workflow:        evt.Snapshot,
-		})
-	case workflow.EventNodeSucceeded, workflow.EventNodeFailed:
-		b.listener.OnEvent(&domain.WorkflowNodeCompletedEvent{
-			BaseEvent:       base,
-			StepIndex:       idx,
-			StepDescription: evt.Node.ID,
-			StepResult:      normalizeStepResult(evt.Node),
-			Status:          string(evt.Node.Status),
-			Iteration:       iteration,
-			Workflow:        evt.Snapshot,
-		})
-	}
+	base := b.snapshotContext().baseEvent(evt.Timestamp)
+	b.emitLifecycle(base, evt)
+	b.emitStep(base, evt, b.buildStepPayload(evt))
 }
 
 func (b *workflowEventBridge) resolveIndex(evt workflow.Event) (int, bool) {
 	if evt.Node == nil {
 		return -1, false
 	}
+
 	if evt.Snapshot != nil {
 		for i, id := range evt.Snapshot.Order {
 			if id == evt.Node.ID {
@@ -262,6 +198,116 @@ func (b *workflowEventBridge) resolveIndex(evt workflow.Event) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+type workflowEventContext struct {
+	sessionID    string
+	taskID       string
+	parentTaskID string
+	level        ports.AgentLevel
+}
+
+func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, level ports.AgentLevel) {
+	if sessionID != "" {
+		c.sessionID = sessionID
+	}
+	if taskID != "" {
+		c.taskID = taskID
+	}
+	if parentTaskID != "" {
+		c.parentTaskID = parentTaskID
+	}
+	if level != "" {
+		c.level = level
+	}
+}
+
+func (b *workflowEventBridge) snapshotContext() workflowEventContext {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.context
+}
+
+type stepPayload struct {
+	index     int
+	iteration int
+	result    any
+	status    string
+}
+
+func (b *workflowEventBridge) buildStepPayload(evt workflow.Event) *stepPayload {
+	if evt.Node == nil || evt.Snapshot == nil {
+		return nil
+	}
+
+	switch evt.Type {
+	case workflow.EventNodeStarted, workflow.EventNodeSucceeded, workflow.EventNodeFailed:
+	default:
+		return nil
+	}
+
+	idx, ok := b.resolveIndex(evt)
+	if !ok {
+		return nil
+	}
+
+	step := &stepPayload{
+		index:     idx,
+		iteration: extractIteration(evt.Node),
+	}
+
+	if evt.Type == workflow.EventNodeSucceeded || evt.Type == workflow.EventNodeFailed {
+		step.result = normalizeStepResult(evt.Node)
+		step.status = string(evt.Node.Status)
+	}
+
+	return step
+}
+
+func (c workflowEventContext) baseEvent(ts time.Time) domain.BaseEvent {
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	return domain.NewBaseEvent(c.level, c.sessionID, c.taskID, c.parentTaskID, ts)
+}
+
+func (b *workflowEventBridge) emitLifecycle(base domain.BaseEvent, evt workflow.Event) {
+	b.listener.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
+		BaseEvent:         base,
+		WorkflowID:        evt.Workflow,
+		WorkflowEventType: evt.Type,
+		Phase:             evt.Phase,
+		Node:              evt.Node,
+		Workflow:          evt.Snapshot,
+	})
+}
+
+func (b *workflowEventBridge) emitStep(base domain.BaseEvent, evt workflow.Event, step *stepPayload) {
+	if step == nil {
+		return
+	}
+
+	switch evt.Type {
+	case workflow.EventNodeStarted:
+		b.listener.OnEvent(&domain.WorkflowNodeStartedEvent{
+			BaseEvent:       base,
+			StepIndex:       step.index,
+			StepDescription: evt.Node.ID,
+			Iteration:       step.iteration,
+			Input:           evt.Node.Input,
+			Workflow:        evt.Snapshot,
+		})
+	case workflow.EventNodeSucceeded, workflow.EventNodeFailed:
+		b.listener.OnEvent(&domain.WorkflowNodeCompletedEvent{
+			BaseEvent:       base,
+			StepIndex:       step.index,
+			StepDescription: evt.Node.ID,
+			StepResult:      step.result,
+			Status:          step.status,
+			Iteration:       step.iteration,
+			Workflow:        evt.Snapshot,
+		})
+	}
 }
 
 func extractIteration(node *workflow.NodeSnapshot) int {

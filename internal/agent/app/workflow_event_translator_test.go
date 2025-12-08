@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -144,6 +145,101 @@ func TestWorkflowEventTranslatorFiltersToolNodesFromLifecycleSnapshots(t *testin
 	}
 }
 
+func TestWorkflowEventTranslatorUsesWorkflowIDFromLifecycleEvent(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	now := time.Unix(1710000100, 0)
+	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
+		BaseEvent:         domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		WorkflowID:        "wf-lifecycle",
+		WorkflowEventType: workflow.EventWorkflowUpdated,
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected lifecycle event, got %d", got)
+	}
+
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+
+	if env.WorkflowID != "wf-lifecycle" || env.RunID != "wf-lifecycle" {
+		t.Fatalf("expected workflow identifiers to propagate, got workflow_id=%q run_id=%q", env.WorkflowID, env.RunID)
+	}
+}
+
+func TestWorkflowEventTranslatorSkipsLifecycleToolsAggregate(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	now := time.Unix(1710000001, 0)
+	aggregate := workflow.NodeSnapshot{ID: "react:iter:1:tools", Status: workflow.NodeStatusSucceeded}
+
+	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
+		BaseEvent:         domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		WorkflowID:        "wf-agg",
+		WorkflowEventType: workflow.EventNodeSucceeded,
+		Node:              &aggregate,
+		Workflow:          &workflow.WorkflowSnapshot{ID: "wf-agg"},
+	})
+
+	if got := len(sink.snapshot()); got != 0 {
+		t.Fatalf("expected lifecycle events for aggregate recorder nodes to be skipped, got %d", got)
+	}
+}
+
+func TestWorkflowEventTranslatorSanitizesWorkflowOnNodeEvents(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	snapshot := workflow.WorkflowSnapshot{
+		ID:    "wf-2",
+		Phase: workflow.PhaseRunning,
+		Order: []string{"react:iter:1:tools", "react:iter:1:plan"},
+		Nodes: []workflow.NodeSnapshot{
+			{ID: "react:iter:1:tools", Status: workflow.NodeStatusSucceeded},
+			{ID: "react:iter:1:plan", Status: workflow.NodeStatusPending},
+		},
+	}
+
+	translator.OnEvent(&domain.WorkflowNodeStartedEvent{
+		BaseEvent:       domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000002, 0)),
+		StepDescription: "react:iter:1:plan",
+		StepIndex:       1,
+		Iteration:       1,
+		Workflow:        &snapshot,
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected single node event, got %d", got)
+	}
+
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+
+	if env.WorkflowID != "wf-2" || env.RunID != "wf-2" {
+		t.Fatalf("expected workflow identifiers to be propagated, got workflow_id=%q run_id=%q", env.WorkflowID, env.RunID)
+	}
+
+	ws, ok := env.Payload["workflow"].(*workflow.WorkflowSnapshot)
+	if !ok {
+		t.Fatalf("expected workflow snapshot in payload, got %T", env.Payload["workflow"])
+	}
+
+	if len(ws.Nodes) != 1 || ws.Nodes[0].ID != "react:iter:1:plan" {
+		t.Fatalf("expected tool recorder nodes to be removed, got %+v", ws.Nodes)
+	}
+	if len(ws.Order) != 1 || ws.Order[0] != "react:iter:1:plan" {
+		t.Fatalf("expected sanitized order to exclude recorder nodes, got %+v", ws.Order)
+	}
+}
+
 func TestWorkflowEventTranslatorEmitsLifecycleEventsForToolCallNode(t *testing.T) {
 	sink := &recordingAgentListener{}
 	translator := wrapWithWorkflowEnvelope(sink, nil)
@@ -163,5 +259,107 @@ func TestWorkflowEventTranslatorEmitsLifecycleEventsForToolCallNode(t *testing.T
 
 	if got := len(sink.snapshot()); got != 1 {
 		t.Fatalf("expected tool lifecycle event to be forwarded, got %d", got)
+	}
+}
+
+func TestWorkflowEventTranslatorAddsCallIDToToolPayload(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	translator.OnEvent(&domain.WorkflowToolProgressEvent{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
+		CallID:    "call-123",
+		Chunk:     "partial",
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected a single tool progress envelope, got %d", got)
+	}
+
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+
+	if env.NodeKind != "tool" || env.NodeID != "call-123" {
+		t.Fatalf("unexpected tool metadata: kind=%q id=%q", env.NodeKind, env.NodeID)
+	}
+
+	callID, ok := env.Payload["call_id"].(string)
+	if !ok || callID != "call-123" {
+		t.Fatalf("expected call_id in payload, got %#v", env.Payload["call_id"])
+	}
+}
+
+func TestWorkflowEventTranslatorEmitsDiagnosticNodeFailure(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	translator.OnEvent(&domain.WorkflowNodeFailedEvent{
+		BaseEvent:   domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000004, 0)),
+		Iteration:   2,
+		Phase:       "execute",
+		Recoverable: true,
+		Error:       fmt.Errorf("boom"),
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected diagnostic failure envelope, got %d", got)
+	}
+
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+
+	if env.Event != "workflow.node.failed" || env.NodeKind != "diagnostic" {
+		t.Fatalf("unexpected failure metadata: event=%q kind=%q", env.Event, env.NodeKind)
+	}
+
+	if env.Payload["iteration"] != 2 || env.Payload["phase"] != "execute" || env.Payload["recoverable"] != true {
+		t.Fatalf("unexpected failure payload: %#v", env.Payload)
+	}
+	if env.Payload["error"] != "boom" {
+		t.Fatalf("expected error string in payload, got %#v", env.Payload["error"])
+	}
+}
+
+func TestWorkflowEventTranslatorReusesWorkflowContextForTools(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	snapshot := workflow.WorkflowSnapshot{ID: "wf-context", Phase: workflow.PhaseRunning}
+	base := domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000005, 0))
+
+	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
+		BaseEvent:         base,
+		WorkflowID:        "wf-context",
+		WorkflowEventType: workflow.EventWorkflowUpdated,
+		Workflow:          &snapshot,
+	})
+
+	translator.OnEvent(&domain.WorkflowToolProgressEvent{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000006, 0)),
+		CallID:    "call-ctx",
+		Chunk:     "partial",
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 2 {
+		t.Fatalf("expected lifecycle and tool envelopes, got %d", got)
+	}
+
+	env, ok := events[1].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[1])
+	}
+
+	if env.WorkflowID != "wf-context" || env.RunID != "wf-context" {
+		t.Fatalf("expected workflow identifiers to persist, got workflow_id=%q run_id=%q", env.WorkflowID, env.RunID)
+	}
+	if env.NodeKind != "tool" || env.NodeID != "call-ctx" {
+		t.Fatalf("unexpected tool envelope metadata: kind=%q id=%q", env.NodeKind, env.NodeID)
 	}
 }

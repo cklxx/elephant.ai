@@ -136,6 +136,33 @@ func TestWorkflowEmitsEvents(t *testing.T) {
 	require.Equal(t, PhaseSucceeded, events[3].Snapshot.Phase)
 }
 
+func TestEvaluatePhaseAggregatesTimestamps(t *testing.T) {
+	start := time.Unix(100, 0)
+	nodes := []NodeSnapshot{
+		{ID: "first", Status: NodeStatusSucceeded, StartedAt: start, CompletedAt: start.Add(2 * time.Second)},
+		{ID: "second", Status: NodeStatusFailed, StartedAt: start.Add(3 * time.Second), CompletedAt: start.Add(5 * time.Second)},
+		{ID: "pending", Status: NodeStatusPending},
+	}
+
+	phase, startedAt, completedAt := evaluatePhase(nodes)
+	require.Equal(t, PhaseFailed, phase)
+	require.Equal(t, start, startedAt)
+	require.Equal(t, start.Add(5*time.Second), completedAt)
+}
+
+func TestEvaluatePhaseTreatsProgressAsRunning(t *testing.T) {
+	start := time.Unix(200, 0)
+	nodes := []NodeSnapshot{
+		{ID: "completed", Status: NodeStatusSucceeded, StartedAt: start, CompletedAt: start.Add(time.Second)},
+		{ID: "pending", Status: NodeStatusPending},
+	}
+
+	phase, startedAt, completedAt := evaluatePhase(nodes)
+	require.Equal(t, PhaseRunning, phase)
+	require.Equal(t, start, startedAt)
+	require.True(t, completedAt.IsZero())
+}
+
 type capturingListener struct {
 	mu     sync.Mutex
 	events []Event
