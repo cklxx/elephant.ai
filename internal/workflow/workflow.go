@@ -158,44 +158,36 @@ func (w *Workflow) CompleteNodeFailure(id string, err error) (NodeSnapshot, Work
 
 // Snapshot returns a deterministic snapshot of the workflow and all registered nodes.
 func (w *Workflow) Snapshot() WorkflowSnapshot {
-	w.mu.RLock()
-	orderedIDs := make([]string, 0, len(w.order))
-	for _, id := range w.order {
-		if _, exists := w.nodes[id]; exists {
-			orderedIDs = append(orderedIDs, id)
-		}
+	orderedIDs, nodes := w.orderedNodes()
+
+	snapshots := make([]NodeSnapshot, 0, len(nodes))
+	for _, node := range nodes {
+		snapshots = append(snapshots, node.Snapshot())
 	}
 
-	snapshots := make([]NodeSnapshot, 0, len(orderedIDs))
-	for _, id := range orderedIDs {
-		snapshots = append(snapshots, w.nodes[id].Snapshot())
-	}
-	w.mu.RUnlock()
-
-	phase, startedAt, completedAt := evaluatePhase(snapshots)
-	summary := summarize(snapshots)
+	analysis := analyzeSnapshots(snapshots)
 	duration := time.Duration(0)
-	if !startedAt.IsZero() {
-		end := completedAt
+	if !analysis.startedAt.IsZero() {
+		end := analysis.completedAt
 		if end.IsZero() {
 			end = time.Now()
 		}
-		duration = end.Sub(startedAt)
+		duration = end.Sub(analysis.startedAt)
 	}
 
 	snapshot := WorkflowSnapshot{
 		ID:          w.id,
-		Phase:       phase,
+		Phase:       analysis.phase,
 		Order:       orderedIDs,
 		Nodes:       snapshots,
-		StartedAt:   startedAt,
-		CompletedAt: completedAt,
+		StartedAt:   analysis.startedAt,
+		CompletedAt: analysis.completedAt,
 		Duration:    duration,
-		Summary:     summary,
+		Summary:     analysis.summary,
 	}
 
 	if w.logger != nil {
-		w.logger.Debug("workflow snapshot", slog.String("workflow", w.id), slog.String("phase", string(phase)), slog.Int("nodes", len(snapshots)))
+		w.logger.Debug("workflow snapshot", slog.String("workflow", w.id), slog.String("phase", string(analysis.phase)), slog.Int("nodes", len(snapshots)))
 	}
 
 	return snapshot
@@ -237,33 +229,50 @@ func (w *Workflow) emit(event Event) {
 }
 
 func evaluatePhase(nodes []NodeSnapshot) (WorkflowPhase, time.Time, time.Time) {
+	analysis := analyzeSnapshots(nodes)
+	return analysis.phase, analysis.startedAt, analysis.completedAt
+}
+
+type snapshotAnalysis struct {
+	phase       WorkflowPhase
+	startedAt   time.Time
+	completedAt time.Time
+	summary     map[string]int64
+}
+
+func analyzeSnapshots(nodes []NodeSnapshot) snapshotAnalysis {
+	summary := map[string]int64{
+		string(NodeStatusPending):   0,
+		string(NodeStatusRunning):   0,
+		string(NodeStatusSucceeded): 0,
+		string(NodeStatusFailed):    0,
+	}
+
 	if len(nodes) == 0 {
-		return PhasePending, time.Time{}, time.Time{}
+		return snapshotAnalysis{phase: PhasePending, summary: summary}
 	}
 
 	var startedAt time.Time
 	var completedAt time.Time
-	allSucceeded := true
 	hasRunning := false
 	hasProgress := false
+	hasFailure := false
+	allSucceeded := len(nodes) > 0
 
 	for _, node := range nodes {
-		if node.Status == NodeStatusFailed {
-			if node.CompletedAt.After(completedAt) {
-				completedAt = node.CompletedAt
-			}
-			if startedAt.IsZero() || node.StartedAt.Before(startedAt) {
-				startedAt = node.StartedAt
-			}
-			return PhaseFailed, startedAt, completedAt
-		}
-		if node.Status == NodeStatusRunning {
+		summary[string(node.Status)]++
+
+		switch node.Status {
+		case NodeStatusFailed:
+			hasFailure = true
+			allSucceeded = false
+		case NodeStatusRunning:
 			hasRunning = true
-		}
-		if node.Status == NodeStatusSucceeded || node.Status == NodeStatusRunning {
 			hasProgress = true
-		}
-		if node.Status != NodeStatusSucceeded {
+			allSucceeded = false
+		case NodeStatusSucceeded:
+			hasProgress = true
+		default:
 			allSucceeded = false
 		}
 
@@ -276,24 +285,30 @@ func evaluatePhase(nodes []NodeSnapshot) (WorkflowPhase, time.Time, time.Time) {
 	}
 
 	switch {
+	case hasFailure:
+		return snapshotAnalysis{phase: PhaseFailed, startedAt: startedAt, completedAt: completedAt, summary: summary}
 	case allSucceeded:
-		return PhaseSucceeded, startedAt, completedAt
+		return snapshotAnalysis{phase: PhaseSucceeded, startedAt: startedAt, completedAt: completedAt, summary: summary}
 	case hasRunning || hasProgress:
-		return PhaseRunning, startedAt, time.Time{}
+		return snapshotAnalysis{phase: PhaseRunning, startedAt: startedAt, summary: summary}
 	default:
-		return PhasePending, time.Time{}, time.Time{}
+		return snapshotAnalysis{phase: PhasePending, summary: summary}
 	}
 }
 
-func summarize(nodes []NodeSnapshot) map[string]int64 {
-	summary := map[string]int64{
-		string(NodeStatusPending):   0,
-		string(NodeStatusRunning):   0,
-		string(NodeStatusSucceeded): 0,
-		string(NodeStatusFailed):    0,
+func (w *Workflow) orderedNodes() ([]string, []*Node) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	orderedIDs := make([]string, 0, len(w.order))
+	nodes := make([]*Node, 0, len(w.order))
+	for _, id := range w.order {
+		node, exists := w.nodes[id]
+		if !exists {
+			continue
+		}
+		orderedIDs = append(orderedIDs, id)
+		nodes = append(nodes, node)
 	}
-	for _, node := range nodes {
-		summary[string(node.Status)]++
-	}
-	return summary
+	return orderedIDs, nodes
 }

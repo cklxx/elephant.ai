@@ -23,7 +23,7 @@ const (
 
 // Node holds execution metadata for a unit of work inside a workflow.
 type Node struct {
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	id          string
 	input       any
 	output      any
@@ -58,15 +58,15 @@ func NewNode(id string, input any, logger *slog.Logger) *Node {
 
 // ID returns the node identifier.
 func (n *Node) ID() string {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	return n.id
 }
 
 // Status returns the current node status.
 func (n *Node) Status() NodeStatus {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	return n.status
 }
 
@@ -90,8 +90,8 @@ func (n *Node) CompleteFailure(err error) (NodeSnapshot, error) {
 
 // Snapshot returns an immutable snapshot of the node for logging or inspection.
 func (n *Node) Snapshot() NodeSnapshot {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	return n.snapshotLocked()
 }
 

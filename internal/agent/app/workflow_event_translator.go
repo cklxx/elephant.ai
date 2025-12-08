@@ -31,6 +31,9 @@ type workflowEventTranslator struct {
 	sink           ports.EventListener
 	logger         *slog.Logger
 	subflowTracker *subflowStatsTracker
+
+	ctxMu sync.RWMutex
+	ctx   workflowEnvelopeContext
 }
 
 func (t *workflowEventTranslator) OnEvent(evt ports.AgentEvent) {
@@ -55,283 +58,63 @@ func (t *workflowEventTranslator) OnEvent(evt ports.AgentEvent) {
 func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
 	switch e := evt.(type) {
 	case *domain.WorkflowLifecycleUpdatedEvent:
-		if e.Node != nil && isToolRecorderNodeID(e.Node.ID) {
-			return nil
-		}
-		env := baseEnvelope(evt, "workflow.lifecycle.updated")
-		if env == nil {
-			return nil
-		}
-		env.WorkflowID = e.WorkflowID
-		env.RunID = e.WorkflowID
-		snapshot := sanitizeWorkflowSnapshot(e.Workflow)
-		payload := map[string]any{
-			"workflow_event_type": string(e.WorkflowEventType),
-		}
-		if e.Phase != "" {
-			payload["phase"] = e.Phase
-		}
-		if e.Node != nil {
-			env.NodeID = e.Node.ID
-			env.NodeKind = "node"
-			payload["node"] = *e.Node
-		}
-		if snapshot != nil {
-			payload["workflow"] = snapshot
-		}
-		env.Payload = payload
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateLifecycle(e, evt)
 
 	case *domain.WorkflowNodeStartedEvent:
-		if isToolRecorderNodeID(e.StepDescription) {
-			return nil
-		}
-		env := baseEnvelope(evt, "workflow.node.started")
-		if env == nil {
-			return nil
-		}
-		env.WorkflowID = workflowIDFromSnapshot(e.Workflow)
-		env.RunID = env.WorkflowID
-
-		isStep := e.StepDescription != "" || e.StepIndex > 0 || e.Workflow != nil || e.Input != nil
-		payload := map[string]any{}
-		if isStep {
-			env.NodeKind = "step"
-			env.NodeID = e.StepDescription
-			payload["step_index"] = e.StepIndex
-			payload["step_description"] = e.StepDescription
-			if e.Iteration > 0 {
-				payload["iteration"] = e.Iteration
-			}
-			if e.Workflow != nil {
-				payload["workflow"] = e.Workflow
-			}
-		} else {
-			env.NodeKind = "iteration"
-			env.NodeID = iterationNodeID(e.Iteration)
-			payload["iteration"] = e.Iteration
-			payload["total_iters"] = e.TotalIters
-		}
-		env.Payload = payload
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateNodeStarted(e, evt)
 
 	case *domain.WorkflowNodeCompletedEvent:
-		if isToolRecorderNodeID(e.StepDescription) {
-			return nil
-		}
-		status := strings.ToLower(strings.TrimSpace(e.Status))
-		eventType := "workflow.node.completed"
-		if status == string(workflow.NodeStatusFailed) || status == "failed" {
-			eventType = "workflow.node.failed"
-		}
-		env := baseEnvelope(evt, eventType)
-		if env == nil {
-			return nil
-		}
-		env.WorkflowID = workflowIDFromSnapshot(e.Workflow)
-		env.RunID = env.WorkflowID
-
-		isStep := e.StepDescription != "" || e.StepIndex > 0 || e.Workflow != nil
-		payload := map[string]any{}
-		if isStep {
-			env.NodeKind = "step"
-			env.NodeID = e.StepDescription
-			payload["step_index"] = e.StepIndex
-			payload["step_description"] = e.StepDescription
-			payload["status"] = e.Status
-			if e.Iteration > 0 {
-				payload["iteration"] = e.Iteration
-			}
-			if e.StepResult != nil {
-				payload["result"] = e.StepResult
-			}
-			if e.Workflow != nil {
-				payload["workflow"] = e.Workflow
-			}
-		} else {
-			env.NodeKind = "iteration"
-			env.NodeID = iterationNodeID(e.Iteration)
-			payload["iteration"] = e.Iteration
-			if e.TokensUsed > 0 {
-				payload["tokens_used"] = e.TokensUsed
-			}
-			if e.ToolsRun > 0 {
-				payload["tools_run"] = e.ToolsRun
-			}
-		}
-		env.Payload = payload
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateNodeCompleted(e, evt)
 
 	case *domain.WorkflowNodeOutputSummaryEvent:
-		env := baseEnvelope(evt, "workflow.node.output.summary")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "generation"
-		env.Payload = map[string]any{
-			"iteration":       e.Iteration,
-			"content":         e.Content,
-			"tool_call_count": e.ToolCallCount,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateNodeOutputSummary(e, evt)
 
 	case *domain.WorkflowNodeOutputDeltaEvent:
-		env := baseEnvelope(evt, "workflow.node.output.delta")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "generation"
-		payload := map[string]any{
-			"iteration": e.Iteration,
-			"delta":     e.Delta,
-			"final":     e.Final,
-		}
-		if !e.CreatedAt.IsZero() {
-			payload["created_at"] = e.CreatedAt
-		}
-		if e.SourceModel != "" {
-			payload["source_model"] = e.SourceModel
-		}
-		if e.MessageCount > 0 {
-			payload["message_count"] = e.MessageCount
-		}
-		env.Payload = payload
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateNodeOutputDelta(e, evt)
 
 	case *domain.WorkflowToolStartedEvent:
-		env := baseEnvelope(evt, "workflow.tool.started")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "tool"
-		env.NodeID = e.CallID
-		env.Payload = map[string]any{
-			"call_id":   e.CallID,
+		return t.translateTool(evt, "workflow.tool.started", e.CallID, map[string]any{
 			"tool_name": e.ToolName,
 			"arguments": e.Arguments,
 			"iteration": e.Iteration,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowToolProgressEvent:
-		env := baseEnvelope(evt, "workflow.tool.progress")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "tool"
-		env.NodeID = e.CallID
-		env.Payload = map[string]any{
-			"call_id":     e.CallID,
+		return t.translateTool(evt, "workflow.tool.progress", e.CallID, map[string]any{
 			"chunk":       e.Chunk,
 			"is_complete": e.IsComplete,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowToolCompletedEvent:
-		env := baseEnvelope(evt, "workflow.tool.completed")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "tool"
-		env.NodeID = e.CallID
-		payload := map[string]any{
-			"call_id":     e.CallID,
-			"tool_name":   e.ToolName,
-			"result":      e.Result,
-			"duration":    e.Duration.Milliseconds(),
-			"metadata":    e.Metadata,
-			"attachments": e.Attachments,
-		}
-		if e.Error != nil {
-			payload["error"] = e.Error.Error()
-		}
-		env.Payload = payload
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateToolComplete(evt, e)
 
 	case *domain.WorkflowResultFinalEvent:
-		env := baseEnvelope(evt, "workflow.result.final")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "result"
-		if env.NodeID == "" {
-			env.NodeID = stageSummarize
-		}
-		env.Payload = map[string]any{
-			"final_answer":     e.FinalAnswer,
-			"total_iterations": e.TotalIterations,
-			"total_tokens":     e.TotalTokens,
-			"stop_reason":      e.StopReason,
-			"duration":         e.Duration.Milliseconds(),
-			"is_streaming":     e.IsStreaming,
-			"stream_finished":  e.StreamFinished,
-			"attachments":      e.Attachments,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateResultFinal(evt, e)
 
 	case *domain.WorkflowResultCancelledEvent:
-		env := baseEnvelope(evt, "workflow.result.cancelled")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "result"
-		env.Payload = map[string]any{
-			"reason":       e.Reason,
-			"requested_by": e.RequestedBy,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateResultCancelled(evt, e)
 
 	case *domain.WorkflowNodeFailedEvent:
-		env := baseEnvelope(evt, "workflow.node.failed")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "diagnostic"
-		env.Payload = map[string]any{
-			"iteration":   e.Iteration,
-			"phase":       e.Phase,
-			"recoverable": e.Recoverable,
-		}
-		if e.Error != nil {
-			env.Payload["error"] = e.Error.Error()
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateNodeFailure(evt, e)
 
 	case *domain.WorkflowDiagnosticContextCompressionEvent:
-		env := baseEnvelope(evt, "workflow.diagnostic.context_compression")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "diagnostic"
-		env.Payload = map[string]any{
+		return t.diagnosticEnvelope(evt, "workflow.diagnostic.context_compression", map[string]any{
 			"original_count":   e.OriginalCount,
 			"compressed_count": e.CompressedCount,
 			"compression_rate": e.CompressionRate,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowDiagnosticToolFilteringEvent:
-		env := baseEnvelope(evt, "workflow.diagnostic.tool_filtering")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "diagnostic"
-		env.Payload = map[string]any{
+		return t.diagnosticEnvelope(evt, "workflow.diagnostic.tool_filtering", map[string]any{
 			"preset_name":       e.PresetName,
 			"original_count":    e.OriginalCount,
 			"filtered_count":    e.FilteredCount,
 			"filtered_tools":    e.FilteredTools,
 			"tool_filter_ratio": e.ToolFilterRatio,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowDiagnosticBrowserInfoEvent:
-		env := baseEnvelope(evt, "workflow.diagnostic.browser_info")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "diagnostic"
-		env.Payload = map[string]any{
+		return t.diagnosticEnvelope(evt, "workflow.diagnostic.browser_info", map[string]any{
 			"success":         e.Success,
 			"message":         e.Message,
 			"user_agent":      e.UserAgent,
@@ -340,29 +123,17 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 			"viewport_width":  e.ViewportWidth,
 			"viewport_height": e.ViewportHeight,
 			"captured":        e.Captured,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowDiagnosticEnvironmentSnapshotEvent:
-		env := baseEnvelope(evt, "workflow.diagnostic.environment_snapshot")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "diagnostic"
-		env.Payload = map[string]any{
+		return t.diagnosticEnvelope(evt, "workflow.diagnostic.environment_snapshot", map[string]any{
 			"host":     e.Host,
 			"sandbox":  e.Sandbox,
 			"captured": e.Captured,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowDiagnosticSandboxProgressEvent:
-		env := baseEnvelope(evt, "workflow.diagnostic.sandbox_progress")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "diagnostic"
-		env.Payload = map[string]any{
+		return t.diagnosticEnvelope(evt, "workflow.diagnostic.sandbox_progress", map[string]any{
 			"status":      e.Status,
 			"stage":       e.Stage,
 			"message":     e.Message,
@@ -370,26 +141,173 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 			"total_steps": e.TotalSteps,
 			"error":       e.Error,
 			"updated":     e.Updated,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		})
 
 	case *domain.WorkflowInputReceivedEvent:
-		env := baseEnvelope(evt, "workflow.input.received")
-		if env == nil {
-			return nil
-		}
-		env.NodeKind = "input"
-		env.Payload = map[string]any{
-			"task":        e.Task,
-			"attachments": e.Attachments,
-		}
-		return []*domain.WorkflowEventEnvelope{env}
+		return t.translateInputEnvelope(evt, e)
 
 	case ports.SubtaskWrapper:
 		return t.translateSubtaskEvent(e)
 	default:
 		return nil
 	}
+}
+
+func (t *workflowEventTranslator) translateTool(evt ports.AgentEvent, eventType, callID string, payload map[string]any) []*domain.WorkflowEventEnvelope {
+	return t.toolEnvelope(evt, eventType, callID, payload)
+}
+
+func (t *workflowEventTranslator) translateToolComplete(evt ports.AgentEvent, e *domain.WorkflowToolCompletedEvent) []*domain.WorkflowEventEnvelope {
+	payload := map[string]any{
+		"tool_name":   e.ToolName,
+		"result":      e.Result,
+		"duration":    e.Duration.Milliseconds(),
+		"metadata":    e.Metadata,
+		"attachments": e.Attachments,
+	}
+	if e.Error != nil {
+		payload["error"] = e.Error.Error()
+	}
+
+	return t.toolEnvelope(evt, "workflow.tool.completed", e.CallID, payload)
+}
+
+func (t *workflowEventTranslator) translateResultFinal(evt ports.AgentEvent, e *domain.WorkflowResultFinalEvent) []*domain.WorkflowEventEnvelope {
+	return t.singleEnvelope(evt, "workflow.result.final", "result", stageSummarize, map[string]any{
+		"final_answer":     e.FinalAnswer,
+		"total_iterations": e.TotalIterations,
+		"total_tokens":     e.TotalTokens,
+		"stop_reason":      e.StopReason,
+		"duration":         e.Duration.Milliseconds(),
+		"is_streaming":     e.IsStreaming,
+		"stream_finished":  e.StreamFinished,
+		"attachments":      e.Attachments,
+	})
+}
+
+func (t *workflowEventTranslator) translateResultCancelled(evt ports.AgentEvent, e *domain.WorkflowResultCancelledEvent) []*domain.WorkflowEventEnvelope {
+	return t.singleEnvelope(evt, "workflow.result.cancelled", "result", "", map[string]any{
+		"reason":       e.Reason,
+		"requested_by": e.RequestedBy,
+	})
+}
+
+func (t *workflowEventTranslator) translateNodeFailure(evt ports.AgentEvent, e *domain.WorkflowNodeFailedEvent) []*domain.WorkflowEventEnvelope {
+	payload := map[string]any{
+		"iteration":   e.Iteration,
+		"phase":       e.Phase,
+		"recoverable": e.Recoverable,
+	}
+
+	if e.Error != nil {
+		payload["error"] = e.Error.Error()
+	}
+
+	return t.diagnosticEnvelope(evt, "workflow.node.failed", payload)
+}
+
+func (t *workflowEventTranslator) translateInputEnvelope(evt ports.AgentEvent, e *domain.WorkflowInputReceivedEvent) []*domain.WorkflowEventEnvelope {
+	return t.singleEnvelope(evt, "workflow.input.received", "input", "", map[string]any{
+		"task":        e.Task,
+		"attachments": e.Attachments,
+	})
+}
+
+func (t *workflowEventTranslator) translateLifecycle(e *domain.WorkflowLifecycleUpdatedEvent, evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
+	payload := map[string]any{
+		"workflow_event_type": string(e.WorkflowEventType),
+	}
+	if e.Phase != "" {
+		payload["phase"] = e.Phase
+	}
+	nodeID := nodeID(evt, e.Node)
+	if e.Node != nil {
+		payload["node"] = *e.Node
+	}
+
+	return t.workflowEnvelopeFromOptions(evt, envelopeOptions{
+		snapshot:       e.Workflow,
+		eventType:      "workflow.lifecycle.updated",
+		nodeKind:       "node",
+		nodeID:         nodeID,
+		payload:        payload,
+		attachWorkflow: true,
+		skipRecorder:   true,
+	})
+}
+
+func (t *workflowEventTranslator) translateNodeStarted(e *domain.WorkflowNodeStartedEvent, evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
+	if isToolRecorderNodeID(e.StepDescription) {
+		return nil
+	}
+
+	return t.nodeEnvelope(evt, "workflow.node.started", nodeEventMeta{
+		stepDescription: e.StepDescription,
+		stepIndex:       e.StepIndex,
+		iteration:       e.Iteration,
+		totalIters:      e.TotalIters,
+		workflow:        e.Workflow,
+		hasInput:        e.Input != nil,
+	}, nil)
+}
+
+func (t *workflowEventTranslator) translateNodeCompleted(e *domain.WorkflowNodeCompletedEvent, evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
+	if isToolRecorderNodeID(e.StepDescription) {
+		return nil
+	}
+
+	status := strings.ToLower(strings.TrimSpace(e.Status))
+	eventType := "workflow.node.completed"
+	if status == string(workflow.NodeStatusFailed) || status == "failed" {
+		eventType = "workflow.node.failed"
+	}
+
+	return t.nodeEnvelope(evt, eventType, nodeEventMeta{
+		stepDescription: e.StepDescription,
+		stepIndex:       e.StepIndex,
+		iteration:       e.Iteration,
+		workflow:        e.Workflow,
+	}, func(payload map[string]any) {
+		if e.StepResult != nil {
+			payload["result"] = e.StepResult
+		}
+		if e.TokensUsed > 0 {
+			payload["tokens_used"] = e.TokensUsed
+		}
+		if e.ToolsRun > 0 {
+			payload["tools_run"] = e.ToolsRun
+		}
+		if status != "" {
+			payload["status"] = e.Status
+		}
+	})
+}
+
+func (t *workflowEventTranslator) translateNodeOutputSummary(e *domain.WorkflowNodeOutputSummaryEvent, evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
+	return t.singleEnvelope(evt, "workflow.node.output.summary", "generation", "", map[string]any{
+		"iteration":       e.Iteration,
+		"content":         e.Content,
+		"tool_call_count": e.ToolCallCount,
+	})
+}
+
+func (t *workflowEventTranslator) translateNodeOutputDelta(e *domain.WorkflowNodeOutputDeltaEvent, evt ports.AgentEvent) []*domain.WorkflowEventEnvelope {
+	payload := map[string]any{
+		"iteration": e.Iteration,
+		"delta":     e.Delta,
+		"final":     e.Final,
+	}
+	if !e.CreatedAt.IsZero() {
+		payload["created_at"] = e.CreatedAt
+	}
+	if e.SourceModel != "" {
+		payload["source_model"] = e.SourceModel
+	}
+	if e.MessageCount > 0 {
+		payload["message_count"] = e.MessageCount
+	}
+
+	return t.singleEnvelope(evt, "workflow.node.output.delta", "generation", "", payload)
 }
 
 func (t *workflowEventTranslator) translateSubtaskEvent(event ports.SubtaskWrapper) []*domain.WorkflowEventEnvelope {
@@ -445,6 +363,201 @@ func (t *workflowEventTranslator) translateSubtaskEvent(event ports.SubtaskWrapp
 
 	env.Payload = payload
 	return []*domain.WorkflowEventEnvelope{env}
+}
+
+type nodeEventMeta struct {
+	stepDescription string
+	stepIndex       int
+	iteration       int
+	totalIters      int
+	workflow        *workflow.WorkflowSnapshot
+	hasInput        bool
+}
+
+func (m nodeEventMeta) isStep() bool {
+	if m.stepDescription != "" || m.stepIndex > 0 || m.workflow != nil {
+		return true
+	}
+	return m.hasInput
+}
+
+func (t *workflowEventTranslator) nodeEnvelope(evt ports.AgentEvent, eventType string, meta nodeEventMeta, decorate func(map[string]any)) []*domain.WorkflowEventEnvelope {
+	opts := envelopeOptions{
+		snapshot:     meta.workflow,
+		eventType:    eventType,
+		skipRecorder: true,
+	}
+
+	payload := map[string]any{}
+	if meta.isStep() {
+		opts.nodeKind = "step"
+		opts.nodeID = meta.stepDescription
+		opts.attachWorkflow = true
+		payload["step_index"] = meta.stepIndex
+		payload["step_description"] = meta.stepDescription
+		if meta.iteration > 0 {
+			payload["iteration"] = meta.iteration
+		}
+	} else {
+		opts.nodeKind = "iteration"
+		opts.nodeID = iterationNodeID(meta.iteration)
+		payload["iteration"] = meta.iteration
+		if meta.totalIters > 0 {
+			payload["total_iters"] = meta.totalIters
+		}
+	}
+
+	if decorate != nil {
+		decorate(payload)
+	}
+	opts.payload = payload
+
+	return t.workflowEnvelopeFromOptions(evt, opts)
+}
+
+type workflowEnvelopeContext struct {
+	snapshot   *workflow.WorkflowSnapshot
+	workflowID string
+}
+
+func workflowContextFromEvent(evt ports.AgentEvent, snapshot *workflow.WorkflowSnapshot) workflowEnvelopeContext {
+	var workflowID string
+
+	switch e := evt.(type) {
+	case *domain.WorkflowLifecycleUpdatedEvent:
+		if snapshot == nil {
+			snapshot = e.Workflow
+		}
+		workflowID = e.WorkflowID
+	case *domain.WorkflowNodeStartedEvent:
+		if snapshot == nil {
+			snapshot = e.Workflow
+		}
+	case *domain.WorkflowNodeCompletedEvent:
+		if snapshot == nil {
+			snapshot = e.Workflow
+		}
+	}
+
+	return newWorkflowEnvelopeContext(snapshot, workflowID)
+}
+
+func (t *workflowEventTranslator) resolveWorkflowContext(ctx workflowEnvelopeContext) workflowEnvelopeContext {
+	if t == nil {
+		return ctx
+	}
+
+	t.ctxMu.RLock()
+	stored := t.ctx
+	t.ctxMu.RUnlock()
+
+	if ctx.snapshot == nil && stored.snapshot != nil {
+		ctx.snapshot = stored.snapshot
+	}
+	if ctx.workflowID == "" {
+		ctx.workflowID = stored.workflowID
+	}
+
+	return ctx
+}
+
+func (t *workflowEventTranslator) rememberWorkflowContext(ctx workflowEnvelopeContext) {
+	if t == nil || (ctx.snapshot == nil && ctx.workflowID == "") {
+		return
+	}
+
+	t.ctxMu.Lock()
+	t.ctx = ctx
+	t.ctxMu.Unlock()
+}
+
+func newWorkflowEnvelopeContext(snapshot *workflow.WorkflowSnapshot, workflowID string) workflowEnvelopeContext {
+	return workflowEnvelopeContext{
+		snapshot:   sanitizeWorkflowSnapshot(snapshot),
+		workflowID: workflowIDFromSnapshot(snapshot, workflowID),
+	}
+}
+
+func (c workflowEnvelopeContext) envelope(evt ports.AgentEvent, eventType, nodeKind, nodeID string, payload map[string]any) *domain.WorkflowEventEnvelope {
+	return newEnvelope(evt, eventType, nodeKind, nodeID, c.snapshot, c.workflowID, payload)
+}
+
+func (c workflowEnvelopeContext) attachWorkflow(payload map[string]any) {
+	if payload == nil || c.snapshot == nil {
+		return
+	}
+	payload["workflow"] = c.snapshot
+}
+
+func (c workflowEnvelopeContext) shouldSkip(nodeID string) bool {
+	return isToolRecorderNodeID(nodeID)
+}
+
+func (t *workflowEventTranslator) singleEnvelope(evt ports.AgentEvent, eventType, nodeKind, nodeID string, payload map[string]any) []*domain.WorkflowEventEnvelope {
+	return t.workflowEnvelopeFromOptions(evt, envelopeOptions{
+		eventType: eventType,
+		nodeKind:  nodeKind,
+		nodeID:    nodeID,
+		payload:   payload,
+	})
+}
+
+func (t *workflowEventTranslator) diagnosticEnvelope(evt ports.AgentEvent, eventType string, payload map[string]any) []*domain.WorkflowEventEnvelope {
+	return t.singleEnvelope(evt, eventType, "diagnostic", "", payload)
+}
+
+func (t *workflowEventTranslator) toolEnvelope(evt ports.AgentEvent, eventType, callID string, payload map[string]any) []*domain.WorkflowEventEnvelope {
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	if callID != "" {
+		payload["call_id"] = callID
+	}
+	return t.singleEnvelope(evt, eventType, "tool", callID, payload)
+}
+
+func newEnvelope(evt ports.AgentEvent, eventType, nodeKind, nodeID string, snapshot *workflow.WorkflowSnapshot, workflowID string, payload map[string]any) *domain.WorkflowEventEnvelope {
+	if eventType == "" {
+		return nil
+	}
+
+	env := domain.NewWorkflowEnvelopeFromEvent(evt, eventType)
+	if env == nil {
+		return nil
+	}
+
+	setNodeKind(env, nodeKind)
+	if nodeID != "" {
+		env.NodeID = nodeID
+	}
+
+	id := workflowIDFromSnapshot(snapshot, workflowID)
+	if id != "" {
+		env.WorkflowID = id
+		env.RunID = id
+	}
+
+	if len(payload) > 0 {
+		env.Payload = payload
+	}
+
+	return env
+}
+
+func setNodeKind(env *domain.WorkflowEventEnvelope, kind string) {
+	if env != nil && kind != "" {
+		env.NodeKind = kind
+	}
+}
+
+func nodeID(evt ports.AgentEvent, node *workflow.NodeSnapshot) string {
+	if node != nil {
+		return node.ID
+	}
+	if e, ok := evt.(*domain.WorkflowLifecycleUpdatedEvent); ok && e.Node != nil {
+		return e.Node.ID
+	}
+	return ""
 }
 
 func (t *workflowEventTranslator) recordSubflowStats(event ports.SubtaskWrapper, details ports.SubtaskMetadata) subflowSnapshot {
@@ -515,18 +628,45 @@ func isToolRecorderNodeID(id string) bool {
 	return strings.Contains(id, ":tools")
 }
 
-func baseEnvelope(evt ports.AgentEvent, eventType string) *domain.WorkflowEventEnvelope {
-	if eventType == "" {
-		return nil
+func workflowIDFromSnapshot(snapshot *workflow.WorkflowSnapshot, fallback string) string {
+	if snapshot != nil && snapshot.ID != "" {
+		return snapshot.ID
 	}
-	return domain.NewWorkflowEnvelopeFromEvent(evt, eventType)
+	return fallback
 }
 
-func workflowIDFromSnapshot(snapshot *workflow.WorkflowSnapshot) string {
-	if snapshot == nil {
-		return ""
+type envelopeOptions struct {
+	snapshot       *workflow.WorkflowSnapshot
+	eventType      string
+	nodeKind       string
+	nodeID         string
+	payload        map[string]any
+	attachWorkflow bool
+	skipRecorder   bool
+}
+
+func (t *workflowEventTranslator) workflowEnvelopeFromOptions(evt ports.AgentEvent, opts envelopeOptions) []*domain.WorkflowEventEnvelope {
+	ctx := t.resolveWorkflowContext(workflowContextFromEvent(evt, opts.snapshot))
+	if opts.skipRecorder && ctx.shouldSkip(opts.nodeID) {
+		return nil
 	}
-	return snapshot.ID
+
+	env := ctx.envelope(evt, opts.eventType, opts.nodeKind, opts.nodeID, nil)
+	if env == nil {
+		return nil
+	}
+
+	if opts.attachWorkflow {
+		ctx.attachWorkflow(opts.payload)
+	}
+
+	if len(opts.payload) > 0 {
+		env.Payload = opts.payload
+	}
+
+	t.rememberWorkflowContext(ctx)
+
+	return []*domain.WorkflowEventEnvelope{env}
 }
 
 func iterationNodeID(iteration int) string {

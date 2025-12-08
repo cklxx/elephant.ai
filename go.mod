@@ -2,8 +2,6 @@ module alex
 
 go 1.24.0
 
-toolchain go1.24.9
-
 require (
 	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/agent-infra/sandbox-sdk-go v0.0.1
