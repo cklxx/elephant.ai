@@ -1,78 +1,33 @@
 import '@testing-library/jest-dom';
-import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
-import { enableMapSet } from 'immer';
+import { afterEach } from 'vitest';
 
-// Enable Immer MapSet plugin for Zustand tests
-enableMapSet();
-
-// Mock PostHog client to avoid network calls in tests
-vi.mock('posthog-js', () => {
-  const posthogMock: any = {
-    capture: vi.fn(),
-    identify: vi.fn(),
-    register: vi.fn(),
-    reset: vi.fn(),
-    shutdown: vi.fn(),
-    on: vi.fn((_, callback) => {
-      if (typeof callback === 'function') {
-        callback(posthogMock);
-      }
-    }),
-  };
-  posthogMock.people = { set: vi.fn() };
-  posthogMock.init = vi.fn((_key: string, options?: { loaded?: (client: any) => void }) => {
-    options?.loaded?.(posthogMock);
-    return posthogMock;
-  });
-  return { default: posthogMock };
-});
-
-// Cleanup after each test
+// Keep DOM clean between tests when using Solid Testing Library
 afterEach(() => {
-  cleanup();
+  document.body.innerHTML = '';
 });
 
-// Mock window.matchMedia
+// Provide light polyfills for tests
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation((query) => ({
+  value: (query: string) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
 });
 
-// Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  takeRecords() {
-    return [];
-  }
-  unobserve() {}
-} as any;
-
-// Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
-  constructor() {}
-  disconnect() {}
+class ResizeObserverMock {
   observe() {}
   unobserve() {}
-} as any;
+  disconnect() {}
+}
 
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
-  log: vi.fn(),
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-};
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  value: ResizeObserverMock,
+});
