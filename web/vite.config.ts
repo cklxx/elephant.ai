@@ -4,6 +4,9 @@ import path from "path";
 
 export default defineConfig({
   plugins: [solid()],
+  build: {
+    outDir: "out",
+  },
   resolve: {
     alias: [
       { find: "@/lib/utils", replacement: path.resolve(__dirname, "./src/lib/utils.ts") },
