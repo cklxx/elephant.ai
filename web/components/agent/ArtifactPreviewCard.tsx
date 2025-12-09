@@ -5,11 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentPayload, AttachmentPreviewAssetPayload } from "@/lib/types";
 import { buildAttachmentUri } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
-import { Download, Maximize2, Minimize2 } from "lucide-react";
+import { Download, ExternalLink, Maximize2, Minimize2 } from "lucide-react";
 
 interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
@@ -251,37 +250,41 @@ export function ArtifactPreviewCard({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-primary">
             {shouldShowExpand && (
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 px-3"
+                className="flex items-center gap-1 rounded-md px-1 py-0.5 text-foreground hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
                 onClick={() => setIsExpanded((prev) => !prev)}
               >
                 {isExpanded ? (
-                  <Minimize2 className="mr-1.5 h-4 w-4" />
+                  <Minimize2 className="h-4 w-4" />
                 ) : (
-                  <Maximize2 className="mr-1.5 h-4 w-4" />
+                  <Maximize2 className="h-4 w-4" />
                 )}
-                {expandLabel}
-              </Button>
+                <span>{expandLabel}</span>
+              </button>
             )}
             {downloadUri && (
-              <Button asChild variant="outline" size="sm" className="h-8 px-3">
-                <a href={downloadUri} target="_blank" rel="noreferrer">
-                  View
-                </a>
-              </Button>
+              <a
+                href={downloadUri}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 rounded-md px-1 py-0.5 hover:underline focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>View</span>
+              </a>
             )}
             {downloadUri && (
-              <Button asChild size="sm" className="h-8 px-3">
-                <a href={downloadUri} download={attachment.name || "download"}>
-                  <Download className="mr-1 h-3.5 w-3.5" />
-                  Download
-                </a>
-              </Button>
+              <a
+                href={downloadUri}
+                download={attachment.name || "download"}
+                className="flex items-center gap-1 rounded-md px-1 py-0.5 hover:underline focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download</span>
+              </a>
             )}
           </div>
         </div>

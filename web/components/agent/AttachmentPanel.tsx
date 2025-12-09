@@ -20,7 +20,7 @@ interface AttachmentPanelProps {
   events: AnyAgentEvent[];
 }
 
-interface AttachmentListItem {
+export interface AttachmentListItem {
   key: string;
   attachment: AttachmentPayload;
   type: AttachmentSegmentType;
@@ -30,6 +30,10 @@ interface AttachmentListItem {
 export function AttachmentPanel({ events }: AttachmentPanelProps) {
   const attachments = useMemo(() => collectAttachmentItems(events), [events]);
   const hasAttachments = attachments.length > 0;
+
+  if (!hasAttachments) {
+    return null;
+  }
 
   return (
     <Card className="h-full rounded-3xl border border-border/70 bg-card/80 shadow-sm">
@@ -45,19 +49,13 @@ export function AttachmentPanel({ events }: AttachmentPanelProps) {
         </Badge>
       </CardHeader>
       <CardContent className="pt-0">
-        {hasAttachments ? (
-          <ScrollArea className="max-h-[70vh]">
-            <div className="flex flex-col gap-3 pr-1">
-              {attachments.map((item) => (
-                <AttachmentPreview key={item.key} item={item} />
-              ))}
-            </div>
-          </ScrollArea>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 px-4 py-6 text-center text-xs text-muted-foreground">
-            No attachments yet — they will collect here as the session runs.
+        <ScrollArea className="max-h-[70vh]">
+          <div className="flex flex-col gap-3 pr-1">
+            {attachments.map((item) => (
+              <AttachmentPreview key={item.key} item={item} />
+            ))}
           </div>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -153,7 +151,9 @@ function AttachmentFallback({
   );
 }
 
-function collectAttachmentItems(events: AnyAgentEvent[]): AttachmentListItem[] {
+export function collectAttachmentItems(
+  events: AnyAgentEvent[],
+): AttachmentListItem[] {
   const seenKeys = new Set<string>();
   const seenNames = new Set<string>();
   const items: AttachmentListItem[] = [];

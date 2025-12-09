@@ -601,77 +601,13 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 		return msg.Content
 	}
 
-	matches := placeholderPattern.FindAllStringSubmatchIndex(msg.Content, -1)
-	if len(matches) == 0 {
+	// Keep placeholders inline; rely on attachment map for hydration instead of
+	// constructing multipart content that risks invalid part types.
+	if placeholderPattern.MatchString(msg.Content) {
 		return msg.Content
 	}
 
-	parts := make([]map[string]any, 0, len(matches)*2+1)
-	lastIndex := 0
-	for _, match := range matches {
-		start := match[0]
-		end := match[1]
-		nameStart := match[2]
-		nameEnd := match[3]
-
-		if start > lastIndex {
-			text := msg.Content[lastIndex:start]
-			parts = append(parts, map[string]any{"type": "input_text", "text": text})
-		}
-
-		name := strings.TrimSpace(msg.Content[nameStart:nameEnd])
-		if att, ok := msg.Attachments[name]; ok {
-			if imageParts := buildImageContentParts(att); len(imageParts) > 0 {
-				parts = append(parts, imageParts...)
-			} else {
-				parts = append(parts, map[string]any{"type": "input_text", "text": msg.Content[start:end]})
-			}
-		} else {
-			parts = append(parts, map[string]any{"type": "input_text", "text": msg.Content[start:end]})
-		}
-
-		lastIndex = end
-	}
-
-	if lastIndex < len(msg.Content) {
-		text := msg.Content[lastIndex:]
-		parts = append(parts, map[string]any{"type": "input_text", "text": text})
-	}
-
-	if len(parts) == 0 {
-		return msg.Content
-	}
-
-	return parts
-}
-
-func buildImageContentParts(att ports.Attachment) []map[string]any {
-	url := strings.TrimSpace(att.URI)
-	if url == "" {
-		if att.Data == "" {
-			return nil
-		}
-		mediaType := strings.TrimSpace(att.MediaType)
-		if mediaType == "" {
-			mediaType = "application/octet-stream"
-		}
-		url = fmt.Sprintf("data:%s;base64,%s", mediaType, att.Data)
-	}
-
-	payload := map[string]any{
-		"type": "input_image",
-		"image_url": map[string]any{
-			"url": url,
-		},
-	}
-	parts := []map[string]any{payload}
-
-	description := strings.TrimSpace(att.Description)
-	if description != "" {
-		parts = append(parts, map[string]any{"type": "input_text", "text": description})
-	}
-
-	return parts
+	return msg.Content
 }
 
 func shouldEmbedAttachmentsInContent(msg ports.Message) bool {

@@ -103,6 +103,13 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 		}
 		return nil, fmt.Errorf("failed to decode session: %w", err)
 	}
+	session.Attachments = sanitizeAttachmentMap(session.Attachments)
+
+	if attachments, err := s.loadAttachments(id); err != nil {
+		return nil, err
+	} else if len(attachments) > 0 {
+		session.Attachments = mergeAttachmentMaps(session.Attachments, attachments, true)
+	}
 	return &session, nil
 }
 
@@ -118,12 +125,35 @@ func (s *store) Save(ctx context.Context, session *ports.Session) error {
 	}
 
 	session.UpdatedAt = time.Now()
-	data, err := json.MarshalIndent(session, "", "  ")
+	attachments := sanitizeAttachmentMap(session.Attachments)
+
+	sessionCopy := *session
+	sessionCopy.Attachments = nil
+
+	data, err := json.MarshalIndent(sessionCopy, "", "  ")
 	if err != nil {
 		return err
 	}
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))
-	return os.WriteFile(path, data, 0o644)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return err
+	}
+
+	attachmentsPath := attachmentPath(s.baseDir, session.ID)
+	if len(attachments) == 0 {
+		_ = os.Remove(attachmentsPath) // best-effort cleanup for empty attachment sets
+		return nil
+	}
+
+	attachmentData, err := json.MarshalIndent(attachments, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal attachments: %w", err)
+	}
+	if err := os.WriteFile(attachmentsPath, attachmentData, 0o644); err != nil {
+		return fmt.Errorf("failed to write attachments: %w", err)
+	}
+
+	return nil
 }
 
 func (s *store) List(ctx context.Context) ([]string, error) {
@@ -187,4 +217,74 @@ func previewJSON(data []byte) string {
 		preview = preview[:maxPreview] + "... (truncated)"
 	}
 	return preview
+}
+
+func attachmentPath(baseDir, sessionID string) string {
+	return filepath.Join(baseDir, fmt.Sprintf("%s_attachments.json", sessionID))
+}
+
+func (s *store) loadAttachments(sessionID string) (map[string]ports.Attachment, error) {
+	path := attachmentPath(s.baseDir, sessionID)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read attachments: %w", err)
+	}
+	var attachments map[string]ports.Attachment
+	if err := json.Unmarshal(data, &attachments); err != nil {
+		return nil, fmt.Errorf("failed to decode attachments: %w", err)
+	}
+	return sanitizeAttachmentMap(attachments), nil
+}
+
+func sanitizeAttachmentMap(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+	sanitized := make(map[string]ports.Attachment, len(values))
+	for key, att := range values {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			name = strings.TrimSpace(att.Name)
+		}
+		if name == "" {
+			continue
+		}
+		uri := strings.TrimSpace(att.URI)
+		if uri == "" || strings.HasPrefix(strings.ToLower(uri), "data:") {
+			continue
+		}
+		att.Name = name
+		att.URI = uri
+		att.Data = ""
+		sanitized[name] = att
+	}
+	if len(sanitized) == 0 {
+		return nil
+	}
+	return sanitized
+}
+
+func mergeAttachmentMaps(base, overrides map[string]ports.Attachment, override bool) map[string]ports.Attachment {
+	if len(overrides) == 0 {
+		return base
+	}
+	if base == nil {
+		base = make(map[string]ports.Attachment, len(overrides))
+	}
+	for key, att := range overrides {
+		if key == "" {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = key
+		}
+		if _, exists := base[key]; exists && !override {
+			continue
+		}
+		base[key] = att
+	}
+	return base
 }

@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface ImagePreviewProps {
@@ -61,6 +61,7 @@ export function ImagePreview({
           showCloseButton={false}
           unstyled
         >
+          <DialogTitle className="sr-only">{altText}</DialogTitle>
           <div className="flex max-h-[85vh] w-full items-center justify-center px-4 py-6">
             <img
               src={src}

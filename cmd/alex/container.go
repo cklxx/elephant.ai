@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"alex/internal/agent/app"
@@ -18,12 +20,28 @@ type Container struct {
 	Runtime     appConfig
 }
 
+func configureDefaultLogger(verbose bool) {
+	level := slog.LevelWarn
+	if verbose {
+		level = slog.LevelInfo
+	}
+
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level:     level,
+		AddSource: false,
+	})
+	slog.SetDefault(slog.New(handler))
+}
+
 func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 	// Load configuration
 	cfg, err := loadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
+
+	// Keep CLI output clean by default; only show info logs when verbose is enabled.
+	configureDefaultLogger(cfg.Verbose)
 
 	if disableSandbox {
 		cfg.SandboxBaseURL = ""

@@ -9,6 +9,7 @@ import {
   buildAttachmentUri,
   replacePlaceholdersWithMarkdown,
   getAttachmentSegmentType,
+  ContentSegment,
 } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
@@ -74,76 +75,90 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     }
     return map;
   }, [contentWithInlineMedia]);
-  const inlineAttachmentMap = useMemo(() => {
+  const { inlineAttachmentMap, attachmentNames, hasAttachments } = useMemo(() => {
     if (!attachments) {
-      return new Map<
-        string,
-        {
-          key: string;
-          type: string;
-          description?: string;
-          mime?: string;
-          attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
-        }
-      >();
+      return {
+        inlineAttachmentMap: new Map<
+          string,
+          {
+            key: string;
+            type: string;
+            description?: string;
+            mime?: string;
+            attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
+          }
+        >(),
+        attachmentNames: [] as string[],
+        hasAttachments: false,
+      };
     }
 
-    return Object.entries(attachments).reduce(
-      (acc, [key, attachment]) => {
-        const uri = buildAttachmentUri(attachment);
-        if (!uri) {
-          return acc;
-        }
-        acc.set(uri, {
+    const inlineMap = new Map<
+      string,
+      {
+        key: string;
+        type: string;
+        description?: string;
+        mime?: string;
+        attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
+      }
+    >();
+    const names: string[] = [];
+
+    Object.entries(attachments).forEach(([key, attachment]) => {
+      const uri = buildAttachmentUri(attachment);
+      if (uri) {
+        inlineMap.set(uri, {
           key,
           type: getAttachmentSegmentType(attachment),
           description: attachment.description,
           mime: attachment.media_type,
           attachment,
         });
-        return acc;
-      },
-      new Map<
-        string,
-        {
-          key: string;
-          type: string;
-          description?: string;
-          mime?: string;
-          attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
-        }
-      >(),
-    );
-  }, [attachments]);
-  const segments = parseContentSegments(markdownAnswer, attachments);
-  const referencedPlaceholders = new Set(
-    Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g)).map((match) => match[0]),
-  );
-  const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
-  const shouldRenderMarkdown = hasAnswerContent || isStreaming;
-  const hasAttachments = attachments && Object.keys(attachments).length > 0;
-  const attachmentNames = useMemo(
-    () =>
-      attachments
-        ? Object.entries(attachments)
-            .map(([key, att]) => att.description || att.name || key)
-            .filter(Boolean)
-        : [],
-    [attachments],
-  );
+      }
+      const label = attachment.description || attachment.name || key;
+      if (label) {
+        names.push(label);
+      }
+    });
 
-  const unreferencedMediaSegments = segments.filter(
-    (segment) =>
-      (segment.type === "image" || segment.type === "video") &&
-      segment.attachment &&
-      (!segment.placeholder || !referencedPlaceholders.has(segment.placeholder)),
-  );
-  const artifactSegments = segments.filter(
-    (segment) =>
-      (segment.type === "document" || segment.type === "embed") &&
-      segment.attachment &&
-      (!segment.placeholder || !referencedPlaceholders.has(segment.placeholder)),
-  );
+    return {
+      inlineAttachmentMap: inlineMap,
+      attachmentNames: names,
+      hasAttachments: names.length > 0,
+    };
+  }, [attachments]);
+  const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
+    const segments = parseContentSegments(markdownAnswer, attachments);
+    const placeholderMatches = Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g));
+    const referenced = new Set(placeholderMatches.map((match) => match[0]));
+    const unreferencedMedia: ContentSegment[] = [];
+    const artifacts: ContentSegment[] = [];
+
+    for (const segment of segments) {
+      if (!segment.attachment) continue;
+      const isReferenced =
+        segment.placeholder && referenced.has(segment.placeholder);
+      if (isReferenced) {
+        continue;
+      }
+      if (segment.type === "image" || segment.type === "video") {
+        unreferencedMedia.push(segment);
+      } else if (segment.type === "document" || segment.type === "embed") {
+        artifacts.push(segment);
+      }
+    }
+
+    return {
+      unreferencedMediaSegments: unreferencedMedia,
+      artifactSegments: artifacts,
+    };
+  }, [markdownAnswer, attachments]);
+  const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
+  // Render markdown while streaming and once a final answer is delivered, even if the text is empty,
+  // to avoid hiding completed streamed results.
+  const shouldRenderMarkdown =
+    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason === "final_answer");
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;

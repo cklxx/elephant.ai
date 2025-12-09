@@ -27,7 +27,10 @@ import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AttachmentPanel } from '@/components/agent/AttachmentPanel';
+import {
+  AttachmentPanel,
+  collectAttachmentItems,
+} from '@/components/agent/AttachmentPanel';
 
 const LazyTerminalOutput = dynamic(
   () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
@@ -47,7 +50,7 @@ export function ConversationPageContent() {
   const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -135,6 +138,11 @@ export function ConversationPageContent() {
       contentRef.current.scrollTop = contentRef.current.scrollHeight;
     }
   }, [events]);
+
+  const hasAttachments = useMemo(
+    () => collectAttachmentItems(events).length > 0,
+    [events]
+  );
 
   const performCancellation = useCallback(
     (taskId: string) => {
@@ -591,10 +599,10 @@ export function ConversationPageContent() {
             />
           </div>
 
-          <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="flex flex-1 min-w-0 flex-col overflow-hidden rounded-3xl border border-border bg-card">
             <ContentArea
               ref={contentRef}
-              className="flex-1"
+              className="flex-1 min-w-0"
               fullWidth
               contentClassName="space-y-4"
             >
@@ -632,9 +640,11 @@ export function ConversationPageContent() {
                   onReconnect={reconnect}
                 />
               )}
-              <div className="lg:hidden">
-                <AttachmentPanel events={events} />
-              </div>
+              {hasAttachments && (
+                <div className="lg:hidden">
+                  <AttachmentPanel events={events} />
+                </div>
+              )}
             </ContentArea>
 
             {showTimelineDialog && (
@@ -703,11 +713,13 @@ export function ConversationPageContent() {
               />
             </div>
           </div>
-          <div className="hidden lg:flex w-[380px] flex-none justify-end xl:w-[440px]">
-            <div className="sticky top-24 w-full max-w-[440px]">
-              <AttachmentPanel events={events} />
+          {hasAttachments && (
+            <div className="hidden lg:flex w-[380px] flex-none justify-end xl:w-[440px]">
+              <div className="sticky top-24 w-full max-w-[440px]">
+                <AttachmentPanel events={events} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
