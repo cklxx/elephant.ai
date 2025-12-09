@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -246,6 +247,12 @@ func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
 		return
 	}
 
+	// Handle normalized workflow envelopes (new event contract)
+	if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+		b.handleEnvelopeEvent(env)
+		return
+	}
+
 	// Handle regular events
 	switch e := event.(type) {
 	case *domain.WorkflowNodeStartedEvent:
@@ -426,4 +433,324 @@ func (h *StreamingOutputHandler) write(rendered string) {
 	if _, err := fmt.Fprint(h.out, rendered); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "stream output write error: %v\n", err)
 	}
+}
+
+func (b *StreamEventBridge) handleEnvelopeEvent(env *domain.WorkflowEventEnvelope) {
+	if env == nil {
+		return
+	}
+
+	switch env.Event {
+	case "workflow.node.started":
+		if evt := envelopeToNodeStarted(env); evt != nil {
+			b.handler.onIterationStart(evt)
+		}
+	case "workflow.node.output.summary":
+		if evt := envelopeToNodeOutputSummary(env); evt != nil {
+			b.handler.onThinkComplete(evt)
+		}
+	case "workflow.node.output.delta":
+		if evt := envelopeToNodeOutputDelta(env); evt != nil {
+			b.handler.onAssistantMessage(evt)
+		}
+	case "workflow.tool.started":
+		if evt := envelopeToToolStarted(env); evt != nil {
+			b.handler.onToolCallStart(evt)
+		}
+	case "workflow.tool.completed":
+		if evt := envelopeToToolCompleted(env); evt != nil {
+			b.handler.onToolCallComplete(evt)
+		}
+	case "workflow.node.failed":
+		if evt := envelopeToNodeFailed(env); evt != nil {
+			b.handler.onError(evt)
+		}
+	case "workflow.result.final":
+		if evt := envelopeToResultFinal(env); evt != nil {
+			b.handler.onTaskComplete(evt)
+		}
+	}
+}
+
+func envelopeToNodeStarted(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeStartedEvent {
+	return &domain.WorkflowNodeStartedEvent{
+		BaseEvent:       envelopeBase(env),
+		Iteration:       payloadInt(env.Payload, "iteration"),
+		TotalIters:      payloadInt(env.Payload, "total_iters"),
+		StepIndex:       payloadInt(env.Payload, "step_index"),
+		StepDescription: payloadString(env.Payload, "step_description"),
+		Workflow:        nil,
+	}
+}
+
+func envelopeToNodeOutputSummary(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeOutputSummaryEvent {
+	return &domain.WorkflowNodeOutputSummaryEvent{
+		BaseEvent:     envelopeBase(env),
+		Iteration:     payloadInt(env.Payload, "iteration"),
+		Content:       payloadString(env.Payload, "content"),
+		ToolCallCount: payloadInt(env.Payload, "tool_call_count"),
+	}
+}
+
+func envelopeToNodeOutputDelta(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeOutputDeltaEvent {
+	return &domain.WorkflowNodeOutputDeltaEvent{
+		BaseEvent:    envelopeBase(env),
+		Iteration:    payloadInt(env.Payload, "iteration"),
+		MessageCount: payloadInt(env.Payload, "message_count"),
+		Delta:        payloadString(env.Payload, "delta"),
+		Final:        payloadBool(env.Payload, "final"),
+		CreatedAt:    payloadTime(env.Payload, "created_at"),
+		SourceModel:  payloadString(env.Payload, "source_model"),
+	}
+}
+
+func envelopeToToolStarted(env *domain.WorkflowEventEnvelope) *domain.WorkflowToolStartedEvent {
+	callID := env.NodeID
+	if callID == "" {
+		callID = payloadString(env.Payload, "call_id")
+	}
+	return &domain.WorkflowToolStartedEvent{
+		BaseEvent: envelopeBase(env),
+		Iteration: payloadInt(env.Payload, "iteration"),
+		CallID:    callID,
+		ToolName:  payloadString(env.Payload, "tool_name"),
+		Arguments: payloadArgs(env.Payload, "arguments"),
+	}
+}
+
+func envelopeToToolCompleted(env *domain.WorkflowEventEnvelope) *domain.WorkflowToolCompletedEvent {
+	callID := env.NodeID
+	if callID == "" {
+		callID = payloadString(env.Payload, "call_id")
+	}
+	var errVal error
+	if msg := payloadString(env.Payload, "error"); msg != "" {
+		errVal = errors.New(msg)
+	}
+
+	return &domain.WorkflowToolCompletedEvent{
+		BaseEvent:   envelopeBase(env),
+		CallID:      callID,
+		ToolName:    payloadString(env.Payload, "tool_name"),
+		Result:      payloadString(env.Payload, "result"),
+		Error:       errVal,
+		Duration:    time.Duration(payloadInt64(env.Payload, "duration")) * time.Millisecond,
+		Metadata:    payloadMap(env.Payload, "metadata"),
+		Attachments: payloadAttachments(env.Payload, "attachments"),
+	}
+}
+
+func envelopeToNodeFailed(env *domain.WorkflowEventEnvelope) *domain.WorkflowNodeFailedEvent {
+	var errVal error
+	if msg := payloadString(env.Payload, "error"); msg != "" {
+		errVal = errors.New(msg)
+	}
+
+	return &domain.WorkflowNodeFailedEvent{
+		BaseEvent:   envelopeBase(env),
+		Iteration:   payloadInt(env.Payload, "iteration"),
+		Phase:       payloadString(env.Payload, "phase"),
+		Error:       errVal,
+		Recoverable: payloadBool(env.Payload, "recoverable"),
+	}
+}
+
+func envelopeToResultFinal(env *domain.WorkflowEventEnvelope) *domain.WorkflowResultFinalEvent {
+	return &domain.WorkflowResultFinalEvent{
+		BaseEvent:       envelopeBase(env),
+		FinalAnswer:     payloadString(env.Payload, "final_answer"),
+		TotalIterations: payloadInt(env.Payload, "total_iterations"),
+		TotalTokens:     payloadInt(env.Payload, "total_tokens"),
+		StopReason:      payloadString(env.Payload, "stop_reason"),
+		Duration:        time.Duration(payloadInt64(env.Payload, "duration")) * time.Millisecond,
+		IsStreaming:     payloadBool(env.Payload, "is_streaming"),
+		StreamFinished:  payloadBool(env.Payload, "stream_finished"),
+		Attachments:     payloadAttachments(env.Payload, "attachments"),
+	}
+}
+
+func envelopeBase(env *domain.WorkflowEventEnvelope) domain.BaseEvent {
+	if env == nil {
+		return domain.NewBaseEvent(types.LevelCore, "", "", "", time.Now())
+	}
+	ts := env.Timestamp()
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	return domain.NewBaseEvent(env.GetAgentLevel(), env.GetSessionID(), env.GetTaskID(), env.GetParentTaskID(), ts)
+}
+
+func payloadString(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return ""
+	}
+	switch v := val.(type) {
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	case []byte:
+		return string(v)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case float64:
+		return strconv.FormatInt(int64(v), 10)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func payloadBool(payload map[string]any, key string) bool {
+	if payload == nil {
+		return false
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return false
+	}
+	switch v := val.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case float64:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+func payloadInt(payload map[string]any, key string) int {
+	if payload == nil {
+		return 0
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case string:
+		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func payloadInt64(payload map[string]any, key string) int64 {
+	if payload == nil {
+		return 0
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case int:
+		return int64(v)
+	case int64:
+		return v
+	case float64:
+		return int64(v)
+	case string:
+		if parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func payloadTime(payload map[string]any, key string) time.Time {
+	if payload == nil {
+		return time.Time{}
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return time.Time{}
+	}
+	switch v := val.(type) {
+	case time.Time:
+		return v
+	case string:
+		if t, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(v)); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+func payloadArgs(payload map[string]any, key string) map[string]interface{} {
+	if payload == nil {
+		return nil
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return nil
+	}
+	if args, ok := val.(map[string]interface{}); ok {
+		return args
+	}
+	if args, ok := val.(map[string]any); ok {
+		return args
+	}
+	return nil
+}
+
+func payloadMap(payload map[string]any, key string) map[string]any {
+	if payload == nil {
+		return nil
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return nil
+	}
+	if m, ok := val.(map[string]any); ok {
+		return m
+	}
+	if m, ok := val.(map[string]interface{}); ok {
+		return m
+	}
+	return nil
+}
+
+func payloadAttachments(payload map[string]any, key string) map[string]ports.Attachment {
+	if payload == nil {
+		return nil
+	}
+	val, ok := payload[key]
+	if !ok || val == nil {
+		return nil
+	}
+	if attachments, ok := val.(map[string]ports.Attachment); ok {
+		return attachments
+	}
+	if generic, ok := val.(map[string]any); ok && len(generic) > 0 {
+		result := make(map[string]ports.Attachment)
+		for k, v := range generic {
+			if att, ok := v.(ports.Attachment); ok {
+				result[k] = att
+			}
+		}
+		if len(result) > 0 {
+			return result
+		}
+	}
+	return nil
 }

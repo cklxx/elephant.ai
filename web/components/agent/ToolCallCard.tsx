@@ -1,15 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
-import { getToolIcon, formatDuration } from '@/lib/utils';
-import { CheckCircle2, Loader2, XCircle, Film } from 'lucide-react';
+import { getToolIcon, formatDuration, humanizeToolName } from '@/lib/utils';
+import { Check, ChevronRight, Loader2, X, Terminal, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { ToolCallLayout } from './tooling/ToolCallLayout';
 import { resolveToolRenderer } from './tooling/toolRenderers';
 import { adaptToolCallForRenderer } from './tooling/toolDataAdapters';
+import { startCase } from 'lodash';
 
 interface ToolCallCardProps {
   event: WorkflowToolStartedEvent | WorkflowToolCompletedEvent;
@@ -20,23 +20,29 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ event, status, pairedStart, isFocused = false }: ToolCallCardProps) {
   const t = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const adapter = useMemo(
     () => adaptToolCallForRenderer({ event, pairedStart, status }),
     [event, pairedStart, status]
   );
   const toolName = adapter.toolName;
-  const toolGlyph = getToolIcon(toolName);
-  const callId = adapter.callId;
+
+  // Humanize tool name
+  const displayToolName = useMemo(() => {
+    return humanizeToolName(toolName);
+  }, [toolName]);
+
+
+  const ToolIcon = getToolIcon(toolName) || Terminal;
+  const duration = adapter.durationMs ? formatDuration(adapter.durationMs) : null;
   const renderer = resolveToolRenderer(toolName);
 
-  const statusLabel = STATUS_LABELS[status](t);
-  const metadata = adapter.durationMs
-    ? t('conversation.tool.timeline.duration', { duration: formatDuration(adapter.durationMs) })
-    : undefined;
   const showVideoWaitHint =
-    status === 'running' && VIDEO_GENERATION_TOOLS.has(toolName.toLowerCase());
+    status === 'running' && toolName.toLowerCase() === 'video_generate';
 
   const summaryText = useMemo(() => {
+    // Priority: Result Summary > Error > Args Summary > Default Text
     const argsSummary = getArgumentsPreview(event, adapter.context.startEvent ?? undefined);
     const errorSummary = adapter.context.completeEvent?.error?.trim();
     const resultSummary = summarizeResult(adapter.context.completeEvent?.result);
@@ -44,15 +50,14 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
     if (status === 'running') {
       return argsSummary || t('conversation.tool.timeline.summaryRunning', { tool: toolName });
     }
-
     if (status === 'error') {
-      return errorSummary || resultSummary || argsSummary || t('conversation.tool.timeline.summaryErrored', { tool: toolName });
+      return errorSummary || t('conversation.tool.timeline.summaryErrored', { tool: toolName });
     }
-
     return resultSummary || argsSummary || t('conversation.tool.timeline.summaryCompleted', { tool: toolName });
   }, [adapter, event, status, t, toolName]);
 
-  const panels = renderer({
+  // Render panels (args, output, etc.)
+  const { panels } = renderer({
     ...adapter.context,
     labels: {
       arguments: t('conversation.tool.timeline.arguments'),
@@ -65,70 +70,79 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       copied: t('events.toolCall.copied'),
       metadataTitle: t('conversation.tool.timeline.metadata'),
     },
-  }).panels;
+  });
 
   return (
-    <ToolCallLayout
-      toolName={toolName}
-      icon={toolGlyph}
-      callId={callId}
-      statusChip={<StatusChip status={status} label={statusLabel} />}
-      summary={summaryText}
-      metadata={metadata}
-      isFocused={isFocused}
-    >
-      {showVideoWaitHint && <VideoWaitHint />}
-      {panels.map((panel, index) => (
-        <div key={index}>{panel}</div>
-      ))}
-    </ToolCallLayout>
-  );
-}
-
-function StatusChip({ status, label }: { status: 'running' | 'done' | 'error'; label: string }) {
-  const meta = STATUS_META[status];
-  const Icon = meta.icon;
-  return (
-    <span
+    <div
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold text-foreground/80',
-        meta.className,
+        "group mb-2 transition-all",
+        isFocused && "bg-muted/10"
       )}
+      data-testid={`tool-call-card-${displayToolName.toLowerCase().replace(/\s+/g, '-')}`}
     >
-      <Icon className={cn('h-3 w-3', status === 'running' && 'animate-spin')} />
-      {label}
-    </span>
-  );
-}
+      {/* Header Row - Manus Style Gray Pill */}
+      <div
+        role="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        data-testid="tool-call-header"
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 cursor-pointer select-none rounded-[10px] text-sm",
+          "bg-secondary/40 hover:bg-secondary/60 transition-colors border border-transparent",
+          status === 'running' && "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
+          status === 'error' && "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30"
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center justify-center transition-all",
+            status === 'running' ? "text-blue-600 dark:text-blue-400" :
+              status === 'error' ? "text-red-600 dark:text-red-400" :
+                "text-muted-foreground/70"
+          )}
+          data-testid={`tool-call-status-${status}`}
+        >
+          {status === 'running' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+            status === 'error' ? <X className="w-3.5 h-3.5" /> :
+              <ToolIcon className="w-3.5 h-3.5" />}
+        </div>
 
-const STATUS_META = {
-  running: {
-    icon: Loader2,
-    className: 'border-amber-200 bg-amber-50/80 text-amber-800',
-  },
-  done: {
-    icon: CheckCircle2,
-    className: 'border-emerald-200 bg-emerald-50/80 text-emerald-800',
-  },
-  error: {
-    icon: XCircle,
-    className: 'border-destructive/30 bg-destructive/10 text-destructive',
-  },
-} as const;
+        <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+          <span className="font-medium opacity-90 truncate" data-testid="tool-call-name">
+            {displayToolName}
+          </span>
+        </div>
 
-const STATUS_LABELS = {
-  running: (t: ReturnType<typeof useTranslation>) => t('conversation.status.doing'),
-  done: (t: ReturnType<typeof useTranslation>) => t('conversation.status.completed'),
-  error: (t: ReturnType<typeof useTranslation>) => t('conversation.status.failed'),
-} as const;
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          {duration && <span data-testid="tool-call-duration">{duration}</span>}
+          <ChevronRight
+            className={cn(
+              "w-3.5 h-3.5 transition-transform duration-200",
+              isExpanded && "rotate-90"
+            )}
+            data-testid="tool-call-expand-icon"
+          />
+        </div>
+      </div>
 
-const VIDEO_GENERATION_TOOLS = new Set(['video_generate']);
+      {/* Expanded Details - Keep it clean */}
+      {isExpanded && (
+        <div className="mt-2 pl-4 pr-1">
+          {showVideoWaitHint && (
+            <div className="flex items-center gap-2 p-2 mb-2 text-xs rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+              <Film className="w-4 h-4" />
+              <span>Generating video... this may take a moment.</span>
+            </div>
+          )}
 
-function VideoWaitHint() {
-  return (
-    <div className="flex items-center gap-2 rounded-2xl border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[11px] font-medium text-amber-800">
-      <Film className="h-4 w-4 text-amber-500" aria-hidden />
-      <span>视频生成较慢，请耐心等待...</span>
+          <div className="text-sm font-mono bg-muted/30 rounded-lg overflow-hidden border border-border/40 text-xs">
+            {panels.map((panel, i) => (
+              <div key={i} className="[&>div]:border-none [&>div]:shadow-none [&>div]:bg-transparent [&_pre]:p-3 [&_pre]:text-xs">
+                {panel}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -140,85 +154,40 @@ function getArgumentsPreview(
   const preview =
     startEvent?.arguments_preview ??
     (isWorkflowToolStartedEvent(event) ? event.arguments_preview : undefined);
-  if (preview && preview.trim().length > 0) {
-    return preview.trim();
-  }
+  if (preview && preview.trim().length > 0) return preview.trim();
 
   const args =
     startEvent?.arguments ??
     (isWorkflowToolStartedEvent(event) ? event.arguments : undefined);
-  return summarizeArguments(args);
+  returnSummarizeArguments(args);
 }
 
-function summarizeArguments(args?: Record<string, unknown>): string | undefined {
-  if (!args || Object.keys(args).length === 0) {
-    return undefined;
-  }
+function returnSummarizeArguments(args?: Record<string, unknown>): string | undefined {
+  if (!args || Object.keys(args).length === 0) return undefined;
 
   const entries = Object.entries(args)
     .map(([key, value]) => {
-      const normalized = formatArgumentValue(value);
-      if (!normalized) {
-        return null;
-      }
-      return `${key}: ${normalized}`;
+      const v = formatArgumentValue(value);
+      return v ? `${key}: ${v}` : null;
     })
     .filter(Boolean) as string[];
 
-  if (entries.length === 0) {
-    return undefined;
-  }
-
-  const preview = entries.join(' · ');
-  return preview.length > 200 ? `${preview.slice(0, 200)}…` : preview;
+  if (entries.length === 0) return undefined;
+  const res = entries.join(', ');
+  return res.length > 80 ? res.slice(0, 80) + '...' : res;
 }
 
 function formatArgumentValue(value: unknown): string {
-  if (value == null) {
-    return '';
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return '';
-    }
-    return trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    const formatted = value
-      .slice(0, 3)
-      .map((item) => formatArgumentValue(item))
-      .filter(Boolean)
-      .join(', ');
-    if (!formatted) {
-      return '';
-    }
-    return value.length > 3 ? `${formatted}…` : formatted;
-  }
-  if (typeof value === 'object') {
-    try {
-      const json = JSON.stringify(value);
-      if (!json) {
-        return '';
-      }
-      return json.length > 80 ? `${json.slice(0, 80)}…` : json;
-    } catch {
-      return '';
-    }
-  }
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return `[Array(${value.length})]`;
+  if (typeof value === 'object') return '{...}';
   return '';
 }
 
 function summarizeResult(result?: string | null): string | undefined {
-  if (!result) {
-    return undefined;
-  }
-  const trimmed = result.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+  if (!result?.trim()) return undefined;
+  // If result is huge json, just say "Result"
+  if (result.startsWith('{') && result.length > 100) return 'Result Object';
+  return result.length > 100 ? result.slice(0, 100) + '...' : result;
 }

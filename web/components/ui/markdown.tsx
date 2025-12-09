@@ -9,7 +9,7 @@ import { ComponentType, useMemo, useState } from "react";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { buildAttachmentUri, getAttachmentSegmentType } from "@/lib/attachments";
 import { AttachmentPayload } from "@/lib/types";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 export type MarkdownRendererProps = {
   content: string;
@@ -254,6 +254,9 @@ export function MarkdownImage({ className, alt, src, style, ...props }: Markdown
           showCloseButton={false}
           unstyled
         >
+          <DialogTitle className="sr-only">
+            {altText || "Image preview"}
+          </DialogTitle>
           <img
             className="h-auto max-h-[80vh] w-full max-w-[90vw] rounded-lg object-contain"
             alt={altText}

@@ -21,6 +21,7 @@ import { PanelRightOpen, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { Badge } from "@/components/ui/badge";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
+import { humanizeToolName } from "@/lib/utils";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
@@ -295,11 +296,12 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       return runningSummary || toolSummary || "Tool activity";
     }
 
+    const humanizedName = humanizeToolName(headlineCall.toolName);
     const hint = summarizeToolHint(headlineCall);
     if (!hint) {
-      return headlineCall.toolName;
+      return humanizedName;
     }
-    return `${headlineCall.toolName} · ${hint}`;
+    return `${humanizedName} · ${hint}`;
   }, [headlineCall, runningSummary, summarizeToolHint, toolSummary]);
 
   const headlinePreview = useMemo(() => {
@@ -355,42 +357,28 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       <button
         type="button"
         onClick={openDetails}
-        className="group flex w-full max-w-full items-start gap-3 overflow-hidden rounded-2xl bg-background/70 px-3 py-2 text-left text-xs font-medium text-foreground transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+        className="group flex w-full max-w-[fit-content] items-center gap-3 rounded-[10px] bg-secondary/40 px-3 py-2 text-left text-sm font-medium text-foreground transition-all hover:bg-secondary/60 border border-transparent"
         title={
           runningSummaryFull.length > 0
             ? `Running: ${runningSummaryFull}`
             : headlineText
         }
       >
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex min-w-0 items-start gap-2">
-            <span className="block max-w-full truncate text-[11px] text-foreground">
-              {headlineText}
-            </span>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            {headlinePreview && (
-              <span className="block max-w-full truncate text-muted-foreground">
-                {headlinePreview}
-              </span>
-            )}
-            <div className="flex flex-wrap items-center gap-1">
-              {runningTools.length > 0 && (
-                <Badge variant="outline" className="border-primary/50 bg-primary/5 text-primary">
-                  {runningTools.length} running
-                </Badge>
-              )}
-              {completedCount > 0 && (
-                <Badge variant="success" className="text-foreground/80">
-                  {completedCount} completed
-                </Badge>
-              )}
-              {failedCount > 0 && (
-                <Badge variant="destructive">{failedCount} failed</Badge>
-              )}
-            </div>
-          </div>
+        <div className="flex items-center justify-center text-muted-foreground/70">
+          <PanelRightOpen className="w-4 h-4" />
         </div>
+
+        <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
+          {headlineText}
+        </span>
+
+        {(runningTools.length > 0 || completedCount > 0 || failedCount > 0) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground/60 ml-2 border-l border-border/40 pl-3">
+            {runningTools.length > 0 && <span>{runningTools.length} running</span>}
+            {completedCount > 0 && <span>{completedCount} done</span>}
+            {failedCount > 0 && <span className="text-red-500">{failedCount} failed</span>}
+          </div>
+        )}
       </button>
 
       <ToolCallDetailsPanel

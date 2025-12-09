@@ -18,7 +18,6 @@ import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface EventLineProps {
@@ -42,6 +41,7 @@ export const EventLine = React.memo(function EventLine({
     );
   }
 
+  // User Task / Input
   if (event.event_type === "workflow.input.received") {
     const segments = parseContentSegments(event.task, event.attachments ?? undefined);
     const textSegments = segments.filter(
@@ -56,93 +56,48 @@ export const EventLine = React.memo(function EventLine({
         segment.attachment,
     );
     return (
-      <Card data-testid="event-workflow.input.received">
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{formatTimestamp(event.timestamp)}</span>
-            <Badge variant="outline" className="text-[10px] font-medium">
-              User Task
-            </Badge>
+      <div className="py-2" data-testid="event-workflow.input.received">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">User</span>
+          <span className="text-[10px] text-muted-foreground/40">{formatTimestamp(event.timestamp)}</span>
+        </div>
+        <div className="text-base font-medium text-foreground">
+          {textSegments.map((segment, index) => (
+            <p
+              key={`text-segment-${index}`}
+              className="whitespace-pre-wrap leading-relaxed"
+            >
+              {segment.text}
+            </p>
+          ))}
+        </div>
+        {mediaSegments.length > 0 && (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {mediaSegments.map((segment, index) => {
+              // ... keep media rendering logic ...
+              if (!segment.attachment) return null;
+              const uri = buildAttachmentUri(segment.attachment);
+              if (!uri) return null;
+              return (
+                <ImagePreview
+                  key={index}
+                  src={uri}
+                  alt="User upload"
+                  className="rounded-lg border border-border/20"
+                  maxHeight="16rem"
+                />
+              );
+            })}
           </div>
-          <div className="space-y-2">
-            {textSegments.map((segment, index) => (
-              <p
-                key={`text-segment-${index}`}
-                className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground"
-              >
-                {segment.text}
-              </p>
+        )}
+        {artifactSegments.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {artifactSegments.map((segment, index) => (
+              segment.attachment ? <ArtifactPreviewCard key={index} attachment={segment.attachment} /> : null
             ))}
           </div>
-          {mediaSegments.length > 0 && (
-            <div className="space-y-3">
-              {mediaSegments.map((segment, index) => {
-                if (!segment.attachment) {
-                  return null;
-                }
-                const uri = buildAttachmentUri(segment.attachment);
-                if (!uri) {
-                  return null;
-                }
-                const key = segment.placeholder || `${segment.type}-${index}`;
-                const attachmentName =
-                  segment.attachment.description ||
-                  segment.attachment.name ||
-                  key;
-                if (segment.type === "video") {
-                  return (
-                    <div
-                      key={`task-media-${key}`}
-                      className="mt-1"
-                      data-testid="event-attachment-video"
-                      data-attachment-name={attachmentName}
-                    >
-                      <VideoPreview
-                        src={uri}
-                        mimeType={segment.attachment.media_type || "video/mp4"}
-                        description={segment.attachment.description}
-                        maxHeight="20rem"
-                      />
-                    </div>
-                  );
-                }
-                return (
-                  <div
-                    key={`task-media-${key}`}
-                    className="mt-1"
-                    data-testid="event-attachment-image"
-                    data-attachment-name={attachmentName}
-                  >
-                    <ImagePreview
-                      src={uri}
-                      alt={segment.attachment.description || segment.attachment.name}
-                      minHeight="12rem"
-                      maxHeight="20rem"
-                      sizes="(min-width: 1280px) 32vw, (min-width: 768px) 48vw, 90vw"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {artifactSegments.length > 0 && (
-            <div className="mt-2 space-y-3">
-              {artifactSegments.map((segment, index) => {
-                if (!segment.attachment) {
-                  return null;
-                }
-                const key = segment.placeholder || `artifact-${index}`;
-                return (
-                  <ArtifactPreviewCard
-                    key={`task-artifact-${key}`}
-                    attachment={segment.attachment}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </div>
     );
   }
 
@@ -152,7 +107,7 @@ export const EventLine = React.memo(function EventLine({
       arguments?: Record<string, unknown>;
     };
     return (
-      <div data-testid="event-workflow.tool.completed">
+      <div data-testid="event-workflow.tool.completed" className="py-1">
         <ToolOutputCard
           toolName={completeEvent.tool_name}
           parameters={completeEvent.arguments}
@@ -168,7 +123,7 @@ export const EventLine = React.memo(function EventLine({
     );
   }
 
-  // Task complete - use TaskCompleteCard
+  // Task complete
   if (event.event_type === "workflow.result.final") {
     return <TaskCompleteCard event={event as WorkflowResultFinalEvent} />;
   }
@@ -177,6 +132,7 @@ export const EventLine = React.memo(function EventLine({
   if (event.event_type === "workflow.node.output.summary") {
     const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
     if (thinkEvent.content) {
+      // Mock event for display
       const mockWorkflowResultFinalEvent: WorkflowResultFinalEvent = {
         event_type: "workflow.result.final",
         timestamp: thinkEvent.timestamp,
@@ -195,6 +151,7 @@ export const EventLine = React.memo(function EventLine({
     }
   }
 
+
   // Other events - use simple line format
   const timestamp = formatTimestamp(event.timestamp);
   const content = formatContent(event);
@@ -203,12 +160,10 @@ export const EventLine = React.memo(function EventLine({
     return null;
   }
   return (
-    <Card data-testid={`event-${event.event_type}`}>
-      <CardContent className={cn("text-sm leading-relaxed", style.content)}>
-        <div className="text-xs text-muted-foreground">{timestamp}</div>
-        <div className="mt-1">{content}</div>
-      </CardContent>
-    </Card>
+    <div className={cn("text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90", style.content)}>
+      <span className="text-[10px] font-mono opacity-40 shrink-0 w-12 pt-0.5">{timestamp}</span>
+      <div className="flex-1 leading-relaxed break-words">{content}</div>
+    </div>
   );
 });
 
@@ -228,7 +183,7 @@ function SubagentEventLine({
     };
     return (
       <div
-        className="space-y-3"
+        className="space-y-1 py-1"
         data-testid={`event-subagent-${event.event_type}`}
       >
         {showContext && <SubagentHeader context={context} />}
@@ -250,7 +205,7 @@ function SubagentEventLine({
   if (event.event_type === "workflow.result.final") {
     return (
       <div
-        className="space-y-3"
+        className="space-y-1 py-2"
         data-testid="event-subagent-workflow.result.final"
       >
         {showContext && <SubagentHeader context={context} />}
@@ -268,16 +223,14 @@ function SubagentEventLine({
 
   return (
     <div
-      className="space-y-2"
+      className="space-y-1 py-0.5"
       data-testid={`event-subagent-${event.event_type}`}
     >
       {showContext && <SubagentHeader context={context} />}
-      <Card>
-        <CardContent className={cn("text-sm leading-relaxed", style.content)}>
-          <div className="text-xs text-muted-foreground">{formatTimestamp(event.timestamp)}</div>
-          <div className="mt-1">{content}</div>
-        </CardContent>
-      </Card>
+      <div className={cn("text-sm flex gap-3 text-muted-foreground/80", style.content)}>
+        <span className="text-[10px] font-mono opacity-40 shrink-0 w-12">{formatTimestamp(event.timestamp)}</span>
+        <div className="flex-1">{content}</div>
+      </div>
     </div>
   );
 }
@@ -299,8 +252,8 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
       : undefined;
   const total =
     "total_subtasks" in event &&
-    typeof event.total_subtasks === "number" &&
-    event.total_subtasks > 0
+      typeof event.total_subtasks === "number" &&
+      event.total_subtasks > 0
       ? event.total_subtasks
       : undefined;
 
@@ -412,46 +365,25 @@ interface SubagentHeaderProps {
 
 export function SubagentHeader({ context }: SubagentHeaderProps) {
   return (
-    <div className="space-y-2">
-      <p className="text-[10px] font-semibold text-primary">
+    <div className="flex items-center gap-3">
+      <p className="text-[10px] font-bold tracking-wider text-primary uppercase">
         {context.title}
       </p>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
         {context.preview && (
-          <span className="text-xs text-foreground/80">
+          <span className="text-xs text-foreground/70 truncate max-w-[200px]">
             {context.preview}
           </span>
         )}
-        {context.concurrency && (
-          <Badge variant="outline" className="text-[10px] font-medium">
-            {context.concurrency}
-          </Badge>
-        )}
-        {context.progress && (
-          <Badge variant="outline" className="text-[10px] font-medium">
-            {context.progress}
-          </Badge>
-        )}
-        {context.stats && (
-          <Badge variant="outline" className="text-[10px] font-medium">
-            {context.stats}
-          </Badge>
-        )}
         {context.status && (
-          <Badge
-            variant={
-              context.statusTone === "success"
-                ? "success"
-                : context.statusTone === "warning"
-                ? "warning"
-                : context.statusTone === "danger"
-                ? "destructive"
-                : "info"
-            }
-            className="text-[10px] font-medium"
-          >
+          <span className={cn(
+            "text-[10px] px-1.5 py-0.5 rounded font-medium",
+            context.statusTone === 'success' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+              context.statusTone === 'danger' ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                "bg-muted text-muted-foreground"
+          )}>
             {context.status}
-          </Badge>
+          </span>
         )}
       </div>
     </div>

@@ -80,30 +80,46 @@ export function TerminalOutput({
     );
   }
   return (
-    <div className="space-y-5" data-testid="conversation-stream">
-      <div className="space-y-4" data-testid="conversation-events">
+    <div className="flex flex-col w-full max-w-4xl mx-auto pb-12" data-testid="conversation-stream">
+      <div className="flex flex-col" data-testid="conversation-events">
         {combinedEntries.map((entry, index) => {
           if (entry.kind === "subagent") {
+            // Render subagent threads inline as a seamless group
+            // We use a subtle visual indicator (left border) instead of a box
             return (
-              <SubagentAggregate key={entry.thread.key} thread={entry.thread} />
-            );
-          }
-          const event = entry.event;
-          const key = `${event.event_type}-${event.timestamp}-${index}`;
-          const panelEvents = panelAnchors.get(event);
-          if (panelEvents) {
-            return (
-              <div key={key} className="space-y-3">
-                <EventLine event={event} />
-                <IntermediatePanel events={panelEvents} />
+              <div key={entry.thread.key} className="pl-4 ml-2 border-l-2 border-primary/10 my-2">
+                <div className="mb-2">
+                  <SubagentHeader context={entry.thread.context} />
+                </div>
+                <div className="flex flex-col">
+                  {entry.thread.events.map((ev, i) => (
+                    <EventLine
+                      key={`${entry.thread.key}-${ev.event_type}-${ev.timestamp}-${i}`}
+                      event={ev}
+                      showSubagentContext={false}
+                    />
+                  ))}
+                </div>
               </div>
             );
           }
 
-          return <EventLine key={key} event={event} />;
+          const event = entry.event;
+          const key = `${event.event_type}-${event.timestamp}-${index}`;
+          const panelEvents = panelAnchors.get(event);
+
+          return (
+            <div key={key} className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2 py-0.5">
+              <EventLine event={event} />
+              {panelEvents && (
+                <div className="ml-4 pl-3 border-l border-border/40 mt-1 mb-2">
+                  <IntermediatePanel events={panelEvents} />
+                </div>
+              )}
+            </div>
+          );
         })}
       </div>
-
     </div>
   );
 }
@@ -113,26 +129,6 @@ interface SubagentThread {
   context: SubagentContext;
   events: AnyAgentEvent[];
   subtaskIndex: number;
-}
-
-function SubagentAggregate({ thread }: { thread: SubagentThread }) {
-  return (
-    <div
-      className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3"
-      data-testid="subagent-aggregate"
-    >
-      <SubagentHeader context={thread.context} />
-      <div className="space-y-2">
-        {thread.events.map((event, index) => (
-          <EventLine
-            key={`${thread.key}-${event.event_type}-${event.timestamp}-${index}`}
-            event={event}
-            showSubagentContext={false}
-          />
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function buildPanelAnchors(
