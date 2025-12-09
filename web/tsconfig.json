@@ -1,41 +1,27 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowJs": false,
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "isolatedModules": true,
     "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "isolatedModules": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "types": ["vite/client"],
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@/lib/utils": ["./src/lib/utils"],
-      "@/lib/*": ["./lib/*"],
-      "@/components/*": ["./src/components/*"],
-      "@/routes/*": ["./src/routes/*"]
+      "@/*": ["./*"]
     }
   },
-  "include": [
-    "src",
-    "lib/api.ts",
-    "lib/api-base.ts",
-    "lib/types.ts",
-    "lib/auth/**/*.ts",
-    "vite.config.ts",
-    "vitest.config.mts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "lib/__tests__/**",
-    "lib/events/**",
-    "lib/mocks/**",
-    "lib/auth/**/*.test.ts"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

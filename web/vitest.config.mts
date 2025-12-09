@@ -1,19 +1,48 @@
-import { defineConfig } from "vitest/config";
-import solid from "vite-plugin-solid";
-import path from "path";
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [react()],
   test: {
-    environment: "happy-dom",
+    environment: 'happy-dom',
     globals: true,
-    setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "lib/**/*.test.ts"],
-    exclude: ["node_modules/**", "dist/**"],
+    setupFiles: ['./vitest.setup.ts'],
+    exclude: ['node_modules/**', 'e2e/**'],
+    include: [
+      'hooks/**/__tests__/**/*.test.ts',
+      'hooks/**/__tests__/**/*.test.tsx',
+      'components/**/__tests__/**/*.test.tsx',
+      'app/**/__tests__/**/*.test.ts',
+      'app/**/__tests__/**/*.test.tsx',
+      'lib/**/*.test.ts',
+      'tests/**/*.test.ts',
+    ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        '.next/',
+        '.storybook/',
+        'coverage/',
+        '**/*.d.ts',
+        '**/*.config.*',
+        '**/dist/**',
+        'e2e/**',
+      ],
+      include: ['hooks/**/*.ts', 'lib/**/*.ts', 'components/**/*.tsx'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
+      },
+    },
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./"),
+      '@': path.resolve(__dirname, './'),
     },
   },
 });

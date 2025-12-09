@@ -1,6 +1,4 @@
-const RAW_API_BASE_URL =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL?.trim?.()) ||
-  (typeof process !== "undefined" ? process.env.VITE_API_URL?.trim() : undefined);
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
 const DEFAULT_INTERNAL_PRODUCTION_API_BASE = "http://alex-server:8080";
 const DEFAULT_DEVELOPMENT_API_BASE = "http://localhost:8080";
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -50,8 +48,7 @@ export function resolveApiBaseUrl(): string {
       return normalizeBaseUrl(window.location.origin);
     }
 
-    const nodeEnv = typeof process !== "undefined" ? process.env.NODE_ENV : undefined;
-    return nodeEnv === "production"
+    return process.env.NODE_ENV === "production"
       ? normalizeBaseUrl(DEFAULT_INTERNAL_PRODUCTION_API_BASE)
       : normalizeBaseUrl(DEFAULT_DEVELOPMENT_API_BASE);
   }
