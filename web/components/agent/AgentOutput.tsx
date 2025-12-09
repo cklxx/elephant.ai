@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
 import { TimelineStepList } from './TimelineStepList';
@@ -29,14 +27,6 @@ export function AgentOutput({
   onReconnect,
 }: AgentOutputProps) {
   const t = useTranslation();
-  const memoryStats = useMemoryStats() as {
-    eventCount: number;
-    estimatedBytes: number;
-    toolCallCount: number;
-    iterationCount: number;
-    researchStepCount: number;
-    browserDiagnosticsCount: number;
-  };
   const timelineSteps = useTimelineSteps(events);
   const hasTimeline = timelineSteps.length > 0;
   const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
@@ -59,12 +49,8 @@ export function AgentOutput({
 
   useEffect(() => {
     if (!hasTimeline) {
-      if (focusedStepId !== null) {
-        setFocusedStepId(null);
-      }
-      if (hasUserSelectedStep) {
-        setHasUserSelectedStep(false);
-      }
+      if (focusedStepId !== null) setFocusedStepId(null);
+      if (hasUserSelectedStep) setHasUserSelectedStep(false);
       return;
     }
 
@@ -89,20 +75,11 @@ export function AgentOutput({
   ]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="flex items-center justify-between gap-6 border border-border bg-card px-6 py-5">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold text-foreground">Agent Output</h2>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
-            <Badge variant="outline" className="text-[11px] font-medium">
-              {memoryStats.eventCount.toLocaleString()} events
-            </Badge>
-            <span>
-              {Math.round(memoryStats.estimatedBytes / 1024)} KB · {memoryStats.toolCallCount} tool calls · {memoryStats.iterationCount}{' '}
-              iterations
-            </span>
-          </div>
-        </div>
+    <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
+      {/* Header Status - Minimal */}
+      <div className="flex items-center justify-between px-2">
+        {/* Could put a title here if needed, but keeping it clean */}
+        <div />
         <ConnectionStatus
           connected={isConnected}
           reconnecting={isReconnecting}
@@ -110,16 +87,10 @@ export function AgentOutput({
           reconnectAttempts={reconnectAttempts}
           onReconnect={onReconnect}
         />
-      </Card>
+      </div>
 
       {hasTimeline && (
-        <Card className="rounded-2xl border bg-card p-6">
-          <header className="mb-4 space-y-1">
-            <h3 className="text-base font-semibold text-foreground">
-              {t('timeline.card.title')}
-            </h3>
-            <p className="text-sm text-muted-foreground">{t('timeline.card.subtitle')}</p>
-          </header>
+        <div className="rounded-xl border border-border/40 bg-card/50 p-1">
           <TimelineStepList
             steps={timelineSteps}
             focusedStepId={focusedStepId}
@@ -128,21 +99,23 @@ export function AgentOutput({
               setHasUserSelectedStep(true);
             }}
           />
-        </Card>
+        </div>
       )}
 
-      {/* Virtualized event stream */}
-      <VirtualizedEventList
-        events={events}
-        autoScroll={!hasUserSelectedStep}
-        focusedEventIndex={focusedEventIndex}
-        onJumpToLatest={() => {
-          const targetStepId = activeStep?.id ?? latestStep?.id ?? null;
-          setFocusedStepId(targetStepId);
-          setHasUserSelectedStep(false);
-        }}
-        className="bg-card/90"
-      />
+      {/* Main Stream */}
+      <div className="rounded-2xl border border-border/40 bg-background/50 overflow-hidden shadow-sm min-h-[500px]">
+        <VirtualizedEventList
+          events={events}
+          autoScroll={!hasUserSelectedStep}
+          focusedEventIndex={focusedEventIndex}
+          onJumpToLatest={() => {
+            const targetStepId = activeStep?.id ?? latestStep?.id ?? null;
+            setFocusedStepId(targetStepId);
+            setHasUserSelectedStep(false);
+          }}
+          className="bg-transparent"
+        />
+      </div>
     </div>
   );
 }

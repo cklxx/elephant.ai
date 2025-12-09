@@ -116,3 +116,75 @@ export function truncate(text: string, maxLength: number): string {
 export function formatJSON(obj: any): string {
   return JSON.stringify(obj, null, 2);
 }
+
+// Map of raw tool names to human readable names
+const TOOL_NAME_MAP: Record<string, string> = {
+  // File Operations
+  'file_read': 'Read File',
+  'read_resource': 'Read Resource',
+  'file_write': 'Write File',
+  'write_to_file': 'Write Code',
+  'replace_file_content': 'Update Code',
+  'multi_replace_file_content': 'Update Multiple Code Blocks',
+  'file_edit': 'Edit File',
+  'list_dir': 'List Directory',
+  'list_files': 'List Files',
+  'find_by_name': 'Find File',
+  'search_in_file': 'Search in File',
+  'grep_search': 'Search Codebase',
+
+  // Code Execution
+  'bash': 'Run Shell',
+  'run_command': 'Run Command',
+  'code_execute': 'Execute Python',
+  'python_execute': 'Execute Python',
+  'read_terminal': 'Read Terminal',
+  'send_command_input': 'Send Input',
+
+  // Web
+  'web_search': 'Search Web',
+  'search_web': 'Search Web',
+  'web_fetch': 'Fetch Page',
+  'read_url_content': 'Read Website',
+  'open_browser_url': 'Open Browser',
+  'read_browser_page': 'Read Page',
+  'click_browser_element': 'Click Element',
+  'type_browser_element': 'Type Input',
+  'scroll_browser_page': 'Scroll Page',
+
+  // Agent/Task
+  'task_boundary': 'Update Task',
+  'notify_user': 'Notify User',
+  'think': 'Thinking',
+  'todo_read': 'Check Tasks',
+  'todo_update': 'Update Tasks',
+
+  // AI Generation
+  'text_to_image': 'Generate Image',
+  'video_generate': 'Generate Video',
+  'vision_analyze': 'Analyze Image',
+};
+
+const TOOL_WORD_REPLACEMENTS: Record<string, string> = {
+  'dir': 'Directory',
+  'cmd': 'Command',
+  'exec': 'Execute',
+  'gen': 'Generate',
+};
+
+export function humanizeToolName(name: string): string {
+  if (!name) return '';
+  const normalized = name.toLowerCase().trim();
+
+  // Direct map lookup
+  if (TOOL_NAME_MAP[normalized]) {
+    return TOOL_NAME_MAP[normalized];
+  }
+
+  // Fallback: Replace underscores with spaces and capitalize
+  const parts = normalized.split(/[_.]/);
+  return parts.map(part => {
+    if (TOOL_WORD_REPLACEMENTS[part]) return TOOL_WORD_REPLACEMENTS[part];
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  }).join(' ');
+}

@@ -2,19 +2,19 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDuration, cn } from "@/lib/utils";
+import { formatDuration, cn, humanizeToolName } from "@/lib/utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronRight, Loader2, Check, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
+import { startCase } from "lodash";
 
 const SEEDREAM_TOOL_ALIASES = new Set([
   'video_generate',
@@ -56,336 +56,115 @@ export function ToolOutputCard({
     parameters && Object.keys(parameters).length > 0,
   );
   const hasError = Boolean(error && error.trim().length > 0);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false); // Default collapsed for Manus style
   const t = useTranslation();
 
   const normalizedToolName = toolName.toLowerCase();
-  const normalizedSeedreamKey = normalizedToolName.replace(/\s+/g, "");
-  const seedreamDisplayNames: Record<string, string> = {
-    text_to_image: "Seedream image generation",
-    seedream_text_to_image: "Seedream image generation",
-    image_to_image: "Seedream image-to-image",
-    seedream_image_to_image: "Seedream image-to-image",
-    vision_analyze: "Seedream vision analysis",
-    seedream_vision_analyze: "Seedream vision analysis",
-    video_generate: "Video generation",
-  };
-  const isSeedream = isSeedreamTool(toolName);
-  const displayToolName = seedreamDisplayNames[normalizedSeedreamKey] ||
-    (isSeedream ? "Seedream tool" : toolName);
+
+  // Humanize tool Name
+  const displayToolName = useMemo(() => {
+    return humanizeToolName(toolName);
+  }, [toolName]);
 
   const resolvedStatus: "running" | "completed" | "failed" = useMemo(() => {
-    if (status) {
-      return status;
-    }
-    if (hasError) {
-      return "failed";
-    }
+    if (status) return status;
+    if (hasError) return "failed";
     return "completed";
   }, [status, hasError]);
-
-  const statusLabel = useMemo(() => {
-    switch (resolvedStatus) {
-      case "running":
-        return t("tool.status.running");
-      case "failed":
-        return t("tool.status.failed");
-      default:
-        return t("tool.status.completed");
-    }
-  }, [resolvedStatus, t]);
-
-  const statusVariant: BadgeProps["variant"] = useMemo(() => {
-    switch (resolvedStatus) {
-      case "running":
-        return "info";
-      case "failed":
-        return "destructive";
-      default:
-        return "success";
-    }
-  }, [resolvedStatus]);
 
   const language = useMemo(
     () => detectLanguage(toolName, parameters, result),
     [toolName, parameters, result],
   );
 
-  const resultLength = result?.length ?? 0;
-  const errorLength = error?.length ?? 0;
-  const shouldShowToggle =
-    (hasResult && resultLength > 0) ||
-    (hasError && (errorLength > 160 || hasResult));
-
   const previewText = useMemo(() => {
-    if (error) {
-      return error;
+    if (error) return error;
+    if (result) {
+      const trimmed = result.trim();
+      return trimmed.length > 100 ? trimmed.slice(0, 100) + '...' : trimmed;
     }
-    if (!result) {
-      return "";
-    }
-    const trimmed = result.trim();
-    if (trimmed.length <= 160) {
-      return trimmed;
-    }
-    return `${trimmed.slice(0, 160)}…`;
-  }, [error, result]);
+    // Fallback to params
+    return formatParams(parameters, toolName) || "";
+  }, [error, result, parameters, toolName]);
 
-  const showBody =
-    hasResult ||
-    hasParameters ||
-    hasError ||
-    ((toolName === "todo_read" || toolName === "todo_update") &&
-      metadata?.todos);
+  const showBody = hasResult || hasParameters || hasError || (metadata?.todos);
 
   return (
-    <Card className="animate-fadeIn overflow-hidden rounded-2xl border border-border bg-card">
-      <CardHeader className="px-4 py-3 space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              {showBody && shouldShowToggle && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-expanded={isExpanded}
-                  aria-label={isExpanded ? "折叠工具调用" : "展开工具调用"}
-                  onClick={() => setIsExpanded((prev) => !prev)}
-                  className="h-8 w-8"
-                >
-                  {isExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm">
-                <span
-                  className={
-                    resolvedStatus === "failed"
-                      ? "text-destructive font-semibold"
-                      : "text-primary font-semibold"
-                  }
-                >
-                  {resolvedStatus === "failed" ? "✗ " : ""}
-                  {displayToolName}
-                </span>
-                {typeof duration === "number" && duration >= 0 && (
-                  <Badge variant="info" className="font-mono text-[11px]">
-                    {formatDuration(duration)}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            {!isExpanded && previewText && (
-              <p className="mt-1 max-w-full truncate text-xs font-sans text-muted-foreground">
-                {previewText}
-              </p>
-            )}
-          </div>
-          <Badge variant={statusVariant} className="shrink-0">
-            {statusLabel}
-          </Badge>
-        </div>
-      </CardHeader>
-
-      {showBody && (
-        <div className="bg-card">
-          {(isExpanded || !shouldShowToggle) && (
-            <CardContent className="space-y-3 px-4 pb-4 pt-3">
-              {hasError && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-destructive">
-                    {t("tool.section.error")}
-                  </p>
-                  <pre className="rounded-lg bg-destructive/10 p-3 text-xs font-mono text-destructive/90 overflow-x-auto whitespace-pre-wrap">
-                    {error}
-                  </pre>
-                </div>
-              )}
-
-              {/* Todo tools - render from metadata */}
-              {(toolName === "todo_read" || toolName === "todo_update") &&
-                metadata?.todos && (
-                  <div className="space-y-4">
-                    {/* Todo List Header with Summary */}
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-slate-700">
-                        📋 Todos
-                      </h3>
-                    {metadata.total_count > 0 && (
-                      <div className="flex gap-3 text-xs">
-                        {metadata.in_progress_count > 0 && (
-                          <Badge variant="info" className="gap-1">
-                            <span>→</span>
-                            {metadata.in_progress_count}
-                          </Badge>
-                        )}
-                        {metadata.pending_count > 0 && (
-                          <Badge variant="warning" className="gap-1">
-                            <span>☐</span>
-                            {metadata.pending_count}
-                          </Badge>
-                        )}
-                        {metadata.completed_count > 0 && (
-                          <Badge variant="success" className="gap-1">
-                            <span>✓</span>
-                            {metadata.completed_count}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                    {/* Todo List Items */}
-                    {metadata.todos.length > 0 ? (
-                      <div className="space-y-2">
-                        {metadata.todos.map(
-                          (
-                            todo: { content: string; status: string },
-                            index: number,
-                          ) => (
-                            <div
-                              key={index}
-                              className={cn(
-                                "group flex items-start gap-3 rounded-lg border p-3 transition-all",
-                                todo.status === "in_progress" &&
-                                  "border-blue-200 bg-blue-50/50",
-                                todo.status === "pending" &&
-                                  "border-slate-200 bg-white hover:border-slate-300",
-                                todo.status === "completed" &&
-                                  "border-green-200 bg-green-50/30",
-                              )}
-                            >
-                              {/* Status Icon */}
-                              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
-                                {todo.status === "in_progress" && (
-                                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
-                                    <span className="text-sm"></span>
-                                  </div>
-                                )}
-                                {todo.status === "pending" && (
-                                  <div className="flex h-5 w-5 items-center justify-center rounded border-2 border-slate-300 bg-white">
-                                    <span className="text-xs text-slate-400"></span>
-                                  </div>
-                                )}
-                                {todo.status === "completed" && (
-                                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
-                                    <span className="text-sm">✓</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Task Content */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 ">
-                                  <p
-                                    className={cn(
-                                "text-sm leading-relaxed",
-                                todo.status === "completed"
-                                  ? "text-slate-400 line-through"
-                                  : "text-foreground",
-                              )}
-                            >
-                              {todo.content}
-                            </p>
-                                </div>
-                              </div>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                        <p className="text-sm text-slate-400">No tasks yet</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              {hasResult &&
-                !(toolName === "todo_read" || toolName === "todo_update") &&
-                renderToolResult(
-                  toolName,
-                  result,
-                  parameters,
-                  metadata,
-                  language,
-                  t,
-                  attachments,
-                )}
-
-              {metadata?.screenshot && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Screenshot
-                  </p>
-                  <div className="rounded-lg bg-muted/15 overflow-hidden">
-                    <Image
-                      src={metadata.screenshot}
-                      alt="Browser screenshot"
-                      width={1280}
-                      height={720}
-                      className="w-full h-auto max-h-96 object-contain"
-                      unoptimized
-                    />
-                  </div>
-                </div>
-              )}
-            </CardContent>
+    <div
+      className="group mb-2 transition-all"
+      data-testid={`tool-output-card-${normalizedToolName.replace(/\s+/g, '-')}`}
+    >
+      {/* Manus Style Gray Pill Header */}
+      <div
+        role="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        data-testid="tool-output-header"
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 cursor-pointer select-none rounded-[10px] text-sm",
+          "bg-secondary/40 hover:bg-secondary/60 transition-colors border border-transparent",
+          resolvedStatus === 'running' && "bg-blue-50/50 border-blue-100/50 text-blue-900",
+          resolvedStatus === 'failed' && "bg-red-50/50 border-red-100/50 text-red-900"
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center justify-center transition-all",
+            resolvedStatus === 'running' ? "text-blue-600" :
+              resolvedStatus === 'failed' ? "text-red-600" :
+                "text-muted-foreground/70"
           )}
+          data-testid={`tool-status-${resolvedStatus}`}
+        >
+          {resolvedStatus === 'running' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+            resolvedStatus === 'failed' ? <X className="w-3.5 h-3.5" /> :
+              <Check className="w-3.5 h-3.5" />}
+        </div>
+
+        <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+          <span className="font-medium opacity-90 truncate" data-testid="tool-name">{displayToolName}</span>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          {duration && <span data-testid="tool-duration">{formatDuration(duration)}</span>}
+          <ChevronRight
+            className={cn("w-3.5 h-3.5 transition-transform duration-200", isExpanded && "rotate-90")}
+            data-testid="tool-expand-icon"
+          />
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      {isExpanded && showBody && (
+        <div className="mt-2 pl-4 pr-1" data-testid="tool-content-expanded">
+          <div className="text-sm rounded-lg overflow-hidden border border-border/40 bg-muted/10">
+            <div className="p-3">
+              {hasError && (
+                <div className="text-xs text-destructive bg-destructive/10 p-2 rounded mb-2 font-mono whitespace-pre-wrap">
+                  {error}
+                </div>
+              )}
+              {renderToolResult(toolName, result, parameters, metadata, language, t, attachments)}
+            </div>
+          </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
+
+// ... Keep helper functions mostly as is, just ensure they return clean JSX
 
 function detectLanguage(
   toolName: string,
   parameters?: Record<string, unknown>,
   result?: string,
 ): string {
-  if (toolName === "bash" || toolName === "shell" || toolName === "terminal") {
+  if (toolName === "bash" || toolName === "shell" || toolName === "terminal" || toolName === "run_command") {
     return "bash";
   }
   if (toolName === "code_execute" || toolName === "python_execute") {
     return "python";
   }
-  if (toolName === "web_fetch" || toolName === "web_search") {
-    return "html";
-  }
-  if (toolName === "file_read") {
-    const path = typeof parameters?.path === "string" ? parameters.path : "";
-    const ext = path.split(".").pop();
-    if (ext) {
-      const normalized = ext.toLowerCase();
-      if (normalized === "ts" || normalized === "tsx") return "typescript";
-      if (normalized === "js" || normalized === "jsx") return "javascript";
-      if (normalized === "json") return "json";
-      if (normalized === "py") return "python";
-      if (normalized === "go") return "go";
-      if (normalized === "rs") return "rust";
-      if (normalized === "sh" || normalized === "bash") return "bash";
-      if (normalized === "md") return "markdown";
-      if (normalized === "html" || normalized === "htm") return "html";
-      if (normalized === "css") return "css";
-      if (normalized === "sql") return "sql";
-      if (normalized === "yml" || normalized === "yaml") return "yaml";
-    }
-  }
-
-  if (result) {
-    const trimmed = result.trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      return "json";
-    }
-    if (/^<([a-z-]+)(\s|>)/i.test(trimmed)) {
-      return "html";
-    }
-  }
-
   return "text";
 }
 
@@ -397,33 +176,10 @@ function formatParams(
   const entries = Object.entries(parameters);
   if (entries.length === 0) return null;
 
-  // Custom formatting for specific tools
-  if (toolName === "file_write" || toolName === "file_edit") {
-    const path = parameters.path || parameters.file_path;
-    if (path && typeof path === "string") {
-      const lines = parameters.lines || parameters.line_count;
-      if (lines) {
-        return `${path} (${lines} lines)`;
-      }
-      return path;
-    }
+  if (toolName === "run_command" || toolName === 'bash') {
+    return (parameters.command as string) || null;
   }
 
-  if (toolName === "file_read") {
-    const path = parameters.path || parameters.file_path;
-    if (path && typeof path === "string") {
-      return path;
-    }
-  }
-
-  if (toolName === "bash" || toolName === "shell") {
-    const command = parameters.command;
-    if (command && typeof command === "string") {
-      return command.length > 60 ? `${command.slice(0, 60)}…` : command;
-    }
-  }
-
-  // Default formatting
   return entries
     .slice(0, 2)
     .map(([key, value]) => `${key}: ${formatParamValue(value)}`)
@@ -431,134 +187,10 @@ function formatParams(
 }
 
 function formatParamValue(value: unknown): string {
-  if (value == null) return "null";
-  if (typeof value === "string") {
-    return value.length > 24 ? `${value.slice(0, 24)}…` : value;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return JSON.stringify(value).slice(0, 24);
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
 }
 
-const NOISE_LINE_PATTERNS = [
-  /^model output$/i,
-  /^iteration\s+\d+/i,
-  /^seedream.*response$/i,
-  /^.*text-to-image response$/i,
-  /^seedream.*response.*$/i,
-  /^use these placeholders?.*/i,
-  /^\[?doubao[-\w]*seedream[^\]]*\]?$/i,
-  /^image[s]?\s+generated[:：]?\s*\[.*\]$/i,
-];
-
-function stripNoisyLines(input: string): string {
-  if (!input) {
-    return "";
-  }
-  const lines = input.split("\n");
-  const filtered: string[] = [];
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    const scrubbed = trimmed
-      .replace(/\[doubao[-\w]*seedream[^\]]*\]/gi, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-    if (!scrubbed) {
-      if (filtered.length > 0 && filtered[filtered.length - 1] !== "") {
-        filtered.push("");
-      }
-      return;
-    }
-    if (NOISE_LINE_PATTERNS.some((pattern) => pattern.test(scrubbed))) {
-      return;
-    }
-    filtered.push(scrubbed);
-  });
-  return filtered.join("\n").trim();
-}
-
-// Parse bash tool result
-interface BashResult {
-  command?: string;
-  exit_code?: number;
-  stdout?: string;
-  stderr?: string;
-  text?: string;
-}
-
-function parseBashResult(
-  result: string | undefined,
-  metadata?: Record<string, any>,
-): BashResult | null {
-  if (typeof result === "string" && result.trim().length > 0) {
-    try {
-      const parsed = JSON.parse(result);
-      return parsed as BashResult;
-    } catch {
-      // fall through to metadata fallback
-    }
-  }
-
-  if (!metadata) {
-    return null;
-  }
-
-  const command =
-    typeof metadata.command === "string" ? metadata.command : undefined;
-  const stdout =
-    typeof metadata.stdout === "string" ? metadata.stdout : undefined;
-  const stderr =
-    typeof metadata.stderr === "string" ? metadata.stderr : undefined;
-  const text = typeof metadata.text === "string" ? metadata.text : undefined;
-
-  let exitCode: number | undefined;
-  const rawExit = metadata.exit_code;
-  if (typeof rawExit === "number") {
-    exitCode = rawExit;
-  } else if (typeof rawExit === "string") {
-    const parsedExit = Number(rawExit);
-    if (!Number.isNaN(parsedExit)) {
-      exitCode = parsedExit;
-    }
-  }
-
-  if (
-    command === undefined &&
-    stdout === undefined &&
-    stderr === undefined &&
-    text === undefined &&
-    exitCode === undefined
-  ) {
-    return null;
-  }
-
-  return {
-    command,
-    stdout,
-    stderr,
-    text,
-    exit_code: exitCode,
-  };
-}
-
-// Parse file_write tool result
-interface FileWriteResult {
-  path?: string;
-  chars?: number;
-  lines?: number;
-}
-
-function parseFileWriteResult(result: string): FileWriteResult | null {
-  try {
-    const parsed = JSON.parse(result);
-    return parsed as FileWriteResult;
-  } catch {
-    return null;
-  }
-}
-
-// Render tool-specific result
 function renderToolResult(
   toolName: string,
   result: string | undefined,
@@ -568,480 +200,60 @@ function renderToolResult(
   t: any,
   attachments?: Record<string, AttachmentPayload>,
 ): React.ReactNode {
-  const normalizedToolName = toolName.toLowerCase();
-  const isSeedream = isSeedreamTool(toolName);
-  const hasResultText = typeof result === "string" && result.trim().length > 0;
-  const friendlySeedreamSummary = isSeedream ? "Image ready" : undefined;
-
-  // Code execute - show executed code and output
-  if (toolName === "code_execute") {
-    const codeSnippet =
-      typeof parameters?.code === "string" ? parameters.code : undefined;
-    const langHint =
-      (typeof parameters?.language === "string"
-        ? parameters.language
-        : undefined) ||
-      (typeof metadata?.language === "string" ? metadata.language : undefined);
-    const status =
-      typeof metadata?.success === "boolean" ? metadata.success : undefined;
-    const durationMs =
-      typeof metadata?.duration_ms === "number"
-        ? metadata.duration_ms
-        : undefined;
-
+  // If we have attachments (images etc), render them first
+  if (attachments && Object.keys(attachments).length > 0) {
     return (
-      <div className="space-y-3">
-        {codeSnippet && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">
-              {t("tool.code_execute.code") ?? "Code"}
-            </p>
-            <div className="rounded-lg bg-muted/20 overflow-auto">
-              <SyntaxHighlighter
-                language={mapCodeExecuteLanguage(langHint)}
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  borderRadius: "0.5rem",
-                  fontSize: "0.75rem",
-                  maxHeight: 400,
-                }}
-                showLineNumbers={true}
-              >
-                {codeSnippet}
-              </SyntaxHighlighter>
-            </div>
+      <div className="space-y-2">
+        {Object.values(attachments).map((att, i) => (
+          <ArtifactPreviewCard key={i} attachment={att} />
+        ))}
+        {result && <pre className="text-xs font-mono whitespace-pre-wrap mt-2">{result}</pre>}
+      </div>
+    );
+  }
+
+  if (toolName === 'code_execute' || toolName === 'run_command' || toolName === 'bash') {
+    const code = parameters?.code || parameters?.command;
+    return (
+      <div className="space-y-2 text-xs">
+        {!!code && (
+          <div className="bg-muted/30 p-2 rounded">
+            <div className="opacity-50 mb-1">Input:</div>
+            <code className="font-mono whitespace-pre-wrap text-foreground/80">
+              {String(code)}
+            </code>
           </div>
         )}
-
-        <div>
-          <div className="rounded-lg bg-muted/15 p-3">
-            {hasResultText ? (
-              <pre className="text-xs font-mono whitespace-pre-wrap text-foreground/90">
-                {result}
-              </pre>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {t("tool.code_execute.emptyOutput") ?? "No output captured."}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {(status !== undefined || durationMs !== undefined) && (
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {status !== undefined && (
-              <span className="flex items-center gap-2">
-                {t("tool.code_execute.status") ?? "Status"}:
-                <Badge variant={status ? "success" : "destructive"}>
-                  {status
-                    ? t("tool.code_execute.success") ?? "Succeeded"
-                    : t("tool.code_execute.failed") ?? "Failed"}
-                </Badge>
-              </span>
-            )}
-            {durationMs !== undefined && (
-              <span>
-                {t("tool.code_execute.duration") ?? "Duration"}:{" "}
-                {formatDuration(durationMs)}
-              </span>
-            )}
+        {result && (
+          <div className="bg-muted/30 p-2 rounded">
+            <div className="opacity-50 mb-1">Output:</div>
+            <code className="font-mono whitespace-pre-wrap text-foreground/80">
+              {result}
+            </code>
           </div>
         )}
       </div>
     );
   }
 
-  if (!hasResultText) return null;
-
-  // Bash tool - show command and output separately
-  if (toolName === "bash" || toolName === "shell") {
-    const bashResult = parseBashResult(result, metadata);
-    if (bashResult) {
-      return (
-        <div className="space-y-3">
-          {bashResult.command && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">
-                Command
-              </p>
-              <div className="rounded-lg bg-gray-900 text-emerald-400 p-3 overflow-x-auto">
-                <pre className="text-xs font-mono whitespace-pre-wrap">
-                  <span className="text-gray-500">$</span> {bashResult.command}
-                </pre>
-              </div>
-            </div>
-          )}
-          {(bashResult.stdout || bashResult.text) && (
-            <div>
-              <div className="rounded-lg bg-gray-900 text-gray-100 p-3 overflow-x-auto">
-                <pre className="text-xs font-mono whitespace-pre-wrap">
-                  {bashResult.text || bashResult.stdout}
-                </pre>
-              </div>
-            </div>
-          )}
-          {bashResult.stderr && (
-            <div>
-              <div className="rounded-lg bg-destructive/10 p-3 overflow-x-auto">
-                <pre className="text-xs font-mono text-destructive whitespace-pre-wrap">
-                  {bashResult.stderr}
-                </pre>
-              </div>
-            </div>
-          )}
-          {bashResult.exit_code !== undefined && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">
-                Exit Code:
-              </span>
-              <Badge variant={bashResult.exit_code === 0 ? "success" : "destructive"}>
-                {bashResult.exit_code}
-              </Badge>
-            </div>
-          )}
-        </div>
-      );
-    }
-  }
-
-  // File write tool - show file path and write summary
-  if (toolName === "file_write") {
-    // Get file path from metadata or parameters
-    const filePath =
-      (metadata?.path as string) ||
-      (parameters?.path as string) ||
-      (parameters?.file_path as string);
-    // Get content from metadata (preferred) or parameters (fallback)
-    const content =
-      (metadata?.content as string) ||
-      (parameters?.content as string) ||
-      undefined;
-
-    return (
-      <div className="space-y-3">
-        {/* Result message */}
-        <div>
-          <div className="rounded-lg bg-muted/15 p-3">
-            <p className="text-xs font-mono text-foreground/90">{result}</p>
-          </div>
-        </div>
-
-        {/* File path */}
-        {filePath && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">
-              File Path
-            </p>
-            <div className="rounded-lg bg-muted/15 p-3">
-              <p className="text-xs font-mono text-foreground/90">{filePath}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Write summary from metadata */}
-        {metadata &&
-          (metadata.lines !== undefined || metadata.chars !== undefined) && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">
-                Write Summary
-              </p>
-              <div className="flex gap-4 text-xs">
-                {metadata.lines !== undefined && (
-                  <span className="text-muted-foreground">
-                    <strong>{metadata.lines}</strong> lines
-                  </span>
-                )}
-                {metadata.chars !== undefined && (
-                  <span className="text-muted-foreground">
-                    <strong>{metadata.chars}</strong> characters
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-        {/* File content from parameters */}
-        {content && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">
-              Content Written
-            </p>
-            <div className="rounded-lg bg-muted/20 overflow-auto">
-              <SyntaxHighlighter
-                language={detectLanguageFromPath(filePath || "")}
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  borderRadius: "0.5rem",
-                  fontSize: "0.75rem",
-                  maxHeight: 400,
-                }}
-                showLineNumbers={true}
-              >
-                {content}
-              </SyntaxHighlighter>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Default rendering for other tools
-  const descriptor = isSeedream
-    ? getFirstSeedreamDescriptor([
-        metadata?.prompt,
-        metadata?.revised_prompt,
-        metadata?.description,
-        parameters?.prompt,
-      ])
-    : undefined;
-  const resultString =
-    typeof result === "string"
-      ? result
-      : result
-        ? JSON.stringify(result, null, 2)
-        : "";
-  const attachmentsAvailable =
-    attachments && Object.keys(attachments).length > 0;
-  const parsedSegments = attachmentsAvailable
-    ? parseContentSegments(resultString, attachments)
-    : null;
-  const normalizedDescriptor =
-    typeof descriptor === "string" ? descriptor.trim() : undefined;
-  const textSegments = parsedSegments
-    ? parsedSegments.filter(
-        (segment) =>
-          segment.type === "text" &&
-          segment.text &&
-          segment.text.trim().length > 0,
-      )
-    : resultString
-      ? [{ type: "text", text: resultString }]
-      : [];
-  const cleanedTextSegments = textSegments
-    .map((segment) => {
-      if (segment.type !== "text" || !segment.text) {
-        return segment;
-      }
-      const cleaned = stripNoisyLines(segment.text);
-      if (!cleaned) {
-        return null;
-      }
-      return { ...segment, text: cleaned };
-    })
-    .filter(Boolean) as typeof textSegments;
-  const filteredTextSegments =
-    isSeedream && normalizedDescriptor
-      ? cleanedTextSegments.filter(
-          (segment) => segment.text?.trim() !== normalizedDescriptor,
-        )
-      : cleanedTextSegments;
-  const mediaSegments = parsedSegments
-    ? parsedSegments.filter(
-        (segment) =>
-          (segment.type === "image" || segment.type === "video") &&
-          segment.attachment,
-      )
-    : [];
-  const artifactSegments = parsedSegments
-    ? parsedSegments.filter(
-        (segment) =>
-          (segment.type === "document" || segment.type === "embed") &&
-          segment.attachment,
-      )
-    : [];
-
-  if (attachmentsAvailable) {
-    return (
-      <div className="rounded-lg bg-muted/15 p-3 space-y-4">
-        {isSeedream && (
-          <div className="space-y-1">
-            {friendlySeedreamSummary && (
-              <p className="text-sm font-semibold text-foreground">
-                {friendlySeedreamSummary}
-              </p>
-            )}
-            {normalizedDescriptor && (
-              <p className="text-xs text-muted-foreground">
-                {normalizedDescriptor}
-              </p>
-            )}
-          </div>
-        )}
-        {filteredTextSegments.length > 0 && (
-          <div className="whitespace-pre-wrap font-mono text-xs space-y-3 text-foreground/80">
-            {filteredTextSegments.map((segment, index) => (
-              <span key={`text-segment-${index}`}>{segment.text}</span>
-            ))}
-          </div>
-        )}
-        {mediaSegments.length > 0 && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {mediaSegments.map((segment, index) => {
-              if (!segment.attachment) {
-                return null;
-              }
-              const uri = buildAttachmentUri(segment.attachment);
-              if (!uri) {
-                return null;
-              }
-              const key = segment.placeholder || `${segment.type}-${index}`;
-              if (segment.type === "video") {
-                return (
-                  <VideoPreview
-                    key={`media-segment-${key}`}
-                    src={uri}
-                    mimeType={segment.attachment.media_type || "video/mp4"}
-                    description={segment.attachment.description}
-                    maxHeight="16rem"
-                  />
-                );
-              }
-              return (
-                <ImagePreview
-                  key={`media-segment-${key}`}
-                  src={uri}
-                  alt={segment.attachment.description || segment.attachment.name}
-                  minHeight="10rem"
-                  maxHeight="16rem"
-                  sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 100vw"
-                />
-              );
-            })}
-          </div>
-        )}
-        {artifactSegments.length > 0 && (
-          <div className="mt-4 space-y-3">
-            {artifactSegments.map((segment, index) => {
-              if (!segment.attachment) {
-                return null;
-              }
-              const key = segment.placeholder || `artifact-${index}`;
-              return (
-                <ArtifactPreviewCard
-                  key={`media-artifact-${key}`}
-                  attachment={segment.attachment}
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (isSeedream) {
-    const cleanedResult = stripNoisyLines(resultString).trim();
-    const showPrompt = Boolean(normalizedDescriptor);
-    const showResult = cleanedResult.length > 0;
-
-    return (
-      <div className="rounded-lg bg-muted/15 p-3 space-y-3">
-        {friendlySeedreamSummary && (
-          <p className="text-sm font-semibold text-foreground">
-            {friendlySeedreamSummary}
-          </p>
-        )}
-        {showPrompt && (
-          <div className="space-y-1">
-            <p className="text-[10px] font-semibold text-muted-foreground">
-              Prompt
-            </p>
-            <p className="whitespace-pre-wrap font-mono text-xs text-foreground/90">
-              {normalizedDescriptor}
-            </p>
-          </div>
-        )}
-        {showResult && (
-          <div className="rounded-lg border border-border/60 bg-background/80 p-3">
-            <p className="whitespace-pre-wrap text-xs text-foreground/90 font-sans">
-              {cleanedResult}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
+  if (!result) return <span className="text-muted-foreground italic">Completed</span>;
 
   return (
-    <div className="rounded-lg bg-muted/20 overflow-auto">
-      <SyntaxHighlighter
-        language={language}
-        style={vscDarkPlus}
-        customStyle={{
-          margin: 0,
-          borderRadius: "0.5rem",
-          fontSize: "0.75rem",
-          maxHeight: 400,
-        }}
-        showLineNumbers={language !== "text"}
-      >
-        {resultString}
-      </SyntaxHighlighter>
-    </div>
+    <pre className="text-xs font-mono whitespace-pre-wrap text-foreground/80 overflow-x-auto">
+      {result}
+    </pre>
   );
 }
 
-function getFirstSeedreamDescriptor(values: unknown[]): string | undefined {
-  for (const value of values) {
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        return trimmed;
-      }
-    }
-  }
-  return undefined;
-}
-
-// Helper to detect language from file path
+// Helper to guess language from path
 function detectLanguageFromPath(path: string): string {
-  const ext = path.split(".").pop()?.toLowerCase();
-  if (!ext) return "text";
-
-  const langMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "typescript",
-    js: "javascript",
-    jsx: "javascript",
-    py: "python",
-    go: "go",
-    rs: "rust",
-    sh: "bash",
-    bash: "bash",
-    md: "markdown",
-    json: "json",
-    html: "html",
-    htm: "html",
-    css: "css",
-    scss: "scss",
-    yaml: "yaml",
-    yml: "yaml",
-    sql: "sql",
-    xml: "xml",
-  };
-
-  return langMap[ext] || "text";
+  const ext = path.split('.').pop()?.toLowerCase();
+  if (ext === 'js' || ext === 'jsx') return 'javascript';
+  if (ext === 'ts' || ext === 'tsx') return 'typescript';
+  if (ext === 'py') return 'python';
+  return 'text';
 }
 
-function mapCodeExecuteLanguage(language?: string): string {
-  if (!language) return "text";
-  const normalized = language.toLowerCase();
-  if (normalized === "js") return "javascript";
-  if (normalized === "py") return "python";
-  if (normalized === "sh") return "bash";
-  const allowed = [
-    "python",
-    "javascript",
-    "typescript",
-    "bash",
-    "go",
-    "ruby",
-  ];
-  if (allowed.includes(normalized)) {
-    return normalized;
-  }
-  return "text";
+function getFirstSeedreamDescriptor(candidates: (string | undefined)[]) {
+  return candidates.find(c => c && c.trim().length > 0) || "Image Generation";
 }
