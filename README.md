@@ -1,6 +1,6 @@
 # Spinner
 
-Spinner is an AI agent that turns scattered facts, logs, and scratch notes into an actionable knowledge web. It runs the same layered Go backend that powers ALEX, but the framing is focused on weaving together fragmented context for analysts, engineers, and operators.
+Spinner is an AI agent that turns scattered facts, logs, and scratch notes into an actionable knowledge web. It runs the same layered Go backend that powers ALEX, and is focused on weaving fragmented context for analysts, engineers, and operators.
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
@@ -120,17 +120,17 @@ Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox
 
 ### Production Deployment
 
-1. **配置密钥与模型**：在 `~/.alex-config.json` 中填入 `api_key`、`base_url`、`model`，并导出 `OPENAI_API_KEY`、`TAVILY_API_KEY` 等环境变量。参考完整示例见《[ALEX Operations Guide](docs/operations/README.md#production-configuration)》的生产配置段落。
-2. **一次性启动**：不带参数运行 `./deploy.sh`，即可通过 nginx 在 80 端口直接拉起前后端，同源访问无需暴露 8000 端口也不会有跨域问题；在中国大陆网络可使用 `./deploy.sh cn` 自动切换 Docker/npm/Go 镜像源与预置 Sandbox 镜像；用 `./deploy.sh pro status`/`pro logs`/`pro down` 巡检、查看日志与停止，本地开发模式改用独立的 `./dev.sh`。【F:docs/operations/README.md†L64-L94】
-3. **容器化部署**：生产环境建议使用 `docker-compose.yml`：
+1. **Configure secrets and models:** Populate `api_key`, `base_url`, and `model` in `~/.alex-config.json`, and export env vars like `OPENAI_API_KEY` and `TAVILY_API_KEY`.
+2. **One-shot startup:** Run `./deploy.sh` with no arguments to bring up nginx on port 80 with a same-origin front/back end (no need to expose 8000). On mainland China networks, `./deploy.sh cn` switches Docker/npm/Go mirrors and preloads the Sandbox image. Use `./deploy.sh pro status`/`pro logs`/`pro down` for inspections, logs, and shutdowns; use the separate `./dev.sh` for local development mode.
+3. **Containerized deployment:** Prefer `docker-compose.yml` for production:
    ```bash
    echo "OPENAI_API_KEY=sk-your-key" > .env
    docker-compose up -d
    docker-compose logs -f alex-server
    ```
-   相关命令和健康检查示例见《Operations Guide》的 Docker Compose 小节。【F:docs/operations/README.md†L96-L109】
-4. **健康探针与监控**：上线前配置 `/health` 探针（Compose 或 K8s livenessProbe），并接入日志/指标收集，详见运维指南的健康监控章节。【F:docs/operations/README.md†L111-L188】
-5. **分环境参数**：通过 `dev.json` / `staging.json` / `prod.json` 或环境变量开启/关闭 MCP、调整日志与迭代次数，避免在生产启用调试日志。【F:docs/operations/README.md†L190-L228】
+   See the Docker Compose section of the **ALEX Operations Guide** for more commands and health-check examples.
+4. **Health probes and observability:** Configure a `/health` probe (Compose or K8s livenessProbe) before go-live and wire logs/metrics into your monitoring stack; details live in the operations guide's health monitoring section.
+5. **Environment-specific tuning:** Use `dev.json` / `staging.json` / `prod.json` or environment variables to enable/disable MCP, adjust logging, and tweak iteration counts; avoid debug logging in production.
 
 ### Deployment Scripts
 
@@ -157,6 +157,18 @@ make fmt     # gofmt + goimports
 ```
 
 Frontend commands live in `web/README.md`; evaluation jobs use scripts in `evaluation/`.
+
+---
+
+## Roadmap
+
+* **TUI polish.** Improve inline help, command palette hints, and transcript exports to reduce onboarding friction.
+* **Server hardening.** Expand health and readiness probes plus structured error responses; K8s manifests already exist, observability dashboards are planned.
+* **Memory accuracy.** Tighten retrieval and summarization loops in `internal/context` and `internal/rag`; compression tuning is in progress.
+* **Tool safety.** Keep approvals mandatory for destructive actions; configurable policy templates are planned for broader deployment profiles.
+* **Evaluation coverage.** Continue growing SWE-Bench and regression suites under `evaluation/` and `tests/` to track weaving quality.
+
+Items labeled “planned” are in active design; other bullets align with the current codebase and deployment scripts.
 
 ---
 
