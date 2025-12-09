@@ -34,7 +34,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   }, [toolName]);
 
 
-  const ToolIcon = getToolIcon(toolName) || Terminal;
+  const ToolIcon = getToolIcon(toolName);
   const duration = adapter.durationMs ? formatDuration(adapter.durationMs) : null;
   const renderer = resolveToolRenderer(toolName);
 
@@ -103,7 +103,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         >
           {status === 'running' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
             status === 'error' ? <X className="w-3.5 h-3.5" /> :
-              <ToolIcon className="w-3.5 h-3.5" />}
+              <span className="text-sm leading-none">{ToolIcon}</span>}
         </div>
 
         <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
