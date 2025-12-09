@@ -48,7 +48,7 @@ interface UseAutoScrollOptions {
 export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
   dependencies: DependencyList,
   options: UseAutoScrollOptions = {}
-): React.RefObject<T> {
+): React.RefObject<T | null> {
   const {
     enabled = true,
     threshold = 100,
@@ -151,7 +151,7 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
 export function useScrollToBottom<T extends HTMLElement = HTMLDivElement>(
   dependencies: DependencyList,
   behavior: ScrollBehavior = 'smooth'
-): React.RefObject<T> {
+): React.RefObject<T | null> {
   const containerRef = useRef<T>(null);
 
   useEffect(() => {

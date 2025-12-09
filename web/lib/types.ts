@@ -80,6 +80,7 @@ export interface AttachmentPayload {
   preview_profile?: string;
   preview_assets?: AttachmentPreviewAssetPayload[];
   retention_ttl_seconds?: number;
+  size?: number;
 }
 
 export interface AttachmentUpload {

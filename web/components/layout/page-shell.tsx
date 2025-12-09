@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ElementType, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -80,7 +80,7 @@ export function SectionHeader({
   title: string;
   description?: string;
   actions?: ReactNode;
-  titleElement?: keyof JSX.IntrinsicElements;
+  titleElement?: ElementType;
   className?: string;
 }) {
   return (
