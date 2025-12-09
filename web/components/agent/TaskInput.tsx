@@ -487,7 +487,7 @@ export function TaskInput({
       data-testid="task-input-form"
     >
       <div
-        className="relative flex flex-col z-10 rounded-2xl border border-neutral-300 bg-white transition-all duration-200 focus-within:z-20 focus-within:border-neutral-500 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:bg-muted/10 dark:border-border/50 dark:focus-within:border-neutral-600"
+        className="relative flex flex-col rounded-2xl border border-neutral-300 bg-white transition-all duration-200 focus-within:border-neutral-500 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:bg-muted/10 dark:border-border/50 dark:focus-within:border-neutral-600"
         data-testid="task-input-container"
       >
         <Textarea
@@ -506,7 +506,9 @@ export function TaskInput({
           rows={1}
           aria-label={t("task.input.ariaLabel")}
           data-testid="task-input"
-          className="min-h-[52px] max-h-[300px] w-full resize-none border-none bg-transparent px-4 py-3 text-base leading-7 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus-visible:ring-0"
+          name="taskInput"
+          id="taskInput"
+          className="min-h-[40px] max-h-[300px] w-full resize-none border-none bg-transparent px-3 py-2 text-base leading-6 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           style={{ fieldSizing: "content" } as any}
         />
 

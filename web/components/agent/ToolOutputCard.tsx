@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDuration, cn, humanizeToolName } from "@/lib/utils";
+import { formatDuration, cn, humanizeToolName, getToolIcon } from "@/lib/utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { ChevronRight, Loader2, Check, X } from "lucide-react";
@@ -58,6 +58,7 @@ export function ToolOutputCard({
   const hasError = Boolean(error && error.trim().length > 0);
   const [isExpanded, setIsExpanded] = useState(false); // Default collapsed for Manus style
   const t = useTranslation();
+  const ToolIcon = getToolIcon(toolName);
 
   const normalizedToolName = toolName.toLowerCase();
 
@@ -117,7 +118,7 @@ export function ToolOutputCard({
         >
           {resolvedStatus === 'running' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
             resolvedStatus === 'failed' ? <X className="w-3.5 h-3.5" /> :
-              <Check className="w-3.5 h-3.5" />}
+              <span className="text-sm leading-none">{ToolIcon}</span>}
         </div>
 
         <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
