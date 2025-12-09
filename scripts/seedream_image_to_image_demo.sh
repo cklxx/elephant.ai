@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ARK_API_KEY=xxxx ./scripts/seedream_image_to_image_demo.sh \
-#       --model doubao-seedream-4-0-250828 \
+#       --model doubao-seedream-4-5-251128 \
 #       --prompt "Quick connectivity test"
 #
 # This script fabricates a tiny 32x32 PNG, base64-encodes it, and sends a request
@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-MODEL="doubao-seedream-4-0-250828"
+MODEL="doubao-seedream-4-5-251128"
 PROMPT="Connectivity test via curl demo"
 WATERMARK="false"
 RESPONSE_FORMAT="b64_json"
