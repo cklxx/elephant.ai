@@ -87,7 +87,7 @@ curl -X POST http://localhost:3000/api/tasks \
 
 **What happens:**
 - Agent uses DevOps best practices
-- Creates docker-compose.yml with all services
+- Creates deploy/docker/docker-compose.yml with all services
 - Sets up health checks and monitoring
 - Includes documentation for deployment
 
