@@ -5,8 +5,8 @@ services:
   # ALEX Server - Development mode with volume mount
   alex-server:
     build:
-      context: .
-      dockerfile: Dockerfile.server
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
     container_name: alex-server-dev
     ports:
       - "8080:8080"
@@ -22,7 +22,7 @@ services:
       - AUTH_REDIRECT_BASE_URL=${AUTH_REDIRECT_BASE_URL:-http://localhost:8080}
       - AUTH_DATABASE_URL=${AUTH_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
     volumes:
-      - ./:/app:cached
+      - ../../:/app:cached
       - alex-sessions-dev:/data/sessions
       - ~/.alex-config.json:/root/.alex-config.json:ro
     working_dir: /app
@@ -39,7 +39,7 @@ services:
   # Next.js - Development mode with hot reload
   web:
     build:
-      context: ./web
+      context: ../../web
       dockerfile: Dockerfile.dev
       target: dev
     container_name: alex-web-dev
@@ -49,7 +49,7 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8080
       - NODE_ENV=development
     volumes:
-      - ./web:/app:cached
+      - ../../web:/app:cached
       - /app/node_modules
       - /app/.next
     command: npm run dev
@@ -89,13 +89,13 @@ services:
 
   sandbox:
     build:
-      context: .
-      dockerfile: Dockerfile.sandbox
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.sandbox
     container_name: alex-sandbox-dev
     ports:
       - "8091:8080"
     volumes:
-      - ./skills:/workspace/skills:ro
+      - ../../skills:/workspace/skills:ro
     restart: unless-stopped
     networks:
       - alex-dev-network

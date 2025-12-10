@@ -14,6 +14,10 @@ readonly C_YELLOW='\033[1;33m'
 readonly C_BLUE='\033[0;34m'
 readonly C_RESET='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+COMPOSE_FILE="${PROJECT_ROOT}/deploy/docker/docker-compose.yml"
+
 echo -e "${C_BLUE}Testing China Mirror Configuration${C_RESET}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -113,9 +117,9 @@ if command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/nul
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     if docker compose version >/dev/null 2>&1; then
-        docker compose config | grep -A3 "sandbox:" | grep -A2 "args:" || true
+        docker compose -f "$COMPOSE_FILE" config | grep -A3 "sandbox:" | grep -A2 "args:" || true
     elif command -v docker-compose >/dev/null 2>&1; then
-        docker-compose config | grep -A3 "sandbox:" | grep -A2 "args:" || true
+        docker-compose -f "$COMPOSE_FILE" config | grep -A3 "sandbox:" | grep -A2 "args:" || true
     fi
 else
     echo -e "${C_YELLOW}Warning: docker-compose not found${C_RESET}"
