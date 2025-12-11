@@ -226,9 +226,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   <div className="my-4">{children}</div>
                 ),
                 p: ({ children }: any) => (
-                  <p className="mb-4 leading-relaxed text-slate-900">
+                  <div className="mb-4 leading-relaxed text-slate-900">
                     {children}
-                  </p>
+                  </div>
                 ),
                 ul: ({ children }: any) => (
                   <ul className="mb-4 space-y-2 leading-relaxed text-slate-900">
