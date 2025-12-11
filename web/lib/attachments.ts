@@ -318,11 +318,58 @@ function extractPlaceholderSegments(
   }
 
   const segments: ContentSegment[] = [];
+  let remainingText = text;
+
+  // 1. Suffix Match at Start (Fix for truncated start like "ame.png]")
+  // Matches start of string, capturing chars until ']' (excluding brackets to avoid internal matches)
+  const startSuffixRegex = /^([^\[\]]+)\]/;
+  const startMatch = startSuffixRegex.exec(remainingText);
+  if (startMatch) {
+    const suffix = startMatch[1].trim();
+    if (suffix) {
+      // Find key that ends with this suffix
+      const matchedKey = Object.keys(attachments).find((key) => key.endsWith(suffix));
+      if (matchedKey) {
+        usedAttachments.add(matchedKey);
+        segments.push({
+          type: attachmentTypes[matchedKey] ?? 'image',
+          placeholder: `[${matchedKey}]`,
+          attachment: attachments[matchedKey],
+        });
+        remainingText = remainingText.slice(startMatch[0].length);
+      }
+    }
+  }
+
+  // 2. Prefix Match at End (Fix for truncated end like "[fil")
+  // Matches last '[' followed by non-bracket chars to end of string
+  const endPrefixRegex = /\[([^\[\]]+)$/;
+  const endMatch = endPrefixRegex.exec(remainingText);
+  let endSegment: ContentSegment | null = null;
+
+  if (endMatch) {
+    const prefix = endMatch[1].trim();
+    if (prefix) {
+      const matchedKey = Object.keys(attachments).find((key) => key.startsWith(prefix));
+      if (matchedKey) {
+        usedAttachments.add(matchedKey);
+        endSegment = {
+          type: attachmentTypes[matchedKey] ?? 'image',
+          placeholder: `[${matchedKey}]`,
+          attachment: attachments[matchedKey],
+        };
+        // Slice off the prefix part
+        remainingText = remainingText.slice(0, endMatch.index);
+      }
+    }
+  }
+
+  // 3. Standard parsing for the middle
   const regex = new RegExp(PLACEHOLDER_REGEX);
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = regex.exec(remainingText)) !== null) {
     const start = match.index;
     const end = start + match[0].length;
     const name = String(match[1]).trim();
@@ -330,7 +377,7 @@ function extractPlaceholderSegments(
     if (start > lastIndex) {
       segments.push({
         type: 'text',
-        text: text.slice(lastIndex, start),
+        text: remainingText.slice(lastIndex, start),
       });
     }
 
@@ -349,11 +396,16 @@ function extractPlaceholderSegments(
     lastIndex = end;
   }
 
-  if (lastIndex < text.length) {
+  if (lastIndex < remainingText.length) {
     segments.push({
       type: 'text',
-      text: text.slice(lastIndex),
+      text: remainingText.slice(lastIndex),
     });
+  }
+
+  // 4. Append the end segment if we found one
+  if (endSegment) {
+    segments.push(endSegment);
   }
 
   return segments;
