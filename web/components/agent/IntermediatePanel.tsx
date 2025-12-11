@@ -22,6 +22,7 @@ import { ToolOutputCard } from "./ToolOutputCard";
 import { Badge } from "@/components/ui/badge";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 import { humanizeToolName } from "@/lib/utils";
+import { MagicBlackHole } from "../effects/MagicBlackHole";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
@@ -365,7 +366,11 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         }
       >
         <div className="flex items-center justify-center text-muted-foreground/70">
-          <PanelRightOpen className="w-4 h-4" />
+          {runningTools.length > 0 ? (
+            <MagicBlackHole size="sm" className="mr-1" />
+          ) : (
+            <PanelRightOpen className="w-4 h-4" />
+          )}
         </div>
 
         <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
