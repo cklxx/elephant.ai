@@ -351,7 +351,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const openDetails = () => setIsPanelOpen(true);
 
   return (
-    <div className="space-y-2 pb-1 pl-1">
+    <div className="space-y-2 pb-1">
       {/*{latestThinkPreviewItem && (
         <ThinkStreamCard item={latestThinkPreviewItem} />
       )}*/}
@@ -365,13 +365,11 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             : headlineText
         }
       >
-        <div className="flex items-center justify-center text-muted-foreground/70">
-          {runningTools.length > 0 ? (
+        {runningTools.length > 0 && (
+          <div className="flex items-center justify-center text-muted-foreground/70">
             <MagicBlackHole size="sm" className="mr-1" />
-          ) : (
-            <PanelRightOpen className="w-4 h-4" />
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="min-w-0 flex flex-col gap-0.5">
           <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
