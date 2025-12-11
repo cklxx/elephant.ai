@@ -1035,9 +1035,9 @@ func (e *ReactEngine) updateAttachmentCatalogMessage(state *TaskState) {
 		state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
 	}
 	note := Message{
-		Role:    "system",
+		Role:    "assistant",
 		Content: content,
-		Source:  ports.MessageSourceSystemPrompt,
+		Source:  ports.MessageSourceAssistantReply,
 		Metadata: map[string]any{
 			attachmentCatalogMetadataKey: true,
 		},

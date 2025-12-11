@@ -9,6 +9,7 @@ export interface ContentSegment {
   text?: string;
   placeholder?: string;
   attachment?: AttachmentPayload;
+  implicit?: boolean;
 }
 
 export type AttachmentSegmentType = ContentSegment['type'];
@@ -186,15 +187,22 @@ export function parseContentSegments(
     return [{ type: 'text', text: '' }];
   }
 
-  if (attachmentList.length > 0) {
-    attachmentList.forEach(({ key, attachment, type }) => {
+  // Append unused attachments as implicit segments
+  if (attachments && Object.keys(attachments).length > 0) {
+    Object.entries(attachments).forEach(([key, attachment]) => {
+      // If it was used in text content, skip it
       if (usedAttachments.has(key)) {
         return;
       }
+
+      // Determine type based on existing logic or default to image
+      const type = attachmentTypes[key] ?? 'image';
+
       segments.push({
-        type: type ?? 'image',
+        type,
         placeholder: `[${key}]`,
         attachment,
+        implicit: true,
       });
     });
   }

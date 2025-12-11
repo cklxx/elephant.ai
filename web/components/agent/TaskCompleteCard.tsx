@@ -130,18 +130,18 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   }, [attachments]);
   const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
     const segments = parseContentSegments(markdownAnswer, attachments);
-    const placeholderMatches = Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g));
-    const referenced = new Set(placeholderMatches.map((match) => match[0]));
     const unreferencedMedia: ContentSegment[] = [];
     const artifacts: ContentSegment[] = [];
 
     for (const segment of segments) {
       if (!segment.attachment) continue;
-      const isReferenced =
-        segment.placeholder && referenced.has(segment.placeholder);
-      if (isReferenced) {
+
+      // If the segment is NOT implicit, it means it was found in the text (referenced).
+      // We only want to show "unreferenced" items in the bottom grid.
+      if (!segment.implicit) {
         continue;
       }
+
       if (segment.type === "image" || segment.type === "video") {
         unreferencedMedia.push(segment);
       } else if (segment.type === "document" || segment.type === "embed") {
