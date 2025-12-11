@@ -10,38 +10,54 @@ interface MagicBlackHoleProps {
 export function MagicBlackHole({ className, size = "md" }: MagicBlackHoleProps) {
     return (
         <div className={cn("relative flex items-center justify-center", className)}>
-            {/* Core Black Hole */}
-            <div className="relative z-10">
+            <style jsx>{`
+                @keyframes implode {
+                    0% { transform: scale(3); opacity: 0; }
+                    50% { opacity: 0.5; }
+                    100% { transform: scale(0); opacity: 0; }
+                }
+            `}</style>
+
+            {/* Core Black Hole - Reduced Sizes */}
+            <div className="relative z-10 flex items-center justify-center">
                 <div
                     className={cn(
-                        "rounded-full bg-black shadow-[0_0_40px_-5px_#7c3aed]",
-                        size === "sm" && "w-8 h-8",
-                        size === "md" && "w-16 h-16",
-                        size === "lg" && "w-32 h-32"
+                        "rounded-full bg-black shadow-[inset_0_0_20px_0px_#4c1d95]",
+                        size === "sm" && "w-6 h-6",
+                        size === "md" && "w-10 h-10", // Reduced from w-16 h-16
+                        size === "lg" && "w-24 h-24"
                     )}
                 />
-                {/* Accretion Disk (Spinning) */}
+
+                {/* Imploding Particles/Rings (The Sucking Effect) */}
+                {[...Array(3)].map((_, i) => (
+                    <div
+                        key={i}
+                        className={cn(
+                            "absolute rounded-full border border-purple-500/30",
+                            size === "sm" && "w-4 h-4",
+                            size === "md" && "w-8 h-8",
+                            size === "lg" && "w-20 h-20"
+                        )}
+                        style={{
+                            animation: `implode 2s linear infinite`,
+                            animationDelay: `${i * 0.6}s`
+                        }}
+                    />
+                ))}
+
+                {/* Accretion Disk (Spinning Tighter) */}
                 <div
                     className={cn(
-                        "absolute inset-[-50%] animate-[spin_3s_linear_infinite] rounded-full border-t-2 border-r-2 border-transparent border-t-purple-500 border-r-fuchsia-500 opacity-80 blur-[2px]",
-                        size === "sm" && "border-2",
-                        size === "md" && "border-4",
-                        size === "lg" && "border-8"
-                    )}
-                />
-                {/* Particle Horizon (Counter-Spinning) */}
-                <div
-                    className={cn(
-                        "absolute inset-[-20%] animate-[spin_4s_linear_infinite_reverse] rounded-full border-b-2 border-l-2 border-transparent border-b-indigo-500 border-l-violet-500 opacity-60 blur-[1px]",
-                        size === "sm" && "border-2",
-                        size === "md" && "border-4",
-                        size === "lg" && "border-8"
+                        "absolute -inset-1 animate-[spin_3s_linear_infinite] rounded-full border-t border-purple-400/50 opacity-80 blur-[1px]",
+                        size === "sm" && "border-t-[1px]",
+                        size === "md" && "border-t-[2px]"
                     )}
                 />
             </div>
 
-            {/* Ambient Glow */}
-            <div className="absolute inset-0 bg-purple-900/20 blur-3xl rounded-full transform scale-150 animate-pulse" />
+            {/* Ambient Glow (Reduced) */}
+            <div className="absolute inset-0 bg-purple-900/40 blur-xl rounded-full transform scale-125 animate-pulse" />
         </div>
     );
 }
