@@ -158,7 +158,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   // Render markdown while streaming and once a final answer is delivered, even if the text is empty,
   // to avoid hiding completed streamed results.
   const shouldRenderMarkdown =
-    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason === "final_answer");
+    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason !== "cancelled");
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
