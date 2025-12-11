@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 ENV_EXAMPLE_FILE="${ROOT_DIR}/.env.example"
-COMPOSE_FILE="${ROOT_DIR}/docker-compose.dev.yml"
+COMPOSE_FILE="${ROOT_DIR}/deploy/docker/docker-compose.dev.yml"
 MIGRATION_FILE="${ROOT_DIR}/migrations/auth/001_init.sql"
 AUTH_DB_CONTAINER="alex-auth-db"
 LOG_DIR="${ROOT_DIR}/logs"

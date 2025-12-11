@@ -81,6 +81,7 @@ All binaries wire through `internal/di`, so configuration, tool wiring, and sand
 | `docs/` | Architecture notes, references, operations guides, and research. |
 | `tests/` | End-to-end and integration suites executed in CI. |
 | `scripts/` | Developer automation and CI helpers. |
+| `deploy/docker/` | Dockerfiles, Compose stacks, and nginx config for containerized deployments. |
 | `third_party/` | Vendored or customized dependencies (e.g., sandbox SDK). |
 
 ---
@@ -122,11 +123,11 @@ Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox
 
 1. **Configure secrets and models:** Populate `api_key`, `base_url`, and `model` in `~/.alex-config.json`, and export env vars like `OPENAI_API_KEY` and `TAVILY_API_KEY`.
 2. **One-shot startup:** Run `./deploy.sh` with no arguments to bring up nginx on port 80 with a same-origin front/back end (no need to expose 8000). On mainland China networks, `./deploy.sh cn` switches Docker/npm/Go mirrors and preloads the Sandbox image. Use `./deploy.sh pro status`/`pro logs`/`pro down` for inspections, logs, and shutdowns; use the separate `./dev.sh` for local development mode.
-3. **Containerized deployment:** Prefer `docker-compose.yml` for production:
+3. **Containerized deployment:** Prefer `deploy/docker/docker-compose.yml` for production:
    ```bash
    echo "OPENAI_API_KEY=sk-your-key" > .env
-   docker-compose up -d
-   docker-compose logs -f alex-server
+   docker compose -f deploy/docker/docker-compose.yml up -d
+   docker compose -f deploy/docker/docker-compose.yml logs -f alex-server
    ```
    See the Docker Compose section of the **ALEX Operations Guide** for more commands and health-check examples.
 4. **Health probes and observability:** Configure a `/health` probe (Compose or K8s livenessProbe) before go-live and wire logs/metrics into your monitoring stack; details live in the operations guide's health monitoring section.

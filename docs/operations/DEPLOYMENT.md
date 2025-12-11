@@ -40,12 +40,12 @@ npm run dev
 # 访问: http://localhost:3000
 ```
 
-#### 方式 2: Docker Compose 开发模式
+#### 方式 2: Docker Compose 开发模式（位于 `deploy/docker/`）
 
 ```bash
 # 启动所有服务
 export OPENAI_API_KEY="sk-..."
-docker-compose -f docker-compose.dev.yml up
+docker compose -f deploy/docker/docker-compose.dev.yml up
 
 # 访问: http://localhost:3000
 # API: http://localhost:8080
@@ -76,16 +76,16 @@ AUTH_REDIRECT_BASE_URL=https://alex.yourdomain.com
 
 ```bash
 # 构建镜像
-docker-compose build
+docker compose -f deploy/docker/docker-compose.yml build
 
 # 启动所有服务
-docker-compose up -d
+docker compose -f deploy/docker/docker-compose.yml up -d
 
 # 查看日志
-docker-compose logs -f
+docker compose -f deploy/docker/docker-compose.yml logs -f
 
 # 停止服务
-docker-compose down
+docker compose -f deploy/docker/docker-compose.yml down
 ```
 
 ### 3. 服务端点
@@ -102,7 +102,7 @@ docker-compose down
 
 ```bash
 # 启动包含 Nginx 的完整栈
-docker-compose up -d
+docker compose -f deploy/docker/docker-compose.yml up -d
 
 # 访问通过 Nginx: http://localhost
 ```
@@ -124,7 +124,7 @@ docker-compose up -d
 
 ```bash
 # 构建并推送镜像到仓库
-docker build -f Dockerfile.server -t your-registry/alex-server:v1.0.0 .
+docker build -f deploy/docker/Dockerfile.server -t your-registry/alex-server:v1.0.0 .
 docker build -f web/Dockerfile -t your-registry/alex-web:v1.0.0 ./web
 
 docker push your-registry/alex-server:v1.0.0
@@ -271,11 +271,11 @@ curl http://localhost:8080/health
 
 ```bash
 # 所有服务
-docker-compose logs -f
+docker compose -f deploy/docker/docker-compose.yml logs -f
 
 # 特定服务
-docker-compose logs -f alex-server
-docker-compose logs -f web
+docker compose -f deploy/docker/docker-compose.yml logs -f alex-server
+docker compose -f deploy/docker/docker-compose.yml logs -f web
 ```
 
 #### Kubernetes
@@ -393,10 +393,10 @@ make server-run                    # 启动后端
 cd web && npm run dev              # 启动前端
 
 # Docker Compose
-docker-compose up -d               # 启动生产环境
-docker-compose -f docker-compose.dev.yml up  # 启动开发环境
-docker-compose logs -f             # 查看日志
-docker-compose down                # 停止服务
+docker compose -f deploy/docker/docker-compose.yml up -d          # 启动生产环境
+docker compose -f deploy/docker/docker-compose.dev.yml up         # 启动开发环境
+docker compose -f deploy/docker/docker-compose.yml logs -f        # 查看日志
+docker compose -f deploy/docker/docker-compose.yml down           # 停止服务
 
 # Kubernetes
 kubectl apply -f k8s/deployment.yaml          # 部署
