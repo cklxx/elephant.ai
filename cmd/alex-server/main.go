@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -17,65 +14,16 @@ import (
 	agentdomain "alex/internal/agent/domain"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
-	authAdapters "alex/internal/auth/adapters"
-	authapp "alex/internal/auth/app"
-	authdomain "alex/internal/auth/domain"
-	authports "alex/internal/auth/ports"
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
 	"alex/internal/environment"
 	"alex/internal/observability"
 	serverApp "alex/internal/server/app"
+	serverBootstrap "alex/internal/server/bootstrap"
 	serverHTTP "alex/internal/server/http"
 	"alex/internal/tools"
 	"alex/internal/utils"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// Config holds server configuration
-type Config struct {
-	Runtime            runtimeconfig.RuntimeConfig
-	Port               string
-	EnableMCP          bool
-	EnvironmentSummary string
-	Auth               AuthConfig
-	Analytics          AnalyticsConfig
-	AllowedOrigins     []string
-}
-
-// AuthConfig captures authentication-related environment configuration.
-type AuthConfig struct {
-	JWTSecret             string
-	AccessTokenTTLMinutes string
-	RefreshTokenTTLDays   string
-	StateTTLMinutes       string
-	RedirectBaseURL       string
-	GoogleClientID        string
-	GoogleClientSecret    string
-	GoogleAuthURL         string
-	GoogleTokenURL        string
-	GoogleUserInfoURL     string
-	WeChatAppID           string
-	WeChatAuthURL         string
-	DatabaseURL           string
-	BootstrapEmail        string
-	BootstrapPassword     string
-	BootstrapDisplayName  string
-}
-
-// AnalyticsConfig holds analytics configuration values.
-type AnalyticsConfig struct {
-	PostHogAPIKey string
-	PostHogHost   string
-}
-
-var defaultAllowedOrigins = []string{
-	"http://localhost:3000",
-	"http://localhost:3001",
-	"https://alex.yourdomain.com",
-}
 
 func main() {
 	logger := utils.NewComponentLogger("Main")
@@ -97,7 +45,7 @@ func main() {
 	}
 
 	// Load configuration
-	config, configManager, resolver, err := loadConfig()
+	config, configManager, resolver, err := serverBootstrap.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -262,7 +210,7 @@ func main() {
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
 	healthChecker.RegisterProbe(serverApp.NewSandboxProbe(container.SandboxManager))
 
-	authService, authCleanup, err := buildAuthService(config, logger)
+	authService, authCleanup, err := serverBootstrap.BuildAuthService(config, logger)
 	if err != nil {
 		logger.Warn("Authentication disabled: %v", err)
 	}
@@ -333,388 +281,11 @@ func main() {
 }
 
 // buildContainer builds the dependency injection container
-func buildContainer(config Config) (*di.Container, error) {
+func buildContainer(config serverBootstrap.Config) (*di.Container, error) {
 	// Build DI container with configurable storage
 	diConfig := di.ConfigFromRuntimeConfig(config.Runtime)
 	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
 
 	return di.BuildContainer(diConfig)
-}
-
-func loadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error), error) {
-	envLookup := runtimeconfig.DefaultEnvLookupWithAliases()
-
-	storePath := configadmin.ResolveStorePath(envLookup)
-	cacheTTL := 30 * time.Second
-	if ttlValue, ok := envLookup("CONFIG_ADMIN_CACHE_TTL"); ok && strings.TrimSpace(ttlValue) != "" {
-		if parsed, err := time.ParseDuration(strings.TrimSpace(ttlValue)); err == nil && parsed > 0 {
-			cacheTTL = parsed
-		}
-	}
-	ctx := context.Background()
-	store := configadmin.NewFileStore(storePath)
-	managedOverrides, err := store.LoadOverrides(ctx)
-	if err != nil {
-		return Config{}, nil, nil, err
-	}
-	manager := configadmin.NewManager(store, managedOverrides, configadmin.WithCacheTTL(cacheTTL))
-
-	runtimeCfg, _, err := runtimeconfig.Load(
-		runtimeconfig.WithEnv(envLookup),
-		runtimeconfig.WithOverrides(managedOverrides),
-	)
-	if err != nil {
-		return Config{}, nil, nil, err
-	}
-
-	cfg := Config{
-		Runtime:        runtimeCfg,
-		Port:           "8080",
-		EnableMCP:      true, // Default: enabled
-		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
-	}
-
-	if port, ok := envLookup("PORT"); ok && port != "" {
-		cfg.Port = port
-	}
-
-	// Parse feature flags
-	if enableMCP, ok := envLookup("ENABLE_MCP"); ok {
-		cfg.EnableMCP = enableMCP == "true" || enableMCP == "1"
-	}
-
-	if origins, ok := envLookup("CORS_ALLOWED_ORIGINS"); ok {
-		parsedOrigins := parseAllowedOrigins(origins)
-		cfg.AllowedOrigins = parsedOrigins
-	}
-
-	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
-		return Config{}, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
-	}
-
-	sandboxBaseURL := strings.TrimSpace(cfg.Runtime.SandboxBaseURL)
-	if sandboxBaseURL == "" {
-		sandboxBaseURL = runtimeconfig.DefaultSandboxBaseURL
-	}
-	cfg.Runtime.SandboxBaseURL = sandboxBaseURL
-
-	authCfg := AuthConfig{}
-	if secret, ok := envLookup("AUTH_JWT_SECRET"); ok {
-		authCfg.JWTSecret = strings.TrimSpace(secret)
-	}
-	if ttl, ok := envLookup("AUTH_ACCESS_TOKEN_TTL_MINUTES"); ok {
-		authCfg.AccessTokenTTLMinutes = strings.TrimSpace(ttl)
-	}
-	if ttl, ok := envLookup("AUTH_REFRESH_TOKEN_TTL_DAYS"); ok {
-		authCfg.RefreshTokenTTLDays = strings.TrimSpace(ttl)
-	}
-	if ttl, ok := envLookup("AUTH_STATE_TTL_MINUTES"); ok {
-		authCfg.StateTTLMinutes = strings.TrimSpace(ttl)
-	}
-	if redirect, ok := envLookup("AUTH_REDIRECT_BASE_URL"); ok {
-		authCfg.RedirectBaseURL = strings.TrimSpace(redirect)
-	}
-	if clientID, ok := envLookup("GOOGLE_CLIENT_ID"); ok {
-		authCfg.GoogleClientID = strings.TrimSpace(clientID)
-	}
-	if clientSecret, ok := envLookup("GOOGLE_CLIENT_SECRET"); ok {
-		authCfg.GoogleClientSecret = strings.TrimSpace(clientSecret)
-	}
-	if authURL, ok := envLookup("GOOGLE_AUTH_URL"); ok {
-		authCfg.GoogleAuthURL = strings.TrimSpace(authURL)
-	}
-	if tokenURL, ok := envLookup("GOOGLE_TOKEN_URL"); ok {
-		authCfg.GoogleTokenURL = strings.TrimSpace(tokenURL)
-	}
-	if userInfoURL, ok := envLookup("GOOGLE_USERINFO_URL"); ok {
-		authCfg.GoogleUserInfoURL = strings.TrimSpace(userInfoURL)
-	}
-	if appID, ok := envLookup("WECHAT_APP_ID"); ok {
-		authCfg.WeChatAppID = strings.TrimSpace(appID)
-	}
-	if authURL, ok := envLookup("WECHAT_AUTH_URL"); ok {
-		authCfg.WeChatAuthURL = strings.TrimSpace(authURL)
-	}
-	if dbURL, ok := envLookup("AUTH_DATABASE_URL"); ok {
-		authCfg.DatabaseURL = strings.TrimSpace(dbURL)
-	}
-	if email, ok := envLookup("AUTH_BOOTSTRAP_EMAIL"); ok {
-		authCfg.BootstrapEmail = strings.TrimSpace(email)
-	}
-	if password, ok := envLookup("AUTH_BOOTSTRAP_PASSWORD"); ok {
-		authCfg.BootstrapPassword = password
-	}
-	if name, ok := envLookup("AUTH_BOOTSTRAP_DISPLAY_NAME"); ok {
-		authCfg.BootstrapDisplayName = strings.TrimSpace(name)
-	}
-	cfg.Auth = authCfg
-
-	analyticsCfg := AnalyticsConfig{}
-	if apiKey, ok := envLookup("POSTHOG_API_KEY"); ok {
-		analyticsCfg.PostHogAPIKey = strings.TrimSpace(apiKey)
-	}
-	if host, ok := envLookup("POSTHOG_HOST"); ok {
-		analyticsCfg.PostHogHost = strings.TrimSpace(host)
-	}
-	cfg.Analytics = analyticsCfg
-
-	resolver := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		overrides, err := manager.CurrentOverrides(ctx)
-		if err != nil {
-			return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, err
-		}
-		return runtimeconfig.Load(
-			runtimeconfig.WithEnv(envLookup),
-			runtimeconfig.WithOverrides(overrides),
-		)
-	}
-
-	return cfg, manager, resolver, nil
-}
-
-func parseAllowedOrigins(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return []string{}
-	}
-	fields := strings.FieldsFunc(raw, func(r rune) bool {
-		switch r {
-		case ',', ';', '\n', '\r', '\t':
-			return true
-		default:
-			return false
-		}
-	})
-	origins := make([]string, 0, len(fields))
-	seen := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		origin := strings.TrimSpace(field)
-		if origin == "" {
-			continue
-		}
-		if _, ok := seen[origin]; ok {
-			continue
-		}
-		seen[origin] = struct{}{}
-		origins = append(origins, origin)
-	}
-	return origins
-}
-
-func buildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {
-	runtimeCfg := cfg.Runtime
-	authCfg := cfg.Auth
-
-	secret := strings.TrimSpace(authCfg.JWTSecret)
-	if secret == "" {
-		return nil, nil, fmt.Errorf("AUTH_JWT_SECRET not configured")
-	}
-
-	accessTTL := 15 * time.Minute
-	if minutes := strings.TrimSpace(authCfg.AccessTokenTTLMinutes); minutes != "" {
-		if v, err := strconv.Atoi(minutes); err == nil && v > 0 {
-			accessTTL = time.Duration(v) * time.Minute
-		} else if err != nil {
-			logger.Warn("Invalid AUTH_ACCESS_TOKEN_TTL_MINUTES value: %v", err)
-		}
-	}
-
-	refreshTTL := 30 * 24 * time.Hour
-	if days := strings.TrimSpace(authCfg.RefreshTokenTTLDays); days != "" {
-		if v, err := strconv.Atoi(days); err == nil && v > 0 {
-			refreshTTL = time.Duration(v) * 24 * time.Hour
-		} else if err != nil {
-			logger.Warn("Invalid AUTH_REFRESH_TOKEN_TTL_DAYS value: %v", err)
-		}
-	}
-
-	stateTTL := 10 * time.Minute
-	if minutes := strings.TrimSpace(authCfg.StateTTLMinutes); minutes != "" {
-		if v, err := strconv.Atoi(minutes); err == nil && v > 0 {
-			stateTTL = time.Duration(v) * time.Minute
-		} else if err != nil {
-			logger.Warn("Invalid AUTH_STATE_TTL_MINUTES value: %v", err)
-		}
-	}
-
-	memUsers, memIdentities, memSessions, memStates := authAdapters.NewMemoryStores()
-	var (
-		users      authports.UserRepository     = memUsers
-		identities authports.IdentityRepository = memIdentities
-		sessions   authports.SessionRepository  = memSessions
-		states     authports.StateStore         = memStates
-	)
-	tokenManager := authAdapters.NewJWTTokenManager(secret, "alex-server", accessTTL)
-
-	var cleanupFuncs []func()
-
-	if dbURL := strings.TrimSpace(authCfg.DatabaseURL); dbURL != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		pool, err := pgxpool.New(ctx, dbURL)
-		if err != nil {
-			return nil, nil, fmt.Errorf("create auth db pool: %w", err)
-		}
-		if err := pool.Ping(ctx); err != nil {
-			pool.Close()
-			return nil, nil, fmt.Errorf("ping auth db: %w", err)
-		}
-		usersRepo, identitiesRepo, sessionsRepo, statesRepo := authAdapters.NewPostgresStores(pool)
-		users = usersRepo
-		identities = identitiesRepo
-		sessions = sessionsRepo
-		states = statesRepo
-		cleanupFuncs = append(cleanupFuncs, func() {
-			pool.Close()
-		})
-		logger.Info("Authentication repositories backed by Postgres")
-	}
-
-	redirectBase := strings.TrimSpace(authCfg.RedirectBaseURL)
-	if redirectBase == "" {
-		port := strings.TrimPrefix(cfg.Port, ":")
-		redirectBase = fmt.Sprintf("http://localhost:%s", port)
-	}
-	if !strings.HasPrefix(redirectBase, "http://") && !strings.HasPrefix(redirectBase, "https://") {
-		redirectBase = "https://" + redirectBase
-	}
-	trimmedBase := strings.TrimRight(redirectBase, "/")
-
-	googleAuthURL := strings.TrimSpace(authCfg.GoogleAuthURL)
-	if googleAuthURL == "" {
-		googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
-	}
-	googleTokenURL := strings.TrimSpace(authCfg.GoogleTokenURL)
-	if googleTokenURL == "" {
-		googleTokenURL = "https://oauth2.googleapis.com/token"
-	}
-	googleUserInfoURL := strings.TrimSpace(authCfg.GoogleUserInfoURL)
-	if googleUserInfoURL == "" {
-		googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
-	}
-	wechatAuthURL := strings.TrimSpace(authCfg.WeChatAuthURL)
-	if wechatAuthURL == "" {
-		wechatAuthURL = "https://open.weixin.qq.com/connect/qrconnect"
-	}
-
-	providers := []authports.OAuthProvider{}
-	if clientID := strings.TrimSpace(authCfg.GoogleClientID); clientID != "" {
-		secret := strings.TrimSpace(authCfg.GoogleClientSecret)
-		if secret == "" {
-			logger.Warn("Google OAuth client secret not configured; Google login disabled")
-		} else {
-			providers = append(providers, authAdapters.NewGoogleOAuthProvider(authAdapters.GoogleOAuthConfig{
-				ClientID:     clientID,
-				ClientSecret: secret,
-				AuthURL:      googleAuthURL,
-				TokenURL:     googleTokenURL,
-				UserInfoURL:  googleUserInfoURL,
-				RedirectURL:  trimmedBase + "/api/auth/google/callback",
-			}))
-		}
-	}
-	if appID := strings.TrimSpace(authCfg.WeChatAppID); appID != "" {
-		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
-			Provider:     authdomain.ProviderWeChat,
-			ClientID:     appID,
-			AuthURL:      wechatAuthURL,
-			RedirectURL:  trimmedBase + "/api/auth/wechat/callback",
-			DefaultScope: []string{"snsapi_login"},
-		}))
-	}
-
-	service := authapp.NewService(users, identities, sessions, tokenManager, states, providers, authapp.Config{
-		AccessTokenTTL:        accessTTL,
-		RefreshTokenTTL:       refreshTTL,
-		StateTTL:              stateTTL,
-		RedirectBaseURL:       trimmedBase,
-		SecureCookies:         strings.EqualFold(runtimeCfg.Environment, "production"),
-		AllowedCallbackDomain: runtimeCfg.Environment,
-	})
-
-	if cleaner, ok := states.(authports.StateStoreWithCleanup); ok {
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan struct{})
-		interval := time.Minute
-
-		runCleanup := func() {
-			purgeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			removed, err := cleaner.PurgeExpired(purgeCtx, time.Now().UTC())
-			if err != nil {
-				logger.Warn("Failed to purge expired auth states: %v", err)
-				return
-			}
-			if removed > 0 {
-				logger.Info("Purged %d expired auth states", removed)
-			} else {
-				logger.Debug("No expired auth states to purge")
-			}
-		}
-
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer func() {
-				ticker.Stop()
-				close(done)
-			}()
-			runCleanup()
-			for {
-				select {
-				case <-ticker.C:
-					runCleanup()
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
-
-		cleanupFuncs = append(cleanupFuncs, func() {
-			cancel()
-			<-done
-		})
-	}
-
-	cleanup := func() {
-		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
-			if cleanupFuncs[i] != nil {
-				cleanupFuncs[i]()
-			}
-		}
-	}
-
-	if err := bootstrapAuthUser(service, authCfg, logger); err != nil {
-		cleanup()
-		return nil, nil, err
-	}
-
-	return service, cleanup, nil
-}
-
-func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger *utils.Logger) error {
-	email := strings.TrimSpace(cfg.BootstrapEmail)
-	password := strings.TrimSpace(cfg.BootstrapPassword)
-	if email == "" || password == "" {
-		return nil
-	}
-	displayName := strings.TrimSpace(cfg.BootstrapDisplayName)
-	if displayName == "" {
-		displayName = "Admin"
-	}
-
-	_, err := service.RegisterLocal(context.Background(), email, password, displayName)
-	if err != nil {
-		if errors.Is(err, authdomain.ErrUserExists) {
-			logger.Info("Bootstrap auth user already exists: %s", email)
-			return nil
-		}
-		return fmt.Errorf("bootstrap auth user %s: %w", email, err)
-	}
-
-	logger.Info("Bootstrap auth user created: %s", email)
-	return nil
 }

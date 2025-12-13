@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	runtimeconfig "alex/internal/config"
+	serverBootstrap "alex/internal/server/bootstrap"
 )
 
 func TestLoadConfigDefaultsSandboxBaseURL(t *testing.T) {
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, _, _, err := loadConfig()
+	cfg, _, _, err := serverBootstrap.LoadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -23,7 +24,7 @@ func TestLoadConfigWithSandboxBaseURL(t *testing.T) {
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("SANDBOX_BASE_URL", "http://sandbox.example.com")
 
-	cfg, _, _, err := loadConfig()
+	cfg, _, _, err := serverBootstrap.LoadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
