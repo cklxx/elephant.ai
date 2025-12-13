@@ -11,6 +11,7 @@ import (
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
 	"alex/internal/materials/policy"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/materials/storage"
 )
 
@@ -25,20 +26,15 @@ type RegistryClient interface {
 type AttachmentBroker struct {
 	registry RegistryClient
 	storage  storage.Mapper
-	events   EventPublisher
+	events   materialports.EventPublisher
 }
 
 // AttachmentBrokerOption mutates the broker during construction.
 type AttachmentBrokerOption func(*AttachmentBroker)
 
-// EventPublisher publishes newly registered materials onto an external event bus.
-type EventPublisher interface {
-	PublishMaterial(ctx context.Context, material *materialapi.Material) error
-}
-
 // WithEventPublisher attaches an event publisher to the broker so downstream
 // runtimes/UI clients can be notified immediately.
-func WithEventPublisher(publisher EventPublisher) AttachmentBrokerOption {
+func WithEventPublisher(publisher materialports.EventPublisher) AttachmentBrokerOption {
 	return func(b *AttachmentBroker) {
 		b.events = publisher
 	}

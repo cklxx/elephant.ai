@@ -35,6 +35,7 @@ type Container struct {
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
+	mcpInitCancel    context.CancelFunc
 
 	SandboxManager *tools.SandboxManager
 
@@ -117,11 +118,17 @@ func (c *Container) Shutdown() error {
 	c.mcpMu.Lock()
 	defer c.mcpMu.Unlock()
 
+	if c.mcpInitCancel != nil {
+		c.mcpInitCancel()
+		c.mcpInitCancel = nil
+	}
+
 	if c.mcpStarted && c.MCPRegistry != nil {
 		if err := c.MCPRegistry.Shutdown(); err != nil {
 			logger.Error("Failed to shutdown MCP: %v", err)
 			return err
 		}
+		c.mcpStarted = false
 		logger.Info("MCP shutdown successfully")
 	}
 
@@ -144,7 +151,9 @@ func (c *Container) startMCP() error {
 	}
 
 	logger := utils.NewComponentLogger("DI")
-	startMCPInitialization(c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
+	initCtx, cancel := context.WithCancel(context.Background())
+	c.mcpInitCancel = cancel
+	startMCPInitialization(initCtx, c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
 	c.mcpStarted = true
 
 	return nil
@@ -370,7 +379,7 @@ func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
 	return c.mcpInitTracker.Snapshot()
 }
 
-func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger *utils.Logger, tracker *MCPInitializationTracker) {
+func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger *utils.Logger, tracker *MCPInitializationTracker) {
 	const (
 		initialBackoff = time.Second
 		maxBackoff     = 30 * time.Second
@@ -379,6 +388,12 @@ func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegis
 	go func() {
 		backoff := initialBackoff
 		for {
+			if ctx.Err() != nil {
+				if logger != nil {
+					logger.Info("MCP initialization cancelled")
+				}
+				return
+			}
 			tracker.recordAttempt()
 			snapshot := tracker.Snapshot()
 			logger.Info("Initializing MCP registry (attempt %d)", snapshot.Attempts)
@@ -387,18 +402,26 @@ func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegis
 				logger.Warn("MCP initialization failed: %v", err)
 				tracker.recordFailure(err)
 				backoff = nextBackoff(backoff, maxBackoff)
-				time.Sleep(backoff)
+				if !sleepContext(ctx, backoff) {
+					return
+				}
 				continue
 			}
 
 			backoff = initialBackoff
 
 			for {
+				if ctx.Err() != nil {
+					logger.Info("MCP initialization cancelled")
+					return
+				}
 				if err := registry.RegisterWithToolRegistry(toolRegistry); err != nil {
 					logger.Warn("MCP tool registration failed: %v", err)
 					tracker.recordFailure(err)
 					backoff = nextBackoff(backoff, maxBackoff)
-					time.Sleep(backoff)
+					if !sleepContext(ctx, backoff) {
+						return
+					}
 					continue
 				}
 				tracker.recordSuccess()
@@ -407,6 +430,18 @@ func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegis
 			}
 		}
 	}()
+}
+
+func sleepContext(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func nextBackoff(current, max time.Duration) time.Duration {

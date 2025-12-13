@@ -9,7 +9,7 @@ import (
 
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
-	"alex/internal/materials/legacy"
+	materialports "alex/internal/materials/ports"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -106,7 +106,7 @@ func (r *reactRuntime) prepareContext() {
 			attachments[key] = att
 		}
 		userMessage.Attachments = attachments
-		userMessage.Attachments = r.engine.normalizeAttachmentsWithMigrator(r.ctx, r.state, legacy.MigrationRequest{
+		userMessage.Attachments = r.engine.normalizeAttachmentsWithMigrator(r.ctx, r.state, materialports.MigrationRequest{
 			Context:     r.engine.materialRequestContext(r.state, ""),
 			Attachments: userMessage.Attachments,
 			Status:      materialapi.MaterialStatusInput,

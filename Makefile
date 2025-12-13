@@ -56,11 +56,13 @@ bench: ## Run benchmarks
 	@$(GO) test ./... -bench=. -benchmem
 
 # Documentation
-docs: ## Generate documentation
+docs: ## Show documentation locations
 	@echo "Documentation available in:"
-	@echo "  - NEW_ARCHITECTURE.md"
-	@echo "  - docs/architecture/"
-	@echo "  - REFACTORING_SUMMARY.md"
+	@echo "  - README.md"
+	@echo "  - docs/README.md"
+	@echo "  - docs/AGENT.md"
+	@echo "  - docs/reference/ALEX.md"
+	@echo "  - docs/operations/DEPLOYMENT.md"
 
 # NPM Publishing
 npm-copy-binaries: ## Copy built binaries to npm packages

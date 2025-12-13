@@ -9,7 +9,6 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
-	"alex/internal/llm"
 	id "alex/internal/utils/id"
 )
 
@@ -199,7 +198,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	// Use Wrap instead of Attach to avoid modifying shared client state
 	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
 
-	streamingClient, ok := llm.EnsureStreamingClient(llmClient).(ports.StreamingLLMClient)
+	streamingClient, ok := ports.EnsureStreamingClient(llmClient).(ports.StreamingLLMClient)
 	if !ok {
 		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
 	}

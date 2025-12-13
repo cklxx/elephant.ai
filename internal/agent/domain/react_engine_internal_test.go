@@ -10,7 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
-	"alex/internal/materials/legacy"
+	materialports "alex/internal/materials/ports"
 )
 
 func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing.T) {
@@ -722,10 +722,10 @@ func TestNormalizeMessageHistoryAttachmentsMigratesInlinePayloads(t *testing.T) 
 }
 
 type captureMigrator struct {
-	requests []legacy.MigrationRequest
+	requests []materialports.MigrationRequest
 }
 
-func (m *captureMigrator) Normalize(ctx context.Context, req legacy.MigrationRequest) (map[string]ports.Attachment, error) {
+func (m *captureMigrator) Normalize(ctx context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
 	m.requests = append(m.requests, req)
 	result := make(map[string]ports.Attachment, len(req.Attachments))
 	for key, att := range req.Attachments {
@@ -736,7 +736,7 @@ func (m *captureMigrator) Normalize(ctx context.Context, req legacy.MigrationReq
 	return result, nil
 }
 
-var _ legacy.Migrator = (*captureMigrator)(nil)
+var _ materialports.Migrator = (*captureMigrator)(nil)
 
 func TestEnsureSystemPromptMessagePrependsWhenMissing(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})

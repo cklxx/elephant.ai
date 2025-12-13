@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 
 	materialapi "alex/internal/materials/api"
-	"alex/internal/materials/broker"
+	materialports "alex/internal/materials/ports"
 )
 
 const defaultBuffer = 16
@@ -120,4 +120,4 @@ func (b *Bus) removeWatcher(requestID string, id uint64) {
 	}
 }
 
-var _ broker.EventPublisher = (*Bus)(nil)
+var _ materialports.EventPublisher = (*Bus)(nil)
