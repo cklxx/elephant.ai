@@ -207,17 +207,6 @@ func isSafeSessionID(id string) bool {
 	return sessionIDPattern.MatchString(id)
 }
 
-func previewJSON(data []byte) string {
-	const maxPreview = 512
-	preview := strings.TrimSpace(string(data))
-	preview = strings.ReplaceAll(preview, "\n", " ")
-	preview = strings.ReplaceAll(preview, "\t", " ")
-	if len(preview) > maxPreview {
-		preview = preview[:maxPreview] + "... (truncated)"
-	}
-	return preview
-}
-
 func attachmentPath(baseDir, sessionID string) string {
 	return filepath.Join(baseDir, fmt.Sprintf("%s_attachments.json", sessionID))
 }

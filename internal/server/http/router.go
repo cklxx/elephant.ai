@@ -14,8 +14,8 @@ import (
 
 // NewRouter creates a new HTTP router with all endpoints
 func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability) http.Handler {
-	logger := utils.NewComponentLogger("Router")
-	latencyLogger := utils.NewLatencyLogger("HTTP")
+	logger := logging.NewComponentLogger("Router")
+	latencyLogger := logging.NewLatencyLogger("HTTP")
 	dataCache := NewDataCache(256, 30*time.Minute)
 
 	// Create handlers
