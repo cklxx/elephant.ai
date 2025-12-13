@@ -9,7 +9,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
-	"alex/internal/utils"
+	"alex/internal/logging"
 	id "alex/internal/utils/id"
 )
 
@@ -85,7 +85,7 @@ func NewAgentCoordinator(
 		parser:       parser,
 		costTracker:  costTracker,
 		config:       config,
-		logger:       utils.NewComponentLogger("Coordinator"),
+		logger:       logging.NewComponentLogger("Coordinator"),
 		clock:        ports.SystemClock{},
 	}
 
