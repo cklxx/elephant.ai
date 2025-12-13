@@ -278,6 +278,10 @@ func main() {
 
 	// Setup HTTP router
 	configHandler := serverHTTP.NewConfigHandler(configManager, resolver)
+	evaluationService, err := serverApp.NewEvaluationService("./evaluation_results")
+	if err != nil {
+		logger.Warn("Evaluation service disabled: %v", err)
+	}
 	router := serverHTTP.NewRouter(
 		serverCoordinator,
 		broadcaster,
@@ -287,6 +291,7 @@ func main() {
 		runtimeCfg.Environment,
 		config.AllowedOrigins,
 		configHandler,
+		evaluationService,
 		obs,
 	)
 
