@@ -42,19 +42,29 @@ type Worker struct {
 	mu          sync.RWMutex
 }
 
+func clampWorkerCount(numWorkers int) int {
+	const maxWorkers = 20
+
+	if numWorkers <= 0 {
+		return 1
+	}
+	if numWorkers > maxWorkers {
+		return maxWorkers
+	}
+
+	return numWorkers
+}
+
 // NewWorkerPool creates a new worker pool
 func NewWorkerPool(numWorkers int) *WorkerPoolImpl {
-	if numWorkers <= 0 {
-		numWorkers = 1
-	}
-	if numWorkers > 20 {
-		numWorkers = 20
-	}
+	numWorkers = clampWorkerCount(numWorkers)
+
+	queueSize := numWorkers * 2
 
 	return &WorkerPoolImpl{
 		numWorkers:   numWorkers,
-		taskQueue:    make(chan WorkerTask, numWorkers*2), // Buffer for better throughput
-		resultQueue:  make(chan WorkerResult, numWorkers*2),
+		taskQueue:    make(chan WorkerTask, queueSize), // Buffer for better throughput
+		resultQueue:  make(chan WorkerResult, queueSize),
 		workers:      make([]*Worker, numWorkers),
 		agentFactory: NewAlexAgentFactory(),
 	}

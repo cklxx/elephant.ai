@@ -12,6 +12,10 @@ import {
   ApprovePlanResponse,
   RuntimeConfigSnapshot,
   RuntimeConfigOverridesPayload,
+  EvaluationListResponse,
+  EvaluationDetailResponse,
+  StartEvaluationRequest,
+  EvaluationJobSummary,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -223,6 +227,26 @@ export async function forkSession(
   );
 }
 
+// Evaluation APIs
+export async function listEvaluations(): Promise<EvaluationListResponse> {
+  return fetchAPI<EvaluationListResponse>("/api/evaluations");
+}
+
+export async function startEvaluation(
+  request: StartEvaluationRequest,
+): Promise<EvaluationJobSummary> {
+  return fetchAPI<EvaluationJobSummary>("/api/evaluations", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getEvaluation(
+  evaluationId: string,
+): Promise<EvaluationDetailResponse> {
+  return fetchAPI<EvaluationDetailResponse>(`/api/evaluations/${evaluationId}`);
+}
+
 // SSE Connection
 
 export function createSSEConnection(
@@ -255,6 +279,9 @@ export const apiClient = {
   getSessionDetails,
   deleteSession,
   forkSession,
+  listEvaluations,
+  startEvaluation,
+  getEvaluation,
   createSSEConnection,
   healthCheck,
 };

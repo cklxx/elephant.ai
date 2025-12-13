@@ -36,6 +36,11 @@ function HeroSection() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Button>
             </Link>
+            <Link href="/evaluation">
+              <Button className="rounded-xl border border-indigo-200/40 bg-indigo-50 px-5 py-3 text-sm font-semibold text-slate-900 backdrop-blur transition hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-white">
+                Evaluation panel
+              </Button>
+            </Link>
             <Link href="/sessions">
               <Button className="rounded-xl border border-white/35 bg-white/15 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:border-white/55 hover:bg-white/25">
                 View sessions
