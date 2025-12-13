@@ -22,8 +22,7 @@ func NewResultWriter() *ResultWriterImpl {
 
 // WriteResults writes batch results to storage
 func (rw *ResultWriterImpl) WriteResults(ctx context.Context, result *BatchResult, path string) error {
-	const SafeResultsBaseDir = "results"
-	cleanedPath, err := sanitizeOutputPath(SafeResultsBaseDir, path)
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
 	if err != nil {
 		return err
 	}
@@ -61,7 +60,7 @@ func (rw *ResultWriterImpl) WriteResults(ctx context.Context, result *BatchResul
 
 // WritePartialResults writes partial results during processing
 func (rw *ResultWriterImpl) WritePartialResults(ctx context.Context, results []WorkerResult, path string) error {
-	cleanedPath, err := sanitizeOutputPath(path)
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
 	if err != nil {
 		return err
 	}
@@ -87,7 +86,7 @@ func (rw *ResultWriterImpl) WritePartialResults(ctx context.Context, results []W
 
 // ReadResults reads previously saved results
 func (rw *ResultWriterImpl) ReadResults(ctx context.Context, path string) (*BatchResult, error) {
-	cleanedPath, err := sanitizeOutputPath(path)
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +108,7 @@ func (rw *ResultWriterImpl) ReadResults(ctx context.Context, path string) (*Batc
 
 // AppendResult appends a single result to the output
 func (rw *ResultWriterImpl) AppendResult(ctx context.Context, result WorkerResult, path string) error {
-	cleanedPath, err := sanitizeOutputPath(path)
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
 	if err != nil {
 		return err
 	}
