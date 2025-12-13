@@ -19,10 +19,10 @@ This document tracks architectural and design issues discovered during the ongoi
 
 ### 2) Entry-point bootstrap logic too concentrated
 
-- **Symptoms**: `cmd/alex-server/main.go` is ~700+ LOC and mixes config, env snapshots, observability, auth bootstrap, server wiring, and process lifecycle.
+- **Symptoms**: `cmd/alex-server/main.go` was ~700+ LOC and mixed config, env snapshots, observability, auth bootstrap, server wiring, and process lifecycle.
 - **Impact**: Hard to test; hard to reason about failure modes; makes incremental changes risky.
 - **Fix**: Extract bootstrap modules (config/load, env snapshot, server wiring) into `internal/server/...` packages with unit tests.
-- **Status**: in progress (moved config+auth bootstrap into `internal/server/bootstrap`)
+- **Status**: in progress (moved config/auth/env/analytics/journal bootstrap into `internal/server/bootstrap`; `main.go` now ~280 LOC)
 
 ### 3) Logging split across `internal/utils` and `internal/observability`
 

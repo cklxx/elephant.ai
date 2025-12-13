@@ -6,22 +6,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	agentdomain "alex/internal/agent/domain"
-	"alex/internal/analytics"
-	"alex/internal/analytics/journal"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
-	"alex/internal/environment"
 	"alex/internal/observability"
 	serverApp "alex/internal/server/app"
 	serverBootstrap "alex/internal/server/bootstrap"
 	serverHTTP "alex/internal/server/http"
-	"alex/internal/tools"
 	"alex/internal/utils"
 )
 
@@ -75,26 +70,10 @@ func main() {
 	logger.Info("Port: %s", config.Port)
 	logger.Info("===========================")
 
-	hostSummary := environment.CollectLocalSummary(20)
-	hostEnv := environment.SummaryMap(hostSummary)
-	config.EnvironmentSummary = environment.FormatSummary(hostSummary)
-
+	hostEnv, hostSummary := serverBootstrap.CaptureHostEnvironment(20)
+	config.EnvironmentSummary = hostSummary
 	sandboxEnv := map[string]string{}
 	envCapturedAt := time.Now().UTC()
-
-	if runtimeCfg.SandboxBaseURL != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		manager := tools.NewSandboxManager(runtimeCfg.SandboxBaseURL)
-		summary, err := environment.CollectSandboxSummary(ctx, manager, 20)
-		if err != nil {
-			logger.Warn("Failed to capture sandbox environment summary: %v", err)
-		} else {
-			sandboxEnv = environment.SummaryMap(summary)
-			config.EnvironmentSummary = environment.FormatSummary(summary)
-			envCapturedAt = time.Now().UTC()
-		}
-		cancel()
-	}
 
 	// Initialize container (without heavy initialization)
 	container, err := buildContainer(config)
@@ -116,13 +95,11 @@ func main() {
 	// downstream consumers operate on the same cached state.
 	if container.SandboxManager != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		summary, err := environment.CollectSandboxSummary(ctx, container.SandboxManager, 20)
-		if err != nil {
-			logger.Warn("Failed to refresh sandbox environment summary: %v", err)
-		} else {
-			sandboxEnv = environment.SummaryMap(summary)
-			envCapturedAt = time.Now().UTC()
-			config.EnvironmentSummary = environment.FormatSummary(summary)
+		updatedSandboxEnv, sandboxSummary, capturedAt, ok := serverBootstrap.CaptureSandboxEnvironment(ctx, container.SandboxManager, 20, logger)
+		if ok {
+			sandboxEnv = updatedSandboxEnv
+			envCapturedAt = capturedAt
+			config.EnvironmentSummary = sandboxSummary
 		}
 		cancel()
 	}
@@ -163,35 +140,12 @@ func main() {
 		broadcaster.SetAttachmentArchiver(archiver)
 	}
 
-	analyticsClient := analytics.NewNoopClient()
-	if apiKey := strings.TrimSpace(config.Analytics.PostHogAPIKey); apiKey != "" {
-		client, err := analytics.NewPostHogClient(apiKey, strings.TrimSpace(config.Analytics.PostHogHost))
-		if err != nil {
-			logger.Warn("Analytics disabled: %v", err)
-		} else {
-			analyticsClient = client
-			logger.Info("Analytics client initialized (PostHog)")
-		}
-	} else {
-		logger.Info("Analytics client disabled: POSTHOG_API_KEY not provided")
+	analyticsClient, analyticsCleanup := serverBootstrap.BuildAnalyticsClient(config.Analytics, logger)
+	if analyticsCleanup != nil {
+		defer analyticsCleanup()
 	}
-	defer func() {
-		if err := analyticsClient.Close(); err != nil {
-			logger.Warn("Failed to close analytics client: %v", err)
-		}
-	}()
 
-	var journalReader journal.Reader
-	if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
-		reader, err := journal.NewFileReader(filepath.Join(sessionDir, "journals"))
-		if err != nil {
-			logger.Warn("Failed to initialize journal reader: %v", err)
-		} else {
-			journalReader = reader
-		}
-	} else {
-		logger.Warn("Session directory missing; turn replay disabled")
-	}
+	journalReader := serverBootstrap.BuildJournalReader(container.SessionDir(), logger)
 
 	serverCoordinator := serverApp.NewServerCoordinator(
 		container.AgentCoordinator,
