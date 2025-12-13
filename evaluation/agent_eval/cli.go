@@ -22,6 +22,11 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 		outputDir = "./evaluation_results"
 	}
 
+	cleanedOutputDir, err := sanitizeOutputPath(outputDir)
+	if err != nil {
+		return nil, err
+	}
+
 	config := &EvaluationConfig{
 		DatasetType:    "swe_bench",
 		DatasetPath:    "./evaluation/swe_bench/real_instances.json",
@@ -31,7 +36,7 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 		TimeoutPerTask: 300 * time.Second, // 5分钟超时
 		EnableMetrics:  true,
 		MetricsTypes:   []string{"performance", "quality", "resource", "behavior"},
-		OutputDir:      outputDir,
+		OutputDir:      cleanedOutputDir,
 		ReportFormat:   "markdown",
 	}
 
@@ -96,7 +101,12 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 		config.TimeoutPerTask = options.TimeoutPerTask
 	}
 	if options.OutputDir != "" {
-		config.OutputDir = options.OutputDir
+		sanitized, err := sanitizeOutputPath(options.OutputDir)
+		if err != nil {
+			log.Printf("Invalid output dir override %q: %v", options.OutputDir, err)
+		} else {
+			config.OutputDir = sanitized
+		}
 	}
 	if !options.EnableMetrics {
 		config.EnableMetrics = options.EnableMetrics
@@ -381,6 +391,12 @@ func ValidateConfig(config *EvaluationConfig) error {
 	if config.OutputDir == "" {
 		return fmt.Errorf("output directory is required")
 	}
+
+	cleanedOutputDir, err := sanitizeOutputPath(config.OutputDir)
+	if err != nil {
+		return err
+	}
+	config.OutputDir = cleanedOutputDir
 
 	// 检查数据集文件是否存在
 	if _, err := os.Stat(config.DatasetPath); os.IsNotExist(err) {

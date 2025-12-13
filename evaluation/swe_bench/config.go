@@ -115,6 +115,12 @@ func (cm *ConfigManager) ValidateConfig(config *BatchConfig) error {
 		config.OutputPath = "./batch_results"
 	}
 
+	cleanedOutput, err := sanitizeOutputPath(config.OutputPath)
+	if err != nil {
+		return err
+	}
+	config.OutputPath = cleanedOutput
+
 	if config.MaxRetries < 0 {
 		config.MaxRetries = 0
 	}

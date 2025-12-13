@@ -138,7 +138,12 @@ func (dl *DatasetLoaderImpl) loadHuggingFaceInstances(_ context.Context, _ Datas
 
 // downloadDataset downloads a dataset if not already cached
 func (dl *DatasetLoaderImpl) downloadDataset(ctx context.Context, datasetKey, url string) (string, error) {
-	filePath := filepath.Join(dl.cacheDir, datasetKey+".json")
+	safeKey, err := sanitizeDatasetKey(datasetKey)
+	if err != nil {
+		return "", err
+	}
+
+	filePath := filepath.Join(dl.cacheDir, safeKey+".json")
 
 	// Check if file already exists and is recent (less than 7 days old)
 	if stat, err := os.Stat(filePath); err == nil {

@@ -23,13 +23,18 @@ func NewMarkdownReporter() *MarkdownReporter {
 
 // GenerateReport 生成评估报告
 func (mr *MarkdownReporter) GenerateReport(results *EvaluationResults, outputPath string) error {
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+	cleanedPath, err := sanitizeOutputPath(outputPath)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(cleanedPath), 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	report := mr.buildReportContent(results)
 
-	if err := os.WriteFile(outputPath, []byte(report), 0644); err != nil {
+	if err := os.WriteFile(cleanedPath, []byte(report), 0644); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
 
