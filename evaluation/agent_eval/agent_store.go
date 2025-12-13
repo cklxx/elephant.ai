@@ -137,7 +137,7 @@ func (store *AgentDataStore) ListProfiles() ([]*AgentProfile, error) {
 			continue
 		}
 		name := entry.Name()
-		if filepath.Ext(name) != ".json" || !filepath.HasSuffix(name, "_profile.json") {
+		if filepath.Ext(name) != ".json" || !strings.HasSuffix(name, "_profile.json") {
 			continue
 		}
 
