@@ -98,7 +98,8 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 
 	var session ports.Session
 	if err := json.Unmarshal(data, &session); err != nil {
-		logging.OrNop(s.logger).Error("Failed to decode session file %s: %v. Preview: %s", path, err, previewJSON(data))
+		// Do not log file path or preview, as session file may contain secrets (API keys, etc.)
+		logging.OrNop(s.logger).Error("Failed to decode session file: %v", err)
 		return nil, fmt.Errorf("failed to decode session: %w", err)
 	}
 	session.Attachments = sanitizeAttachmentMap(session.Attachments)
