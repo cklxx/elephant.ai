@@ -13,9 +13,9 @@ import (
 	agentapp "alex/internal/agent/app"
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
-	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
 
@@ -25,7 +25,7 @@ const maxCreateTaskBodySize = 1 << 20 // 1 MiB
 type APIHandler struct {
 	coordinator   *app.ServerCoordinator
 	healthChecker *app.HealthCheckerImpl
-	logger        *utils.Logger
+	logger        logging.Logger
 	internalMode  bool
 	obs           *observability.Observability
 }
@@ -45,7 +45,7 @@ func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.Health
 	handler := &APIHandler{
 		coordinator:   coordinator,
 		healthChecker: healthChecker,
-		logger:        utils.NewComponentLogger("APIHandler"),
+		logger:        logging.NewComponentLogger("APIHandler"),
 		internalMode:  internalMode,
 	}
 	for _, opt := range opts {

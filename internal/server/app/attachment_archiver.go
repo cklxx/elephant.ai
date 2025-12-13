@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/logging"
 	"alex/internal/tools"
-	"alex/internal/utils"
 
 	api "github.com/agent-infra/sandbox-sdk-go"
 )
@@ -42,14 +42,14 @@ func NewSandboxAttachmentArchiver(manager *tools.SandboxManager, baseDir string)
 	return &sandboxAttachmentArchiver{
 		sandbox: manager,
 		baseDir: dir,
-		logger:  utils.NewComponentLogger("AttachmentArchiver"),
+		logger:  logging.NewComponentLogger("AttachmentArchiver"),
 	}
 }
 
 type sandboxAttachmentArchiver struct {
 	sandbox     *tools.SandboxManager
 	baseDir     string
-	logger      *utils.Logger
+	logger      logging.Logger
 	ensuredDirs sync.Map
 	digestCache sync.Map
 }

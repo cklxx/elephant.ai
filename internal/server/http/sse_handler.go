@@ -14,10 +14,10 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
 	"alex/internal/tools/builtin"
-	"alex/internal/utils"
 	id "alex/internal/utils/id"
 	"alex/internal/workflow"
 
@@ -62,7 +62,7 @@ var blockedNodePrefixes = []string{
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
-	logger      *utils.Logger
+	logger      logging.Logger
 	formatter   *domain.ToolFormatter
 	obs         *observability.Observability
 	dataCache   *DataCache
@@ -89,7 +89,7 @@ func WithSSEDataCache(cache *DataCache) SSEHandlerOption {
 func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) *SSEHandler {
 	handler := &SSEHandler{
 		broadcaster: broadcaster,
-		logger:      utils.NewComponentLogger("SSEHandler"),
+		logger:      logging.NewComponentLogger("SSEHandler"),
 		formatter:   domain.NewToolFormatter(),
 	}
 	for _, opt := range opts {

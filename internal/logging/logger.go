@@ -58,6 +58,11 @@ func NewComponentLogger(component string) Logger {
 	return utils.NewComponentLogger(component)
 }
 
+// NewLatencyLogger returns a logger dedicated to latency instrumentation output.
+func NewLatencyLogger(component string) Logger {
+	return utils.NewLatencyLogger(component)
+}
+
 // FromUtils adapts the legacy utils logger to the Logger interface.
 func FromUtils(logger *utils.Logger) Logger {
 	if logger == nil {

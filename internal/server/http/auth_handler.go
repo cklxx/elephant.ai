@@ -13,7 +13,7 @@ import (
 
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 // AuthHandler manages authentication endpoints.
 type AuthHandler struct {
 	service *authapp.Service
-	logger  *utils.Logger
+	logger  logging.Logger
 	secure  bool
 }
 
@@ -33,7 +33,7 @@ type AuthHandler struct {
 func NewAuthHandler(service *authapp.Service, secure bool) *AuthHandler {
 	return &AuthHandler{
 		service: service,
-		logger:  utils.NewComponentLogger("AuthHandler"),
+		logger:  logging.NewComponentLogger("AuthHandler"),
 		secure:  secure,
 	}
 }

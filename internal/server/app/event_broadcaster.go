@@ -6,8 +6,8 @@ import (
 
 	"alex/internal/agent/domain"
 	agentports "alex/internal/agent/ports"
+	"alex/internal/logging"
 	serverports "alex/internal/server/ports"
-	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
 
@@ -16,7 +16,7 @@ type EventBroadcaster struct {
 	// Map sessionID -> list of client channels
 	clients map[string][]chan agentports.AgentEvent
 	mu      sync.RWMutex
-	logger  *utils.Logger
+	logger  logging.Logger
 
 	highVolumeMu       sync.Mutex
 	highVolumeCounters map[string]int
@@ -65,7 +65,7 @@ func NewEventBroadcaster() *EventBroadcaster {
 		eventHistory:       make(map[string][]agentports.AgentEvent),
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
-		logger:             utils.NewComponentLogger("EventBroadcaster"),
+		logger:             logging.NewComponentLogger("EventBroadcaster"),
 	}
 }
 
