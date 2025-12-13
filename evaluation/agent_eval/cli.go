@@ -27,6 +27,7 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 		DatasetPath:    "./evaluation/swe_bench/real_instances.json",
 		InstanceLimit:  10, // 默认少量实例用于测试
 		MaxWorkers:     2,
+		AgentID:        "default-agent",
 		TimeoutPerTask: 300 * time.Second, // 5分钟超时
 		EnableMetrics:  true,
 		MetricsTypes:   []string{"performance", "quality", "resource", "behavior"},
@@ -45,10 +46,18 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 
 // RunEvaluation 运行评估
 func (cm *CLIManager) RunEvaluation(ctx context.Context, options *EvaluationOptions) (*EvaluationJob, error) {
+	if options == nil {
+		options = DefaultEvaluationOptions()
+	}
+
 	log.Printf("Starting agent evaluation with options: %+v", options)
 
 	// 应用选项到配置
 	config := cm.applyOptions(options)
+
+	if err := ValidateConfig(config); err != nil {
+		return nil, err
+	}
 
 	// 创建输出目录
 	if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
@@ -74,6 +83,9 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 	if options.DatasetPath != "" {
 		config.DatasetPath = options.DatasetPath
 	}
+	if options.AgentID != "" {
+		config.AgentID = options.AgentID
+	}
 	if options.InstanceLimit > 0 {
 		config.InstanceLimit = options.InstanceLimit
 	}
@@ -88,6 +100,9 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 	}
 	if !options.EnableMetrics {
 		config.EnableMetrics = options.EnableMetrics
+	}
+	if options.ReportFormat != "" {
+		config.ReportFormat = options.ReportFormat
 	}
 
 	return &config
@@ -116,9 +131,17 @@ func (cm *CLIManager) waitForCompletion(ctx context.Context, job *EvaluationJob)
 				if err != nil {
 					log.Printf("Warning: Failed to get job results: %v", err)
 				} else {
-					log.Printf("Results summary: %d total tasks, overall score: %.1f%%",
-						results.Metrics.TotalTasks,
-						results.Analysis.Summary.OverallScore*100)
+					totalTasks := results.Metrics.TotalTasks
+					if totalTasks == 0 {
+						totalTasks = len(results.Results)
+					}
+					if results.Analysis != nil {
+						log.Printf("Results summary: %d total tasks, overall score: %.1f%%",
+							totalTasks,
+							results.Analysis.Summary.OverallScore*100)
+					} else {
+						log.Printf("Results summary: %d total tasks", totalTasks)
+					}
 				}
 
 				return job, nil
@@ -154,6 +177,7 @@ type EvaluationOptions struct {
 	OutputDir      string        `json:"output_dir"`
 	EnableMetrics  bool          `json:"enable_metrics"`
 	ReportFormat   string        `json:"report_format"`
+	AgentID        string        `json:"agent_id"`
 	Verbose        bool          `json:"verbose"`
 }
 
@@ -167,6 +191,7 @@ func DefaultEvaluationOptions() *EvaluationOptions {
 		OutputDir:      "./evaluation_results",
 		EnableMetrics:  true,
 		ReportFormat:   "markdown",
+		AgentID:        "default-agent",
 		Verbose:        false,
 	}
 }
