@@ -8,11 +8,41 @@ import (
 
 // EvaluationResults 评估结果
 type EvaluationResults struct {
-	JobID     string                   `json:"job_id"`
-	Results   []swe_bench.WorkerResult `json:"results"`
-	Metrics   *EvaluationMetrics       `json:"metrics"`
-	Analysis  *AnalysisResult          `json:"analysis"`
-	Timestamp time.Time                `json:"timestamp"`
+	JobID      string                   `json:"job_id"`
+	AgentID    string                   `json:"agent_id,omitempty"`
+	Config     *EvaluationConfig        `json:"config,omitempty"`
+	Results    []swe_bench.WorkerResult `json:"results"`
+	AutoScores []AutoScore              `json:"auto_scores,omitempty"`
+	Metrics    *EvaluationMetrics       `json:"metrics"`
+	Analysis   *AnalysisResult          `json:"analysis"`
+	Agent      *AgentProfile            `json:"agent,omitempty"`
+	Timestamp  time.Time                `json:"timestamp"`
+}
+
+// EvaluationQuery 描述查询评估记录的过滤器
+type EvaluationQuery struct {
+	AgentID     string
+	After       time.Time
+	Before      time.Time
+	MinScore    float64
+	Limit       int
+	DatasetPath string
+	DatasetType string
+	Tags        []string
+}
+
+// HasFilters returns true if any filtering field is set.
+func (q EvaluationQuery) HasFilters() bool {
+	return q.AgentID != "" || !q.After.IsZero() || !q.Before.IsZero() || q.MinScore > 0 || q.Limit > 0 || q.DatasetPath != "" || q.DatasetType != "" || len(q.Tags) > 0
+}
+
+// AutoScore 为单个任务的自动评分结果
+type AutoScore struct {
+	TaskID     string  `json:"task_id"`
+	InstanceID string  `json:"instance_id"`
+	Score      float64 `json:"score"`
+	Grade      string  `json:"grade"`
+	Reason     string  `json:"reason"`
 }
 
 // ComparisonResult 比较结果（用于A/B测试）
