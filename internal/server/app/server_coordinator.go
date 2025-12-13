@@ -360,7 +360,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Update task with result
 	_ = s.taskStore.SetResult(ctx, taskID, result)
 
-	s.logger.Info("[Background] Task execution completed: taskID=%s, sessionID=%s, iterations=%d", taskID, result.SessionID, result.Iterations)
+	s.logger.Info("[Background] Task execution completed: taskID=%s", taskID)
 
 	props := map[string]any{
 		"task_id":     taskID,
