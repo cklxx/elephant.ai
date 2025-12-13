@@ -8,7 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	runtimeconfig "alex/internal/config"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // Registry manages MCP servers and their tools
@@ -17,7 +17,7 @@ type Registry struct {
 	servers      map[string]*ServerInstance
 	toolAdapters map[string]*ToolAdapter
 	mu           sync.RWMutex
-	logger       *utils.Logger
+	logger       logging.Logger
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
@@ -70,7 +70,7 @@ func NewRegistry(opts ...RegistryOption) *Registry {
 		configLoader: NewConfigLoader(),
 		servers:      make(map[string]*ServerInstance),
 		toolAdapters: make(map[string]*ToolAdapter),
-		logger:       utils.NewComponentLogger("MCPRegistry"),
+		logger:       logging.NewComponentLogger("MCPRegistry"),
 		ctx:          ctx,
 		cancel:       cancel,
 	}

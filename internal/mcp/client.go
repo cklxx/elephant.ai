@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // MCP Protocol version
@@ -21,7 +21,7 @@ type Client struct {
 	idGen        *RequestIDGenerator
 	pendingCalls map[any]chan *Response
 	mu           sync.RWMutex
-	logger       *utils.Logger
+	logger       logging.Logger
 	initialized  bool
 	serverInfo   *ServerInfo
 	capabilities *ServerCapabilities
@@ -103,7 +103,7 @@ func NewClient(serverName string, process *ProcessManager) *Client {
 		process:      process,
 		idGen:        NewRequestIDGenerator(),
 		pendingCalls: make(map[any]chan *Response),
-		logger:       utils.NewComponentLogger(fmt.Sprintf("MCPClient[%s]", serverName)),
+		logger:       logging.NewComponentLogger(fmt.Sprintf("MCPClient[%s]", serverName)),
 	}
 }
 

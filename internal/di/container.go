@@ -15,6 +15,7 @@ import (
 	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/logging"
 	"alex/internal/mcp"
 	"alex/internal/parser"
 	"alex/internal/session/filestore"
@@ -22,7 +23,6 @@ import (
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
 	"alex/internal/tools"
-	"alex/internal/utils"
 	"golang.org/x/time/rate"
 )
 
@@ -92,7 +92,7 @@ type Config struct {
 
 // Start initializes heavy dependencies (MCP) based on feature flags
 func (c *Container) Start() error {
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 	logger.Info("Starting container lifecycle...")
 
 	// Initialize MCP if enabled
@@ -112,7 +112,7 @@ func (c *Container) Start() error {
 
 // Shutdown gracefully shuts down all resources
 func (c *Container) Shutdown() error {
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 	logger.Info("Shutting down container...")
 
 	c.mcpMu.Lock()
@@ -150,7 +150,7 @@ func (c *Container) startMCP() error {
 		return nil // Already started
 	}
 
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 	initCtx, cancel := context.WithCancel(context.Background())
 	c.mcpInitCancel = cancel
 	startMCPInitialization(initCtx, c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
@@ -162,7 +162,7 @@ func (c *Container) startMCP() error {
 // BuildContainer builds the dependency injection container with the given configuration
 // Heavy initialization (MCP) is deferred until Start() is called
 func BuildContainer(config Config) (*Container, error) {
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 
 	// Resolve storage directories with defaults
 	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex-sessions")
@@ -379,19 +379,18 @@ func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
 	return c.mcpInitTracker.Snapshot()
 }
 
-func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger *utils.Logger, tracker *MCPInitializationTracker) {
+func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger logging.Logger, tracker *MCPInitializationTracker) {
 	const (
 		initialBackoff = time.Second
 		maxBackoff     = 30 * time.Second
 	)
 
 	go func() {
+		logger = logging.OrNop(logger)
 		backoff := initialBackoff
 		for {
 			if ctx.Err() != nil {
-				if logger != nil {
-					logger.Info("MCP initialization cancelled")
-				}
+				logger.Info("MCP initialization cancelled")
 				return
 			}
 			tracker.recordAttempt()

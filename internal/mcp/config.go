@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	runtimeconfig "alex/internal/config"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // Config represents the MCP configuration file structure
@@ -35,14 +35,14 @@ const (
 
 // ConfigLoader loads and merges MCP configurations from different scopes
 type ConfigLoader struct {
-	logger    *utils.Logger
+	logger    logging.Logger
 	envLookup runtimeconfig.EnvLookup
 }
 
 // NewConfigLoader creates a new configuration loader
 func NewConfigLoader(opts ...ConfigLoaderOption) *ConfigLoader {
 	loader := &ConfigLoader{
-		logger:    utils.NewComponentLogger("ConfigLoader"),
+		logger:    logging.NewComponentLogger("ConfigLoader"),
 		envLookup: runtimeconfig.DefaultEnvLookup,
 	}
 	for _, opt := range opts {

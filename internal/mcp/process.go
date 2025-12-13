@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // ProcessManager manages an MCP server process lifecycle
@@ -21,7 +21,7 @@ type ProcessManager struct {
 	stdin       io.WriteCloser
 	stdout      io.ReadCloser
 	stderr      io.ReadCloser
-	logger      *utils.Logger
+	logger      logging.Logger
 	mu          sync.Mutex
 	running     bool
 	restartChan chan struct{}
@@ -40,7 +40,7 @@ func NewProcessManager(config ProcessConfig) *ProcessManager {
 	pm := &ProcessManager{
 		command:     config.Command,
 		args:        config.Args,
-		logger:      utils.NewComponentLogger(fmt.Sprintf("ProcessManager[%s]", config.Command)),
+		logger:      logging.NewComponentLogger(fmt.Sprintf("ProcessManager[%s]", config.Command)),
 		restartChan: make(chan struct{}, 1),
 		stopChan:    make(chan struct{}),
 	}
