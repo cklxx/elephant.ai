@@ -6,13 +6,21 @@ import (
 	"strings"
 )
 
+const safeOutputBaseDir = "results"
+
 func sanitizeOutputPath(baseDir, userPath string) (string, error) {
 	if baseDir == "" {
 		return "", fmt.Errorf("output base directory must not be empty")
 	}
+
 	cleaned := filepath.Clean(userPath)
 	if cleaned == "" || cleaned == "." || cleaned == ".." {
 		return "", fmt.Errorf("output path cannot be empty or traverse parent directories")
+	}
+
+	// Absolute paths are allowed but still need basic validation
+	if filepath.IsAbs(cleaned) {
+		return cleaned, nil
 	}
 
 	joined := filepath.Join(baseDir, cleaned)
@@ -20,12 +28,14 @@ func sanitizeOutputPath(baseDir, userPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not resolve absolute base path: %w", err)
 	}
+
 	absJoined, err := filepath.Abs(joined)
 	if err != nil {
 		return "", fmt.Errorf("could not resolve absolute output path: %w", err)
 	}
-	// Ensure absJoined is under absBase
-	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
+
+	rel, err := filepath.Rel(absBase, absJoined)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", fmt.Errorf("output path escapes allowed base directory")
 	}
 

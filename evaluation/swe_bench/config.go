@@ -115,7 +115,7 @@ func (cm *ConfigManager) ValidateConfig(config *BatchConfig) error {
 		config.OutputPath = "./batch_results"
 	}
 
-	cleanedOutput, err := sanitizeOutputPath(config.OutputPath)
+	cleanedOutput, err := sanitizeOutputPath(safeOutputBaseDir, config.OutputPath)
 	if err != nil {
 		return err
 	}

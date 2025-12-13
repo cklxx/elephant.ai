@@ -22,7 +22,7 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 		outputDir = "./evaluation_results"
 	}
 
-	cleanedOutputDir, err := sanitizeOutputPath(outputDir)
+	cleanedOutputDir, err := sanitizeOutputPath(defaultOutputBaseDir, outputDir)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 		config.TimeoutPerTask = options.TimeoutPerTask
 	}
 	if options.OutputDir != "" {
-		sanitized, err := sanitizeOutputPath(options.OutputDir)
+		sanitized, err := sanitizeOutputPath(defaultOutputBaseDir, options.OutputDir)
 		if err != nil {
 			log.Printf("Invalid output dir override %q: %v", options.OutputDir, err)
 		} else {
@@ -392,7 +392,7 @@ func ValidateConfig(config *EvaluationConfig) error {
 		return fmt.Errorf("output directory is required")
 	}
 
-	cleanedOutputDir, err := sanitizeOutputPath(config.OutputDir)
+	cleanedOutputDir, err := sanitizeOutputPath(defaultOutputBaseDir, config.OutputDir)
 	if err != nil {
 		return err
 	}
