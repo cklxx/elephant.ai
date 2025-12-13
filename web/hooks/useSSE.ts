@@ -45,17 +45,33 @@ export function useSSE(
   const MAX_EVENT_HISTORY = 1000;
   const { enabled = true, onEvent, maxReconnectAttempts = 5 } = options;
 
-  const [events, setEvents] = useState<AnyAgentEvent[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  type EventState = { sessionId: string | null; events: AnyAgentEvent[] };
+  type ConnectionState = {
+    sessionId: string | null;
+    isConnected: boolean;
+    isReconnecting: boolean;
+    error: string | null;
+    reconnectAttempts: number;
+  };
+
+  const [eventState, setEventState] = useState<EventState>(() => ({
+    sessionId,
+    events: [],
+  }));
+  const [connectionState, setConnectionState] = useState<ConnectionState>(() => ({
+    sessionId,
+    isConnected: false,
+    isReconnecting: false,
+    error: null,
+    reconnectAttempts: 0,
+  }));
 
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
   const clientRef = useRef<SSEClient | null>(null);
   const pipelineRef = useRef<EventPipeline | null>(null);
+  const connectInternalRef = useRef<(() => Promise<void>) | null>(null);
   const streamingAnswerBufferRef = useRef<Map<string, string>>(new Map());
   const assistantMessageBufferRef = useRef<Map<string, AssistantBufferEntry>>(
     new Map(),
@@ -180,7 +196,7 @@ export function useSSE(
   }, [sessionId]);
 
   const clearEvents = useCallback(() => {
-    setEvents([]);
+    setEventState({ sessionId: sessionIdRef.current, events: [] });
     resetAttachmentRegistry();
     resetDedupe();
     resetPipelineDedupe();
@@ -218,8 +234,13 @@ export function useSSE(
       console.warn(
         "[SSE] Max reconnection attempts reached, stopping auto-reconnect",
       );
-      setIsReconnecting(false);
-      setError("Maximum reconnection attempts exceeded");
+      setConnectionState({
+        sessionId: currentSessionId,
+        isConnected: false,
+        isReconnecting: false,
+        error: "Maximum reconnection attempts exceeded",
+        reconnectAttempts: maxReconnectAttempts,
+      });
       return;
     }
 
@@ -228,9 +249,13 @@ export function useSSE(
     const token = await authClient.ensureAccessToken();
     if (!token) {
       console.warn("[SSE] Missing access token, skipping connection attempt");
-      setIsConnected(false);
-      setIsReconnecting(false);
-      setError("Missing access token");
+      setConnectionState({
+        sessionId: currentSessionId,
+        isConnected: false,
+        isReconnecting: false,
+        error: "Missing access token",
+        reconnectAttempts: 0,
+      });
       isConnectingRef.current = false;
       return;
     }
@@ -238,11 +263,14 @@ export function useSSE(
     const client = new SSEClient(currentSessionId, pipeline, {
       onOpen: () => {
         isConnectingRef.current = false;
-        setIsConnected(true);
-        setIsReconnecting(false);
-        setError(null);
         reconnectAttemptsRef.current = 0;
-        setReconnectAttempts(0);
+        setConnectionState({
+          sessionId: currentSessionId,
+          isConnected: true,
+          isReconnecting: false,
+          error: null,
+          reconnectAttempts: 0,
+        });
       },
       onError: (err) => {
         console.error("[SSE] Connection error:", err);
@@ -254,14 +282,12 @@ export function useSSE(
           clientRef.current = null;
         }
         isConnectingRef.current = false;
-        setIsConnected(false);
 
         if (serverErrorMessage) {
           console.warn(
             "[SSE] Server returned error payload, continuing to reconnect:",
             serverErrorMessage,
           );
-          setError(serverErrorMessage);
         }
 
         const nextAttempts = reconnectAttemptsRef.current + 1;
@@ -270,12 +296,16 @@ export function useSSE(
           nextAttempts,
           maxReconnectAttempts,
         );
-        setReconnectAttempts(clampedAttempts);
 
         if (nextAttempts > maxReconnectAttempts) {
           console.warn("[SSE] Maximum reconnection attempts exceeded");
-          setError("Maximum reconnection attempts exceeded");
-          setIsReconnecting(false);
+          setConnectionState({
+            sessionId: currentSessionId,
+            isConnected: false,
+            isReconnecting: false,
+            error: "Maximum reconnection attempts exceeded",
+            reconnectAttempts: maxReconnectAttempts,
+          });
           return;
         }
 
@@ -283,14 +313,29 @@ export function useSSE(
         console.log(
           `[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`,
         );
-        setIsReconnecting(true);
+        setConnectionState((prev) => ({
+          sessionId: currentSessionId,
+          isConnected: false,
+          isReconnecting: true,
+          error:
+            serverErrorMessage ??
+            (prev.sessionId === currentSessionId ? prev.error : null),
+          reconnectAttempts: clampedAttempts,
+        }));
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          void connectInternal();
+          void connectInternalRef.current?.();
         }, delay);
       },
       onClose: () => {
-        setIsConnected(false);
+        setConnectionState((prev) => ({
+          sessionId: currentSessionId,
+          isConnected: false,
+          isReconnecting: prev.sessionId === currentSessionId ? prev.isReconnecting : false,
+          error: prev.sessionId === currentSessionId ? prev.error : null,
+          reconnectAttempts:
+            prev.sessionId === currentSessionId ? prev.reconnectAttempts : 0,
+        }));
       },
     });
 
@@ -305,13 +350,20 @@ export function useSSE(
         clientRef.current = null;
       }
       isConnectingRef.current = false;
-      setIsConnected(false);
-      setIsReconnecting(false);
-      setError(
-        err instanceof Error ? err.message : "Unknown connection error",
-      );
+      setConnectionState((prev) => ({
+        sessionId: currentSessionId,
+        isConnected: false,
+        isReconnecting: false,
+        error: err instanceof Error ? err.message : "Unknown connection error",
+        reconnectAttempts:
+          prev.sessionId === currentSessionId ? prev.reconnectAttempts : 0,
+      }));
     }
-  }, [enabled, maxReconnectAttempts]);
+  }, [enabled, maxReconnectAttempts, parseServerError]);
+
+  useEffect(() => {
+    connectInternalRef.current = connectInternal;
+  }, [connectInternal]);
 
   useEffect(() => {
     pipelineRef.current = new EventPipeline({
@@ -367,22 +419,41 @@ export function useSSE(
         }
       }
 
-      setEvents((prev) => {
-        let nextEvents = prev;
+      const activeSessionId = sessionIdRef.current;
+      const enrichedSessionId =
+        "session_id" in enrichedEvent && typeof enrichedEvent.session_id === "string"
+          ? enrichedEvent.session_id
+          : null;
+
+      if (
+        activeSessionId &&
+        enrichedSessionId &&
+        enrichedSessionId !== activeSessionId
+      ) {
+        return;
+      }
+
+      setEventState((prev) => {
+        const targetSessionId =
+          activeSessionId ?? enrichedSessionId ?? prev.sessionId ?? null;
+        const previousEvents =
+          prev.sessionId === targetSessionId ? prev.events : [];
+
+        let nextEvents = previousEvents;
 
         if (
           isWorkflowResultFinalEvent(enrichedEvent) &&
           (enrichedEvent.is_streaming || enrichedEvent.stream_finished)
         ) {
           const matchIndex = findLastStreamingTaskCompleteIndex(
-            prev,
+            previousEvents,
             enrichedEvent,
           );
           if (matchIndex !== -1) {
-            nextEvents = [...prev];
+            nextEvents = [...previousEvents];
             nextEvents[matchIndex] = enrichedEvent;
           } else {
-            const filtered = prev.filter(
+            const filtered = previousEvents.filter(
               (evt) =>
                 !eventMatches(evt, "workflow.result.final", "workflow.result.final") ||
                 !isSameTask(evt, enrichedEvent),
@@ -390,10 +461,16 @@ export function useSSE(
             nextEvents = [...filtered, enrichedEvent];
           }
         } else {
-          nextEvents = [...prev, enrichedEvent];
+          nextEvents = [...previousEvents, enrichedEvent];
         }
 
-        return clampEvents(squashFinalEvents(nextEvents), MAX_EVENT_HISTORY);
+        return {
+          sessionId: targetSessionId,
+          events: clampEvents(
+            squashFinalEvents(nextEvents),
+            MAX_EVENT_HISTORY,
+          ),
+        };
       });
       onEventRef.current?.(enrichedEvent);
     });
@@ -402,7 +479,7 @@ export function useSSE(
       unsubscribe();
       pipelineRef.current = null;
     };
-  }, []);
+  }, [applyAssistantAnswerFallback]);
 
   useEffect(() => {
     const previousSessionId = previousSessionIdRef.current;
@@ -410,15 +487,12 @@ export function useSSE(
 
     cleanup();
     reconnectAttemptsRef.current = 0;
-    setReconnectAttempts(0);
-    setError(null);
 
     const shouldResetState =
       sessionId === null ||
       (Boolean(previousSessionId) && previousSessionId !== sessionId);
 
     if (shouldResetState) {
-      setEvents([]);
       resetAttachmentRegistry();
       resetDedupe();
       resetPipelineDedupe();
@@ -447,7 +521,13 @@ export function useSSE(
   const reconnect = useCallback(() => {
     cleanup();
     reconnectAttemptsRef.current = 0;
-    setReconnectAttempts(0);
+    setConnectionState({
+      sessionId: sessionIdRef.current,
+      isConnected: false,
+      isReconnecting: true,
+      error: null,
+      reconnectAttempts: 0,
+    });
     void connectInternal();
   }, [cleanup, connectInternal]);
 
@@ -455,6 +535,27 @@ export function useSSE(
     defaultEventRegistry.run(event);
     agentEventBus.emit(event);
   }, []);
+
+  const events =
+    Boolean(sessionId) && eventState.sessionId === sessionId
+      ? eventState.events
+      : [];
+  const isConnected =
+    Boolean(sessionId) && connectionState.sessionId === sessionId
+      ? connectionState.isConnected
+      : false;
+  const isReconnecting =
+    Boolean(sessionId) && connectionState.sessionId === sessionId
+      ? connectionState.isReconnecting
+      : false;
+  const error =
+    Boolean(sessionId) && connectionState.sessionId === sessionId
+      ? connectionState.error
+      : null;
+  const reconnectAttempts =
+    Boolean(sessionId) && connectionState.sessionId === sessionId
+      ? connectionState.reconnectAttempts
+      : 0;
 
   return {
     events,

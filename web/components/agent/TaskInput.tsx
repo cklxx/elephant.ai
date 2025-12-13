@@ -172,6 +172,7 @@ export function TaskInput({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastAppliedPrefillRef = useRef<string | null>(null);
   const t = useTranslation();
   const resolvedPlaceholder =
     placeholder ?? t("console.input.placeholder.idle");
@@ -205,26 +206,37 @@ export function TaskInput({
   }, [task]);
 
   useEffect(() => {
-    if (typeof prefill !== "string") return;
+    if (typeof prefill !== "string") {
+      lastAppliedPrefillRef.current = null;
+      return;
+    }
+
     const nextValue = prefill.trim();
-    if (!nextValue) return;
+    if (!nextValue) {
+      lastAppliedPrefillRef.current = null;
+      return;
+    }
 
-    setTask(prefill);
+    if (prefill === lastAppliedPrefillRef.current) {
+      return;
+    }
+    lastAppliedPrefillRef.current = prefill;
 
-    const focusField = () => {
-      if (!textareaRef.current) return;
-      textareaRef.current.focus();
-      const length = prefill.length;
-      textareaRef.current.setSelectionRange(length, length);
-    };
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      if (setter) {
+        setter.call(textarea, prefill);
+      } else {
+        textarea.value = prefill;
+      }
 
-    if (
-      typeof window !== "undefined" &&
-      typeof window.requestAnimationFrame === "function"
-    ) {
-      window.requestAnimationFrame(focusField);
-    } else {
-      setTimeout(focusField, 0);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      textarea.focus();
+      textarea.setSelectionRange(prefill.length, prefill.length);
     }
 
     onPrefillApplied?.();

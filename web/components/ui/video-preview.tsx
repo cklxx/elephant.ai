@@ -1,7 +1,11 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { type ComponentPropsWithoutRef, useEffect, useState } from "react";
+import {
+  type ComponentPropsWithoutRef,
+  useSyncExternalStore,
+  useState,
+} from "react";
 import { cn } from "@/lib/utils";
 
 type NativeVideoProps = Omit<
@@ -17,6 +21,33 @@ interface VideoPreviewProps extends NativeVideoProps {
   videoClassName?: string;
   maxHeight?: string | number;
   maxWidth?: string | number;
+}
+
+function subscribeCanHover(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return () => {};
+  }
+
+  const mediaQuery = window.matchMedia("(hover: hover)");
+
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", onStoreChange);
+    return () => mediaQuery.removeEventListener("change", onStoreChange);
+  }
+
+  mediaQuery.addListener(onStoreChange);
+  return () => mediaQuery.removeListener(onStoreChange);
+}
+
+function getCanHoverSnapshot(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(hover: hover)").matches;
+}
+
+function getCanHoverServerSnapshot(): boolean {
+  return false;
 }
 
 export function VideoPreview({
@@ -36,28 +67,11 @@ export function VideoPreview({
     : undefined;
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [canHover, setCanHover] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia("(hover: hover)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setCanHover(event.matches);
-    };
-
-    setCanHover(mediaQuery.matches);
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
+  const canHover = useSyncExternalStore(
+    subscribeCanHover,
+    getCanHoverSnapshot,
+    getCanHoverServerSnapshot,
+  );
 
   const showControls = controls || (canHover ? isHovered : true) || isFocused;
   const resolvedMaxHeight =

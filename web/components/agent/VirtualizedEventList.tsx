@@ -67,6 +67,7 @@ export function VirtualizedEventList({
   }, [focusedEventIndex, indexMap]);
 
   // Create virtualizer instance
+  // eslint-disable-next-line react-hooks/incompatible-library -- @tanstack/react-virtual is not React Compiler compatible yet.
   const virtualizer = useVirtualizer({
     count: visibleEvents.length,
     getScrollElement: () => parentRef.current,

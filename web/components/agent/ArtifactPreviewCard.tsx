@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { AttachmentPayload } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { buildAttachmentUri } from '@/lib/attachments';
@@ -34,6 +35,9 @@ export function ArtifactPreviewCard({
   const previewAssets = attachment.preview_assets || [];
   const imageAssets = previewAssets.filter((asset) => asset.mime_type?.startsWith("image/"));
   const htmlAsset = previewAssets.find((asset) => asset.mime_type?.includes("html"));
+  const previewImageUrl =
+    imageAssets.find((asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim())?.cdn_url ??
+    null;
 
   const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
 
@@ -75,8 +79,16 @@ export function ArtifactPreviewCard({
       <div className="flex items-center gap-3 p-3">
         {/* Icon Box */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-          {imageAssets.length > 0 ? (
-            <img src={imageAssets[0].cdn_url} alt="" className="h-full w-full object-cover rounded-lg" />
+          {previewImageUrl ? (
+            <Image
+              src={previewImageUrl}
+              alt=""
+              width={40}
+              height={40}
+              className="h-full w-full rounded-lg object-cover"
+              unoptimized
+              sizes="40px"
+            />
           ) : (
             <FileIcon className="h-5 w-5" />
           )}

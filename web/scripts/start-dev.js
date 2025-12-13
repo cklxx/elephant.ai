@@ -103,9 +103,7 @@ async function tryKillProcessOnPort(port) {
   });
 
   for (let attempt = 0; attempt < PORT_RELEASE_ATTEMPTS; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
     await new Promise((resolve) => setTimeout(resolve, PORT_RELEASE_INTERVAL_MS));
-    // eslint-disable-next-line no-await-in-loop
     if (await isPortAvailable(port)) {
       console.log(`Successfully released port ${port}.`);
       return true;

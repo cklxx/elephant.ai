@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
 import { ConnectionStatus } from './ConnectionStatus';
 import { VirtualizedEventList } from './VirtualizedEventList';
 import { TimelineStepList } from './TimelineStepList';
 import { useTimelineSteps } from '@/hooks/useTimelineSteps';
-import { useMemoryStats } from '@/hooks/useAgentStreamStore';
 import { useTranslation } from '@/lib/i18n';
 
 interface AgentOutputProps {
@@ -29,8 +28,7 @@ export function AgentOutput({
   const t = useTranslation();
   const timelineSteps = useTimelineSteps(events);
   const hasTimeline = timelineSteps.length > 0;
-  const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
-  const [hasUserSelectedStep, setHasUserSelectedStep] = useState(false);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
 
   const activeStep = useMemo(
     () => timelineSteps.find((step) => step.status === 'active') ?? null,
@@ -41,38 +39,23 @@ export function AgentOutput({
     [timelineSteps]
   );
   const fallbackStepId = activeStep?.id ?? latestStep?.id ?? null;
-  const focusedStep = useMemo(
-    () => (focusedStepId ? timelineSteps.find((step) => step.id === focusedStepId) ?? null : null),
-    [timelineSteps, focusedStepId]
-  );
+  const resolvedSelectedStepId = useMemo(() => {
+    if (!selectedStepId) {
+      return null;
+    }
+    return timelineSteps.some((step) => step.id === selectedStepId)
+      ? selectedStepId
+      : null;
+  }, [selectedStepId, timelineSteps]);
+  const focusedStepId = resolvedSelectedStepId ?? fallbackStepId;
+  const hasUserSelectedStep = resolvedSelectedStepId !== null;
+  const focusedStep = useMemo(() => {
+    if (!focusedStepId) {
+      return null;
+    }
+    return timelineSteps.find((step) => step.id === focusedStepId) ?? null;
+  }, [timelineSteps, focusedStepId]);
   const focusedEventIndex = focusedStep?.anchorEventIndex ?? null;
-
-  useEffect(() => {
-    if (!hasTimeline) {
-      if (focusedStepId !== null) setFocusedStepId(null);
-      if (hasUserSelectedStep) setHasUserSelectedStep(false);
-      return;
-    }
-
-    if (!hasUserSelectedStep) {
-      if (fallbackStepId !== focusedStepId) {
-        setFocusedStepId(fallbackStepId);
-      }
-      return;
-    }
-
-    const exists = timelineSteps.some((step) => step.id === focusedStepId);
-    if (!exists) {
-      setFocusedStepId(fallbackStepId);
-      setHasUserSelectedStep(false);
-    }
-  }, [
-    hasTimeline,
-    timelineSteps,
-    focusedStepId,
-    hasUserSelectedStep,
-    fallbackStepId,
-  ]);
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
@@ -95,8 +78,7 @@ export function AgentOutput({
             steps={timelineSteps}
             focusedStepId={focusedStepId}
             onStepSelect={(stepId) => {
-              setFocusedStepId(stepId);
-              setHasUserSelectedStep(true);
+              setSelectedStepId(stepId);
             }}
           />
         </div>
@@ -109,9 +91,7 @@ export function AgentOutput({
           autoScroll={!hasUserSelectedStep}
           focusedEventIndex={focusedEventIndex}
           onJumpToLatest={() => {
-            const targetStepId = activeStep?.id ?? latestStep?.id ?? null;
-            setFocusedStepId(targetStepId);
-            setHasUserSelectedStep(false);
+            setSelectedStepId(null);
           }}
           className="bg-transparent"
         />

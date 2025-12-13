@@ -432,12 +432,6 @@ function ToolCallDetailsPanel({
   onClose,
   children,
 }: ToolCallDetailsPanelProps) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   useEffect(() => {
     if (!open) {
       return;
@@ -449,7 +443,7 @@ function ToolCallDetailsPanel({
     };
   }, [open]);
 
-  if (!isMounted || !open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 

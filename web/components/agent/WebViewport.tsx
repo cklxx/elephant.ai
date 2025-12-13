@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,15 +58,23 @@ interface WebViewportProps {
 
 export function WebViewport({ outputs, className }: WebViewportProps) {
   const t = useTranslation();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  useEffect(() => {
-    // Auto-advance to latest output
-    if (outputs.length > 0) {
-      setCurrentIndex(outputs.length - 1);
+  const currentIndex = useMemo(() => {
+    if (outputs.length === 0) {
+      return 0;
     }
-  }, [outputs.length]);
+
+    if (selectedOutputId) {
+      const idx = outputs.findIndex((output) => output.id === selectedOutputId);
+      if (idx !== -1) {
+        return idx;
+      }
+    }
+
+    return outputs.length - 1;
+  }, [outputs, selectedOutputId]);
 
   if (outputs.length === 0) {
     return (
@@ -86,13 +94,18 @@ export function WebViewport({ outputs, className }: WebViewportProps) {
 
   const handlePrevious = () => {
     if (hasPrevious) {
-      setCurrentIndex(currentIndex - 1);
+      setSelectedOutputId(outputs[currentIndex - 1].id);
     }
   };
 
   const handleNext = () => {
     if (hasNext) {
-      setCurrentIndex(currentIndex + 1);
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= outputs.length - 1) {
+        setSelectedOutputId(null);
+      } else {
+        setSelectedOutputId(outputs[nextIndex].id);
+      }
     }
   };
 
