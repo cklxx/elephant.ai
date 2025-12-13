@@ -22,7 +22,8 @@ func NewResultWriter() *ResultWriterImpl {
 
 // WriteResults writes batch results to storage
 func (rw *ResultWriterImpl) WriteResults(ctx context.Context, result *BatchResult, path string) error {
-	cleanedPath, err := sanitizeOutputPath(path)
+	const SafeResultsBaseDir = "results"
+	cleanedPath, err := sanitizeOutputPath(SafeResultsBaseDir, path)
 	if err != nil {
 		return err
 	}
