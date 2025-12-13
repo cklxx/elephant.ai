@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // CircuitState represents the state of a circuit breaker
@@ -55,7 +55,7 @@ func DefaultCircuitBreakerConfig() CircuitBreakerConfig {
 type CircuitBreaker struct {
 	name   string
 	config CircuitBreakerConfig
-	logger *utils.Logger
+	logger logging.Logger
 
 	mu              sync.RWMutex
 	state           CircuitState
@@ -70,7 +70,7 @@ func NewCircuitBreaker(name string, config CircuitBreakerConfig) *CircuitBreaker
 	return &CircuitBreaker{
 		name:            name,
 		config:          config,
-		logger:          utils.NewComponentLogger("circuit-breaker"),
+		logger:          logging.NewComponentLogger("circuit-breaker"),
 		state:           StateClosed,
 		lastStateChange: time.Now(),
 	}
@@ -284,7 +284,7 @@ type CircuitBreakerManager struct {
 	breakers map[string]*CircuitBreaker
 	config   CircuitBreakerConfig
 	mu       sync.RWMutex
-	logger   *utils.Logger
+	logger   logging.Logger
 }
 
 // NewCircuitBreakerManager creates a new circuit breaker manager
@@ -292,7 +292,7 @@ func NewCircuitBreakerManager(config CircuitBreakerConfig) *CircuitBreakerManage
 	return &CircuitBreakerManager{
 		breakers: make(map[string]*CircuitBreaker),
 		config:   config,
-		logger:   utils.NewComponentLogger("circuit-breaker-manager"),
+		logger:   logging.NewComponentLogger("circuit-breaker-manager"),
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 var _ ports.StreamingLLMClient = (*ollamaClient)(nil)
@@ -22,7 +22,7 @@ type ollamaClient struct {
 	model      string
 	baseURL    string
 	httpClient *http.Client
-	logger     *utils.Logger
+	logger     logging.Logger
 }
 
 func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
@@ -45,7 +45,7 @@ func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		logger: utils.NewComponentLogger("ollama-client"),
+		logger: logging.NewComponentLogger("ollama-client"),
 	}
 
 	return client, nil

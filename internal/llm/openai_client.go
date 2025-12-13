@@ -17,6 +17,7 @@ import (
 
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
+	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
@@ -27,7 +28,7 @@ type openaiClient struct {
 	apiKey        string
 	baseURL       string
 	httpClient    *http.Client
-	logger        *utils.Logger
+	logger        logging.Logger
 	headers       map[string]string
 	maxRetries    int
 	usageCallback func(usage ports.TokenUsage, model string, provider string)
