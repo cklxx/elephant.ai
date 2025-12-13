@@ -36,7 +36,7 @@ This document tracks architectural and design issues discovered during the ongoi
 - **Symptoms**: `internal/server/http/middleware.go` falls back to `?access_token=...`; frontend sets it in `web/lib/api.ts`.
 - **Impact**: Tokens in URL can leak via logs/referers; harder to operate securely.
 - **Fix**: Prefer cookie-based SSE auth (or short-lived signed SSE token) and keep query-token as legacy fallback.
-- **Status**: planned (needs design agreement)
+- **Status**: in progress (added HttpOnly access-token cookie support; frontend omits query token for same-origin SSE)
 
 ## Frontend (web/)
 

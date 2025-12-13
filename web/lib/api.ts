@@ -229,13 +229,21 @@ export function createSSEConnection(
   sessionId: string,
   accessToken?: string,
 ): EventSource {
-  const token = accessToken ?? authClient.getSession()?.accessToken;
-  if (!token) {
-    throw new Error("Missing access token for SSE connection");
-  }
   const url = new URL(buildApiUrl("/api/sse"));
   url.searchParams.set("session_id", sessionId);
-  url.searchParams.set("access_token", token);
+
+  const shouldIncludeAccessToken =
+    typeof window === "undefined" ||
+    !window.location?.origin ||
+    url.origin !== window.location.origin;
+
+  if (shouldIncludeAccessToken) {
+    const token = accessToken ?? authClient.getSession()?.accessToken;
+    if (!token) {
+      throw new Error("Missing access token for SSE connection");
+    }
+    url.searchParams.set("access_token", token);
+  }
   return new EventSource(url.toString(), { withCredentials: true });
 }
 
