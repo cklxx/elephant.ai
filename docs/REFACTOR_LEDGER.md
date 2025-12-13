@@ -29,7 +29,7 @@ This document tracks architectural and design issues discovered during the ongoi
 - **Symptoms**: Two logger implementations with different semantics (printf-style vs slog structured), plus domain-level `ports.Logger` interface.
 - **Impact**: Inconsistent log formatting/context fields; makes observability adoption uneven.
 - **Fix**: Define a single “application logger” adapter that implements `ports.Logger` and can be backed by slog, keeping file-based debug logging as an optional sink.
-- **Status**: in progress (introduced `internal/logging` printf-style interface + adapters; migrated server bootstrap/app/http + internal/errors + internal/llm + internal/mcp + internal/di to depend on it)
+- **Status**: in progress (introduced `internal/logging` printf-style interface + adapters; migrated server bootstrap/app/http + internal/errors + internal/llm + internal/mcp + internal/di + internal/context + internal/session/filestore to depend on it)
 
 ### 4) Auth for SSE relies on `access_token` query parameter
 

@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 	id "alex/internal/utils/id"
 )
 
 type store struct {
 	baseDir string
-	logger  *utils.Logger
+	logger  logging.Logger
 }
 
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -35,7 +35,7 @@ func New(baseDir string) ports.SessionStore {
 
 	return &store{
 		baseDir: baseDir,
-		logger:  utils.NewComponentLogger("SessionFileStore"),
+		logger:  logging.NewComponentLogger("SessionFileStore"),
 	}
 }
 
@@ -98,9 +98,7 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 
 	var session ports.Session
 	if err := json.Unmarshal(data, &session); err != nil {
-		if s.logger != nil {
-			s.logger.Error("Failed to decode session file %s: %v. Preview: %s", path, err, previewJSON(data))
-		}
+		logging.OrNop(s.logger).Error("Failed to decode session file %s: %v. Preview: %s", path, err, previewJSON(data))
 		return nil, fmt.Errorf("failed to decode session: %w", err)
 	}
 	session.Attachments = sanitizeAttachmentMap(session.Attachments)

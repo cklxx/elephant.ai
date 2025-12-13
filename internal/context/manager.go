@@ -19,16 +19,16 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/analytics/journal"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	sessionstate "alex/internal/session/state_store"
-	"alex/internal/utils"
 	"gopkg.in/yaml.v3"
 )
 
 type manager struct {
 	threshold  float64
 	configRoot string
-	logger     *utils.Logger
+	logger     logging.Logger
 	stateStore sessionstate.Store
 	metrics    *observability.ContextMetrics
 	journal    journal.Writer
@@ -64,9 +64,9 @@ func WithStateStore(store sessionstate.Store) Option {
 }
 
 // WithLogger injects a custom logger (used by tests).
-func WithLogger(logger *utils.Logger) Option {
+func WithLogger(logger logging.Logger) Option {
 	return func(m *manager) {
-		if logger != nil {
+		if !logging.IsNil(logger) {
 			m.logger = logger
 		}
 	}
@@ -97,7 +97,7 @@ func NewManager(opts ...Option) ports.ContextManager {
 	m := &manager{
 		threshold:  defaultThreshold,
 		configRoot: root,
-		logger:     utils.NewComponentLogger("ContextManager"),
+		logger:     logging.NewComponentLogger("ContextManager"),
 		metrics:    observability.NewContextMetrics(),
 		journal:    journal.NopWriter(),
 	}
@@ -903,7 +903,7 @@ func mapToSlice[T any](input map[string]T) []T {
 type staticRegistry struct {
 	root    string
 	ttl     time.Duration
-	logger  *utils.Logger
+	logger  logging.Logger
 	metrics *observability.ContextMetrics
 
 	mu       sync.RWMutex
@@ -921,12 +921,12 @@ type staticSnapshot struct {
 	Worlds    map[string]ports.WorldProfile
 }
 
-func newStaticRegistry(root string, ttl time.Duration, logger *utils.Logger, metrics *observability.ContextMetrics) *staticRegistry {
+func newStaticRegistry(root string, ttl time.Duration, logger logging.Logger, metrics *observability.ContextMetrics) *staticRegistry {
 	if ttl <= 0 {
 		ttl = defaultStaticTTL
 	}
-	if logger == nil {
-		logger = utils.NewComponentLogger("ContextStaticRegistry")
+	if logging.IsNil(logger) {
+		logger = logging.NewComponentLogger("ContextStaticRegistry")
 	}
 	if metrics == nil {
 		metrics = observability.NewContextMetrics()
