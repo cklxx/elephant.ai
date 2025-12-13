@@ -68,6 +68,9 @@ func (c *CLI) Run(args []string) error {
 	case "mcp":
 		return c.handleMCP(cmdArgs)
 
+	case "eval", "evaluation":
+		return c.handleEval(cmdArgs)
+
 	default:
 		// Default: treat as task and run with stream output
 		task := strings.Join(args, " ")
@@ -98,6 +101,7 @@ Usage:
   alex index [--repo PATH]       Index repository for code search
   alex search "query"            Search indexed code
   alex mcp                       MCP (Model Context Protocol) management
+  alex eval [options]            Run local agent evaluation against SWE-Bench datasets
 
 Configuration:
   Config file: ~/.alex-config.json

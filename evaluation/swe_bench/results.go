@@ -22,30 +22,35 @@ func NewResultWriter() *ResultWriterImpl {
 
 // WriteResults writes batch results to storage
 func (rw *ResultWriterImpl) WriteResults(ctx context.Context, result *BatchResult, path string) error {
-	if err := os.MkdirAll(path, 0755); err != nil {
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(cleanedPath, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Write full batch results
-	batchFile := filepath.Join(path, "batch_results.json")
+	batchFile := filepath.Join(cleanedPath, "batch_results.json")
 	if err := rw.writeJSONFile(batchFile, result); err != nil {
 		return fmt.Errorf("failed to write batch results: %w", err)
 	}
 
 	// Write predictions in SWE-bench format
-	predsFile := filepath.Join(path, "preds.json")
+	predsFile := filepath.Join(cleanedPath, "preds.json")
 	if err := rw.writePredictions(predsFile, result.Results); err != nil {
 		return fmt.Errorf("failed to write predictions: %w", err)
 	}
 
 	// Write summary
-	summaryFile := filepath.Join(path, "summary.json")
+	summaryFile := filepath.Join(cleanedPath, "summary.json")
 	if err := rw.writeSummary(summaryFile, result); err != nil {
 		return fmt.Errorf("failed to write summary: %w", err)
 	}
 
 	// Write detailed results
-	detailedFile := filepath.Join(path, "detailed_results.json")
+	detailedFile := filepath.Join(cleanedPath, "detailed_results.json")
 	if err := rw.writeDetailedResults(detailedFile, result.Results); err != nil {
 		return fmt.Errorf("failed to write detailed results: %w", err)
 	}
@@ -55,18 +60,23 @@ func (rw *ResultWriterImpl) WriteResults(ctx context.Context, result *BatchResul
 
 // WritePartialResults writes partial results during processing
 func (rw *ResultWriterImpl) WritePartialResults(ctx context.Context, results []WorkerResult, path string) error {
-	if err := os.MkdirAll(path, 0755); err != nil {
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(cleanedPath, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Write partial predictions
-	predsFile := filepath.Join(path, "preds_partial.json")
+	predsFile := filepath.Join(cleanedPath, "preds_partial.json")
 	if err := rw.writePredictions(predsFile, results); err != nil {
 		return fmt.Errorf("failed to write partial predictions: %w", err)
 	}
 
 	// Write partial detailed results
-	detailedFile := filepath.Join(path, "detailed_results_partial.json")
+	detailedFile := filepath.Join(cleanedPath, "detailed_results_partial.json")
 	if err := rw.writeDetailedResults(detailedFile, results); err != nil {
 		return fmt.Errorf("failed to write partial detailed results: %w", err)
 	}
@@ -76,7 +86,12 @@ func (rw *ResultWriterImpl) WritePartialResults(ctx context.Context, results []W
 
 // ReadResults reads previously saved results
 func (rw *ResultWriterImpl) ReadResults(ctx context.Context, path string) (*BatchResult, error) {
-	batchFile := filepath.Join(path, "batch_results.json")
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
+	if err != nil {
+		return nil, err
+	}
+
+	batchFile := filepath.Join(cleanedPath, "batch_results.json")
 
 	data, err := os.ReadFile(batchFile)
 	if err != nil {
@@ -93,12 +108,17 @@ func (rw *ResultWriterImpl) ReadResults(ctx context.Context, path string) (*Batc
 
 // AppendResult appends a single result to the output
 func (rw *ResultWriterImpl) AppendResult(ctx context.Context, result WorkerResult, path string) error {
-	if err := os.MkdirAll(path, 0755); err != nil {
+	cleanedPath, err := sanitizeOutputPath(safeOutputBaseDir, path)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(cleanedPath, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Append to streaming results file
-	streamFile := filepath.Join(path, "streaming_results.jsonl")
+	streamFile := filepath.Join(cleanedPath, "streaming_results.jsonl")
 	file, err := os.OpenFile(streamFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open streaming results file: %w", err)

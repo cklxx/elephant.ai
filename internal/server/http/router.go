@@ -13,15 +13,15 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, obs *observability.Observability) http.Handler {
-	logger := logging.NewComponentLogger("Router")
-	latencyLogger := logging.NewLatencyLogger("HTTP")
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability) http.Handler {
+	logger := utils.NewComponentLogger("Router")
+	latencyLogger := utils.NewLatencyLogger("HTTP")
 	dataCache := NewDataCache(256, 30*time.Minute)
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEDataCache(dataCache))
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
-	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode, WithAPIObservability(obs))
+	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode, WithAPIObservability(obs), WithEvaluationService(evaluationService))
 
 	var authMiddleware func(http.Handler) http.Handler
 	if authHandler != nil && authService != nil {
@@ -111,6 +111,64 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 			apiHandler.HandleCreateTask(w, r)
 		case http.MethodGet:
 			apiHandler.HandleListTasks(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))))
+
+	// Evaluation endpoints
+	mux.Handle("/api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			apiHandler.HandleListEvaluations(w, r)
+		case http.MethodPost:
+			apiHandler.HandleStartEvaluation(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))))
+
+	// Agent catalog endpoints
+	mux.Handle("/api/agents", routeHandler("/api/agents", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			apiHandler.HandleListAgents(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))))
+
+	mux.Handle("/api/agents/", routeHandler("/api/agents/:agent_id/evaluations", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/agents/")
+
+		switch {
+		case strings.HasSuffix(path, "/evaluations"):
+			annotateRequestRoute(r, "/api/agents/:agent_id/evaluations")
+			apiHandler.HandleListAgentEvaluations(w, r)
+			return
+		case strings.Contains(path, "/"):
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		default:
+			// Only GET is supported for now; more agent-specific endpoints can be added later.
+			annotateRequestRoute(r, "/api/agents/:agent_id")
+			apiHandler.HandleGetAgent(w, r)
+			return
+		}
+	}))))
+
+	mux.Handle("/api/evaluations/", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/evaluations/")
+		if strings.Contains(path, "/") {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			apiHandler.HandleGetEvaluation(w, r)
+		case http.MethodDelete:
+			apiHandler.HandleDeleteEvaluation(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
