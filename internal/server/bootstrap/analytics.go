@@ -4,25 +4,22 @@ import (
 	"strings"
 
 	"alex/internal/analytics"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
-func BuildAnalyticsClient(cfg AnalyticsConfig, logger *utils.Logger) (analytics.Client, func()) {
+func BuildAnalyticsClient(cfg AnalyticsConfig, logger logging.Logger) (analytics.Client, func()) {
+	logger = logging.OrNop(logger)
 	client := analytics.NewNoopClient()
 
 	if apiKey := strings.TrimSpace(cfg.PostHogAPIKey); apiKey != "" {
 		posthogClient, err := analytics.NewPostHogClient(apiKey, strings.TrimSpace(cfg.PostHogHost))
 		if err != nil {
-			if logger != nil {
-				logger.Warn("Analytics disabled: %v", err)
-			}
+			logger.Warn("Analytics disabled: %v", err)
 		} else {
 			client = posthogClient
-			if logger != nil {
-				logger.Info("Analytics client initialized (PostHog)")
-			}
+			logger.Info("Analytics client initialized (PostHog)")
 		}
-	} else if logger != nil {
+	} else {
 		logger.Info("Analytics client disabled: POSTHOG_API_KEY not provided")
 	}
 
@@ -30,7 +27,7 @@ func BuildAnalyticsClient(cfg AnalyticsConfig, logger *utils.Logger) (analytics.
 		if client == nil {
 			return
 		}
-		if err := client.Close(); err != nil && logger != nil {
+		if err := client.Close(); err != nil {
 			logger.Warn("Failed to close analytics client: %v", err)
 		}
 	}

@@ -13,15 +13,15 @@ import (
 	agentdomain "alex/internal/agent/domain"
 	"alex/internal/di"
 	"alex/internal/diagnostics"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	serverApp "alex/internal/server/app"
 	serverBootstrap "alex/internal/server/bootstrap"
 	serverHTTP "alex/internal/server/http"
-	"alex/internal/utils"
 )
 
 func main() {
-	logger := utils.NewComponentLogger("Main")
+	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting Spinner SSE Server...")
 
 	obs, err := observability.New(os.Getenv("ALEX_OBSERVABILITY_CONFIG"))

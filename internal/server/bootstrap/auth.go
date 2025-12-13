@@ -12,11 +12,12 @@ import (
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func BuildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(), error) {
+func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func(), error) {
+	logger = logging.OrNop(logger)
 	runtimeCfg := cfg.Runtime
 	authCfg := cfg.Auth
 
@@ -206,7 +207,8 @@ func BuildAuthService(cfg Config, logger *utils.Logger) (*authapp.Service, func(
 	return service, cleanup, nil
 }
 
-func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger *utils.Logger) error {
+func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger logging.Logger) error {
+	logger = logging.OrNop(logger)
 	email := strings.TrimSpace(cfg.BootstrapEmail)
 	password := strings.TrimSpace(cfg.BootstrapPassword)
 	if email == "" || password == "" {

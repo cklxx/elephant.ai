@@ -5,23 +5,20 @@ import (
 	"strings"
 
 	"alex/internal/analytics/journal"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
-func BuildJournalReader(sessionDir string, logger *utils.Logger) journal.Reader {
+func BuildJournalReader(sessionDir string, logger logging.Logger) journal.Reader {
+	logger = logging.OrNop(logger)
 	sessionDir = strings.TrimSpace(sessionDir)
 	if sessionDir == "" {
-		if logger != nil {
-			logger.Warn("Session directory missing; turn replay disabled")
-		}
+		logger.Warn("Session directory missing; turn replay disabled")
 		return nil
 	}
 
 	reader, err := journal.NewFileReader(filepath.Join(sessionDir, "journals"))
 	if err != nil {
-		if logger != nil {
-			logger.Warn("Failed to initialize journal reader: %v", err)
-		}
+		logger.Warn("Failed to initialize journal reader: %v", err)
 		return nil
 	}
 

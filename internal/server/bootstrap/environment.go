@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"alex/internal/environment"
+	"alex/internal/logging"
 	"alex/internal/tools"
-	"alex/internal/utils"
 )
 
 func CaptureHostEnvironment(maxFileEntries int) (map[string]string, string) {
@@ -18,17 +18,16 @@ func CaptureSandboxEnvironment(
 	ctx context.Context,
 	manager *tools.SandboxManager,
 	maxFileEntries int,
-	logger *utils.Logger,
+	logger logging.Logger,
 ) (map[string]string, string, time.Time, bool) {
+	logger = logging.OrNop(logger)
 	if manager == nil {
 		return nil, "", time.Time{}, false
 	}
 
 	summary, err := environment.CollectSandboxSummary(ctx, manager, maxFileEntries)
 	if err != nil {
-		if logger != nil {
-			logger.Warn("Failed to capture sandbox environment summary: %v", err)
-		}
+		logger.Warn("Failed to capture sandbox environment summary: %v", err)
 		return nil, "", time.Time{}, false
 	}
 
