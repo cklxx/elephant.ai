@@ -2,7 +2,10 @@
 
 ## Overview
 
-Successfully implemented a complete Next.js 14 web frontend for the ALEX AI Programming Agent following the SSE architecture design document at `/docs/design/SSE_WEB_ARCHITECTURE.md`.
+> Note: This summary reflects the initial delivery snapshot and may not match the current codebase.
+> Prefer `web/package.json` and `web/docs/` for up-to-date architecture and implementation notes.
+
+Successfully implemented a complete Next.js (App Router) web frontend for the ALEX AI Programming Agent.
 
 ## Completed Components
 

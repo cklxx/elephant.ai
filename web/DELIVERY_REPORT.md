@@ -1,8 +1,11 @@
 # ALEX Web Frontend - Delivery Report
 
+> Note: This report is a historical snapshot of the initial delivery (2025-10-02).
+> The codebase has evolved since then (dependencies, file counts, tests, and architecture). Prefer `web/package.json` and `web/docs/` for current state.
+
 **Date**: 2025-10-02
 **Project**: ALEX Web Frontend Implementation
-**Framework**: Next.js 14 + TypeScript + Tailwind CSS
+**Framework**: Next.js (App Router) + TypeScript + Tailwind CSS
 **Status**: ✅ **COMPLETE**
 
 ---

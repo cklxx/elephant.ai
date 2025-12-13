@@ -87,7 +87,12 @@ export function TerminalOutput({
             // Render subagent threads inline as a seamless group
             // We use a subtle visual indicator (left border) instead of a box
             return (
-              <div key={entry.thread.key} className="pl-4 ml-2 border-l-2 border-primary/10 my-2">
+              <div
+                key={entry.thread.key}
+                className="pl-4 ml-2 border-l-2 border-primary/10 my-2"
+                data-testid="subagent-thread"
+                data-subagent-key={entry.thread.key}
+              >
                 <div className="mb-2">
                   <SubagentHeader context={entry.thread.context} />
                 </div>

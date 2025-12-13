@@ -4,9 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { AttachmentPayload } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { buildAttachmentUri } from '@/lib/attachments';
-import { ImagePreview } from "@/components/ui/image-preview";
 import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
-import { Download, ExternalLink, FileText, Maximize2, Minimize2, FileCode, ChevronDown, Eye, Loader2 } from "lucide-react";
+import { Download, ExternalLink, FileText, FileCode, ChevronDown, Eye, Loader2 } from "lucide-react";
 
 interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
@@ -107,20 +106,34 @@ export function ArtifactPreviewCard({
               }}
               className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title="Preview"
+              aria-label="Preview"
             >
               {isExpanded ? <ChevronDown className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           )}
 
           {downloadUri && (
-            <a
-              href={downloadUri}
-              download={attachment.name}
-              className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              title="Download"
-            >
-              <Download className="w-4 h-4" />
-            </a>
+            <>
+              <a
+                href={downloadUri}
+                className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="View"
+                aria-label="View"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <a
+                href={downloadUri}
+                download={attachment.name}
+                className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Download"
+                aria-label="Download"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+            </>
           )}
         </div>
       </div>

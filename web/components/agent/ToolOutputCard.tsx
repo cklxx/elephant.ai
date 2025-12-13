@@ -121,8 +121,18 @@ export function ToolOutputCard({
               <span className="text-sm leading-none">{ToolIcon}</span>}
         </div>
 
-        <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
-          <span className="font-medium opacity-90 truncate" data-testid="tool-name">{displayToolName}</span>
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5 overflow-hidden">
+          <span className="font-medium opacity-90 truncate" data-testid="tool-name">
+            {displayToolName}
+          </span>
+          {previewText && (
+            <span
+              className="text-xs text-muted-foreground/70 truncate"
+              data-testid="tool-preview"
+            >
+              {previewText}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">

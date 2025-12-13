@@ -58,7 +58,7 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
 
   const containerRef = useRef<T>(null);
   const isUserScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * Check if container is scrolled near the bottom

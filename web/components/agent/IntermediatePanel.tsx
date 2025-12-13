@@ -368,9 +368,16 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           <PanelRightOpen className="w-4 h-4" />
         </div>
 
-        <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
-          {headlineText}
-        </span>
+        <div className="min-w-0 flex flex-col gap-0.5">
+          <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
+            {headlineText}
+          </span>
+          {headlinePreview && headlinePreview !== headlineText && (
+            <span className="text-xs text-muted-foreground/70 truncate max-w-[300px]">
+              {headlinePreview}
+            </span>
+          )}
+        </div>
 
         {(runningTools.length > 0 || completedCount > 0 || failedCount > 0) && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground/60 ml-2 border-l border-border/40 pl-3">

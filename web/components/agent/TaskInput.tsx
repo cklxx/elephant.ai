@@ -432,6 +432,15 @@ export function TaskInput({
   const isInputDisabled = disabled || loading || isRunning;
   const showStopButton = (loading || isRunning) && typeof onStop === "function";
   const stopButtonDisabled = stopDisabled || stopPending;
+  const stopPendingLabel = useMemo(
+    () =>
+      translateWithFallback(
+        "task.stop.title.pending",
+        undefined,
+        "Stopping",
+      ),
+    [translateWithFallback],
+  );
 
   const getRemoveLabel = useCallback(
     (name: string) =>
@@ -486,6 +495,15 @@ export function TaskInput({
       className="mx-auto w-full max-w-4xl space-y-4"
       data-testid="task-input-form"
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={acceptedFileTypes}
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+        data-testid="task-attachment-input"
+      />
       <div
         className="relative flex flex-col rounded-2xl border border-neutral-300 bg-white transition-all duration-200 focus-within:border-neutral-500 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:bg-muted/10 dark:border-border/50 dark:focus-within:border-neutral-600"
         data-testid="task-input-container"
@@ -534,10 +552,17 @@ export function TaskInput({
                 disabled={stopButtonDisabled}
                 variant="destructive"
                 className="h-8 w-8 rounded-lg p-0 transition-opacity hover:opacity-90"
-                aria-label={t("task.stop.title")}
+                aria-label={stopPending ? stopPendingLabel : t("task.stop.title")}
                 data-testid="task-stop"
               >
-                <Square className="h-3.5 w-3.5 fill-current" />
+                {stopPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="sr-only">{stopPendingLabel}</span>
+                  </>
+                ) : (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                )}
               </Button>
             ) : (
               <Button

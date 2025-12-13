@@ -17,8 +17,8 @@ npm install
 ```
 
 This will install all required packages (~400MB):
-- Next.js 14
-- React 18
+- Next.js (App Router)
+- React
 - TypeScript
 - Tailwind CSS
 - React Query
@@ -49,7 +49,7 @@ npm run dev
 You should see:
 
 ```
-▲ Next.js 14.2.15
+▲ Next.js
 - Local:        http://localhost:3000
 - Ready in 2.3s
 ```

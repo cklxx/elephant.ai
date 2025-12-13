@@ -375,6 +375,14 @@ export function SubagentHeader({ context }: SubagentHeaderProps) {
             {context.preview}
           </span>
         )}
+        {context.concurrency && (
+          <Badge
+            variant="secondary"
+            className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+          >
+            {context.concurrency}
+          </Badge>
+        )}
         {context.status && (
           <span className={cn(
             "text-[10px] px-1.5 py-0.5 rounded font-medium",
