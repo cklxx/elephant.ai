@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -207,6 +208,52 @@ func TestAuthMiddlewareAcceptsAccessTokenQueryParameter(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/tasks?access_token="+url.QueryEscape(tokens.AccessToken), nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected OK status, got %d", rec.Code)
+	}
+	if !called {
+		t.Fatalf("expected handler to be invoked")
+	}
+}
+
+func TestAuthMiddlewareAcceptsAccessTokenCookie(t *testing.T) {
+	users, identities, sessions, states := authAdapters.NewMemoryStores()
+	tokenManager := authAdapters.NewJWTTokenManager("secret", "test", time.Minute)
+	service := authapp.NewService(users, identities, sessions, tokenManager, states, nil, authapp.Config{})
+
+	ctx := context.Background()
+	if _, err := service.RegisterLocal(ctx, "tester@example.com", "password", "Tester"); err != nil {
+		t.Fatalf("register local user: %v", err)
+	}
+
+	tokens, err := service.LoginWithPassword(ctx, "tester@example.com", "password", "test-agent", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("login with password: %v", err)
+	}
+
+	var called bool
+	handler := AuthMiddleware(service)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		user, ok := CurrentUser(r.Context())
+		if !ok {
+			t.Fatalf("expected user in context")
+		}
+		if user.Email != "tester@example.com" {
+			t.Fatalf("expected user email tester@example.com, got %s", user.Email)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "alex_access_token",
+		Value: base64.StdEncoding.EncodeToString([]byte(tokens.AccessToken)),
+		Path:  "/",
+	})
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)

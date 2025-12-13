@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
@@ -416,6 +417,9 @@ func AuthMiddleware(service *authapp.Service) func(http.Handler) http.Handler {
 			}
 			token := extractBearerToken(r.Header.Get("Authorization"))
 			if token == "" {
+				token = readAccessTokenCookie(r)
+			}
+			if token == "" {
 				token = strings.TrimSpace(r.URL.Query().Get("access_token"))
 			}
 			if token == "" {
@@ -440,6 +444,26 @@ func AuthMiddleware(service *authapp.Service) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func readAccessTokenCookie(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	cookie, err := r.Cookie(accessCookieName)
+	if err != nil {
+		return ""
+	}
+	value := strings.TrimSpace(cookie.Value)
+	if value == "" {
+		return ""
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {
+		if token := strings.TrimSpace(string(decoded)); token != "" {
+			return token
+		}
+	}
+	return value
 }
 
 // CurrentUser extracts the authenticated user from request context.
