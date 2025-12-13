@@ -257,7 +257,7 @@ func (em *EvaluationManager) collectMetrics(ctx context.Context, results []swe_b
 // generateReport 生成报告
 func (em *EvaluationManager) generateReport(ctx context.Context, report *EvaluationResults, config *EvaluationConfig) error {
 	outputPath := filepath.Join(config.OutputDir, fmt.Sprintf("report_%s.md", report.JobID))
-	return em.reporter.GenerateReport(report, outputPath)
+	return em.reporter.GenerateReport(report, outputPath, config.OutputDir)
 }
 
 // scoreResults 基于状态、耗时和错误为每个任务生成自动评分

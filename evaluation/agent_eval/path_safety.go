@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func sanitizeOutputPath(path string) (string, error) {
+func sanitizeOutputPath(path string, baseDir string) (string, error) {
 	cleaned := filepath.Clean(path)
 	if cleaned == "." || cleaned == ".." {
 		return "", fmt.Errorf("output path cannot be current or parent directory")
@@ -22,5 +22,18 @@ func sanitizeOutputPath(path string) (string, error) {
 		}
 	}
 
-	return cleaned, nil
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate base output directory: %w", err)
+	}
+	absTarget, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate absolute output path: %w", err)
+	}
+	rel, err := filepath.Rel(absBase, absTarget)
+	if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("output path must be within the base output directory")
+	}
+
+	return absTarget, nil
 }

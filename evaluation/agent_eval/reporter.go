@@ -22,8 +22,8 @@ func NewMarkdownReporter() *MarkdownReporter {
 }
 
 // GenerateReport 生成评估报告
-func (mr *MarkdownReporter) GenerateReport(results *EvaluationResults, outputPath string) error {
-	cleanedPath, err := sanitizeOutputPath(outputPath)
+func (mr *MarkdownReporter) GenerateReport(results *EvaluationResults, outputPath string, baseDir string) error {
+	cleanedPath, err := sanitizeOutputPath(outputPath, baseDir)
 	if err != nil {
 		return err
 	}
