@@ -51,37 +51,9 @@ func buildContainerWithOptions(disableSandbox bool) (*Container, error) {
 	localSummary := environment.CollectLocalSummary(20)
 	environmentSummary := environment.FormatSummary(localSummary)
 
-	diConfig := di.Config{
-		LLMProvider:             cfg.LLMProvider,
-		LLMModel:                cfg.LLMModel,
-		APIKey:                  cfg.APIKey,
-		ArkAPIKey:               cfg.ArkAPIKey,
-		BaseURL:                 cfg.BaseURL,
-		TavilyAPIKey:            cfg.TavilyAPIKey,
-		SeedreamTextEndpointID:  cfg.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: cfg.SeedreamImageEndpointID,
-		SeedreamTextModel:       cfg.SeedreamTextModel,
-		SeedreamImageModel:      cfg.SeedreamImageModel,
-		SeedreamVisionModel:     cfg.SeedreamVisionModel,
-		SandboxBaseURL:          cfg.SandboxBaseURL,
-		MaxTokens:               cfg.MaxTokens,
-		MaxIterations:           cfg.MaxIterations,
-		Temperature:             cfg.Temperature,
-		TemperatureSet:          cfg.TemperatureProvided,
-		TopP:                    cfg.TopP,
-		StopSequences:           append([]string(nil), cfg.StopSequences...),
-		SessionDir:              cfg.SessionDir,
-		CostDir:                 cfg.CostDir,
-		Environment:             cfg.Environment,
-		Verbose:                 cfg.Verbose,
-		DisableTUI:              cfg.DisableTUI,
-		FollowTranscript:        cfg.FollowTranscript,
-		FollowStream:            cfg.FollowStream,
-		AgentPreset:             cfg.AgentPreset,
-		ToolPreset:              cfg.ToolPreset,
-		EnvironmentSummary:      environmentSummary,
-		DisableSandbox:          disableSandbox,
-	}
+	diConfig := di.ConfigFromRuntimeConfig(cfg)
+	diConfig.EnvironmentSummary = environmentSummary
+	diConfig.DisableSandbox = disableSandbox
 
 	container, err := di.BuildContainer(diConfig)
 	if err != nil {

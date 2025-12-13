@@ -335,34 +335,9 @@ func main() {
 // buildContainer builds the dependency injection container
 func buildContainer(config Config) (*di.Container, error) {
 	// Build DI container with configurable storage
-	diConfig := di.Config{
-		LLMProvider:             config.Runtime.LLMProvider,
-		LLMModel:                config.Runtime.LLMModel,
-		APIKey:                  config.Runtime.APIKey,
-		ArkAPIKey:               config.Runtime.ArkAPIKey,
-		BaseURL:                 config.Runtime.BaseURL,
-		TavilyAPIKey:            config.Runtime.TavilyAPIKey,
-		SeedreamTextEndpointID:  config.Runtime.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: config.Runtime.SeedreamImageEndpointID,
-		SeedreamTextModel:       config.Runtime.SeedreamTextModel,
-		SeedreamImageModel:      config.Runtime.SeedreamImageModel,
-		SeedreamVisionModel:     config.Runtime.SeedreamVisionModel,
-		SandboxBaseURL:          config.Runtime.SandboxBaseURL,
-		MaxTokens:               config.Runtime.MaxTokens,
-		MaxIterations:           config.Runtime.MaxIterations,
-		UserRateLimitRPS:        config.Runtime.UserRateLimitRPS,
-		UserRateLimitBurst:      config.Runtime.UserRateLimitBurst,
-		Temperature:             config.Runtime.Temperature,
-		TemperatureSet:          config.Runtime.TemperatureProvided,
-		TopP:                    config.Runtime.TopP,
-		StopSequences:           append([]string(nil), config.Runtime.StopSequences...),
-		SessionDir:              config.Runtime.SessionDir,
-		CostDir:                 config.Runtime.CostDir,
-		AgentPreset:             config.Runtime.AgentPreset,
-		ToolPreset:              config.Runtime.ToolPreset,
-		EnableMCP:               config.EnableMCP,
-		EnvironmentSummary:      config.EnvironmentSummary,
-	}
+	diConfig := di.ConfigFromRuntimeConfig(config.Runtime)
+	diConfig.EnableMCP = config.EnableMCP
+	diConfig.EnvironmentSummary = config.EnvironmentSummary
 
 	return di.BuildContainer(diConfig)
 }
