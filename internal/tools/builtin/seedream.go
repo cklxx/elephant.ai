@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
@@ -64,7 +64,7 @@ type seedreamTextTool struct {
 type seedreamImageTool struct {
 	config  SeedreamConfig
 	factory *seedreamClientFactory
-	logger  *utils.Logger
+	logger  logging.Logger
 }
 
 type seedreamVisionTool struct {
@@ -76,7 +76,7 @@ type seedreamVideoTool struct {
 	config     SeedreamConfig
 	factory    *seedreamClientFactory
 	httpClient *http.Client
-	logger     *utils.Logger
+	logger     logging.Logger
 }
 
 const (
@@ -111,7 +111,7 @@ func NewSeedreamImageToImage(config SeedreamConfig) ports.ToolExecutor {
 	return &seedreamImageTool{
 		config:  config,
 		factory: &seedreamClientFactory{config: config},
-		logger:  utils.NewComponentLogger("SeedreamImageToImage"),
+		logger:  logging.NewComponentLogger("SeedreamImageToImage"),
 	}
 }
 
@@ -129,7 +129,7 @@ func NewSeedreamVideoGenerate(config SeedreamConfig) ports.ToolExecutor {
 		config:     config,
 		factory:    &seedreamClientFactory{config: config},
 		httpClient: &http.Client{Timeout: seedreamAssetHTTPTimeout},
-		logger:     utils.NewComponentLogger("SeedreamVideo"),
+		logger:     logging.NewComponentLogger("SeedreamVideo"),
 	}
 }
 
@@ -298,9 +298,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	rawImageValue, _ := call.Arguments["init_image"].(string)
 	imageValue := strings.TrimSpace(rawImageValue)
 	if resolved, placeholder, ok := resolveSeedreamInitImagePlaceholder(ctx, imageValue); ok {
-		if t.logger != nil {
-			t.logger.Debug("Resolved init_image placeholder [%s] via attachment context", placeholder)
-		}
+		logging.OrNop(t.logger).Debug("Resolved init_image placeholder [%s] via attachment context", placeholder)
 		imageValue = resolved
 	} else if name, isPlaceholder := extractPlaceholderIdentifier(imageValue); isPlaceholder {
 		err := fmt.Errorf("init_image placeholder [%s] could not be resolved via attachment context", name)
@@ -343,7 +341,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 }
 
 func (t *seedreamImageTool) logRequestPayload(rawImage, normalizedImage, kind string, req arkm.GenerateImagesRequest) {
-	if t.logger == nil {
+	if logging.IsNil(t.logger) {
 		return
 	}
 
@@ -1531,9 +1529,7 @@ func (t *seedreamVideoTool) embedRemoteAttachmentData(ctx context.Context, attac
 		limit := inlineLimitForMedia(att.MediaType)
 		payload, mediaType, err := t.downloadAsset(ctx, att.URI, limit)
 		if err != nil {
-			if t.logger != nil {
-				t.logger.Debug("Seedream inline fetch skipped for %s: %v", att.URI, err)
-			}
+			logging.OrNop(t.logger).Debug("Seedream inline fetch skipped for %s: %v", att.URI, err)
 			continue
 		}
 
