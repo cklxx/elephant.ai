@@ -631,6 +631,9 @@ func sanitizePathComponent(value, field string) (string, error) {
 	if value == "" {
 		return "", fmt.Errorf("%s is required", field)
 	}
+	if value == "." || value == ".." {
+		return "", fmt.Errorf("%s cannot be '.' or '..'", field)
+	}
 	if value != filepath.Base(value) {
 		return "", fmt.Errorf("%s contains path separators", field)
 	}

@@ -103,6 +103,14 @@ func TestAgentDataStoreRejectsUnsafePathComponents(t *testing.T) {
 		t.Fatalf("expected profile upsert to reject unsafe agent id")
 	}
 
+	if _, err := store.UpsertProfile(&AgentProfile{AgentID: "..", EvaluationCount: 1}); err == nil {
+		t.Fatalf("expected profile upsert to reject dot-dot agent id")
+	}
+
+	if _, err := store.UpsertProfile(&AgentProfile{AgentID: ".", EvaluationCount: 1}); err == nil {
+		t.Fatalf("expected profile upsert to reject single-dot agent id")
+	}
+
 	if err := store.StoreEvaluation("../escape", &EvaluationResults{JobID: "job-1"}); err == nil {
 		t.Fatalf("expected store evaluation to reject unsafe agent id")
 	}

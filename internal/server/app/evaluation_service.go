@@ -26,6 +26,9 @@ func NewEvaluationService(baseOutputDir string) (*EvaluationService, error) {
 		baseOutputDir = "./evaluation_results"
 	}
 	baseOutputDir = filepath.Clean(baseOutputDir)
+	if err := ensureSafeBaseDir(baseOutputDir); err != nil {
+		return nil, err
+	}
 
 	defaultConfig := agent_eval.EvaluationConfig{
 		DatasetType:    "swe_bench",
@@ -66,6 +69,9 @@ func (s *EvaluationService) Start(ctx context.Context, options *agent_eval.Evalu
 
 	config := s.mergeOptions(options)
 	if err := agent_eval.ValidateConfig(config); err != nil {
+		return nil, err
+	}
+	if err := s.ensureOutputDir(config.OutputDir); err != nil {
 		return nil, err
 	}
 
@@ -170,4 +176,30 @@ func (s *EvaluationService) safeOutputDir(requested string) string {
 	}
 
 	return joined
+}
+
+func (s *EvaluationService) ensureOutputDir(outputDir string) error {
+	cleaned := filepath.Clean(outputDir)
+	rel, err := filepath.Rel(s.baseOutputDir, cleaned)
+	if err != nil {
+		return fmt.Errorf("invalid output dir: %w", err)
+	}
+	if strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("output dir %s escapes base dir", outputDir)
+	}
+	return nil
+}
+
+func ensureSafeBaseDir(baseOutputDir string) error {
+	cleaned := filepath.Clean(baseOutputDir)
+	if cleaned == ".." || cleaned == "." {
+		return fmt.Errorf("base output dir must not resolve to parent or current directory: %s", baseOutputDir)
+	}
+	if strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("base output dir must not start with parent reference: %s", baseOutputDir)
+	}
+	if strings.Contains(cleaned, string(filepath.Separator)+".."+string(filepath.Separator)) {
+		return fmt.Errorf("base output dir must not contain parent references: %s", baseOutputDir)
+	}
+	return nil
 }
