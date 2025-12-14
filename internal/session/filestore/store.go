@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 	id "alex/internal/utils/id"
 )
 
 type store struct {
 	baseDir string
-	logger  *utils.Logger
+	logger  logging.Logger
 }
 
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -35,7 +35,7 @@ func New(baseDir string) ports.SessionStore {
 
 	return &store{
 		baseDir: baseDir,
-		logger:  utils.NewComponentLogger("SessionFileStore"),
+		logger:  logging.NewComponentLogger("SessionFileStore"),
 	}
 }
 
@@ -98,9 +98,8 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 
 	var session ports.Session
 	if err := json.Unmarshal(data, &session); err != nil {
-		if s.logger != nil {
-			s.logger.Error("Failed to decode session file %s: %v. Preview: %s", path, err, previewJSON(data))
-		}
+		// Do not log file path or preview, as session file may contain secrets (API keys, etc.)
+		logging.OrNop(s.logger).Error("Failed to decode session file: %v", err)
 		return nil, fmt.Errorf("failed to decode session: %w", err)
 	}
 	session.Attachments = sanitizeAttachmentMap(session.Attachments)
@@ -206,17 +205,6 @@ func (s *store) Delete(ctx context.Context, id string) error {
 
 func isSafeSessionID(id string) bool {
 	return sessionIDPattern.MatchString(id)
-}
-
-func previewJSON(data []byte) string {
-	const maxPreview = 512
-	preview := strings.TrimSpace(string(data))
-	preview = strings.ReplaceAll(preview, "\n", " ")
-	preview = strings.ReplaceAll(preview, "\t", " ")
-	if len(preview) > maxPreview {
-		preview = preview[:maxPreview] + "... (truncated)"
-	}
-	return preview
 }
 
 func attachmentPath(baseDir, sessionID string) string {

@@ -331,6 +331,136 @@ func TestConvertMessagesKeepsToolAttachmentsAsText(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesEmbedsUserImageAttachmentsWithPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "user",
+			Content: "Describe [cat.png] and [dog.png].",
+			Attachments: map[string]ports.Attachment{
+				"cat.png": {
+					Name:      "cat.png",
+					MediaType: "image/png",
+					URI:       "https://example.com/cat.png",
+				},
+				"dog.png": {
+					Name:      "dog.png",
+					MediaType: "image/png",
+					Data:      "ZmFrZUJhc2U2NA==",
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(converted))
+	}
+
+	parts, ok := converted[0]["content"].([]map[string]any)
+	if !ok {
+		t.Fatalf("expected multipart content, got %T", converted[0]["content"])
+	}
+
+	var imageURLs []string
+	for _, part := range parts {
+		if part["type"] != "image_url" {
+			continue
+		}
+		imageURL, _ := part["image_url"].(map[string]any)
+		url, _ := imageURL["url"].(string)
+		imageURLs = append(imageURLs, url)
+	}
+
+	if got, want := len(imageURLs), 2; got != want {
+		t.Fatalf("expected %d image urls, got %d (%v)", want, got, imageURLs)
+	}
+	if imageURLs[0] != "https://example.com/cat.png" {
+		t.Fatalf("unexpected first image url: %q", imageURLs[0])
+	}
+	if wantPrefix := "data:image/png;base64,"; len(imageURLs[1]) < len(wantPrefix) || imageURLs[1][:len(wantPrefix)] != wantPrefix {
+		t.Fatalf("expected data uri prefix %q, got %q", wantPrefix, imageURLs[1])
+	}
+}
+
+func TestConvertMessagesAppendsUnreferencedUserImages(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "user",
+			Content: "Describe the attachment.",
+			Attachments: map[string]ports.Attachment{
+				"cat.png": {
+					Name:      "cat.png",
+					MediaType: "image/png",
+					URI:       "https://example.com/cat.png",
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(converted))
+	}
+
+	parts, ok := converted[0]["content"].([]map[string]any)
+	if !ok {
+		t.Fatalf("expected multipart content, got %T", converted[0]["content"])
+	}
+
+	if len(parts) < 3 {
+		t.Fatalf("expected at least 3 parts, got %d", len(parts))
+	}
+
+	lastText, _ := parts[len(parts)-2]["text"].(string)
+	if lastText != "[cat.png]" {
+		t.Fatalf("expected placeholder tag before image, got %q", lastText)
+	}
+
+	imageURL, _ := parts[len(parts)-1]["image_url"].(map[string]any)
+	url, _ := imageURL["url"].(string)
+	if url != "https://example.com/cat.png" {
+		t.Fatalf("unexpected image url: %q", url)
+	}
+}
+
+func TestConvertMessagesKeepsNonImageAttachmentsAsText(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	msgs := []ports.Message{
+		{
+			Role:    "user",
+			Content: "Analyze [doc.pdf].",
+			Attachments: map[string]ports.Attachment{
+				"doc.pdf": {
+					Name:      "doc.pdf",
+					MediaType: "application/pdf",
+					Data:      "ZmFrZUJhc2U2NA==",
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(converted))
+	}
+
+	content, ok := converted[0]["content"].(string)
+	if !ok {
+		t.Fatalf("expected string content, got %T", converted[0]["content"])
+	}
+	if content != msgs[0].Content {
+		t.Fatalf("expected content %q, got %q", msgs[0].Content, content)
+	}
+}
+
 func TestShouldEmbedAttachmentsSkipsToolResultSources(t *testing.T) {
 	msg := ports.Message{
 		Role:   "system",
@@ -357,12 +487,12 @@ func TestConvertToolsSkipsInvalidFunctionNames(t *testing.T) {
 			Name:        "valid_tool",
 			Description: "valid",
 			Parameters:  ports.ParameterSchema{Type: "object"},
-		},
-		{
-			Name:        "workflow.diagnostic.browser_info",
-			Description: "invalid",
-			Parameters:  ports.ParameterSchema{Type: "object"},
-		},
+			},
+			{
+				Name:        "invalid.tool.name",
+				Description: "invalid",
+				Parameters:  ports.ParameterSchema{Type: "object"},
+			},
 		{
 			Name:        "also-valid-1",
 			Description: "valid",

@@ -1,0 +1,4 @@
+{
+  "llm_model": "deepseek/deepseek-chat",
+  "llm_vision_model": "openai/gpt-4o-mini"
+}

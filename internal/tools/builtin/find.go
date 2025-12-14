@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
-	"alex/internal/tools"
 	"context"
 	"fmt"
 	"os/exec"
@@ -11,20 +10,11 @@ import (
 )
 
 type find struct {
-        mode    tools.ExecutionMode
-        sandbox *tools.SandboxManager
 }
 
 func NewFind(cfg ShellToolConfig) ports.ToolExecutor {
-        mode := cfg.Mode
-        if mode == tools.ExecutionModeUnknown {
-                mode = tools.ExecutionModeLocal
-        }
-        return &find{mode: mode, sandbox: cfg.SandboxManager}
-}
-
-func (t *find) Mode() tools.ExecutionMode {
-        return t.mode
+	_ = cfg
+	return &find{}
 }
 
 func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -45,10 +35,6 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 
 	cmdArgs := t.buildArgs(call, path, maxDepth, name)
 
-	if t.mode == tools.ExecutionModeSandbox {
-		return t.executeSandbox(ctx, call, cmdArgs, name, path, maxDepth)
-	}
-
 	cmd := exec.CommandContext(ctx, "find", cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -59,21 +45,6 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 	}
 
 	return t.processOutput(call, string(output), name, path, maxDepth)
-}
-
-func (t *find) executeSandbox(ctx context.Context, call ports.ToolCall, cmdArgs []string, name, path string, maxDepth int) (*ports.ToolResult, error) {
-	command := "find " + strings.Join(quoteArgs(cmdArgs), " ")
-	output, exitCode, err := runSandboxCommandRaw(ctx, t.sandbox, command)
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
-	}
-	if exitCode == 1 {
-		return t.noMatchesResult(call, name, path, maxDepth)
-	}
-	if exitCode != 0 {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("find command failed with exit code %d", exitCode)}, nil
-	}
-	return t.processOutput(call, output, name, path, maxDepth)
 }
 
 func (t *find) processOutput(call ports.ToolCall, output, name, path string, maxDepth int) (*ports.ToolResult, error) {

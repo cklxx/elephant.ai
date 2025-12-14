@@ -8,6 +8,7 @@ import (
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
 	"alex/internal/materials/broker"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/materials/storage"
 )
 
@@ -46,7 +47,7 @@ func TestBrokerMigratorUploadsInlinePayloads(t *testing.T) {
 		"[foo.png]": {Name: "foo.png", MediaType: "image/png", Data: base64.StdEncoding.EncodeToString([]byte("bytes"))},
 	}
 	ctx := context.Background()
-	result, err := migrator.Normalize(ctx, MigrationRequest{
+	result, err := migrator.Normalize(ctx, materialports.MigrationRequest{
 		Context:     &materialapi.RequestContext{RequestID: "req"},
 		Attachments: attachments,
 		Status:      materialapi.MaterialStatusIntermediate,
@@ -68,7 +69,7 @@ func TestBrokerMigratorSkipsHTTPAttachments(t *testing.T) {
 	attachments := map[string]ports.Attachment{
 		"[existing.png]": {Name: "existing.png", MediaType: "image/png", URI: "https://cdn/existing.png"},
 	}
-	result, err := migrator.Normalize(context.Background(), MigrationRequest{Attachments: attachments})
+	result, err := migrator.Normalize(context.Background(), materialports.MigrationRequest{Attachments: attachments})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

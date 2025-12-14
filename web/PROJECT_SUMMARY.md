@@ -2,7 +2,10 @@
 
 ## Overview
 
-Successfully implemented a complete Next.js 14 web frontend for the ALEX AI Programming Agent following the SSE architecture design document at `/docs/design/SSE_WEB_ARCHITECTURE.md`.
+> Note: This summary reflects the initial delivery snapshot and may not match the current codebase.
+> Prefer `web/package.json` and `web/docs/` for up-to-date architecture and implementation notes.
+
+Successfully implemented a complete Next.js (App Router) web frontend for the ALEX AI Programming Agent.
 
 ## Completed Components
 
@@ -362,22 +365,9 @@ Server must emit events matching these types:
 vercel deploy
 ```
 
-### Docker
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
 ### Static Export (Optional)
 ```bash
 npm run build
-npm run export
 ```
 
 ## Performance Metrics

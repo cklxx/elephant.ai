@@ -2,19 +2,12 @@ package environment
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"sort"
 	"strings"
-	"time"
-
-	api "github.com/agent-infra/sandbox-sdk-go"
-	"github.com/agent-infra/sandbox-sdk-go/shell"
-
-	"alex/internal/tools"
 )
 
 var capabilityChecks = []struct {
@@ -54,39 +47,6 @@ func CollectLocalSummary(maxFileEntries int) Summary {
 	}
 }
 
-// CollectSandboxSummary uses the sandbox manager to query environment details from the remote runtime.
-func CollectSandboxSummary(ctx context.Context, manager *tools.SandboxManager, maxFileEntries int) (Summary, error) {
-	if manager == nil {
-		return Summary{}, fmt.Errorf("sandbox manager not available")
-	}
-
-	if err := manager.Initialize(ctx); err != nil {
-		return Summary{}, err
-	}
-
-	shellClient := manager.Shell()
-	if shellClient == nil {
-		return Summary{}, fmt.Errorf("sandbox shell not available")
-	}
-
-	workingDir := runSandboxCommand(ctx, shellClient, "pwd")
-	files, more := listSandboxFiles(ctx, shellClient, maxFileEntries)
-
-	osDescription := parseOSRelease(runSandboxCommand(ctx, shellClient, "cat /etc/os-release"))
-	kernel := runSandboxCommand(ctx, shellClient, "uname -sr")
-
-	capabilities := collectSandboxCapabilities(ctx, shellClient)
-
-	return Summary{
-		WorkingDirectory: workingDir,
-		FileEntries:      files,
-		HasMoreFiles:     more,
-		OperatingSystem:  osDescription,
-		Kernel:           kernel,
-		Capabilities:     capabilities,
-	}, nil
-}
-
 func listLocalFiles(dir string, maxEntries int) ([]string, bool) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -114,27 +74,6 @@ func listLocalFiles(dir string, maxEntries int) ([]string, bool) {
 	}
 
 	return names, more
-}
-
-func listSandboxFiles(ctx context.Context, shellClient *shell.Client, maxEntries int) ([]string, bool) {
-	if maxEntries <= 0 {
-		return nil, false
-	}
-
-	cmd := fmt.Sprintf("ls -p | head -n %d", maxEntries+1)
-	output := runSandboxCommand(ctx, shellClient, cmd)
-	if output == "" {
-		return nil, false
-	}
-
-	lines := filterNonEmpty(strings.Split(output, "\n"))
-	more := false
-	if len(lines) > maxEntries {
-		more = true
-		lines = lines[:maxEntries]
-	}
-
-	return lines, more
 }
 
 func readLocalOSDescription() string {
@@ -221,20 +160,6 @@ func collectLocalCapabilities() []string {
 	return results
 }
 
-func collectSandboxCapabilities(ctx context.Context, shellClient *shell.Client) []string {
-	results := make([]string, 0, len(capabilityChecks))
-	for _, check := range capabilityChecks {
-		command := fmt.Sprintf("if command -v %s >/dev/null 2>&1; then %s %s; fi", check.Program, check.Program, strings.Join(check.Args, " "))
-		output := runSandboxCommand(ctx, shellClient, command)
-		if output == "" {
-			continue
-		}
-		firstLine := strings.Split(strings.TrimSpace(output), "\n")[0]
-		results = append(results, normalizeCapabilityOutput(check.Program, check.Args, firstLine))
-	}
-	return results
-}
-
 func runLocalCommand(name string, args ...string) string {
 	cmd := exec.Command(name, args...)
 	output, err := cmd.Output()
@@ -248,34 +173,6 @@ func runLocalCommand(name string, args ...string) string {
 	return lines[0]
 }
 
-func runSandboxCommand(ctx context.Context, shellClient *shell.Client, command string) string {
-	if shellClient == nil || strings.TrimSpace(command) == "" {
-		return ""
-	}
-
-	req := &api.ShellExecRequest{Command: command}
-	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	resp, err := shellClient.ExecCommand(cmdCtx, req)
-	if err != nil {
-		return ""
-	}
-	data := resp.GetData()
-	if data == nil || data.GetOutput() == nil {
-		return ""
-	}
-	output := strings.TrimSpace(*data.GetOutput())
-	if output == "" {
-		return ""
-	}
-	lines := strings.Split(output, "\n")
-	if len(lines) == 0 {
-		return ""
-	}
-	return strings.Join(filterNonEmpty(lines), "\n")
-}
-
 func normalizeCapabilityOutput(program string, args []string, output string) string {
 	trimmed := strings.TrimSpace(output)
 	if trimmed == "" {
@@ -287,16 +184,4 @@ func normalizeCapabilityOutput(program string, args []string, output string) str
 		return fmt.Sprintf("%s %s", program, trimmed)
 	}
 	return trimmed
-}
-
-func filterNonEmpty(values []string) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		result = append(result, trimmed)
-	}
-	return result
 }

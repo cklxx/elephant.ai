@@ -9,7 +9,6 @@ import (
 func TestPublishAndLatestEnvironment(t *testing.T) {
 	payload := EnvironmentPayload{
 		Host:     map[string]string{"A": "1"},
-		Sandbox:  map[string]string{"B": "2"},
 		Captured: time.Now(),
 	}
 
@@ -18,7 +17,7 @@ func TestPublishAndLatestEnvironment(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected latest payload")
 	}
-	if latest.Host["A"] != "1" || latest.Sandbox["B"] != "2" {
+	if latest.Host["A"] != "1" {
 		t.Fatalf("unexpected payload contents: %+v", latest)
 	}
 
@@ -51,10 +50,6 @@ func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 			"API_KEY": "sk-secret-value",
 			"PATH":    "/usr/bin",
 		},
-		Sandbox: map[string]string{
-			"token": "my-token",
-			"LANG":  "en_US.UTF-8",
-		},
 		Captured: time.Now(),
 	}
 
@@ -71,14 +66,8 @@ func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 		if received.Host["API_KEY"] != "sk-secret-value" {
 			t.Fatalf("expected host API_KEY to be preserved, got %q", received.Host["API_KEY"])
 		}
-		if received.Sandbox["token"] != "my-token" {
-			t.Fatalf("expected sandbox token to be preserved, got %q", received.Sandbox["token"])
-		}
 		if received.Host["PATH"] != "/usr/bin" {
 			t.Fatalf("expected non-sensitive host value to remain, got %q", received.Host["PATH"])
-		}
-		if received.Sandbox["LANG"] != "en_US.UTF-8" {
-			t.Fatalf("expected non-sensitive sandbox value to remain, got %q", received.Sandbox["LANG"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for environment payload")
@@ -91,8 +80,5 @@ func TestPublishEnvironmentsPreservesValues(t *testing.T) {
 
 	if latest.Host["API_KEY"] != "sk-secret-value" {
 		t.Fatalf("expected stored host API_KEY to be preserved, got %q", latest.Host["API_KEY"])
-	}
-	if latest.Sandbox["token"] != "my-token" {
-		t.Fatalf("expected stored sandbox token to be preserved, got %q", latest.Sandbox["token"])
 	}
 }

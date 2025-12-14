@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { AnyAgentEvent } from '@/lib/types';
 import { isWorkflowResultFinalEvent } from '@/lib/typeGuards';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -43,8 +43,7 @@ export function ConsoleAgentOutput({
   const toolOutputs = useToolOutputs(events);
   const [activeTab, setActiveTab] = useState<'timeline' | 'events' | 'document'>('timeline');
   const [documentViewMode, setDocumentViewMode] = useState<ViewMode>('default');
-  const [focusedStepId, setFocusedStepId] = useState<string | null>(null);
-  const [hasUserSelectedStep, setHasUserSelectedStep] = useState(false);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const hasTimeline = timelineSteps.length > 0;
   const activeTimelineStep = useMemo(
     () => timelineSteps.find((step) => step.status === 'active') ?? null,
@@ -55,42 +54,23 @@ export function ConsoleAgentOutput({
     [timelineSteps]
   );
   const fallbackTimelineStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
-  const focusedTimelineStep = useMemo(
-    () => (focusedStepId ? timelineSteps.find((step) => step.id === focusedStepId) ?? null : null),
-    [timelineSteps, focusedStepId]
-  );
+  const resolvedSelectedStepId = useMemo(() => {
+    if (!selectedStepId) {
+      return null;
+    }
+    return timelineSteps.some((step) => step.id === selectedStepId)
+      ? selectedStepId
+      : null;
+  }, [selectedStepId, timelineSteps]);
+  const focusedStepId = resolvedSelectedStepId ?? fallbackTimelineStepId;
+  const hasUserSelectedStep = resolvedSelectedStepId !== null;
+  const focusedTimelineStep = useMemo(() => {
+    if (!focusedStepId) {
+      return null;
+    }
+    return timelineSteps.find((step) => step.id === focusedStepId) ?? null;
+  }, [timelineSteps, focusedStepId]);
   const focusedEventIndex = focusedTimelineStep?.anchorEventIndex ?? null;
-
-  useEffect(() => {
-    if (!hasTimeline) {
-      if (focusedStepId !== null) {
-        setFocusedStepId(null);
-      }
-      if (hasUserSelectedStep) {
-        setHasUserSelectedStep(false);
-      }
-      return;
-    }
-
-    if (!hasUserSelectedStep) {
-      if (fallbackTimelineStepId !== focusedStepId) {
-        setFocusedStepId(fallbackTimelineStepId);
-      }
-      return;
-    }
-
-    const exists = timelineSteps.some((step) => step.id === focusedStepId);
-    if (!exists) {
-      setFocusedStepId(fallbackTimelineStepId);
-      setHasUserSelectedStep(false);
-    }
-  }, [
-    hasTimeline,
-    timelineSteps,
-    focusedStepId,
-    hasUserSelectedStep,
-    fallbackTimelineStepId,
-  ]);
 
   const latestTaskComplete = useMemo(() => {
     for (let idx = events.length - 1; idx >= 0; idx -= 1) {
@@ -203,8 +183,7 @@ export function ConsoleAgentOutput({
                       steps={timelineSteps}
                       focusedStepId={focusedStepId}
                       onStepSelect={(stepId) => {
-                        setFocusedStepId(stepId);
-                        setHasUserSelectedStep(true);
+                        setSelectedStepId(stepId);
                       }}
                     />
                   ) : (
@@ -221,9 +200,7 @@ export function ConsoleAgentOutput({
                     autoScroll={!hasUserSelectedStep}
                     focusedEventIndex={focusedEventIndex}
                     onJumpToLatest={() => {
-                      const targetStepId = activeTimelineStep?.id ?? latestTimelineStep?.id ?? null;
-                      setFocusedStepId(targetStepId);
-                      setHasUserSelectedStep(false);
+                      setSelectedStepId(null);
                     }}
                   />
                 </TabsContent>

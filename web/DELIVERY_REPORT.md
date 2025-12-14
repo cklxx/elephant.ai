@@ -1,8 +1,11 @@
 # ALEX Web Frontend - Delivery Report
 
+> Note: This report is a historical snapshot of the initial delivery (2025-10-02).
+> The codebase has evolved since then (dependencies, file counts, tests, and architecture). Prefer `web/package.json` and `web/docs/` for current state.
+
 **Date**: 2025-10-02
 **Project**: ALEX Web Frontend Implementation
-**Framework**: Next.js 14 + TypeScript + Tailwind CSS
+**Framework**: Next.js (App Router) + TypeScript + Tailwind CSS
 **Status**: ✅ **COMPLETE**
 
 ---
@@ -546,16 +549,9 @@ Access-Control-Allow-Headers: Content-Type
    vercel deploy
    ```
 
-2. **Docker**
-   ```bash
-   docker build -t alex-web .
-   docker run -p 3000:3000 alex-web
-   ```
-
-3. **Static Export**
+2. **Static Export**
    ```bash
    npm run build
-   npm run export
    ```
 
 ### Post-deployment
@@ -615,7 +611,7 @@ The ALEX Web Frontend is **production-ready** with all core features implemented
 1. **Deploy Backend Server** - Implement Go SSE endpoints
 2. **Test Integration** - Verify frontend-backend communication
 3. **Add Tests** - Unit, integration, E2E
-4. **Deploy Frontend** - Vercel or Docker
+4. **Deploy Frontend** - Vercel or static hosting
 5. **Monitor Usage** - Analytics and error tracking
 
 ### Final Notes

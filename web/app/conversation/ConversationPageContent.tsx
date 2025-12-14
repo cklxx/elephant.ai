@@ -638,6 +638,7 @@ export function ConversationPageContent() {
                   error={error}
                   reconnectAttempts={reconnectAttempts}
                   onReconnect={reconnect}
+                  isRunning={isTaskRunning}
                 />
               )}
               {hasAttachments && (

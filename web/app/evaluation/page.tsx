@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, BarChart2, Clock, PlayCircle, RefreshCw } from "lucide-react";
 
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -54,13 +54,13 @@ export default function EvaluationPage() {
     });
   }, [evaluations]);
 
-  const refreshEvaluations = async () => {
+  const refreshEvaluations = useCallback(async () => {
     setLoadingList(true);
     try {
       const data = await listEvaluations();
       setEvaluations(data.evaluations || []);
-      if (!selectedId && data.evaluations?.length) {
-        setSelectedId(data.evaluations[0].id);
+      if (data.evaluations?.length) {
+        setSelectedId((prev) => prev ?? data.evaluations[0].id);
       }
     } catch (error) {
       console.error("Failed to load evaluations", error);
@@ -72,9 +72,9 @@ export default function EvaluationPage() {
     } finally {
       setLoadingList(false);
     }
-  };
+  }, [toast]);
 
-  const refreshDetail = async (id: string) => {
+  const refreshDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
     try {
       const data = await getEvaluation(id);
@@ -89,20 +89,20 @@ export default function EvaluationPage() {
     } finally {
       setLoadingDetail(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    refreshEvaluations();
-    const timer = setInterval(refreshEvaluations, 8000);
+    void refreshEvaluations();
+    const timer = setInterval(() => {
+      void refreshEvaluations();
+    }, 8000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshEvaluations]);
 
   useEffect(() => {
-    if (selectedId) {
-      refreshDetail(selectedId);
-    }
-  }, [selectedId]);
+    if (!selectedId) return;
+    void refreshDetail(selectedId);
+  }, [selectedId, refreshDetail]);
 
   const handleStart = async () => {
     setStarting(true);

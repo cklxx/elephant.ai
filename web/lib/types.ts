@@ -24,9 +24,7 @@ export type WorkflowEventType =
   | 'workflow.diagnostic.error'
   | 'workflow.diagnostic.context_compression'
   | 'workflow.diagnostic.tool_filtering'
-  | 'workflow.diagnostic.browser_info'
   | 'workflow.diagnostic.environment_snapshot'
-  | 'workflow.diagnostic.sandbox_progress'
   | 'workflow.diagnostic.context_snapshot';
 
 export type WorkflowLifecycleUpdatedEventType =
@@ -327,7 +325,6 @@ export type RuntimeConfigOverrides = Partial<{
   seedream_image_model: string;
   seedream_vision_model: string;
   seedream_video_model: string;
-  sandbox_base_url: string;
   environment: string;
   agent_preset: string;
   tool_preset: string;
@@ -536,33 +533,9 @@ export interface WorkflowSubflowCompletedPayload {
   tool_calls: number;
 }
 
-export interface WorkflowDiagnosticBrowserInfoPayload {
-  success?: boolean;
-  message?: string;
-  user_agent?: string;
-  cdp_url?: string;
-  vnc_url?: string;
-  viewport_width?: number;
-  viewport_height?: number;
-  captured: string;
-}
-
 export interface WorkflowDiagnosticEnvironmentSnapshotPayload {
   host?: Record<string, string> | null;
-  sandbox?: Record<string, string> | null;
   captured: string;
-}
-
-export type SandboxProgressStatus = 'pending' | 'running' | 'ready' | 'error';
-
-export interface WorkflowDiagnosticSandboxProgressPayload {
-  status: SandboxProgressStatus;
-  stage: string;
-  message?: string;
-  step: number;
-  total_steps: number;
-  error?: string;
-  updated: string;
 }
 
 export interface WorkflowDiagnosticContextCompressionPayload {
@@ -644,17 +617,9 @@ export type WorkflowSubflowCompletedEvent = WorkflowEvent<
   WorkflowSubflowCompletedPayload,
   'workflow.subflow.completed'
 >;
-export type WorkflowDiagnosticBrowserInfoEvent = WorkflowEvent<
-  WorkflowDiagnosticBrowserInfoPayload,
-  'workflow.diagnostic.browser_info'
->;
 export type WorkflowDiagnosticEnvironmentSnapshotEvent = WorkflowEvent<
   WorkflowDiagnosticEnvironmentSnapshotPayload,
   'workflow.diagnostic.environment_snapshot'
->;
-export type WorkflowDiagnosticSandboxProgressEvent = WorkflowEvent<
-  WorkflowDiagnosticSandboxProgressPayload,
-  'workflow.diagnostic.sandbox_progress'
 >;
 export type WorkflowDiagnosticContextCompressionEvent = WorkflowEvent<
   WorkflowDiagnosticContextCompressionPayload,
@@ -701,9 +666,7 @@ export type AnyAgentEvent =
   | WorkflowResultCancelledEvent
   | WorkflowSubflowProgressEvent
   | WorkflowSubflowCompletedEvent
-  | WorkflowDiagnosticBrowserInfoEvent
   | WorkflowDiagnosticEnvironmentSnapshotEvent
-  | WorkflowDiagnosticSandboxProgressEvent
   | WorkflowDiagnosticContextCompressionEvent
   | WorkflowDiagnosticToolFilteringEvent
   | WorkflowDiagnosticContextSnapshotEvent
@@ -712,14 +675,6 @@ export type AnyAgentEvent =
   | ConnectedEvent;
 
 export function canonicalEventType(type: AgentEventType | string): AgentEventType {
-  const sandboxAlias =
-    type === 'workflow.diagnostic.sandbox.progress'
-      ? 'workflow.diagnostic.sandbox_progress'
-      : undefined;
-  if (sandboxAlias) {
-    return sandboxAlias as AgentEventType;
-  }
-
   return type as AgentEventType;
 }
 

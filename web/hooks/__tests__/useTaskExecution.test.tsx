@@ -27,9 +27,14 @@ function createWrapper() {
     },
   });
 
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+
+  Wrapper.displayName = "QueryClientWrapper";
+  return Wrapper;
 }
 
 describe('useTaskExecution', () => {

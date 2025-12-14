@@ -154,7 +154,7 @@ Alex-Code is organized into modular components that communicate via clear interf
 The architecture emphasizes:
 - Separation of concerns and single responsibility per component
 - Minimal, clear interfaces between subsystems
-- Security-conscious design with strict input validation and sandboxing for tools
+- Security-conscious design with strict input validation and approval guardrails for tools
 - Extensibility through a pluggable tool registry and MCP protocol
 
 ## Built-in Tools and Features
@@ -162,7 +162,7 @@ The architecture emphasizes:
 Alex-Code ships with a curated set of built-in tools wired into the MCP ecosystem. The default tool suite includes 13 tools across categories:
 
 - File Operations: file_read, file_update, file_replace, file_list
-- Shell Execution: bash, code_executor (sandboxed)
+- Shell Execution: bash, code_executor
 - Search & Analysis: grep, ripgrep, find
 - Task Management: todo_read, todo_update
 - Web Integration: web_search (via Tavily API integration in code)
@@ -175,7 +175,7 @@ All tools are registered in the internal tool registry and are discoverable by M
 
 Alex-Code implements multi-layered security controls to protect hosts and data:
 - Risk assessment and path protection: guard against path traversal and unsafe file operations.
-- Command safety: sandboxed tool execution with strict parameter validation.
+- Command safety: tool execution with strict parameter validation and approvals.
 - Configurable restrictions: environment-based or config-based ACLs for tools and capabilities.
 - Audit logging: traceability of tool invocations and memory actions for compliance.
 - Threat detection: early checks for suspicious patterns and unsafe actions.
@@ -249,7 +249,7 @@ go test -coverprofile=coverage.out ./...
 
 - The repository uses Go modules and a Makefile-based build system. Unit tests cover agent behavior, tool execution, and memory management. The codebase contains rigorous tests in internal and evaluation directories.
 - For development, run make dev to ensure formatting, vetting, building, and tests run in a consistent environment.
-- Docker-based development scripts exist for containerized testing and CI pipelines.
+- Development scripts exist for consistent testing and CI pipelines.
 
 ## Appendix
 

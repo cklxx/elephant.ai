@@ -1,7 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 declare global {
-  // eslint-disable-next-line no-var
   var window: Window & typeof globalThis;
 }
 

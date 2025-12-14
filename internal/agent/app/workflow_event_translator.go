@@ -113,34 +113,10 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 			"tool_filter_ratio": e.ToolFilterRatio,
 		})
 
-	case *domain.WorkflowDiagnosticBrowserInfoEvent:
-		return t.diagnosticEnvelope(evt, "workflow.diagnostic.browser_info", map[string]any{
-			"success":         e.Success,
-			"message":         e.Message,
-			"user_agent":      e.UserAgent,
-			"cdp_url":         e.CDPURL,
-			"vnc_url":         e.VNCURL,
-			"viewport_width":  e.ViewportWidth,
-			"viewport_height": e.ViewportHeight,
-			"captured":        e.Captured,
-		})
-
 	case *domain.WorkflowDiagnosticEnvironmentSnapshotEvent:
 		return t.diagnosticEnvelope(evt, "workflow.diagnostic.environment_snapshot", map[string]any{
 			"host":     e.Host,
-			"sandbox":  e.Sandbox,
 			"captured": e.Captured,
-		})
-
-	case *domain.WorkflowDiagnosticSandboxProgressEvent:
-		return t.diagnosticEnvelope(evt, "workflow.diagnostic.sandbox_progress", map[string]any{
-			"status":      e.Status,
-			"stage":       e.Stage,
-			"message":     e.Message,
-			"step":        e.Step,
-			"total_steps": e.TotalSteps,
-			"error":       e.Error,
-			"updated":     e.Updated,
 		})
 
 	case *domain.WorkflowInputReceivedEvent:

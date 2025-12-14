@@ -30,7 +30,6 @@ const CONFIG_FIELDS: ConfigField[] = [
   { key: "seedream_image_model", label: "Seedream Image Model", type: "text" },
   { key: "seedream_vision_model", label: "Seedream Vision Model", type: "text" },
   { key: "seedream_video_model", label: "Seedream Video Model", type: "text" },
-  { key: "sandbox_base_url", label: "Sandbox Base URL", type: "text" },
   { key: "environment", label: "Runtime Environment", type: "text" },
   { key: "agent_preset", label: "Agent Preset", type: "text" },
   { key: "tool_preset", label: "Tool Preset", type: "text" },
@@ -70,7 +69,6 @@ function deriveConfigTasks(snapshot: RuntimeConfigSnapshot | null): ConfigTask[]
   const provider = (effective.llm_provider ?? "").trim();
   const model = (effective.llm_model ?? "").trim();
   const apiKey = (effective.api_key ?? "").trim();
-  const sandbox = (effective.sandbox_base_url ?? "").trim();
   const tavilyKey = (effective.tavily_api_key ?? "").trim();
 
   const providerNeedsKey =
@@ -100,15 +98,6 @@ function deriveConfigTasks(snapshot: RuntimeConfigSnapshot | null): ConfigTask[]
       label: "提供对应的 API Key",
       hint: "未配置密钥时所有请求都会失败，可以暂时切换为 mock/ollama 以继续调试。",
       severity: "critical",
-    });
-  }
-
-  if (!sandbox) {
-    tasks.push({
-      id: "sandbox-url",
-      label: "配置 Sandbox Base URL",
-      hint: "未设置时将回退到本地执行模式，无法复用共享沙箱。",
-      severity: "warning",
     });
   }
 

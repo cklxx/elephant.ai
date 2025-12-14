@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,8 +11,8 @@ import (
 
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
+	"alex/internal/logging"
 	"alex/internal/observability"
-	"alex/internal/utils"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -283,7 +284,8 @@ func appendVary(w http.ResponseWriter, value string) {
 }
 
 // LoggingMiddleware logs incoming requests
-func LoggingMiddleware(logger *utils.Logger) func(http.Handler) http.Handler {
+func LoggingMiddleware(logger logging.Logger) func(http.Handler) http.Handler {
+	logger = logging.OrNop(logger)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger.Info("%s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
@@ -293,12 +295,14 @@ func LoggingMiddleware(logger *utils.Logger) func(http.Handler) http.Handler {
 }
 
 // ObservabilityMiddleware instruments HTTP requests with tracing, metrics, and optional latency logging.
-func ObservabilityMiddleware(obs *observability.Observability, latencyLogger *utils.Logger) func(http.Handler) http.Handler {
+func ObservabilityMiddleware(obs *observability.Observability, latencyLogger logging.Logger) func(http.Handler) http.Handler {
+	hasLatencyLogger := !logging.IsNil(latencyLogger)
 	return func(next http.Handler) http.Handler {
 		// When neither observability nor latency logging is enabled, skip the wrapper entirely.
-		if obs == nil && latencyLogger == nil {
+		if obs == nil && !hasLatencyLogger {
 			return next
 		}
+		latencyLogger = logging.OrNop(latencyLogger)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			rec, wrapped := wrapResponseWriter(w)
@@ -339,7 +343,7 @@ func ObservabilityMiddleware(obs *observability.Observability, latencyLogger *ut
 			if obs != nil {
 				obs.Metrics.RecordHTTPServerRequest(ctx, r.Method, resolvedRoute, rec.status, latency, rec.bytes)
 			}
-			if latencyLogger != nil {
+			if hasLatencyLogger {
 				latencyLogger.Info(
 					"route=%s method=%s status=%d latency_ms=%.2f bytes=%d",
 					resolvedRoute,
@@ -416,6 +420,9 @@ func AuthMiddleware(service *authapp.Service) func(http.Handler) http.Handler {
 			}
 			token := extractBearerToken(r.Header.Get("Authorization"))
 			if token == "" {
+				token = readAccessTokenCookie(r)
+			}
+			if token == "" {
 				token = strings.TrimSpace(r.URL.Query().Get("access_token"))
 			}
 			if token == "" {
@@ -440,6 +447,26 @@ func AuthMiddleware(service *authapp.Service) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func readAccessTokenCookie(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	cookie, err := r.Cookie(accessCookieName)
+	if err != nil {
+		return ""
+	}
+	value := strings.TrimSpace(cookie.Value)
+	if value == "" {
+		return ""
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {
+		if token := strings.TrimSpace(string(decoded)); token != "" {
+			return token
+		}
+	}
+	return value
 }
 
 // CurrentUser extracts the authenticated user from request context.

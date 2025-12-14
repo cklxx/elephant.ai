@@ -28,7 +28,7 @@ export function useMockAgentStream(
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [reconnectToken, setReconnectToken] = useState(0);
 
-  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const timeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const onEventRef = useRef(options.onEvent);
   const lastUserTaskRef = useRef<string>('Analyze the project repository');
 

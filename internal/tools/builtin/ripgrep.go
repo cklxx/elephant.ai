@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
-	"alex/internal/tools"
 	"context"
 	"fmt"
 	"os/exec"
@@ -10,20 +9,11 @@ import (
 )
 
 type ripgrep struct {
-        mode    tools.ExecutionMode
-        sandbox *tools.SandboxManager
 }
 
 func NewRipgrep(cfg ShellToolConfig) ports.ToolExecutor {
-        mode := cfg.Mode
-        if mode == tools.ExecutionModeUnknown {
-                mode = tools.ExecutionModeLocal
-        }
-        return &ripgrep{mode: mode, sandbox: cfg.SandboxManager}
-}
-
-func (t *ripgrep) Mode() tools.ExecutionMode {
-        return t.mode
+	_ = cfg
+	return &ripgrep{}
 }
 
 func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -52,10 +42,6 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 
 	cmdArgs := t.buildArgs(call, pattern, path, ignoreCase)
 
-	if t.mode == tools.ExecutionModeSandbox {
-		return t.executeSandbox(ctx, call, cmdArgs, pattern, path, ignoreCase, maxResults)
-	}
-
 	if !t.hasRipgrep() {
 		return &ports.ToolResult{
 			CallID: call.ID,
@@ -76,23 +62,6 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 	}
 
 	return t.processOutput(call, string(output), pattern, path, ignoreCase, maxResults)
-}
-
-func (t *ripgrep) executeSandbox(ctx context.Context, call ports.ToolCall, cmdArgs []string, pattern, path string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
-	command := "rg " + strings.Join(quoteArgs(cmdArgs), " ")
-	output, exitCode, err := runSandboxCommandRaw(ctx, t.sandbox, command)
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
-	}
-
-	if exitCode == 1 {
-		return t.noMatchesResult(call, pattern, path, ignoreCase)
-	}
-	if exitCode != 0 {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("ripgrep command failed with exit code %d", exitCode)}, nil
-	}
-
-	return t.processOutput(call, output, pattern, path, ignoreCase, maxResults)
 }
 
 func (t *ripgrep) processOutput(call ports.ToolCall, output string, pattern, path string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
@@ -222,12 +191,4 @@ func (t *ripgrep) Metadata() ports.ToolMetadata {
 func (t *ripgrep) hasRipgrep() bool {
 	_, err := exec.LookPath("rg")
 	return err == nil
-}
-
-func quoteArgs(args []string) []string {
-	quoted := make([]string, 0, len(args))
-	for _, arg := range args {
-		quoted = append(quoted, shellQuote(arg))
-	}
-	return quoted
 }

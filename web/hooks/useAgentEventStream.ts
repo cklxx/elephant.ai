@@ -11,9 +11,16 @@ export function useAgentEventStream(
 ): UseSSEReturn {
   const { useMock = false, ...rest } = options;
 
-  if (useMock) {
-    return useMockAgentStream(sessionId, rest);
-  }
+  const enabled = rest.enabled ?? true;
 
-  return useSSE(sessionId, rest);
+  const mockStream = useMockAgentStream(sessionId, {
+    ...rest,
+    enabled: enabled && useMock,
+  });
+  const sseStream = useSSE(sessionId, {
+    ...rest,
+    enabled: enabled && !useMock,
+  });
+
+  return useMock ? mockStream : sseStream;
 }

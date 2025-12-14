@@ -15,7 +15,6 @@ func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("LLM_TEMPERATURE", "")
 	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("OPENROUTER_API_KEY", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -34,7 +33,6 @@ func TestLoadConfigHonorsZeroTemperatureFromEnv(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("LLM_TEMPERATURE", "0")
 	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("OPENROUTER_API_KEY", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -54,7 +52,6 @@ func TestLoadConfigVerboseAndEnvironmentFromEnv(t *testing.T) {
 	t.Setenv("ALEX_VERBOSE", "yes")
 	t.Setenv("ALEX_ENV", "staging")
 	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("OPENROUTER_API_KEY", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -84,9 +81,8 @@ func TestLoadConfigAppliesManagedOverrides(t *testing.T) {
 	}
 
 	t.Setenv("HOME", root)
-	t.Setenv("ALEX_CONFIG_STORE_PATH", overridesPath)
+	t.Setenv("CONFIG_ADMIN_STORE_PATH", overridesPath)
 	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("OPENROUTER_API_KEY", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -128,7 +124,6 @@ func TestReadinessSummaryWhenEmpty(t *testing.T) {
 func TestExecuteConfigCommandSetAndClear(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("OPENROUTER_API_KEY", "")
 
 	overridesPath := managedOverridesPath(runtimeEnvLookup())
 	if err := executeConfigCommand([]string{"set", "llm_model", "cli-test"}, io.Discard); err != nil {
@@ -151,6 +146,34 @@ func TestExecuteConfigCommandSetAndClear(t *testing.T) {
 	}
 	if overrides.LLMModel != nil {
 		t.Fatalf("expected llm_model override to be cleared, got %#v", overrides.LLMModel)
+	}
+}
+
+func TestExecuteConfigCommandSetAndClearVisionModel(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("OPENAI_API_KEY", "")
+
+	overridesPath := managedOverridesPath(runtimeEnvLookup())
+	if err := executeConfigCommand([]string{"set", "llm_vision_model", "vision-test"}, io.Discard); err != nil {
+		t.Fatalf("set override: %v", err)
+	}
+	store := configadmin.NewFileStore(overridesPath)
+	overrides, err := store.LoadOverrides(context.Background())
+	if err != nil {
+		t.Fatalf("load overrides: %v", err)
+	}
+	if overrides.LLMVisionModel == nil || *overrides.LLMVisionModel != "vision-test" {
+		t.Fatalf("expected override to persist vision model, got %#v", overrides.LLMVisionModel)
+	}
+	if err := executeConfigCommand([]string{"clear", "llm_vision_model"}, io.Discard); err != nil {
+		t.Fatalf("clear override: %v", err)
+	}
+	overrides, err = store.LoadOverrides(context.Background())
+	if err != nil {
+		t.Fatalf("reload overrides: %v", err)
+	}
+	if overrides.LLMVisionModel != nil {
+		t.Fatalf("expected llm_vision_model override to be cleared, got %#v", overrides.LLMVisionModel)
 	}
 }
 

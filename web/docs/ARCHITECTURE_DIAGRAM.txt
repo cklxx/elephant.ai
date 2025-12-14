@@ -15,7 +15,6 @@
 │  • workflow.input.received                • workflow.node.started          /api/sessions/       │
 │  • workflow.node.output.delta                 • workflow.tool.started          {id}/events          │
 │  • workflow.tool.completed       • workflow.result.final                                 │
-│  • workflow.diagnostic.browser_info (future)                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
                                        │
                                        │ SSE Stream (HTTP)
@@ -61,10 +60,6 @@
 │  │  │  extractResearchSteps()   ─────▶  ResearchStep[]                 │  │  │
 │  │  │    • Build step timeline from workflow.node.started/completed    │  │  │
 │  │  │    • Track status: pending → in_progress → completed             │  │  │
-│  │  │                                                                   │  │  │
-│  │  │  extractBrowserDiagnostics() ─────▶ BrowserDiagnostics[]         │  │  │
-│  │  │    • Extract sandbox browser diagnostics                         │  │  │
-│  │  │    • Include availability, connection endpoints, viewport       │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  │                            │                                            │  │
 │  │                            │ Computed State                              │  │
@@ -75,7 +70,6 @@
 │  │  │  • toolCalls: Map<string, AggregatedToolCall>                    │  │  │
 │  │  │  • iterations: Map<number, IterationGroup>                       │  │  │
 │  │  │  • researchSteps: ResearchStep[]                                 │  │  │
-│  │  │  • browserDiagnostics: BrowserDiagnostics[]                      │  │  │
 │  │  │  • currentIteration: number | null                               │  │  │
 │  │  │  • currentResearchStep: number | null                            │  │  │
 │  │  │  • activeToolCall: string | null                                 │  │  │
@@ -87,16 +81,16 @@
 │                                       │ Selectors                             │
 │                                       ▼                                       │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │                        Store Selectors (13)                            │  │
+│  │                        Store Selectors (12)                            │  │
 │  │                                                                         │  │
 │  │  Research:                    Tool Execution:         Task Metadata:   │  │
 │  │  • useCurrentResearchStep()   • useActiveToolCall()   • useTaskSummary()│ │
 │  │  • useCompletedResearchSteps()• useIterationToolCalls(n)               │  │
 │  │  • useInProgressResearchSteps()                      • useErrorStates()│  │
 │  │                                                       • useMemoryStats()│  │
-│  │  Iterations:                  Browser:               Debug:             │  │
-│  │  • useCurrentIteration()      • useLatestBrowserDiagnostics()          │  │
-│  │  • useCompletedIterations()                         • useRawEvents()   │  │
+│  │  Iterations:                                     Debug:                │  │
+│  │  • useCurrentIteration()                         • useRawEvents()      │  │
+│  │  • useCompletedIterations()                                              │  │
 │  │  • useIterationsArray()                                                │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 │                                       │                                       │
@@ -136,7 +130,6 @@
 │  │  │  • ThinkingIndicator     • TimelineStepList                     │  │  │
 │  │  │  • TaskCompleteCard      • StepStartedBanner (new)              │  │  │
 │  │  │  • ErrorCard             • StepCompletedCard (new)              │  │  │
-│  │  │                          • BrowserDiagnosticsCard (new)         │  │  │
 │  │  └──────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────────┘

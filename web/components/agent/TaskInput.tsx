@@ -172,6 +172,7 @@ export function TaskInput({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastAppliedPrefillRef = useRef<string | null>(null);
   const t = useTranslation();
   const resolvedPlaceholder =
     placeholder ?? t("console.input.placeholder.idle");
@@ -205,26 +206,37 @@ export function TaskInput({
   }, [task]);
 
   useEffect(() => {
-    if (typeof prefill !== "string") return;
+    if (typeof prefill !== "string") {
+      lastAppliedPrefillRef.current = null;
+      return;
+    }
+
     const nextValue = prefill.trim();
-    if (!nextValue) return;
+    if (!nextValue) {
+      lastAppliedPrefillRef.current = null;
+      return;
+    }
 
-    setTask(prefill);
+    if (prefill === lastAppliedPrefillRef.current) {
+      return;
+    }
+    lastAppliedPrefillRef.current = prefill;
 
-    const focusField = () => {
-      if (!textareaRef.current) return;
-      textareaRef.current.focus();
-      const length = prefill.length;
-      textareaRef.current.setSelectionRange(length, length);
-    };
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      if (setter) {
+        setter.call(textarea, prefill);
+      } else {
+        textarea.value = prefill;
+      }
 
-    if (
-      typeof window !== "undefined" &&
-      typeof window.requestAnimationFrame === "function"
-    ) {
-      window.requestAnimationFrame(focusField);
-    } else {
-      setTimeout(focusField, 0);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      textarea.focus();
+      textarea.setSelectionRange(prefill.length, prefill.length);
     }
 
     onPrefillApplied?.();
@@ -432,6 +444,15 @@ export function TaskInput({
   const isInputDisabled = disabled || loading || isRunning;
   const showStopButton = (loading || isRunning) && typeof onStop === "function";
   const stopButtonDisabled = stopDisabled || stopPending;
+  const stopPendingLabel = useMemo(
+    () =>
+      translateWithFallback(
+        "task.stop.title.pending",
+        undefined,
+        "Stopping",
+      ),
+    [translateWithFallback],
+  );
 
   const getRemoveLabel = useCallback(
     (name: string) =>
@@ -486,6 +507,15 @@ export function TaskInput({
       className="mx-auto w-full max-w-4xl space-y-4"
       data-testid="task-input-form"
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={acceptedFileTypes}
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+        data-testid="task-attachment-input"
+      />
       <div
         className="relative flex flex-col rounded-2xl border border-neutral-300 bg-white transition-all duration-200 focus-within:border-neutral-500 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:bg-muted/10 dark:border-border/50 dark:focus-within:border-neutral-600"
         data-testid="task-input-container"
@@ -534,10 +564,17 @@ export function TaskInput({
                 disabled={stopButtonDisabled}
                 variant="destructive"
                 className="h-8 w-8 rounded-lg p-0 transition-opacity hover:opacity-90"
-                aria-label={t("task.stop.title")}
+                aria-label={stopPending ? stopPendingLabel : t("task.stop.title")}
                 data-testid="task-stop"
               >
-                <Square className="h-3.5 w-3.5 fill-current" />
+                {stopPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="sr-only">{stopPendingLabel}</span>
+                  </>
+                ) : (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                )}
               </Button>
             ) : (
               <Button

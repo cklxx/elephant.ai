@@ -13,18 +13,19 @@ import (
 
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 const (
 	maxAuthBodySize   = 1 << 16
 	refreshCookieName = "alex_refresh_token"
+	accessCookieName  = "alex_access_token"
 )
 
 // AuthHandler manages authentication endpoints.
 type AuthHandler struct {
 	service *authapp.Service
-	logger  *utils.Logger
+	logger  logging.Logger
 	secure  bool
 }
 
@@ -32,7 +33,7 @@ type AuthHandler struct {
 func NewAuthHandler(service *authapp.Service, secure bool) *AuthHandler {
 	return &AuthHandler{
 		service: service,
-		logger:  utils.NewComponentLogger("AuthHandler"),
+		logger:  logging.NewComponentLogger("AuthHandler"),
 		secure:  secure,
 	}
 }
@@ -143,6 +144,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setRefreshCookie(w, tokens.RefreshToken, tokens.RefreshExpiry)
+	h.setAccessCookie(w, tokens.AccessToken, tokens.AccessExpiry)
 	resp := tokenResponse{AccessToken: tokens.AccessToken, ExpiresAt: tokens.AccessExpiry, RefreshExpires: tokens.RefreshExpiry, User: toUserDTO(user)}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -185,6 +187,7 @@ func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setRefreshCookie(w, tokens.RefreshToken, tokens.RefreshExpiry)
+	h.setAccessCookie(w, tokens.AccessToken, tokens.AccessExpiry)
 	resp := tokenResponse{AccessToken: tokens.AccessToken, ExpiresAt: tokens.AccessExpiry, RefreshExpires: tokens.RefreshExpiry, User: toUserDTO(user)}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -203,6 +206,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.clearRefreshCookie(w)
+	h.clearAccessCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -331,6 +335,7 @@ func (h *AuthHandler) HandleOAuthCallback(provider domain.ProviderType, w http.R
 		return
 	}
 	h.setRefreshCookie(w, tokens.RefreshToken, tokens.RefreshExpiry)
+	h.setAccessCookie(w, tokens.AccessToken, tokens.AccessExpiry)
 	resp := tokenResponse{AccessToken: tokens.AccessToken, ExpiresAt: tokens.AccessExpiry, RefreshExpires: tokens.RefreshExpiry, User: toUserDTO(user)}
 	if prefersHTML(r.Header.Get("Accept")) {
 		h.writeOAuthSuccessPage(w)
@@ -538,6 +543,31 @@ func (h *AuthHandler) setRefreshCookie(w http.ResponseWriter, token string, expi
 func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshCookieName,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.secure,
+		SameSite: h.sameSiteMode(),
+	})
+}
+
+func (h *AuthHandler) setAccessCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     accessCookieName,
+		Value:    base64.StdEncoding.EncodeToString([]byte(token)),
+		Path:     "/",
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   h.secure,
+		SameSite: h.sameSiteMode(),
+	})
+}
+
+func (h *AuthHandler) clearAccessCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     accessCookieName,
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Unix(0, 0),

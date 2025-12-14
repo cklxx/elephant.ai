@@ -6,17 +6,17 @@ This document demonstrates how to use ALEX agent presets with practical examples
 
 1. Start the ALEX server:
 ```bash
-./alex server
+./alex-server
 ```
 
-2. The server runs on `http://localhost:3000` by default
+2. The server runs on `http://localhost:8080` by default
 
 ## Example 1: Security Code Review
 
 Review code for security vulnerabilities using the security-analyst preset with read-only access.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Review the authentication code in internal/auth/ for security vulnerabilities. Check for SQL injection, authentication bypasses, and insecure password handling.",
@@ -36,7 +36,7 @@ curl -X POST http://localhost:3000/api/tasks \
 Optimize code performance using the code-expert preset with full access.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Analyze and optimize the database queries in internal/db/queries.go. Look for N+1 queries and add appropriate indexes.",
@@ -56,7 +56,7 @@ curl -X POST http://localhost:3000/api/tasks \
 Research and compare technologies using the researcher preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Research and compare different state management solutions for React: Redux, MobX, Zustand, and Jotai. Provide pros/cons and recommendation.",
@@ -76,10 +76,10 @@ curl -X POST http://localhost:3000/api/tasks \
 Set up infrastructure using the devops preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "task": "Create a complete Docker Compose setup for our application with PostgreSQL, Redis, and Nginx. Include health checks and proper networking.",
+    "task": "Create a production deployment checklist for running alex-server and serving the static web UI behind an nginx reverse proxy. Include systemd unit examples, health checks, and required environment variables.",
     "agent_preset": "devops",
     "tool_preset": "full"
   }'
@@ -87,16 +87,16 @@ curl -X POST http://localhost:3000/api/tasks \
 
 **What happens:**
 - Agent uses DevOps best practices
-- Creates deploy/docker/docker-compose.yml with all services
-- Sets up health checks and monitoring
-- Includes documentation for deployment
+- Produces a concrete checklist + example configs for deployment
+- Includes health checks and monitoring suggestions
+- Documents environment variables and operational knobs
 
 ## Example 5: Codebase Investigation
 
 Investigate a codebase using the researcher preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Analyze the architecture of the internal/agent/ package. Document the main components, their relationships, and provide a summary of the design patterns used.",
@@ -116,7 +116,7 @@ curl -X POST http://localhost:3000/api/tasks \
 Refactor code using the code-expert preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Refactor the internal/tools/builtin/file_*.go files to reduce code duplication. Extract common validation logic into shared utilities.",
@@ -136,10 +136,10 @@ curl -X POST http://localhost:3000/api/tasks \
 Create CI/CD pipeline using the devops preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
-    "task": "Create a GitHub Actions workflow for this Go project. Include: linting, testing, building, and Docker image publishing. Add caching for faster builds.",
+    "task": "Create a GitHub Actions workflow for this Go project. Include: linting, testing, building, and uploading release artifacts. Add caching for faster builds.",
     "agent_preset": "devops",
     "tool_preset": "full"
   }'
@@ -156,7 +156,7 @@ curl -X POST http://localhost:3000/api/tasks \
 Comprehensive security audit using the security-analyst preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Perform a comprehensive security audit of the entire codebase. Check for: hardcoded secrets, unsafe dependencies, insecure configurations, and potential injection vulnerabilities.",
@@ -176,7 +176,7 @@ curl -X POST http://localhost:3000/api/tasks \
 Create API documentation using the researcher preset.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Create comprehensive API documentation for all endpoints in internal/server/http/. Include request/response examples, error codes, and authentication requirements.",
@@ -196,7 +196,7 @@ curl -X POST http://localhost:3000/api/tasks \
 Review untrusted code safely.
 
 ```bash
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:8080/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "task": "Review the pull request changes in /tmp/pr-diff.txt. Analyze code quality, potential bugs, and suggest improvements.",

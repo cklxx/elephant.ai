@@ -67,22 +67,6 @@ export interface ResearchStep {
 }
 
 /**
- * Browser diagnostics data
- */
-export interface BrowserDiagnostics {
-  id: string;
-  timestamp: string;
-  captured: string;
-  success?: boolean;
-  message?: string;
-  user_agent?: string;
-  cdp_url?: string;
-  vnc_url?: string;
-  viewport_width?: number;
-  viewport_height?: number;
-}
-
-/**
  * Aggregate events into tool calls by call_id
  */
 export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, AggregatedToolCall> {
@@ -147,8 +131,6 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
   return toolCallMap;
 }
 
-export type SandboxLevel = 'standard' | 'filesystem' | 'system';
-
 export interface ToolCallSummary {
   callId: string;
   toolName: string;
@@ -159,17 +141,12 @@ export interface ToolCallSummary {
   argumentsPreview?: string;
   resultPreview?: string;
   errorMessage?: string;
-  requiresSandbox: boolean;
-  sandboxLevel: SandboxLevel;
   metadata?: Record<string, any>;
   attachments?: Record<string, AttachmentPayload>;
   prompt?: string;
   arguments?: Record<string, any>;
   streamChunks?: string[];
 }
-
-export const FILE_TOOL_HINTS = ['file', 'fs', 'write', 'read', 'download', 'upload'];
-export const SYSTEM_TOOL_HINTS = ['shell', 'bash', 'system', 'process', 'exec', 'command'];
 
 function truncatePreview(value: string, length: number) {
   if (value.length <= length) {
@@ -197,20 +174,6 @@ function buildResultPreview(result: string | undefined) {
     return undefined;
   }
   return truncatePreview(result, 160);
-}
-
-function inferSandboxLevel(toolName: string): SandboxLevel {
-  const normalized = toolName.toLowerCase();
-
-  if (SYSTEM_TOOL_HINTS.some((hint) => normalized.includes(hint))) {
-    return 'system';
-  }
-
-  if (FILE_TOOL_HINTS.some((hint) => normalized.includes(hint))) {
-    return 'filesystem';
-  }
-
-  return 'standard';
 }
 
 function extractPrompt(call: AggregatedToolCall): string | undefined {
@@ -244,8 +207,6 @@ export function buildToolCallSummaries(events: AnyAgentEvent[]): ToolCallSummary
           ? 'completed'
           : 'running';
 
-    const sandboxLevel = inferSandboxLevel(call.tool_name);
-
     return {
       callId: call.call_id,
       toolName: call.tool_name,
@@ -256,8 +217,6 @@ export function buildToolCallSummaries(events: AnyAgentEvent[]): ToolCallSummary
       argumentsPreview: buildArgumentsPreview(call.arguments, call.arguments_preview),
       resultPreview: buildResultPreview(call.result),
       errorMessage: call.error,
-      requiresSandbox: true,
-      sandboxLevel,
       metadata: call.metadata,
       attachments: call.attachments,
       prompt: extractPrompt(call),
@@ -419,28 +378,6 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
   }
 
   return Array.from(steps.values()).sort((a, b) => a.step_index - b.step_index);
-}
-
-/**
- * Extract browser diagnostics events from the stream
- */
-export function extractBrowserDiagnostics(events: AnyAgentEvent[]): BrowserDiagnostics[] {
-  return events
-    .filter((e): e is import('./types').WorkflowDiagnosticBrowserInfoEvent =>
-      eventMatches(e, 'workflow.diagnostic.browser_info'),
-    )
-    .map((e) => ({
-      id: `browser-info-${e.timestamp}`,
-      timestamp: e.timestamp,
-      captured: e.captured,
-      success: e.success,
-      message: e.message,
-      user_agent: e.user_agent,
-      cdp_url: e.cdp_url,
-      vnc_url: e.vnc_url,
-      viewport_width: e.viewport_width,
-      viewport_height: e.viewport_height,
-    }));
 }
 
 /**

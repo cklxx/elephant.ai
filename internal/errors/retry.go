@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"time"
 
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // RetryConfig configures retry behavior
@@ -37,9 +37,9 @@ func Retry(ctx context.Context, config RetryConfig, fn RetryableFunc) error {
 }
 
 // RetryWithLog executes a function with retry logic and custom logger
-func RetryWithLog(ctx context.Context, config RetryConfig, fn RetryableFunc, logger *utils.Logger) error {
-	if logger == nil {
-		logger = utils.NewComponentLogger("retry")
+func RetryWithLog(ctx context.Context, config RetryConfig, fn RetryableFunc, logger logging.Logger) error {
+	if logging.IsNil(logger) {
+		logger = logging.NewComponentLogger("retry")
 	}
 
 	var lastErr error
@@ -108,9 +108,9 @@ func RetryWithResult[T any](ctx context.Context, config RetryConfig, fn func(ctx
 }
 
 // RetryWithResultAndLog executes a function that returns a result with retry logic and custom logger
-func RetryWithResultAndLog[T any](ctx context.Context, config RetryConfig, fn func(ctx context.Context) (T, error), logger *utils.Logger) (T, error) {
-	if logger == nil {
-		logger = utils.NewComponentLogger("retry")
+func RetryWithResultAndLog[T any](ctx context.Context, config RetryConfig, fn func(ctx context.Context) (T, error), logger logging.Logger) (T, error) {
+	if logging.IsNil(logger) {
+		logger = logging.NewComponentLogger("retry")
 	}
 
 	var lastErr error

@@ -18,14 +18,6 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? 'auto',
   },
-  experimental: {
-    /**
-     * Opt-in to the Rust-based Turbopack compiler for both dev and build
-     * pipelines. This significantly reduces incremental build latency while
-     * keeping configuration flexible for future loader overrides.
-     */
-    turbo: {},
-  },
 };
 
 export default nextConfig;

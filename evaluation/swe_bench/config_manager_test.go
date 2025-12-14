@@ -2,14 +2,14 @@ package swe_bench
 
 import "testing"
 
-func TestConfigManagerEnvOverridesUseAliasLookup(t *testing.T) {
+func TestConfigManagerEnvOverrides(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "key")
 	t.Setenv("LLM_PROVIDER", "mock")
-	t.Setenv("ALEX_NUM_WORKERS", "7")
-	t.Setenv("ALEX_OUTPUT_PATH", "/tmp/results")
-	t.Setenv("ALEX_DATASET_TYPE", "swe_bench")
-	t.Setenv("ALEX_DATASET_SUBSET", "verified")
-	t.Setenv("ALEX_DATASET_SPLIT", "test")
+	t.Setenv("NUM_WORKERS", "7")
+	t.Setenv("OUTPUT_PATH", "/tmp/results")
+	t.Setenv("DATASET_TYPE", "swe_bench")
+	t.Setenv("DATASET_SUBSET", "verified")
+	t.Setenv("DATASET_SPLIT", "test")
 
 	cm := NewConfigManager()
 	cfg, err := cm.LoadConfig("")
@@ -37,7 +37,7 @@ func TestConfigManagerEnvOverridesUseAliasLookup(t *testing.T) {
 func TestConfigManagerEnvOverrideParsingErrors(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "key")
 	t.Setenv("LLM_PROVIDER", "mock")
-	t.Setenv("ALEX_NUM_WORKERS", "not-a-number")
+	t.Setenv("NUM_WORKERS", "not-a-number")
 
 	cm := NewConfigManager()
 	if _, err := cm.LoadConfig(""); err == nil {

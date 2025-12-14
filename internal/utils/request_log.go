@@ -27,7 +27,7 @@ const (
 
 // LogStreamingRequestPayload persists the serialized request payload for a streaming request.
 // The payload is written to logs/requests/streaming.log (or the directory specified via
-// ALEX_REQUEST_LOG_DIR) so it doesn't mix with the general server logs captured by deploy.sh.
+// ALEX_REQUEST_LOG_DIR) so it doesn't mix with the general server logs.
 func LogStreamingRequestPayload(requestID string, payload []byte) {
 	logStreamingPayload(requestID, payload, "request")
 }

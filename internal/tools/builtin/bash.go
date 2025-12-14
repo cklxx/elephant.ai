@@ -6,27 +6,17 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
-	"alex/internal/tools"
 	"context"
 	"fmt"
 	"os/exec"
 )
 
 type bash struct {
-	mode    tools.ExecutionMode
-	sandbox *tools.SandboxManager
 }
 
 func NewBash(cfg ShellToolConfig) ports.ToolExecutor {
-	mode := cfg.Mode
-	if mode == tools.ExecutionModeUnknown {
-		mode = tools.ExecutionModeLocal
-	}
-	return &bash{mode: mode, sandbox: cfg.SandboxManager}
-}
-
-func (t *bash) Mode() tools.ExecutionMode {
-	return t.mode
+	_ = cfg
+	return &bash{}
 }
 
 func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -35,13 +25,6 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'command'")}, nil
 	}
 
-	if t.mode == tools.ExecutionModeSandbox {
-		return t.executeSandbox(ctx, call, command)
-	}
-	return t.executeLocal(ctx, call, command)
-}
-
-func (t *bash) executeLocal(ctx context.Context, call ports.ToolCall, command string) (*ports.ToolResult, error) {
 	// Auto-prepend working directory if command doesn't start with 'cd'
 	// This ensures commands execute in the current working directory
 	if !strings.HasPrefix(strings.TrimSpace(command), "cd ") {
@@ -120,10 +103,6 @@ func (t *bash) executeLocal(ctx context.Context, call ports.ToolCall, command st
 	}, nil
 }
 
-func (t *bash) executeSandbox(ctx context.Context, call ports.ToolCall, command string) (*ports.ToolResult, error) {
-	return executeSandboxCommand(ctx, t.sandbox, call, command)
-}
-
 func (t *bash) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "bash",
@@ -142,4 +121,11 @@ func (t *bash) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name: "bash", Version: "1.0.0", Category: "execution", Dangerous: true,
 	}
+}
+
+func countLines(output string) int {
+	if output == "" {
+		return 0
+	}
+	return strings.Count(output, "\n") + 1
 }

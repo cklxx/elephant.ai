@@ -17,8 +17,8 @@ npm install
 ```
 
 This will install all required packages (~400MB):
-- Next.js 14
-- React 18
+- Next.js (App Router)
+- React
 - TypeScript
 - Tailwind CSS
 - React Query
@@ -49,7 +49,7 @@ npm run dev
 You should see:
 
 ```
-▲ Next.js 14.2.15
+▲ Next.js
 - Local:        http://localhost:3000
 - Ready in 2.3s
 ```
@@ -196,7 +196,7 @@ Recommended:
 npm run build
 ```
 
-Output in `.next/` directory.
+Output in `out/` directory.
 
 ### Deploy to Vercel
 
@@ -207,13 +207,6 @@ vercel deploy
 
 Set environment variable in Vercel dashboard:
 - `NEXT_PUBLIC_API_URL` = your production backend URL
-
-### Docker
-
-```bash
-docker build -t alex-web .
-docker run -p 3000:3000 -e NEXT_PUBLIC_API_URL=http://backend:8080 alex-web
-```
 
 ## Useful Links
 

@@ -209,7 +209,7 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 		l.logger.Print(sanitizedLine)
 	}
 
-	// Only write to stdout when running via deploy.sh (for log redirection)
+	// Only write to stdout when ALEX_SERVER_MODE=deploy (for log redirection)
 	if os.Getenv("ALEX_SERVER_MODE") == "deploy" {
 		fmt.Print(sanitizedLine)
 	}

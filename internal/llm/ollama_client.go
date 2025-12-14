@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/httpclient"
+	"alex/internal/logging"
 )
 
 var _ ports.StreamingLLMClient = (*ollamaClient)(nil)
@@ -22,7 +23,7 @@ type ollamaClient struct {
 	model      string
 	baseURL    string
 	httpClient *http.Client
-	logger     *utils.Logger
+	logger     logging.Logger
 }
 
 func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
@@ -39,13 +40,13 @@ func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
 		timeout = 60 * time.Second
 	}
 
+	logger := logging.NewComponentLogger("ollama-client")
+
 	client := &ollamaClient{
-		model:   model,
-		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		logger: utils.NewComponentLogger("ollama-client"),
+		model:      model,
+		baseURL:    baseURL,
+		httpClient: httpclient.New(timeout, logger),
+		logger:     logger,
 	}
 
 	return client, nil
@@ -230,8 +231,9 @@ type ollamaRequest struct {
 }
 
 type ollamaMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	Images  []string `json:"images,omitempty"`
 }
 
 type ollamaResponse struct {
@@ -250,13 +252,34 @@ func convertOllamaMessages(msgs []ports.Message) []ollamaMessage {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
-		content := msg.Content
-		if content == "" {
+		role := strings.TrimSpace(msg.Role)
+		if role == "" {
 			continue
 		}
+
+		content := msg.Content
+
+		var images []string
+		if strings.EqualFold(role, "user") && len(msg.Attachments) > 0 {
+			ordered := orderedImageAttachments(content, msg.Attachments)
+			if len(ordered) > 0 {
+				images = make([]string, 0, len(ordered))
+				for _, desc := range ordered {
+					if b64 := ports.AttachmentInlineBase64(desc.Attachment); b64 != "" {
+						images = append(images, b64)
+					}
+				}
+			}
+		}
+
+		if strings.TrimSpace(content) == "" && len(images) == 0 {
+			continue
+		}
+
 		result = append(result, ollamaMessage{
-			Role:    msg.Role,
+			Role:    role,
 			Content: content,
+			Images:  images,
 		})
 	}
 	return result

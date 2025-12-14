@@ -3,26 +3,11 @@ package legacy
 import (
 	"context"
 	"strings"
-	"time"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
 	"alex/internal/materials/broker"
+	materialports "alex/internal/materials/ports"
 )
-
-// MigrationRequest describes a batch of attachments that should be normalized.
-type MigrationRequest struct {
-	Context     *materialapi.RequestContext
-	Attachments map[string]ports.Attachment
-	Status      materialapi.MaterialStatus
-	Origin      string
-	Retention   time.Duration
-}
-
-// Migrator normalizes attachment maps by uploading inline payloads.
-type Migrator interface {
-	Normalize(ctx context.Context, req MigrationRequest) (map[string]ports.Attachment, error)
-}
 
 // BrokerMigrator uses the attachment broker to migrate legacy payloads.
 type BrokerMigrator struct {
@@ -35,7 +20,7 @@ func NewBrokerMigrator(b *broker.AttachmentBroker) *BrokerMigrator {
 }
 
 // Normalize uploads inline payloads and returns CDN-backed attachments.
-func (m *BrokerMigrator) Normalize(ctx context.Context, req MigrationRequest) (map[string]ports.Attachment, error) {
+func (m *BrokerMigrator) Normalize(ctx context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
 	if m == nil || m.Broker == nil || len(req.Attachments) == 0 {
 		return req.Attachments, nil
 	}
@@ -78,4 +63,4 @@ func needsUpload(att ports.Attachment) bool {
 	return false
 }
 
-var _ Migrator = (*BrokerMigrator)(nil)
+var _ materialports.Migrator = (*BrokerMigrator)(nil)

@@ -329,51 +329,10 @@ func NewWorkflowDiagnosticToolFilteringEvent(level ports.AgentLevel, sessionID, 
 	}
 }
 
-// WorkflowDiagnosticBrowserInfoEvent - emitted when sandbox browser diagnostics are captured
-type WorkflowDiagnosticBrowserInfoEvent struct {
-	BaseEvent
-	Success        *bool
-	Message        string
-	UserAgent      string
-	CDPURL         string
-	VNCURL         string
-	ViewportWidth  int
-	ViewportHeight int
-	Captured       time.Time
-}
-
-func (e *WorkflowDiagnosticBrowserInfoEvent) EventType() string {
-	return "workflow.diagnostic.browser_info"
-}
-
-// NewWorkflowDiagnosticBrowserInfoEvent creates a new browser diagnostics event
-func NewWorkflowDiagnosticBrowserInfoEvent(
-	level ports.AgentLevel,
-	sessionID, taskID, parentTaskID string,
-	captured time.Time,
-	success *bool,
-	message, userAgent, cdpURL, vncURL string,
-	viewportWidth, viewportHeight int,
-) *WorkflowDiagnosticBrowserInfoEvent {
-	event := &WorkflowDiagnosticBrowserInfoEvent{
-		BaseEvent:      newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, captured),
-		Success:        success,
-		Message:        message,
-		UserAgent:      userAgent,
-		CDPURL:         cdpURL,
-		VNCURL:         vncURL,
-		ViewportWidth:  viewportWidth,
-		ViewportHeight: viewportHeight,
-		Captured:       captured,
-	}
-	return event
-}
-
-// WorkflowDiagnosticEnvironmentSnapshotEvent - emitted when host/sandbox environments are captured
+// WorkflowDiagnosticEnvironmentSnapshotEvent - emitted when host environment is captured
 type WorkflowDiagnosticEnvironmentSnapshotEvent struct {
 	BaseEvent
 	Host     map[string]string
-	Sandbox  map[string]string
 	Captured time.Time
 }
 
@@ -382,42 +341,11 @@ func (e *WorkflowDiagnosticEnvironmentSnapshotEvent) EventType() string {
 }
 
 // NewWorkflowDiagnosticEnvironmentSnapshotEvent constructs a new environment snapshot event.
-func NewWorkflowDiagnosticEnvironmentSnapshotEvent(host, sandbox map[string]string, captured time.Time) *WorkflowDiagnosticEnvironmentSnapshotEvent {
+func NewWorkflowDiagnosticEnvironmentSnapshotEvent(host map[string]string, captured time.Time) *WorkflowDiagnosticEnvironmentSnapshotEvent {
 	return &WorkflowDiagnosticEnvironmentSnapshotEvent{
 		BaseEvent: newBaseEventWithIDs(ports.LevelCore, "", "", "", captured),
 		Host:      cloneStringMap(host),
-		Sandbox:   cloneStringMap(sandbox),
 		Captured:  captured,
-	}
-}
-
-// WorkflowDiagnosticSandboxProgressEvent captures initialization progress for the shared sandbox runtime.
-type WorkflowDiagnosticSandboxProgressEvent struct {
-	BaseEvent
-	Status     string
-	Stage      string
-	Message    string
-	Step       int
-	TotalSteps int
-	Error      string
-	Updated    time.Time
-}
-
-func (e *WorkflowDiagnosticSandboxProgressEvent) EventType() string {
-	return "workflow.diagnostic.sandbox_progress"
-}
-
-// NewWorkflowDiagnosticSandboxProgressEvent constructs a sandbox progress event.
-func NewWorkflowDiagnosticSandboxProgressEvent(status, stage, message string, step, totalSteps int, errMessage string, updated time.Time) *WorkflowDiagnosticSandboxProgressEvent {
-	return &WorkflowDiagnosticSandboxProgressEvent{
-		BaseEvent:  newBaseEventWithIDs(ports.LevelCore, "", "", "", updated),
-		Status:     status,
-		Stage:      stage,
-		Message:    message,
-		Step:       step,
-		TotalSteps: totalSteps,
-		Error:      errMessage,
-		Updated:    updated,
 	}
 }
 

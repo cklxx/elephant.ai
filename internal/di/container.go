@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,14 +14,13 @@ import (
 	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/logging"
 	"alex/internal/mcp"
 	"alex/internal/parser"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
-	"alex/internal/tools"
-	"alex/internal/utils"
 	"golang.org/x/time/rate"
 )
 
@@ -35,8 +33,7 @@ type Container struct {
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
-
-	SandboxManager *tools.SandboxManager
+	mcpInitCancel    context.CancelFunc
 
 	// Lazy initialization state
 	config       Config
@@ -51,6 +48,7 @@ type Config struct {
 	// LLM Configuration
 	LLMProvider             string
 	LLMModel                string
+	LLMVisionModel          string
 	APIKey                  string
 	ArkAPIKey               string
 	BaseURL                 string
@@ -61,7 +59,6 @@ type Config struct {
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
-	SandboxBaseURL          string
 	MaxTokens               int
 	MaxIterations           int
 	UserRateLimitRPS        float64
@@ -85,13 +82,12 @@ type Config struct {
 	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
 
 	// Feature Flags
-	EnableMCP      bool // Enable MCP tool registration (requires external dependencies)
-	DisableSandbox bool // Disable sandbox initialization for faster startup in CLI mode
+	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
 }
 
 // Start initializes heavy dependencies (MCP) based on feature flags
 func (c *Container) Start() error {
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 	logger.Info("Starting container lifecycle...")
 
 	// Initialize MCP if enabled
@@ -111,17 +107,23 @@ func (c *Container) Start() error {
 
 // Shutdown gracefully shuts down all resources
 func (c *Container) Shutdown() error {
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 	logger.Info("Shutting down container...")
 
 	c.mcpMu.Lock()
 	defer c.mcpMu.Unlock()
+
+	if c.mcpInitCancel != nil {
+		c.mcpInitCancel()
+		c.mcpInitCancel = nil
+	}
 
 	if c.mcpStarted && c.MCPRegistry != nil {
 		if err := c.MCPRegistry.Shutdown(); err != nil {
 			logger.Error("Failed to shutdown MCP: %v", err)
 			return err
 		}
+		c.mcpStarted = false
 		logger.Info("MCP shutdown successfully")
 	}
 
@@ -143,8 +145,10 @@ func (c *Container) startMCP() error {
 		return nil // Already started
 	}
 
-	logger := utils.NewComponentLogger("DI")
-	startMCPInitialization(c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
+	logger := logging.NewComponentLogger("DI")
+	initCtx, cancel := context.WithCancel(context.Background())
+	c.mcpInitCancel = cancel
+	startMCPInitialization(initCtx, c.MCPRegistry, c.toolRegistry, logger, c.mcpInitTracker)
 	c.mcpStarted = true
 
 	return nil
@@ -153,7 +157,7 @@ func (c *Container) startMCP() error {
 // BuildContainer builds the dependency injection container with the given configuration
 // Heavy initialization (MCP) is deferred until Start() is called
 func BuildContainer(config Config) (*Container, error) {
-	logger := utils.NewComponentLogger("DI")
+	logger := logging.NewComponentLogger("DI")
 
 	// Resolve storage directories with defaults
 	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex-sessions")
@@ -166,29 +170,9 @@ func BuildContainer(config Config) (*Container, error) {
 	if config.UserRateLimitRPS > 0 {
 		llmFactory.EnableUserRateLimit(rate.Limit(config.UserRateLimitRPS), config.UserRateLimitBurst)
 	}
-	executionMode := tools.ExecutionModeLocal
-	var sandboxManager *tools.SandboxManager
-	sandboxBaseURL := strings.TrimSpace(config.SandboxBaseURL)
-
-	// Skip sandbox initialization if explicitly disabled (e.g., in CLI single-command mode)
-	if config.DisableSandbox {
-		logger.Debug("Sandbox disabled by configuration (CLI mode optimization)")
-		sandboxBaseURL = ""
-	} else if sandboxBaseURL != "" {
-		executionMode = tools.ExecutionModeSandbox
-		sandboxManager = tools.NewSandboxManager(sandboxBaseURL)
-		if err := sandboxManager.Initialize(context.Background()); err != nil {
-			formatted := tools.FormatSandboxError(err)
-			logger.Warn("Sandbox initialization failed for %s: %v (falling back to local execution)", sandboxBaseURL, formatted)
-			sandboxManager = nil
-			executionMode = tools.ExecutionModeLocal
-			sandboxBaseURL = ""
-		}
-	}
 
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
-		SandboxBaseURL:          sandboxBaseURL,
 		ArkAPIKey:               config.ArkAPIKey,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
@@ -196,8 +180,6 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
-		ExecutionMode:           executionMode,
-		SandboxManager:          sandboxManager,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
@@ -219,6 +201,7 @@ func BuildContainer(config Config) (*Container, error) {
 	)
 	historyMgr := ctxmgr.NewHistoryManager(historyStore, logger, ports.SystemClock{})
 	parserImpl := parser.New()
+	llmFactory.EnableToolCallParsing(parserImpl)
 
 	// Cost tracking storage
 	costStore, err := storage.NewFileCostStore(costDir)
@@ -227,11 +210,10 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	costTracker := agentApp.NewCostTracker(costStore)
 
-	config.SandboxBaseURL = sandboxBaseURL
-
 	runtimeSnapshot := runtimeconfig.RuntimeConfig{
 		LLMProvider:             config.LLMProvider,
 		LLMModel:                config.LLMModel,
+		LLMVisionModel:          config.LLMVisionModel,
 		APIKey:                  config.APIKey,
 		ArkAPIKey:               config.ArkAPIKey,
 		BaseURL:                 config.BaseURL,
@@ -242,7 +224,6 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
-		SandboxBaseURL:          sandboxBaseURL,
 		Environment:             config.Environment,
 		Verbose:                 config.Verbose,
 		DisableTUI:              config.DisableTUI,
@@ -276,6 +257,7 @@ func BuildContainer(config Config) (*Container, error) {
 		agentApp.Config{
 			LLMProvider:         config.LLMProvider,
 			LLMModel:            config.LLMModel,
+			LLMVisionModel:      config.LLMVisionModel,
 			APIKey:              config.APIKey,
 			BaseURL:             config.BaseURL,
 			MaxTokens:           config.MaxTokens,
@@ -306,7 +288,6 @@ func BuildContainer(config Config) (*Container, error) {
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
-		SandboxManager:   sandboxManager,
 		config:           config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,
@@ -370,15 +351,20 @@ func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
 	return c.mcpInitTracker.Snapshot()
 }
 
-func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger *utils.Logger, tracker *MCPInitializationTracker) {
+func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger logging.Logger, tracker *MCPInitializationTracker) {
 	const (
 		initialBackoff = time.Second
 		maxBackoff     = 30 * time.Second
 	)
 
 	go func() {
+		logger = logging.OrNop(logger)
 		backoff := initialBackoff
 		for {
+			if ctx.Err() != nil {
+				logger.Info("MCP initialization cancelled")
+				return
+			}
 			tracker.recordAttempt()
 			snapshot := tracker.Snapshot()
 			logger.Info("Initializing MCP registry (attempt %d)", snapshot.Attempts)
@@ -387,18 +373,26 @@ func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegis
 				logger.Warn("MCP initialization failed: %v", err)
 				tracker.recordFailure(err)
 				backoff = nextBackoff(backoff, maxBackoff)
-				time.Sleep(backoff)
+				if !sleepContext(ctx, backoff) {
+					return
+				}
 				continue
 			}
 
 			backoff = initialBackoff
 
 			for {
+				if ctx.Err() != nil {
+					logger.Info("MCP initialization cancelled")
+					return
+				}
 				if err := registry.RegisterWithToolRegistry(toolRegistry); err != nil {
 					logger.Warn("MCP tool registration failed: %v", err)
 					tracker.recordFailure(err)
 					backoff = nextBackoff(backoff, maxBackoff)
-					time.Sleep(backoff)
+					if !sleepContext(ctx, backoff) {
+						return
+					}
 					continue
 				}
 				tracker.recordSuccess()
@@ -407,6 +401,18 @@ func startMCPInitialization(registry *mcp.Registry, toolRegistry ports.ToolRegis
 			}
 		}
 	}()
+}
+
+func sleepContext(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func nextBackoff(current, max time.Duration) time.Duration {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/httpclient"
 )
 
 type webSearch struct {
@@ -24,7 +25,7 @@ func NewWebSearch(apiKey string) ports.ToolExecutor {
 
 func newWebSearch(apiKey string, client *http.Client) *webSearch {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = httpclient.New(30*time.Second, nil)
 	}
 	return &webSearch{client: client, apiKey: apiKey}
 }
@@ -48,7 +49,7 @@ Returns relevant search results with summaries and URLs.
 Setup:
 1. Get API key from https://app.tavily.com/
 2. Set environment: export TAVILY_API_KEY="your-key"
-   OR add to ~/.alex-config.json: "tavilyApiKey": "your-key"`,
+   OR add to ~/.alex-config.json: "tavily_api_key": "your-key"`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -78,7 +79,7 @@ func (t *webSearch) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 			Content: "Web search not configured. Please set Tavily API key:\n\n" +
 				"1. Get key from: https://app.tavily.com/\n" +
 				"2. Set env: export TAVILY_API_KEY=\"your-key\"\n" +
-				"   OR add to ~/.alex-config.json: \"tavilyApiKey\": \"your-key\"",
+				"   OR add to ~/.alex-config.json: \"tavily_api_key\": \"your-key\"",
 		}, nil
 	}
 

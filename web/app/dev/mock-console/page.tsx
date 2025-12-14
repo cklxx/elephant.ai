@@ -46,7 +46,7 @@ export default function MockConsolePage() {
               </p>
               <h1 className="text-xl font-semibold text-slate-900 lg:text-2xl">Streaming final answer preview</h1>
               <p className="text-sm text-slate-600">
-                This sandbox replays mocked agent events, including streaming workflow.result.final updates with attachments.
+                This replay uses mocked agent events, including streaming workflow.result.final updates with attachments.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

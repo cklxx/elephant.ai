@@ -145,8 +145,8 @@ const orchestrationSubagents: SubagentMission[] = [
     ],
   },
   {
-    id: 'sandbox-script',
-    title: 'Sandbox 回放脚本',
+    id: 'replay-script',
+    title: '回放脚本',
     preview: '录制自动化脚本，回放 Subagent 时间线',
     status: 'running',
     outcome: '构建浏览器脚本，确保事件流在回放模式下同步滚动。',
@@ -156,15 +156,15 @@ const orchestrationSubagents: SubagentMission[] = [
     ],
     tools: [
       {
-        id: 'sandbox-tool-1',
+        id: 'replay-tool-1',
         label: '录制滚动轨迹',
-        summary: '在 sandbox 内记录事件元素的位置。',
+        summary: '在回放模式内记录事件元素的位置。',
         detail: '产出 6 条滚动锚点 + 节奏曲线。',
         duration: '进行中',
         status: 'running',
       },
       {
-        id: 'sandbox-tool-2',
+        id: 'replay-tool-2',
         label: '生成回放脚本',
         summary: '把锚点转成 playwright 指令，方便自动演示。',
         detail: '等待滚动数据完成。',
@@ -178,7 +178,7 @@ const orchestrationSubagents: SubagentMission[] = [
 const mainAgentThinkMoments: ThinkMoment[] = [
   {
     id: 'think-1',
-    content: '需要拆成“体验调研 + 组件验证 + Sandbox 回放”三路并行。',
+    content: '需要拆成“体验调研 + 组件验证 + 回放脚本”三路并行。',
     accent: 'Iteration 01 · 00:22',
   },
   {
@@ -209,10 +209,10 @@ const mainAgentDelegations: DelegationMoment[] = [
     accent: 'Parallel · 2 slots',
   },
   {
-    id: 'delegate-sandbox',
-    title: '拉起 Sandbox 回放脚本 subagent',
+    id: 'delegate-replay',
+    title: '拉起回放脚本 subagent',
     detail: '结合滚动锚点，为演示版准备自动播放脚本。',
-    targetSubagentId: 'sandbox-script',
+    targetSubagentId: 'replay-script',
     accent: 'Serial · 1 slot',
   },
 ];
@@ -221,7 +221,7 @@ const finalToolPreview: FinalToolPreview = {
   title: 'FINAL · 汇总报告',
   description: '聚合全部 subagent 输出，生成对外沟通可直接引用的总结。',
   expectedResult:
-    '整理出实时工具流的自动滚动策略，并给出 badge token 的映射与 Sandbox 回放脚本建议。',
+    '整理出实时工具流的自动滚动策略，并给出 badge token 的映射与回放脚本建议。',
   highlights: [
     { label: '迭代', value: '2' },
     { label: 'Subagent', value: '3 并行' },
@@ -277,7 +277,7 @@ const mockEvents: AnyAgentEvent[] = [
     agent_level: 'core',
     call_id: 'think-core-1',
     tool_name: 'think',
-    result: '整理出体验对标 + 组件验证 + Sandbox 回放三条路线。',
+    result: '整理出体验对标 + 组件验证 + 回放脚本三条路线。',
     duration: 2000,
   },
   {
@@ -451,7 +451,7 @@ const mockEvents: AnyAgentEvent[] = [
     timestamp: atOffset(84),
     agent_level: 'core',
     call_id: 'think-core-2',
-    chunk: '需要拉起 Sandbox subagent，准备最终合成。\n',
+    chunk: '需要拉起回放脚本 subagent，准备最终合成。\n',
     is_complete: false,
   },
   {
@@ -461,7 +461,7 @@ const mockEvents: AnyAgentEvent[] = [
     agent_level: 'core',
     call_id: 'think-core-2',
     tool_name: 'think',
-    result: '确认第二轮聚焦 Sandbox，待全部子任务完成再触发 Final 工具。',
+    result: '确认第二轮聚焦回放脚本，待全部子任务完成再触发 Final 工具。',
     duration: 1200,
   },
   {
@@ -474,7 +474,7 @@ const mockEvents: AnyAgentEvent[] = [
     tool_name: 'delegate_subagent',
     arguments: {
       subtasks: 1,
-      focus: ['Sandbox 回放脚本'],
+      focus: ['回放脚本'],
     },
   },
   {
@@ -484,7 +484,7 @@ const mockEvents: AnyAgentEvent[] = [
     agent_level: 'core',
     call_id: 'delegate-core-2',
     tool_name: 'delegate_subagent',
-    result: '拉起 Sandbox subagent，跟踪滚动锚点并生成回放脚本。',
+    result: '拉起回放脚本 subagent，跟踪滚动锚点并生成回放脚本。',
     duration: 1800,
   },
   {
@@ -525,7 +525,7 @@ const mockEvents: AnyAgentEvent[] = [
     call_id: 'final-call',
     tool_name: 'final_report',
     arguments: {
-      sources: ['immersive-ux', 'tooling-audit', 'sandbox-script'],
+      sources: ['immersive-ux', 'tooling-audit', 'replay-script'],
       mode: 'synthesis',
     },
   },
@@ -537,7 +537,7 @@ const mockEvents: AnyAgentEvent[] = [
     call_id: 'final-call',
     tool_name: 'final_report',
     result:
-      '综合子任务输出，得出自动滚动策略 + badge token 对齐方式，并给出 Sandbox 回放脚本步骤。',
+      '综合子任务输出，得出自动滚动策略 + badge token 对齐方式，并给出回放脚本步骤。',
     duration: 2600,
   },
   {

@@ -112,8 +112,8 @@ Using JWT based on your current setup...
 ### Research Request
 ```
 User: "How should we deploy this?"
-Alex: [web_search("deployment best practices")] + [file_read(docker/)]
-Based on your Docker setup and project scale...
+Alex: [web_search("deployment best practices")] + [file_read(docs/)] + [file_read(README.md)]
+Based on your deployment setup and project scale...
 [Specific recommendations with reasoning]
 ```
 

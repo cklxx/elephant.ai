@@ -12,7 +12,7 @@ import (
 func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
 	session := &ports.Session{ID: "session-plan-1", Messages: []ports.Message{}, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
-	deps := ExecutionPreparationDeps{
+		deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{},
 		SessionStore:  store,
@@ -57,12 +57,12 @@ func TestPrepareCapturesWorldStateFromContextManager(t *testing.T) {
 		SessionStore:  store,
 		ContextMgr:    worldAwareContextManager{},
 		Parser:        stubParser{},
-		Config:        Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3, EnvironmentSummary: "Sandbox"},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
-	}
+			Config:        Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3, EnvironmentSummary: "Local"},
+			Logger:        ports.NoopLogger{},
+			Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
+			CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+			EventEmitter:  ports.NoopEventListener{},
+		}
 	service := NewExecutionPreparationService(deps)
 	env, err := service.Prepare(context.Background(), "Audit world config", session.ID)
 	if err != nil {
@@ -71,17 +71,17 @@ func TestPrepareCapturesWorldStateFromContextManager(t *testing.T) {
 	if env.State == nil {
 		t.Fatalf("expected state to be populated")
 	}
-	if env.State.WorldState == nil {
-		t.Fatalf("expected world state to be seeded")
+		if env.State.WorldState == nil {
+			t.Fatalf("expected world state to be seeded")
+		}
+		profile, ok := env.State.WorldState["profile"].(map[string]any)
+		if !ok || profile["id"] != "local" {
+			t.Fatalf("expected world profile metadata, got %+v", env.State.WorldState)
+		}
+		if env.State.WorldDiff == nil || env.State.WorldDiff["profile_loaded"] != "local" {
+			t.Fatalf("expected world diff to capture profile load, got %+v", env.State.WorldDiff)
+		}
 	}
-	profile, ok := env.State.WorldState["profile"].(map[string]any)
-	if !ok || profile["id"] != "sandbox" {
-		t.Fatalf("expected world profile metadata, got %+v", env.State.WorldState)
-	}
-	if env.State.WorldDiff == nil || env.State.WorldDiff["profile_loaded"] != "sandbox" {
-		t.Fatalf("expected world diff to capture profile load, got %+v", env.State.WorldDiff)
-	}
-}
 
 type worldAwareContextManager struct{}
 
@@ -100,13 +100,13 @@ func (worldAwareContextManager) BuildWindow(ctx context.Context, session *ports.
 	return ports.ContextWindow{
 		SessionID: session.ID,
 		Messages:  append([]ports.Message(nil), session.Messages...),
-		Static: ports.StaticContext{
-			World: ports.WorldProfile{
-				ID:           "sandbox",
-				Environment:  "ci",
-				Capabilities: []string{"fs"},
-				Limits:       []string{"rate"},
-			},
+			Static: ports.StaticContext{
+				World: ports.WorldProfile{
+					ID:           "local",
+					Environment:  "ci",
+					Capabilities: []string{"fs"},
+					Limits:       []string{"rate"},
+				},
 			EnvironmentSummary: cfg.EnvironmentSummary,
 		},
 	}, nil

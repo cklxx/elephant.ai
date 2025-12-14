@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SaveFollowPreferences persists the default follow behaviour to the runtime configuration file.
 // It merges the new defaults with any existing configuration values and returns the path that was updated.
 func SaveFollowPreferences(followTranscript, followStream bool, opts ...Option) (string, error) {
 	options := loadOptions{
+		envLookup: DefaultEnvLookup,
 		readFile: os.ReadFile,
 		homeDir:  os.UserHomeDir,
 	}
@@ -19,7 +21,16 @@ func SaveFollowPreferences(followTranscript, followStream bool, opts ...Option) 
 		opt(&options)
 	}
 
-	configPath := options.configPath
+	configPath := strings.TrimSpace(options.configPath)
+	if configPath == "" {
+		lookup := options.envLookup
+		if lookup == nil {
+			lookup = DefaultEnvLookup
+		}
+		if value, ok := lookup("ALEX_CONFIG_PATH"); ok {
+			configPath = strings.TrimSpace(value)
+		}
+	}
 	if configPath == "" {
 		home, err := options.homeDir()
 		if err != nil {

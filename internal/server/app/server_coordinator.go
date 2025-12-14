@@ -13,11 +13,11 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/tools/builtin"
-	"alex/internal/utils"
 	id "alex/internal/utils/id"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -42,7 +42,7 @@ type ServerCoordinator struct {
 	sessionStore     ports.SessionStore
 	stateStore       sessionstate.Store
 	taskStore        serverPorts.TaskStore
-	logger           *utils.Logger
+	logger           logging.Logger
 	analytics        analytics.Client
 	journalReader    journal.Reader
 	obs              *observability.Observability
@@ -79,7 +79,7 @@ func NewServerCoordinator(
 		sessionStore:     sessionStore,
 		stateStore:       stateStore,
 		taskStore:        taskStore,
-		logger:           utils.NewComponentLogger("ServerCoordinator"),
+		logger:           logging.NewComponentLogger("ServerCoordinator"),
 		analytics:        analytics.NewNoopClient(),
 		cancelFuncs:      make(map[string]context.CancelCauseFunc),
 	}
@@ -360,7 +360,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Update task with result
 	_ = s.taskStore.SetResult(ctx, taskID, result)
 
-	s.logger.Info("[Background] Task execution completed: taskID=%s, sessionID=%s, iterations=%d", taskID, result.SessionID, result.Iterations)
+	s.logger.Info("[Background] Task execution completed: taskID=%s", taskID)
 
 	props := map[string]any{
 		"task_id":     taskID,

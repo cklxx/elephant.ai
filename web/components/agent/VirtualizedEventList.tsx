@@ -67,6 +67,7 @@ export function VirtualizedEventList({
   }, [focusedEventIndex, indexMap]);
 
   // Create virtualizer instance
+  // eslint-disable-next-line react-hooks/incompatible-library -- @tanstack/react-virtual is not React Compiler compatible yet.
   const virtualizer = useVirtualizer({
     count: visibleEvents.length,
     getScrollElement: () => parentRef.current,
@@ -416,57 +417,6 @@ function EventCard({
           {t('events.step.completed', { index: (event as any).step_index + 1 })}
         </p>
         <p className="text-sm text-foreground/75">{(event as any).step_result}</p>
-      </div>
-    );
-  }
-
-  if (eventMatches(event, 'workflow.diagnostic.browser_info')) {
-    const details: Array<[string, string]> = [];
-    if (typeof (event as any).success === 'boolean') {
-      details.push([
-        t('events.browserInfo.statusLabel'),
-        (event as any).success ? t('events.browserInfo.statusAvailable') : t('events.browserInfo.statusUnavailable'),
-      ]);
-    }
-    if ((event as any).message) {
-      details.push([t('events.browserInfo.messageLabel'), (event as any).message]);
-    }
-    if ((event as any).user_agent) {
-      details.push([t('events.browserInfo.userAgentLabel'), (event as any).user_agent]);
-    }
-    if ((event as any).cdp_url) {
-      details.push([t('events.browserInfo.cdpLabel'), (event as any).cdp_url]);
-    }
-    if ((event as any).vnc_url) {
-      details.push([t('events.browserInfo.vncLabel'), (event as any).vnc_url]);
-    }
-    if ((event as any).viewport_width && (event as any).viewport_height) {
-      details.push([
-        t('events.browserInfo.viewportLabel'),
-        `${(event as any).viewport_width} × ${(event as any).viewport_height}`,
-      ]);
-    }
-
-    return (
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-foreground">{t('events.browserInfo.title')}</h3>
-        <p className="text-[11px] text-muted-foreground">
-          {t('events.browserInfo.captured', {
-            timestamp: new Date((event as any).captured).toLocaleString(),
-          })}
-        </p>
-        {details.length > 0 ? (
-          <dl className="flex flex-col gap-2 text-sm text-foreground/80">
-            {details.map(([label, value]) => (
-              <div key={label} className="flex flex-col rounded-lg border border-border bg-background/90 px-3 py-2">
-                <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
-                <dd className="break-words text-sm text-foreground">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('events.browserInfo.noData')}</p>
-        )}
       </div>
     );
   }

@@ -161,11 +161,24 @@ func TestRefreshCookieSameSiteModes(t *testing.T) {
 		if refresh == nil {
 			t.Fatalf("expected refresh cookie in response")
 		}
+		access := findAccessCookie(rr.Result().Cookies())
+		if access == nil {
+			t.Fatalf("expected access cookie in response")
+		}
 		if refresh.SameSite != http.SameSiteLaxMode {
 			t.Fatalf("expected SameSite=Lax, got %v", refresh.SameSite)
 		}
 		if refresh.Secure {
 			t.Fatalf("expected insecure cookie in dev mode")
+		}
+		if access.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("expected SameSite=Lax, got %v", access.SameSite)
+		}
+		if access.Secure {
+			t.Fatalf("expected insecure cookie in dev mode")
+		}
+		if !access.HttpOnly {
+			t.Fatalf("expected HttpOnly access cookie")
 		}
 	})
 
@@ -186,11 +199,24 @@ func TestRefreshCookieSameSiteModes(t *testing.T) {
 		if refresh == nil {
 			t.Fatalf("expected refresh cookie in response")
 		}
+		access := findAccessCookie(rr.Result().Cookies())
+		if access == nil {
+			t.Fatalf("expected access cookie in response")
+		}
 		if refresh.SameSite != http.SameSiteNoneMode {
 			t.Fatalf("expected SameSite=None, got %v", refresh.SameSite)
 		}
 		if !refresh.Secure {
 			t.Fatalf("expected secure cookie in production mode")
+		}
+		if access.SameSite != http.SameSiteNoneMode {
+			t.Fatalf("expected SameSite=None, got %v", access.SameSite)
+		}
+		if !access.Secure {
+			t.Fatalf("expected secure cookie in production mode")
+		}
+		if !access.HttpOnly {
+			t.Fatalf("expected HttpOnly access cookie")
 		}
 	})
 }
@@ -260,6 +286,15 @@ func TestHandleOAuthCallbackFallsBackToJSON(t *testing.T) {
 func findRefreshCookie(cookies []*http.Cookie) *http.Cookie {
 	for _, cookie := range cookies {
 		if cookie.Name == "alex_refresh_token" {
+			return cookie
+		}
+	}
+	return nil
+}
+
+func findAccessCookie(cookies []*http.Cookie) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == "alex_access_token" {
 			return cookie
 		}
 	}

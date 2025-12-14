@@ -19,16 +19,17 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/analytics/journal"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	sessionstate "alex/internal/session/state_store"
-	"alex/internal/utils"
+	"alex/internal/skills"
 	"gopkg.in/yaml.v3"
 )
 
 type manager struct {
 	threshold  float64
 	configRoot string
-	logger     *utils.Logger
+	logger     logging.Logger
 	stateStore sessionstate.Store
 	metrics    *observability.ContextMetrics
 	journal    journal.Writer
@@ -64,9 +65,9 @@ func WithStateStore(store sessionstate.Store) Option {
 }
 
 // WithLogger injects a custom logger (used by tests).
-func WithLogger(logger *utils.Logger) Option {
+func WithLogger(logger logging.Logger) Option {
 	return func(m *manager) {
-		if logger != nil {
+		if !logging.IsNil(logger) {
 			m.logger = logger
 		}
 	}
@@ -97,7 +98,7 @@ func NewManager(opts ...Option) ports.ContextManager {
 	m := &manager{
 		threshold:  defaultThreshold,
 		configRoot: root,
-		logger:     utils.NewComponentLogger("ContextManager"),
+		logger:     logging.NewComponentLogger("ContextManager"),
 		metrics:    observability.NewContextMetrics(),
 		journal:    journal.NopWriter(),
 	}
@@ -317,7 +318,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		Dynamic: dyn,
 		Meta:    meta,
 	}
-	window.SystemPrompt = composeSystemPrompt(window.Static, window.Dynamic, window.Meta)
+	window.SystemPrompt = composeSystemPrompt(m.logger, window.Static, window.Dynamic, window.Meta)
 	return window, nil
 }
 
@@ -509,12 +510,13 @@ func normalizeHistoryLabel(msg ports.Message) string {
 	return role
 }
 
-func composeSystemPrompt(static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext) string {
+func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext) string {
 	sections := []string{
 		buildIdentitySection(static.Persona),
 		buildGoalsSection(static.Goal),
 		buildPoliciesSection(static.Policies),
 		buildKnowledgeSection(static.Knowledge),
+		buildSkillsSection(logger),
 		buildEnvironmentSection(static),
 		buildDynamicSection(dynamic),
 		buildMetaSection(meta),
@@ -526,6 +528,15 @@ func composeSystemPrompt(static ports.StaticContext, dynamic ports.DynamicContex
 		}
 	}
 	return strings.Join(compact, "\n\n")
+}
+
+func buildSkillsSection(logger logging.Logger) string {
+	library, err := skills.DefaultLibrary()
+	if err != nil {
+		logging.OrNop(logger).Warn("Failed to load skills: %v", err)
+		return ""
+	}
+	return skills.IndexMarkdown(library)
 }
 
 func buildIdentitySection(persona ports.PersonaProfile) string {
@@ -903,7 +914,7 @@ func mapToSlice[T any](input map[string]T) []T {
 type staticRegistry struct {
 	root    string
 	ttl     time.Duration
-	logger  *utils.Logger
+	logger  logging.Logger
 	metrics *observability.ContextMetrics
 
 	mu       sync.RWMutex
@@ -921,12 +932,12 @@ type staticSnapshot struct {
 	Worlds    map[string]ports.WorldProfile
 }
 
-func newStaticRegistry(root string, ttl time.Duration, logger *utils.Logger, metrics *observability.ContextMetrics) *staticRegistry {
+func newStaticRegistry(root string, ttl time.Duration, logger logging.Logger, metrics *observability.ContextMetrics) *staticRegistry {
 	if ttl <= 0 {
 		ttl = defaultStaticTTL
 	}
-	if logger == nil {
-		logger = utils.NewComponentLogger("ContextStaticRegistry")
+	if logging.IsNil(logger) {
+		logger = logging.NewComponentLogger("ContextStaticRegistry")
 	}
 	if metrics == nil {
 		metrics = observability.NewContextMetrics()

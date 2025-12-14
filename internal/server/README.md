@@ -110,8 +110,10 @@ go test ./internal/server/http/ -v
 
 Environment variables:
 - `OPENAI_API_KEY` - Required
-- `ALEX_LLM_PROVIDER` - Default: openai
-- `ALEX_LLM_MODEL` - Default: gpt-4o
+- `LLM_PROVIDER` - Default: openrouter
+- `LLM_MODEL` - Default: deepseek/deepseek-chat
+- `LLM_VISION_MODEL` - Optional (used when images are attached)
+- `LLM_BASE_URL` - Default: https://openrouter.ai/api/v1
 - `PORT` - Default: 8080
 
 ## Future Enhancements

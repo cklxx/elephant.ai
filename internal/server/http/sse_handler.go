@@ -14,10 +14,10 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
 	"alex/internal/tools/builtin"
-	"alex/internal/utils"
 	id "alex/internal/utils/id"
 	"alex/internal/workflow"
 
@@ -46,9 +46,7 @@ var sseAllowlist = map[string]bool{
 	"workflow.diagnostic.error":                true,
 	"workflow.diagnostic.context_compression":  true,
 	"workflow.diagnostic.tool_filtering":       true,
-	"workflow.diagnostic.browser_info":         true,
 	"workflow.diagnostic.environment_snapshot": true,
-	"workflow.diagnostic.sandbox_progress":     true,
 }
 
 var blockedNodeIDs = map[string]bool{
@@ -62,7 +60,7 @@ var blockedNodePrefixes = []string{
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
 	broadcaster *app.EventBroadcaster
-	logger      *utils.Logger
+	logger      logging.Logger
 	formatter   *domain.ToolFormatter
 	obs         *observability.Observability
 	dataCache   *DataCache
@@ -89,7 +87,7 @@ func WithSSEDataCache(cache *DataCache) SSEHandlerOption {
 func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) *SSEHandler {
 	handler := &SSEHandler{
 		broadcaster: broadcaster,
-		logger:      utils.NewComponentLogger("SSEHandler"),
+		logger:      logging.NewComponentLogger("SSEHandler"),
 		formatter:   domain.NewToolFormatter(),
 	}
 	for _, opt := range opts {
@@ -158,7 +156,6 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	clientChan := make(chan ports.AgentEvent, 100)
 	sentAttachments := make(map[string]string)
 	finalAnswerCache := make(map[string]string)
-	streamedTasks := make(map[string]bool)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -261,13 +258,6 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "write_error", 0)
 			}
 			return false
-		}
-
-		// Clear streaming cache when final completes so subsequent tasks stream cleanly.
-		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
-			if env.EventType() == "workflow.result.final" && env.Payload != nil && env.Payload["stream_finished"] == true {
-				delete(streamedTasks, env.GetTaskID())
-			}
 		}
 
 		flusher.Flush()

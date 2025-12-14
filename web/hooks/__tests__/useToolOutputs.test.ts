@@ -125,45 +125,6 @@ describe('useToolOutputs', () => {
       expect(result.current[0].url).toBe('https://example.com');
     });
 
-    it('should map browser tool type and parse screenshot', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.tool.started',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          call_id: 'call-browser',
-          tool_name: 'browser',
-          arguments: { url: 'https://example.com' },
-        },
-        {
-          event_type: 'workflow.tool.completed',
-          timestamp: '2025-01-01T10:00:04Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          call_id: 'call-browser',
-          tool_name: 'browser',
-          result: JSON.stringify({
-            url: 'https://example.com',
-            screenshot: 'data:image/png;base64,AAA',
-            html: '<html>Example</html>',
-          }),
-          duration: 4000,
-        },
-      ];
-
-      const { result } = renderHook(() => useToolOutputs(events));
-
-      expect(result.current[0]).toMatchObject({
-        type: 'web_fetch',
-        url: 'https://example.com',
-        screenshot: 'data:image/png;base64,AAA',
-        htmlPreview: '<html>Example</html>',
-      });
-    });
-
     it('should map file_read tool type', () => {
       const events: AnyAgentEvent[] = [
         {
@@ -237,48 +198,6 @@ describe('useToolOutputs', () => {
         url: 'https://example.com',
         screenshot: 'data:image/png;base64,AAA',
         htmlPreview: '<html></html>',
-      });
-    });
-
-    it('should extract browser metadata when JSON parsing fails', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.tool.started',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          call_id: 'call-browser',
-          tool_name: 'browser',
-          arguments: { url: 'https://example.com' },
-        },
-        {
-          event_type: 'workflow.tool.completed',
-          timestamp: '2025-01-01T10:00:03Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          call_id: 'call-browser',
-          tool_name: 'browser',
-          result: 'Visit complete',
-          duration: 3000,
-          metadata: {
-            browser: {
-              url: 'https://example.com',
-              screenshot: 'data:image/png;base64,BBB',
-              html: '<html>Example</html>',
-            },
-          },
-        },
-      ];
-
-      const { result } = renderHook(() => useToolOutputs(events));
-
-      expect(result.current[0]).toMatchObject({
-        url: 'https://example.com',
-        screenshot: 'data:image/png;base64,BBB',
-        htmlPreview: '<html>Example</html>',
-        result: 'Visit complete',
       });
     });
 
@@ -382,33 +301,6 @@ describe('useToolOutputs', () => {
 
       expect(result.current[0].type).toBe('generic');
       expect(result.current[0].result).toBe('Some result');
-    });
-  });
-
-  describe('Browser Diagnostics', () => {
-    it('should extract browser diagnostics', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.diagnostic.browser_info',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          captured: '2025-01-01T10:00:00Z',
-          success: true,
-          message: 'Browser ready',
-          user_agent: 'AgentBrowser/1.0',
-        },
-      ];
-
-      const { result } = renderHook(() => useToolOutputs(events));
-
-      expect(result.current).toHaveLength(1);
-      expect(result.current[0]).toMatchObject({
-        type: 'generic',
-        toolName: 'workflow.diagnostic.browser_info',
-        result: expect.stringContaining('Browser ready'),
-      });
     });
   });
 

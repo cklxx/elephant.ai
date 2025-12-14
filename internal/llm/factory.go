@@ -20,6 +20,7 @@ type Factory struct {
 	circuitBreakerConfig alexerrors.CircuitBreakerConfig
 	userRateLimit        rate.Limit
 	userRateBurst        int
+	toolCallParser       ports.FunctionCallParser
 }
 
 func NewFactory() *Factory {
@@ -60,6 +61,14 @@ func (f *Factory) DisableRetry() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.enableRetry = false
+}
+
+// EnableToolCallParsing enables automatic parsing of <tool_call>...</tool_call>
+// fallbacks when upstream providers do not return native tool calls.
+func (f *Factory) EnableToolCallParsing(parser ports.FunctionCallParser) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.toolCallParser = parser
 }
 
 // GetClient implements ports.LLMClientFactory interface
@@ -104,6 +113,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	enableRetry := f.enableRetry
 	retryConfig := f.retryConfig
 	circuitBreakerConfig := f.circuitBreakerConfig
+	toolCallParser := f.toolCallParser
 	f.mu.RUnlock()
 
 	var client ports.LLMClient
@@ -133,6 +143,10 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 
 	if f.userRateLimit > 0 {
 		client = WrapWithUserRateLimit(client, f.userRateLimit, f.userRateBurst)
+	}
+
+	if toolCallParser != nil {
+		client = WrapWithToolCallParsing(client, toolCallParser)
 	}
 
 	// Cache only if requested

@@ -10,7 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
-	"alex/internal/materials/legacy"
+	materialports "alex/internal/materials/ports"
 	id "alex/internal/utils/id"
 )
 
@@ -22,7 +22,7 @@ type ReactEngine struct {
 	clock              ports.Clock
 	eventListener      EventListener // Optional event listener for TUI
 	completion         completionConfig
-	attachmentMigrator legacy.Migrator
+	attachmentMigrator materialports.Migrator
 	workflow           WorkflowTracker
 }
 
@@ -287,12 +287,6 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		&b.attachmentsMu,
 	)
 
-	if result.Metadata != nil {
-		if info, ok := result.Metadata["workflow.diagnostic.browser_info"].(map[string]any); ok {
-			b.engine.emitWorkflowDiagnosticBrowserInfoEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID, info)
-		}
-	}
-
 	b.finalize(idx, tc, nodeID, *result, startTime)
 }
 
@@ -364,7 +358,7 @@ type ReactEngineConfig struct {
 	Clock              ports.Clock
 	EventListener      EventListener
 	CompletionDefaults CompletionDefaults
-	AttachmentMigrator legacy.Migrator
+	AttachmentMigrator materialports.Migrator
 	Workflow           WorkflowTracker
 }
 
@@ -596,36 +590,6 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 	}
 
 	return messages
-}
-
-func (e *ReactEngine) emitWorkflowDiagnosticBrowserInfoEvent(ctx context.Context, sessionID, taskID, parentTaskID string, metadata map[string]any) {
-	level := ports.GetOutputContext(ctx).Level
-	captured := e.clock.Now()
-	if tsRaw, ok := metadata["captured_at"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, tsRaw); err == nil {
-			captured = ts
-		}
-	}
-
-	var successPtr *bool
-	switch v := metadata["success"].(type) {
-	case bool:
-		success := v
-		successPtr = &success
-	case *bool:
-		successPtr = v
-	}
-
-	message, _ := metadata["message"].(string)
-	userAgent, _ := metadata["user_agent"].(string)
-	cdpURL, _ := metadata["cdp_url"].(string)
-	vncURL, _ := metadata["vnc_url"].(string)
-
-	viewportWidth := coerceToInt(metadata["viewport_width"])
-	viewportHeight := coerceToInt(metadata["viewport_height"])
-
-	event := NewWorkflowDiagnosticBrowserInfoEvent(level, sessionID, taskID, parentTaskID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
-	e.emitEvent(event)
 }
 
 // finalize creates the final task result
@@ -879,7 +843,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 	e.logger.Debug("Inserted system prompt into message history")
 }
 
-func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req legacy.MigrationRequest) map[string]ports.Attachment {
+func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req materialports.MigrationRequest) map[string]ports.Attachment {
 	if len(req.Attachments) == 0 || e.attachmentMigrator == nil {
 		return req.Attachments
 	}
@@ -913,7 +877,7 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	mutations := normalizeAttachmentMutations(metadata)
 
 	if normalized != nil {
-		normalized = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+		normalized = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
 			Context:     e.materialRequestContext(state, call.ID),
 			Attachments: normalized,
 			Status:      materialapi.MaterialStatusIntermediate,
@@ -922,19 +886,19 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	}
 
 	if mutations != nil {
-		mutations.replace = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+		mutations.replace = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
 			Context:     e.materialRequestContext(state, call.ID),
 			Attachments: mutations.replace,
 			Status:      materialapi.MaterialStatusIntermediate,
 			Origin:      call.Name,
 		})
-		mutations.add = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+		mutations.add = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
 			Context:     e.materialRequestContext(state, call.ID),
 			Attachments: mutations.add,
 			Status:      materialapi.MaterialStatusIntermediate,
 			Origin:      call.Name,
 		})
-		mutations.update = e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+		mutations.update = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
 			Context:     e.materialRequestContext(state, call.ID),
 			Attachments: mutations.update,
 			Status:      materialapi.MaterialStatusIntermediate,
@@ -971,7 +935,7 @@ func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, st
 		if len(msg.Attachments) == 0 {
 			continue
 		}
-		normalized := e.normalizeAttachmentsWithMigrator(ctx, state, legacy.MigrationRequest{
+		normalized := e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
 			Context:     e.materialRequestContext(state, msg.ToolCallID),
 			Attachments: msg.Attachments,
 			Status:      messageMaterialStatus(msg),

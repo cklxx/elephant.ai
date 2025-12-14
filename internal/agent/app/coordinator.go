@@ -9,7 +9,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
-	"alex/internal/utils"
+	"alex/internal/logging"
 	id "alex/internal/utils/id"
 )
 
@@ -41,6 +41,7 @@ type preparationService interface {
 type Config struct {
 	LLMProvider         string
 	LLMModel            string
+	LLMVisionModel      string
 	APIKey              string
 	BaseURL             string
 	MaxTokens           int
@@ -85,7 +86,7 @@ func NewAgentCoordinator(
 		parser:       parser,
 		costTracker:  costTracker,
 		config:       config,
-		logger:       utils.NewComponentLogger("Coordinator"),
+		logger:       logging.NewComponentLogger("Coordinator"),
 		clock:        ports.SystemClock{},
 	}
 

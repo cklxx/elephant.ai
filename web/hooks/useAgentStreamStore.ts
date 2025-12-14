@@ -13,7 +13,6 @@ import {
   WorkflowResultCancelledEvent,
   WorkflowResultFinalEvent,
   WorkflowNodeFailedEvent,
-  WorkflowDiagnosticBrowserInfoEvent,
   AttachmentPayload,
   eventMatches,
 } from '@/lib/types';
@@ -68,19 +67,6 @@ export interface NormalizedResearchStep {
   error?: string;
 }
 
-interface BrowserDiagnosticsEntry {
-  id: string;
-  timestamp: string;
-  captured: string;
-  success?: boolean;
-  message?: string;
-  user_agent?: string;
-  cdp_url?: string;
-  vnc_url?: string;
-  viewport_width?: number;
-  viewport_height?: number;
-}
-
 interface AgentStreamState {
   eventCache: EventLRUCache;
   toolCalls: Map<string, ToolCallState>;
@@ -88,7 +74,6 @@ interface AgentStreamState {
   steps: Map<string, NormalizedResearchStep>;
   stepOrder: string[];
   researchSteps: NormalizedResearchStep[];
-  browserDiagnostics: BrowserDiagnosticsEntry[];
   currentIteration: number | null;
   activeToolCallId: string | null;
   activeResearchStepId: string | null;
@@ -113,7 +98,6 @@ const createInitialState = (): Omit<AgentStreamState, 'addEvent' | 'addEvents' |
   steps: new Map(),
   stepOrder: [],
   researchSteps: [],
-  browserDiagnostics: [],
   currentIteration: null,
   activeToolCallId: null,
   activeResearchStepId: null,
@@ -294,24 +278,6 @@ const applyIterationComplete = (draft: AgentStreamDraft, event: WorkflowNodeComp
   }
 };
 
-const applyBrowserInfo = (draft: AgentStreamDraft, event: WorkflowDiagnosticBrowserInfoEvent) => {
-  draft.browserDiagnostics = [
-    ...draft.browserDiagnostics,
-    {
-      id: `browser-${event.timestamp}`,
-      timestamp: event.timestamp,
-      captured: event.captured,
-      success: event.success,
-      message: event.message,
-      user_agent: event.user_agent,
-      cdp_url: event.cdp_url,
-      vnc_url: event.vnc_url,
-      viewport_width: event.viewport_width,
-      viewport_height: event.viewport_height,
-    },
-  ];
-};
-
 const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
   const isIterationStart =
     isIterationNodeStartedEvent(event) &&
@@ -419,9 +385,6 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       if (typeof (event as any).step_index === 'number') {
         applyStepCompleted(draft, event as WorkflowNodeCompletedEvent & { step_index: number });
       }
-      break;
-    case eventMatches(event, 'workflow.diagnostic.browser_info'):
-      applyBrowserInfo(draft, event as WorkflowDiagnosticBrowserInfoEvent);
       break;
     default:
       break;
@@ -575,15 +538,7 @@ export const useMemoryStats = () => {
       toolCallCount: state.toolCalls.size,
       iterationCount: state.iterations.size,
       researchStepCount: state.researchSteps.length,
-      browserDiagnosticsCount: state.browserDiagnostics.length,
     };
-  });
-};
-
-export const useLatestBrowserDiagnostics = () => {
-  return useAgentStreamStore((state) => {
-    const diagnostics = state.browserDiagnostics;
-    return diagnostics.length > 0 ? diagnostics[diagnostics.length - 1] : null;
   });
 };
 

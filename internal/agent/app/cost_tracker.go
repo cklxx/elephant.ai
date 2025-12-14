@@ -2,7 +2,7 @@ package app
 
 import (
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -14,14 +14,14 @@ import (
 // costTracker implements the CostTracker interface
 type costTracker struct {
 	store  ports.CostStore
-	logger *utils.Logger
+	logger logging.Logger
 }
 
 // NewCostTracker creates a new cost tracker instance
 func NewCostTracker(store ports.CostStore) ports.CostTracker {
 	return &costTracker{
 		store:  store,
-		logger: utils.NewComponentLogger("CostTracker"),
+		logger: logging.NewComponentLogger("CostTracker"),
 	}
 }
 

@@ -7,7 +7,16 @@ const MAX_ATTEMPTS = 20;
 const preferredPort = Number(process.env.PORT) || DEFAULT_PORT;
 const PORT_RELEASE_ATTEMPTS = 20;
 const PORT_RELEASE_INTERVAL_MS = 250;
-const turboDisabled = process.env.DISABLE_TURBO === '1';
+const turboDisabledExplicit = process.env.DISABLE_TURBO === '1';
+
+function canUseTurbopack() {
+  try {
+    require.resolve('@vercel/turbopack-next/internal/font/google/font');
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 
 function isPortAvailable(port) {
   return new Promise((resolve, reject) => {
@@ -103,9 +112,7 @@ async function tryKillProcessOnPort(port) {
   });
 
   for (let attempt = 0; attempt < PORT_RELEASE_ATTEMPTS; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
     await new Promise((resolve) => setTimeout(resolve, PORT_RELEASE_INTERVAL_MS));
-    // eslint-disable-next-line no-await-in-loop
     if (await isPortAvailable(port)) {
       console.log(`Successfully released port ${port}.`);
       return true;
@@ -134,18 +141,24 @@ async function preparePort(preferred) {
 (async () => {
   try {
     const port = await preparePort(preferredPort);
+    const turbopackAvailable = canUseTurbopack();
+    const turbopackEnabled = !turboDisabledExplicit && turbopackAvailable;
 
     const nextCommand = process.platform === 'win32' ? 'next.cmd' : 'next';
-    const devArgs = ['dev', '-p', String(port)];
+    const devArgs = ['dev', turbopackEnabled ? '--turbopack' : '--webpack', '-p', String(port)];
 
-    if (!turboDisabled) {
-      devArgs.splice(1, 0, '--turbo');
+    if (!turbopackEnabled && !turboDisabledExplicit && !turbopackAvailable) {
+      console.warn(
+        'Turbopack dependencies are missing (cannot resolve @vercel/turbopack-next); falling back to webpack.'
+      );
     }
 
     console.log(
-      turboDisabled
-        ? 'Starting Next.js dev server (webpack fallback, turbo disabled via DISABLE_TURBO=1).'
-        : 'Starting Next.js dev server with the Rust-based Turbopack compiler...'
+      turbopackEnabled
+        ? 'Starting Next.js dev server with the Rust-based Turbopack compiler...'
+        : turboDisabledExplicit
+          ? 'Starting Next.js dev server with webpack (Turbopack disabled via DISABLE_TURBO=1).'
+          : 'Starting Next.js dev server with webpack.'
     );
 
     const devProcess = spawn(nextCommand, devArgs, {

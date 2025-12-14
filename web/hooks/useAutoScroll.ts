@@ -19,7 +19,7 @@
  * ```
  */
 
-import { useEffect, useRef, DependencyList } from 'react';
+import { useCallback, useEffect, useRef, DependencyList } from 'react';
 
 /**
  * Configuration options for auto-scroll behavior
@@ -58,25 +58,33 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
 
   const containerRef = useRef<T>(null);
   const isUserScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousDependenciesRef = useRef<DependencyList | null>(null);
+  const previousEnabledRef = useRef(enabled);
 
   /**
    * Check if container is scrolled near the bottom
    */
-  const isNearBottom = (element: HTMLElement): boolean => {
-    const { scrollTop, scrollHeight, clientHeight } = element;
-    return scrollHeight - scrollTop - clientHeight < threshold;
-  };
+  const isNearBottom = useCallback(
+    (element: HTMLElement): boolean => {
+      const { scrollTop, scrollHeight, clientHeight } = element;
+      return scrollHeight - scrollTop - clientHeight < threshold;
+    },
+    [threshold],
+  );
 
   /**
    * Scroll container to bottom
    */
-  const scrollToBottom = (element: HTMLElement) => {
-    element.scrollTo({
-      top: element.scrollHeight,
-      behavior,
-    });
-  };
+  const scrollToBottom = useCallback(
+    (element: HTMLElement) => {
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior,
+      });
+    },
+    [behavior],
+  );
 
   /**
    * Handle user scroll events
@@ -111,7 +119,7 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [enabled, threshold, delay]);
+  }, [enabled, delay, isNearBottom]);
 
   /**
    * Auto-scroll when dependencies change
@@ -119,7 +127,25 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
    */
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !enabled) return;
+    const previousEnabled = previousEnabledRef.current;
+    previousEnabledRef.current = enabled;
+
+    if (!container || !enabled) {
+      previousDependenciesRef.current = dependencies;
+      return;
+    }
+
+    const previousDependencies = previousDependenciesRef.current;
+    previousDependenciesRef.current = dependencies;
+
+    const dependenciesUnchanged =
+      previousDependencies &&
+      previousDependencies.length === dependencies.length &&
+      dependencies.every((dep, idx) => Object.is(dep, previousDependencies[idx]));
+
+    if (dependenciesUnchanged && previousEnabled === enabled) {
+      return;
+    }
 
     // Don't auto-scroll if user is manually scrolling
     if (isUserScrollingRef.current) return;
@@ -133,8 +159,7 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
 
       return () => clearTimeout(timeoutId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, dependencies);
+  });
 
   return containerRef;
 }
@@ -153,10 +178,30 @@ export function useScrollToBottom<T extends HTMLElement = HTMLDivElement>(
   behavior: ScrollBehavior = 'smooth'
 ): React.RefObject<T | null> {
   const containerRef = useRef<T>(null);
+  const previousDependenciesRef = useRef<DependencyList | null>(null);
+  const previousBehaviorRef = useRef(behavior);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const previousBehavior = previousBehaviorRef.current;
+    previousBehaviorRef.current = behavior;
+
+    if (!container) {
+      previousDependenciesRef.current = dependencies;
+      return;
+    }
+
+    const previousDependencies = previousDependenciesRef.current;
+    previousDependenciesRef.current = dependencies;
+
+    const dependenciesUnchanged =
+      previousDependencies &&
+      previousDependencies.length === dependencies.length &&
+      dependencies.every((dep, idx) => Object.is(dep, previousDependencies[idx]));
+
+    if (dependenciesUnchanged && Object.is(previousBehavior, behavior)) {
+      return;
+    }
 
     const timeoutId = setTimeout(() => {
       container.scrollTo({
@@ -166,8 +211,7 @@ export function useScrollToBottom<T extends HTMLElement = HTMLDivElement>(
     }, 100);
 
     return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, dependencies);
+  });
 
   return containerRef;
 }

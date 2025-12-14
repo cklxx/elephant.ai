@@ -174,11 +174,11 @@ describe('TerminalOutput', () => {
       </LanguageProvider>,
     );
 
-    const aggregatePanel = screen.getByTestId('subagent-aggregate');
-    expect(aggregatePanel).toBeInTheDocument();
-    expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(2);
-    expect(aggregatePanel).toHaveTextContent(/Subagent Task 1\/2/i);
-    expect(within(aggregatePanel).getAllByText(/Subagent Task 1\/2/i)).toHaveLength(1);
+    const threads = screen.getAllByTestId('subagent-thread');
+    expect(threads).toHaveLength(1);
+    expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(2);
+    expect(threads[0]).toHaveTextContent(/Subagent Task 1\/2/i);
+    expect(within(threads[0]).getAllByText(/Subagent Task 1\/2/i)).toHaveLength(1);
 
     const conversationEvents = screen.getByTestId('conversation-events');
     expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);
@@ -217,7 +217,7 @@ describe('TerminalOutput', () => {
       </LanguageProvider>,
     );
 
-    expect(screen.queryByTestId('subagent-aggregate')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('subagent-thread')).not.toBeInTheDocument();
     expect(screen.getByTestId('conversation-stream')).toBeInTheDocument();
   });
 
@@ -252,9 +252,9 @@ describe('TerminalOutput', () => {
       </LanguageProvider>,
     );
 
-    const aggregatePanel = screen.getByTestId('subagent-aggregate');
-    expect(aggregatePanel).toBeInTheDocument();
-    expect(within(aggregatePanel).getAllByTestId(/event-subagent/)).toHaveLength(1);
+    const threads = screen.getAllByTestId('subagent-thread');
+    expect(threads).toHaveLength(1);
+    expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
 
     const conversationEvents = screen.getByTestId('conversation-events');
     expect(within(conversationEvents).queryByTestId(/event-workflow.tool.completed/)).not.toBeInTheDocument();

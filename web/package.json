@@ -6,7 +6,7 @@
     "dev": "node scripts/start-dev.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --max-warnings=0",
     "test": "vitest run --config vitest.config.mts",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",

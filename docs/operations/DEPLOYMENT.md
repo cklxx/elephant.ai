@@ -62,8 +62,11 @@ docker compose -f deploy/docker/docker-compose.dev.yml up
 ```bash
 # .env
 OPENAI_API_KEY=sk-xxxxx
-OPENAI_BASE_URL=https://api.openai.com/v1
-ALEX_MODEL=gpt-4
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+# Optional: enable vision routing when images are attached
+# LLM_VISION_MODEL=gpt-4o-mini
 ALEX_VERBOSE=false
 AUTH_JWT_SECRET=change-me-in-prod
 AUTH_DATABASE_URL=postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable
@@ -222,8 +225,10 @@ kubectl rollout undo deployment/alex-server -n alex-system
 | 变量 | 必需 | 默认值 | 说明 |
 |------|------|--------|------|
 | `OPENAI_API_KEY` | ✅ | - | OpenAI API Key |
-| `OPENAI_BASE_URL` | ❌ | `https://api.openai.com/v1` | API Base URL |
-| `ALEX_MODEL` | ❌ | `gpt-4` | LLM 模型 |
+| `LLM_PROVIDER` | ❌ | `openrouter` | LLM provider |
+| `LLM_BASE_URL` | ❌ | `https://openrouter.ai/api/v1` | API Base URL |
+| `LLM_MODEL` | ❌ | `deepseek/deepseek-chat` | LLM 模型 |
+| `LLM_VISION_MODEL` | ❌ | - | 图片附件存在时使用的 vision 模型 |
 | `ALEX_VERBOSE` | ❌ | `false` | 详细日志 |
 | `SESSION_STORE_PATH` | ❌ | `/data/sessions` | 会话存储路径 |
 | `REDIS_URL` | ❌ | - | Redis 连接地址（可选） |

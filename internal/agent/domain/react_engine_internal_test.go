@@ -10,7 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
-	"alex/internal/materials/legacy"
+	materialports "alex/internal/materials/ports"
 )
 
 func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing.T) {
@@ -234,9 +234,9 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 		Plans:         plans,
 		Beliefs:       beliefs,
 		KnowledgeRefs: refs,
-		WorldState: map[string]any{
-			"profile": map[string]any{"id": "sandbox", "environment": "ci"},
-		},
+			WorldState: map[string]any{
+				"profile": map[string]any{"id": "local", "environment": "ci"},
+			},
 		WorldDiff: map[string]any{
 			"iteration": 3,
 		},
@@ -255,11 +255,11 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 	}
 	if len(record.KnowledgeRefs) == 0 || len(record.KnowledgeRefs[0].SOPRefs) == 0 {
 		t.Fatalf("expected knowledge refs to copy nested slices: %+v", record.KnowledgeRefs)
-	}
-	profile := record.World["profile"].(map[string]any)
-	if profile["id"] != "sandbox" {
-		t.Fatalf("expected world profile to propagate, got %+v", record.World)
-	}
+		}
+		profile := record.World["profile"].(map[string]any)
+		if profile["id"] != "local" {
+			t.Fatalf("expected world profile to propagate, got %+v", record.World)
+		}
 	if iteration, ok := record.Diff["iteration"].(int); !ok || iteration != 3 {
 		t.Fatalf("expected diff iteration copy, got %+v", record.Diff)
 	}
@@ -625,16 +625,13 @@ func TestUpdateAttachmentCatalogMessageAppendsSystemNote(t *testing.T) {
 	if note.Metadata == nil || note.Metadata[attachmentCatalogMetadataKey] != true {
 		t.Fatalf("expected catalog metadata flag to be set, got %+v", note.Metadata)
 	}
-	if !strings.Contains(note.Content, "[diagram.png]") {
-		t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
+		if !strings.Contains(note.Content, "[diagram.png]") {
+			t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
+		}
+		if note.Source != ports.MessageSourceSystemPrompt {
+			t.Fatalf("expected catalog note to use system prompt source, got %q", note.Source)
+		}
 	}
-	if !strings.Contains(note.Content, "/workspace/.alex/sessions/session-abc/attachments") {
-		t.Fatalf("expected catalog content to mention sandbox path, got %q", note.Content)
-	}
-	if note.Source != ports.MessageSourceSystemPrompt {
-		t.Fatalf("expected catalog note to use system prompt source, got %q", note.Source)
-	}
-}
 
 func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
@@ -669,6 +666,37 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected a single catalog note, found %d", count)
+	}
+}
+
+func TestReactRuntimeAttachesReferencedTaskAttachmentsToUserMessage(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"diagram.png": {Name: "diagram.png", MediaType: "image/png", URI: "https://cdn/diagram.png"},
+		},
+	}
+
+	task := "Analyze [diagram.png]"
+	runtime := newReactRuntime(engine, context.Background(), task, state, Services{})
+	runtime.prepareContext()
+
+	var userMsg *Message
+	for i := range state.Messages {
+		msg := state.Messages[i]
+		if msg.Source == ports.MessageSourceUserInput && msg.Content == task {
+			userMsg = &state.Messages[i]
+			break
+		}
+	}
+	if userMsg == nil {
+		t.Fatalf("expected user message to be present, got %d messages", len(state.Messages))
+	}
+	if userMsg.Attachments == nil {
+		t.Fatalf("expected referenced attachments to be attached to user message")
+	}
+	if _, ok := userMsg.Attachments["diagram.png"]; !ok {
+		t.Fatalf("expected user message to include diagram.png attachment, got %#v", userMsg.Attachments)
 	}
 }
 
@@ -722,10 +750,10 @@ func TestNormalizeMessageHistoryAttachmentsMigratesInlinePayloads(t *testing.T) 
 }
 
 type captureMigrator struct {
-	requests []legacy.MigrationRequest
+	requests []materialports.MigrationRequest
 }
 
-func (m *captureMigrator) Normalize(ctx context.Context, req legacy.MigrationRequest) (map[string]ports.Attachment, error) {
+func (m *captureMigrator) Normalize(ctx context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
 	m.requests = append(m.requests, req)
 	result := make(map[string]ports.Attachment, len(req.Attachments))
 	for key, att := range req.Attachments {
@@ -736,7 +764,7 @@ func (m *captureMigrator) Normalize(ctx context.Context, req legacy.MigrationReq
 	return result, nil
 }
 
-var _ legacy.Migrator = (*captureMigrator)(nil)
+var _ materialports.Migrator = (*captureMigrator)(nil)
 
 func TestEnsureSystemPromptMessagePrependsWhenMissing(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})

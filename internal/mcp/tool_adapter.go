@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // MCPClient defines the interface for calling MCP tools
@@ -19,7 +19,7 @@ type ToolAdapter struct {
 	serverName string
 	client     MCPClient
 	toolSchema ToolSchema
-	logger     *utils.Logger
+	logger     logging.Logger
 }
 
 // NewToolAdapter creates a new tool adapter
@@ -28,7 +28,7 @@ func NewToolAdapter(serverName string, client MCPClient, toolSchema ToolSchema) 
 		serverName: serverName,
 		client:     client,
 		toolSchema: toolSchema,
-		logger:     utils.NewComponentLogger(fmt.Sprintf("ToolAdapter[%s/%s]", serverName, toolSchema.Name)),
+		logger:     logging.NewComponentLogger(fmt.Sprintf("ToolAdapter[%s/%s]", serverName, toolSchema.Name)),
 	}
 }
 

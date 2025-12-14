@@ -1,27 +1,10 @@
 package builtin
 
-import "alex/internal/tools"
+// FileToolConfig is reserved for optional configuration in file-based tools.
+type FileToolConfig struct{}
 
-// FileToolConfig propagates execution mode settings to file-based tools.
-type FileToolConfig struct {
-	Mode           tools.ExecutionMode
-	SandboxManager *tools.SandboxManager
-}
+// ShellToolConfig is reserved for optional configuration in shell-based tools.
+type ShellToolConfig struct{}
 
-// ShellToolConfig propagates execution mode settings to shell-based tools.
-type ShellToolConfig struct {
-	Mode           tools.ExecutionMode
-	SandboxManager *tools.SandboxManager
-}
-
-// BrowserToolConfig propagates execution mode settings to browser automation tools.
-type BrowserToolConfig struct {
-	Mode           tools.ExecutionMode
-	SandboxManager *tools.SandboxManager
-}
-
-// WebFetchConfig propagates execution mode settings to the web_fetch tool.
-type WebFetchConfig struct {
-	Mode           tools.ExecutionMode
-	SandboxManager *tools.SandboxManager
-}
+// WebFetchConfig is reserved for optional configuration in the web_fetch tool.
+type WebFetchConfig struct{}

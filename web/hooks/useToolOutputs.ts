@@ -5,7 +5,6 @@ import {
   AnyAgentEvent,
   WorkflowToolStartedEvent,
   WorkflowToolCompletedEvent,
-  WorkflowDiagnosticBrowserInfoEvent,
   AttachmentPayload,
 } from '@/lib/types';
 import { ToolOutput, ToolOutputType } from '@/components/agent/WebViewport';
@@ -51,37 +50,6 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
         }
       }
 
-      // Browser diagnostics
-      if (eventMatches(event, 'workflow.diagnostic.browser_info')) {
-        const e = event as WorkflowDiagnosticBrowserInfoEvent;
-        const details: string[] = [];
-        if (typeof e.success === 'boolean') {
-          details.push(`Status: ${e.success ? 'available' : 'unavailable'}`);
-        }
-        if (e.message) {
-          details.push(`Message: ${e.message}`);
-        }
-        if (e.user_agent) {
-          details.push(`User-Agent: ${e.user_agent}`);
-        }
-        if (e.cdp_url) {
-          details.push(`CDP URL: ${e.cdp_url}`);
-        }
-        if (e.vnc_url) {
-          details.push(`VNC URL: ${e.vnc_url}`);
-        }
-        if (e.viewport_width && e.viewport_height) {
-          details.push(`Viewport: ${e.viewport_width}x${e.viewport_height}`);
-        }
-
-        outputs.push({
-          id: `browser-info-${e.timestamp}`,
-          type: 'generic',
-          toolName: 'workflow.diagnostic.browser_info',
-          timestamp: new Date(e.timestamp).getTime(),
-          result: details.length > 0 ? details.join('\n') : 'No browser diagnostics available.',
-        });
-      }
     });
 
     return outputs.sort((a, b) => a.timestamp - b.timestamp);
@@ -89,7 +57,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
 }
 
 function mapToolNameToType(toolName: string): ToolOutputType {
-  if (toolName.includes('web_fetch') || toolName === 'browser') {
+  if (toolName.includes('web_fetch')) {
     return 'web_fetch';
   }
   if (toolName.includes('bash') || toolName.includes('shell') || toolName.includes('execute')) {
@@ -136,15 +104,6 @@ function parseToolResult(
       };
     }
 
-    if (toolName === 'browser') {
-      return {
-        url: parsed.url,
-        screenshot: parsed.screenshot,
-        htmlPreview: parsed.html || parsed.content,
-        result: parsed.message || parsed.status,
-      };
-    }
-
     // File read
     if (toolName.includes('file_read')) {
       return {
@@ -174,7 +133,7 @@ function parseToolResult(
   }
 
   // Fallback to metadata when JSON result is unavailable
-  if (metadata && (toolName.includes('web_fetch') || toolName === 'browser')) {
+  if (metadata && toolName.includes('web_fetch')) {
     const web = extractWebMetadata(metadata);
     if (web) {
       return {

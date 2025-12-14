@@ -185,7 +185,6 @@ make coverage-report
 ### 环境要求
 - Go 1.21+
 - Node.js 18+
-- Docker (可选)
 - jq (JSON处理)
 
 ### 配置说明

@@ -11,10 +11,13 @@ metadata:
   name: alex-config
   namespace: alex-system
 data:
-  ALEX_MODEL: "gpt-4"
+  LLM_PROVIDER: "openai"
+  LLM_BASE_URL: "https://api.openai.com/v1"
+  LLM_MODEL: "gpt-4o-mini"
+  # Optional: enable vision routing when images are attached
+  # LLM_VISION_MODEL: "gpt-4o-mini"
   ALEX_VERBOSE: "false"
   SESSION_STORE_PATH: "/data/sessions"
-  ALEX_SANDBOX_BASE_URL: "http://alex-sandbox:8080"
   NEXT_PUBLIC_API_URL: "http://alex-server-service:8080"
 ---
 # Secret for API keys
@@ -60,11 +63,21 @@ spec:
             secretKeyRef:
               name: alex-secrets
               key: OPENAI_API_KEY
-        - name: ALEX_MODEL
+        - name: LLM_PROVIDER
           valueFrom:
             configMapKeyRef:
               name: alex-config
-              key: ALEX_MODEL
+              key: LLM_PROVIDER
+        - name: LLM_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: alex-config
+              key: LLM_BASE_URL
+        - name: LLM_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: alex-config
+              key: LLM_MODEL
         - name: ALEX_VERBOSE
           valueFrom:
             configMapKeyRef:
@@ -75,11 +88,6 @@ spec:
             configMapKeyRef:
               name: alex-config
               key: SESSION_STORE_PATH
-        - name: ALEX_SANDBOX_BASE_URL
-          valueFrom:
-            configMapKeyRef:
-              name: alex-config
-              key: ALEX_SANDBOX_BASE_URL
         - name: REDIS_URL
           value: "redis-service:6379"
         - name: AUTH_JWT_SECRET
@@ -203,55 +211,6 @@ spec:
   - protocol: TCP
     port: 3000
     targetPort: 3000
-    name: http
-  type: ClusterIP
----
-# Sandbox Deployment
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: alex-sandbox
-  namespace: alex-system
-  labels:
-    app: alex-sandbox
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: alex-sandbox
-  template:
-    metadata:
-      labels:
-        app: alex-sandbox
-    spec:
-      containers:
-      - name: alex-sandbox
-        image: ghcr.io/agent-infra/sandbox:latest
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 8080
-          name: http
-        resources:
-          requests:
-            cpu: "250m"
-            memory: "512Mi"
-          limits:
-            cpu: "1000m"
-            memory: "1Gi"
----
-# Sandbox Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: alex-sandbox
-  namespace: alex-system
-spec:
-  selector:
-    app: alex-sandbox
-  ports:
-  - protocol: TCP
-    port: 8080
-    targetPort: 8080
     name: http
   type: ClusterIP
 ---

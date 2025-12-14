@@ -13,7 +13,6 @@ import {
   WorkflowResultFinalEvent,
   WorkflowResultCancelledEvent,
   WorkflowNodeFailedEvent,
-  WorkflowDiagnosticBrowserInfoEvent,
   WorkflowInputReceivedEvent,
   eventMatches,
 } from '@/lib/types';
@@ -113,11 +112,6 @@ export function isWorkflowNodeCompletedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeCompletedEvent & { step_index: number } {
   return eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number';
-}
-
-// Browser Info Event
-export function isWorkflowDiagnosticBrowserInfoEvent(event: AnyAgentEvent): event is WorkflowDiagnosticBrowserInfoEvent {
-  return eventMatches(event, 'workflow.diagnostic.browser_info');
 }
 
 // User Task Event

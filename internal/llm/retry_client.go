@@ -8,7 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
-	"alex/internal/utils"
+	"alex/internal/logging"
 )
 
 // retryClient wraps an LLM client with retry logic and circuit breaker
@@ -16,7 +16,7 @@ type retryClient struct {
 	underlying     ports.LLMClient
 	retryConfig    alexerrors.RetryConfig
 	circuitBreaker *alexerrors.CircuitBreaker
-	logger         *utils.Logger
+	logger         logging.Logger
 }
 
 var _ ports.StreamingLLMClient = (*retryClient)(nil)
@@ -27,7 +27,7 @@ func NewRetryClient(client ports.LLMClient, retryConfig alexerrors.RetryConfig, 
 		underlying:     client,
 		retryConfig:    retryConfig,
 		circuitBreaker: circuitBreaker,
-		logger:         utils.NewComponentLogger("llm-retry"),
+		logger:         logging.NewComponentLogger("llm-retry"),
 	}
 }
 

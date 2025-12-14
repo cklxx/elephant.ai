@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -92,5 +93,26 @@ func TestSaveFollowPreferencesInvalidJSON(t *testing.T) {
 
 	if _, err := SaveFollowPreferences(true, true, WithConfigPath(path)); err == nil {
 		t.Fatalf("expected error for invalid JSON")
+	}
+}
+
+func TestSaveFollowPreferencesHonorsEnvConfigPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	saved, err := SaveFollowPreferences(
+		true,
+		true,
+		WithEnv(envMap{"ALEX_CONFIG_PATH": path}.Lookup),
+		WithHomeDir(func() (string, error) { return "", errors.New("home disabled") }),
+	)
+	if err != nil {
+		t.Fatalf("SaveFollowPreferences returned error: %v", err)
+	}
+	if saved != path {
+		t.Fatalf("expected path %q, got %q", path, saved)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected config file to exist: %v", err)
 	}
 }
