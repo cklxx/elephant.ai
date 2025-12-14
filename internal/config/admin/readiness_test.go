@@ -11,15 +11,14 @@ func TestDeriveReadinessTasks(t *testing.T) {
 
 	cfg := runtimeconfig.RuntimeConfig{}
 	tasks := DeriveReadinessTasks(cfg)
-	if len(tasks) != 4 {
-		t.Fatalf("expected 4 tasks when config is empty, got %d", len(tasks))
+	if len(tasks) != 3 {
+		t.Fatalf("expected 3 tasks when config is empty, got %d", len(tasks))
 	}
 
 	cfg = runtimeconfig.RuntimeConfig{
-		LLMProvider:    "mock",
-		LLMModel:       "foo",
-		SandboxBaseURL: "http://sandbox",
-		TavilyAPIKey:   "tv",
+		LLMProvider:  "mock",
+		LLMModel:     "foo",
+		TavilyAPIKey: "tv",
 	}
 	tasks = DeriveReadinessTasks(cfg)
 	if len(tasks) != 0 {
@@ -32,7 +31,7 @@ func TestDeriveReadinessTasks(t *testing.T) {
 	}
 	tasks = DeriveReadinessTasks(cfg)
 	if len(tasks) == 0 {
-		t.Fatalf("expected tasks when provider requires api key and sandbox/tavily missing")
+		t.Fatalf("expected tasks when provider requires api key and tavily missing")
 	}
 	if tasks[0].Severity != TaskSeverityCritical {
 		t.Fatalf("expected first task to be critical, got %s", tasks[0].Severity)

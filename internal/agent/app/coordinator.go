@@ -41,6 +41,7 @@ type preparationService interface {
 type Config struct {
 	LLMProvider         string
 	LLMModel            string
+	LLMVisionModel      string
 	APIKey              string
 	BaseURL             string
 	MaxTokens           int

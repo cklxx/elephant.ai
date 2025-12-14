@@ -4,7 +4,6 @@ import {
   aggregateToolCalls,
   groupByIteration,
   extractResearchSteps,
-  extractBrowserDiagnostics,
   buildToolCallSummaries,
 } from '../eventAggregation';
 import { AnyAgentEvent } from '../types';
@@ -396,7 +395,7 @@ describe('aggregateToolCalls', () => {
 });
 
 describe('buildToolCallSummaries', () => {
-  it('creates summaries with sandbox recommendations', () => {
+  it('creates tool call summaries', () => {
     const events: AnyAgentEvent[] = [
       {
         event_type: 'workflow.tool.started',
@@ -425,8 +424,6 @@ describe('buildToolCallSummaries', () => {
     expect(summaries).toHaveLength(1);
     const summary = summaries[0];
     expect(summary.status).toBe('completed');
-    expect(summary.requiresSandbox).toBe(true);
-    expect(summary.sandboxLevel).toBe('system');
     expect(summary.durationMs).toBe(2000);
     expect(summary.resultPreview).toContain('hi');
     expect(summary.argumentsPreview).toContain('language');
@@ -442,7 +439,7 @@ describe('buildToolCallSummaries', () => {
         iteration: 1,
         call_id: 'call-2',
         tool_name: 'search_docs',
-        arguments: { query: 'sandbox' },
+        arguments: { query: 'example' },
       },
     ];
 
@@ -450,12 +447,10 @@ describe('buildToolCallSummaries', () => {
     expect(summaries).toHaveLength(1);
     const summary = summaries[0];
     expect(summary.status).toBe('running');
-    expect(summary.requiresSandbox).toBe(true);
-    expect(summary.sandboxLevel).toBe('standard');
     expect(summary.completedAt).toBeUndefined();
   });
 
-  it('elevates sandbox level for system and filesystem tools', () => {
+  it('orders summaries by start timestamp', () => {
     const events: AnyAgentEvent[] = [
       {
         event_type: 'workflow.tool.started',
@@ -492,8 +487,10 @@ describe('buildToolCallSummaries', () => {
 
     const summaries = buildToolCallSummaries(events);
     expect(summaries).toHaveLength(2);
-    expect(summaries[0].sandboxLevel).toBe('system');
-    expect(summaries[1].sandboxLevel).toBe('filesystem');
+    expect(summaries[0].callId).toBe('call-3');
+    expect(summaries[0].toolName).toBe('shell_exec');
+    expect(summaries[1].callId).toBe('call-4');
+    expect(summaries[1].toolName).toBe('file_write');
   });
 });
 
@@ -710,78 +707,6 @@ describe('extractResearchSteps', () => {
     ];
 
     const result = extractResearchSteps(events);
-
-    expect(result).toEqual([]);
-  });
-});
-
-describe('extractBrowserDiagnostics', () => {
-  it('should extract browser diagnostics events', () => {
-    const events: AnyAgentEvent[] = [
-      {
-        event_type: 'workflow.diagnostic.browser_info',
-        timestamp: '2025-01-01T10:00:00Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        captured: '2025-01-01T10:00:00Z',
-        success: true,
-        message: 'Browser ready',
-        user_agent: 'AgentBrowser/1.0',
-        cdp_url: 'ws://example.com/devtools',
-        vnc_url: 'vnc://example.com',
-        viewport_width: 1280,
-        viewport_height: 720,
-      },
-    ];
-
-    const result = extractBrowserDiagnostics(events);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      captured: '2025-01-01T10:00:00Z',
-      success: true,
-      user_agent: 'AgentBrowser/1.0',
-      cdp_url: 'ws://example.com/devtools',
-    });
-  });
-
-  it('should filter out non-diagnostics events', () => {
-    const events: AnyAgentEvent[] = [
-      {
-        event_type: 'workflow.node.output.delta',
-        timestamp: '2025-01-01T10:00:00Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-      },
-      {
-        event_type: 'workflow.diagnostic.browser_info',
-        timestamp: '2025-01-01T10:00:01Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        captured: '2025-01-01T10:00:01Z',
-      },
-    ];
-
-    const result = extractBrowserDiagnostics(events);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].captured).toBe('2025-01-01T10:00:01Z');
-  });
-
-  it('should handle no diagnostics', () => {
-    const events: AnyAgentEvent[] = [
-      {
-        event_type: 'workflow.node.output.delta',
-        timestamp: '2025-01-01T10:00:00Z',
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-      },
-    ];
-
-    const result = extractBrowserDiagnostics(events);
 
     expect(result).toEqual([]);
   });

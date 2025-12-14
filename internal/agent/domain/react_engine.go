@@ -287,12 +287,6 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		&b.attachmentsMu,
 	)
 
-	if result.Metadata != nil {
-		if info, ok := result.Metadata["workflow.diagnostic.browser_info"].(map[string]any); ok {
-			b.engine.emitWorkflowDiagnosticBrowserInfoEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID, info)
-		}
-	}
-
 	b.finalize(idx, tc, nodeID, *result, startTime)
 }
 
@@ -596,36 +590,6 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 	}
 
 	return messages
-}
-
-func (e *ReactEngine) emitWorkflowDiagnosticBrowserInfoEvent(ctx context.Context, sessionID, taskID, parentTaskID string, metadata map[string]any) {
-	level := ports.GetOutputContext(ctx).Level
-	captured := e.clock.Now()
-	if tsRaw, ok := metadata["captured_at"].(string); ok {
-		if ts, err := time.Parse(time.RFC3339, tsRaw); err == nil {
-			captured = ts
-		}
-	}
-
-	var successPtr *bool
-	switch v := metadata["success"].(type) {
-	case bool:
-		success := v
-		successPtr = &success
-	case *bool:
-		successPtr = v
-	}
-
-	message, _ := metadata["message"].(string)
-	userAgent, _ := metadata["user_agent"].(string)
-	cdpURL, _ := metadata["cdp_url"].(string)
-	vncURL, _ := metadata["vnc_url"].(string)
-
-	viewportWidth := coerceToInt(metadata["viewport_width"])
-	viewportHeight := coerceToInt(metadata["viewport_height"])
-
-	event := NewWorkflowDiagnosticBrowserInfoEvent(level, sessionID, taskID, parentTaskID, captured, successPtr, message, userAgent, cdpURL, vncURL, viewportWidth, viewportHeight)
-	e.emitEvent(event)
 }
 
 // finalize creates the final task result

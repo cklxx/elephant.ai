@@ -37,8 +37,6 @@ type EventBroadcaster struct {
 
 	// Metrics tracking
 	metrics broadcasterMetrics
-
-	attachmentArchiver AttachmentArchiver
 }
 
 const (
@@ -74,11 +72,6 @@ func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
 	b.taskStore = store
 }
 
-// SetAttachmentArchiver configures optional sandbox persistence for generated assets.
-func (b *EventBroadcaster) SetAttachmentArchiver(archiver AttachmentArchiver) {
-	b.attachmentArchiver = archiver
-}
-
 // OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
 func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	if event == nil {
@@ -109,7 +102,6 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 
 	// Run side effects before we broadcast to keep task progress/attachments consistent
 	// with what clients receive, even if those operations are slow.
-	b.archiveAttachments(baseEvent)
 	b.updateTaskProgress(baseEvent)
 
 	b.mu.RLock()
@@ -206,25 +198,6 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 			_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, task.TokensUsed)
 		}
 	}
-}
-
-func (b *EventBroadcaster) archiveAttachments(event agentports.AgentEvent) {
-	if b.attachmentArchiver == nil {
-		return
-	}
-	event = BaseAgentEvent(event)
-	if event == nil {
-		return
-	}
-	sessionID := event.GetSessionID()
-	if sessionID == "" {
-		return
-	}
-	attachments := collectEventAttachments(event)
-	if len(attachments) == 0 {
-		return
-	}
-	b.attachmentArchiver.Persist(context.Background(), sessionID, attachments)
 }
 
 // broadcastToClients sends event to all clients in the list
@@ -434,29 +407,6 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 	delete(b.eventHistory, sessionID)
 	b.clearHighVolumeCounter(sessionID)
 	b.logger.Info("Cleared event history for session: %s", sessionID)
-}
-
-func collectEventAttachments(event agentports.AgentEvent) map[string]agentports.Attachment {
-	event = BaseAgentEvent(event)
-	if event == nil {
-		return nil
-	}
-	switch e := event.(type) {
-	case *domain.WorkflowEventEnvelope:
-		if e == nil || e.Payload == nil {
-			return nil
-		}
-		if att, ok := e.Payload["attachments"].(map[string]agentports.Attachment); ok {
-			return agentports.CloneAttachmentMap(att)
-		}
-		return nil
-	case *domain.WorkflowToolCompletedEvent:
-		return agentports.CloneAttachmentMap(e.Attachments)
-	case *domain.WorkflowResultFinalEvent:
-		return agentports.CloneAttachmentMap(e.Attachments)
-	default:
-		return nil
-	}
 }
 
 func intFromPayload(payload map[string]any, key string) int {

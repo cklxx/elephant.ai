@@ -115,6 +115,18 @@ func (r *reactRuntime) prepareContext() {
 		r.state.PendingUserAttachments = nil
 	}
 
+	if resolved := resolveContentAttachments(userMessage.Content, r.state); len(resolved) > 0 {
+		if userMessage.Attachments == nil {
+			userMessage.Attachments = make(map[string]ports.Attachment, len(resolved))
+		}
+		for key, att := range resolved {
+			if _, exists := userMessage.Attachments[key]; exists {
+				continue
+			}
+			userMessage.Attachments[key] = att
+		}
+	}
+
 	r.state.Messages = append(r.state.Messages, userMessage)
 	if registerMessageAttachments(r.state, userMessage) {
 		r.engine.updateAttachmentCatalogMessage(r.state)

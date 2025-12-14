@@ -12,7 +12,7 @@ Spinner is an AI agent that turns scattered facts, logs, and scratch notes into 
 
 * **Fragment-to-fabric reasoning.** Spinner listens to shell transcripts, notebook results, tickets, and ad-hoc text, and then spins them into a coherent task plan.
 * **One runtime, many surfaces.** The CLI/TUI, HTTP+SSE server, and Next.js dashboard consume the same streaming Think→Act→Observe events.
-* **Context-aware tooling.** File, shell, search, browser, and notebook helpers auto-route through the sandbox runtime when configured.
+* **Context-aware tooling.** File, shell, search, and notebook helpers emit typed events and can attach artifacts/attachments for the web UI.
 * **Observability-first.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking ship with the agent.
 * **Evaluation harness.** SWE-Bench automation plus batch runners ensure Spinner’s weaving stays measurable.
 
@@ -55,14 +55,14 @@ The result: fragments become a searchable lattice you can reuse later.
 * **HTTP + SSE server (`cmd/alex-server`).** Exposes `/tasks`, `/sessions`, `/health`, and streaming updates for automation and the dashboard.
 * **Web dashboard (`web/`).** Next.js 14 app with Tailwind CSS, real-time task feed, and cost/session inspection.
 
-All binaries wire through `internal/di`, so configuration, tool wiring, and sandbox routing stay identical.
+All binaries wire through `internal/di`, so configuration and tool wiring stay identical.
 
 ---
 
 ## Tooling & Integrations
 
 * **LLM providers.** Multi-model clients with retry/cost middleware in `internal/llm`.
-* **Sandbox runtime.** Optional remote execution via `third_party/sandbox-sdk-go`, orchestrated through `internal/di` and tool adapters.
+* **Artifacts & attachments.** Tool outputs can be surfaced as artifacts/attachments and rendered by the web dashboard.
 * **Model Context Protocol.** JSON-RPC 2.0 clients, supervisors, and server registry in `internal/mcp` so Spinner can negotiate external tools.
 * **Approval workflows.** Guardrails in `internal/approval` let humans veto risky tool usage.
 * **Context & parsing.** Layered prompt builders plus structured tool call parsers in `internal/context` and `internal/parser`.
@@ -82,7 +82,6 @@ All binaries wire through `internal/di`, so configuration, tool wiring, and sand
 | `tests/` | End-to-end and integration suites executed in CI. |
 | `scripts/` | Developer automation and CI helpers. |
 | `deploy/docker/` | Dockerfiles, Compose stacks, and nginx config for containerized deployments. |
-| `third_party/` | Vendored or customized dependencies (e.g., sandbox SDK). |
 
 ---
 
@@ -92,7 +91,7 @@ All binaries wire through `internal/di`, so configuration, tool wiring, and sand
 
 * Go **1.24+** (pinned in `go.mod`).
 * Node.js **20+** for the dashboard.
-* Docker for optional sandbox services and deployments.
+* Docker (optional) for containerized deployments.
 
 ### CLI Quickstart
 
@@ -112,17 +111,17 @@ Session cleanup helpers:
 ### Server & Dashboard
 
 ```bash
-./alex-server           # start HTTP + SSE server on port 8000
+./alex-server            # start HTTP + SSE server on port 8080
 (cd web && npm install)  # install frontend dependencies
 (cd web && npm run dev)  # launch Next.js dashboard
 ```
 
-Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox routing. `docker compose up` bind-mounts your host configuration into the container so Spinner reads the same credentials everywhere.
+When running the web dashboard on a separate origin in development, set `NEXT_PUBLIC_API_URL=http://localhost:8080` (or keep the default `auto` for same-origin deployments).
 
 ### Production Deployment
 
-1. **Configure secrets and models:** Populate `api_key`, `base_url`, and `model` in `~/.alex-config.json`, and export env vars like `OPENAI_API_KEY` and `TAVILY_API_KEY`.
-2. **One-shot startup:** Run `./deploy.sh` with no arguments to bring up nginx on port 80 with a same-origin front/back end (no need to expose 8000). On mainland China networks, `./deploy.sh cn` switches Docker/npm/Go mirrors and preloads the Sandbox image. Use `./deploy.sh pro status`/`pro logs`/`pro down` for inspections, logs, and shutdowns; use the separate `./dev.sh` for local development mode.
+1. **Configure secrets and models:** Populate `llm_provider`, `llm_model`, optional `llm_vision_model`, `api_key`, and `base_url` in `~/.alex-config.json` (override path via `ALEX_CONFIG_PATH`), and export env vars like `OPENAI_API_KEY` and `TAVILY_API_KEY`. See `docs/reference/CONFIG.md`.
+2. **One-shot startup:** Run `./deploy.sh` with no arguments to bring up nginx on port 80 with a same-origin front/back end (no need to expose 8080). On mainland China networks, `./deploy.sh cn` switches Docker/npm/Go mirrors. Use `./deploy.sh pro status`/`pro logs`/`pro down` for inspections, logs, and shutdowns; use the separate `./dev.sh` for local development mode.
 3. **Containerized deployment:** Prefer `deploy/docker/docker-compose.yml` for production:
    ```bash
    echo "OPENAI_API_KEY=sk-your-key" > .env
@@ -131,7 +130,7 @@ Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox
    ```
    See the Docker Compose section of the **ALEX Operations Guide** for more commands and health-check examples.
 4. **Health probes and observability:** Configure a `/health` probe (Compose or K8s livenessProbe) before go-live and wire logs/metrics into your monitoring stack; details live in the operations guide's health monitoring section.
-5. **Environment-specific tuning:** Use `dev.json` / `staging.json` / `prod.json` or environment variables to enable/disable MCP, adjust logging, and tweak iteration counts; avoid debug logging in production.
+5. **Environment-specific tuning:** Prefer environment variables and managed overrides (`alex config set`) to tune MCP/logging/presets/iteration counts; avoid debug logging in production.
 
 ### Deployment Scripts
 
@@ -143,7 +142,7 @@ Export `SANDBOX_BASE_URL` (or set it in `~/.alex-config.json`) to enable sandbox
 ./deploy.sh pro logs web
 ./deploy.sh pro down
 ./deploy.sh cn deploy
-./dev.sh start
+./dev.sh start   # sources .env; AUTH_JWT_SECRET enables /api/auth/*
 ./dev.sh test
 ```
 
@@ -177,6 +176,7 @@ Items labeled “planned” are in active design; other bullets align with the c
 
 * [`docs/README.md`](docs/README.md) – full documentation index.
 * [`docs/AGENT.md`](docs/AGENT.md) – reasoning loop, orchestration flow, and event model.
+* [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md) – configuration schema, precedence, and examples.
 * [`docs/architecture/`](docs/architecture/) – design deep dives and diagrams.
 * [`docs/reference/`](docs/reference/) – API references, presets, formatting, observability, and MCP guides.
 * [`docs/guides/`](docs/guides/) – task-focused walkthroughs.

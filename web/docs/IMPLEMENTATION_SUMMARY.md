@@ -163,16 +163,6 @@ Response: { "success": true, "message": "..." }
   "step_index": 0,
   "step_result": "Found 5 files"
 }
-
-// Browser diagnostics (for sandbox visibility)
-{
-  "event_type": "workflow.diagnostic.browser_info",
-  "captured": "2025-01-01T10:00:00Z",
-  "success": true,
-  "message": "Browser ready",
-  "user_agent": "AgentBrowser/1.0",
-  "cdp_url": "ws://example.com/devtools"
-}
 ```
 
 ## Accessibility Compliance
@@ -266,8 +256,7 @@ const [useResearch ConsoleUI, setUseResearch ConsoleUI] = useState(true);
 ### Backend Implementation (Required)
 
 1. Ensure `workflow.node.started` / `workflow.node.completed` emissions are present so the timeline can render.
-2. Stream `workflow.diagnostic.browser_info` diagnostics when available for sandbox visibility.
-3. Keep task creation payloads unchanged; no plan approval flow is required.
+2. Keep task creation payloads unchanged; no plan approval flow is required.
 
 ### Frontend Enhancements (Optional)
 

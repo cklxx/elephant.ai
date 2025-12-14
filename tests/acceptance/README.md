@@ -48,8 +48,9 @@ Ensure LLM provider credentials are configured in `.env`:
 
 ```bash
 OPENAI_API_KEY=your-key
-OPENAI_BASE_URL=your-base-url
-ALEX_MODEL=your-model
+LLM_PROVIDER=your-provider
+LLM_BASE_URL=your-base-url
+LLM_MODEL=your-model
 ```
 
 ### 3. Dependencies

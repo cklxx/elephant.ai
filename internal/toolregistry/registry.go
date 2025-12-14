@@ -8,7 +8,6 @@ import (
 
 	"alex/internal/agent/ports"
 	runtimeconfig "alex/internal/config"
-	"alex/internal/tools"
 	"alex/internal/tools/builtin"
 )
 
@@ -27,8 +26,7 @@ type filteredRegistry struct {
 }
 
 type Config struct {
-	TavilyAPIKey   string
-	SandboxBaseURL string
+	TavilyAPIKey string
 
 	ArkAPIKey               string
 	SeedreamTextEndpointID  string
@@ -37,28 +35,9 @@ type Config struct {
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
-
-	ExecutionMode  tools.ExecutionMode
-	SandboxManager *tools.SandboxManager
 }
 
 func NewRegistry(config Config) (*Registry, error) {
-	mode := config.ExecutionMode
-	if mode == tools.ExecutionModeUnknown {
-		if config.SandboxManager != nil {
-			mode = tools.ExecutionModeSandbox
-		} else {
-			mode = tools.ExecutionModeLocal
-		}
-	}
-
-	if err := mode.Validate(); err != nil {
-		return nil, err
-	}
-	if mode == tools.ExecutionModeSandbox && config.SandboxManager == nil {
-		return nil, fmt.Errorf("sandbox manager is required in sandbox mode")
-	}
-
 	r := &Registry{
 		static:  make(map[string]ports.ToolExecutor),
 		dynamic: make(map[string]ports.ToolExecutor),
@@ -67,7 +46,6 @@ func NewRegistry(config Config) (*Registry, error) {
 
 	if err := r.registerBuiltins(Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
-		SandboxBaseURL:          config.SandboxBaseURL,
 		ArkAPIKey:               config.ArkAPIKey,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
@@ -75,8 +53,6 @@ func NewRegistry(config Config) (*Registry, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
-		ExecutionMode:           mode,
-		SandboxManager:          config.SandboxManager,
 	}); err != nil {
 		return nil, err
 	}
@@ -158,13 +134,6 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
 }
 
-func (w *idAwareExecutor) Mode() tools.ExecutionMode {
-	if modeAware, ok := w.delegate.(interface{ Mode() tools.ExecutionMode }); ok {
-		return modeAware.Mode()
-	}
-	return tools.ExecutionModeUnknown
-}
-
 // WithoutSubagent returns a filtered registry that excludes the subagent tool
 // This prevents nested subagent calls at registration level
 func (r *Registry) WithoutSubagent() ports.ToolRegistry {
@@ -240,14 +209,8 @@ func (r *Registry) Unregister(name string) error {
 }
 
 func (r *Registry) registerBuiltins(config Config) error {
-	fileConfig := builtin.FileToolConfig{
-		Mode:           config.ExecutionMode,
-		SandboxManager: config.SandboxManager,
-	}
-	shellConfig := builtin.ShellToolConfig{
-		Mode:           config.ExecutionMode,
-		SandboxManager: config.SandboxManager,
-	}
+	fileConfig := builtin.FileToolConfig{}
+	shellConfig := builtin.ShellToolConfig{}
 
 	// File operations
 	r.static["file_read"] = builtin.NewFileRead(fileConfig)
@@ -272,18 +235,13 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
 
 	// Execution & reasoning
-	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{
-		BaseURL:        config.SandboxBaseURL,
-		Mode:           config.ExecutionMode,
-		SandboxManager: config.SandboxManager,
-	})
+	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
 	r.static["think"] = builtin.NewThink()
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
 	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
-		Mode:           config.ExecutionMode,
-		SandboxManager: config.SandboxManager,
+		// Reserved for future config.
 	})
 
 	seedreamBase := builtin.SeedreamConfig{
@@ -320,17 +278,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 		videoConfig.ModelDescriptor = "Seedance video generation"
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
 		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
-	}
-
-	if config.ExecutionMode == tools.ExecutionModeSandbox && config.SandboxManager != nil {
-		r.static["browser"] = builtin.NewBrowser(builtin.BrowserToolConfig{
-			Mode:           config.ExecutionMode,
-			SandboxManager: config.SandboxManager,
-		})
-		r.static["workflow.diagnostic.browser_info"] = builtin.NewBrowserInfo(builtin.BrowserToolConfig{
-			Mode:           config.ExecutionMode,
-			SandboxManager: config.SandboxManager,
-		})
 	}
 
 	return nil

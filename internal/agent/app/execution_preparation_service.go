@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -184,27 +186,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		systemPrompt = defaultSystemPrompt
 	}
 
-	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, s.config.LLMModel)
-	// Use GetIsolatedClient to ensure session-level cost tracking isolation
-	llmClient, err := s.llmFactory.GetIsolatedClient(s.config.LLMProvider, s.config.LLMModel, ports.LLMConfig{
-		APIKey:  s.config.APIKey,
-		BaseURL: s.config.BaseURL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get LLM client: %w", err)
-	}
-	s.logger.Debug("Isolated LLM client obtained successfully")
-
-	// Use Wrap instead of Attach to avoid modifying shared client state
-	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
-
-	streamingClient, ok := ports.EnsureStreamingClient(llmClient).(ports.StreamingLLMClient)
-	if !ok {
-		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
-	}
-
-	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
-
 	preloadedAttachments := collectSessionAttachments(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
 	if len(inheritedAttachments) > 0 {
@@ -234,6 +215,34 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 		mergeAttachmentMaps(preloadedAttachments, inheritedState.Attachments)
 	}
+
+	effectiveModel := s.config.LLMModel
+	if taskNeedsVision(task, preloadedAttachments, GetUserAttachments(ctx)) {
+		if visionModel := strings.TrimSpace(s.config.LLMVisionModel); visionModel != "" {
+			effectiveModel = visionModel
+		}
+	}
+
+	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, effectiveModel)
+	// Use GetIsolatedClient to ensure session-level cost tracking isolation
+	llmClient, err := s.llmFactory.GetIsolatedClient(s.config.LLMProvider, effectiveModel, ports.LLMConfig{
+		APIKey:  s.config.APIKey,
+		BaseURL: s.config.BaseURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLM client: %w", err)
+	}
+	s.logger.Debug("Isolated LLM client obtained successfully")
+
+	// Use Wrap instead of Attach to avoid modifying shared client state
+	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
+
+	streamingClient, ok := ports.EnsureStreamingClient(llmClient).(ports.StreamingLLMClient)
+	if !ok {
+		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
+	}
+
+	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
 	stateMessages := append([]domain.Message(nil), session.Messages...)
 	if history != nil && len(history.messages) > 0 {
 		stateMessages = trimSessionHistoryMessages(stateMessages)
@@ -616,6 +625,72 @@ func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]p
 			att.Name = name
 		}
 		target[name] = att
+	}
+}
+
+var visionPlaceholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
+
+func taskNeedsVision(task string, attachments map[string]ports.Attachment, userAttachments []ports.Attachment) bool {
+	for _, att := range userAttachments {
+		if isImageAttachment(att) {
+			return true
+		}
+	}
+
+	if strings.TrimSpace(task) == "" || len(attachments) == 0 {
+		return false
+	}
+
+	matches := visionPlaceholderPattern.FindAllStringSubmatch(task, -1)
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		placeholder := strings.TrimSpace(match[1])
+		if placeholder == "" {
+			continue
+		}
+		att, ok := lookupAttachmentByName(attachments, placeholder)
+		if !ok {
+			continue
+		}
+		if isImageAttachment(att) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func lookupAttachmentByName(attachments map[string]ports.Attachment, name string) (ports.Attachment, bool) {
+	if len(attachments) == 0 {
+		return ports.Attachment{}, false
+	}
+	if att, ok := attachments[name]; ok {
+		return att, true
+	}
+	for key, att := range attachments {
+		if strings.EqualFold(key, name) || strings.EqualFold(att.Name, name) {
+			return att, true
+		}
+	}
+	return ports.Attachment{}, false
+}
+
+func isImageAttachment(att ports.Attachment) bool {
+	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
+	if strings.HasPrefix(mediaType, "image/") {
+		return true
+	}
+	name := strings.TrimSpace(att.Name)
+	if name == "" {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff":
+		return true
+	default:
+		return false
 	}
 }
 

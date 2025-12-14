@@ -27,9 +27,7 @@ const WORKFLOW_EVENTS: WorkflowEventType[] = [
   'workflow.diagnostic.error',
   'workflow.diagnostic.context_compression',
   'workflow.diagnostic.tool_filtering',
-  'workflow.diagnostic.browser_info',
   'workflow.diagnostic.environment_snapshot',
-  'workflow.diagnostic.sandbox_progress',
 ];
 
 const DEFAULT_EVENTS: Array<WorkflowEventType | 'connected'> = Array.from(new Set(['connected', ...WORKFLOW_EVENTS]));

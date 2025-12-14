@@ -17,7 +17,7 @@ This playbook assigns concrete actions for the workflow-first event stream migra
    - `workflow.subflow.progress|completed` (delegated agent aggregation).
    - `workflow.tool.progress` for streaming tool output.
 3. Diagnostics namespace:
-- Emit `workflow.diagnostic.context_compression`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.browser_info`, `workflow.diagnostic.environment_snapshot`, `workflow.diagnostic.sandbox_progress`.
+- Emit `workflow.diagnostic.context_compression`, `workflow.diagnostic.context_snapshot`, `workflow.diagnostic.tool_filtering`, and `workflow.diagnostic.environment_snapshot`.
 4. SSE handler:
    - Serialize the envelope; stream only workflow.* envelopes plus `workflow.input.received` (drop legacy domain event types).
    - Update metrics to track new `event_type` values.

@@ -196,7 +196,7 @@ Recommended:
 npm run build
 ```
 
-Output in `.next/` directory.
+Output in `out/` directory.
 
 ### Deploy to Vercel
 
@@ -207,13 +207,6 @@ vercel deploy
 
 Set environment variable in Vercel dashboard:
 - `NEXT_PUBLIC_API_URL` = your production backend URL
-
-### Docker
-
-```bash
-docker build -t alex-web .
-docker run -p 3000:3000 -e NEXT_PUBLIC_API_URL=http://backend:8080 alex-web
-```
 
 ## Useful Links
 

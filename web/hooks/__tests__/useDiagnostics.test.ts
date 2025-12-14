@@ -19,7 +19,6 @@ describe('useDiagnostics', () => {
       agent_level: 'core',
       captured: new Date().toISOString(),
       host: { HOSTNAME: 'host.local', USER: 'cli' },
-      sandbox: { HOSTNAME: 'sandbox.local', USER: 'runner' },
     };
 
     const { result } = renderHook(() => useDiagnostics());
@@ -30,7 +29,6 @@ describe('useDiagnostics', () => {
 
     expect(result.current.environments).not.toBeNull();
     expect(result.current.environments?.host).toMatchObject({ HOSTNAME: 'host.local' });
-    expect(result.current.environments?.sandbox).toMatchObject({ USER: 'runner' });
     expect(result.current.environments?.captured).toBe(event.captured);
   });
 });

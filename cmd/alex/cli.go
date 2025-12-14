@@ -104,11 +104,13 @@ Usage:
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
 
 Configuration:
-  Config file: ~/.alex-config.json
+  Config file: ~/.alex-config.json (or $ALEX_CONFIG_PATH)
   Environment variables:
-    OPENROUTER_API_KEY           API key for OpenRouter/OpenAI
+    OPENAI_API_KEY              API key for OpenAI/OpenRouter
     LLM_PROVIDER                 LLM provider (openrouter, openai, deepseek, ollama, mock)
     LLM_MODEL                    Model name
+    LLM_VISION_MODEL             Vision model name (used when images are attached)
+    LLM_BASE_URL                 OpenAI-compatible base URL
     ALEX_VERBOSE                 Show full tool output (set to 1 or true)
 
 Sessions cleanup options:
@@ -537,6 +539,11 @@ func printConfigSummary(out io.Writer, overridesPath string) error {
 	if _, err := fmt.Fprintf(out, "  Model:          %s\n", cfg.LLMModel); err != nil {
 		return fmt.Errorf("write model: %w", err)
 	}
+	if cfg.LLMVisionModel != "" {
+		if _, err := fmt.Fprintf(out, "  Vision Model:   %s\n", cfg.LLMVisionModel); err != nil {
+			return fmt.Errorf("write vision model: %w", err)
+		}
+	}
 	if _, err := fmt.Fprintf(out, "  Base URL:       %s\n", cfg.BaseURL); err != nil {
 		return fmt.Errorf("write base url: %w", err)
 	}
@@ -600,7 +607,7 @@ func printConfigUsage(out io.Writer) {
 		"  alex config clear <field>         Remove an override",
 		"  alex config path                  Print the overrides file location",
 		"",
-		"Supported fields: llm_provider, llm_model, base_url, api_key, ark_api_key, tavily_api_key, sandbox_base_url, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
+		"Supported fields: llm_provider, llm_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
 	}
 
 	for _, line := range lines {
@@ -652,6 +659,8 @@ func setOverrideField(overrides *runtimeconfig.Overrides, key, value string) err
 		overrides.LLMProvider = stringPtr(value)
 	case "llm_model":
 		overrides.LLMModel = stringPtr(value)
+	case "llm_vision_model":
+		overrides.LLMVisionModel = stringPtr(value)
 	case "api_key":
 		overrides.APIKey = stringPtr(value)
 	case "ark_api_key":
@@ -672,8 +681,6 @@ func setOverrideField(overrides *runtimeconfig.Overrides, key, value string) err
 		overrides.SeedreamVisionModel = stringPtr(value)
 	case "seedream_video_model":
 		overrides.SeedreamVideoModel = stringPtr(value)
-	case "sandbox_base_url":
-		overrides.SandboxBaseURL = stringPtr(value)
 	case "environment":
 		overrides.Environment = stringPtr(value)
 	case "session_dir":
@@ -759,6 +766,8 @@ func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error
 		overrides.LLMProvider = nil
 	case "llm_model":
 		overrides.LLMModel = nil
+	case "llm_vision_model":
+		overrides.LLMVisionModel = nil
 	case "api_key":
 		overrides.APIKey = nil
 	case "ark_api_key":
@@ -779,8 +788,6 @@ func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error
 		overrides.SeedreamVisionModel = nil
 	case "seedream_video_model":
 		overrides.SeedreamVideoModel = nil
-	case "sandbox_base_url":
-		overrides.SandboxBaseURL = nil
 	case "environment":
 		overrides.Environment = nil
 	case "session_dir":
@@ -815,24 +822,10 @@ func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error
 	return nil
 }
 
-var overrideKeyAliases = map[string]string{
-	"provider":           "llm_provider",
-	"model":              "llm_model",
-	"key":                "api_key",
-	"openai_api_key":     "api_key",
-	"openrouter_api_key": "api_key",
-	"baseurl":            "base_url",
-	"sandbox_url":        "sandbox_base_url",
-	"env":                "environment",
-}
-
 func normalizeOverrideKey(key string) string {
 	trimmed := strings.TrimSpace(strings.ToLower(key))
 	trimmed = strings.ReplaceAll(trimmed, "-", "_")
 	trimmed = strings.ReplaceAll(trimmed, " ", "_")
-	if canonical, ok := overrideKeyAliases[trimmed]; ok {
-		return canonical
-	}
 	return trimmed
 }
 

@@ -8,8 +8,8 @@ import (
 func TestNewAlexAgentUsesRuntimeConfigOverrides(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("LLM_PROVIDER", "mock")
-	t.Setenv("ALEX_MODEL_NAME", "mock-eval-model")
-	t.Setenv("ALEX_MODEL_TEMPERATURE", "0.5")
+	t.Setenv("LLM_MODEL", "mock-eval-model")
+	t.Setenv("LLM_TEMPERATURE", "0.5")
 	t.Setenv("LLM_MAX_TOKENS", "777")
 
 	cfg := DefaultBatchConfig()
@@ -67,7 +67,7 @@ func TestNewAlexAgentUsesRuntimeConfigOverrides(t *testing.T) {
 func TestNewAlexAgentAdjustsBaseURLForOpenAIModels(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("LLM_PROVIDER", "openai")
-	t.Setenv("ALEX_MODEL_NAME", "gpt-4.1-mini")
+	t.Setenv("LLM_MODEL", "gpt-4.1-mini")
 
 	cfg := DefaultBatchConfig()
 	cfg.Agent.Model.Name = ""

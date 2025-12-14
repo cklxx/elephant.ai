@@ -388,29 +388,6 @@ func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {
 	return keys
 }
 
-func coerceToInt(value any) int {
-	switch v := value.(type) {
-	case int:
-		return v
-	case int32:
-		return int(v)
-	case int64:
-		return int(v)
-	case uint:
-		return int(v)
-	case uint32:
-		return int(v)
-	case uint64:
-		return int(v)
-	case float64:
-		return int(v)
-	case float32:
-		return int(v)
-	default:
-		return 0
-	}
-}
-
 // applyAttachmentMutationsToState merges incoming attachment mutations with
 // the task state, ensuring delete/update/replace semantics stay consistent.
 func applyAttachmentMutationsToState(
@@ -835,24 +812,8 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 	}
 
 	builder.WriteString("\nUse the placeholders verbatim to work with these attachments in follow-up steps.")
-	if hint := attachmentSandboxPathHint(state); hint != "" {
-		builder.WriteString("\nFiles are mirrored inside the sandbox under ")
-		builder.WriteString(hint)
-		builder.WriteString(".")
-	}
 
 	return strings.TrimSpace(builder.String())
-}
-
-func attachmentSandboxPathHint(state *TaskState) string {
-	if state == nil {
-		return ""
-	}
-	session := strings.TrimSpace(state.SessionID)
-	if session == "" {
-		return "/workspace/.alex/sessions/<session>/attachments"
-	}
-	return fmt.Sprintf("/workspace/.alex/sessions/%s/attachments", session)
 }
 
 func findAttachmentCatalogMessageIndex(state *TaskState) int {
@@ -882,21 +843,7 @@ func removeAttachmentCatalogMessage(state *TaskState) {
 }
 
 func attachmentReferenceValue(att ports.Attachment) string {
-	if uri := strings.TrimSpace(att.URI); uri != "" {
-		return uri
-	}
-	data := strings.TrimSpace(att.Data)
-	if data != "" {
-		if strings.HasPrefix(data, "data:") {
-			return data
-		}
-		mediaType := strings.TrimSpace(att.MediaType)
-		if mediaType == "" {
-			mediaType = "application/octet-stream"
-		}
-		return fmt.Sprintf("data:%s;base64,%s", mediaType, data)
-	}
-	return ""
+	return ports.AttachmentReferenceValue(att)
 }
 
 func lookupAttachmentByNameInternal(name string, state *TaskState) (ports.Attachment, string, string, bool) {

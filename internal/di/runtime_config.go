@@ -8,6 +8,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 	return Config{
 		LLMProvider:             runtime.LLMProvider,
 		LLMModel:                runtime.LLMModel,
+		LLMVisionModel:          runtime.LLMVisionModel,
 		APIKey:                  runtime.APIKey,
 		ArkAPIKey:               runtime.ArkAPIKey,
 		BaseURL:                 runtime.BaseURL,
@@ -18,7 +19,6 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		SeedreamImageModel:      runtime.SeedreamImageModel,
 		SeedreamVisionModel:     runtime.SeedreamVisionModel,
 		SeedreamVideoModel:      runtime.SeedreamVideoModel,
-		SandboxBaseURL:          runtime.SandboxBaseURL,
 		MaxTokens:               runtime.MaxTokens,
 		MaxIterations:           runtime.MaxIterations,
 		UserRateLimitRPS:        runtime.UserRateLimitRPS,

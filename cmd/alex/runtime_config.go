@@ -36,7 +36,7 @@ func saveManagedOverrides(envLookup runtimeconfig.EnvLookup, overrides runtimeco
 }
 
 func runtimeEnvLookup() runtimeconfig.EnvLookup {
-	return runtimeconfig.DefaultEnvLookupWithAliases()
+	return runtimeconfig.DefaultEnvLookup
 }
 
 func managedOverridesPath(envLookup runtimeconfig.EnvLookup) string {

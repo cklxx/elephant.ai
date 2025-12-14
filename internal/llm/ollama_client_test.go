@@ -213,3 +213,58 @@ func TestOllamaClientRequestOptions(t *testing.T) {
 		t.Fatalf("options were not observed in time")
 	}
 }
+
+func TestOllamaClientIncludesImagesForUserMessage(t *testing.T) {
+	t.Parallel()
+
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ollamaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if len(req.Messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(req.Messages))
+		}
+		msg := req.Messages[0]
+		if msg.Role != "user" {
+			t.Fatalf("expected role user, got %q", msg.Role)
+		}
+		if msg.Content != "Look at [cat.png]." {
+			t.Fatalf("unexpected content %q", msg.Content)
+		}
+		if len(msg.Images) != 1 || msg.Images[0] != "ZmFrZUJhc2U2NA==" {
+			t.Fatalf("unexpected images: %#v", msg.Images)
+		}
+		close(done)
+		_ = json.NewEncoder(w).Encode(ollamaResponse{Message: ollamaMessage{Content: "ok"}, Done: true})
+	}))
+	defer server.Close()
+
+	client, err := NewOllamaClient("llama3", Config{BaseURL: server.URL + "/api"})
+	if err != nil {
+		t.Fatalf("NewOllamaClient: %v", err)
+	}
+
+	go func() {
+		_, _ = client.Complete(context.Background(), ports.CompletionRequest{
+			Messages: []ports.Message{{
+				Role:    "user",
+				Content: "Look at [cat.png].",
+				Attachments: map[string]ports.Attachment{
+					"cat.png": {
+						Name:      "cat.png",
+						MediaType: "image/png",
+						Data:      "ZmFrZUJhc2U2NA==",
+					},
+				},
+			}},
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("expected request to include images")
+	}
+}

@@ -146,12 +146,9 @@ const translations = {
     "conversation.status.failed": "Failed",
     "conversation.status.listening": "Listening…",
     "conversation.tools.simpleSummary.heading": "Tool calls this session",
-    "conversation.tools.simpleSummary.sandboxNote":
-      "Every tool call runs inside the sandbox. System and file access are noted below.",
     "conversation.tools.simpleSummary.inputsLabel": "Inputs",
     "conversation.tools.simpleSummary.outputLabel": "Output",
     "conversation.tools.simpleSummary.errorLabel": "Error",
-    "conversation.tools.simpleSummary.sandboxLine": "Sandbox: {policy}",
     "conversation.tools.simpleSummary.policy.standard": "standard isolation",
     "conversation.tools.simpleSummary.policy.filesystem": "filesystem guard",
     "conversation.tools.simpleSummary.policy.system": "system guard",
@@ -168,41 +165,6 @@ const translations = {
     "conversation.tool.timeline.summaryRunning": "{tool} is running…",
     "conversation.tool.timeline.summaryCompleted": "{tool} finished running.",
     "conversation.tool.timeline.summaryErrored": "{tool} reported an error.",
-    "conversation.environment.heading": "Sandbox environment",
-    "conversation.environment.assurance":
-      "All web tools run inside the sandbox runtime.",
-    "conversation.environment.sandbox.required": "Sandbox required",
-    "conversation.environment.sandbox.recommended": "Sandbox ready",
-    "conversation.environment.tools.label": "Tools ({count})",
-    "conversation.environment.tools.none": "No tool runs yet",
-    "conversation.environment.generatedAt": "Generated: {time}",
-    "conversation.environment.lastUpdated": "Updated: {time}",
-    "conversation.environment.capabilities": "Capabilities",
-    "conversation.environment.persistence": "Persistence",
-    "conversation.environment.sandbox.inlineNotice":
-      "Executed inside the session sandbox workspace.",
-    "conversation.environment.todos.heading": "Next sandbox actions",
-    "conversation.environment.todos.manualBadge": "Manual",
-    "conversation.environment.todos.check": "Mark todo complete",
-    "conversation.environment.todos.uncheck": "Mark todo incomplete",
-    "conversation.environment.todos.allComplete":
-      "All sandbox follow-ups complete. Monitoring continues automatically.",
-    "conversation.environment.todos.remaining":
-      "{count, plural, one {# sandbox follow-up remaining} other {# sandbox follow-ups remaining}}",
-    "conversation.environment.actions.noPlan":
-      "No sandbox plan is available yet.",
-    "conversation.environment.actions.shareTitle":
-      "Sandbox plan for session {session}",
-    "conversation.environment.actions.shareSuccess": "Sandbox plan shared.",
-    "conversation.environment.actions.shareCopied":
-      "Sandbox plan copied to clipboard.",
-    "conversation.environment.actions.shareFailure":
-      "Unable to share sandbox plan.",
-    "conversation.environment.actions.exportSuccess": "Sandbox plan exported.",
-    "conversation.environment.actions.exportFailure":
-      "Export failed. Try again.",
-    "conversation.environment.actions.deleteSuccess":
-      "Sandbox plan reset for this session.",
     "console.timeline.mobileLabel": "Timeline snapshot",
     "console.timeline.dialogTitle": "Execution timeline",
     "console.timeline.dialogDescription": "Select a step to focus.",

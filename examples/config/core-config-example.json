@@ -1,4 +1,8 @@
 {
+  "llm_provider": "openrouter",
+  "llm_model": "deepseek/deepseek-chat",
+  "llm_vision_model": "openai/gpt-4o-mini",
   "api_key": "your-openrouter-key-here",
-  "base_url": "https://openrouter.ai/api/v1"
+  "base_url": "https://openrouter.ai/api/v1",
+  "tool_preset": "safe"
 }

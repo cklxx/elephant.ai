@@ -18,7 +18,7 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
   - `workflow.subflow.progress|completed` – delegated agent/subagent aggregation (replaces frontend-synthesized `subagent_*`).
   - `workflow.result.final` – final answer/attachments (replaces `workflow.result.final`).
   - `workflow.result.cancelled` – cancellation (replaces `workflow.result.cancelled`).
-  - `workflow.diagnostic.*` – `context_compaction`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.browser_info`, `workflow.diagnostic.environment_snapshot`, `workflow.diagnostic.sandbox_progress`.
+  - `workflow.diagnostic.*` – `workflow.diagnostic.context_compression`, `workflow.diagnostic.context_snapshot`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.environment_snapshot`.
 - **Compatibility strategy**:
   - No legacy dual-emission; only workflow.* event types are streamed. Tracking/analytics lists must mirror the new names; tests enforce parity (see `internal/analytics/tracking_plan_test.go`).
 
@@ -33,7 +33,7 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
 
 - Emit `workflow.subflow.progress|completed` from the delegating agent instead of frontend synthesis.
 - Emit `workflow.tool.progress` for streaming tool output instead of overloading `workflow.tool.progress`.
-- Ensure diagnostics (`context_compaction`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.browser_info`, `workflow.diagnostic.environment_snapshot`, `workflow.diagnostic.sandbox_progress`) use the `workflow.diagnostic.*` namespace.
+- Ensure diagnostics (`workflow.diagnostic.context_compression`, `workflow.diagnostic.context_snapshot`, `workflow.diagnostic.tool_filtering`, `workflow.diagnostic.environment_snapshot`) use the `workflow.diagnostic.*` namespace.
 ## Cleanup and validation (post-migration checklist)
 
 - **Remove legacy-only code**: drop `event_type` inference branches in `web/lib/schemas.ts`; delete `subagentDeriver` once backend emits subflow events.
@@ -73,7 +73,6 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
 │  │  • aggregateToolCalls()                          │           │
 │  │  • groupByIteration()                            │           │
 │  │  • extractResearchSteps()                        │           │
-│  │  • extractBrowserDiagnostics()                   │           │
 │  └───────────────────────────────────────────────────┘           │
 │                            │                                      │
 │                            ▼                                      │
@@ -82,7 +81,6 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
 │  │  • toolCalls: Map<string, AggregatedToolCall>   │           │
 │  │  • iterations: Map<number, IterationGroup>      │           │
 │  │  • researchSteps: ResearchStep[]                │           │
-│  │  • browserDiagnostics: BrowserDiagnostics[]     │           │
 │  └───────────────────────────────────────────────────┘           │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
@@ -393,18 +391,6 @@ type WorkflowNodeCompletedEvent struct {
     StepDescription string `json:"step_description,omitempty"`
     Iteration       int    `json:"iteration,omitempty"`
 }
-
-type WorkflowDiagnosticBrowserInfoEvent struct {
-    BaseEvent
-    Success        *bool  `json:"success,omitempty"`
-    Message        string `json:"message,omitempty"`
-    UserAgent      string `json:"user_agent,omitempty"`
-    CDPURL         string `json:"cdp_url,omitempty"`
-    VNCURL         string `json:"vnc_url,omitempty"`
-    ViewportWidth  int    `json:"viewport_width,omitempty"`
-    ViewportHeight int    `json:"viewport_height,omitempty"`
-    Captured       time.Time `json:"captured"`
-}
 ```
 
 ### SSE Event Registration
@@ -428,9 +414,7 @@ eventTypes := []string{
     "workflow.subflow.completed",
     "workflow.result.final",
     "workflow.result.cancelled",
-    "workflow.diagnostic.browser_info",
     "workflow.diagnostic.environment_snapshot",
-    "workflow.diagnostic.sandbox_progress",
     "workflow.diagnostic.context_compression",
     "workflow.diagnostic.tool_filtering",
     "workflow.diagnostic.context_snapshot",

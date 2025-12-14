@@ -20,11 +20,6 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SERVER_PORT=8080
 readonly WEB_PORT=3000
-readonly SANDBOX_DEFAULT_URL="http://localhost:8090"
-readonly SANDBOX_COMPOSE_FILE="${SCRIPT_DIR}/deploy/docker/docker-compose.yml"
-readonly SANDBOX_SERVICE_NAME="sandbox"
-readonly SANDBOX_CONTAINER_NAME="alex-sandbox"
-readonly SANDBOX_CHINA_IMAGE="enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest"
 readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
@@ -74,7 +69,6 @@ log_warn() {
 print_cn_mirrors() {
     log_info "Using China mirrors for deployment:"
     [[ -n "${DOCKER_REGISTRY_MIRROR:-}" ]] && log_info "  Docker mirror: ${DOCKER_REGISTRY_MIRROR}"
-    [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  Sandbox image: ${SANDBOX_IMAGE}"
     [[ -n "${NPM_CONFIG_REGISTRY:-}" ]] && log_info "  npm registry: ${NPM_CONFIG_REGISTRY}"
     [[ -n "${PIP_INDEX_URL:-}" ]] && log_info "  pip index: ${PIP_INDEX_URL}"
     [[ -n "${GOPROXY:-}" ]] && log_info "  Go proxy: ${GOPROXY}"
@@ -84,7 +78,6 @@ print_cn_mirrors() {
     [[ -n "${REDIS_IMAGE:-}" ]] && log_info "  Redis image: ${REDIS_IMAGE}"
     [[ -n "${NGINX_IMAGE:-}" ]] && log_info "  nginx image: ${NGINX_IMAGE}"
     [[ -n "${AUTH_DB_IMAGE:-}" ]] && log_info "  auth-db image: ${AUTH_DB_IMAGE}"
-    [[ -n "${SANDBOX_IMAGE:-}" ]] && log_info "  sandbox image: ${SANDBOX_IMAGE}"
     [[ -n "${BASE_GO_IMAGE:-}" ]] && log_info "  base Go builder: ${BASE_GO_IMAGE}"
     [[ -n "${BASE_RUNTIME_IMAGE:-}" ]] && log_info "  base runtime: ${BASE_RUNTIME_IMAGE}"
     [[ -n "${BASE_NODE_IMAGE:-}" ]] && log_info "  base Node image: ${BASE_NODE_IMAGE}"
@@ -281,10 +274,11 @@ append_env_var_if_missing() {
 }
 
 hydrate_env_from_config() {
-    deploy_config::resolve_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key' >/dev/null || true
-    deploy_config::resolve_var OPENAI_BASE_URL '.base_url // .models.basic.base_url // .models.reasoning.base_url' >/dev/null || true
-    deploy_config::resolve_var ALEX_MODEL '.llm_model // .model // .models.basic.model' >/dev/null || true
-    deploy_config::resolve_var ALEX_SANDBOX_BASE_URL '.sandbox_base_url' >/dev/null || true
+    deploy_config::resolve_var OPENAI_API_KEY '.api_key' >/dev/null || true
+    deploy_config::resolve_var LLM_PROVIDER '.llm_provider' >/dev/null || true
+    deploy_config::resolve_var LLM_MODEL '.llm_model' >/dev/null || true
+    deploy_config::resolve_var LLM_VISION_MODEL '.llm_vision_model' >/dev/null || true
+    deploy_config::resolve_var LLM_BASE_URL '.base_url' >/dev/null || true
     deploy_config::resolve_var AUTH_JWT_SECRET '.auth.jwtSecret' >/dev/null || true
     deploy_config::resolve_var AUTH_DATABASE_URL '.auth.databaseUrl' >/dev/null || true
     deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.apiUrl' >/dev/null || true
@@ -431,23 +425,25 @@ compose_show_summary() {
         IFS='=' read -r name source <<<"$entry"
         printf "  - %s (%s)\n" "$name" "$source"
     done
-    [[ -n "${OPENAI_BASE_URL:-}" ]] && printf "  - OPENAI_BASE_URL\n"
-    [[ -n "${ALEX_MODEL:-}" ]] && printf "  - ALEX_MODEL\n"
-    [[ -n "${ALEX_SANDBOX_BASE_URL:-}" ]] && printf "  - ALEX_SANDBOX_BASE_URL\n"
+    [[ -n "${LLM_PROVIDER:-}" ]] && printf "  - LLM_PROVIDER\n"
+    [[ -n "${LLM_BASE_URL:-}" ]] && printf "  - LLM_BASE_URL\n"
+    [[ -n "${LLM_MODEL:-}" ]] && printf "  - LLM_MODEL\n"
+    [[ -n "${LLM_VISION_MODEL:-}" ]] && printf "  - LLM_VISION_MODEL\n"
 }
 
 prepare_compose_environment() {
     compose_reset_var_tracking
     source_root_env_if_present
 
-    compose_resolve_required_var OPENAI_API_KEY '.api_key // .models.basic.api_key // .models.reasoning.api_key' || true
+    compose_resolve_required_var OPENAI_API_KEY '.api_key' || true
     compose_resolve_optional_var AUTH_JWT_SECRET '.auth.jwtSecret'
     compose_resolve_optional_var AUTH_DATABASE_URL '.auth.databaseUrl'
     compose_resolve_optional_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto
 
-    compose_resolve_optional_var OPENAI_BASE_URL '.base_url // .models.basic.base_url // .models.reasoning.base_url'
-    compose_resolve_optional_var ALEX_MODEL '.llm_model // .model // .models.basic.model'
-    compose_resolve_optional_var ALEX_SANDBOX_BASE_URL '.sandbox_base_url'
+    compose_resolve_optional_var LLM_PROVIDER '.llm_provider'
+    compose_resolve_optional_var LLM_BASE_URL '.base_url'
+    compose_resolve_optional_var LLM_MODEL '.llm_model'
+    compose_resolve_optional_var LLM_VISION_MODEL '.llm_vision_model'
 
     if [[ -z "${NEXT_PUBLIC_API_URL:-}" ]]; then
         export NEXT_PUBLIC_API_URL=auto
@@ -461,10 +457,6 @@ prepare_compose_environment() {
 
     if [[ -z "${AUTH_JWT_SECRET:-}" || -z "${AUTH_DATABASE_URL:-}" ]]; then
         log_warn "Auth DB/secret not set; login flows stay disabled (set AUTH_JWT_SECRET and AUTH_DATABASE_URL to enable)."
-    fi
-
-    if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
-        export ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
     fi
 
     compose_validate_core_vars
@@ -516,10 +508,11 @@ setup_environment() {
         default_auth_secret=$(generate_auth_secret)
         cat > .env << EOF
 OPENAI_API_KEY=
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
-ALEX_MODEL=anthropic/claude-3.5-sonnet
+LLM_PROVIDER=openrouter
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=anthropic/claude-3.5-sonnet
+# LLM_VISION_MODEL=openai/gpt-4o-mini
 ALEX_VERBOSE=false
-ALEX_SANDBOX_BASE_URL=http://localhost:8090
 NEXT_PUBLIC_API_URL=http://localhost:${SERVER_PORT}
 
 # Authentication defaults for local development
@@ -529,11 +522,6 @@ AUTH_REFRESH_TOKEN_TTL_DAYS=30
 AUTH_REDIRECT_BASE_URL=http://localhost:${SERVER_PORT}
 
 # China Mirror Configuration (uncomment to enable)
-# Use pre-built China sandbox image (recommended for China - no build required!)
-# SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
-# SANDBOX_SECURITY_OPT=seccomp=unconfined
-
-# Or use custom npm/pip mirrors for building (slower than pre-built image)
 # NPM_REGISTRY=https://registry.npmmirror.com/
 # PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 EOF
@@ -554,14 +542,6 @@ EOF
         log_warn "OPENAI_API_KEY not set in .env"
     else
         log_success "API key configured: ${OPENAI_API_KEY:0:12}..."
-    fi
-
-    if [[ -z "${ALEX_SANDBOX_BASE_URL:-}" ]]; then
-        ALEX_SANDBOX_BASE_URL="${SANDBOX_DEFAULT_URL}"
-        export ALEX_SANDBOX_BASE_URL
-        log_warn "ALEX_SANDBOX_BASE_URL not set, defaulting to ${ALEX_SANDBOX_BASE_URL}"
-    else
-        log_success "Sandbox URL configured: ${ALEX_SANDBOX_BASE_URL}"
     fi
 
     # Verify .env.development exists
@@ -683,126 +663,6 @@ download_docker_compose() {
 run_docker_compose() {
     ensure_docker_compose
     "${DOCKER_COMPOSE_CMD[@]}" "$@"
-}
-
-is_local_sandbox_url() {
-    local url=$1
-
-    [[ -z "$url" ]] && return 1
-
-    case "$url" in
-        http://localhost*|https://localhost*|http://127.0.0.1*|https://127.0.0.1*|http://0.0.0.0*|https://0.0.0.0*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-start_sandbox() {
-    local base_url=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
-
-    if ! is_local_sandbox_url "$base_url"; then
-        log_info "ALEX_SANDBOX_BASE_URL=${base_url} is not local; skipping sandbox container startup"
-        return 0
-    fi
-
-    if [[ ! -f "$SANDBOX_COMPOSE_FILE" ]]; then
-        die "Sandbox compose file not found at $SANDBOX_COMPOSE_FILE"
-    fi
-
-    if ! command_exists docker; then
-        die "Docker is required to run the sandbox locally. Install Docker or point ALEX_SANDBOX_BASE_URL to a remote sandbox."
-    fi
-
-    log_info "Starting sandbox container via docker-compose..."
-
-    # Check if using China sandbox image
-    if [[ -n "${SANDBOX_IMAGE:-}" ]]; then
-        log_info "Using pre-built sandbox image: $SANDBOX_IMAGE"
-        log_success "No build required - pulling image from registry"
-    else
-        # Show mirror configuration if set
-        if [[ -n "${NPM_REGISTRY:-}" ]] || [[ -n "${PIP_INDEX_URL:-}" ]]; then
-            log_info "Building sandbox with custom mirrors:"
-            [[ -n "${NPM_REGISTRY:-}" ]] && log_info "  NPM: ${NPM_REGISTRY}"
-            [[ -n "${PIP_INDEX_URL:-}" ]] && log_info "  PIP: ${PIP_INDEX_URL}"
-        else
-            log_info "Building sandbox from Dockerfile.sandbox..."
-        fi
-    fi
-
-    local existing_id
-    existing_id=$(docker ps -aq --filter "name=^/${SANDBOX_CONTAINER_NAME}$" 2>/dev/null || true)
-
-    if [[ -n "$existing_id" ]]; then
-        local is_running
-        is_running=$(docker inspect --format='{{.State.Running}}' "$existing_id" 2>/dev/null || echo "false")
-
-        if [[ "$is_running" == "true" ]]; then
-            log_info "Sandbox container already running (ID: ${existing_id}), reusing existing instance"
-            if wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 10; then
-                log_success "Sandbox running at $base_url"
-                return 0
-            fi
-
-            log_warn "Existing sandbox container is running but unhealthy, attempting restart"
-            if docker restart "$existing_id" >/dev/null 2>&1; then
-                if wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 30; then
-                    log_success "Sandbox running at $base_url"
-                    return 0
-                fi
-            else
-                log_warn "Failed to restart existing sandbox container, will recreate"
-            fi
-        else
-            log_info "Sandbox container exists but is stopped, starting existing instance (${existing_id})"
-            if docker start "$existing_id" >/dev/null 2>&1; then
-                if wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 30; then
-                    log_success "Sandbox running at $base_url"
-                    return 0
-                fi
-            else
-                log_warn "Failed to start existing sandbox container, will recreate"
-            fi
-        fi
-
-        log_warn "Removing unhealthy sandbox container (${existing_id}) before recreation"
-        docker rm -f "$existing_id" >/dev/null 2>&1 || true
-    fi
-
-    run_docker_compose -f "$SANDBOX_COMPOSE_FILE" up -d "$SANDBOX_SERVICE_NAME"
-
-    # Wait for container to be healthy using Docker's built-in health check
-    if ! wait_for_docker_health "$SANDBOX_CONTAINER_NAME" 30; then
-        log_error "Sandbox failed to become healthy"
-        run_docker_compose -f "$SANDBOX_COMPOSE_FILE" logs --tail 50 "$SANDBOX_SERVICE_NAME" || true
-        return 1
-    fi
-
-    log_success "Sandbox running at $base_url"
-}
-
-stop_sandbox() {
-    local base_url=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
-
-    if ! is_local_sandbox_url "$base_url"; then
-        return 0
-    fi
-
-    if ! command_exists docker; then
-        return 0
-    fi
-
-    if ! docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${SANDBOX_CONTAINER_NAME}$"; then
-        return 0
-    fi
-
-    log_info "Stopping sandbox container..."
-    run_docker_compose stop "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
-    run_docker_compose rm -f "$SANDBOX_SERVICE_NAME" >/dev/null 2>&1 || true
-    log_success "Sandbox container stopped"
 }
 
 ###############################################################################
@@ -979,7 +839,6 @@ cmd_start() {
     # Build & start
     build_backend || die "Backend build failed"
     install_frontend_deps || die "Frontend dependency installation failed"
-    start_sandbox || die "Sandbox failed to start"
     start_backend || die "Backend failed to start"
     start_frontend || die "Frontend failed to start"
 
@@ -1019,7 +878,6 @@ cmd_stop() {
 
     stop_service "Backend" "$SERVER_PID_FILE"
     stop_service "Frontend" "$WEB_PID_FILE"
-    stop_sandbox
 
     # Clean up port bindings
     kill_process_on_port "$SERVER_PORT" || true
@@ -1066,44 +924,6 @@ cmd_status() {
     fi
 
     echo ""
-
-    # Sandbox
-    local sandbox_base=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
-    if ! is_local_sandbox_url "$sandbox_base"; then
-        echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Using external sandbox at ${sandbox_base}"
-    else
-        local sandbox_status
-        local sandbox_container
-        sandbox_container=$(
-            if command_exists docker; then
-                docker ps --filter "name=${SANDBOX_CONTAINER_NAME}" --format '{{.Names}}' 2>/dev/null | head -n1 || true
-            fi
-        )
-        if [[ -n "$sandbox_container" ]]; then
-            sandbox_status=$(docker ps --filter "name=${SANDBOX_CONTAINER_NAME}" --format '{{.Status}}' 2>/dev/null | head -n1 || true)
-            echo -e "${C_GREEN}✓${C_RESET} Sandbox:   Running (${sandbox_status})"
-            echo -e "             URL: ${sandbox_base}"
-        else
-            local sandbox_known
-            sandbox_known=$(
-                if command_exists docker; then
-                    docker ps -a --filter "name=${SANDBOX_CONTAINER_NAME}" --format '{{.Status}}' 2>/dev/null | head -n1 || true
-                fi
-            )
-            if [[ -n "$sandbox_known" ]]; then
-                echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Stopped (${sandbox_known})"
-                echo -e "             URL: ${sandbox_base}"
-            else
-                if command_exists docker; then
-                    echo -e "${C_RED}✗${C_RESET} Sandbox:   Not running"
-                else
-                    echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Docker not available"
-                fi
-            fi
-        fi
-    fi
-
-    echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Port status
@@ -1125,21 +945,6 @@ cmd_logs() {
         web|frontend)
             log_info "Tailing frontend logs (Ctrl+C to stop)"
             tail -f "$WEB_LOG"
-            ;;
-        sandbox)
-            local base_url=${ALEX_SANDBOX_BASE_URL:-$SANDBOX_DEFAULT_URL}
-            if ! is_local_sandbox_url "$base_url"; then
-                log_warn "Sandbox logs are managed externally at ${base_url}"
-                return 0
-            fi
-
-            if command_exists docker; then
-                log_info "Tailing sandbox logs (Ctrl+C to stop)"
-                run_docker_compose -f "$SANDBOX_COMPOSE_FILE" logs -f "$SANDBOX_SERVICE_NAME"
-            else
-                log_error "Docker is not available; cannot tail sandbox logs"
-                return 1
-            fi
             ;;
         all|*)
             log_info "Tailing all logs (Ctrl+C to stop)"
@@ -1266,8 +1071,6 @@ cmd_pro() {
 
 cmd_cn() {
     export DOCKER_REGISTRY_MIRROR="${DOCKER_REGISTRY_MIRROR:-https://mirror.ccs.tencentyun.com}"
-    export SANDBOX_IMAGE="${SANDBOX_IMAGE:-$SANDBOX_CHINA_IMAGE}"
-    export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
     export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com/}"
     export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-${NPM_REGISTRY}}"
     export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
@@ -1275,8 +1078,6 @@ cmd_cn() {
     export GO_PROXY="${GO_PROXY:-${GOPROXY}}"
     export GOSUMDB="${GOSUMDB:-sum.golang.google.cn}"
     export GO_SUMDB="${GO_SUMDB:-${GOSUMDB}}"
-    export SANDBOX_IMAGE="${SANDBOX_IMAGE:-enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest}"
-    export SANDBOX_SECURITY_OPT="${SANDBOX_SECURITY_OPT:-seccomp=unconfined}"
     export REDIS_IMAGE="${REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}"
     export NGINX_IMAGE="${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:alpine}"
     export AUTH_DB_IMAGE="${AUTH_DB_IMAGE:-docker.m.daocloud.io/library/postgres:15}"

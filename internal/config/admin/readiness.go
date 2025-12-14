@@ -33,7 +33,6 @@ func DeriveReadinessTasks(cfg runtimeconfig.RuntimeConfig) []ReadinessTask {
 	provider := strings.TrimSpace(cfg.LLMProvider)
 	model := strings.TrimSpace(cfg.LLMModel)
 	apiKey := strings.TrimSpace(cfg.APIKey)
-	sandboxURL := strings.TrimSpace(cfg.SandboxBaseURL)
 	tavilyKey := strings.TrimSpace(cfg.TavilyAPIKey)
 
 	providerNeedsKey := provider != "" && provider != "mock" && provider != "ollama"
@@ -62,15 +61,6 @@ func DeriveReadinessTasks(cfg runtimeconfig.RuntimeConfig) []ReadinessTask {
 			Label:    "提供对应的 API Key",
 			Hint:     "未配置密钥时所有请求都会失败，可以暂时切换为 mock/ollama 以继续调试。",
 			Severity: TaskSeverityCritical,
-		})
-	}
-
-	if sandboxURL == "" {
-		tasks = append(tasks, ReadinessTask{
-			ID:       "sandbox-url",
-			Label:    "配置 Sandbox Base URL",
-			Hint:     "未设置时将回退到本地执行模式，无法复用共享沙箱。",
-			Severity: TaskSeverityWarning,
 		})
 	}
 

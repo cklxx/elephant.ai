@@ -46,7 +46,6 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	healthChecker := app.NewHealthChecker()
 	healthChecker.RegisterProbe(app.NewMCPProbe(container, false))
 	healthChecker.RegisterProbe(app.NewLLMFactoryProbe(container))
-	healthChecker.RegisterProbe(app.NewSandboxProbe(container.SandboxManager))
 
 	// Create router
 	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development", nil, nil, nil, nil)
@@ -83,8 +82,8 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	}
 
 	// Verify components
-	if len(response.Components) != 3 {
-		t.Errorf("Expected 3 components, got %d", len(response.Components))
+	if len(response.Components) != 2 {
+		t.Errorf("Expected 2 components, got %d", len(response.Components))
 	}
 
 	// Check component names
@@ -93,7 +92,7 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 		componentNames[comp.Name] = true
 	}
 
-	expectedComponents := []string{"mcp", "llm_factory", "sandbox"}
+	expectedComponents := []string{"mcp", "llm_factory"}
 	for _, name := range expectedComponents {
 		if !componentNames[name] {
 			t.Errorf("Expected component '%s' not found", name)
@@ -110,11 +109,6 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 		if comp.Name == "llm_factory" {
 			if comp.Status != ports.HealthStatusReady {
 				t.Errorf("Expected llm_factory to be ready, got %s", comp.Status)
-			}
-		}
-		if comp.Name == "sandbox" {
-			if comp.Status != ports.HealthStatusDisabled {
-				t.Errorf("Expected sandbox to be disabled, got %s", comp.Status)
 			}
 		}
 	}

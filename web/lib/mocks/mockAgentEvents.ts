@@ -331,21 +331,6 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
       },
     },
     {
-      delay: 2750,
-      event: {
-        event_type: 'workflow.diagnostic.browser_info',
-        agent_level: 'core',
-        success: true,
-        message: 'Sandbox browser ready',
-        user_agent: 'MockBrowser/1.0',
-        cdp_url: 'ws://sandbox.example.com/devtools',
-        vnc_url: 'vnc://sandbox.example.com',
-        viewport_width: 1280,
-        viewport_height: 720,
-        captured: '2024-01-01T00:00:00Z',
-      },
-    },
-    {
       delay: 2850,
       event: {
         event_type: 'workflow.tool.completed',
@@ -674,7 +659,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.result.final',
         agent_level: 'core',
         final_answer:
-          'Drafting summary...\n- Slides incoming: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]',
+          'Drafting summary...\n- Slides incoming: [Executive Review Slides]\n- HTML preview: [Console Architecture Prototype]',
         total_iterations: 1,
         total_tokens: 865,
         stop_reason: 'completed',
@@ -687,7 +672,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.result.final',
         agent_level: 'core',
         final_answer:
-          '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML sandbox: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Team onboarding: [Onboarding Guide]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
+          '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML preview: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Team onboarding: [Onboarding Guide]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
         total_iterations: 1,
         total_tokens: 865,
         stop_reason: 'completed',

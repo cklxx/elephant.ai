@@ -42,7 +42,7 @@ This document tracks architectural and design issues discovered during the ongoi
 
 ### 1) Tracked env files cause git pollution
 
-- **Symptoms**: `web/.env.development` and `web/.env.production` are tracked, while `dev.sh`/`deploy.sh` auto-create/patch `web/.env.development`.
+- **Symptoms**: `web/.env.development` and `web/.env.production` are tracked, while `dev.sh` auto-creates/patches `web/.env.development`.
 - **Impact**: Running scripts can dirty the working tree; increases merge churn.
 - **Fix**: Untrack/remove committed `web/.env.development` and `web/.env.production`, rely on scripts and/or `.env.local.example` as template.
 - **Status**: done

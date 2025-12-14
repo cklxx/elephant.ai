@@ -108,48 +108,41 @@ fi
 # Update configuration using jq (JSON processor)
 echo "🔧 Updating configuration file..."
 if command -v jq >/dev/null 2>&1; then
-    # Use jq to update the configuration
-    jq --arg api_key "$API_KEY" \
-       --arg base_url "$BASE_URL" \
-       --arg model "$MODEL" \
-       '.api_key = $api_key |
-        .base_url = $base_url |
-        .model = $model |
-        .models.basic.api_key = $api_key |
-        .models.basic.base_url = $base_url |
-        .models.basic.model = $model |
-        .models.reasoning.api_key = $api_key |
-        .models.reasoning.base_url = $base_url |
-        .models.reasoning.model = $model' \
-        "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+    if [ -f "$CONFIG_FILE" ]; then
+        jq --arg api_key "$API_KEY" \
+           --arg base_url "$BASE_URL" \
+           --arg model "$MODEL" \
+           '.api_key = $api_key |
+            .base_url = $base_url |
+            .llm_provider = "openai" |
+            .llm_model = $model' \
+            "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+    else
+        jq -n --arg api_key "$API_KEY" \
+           --arg base_url "$BASE_URL" \
+           --arg model "$MODEL" \
+           '{
+             api_key: $api_key,
+             base_url: $base_url,
+             llm_provider: "openai",
+             llm_model: $model,
+             max_tokens: 12000,
+             temperature: 0.7,
+             max_iterations: 25
+           }' > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+    fi
 else
     echo "⚠️  jq not found. Creating simple configuration..."
     # Create a simple configuration file
     cat > "$CONFIG_FILE" << EOF
 {
+    "llm_provider": "openai",
+    "llm_model": "$MODEL",
     "api_key": "$API_KEY",
     "base_url": "$BASE_URL",
-    "model": "$MODEL",
     "max_tokens": 12000,
     "temperature": 0.7,
-    "max_turns": 25,
-    "default_model_type": "basic",
-    "models": {
-        "basic": {
-            "base_url": "$BASE_URL",
-            "model": "$MODEL",
-            "api_key": "$API_KEY",
-            "temperature": 0.7,
-            "max_tokens": 12000
-        },
-        "reasoning": {
-            "base_url": "$BASE_URL",
-            "model": "$MODEL",
-            "api_key": "$API_KEY",
-            "temperature": 0.3,
-            "max_tokens": 12000
-        }
-    }
+    "max_iterations": 25
 }
 EOF
 fi
@@ -161,7 +154,8 @@ if [ -f "$CONFIG_FILE" ]; then
     if command -v jq >/dev/null 2>&1; then
         echo "  🔑 API Key: $(jq -r '.api_key | .[0:10] + "..."' "$CONFIG_FILE")"
         echo "  🌐 Base URL: $(jq -r '.base_url' "$CONFIG_FILE")"
-        echo "  🤖 Model: $(jq -r '.model' "$CONFIG_FILE")"
+        echo "  🤖 Provider: $(jq -r '.llm_provider' "$CONFIG_FILE")"
+        echo "  🤖 Model: $(jq -r '.llm_model' "$CONFIG_FILE")"
         echo "  🎯 Max Tokens: $(jq -r '.max_tokens' "$CONFIG_FILE")"
         echo "  🌡️  Temperature: $(jq -r '.temperature' "$CONFIG_FILE")"
     else
@@ -177,4 +171,4 @@ echo "📝 Model: $MODEL"
 echo "🌐 Base URL: $BASE_URL"
 echo "💡 You can now start using: ./alex -i"
 echo ""
-echo "🔧 To verify: ./alex config show"
+echo "🔧 To verify: ./alex config"

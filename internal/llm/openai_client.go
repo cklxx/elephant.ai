@@ -84,6 +84,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
+	logBody := redactDataURIs(body)
 
 	// Debug log: Request details
 	c.logger.Debug("%s=== LLM Request ===", prefix)
@@ -120,12 +121,12 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 
 	// Debug log: Request body (pretty print)
 	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
+	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
 		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
 	} else {
-		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
+		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	}
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), body...))
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -292,6 +293,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
+	logBody := redactDataURIs(body)
 
 	c.logger.Debug("%s=== LLM Request ===", prefix)
 	c.logger.Debug("%sURL: POST %s/chat/completions", prefix, c.baseURL)
@@ -324,13 +326,13 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	}
 
 	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
+	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
 		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
 	} else {
-		c.logger.Debug("%sRequest Body: %s", prefix, string(body))
+		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	}
 
-	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), body...))
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -595,29 +597,98 @@ func extractRequestID(metadata map[string]any) string {
 	return ""
 }
 
-var placeholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
-
 func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 	if len(msg.Attachments) == 0 || !embedAttachments {
 		return msg.Content
 	}
 
-	// Keep placeholders inline; rely on attachment map for hydration instead of
-	// constructing multipart content that risks invalid part types.
-	if placeholderPattern.MatchString(msg.Content) {
+	index := buildAttachmentIndex(msg.Attachments)
+
+	var parts []map[string]any
+	used := make(map[string]bool)
+	hasImage := false
+
+	appendText := func(text string) {
+		if text == "" {
+			return
+		}
+		parts = append(parts, map[string]any{
+			"type": "text",
+			"text": text,
+		})
+	}
+
+	appendImage := func(url string) {
+		if url == "" {
+			return
+		}
+		hasImage = true
+		parts = append(parts, map[string]any{
+			"type": "image_url",
+			"image_url": map[string]any{
+				"url": url,
+			},
+		})
+	}
+
+	content := msg.Content
+	cursor := 0
+	matches := attachmentPlaceholderPattern.FindAllStringSubmatchIndex(content, -1)
+	for _, match := range matches {
+		if len(match) < 4 {
+			continue
+		}
+		if match[0] > cursor {
+			appendText(content[cursor:match[0]])
+		}
+		placeholderToken := content[match[0]:match[1]]
+		appendText(placeholderToken)
+
+		name := strings.TrimSpace(content[match[2]:match[3]])
+		if name == "" {
+			cursor = match[1]
+			continue
+		}
+		if att, key, ok := index.resolve(name); ok && isImageAttachment(att, key) && !used[key] {
+			if url := ports.AttachmentReferenceValue(att); url != "" {
+				appendImage(url)
+				used[key] = true
+			}
+		}
+		cursor = match[1]
+	}
+	if cursor < len(content) {
+		appendText(content[cursor:])
+	}
+
+	for _, desc := range orderedImageAttachments(content, msg.Attachments) {
+		key := desc.Placeholder
+		if key == "" || used[key] {
+			continue
+		}
+		if url := ports.AttachmentReferenceValue(desc.Attachment); url != "" {
+			appendText("[" + key + "]")
+			appendImage(url)
+			used[key] = true
+		}
+	}
+
+	if !hasImage {
 		return msg.Content
 	}
 
-	return msg.Content
+	return parts
 }
 
 func shouldEmbedAttachmentsInContent(msg ports.Message) bool {
 	if len(msg.Attachments) == 0 {
 		return false
 	}
-	if strings.EqualFold(strings.TrimSpace(msg.Role), "tool") {
+
+	if !strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
 		return false
 	}
+
 	if msg.Source == ports.MessageSourceToolResult {
 		return false
 	}

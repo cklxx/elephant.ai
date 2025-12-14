@@ -11,11 +11,11 @@ This document explains how the ALEX agent executes work across the backend. It d
 All delivery surfaces (CLI/TUI, HTTP server, and dashboard) share the same dependency injection container defined in [`internal/di`](../internal/di). On start-up each binary performs the following steps:
 
 1. Load configuration from environment variables, config files, and flags (`internal/config`).
-2. Build the DI container which registers LLM providers, tool registries, sandbox managers, MCP servers, persistence, and observability exporters.
+2. Build the DI container which registers LLM providers, tool registries, MCP servers, persistence, and observability exporters.
 3. Resolve the agent application service (`internal/agent/app`) which exposes high-level commands such as `ExecuteTask`, `ResumeSession`, and `ListSessions`.
 4. Attach delivery-specific renderers (Bubble Tea UI, CLI stream, HTTP handlers, SSE encoders) from `internal/output` and `internal/server`.
 
-The uniform container ensures that enabling sandbox mode, adding an MCP server, or swapping an LLM applies to every surface with zero extra wiring.
+The uniform container ensures that enabling MCP, swapping an LLM provider, or adjusting policy applies to every surface with zero extra wiring.
 
 ---
 
@@ -38,12 +38,11 @@ Every state transition produces a typed event (`internal/agent/domain/events.go`
 
 Tools are registered through the dependency injection container:
 
-- **Builtin tools** live in `internal/tools/builtin`. Each tool implements the `Tool` interface and handles sandbox-awareness using abstractions in `internal/tools/runtime`.
-- **Sandbox routing** is provided by `third_party/sandbox-sdk-go` and wrapped in executors within `internal/tools`. When `SANDBOX_BASE_URL` is configured the registry automatically swaps to sandbox implementations.
+- **Builtin tools** live in `internal/tools/builtin`. Each tool implements the `Tool` interface.
 - **MCP tools** are handled by the MCP supervisor in `internal/mcp`. It manages process lifecycles, JSON-RPC connections, and exposes the tools via the same registry interface.
 - **Registry filtering** (`internal/toolregistry`) applies policy decisions (allow lists, presets, read-only mode) before tools reach the domain layer.
 
-Because tools conform to a shared interface the ReAct loop does not need to know whether a capability is local, remote, or sandboxed.
+Because tools conform to a shared interface the ReAct loop does not need to know whether a capability is local, remote, or provided via MCP.
 
 ---
 
@@ -61,8 +60,8 @@ This separation keeps long-term memory optional while making it easy to resume o
 ## 📡 Streaming & Observability
 
 - **Event stream** – events are serialized by `internal/output` for the CLI/TUI and by `internal/server` for SSE clients.
-- **Telemetry** – `internal/observability` wires structured logging, Prometheus metrics, and OpenTelemetry tracing. Tool invocations, LLM calls, and sandbox operations are all instrumented.
-- **Health checks** – `internal/diagnostics` exposes readiness checks, sandbox health probes, and MCP status that surface via `/health`.
+- **Telemetry** – `internal/observability` wires structured logging, Prometheus metrics, and OpenTelemetry tracing. Tool invocations and LLM calls are instrumented.
+- **Health checks** – `internal/diagnostics` exposes readiness checks and MCP status that surface via `/health`.
 - **Cost & audit** – `internal/storage` and `internal/output/costs` provide per-session summaries that feed both CLI reports and the dashboard.
 
 ---
@@ -88,7 +87,7 @@ CLI / Server / Web
  internal/output renderers ───► terminal / HTTP / SSE
         │
         ├─► internal/llm (LLMPort)
-        ├─► internal/toolregistry → internal/tools + internal/mcp + sandbox
+        ├─► internal/toolregistry → internal/tools + internal/mcp
         ├─► internal/session + internal/context
         └─► internal/observability + internal/storage
 ```

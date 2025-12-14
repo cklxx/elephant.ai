@@ -49,15 +49,16 @@ func TestLoadFromFile(t *testing.T) {
 	fileData := []byte(`{
                 "llm_provider": "openai",
                 "llm_model": "gpt-4o",
+                "llm_vision_model": "gpt-4o-mini",
                 "api_key": "sk-test",
-                "tavilyApiKey": "file-tavily",
-                "arkApiKey": "file-ark",
-                "seedreamTextEndpointId": "file-text-id",
-                "seedreamImageEndpointId": "file-image-id",
-                "seedreamTextModel": "file-text-model",
-                "seedreamImageModel": "file-image-model",
-                "seedreamVisionModel": "file-vision-model",
-                "seedreamVideoModel": "file-video-model",
+                "tavily_api_key": "file-tavily",
+                "ark_api_key": "file-ark",
+                "seedream_text_endpoint_id": "file-text-id",
+                "seedream_image_endpoint_id": "file-image-id",
+                "seedream_text_model": "file-text-model",
+                "seedream_image_model": "file-image-model",
+                "seedream_vision_model": "file-vision-model",
+                "seedream_video_model": "file-video-model",
                 "environment": "staging",
                 "verbose": true,
                 "follow_transcript": false,
@@ -79,6 +80,9 @@ func TestLoadFromFile(t *testing.T) {
 	}
 	if cfg.LLMProvider != "openai" || cfg.LLMModel != "gpt-4o" {
 		t.Fatalf("unexpected model/provider from file: %#v", cfg)
+	}
+	if cfg.LLMVisionModel != "gpt-4o-mini" {
+		t.Fatalf("expected llm_vision_model from file, got %q", cfg.LLMVisionModel)
 	}
 	if !cfg.TemperatureProvided || cfg.Temperature != 0 {
 		t.Fatalf("expected explicit zero temperature to be preserved: %+v", cfg)
@@ -122,6 +126,9 @@ func TestLoadFromFile(t *testing.T) {
 	if meta.Source("tavily_api_key") != SourceFile {
 		t.Fatalf("expected tavily key source from file, got %s", meta.Source("tavily_api_key"))
 	}
+	if meta.Source("llm_vision_model") != SourceFile {
+		t.Fatalf("expected vision model source from file, got %s", meta.Source("llm_vision_model"))
+	}
 	if meta.Source("seedream_text_endpoint_id") != SourceFile || meta.Source("seedream_image_endpoint_id") != SourceFile {
 		t.Fatalf("expected seedream endpoints source from file")
 	}
@@ -142,13 +149,58 @@ func TestLoadFromFile(t *testing.T) {
 	}
 }
 
+func TestLoadHonorsEnvConfigPath(t *testing.T) {
+	expectedPath := "/tmp/alex-config-test.json"
+	fileData := []byte(`{"llm_provider": "openai", "llm_model": "gpt-4o", "api_key": "sk-test"}`)
+
+	cfg, _, err := Load(
+		WithEnv(envMap{"ALEX_CONFIG_PATH": expectedPath}.Lookup),
+		WithHomeDir(func() (string, error) {
+			t.Fatalf("unexpected home dir lookup")
+			return "", nil
+		}),
+		WithFileReader(func(path string) ([]byte, error) {
+			if path != expectedPath {
+				t.Fatalf("expected config path %q, got %q", expectedPath, path)
+			}
+			return fileData, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "openai" || cfg.LLMModel != "gpt-4o" {
+		t.Fatalf("unexpected config loaded from env path: %#v", cfg)
+	}
+}
+
+func TestLoadConfigPathOverrideWinsOverEnv(t *testing.T) {
+	explicitPath := "/tmp/alex-explicit-config.json"
+	fileData := []byte(`{"llm_provider": "openai", "llm_model": "gpt-4o", "api_key": "sk-test"}`)
+
+	_, _, err := Load(
+		WithEnv(envMap{"ALEX_CONFIG_PATH": "/tmp/ignored.json"}.Lookup),
+		WithConfigPath(explicitPath),
+		WithFileReader(func(path string) ([]byte, error) {
+			if path != explicitPath {
+				t.Fatalf("expected explicit config path %q, got %q", explicitPath, path)
+			}
+			return fileData, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
-	fileData := []byte(`{"temperature": 0.1, "tavilyApiKey": "file-key"}`)
+	fileData := []byte(`{"temperature": 0.1, "tavily_api_key": "file-key"}`)
 	cfg, meta, err := Load(
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 		WithEnv(envMap{
 			"LLM_TEMPERATURE":            "0",
 			"LLM_MODEL":                  "env-model",
+			"LLM_VISION_MODEL":           "env-vision-model",
 			"TAVILY_API_KEY":             "env-tavily",
 			"ARK_API_KEY":                "env-ark",
 			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
@@ -172,6 +224,9 @@ func TestEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.LLMModel != "env-model" {
 		t.Fatalf("expected env model override, got %s", cfg.LLMModel)
+	}
+	if cfg.LLMVisionModel != "env-vision-model" {
+		t.Fatalf("expected env vision model override, got %s", cfg.LLMVisionModel)
 	}
 	if cfg.Temperature != 0 || !cfg.TemperatureProvided {
 		t.Fatalf("expected env zero temperature override, got %+v", cfg)
@@ -205,6 +260,9 @@ func TestEnvOverridesFile(t *testing.T) {
 	}
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
+	}
+	if meta.Source("llm_vision_model") != SourceEnv {
+		t.Fatalf("expected env source for vision model, got %s", meta.Source("llm_vision_model"))
 	}
 	if meta.Source("ark_api_key") != SourceEnv {
 		t.Fatalf("expected env source for ark api key")
@@ -241,6 +299,7 @@ func TestEnvOverridesFile(t *testing.T) {
 func TestOverridesTakePriority(t *testing.T) {
 	overrideTemp := 1.0
 	overrideModel := "override-model"
+	overrideVisionModel := "override-vision-model"
 	overrideTavily := "override-tavily"
 	overrideArk := "override-ark"
 	overrideSeedreamText := "override-text"
@@ -259,6 +318,7 @@ func TestOverridesTakePriority(t *testing.T) {
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
 			LLMModel:                &overrideModel,
+			LLMVisionModel:          &overrideVisionModel,
 			Temperature:             &overrideTemp,
 			TavilyAPIKey:            &overrideTavily,
 			ArkAPIKey:               &overrideArk,
@@ -281,6 +341,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if cfg.LLMModel != "override-model" {
 		t.Fatalf("expected override model, got %s", cfg.LLMModel)
+	}
+	if cfg.LLMVisionModel != overrideVisionModel {
+		t.Fatalf("expected override vision model, got %s", cfg.LLMVisionModel)
 	}
 	if cfg.Temperature != 1.0 || !cfg.TemperatureProvided {
 		t.Fatalf("expected override temperature 1.0, got %+v", cfg)
@@ -314,6 +377,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("llm_model") != SourceOverride {
 		t.Fatalf("expected override source for model, got %s", meta.Source("llm_model"))
+	}
+	if meta.Source("llm_vision_model") != SourceOverride {
+		t.Fatalf("expected override source for vision model, got %s", meta.Source("llm_vision_model"))
 	}
 	if meta.Source("environment") != SourceOverride {
 		t.Fatalf("expected override source for environment, got %s", meta.Source("environment"))
@@ -355,21 +421,6 @@ func TestLoadFromFileSupportsSnakeCaseArkKey(t *testing.T) {
 	}
 	if meta.Source("ark_api_key") != SourceFile {
 		t.Fatalf("expected ark api key source to be file, got %s", meta.Source("ark_api_key"))
-	}
-}
-
-func TestAliasLookup(t *testing.T) {
-	baseEnv := envMap{"ALEX_MODEL_NAME": "alias-model"}
-	cfg, _, err := Load(
-		WithEnv(AliasEnvLookup(baseEnv.Lookup, map[string][]string{
-			"LLM_MODEL": {"ALEX_MODEL_NAME"},
-		})),
-	)
-	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
-	}
-	if cfg.LLMModel != "alias-model" {
-		t.Fatalf("expected alias model, got %s", cfg.LLMModel)
 	}
 }
 
@@ -433,20 +484,20 @@ func TestInvalidFollowStreamReturnsError(t *testing.T) {
 	}
 }
 
-func TestFollowAliasEnvironmentOverrides(t *testing.T) {
+func TestFollowEnvironmentOverrides(t *testing.T) {
 	cfg, _, err := Load(
 		WithEnv(envMap{
-			"ALEX_FOLLOW_TRANSCRIPT": "false",
-			"ALEX_FOLLOW_STREAM":     "true",
+			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
+			"ALEX_TUI_FOLLOW_STREAM":     "true",
 		}.Lookup),
 	)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
 	if cfg.FollowTranscript {
-		t.Fatal("expected alias env to disable transcript follow")
+		t.Fatal("expected env to disable transcript follow")
 	}
 	if !cfg.FollowStream {
-		t.Fatal("expected alias env to enable stream follow")
+		t.Fatal("expected env to enable stream follow")
 	}
 }

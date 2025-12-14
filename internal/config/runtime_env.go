@@ -35,38 +35,24 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	}
 
 	set("OPENAI_API_KEY", cfg.APIKey)
-	set("OPENROUTER_API_KEY", cfg.APIKey)
 	set("ARK_API_KEY", cfg.ArkAPIKey)
-	set("ALEX_ARK_API_KEY", cfg.ArkAPIKey)
 
 	set("LLM_PROVIDER", cfg.LLMProvider)
-	set("ALEX_LLM_PROVIDER", cfg.LLMProvider)
 
 	set("LLM_MODEL", cfg.LLMModel)
-	set("ALEX_LLM_MODEL", cfg.LLMModel)
-	set("ALEX_MODEL_NAME", cfg.LLMModel)
+
+	set("LLM_VISION_MODEL", cfg.LLMVisionModel)
 
 	set("LLM_BASE_URL", cfg.BaseURL)
-	set("ALEX_BASE_URL", cfg.BaseURL)
-
-	set("SANDBOX_BASE_URL", cfg.SandboxBaseURL)
-	set("ALEX_SANDBOX_BASE_URL", cfg.SandboxBaseURL)
 
 	set("TAVILY_API_KEY", cfg.TavilyAPIKey)
-	set("ALEX_TAVILY_API_KEY", cfg.TavilyAPIKey)
 
 	set("SEEDREAM_TEXT_ENDPOINT_ID", cfg.SeedreamTextEndpointID)
-	set("ALEX_SEEDREAM_TEXT_ENDPOINT_ID", cfg.SeedreamTextEndpointID)
 	set("SEEDREAM_IMAGE_ENDPOINT_ID", cfg.SeedreamImageEndpointID)
-	set("ALEX_SEEDREAM_IMAGE_ENDPOINT_ID", cfg.SeedreamImageEndpointID)
 	set("SEEDREAM_TEXT_MODEL", cfg.SeedreamTextModel)
-	set("ALEX_SEEDREAM_TEXT_MODEL", cfg.SeedreamTextModel)
 	set("SEEDREAM_IMAGE_MODEL", cfg.SeedreamImageModel)
-	set("ALEX_SEEDREAM_IMAGE_MODEL", cfg.SeedreamImageModel)
 	set("SEEDREAM_VISION_MODEL", cfg.SeedreamVisionModel)
-	set("ALEX_SEEDREAM_VISION_MODEL", cfg.SeedreamVisionModel)
 	set("SEEDREAM_VIDEO_MODEL", cfg.SeedreamVideoModel)
-	set("ALEX_SEEDREAM_VIDEO_MODEL", cfg.SeedreamVideoModel)
 
 	if cfg.Environment != "" {
 		set("ALEX_ENV", cfg.Environment)
@@ -79,32 +65,25 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("ALEX_NO_TUI", strconv.FormatBool(cfg.DisableTUI))
 	set("ALEX_TUI_FOLLOW_TRANSCRIPT", followTranscript)
 	set("ALEX_TUI_FOLLOW_STREAM", followStream)
-	set("ALEX_FOLLOW_TRANSCRIPT", followTranscript)
-	set("ALEX_FOLLOW_STREAM", followStream)
 
 	if cfg.MaxIterations > 0 {
 		set("LLM_MAX_ITERATIONS", strconv.Itoa(cfg.MaxIterations))
-		set("ALEX_LLM_MAX_ITERATIONS", strconv.Itoa(cfg.MaxIterations))
 	}
 
 	if cfg.MaxTokens > 0 {
 		set("LLM_MAX_TOKENS", strconv.Itoa(cfg.MaxTokens))
-		set("ALEX_LLM_MAX_TOKENS", strconv.Itoa(cfg.MaxTokens))
 	}
 
 	if cfg.UserRateLimitRPS > 0 {
 		set("USER_LLM_RPS", formatFloat(cfg.UserRateLimitRPS))
-		set("ALEX_USER_LLM_RPS", formatFloat(cfg.UserRateLimitRPS))
 	}
 
 	if cfg.UserRateLimitBurst > 0 {
 		set("USER_LLM_BURST", strconv.Itoa(cfg.UserRateLimitBurst))
-		set("ALEX_USER_LLM_BURST", strconv.Itoa(cfg.UserRateLimitBurst))
 	}
 
 	if cfg.TemperatureProvided || cfg.Temperature != 0 {
 		set("LLM_TEMPERATURE", formatFloat(cfg.Temperature))
-		set("ALEX_MODEL_TEMPERATURE", formatFloat(cfg.Temperature))
 	}
 
 	if cfg.TopP != 0 {
@@ -119,9 +98,7 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 	set("ALEX_COST_DIR", cfg.CostDir)
 
 	set("AGENT_PRESET", cfg.AgentPreset)
-	set("ALEX_AGENT_PRESET", cfg.AgentPreset)
 	set("TOOL_PRESET", cfg.ToolPreset)
-	set("ALEX_TOOL_PRESET", cfg.ToolPreset)
 
 	return values
 }

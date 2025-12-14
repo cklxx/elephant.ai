@@ -7,7 +7,6 @@ import (
 
 type EnvironmentPayload struct {
 	Host     map[string]string
-	Sandbox  map[string]string
 	Captured time.Time
 }
 
@@ -73,7 +72,6 @@ func LatestEnvironments() (EnvironmentPayload, bool) {
 func clonePayload(payload EnvironmentPayload) EnvironmentPayload {
 	return EnvironmentPayload{
 		Host:     cloneMap(payload.Host),
-		Sandbox:  cloneMap(payload.Sandbox),
 		Captured: payload.Captured,
 	}
 }
@@ -81,7 +79,6 @@ func clonePayload(payload EnvironmentPayload) EnvironmentPayload {
 func sanitizeEnvironmentPayload(payload EnvironmentPayload) EnvironmentPayload {
 	return EnvironmentPayload{
 		Host:     cloneMap(payload.Host),
-		Sandbox:  cloneMap(payload.Sandbox),
 		Captured: payload.Captured,
 	}
 }

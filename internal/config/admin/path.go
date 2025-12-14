@@ -11,9 +11,9 @@ import (
 // ResolveStorePath determines the managed override store path for the current environment.
 //
 // Priority order:
-//  1. Explicit CONFIG_ADMIN_STORE_PATH (or ALEX_CONFIG_STORE_PATH via env aliases).
+//  1. Explicit CONFIG_ADMIN_STORE_PATH.
 //  2. $HOME/.alex/runtime-overrides.json (works for both CLI + server when sharing a home dir).
-//  3. ./configs/runtime-overrides.json (legacy fallback when the home directory is unavailable).
+//  3. ./configs/runtime-overrides.json (fallback when the home directory is unavailable).
 func ResolveStorePath(envLookup runtimeconfig.EnvLookup) string {
 	if envLookup == nil {
 		envLookup = runtimeconfig.DefaultEnvLookup

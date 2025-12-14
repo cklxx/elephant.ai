@@ -409,26 +409,4 @@ describe('useAgentStreamStore', () => {
     });
   });
 
-  describe('Browser Diagnostics Tracking', () => {
-    it('should track browser diagnostics events', () => {
-      const diagnosticsEvent: AnyAgentEvent = {
-        event_type: 'workflow.diagnostic.browser_info',
-        timestamp: new Date().toISOString(),
-        session_id: 'test-123',
-        agent_level: 'core',
-        iteration: 1,
-        captured: new Date().toISOString(),
-        success: true,
-        message: 'Browser ready',
-      };
-
-      act(() => {
-        useAgentStreamStore.getState().addEvent(diagnosticsEvent);
-      });
-
-      const state = useAgentStreamStore.getState();
-      expect(state.browserDiagnostics).toHaveLength(1);
-      expect(state.browserDiagnostics[0].success).toBe(true);
-    });
-  });
 });

@@ -11,11 +11,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ALEX_MODEL=${ALEX_MODEL:-gpt-4}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - LLM_VISION_MODEL=${LLM_VISION_MODEL:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
       - ALEX_VERBOSE=true
       - SESSION_STORE_PATH=/data/sessions
-      - ALEX_SANDBOX_BASE_URL=http://alex-sandbox:8080
       - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-dev-secret-change-me}
       - AUTH_ACCESS_TOKEN_TTL_MINUTES=${AUTH_ACCESS_TOKEN_TTL_MINUTES:-15}
       - AUTH_REFRESH_TOKEN_TTL_DAYS=${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
@@ -29,8 +31,6 @@ services:
     command: go run ./cmd/alex-server
     restart: unless-stopped
     depends_on:
-      sandbox:
-        condition: service_started
       auth-db:
         condition: service_healthy
     networks:
@@ -83,19 +83,6 @@ services:
       retries: 10
     volumes:
       - auth-db-data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks:
-      - alex-dev-network
-
-  sandbox:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.sandbox
-    container_name: alex-sandbox-dev
-    ports:
-      - "8091:8080"
-    volumes:
-      - ../../skills:/workspace/skills:ro
     restart: unless-stopped
     networks:
       - alex-dev-network

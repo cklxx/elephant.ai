@@ -37,7 +37,6 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
     content: "text-foreground font-semibold",
   },
   "workflow.tool.progress": { content: "text-muted-foreground font-mono text-[12px]" },
-  "workflow.diagnostic.browser_info": { content: "text-foreground/80" },
 };
 
 /**

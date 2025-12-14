@@ -16,10 +16,7 @@ func main() {
 		return
 	}
 
-	// Always disable sandbox execution in CLI mode to ensure tools run locally.
-	shouldDisableSandbox := true
-
-	container, err := buildContainerWithOptions(shouldDisableSandbox)
+	container, err := buildContainer()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize: %v\n", err)
 		os.Exit(1)

@@ -39,12 +39,3 @@ func TestResolveStorePathUsesEnv(t *testing.T) {
 		t.Fatalf("expected env path, got %q", got)
 	}
 }
-
-func TestResolveStorePathHonorsAlias(t *testing.T) {
-	t.Setenv("CONFIG_ADMIN_STORE_PATH", "")
-	t.Setenv("ALEX_CONFIG_STORE_PATH", "/tmp/alias.json")
-	lookup := runtimeconfig.DefaultEnvLookupWithAliases()
-	if got := ResolveStorePath(lookup); got != "/tmp/alias.json" {
-		t.Fatalf("expected alias path, got %q", got)
-	}
-}

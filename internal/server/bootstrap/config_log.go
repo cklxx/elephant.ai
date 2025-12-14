@@ -15,11 +15,6 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("LLM Provider: %s", runtimeCfg.LLMProvider)
 	logger.Info("LLM Model: %s", runtimeCfg.LLMModel)
 	logger.Info("Base URL: %s", runtimeCfg.BaseURL)
-	if runtimeCfg.SandboxBaseURL != "" {
-		logger.Info("Sandbox Base URL: %s", runtimeCfg.SandboxBaseURL)
-	} else {
-		logger.Info("Sandbox Base URL: (not set)")
-	}
 	if strings.TrimSpace(runtimeCfg.APIKey) != "" {
 		logger.Info("API Key: (set)")
 	} else {

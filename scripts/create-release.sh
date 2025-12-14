@@ -80,7 +80,7 @@ Visit our documentation at [docs/](./docs/) for detailed guides and API referenc
 - **Core**: ReAct agent with streaming and memory
 - **Tools**: Extensible tool system with MCP integration  
 - **Memory**: Vector-based context management
-- **Security**: Risk assessment and sandboxing
+- **Security**: Risk assessment and approvals
 - **Performance**: Sub-30ms execution, <100MB memory
 
 Built with ❤️ in Go for maximum performance and reliability.

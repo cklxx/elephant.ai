@@ -228,34 +228,10 @@ const WorkflowSubflowCompletedEventSchema = BaseAgentEventSchema.extend({
   tool_calls: z.number().default(0),
 });
 
-const WorkflowDiagnosticBrowserInfoEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('workflow.diagnostic.browser_info'),
-  success: z.boolean().optional(),
-  message: z.string().optional(),
-  user_agent: z.string().optional(),
-  cdp_url: z.string().optional(),
-  vnc_url: z.string().optional(),
-  viewport_width: z.number().optional(),
-  viewport_height: z.number().optional(),
-  captured: z.string(),
-});
-
 const WorkflowDiagnosticEnvironmentSnapshotEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('workflow.diagnostic.environment_snapshot'),
   host: z.record(z.string(), z.string()).nullable().optional(),
-  sandbox: z.record(z.string(), z.string()).nullable().optional(),
   captured: z.string(),
-});
-
-const WorkflowDiagnosticSandboxProgressEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('workflow.diagnostic.sandbox_progress'),
-  status: z.enum(['pending', 'running', 'ready', 'error']),
-  stage: z.string(),
-  message: z.string().optional(),
-  step: z.number(),
-  total_steps: z.number(),
-  error: z.string().optional(),
-  updated: z.string(),
 });
 
 const WorkflowDiagnosticContextCompressionEventSchema = BaseAgentEventSchema.extend({
@@ -306,9 +282,7 @@ const WorkflowInputReceivedEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
-const EVENT_TYPE_ALIASES: Record<string, WorkflowEventType> = {
-  'workflow.diagnostic.sandbox.progress': 'workflow.diagnostic.sandbox_progress',
-};
+const EVENT_TYPE_ALIASES: Record<string, WorkflowEventType> = {};
 
 const EventSchemas = [
   WorkflowLifecycleUpdatedEventSchema,
@@ -324,9 +298,7 @@ const EventSchemas = [
   WorkflowResultCancelledEventSchema,
   WorkflowSubflowProgressEventSchema,
   WorkflowSubflowCompletedEventSchema,
-  WorkflowDiagnosticBrowserInfoEventSchema,
   WorkflowDiagnosticEnvironmentSnapshotEventSchema,
-  WorkflowDiagnosticSandboxProgressEventSchema,
   WorkflowDiagnosticContextCompressionEventSchema,
   WorkflowDiagnosticToolFilteringEventSchema,
   WorkflowDiagnosticContextSnapshotEventSchema,

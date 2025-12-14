@@ -549,16 +549,9 @@ Access-Control-Allow-Headers: Content-Type
    vercel deploy
    ```
 
-2. **Docker**
-   ```bash
-   docker build -t alex-web .
-   docker run -p 3000:3000 alex-web
-   ```
-
-3. **Static Export**
+2. **Static Export**
    ```bash
    npm run build
-   npm run export
    ```
 
 ### Post-deployment
@@ -618,7 +611,7 @@ The ALEX Web Frontend is **production-ready** with all core features implemented
 1. **Deploy Backend Server** - Implement Go SSE endpoints
 2. **Test Integration** - Verify frontend-backend communication
 3. **Add Tests** - Unit, integration, E2E
-4. **Deploy Frontend** - Vercel or Docker
+4. **Deploy Frontend** - Vercel or static hosting
 5. **Monitor Usage** - Analytics and error tracking
 
 ### Final Notes

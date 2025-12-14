@@ -365,22 +365,9 @@ Server must emit events matching these types:
 vercel deploy
 ```
 
-### Docker
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
 ### Static Export (Optional)
 ```bash
 npm run build
-npm run export
 ```
 
 ## Performance Metrics

@@ -1,5 +1,5 @@
 id: default
-environment: local-sandbox
+environment: local
 capabilities:
   - filesystem
   - search

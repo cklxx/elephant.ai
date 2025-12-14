@@ -3,7 +3,6 @@ import { WorkflowDiagnosticEnvironmentSnapshotEvent } from '@/lib/types';
 
 interface EnvironmentSnapshotState {
   host: Record<string, string>;
-  sandbox: Record<string, string>;
   captured: string;
 }
 
@@ -18,7 +17,6 @@ const useDiagnosticsStore = create<DiagnosticsState>((set) => ({
     set({
       environments: {
         host: event.host ?? {},
-        sandbox: event.sandbox ?? {},
         captured: event.captured,
       },
     }),

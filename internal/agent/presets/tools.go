@@ -47,7 +47,6 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"find":           true,
 				"web_search":     true,
 				"web_fetch":      true,
-				"workflow.diagnostic.browser_info":   true,
 				"think":          true,
 				"final":          true,
 				"todo_read":      true,
@@ -98,7 +97,6 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 			AllowedTools: map[string]bool{
 				"web_search":   true,
 				"web_fetch":    true,
-				"workflow.diagnostic.browser_info": true,
 				"think":        true,
 				"final":        true,
 				"todo_read":    true,
@@ -131,7 +129,6 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"find":           true,
 				"web_search":     true,
 				"web_fetch":      true,
-				"workflow.diagnostic.browser_info":   true,
 				"think":          true,
 				"final":          true,
 				"todo_read":      true,

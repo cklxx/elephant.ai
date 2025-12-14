@@ -14,13 +14,11 @@ A complete event stream state management system has been implemented for the ALE
   - `ResearchPlanEvent` - Research plan with steps and estimated iterations
   - `WorkflowNodeStartedEvent` - Research step start tracking
   - `WorkflowNodeCompletedEvent` - Research step completion with result
-- `WorkflowDiagnosticBrowserInfoEvent` - Sandbox browser diagnostics (status, endpoints, viewport)
 
 - ✅ **web/lib/eventAggregation.ts** - Event processing logic (260 lines):
   - `aggregateToolCalls()` - Merges workflow.tool.started/stream/complete into single objects
   - `groupByIteration()` - Groups events by ReAct iteration
   - `extractResearchSteps()` - Builds research step timeline
-- `extractBrowserDiagnostics()` - Extracts sandbox browser diagnostics
   - `EventLRUCache` - LRU cache with 1000 event hard limit
 
 - ✅ **web/hooks/useAgentStreamStore.ts** - Zustand + Immer store (280 lines):
@@ -197,18 +195,6 @@ type WorkflowNodeCompletedEvent struct {
     StepIndex  int    `json:"step_index"`
     StepResult string `json:"step_result"`
 }
-
-type WorkflowDiagnosticBrowserInfoEvent struct {
-    BaseEvent
-    Success        *bool  `json:"success,omitempty"`
-    Message        string `json:"message,omitempty"`
-    UserAgent      string `json:"user_agent,omitempty"`
-    CDPURL         string `json:"cdp_url,omitempty"`
-    VNCURL         string `json:"vnc_url,omitempty"`
-    ViewportWidth  int    `json:"viewport_width,omitempty"`
-    ViewportHeight int    `json:"viewport_height,omitempty"`
-    Captured       time.Time `json:"captured"`
-}
 ```
 
 **File**: `cmd/server/handlers/sse.go`
@@ -217,7 +203,6 @@ eventTypes := []string{
     // ... existing types
     "workflow.node.started",
     "workflow.node.completed",
-    "workflow.diagnostic.browser_info",
 }
 ```
 

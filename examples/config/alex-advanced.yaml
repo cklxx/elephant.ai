@@ -27,7 +27,6 @@ security:
     - "sudo"
     - "curl"
   require_confirmation: true
-  sandbox_mode: false
   max_processes: 10
   max_memory_mb: 512
   restricted_paths:

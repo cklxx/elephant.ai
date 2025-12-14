@@ -36,7 +36,6 @@ func RunServer(observabilityConfigPath string) error {
 
 	hostEnv, hostSummary := CaptureHostEnvironment(20)
 	config.EnvironmentSummary = hostSummary
-	sandboxEnv := map[string]string{}
 	envCapturedAt := time.Now().UTC()
 
 	container, err := BuildContainer(config)
@@ -53,17 +52,6 @@ func RunServer(observabilityConfigPath string) error {
 		logger.Warn("Container start failed: %v (continuing with limited functionality)", err)
 	}
 
-	if container.SandboxManager != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		updatedSandboxEnv, sandboxSummary, capturedAt, ok := CaptureSandboxEnvironment(ctx, container.SandboxManager, 20, logger)
-		if ok {
-			sandboxEnv = updatedSandboxEnv
-			envCapturedAt = capturedAt
-			config.EnvironmentSummary = sandboxSummary
-		}
-		cancel()
-	}
-
 	if summary := config.EnvironmentSummary; summary != "" {
 		container.AgentCoordinator.SetEnvironmentSummary(summary)
 	}
@@ -75,9 +63,6 @@ func RunServer(observabilityConfigPath string) error {
 	defer cleanupDiagnostics()
 
 	broadcaster.SetTaskStore(taskStore)
-	if archiver := serverApp.NewSandboxAttachmentArchiver(container.SandboxManager, ""); archiver != nil {
-		broadcaster.SetAttachmentArchiver(archiver)
-	}
 
 	analyticsClient, analyticsCleanup := BuildAnalyticsClient(config.Analytics, logger)
 	if analyticsCleanup != nil {
@@ -100,7 +85,6 @@ func RunServer(observabilityConfigPath string) error {
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
-	healthChecker.RegisterProbe(serverApp.NewSandboxProbe(container.SandboxManager))
 
 	authService, authCleanup, err := BuildAuthService(config, logger)
 	if err != nil {
@@ -137,7 +121,6 @@ func RunServer(observabilityConfigPath string) error {
 
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
 		Host:     hostEnv,
-		Sandbox:  sandboxEnv,
 		Captured: envCapturedAt,
 	})
 
@@ -154,27 +137,11 @@ func RunServer(observabilityConfigPath string) error {
 
 func subscribeDiagnostics(broadcaster *serverApp.EventBroadcaster) func() {
 	unsubscribeEnv := diagnostics.SubscribeEnvironments(func(payload diagnostics.EnvironmentPayload) {
-		event := agentdomain.NewWorkflowDiagnosticEnvironmentSnapshotEvent(payload.Host, payload.Sandbox, payload.Captured)
-		broadcaster.OnEvent(event)
-	})
-
-	unsubscribeSandboxProgress := diagnostics.SubscribeSandboxProgress(func(payload diagnostics.SandboxProgressPayload) {
-		event := agentdomain.NewWorkflowDiagnosticSandboxProgressEvent(
-			string(payload.Status),
-			payload.Stage,
-			payload.Message,
-			payload.Step,
-			payload.TotalSteps,
-			payload.Error,
-			payload.Updated,
-		)
+		event := agentdomain.NewWorkflowDiagnosticEnvironmentSnapshotEvent(payload.Host, payload.Captured)
 		broadcaster.OnEvent(event)
 	})
 
 	return func() {
-		if unsubscribeSandboxProgress != nil {
-			unsubscribeSandboxProgress()
-		}
 		if unsubscribeEnv != nil {
 			unsubscribeEnv()
 		}

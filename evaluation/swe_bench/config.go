@@ -187,7 +187,7 @@ func (cm *ConfigManager) validateDatasetConfig(config *DatasetConfig) error {
 
 // applyEnvOverrides applies environment variable overrides to configuration
 func (cm *ConfigManager) applyEnvOverrides(config *BatchConfig) error {
-	lookup := runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, sweBenchEnvAliases)
+	lookup := runtimeconfig.DefaultEnvLookup
 
 	runtimeCfg, meta, err := runtimeconfig.Load(
 		runtimeconfig.WithEnv(lookup),

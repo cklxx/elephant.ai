@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
-	"alex/internal/tools"
 	"golang.org/x/time/rate"
 )
 
@@ -37,8 +35,6 @@ type Container struct {
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
 
-	SandboxManager *tools.SandboxManager
-
 	// Lazy initialization state
 	config       Config
 	toolRegistry *toolregistry.Registry
@@ -52,6 +48,7 @@ type Config struct {
 	// LLM Configuration
 	LLMProvider             string
 	LLMModel                string
+	LLMVisionModel          string
 	APIKey                  string
 	ArkAPIKey               string
 	BaseURL                 string
@@ -62,7 +59,6 @@ type Config struct {
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
-	SandboxBaseURL          string
 	MaxTokens               int
 	MaxIterations           int
 	UserRateLimitRPS        float64
@@ -86,8 +82,7 @@ type Config struct {
 	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
 
 	// Feature Flags
-	EnableMCP      bool // Enable MCP tool registration (requires external dependencies)
-	DisableSandbox bool // Disable sandbox initialization for faster startup in CLI mode
+	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
 }
 
 // Start initializes heavy dependencies (MCP) based on feature flags
@@ -175,29 +170,9 @@ func BuildContainer(config Config) (*Container, error) {
 	if config.UserRateLimitRPS > 0 {
 		llmFactory.EnableUserRateLimit(rate.Limit(config.UserRateLimitRPS), config.UserRateLimitBurst)
 	}
-	executionMode := tools.ExecutionModeLocal
-	var sandboxManager *tools.SandboxManager
-	sandboxBaseURL := strings.TrimSpace(config.SandboxBaseURL)
-
-	// Skip sandbox initialization if explicitly disabled (e.g., in CLI single-command mode)
-	if config.DisableSandbox {
-		logger.Debug("Sandbox disabled by configuration (CLI mode optimization)")
-		sandboxBaseURL = ""
-	} else if sandboxBaseURL != "" {
-		executionMode = tools.ExecutionModeSandbox
-		sandboxManager = tools.NewSandboxManager(sandboxBaseURL)
-		if err := sandboxManager.Initialize(context.Background()); err != nil {
-			formatted := tools.FormatSandboxError(err)
-			logger.Warn("Sandbox initialization failed for %s: %v (falling back to local execution)", sandboxBaseURL, formatted)
-			sandboxManager = nil
-			executionMode = tools.ExecutionModeLocal
-			sandboxBaseURL = ""
-		}
-	}
 
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
-		SandboxBaseURL:          sandboxBaseURL,
 		ArkAPIKey:               config.ArkAPIKey,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
@@ -205,8 +180,6 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
-		ExecutionMode:           executionMode,
-		SandboxManager:          sandboxManager,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
@@ -228,6 +201,7 @@ func BuildContainer(config Config) (*Container, error) {
 	)
 	historyMgr := ctxmgr.NewHistoryManager(historyStore, logger, ports.SystemClock{})
 	parserImpl := parser.New()
+	llmFactory.EnableToolCallParsing(parserImpl)
 
 	// Cost tracking storage
 	costStore, err := storage.NewFileCostStore(costDir)
@@ -236,11 +210,10 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	costTracker := agentApp.NewCostTracker(costStore)
 
-	config.SandboxBaseURL = sandboxBaseURL
-
 	runtimeSnapshot := runtimeconfig.RuntimeConfig{
 		LLMProvider:             config.LLMProvider,
 		LLMModel:                config.LLMModel,
+		LLMVisionModel:          config.LLMVisionModel,
 		APIKey:                  config.APIKey,
 		ArkAPIKey:               config.ArkAPIKey,
 		BaseURL:                 config.BaseURL,
@@ -251,7 +224,6 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
-		SandboxBaseURL:          sandboxBaseURL,
 		Environment:             config.Environment,
 		Verbose:                 config.Verbose,
 		DisableTUI:              config.DisableTUI,
@@ -285,6 +257,7 @@ func BuildContainer(config Config) (*Container, error) {
 		agentApp.Config{
 			LLMProvider:         config.LLMProvider,
 			LLMModel:            config.LLMModel,
+			LLMVisionModel:      config.LLMVisionModel,
 			APIKey:              config.APIKey,
 			BaseURL:             config.BaseURL,
 			MaxTokens:           config.MaxTokens,
@@ -315,7 +288,6 @@ func BuildContainer(config Config) (*Container, error) {
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
-		SandboxManager:   sandboxManager,
 		config:           config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,

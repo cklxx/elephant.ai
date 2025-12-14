@@ -50,14 +50,14 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	overrides.CostDir = &costDir
 
 	runtimeCfg, meta, err := runtimeconfig.Load(
-		runtimeconfig.WithEnv(runtimeconfig.AliasEnvLookup(runtimeconfig.DefaultEnvLookup, sweBenchEnvAliases)),
+		runtimeconfig.WithEnv(runtimeconfig.DefaultEnvLookup),
 		runtimeconfig.WithOverrides(overrides),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load runtime configuration: %w", err)
 	}
 	if runtimeCfg.APIKey == "" {
-		return nil, fmt.Errorf("API key is required (set OPENROUTER_API_KEY or OPENAI_API_KEY)")
+		return nil, fmt.Errorf("API key is required (set OPENAI_API_KEY or add api_key to ~/.alex-config.json)")
 	}
 
 	baseURL := runtimeCfg.BaseURL

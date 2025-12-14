@@ -120,12 +120,6 @@ export function formatContent(event: AnyAgentEvent): string {
     case eventMatches(event, 'workflow.subflow.completed', 'workflow.subflow.completed'):
       return `✓ Subagent summary ${(event as any).success}/${(event as any).total} succeeded (${(event as any).failed} failed, ${(event as any).tokens} tokens, ${(event as any).tool_calls} tool calls)`;
 
-    case eventMatches(event, 'workflow.diagnostic.browser_info'):
-      if ('message' in event && (event as any).message) {
-        return `🧭 Browser diagnostics: ${(event as any).message}`;
-      }
-      return 'Browser diagnostics captured';
-
     case eventMatches(event, 'workflow.tool.progress', 'workflow.tool.progress'):
       if ('chunk' in event) {
         return (event as any).chunk;

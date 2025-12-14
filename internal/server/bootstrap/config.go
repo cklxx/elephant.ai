@@ -54,7 +54,7 @@ var defaultAllowedOrigins = []string{
 }
 
 func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error), error) {
-	envLookup := runtimeconfig.DefaultEnvLookupWithAliases()
+	envLookup := runtimeconfig.DefaultEnvLookup
 
 	storePath := configadmin.ResolveStorePath(envLookup)
 	cacheTTL := 30 * time.Second
@@ -101,12 +101,6 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
 		return Config{}, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
-
-	sandboxBaseURL := strings.TrimSpace(cfg.Runtime.SandboxBaseURL)
-	if sandboxBaseURL == "" {
-		sandboxBaseURL = runtimeconfig.DefaultSandboxBaseURL
-	}
-	cfg.Runtime.SandboxBaseURL = sandboxBaseURL
 
 	authCfg := AuthConfig{}
 	if secret, ok := envLookup("AUTH_JWT_SECRET"); ok {

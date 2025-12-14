@@ -15,7 +15,7 @@ func resolveAPIKey() (string, error) {
 		return "", fmt.Errorf("load runtime configuration: %w", err)
 	}
 	if cfg.APIKey == "" {
-		return "", fmt.Errorf("OPENROUTER_API_KEY or OPENAI_API_KEY environment variable not set")
+		return "", fmt.Errorf("API key not configured (set OPENAI_API_KEY or add api_key to ~/.alex-config.json)")
 	}
 	return cfg.APIKey, nil
 }
