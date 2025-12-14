@@ -16,6 +16,7 @@ import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
+import { LoadingDots } from "@/components/ui/loading-states";
 
 interface StopReasonCopy {
   title: string;
@@ -52,7 +53,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const answer = event.final_answer ?? "";
   const markdownAnswer = convertInlineMediaToMarkdown(answer);
   const attachments = event.attachments ?? undefined;
-  const isStreaming = event.is_streaming === true || event.stream_finished === false;
+  const streamInProgress =
+    event.stream_finished === false ||
+    (event.is_streaming === true && event.stream_finished !== true);
   const streamFinished = event.stream_finished === true;
   const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
     markdownAnswer,
@@ -155,10 +158,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     };
   }, [markdownAnswer, attachments]);
   const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
-  // Render markdown while streaming and once a final answer is delivered, even if the text is empty,
-  // to avoid hiding completed streamed results.
   const shouldRenderMarkdown =
-    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason === "final_answer");
+    !streamInProgress &&
+    (hasAnswerContent || (streamFinished && event.stop_reason === "final_answer"));
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
@@ -193,14 +195,27 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   return (
     <Card data-testid="task-complete-event">
       <CardContent className="mt-2 space-y-4 p-4">
-        {shouldRenderMarkdown ? (
+        {streamInProgress ? (
+          <div
+            className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"
+            data-testid="task-complete-streaming-placeholder"
+          >
+            <p className="font-medium text-slate-700">
+              {t("events.taskComplete.streaming")}
+            </p>
+            <p className="mt-1 inline-flex items-center gap-2 text-slate-500">
+              <LoadingDots />
+              <span>{t("events.taskComplete.streamingHint")}</span>
+            </p>
+          </div>
+        ) : shouldRenderMarkdown ? (
           <>
             <StreamingMarkdownRenderer
               content={contentWithInlineMedia}
               className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
               attachments={attachments}
-              isStreaming={isStreaming}
-              streamFinished={streamFinished}
+              isStreaming={false}
+              streamFinished
               components={{
                 code: ({ inline, className, children, ...props }: any) => {
                   if (inline) {
@@ -314,7 +329,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </div>
         ) : null}
 
-        {unreferencedMediaSegments.length > 0 && (
+        {!streamInProgress && unreferencedMediaSegments.length > 0 && (
           <div className="flex flex-wrap items-start gap-3">
             {unreferencedMediaSegments.map((segment, index) => {
               if (!segment.attachment) {
@@ -356,7 +371,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </div>
         )}
 
-        {artifactSegments.length > 0 && (
+        {!streamInProgress && artifactSegments.length > 0 && (
           <div className="mt-4 space-y-3">
             {artifactSegments.map((segment, index) => {
               if (!segment.attachment) {

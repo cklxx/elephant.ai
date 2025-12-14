@@ -364,6 +364,8 @@ const translations = {
     "events.taskComplete.cancelled.body":
       "The run stopped before finishing. Submit another prompt to continue working.",
     "events.taskComplete.finalAnswer": "Final answer",
+    "events.taskComplete.streaming": "Generating final answer…",
+    "events.taskComplete.streamingHint": "Waiting for the run to finish.",
     "events.taskComplete.empty": "No answer provided.",
     "events.taskComplete.attachmentsAvailable":
       "Attachments are available in the task input.",

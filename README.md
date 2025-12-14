@@ -32,6 +32,7 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 | Frontend | `web/` renders real-time sessions via SSE, supports cost inspection, and lets operators feed new fragments. |
 
 See [`docs/AGENT.md`](docs/AGENT.md) for a deep dive into the orchestration flow.
+New to the repo? Start with [`READMAP.md`](READMAP.md) for a guided reading order.
 
 ---
 
@@ -193,6 +194,7 @@ Items labeled “planned” are in active design; other bullets align with the c
 
 ## Documentation
 
+* [`READMAP.md`](READMAP.md) – guided reading order for the codebase.
 * [`docs/README.md`](docs/README.md) – full documentation index.
 * [`docs/AGENT.md`](docs/AGENT.md) – reasoning loop, orchestration flow, and event model.
 * [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md) – configuration schema, precedence, and examples.

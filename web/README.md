@@ -12,6 +12,7 @@ Modern Next.js web interface for the ALEX AI Programming Agent.
 - Automatic reconnection with exponential backoff
 - Tool call visualization with color-coded cards
 - Markdown rendering for final answers
+- Right-side resources panel with Skills + Attachments (collapsed by default)
 
 ## Tech Stack
 
@@ -57,6 +58,8 @@ Run the development server:
 ```bash
 npm run dev
 ```
+
+`npm run dev/build/test` will generate `web/lib/generated/skillsCatalog.json` from the repo-level `skills/` folder via `web/scripts/generate-skills-catalog.js`.
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 

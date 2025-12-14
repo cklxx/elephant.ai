@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import {
+  Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+} from 'lucide-react';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
@@ -31,6 +37,7 @@ import {
   AttachmentPanel,
   collectAttachmentItems,
 } from '@/components/agent/AttachmentPanel';
+import { SkillsPanel } from '@/components/agent/SkillsPanel';
 
 const LazyTerminalOutput = dynamic(
   () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
@@ -51,6 +58,7 @@ export function ConversationPageContent() {
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -578,6 +586,37 @@ export function ConversationPageContent() {
               </span>
             </Button>
           }
+          actionsSlot={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              data-testid="right-panel-toggle"
+              onClick={() =>
+                setIsRightPanelOpen((prev) => {
+                  const next = !prev;
+                  captureEvent(AnalyticsEvent.SidebarToggled, {
+                    sidebar: 'right_panel',
+                    next_state: next ? 'open' : 'closed',
+                    previous_state: prev ? 'open' : 'closed',
+                  });
+                  return next;
+                })
+              }
+              className="h-10 w-10 rounded-full border border-border/60"
+              aria-expanded={isRightPanelOpen}
+              aria-controls="conversation-right-panel"
+            >
+              {isRightPanelOpen ? (
+                <PanelRightClose className="h-4 w-4" />
+              ) : (
+                <PanelRightOpen className="h-4 w-4" />
+              )}
+              <span className="sr-only">
+                {isRightPanelOpen ? 'Close right panel' : 'Open right panel'}
+              </span>
+            </Button>
+          }
         />
 
         <div className="flex flex-1 flex-col gap-5 lg:flex-row">
@@ -640,11 +679,6 @@ export function ConversationPageContent() {
                   onReconnect={reconnect}
                   isRunning={isTaskRunning}
                 />
-              )}
-              {hasAttachments && (
-                <div className="lg:hidden">
-                  <AttachmentPanel events={events} />
-                </div>
               )}
             </ContentArea>
 
@@ -714,15 +748,71 @@ export function ConversationPageContent() {
               />
             </div>
           </div>
-          {hasAttachments && (
-            <div className="hidden lg:flex w-[380px] flex-none justify-end xl:w-[440px]">
-              <div className="sticky top-24 w-full max-w-[440px]">
-                <AttachmentPanel events={events} />
+          <div
+            id="conversation-right-panel"
+            className={cn(
+              "hidden lg:flex flex-none justify-end overflow-hidden transition-all duration-300",
+              isRightPanelOpen ? "w-[380px] xl:w-[440px]" : "w-0"
+            )}
+            aria-hidden={!isRightPanelOpen}
+          >
+            {isRightPanelOpen ? (
+              <div className="sticky top-24 w-full max-w-[440px] space-y-4">
+                <SkillsPanel />
+                {hasAttachments ? (
+                  <AttachmentPanel events={events} />
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                    No attachments yet.
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {isRightPanelOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 h-full w-full bg-slate-900/30 backdrop-blur-sm"
+            aria-label="Close right panel"
+            onClick={() => setIsRightPanelOpen(false)}
+          />
+          <aside
+            className="relative ml-auto flex h-full w-full max-w-[440px] flex-col border-l border-border/60 bg-card/90 backdrop-blur"
+            aria-label="Resources panel"
+          >
+            <header className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                Resources
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full"
+                onClick={() => setIsRightPanelOpen(false)}
+                aria-label="Close resources panel"
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              <SkillsPanel />
+              {hasAttachments ? (
+                <AttachmentPanel events={events} />
+              ) : (
+                <div className="rounded-3xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                  No attachments yet.
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
