@@ -22,6 +22,7 @@ import (
 	"alex/internal/logging"
 	"alex/internal/observability"
 	sessionstate "alex/internal/session/state_store"
+	"alex/internal/skills"
 	"gopkg.in/yaml.v3"
 )
 
@@ -317,7 +318,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		Dynamic: dyn,
 		Meta:    meta,
 	}
-	window.SystemPrompt = composeSystemPrompt(window.Static, window.Dynamic, window.Meta)
+	window.SystemPrompt = composeSystemPrompt(m.logger, window.Static, window.Dynamic, window.Meta)
 	return window, nil
 }
 
@@ -509,12 +510,13 @@ func normalizeHistoryLabel(msg ports.Message) string {
 	return role
 }
 
-func composeSystemPrompt(static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext) string {
+func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext) string {
 	sections := []string{
 		buildIdentitySection(static.Persona),
 		buildGoalsSection(static.Goal),
 		buildPoliciesSection(static.Policies),
 		buildKnowledgeSection(static.Knowledge),
+		buildSkillsSection(logger),
 		buildEnvironmentSection(static),
 		buildDynamicSection(dynamic),
 		buildMetaSection(meta),
@@ -526,6 +528,15 @@ func composeSystemPrompt(static ports.StaticContext, dynamic ports.DynamicContex
 		}
 	}
 	return strings.Join(compact, "\n\n")
+}
+
+func buildSkillsSection(logger logging.Logger) string {
+	library, err := skills.DefaultLibrary()
+	if err != nil {
+		logging.OrNop(logger).Warn("Failed to load skills: %v", err)
+		return ""
+	}
+	return skills.IndexMarkdown(library)
 }
 
 func buildIdentitySection(persona ports.PersonaProfile) string {

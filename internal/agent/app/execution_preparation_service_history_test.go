@@ -132,6 +132,93 @@ func TestPrepareHistoryRecallOmitsSystemMessages(t *testing.T) {
 	}
 }
 
+func TestPrepareHistoryRecallPreservesToolCallOrdering(t *testing.T) {
+	session := &ports.Session{
+		ID: "session-history-toolcall-order",
+		Messages: []ports.Message{
+			{
+				Role:    "user",
+				Source:  ports.MessageSourceUserInput,
+				Content: "画一只小猪",
+			},
+			{
+				Role:    "assistant",
+				Source:  ports.MessageSourceAssistantReply,
+				Content: "",
+				ToolCalls: []ports.ToolCall{{
+					ID:        "text_to_image:0",
+					Name:      "text_to_image",
+					Arguments: map[string]any{"prompt": "a cute pig"},
+				}},
+			},
+			{
+				Role:       "tool",
+				Source:     ports.MessageSourceToolResult,
+				ToolCallID: "text_to_image:0",
+				Content:    "Seedream response: [pig.png]",
+				ToolResults: []ports.ToolResult{{
+					CallID:   "text_to_image:0",
+					Content:  "Seedream response: [pig.png]",
+					Metadata: map[string]any{"model": "seedream"},
+				}},
+			},
+			{
+				Role:    "assistant",
+				Source:  ports.MessageSourceAssistantReply,
+				Content: "已生成一只可爱的小猪图片：[pig.png]",
+			},
+		},
+		Metadata: map[string]string{},
+	}
+	store := &stubSessionStore{session: session}
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{},
+		SessionStore:  store,
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	env, err := service.Prepare(context.Background(), "生成一篇md爱情的意义文章", session.ID)
+	if err != nil {
+		t.Fatalf("prepare execution failed: %v", err)
+	}
+
+	if env == nil || env.State == nil {
+		t.Fatalf("expected environment with state")
+	}
+
+	if got := len(env.State.Messages); got != 4 {
+		t.Fatalf("expected exactly 4 recalled history messages, got %d", got)
+	}
+
+	msgs := env.State.Messages
+	for i := range msgs {
+		if msgs[i].Source != ports.MessageSourceUserHistory {
+			t.Fatalf("expected message %d to be recalled as user history, got source %s", i, msgs[i].Source)
+		}
+	}
+
+	if !strings.EqualFold(msgs[0].Role, "user") || msgs[0].Content != "画一只小猪" {
+		t.Fatalf("expected first message to be user prompt, got %#v", msgs[0])
+	}
+	if !strings.EqualFold(msgs[1].Role, "assistant") || len(msgs[1].ToolCalls) != 1 || msgs[1].ToolCalls[0].ID != "text_to_image:0" {
+		t.Fatalf("expected second message to be assistant tool call, got %#v", msgs[1])
+	}
+	if !strings.EqualFold(msgs[2].Role, "tool") || msgs[2].ToolCallID != "text_to_image:0" {
+		t.Fatalf("expected third message to be tool response for tool call, got %#v", msgs[2])
+	}
+	if !strings.EqualFold(msgs[3].Role, "assistant") || !strings.Contains(msgs[3].Content, "小猪") {
+		t.Fatalf("expected fourth message to be assistant follow-up, got %#v", msgs[3])
+	}
+}
+
 func TestPrepareHistoryRecallReplacesOriginalTurns(t *testing.T) {
 	session := &ports.Session{
 		ID: "session-history-duplicates",

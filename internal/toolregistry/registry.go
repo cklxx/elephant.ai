@@ -228,6 +228,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	// Task management
 	r.static["todo_read"] = builtin.NewTodoRead()
 	r.static["todo_update"] = builtin.NewTodoUpdate()
+	r.static["skills"] = builtin.NewSkills()
 
 	// Attachment and artifact operations
 	r.static["artifacts_write"] = builtin.NewArtifactsWrite()

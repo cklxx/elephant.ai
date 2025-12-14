@@ -68,6 +68,25 @@ All binaries wire through `internal/di`, so configuration and tool wiring stay i
 * **Context & parsing.** Layered prompt builders plus structured tool call parsers in `internal/context` and `internal/parser`.
 * **Evaluations.** `evaluation/` hosts SWE-Bench runners, reporting helpers, and reproducible scripts.
 
+### Skills (Markdown Playbooks)
+
+Spinner can ship reusable "skills" as Markdown playbooks in `skills/`.
+
+* **Indexed into context.** The context builder injects a compact skills index (name + description) into the system prompt.
+* **Queryable via tool.** Use the builtin `skills` tool to list/search/show playbooks.
+* **File format.** Each skill is a `.md/.mdx` file with YAML front matter:
+  ```md
+  ---
+  name: my_skill
+  description: One-line summary used for discovery/tooling.
+  ---
+  # Title
+  ...
+  ```
+* **Override location.** Set `ALEX_SKILLS_DIR=/path/to/skills` to point at a different skills folder.
+
+Built-in skills include `video_production` and `ppt_deck`.
+
 ---
 
 ## Repository Map

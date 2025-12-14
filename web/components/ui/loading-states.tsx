@@ -112,6 +112,31 @@ export function PulsingDot({ color = 'primary' }: { color?: 'primary' | 'green' 
   );
 }
 
+export function LoadingDots({
+  count = 3,
+  className,
+  dotClassName,
+}: {
+  count?: number;
+  className?: string;
+  dotClassName?: string;
+}) {
+  return (
+    <span className={cn('inline-flex items-center gap-1', className)} aria-hidden="true">
+      {Array.from({ length: count }).map((_, idx) => (
+        <span
+          key={idx}
+          className={cn(
+            'h-1.5 w-1.5 rounded-full bg-current animate-bounce motion-reduce:animate-none',
+            dotClassName
+          )}
+          style={{ animationDelay: `${idx * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function ProgressBar({
   progress,
   total,
@@ -147,11 +172,7 @@ export function StreamingIndicator({ active = true }: { active?: boolean }) {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex gap-1">
-        <span className="w-2 h-2 animate-bounce" style={{ animationDelay: '0ms' }}></span>
-        <span className="w-2 h-2 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-        <span className="w-2 h-2 animate-bounce" style={{ animationDelay: '300ms' }}></span>
-      </div>
+      <LoadingDots />
       <span>Streaming...</span>
     </div>
   );

@@ -397,7 +397,7 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 		Recommendations: []string{"Prioritize secure defaults"},
 	}
 
-	prompt := composeSystemPrompt(static, dynamic, meta)
+	prompt := composeSystemPrompt(nil, static, dynamic, meta)
 	if !strings.Contains(prompt, "Persona version: persona-v2") {
 		t.Fatalf("expected persona version in prompt, got %q", prompt)
 	}

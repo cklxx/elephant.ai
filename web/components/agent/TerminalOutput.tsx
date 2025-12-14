@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { AnyAgentEvent, eventMatches } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { IntermediatePanel } from "./IntermediatePanel";
+import { LoadingDots } from "@/components/ui/loading-states";
 import {
   EventLine,
   SubagentContext,
@@ -19,6 +20,7 @@ interface TerminalOutputProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
+  isRunning?: boolean;
 }
 
 export function TerminalOutput({
@@ -28,6 +30,7 @@ export function TerminalOutput({
   error,
   reconnectAttempts,
   onReconnect,
+  isRunning = false,
 }: TerminalOutputProps) {
   const { displayEvents, subagentThreads } = useMemo(
     () => partitionEvents(events),
@@ -124,6 +127,16 @@ export function TerminalOutput({
             </div>
           );
         })}
+        {isRunning && (
+          <div
+            className="mt-4 flex max-w-[fit-content] items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-2 text-muted-foreground"
+            aria-live="polite"
+            data-testid="workflow-running-indicator"
+          >
+            <LoadingDots />
+            <span className="sr-only">Workflow running</span>
+          </div>
+        )}
       </div>
     </div>
   );

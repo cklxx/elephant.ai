@@ -156,7 +156,6 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	clientChan := make(chan ports.AgentEvent, 100)
 	sentAttachments := make(map[string]string)
 	finalAnswerCache := make(map[string]string)
-	streamedTasks := make(map[string]bool)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -259,13 +258,6 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "write_error", 0)
 			}
 			return false
-		}
-
-		// Clear streaming cache when final completes so subsequent tasks stream cleanly.
-		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
-			if env.EventType() == "workflow.result.final" && env.Payload != nil && env.Payload["stream_finished"] == true {
-				delete(streamedTasks, env.GetTaskID())
-			}
 		}
 
 		flusher.Flush()

@@ -245,7 +245,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	history := s.recallUserHistory(ctx, llmClient, task, rawHistory)
 	stateMessages := append([]domain.Message(nil), session.Messages...)
 	if history != nil && len(history.messages) > 0 {
-		stateMessages = trimSessionHistoryMessages(stateMessages)
+		stateMessages = history.messages
 	}
 
 	state := &domain.TaskState{
@@ -280,10 +280,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	if inheritedState != nil {
 		s.applyInheritedStateSnapshot(state, inheritedState)
-	}
-
-	if history != nil && len(history.messages) > 0 {
-		state.Messages = append(state.Messages, history.messages...)
 	}
 
 	if userAttachments := GetUserAttachments(ctx); len(userAttachments) > 0 {
@@ -477,28 +473,6 @@ func historyMessagesFromSession(messages []ports.Message) []ports.Message {
 	return filtered
 }
 
-func trimSessionHistoryMessages(messages []ports.Message) []ports.Message {
-	if len(messages) == 0 {
-		return nil
-	}
-	trimmed := make([]ports.Message, 0, len(messages))
-	removed := false
-	for _, msg := range messages {
-		if shouldRecallHistoryMessage(msg) {
-			removed = true
-			continue
-		}
-		trimmed = append(trimmed, msg)
-	}
-	if !removed {
-		return messages
-	}
-	if len(trimmed) == 0 {
-		return nil
-	}
-	return trimmed
-}
-
 func shouldRecallHistoryMessage(msg ports.Message) bool {
 	role := strings.TrimSpace(msg.Role)
 	if strings.EqualFold(role, "system") {
@@ -507,7 +481,7 @@ func shouldRecallHistoryMessage(msg ports.Message) bool {
 	if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
 		return false
 	}
-	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 && len(msg.ToolResults) == 0 {
+	if strings.TrimSpace(msg.Content) == "" && len(msg.Attachments) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
 		return false
 	}
 	return true

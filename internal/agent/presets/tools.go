@@ -50,6 +50,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"think":          true,
 				"final":          true,
 				"todo_read":      true,
+				"skills":         true,
 				"subagent":       true,
 				"explore":        true,
 				"text_to_image":  true,
@@ -81,6 +82,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"final":        true,
 				"todo_read":    true,
 				"todo_update":  true,
+				"skills":       true,
 				"subagent":     true,
 				"explore":      true,
 			},
@@ -95,11 +97,12 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 			Name:        "Web Access",
 			Description: "Web search and fetch only - no file system access",
 			AllowedTools: map[string]bool{
-				"web_search":   true,
-				"web_fetch":    true,
-				"think":        true,
-				"final":        true,
-				"todo_read":    true,
+				"web_search": true,
+				"web_fetch":  true,
+				"think":      true,
+				"final":      true,
+				"todo_read":  true,
+				"skills":     true,
 			},
 			DeniedTools: map[string]bool{
 				"file_read":    true,
@@ -133,6 +136,7 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 				"final":          true,
 				"todo_read":      true,
 				"todo_update":    true,
+				"skills":         true,
 				"subagent":       true,
 				"explore":        true,
 				"text_to_image":  true,
@@ -145,19 +149,20 @@ func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
 			},
 		},
 
-ToolPresetOrchestrator: {
-Name:        "Orchestrator Only",
-Description: "Core agent coordination preset (think, todo, delegate, final)",
-AllowedTools: map[string]bool{
-"think":       true,
-"todo_read":   true,
-"todo_update": true,
-"subagent":    true,
-"final":       true,
-},
-DeniedTools: make(map[string]bool),
-},
-}
+		ToolPresetOrchestrator: {
+			Name:        "Orchestrator Only",
+			Description: "Core agent coordination preset (think, todo, delegate, final)",
+			AllowedTools: map[string]bool{
+				"think":       true,
+				"todo_read":   true,
+				"todo_update": true,
+				"skills":      true,
+				"subagent":    true,
+				"final":       true,
+			},
+			DeniedTools: make(map[string]bool),
+		},
+	}
 
 	config, ok := configs[preset]
 	if !ok {
