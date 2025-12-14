@@ -17,6 +17,7 @@ import (
 
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
+	"alex/internal/httpclient"
 	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -46,14 +47,14 @@ func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
 		timeout = time.Duration(config.Timeout) * time.Second
 	}
 
+	logger := utils.NewCategorizedLogger(utils.LogCategoryLLM, "openai")
+
 	return &openaiClient{
-		model:   model,
-		apiKey:  config.APIKey,
-		baseURL: strings.TrimRight(config.BaseURL, "/"),
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		logger:     utils.NewCategorizedLogger(utils.LogCategoryLLM, "openai"),
+		model:      model,
+		apiKey:     config.APIKey,
+		baseURL:    strings.TrimRight(config.BaseURL, "/"),
+		httpClient: httpclient.New(timeout, logger),
+		logger:     logger,
 		headers:    config.Headers,
 		maxRetries: config.MaxRetries,
 	}, nil

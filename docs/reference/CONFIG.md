@@ -96,6 +96,17 @@ alex config path
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
 
+### 网络与代理（非 RuntimeConfig 字段）
+
+ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY`。
+
+本地开发时经常出现“代理地址指向 `127.0.0.1:xxxx` 但代理进程未启动”的情况。默认模式下 ALEX 会 **自动绕过不可达的 loopback 代理**，避免所有出站请求都因为 `proxyconnect ... connection refused` 失败（日志会给出 warning）。
+
+- `ALEX_PROXY_MODE`：`auto`（默认） / `strict` / `direct`
+  - `auto`：遵循标准代理 env；若 loopback 代理不可达则自动绕过；并始终对 `localhost/127.0.0.1/::1` 目标直连。
+  - `strict`：严格遵循代理 env；代理不可用会直接失败。
+  - `direct`：忽略代理 env，全部直连。
+
 ---
 
 ## 字段参考（JSON keys）

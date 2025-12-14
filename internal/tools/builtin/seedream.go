@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/httpclient"
 	"alex/internal/logging"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
@@ -48,7 +49,8 @@ func (f *seedreamClientFactory) instance() (*arkruntime.Client, error) {
 			f.err = errors.New("seedream API key missing")
 			return
 		}
-		f.client = arkruntime.NewClientWithApiKey(apiKey)
+		httpLogger := logging.NewComponentLogger("SeedreamHTTP")
+		f.client = arkruntime.NewClientWithApiKey(apiKey, arkruntime.WithHTTPClient(httpclient.New(10*time.Minute, httpLogger)))
 	})
 	if f.err != nil {
 		return nil, f.err
@@ -125,11 +127,12 @@ func NewSeedreamVisionAnalyze(config SeedreamConfig) ports.ToolExecutor {
 
 // NewSeedreamVideoGenerate returns a tool that creates short videos from prompts.
 func NewSeedreamVideoGenerate(config SeedreamConfig) ports.ToolExecutor {
+	logger := logging.NewComponentLogger("SeedreamVideo")
 	return &seedreamVideoTool{
 		config:     config,
 		factory:    &seedreamClientFactory{config: config},
-		httpClient: &http.Client{Timeout: seedreamAssetHTTPTimeout},
-		logger:     logging.NewComponentLogger("SeedreamVideo"),
+		httpClient: httpclient.New(seedreamAssetHTTPTimeout, logger),
+		logger:     logger,
 	}
 }
 
@@ -1559,7 +1562,7 @@ func (t *seedreamVideoTool) downloadAsset(ctx context.Context, assetURL string, 
 	}
 	client := t.httpClient
 	if client == nil {
-		client = &http.Client{Timeout: seedreamAssetHTTPTimeout}
+		client = httpclient.New(seedreamAssetHTTPTimeout, t.logger)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL, nil)

@@ -12,6 +12,7 @@ import (
 
 	"alex/internal/auth/domain"
 	"alex/internal/auth/ports"
+	"alex/internal/httpclient"
 )
 
 type GoogleOAuthConfig struct {
@@ -42,7 +43,7 @@ const (
 func NewGoogleOAuthProvider(cfg GoogleOAuthConfig) *GoogleOAuthProvider {
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: googleHTTPTimeout}
+		client = httpclient.New(googleHTTPTimeout, nil)
 	}
 
 	scopes := cfg.Scopes

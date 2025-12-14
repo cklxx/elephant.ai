@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/httpclient"
 	"alex/internal/logging"
 )
 
@@ -39,13 +40,13 @@ func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
 		timeout = 60 * time.Second
 	}
 
+	logger := logging.NewComponentLogger("ollama-client")
+
 	client := &ollamaClient{
-		model:   model,
-		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		logger: logging.NewComponentLogger("ollama-client"),
+		model:      model,
+		baseURL:    baseURL,
+		httpClient: httpclient.New(timeout, logger),
+		logger:     logger,
 	}
 
 	return client, nil

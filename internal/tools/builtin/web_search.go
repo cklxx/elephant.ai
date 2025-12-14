@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/httpclient"
 )
 
 type webSearch struct {
@@ -24,7 +25,7 @@ func NewWebSearch(apiKey string) ports.ToolExecutor {
 
 func newWebSearch(apiKey string, client *http.Client) *webSearch {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = httpclient.New(30*time.Second, nil)
 	}
 	return &webSearch{client: client, apiKey: apiKey}
 }

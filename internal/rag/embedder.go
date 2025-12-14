@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"time"
 
+	"alex/internal/httpclient"
+	"alex/internal/logging"
+
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -59,11 +62,9 @@ func NewEmbedder(config EmbedderConfig) (Embedder, error) {
 	}
 
 	return &openaiEmbedder{
-		config: config,
-		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
-		},
-		cache: cache,
+		config:     config,
+		httpClient: httpclient.New(60*time.Second, logging.NewComponentLogger("rag-embedder")),
+		cache:      cache,
 	}, nil
 }
 

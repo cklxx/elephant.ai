@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/httpclient"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -51,7 +52,8 @@ func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.Too
 
 	tool := &webFetch{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: httpclient.Transport(nil),
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= 10 {
 					return fmt.Errorf("stopped after 10 redirects")
