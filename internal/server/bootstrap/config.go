@@ -13,6 +13,7 @@ import (
 // Config holds server configuration.
 type Config struct {
 	Runtime            runtimeconfig.RuntimeConfig
+	RuntimeMeta        runtimeconfig.Metadata
 	Port               string
 	EnableMCP          bool
 	EnvironmentSummary string
@@ -71,7 +72,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 	manager := configadmin.NewManager(store, managedOverrides, configadmin.WithCacheTTL(cacheTTL))
 
-	runtimeCfg, _, err := runtimeconfig.Load(
+	runtimeCfg, runtimeMeta, err := runtimeconfig.Load(
 		runtimeconfig.WithEnv(envLookup),
 		runtimeconfig.WithOverrides(managedOverrides),
 	)
@@ -81,6 +82,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 
 	cfg := Config{
 		Runtime:        runtimeCfg,
+		RuntimeMeta:    runtimeMeta,
 		Port:           "8080",
 		EnableMCP:      true, // Default: enabled
 		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),

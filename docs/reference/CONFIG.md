@@ -153,6 +153,7 @@ alex config path
 - **明确优先级**：遇到“配置没生效”，按顺序排查：
   1) `alex config` 看当前快照；2) `alex config path` 看 overrides；3) 环境变量；4) 主配置文件。
 - **谨慎使用 managed overrides**：它会覆盖 env；在容器/多环境切换时，常见的坑是忘记清掉 overrides。
+- **修改主配置文件需要重启 `alex-server`**：server 启动时会构建 DI container；主配置文件 `~/.alex-config.json` 的改动不会自动热更新（managed overrides 可通过 UI/CLI 更新）。
 - **Vision 模型必须真支持图片**：很多文本模型不支持 image；建议明确配置 `llm_vision_model`，并用 provider 对应的 vision model 名称。
 - **OpenAI-compatible base_url 通常需要带 `/v1`**：例如 OpenAI `https://api.openai.com/v1`、OpenRouter `https://openrouter.ai/api/v1`；少了 `/v1` 常见报错是 404/路径不匹配。
 - **控制图片体积**：base64 会显著膨胀 payload，且不同 provider 有请求大小上限；优先使用可访问的远程 URL 或在入库/上传阶段做压缩/缩放。
