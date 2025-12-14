@@ -245,6 +245,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 		// Reserved for future config.
 	})
 
+	// Document generation
+	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
+
 	seedreamBase := builtin.SeedreamConfig{
 		APIKey: config.ArkAPIKey,
 	}

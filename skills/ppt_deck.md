@@ -81,6 +81,21 @@ PowerPoint/Office 的可访问性最佳实践（建议作为发布前必检项�
 - **离线 PPTX**：`python-pptx` 生成结构化页面 + 插图/图表（适合批量生成/模板化）。
 - **Web deck**：Markdown → reveal.js（适合工程化版本管理与 CI 导出 PDF）。
 - **协作交付**：Google Slides API（适合在线协作与共享链接）。
+- **纯图片 PPTX（Alex 工具链）**：先用 `text_to_image` 生成每页 slide 的图片（建议 16:9，如 `1600x900`），再用 `pptx_from_images` 把图片按顺序拼成 `deck.pptx`（适合快速出稿/可演示；后续可在 PowerPoint/Keynote 里补充可编辑元素）。
+
+示例（两步走）：
+
+1) 生成 slide 图片（每页一张，保持风格一致）
+
+```json
+{"prompt":"封面：主题 + 副标题，极简风格，16:9，留白，深色背景，标题可读","size":"1600x900"}
+```
+
+2) 组装 PPTX（纯图片页）
+
+```json
+{"images":["[doubao_seedream-..._0.png]","[doubao_seedream-..._1.png]"],"output_name":"deck.pptx"}
+```
 
 > 选择原则：先保证“结构与讲述”，再决定工具；不要为了自动化牺牲信息结构与可读性。
 
