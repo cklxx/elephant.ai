@@ -57,9 +57,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     event.stream_finished === false ||
     (event.is_streaming === true && event.stream_finished !== true);
   const streamFinished = event.stream_finished === true;
+  const inlineAttachments = streamInProgress ? undefined : attachments;
   const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
     markdownAnswer,
-    attachments,
+    inlineAttachments,
   );
   const inlineImageMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -79,7 +80,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     return map;
   }, [contentWithInlineMedia]);
   const { inlineAttachmentMap, attachmentNames, hasAttachments } = useMemo(() => {
-    if (!attachments) {
+    if (!inlineAttachments) {
       return {
         inlineAttachmentMap: new Map<
           string,
@@ -108,7 +109,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     >();
     const names: string[] = [];
 
-    Object.entries(attachments).forEach(([key, attachment]) => {
+    Object.entries(inlineAttachments).forEach(([key, attachment]) => {
       const uri = buildAttachmentUri(attachment);
       if (uri) {
         inlineMap.set(uri, {
@@ -130,7 +131,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       attachmentNames: names,
       hasAttachments: names.length > 0,
     };
-  }, [attachments]);
+  }, [inlineAttachments]);
   const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
     const segments = parseContentSegments(markdownAnswer, attachments);
     const placeholderMatches = Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g));
@@ -159,8 +160,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   }, [markdownAnswer, attachments]);
   const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
   const shouldRenderMarkdown =
-    !streamInProgress &&
-    (hasAnswerContent || (streamFinished && event.stop_reason === "final_answer"));
+    hasAnswerContent || (streamFinished && event.stop_reason === "final_answer");
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
@@ -195,7 +195,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   return (
     <Card data-testid="task-complete-event">
       <CardContent className="mt-2 space-y-4 p-4">
-        {streamInProgress ? (
+        {streamInProgress && !hasAnswerContent ? (
           <div
             className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"
             data-testid="task-complete-streaming-placeholder"
@@ -213,9 +213,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             <StreamingMarkdownRenderer
               content={contentWithInlineMedia}
               className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
-              attachments={attachments}
-              isStreaming={false}
-              streamFinished
+              attachments={inlineAttachments}
+              isStreaming={streamInProgress}
+              streamFinished={streamFinished}
               components={{
                 code: ({ inline, className, children, ...props }: any) => {
                   if (inline) {
