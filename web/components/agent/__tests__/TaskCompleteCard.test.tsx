@@ -130,7 +130,7 @@ describe('TaskCompleteCard', () => {
     );
   });
 
-  it('shows streaming indicator while final answer is streaming', () => {
+  it('renders streaming output while the final answer stream is in progress', () => {
     renderWithProvider({
       ...baseEvent,
       final_answer: 'Partial stream chunk',
@@ -139,12 +139,12 @@ describe('TaskCompleteCard', () => {
       stop_reason: 'final_answer',
     });
 
+    expect(screen.queryByTestId('task-complete-streaming-placeholder')).not.toBeInTheDocument();
     expect(screen.getByTestId('markdown-streaming-indicator')).toBeInTheDocument();
-    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
     expect(screen.getByText(/Partial stream chunk/i)).toBeInTheDocument();
   });
 
-  it('renders streaming state before any content arrives', () => {
+  it('renders a waiting placeholder before any streaming content arrives', () => {
     renderWithProvider({
       ...baseEvent,
       final_answer: '',
@@ -153,8 +153,8 @@ describe('TaskCompleteCard', () => {
       stop_reason: 'final_answer',
     });
 
-    expect(screen.getByTestId('markdown-streaming-indicator')).toBeInTheDocument();
-    expect(screen.queryByTestId('task-complete-fallback')).not.toBeInTheDocument();
+    expect(screen.getByTestId('task-complete-streaming-placeholder')).toBeInTheDocument();
+    expect(screen.queryByTestId('markdown-streaming-indicator')).not.toBeInTheDocument();
   });
 
   it('hides streaming indicator once stream is finished', () => {

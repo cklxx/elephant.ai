@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/generate-skills-catalog.js",
     "dev": "node scripts/start-dev.js",
+    "prebuild": "node scripts/generate-skills-catalog.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
+    "pretest": "node scripts/generate-skills-catalog.js",
     "test": "vitest run --config vitest.config.mts",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",

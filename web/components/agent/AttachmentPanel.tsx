@@ -41,7 +41,7 @@ export function AttachmentPanel({ events }: AttachmentPanelProps) {
         <div className="space-y-1">
           <p className="text-sm font-semibold text-foreground">Attachments</p>
           <p className="text-xs text-muted-foreground">
-            Inline uploads and tool outputs sit here for quick review.
+            Tool outputs and generated artifacts for quick review.
           </p>
         </div>
         <Badge variant="outline" className="rounded-full text-[11px]">
@@ -156,7 +156,34 @@ export function collectAttachmentItems(
 ): AttachmentListItem[] {
   const seenKeys = new Set<string>();
   const seenNames = new Set<string>();
+  const renderedKeys = new Set<string>();
+  const renderedNames = new Set<string>();
   const items: AttachmentListItem[] = [];
+
+  events.forEach((event) => {
+    if (!isRenderedInMainStream(event)) {
+      return;
+    }
+    const attachments = (event as AnyAgentEvent & { attachments?: Record<string, AttachmentPayload> }).attachments;
+    if (!attachments || typeof attachments !== "object") {
+      return;
+    }
+
+    Object.entries(attachments).forEach(([rawKey, rawAttachment]) => {
+      if (!rawAttachment) {
+        return;
+      }
+      const normalizedKey =
+        (rawKey || rawAttachment.name || "").trim() || "";
+      if (normalizedKey) {
+        renderedKeys.add(normalizedKey);
+      }
+      const normalizedName = (rawAttachment.name || rawAttachment.description || normalizedKey).trim();
+      if (normalizedName) {
+        renderedNames.add(normalizedName);
+      }
+    });
+  });
 
   for (let idx = events.length - 1; idx >= 0; idx -= 1) {
     const event = events[idx];
@@ -176,6 +203,9 @@ export function collectAttachmentItems(
         (rawKey || rawAttachment.name || "").trim() ||
         `attachment-${items.length + 1}`;
       const normalizedName = (rawAttachment.name || rawAttachment.description || normalizedKey).trim();
+      if (renderedKeys.has(normalizedKey) || (normalizedName && renderedNames.has(normalizedName))) {
+        return;
+      }
       if (seenKeys.has(normalizedKey) || (normalizedName && seenNames.has(normalizedName))) {
         return;
       }
@@ -204,9 +234,9 @@ export function collectAttachmentItems(
 function isRenderedInMainStream(event: AnyAgentEvent): boolean {
   if (
     event.event_type === "workflow.input.received" ||
-    eventMatches(event, "workflow.tool.completed", "workflow.tool.completed") ||
     eventMatches(event, "workflow.result.final", "workflow.result.final") ||
-    eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary")
+    eventMatches(event, "workflow.result.cancelled", "workflow.result.cancelled") ||
+    eventMatches(event, "workflow.node.failed")
   ) {
     return true;
   }

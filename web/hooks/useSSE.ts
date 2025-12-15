@@ -400,7 +400,8 @@ export function useSSE(
 
       const isStreamingTaskComplete =
         isWorkflowResultFinalEvent(enrichedEvent) &&
-        (Boolean(enrichedEvent.is_streaming) || Boolean(enrichedEvent.stream_finished));
+        (enrichedEvent.is_streaming === true ||
+          typeof enrichedEvent.stream_finished === "boolean");
 
       if (!isStreamingTaskComplete) {
         const dedupeKey = buildEventSignature(enrichedEvent);
@@ -441,10 +442,7 @@ export function useSSE(
 
         let nextEvents = previousEvents;
 
-        if (
-          isWorkflowResultFinalEvent(enrichedEvent) &&
-          (enrichedEvent.is_streaming || enrichedEvent.stream_finished)
-        ) {
+        if (isStreamingTaskComplete) {
           const matchIndex = findLastStreamingTaskCompleteIndex(
             previousEvents,
             enrichedEvent,
