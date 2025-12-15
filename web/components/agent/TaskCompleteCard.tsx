@@ -130,18 +130,18 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   }, [attachments]);
   const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
     const segments = parseContentSegments(markdownAnswer, attachments);
-    const placeholderMatches = Array.from(markdownAnswer.matchAll(/\[[^\[\]]+\]/g));
-    const referenced = new Set(placeholderMatches.map((match) => match[0]));
     const unreferencedMedia: ContentSegment[] = [];
     const artifacts: ContentSegment[] = [];
 
     for (const segment of segments) {
       if (!segment.attachment) continue;
-      const isReferenced =
-        segment.placeholder && referenced.has(segment.placeholder);
-      if (isReferenced) {
+
+      // If the segment is NOT implicit, it means it was found in the text (referenced).
+      // We only want to show "unreferenced" items in the bottom grid.
+      if (!segment.implicit) {
         continue;
       }
+
       if (segment.type === "image" || segment.type === "video") {
         unreferencedMedia.push(segment);
       } else if (segment.type === "document" || segment.type === "embed") {
@@ -158,7 +158,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   // Render markdown while streaming and once a final answer is delivered, even if the text is empty,
   // to avoid hiding completed streamed results.
   const shouldRenderMarkdown =
-    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason === "final_answer");
+    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason !== "cancelled");
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
@@ -226,9 +226,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   <div className="my-4">{children}</div>
                 ),
                 p: ({ children }: any) => (
-                  <p className="mb-4 leading-relaxed text-slate-900">
+                  <div className="mb-4 leading-relaxed text-slate-900">
                     {children}
-                  </p>
+                  </div>
                 ),
                 ul: ({ children }: any) => (
                   <ul className="mb-4 space-y-2 leading-relaxed text-slate-900">

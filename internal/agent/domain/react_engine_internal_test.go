@@ -234,9 +234,9 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 		Plans:         plans,
 		Beliefs:       beliefs,
 		KnowledgeRefs: refs,
-			WorldState: map[string]any{
-				"profile": map[string]any{"id": "local", "environment": "ci"},
-			},
+		WorldState: map[string]any{
+			"profile": map[string]any{"id": "local", "environment": "ci"},
+		},
 		WorldDiff: map[string]any{
 			"iteration": 3,
 		},
@@ -255,11 +255,11 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 	}
 	if len(record.KnowledgeRefs) == 0 || len(record.KnowledgeRefs[0].SOPRefs) == 0 {
 		t.Fatalf("expected knowledge refs to copy nested slices: %+v", record.KnowledgeRefs)
-		}
-		profile := record.World["profile"].(map[string]any)
-		if profile["id"] != "local" {
-			t.Fatalf("expected world profile to propagate, got %+v", record.World)
-		}
+	}
+	profile := record.World["profile"].(map[string]any)
+	if profile["id"] != "local" {
+		t.Fatalf("expected world profile to propagate, got %+v", record.World)
+	}
 	if iteration, ok := record.Diff["iteration"].(int); !ok || iteration != 3 {
 		t.Fatalf("expected diff iteration copy, got %+v", record.Diff)
 	}
@@ -619,19 +619,19 @@ func TestUpdateAttachmentCatalogMessageAppendsSystemNote(t *testing.T) {
 	}
 
 	note := state.Messages[len(state.Messages)-1]
-	if note.Role != "system" {
-		t.Fatalf("expected catalog note to use system role, got %q", note.Role)
+	if note.Role != "assistant" {
+		t.Fatalf("expected catalog note to use assistant role, got %q", note.Role)
 	}
 	if note.Metadata == nil || note.Metadata[attachmentCatalogMetadataKey] != true {
 		t.Fatalf("expected catalog metadata flag to be set, got %+v", note.Metadata)
 	}
-		if !strings.Contains(note.Content, "[diagram.png]") {
-			t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
-		}
-		if note.Source != ports.MessageSourceSystemPrompt {
-			t.Fatalf("expected catalog note to use system prompt source, got %q", note.Source)
-		}
+	if !strings.Contains(note.Content, "[diagram.png]") {
+		t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
 	}
+	if note.Source != ports.MessageSourceAssistantReply {
+		t.Fatalf("expected catalog note to use assistant reply source, got %q", note.Source)
+	}
+}
 
 func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
