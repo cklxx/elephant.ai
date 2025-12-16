@@ -15,7 +15,7 @@ Visual guide to the frontend architecture and data flow.
 │  │  │              Pages (App Router)                   │  │  │
 │  │  │  - Home (/)                                       │  │  │
 │  │  │  - Sessions (/sessions)                           │  │  │
-│  │  │  - Session Details (/sessions/[id])               │  │  │
+│  │  │  - Session Details (/sessions/details?id=...)     │  │  │
 │  │  └──────────────────────────────────────────────────┘  │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
 │  │  │           Components Layer                        │  │  │
@@ -140,7 +140,7 @@ App
         │           ├── Session Info
         │           └── Actions (Fork, Delete)
         │
-        └── SessionDetailsPage (/sessions/[id])
+        └── SessionDetailsPage (/sessions/details?id=...)
             ├── Back Button
             ├── Session Info Card
             ├── TaskInput

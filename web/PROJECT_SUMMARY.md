@@ -110,7 +110,7 @@ Fully typed API client with error handling:
 - Create new session button
 - Session actions (fork, delete)
 
-#### app/sessions/[id]/page.tsx (Session Details)
+#### app/sessions/details/page.tsx (Session Details)
 - Session information
 - Task input for existing session
 - Live event stream

@@ -19,6 +19,7 @@ import (
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
+	serverPorts "alex/internal/server/ports"
 	id "alex/internal/utils/id"
 )
 
@@ -678,6 +679,14 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if sessionID != "" {
+		if err := validateSessionID(sessionID); err != nil {
+			h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+			return
+		}
+	}
+
 	// Parse pagination parameters
 	limit := 10
 	offset := 0
@@ -694,10 +703,34 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tasks, total, err := h.coordinator.ListTasks(r.Context(), limit, offset)
-	if err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list tasks", err)
-		return
+	var tasks []*serverPorts.Task
+	var total int
+
+	if sessionID != "" {
+		sessionTasks, err := h.coordinator.ListSessionTasks(r.Context(), sessionID)
+		if err != nil {
+			h.writeJSONError(w, http.StatusInternalServerError, "Failed to list tasks", err)
+			return
+		}
+
+		total = len(sessionTasks)
+		if offset >= total {
+			tasks = []*serverPorts.Task{}
+		} else {
+			end := offset + limit
+			if end > total {
+				end = total
+			}
+			tasks = sessionTasks[offset:end]
+		}
+	} else {
+		allTasks, totalCount, err := h.coordinator.ListTasks(r.Context(), limit, offset)
+		if err != nil {
+			h.writeJSONError(w, http.StatusInternalServerError, "Failed to list tasks", err)
+			return
+		}
+		tasks = allTasks
+		total = totalCount
 	}
 
 	// Convert to TaskStatusResponse array

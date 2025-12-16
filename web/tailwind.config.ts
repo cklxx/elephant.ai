@@ -21,6 +21,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      backgroundImage: {
+        "app-canvas":
+          "radial-gradient(1200px circle at 12% 18%, rgba(56,189,248,0.18), transparent 52%), radial-gradient(900px circle at 88% 14%, rgba(34,211,238,0.14), transparent 48%), radial-gradient(1100px circle at 44% 92%, rgba(99,102,241,0.10), transparent 55%), linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
+      },
       /**
        * Console color palette
        * - Grays: Low-saturation, desaturated tones
