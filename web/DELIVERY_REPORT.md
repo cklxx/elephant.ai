@@ -261,7 +261,7 @@ const { mutate: forkSession } = useForkSession();
 - New session button
 - Page header
 
-#### `app/sessions/[id]/page.tsx` (142 lines)
+#### `app/sessions/details/page.tsx` (query-param route)
 
 **Features:**
 - Session details

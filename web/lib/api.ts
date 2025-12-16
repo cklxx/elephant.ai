@@ -207,7 +207,58 @@ export async function listSessions(): Promise<SessionListResponse> {
 export async function getSessionDetails(
   sessionId: string,
 ): Promise<SessionDetailsResponse> {
-  return fetchAPI<SessionDetailsResponse>(`/api/sessions/${sessionId}`);
+  type SessionRecord = {
+    id: string;
+    created_at: string;
+    updated_at: string;
+  };
+
+  type TaskListResponse = {
+    tasks: TaskStatusResponse[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+  };
+
+  const session = await fetchAPI<SessionRecord>(`/api/sessions/${sessionId}`);
+
+  let tasks: TaskStatusResponse[] = [];
+  try {
+    const params = new URLSearchParams({
+      session_id: sessionId,
+      limit: "100",
+      offset: "0",
+    });
+    const response = await fetchAPI<TaskListResponse>(`/api/tasks?${params.toString()}`);
+    const rawTasks = Array.isArray(response?.tasks) ? response.tasks : [];
+    tasks = rawTasks.filter((task) => !task.session_id || task.session_id === sessionId);
+  } catch (error) {
+    console.warn("[apiClient] Failed to load session tasks", {
+      sessionId,
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+
+  const now = new Date().toISOString();
+  const taskSummaries = tasks.map((task) => ({
+    task_id: task.task_id,
+    parent_task_id: task.parent_task_id ?? null,
+    status: task.status,
+    created_at: task.created_at ?? now,
+    updated_at: task.completed_at ?? task.updated_at ?? undefined,
+    final_answer: task.final_answer ?? null,
+  }));
+
+  return {
+    session: {
+      id: session.id,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+      task_count: taskSummaries.length,
+      last_task: null,
+    },
+    tasks: taskSummaries,
+  };
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {

@@ -30,7 +30,10 @@ export function SessionCard({ session, onDelete, onFork }: SessionCardProps) {
               {formatRelativeTime(session.created_at, locale)}
             </p>
           </div>
-          <Link href={`/sessions/${session.id}`} aria-label={t('sessions.card.open')}>
+          <Link
+            href={`/sessions/details?id=${encodeURIComponent(session.id)}`}
+            aria-label={t('sessions.card.open')}
+          >
             <Button size="sm" variant="ghost" aria-hidden="true">
               <ExternalLink className="h-4 w-4" />
             </Button>

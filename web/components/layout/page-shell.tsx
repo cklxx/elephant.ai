@@ -91,10 +91,20 @@ export function SectionHeader({
       )}
     >
       <div className="flex flex-col gap-2">
-        {overline ? <p>{overline}</p> : null}
+        {overline ? (
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {overline}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-1">
-          <TitleTag>{title}</TitleTag>
-          {description ? <p>{description}</p> : null}
+          <TitleTag className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            {title}
+          </TitleTag>
+          {description ? (
+            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          ) : null}
         </div>
       </div>
       {actions ? <div className="flex flex-wrap gap-2 sm:justify-end">{actions}</div> : null}

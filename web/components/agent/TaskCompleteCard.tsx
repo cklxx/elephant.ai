@@ -160,7 +160,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   }, [markdownAnswer, attachments]);
   const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
   const shouldRenderMarkdown =
-    hasAnswerContent || isStreaming || (streamFinished && event.stop_reason !== "cancelled");
+    hasAnswerContent || streamInProgress || (streamFinished && event.stop_reason !== "cancelled");
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
