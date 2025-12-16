@@ -5,10 +5,13 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
+  BookOpenText,
+  Code2,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Sparkles,
 } from 'lucide-react';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
@@ -475,20 +478,81 @@ export function ConversationPageContent() {
     ? activeSessionLabel || t('conversation.header.activeLabel')
     : t('conversation.header.idle');
 
+  const quickPrompts = useMemo(
+    () => [
+      {
+        id: 'docs',
+        label: t('console.quickstart.items.docs'),
+        icon: BookOpenText,
+        prompt: '/plan Summarize the relevant docs in this repo and propose next steps.',
+      },
+      {
+        id: 'code',
+        label: t('console.quickstart.items.code'),
+        icon: Code2,
+        prompt: '/plan Debug the current issue in this repo and propose a safe fix with tests.',
+      },
+      {
+        id: 'architecture',
+        label: t('console.quickstart.items.architecture'),
+        icon: Sparkles,
+        prompt: '/plan Review the architecture and suggest 3 high-impact improvements.',
+      },
+    ],
+    [t],
+  );
+
   const emptyState = (
     <div
-      className="flex flex-col items-center justify-center gap-3 text-center"
+      className="w-full max-w-md"
       data-testid="conversation-empty-state"
     >
-      <p
-        className="text-base font-semibold text-slate-700"
-        data-testid="conversation-empty-title"
-      >
-        {t('console.empty.title')}
-      </p>
-      <p className="max-w-sm text-sm text-muted-foreground" data-testid="conversation-empty-prompt">
-        {t('console.empty.prompt')}
-      </p>
+      <div className="rounded-3xl border border-border/60 bg-background/70 p-6 text-center shadow-sm backdrop-blur">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/70" />
+          {t('console.empty.badge')}
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <p
+            className="text-lg font-semibold tracking-tight text-foreground"
+            data-testid="conversation-empty-title"
+          >
+            {t('console.empty.title')}
+          </p>
+          <p className="text-sm text-muted-foreground" data-testid="conversation-empty-description">
+            {t('console.empty.description')}
+          </p>
+          <p className="text-xs text-muted-foreground/80" data-testid="conversation-empty-prompt">
+            {t('console.empty.prompt')}
+          </p>
+        </div>
+
+        <div className="mt-6">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('console.quickstart.title')}
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {quickPrompts.map((item) => (
+              <Button
+                key={item.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-full bg-background/60 text-xs font-semibold"
+                onClick={() => setPrefillTask(item.prompt)}
+              >
+                <item.icon className="h-4 w-4" aria-hidden />
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
+          <p className="mt-4 text-xs text-muted-foreground">
+            {t('console.input.hotkeyHint')}
+          </p>
+        </div>
+      </div>
     </div>
   );
 

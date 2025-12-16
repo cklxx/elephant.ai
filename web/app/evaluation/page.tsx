@@ -157,24 +157,45 @@ export default function EvaluationPage() {
               <CardContent className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">数据集路径</label>
+                    <label
+                      htmlFor="evaluation-dataset-path"
+                      className="text-sm text-muted-foreground"
+                    >
+                      数据集路径
+                    </label>
                     <Input
+                      id="evaluation-dataset-path"
+                      name="dataset_path"
                       value={form.dataset_path ?? ""}
                       onChange={(e) => setForm((prev) => ({ ...prev, dataset_path: e.target.value }))}
                       placeholder="./evaluation/swe_bench/real_instances.json"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">Agent ID</label>
+                    <label
+                      htmlFor="evaluation-agent-id"
+                      className="text-sm text-muted-foreground"
+                    >
+                      Agent ID
+                    </label>
                     <Input
+                      id="evaluation-agent-id"
+                      name="agent_id"
                       value={form.agent_id ?? ""}
                       onChange={(e) => setForm((prev) => ({ ...prev, agent_id: e.target.value }))}
                       placeholder="default-agent"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">输出目录</label>
+                    <label
+                      htmlFor="evaluation-output-dir"
+                      className="text-sm text-muted-foreground"
+                    >
+                      输出目录
+                    </label>
                     <Input
+                      id="evaluation-output-dir"
+                      name="output_dir"
                       value={form.output_dir ?? ""}
                       onChange={(e) => setForm((prev) => ({ ...prev, output_dir: e.target.value }))}
                       placeholder="./evaluation_results"
@@ -184,16 +205,19 @@ export default function EvaluationPage() {
 
                 <div className="grid gap-3 md:grid-cols-3">
                   <NumberInput
+                    id="evaluation-instance-limit"
                     label="实例数量"
                     value={form.instance_limit ?? 0}
                     onChange={(value) => setForm((prev) => ({ ...prev, instance_limit: value }))}
                   />
                   <NumberInput
+                    id="evaluation-max-workers"
                     label="并发 worker"
                     value={form.max_workers ?? 0}
                     onChange={(value) => setForm((prev) => ({ ...prev, max_workers: value }))}
                   />
                   <NumberInput
+                    id="evaluation-timeout-seconds"
                     label="单任务超时（秒）"
                     value={form.timeout_seconds ?? 0}
                     onChange={(value) => setForm((prev) => ({ ...prev, timeout_seconds: value }))}
@@ -344,18 +368,24 @@ export default function EvaluationPage() {
 }
 
 function NumberInput({
+  id,
   label,
   value,
   onChange,
 }: {
+  id: string;
   label: string;
   value: number;
   onChange: (value: number) => void;
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-muted-foreground">{label}</label>
+      <label htmlFor={id} className="text-sm text-muted-foreground">
+        {label}
+      </label>
       <Input
+        id={id}
+        name={id}
         type="number"
         value={value}
         min={0}
