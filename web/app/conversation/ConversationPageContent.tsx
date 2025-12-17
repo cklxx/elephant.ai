@@ -5,13 +5,13 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
-  BookOpenText,
-  Code2,
+  Film,
+  FileText,
+  Image,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
-  Sparkles,
 } from 'lucide-react';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
@@ -481,22 +481,25 @@ export function ConversationPageContent() {
   const quickPrompts = useMemo(
     () => [
       {
-        id: 'docs',
-        label: t('console.quickstart.items.docs'),
-        icon: BookOpenText,
-        prompt: '/plan Summarize the relevant docs in this repo and propose next steps.',
+        id: 'image',
+        label: t('console.quickstart.items.image'),
+        icon: Image,
+        prompt:
+          '/plan 画图：请根据以下要求生成一张图片。\n主题：\n风格：\n尺寸/比例：\n需要包含/避免：\n',
       },
       {
-        id: 'code',
-        label: t('console.quickstart.items.code'),
-        icon: Code2,
-        prompt: '/plan Debug the current issue in this repo and propose a safe fix with tests.',
+        id: 'article',
+        label: t('console.quickstart.items.article'),
+        icon: FileText,
+        prompt:
+          '/plan 写文章：请根据以下要求写一篇文章。\n主题：\n受众：\n字数：\n结构/要点：\n',
       },
       {
-        id: 'architecture',
-        label: t('console.quickstart.items.architecture'),
-        icon: Sparkles,
-        prompt: '/plan Review the architecture and suggest 3 high-impact improvements.',
+        id: 'video',
+        label: t('console.quickstart.items.video'),
+        icon: Film,
+        prompt:
+          '/plan 生成视频：请根据以下要求生成一段视频。\n内容/脚本：\n风格：\n时长：\n比例/分辨率：\n',
       },
     ],
     [t],
@@ -507,7 +510,7 @@ export function ConversationPageContent() {
       className="w-full max-w-md"
       data-testid="conversation-empty-state"
     >
-      <div className="rounded-3xl border border-border/60 bg-background/70 p-6 text-center shadow-sm backdrop-blur">
+      <div className="rounded-3xl border border-border/60 bg-background/70 p-6 text-center">
         <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/70" />
           {t('console.empty.badge')}
@@ -539,7 +542,7 @@ export function ConversationPageContent() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 rounded-full bg-background/60 text-xs font-semibold"
+                className="h-9 rounded-full border-border/40 bg-secondary/40 text-xs font-semibold shadow-none hover:bg-secondary/60"
                 onClick={() => setPrefillTask(item.prompt)}
               >
                 <item.icon className="h-4 w-4" aria-hidden />

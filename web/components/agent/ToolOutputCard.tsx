@@ -153,7 +153,7 @@ export function ToolOutputCard({
 
   return (
     <div
-      className="group mb-2 transition-all"
+      className="group mb-2"
       data-testid={`tool-output-card-${normalizedToolName.replace(/\s+/g, '-')}`}
     >
       <button
@@ -164,20 +164,29 @@ export function ToolOutputCard({
         title={toggleLabel}
         className={cn(
           "flex w-full items-start gap-3 px-3 py-2 text-left text-sm",
-          "cursor-pointer select-none rounded-2xl border border-border/50",
-          "bg-background/40 shadow-sm shadow-black/[0.02] backdrop-blur-sm",
-          "transition-colors hover:bg-background/60",
-          resolvedStatus === "running" && "border-sky-200/60 bg-sky-50/30",
-          resolvedStatus === "failed" && "border-destructive/25 bg-destructive/5",
+          "cursor-pointer select-none rounded-[10px] border border-border/40",
+          "bg-secondary/40 transition-colors hover:bg-secondary/60",
+          resolvedStatus === "running" &&
+            "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
+          resolvedStatus === "failed" &&
+            "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30",
         )}
       >
-        <div className="relative mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-full bg-background ring-1 ring-border/60">
+        <div
+          className={cn(
+            "relative mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-border/60 bg-background/40",
+            resolvedStatus === "running" &&
+              "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
+            resolvedStatus === "failed" &&
+              "border-red-200/60 bg-red-50/40 dark:border-red-800/30 dark:bg-red-950/30",
+          )}
+        >
           <span className="text-base leading-none" aria-hidden="true">
             {toolIcon}
           </span>
           <span
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-background",
+              "absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-background",
               statusDotClass,
             )}
             aria-hidden="true"
@@ -186,7 +195,7 @@ export function ToolOutputCard({
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-foreground/90" data-testid="tool-name">
+            <span className="font-medium opacity-90" data-testid="tool-name">
               {displayToolName}
             </span>
             <Badge variant={statusBadgeVariant} className="text-[10px]">
@@ -239,8 +248,8 @@ export function ToolOutputCard({
 
       {/* Expanded Content */}
       {isExpanded && showBody && (
-        <div className="mt-3 pl-4 pr-1" data-testid="tool-content-expanded">
-          <div className="rounded-2xl border border-border/50 bg-background/60 p-3 shadow-sm shadow-black/[0.02]">
+        <div className="mt-2 pl-4 pr-1" data-testid="tool-content-expanded">
+          <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
             <div className="grid gap-3 lg:grid-cols-2">
               {hasParameters && (
                 <ToolArgumentsPanel

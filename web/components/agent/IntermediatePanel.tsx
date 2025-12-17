@@ -17,9 +17,8 @@ import {
   WorkflowToolStartedEvent,
   eventMatches,
 } from "@/lib/types";
-import { PanelRightOpen, X } from "lucide-react";
+import { X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
-import { Badge } from "@/components/ui/badge";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 import { humanizeToolName } from "@/lib/utils";
 import { MagicBlackHole } from "../effects/MagicBlackHole";
@@ -358,7 +357,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       <button
         type="button"
         onClick={openDetails}
-        className="group flex w-full max-w-[fit-content] items-center gap-3 rounded-[10px] bg-secondary/40 px-3 py-2 text-left text-sm font-medium text-foreground transition-all hover:bg-secondary/60 border border-transparent"
+        className="group flex w-full max-w-[fit-content] items-center gap-3 rounded-[10px] border border-border/40 bg-secondary/40 px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary/60"
         title={
           runningSummaryFull.length > 0
             ? `Running: ${runningSummaryFull}`
@@ -451,14 +450,14 @@ function ToolCallDetailsPanel({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true">
       <div
-        className="flex-1 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="flex-1 bg-black/30 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
       <aside
-        className="relative flex h-full w-full max-w-3xl flex-col bg-background transition-transform duration-300 ease-out"
+        className="relative flex h-full w-full max-w-3xl flex-col border-l border-border/60 bg-background transition-transform duration-300 ease-out"
         aria-label="Tool call activity"
       >
         <header className="flex items-center justify-end border-b border-border px-4 py-3">
@@ -482,7 +481,7 @@ function ToolCallDetailsPanel({
 
 function ThinkStreamCard({ item }: { item: ThinkPreviewItem }) {
   return (
-    <section className="rounded-2xl bg-muted/40 px-4 py-3">
+    <section className="rounded-xl border border-border/40 bg-muted/20 px-4 py-3">
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-muted-foreground/80">
           <span>LLM think</span>
