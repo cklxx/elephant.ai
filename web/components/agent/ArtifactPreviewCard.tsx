@@ -72,7 +72,7 @@ export function ArtifactPreviewCard({
 
   return (
     <div className={cn(
-      "group relative overflow-hidden rounded-xl border border-border/40 bg-card transition-all hover:shadow-sm max-w-md my-2",
+      "group relative overflow-hidden rounded-xl border border-border/40 bg-card transition-colors max-w-md my-2",
       className
     )}>
       {/* Header / Main Body - Manus Style File Card */}

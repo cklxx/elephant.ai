@@ -73,11 +73,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const existing = authClient.getSession();
         if (!existing) {
+          setSession(null);
+          setStatus("loading");
           try {
             await authClient.resumeFromRefreshCookie();
           } catch (error) {
-            console.warn("[AuthProvider] Failed to resume session from cookie", error);
+            console.warn(
+              "[AuthProvider] Failed to resume session from cookie",
+              error,
+            );
           }
+          updateFromClient(authClient.getSession());
           return;
         }
         await authClient.ensureAccessToken();

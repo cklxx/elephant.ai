@@ -1,11 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { TerminalOutput } from '@/components/agent/TerminalOutput';
+import dynamic from 'next/dynamic';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { AnyAgentEvent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Play, RefreshCw, Square } from 'lucide-react';
+
+const TerminalOutput = dynamic(
+  () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
+  {
+    loading: () => <p className="text-sm text-slate-500">Loading terminal output…</p>,
+    ssr: false,
+  },
+);
 
 function createSessionId() {
   return `mock-terminal-${Date.now()}`;
@@ -22,7 +30,7 @@ function findLatestTask(events: AnyAgentEvent[]): string | null {
 }
 
 export default function MockTerminalOutputPage() {
-  const [sessionId, setSessionId] = useState<string | null>(() => createSessionId());
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const {
     events,
     isConnected,
@@ -114,14 +122,20 @@ export default function MockTerminalOutputPage() {
         </header>
 
         <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/60 lg:p-6">
-          <TerminalOutput
-            events={events}
-            isConnected={isConnected}
-            isReconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={reconnect}
-          />
+          {sessionId ? (
+            <TerminalOutput
+              events={events}
+              isConnected={isConnected}
+              isReconnecting={isReconnecting}
+              error={error}
+              reconnectAttempts={reconnectAttempts}
+              onReconnect={reconnect}
+            />
+          ) : (
+            <div className="text-sm text-slate-600">
+              Click “Start replay” to load the TerminalOutput preview.
+            </div>
+          )}
         </div>
       </div>
     </div>

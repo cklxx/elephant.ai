@@ -26,7 +26,7 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full min-w-[280px] max-w-sm items-center gap-3 overflow-hidden rounded-2xl border p-4 shadow-xl shadow-black/20 backdrop-blur-sm bg-card text-foreground",
+  "group pointer-events-auto relative flex w-full min-w-[280px] max-w-sm items-center gap-3 overflow-hidden rounded-xl border p-4 bg-card text-foreground",
   {
     variants: {
       variant: {
@@ -70,7 +70,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      "inline-flex h-8 items-center justify-center rounded-md border border-border/60 bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       className
     )}
     {...props}

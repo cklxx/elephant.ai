@@ -85,7 +85,7 @@ export function AgentOutput({
       )}
 
       {/* Main Stream */}
-      <div className="rounded-2xl border border-border/40 bg-background/50 overflow-hidden shadow-sm min-h-[500px]">
+      <div className="min-h-[500px] overflow-hidden rounded-2xl border border-border/40 bg-background/50">
         <VirtualizedEventList
           events={events}
           autoScroll={!hasUserSelectedStep}

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, beforeAll, afterAll, expect, vi } from "vitest";
-import ConversationPage from "../conversation/page";
+import { ConversationPageContent } from "../conversation/ConversationPageContent";
 import { AnyAgentEvent } from "@/lib/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactElement, ReactNode } from "react";
@@ -144,7 +144,7 @@ describe("Conversation page mobile timeline dialog", () => {
       } as AnyAgentEvent,
     ];
 
-    renderWithProviders(<ConversationPage />);
+    renderWithProviders(<ConversationPageContent />);
 
     const openButton = await screen.findByTestId("mobile-timeline-trigger");
     fireEvent.click(openButton);

@@ -242,7 +242,7 @@ export function ToolStreamPanel({ title, content }: { title: string; content: st
   return (
     <SimplePanel>
       <PanelHeader title={title} />
-      <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-slate-600">
+      <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-muted-foreground">
         {content.trim()}
       </pre>
     </SimplePanel>

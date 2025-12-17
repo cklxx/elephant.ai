@@ -197,13 +197,13 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       <CardContent className="mt-2 space-y-4 p-4">
         {streamInProgress && !hasAnswerContent ? (
           <div
-            className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"
+            className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
             data-testid="task-complete-streaming-placeholder"
           >
-            <p className="font-medium text-slate-700">
+            <p className="font-medium text-foreground">
               {t("events.taskComplete.streaming")}
             </p>
-            <p className="mt-1 inline-flex items-center gap-2 text-slate-500">
+            <p className="mt-1 inline-flex items-center gap-2 text-muted-foreground">
               <LoadingDots />
               <span>{t("events.taskComplete.streamingHint")}</span>
             </p>
@@ -212,7 +212,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           <>
             <StreamingMarkdownRenderer
               content={contentWithInlineMedia}
-              className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-900"
+              className="prose max-w-none text-sm leading-relaxed text-foreground"
               attachments={inlineAttachments}
               isStreaming={streamInProgress}
               streamFinished={streamFinished}
@@ -221,7 +221,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   if (inline) {
                     return (
                       <code
-                        className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800"
+                        className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
                         {...props}
                       >
                         {children}
@@ -230,7 +230,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   }
                   return (
                     <code
-                      className="block overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800"
+                      className="block overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4 font-mono text-xs leading-relaxed text-foreground"
                       {...props}
                     >
                       {children}
@@ -241,25 +241,25 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   <div className="my-4">{children}</div>
                 ),
                 p: ({ children }: any) => (
-                  <div className="mb-4 leading-relaxed text-slate-900">
+                  <div className="mb-4 leading-relaxed text-foreground">
                     {children}
                   </div>
                 ),
                 ul: ({ children }: any) => (
-                  <ul className="mb-4 space-y-2 leading-relaxed text-slate-900">
+                  <ul className="mb-4 space-y-2 leading-relaxed text-foreground">
                     {children}
                   </ul>
                 ),
                 ol: ({ children }: any) => (
-                  <ol className="mb-4 space-y-2 leading-relaxed text-slate-900">
+                  <ol className="mb-4 space-y-2 leading-relaxed text-foreground">
                     {children}
                   </ol>
                 ),
                 li: ({ children }: any) => (
-                  <li className="leading-relaxed text-slate-900">{children}</li>
+                  <li className="leading-relaxed text-foreground">{children}</li>
                 ),
                 strong: ({ children }: any) => (
-                  <strong className="font-bold text-slate-900">{children}</strong>
+                  <strong className="font-bold text-foreground">{children}</strong>
                 ),
                 img: ({ src, alt }: { src?: string; alt?: string }) => {
                   const recoveredSrc =
@@ -303,24 +303,24 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
           </>
         ) : shouldShowFallback ? (
           <div
-            className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm"
+            className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
             data-testid="task-complete-fallback"
           >
-            <p className="font-medium text-slate-700">{stopReasonCopy.title}</p>
+            <p className="font-medium text-foreground">{stopReasonCopy.title}</p>
             {stopReasonCopy.body && (
-              <p className="mt-1 text-slate-500">{stopReasonCopy.body}</p>
+              <p className="mt-1 text-muted-foreground">{stopReasonCopy.body}</p>
             )}
           </div>
         ) : shouldShowAttachmentNotice ? (
-          <div className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm">
-            <p className="font-medium text-slate-700">
+          <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+            <p className="font-medium text-foreground">
               {t("events.taskComplete.empty")}
             </p>
-            <p className="mt-1 text-slate-500">
+            <p className="mt-1 text-muted-foreground">
               {t("events.taskComplete.attachmentsAvailable")}
             </p>
             {attachmentNames.length > 0 && (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
                 {attachmentNames.map((name) => (
                   <li key={name}>{name}</li>
                 ))}

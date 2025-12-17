@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -10,7 +11,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n";
 
-import { SessionDetailsClient } from "../[id]/SessionDetailsClient";
+function SessionDetailsFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Loading...</CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
+
+const SessionDetailsClient = dynamic(
+  () =>
+    import("../[id]/SessionDetailsClient").then((mod) => mod.SessionDetailsClient),
+  {
+    loading: SessionDetailsFallback,
+    ssr: false,
+  },
+);
 
 function SessionDetailsContent() {
   const searchParams = useSearchParams();
@@ -35,16 +53,6 @@ function SessionDetailsContent() {
   );
 }
 
-function SessionDetailsFallback() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Loading...</CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}
-
 export default function SessionDetailsQueryPage() {
   return (
     <RequireAuth>
@@ -58,4 +66,3 @@ export default function SessionDetailsQueryPage() {
     </RequireAuth>
   );
 }
-

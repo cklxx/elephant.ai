@@ -414,9 +414,9 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+      <div className="space-y-3 rounded-xl border border-border/40 bg-muted/20 p-4">
         <div>
-          <p className="text-[0.65rem] font-semibold text-slate-500">
+          <p className="text-[11px] font-semibold text-muted-foreground">
             {t("document.attachments.filters.heading")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -435,10 +435,10 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {availableFormats.length > 0 && (
-            <label className="text-[0.65rem] font-semibold text-slate-500">
+            <label className="text-[11px] font-semibold text-muted-foreground">
               {t("document.attachments.filters.format.label")}
               <select
-                className="mt-1 block h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
+                className="mt-1 flex h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                 value={formatFilter}
                 onChange={(event) => setFormatFilter(event.target.value)}
               >
@@ -454,21 +454,21 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
             </label>
           )}
           <div className="flex-1">
-            <label className="text-[0.65rem] font-semibold text-slate-500">
+            <label className="text-[11px] font-semibold text-muted-foreground">
               {t("document.attachments.filters.search.label")}
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder={t("document.attachments.filters.search.placeholder")}
-                className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400"
+                className="mt-1 flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
           </div>
         </div>
       </div>
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
           {t("document.attachments.filters.empty")}
         </div>
       ) : (

@@ -48,7 +48,7 @@ export function TimelineStepList({
 
         const baseClasses = cn(
           'group relative flex gap-4 p-3 rounded-lg transition-all duration-200 border border-transparent',
-          isFocused ? 'bg-background border-border/50 shadow-sm' : 'hover:bg-muted/30'
+          isFocused ? 'bg-background border-border/60' : 'hover:bg-muted/30'
         );
 
         const content = (

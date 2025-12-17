@@ -19,7 +19,7 @@ export function SkillsPanel() {
   }
 
   return (
-    <Card className="rounded-3xl border border-border/70 bg-card/80 shadow-sm">
+    <Card className="rounded-2xl border border-border/60 bg-card">
       <CardHeader className="flex flex-row items-start justify-between gap-3 pb-4">
         <div className="space-y-1">
           <p className="text-sm font-semibold text-foreground">Skills</p>

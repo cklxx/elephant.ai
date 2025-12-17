@@ -79,7 +79,7 @@ export function Sidebar({
 
   return (
     <aside className="h-full">
-      <div className="flex h-full flex-col rounded-3xl border border-border bg-card/80 p-4 shadow-sm">
+      <div className="flex h-full flex-col rounded-2xl border border-border/60 bg-card p-4">
         <ScrollArea className="flex-1">
           <div className="space-y-2 p-1 pr-2" data-testid="session-list">
             {sessionHistory.length > 0 ? (

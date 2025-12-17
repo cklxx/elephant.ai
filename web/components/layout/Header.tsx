@@ -209,7 +209,7 @@ export function Header({
   return (
     <header
       className={cn(
-        "layout-header flex items-center justify-between rounded-3xl border border-border bg-card px-4 py-3",
+        "layout-header flex items-center justify-between rounded-3xl border border-border/60 bg-card px-4 py-3",
         className,
       )}
     >
