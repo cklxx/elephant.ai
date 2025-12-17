@@ -1,25 +1,25 @@
-import { AttachmentPayload } from '@/lib/types';
+import { AttachmentPayload } from "@/lib/types";
 
 export function stripSystemReminders(content: string): string {
-  if (!content) return '';
-  if (!content.includes('<system-reminder>')) {
+  if (!content) return "";
+  if (!content.includes("<system-reminder>")) {
     return content.trim();
   }
 
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   const filtered: string[] = [];
   let inReminder = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith('<system-reminder>')) {
+    if (trimmed.startsWith("<system-reminder>")) {
       inReminder = true;
-      if (trimmed.endsWith('</system-reminder>')) {
+      if (trimmed.endsWith("</system-reminder>")) {
         inReminder = false;
       }
       continue;
     }
-    if (trimmed.endsWith('</system-reminder>')) {
+    if (trimmed.endsWith("</system-reminder>")) {
       inReminder = false;
       continue;
     }
@@ -28,15 +28,21 @@ export function stripSystemReminders(content: string): string {
     }
   }
 
-  return filtered.join('\n').trim();
+  return filtered.join("\n").trim();
 }
 
-function getAttachmentNames(attachments?: Record<string, AttachmentPayload> | null): string[] {
+function getAttachmentNames(
+  attachments?: Record<string, AttachmentPayload> | null,
+): string[] {
   if (!attachments) return [];
-  return Object.keys(attachments).filter((name) => typeof name === 'string' && name.trim().length > 0);
+  return Object.keys(attachments).filter(
+    (name) => typeof name === "string" && name.trim().length > 0,
+  );
 }
 
-function summarizeAttachmentNames(attachments?: Record<string, AttachmentPayload> | null): string | undefined {
+function summarizeAttachmentNames(
+  attachments?: Record<string, AttachmentPayload> | null,
+): string | undefined {
   const names = getAttachmentNames(attachments);
   if (names.length === 0) return undefined;
   if (names.length === 1) return names[0];
@@ -45,7 +51,7 @@ function summarizeAttachmentNames(attachments?: Record<string, AttachmentPayload
 }
 
 function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function getTodoCounts(metadata?: Record<string, any> | null): {
@@ -54,7 +60,7 @@ function getTodoCounts(metadata?: Record<string, any> | null): {
   pending?: number;
   completed?: number;
 } | null {
-  if (!metadata || typeof metadata !== 'object') return null;
+  if (!metadata || typeof metadata !== "object") return null;
 
   const total = metadata.total_count;
   const inProgress = metadata.in_progress_count;
@@ -93,39 +99,42 @@ export function userFacingToolSummary(input: {
       : input.error.trim();
   }
 
-  if (tool === 'think') {
-    return '内部处理';
+  if (tool === "think") {
+    return "内部处理";
   }
 
-  if (tool === 'todo_update') {
+  if (tool === "todo_update") {
     const counts = getTodoCounts(input.metadata);
     if (counts) {
       const parts: string[] = [];
-      if (typeof counts.total === 'number') parts.push(`共 ${counts.total} 项`);
-      if (typeof counts.inProgress === 'number') parts.push(`进行中 ${counts.inProgress}`);
-      if (typeof counts.pending === 'number') parts.push(`待办 ${counts.pending}`);
-      if (typeof counts.completed === 'number') parts.push(`已完成 ${counts.completed}`);
+      if (typeof counts.total === "number") parts.push(`共 ${counts.total} 项`);
+      if (typeof counts.inProgress === "number")
+        parts.push(`进行中 ${counts.inProgress}`);
+      if (typeof counts.pending === "number")
+        parts.push(`待办 ${counts.pending}`);
+      if (typeof counts.completed === "number")
+        parts.push(`已完成 ${counts.completed}`);
       if (parts.length > 0) {
-        return `待办已更新（${parts.join(' / ')}）`;
+        return `（${parts.join(" / ")}）`;
       }
     }
-    return '待办已更新';
+    return "";
   }
 
-  if (tool === 'artifacts_write') {
+  if (tool === "artifacts_write") {
     const names = summarizeAttachmentNames(input.attachments);
     if (names) {
       return `已生成文件：${names}`;
     }
 
-    const sanitized = stripSystemReminders(input.result ?? '');
+    const sanitized = stripSystemReminders(input.result ?? "");
     const match = sanitized.match(/^Saved\s+(.+?)\s+\((.+?)\)\s*$/i);
     if (match) {
       return `已生成文件：${match[1]}`;
     }
   }
 
-  const sanitized = stripSystemReminders(input.result ?? '');
+  const sanitized = stripSystemReminders(input.result ?? "");
   if (!sanitized) return undefined;
   return sanitized.length > 100 ? `${sanitized.slice(0, 100)}…` : sanitized;
 }
@@ -136,14 +145,14 @@ export function userFacingToolResultText(input: {
   metadata?: Record<string, any> | null;
   attachments?: Record<string, AttachmentPayload> | null;
 }): string {
-  const tool = (input.toolName ?? '').toLowerCase().trim();
-  const sanitized = stripSystemReminders(input.result ?? '');
+  const tool = (input.toolName ?? "").toLowerCase().trim();
+  const sanitized = stripSystemReminders(input.result ?? "");
 
-  if (tool === 'think') {
-    return '';
+  if (tool === "think") {
+    return "";
   }
 
-  if (tool === 'artifacts_write') {
+  if (tool === "artifacts_write") {
     const names = summarizeAttachmentNames(input.attachments);
     if (names) {
       return `已生成文件：${names}`;
@@ -154,7 +163,7 @@ export function userFacingToolResultText(input: {
     }
   }
 
-  if (tool === 'todo_update') {
+  if (tool === "todo_update") {
     // Keep the task list, but strip internal reminders.
     return sanitized;
   }

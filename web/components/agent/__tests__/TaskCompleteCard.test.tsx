@@ -169,4 +169,18 @@ describe('TaskCompleteCard', () => {
     expect(screen.queryByTestId('markdown-streaming-indicator')).not.toBeInTheDocument();
     expect(screen.getByText(/All set\./i)).toBeInTheDocument();
   });
+
+  it('renders empty-output fallback when the stream finished with no answer', () => {
+    renderWithProvider({
+      ...baseEvent,
+      final_answer: '',
+      is_streaming: false,
+      stream_finished: true,
+      stop_reason: 'final_answer',
+    });
+
+    expect(screen.getByTestId('task-complete-fallback')).toBeInTheDocument();
+    expect(screen.getByText(/No answer provided\./i)).toBeInTheDocument();
+    expect(screen.queryByTestId('task-complete-answer-divider')).not.toBeInTheDocument();
+  });
 });

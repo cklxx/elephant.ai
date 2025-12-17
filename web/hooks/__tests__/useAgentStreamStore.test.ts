@@ -289,6 +289,46 @@ describe('useAgentStreamStore', () => {
       expect(state.taskStatus).toBe('completed');
     });
 
+    it('should not wipe streamed finalAnswer when the last completion payload has an empty final_answer', () => {
+      const partial: AnyAgentEvent = {
+        event_type: 'workflow.result.final',
+        timestamp: new Date().toISOString(),
+        session_id: 'test-123',
+        agent_level: 'core',
+        is_streaming: true,
+        stream_finished: false,
+        iteration: 3,
+        final_answer: 'Hello ',
+        stop_reason: 'completed',
+        total_iterations: 3,
+        total_tokens: 1500,
+        duration: 12000,
+      };
+
+      const finishedFlagOnly: AnyAgentEvent = {
+        event_type: 'workflow.result.final',
+        timestamp: new Date().toISOString(),
+        session_id: 'test-123',
+        agent_level: 'core',
+        is_streaming: false,
+        stream_finished: true,
+        iteration: 3,
+        final_answer: '',
+        stop_reason: 'completed',
+        total_iterations: 3,
+        total_tokens: 1500,
+        duration: 12500,
+      };
+
+      act(() => {
+        useAgentStreamStore.getState().addEvents([partial, finishedFlagOnly]);
+      });
+
+      const state = useAgentStreamStore.getState();
+      expect(state.finalAnswer).toBe('Hello ');
+      expect(state.taskStatus).toBe('completed');
+    });
+
     it('should transition to cancelled on task cancelled', () => {
       const cancelledEvent: AnyAgentEvent = {
         event_type: 'workflow.result.cancelled',
