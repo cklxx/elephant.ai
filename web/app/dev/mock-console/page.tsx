@@ -1,11 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ConsoleAgentOutput } from '@/components/agent/ConsoleAgentOutput';
+import dynamic from 'next/dynamic';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
 import { AnyAgentEvent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Play, RefreshCw, Square } from 'lucide-react';
+
+const ConsoleAgentOutput = dynamic(
+  () => import('@/components/agent/ConsoleAgentOutput').then((mod) => mod.ConsoleAgentOutput),
+  {
+    loading: () => <p className="text-sm text-slate-500">Loading console…</p>,
+    ssr: false,
+  },
+);
 
 function createSessionId() {
   return `mock-session-${Date.now()}`;
@@ -22,7 +30,7 @@ function findLatestTaskId(events: AnyAgentEvent[]): string | null {
 }
 
 export default function MockConsolePage() {
-  const [sessionId, setSessionId] = useState<string | null>(() => createSessionId());
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const {
     events,
     isConnected,
@@ -108,18 +116,24 @@ export default function MockConsolePage() {
           </div>
         </header>
 
-        <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/60 lg:p-6">
-          <ConsoleAgentOutput
-            events={events}
-            isConnected={isConnected}
-            isReconnecting={isReconnecting}
-            error={error}
-            reconnectAttempts={reconnectAttempts}
-            onReconnect={reconnect}
-            sessionId={sessionId}
-            taskId={latestTaskId}
-          />
-        </div>
+        {sessionId ? (
+          <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/60 lg:p-6">
+            <ConsoleAgentOutput
+              events={events}
+              isConnected={isConnected}
+              isReconnecting={isReconnecting}
+              error={error}
+              reconnectAttempts={reconnectAttempts}
+              onReconnect={reconnect}
+              sessionId={sessionId}
+              taskId={latestTaskId}
+            />
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-white/90 p-6 text-sm text-slate-600 ring-1 ring-slate-200/60">
+            Click “Start replay” to load the full console UI.
+          </div>
+        )}
       </div>
     </div>
   );
