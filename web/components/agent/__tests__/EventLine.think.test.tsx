@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 
 import { EventLine } from '../EventLine';
@@ -14,6 +14,16 @@ function renderThinkEvent(event: WorkflowNodeOutputSummaryEvent) {
 }
 
 describe('EventLine (workflow.node.output.summary)', () => {
+  const previousDebugUI = process.env.NEXT_PUBLIC_DEBUG_UI;
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_DEBUG_UI = '1';
+  });
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_DEBUG_UI = previousDebugUI;
+  });
+
   it('renders attachments using the task complete card', () => {
     const thinkEvent: WorkflowNodeOutputSummaryEvent = {
       event_type: 'workflow.node.output.summary',

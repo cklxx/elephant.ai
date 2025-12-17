@@ -19,6 +19,7 @@ import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
+import { isDebugModeEnabled } from "@/lib/debugMode";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -33,6 +34,7 @@ export const EventLine = React.memo(function EventLine({
   event,
   showSubagentContext = true,
 }: EventLineProps) {
+  const debugMode = isDebugModeEnabled();
   const isSubtaskEvent = isSubagentLike(event);
 
   if (isSubtaskEvent) {
@@ -130,6 +132,9 @@ export const EventLine = React.memo(function EventLine({
 
   // Think complete - convert to TaskCompleteCard format
   if (event.event_type === "workflow.node.output.summary") {
+    if (!debugMode) {
+      return null;
+    }
     const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
     if (thinkEvent.content) {
       // Mock event for display

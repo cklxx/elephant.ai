@@ -568,7 +568,7 @@ export function ConversationPageContent() {
   }, [timelineSteps, showTimelineDialog]);
 
   return (
-    <div className="relative min-h-screen bg-muted/10 text-foreground">
+    <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
       <Dialog
         open={Boolean(deleteTargetId)}
         onOpenChange={(open) => {
@@ -617,7 +617,7 @@ export function ConversationPageContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="relative mx-auto flex min-h-screen w-full flex-col gap-6 px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
+      <div className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
         <Header
           title={headerTitle}
           showEnvironmentStrip={false}
@@ -686,7 +686,7 @@ export function ConversationPageContent() {
           }
         />
 
-        <div className="flex flex-1 flex-col gap-5 lg:flex-row">
+        <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
           <div
             id="conversation-sidebar"
             className={cn(
@@ -705,10 +705,10 @@ export function ConversationPageContent() {
             />
           </div>
 
-          <div className="flex flex-1 min-w-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-card">
+          <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-card">
             <ContentArea
               ref={contentRef}
-              className="flex-1 min-w-0"
+              className="flex-1 min-h-0 min-w-0"
               fullWidth
               contentClassName="space-y-4"
             >

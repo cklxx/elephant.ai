@@ -9,6 +9,8 @@ import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { resolveToolRenderer } from './tooling/toolRenderers';
 import { adaptToolCallForRenderer } from './tooling/toolDataAdapters';
+import { userFacingToolSummary } from '@/lib/toolPresentation';
+import { useElapsedDurationMs } from '@/hooks/useElapsedDurationMs';
 
 interface ToolCallCardProps {
   event: WorkflowToolStartedEvent | WorkflowToolCompletedEvent;
@@ -36,6 +38,15 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   const ToolIcon = getToolIcon(toolName);
   const duration = adapter.durationMs ? formatDuration(adapter.durationMs) : null;
   const renderer = resolveToolRenderer(toolName);
+  const runningElapsedMs = useElapsedDurationMs({
+    startTimestamp: adapter.context.startEvent?.timestamp ?? null,
+    running: status === 'running',
+    tickMs: 250,
+  });
+  const runningDurationLabel =
+    status === 'running' && typeof runningElapsedMs === 'number'
+      ? formatDuration(runningElapsedMs)
+      : null;
 
   const showVideoWaitHint =
     status === 'running' && toolName.toLowerCase() === 'video_generate';
@@ -44,7 +55,13 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
     // Priority: Result Summary > Error > Args Summary > Default Text
     const argsSummary = getArgumentsPreview(event, adapter.context.startEvent ?? undefined);
     const errorSummary = adapter.context.completeEvent?.error?.trim();
-    const resultSummary = summarizeResult(adapter.context.completeEvent?.result);
+    const resultSummary = userFacingToolSummary({
+      toolName,
+      result: adapter.context.completeEvent?.result ?? null,
+      error: adapter.context.completeEvent?.error ?? null,
+      metadata: adapter.context.completeEvent?.metadata ?? null,
+      attachments: adapter.context.completeEvent?.attachments ?? null,
+    });
 
     if (status === 'running') {
       return argsSummary || t('conversation.tool.timeline.summaryRunning', { tool: toolName });
@@ -116,8 +133,14 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
-          {duration && <span data-testid="tool-call-duration">{duration}</span>}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 transition-opacity">
+          {status === 'running' ? (
+            runningDurationLabel ? (
+              <span data-testid="tool-call-duration">{runningDurationLabel}</span>
+            ) : null
+          ) : duration ? (
+            <span data-testid="tool-call-duration">{duration}</span>
+          ) : null}
           <ChevronRight
             className={cn(
               "w-3.5 h-3.5 transition-transform duration-200",
@@ -189,9 +212,5 @@ function formatArgumentValue(value: unknown): string {
   return '';
 }
 
-function summarizeResult(result?: string | null): string | undefined {
-  if (!result?.trim()) return undefined;
-  // If result is huge json, just say "Result"
-  if (result.startsWith('{') && result.length > 100) return 'Result Object';
-  return result.length > 100 ? result.slice(0, 100) + '...' : result;
-}
+// Intentionally left without a generic summarize helper:
+// tool summaries are normalized via userFacingToolSummary().

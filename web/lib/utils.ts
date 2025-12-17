@@ -160,9 +160,14 @@ const TOOL_NAME_MAP: Record<string, string> = {
   // Agent/Task
   'task_boundary': 'Task',
   'notify_user': 'Notify User',
-  'think': 'Think',
-  'todo_read': 'Read Todos',
-  'todo_update': 'Update Todos',
+  'think': '内部处理',
+  'todo_read': '查看待办',
+  'todo_update': '更新待办',
+
+  // Artifacts / Attachments
+  'artifacts_write': '生成文件',
+  'artifacts_list': '查看文件',
+  'artifacts_delete': '删除文件',
 
   // AI Generation
   'text_to_image': 'Generate Image',

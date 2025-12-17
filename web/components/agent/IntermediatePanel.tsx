@@ -20,8 +20,11 @@ import {
 import { X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
-import { humanizeToolName } from "@/lib/utils";
+import { humanizeToolName, formatDuration } from "@/lib/utils";
 import { MagicBlackHole } from "../effects/MagicBlackHole";
+import { isDebugModeEnabled } from "@/lib/debugMode";
+import { userFacingToolSummary } from "@/lib/toolPresentation";
+import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
 
 interface IntermediatePanelProps {
   events: AnyAgentEvent[];
@@ -74,11 +77,13 @@ const isWorkflowNodeOutputSummaryEvent = (
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const debugMode = useMemo(() => isDebugModeEnabled(), []);
 
   interface AggregatedToolCall {
     callId: string;
     toolName: string;
     timestamp: string;
+    completedTimestamp?: string;
     result?: string;
     error?: string;
     duration?: number;
@@ -128,6 +133,16 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
 
     const result = call.error || call.result;
     if (typeof result === "string" && result.trim().length > 0) {
+      const summary = userFacingToolSummary({
+        toolName: call.toolName,
+        result: call.result ?? null,
+        error: call.error ?? null,
+        metadata: (call.metadata as Record<string, any>) ?? null,
+        attachments: (call.attachments as any) ?? null,
+      });
+      if (summary) {
+        return summary.length > 120 ? `${summary.slice(0, 120)}…` : summary;
+      }
       const trimmed = result.trim();
       return trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
     }
@@ -158,6 +173,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           toolCall.result = event.result;
           toolCall.error = event.error;
           toolCall.duration = event.duration;
+          toolCall.completedTimestamp = event.timestamp;
           toolCall.metadata = event.metadata as Record<string, unknown>;
           toolCall.attachments = event.attachments as Record<
             string,
@@ -174,6 +190,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             callId: event.call_id,
             toolName: event.tool_name,
             timestamp: event.timestamp,
+            completedTimestamp: event.timestamp,
             result: event.result,
             error: event.error,
             duration: event.duration,
@@ -232,7 +249,10 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     });
 
     return {
-      toolCalls: Array.from(toolCallsMap.values()),
+      toolCalls: Array.from(toolCallsMap.values()).filter((call) => {
+        if (debugMode) return true;
+        return call.toolName.toLowerCase().trim() !== "think";
+      }),
       thinkStreamItems: Array.from(thinkStreams.values())
         .filter((item) => item.content.trim().length > 0)
         .sort(
@@ -240,7 +260,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         ),
     };
-  }, [events]);
+  }, [events, debugMode]);
 
   const runningTools = useMemo(
     () => toolCalls.filter((call) => call.status === "running"),
@@ -291,40 +311,77 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     )[0];
 
   const headlineCall = latestRunning ?? latestCompleted;
+  const headlineHint = useMemo(() => {
+    if (!headlineCall) {
+      return null;
+    }
+    return summarizeToolHint(headlineCall) ?? null;
+  }, [headlineCall, summarizeToolHint]);
+
   const headlineText = useMemo(() => {
     if (!headlineCall) {
       return runningSummary || toolSummary || "Tool activity";
     }
 
     const humanizedName = humanizeToolName(headlineCall.toolName);
-    const hint = summarizeToolHint(headlineCall);
-    if (!hint) {
+    if (!headlineHint) {
       return humanizedName;
     }
-    return `${humanizedName} · ${hint}`;
-  }, [headlineCall, runningSummary, summarizeToolHint, toolSummary]);
+    return `${humanizedName} · ${headlineHint}`;
+  }, [headlineCall, headlineHint, runningSummary, toolSummary]);
 
   const headlinePreview = useMemo(() => {
     if (!headlineCall) {
       return "";
     }
-    const previewSource = headlineCall.error || headlineCall.result;
-    if (typeof previewSource !== "string") {
+    const summary = userFacingToolSummary({
+      toolName: headlineCall.toolName,
+      result: headlineCall.result ?? null,
+      error: headlineCall.error ?? null,
+      metadata: (headlineCall.metadata as Record<string, any>) ?? null,
+      attachments: (headlineCall.attachments as any) ?? null,
+    });
+    if (!summary) {
       return "";
     }
-    const trimmed = previewSource.trim();
-    if (!trimmed) {
+    if (headlineHint && summary.trim() === headlineHint.trim()) {
       return "";
     }
-    return trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
-  }, [headlineCall]);
+    return summary.length > 160 ? `${summary.slice(0, 160)}…` : summary;
+  }, [headlineCall, headlineHint]);
+
+  const headlineElapsedMs = useElapsedDurationMs({
+    startTimestamp: headlineCall?.timestamp,
+    running: headlineCall?.status === "running",
+    tickMs: 250,
+  });
+
+  const headlineDurationLabel = useMemo(() => {
+    if (!headlineCall) return null;
+    if (headlineCall.status === "running") {
+      return typeof headlineElapsedMs === "number"
+        ? formatDuration(headlineElapsedMs)
+        : null;
+    }
+    if (typeof headlineCall.duration === "number" && headlineCall.duration > 0) {
+      return formatDuration(headlineCall.duration);
+    }
+    if (headlineCall.completedTimestamp) {
+      const startMs = new Date(headlineCall.timestamp).getTime();
+      const endMs = new Date(headlineCall.completedTimestamp).getTime();
+      if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs >= startMs) {
+        return formatDuration(endMs - startMs);
+      }
+    }
+    return null;
+  }, [headlineCall, headlineElapsedMs]);
 
   const completedCount = toolCalls.filter(
     (call) => call.status === "completed",
   ).length;
   const failedCount = toolCalls.filter((call) => call.status === "failed").length;
 
-  const thinkPreviewItems = thinkStreamItems;
+  const thinkPreviewItems = debugMode ? thinkStreamItems : [];
   const timelineItems = useMemo(() => {
     const thinkEntries = thinkPreviewItems.map((item) => ({
       kind: "think" as const,
@@ -386,6 +443,11 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             {runningTools.length > 0 && <span>{runningTools.length} running</span>}
             {completedCount > 0 && <span>{completedCount} done</span>}
             {failedCount > 0 && <span className="text-red-500">{failedCount} failed</span>}
+            {headlineDurationLabel ? (
+              <span data-testid="intermediate-headline-duration">
+                {headlineDurationLabel}
+              </span>
+            ) : null}
           </div>
         )}
       </button>

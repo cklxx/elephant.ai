@@ -342,10 +342,16 @@ const applyEventToDraft = (draft: AgentStreamDraft, event: AnyAgentEvent) => {
       } else {
         draft.taskStatus = 'completed';
         const prevAnswer = draft.finalAnswer ?? '';
-        const nextAnswer =
-          complete.final_answer !== undefined && complete.final_answer !== null
-            ? complete.final_answer
+        const nextAnswer = (() => {
+          // Some backends send a final "stream_finished flip" event with `final_answer: ""`.
+          // Treat empty strings as "no update" so we don't wipe the streamed content.
+          if (typeof complete.final_answer === 'string') {
+            return complete.final_answer.length > 0 ? complete.final_answer : prevAnswer;
+          }
+          return complete.final_answer !== undefined && complete.final_answer !== null
+            ? String(complete.final_answer)
             : prevAnswer;
+        })();
         draft.finalAnswer = nextAnswer;
       }
 

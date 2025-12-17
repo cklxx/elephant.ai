@@ -79,59 +79,64 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     }
     return map;
   }, [contentWithInlineMedia]);
-  const { inlineAttachmentMap, attachmentNames, hasAttachments } = useMemo(() => {
-    if (!inlineAttachments) {
+  const { inlineAttachmentMap, attachmentNames, hasAttachments } =
+    useMemo(() => {
+      if (!inlineAttachments) {
+        return {
+          inlineAttachmentMap: new Map<
+            string,
+            {
+              key: string;
+              type: string;
+              description?: string;
+              mime?: string;
+              attachment: NonNullable<
+                WorkflowResultFinalEvent["attachments"]
+              >[string];
+            }
+          >(),
+          attachmentNames: [] as string[],
+          hasAttachments: false,
+        };
+      }
+
+      const inlineMap = new Map<
+        string,
+        {
+          key: string;
+          type: string;
+          description?: string;
+          mime?: string;
+          attachment: NonNullable<
+            WorkflowResultFinalEvent["attachments"]
+          >[string];
+        }
+      >();
+      const names: string[] = [];
+
+      Object.entries(inlineAttachments).forEach(([key, attachment]) => {
+        const uri = buildAttachmentUri(attachment);
+        if (uri) {
+          inlineMap.set(uri, {
+            key,
+            type: getAttachmentSegmentType(attachment),
+            description: attachment.description,
+            mime: attachment.media_type,
+            attachment,
+          });
+        }
+        const label = attachment.description || attachment.name || key;
+        if (label) {
+          names.push(label);
+        }
+      });
+
       return {
-        inlineAttachmentMap: new Map<
-          string,
-          {
-            key: string;
-            type: string;
-            description?: string;
-            mime?: string;
-            attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
-          }
-        >(),
-        attachmentNames: [] as string[],
-        hasAttachments: false,
+        inlineAttachmentMap: inlineMap,
+        attachmentNames: names,
+        hasAttachments: names.length > 0,
       };
-    }
-
-    const inlineMap = new Map<
-      string,
-      {
-        key: string;
-        type: string;
-        description?: string;
-        mime?: string;
-        attachment: NonNullable<WorkflowResultFinalEvent["attachments"]>[string];
-      }
-    >();
-    const names: string[] = [];
-
-    Object.entries(inlineAttachments).forEach(([key, attachment]) => {
-      const uri = buildAttachmentUri(attachment);
-      if (uri) {
-        inlineMap.set(uri, {
-          key,
-          type: getAttachmentSegmentType(attachment),
-          description: attachment.description,
-          mime: attachment.media_type,
-          attachment,
-        });
-      }
-      const label = attachment.description || attachment.name || key;
-      if (label) {
-        names.push(label);
-      }
-    });
-
-    return {
-      inlineAttachmentMap: inlineMap,
-      attachmentNames: names,
-      hasAttachments: names.length > 0,
-    };
-  }, [inlineAttachments]);
+    }, [inlineAttachments]);
   const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
     const segments = parseContentSegments(markdownAnswer, attachments);
     const unreferencedMedia: ContentSegment[] = [];
@@ -159,14 +164,15 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     };
   }, [markdownAnswer, attachments]);
   const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
-  const shouldRenderMarkdown =
-    hasAnswerContent || streamInProgress || (streamFinished && event.stop_reason !== "cancelled");
+  // Only render the markdown block when there is actual answer content (or the stream is still in progress).
+  // Otherwise we may render an empty "final answer" area when the backend returns attachments-only results.
+  const shouldRenderMarkdown = hasAnswerContent || streamInProgress;
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
-  const shouldShowFallback = !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
+  const shouldShowFallback =
+    !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
   const shouldShowAttachmentNotice =
     !shouldRenderMarkdown && !hasUnrenderedAttachments && hasAttachments;
-
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
 
   const InlineMarkdownImage = ({
@@ -256,10 +262,14 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   </ol>
                 ),
                 li: ({ children }: any) => (
-                  <li className="leading-relaxed text-foreground">{children}</li>
+                  <li className="leading-relaxed text-foreground">
+                    {children}
+                  </li>
                 ),
                 strong: ({ children }: any) => (
-                  <strong className="font-bold text-foreground">{children}</strong>
+                  <strong className="font-bold text-foreground">
+                    {children}
+                  </strong>
                 ),
                 img: ({ src, alt }: { src?: string; alt?: string }) => {
                   const recoveredSrc =
@@ -269,24 +279,35 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   if (!recoveredSrc) {
                     return null;
                   }
-                  const matchedAttachment = inlineAttachmentMap.get(recoveredSrc);
+                  const matchedAttachment =
+                    inlineAttachmentMap.get(recoveredSrc);
                   if (matchedAttachment?.type === "video") {
                     return (
                       <VideoPreview
                         key={`task-complete-inline-video-${matchedAttachment.key}`}
                         src={recoveredSrc}
                         mimeType={matchedAttachment.mime || "video/mp4"}
-                        description={matchedAttachment.description || alt || matchedAttachment.key}
+                        description={
+                          matchedAttachment.description ||
+                          alt ||
+                          matchedAttachment.key
+                        }
                         className="w-full"
                         maxHeight="20rem"
                       />
                     );
                   }
 
-                  if (matchedAttachment && (matchedAttachment.type === "document" || matchedAttachment.type === "embed")) {
+                  if (
+                    matchedAttachment &&
+                    (matchedAttachment.type === "document" ||
+                      matchedAttachment.type === "embed")
+                  ) {
                     return (
                       <div className="my-4">
-                        <ArtifactPreviewCard attachment={matchedAttachment.attachment} />
+                        <ArtifactPreviewCard
+                          attachment={matchedAttachment.attachment}
+                        />
                       </div>
                     );
                   }
@@ -306,9 +327,13 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
             data-testid="task-complete-fallback"
           >
-            <p className="font-medium text-foreground">{stopReasonCopy.title}</p>
+            <p className="font-medium text-foreground">
+              {stopReasonCopy.title}
+            </p>
             {stopReasonCopy.body && (
-              <p className="mt-1 text-muted-foreground">{stopReasonCopy.body}</p>
+              <p className="mt-1 text-muted-foreground">
+                {stopReasonCopy.body}
+              </p>
             )}
           </div>
         ) : shouldShowAttachmentNotice ? (
