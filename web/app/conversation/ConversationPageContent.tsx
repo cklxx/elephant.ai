@@ -705,7 +705,7 @@ export function ConversationPageContent() {
             />
           </div>
 
-          <div className="flex flex-1 min-w-0 flex-col overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="flex flex-1 min-w-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-card">
             <ContentArea
               ref={contentRef}
               className="flex-1 min-w-0"
@@ -753,7 +753,7 @@ export function ConversationPageContent() {
               <div
                 role="dialog"
                 aria-modal="true"
-                className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/30 backdrop-blur-sm sm:hidden"
+                className="fixed inset-0 z-50 flex flex-col justify-end bg-black/30 sm:hidden"
               >
                 <button
                   type="button"
@@ -761,7 +761,7 @@ export function ConversationPageContent() {
                   aria-label={t('plan.collapse')}
                   onClick={() => setShowTimelineDialog(false)}
                 />
-                <div className="relative rounded-t-3xl border border-border/60 bg-card/80 p-4 text-foreground backdrop-blur">
+                <div className="relative rounded-t-3xl border border-border/60 bg-card/80 p-4 text-foreground">
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-foreground">
                       {t('console.timeline.dialogTitle')}
@@ -843,12 +843,12 @@ export function ConversationPageContent() {
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 h-full w-full bg-slate-900/30 backdrop-blur-sm"
+            className="absolute inset-0 h-full w-full bg-black/30"
             aria-label="Close right panel"
             onClick={() => setIsRightPanelOpen(false)}
           />
           <aside
-            className="relative ml-auto flex h-full w-full max-w-[440px] flex-col border-l border-border/60 bg-card/90 backdrop-blur"
+            className="relative ml-auto flex h-full w-full max-w-[440px] flex-col border-l border-border/60 bg-card"
             aria-label="Resources panel"
           >
             <header className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">

@@ -4,9 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { ArrowUp, Paperclip, Square, X, Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { AttachmentUpload } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
@@ -517,7 +515,7 @@ export function TaskInput({
         data-testid="task-attachment-input"
       />
       <div
-        className="relative flex flex-col rounded-2xl border border-neutral-300 bg-white transition-all duration-200 focus-within:border-neutral-500 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:bg-muted/10 dark:border-border/50 dark:focus-within:border-neutral-600"
+        className="relative flex flex-col rounded-xl border border-border/60 bg-background/70 transition-colors focus-within:border-ring"
         data-testid="task-input-container"
       >
         <Textarea
@@ -538,7 +536,7 @@ export function TaskInput({
           data-testid="task-input"
           name="taskInput"
           id="taskInput"
-          className="min-h-[40px] max-h-[300px] w-full resize-none border-none bg-transparent px-3 py-2 text-base leading-6 text-neutral-900 placeholder:text-neutral-400 shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="min-h-[40px] max-h-[300px] w-full resize-none border-none bg-transparent px-3 py-2 text-sm leading-6 text-foreground placeholder:text-muted-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           style={{ fieldSizing: "content" } as any}
         />
 
@@ -549,7 +547,7 @@ export function TaskInput({
             size="icon"
             onClick={openFilePicker}
             disabled={isInputDisabled}
-            className="h-8 w-8 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 rounded-lg"
+            className="h-8 w-8 rounded-lg text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             aria-label={t("task.input.attachImage")}
             data-testid="task-attachment-trigger"
           >
@@ -580,10 +578,9 @@ export function TaskInput({
               <Button
                 type="submit"
                 disabled={isInputDisabled || !task.trim()}
-                className={cn(
-                  "h-8 w-8 rounded-lg p-0 transition-all",
-                  task.trim() ? "bg-neutral-900 text-white hover:opacity-90" : "bg-neutral-100 text-neutral-300"
-                )}
+                variant="default"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
                 aria-label={
                   loading
                     ? t("task.submit.title.running")
@@ -610,7 +607,7 @@ export function TaskInput({
               key={attachment.id}
               className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card sm:flex-row"
             >
-              <div className="relative flex h-36 w-full items-center justify-center bg-neutral-50 sm:h-auto sm:w-32">
+              <div className="relative flex h-36 w-full items-center justify-center bg-muted/20 sm:h-auto sm:w-32">
                 {attachment.isImage && attachment.previewUrl ? (
                   <Image
                     src={attachment.previewUrl}
@@ -621,7 +618,7 @@ export function TaskInput({
                     unoptimized
                   />
                 ) : (
-                  <span className="px-2 text-center text-[11px] font-semibold text-neutral-500">
+                  <span className="px-2 text-center text-[11px] font-semibold text-muted-foreground">
                     {attachment.format
                       ? attachment.format.slice(0, 6).toUpperCase()
                       : noPreviewLabel}
@@ -630,18 +627,18 @@ export function TaskInput({
                 <button
                   type="button"
                   onClick={() => handleRemoveAttachment(attachment.id)}
-                  className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900/70 text-white transition hover:bg-neutral-900"
+                  className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-foreground/80 text-background transition hover:bg-foreground"
                   aria-label={getRemoveLabel(attachment.name)}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-neutral-700 sm:px-4 sm:py-3.5">
-                <div className="text-sm font-semibold text-neutral-900">
+              <div className="flex flex-1 flex-col gap-1 px-3 py-3 text-[11px] text-muted-foreground sm:px-4 sm:py-3.5">
+                <div className="text-sm font-semibold text-foreground">
                   {attachment.name}
                 </div>
-                <div className="text-neutral-600">{attachment.mediaType}</div>
-                <div className="text-neutral-500">
+                <div>{attachment.mediaType}</div>
+                <div>
                   {formatFileSize(attachment.size)}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -653,7 +650,7 @@ export function TaskInput({
                           key={kind}
                           type="button"
                           size="sm"
-                          variant={isActive ? "default" : "outline"}
+                          variant={isActive ? "secondary" : "outline"}
                           onClick={() =>
                             handleAttachmentKindChange(attachment.id, kind)
                           }
@@ -666,7 +663,7 @@ export function TaskInput({
                   )}
                 </div>
                 {attachment.kind === "artifact" && (
-                  <p className="mt-1 text-[10px] text-neutral-600">
+                  <p className="mt-1 text-[10px] text-muted-foreground">
                     {artifactHint}
                   </p>
                 )}

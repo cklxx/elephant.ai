@@ -4,10 +4,9 @@ import type { Config } from "tailwindcss";
  * Tailwind Config - ALEX Visual Language
  *
  * Design Principles:
- * - High-contrast monochrome palette with a black & white sticker aesthetic
- * - Bold outlines and offset shadows to evoke printed cutouts
+ * - Flat, line-based surfaces (borders over elevation)
  * - Clean typography with Inter font family
- * - Subtle rounding paired with pronounced borders
+ * - Consistent radius scale across components
  * - High information density with maintained readability
  */
 
@@ -128,29 +127,33 @@ const config: Config = {
         '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
       },
       /**
-       * Minimal Border Radius
-       * - Sharp corners with subtle rounding (2-4px)
-       * - Avoids overly rounded modern UI trends
+       * Radius scale
+       * - Driven by the global --radius token (globals.css)
+       * - Keeps the app consistent even when different `rounded-*` utilities are used
        */
       borderRadius: {
         none: '0',
-        sm: '2px',
-        DEFAULT: '3px',
-        md: '4px',
-        lg: '4px',
+        sm: 'calc(var(--radius) - 4px)',
+        DEFAULT: 'calc(var(--radius) - 2px)',
+        md: 'calc(var(--radius) - 2px)',
+        lg: 'var(--radius)',
+        xl: 'var(--radius)',
+        '2xl': 'var(--radius)',
+        '3xl': 'var(--radius)',
         full: '9999px',
       },
       /**
-       * Sticker Shadow System
-       * - Directional hard shadows for cutout effect
-       * - Uses opaque offsets instead of blur
-       * - Reinforces the monochrome sticker aesthetic
+       * Flat (no elevation) shadow scale
+       * - Prefer borders, background tones, and spacing for hierarchy
        */
       boxShadow: {
-        sm: '3px 3px 0 rgba(0, 0, 0, 0.35)',
-        DEFAULT: '6px 6px 0 rgba(0, 0, 0, 0.45)',
-        md: '9px 9px 0 rgba(0, 0, 0, 0.55)',
-        lg: '12px 12px 0 rgba(0, 0, 0, 0.65)',
+        sm: 'none',
+        DEFAULT: 'none',
+        md: 'none',
+        lg: 'none',
+        xl: 'none',
+        '2xl': 'none',
+        inner: 'none',
         none: 'none',
       },
       /**

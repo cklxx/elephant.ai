@@ -164,7 +164,7 @@ export function ToolOutputCard({
         title={toggleLabel}
         className={cn(
           "flex w-full items-start gap-3 px-3 py-2 text-left text-sm",
-          "cursor-pointer select-none rounded-[10px] border border-border/40",
+          "cursor-pointer select-none rounded-md border border-border/40",
           "bg-secondary/40 transition-colors hover:bg-secondary/60",
           resolvedStatus === "running" &&
             "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",

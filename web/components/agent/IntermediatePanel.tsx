@@ -357,7 +357,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       <button
         type="button"
         onClick={openDetails}
-        className="group flex w-full max-w-[fit-content] items-center gap-3 rounded-[10px] border border-border/40 bg-secondary/40 px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary/60"
+        className="group flex w-full max-w-[fit-content] items-center gap-3 rounded-md border border-border/40 bg-secondary/40 px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary/60"
         title={
           runningSummaryFull.length > 0
             ? `Running: ${runningSummaryFull}`
@@ -460,7 +460,7 @@ function ToolCallDetailsPanel({
         className="relative flex h-full w-full max-w-3xl flex-col border-l border-border/60 bg-background transition-transform duration-300 ease-out"
         aria-label="Tool call activity"
       >
-        <header className="flex items-center justify-end border-b border-border px-4 py-3">
+        <header className="flex items-center justify-end border-b border-border/60 px-4 py-3">
           <button
             type="button"
             onClick={onClose}
@@ -470,7 +470,7 @@ function ToolCallDetailsPanel({
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+        <div className="flex-1 overflow-y-auto space-y-2 px-5 py-4">
           {children}
         </div>
       </aside>

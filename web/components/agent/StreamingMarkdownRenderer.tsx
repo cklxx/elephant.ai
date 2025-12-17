@@ -53,7 +53,7 @@ export function StreamingMarkdownRenderer({
       {showStreamingIndicator && (
         <div
           className={cn(
-            "inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500",
+            "inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/20 px-3 py-1 text-[11px] font-medium text-muted-foreground",
           )}
           data-testid="markdown-streaming-indicator"
         >

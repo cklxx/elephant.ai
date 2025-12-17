@@ -21,7 +21,7 @@ export default function RootLayout({
     <html lang="en" className="h-full" suppressHydrationWarning>
       <body
         className={cn(
-          "h-full bg-app-canvas text-slate-900 antialiased",
+          "h-full bg-app-canvas text-foreground antialiased",
           inter.className
         )}
       >
