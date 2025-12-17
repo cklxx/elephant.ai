@@ -51,6 +51,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   const showVideoWaitHint =
     status === 'running' && toolName.toLowerCase() === 'video_generate';
 
+  const summaryMaxLen = 96;
   const summaryText = useMemo(() => {
     // Priority: Result Summary > Error > Args Summary > Default Text
     const argsSummary = getArgumentsPreview(event, adapter.context.startEvent ?? undefined);
@@ -64,12 +65,21 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
     });
 
     if (status === 'running') {
-      return argsSummary || t('conversation.tool.timeline.summaryRunning', { tool: toolName });
+      return compactOneLine(
+        argsSummary || t('conversation.tool.timeline.summaryRunning', { tool: toolName }),
+        summaryMaxLen,
+      );
     }
     if (status === 'error') {
-      return errorSummary || t('conversation.tool.timeline.summaryErrored', { tool: toolName });
+      return compactOneLine(
+        errorSummary || t('conversation.tool.timeline.summaryErrored', { tool: toolName }),
+        summaryMaxLen,
+      );
     }
-    return resultSummary || argsSummary || t('conversation.tool.timeline.summaryCompleted', { tool: toolName });
+    return compactOneLine(
+      resultSummary || argsSummary || t('conversation.tool.timeline.summaryCompleted', { tool: toolName }),
+      summaryMaxLen,
+    );
   }, [adapter, event, status, t, toolName]);
 
   // Render panels (args, output, etc.)
@@ -102,7 +112,8 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         onClick={() => setIsExpanded(!isExpanded)}
         data-testid="tool-call-header"
         className={cn(
-          "flex items-center gap-3 px-3 py-2 cursor-pointer select-none rounded-md text-sm",
+          "grid grid-cols-[16px,1fr,auto] items-center gap-x-3 px-3 py-2 cursor-pointer select-none rounded-md",
+          "text-[13px] leading-snug",
           "bg-secondary/40 hover:bg-secondary/60 transition-colors border border-border/40",
           status === 'running' && "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
           status === 'error' && "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30"
@@ -110,7 +121,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       >
         <div
           className={cn(
-            "flex items-center justify-center transition-all",
+            "flex h-4 w-4 items-center justify-center transition-all",
             status === 'running' ? "text-blue-600 dark:text-blue-400" :
               status === 'error' ? "text-red-600 dark:text-red-400" :
                 "text-muted-foreground/70"
@@ -119,21 +130,21 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         >
           {status === 'running' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
             status === 'error' ? <X className="w-3.5 h-3.5" /> :
-              <span className="text-sm leading-none">{ToolIcon}</span>}
+              <span className="text-[13px] leading-none">{ToolIcon}</span>}
         </div>
 
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <span className="block font-medium opacity-90 truncate" data-testid="tool-call-name">
+        <div className="min-w-0 overflow-hidden">
+          <span className="block font-mono text-[12px] font-semibold tracking-tight truncate" data-testid="tool-call-name">
             {displayToolName}
           </span>
           {summaryText ? (
-            <span className="block truncate text-xs text-muted-foreground/70">
+            <span className="block truncate text-[11px] font-mono text-muted-foreground/70">
               {summaryText}
             </span>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 transition-opacity">
+        <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums text-muted-foreground/60 transition-opacity">
           {status === 'running' ? (
             runningDurationLabel ? (
               <span data-testid="tool-call-duration">{runningDurationLabel}</span>
@@ -143,7 +154,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
           ) : null}
           <ChevronRight
             className={cn(
-              "w-3.5 h-3.5 transition-transform duration-200",
+              "w-3.5 h-3.5 transition-transform duration-200 text-muted-foreground/70",
               isExpanded && "rotate-90"
             )}
             data-testid="tool-call-expand-icon"
@@ -201,7 +212,7 @@ function returnSummarizeArguments(args?: Record<string, unknown>): string | unde
 
   if (entries.length === 0) return undefined;
   const res = entries.join(', ');
-  return res.length > 80 ? res.slice(0, 80) + '...' : res;
+  return res.length > 72 ? res.slice(0, 72) + '…' : res;
 }
 
 function formatArgumentValue(value: unknown): string {
@@ -210,6 +221,14 @@ function formatArgumentValue(value: unknown): string {
   if (Array.isArray(value)) return `[Array(${value.length})]`;
   if (typeof value === 'object') return '{...}';
   return '';
+}
+
+function compactOneLine(value: string | undefined, maxLen: number): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) return undefined;
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, maxLen)}…`;
 }
 
 // Intentionally left without a generic summarize helper:

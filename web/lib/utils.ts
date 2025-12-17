@@ -72,7 +72,7 @@ export function getToolIcon(toolName: string): string {
     grep: '🔎',
     ripgrep: '🔎',
     find: '🔍',
-    web_search: '🔮',
+    web_search: '🔎',
     web_fetch: '🌐',
     think: '💭',
     task_boundary: '✨',

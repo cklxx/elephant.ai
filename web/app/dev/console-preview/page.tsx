@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 const ConsolePreviewContent = dynamic(() => import('./ConsolePreviewContent'), {
@@ -18,14 +19,10 @@ const ConsolePreviewContent = dynamic(() => import('./ConsolePreviewContent'), {
 });
 
 export default function ConsolePreviewPage() {
-  const [showPreview, setShowPreview] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('auto') === '1') {
-      setShowPreview(true);
-    }
-  }, []);
+  const searchParams = useSearchParams();
+  const autoPreview = searchParams.get('auto') === '1';
+  const [manualPreview, setManualPreview] = useState(false);
+  const showPreview = manualPreview || autoPreview;
 
   if (showPreview) {
     return <ConsolePreviewContent />;
@@ -44,7 +41,7 @@ export default function ConsolePreviewPage() {
 
         <div className="rounded-3xl bg-white/80 p-6 ring-1 ring-white/70">
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={() => setShowPreview(true)}>
+            <Button type="button" onClick={() => setManualPreview(true)}>
               Load preview
             </Button>
             <p className="text-xs text-slate-500">Tip: append ?auto=1 to auto-load.</p>
@@ -54,4 +51,3 @@ export default function ConsolePreviewPage() {
     </div>
   );
 }
-

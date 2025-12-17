@@ -157,17 +157,6 @@ export function ToolOutputCard({
     }
   }, [resolvedStatus]);
 
-  const statusDotClass = useMemo(() => {
-    switch (resolvedStatus) {
-      case "running":
-        return "bg-sky-500 animate-pulse";
-      case "failed":
-        return "bg-destructive";
-      default:
-        return "bg-emerald-500";
-    }
-  }, [resolvedStatus]);
-
   const timestampLabel = useMemo(() => {
     if (!timestamp) {
       return null;
@@ -191,7 +180,8 @@ export function ToolOutputCard({
         data-testid="tool-output-header"
         title={toggleLabel}
         className={cn(
-          "flex w-full items-start gap-3 px-3 py-2 text-left text-sm",
+          "flex w-full items-start gap-3 px-3 py-2 text-left",
+          "text-[13px] leading-snug",
           "cursor-pointer select-none rounded-md border border-border/40",
           "bg-secondary/40 transition-colors hover:bg-secondary/60",
           resolvedStatus === "running" &&
@@ -202,63 +192,74 @@ export function ToolOutputCard({
       >
         <div
           className={cn(
-            "relative mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-border/60 bg-background/40",
+            "relative mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md border border-border/60 bg-background/40",
             resolvedStatus === "running" &&
               "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
             resolvedStatus === "failed" &&
               "border-red-200/60 bg-red-50/40 dark:border-red-800/30 dark:bg-red-950/30",
           )}
         >
-          <span className="text-base leading-none" aria-hidden="true">
+          <span className="text-[13px] leading-none" aria-hidden="true">
             {toolIcon}
           </span>
-          <span
-            className={cn(
-              "absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-background",
-              statusDotClass,
-            )}
-            aria-hidden="true"
-          />
         </div>
 
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium opacity-90" data-testid="tool-name">
+          <div className="flex items-start justify-between gap-3">
+            <span
+              className="min-w-0 flex-1 truncate font-mono text-[12px] font-semibold tracking-tight"
+              data-testid="tool-name"
+            >
               {displayToolName}
             </span>
-            <Badge variant={statusBadgeVariant} className="text-[10px]">
-              {resolvedStatus === "running" ? (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-              ) : null}
-              {statusLabel}
-            </Badge>
-            {typeof displayDurationMs === "number" && displayDurationMs > 0 && (
-              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                {formatDuration(displayDurationMs)}
+
+            <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+              <Badge
+                variant={statusBadgeVariant}
+                className="rounded-md px-2 py-0.5 text-[10px] font-mono"
+              >
+                {resolvedStatus === "running" ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                ) : null}
+                {statusLabel}
               </Badge>
-            )}
-            {attachmentCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] text-muted-foreground">
-                {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
-              </Badge>
-            )}
+              {typeof displayDurationMs === "number" && displayDurationMs > 0 && (
+                <Badge
+                  variant="outline"
+                  className="rounded-md px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground"
+                >
+                  {formatDuration(displayDurationMs)}
+                </Badge>
+              )}
+              {attachmentCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="rounded-md px-2 py-0.5 text-[10px] font-mono text-muted-foreground"
+                >
+                  {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
+                </Badge>
+              )}
+            </div>
           </div>
 
           {previewText ? (
-            <p className="text-xs leading-relaxed text-muted-foreground" data-testid="tool-preview">
+            <p
+              className="line-clamp-2 text-[11px] font-mono leading-snug text-muted-foreground/70"
+              data-testid="tool-preview"
+            >
               {previewText}
             </p>
           ) : null}
 
           {(timestamp || (debugMode && callId)) && (
-            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground/70">
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted-foreground/60">
               {debugMode && callId ? (
-                <span className="font-mono">
+                <span>
                   {t("events.toolCall.id")}: {callId}
                 </span>
               ) : null}
               {timestampLabel ? (
-                <span className="font-mono">{timestampLabel}</span>
+                <span>{timestampLabel}</span>
               ) : null}
             </p>
           )}
@@ -266,7 +267,7 @@ export function ToolOutputCard({
 
         <ChevronRight
           className={cn(
-            "mt-2 h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
+            "mt-1 h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
             isExpanded && "rotate-90",
           )}
           data-testid="tool-expand-icon"

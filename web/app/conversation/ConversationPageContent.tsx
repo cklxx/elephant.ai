@@ -637,7 +637,7 @@ export function ConversationPageContent() {
                   return next;
                 })
               }
-              className="h-10 w-10 rounded-full border border-border/60"
+              className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
               aria-expanded={isSidebarOpen}
               aria-controls="conversation-sidebar"
             >
@@ -670,7 +670,7 @@ export function ConversationPageContent() {
                   return next;
                 })
               }
-              className="h-10 w-10 rounded-full border border-border/60"
+              className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
               aria-expanded={isRightPanelOpen}
               aria-controls="conversation-right-panel"
             >

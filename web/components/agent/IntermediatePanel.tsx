@@ -17,11 +17,10 @@ import {
   WorkflowToolStartedEvent,
   eventMatches,
 } from "@/lib/types";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 import { humanizeToolName, formatDuration } from "@/lib/utils";
-import { MagicBlackHole } from "../effects/MagicBlackHole";
 import { isDebugModeEnabled } from "@/lib/debugMode";
 import { userFacingToolSummary } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
@@ -381,9 +380,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   ).length;
   const failedCount = toolCalls.filter((call) => call.status === "failed").length;
 
-  const thinkPreviewItems = debugMode ? thinkStreamItems : [];
   const timelineItems = useMemo(() => {
-    const thinkEntries = thinkPreviewItems.map((item) => ({
+    const thinkEntries = (debugMode ? thinkStreamItems : []).map((item) => ({
       kind: "think" as const,
       timestamp: item.timestamp,
       item,
@@ -397,7 +395,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
-  }, [thinkPreviewItems, toolCalls]);
+  }, [debugMode, thinkStreamItems, toolCalls]);
 
   // Don't show panel if there are no tool calls
   if (toolCalls.length === 0) {
@@ -421,25 +419,28 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             : headlineText
         }
       >
-        {runningTools.length > 0 && (
-          <div className="flex items-center justify-center text-muted-foreground/70">
-            <MagicBlackHole size="sm" className="mr-1" />
-          </div>
-        )}
+        <span
+          className="flex h-4 w-4 items-center justify-center text-muted-foreground/70"
+          aria-hidden="true"
+        >
+          {runningTools.length > 0 ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : null}
+        </span>
 
         <div className="min-w-0 flex flex-col gap-0.5">
-          <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
+          <span className="text-[12px] font-mono font-semibold tracking-tight opacity-90 truncate max-w-[300px]">
             {headlineText}
           </span>
           {headlinePreview && headlinePreview !== headlineText && (
-            <span className="text-xs text-muted-foreground/70 truncate max-w-[300px]">
+            <span className="text-[11px] font-mono text-muted-foreground/70 truncate max-w-[300px]">
               {headlinePreview}
             </span>
           )}
         </div>
 
         {(runningTools.length > 0 || completedCount > 0 || failedCount > 0) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/60 ml-2 border-l border-border/40 pl-3">
+          <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums text-muted-foreground/60 ml-2 border-l border-border/40 pl-3">
             {runningTools.length > 0 && <span>{runningTools.length} running</span>}
             {completedCount > 0 && <span>{completedCount} done</span>}
             {failedCount > 0 && <span className="text-red-500">{failedCount} failed</span>}
