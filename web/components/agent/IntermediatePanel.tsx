@@ -429,11 +429,11 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
         </span>
 
         <div className="min-w-0 flex flex-col gap-0.5">
-          <span className="text-[12px] font-mono font-semibold tracking-tight opacity-90 truncate max-w-[300px]">
+          <span className="text-[13px] font-semibold tracking-tight opacity-90 truncate max-w-[300px]">
             {headlineText}
           </span>
           {headlinePreview && headlinePreview !== headlineText && (
-            <span className="text-[11px] font-mono text-muted-foreground/70 truncate max-w-[300px]">
+            <span className="text-[12px] text-muted-foreground/70 truncate max-w-[300px]">
               {headlinePreview}
             </span>
           )}
@@ -548,12 +548,12 @@ function ToolCallDetailsPanel({
               Tool activity
             </p>
             {headline ? (
-              <p className="truncate font-mono text-[13px] font-semibold tracking-tight text-foreground">
+              <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
                 {headline}
               </p>
             ) : null}
             {preview ? (
-              <p className="line-clamp-2 font-mono text-[11px] leading-snug text-muted-foreground/70">
+              <p className="line-clamp-2 text-[12px] leading-snug text-muted-foreground/70">
                 {preview}
               </p>
             ) : null}

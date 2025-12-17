@@ -207,7 +207,7 @@ export function ToolOutputCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-3">
             <span
-              className="min-w-0 flex-1 truncate font-mono text-[12px] font-semibold tracking-tight"
+              className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight"
               data-testid="tool-name"
             >
               {displayToolName}
@@ -216,7 +216,7 @@ export function ToolOutputCard({
             <div className="flex flex-none flex-wrap items-center justify-end gap-2">
               <Badge
                 variant={statusBadgeVariant}
-                className="rounded-md px-2 py-0.5 text-[10px] font-mono"
+                className="rounded-md px-2 py-0.5 text-[10px]"
               >
                 {resolvedStatus === "running" ? (
                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
@@ -234,7 +234,7 @@ export function ToolOutputCard({
               {attachmentCount > 0 && (
                 <Badge
                   variant="secondary"
-                  className="rounded-md px-2 py-0.5 text-[10px] font-mono text-muted-foreground"
+                  className="rounded-md px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
                 >
                   {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
                 </Badge>
@@ -244,7 +244,7 @@ export function ToolOutputCard({
 
           {previewText ? (
             <p
-              className="line-clamp-2 text-[11px] font-mono leading-snug text-muted-foreground/70"
+              className="line-clamp-2 text-[12px] leading-snug text-muted-foreground/70"
               data-testid="tool-preview"
             >
               {previewText}

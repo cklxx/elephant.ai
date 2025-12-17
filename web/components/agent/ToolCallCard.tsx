@@ -134,11 +134,11 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         </div>
 
         <div className="min-w-0 overflow-hidden">
-          <span className="block font-mono text-[12px] font-semibold tracking-tight truncate" data-testid="tool-call-name">
+          <span className="block text-[13px] font-semibold tracking-tight truncate" data-testid="tool-call-name">
             {displayToolName}
           </span>
           {summaryText ? (
-            <span className="block truncate text-[11px] font-mono text-muted-foreground/70">
+            <span className="block truncate text-[12px] text-muted-foreground/70">
               {summaryText}
             </span>
           ) : null}
