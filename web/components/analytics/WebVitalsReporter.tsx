@@ -14,7 +14,6 @@ function sendMetric(metric: Metric) {
     value: metric.value,
     delta: metric.delta,
     id: metric.id,
-    rating: metric.rating,
     navigation_type: metric.navigationType,
     page: window.location?.pathname ?? "/",
     ts: Date.now(),
@@ -44,4 +43,3 @@ export function WebVitalsReporter() {
   useReportWebVitals(sendMetric);
   return null;
 }
-
