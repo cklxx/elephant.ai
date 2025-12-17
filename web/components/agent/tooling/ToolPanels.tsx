@@ -7,6 +7,7 @@ import { parseContentSegments, buildAttachmentUri } from '@/lib/attachments';
 import { ImagePreview } from '@/components/ui/image-preview';
 import { VideoPreview } from '@/components/ui/video-preview';
 import { ArtifactPreviewCard } from '../ArtifactPreviewCard';
+import { userFacingToolResultText } from '@/lib/toolPresentation';
 
 function fallbackCopy(text: string) {
   try {
@@ -105,6 +106,7 @@ export function ToolArgumentsPanel({
 }
 
 export function ToolResultPanel({
+  toolName,
   result,
   error,
   resultTitle,
@@ -113,7 +115,9 @@ export function ToolResultPanel({
   copyErrorLabel,
   copiedLabel,
   attachments,
+  metadata,
 }: {
+  toolName?: string | null;
   result: any;
   error?: string | null;
   resultTitle: string;
@@ -122,6 +126,7 @@ export function ToolResultPanel({
   copyErrorLabel: string;
   copiedLabel: string;
   attachments?: Record<string, AttachmentPayload>;
+  metadata?: Record<string, any> | null;
 }) {
   if (error) {
     return (
@@ -132,12 +137,18 @@ export function ToolResultPanel({
     );
   }
 
-  const formatted =
+  const rawText =
     typeof result === 'string'
       ? result
       : result
         ? JSON.stringify(result, null, 2)
         : '';
+  const formatted = userFacingToolResultText({
+    toolName,
+    result: rawText,
+    metadata,
+    attachments: attachments ?? null,
+  });
 
   const attachmentsAvailable = attachments && Object.keys(attachments).length > 0;
   const segments = attachmentsAvailable
@@ -170,13 +181,15 @@ export function ToolResultPanel({
       <PanelHeader title={resultTitle} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={formatted} />} />
       {attachmentsAvailable ? (
         <div className="rounded-lg border border-border/60 bg-background p-3">
-          <div className="max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/80">
-            {textSegments.length > 0
-              ? textSegments.map((segment, index) => (
-                  <span key={`tool-result-text-${index}`}>{segment.text}</span>
-                ))
-              : formatted}
-          </div>
+          {(textSegments.length > 0 || formatted.trim().length > 0) && (
+            <div className="max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/80">
+              {textSegments.length > 0
+                ? textSegments.map((segment, index) => (
+                    <span key={`tool-result-text-${index}`}>{segment.text}</span>
+                  ))
+                : formatted}
+            </div>
+          )}
           {mediaSegments.length > 0 && (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {mediaSegments.map((segment, index) => {

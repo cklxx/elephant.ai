@@ -6,6 +6,49 @@ import { enableMapSet } from 'immer';
 // Enable Immer MapSet plugin for Zustand tests
 enableMapSet();
 
+class MemoryStorage implements Storage {
+  #store = new Map<string, string>();
+
+  get length() {
+    return this.#store.size;
+  }
+
+  clear() {
+    this.#store.clear();
+  }
+
+  getItem(key: string) {
+    return this.#store.has(key) ? this.#store.get(key)! : null;
+  }
+
+  key(index: number) {
+    if (index < 0 || index >= this.#store.size) return null;
+    return Array.from(this.#store.keys())[index] ?? null;
+  }
+
+  removeItem(key: string) {
+    this.#store.delete(key);
+  }
+
+  setItem(key: string, value: string) {
+    this.#store.set(key, String(value));
+  }
+}
+
+function ensureStorage(name: 'localStorage' | 'sessionStorage') {
+  const storage = (window as any)[name];
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function' || typeof storage.clear !== 'function') {
+    Object.defineProperty(window, name, {
+      value: new MemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
+ensureStorage('localStorage');
+ensureStorage('sessionStorage');
+
 // Mock PostHog client to avoid network calls in tests
 vi.mock('posthog-js', () => {
   const posthogMock: any = {

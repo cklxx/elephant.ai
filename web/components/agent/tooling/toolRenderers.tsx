@@ -57,6 +57,7 @@ const buildStream = (ctx: RendererContext): ReactNode | null => {
 const buildResult = (ctx: RendererContext): ReactNode | null => {
   return (
     <ToolResultPanel
+      toolName={ctx.toolName}
       result={ctx.completeEvent?.result}
       error={ctx.completeEvent?.error}
       resultTitle={ctx.labels.result}
@@ -65,6 +66,7 @@ const buildResult = (ctx: RendererContext): ReactNode | null => {
       copyErrorLabel={ctx.labels.copyError}
       copiedLabel={ctx.labels.copied}
       attachments={ctx.completeEvent?.attachments ?? undefined}
+      metadata={ctx.completeEvent?.metadata ?? null}
     />
   );
 };

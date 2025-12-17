@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReactNode } from 'react';
+import { isDebugModeEnabled } from '@/lib/debugMode';
 
 interface VirtualizedEventListProps {
   events: AnyAgentEvent[];
@@ -425,6 +426,11 @@ function EventCard({
 }
 
 function EventContextMeta({ event }: { event: AnyAgentEvent }) {
+  const debugMode = useMemo(() => isDebugModeEnabled(), []);
+  if (!debugMode) {
+    return null;
+  }
+
   const parts: string[] = [];
   if (event.session_id) {
     parts.push(`Session ${event.session_id}`);

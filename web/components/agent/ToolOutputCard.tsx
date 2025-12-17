@@ -6,6 +6,9 @@ import { formatDuration, cn, humanizeToolName, getToolIcon } from "@/lib/utils";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
+import { isDebugModeEnabled } from "@/lib/debugMode";
+import { userFacingToolSummary } from "@/lib/toolPresentation";
+import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
 import {
   ToolArgumentsPanel,
   ToolResultPanel,
@@ -70,15 +73,40 @@ export function ToolOutputCard({
     }
   }, [resolvedStatus, t]);
 
+  const debugMode = useMemo(() => isDebugModeEnabled(), []);
+
+  const elapsedMs = useElapsedDurationMs({
+    startTimestamp: timestamp ?? null,
+    running: resolvedStatus === "running",
+    tickMs: 250,
+  });
+
+  const displayDurationMs = useMemo(() => {
+    if (resolvedStatus === "running") {
+      return typeof elapsedMs === "number" ? elapsedMs : null;
+    }
+    return typeof duration === "number" && duration > 0 ? duration : null;
+  }, [duration, elapsedMs, resolvedStatus]);
+
   const previewText = useMemo(() => {
     if (error) return error;
     if (result) {
+      const summary = userFacingToolSummary({
+        toolName,
+        result,
+        error: null,
+        metadata: (metadata as Record<string, any>) ?? null,
+        attachments: (attachments as any) ?? null,
+      });
+      if (summary) {
+        return summary;
+      }
       const trimmed = result.trim();
-      return trimmed.length > 100 ? trimmed.slice(0, 100) + '...' : trimmed;
+      return trimmed.length > 100 ? trimmed.slice(0, 100) + "..." : trimmed;
     }
     // Fallback to params
     return formatParams(parameters, toolName) || "";
-  }, [error, result, parameters, toolName]);
+  }, [error, result, parameters, toolName, metadata, attachments]);
 
   const attachmentCount = useMemo(
     () => (attachments ? Object.keys(attachments).length : 0),
@@ -204,9 +232,9 @@ export function ToolOutputCard({
               ) : null}
               {statusLabel}
             </Badge>
-            {typeof duration === "number" && duration > 0 && (
+            {typeof displayDurationMs === "number" && displayDurationMs > 0 && (
               <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                {formatDuration(duration)}
+                {formatDuration(displayDurationMs)}
               </Badge>
             )}
             {attachmentCount > 0 && (
@@ -222,9 +250,9 @@ export function ToolOutputCard({
             </p>
           ) : null}
 
-          {(callId || timestamp) && (
+          {(timestamp || (debugMode && callId)) && (
             <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground/70">
-              {callId ? (
+              {debugMode && callId ? (
                 <span className="font-mono">
                   {t("events.toolCall.id")}: {callId}
                 </span>
@@ -262,6 +290,7 @@ export function ToolOutputCard({
 
               {(hasResult || hasError || attachmentCount > 0) && (
                 <ToolResultPanel
+                  toolName={toolName}
                   result={result ?? ""}
                   error={error ?? null}
                   resultTitle={t("tool.section.output")}
@@ -270,6 +299,7 @@ export function ToolOutputCard({
                   copyErrorLabel={t("events.toolCall.copyError")}
                   copiedLabel={t("events.toolCall.copied")}
                   attachments={attachments}
+                  metadata={(metadata as Record<string, any>) ?? null}
                 />
               )}
 
