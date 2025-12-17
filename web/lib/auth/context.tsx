@@ -73,7 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const existing = authClient.getSession();
         if (!existing) {
-          updateFromClient(null);
+          setSession(null);
+          setStatus("loading");
           try {
             await authClient.resumeFromRefreshCookie();
           } catch (error) {
