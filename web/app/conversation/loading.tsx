@@ -3,8 +3,12 @@ export default function ConversationLoading() {
     <div className="min-h-[calc(100vh-6rem)] bg-app-canvas px-4 py-10 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
         <div className="space-y-3">
-          <div className="h-4 w-24 rounded-full bg-slate-200" />
-          <div className="h-8 w-64 rounded-full bg-slate-200" />
+          <p className="text-[11px] font-semibold text-slate-500">
+            Loading console…
+          </p>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            Preparing session
+          </h1>
           <div className="h-4 w-80 rounded-full bg-slate-100" />
         </div>
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
