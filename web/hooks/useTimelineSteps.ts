@@ -14,6 +14,9 @@ import { TimelineStep } from '@/lib/planTypes';
 
 export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
   return useMemo(() => {
+    const hasPlanCreated = events.some((event) => event.event_type === 'workflow.plan.created');
+    const stageNames = new Set(['prepare', 'execute', 'summarize', 'persist']);
+
     const hasExplicitSteps = events.some((event) => {
       if (event.event_type === 'workflow.plan.created') return true;
       return (
@@ -31,8 +34,47 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
 
     const steps = new Map<string, TimelineStep>();
     const iterationFallback = new Map<number, TimelineStep>();
+    let latestTaskText: string | null = null;
+    let latestPrepareIdea: string | null = null;
+
+    const shorten = (text: string, max: number) => {
+      const trimmed = text.trim();
+      if (trimmed.length <= max) return trimmed;
+      return `${trimmed.slice(0, max)}…`;
+    };
+
+    const toStageKey = (value: unknown) =>
+      typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+    const extractIdea = (raw: unknown): string | null => {
+      if (!raw || typeof raw !== 'object') return null;
+      const obj = raw as Record<string, unknown>;
+      const candidates = [obj.approach, obj.goal, obj.action_name, obj.idea];
+      for (const cand of candidates) {
+        if (typeof cand === 'string' && cand.trim()) return cand.trim();
+      }
+      return null;
+    };
+
+    const resolveStageTitle = (stageKey: string): string | null => {
+      if (stageKey === 'execute') {
+        if (latestTaskText && latestTaskText.trim()) return shorten(latestTaskText, 48);
+        return '执行';
+      }
+      if (stageKey === 'prepare') {
+        if (latestPrepareIdea && latestPrepareIdea.trim()) return shorten(latestPrepareIdea, 48);
+        return '想法';
+      }
+      if (stageKey === 'summarize') return '总结';
+      if (stageKey === 'persist') return '保存';
+      return null;
+    };
 
     events.forEach((event, index) => {
+      if (event.event_type === 'workflow.input.received' && typeof (event as any).task === 'string') {
+        latestTaskText = String((event as any).task);
+      }
+
       if (event.event_type === 'workflow.plan.created') {
         const planned = (event as any).steps as unknown;
         if (Array.isArray(planned)) {
@@ -52,15 +94,20 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       }
 
       if (isWorkflowNodeStartedEvent(event)) {
+        const stageKey = toStageKey((event as any).step_description);
+        if (hasPlanCreated && stageNames.has(stageKey)) {
+          return;
+        }
         const id = `step-${event.step_index}`;
         const step = steps.get(id) ?? {
           id,
           title: event.step_description ?? `Step ${event.step_index + 1}`,
           status: 'planned',
         };
+        const stageTitle = !hasPlanCreated && stageKey ? resolveStageTitle(stageKey) : null;
         steps.set(id, {
           ...step,
-          title: event.step_description ?? step.title,
+          title: stageTitle ?? event.step_description ?? step.title,
           status: 'active',
           startTime: new Date(event.timestamp).getTime(),
           anchorEventIndex: index,
@@ -68,9 +115,18 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       }
 
       if (isWorkflowNodeCompletedEvent(event)) {
+        const stageKey = toStageKey((event as any).step_description);
+        if (hasPlanCreated && stageNames.has(stageKey)) {
+          return;
+        }
         const id = `step-${event.step_index}`;
         const prev = steps.get(id);
         const endTime = new Date(event.timestamp).getTime();
+        const rawStepResult = (event as any).step_result as unknown;
+        if (!hasPlanCreated && stageKey === 'prepare') {
+          const idea = extractIdea(rawStepResult);
+          if (idea) latestPrepareIdea = idea;
+        }
         const stepResult =
           typeof event.step_result === 'string'
             ? event.step_result
@@ -81,9 +137,10 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
           const raw = typeof (event as any).status === 'string' ? String((event as any).status).toLowerCase() : '';
           return raw === 'failed' ? 'failed' : 'done';
         })();
+        const stageTitle = !hasPlanCreated && stageKey ? resolveStageTitle(stageKey) : null;
         steps.set(id, {
           id,
-          title: event.step_description ?? prev?.title ?? `Step ${event.step_index + 1}`,
+          title: stageTitle ?? event.step_description ?? prev?.title ?? `Step ${event.step_index + 1}`,
           description: undefined,
           status,
           startTime: prev?.startTime,

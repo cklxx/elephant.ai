@@ -318,4 +318,81 @@ describe('useTimelineSteps', () => {
       expect(result.current[0].status).toBe('done');
     });
   });
+
+  describe('Stage Titles', () => {
+    it('should replace prepare/execute stage titles when no plan exists', () => {
+      const events: AnyAgentEvent[] = [
+        {
+          event_type: 'workflow.input.received',
+          timestamp: '2025-01-01T09:59:59Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          task: '把 TerminalOutput 改名，并让 UI 更像 Manus',
+        } as AnyAgentEvent,
+        {
+          event_type: 'workflow.node.started',
+          timestamp: '2025-01-01T10:00:00Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          step_index: 0,
+          step_description: 'prepare',
+        } as AnyAgentEvent,
+        {
+          event_type: 'workflow.node.completed',
+          timestamp: '2025-01-01T10:00:02Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          step_index: 0,
+          step_description: 'prepare',
+          step_result: { approach: '先抽出组件，再统一进度展示' },
+        } as AnyAgentEvent,
+        {
+          event_type: 'workflow.node.started',
+          timestamp: '2025-01-01T10:00:03Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          step_index: 1,
+          step_description: 'execute',
+        } as AnyAgentEvent,
+      ];
+
+      const { result } = renderHook(() => useTimelineSteps(events));
+      expect(result.current).toHaveLength(2);
+      expect(result.current[0].title).toBe('先抽出组件，再统一进度展示');
+      expect(result.current[1].title).toContain('把 TerminalOutput 改名');
+    });
+
+    it('should ignore stage nodes when a plan exists', () => {
+      const events: AnyAgentEvent[] = [
+        {
+          event_type: 'workflow.plan.created',
+          timestamp: '2025-01-01T09:59:59Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          steps: ['Step A', '总结'],
+        } as AnyAgentEvent,
+        {
+          event_type: 'workflow.node.started',
+          timestamp: '2025-01-01T10:00:00Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          step_index: 0,
+          step_description: 'prepare',
+        } as AnyAgentEvent,
+        {
+          event_type: 'workflow.node.started',
+          timestamp: '2025-01-01T10:00:01Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          step_index: 0,
+          step_description: 'Step A',
+        } as AnyAgentEvent,
+      ];
+
+      const { result } = renderHook(() => useTimelineSteps(events));
+      expect(result.current).toHaveLength(2);
+      expect(result.current[0].title).toBe('Step A');
+      expect(result.current[1].title).toBe('总结');
+    });
+  });
 });
