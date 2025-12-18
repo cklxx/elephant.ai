@@ -1,0 +1,72 @@
+package domain
+
+import (
+	"context"
+
+	"alex/internal/agent/ports"
+	materialapi "alex/internal/materials/api"
+	materialports "alex/internal/materials/ports"
+)
+
+// prepareTaskContext mutates the provided task state so it is ready for a new
+// user task turn: system prompt anchored, user task appended, and attachments
+// catalogued.
+func (e *ReactEngine) prepareTaskContext(ctx context.Context, task string, state *TaskState) {
+	ensureAttachmentStore(state)
+	e.normalizeMessageHistoryAttachments(ctx, state)
+
+	attachmentsChanged := false
+	for idx := range state.Messages {
+		if registerMessageAttachments(state, state.Messages[idx]) {
+			attachmentsChanged = true
+		}
+	}
+	if attachmentsChanged {
+		e.updateAttachmentCatalogMessage(state)
+	}
+
+	preloadedContext := e.extractPreloadedContextMessages(state)
+	e.ensureSystemPromptMessage(state)
+
+	userMessage := Message{
+		Role:    "user",
+		Content: task,
+		Source:  ports.MessageSourceUserInput,
+	}
+
+	if len(state.PendingUserAttachments) > 0 {
+		attachments := make(map[string]ports.Attachment, len(state.PendingUserAttachments))
+		for key, att := range state.PendingUserAttachments {
+			attachments[key] = att
+		}
+		userMessage.Attachments = attachments
+		userMessage.Attachments = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
+			Context:     e.materialRequestContext(state, ""),
+			Attachments: userMessage.Attachments,
+			Status:      materialapi.MaterialStatusInput,
+			Origin:      string(userMessage.Source),
+		})
+		state.PendingUserAttachments = nil
+	}
+
+	if resolved := resolveContentAttachments(userMessage.Content, state); len(resolved) > 0 {
+		if userMessage.Attachments == nil {
+			userMessage.Attachments = make(map[string]ports.Attachment, len(resolved))
+		}
+		for key, att := range resolved {
+			if _, exists := userMessage.Attachments[key]; exists {
+				continue
+			}
+			userMessage.Attachments[key] = att
+		}
+	}
+
+	state.Messages = append(state.Messages, userMessage)
+	if registerMessageAttachments(state, userMessage) {
+		e.updateAttachmentCatalogMessage(state)
+	}
+	if len(preloadedContext) > 0 {
+		state.Messages = append(state.Messages, preloadedContext...)
+	}
+}
+

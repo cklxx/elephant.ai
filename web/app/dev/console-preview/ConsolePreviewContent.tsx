@@ -1,6 +1,6 @@
 'use client';
 
-import { TerminalOutput } from '@/components/agent/TerminalOutput';
+import { ConversationEventStream } from '@/components/agent/ConversationEventStream';
 import { AnyAgentEvent, WorkflowNodeOutputDeltaEvent } from '@/lib/types';
 import { Brain, CheckCircle2, ChevronDown, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -579,7 +579,7 @@ export default function ConsolePreviewContent() {
         </section>
 
         <section className="rounded-3xl bg-white/60 p-6 ring-1 ring-white/70">
-          <TerminalOutput
+          <ConversationEventStream
             events={mockEvents}
             isConnected
             isReconnecting={false}

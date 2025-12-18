@@ -1,10 +1,9 @@
 'use client';
 
 import { ComponentType, useMemo } from 'react';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { Check, Clock, Loader2, X, Circle } from 'lucide-react';
+import { Check, Loader2, X, Circle } from 'lucide-react';
 import { StepStatus, TimelineStep } from '@/lib/planTypes';
 
 interface TimelineStepListProps {
@@ -12,6 +11,7 @@ interface TimelineStepListProps {
   focusedStepId?: string | null;
   onStepSelect?: (stepId: string) => void;
   className?: string;
+  variant?: 'default' | 'compact';
 }
 
 type StatusMeta = {
@@ -25,6 +25,7 @@ export function TimelineStepList({
   focusedStepId = null,
   onStepSelect,
   className,
+  variant = 'default',
 }: TimelineStepListProps) {
   const t = useTranslation();
 
@@ -45,6 +46,64 @@ export function TimelineStepList({
         const meta = statusMeta[step.status];
         const Icon = meta.icon;
         const isFocused = focusedStepId === step.id;
+
+        if (variant === 'compact') {
+          const compactClasses = cn(
+            'group flex items-center gap-3 rounded-xl px-3 py-2 transition-colors',
+            isFocused ? 'bg-background/80' : 'hover:bg-muted/20',
+          );
+          const iconClasses = cn(
+            'flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold',
+            step.status === 'active'
+              ? 'border-primary/60 bg-primary/10 text-primary'
+              : step.status === 'done'
+                ? 'border-primary/30 bg-primary/5 text-primary'
+                : step.status === 'failed'
+                  ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                  : 'border-border/60 text-muted-foreground',
+          );
+
+          const content = (
+            <>
+              <div className={iconClasses} aria-hidden>
+                {step.status === 'active' ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : step.status === 'done' ? (
+                  <Check className="h-3 w-3" />
+                ) : step.status === 'failed' ? (
+                  <X className="h-3 w-3" />
+                ) : (
+                  <Circle className="h-3 w-3" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    'truncate text-sm font-medium',
+                    step.status === 'done' ? 'text-foreground/70' : 'text-foreground',
+                  )}
+                >
+                  {step.title || `Step ${index + 1}`}
+                </p>
+              </div>
+              {step.status === 'active' ? (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              ) : null}
+            </>
+          );
+
+          return (
+            <div key={step.id}>
+              {onStepSelect ? (
+                <div onClick={() => onStepSelect(step.id)} className={cn(compactClasses, 'cursor-pointer')}>
+                  {content}
+                </div>
+              ) : (
+                <div className={compactClasses}>{content}</div>
+              )}
+            </div>
+          );
+        }
 
         const baseClasses = cn(
           'group relative flex gap-4 p-3 rounded-lg transition-all duration-200 border border-transparent',

@@ -5,6 +5,32 @@ import { AnyAgentEvent } from '@/lib/types';
 
 describe('useTimelineSteps', () => {
   describe('Research Plan Steps', () => {
+    it('should create planned steps from workflow.plan.created', () => {
+      const events: AnyAgentEvent[] = [
+        {
+          event_type: 'workflow.plan.created',
+          timestamp: '2025-01-01T09:59:59Z',
+          session_id: 'test-123',
+          agent_level: 'core',
+          steps: ['Analyze the codebase', 'Implement fix', '总结'],
+        } as AnyAgentEvent,
+      ];
+
+      const { result } = renderHook(() => useTimelineSteps(events));
+
+      expect(result.current).toHaveLength(3);
+      expect(result.current[0]).toMatchObject({
+        id: 'step-0',
+        title: 'Analyze the codebase',
+        status: 'planned',
+      });
+      expect(result.current[2]).toMatchObject({
+        id: 'step-2',
+        title: '总结',
+        status: 'planned',
+      });
+    });
+
     it('should create steps from step_started events', () => {
       const events: AnyAgentEvent[] = [
         {
@@ -23,8 +49,7 @@ describe('useTimelineSteps', () => {
       expect(result.current).toHaveLength(1);
       expect(result.current[0]).toMatchObject({
         id: 'step-0',
-        title: 'Step 1',
-        description: 'Analyze the codebase',
+        title: 'Analyze the codebase',
         status: 'active',
       });
     });
@@ -56,8 +81,7 @@ describe('useTimelineSteps', () => {
       expect(result.current).toHaveLength(1);
       expect(result.current[0]).toMatchObject({
         id: 'step-0',
-        title: 'Step 1',
-        description: 'Analyze the codebase',
+        title: 'Analyze the codebase',
         status: 'done',
       });
       expect(result.current[0].duration).toBe(5 * 60 * 1000); // 5 minutes
@@ -102,130 +126,26 @@ describe('useTimelineSteps', () => {
     });
   });
 
-  describe('Iteration-based Steps (Fallback)', () => {
-    it('should create steps from workflow.node.started events', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.node.started',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          total_iters: 5,
-        },
-      ];
-
-      const { result } = renderHook(() => useTimelineSteps(events));
-
-      expect(result.current).toHaveLength(1);
-      expect(result.current[0]).toMatchObject({
-        id: 'iteration-1',
-        title: 'Iteration 1/5',
-        status: 'active',
-      });
-    });
-
-    it('should complete iterations when workflow.node.completed events arrive', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.node.started',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          total_iters: 5,
-        },
-        {
-          event_type: 'workflow.node.completed',
-          timestamp: '2025-01-01T10:01:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          tokens_used: 500,
-          tools_run: 2,
-        },
-      ];
-
-      const { result } = renderHook(() => useTimelineSteps(events));
-
-      expect(result.current).toHaveLength(1);
-      expect(result.current[0]).toMatchObject({
-        id: 'iteration-1',
-        title: 'Iteration 1/5',
-        status: 'done',
-        tokensUsed: 500,
-      });
-      expect(result.current[0].duration).toBe(60 * 1000); // 1 minute
-    });
-
-    it('should track tools used in iterations', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.node.started',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          total_iters: 3,
-        },
-        {
-          event_type: 'workflow.tool.started',
-          timestamp: '2025-01-01T10:00:10Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          call_id: 'call-1',
-          tool_name: 'file_read',
-          arguments: { path: '/test.txt' },
-        },
-        {
-          event_type: 'workflow.tool.started',
-          timestamp: '2025-01-01T10:00:20Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          call_id: 'call-2',
-          tool_name: 'bash',
-          arguments: { command: 'ls' },
-        },
-        {
-          event_type: 'workflow.node.completed',
-          timestamp: '2025-01-01T10:01:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          iteration: 1,
-          tokens_used: 500,
-          tools_run: 2,
-        },
-      ];
-
-      const { result } = renderHook(() => useTimelineSteps(events));
-
-      expect(result.current).toHaveLength(1);
-      expect(result.current[0].toolsUsed).toEqual(['file_read', 'bash']);
-    });
-  });
-
   describe('Error Handling', () => {
-    it('should mark iterations as error when error events occur', () => {
+    it('should mark steps as failed when workflow.node.completed has failed status', () => {
       const events: AnyAgentEvent[] = [
         {
           event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:00:00Z',
           session_id: 'test-123',
           agent_level: 'core',
-          iteration: 1,
-          total_iters: 5,
+          step_index: 0,
+          step_description: 'Run tool',
         },
         {
-          event_type: 'workflow.node.failed',
+          event_type: 'workflow.node.completed',
           timestamp: '2025-01-01T10:01:00Z',
           session_id: 'test-123',
           agent_level: 'core',
-          iteration: 1,
-          phase: 'execute',
-          error: 'Tool execution failed',
-          recoverable: false,
+          step_index: 0,
+          step_description: 'Run tool',
+          status: 'failed',
+          step_result: { error: 'Tool execution failed' },
         },
       ];
 
@@ -233,10 +153,9 @@ describe('useTimelineSteps', () => {
 
       expect(result.current).toHaveLength(1);
       expect(result.current[0]).toMatchObject({
-        id: 'iteration-1',
-        title: 'Iteration 1/5',
+        id: 'step-0',
+        title: 'Run tool',
         status: 'failed',
-        error: 'Tool execution failed',
       });
     });
   });
@@ -249,8 +168,9 @@ describe('useTimelineSteps', () => {
           timestamp: '2025-01-01T10:02:00Z',
           session_id: 'test-123',
           agent_level: 'core',
-          iteration: 2,
-          total_iters: 3,
+          iteration: 1,
+          step_index: 1,
+          step_description: 'Second',
         },
         {
           event_type: 'workflow.node.started',
@@ -258,24 +178,26 @@ describe('useTimelineSteps', () => {
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
-          total_iters: 3,
+          step_index: 0,
+          step_description: 'First',
         },
         {
           event_type: 'workflow.node.started',
           timestamp: '2025-01-01T10:04:00Z',
           session_id: 'test-123',
           agent_level: 'core',
-          iteration: 3,
-          total_iters: 3,
+          iteration: 1,
+          step_index: 2,
+          step_description: 'Third',
         },
       ];
 
       const { result } = renderHook(() => useTimelineSteps(events));
 
       expect(result.current).toHaveLength(3);
-      expect(result.current[0].id).toBe('iteration-1');
-      expect(result.current[1].id).toBe('iteration-2');
-      expect(result.current[2].id).toBe('iteration-3');
+      expect(result.current[0].id).toBe('step-0');
+      expect(result.current[1].id).toBe('step-1');
+      expect(result.current[2].id).toBe('step-2');
     });
   });
 
@@ -335,7 +257,8 @@ describe('useTimelineSteps', () => {
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
-          total_iters: 3,
+          step_index: 0,
+          step_description: 'Work',
         },
       ];
 
@@ -359,7 +282,8 @@ describe('useTimelineSteps', () => {
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
-          total_iters: 3,
+          step_index: 0,
+          step_description: 'Work',
         },
       ];
 
@@ -371,6 +295,8 @@ describe('useTimelineSteps', () => {
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
+          step_index: 0,
+          step_description: 'Work',
           tokens_used: 300,
           tools_run: 1,
         },

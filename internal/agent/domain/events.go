@@ -66,6 +66,15 @@ type WorkflowInputReceivedEvent struct {
 
 func (e *WorkflowInputReceivedEvent) EventType() string { return "workflow.input.received" }
 
+// WorkflowPlanCreatedEvent is emitted once the planner has produced the ordered
+// list of steps that will be executed.
+type WorkflowPlanCreatedEvent struct {
+	BaseEvent
+	Steps []string
+}
+
+func (e *WorkflowPlanCreatedEvent) EventType() string { return "workflow.plan.created" }
+
 // NewWorkflowInputReceivedEvent constructs a user task event with the provided metadata.
 func NewWorkflowInputReceivedEvent(
 	level ports.AgentLevel,

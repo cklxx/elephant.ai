@@ -8,6 +8,7 @@ export type WorkflowNodeStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 
 export type WorkflowEventType =
   | 'workflow.lifecycle.updated'
+  | 'workflow.plan.created'
   | 'workflow.node.started'
   | 'workflow.node.completed'
   | 'workflow.node.failed'
@@ -428,6 +429,10 @@ export interface WorkflowLifecycleUpdatedPayload {
   workflow?: WorkflowSnapshot;
 }
 
+export interface WorkflowPlanCreatedPayload {
+  steps: string[];
+}
+
 export interface WorkflowNodeStartedPayload {
   node_id?: string;
   node_kind?: string;
@@ -571,6 +576,10 @@ export type WorkflowLifecycleUpdatedEvent = WorkflowEvent<
   WorkflowLifecycleUpdatedPayload,
   'workflow.lifecycle.updated'
 >;
+export type WorkflowPlanCreatedEvent = WorkflowEvent<
+  WorkflowPlanCreatedPayload,
+  'workflow.plan.created'
+>;
 export type WorkflowNodeStartedEvent = WorkflowEvent<
   WorkflowNodeStartedPayload,
   'workflow.node.started'
@@ -656,6 +665,7 @@ export interface ConnectedEvent {
 
 export type AnyAgentEvent =
   | WorkflowLifecycleUpdatedEvent
+  | WorkflowPlanCreatedEvent
   | WorkflowNodeStartedEvent
   | WorkflowNodeCompletedEvent
   | WorkflowNodeFailedEvent

@@ -29,6 +29,7 @@ type AgentCoordinator struct {
 	prepService   preparationService
 	costDecorator *CostTrackingDecorator
 	summarizer    *domain.FinalAnswerSummarizer
+	planner      *domain.TaskPlanner
 }
 
 type preparationService interface {
@@ -53,6 +54,7 @@ type Config struct {
 	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
 	ToolPreset          string // Tool access preset (full, read-only, etc.)
 	EnvironmentSummary  string
+	ExecutionMode       string // "auto" (default), "react", or "plan-react"
 }
 
 func NewAgentCoordinator(
@@ -75,6 +77,9 @@ func NewAgentCoordinator(
 	}
 	if len(config.StopSequences) > 0 {
 		config.StopSequences = append([]string(nil), config.StopSequences...)
+	}
+	if strings.TrimSpace(config.ExecutionMode) == "" {
+		config.ExecutionMode = "auto"
 	}
 
 	coordinator := &AgentCoordinator{
@@ -100,6 +105,9 @@ func NewAgentCoordinator(
 	}
 	if coordinator.summarizer == nil {
 		coordinator.summarizer = domain.NewFinalAnswerSummarizer(coordinator.logger, coordinator.clock)
+	}
+	if coordinator.planner == nil {
+		coordinator.planner = domain.NewTaskPlanner(coordinator.logger, coordinator.clock)
 	}
 
 	coordinator.prepService = NewExecutionPreparationService(ExecutionPreparationDeps{
@@ -191,38 +199,137 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	wf.start(stageExecute)
-	result, err := reactEngine.SolveTask(ctx, task, env.State, env.Services)
-	if err != nil {
-		wf.fail(stageExecute, err)
-		// Check if it's a context cancellation error
-		if ctx.Err() != nil {
-			c.logger.Info("Task execution cancelled: %v", ctx.Err())
-			c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
-			return attachWorkflow(result, env), ctx.Err()
-		}
-		c.logger.Error("Task execution failed: %v", err)
-		c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "error")
-		return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", err)
+	var result *ports.TaskResult
+	mode := strings.ToLower(strings.TrimSpace(c.config.ExecutionMode))
+	if mode == "" {
+		mode = "auto"
 	}
-	wf.succeed(stageExecute, map[string]any{
-		"iterations": result.Iterations,
-		"stop":       result.StopReason,
-	})
-	c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
-		result.Iterations, result.TokensUsed, result.StopReason)
 
-	wf.start(stageSummarize)
-	if c.summarizer != nil {
-		summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, eventListener)
-		if sumErr != nil {
-			wf.fail(stageSummarize, sumErr)
-			c.logger.Warn("Final answer summarization failed: %v", sumErr)
+	shouldPlan := mode == "plan-react" || (mode == "auto" && shouldUsePlanner(task, env.TaskAnalysis))
+
+	if shouldPlan {
+		steps, planErr := c.planner.Plan(ctx, env.Services.LLM, env.State.SessionID, ensuredTaskID, parentTaskID, task)
+		if planErr != nil {
+			c.logger.Warn("Task planning failed (falling back to summary-only): %v", planErr)
+			steps = []string{"总结"}
+		}
+
+		result, err = reactEngine.SolveTaskPlanned(ctx, task, steps, env.State, env.Services)
+		if err != nil {
+			wf.fail(stageExecute, err)
+			if ctx.Err() != nil {
+				c.logger.Info("Task execution cancelled: %v", ctx.Err())
+				c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
+				return attachWorkflow(result, env), ctx.Err()
+			}
+			c.logger.Error("Task execution failed: %v", err)
+			c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "error")
+			return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", err)
+		}
+
+		wf.succeed(stageExecute, map[string]any{
+			"iterations": result.Iterations,
+			"stop":       result.StopReason,
+			"mode":       "plan-react",
+		})
+
+		wf.start(stageSummarize)
+		summaryIndex := len(steps) - 1
+		if summaryIndex < 0 {
+			summaryIndex = 0
+		}
+		summaryTitle := "总结"
+		if len(steps) > 0 {
+			summaryTitle = steps[summaryIndex]
+		}
+		if eventListener != nil {
+			eventListener.OnEvent(&domain.WorkflowNodeStartedEvent{
+				BaseEvent:       domain.NewBaseEvent(outCtx.Level, env.State.SessionID, ensuredTaskID, parentTaskID, c.clock.Now()),
+				StepIndex:       summaryIndex,
+				StepDescription: summaryTitle,
+				Input: map[string]any{
+					"step": summaryTitle,
+				},
+			})
+		}
+
+		if c.summarizer != nil {
+			summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, eventListener)
+			if sumErr != nil {
+				wf.fail(stageSummarize, sumErr)
+				c.logger.Warn("Final answer summarization failed: %v", sumErr)
+				if eventListener != nil {
+					eventListener.OnEvent(&domain.WorkflowNodeCompletedEvent{
+						BaseEvent:       domain.NewBaseEvent(outCtx.Level, env.State.SessionID, ensuredTaskID, parentTaskID, c.clock.Now()),
+						StepIndex:       summaryIndex,
+						StepDescription: summaryTitle,
+						StepResult:      map[string]any{"error": sumErr.Error()},
+						Status:          "failed",
+						Iteration:       result.Iterations,
+					})
+				}
+			} else {
+				result = summarizedResult
+				wf.succeed(stageSummarize, map[string]any{"answer_preview": summarizedResult.Answer})
+				if eventListener != nil {
+					eventListener.OnEvent(&domain.WorkflowNodeCompletedEvent{
+						BaseEvent:       domain.NewBaseEvent(outCtx.Level, env.State.SessionID, ensuredTaskID, parentTaskID, c.clock.Now()),
+						StepIndex:       summaryIndex,
+						StepDescription: summaryTitle,
+						StepResult:      strings.TrimSpace(summarizedResult.Answer),
+						Status:          "succeeded",
+						Iteration:       result.Iterations,
+					})
+				}
+			}
 		} else {
-			result = summarizedResult
-			wf.succeed(stageSummarize, map[string]any{"answer_preview": summarizedResult.Answer})
+			wf.succeed(stageSummarize, "skipped (no summarizer configured)")
+			if eventListener != nil {
+				eventListener.OnEvent(&domain.WorkflowNodeCompletedEvent{
+					BaseEvent:       domain.NewBaseEvent(outCtx.Level, env.State.SessionID, ensuredTaskID, parentTaskID, c.clock.Now()),
+					StepIndex:       summaryIndex,
+					StepDescription: summaryTitle,
+					StepResult:      "skipped",
+					Status:          "succeeded",
+					Iteration:       result.Iterations,
+				})
+			}
 		}
 	} else {
-		wf.succeed(stageSummarize, "skipped (no summarizer configured)")
+		result, err = reactEngine.SolveTask(ctx, task, env.State, env.Services)
+		if err != nil {
+			wf.fail(stageExecute, err)
+			// Check if it's a context cancellation error
+			if ctx.Err() != nil {
+				c.logger.Info("Task execution cancelled: %v", ctx.Err())
+				c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
+				return attachWorkflow(result, env), ctx.Err()
+			}
+			c.logger.Error("Task execution failed: %v", err)
+			c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "error")
+			return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", err)
+		}
+		wf.succeed(stageExecute, map[string]any{
+			"iterations": result.Iterations,
+			"stop":       result.StopReason,
+			"mode":       "react",
+		})
+		c.logger.Info("Task execution completed: iterations=%d, tokens=%d, reason=%s",
+			result.Iterations, result.TokensUsed, result.StopReason)
+
+		wf.start(stageSummarize)
+		if c.summarizer != nil {
+			summarizedResult, sumErr := c.summarizer.Summarize(ctx, env, result, eventListener)
+			if sumErr != nil {
+				wf.fail(stageSummarize, sumErr)
+				c.logger.Warn("Final answer summarization failed: %v", sumErr)
+			} else {
+				result = summarizedResult
+				wf.succeed(stageSummarize, map[string]any{"answer_preview": summarizedResult.Answer})
+			}
+		} else {
+			wf.succeed(stageSummarize, "skipped (no summarizer configured)")
+		}
 	}
 
 	// Log session-level cost/token metrics

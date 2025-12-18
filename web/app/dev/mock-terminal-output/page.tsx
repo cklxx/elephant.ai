@@ -7,8 +7,8 @@ import { AnyAgentEvent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Play, RefreshCw, Square } from 'lucide-react';
 
-const TerminalOutput = dynamic(
-  () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
+const ConversationEventStream = dynamic(
+  () => import('@/components/agent/ConversationEventStream').then((mod) => mod.ConversationEventStream),
   {
     loading: () => <p className="text-sm text-slate-500">Loading terminal output…</p>,
     ssr: false,
@@ -50,13 +50,13 @@ export default function MockTerminalOutputPage() {
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold text-slate-400">
-                Mock Streaming · Terminal Output
+                Mock Streaming · Conversation Event Stream
               </p>
               <h1 className="text-xl font-semibold text-slate-900 lg:text-2xl">
                 Final answer inline replay
               </h1>
               <p className="text-sm text-slate-600">
-                Preview the TerminalOutput component with mocked streaming workflow.result.final updates and attachments.
+                Preview the ConversationEventStream component with mocked streaming workflow.result.final updates and attachments.
               </p>
               {latestTaskId && (
                 <p className="text-xs text-slate-500">Current task id: {latestTaskId}</p>
@@ -123,7 +123,7 @@ export default function MockTerminalOutputPage() {
 
         <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/60 lg:p-6">
           {sessionId ? (
-            <TerminalOutput
+            <ConversationEventStream
               events={events}
               isConnected={isConnected}
               isReconnecting={isReconnecting}
@@ -133,7 +133,7 @@ export default function MockTerminalOutputPage() {
             />
           ) : (
             <div className="text-sm text-slate-600">
-              Click “Start replay” to load the TerminalOutput preview.
+              Click “Start replay” to load the ConversationEventStream preview.
             </div>
           )}
         </div>

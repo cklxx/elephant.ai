@@ -36,14 +36,15 @@ import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { PlanProgressView } from '@/components/agent/PlanProgressView';
 import {
   AttachmentPanel,
   collectAttachmentItems,
 } from '@/components/agent/AttachmentPanel';
 import { SkillsPanel } from '@/components/agent/SkillsPanel';
 
-const LazyTerminalOutput = dynamic(
-  () => import('@/components/agent/TerminalOutput').then((mod) => mod.TerminalOutput),
+const LazyConversationEventStream = dynamic(
+  () => import('@/components/agent/ConversationEventStream').then((mod) => mod.ConversationEventStream),
   {
     ssr: false,
     loading: () => (
@@ -59,7 +60,6 @@ export function ConversationPageContent() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
-  const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -561,12 +561,6 @@ export function ConversationPageContent() {
 
   const timelineSteps = useTimelineSteps(events);
 
-  useEffect(() => {
-    if (timelineSteps.length === 0 && showTimelineDialog) {
-      setShowTimelineDialog(false);
-    }
-  }, [timelineSteps, showTimelineDialog]);
-
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
       <Dialog
@@ -712,32 +706,14 @@ export function ConversationPageContent() {
               fullWidth
               contentClassName="space-y-4"
             >
-              {timelineSteps.length > 0 && (
-                <div className="sm:hidden">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    data-testid="mobile-timeline-trigger"
-                    onClick={() => {
-                      captureEvent(AnalyticsEvent.TimelineViewed, {
-                        session_id: resolvedSessionId ?? null,
-                        step_count: timelineSteps.length,
-                      });
-                      setShowTimelineDialog(true);
-                    }}
-                    className="mb-3 rounded-full border-border/70 bg-background/60 text-[11px] font-semibold"
-                  >
-                    {t('console.timeline.mobileLabel')}
-                  </Button>
-                </div>
-              )}
               {events.length === 0 ? (
                 <div className="flex min-h-[60vh] items-center justify-center">
                   {emptyState}
                 </div>
+              ) : timelineSteps.length > 0 ? (
+                <PlanProgressView events={events} />
               ) : (
-                <LazyTerminalOutput
+                <LazyConversationEventStream
                   events={events}
                   isConnected={isConnected}
                   isReconnecting={isReconnecting}
@@ -748,53 +724,6 @@ export function ConversationPageContent() {
                 />
               )}
             </ContentArea>
-
-            {showTimelineDialog && (
-              <div
-                role="dialog"
-                aria-modal="true"
-                className="fixed inset-0 z-50 flex flex-col justify-end bg-black/30 sm:hidden"
-              >
-                <button
-                  type="button"
-                  className="absolute inset-0 h-full w-full"
-                  aria-label={t('plan.collapse')}
-                  onClick={() => setShowTimelineDialog(false)}
-                />
-                <div className="relative rounded-t-3xl border border-border/60 bg-card/80 p-4 text-foreground">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-foreground">
-                      {t('console.timeline.dialogTitle')}
-                    </h2>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-full"
-                      onClick={() => setShowTimelineDialog(false)}
-                    >
-                      {t('plan.collapse')}
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {timelineSteps.map((step) => (
-                      <button
-                        key={step.id}
-                        type="button"
-                        role="button"
-                        onClick={() => setShowTimelineDialog(false)}
-                        className="w-full rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-left text-foreground transition hover:bg-background"
-                      >
-                        <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                        {step.description && (
-                          <p className="text-xs text-foreground/70">{step.description}</p>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="border-t border-border/60 bg-background/70 px-3 py-4 sm:px-6 sm:py-6">
               <TaskInput

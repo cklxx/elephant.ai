@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, it, beforeAll, afterAll, expect, vi } from "vitest";
 import { ConversationPageContent } from "../conversation/ConversationPageContent";
 import { AnyAgentEvent } from "@/lib/types";
@@ -8,30 +8,20 @@ import { LanguageProvider } from "@/lib/i18n";
 
 const mockEventsRef: { current: AnyAgentEvent[] } = { current: [] };
 
-const replaceMock = vi.fn();
-const pushMock = vi.fn();
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: pushMock,
-    replace: replaceMock,
+    push: vi.fn(),
+    replace: vi.fn(),
     prefetch: vi.fn(),
   }),
   usePathname: () => "/conversation",
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const mockMutate = vi.fn();
-const mockCancel = vi.fn();
-
 vi.mock("@/hooks/useTaskExecution", () => ({
-  useTaskExecution: () => ({ mutate: mockMutate, isPending: false }),
-  useCancelTask: () => ({ mutate: mockCancel, isPending: false }),
+  useTaskExecution: () => ({ mutate: vi.fn(), isPending: false }),
+  useCancelTask: () => ({ mutate: vi.fn(), isPending: false }),
 }));
-
-const mockAddEvent = vi.fn();
-const mockReconnect = vi.fn();
-const mockClearEvents = vi.fn();
 
 vi.mock("@/hooks/useAgentEventStream", () => ({
   useAgentEventStream: () => ({
@@ -40,33 +30,26 @@ vi.mock("@/hooks/useAgentEventStream", () => ({
     isReconnecting: false,
     error: null,
     reconnectAttempts: 0,
-    clearEvents: mockClearEvents,
-    reconnect: mockReconnect,
-    addEvent: mockAddEvent,
+    clearEvents: vi.fn(),
+    reconnect: vi.fn(),
+    addEvent: vi.fn(),
   }),
 }));
-
-const mockSetCurrentSession = vi.fn();
-const mockAddToHistory = vi.fn();
-const mockClearCurrentSession = vi.fn();
-const mockRemoveSession = vi.fn();
-const mockRenameSession = vi.fn();
-const mockDeleteSession = vi.fn();
 
 vi.mock("@/hooks/useSessionStore", () => ({
   useSessionStore: () => ({
     currentSessionId: null,
-    setCurrentSession: mockSetCurrentSession,
-    addToHistory: mockAddToHistory,
-    clearCurrentSession: mockClearCurrentSession,
-    removeSession: mockRemoveSession,
-    renameSession: mockRenameSession,
+    setCurrentSession: vi.fn(),
+    addToHistory: vi.fn(),
+    clearCurrentSession: vi.fn(),
+    removeSession: vi.fn(),
+    renameSession: vi.fn(),
     sessionHistory: [],
     sessionLabels: {},
   }),
   useDeleteSession: () => ({
-    mutateAsync: mockDeleteSession,
-    mutate: mockDeleteSession,
+    mutateAsync: vi.fn(),
+    mutate: vi.fn(),
     isPending: false,
   }),
 }));
@@ -102,7 +85,7 @@ vi.mock("@/lib/auth/context", () => ({
   }),
 }));
 
-describe("Conversation page mobile timeline dialog", () => {
+describe("Conversation page plan progress UI", () => {
   const renderWithProviders = (ui: ReactElement) => {
     const queryClient = new QueryClient();
     return render(
@@ -130,9 +113,17 @@ describe("Conversation page mobile timeline dialog", () => {
     vi.unstubAllGlobals();
   });
 
-  it("opens the timeline dialog on mobile and closes after selecting a step", async () => {
+  it("renders step-focused progress without tool details", async () => {
     const baseTimestamp = new Date().toISOString();
     mockEventsRef.current = [
+      {
+        event_type: "workflow.plan.created",
+        steps: ["Research existing implementations", "Write report", "总结"],
+        timestamp: baseTimestamp,
+        agent_level: "core",
+        session_id: "test-session",
+        task_id: "test-task",
+      } as AnyAgentEvent,
       {
         event_type: "workflow.node.started",
         step_index: 0,
@@ -146,20 +137,14 @@ describe("Conversation page mobile timeline dialog", () => {
 
     renderWithProviders(<ConversationPageContent />);
 
-    const openButton = await screen.findByTestId("mobile-timeline-trigger");
-    fireEvent.click(openButton);
+    expect(
+      await screen.findByText("Research existing implementations"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Write report")).toBeInTheDocument();
+    expect(screen.getByText("总结")).toBeInTheDocument();
 
-    const dialog = await screen.findByRole("dialog");
-    expect(dialog).toBeInTheDocument();
-    expect(screen.getByText("Execution timeline")).toBeInTheDocument();
-
-    const stepHeading = screen.getAllByText("Step 1")[0];
-    const stepTrigger = stepHeading.closest('[role="button"]');
-    expect(stepTrigger).toBeTruthy();
-    fireEvent.click(stepTrigger!);
-
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+    // The legacy mobile timeline dialog trigger should not appear in the new minimal UI.
+    expect(screen.queryByTestId("mobile-timeline-trigger")).not.toBeInTheDocument();
   });
 });
+

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { TerminalOutput } from '../TerminalOutput';
+import { ConversationEventStream } from '../ConversationEventStream';
 import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
 
@@ -13,7 +13,7 @@ const baseEvent: AnyAgentEvent = {
   task: 'Summarize the latest output',
 };
 
-describe('TerminalOutput', () => {
+describe('ConversationEventStream', () => {
   it('filters workflow.node.output.delta events from the output stream', () => {
     const firstTimestamp = new Date().toISOString();
     const thirdTimestamp = new Date(Date.now() + 2000).toISOString();
@@ -48,7 +48,7 @@ describe('TerminalOutput', () => {
 
     render(
       <LanguageProvider>
-        <TerminalOutput
+        <ConversationEventStream
           events={events}
           isConnected
           isReconnecting={false}
@@ -107,7 +107,7 @@ describe('TerminalOutput', () => {
 
     render(
       <LanguageProvider>
-        <TerminalOutput
+        <ConversationEventStream
           events={events}
           isConnected
           isReconnecting={false}
@@ -163,7 +163,7 @@ describe('TerminalOutput', () => {
 
     render(
       <LanguageProvider>
-        <TerminalOutput
+        <ConversationEventStream
           events={events}
           isConnected
           isReconnecting={false}
@@ -206,7 +206,7 @@ describe('TerminalOutput', () => {
 
     render(
       <LanguageProvider>
-        <TerminalOutput
+        <ConversationEventStream
           events={events}
           isConnected
           isReconnecting={false}
@@ -241,7 +241,7 @@ describe('TerminalOutput', () => {
 
     render(
       <LanguageProvider>
-        <TerminalOutput
+        <ConversationEventStream
           events={events}
           isConnected
           isReconnecting={false}

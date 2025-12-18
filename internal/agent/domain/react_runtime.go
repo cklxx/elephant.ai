@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
-	materialports "alex/internal/materials/ports"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -79,62 +77,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 }
 
 func (r *reactRuntime) prepareContext() {
-	ensureAttachmentStore(r.state)
-	r.engine.normalizeMessageHistoryAttachments(r.ctx, r.state)
-
-	attachmentsChanged := false
-	for idx := range r.state.Messages {
-		if registerMessageAttachments(r.state, r.state.Messages[idx]) {
-			attachmentsChanged = true
-		}
-	}
-	if attachmentsChanged {
-		r.engine.updateAttachmentCatalogMessage(r.state)
-	}
-
-	preloadedContext := r.engine.extractPreloadedContextMessages(r.state)
-	r.engine.ensureSystemPromptMessage(r.state)
-
-	userMessage := Message{
-		Role:    "user",
-		Content: r.task,
-		Source:  ports.MessageSourceUserInput,
-	}
-	if len(r.state.PendingUserAttachments) > 0 {
-		attachments := make(map[string]ports.Attachment, len(r.state.PendingUserAttachments))
-		for key, att := range r.state.PendingUserAttachments {
-			attachments[key] = att
-		}
-		userMessage.Attachments = attachments
-		userMessage.Attachments = r.engine.normalizeAttachmentsWithMigrator(r.ctx, r.state, materialports.MigrationRequest{
-			Context:     r.engine.materialRequestContext(r.state, ""),
-			Attachments: userMessage.Attachments,
-			Status:      materialapi.MaterialStatusInput,
-			Origin:      string(userMessage.Source),
-		})
-		r.state.PendingUserAttachments = nil
-	}
-
-	if resolved := resolveContentAttachments(userMessage.Content, r.state); len(resolved) > 0 {
-		if userMessage.Attachments == nil {
-			userMessage.Attachments = make(map[string]ports.Attachment, len(resolved))
-		}
-		for key, att := range resolved {
-			if _, exists := userMessage.Attachments[key]; exists {
-				continue
-			}
-			userMessage.Attachments[key] = att
-		}
-	}
-
-	r.state.Messages = append(r.state.Messages, userMessage)
-	if registerMessageAttachments(r.state, userMessage) {
-		r.engine.updateAttachmentCatalogMessage(r.state)
-	}
-	if len(preloadedContext) > 0 {
-		r.state.Messages = append(r.state.Messages, preloadedContext...)
-	}
-
+	r.engine.prepareTaskContext(r.ctx, r.task, r.state)
 	r.tracker.completeContext(workflowContextOutput(r.state))
 }
 
