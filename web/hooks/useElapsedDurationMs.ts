@@ -16,7 +16,9 @@ export function useElapsedDurationMs(options: {
     [options.startTimestamp],
   );
   const [elapsedMs, setElapsedMs] = useState<number | null>(() => {
-    if (!options.running || startMs == null) return null;
+    if (!options.running || startMs == null) {
+      return null;
+    }
     return Math.max(0, Date.now() - startMs);
   });
 
@@ -25,7 +27,6 @@ export function useElapsedDurationMs(options: {
       return;
     }
 
-    setElapsedMs(Math.max(0, Date.now() - startMs));
     const interval = window.setInterval(() => {
       setElapsedMs(Math.max(0, Date.now() - startMs));
     }, options.tickMs ?? 250);
@@ -35,6 +36,9 @@ export function useElapsedDurationMs(options: {
     };
   }, [options.running, options.tickMs, startMs]);
 
+  if (!options.running || startMs == null) {
+    return null;
+  }
+
   return elapsedMs;
 }
-

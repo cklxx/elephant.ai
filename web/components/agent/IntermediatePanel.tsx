@@ -17,11 +17,10 @@ import {
   WorkflowToolStartedEvent,
   eventMatches,
 } from "@/lib/types";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 import { humanizeToolName, formatDuration } from "@/lib/utils";
-import { MagicBlackHole } from "../effects/MagicBlackHole";
 import { isDebugModeEnabled } from "@/lib/debugMode";
 import { userFacingToolSummary } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
@@ -381,9 +380,8 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
   ).length;
   const failedCount = toolCalls.filter((call) => call.status === "failed").length;
 
-  const thinkPreviewItems = debugMode ? thinkStreamItems : [];
   const timelineItems = useMemo(() => {
-    const thinkEntries = thinkPreviewItems.map((item) => ({
+    const thinkEntries = (debugMode ? thinkStreamItems : []).map((item) => ({
       kind: "think" as const,
       timestamp: item.timestamp,
       item,
@@ -397,7 +395,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
-  }, [thinkPreviewItems, toolCalls]);
+  }, [debugMode, thinkStreamItems, toolCalls]);
 
   // Don't show panel if there are no tool calls
   if (toolCalls.length === 0) {
@@ -421,25 +419,28 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             : headlineText
         }
       >
-        {runningTools.length > 0 && (
-          <div className="flex items-center justify-center text-muted-foreground/70">
-            <MagicBlackHole size="sm" className="mr-1" />
-          </div>
-        )}
+        <span
+          className="flex h-4 w-4 items-center justify-center text-muted-foreground/70"
+          aria-hidden="true"
+        >
+          {runningTools.length > 0 ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : null}
+        </span>
 
         <div className="min-w-0 flex flex-col gap-0.5">
-          <span className="text-sm font-medium opacity-90 truncate max-w-[300px]">
+          <span className="text-[13px] font-semibold tracking-tight opacity-90 truncate max-w-[300px]">
             {headlineText}
           </span>
           {headlinePreview && headlinePreview !== headlineText && (
-            <span className="text-xs text-muted-foreground/70 truncate max-w-[300px]">
+            <span className="text-[12px] text-muted-foreground/70 truncate max-w-[300px]">
               {headlinePreview}
             </span>
           )}
         </div>
 
         {(runningTools.length > 0 || completedCount > 0 || failedCount > 0) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/60 ml-2 border-l border-border/40 pl-3">
+          <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums text-muted-foreground/60 ml-2 border-l border-border/40 pl-3">
             {runningTools.length > 0 && <span>{runningTools.length} running</span>}
             {completedCount > 0 && <span>{completedCount} done</span>}
             {failedCount > 0 && <span className="text-red-500">{failedCount} failed</span>}
@@ -455,6 +456,14 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       <ToolCallDetailsPanel
         open={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
+        headline={headlineText}
+        preview={headlinePreview || null}
+        stats={{
+          running: runningTools.length,
+          completed: completedCount,
+          failed: failedCount,
+          durationLabel: headlineDurationLabel,
+        }}
       >
         <div className="space-y-4">
           {timelineItems.map((entry) =>
@@ -488,12 +497,23 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
 interface ToolCallDetailsPanelProps {
   open: boolean;
   onClose: () => void;
+  headline?: string | null;
+  preview?: string | null;
+  stats?: {
+    running: number;
+    completed: number;
+    failed: number;
+    durationLabel?: string | null;
+  } | null;
   children: ReactNode;
 }
 
 function ToolCallDetailsPanel({
   open,
   onClose,
+  headline,
+  preview,
+  stats,
   children,
 }: ToolCallDetailsPanelProps) {
   useEffect(() => {
@@ -514,25 +534,57 @@ function ToolCallDetailsPanel({
   return createPortal(
     <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true">
       <div
-        className="flex-1 bg-black/30 transition-opacity"
+        className="flex-1 bg-black/20 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
       <aside
-        className="relative flex h-full w-full max-w-3xl flex-col border-l border-border/60 bg-background transition-transform duration-300 ease-out"
+        className="relative flex h-full w-full flex-col overflow-hidden rounded-none border border-border/50 border-r-0 bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:max-w-[640px] sm:rounded-l-3xl"
         aria-label="Tool call activity"
       >
-        <header className="flex items-center justify-end border-b border-border/60 px-4 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
-            aria-label="Close tool call details"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <header className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
+          <div className="min-w-0 space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+              Tool activity
+            </p>
+            {headline ? (
+              <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
+                {headline}
+              </p>
+            ) : null}
+            {preview ? (
+              <p className="line-clamp-2 text-[12px] leading-snug text-muted-foreground/70">
+                {preview}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-none items-center gap-3">
+            {stats &&
+              (stats.running > 0 ||
+                stats.completed > 0 ||
+                stats.failed > 0 ||
+                stats.durationLabel) && (
+                <div className="hidden items-center gap-2 border-l border-border/40 pl-3 text-[11px] font-mono tabular-nums text-muted-foreground/70 sm:flex">
+                  {stats.running > 0 && <span>{stats.running} running</span>}
+                  {stats.completed > 0 && <span>{stats.completed} done</span>}
+                  {stats.failed > 0 && (
+                    <span className="text-destructive">{stats.failed} failed</span>
+                  )}
+                  {stats.durationLabel ? <span>{stats.durationLabel}</span> : null}
+                </div>
+              )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/50 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-background"
+              aria-label="Close tool call details"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </header>
-        <div className="flex-1 overflow-y-auto space-y-2 px-5 py-4">
+        <div className="flex-1 overflow-y-auto space-y-3 px-5 py-4">
           {children}
         </div>
       </aside>

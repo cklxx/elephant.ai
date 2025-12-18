@@ -135,9 +135,9 @@ export function Header({
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="group inline-flex items-center gap-2 rounded-full border border-border bg-background/80 px-2 py-1 pr-3 text-sm font-semibold"
+              className="group inline-flex h-10 items-center gap-2 rounded-full border border-border/60 bg-background/50 px-2 py-1 pr-3 text-[13px] font-semibold shadow-sm hover:bg-background/70 hover:text-foreground"
             >
-              <Avatar className="h-9 w-9">
+              <Avatar className="h-8 w-8">
                 {user.photoURL ? (
                   <AvatarImage
                     src={user.photoURL}
@@ -146,7 +146,7 @@ export function Header({
                 ) : null}
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
-              <span className="hidden text-left text-xs leading-tight sm:block">
+              <span className="hidden min-w-0 text-left text-[12px] leading-tight sm:block">
                 <span className="block font-semibold text-foreground">
                   {user.displayName || user.email}
                 </span>
@@ -209,16 +209,16 @@ export function Header({
   return (
     <header
       className={cn(
-        "layout-header flex items-center justify-between rounded-3xl border border-border/60 bg-card px-4 py-3",
+        "layout-header flex items-center justify-between rounded-3xl border border-border/50 bg-card/80 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60",
         className,
       )}
     >
-      <div className="flex flex-1 items-center gap-4">
+      <div className="flex flex-1 min-w-0 items-center gap-3">
         {leadingSlot && <div className="flex items-center">{leadingSlot}</div>}
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           {title && (
             <h1
-              className="text-lg font-semibold text-foreground"
+              className="truncate text-[15px] font-semibold tracking-tight text-foreground"
               data-testid="console-header-title"
             >
               {title}
@@ -226,7 +226,7 @@ export function Header({
           )}
           {subtitle && (
             <p
-              className="mt-0.5 text-sm text-muted-foreground"
+              className="mt-0.5 text-[12px] text-muted-foreground"
               data-testid="console-header-subtitle"
             >
               {subtitle}
@@ -240,7 +240,7 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {actionsSlot}
         {hasMenuActions && (
           <DropdownMenu>
@@ -248,7 +248,7 @@ export function Header({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-full border border-border/70 bg-background/70"
+                className="h-9 w-9 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
                 aria-label={t("header.actions.more")}
               >
                 <MoreVertical className="h-4 w-4" aria-hidden />
