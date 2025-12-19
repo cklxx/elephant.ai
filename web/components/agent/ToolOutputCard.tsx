@@ -158,7 +158,7 @@ export function ToolOutputCard({
         data-testid="tool-output-header"
         title={toggleLabel}
         className={cn(
-          "flex items-center gap-3 px-1 py-0.5 text-left",
+          "flex items-center gap-2 px-1 py-0.5 text-left",
           "text-[13px] leading-snug",
           "cursor-pointer select-none rounded-md border border-border/40",
           "bg-secondary/40 transition-colors hover:bg-secondary/60",
@@ -170,7 +170,7 @@ export function ToolOutputCard({
       >
         <div
           className={cn(
-            "relative flex h-6 w-6 flex-none items-center justify-center rounded-md border border-border/60 bg-background/40",
+            "relative flex h-6 w-6 flex-none items-center justify-center rounded-md",
             resolvedStatus === "running" &&
               "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
             resolvedStatus === "failed" &&
