@@ -49,7 +49,7 @@ const references = [
 
 const copy = {
   zh: {
-    badge: "Alex Code · Manifesto",
+    badge: "elephant.ai · Manifesto",
     title: "把 Agent 做成可控、可验收的工程系统",
     subtitle:
       "让 AI 像软件一样工作：可约束、可观测、可复盘，而不是像聊天一样碰运气。",
@@ -138,7 +138,7 @@ const copy = {
       oneLiner: {
         title: "一句话",
         description:
-          "Alex Code 不是让模型更会说，而是让智能体更像软件：有清晰目标、明确任务、可展开证据、稳定执行顺序、可复盘工程轨迹。",
+          "elephant.ai 不是让模型更会说，而是让智能体更像软件：有清晰目标、明确任务、可展开证据、稳定执行顺序、可复盘工程轨迹。",
       },
       refs: {
         title: "参考",
@@ -146,7 +146,7 @@ const copy = {
     },
   },
   en: {
-    badge: "Alex Code · Manifesto",
+    badge: "elephant.ai · Manifesto",
     title: "Turn agents into a controllable, auditable system",
     subtitle:
       "Make AI behave like software: constrained, observable, and reviewable—rather than a chat that “usually works.”",
@@ -235,7 +235,7 @@ const copy = {
       oneLiner: {
         title: "One-liner for the homepage",
         description:
-          "Alex Code doesn’t make models talk better—it makes agents behave like software: clear goals, explicit tasks, expandable evidence, stable sequencing, and postmortem-friendly traces.",
+          "elephant.ai doesn’t make models talk better—it makes agents behave like software: clear goals, explicit tasks, expandable evidence, stable sequencing, and postmortem-friendly traces.",
       },
       refs: {
         title: "References",
@@ -253,7 +253,7 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
           <FileCode2 className="h-5 w-5 text-foreground/90" aria-hidden />
         </div>
         <div>
-          <div className="text-sm font-semibold text-foreground">Alex Code</div>
+          <div className="text-sm font-semibold text-foreground">elephant.ai</div>
           <div className="text-xs text-muted-foreground">{t.nav.docs}</div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-# Spinner / ALEX Codebase Readmap
+# elephant.ai / ALEX Codebase Readmap
 
 This file is a “read map” (reading order + pointers) for understanding the repository without guesswork.
 
@@ -43,4 +43,3 @@ This file is a “read map” (reading order + pointers) for understanding the r
 - Web unit tests: `(cd web && npm test)`
 - Web e2e: `(cd web && npm run e2e)`
 - Evaluations: `evaluation/`
-

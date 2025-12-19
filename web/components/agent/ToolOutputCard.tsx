@@ -158,7 +158,7 @@ export function ToolOutputCard({
         data-testid="tool-output-header"
         title={toggleLabel}
         className={cn(
-          "flex w-full items-center gap-3 px-1 py-1 text-left",
+          "flex items-center gap-3 px-1 py-0.5 text-left",
           "text-[13px] leading-snug",
           "cursor-pointer select-none rounded-md border border-border/40",
           "bg-secondary/40 transition-colors hover:bg-secondary/60",
@@ -170,7 +170,7 @@ export function ToolOutputCard({
       >
         <div
           className={cn(
-            "relative mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md border border-border/60 bg-background/40",
+            "relative flex h-6 w-6 flex-none items-center justify-center rounded-md border border-border/60 bg-background/40",
             resolvedStatus === "running" &&
               "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
             resolvedStatus === "failed" &&
@@ -192,27 +192,6 @@ export function ToolOutputCard({
             </span>
 
             <div className="flex flex-none flex-wrap items-center justify-end gap-2">
-              <Badge
-                variant={statusBadgeVariant}
-                className="rounded-md px-2 py-0.5 text-[10px]"
-              >
-                {resolvedStatus === "running" ? (
-                  <Loader2
-                    className="h-3 w-3 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {statusLabel}
-              </Badge>
-              {typeof displayDurationMs === "number" &&
-                displayDurationMs > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="rounded-md px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
-                  >
-                    {formatDuration(displayDurationMs)}
-                  </Badge>
-                )}
               {attachmentCount > 0 && (
                 <Badge
                   variant="secondary"
@@ -237,7 +216,7 @@ export function ToolOutputCard({
 
         <ChevronRight
           className={cn(
-            "mt-1 h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
+            "h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
             isExpanded && "rotate-90",
           )}
           data-testid="tool-expand-icon"

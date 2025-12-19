@@ -316,11 +316,6 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 },
               }}
             />
-            <div
-              className="h-px w-full bg-border/70"
-              aria-hidden="true"
-              data-testid="task-complete-answer-divider"
-            />
           </>
         ) : shouldShowFallback ? (
           <div

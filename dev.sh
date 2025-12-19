@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# Spinner - Local Development Helper
+# elephant.ai - Local Development Helper
 #
 # Usage:
 #   ./dev.sh                    # Start backend + web (background)
@@ -366,7 +366,7 @@ cmd_lint() {
 
 usage() {
   cat <<EOF
-Spinner dev helper
+elephant.ai dev helper
 
 Usage:
   ./dev.sh [command]

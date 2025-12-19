@@ -20,7 +20,7 @@ import (
 // RunServer starts the HTTP API server and blocks until a shutdown signal is received.
 func RunServer(observabilityConfigPath string) error {
 	logger := logging.NewComponentLogger("Main")
-	logger.Info("Starting Spinner SSE Server...")
+	logger.Info("Starting elephant.ai SSE Server...")
 
 	obs, cleanupObs := InitObservability(observabilityConfigPath, logger)
 	if cleanupObs != nil {

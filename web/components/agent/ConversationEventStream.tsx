@@ -113,7 +113,7 @@ export function ConversationEventStream({
           return (
             <div
               key={key}
-              className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2 py-0.5"
+              className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
             >
               <EventLine event={event} />
             </div>
@@ -149,9 +149,17 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   if (
     event.event_type === "workflow.input.received" ||
     eventMatches(event, "workflow.result.final", "workflow.result.final") ||
-    eventMatches(event, "workflow.result.cancelled", "workflow.result.cancelled") ||
+    eventMatches(
+      event,
+      "workflow.result.cancelled",
+      "workflow.result.cancelled",
+    ) ||
     eventMatches(event, "workflow.node.failed", "workflow.node.failed") ||
-    eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary") ||
+    eventMatches(
+      event,
+      "workflow.node.output.summary",
+      "workflow.node.output.summary",
+    ) ||
     eventMatches(event, "workflow.tool.completed", "workflow.tool.completed")
   ) {
     return false;
@@ -160,9 +168,10 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   return true;
 }
 
-function partitionEvents(
-  events: AnyAgentEvent[],
-): { displayEvents: AnyAgentEvent[]; subagentThreads: SubagentThread[] } {
+function partitionEvents(events: AnyAgentEvent[]): {
+  displayEvents: AnyAgentEvent[];
+  subagentThreads: SubagentThread[];
+} {
   const displayEvents: AnyAgentEvent[] = [];
   const threads = new Map<string, SubagentThread>();
   const arrivalOrder = new WeakMap<AnyAgentEvent, number>();

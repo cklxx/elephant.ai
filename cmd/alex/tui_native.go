@@ -249,7 +249,7 @@ func (ui *NativeChatUI) printWelcome() {
 
 	// Title line
 	titleContent := fmt.Sprintf("  %s %s",
-		styleBold.Render(styleGreen.Render("Spinner")),
+		styleBold.Render(styleGreen.Render("elephant.ai")),
 		styleYellow.Render("- Fragment-to-Fabric Agent"))
 	titleLine := fmt.Sprintf("%s%s%-37s%s",
 		verticalBar,

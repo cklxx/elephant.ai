@@ -1,6 +1,6 @@
-# Spinner
+# elephant.ai
 
-Spinner is an AI agent that turns scattered facts, logs, and scratch notes into an actionable knowledge web. It runs the same layered Go backend that powers ALEX, and is focused on weaving fragmented context for analysts, engineers, and operators.
+elephant.ai is an AI agent that turns scattered facts, logs, and scratch notes into an actionable knowledge web. It runs the same layered Go backend that powers ALEX, and is focused on weaving fragmented context for analysts, engineers, and operators.
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
@@ -8,13 +8,13 @@ Spinner is an AI agent that turns scattered facts, logs, and scratch notes into 
 
 ---
 
-## Why Spinner?
+## Why elephant.ai?
 
-* **Fragment-to-fabric reasoning.** Spinner listens to shell transcripts, notebook results, tickets, and ad-hoc text, and then spins them into a coherent task plan.
+* **Fragment-to-fabric reasoning.** elephant.ai listens to shell transcripts, notebook results, tickets, and ad-hoc text, and then weaves them into a coherent task plan.
 * **One runtime, many surfaces.** The CLI/TUI, HTTP+SSE server, and Next.js dashboard consume the same streaming Think→Act→Observe events.
 * **Context-aware tooling.** File, shell, search, and notebook helpers emit typed events and can attach artifacts/attachments for the web UI.
 * **Observability-first.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking ship with the agent.
-* **Evaluation harness.** SWE-Bench automation plus batch runners ensure Spinner’s weaving stays measurable.
+* **Evaluation harness.** SWE-Bench automation plus batch runners ensure elephant.ai’s weaving stays measurable.
 
 ---
 
@@ -38,7 +38,7 @@ New to the repo? Start with [`READMAP.md`](READMAP.md) for a guided reading orde
 
 ## Context Design
 
-Spinner treats context like a woven fabric:
+elephant.ai treats context like a woven fabric:
 
 1. **Strands** (raw snippets) flow into `internal/context` where they are tagged with provenance (file path, tool, timestamp).
 2. **Braids** (layered prompts) merge system instructions, conversation history, retrieved memory, and active tool constraints.
@@ -64,14 +64,14 @@ All binaries wire through `internal/di`, so configuration and tool wiring stay i
 
 * **LLM providers.** Multi-model clients with retry/cost middleware in `internal/llm`.
 * **Artifacts & attachments.** Tool outputs can be surfaced as artifacts/attachments and rendered by the web dashboard.
-* **Model Context Protocol.** JSON-RPC 2.0 clients, supervisors, and server registry in `internal/mcp` so Spinner can negotiate external tools.
+* **Model Context Protocol.** JSON-RPC 2.0 clients, supervisors, and server registry in `internal/mcp` so elephant.ai can negotiate external tools.
 * **Approval workflows.** Guardrails in `internal/approval` let humans veto risky tool usage.
 * **Context & parsing.** Layered prompt builders plus structured tool call parsers in `internal/context` and `internal/parser`.
 * **Evaluations.** `evaluation/` hosts SWE-Bench runners, reporting helpers, and reproducible scripts.
 
 ### Skills (Markdown Playbooks)
 
-Spinner can ship reusable "skills" as Markdown playbooks in `skills/`.
+elephant.ai can ship reusable "skills" as Markdown playbooks in `skills/`.
 
 * **Indexed into context.** The context builder injects a compact skills index (name + description) into the system prompt.
 * **Queryable via tool.** Use the builtin `skills` tool to list/search/show playbooks.
@@ -117,7 +117,7 @@ Built-in skills include `video_production` and `ppt_deck`.
 
 ```bash
 make build        # build ./alex
-./alex            # launch the Spinner TUI
+./alex            # launch the elephant.ai TUI
 ./alex --no-tui   # run in legacy line-mode
 ```
 
@@ -216,4 +216,4 @@ Items labeled “planned” are in active design; other bullets align with the c
 
 ## License
 
-Spinner (ALEX) is released under the [MIT License](LICENSE).
+elephant.ai (ALEX) is released under the [MIT License](LICENSE).

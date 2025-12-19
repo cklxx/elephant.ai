@@ -145,4 +145,4 @@ export USE_REAL_ALEX_AGENT=true
 - ⚡ **高性能**: 并发处理和资源优化
 - 🛡️ **稳定性**: 多层错误处理和降级
 
-**🎉 集成成功！Alex Code Agent现在拥有了专业级别的SWE-Bench评估能力！**
+**🎉 集成成功！elephant.ai Agent现在拥有了专业级别的SWE-Bench评估能力！**

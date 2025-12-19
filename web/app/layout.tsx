@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  title: "Alex Code",
+  title: "elephant.ai",
   description: "Build controllable, auditable agents with Plan + Clearify + ReAct.",
 };
 

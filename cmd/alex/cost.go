@@ -49,7 +49,7 @@ func (c *CLI) handleCostCommand(args []string) error {
 
 func (c *CLI) showCostUsage() error {
 	fmt.Print(`
-Spinner Cost Tracking Commands
+elephant.ai Cost Tracking Commands
 
 Usage:
   alex cost                              Show this help
