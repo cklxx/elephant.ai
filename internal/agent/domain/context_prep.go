@@ -8,10 +8,10 @@ import (
 	materialports "alex/internal/materials/ports"
 )
 
-// prepareTaskContext mutates the provided task state so it is ready for a new
+// prepareUserTaskContext mutates the provided task state so it is ready for a new
 // user task turn: system prompt anchored, user task appended, and attachments
-// catalogued.
-func (e *ReactEngine) prepareTaskContext(ctx context.Context, task string, state *TaskState) {
+// catalogued without rewriting existing history.
+func (e *ReactEngine) prepareUserTaskContext(ctx context.Context, task string, state *TaskState) {
 	ensureAttachmentStore(state)
 	e.normalizeMessageHistoryAttachments(ctx, state)
 
@@ -25,7 +25,6 @@ func (e *ReactEngine) prepareTaskContext(ctx context.Context, task string, state
 		e.updateAttachmentCatalogMessage(state)
 	}
 
-	preloadedContext := e.extractPreloadedContextMessages(state)
 	e.ensureSystemPromptMessage(state)
 
 	userMessage := Message{
@@ -65,8 +64,4 @@ func (e *ReactEngine) prepareTaskContext(ctx context.Context, task string, state
 	if registerMessageAttachments(state, userMessage) {
 		e.updateAttachmentCatalogMessage(state)
 	}
-	if len(preloadedContext) > 0 {
-		state.Messages = append(state.Messages, preloadedContext...)
-	}
 }
-

@@ -398,8 +398,18 @@ func (e *ReactEngine) SolveTask(
 	state *TaskState,
 	services Services,
 ) (*TaskResult, error) {
-	runtime := newReactRuntime(e, ctx, task, state, services)
+	runtime := newReactRuntime(e, ctx, task, state, services, func() {
+		e.prepareUserTaskContext(ctx, task, state)
+	})
 	return runtime.run()
+}
+
+// RecordUserInput appends the user input to the task state without running ReAct.
+func (e *ReactEngine) RecordUserInput(ctx context.Context, task string, state *TaskState) {
+	if state == nil || strings.TrimSpace(task) == "" {
+		return
+	}
+	e.prepareUserTaskContext(ctx, task, state)
 }
 
 // think sends current state to LLM for reasoning
@@ -953,28 +963,6 @@ func (e *ReactEngine) materialRequestContext(state *TaskState, toolCallID string
 	}
 }
 
-func (e *ReactEngine) extractPreloadedContextMessages(state *TaskState) []Message {
-	if state == nil || len(state.Messages) == 0 {
-		return nil
-	}
-
-	idx := len(state.Messages)
-	for idx > 0 {
-		if !isCurrentPreloadedContextMessage(state.Messages[idx-1], state.TaskID) {
-			break
-		}
-		idx--
-	}
-	if idx == len(state.Messages) {
-		return nil
-	}
-
-	preloaded := make([]Message, len(state.Messages)-idx)
-	copy(preloaded, state.Messages[idx:])
-	state.Messages = state.Messages[:idx]
-	return preloaded
-}
-
 const attachmentCatalogMetadataKey = "attachment_catalog"
 
 func (e *ReactEngine) updateAttachmentCatalogMessage(state *TaskState) {
@@ -983,12 +971,7 @@ func (e *ReactEngine) updateAttachmentCatalogMessage(state *TaskState) {
 	}
 	content := buildAttachmentCatalogContent(state)
 	if strings.TrimSpace(content) == "" {
-		removeAttachmentCatalogMessage(state)
-		return
-	}
-
-	if idx := findAttachmentCatalogMessageIndex(state); idx >= 0 {
-		state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
+		content = "Attachment catalog (for model reference only).\nNo attachments are currently available."
 	}
 	note := Message{
 		Role:    "assistant",

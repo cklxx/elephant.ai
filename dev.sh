@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# Spinner - Local Development Helper
+# elephant.ai - Local Development Helper
 #
 # Usage:
 #   ./dev.sh                    # Start backend + web (background)
@@ -210,6 +210,14 @@ wait_for_health() {
   done
 }
 
+cleanup_next_dev_lock() {
+  local lock_file="${SCRIPT_DIR}/web/.next/dev/lock"
+  if [[ -f "$lock_file" ]]; then
+    log_warn "Removing stale Next.js dev lock: ${lock_file}"
+    rm -f "$lock_file"
+  fi
+}
+
 build_server() {
   log_info "Building backend (./cmd/alex-server)..."
   "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" build -o "${SCRIPT_DIR}/alex-server" ./cmd/alex-server
@@ -264,6 +272,8 @@ start_web() {
     return 0
   fi
 
+  cleanup_next_dev_lock
+
   if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
     stop_port_listeners "$WEB_PORT" "web"
   fi
@@ -292,6 +302,7 @@ cmd_up() {
 
 cmd_down() {
   stop_service "Web" "${WEB_PID_FILE}"
+  cleanup_next_dev_lock
   stop_service "Backend" "${SERVER_PID_FILE}"
 }
 
@@ -355,7 +366,7 @@ cmd_lint() {
 
 usage() {
   cat <<EOF
-Spinner dev helper
+elephant.ai dev helper
 
 Usage:
   ./dev.sh [command]

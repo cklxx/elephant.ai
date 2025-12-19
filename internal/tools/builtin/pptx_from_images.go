@@ -324,7 +324,9 @@ func (t *pptxFromImages) fetchImage(ctx context.Context, url string) ([]byte, st
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, "", fmt.Errorf("unexpected HTTP status %s", resp.Status)
@@ -374,16 +376,19 @@ func buildPPTXDeckFromImages(template []byte, images []resolvedPPTXImage) ([]byt
 
 		w, err := writer.Create(name)
 		if err != nil {
-			rc.Close()
+			_ = rc.Close()
 			_ = writer.Close()
 			return nil, fmt.Errorf("write template entry %s: %w", name, err)
 		}
 		if _, err := io.Copy(w, rc); err != nil {
-			rc.Close()
+			_ = rc.Close()
 			_ = writer.Close()
 			return nil, fmt.Errorf("copy template entry %s: %w", name, err)
 		}
-		rc.Close()
+		if err := rc.Close(); err != nil {
+			_ = writer.Close()
+			return nil, fmt.Errorf("close template entry %s: %w", name, err)
+		}
 	}
 
 	if err := writeZipTextFile(writer, "[Content_Types].xml", contentTypesXML(len(images))); err != nil {

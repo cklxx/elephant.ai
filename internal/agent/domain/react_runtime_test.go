@@ -84,7 +84,7 @@ func TestReactRuntimeFinalizeResultDecoratesWorkflowOnce(t *testing.T) {
 		TaskID:    "t1",
 	}
 
-	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{})
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 	now = now.Add(2 * time.Second)
 
 	result := runtime.finalizeResult("done", &TaskResult{Answer: "ok", Iterations: 3, TokensUsed: 10}, false, nil)
@@ -124,7 +124,7 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 		TaskID:    "t1",
 	}
 
-	runtime := newReactRuntime(engine, ctx, "demo", state, Services{})
+	runtime := newReactRuntime(engine, ctx, "demo", state, Services{}, nil)
 
 	now = now.Add(time.Second)
 	result, err := runtime.run()

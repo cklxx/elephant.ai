@@ -97,11 +97,6 @@ func (t *workflowEventTranslator) translate(evt ports.AgentEvent) []*domain.Work
 	case *domain.WorkflowNodeFailedEvent:
 		return t.translateNodeFailure(evt, e)
 
-	case *domain.WorkflowPlanCreatedEvent:
-		return t.singleEnvelope(evt, "workflow.plan.created", "plan", "", map[string]any{
-			"steps": e.Steps,
-		})
-
 	case *domain.WorkflowDiagnosticContextCompressionEvent:
 		return t.diagnosticEnvelope(evt, "workflow.diagnostic.context_compression", map[string]any{
 			"original_count":   e.OriginalCount,

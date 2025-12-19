@@ -9,6 +9,7 @@ import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
 import { userFacingToolSummary } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
+import { sanitizeToolMetadataForUI } from "@/lib/toolSanitize";
 import {
   ToolArgumentsPanel,
   ToolResultPanel,
@@ -40,6 +41,10 @@ export function ToolOutputCard({
   attachments,
   status,
 }: ToolOutputCardProps) {
+  const sanitizedMetadata = useMemo(
+    () => sanitizeToolMetadataForUI(toolName, metadata ?? null) ?? null,
+    [toolName, metadata],
+  );
   const hasResult = Boolean(result && result.trim().length > 0);
   const hasParameters = Boolean(
     parameters && Object.keys(parameters).length > 0,
@@ -88,37 +93,21 @@ export function ToolOutputCard({
     return typeof duration === "number" && duration > 0 ? duration : null;
   }, [duration, elapsedMs, resolvedStatus]);
 
-  const previewText = useMemo(() => {
-    if (error) return error;
-    if (result) {
-      const summary = userFacingToolSummary({
-        toolName,
-        result,
-        error: null,
-        metadata: (metadata as Record<string, any>) ?? null,
-        attachments: (attachments as any) ?? null,
-      });
-      if (summary) {
-        return summary;
-      }
-      const trimmed = result.trim();
-      return trimmed.length > 100 ? trimmed.slice(0, 100) + "..." : trimmed;
-    }
-    // Fallback to params
-    return formatParams(parameters, toolName) || "";
-  }, [error, result, parameters, toolName, metadata, attachments]);
-
   const attachmentCount = useMemo(
     () => (attachments ? Object.keys(attachments).length : 0),
     [attachments],
   );
 
   const hasMetadata =
-    Boolean(metadata) &&
-    typeof metadata === "object" &&
-    Object.keys(metadata ?? {}).length > 0;
+    Boolean(sanitizedMetadata) &&
+    typeof sanitizedMetadata === "object" &&
+    Object.keys(sanitizedMetadata ?? {}).length > 0;
   const showBody =
-    hasResult || hasParameters || hasError || hasMetadata || attachmentCount > 0;
+    hasResult ||
+    hasParameters ||
+    hasError ||
+    hasMetadata ||
+    attachmentCount > 0;
 
   const formattedArguments = useMemo(() => {
     if (!parameters || Object.keys(parameters).length === 0) {
@@ -136,11 +125,11 @@ export function ToolOutputCard({
       return "";
     }
     try {
-      return JSON.stringify(metadata, null, 2);
+      return JSON.stringify(sanitizedMetadata, null, 2);
     } catch {
-      return String(metadata);
+      return String(sanitizedMetadata);
     }
-  }, [hasMetadata, metadata]);
+  }, [hasMetadata, sanitizedMetadata]);
 
   const toggleLabel = isExpanded
     ? t("tool.toggle.collapse")
@@ -157,21 +146,10 @@ export function ToolOutputCard({
     }
   }, [resolvedStatus]);
 
-  const timestampLabel = useMemo(() => {
-    if (!timestamp) {
-      return null;
-    }
-    const parsed = new Date(timestamp);
-    if (Number.isNaN(parsed.getTime())) {
-      return timestamp;
-    }
-    return parsed.toISOString().slice(11, 19);
-  }, [timestamp]);
-
   return (
     <div
       className="group mb-2"
-      data-testid={`tool-output-card-${normalizedToolName.replace(/\s+/g, '-')}`}
+      data-testid={`tool-output-card-${normalizedToolName.replace(/\s+/g, "-")}`}
     >
       <button
         type="button"
@@ -180,7 +158,7 @@ export function ToolOutputCard({
         data-testid="tool-output-header"
         title={toggleLabel}
         className={cn(
-          "flex w-full items-start gap-3 px-3 py-2 text-left",
+          "flex items-center gap-2 px-1 py-0.5 text-left",
           "text-[13px] leading-snug",
           "cursor-pointer select-none rounded-md border border-border/40",
           "bg-secondary/40 transition-colors hover:bg-secondary/60",
@@ -192,7 +170,7 @@ export function ToolOutputCard({
       >
         <div
           className={cn(
-            "relative mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md border border-border/60 bg-background/40",
+            "relative flex h-6 w-6 flex-none items-center justify-center rounded-md",
             resolvedStatus === "running" &&
               "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
             resolvedStatus === "failed" &&
@@ -207,30 +185,13 @@ export function ToolOutputCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-3">
             <span
-              className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight"
+              className="min-w-0 flex-1 truncate text-[13px] tracking-tight"
               data-testid="tool-name"
             >
               {displayToolName}
             </span>
 
             <div className="flex flex-none flex-wrap items-center justify-end gap-2">
-              <Badge
-                variant={statusBadgeVariant}
-                className="rounded-md px-2 py-0.5 text-[10px]"
-              >
-                {resolvedStatus === "running" ? (
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                ) : null}
-                {statusLabel}
-              </Badge>
-              {typeof displayDurationMs === "number" && displayDurationMs > 0 && (
-                <Badge
-                  variant="outline"
-                  className="rounded-md px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground"
-                >
-                  {formatDuration(displayDurationMs)}
-                </Badge>
-              )}
               {attachmentCount > 0 && (
                 <Badge
                   variant="secondary"
@@ -242,24 +203,12 @@ export function ToolOutputCard({
             </div>
           </div>
 
-          {previewText ? (
-            <p
-              className="line-clamp-2 text-[12px] leading-snug text-muted-foreground/70"
-              data-testid="tool-preview"
-            >
-              {previewText}
-            </p>
-          ) : null}
-
-          {(timestamp || (debugMode && callId)) && (
-            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted-foreground/60">
+          {debugMode && callId && (
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] tabular-nums text-muted-foreground/60">
               {debugMode && callId ? (
                 <span>
                   {t("events.toolCall.id")}: {callId}
                 </span>
-              ) : null}
-              {timestampLabel ? (
-                <span>{timestampLabel}</span>
               ) : null}
             </p>
           )}
@@ -267,7 +216,7 @@ export function ToolOutputCard({
 
         <ChevronRight
           className={cn(
-            "mt-1 h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
+            "h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
             isExpanded && "rotate-90",
           )}
           data-testid="tool-expand-icon"
@@ -300,7 +249,7 @@ export function ToolOutputCard({
                   copyErrorLabel={t("events.toolCall.copyError")}
                   copiedLabel={t("events.toolCall.copied")}
                   attachments={attachments}
-                  metadata={(metadata as Record<string, any>) ?? null}
+                  metadata={(sanitizedMetadata as Record<string, any>) ?? null}
                 />
               )}
 
@@ -326,7 +275,7 @@ function formatParams(
   const entries = Object.entries(parameters);
   if (entries.length === 0) return null;
 
-  if (toolName === "run_command" || toolName === 'bash') {
+  if (toolName === "run_command" || toolName === "bash") {
     return (parameters.command as string) || null;
   }
 
@@ -337,6 +286,6 @@ function formatParams(
 }
 
 function formatParamValue(value: unknown): string {
-  if (typeof value === 'string') return value;
+  if (typeof value === "string") return value;
   return JSON.stringify(value);
 }

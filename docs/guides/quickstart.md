@@ -1,7 +1,7 @@
-# Alex / Spinner Quickstart
+# elephant.ai Quickstart
 > Last updated: 2025-12-14
 
-This guide gets you from `git clone` to running the CLI/TUI, server, and web UI with the **single runtime config system** described in `docs/reference/CONFIG.md`.
+This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and web UI with the **single runtime config system** described in `docs/reference/CONFIG.md`.
 
 ---
 

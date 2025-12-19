@@ -135,7 +135,7 @@ export function TimelineStepList({
                   {step.title}
                 </p>
                 {step.status === 'active' && (
-                  <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-primary animate-pulse">
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-primary animate-pulse">
                     <Loader2 className="w-3 h-3 animate-spin" /> {meta.label}
                   </span>
                 )}

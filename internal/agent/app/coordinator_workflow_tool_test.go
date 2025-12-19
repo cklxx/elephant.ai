@@ -52,6 +52,36 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		switch callCount {
 		case 1:
 			return &ports.CompletionResponse{
+				Content: "执行一次工具调用并返回结果。",
+				ToolCalls: []ports.ToolCall{{
+					ID:   "call-plan",
+					Name: "plan",
+					Arguments: map[string]any{
+						"run_id":          "test-run",
+						"overall_goal_ui": "执行 echo 并返回结果。",
+						"complexity":      "simple",
+					},
+				}},
+				StopReason: "tool_calls",
+				Usage:      ports.TokenUsage{TotalTokens: 11},
+			}, nil
+		case 2:
+			return &ports.CompletionResponse{
+				Content: "调用 echo 并返回 note.txt。",
+				ToolCalls: []ports.ToolCall{{
+					ID:   "call-clearify",
+					Name: "clearify",
+					Arguments: map[string]any{
+						"run_id":       "test-run",
+						"task_id":      "task-1",
+						"task_goal_ui": "调用 echo 并返回 note.txt。",
+					},
+				}},
+				StopReason: "tool_calls",
+				Usage:      ports.TokenUsage{TotalTokens: 7},
+			}, nil
+		case 3:
+			return &ports.CompletionResponse{
 				Content: "I will call a tool",
 				ToolCalls: []ports.ToolCall{{
 					ID:   "call-1",
@@ -70,18 +100,30 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 
 	registry := &mocks.MockToolRegistry{
 		GetFunc: func(name string) (ports.ToolExecutor, error) {
-			if name != "echo" {
+			switch name {
+			case "plan":
+				return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					goal, _ := call.Arguments["overall_goal_ui"].(string)
+					return &ports.ToolResult{CallID: call.ID, Content: goal}, nil
+				}}, nil
+			case "clearify":
+				return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					goal, _ := call.Arguments["task_goal_ui"].(string)
+					return &ports.ToolResult{CallID: call.ID, Content: goal, Metadata: map[string]any{"task_id": "task-1"}}, nil
+				}}, nil
+			case "echo":
+				return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					return &ports.ToolResult{
+						CallID:  call.ID,
+						Content: "echo: " + fmt.Sprint(call.Arguments["text"]),
+						Attachments: map[string]ports.Attachment{
+							"note.txt": {Name: "note.txt", MediaType: "text/plain", Data: "aGVsbG8=", Source: call.Name},
+						},
+					}, nil
+				}}, nil
+			default:
 				return nil, fmt.Errorf("tool %s not found", name)
 			}
-			return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-				return &ports.ToolResult{
-					CallID:  call.ID,
-					Content: "echo: " + fmt.Sprint(call.Arguments["text"]),
-					Attachments: map[string]ports.Attachment{
-						"note.txt": {Name: "note.txt", MediaType: "text/plain", Data: "aGVsbG8=", Source: call.Name},
-					},
-				}, nil
-			}}, nil
 		},
 		ListFunc: func() []ports.ToolDefinition { return []ports.ToolDefinition{{Name: "echo"}} },
 	}
@@ -100,7 +142,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		Config{
 			LLMProvider:   "mock",
 			LLMModel:      "tool-e2e",
-			MaxIterations: 3,
+			MaxIterations: 6,
 			Temperature:   0.2,
 		},
 	)
@@ -123,7 +165,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		nodes[node.ID] = node
 	}
 
-	for _, id := range []string{"prepare", "execute", "react:context", "react:iter:1:think", "react:iter:1:tools", "react:iter:1:tool:call-1", "react:finalize"} {
+	for _, id := range []string{"prepare", "execute", "react:context", "react:iter:3:think", "react:iter:3:tools", "react:iter:3:tool:call-1", "react:finalize"} {
 		if node, ok := nodes[id]; !ok || node.Status != workflow.NodeStatusSucceeded {
 			t.Fatalf("expected node %s to succeed (found=%v, status=%s)", id, ok, node.Status)
 		}
@@ -149,7 +191,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		if stepDesc == "" {
 			stepDesc = env.NodeID
 		}
-		if strings.Contains(stepDesc, "react:iter:1:tool:call-1") {
+		if strings.Contains(stepDesc, "react:iter:3:tool:call-1") {
 			hasToolStep = true
 			rawWorkflow, ok := env.Payload["workflow"]
 			if !ok || rawWorkflow == nil {
@@ -168,8 +210,8 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 					iter = int(floatIter)
 				}
 			}
-			if iter != 1 {
-				t.Fatalf("expected iteration 1 on tool completion, got %d", iter)
+			if iter != 3 {
+				t.Fatalf("expected iteration 3 on tool completion, got %d", iter)
 			}
 		}
 	}

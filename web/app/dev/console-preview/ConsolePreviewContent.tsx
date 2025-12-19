@@ -107,7 +107,7 @@ const orchestrationSubagents: SubagentMission[] = [
       {
         id: 'ux-tool-2',
         label: '提炼 badge 体系',
-        summary: '把竞品的状态颜色映射到 Spinner token。',
+        summary: '把竞品的状态颜色映射到 elephant.ai token。',
         detail: '输出 primary/muted/emphasis 三档对比表。',
         duration: '01:45',
         status: 'completed',

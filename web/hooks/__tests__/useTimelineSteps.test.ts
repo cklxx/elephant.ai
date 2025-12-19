@@ -4,33 +4,7 @@ import { useTimelineSteps } from '../useTimelineSteps';
 import { AnyAgentEvent } from '@/lib/types';
 
 describe('useTimelineSteps', () => {
-  describe('Research Plan Steps', () => {
-    it('should create planned steps from workflow.plan.created', () => {
-      const events: AnyAgentEvent[] = [
-        {
-          event_type: 'workflow.plan.created',
-          timestamp: '2025-01-01T09:59:59Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          steps: ['Analyze the codebase', 'Implement fix', '总结'],
-        } as AnyAgentEvent,
-      ];
-
-      const { result } = renderHook(() => useTimelineSteps(events));
-
-      expect(result.current).toHaveLength(3);
-      expect(result.current[0]).toMatchObject({
-        id: 'step-0',
-        title: 'Analyze the codebase',
-        status: 'planned',
-      });
-      expect(result.current[2]).toMatchObject({
-        id: 'step-2',
-        title: '总结',
-        status: 'planned',
-      });
-    });
-
+  describe('Step Index Events', () => {
     it('should create steps from step_started events', () => {
       const events: AnyAgentEvent[] = [
         {
@@ -362,37 +336,23 @@ describe('useTimelineSteps', () => {
       expect(result.current[1].title).toContain('把 TerminalOutput 改名');
     });
 
-    it('should ignore stage nodes when a plan exists', () => {
+    it('should return empty when there are no explicit steps', () => {
       const events: AnyAgentEvent[] = [
         {
-          event_type: 'workflow.plan.created',
+          event_type: 'workflow.tool.completed',
           timestamp: '2025-01-01T09:59:59Z',
           session_id: 'test-123',
           agent_level: 'core',
-          steps: ['Step A', '总结'],
-        } as AnyAgentEvent,
-        {
-          event_type: 'workflow.node.started',
-          timestamp: '2025-01-01T10:00:00Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          step_index: 0,
-          step_description: 'prepare',
-        } as AnyAgentEvent,
-        {
-          event_type: 'workflow.node.started',
-          timestamp: '2025-01-01T10:00:01Z',
-          session_id: 'test-123',
-          agent_level: 'core',
-          step_index: 0,
-          step_description: 'Step A',
+          task_id: 'task-1',
+          call_id: 'call-plan',
+          tool_name: 'plan',
+          result: '做一次无步骤的执行。',
+          duration: 1,
         } as AnyAgentEvent,
       ];
 
       const { result } = renderHook(() => useTimelineSteps(events));
-      expect(result.current).toHaveLength(2);
-      expect(result.current[0].title).toBe('Step A');
-      expect(result.current[1].title).toBe('总结');
+      expect(result.current).toHaveLength(0);
     });
   });
 });

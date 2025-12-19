@@ -666,51 +666,6 @@ func messageMaterialOrigin(msg Message) string {
 	return "message_history"
 }
 
-func isPreloadedContextMessage(msg Message) bool {
-	if len(msg.Metadata) == 0 {
-		return false
-	}
-	value, ok := msg.Metadata["rag_preload"]
-	if !ok {
-		return false
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
-		return err == nil && parsed
-	case float64:
-		return v != 0
-	case int:
-		return v != 0
-	case int64:
-		return v != 0
-	case uint:
-		return v != 0
-	case uint64:
-		return v != 0
-	default:
-		return false
-	}
-}
-
-func isCurrentPreloadedContextMessage(msg Message, taskID string) bool {
-	if taskID == "" || !isPreloadedContextMessage(msg) {
-		return false
-	}
-	value, ok := msg.Metadata["rag_preload_task_id"]
-	if !ok {
-		return false
-	}
-	switch v := value.(type) {
-	case string:
-		return strings.TrimSpace(v) == taskID
-	default:
-		return false
-	}
-}
-
 // ensureAttachmentStore initializes the attachment map on the task state.
 func ensureAttachmentStore(state *TaskState) {
 	if state.Attachments == nil {
@@ -814,32 +769,6 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 	builder.WriteString("\nUse the placeholders verbatim to work with these attachments in follow-up steps.")
 
 	return strings.TrimSpace(builder.String())
-}
-
-func findAttachmentCatalogMessageIndex(state *TaskState) int {
-	if state == nil || len(state.Messages) == 0 {
-		return -1
-	}
-	for i := len(state.Messages) - 1; i >= 0; i-- {
-		msg := state.Messages[i]
-		if msg.Metadata == nil {
-			continue
-		}
-		if flag, ok := msg.Metadata[attachmentCatalogMetadataKey]; ok {
-			if enabled, ok := flag.(bool); ok && enabled {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func removeAttachmentCatalogMessage(state *TaskState) {
-	idx := findAttachmentCatalogMessageIndex(state)
-	if idx < 0 {
-		return
-	}
-	state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
 }
 
 func attachmentReferenceValue(att ports.Attachment) string {

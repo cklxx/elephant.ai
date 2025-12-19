@@ -497,16 +497,10 @@ func sanitizeWorkflowSnapshot(snapshot *workflow.WorkflowSnapshot) map[string]in
 		return nil
 	}
 
-	nodes := make([]map[string]interface{}, 0, len(snapshot.Nodes))
-	for _, node := range snapshot.Nodes {
-		nodes = append(nodes, sanitizeWorkflowNode(node))
-	}
-
 	sanitized := map[string]interface{}{
 		"id":      snapshot.ID,
 		"phase":   snapshot.Phase,
 		"order":   snapshot.Order,
-		"nodes":   nodes,
 		"summary": snapshot.Summary,
 	}
 

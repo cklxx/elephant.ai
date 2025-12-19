@@ -92,7 +92,7 @@ export function SectionHeader({
     >
       <div className="flex flex-col gap-2">
         {overline ? (
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground">
             {overline}
           </p>
         ) : null}

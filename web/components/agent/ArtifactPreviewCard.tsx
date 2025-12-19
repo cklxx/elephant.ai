@@ -98,7 +98,7 @@ export function ArtifactPreviewCard({
         <div className="flex-1 min-w-0 grid gap-0.5">
           <h4 className="text-sm font-medium text-foreground truncate">{displayName}</h4>
           <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
-            <span className="uppercase">{formatLabel}</span>
+            <span>{formatLabel}</span>
             {attachment.size && (
               <>
                 <span>•</span>

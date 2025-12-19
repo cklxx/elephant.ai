@@ -1,6 +1,6 @@
-# ALEX.md
+# elephant.ai.md
 
-This file provides guidance to Alex Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to elephant.ai (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 

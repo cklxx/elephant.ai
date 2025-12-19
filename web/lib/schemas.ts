@@ -93,7 +93,7 @@ export const WorkflowSnapshotSchema = z.object({
   id: z.string(),
   phase: z.enum(['pending', 'running', 'succeeded', 'failed']),
   order: z.array(z.string()),
-  nodes: z.array(WorkflowNodeSnapshotSchema),
+  nodes: z.array(WorkflowNodeSnapshotSchema).optional(),
   started_at: z.string().optional(),
   completed_at: z.string().optional(),
   duration: z.number().optional(),
@@ -107,11 +107,6 @@ const WorkflowLifecycleUpdatedEventSchema = BaseAgentEventSchema.extend({
   phase: z.enum(['pending', 'running', 'succeeded', 'failed']).optional(),
   node: WorkflowNodeSnapshotSchema.optional(),
   workflow: WorkflowSnapshotSchema.optional(),
-});
-
-const WorkflowPlanCreatedEventSchema = BaseAgentEventSchema.extend({
-  event_type: z.literal('workflow.plan.created'),
-  steps: z.array(z.string()).default([]),
 });
 
 const WorkflowNodeStartedEventSchema = BaseAgentEventSchema.extend({
@@ -291,7 +286,6 @@ const EVENT_TYPE_ALIASES: Record<string, WorkflowEventType> = {};
 
 const EventSchemas = [
   WorkflowLifecycleUpdatedEventSchema,
-  WorkflowPlanCreatedEventSchema,
   WorkflowNodeStartedEventSchema,
   WorkflowNodeCompletedEventSchema,
   WorkflowNodeFailedEventSchema,

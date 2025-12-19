@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { EventLine } from '../EventLine';
 import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
@@ -42,7 +43,8 @@ describe('SubagentEventLine', () => {
     expect(screen.getByText('▸ bash(ls)')).toBeInTheDocument();
   });
 
-  it('renders tool output card for subagent completion', () => {
+  it('renders tool output card for subagent completion', async () => {
+    const user = userEvent.setup();
     const event: AnyAgentEvent = {
       event_type: 'workflow.tool.completed',
       agent_level: 'subagent',
@@ -63,7 +65,8 @@ describe('SubagentEventLine', () => {
 
     expect(screen.getByText('Subagent Task 2/2')).toBeInTheDocument();
     expect(screen.getByText('Run project unit tests')).toBeInTheDocument();
-    expect(screen.getByText(/Execution successful/i)).toBeInTheDocument();
+    await user.click(screen.getByTestId('tool-output-header'));
+    expect(await screen.findByText(/Execution successful/i)).toBeInTheDocument();
   });
 
   it('shows progress and stats badges for subagent summary events', () => {

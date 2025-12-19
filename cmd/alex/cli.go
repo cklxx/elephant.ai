@@ -84,7 +84,7 @@ func (c *CLI) showUsage() {
 
 func printUsage() {
 	fmt.Printf(`
-Spinner - Fragment-to-Fabric Agent Console (v%s)
+elephant.ai - Fragment-to-Fabric Agent Console (v%s)
 
 Usage:
   alex <task>                    Execute a task with streaming output
@@ -132,7 +132,7 @@ Features:
   ✓ Code search and indexing
 
 Architecture: Hexagonal (Ports & Adapters)
-Documentation: Spinner architecture details (docs/architecture/ALEX_DETAILED_ARCHITECTURE.md)
+Documentation: elephant.ai architecture details (docs/architecture/ALEX_DETAILED_ARCHITECTURE.md)
 `, appVersion())
 }
 

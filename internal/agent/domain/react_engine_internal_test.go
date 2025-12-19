@@ -648,8 +648,8 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	state.Attachments["second.png"] = ports.Attachment{Name: "second.png", Description: "refined result"}
 
 	engine.updateAttachmentCatalogMessage(state)
-	if len(state.Messages) != initialLen {
-		t.Fatalf("expected catalog refresh to keep message count stable, got %d vs %d", len(state.Messages), initialLen)
+	if len(state.Messages) != initialLen+1 {
+		t.Fatalf("expected catalog refresh to append a new note, got %d vs %d", len(state.Messages), initialLen)
 	}
 
 	note := state.Messages[len(state.Messages)-1]
@@ -657,15 +657,15 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 		t.Fatalf("expected refreshed catalog to include new attachment, got %q", note.Content)
 	}
 
-	// Ensure only one catalog message exists.
+	// Ensure catalog notes are append-only.
 	count := 0
 	for _, msg := range state.Messages {
 		if msg.Metadata != nil && msg.Metadata[attachmentCatalogMetadataKey] == true {
 			count++
 		}
 	}
-	if count != 1 {
-		t.Fatalf("expected a single catalog note, found %d", count)
+	if count != 2 {
+		t.Fatalf("expected two catalog notes, found %d", count)
 	}
 }
 
@@ -678,7 +678,7 @@ func TestReactRuntimeAttachesReferencedTaskAttachmentsToUserMessage(t *testing.T
 	}
 
 	task := "Analyze [diagram.png]"
-	runtime := newReactRuntime(engine, context.Background(), task, state, Services{})
+	runtime := newReactRuntime(engine, context.Background(), task, state, Services{}, nil)
 	runtime.prepareContext()
 
 	var userMsg *Message

@@ -29,14 +29,12 @@ import { useI18n } from '@/lib/i18n';
 import { Sidebar, Header, ContentArea } from '@/components/layout';
 import { TaskInput } from '@/components/agent/TaskInput';
 import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
-import { useTimelineSteps } from '@/hooks/useTimelineSteps';
 import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
 import { eventMatches } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { PlanProgressView } from '@/components/agent/PlanProgressView';
 import {
   AttachmentPanel,
   collectAttachmentItems,
@@ -523,16 +521,10 @@ export function ConversationPageContent() {
           >
             {t('console.empty.title')}
           </p>
-          <p className="text-sm text-muted-foreground" data-testid="conversation-empty-description">
-            {t('console.empty.description')}
-          </p>
-          <p className="text-xs text-muted-foreground/80" data-testid="conversation-empty-prompt">
-            {t('console.empty.prompt')}
-          </p>
         </div>
 
         <div className="mt-6">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
             {t('console.quickstart.title')}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -558,8 +550,6 @@ export function ConversationPageContent() {
       </div>
     </div>
   );
-
-  const timelineSteps = useTimelineSteps(events);
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
@@ -710,8 +700,6 @@ export function ConversationPageContent() {
                 <div className="flex min-h-[60vh] items-center justify-center">
                   {emptyState}
                 </div>
-              ) : timelineSteps.length > 0 ? (
-                <PlanProgressView events={events} />
               ) : (
                 <LazyConversationEventStream
                   events={events}

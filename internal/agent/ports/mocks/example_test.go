@@ -43,7 +43,7 @@ func Example_basicScenario() {
 	fmt.Printf("Stop Reason: %s\n", result.StopReason)
 	fmt.Printf("Has Answer: %v\n", result.Answer != "")
 	// Output:
-	// Iterations: 2
+	// Iterations: 4
 	// Stop Reason: final_answer
 	// Has Answer: true
 }
@@ -72,8 +72,8 @@ func Example_multipleToolCalls() {
 	fmt.Printf("Tools executed: %d\n", len(state.ToolResults))
 	fmt.Printf("Iterations: %d\n", result.Iterations)
 	// Output:
-	// Tools executed: 3
-	// Iterations: 4
+	// Tools executed: 5
+	// Iterations: 6
 }
 
 // Example_parallelToolCalls demonstrates parallel tool execution
@@ -100,8 +100,8 @@ func Example_parallelToolCalls() {
 	fmt.Printf("Parallel tools: %d\n", len(state.ToolResults))
 	fmt.Printf("Iterations: %d\n", result.Iterations)
 	// Output:
-	// Parallel tools: 3
-	// Iterations: 2
+	// Parallel tools: 5
+	// Iterations: 6
 }
 
 // Example_errorHandling demonstrates error handling in tool execution
@@ -125,11 +125,18 @@ func Example_errorHandling() {
 		services,
 	)
 
-	fmt.Printf("Has error: %v\n", state.ToolResults[0].Error != nil)
+	hasError := false
+	for _, res := range state.ToolResults {
+		if res.Error != nil {
+			hasError = true
+			break
+		}
+	}
+	fmt.Printf("Has error: %v\n", hasError)
 	fmt.Printf("Iterations: %d\n", result.Iterations)
 	// Output:
 	// Has error: true
-	// Iterations: 3
+	// Iterations: 5
 }
 
 // TestScenarioCustomization shows how to customize scenarios for specific tests

@@ -144,7 +144,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums text-muted-foreground/60 transition-opacity">
+        <div className="flex items-center gap-2 text-[11px] tabular-nums text-muted-foreground/60 transition-opacity">
           {status === 'running' ? (
             runningDurationLabel ? (
               <span data-testid="tool-call-duration">{runningDurationLabel}</span>
@@ -172,7 +172,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
             </div>
           )}
 
-          <div className="text-sm font-mono bg-muted/30 rounded-lg overflow-hidden border border-border/40 text-xs">
+          <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/30 text-xs">
             {panels.map((panel, i) => (
               <div key={i} className="[&>div]:border-none [&>div]:shadow-none [&>div]:bg-transparent [&_pre]:p-3 [&_pre]:text-xs">
                 {panel}
