@@ -19,7 +19,6 @@ import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
-import { isDebugModeEnabled } from "@/lib/debugMode";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -34,7 +33,6 @@ export const EventLine = React.memo(function EventLine({
   event,
   showSubagentContext = true,
 }: EventLineProps) {
-  const debugMode = isDebugModeEnabled();
   const isSubtaskEvent = isSubagentLike(event);
 
   if (isSubtaskEvent) {
@@ -108,6 +106,24 @@ export const EventLine = React.memo(function EventLine({
     const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
+    const toolName = (completeEvent.tool_name ?? "").toLowerCase();
+    if (toolName === "plan") {
+      return (
+        <PlanGoalCard
+          goal={completeEvent.result}
+          timestamp={completeEvent.timestamp}
+        />
+      );
+    }
+    if (toolName === "clearify") {
+      return (
+        <ClearifyTaskCard
+          result={completeEvent.result}
+          metadata={completeEvent.metadata}
+          timestamp={completeEvent.timestamp}
+        />
+      );
+    }
     return (
       <div data-testid="event-workflow.tool.completed" className="py-1">
         <ToolOutputCard
@@ -127,32 +143,67 @@ export const EventLine = React.memo(function EventLine({
 
   // Task complete
   if (event.event_type === "workflow.result.final") {
-    return <TaskCompleteCard event={event as WorkflowResultFinalEvent} />;
+    return (
+      <div className="py-2" data-testid="event-workflow.result.final">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+            Summary
+          </span>
+          <span className="text-[10px] text-muted-foreground/40">
+            {formatTimestamp(event.timestamp)}
+          </span>
+        </div>
+        <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
+      </div>
+    );
   }
 
-  // Think complete - convert to TaskCompleteCard format
+  // Assistant log (ReAct)
   if (event.event_type === "workflow.node.output.summary") {
-    if (!debugMode) {
-      return null;
-    }
     const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
-    if (thinkEvent.content) {
-      // Mock event for display
-      const mockWorkflowResultFinalEvent: WorkflowResultFinalEvent = {
-        event_type: "workflow.result.final",
-        timestamp: thinkEvent.timestamp,
-        agent_level: thinkEvent.agent_level,
-        session_id: thinkEvent.session_id,
-        task_id: thinkEvent.task_id,
-        parent_task_id: thinkEvent.parent_task_id,
-        final_answer: thinkEvent.content,
-        attachments: thinkEvent.attachments,
-        total_iterations: thinkEvent.iteration ?? 0,
-        total_tokens: 0,
-        stop_reason: "workflow.node.output.summary",
-        duration: 0,
-      };
-      return <TaskCompleteCard event={mockWorkflowResultFinalEvent} />;
+    if (thinkEvent.content && thinkEvent.content.trim().length > 0) {
+      const hasAttachments =
+        Boolean(thinkEvent.attachments) &&
+        typeof thinkEvent.attachments === "object" &&
+        Object.keys(thinkEvent.attachments ?? {}).length > 0;
+      if (hasAttachments) {
+        const mockWorkflowResultFinalEvent: WorkflowResultFinalEvent = {
+          event_type: "workflow.result.final",
+          timestamp: thinkEvent.timestamp,
+          agent_level: thinkEvent.agent_level,
+          session_id: thinkEvent.session_id,
+          task_id: thinkEvent.task_id,
+          parent_task_id: thinkEvent.parent_task_id,
+          final_answer: thinkEvent.content,
+          attachments: thinkEvent.attachments,
+          total_iterations: thinkEvent.iteration ?? 0,
+          total_tokens: 0,
+          stop_reason: "workflow.node.output.summary",
+          duration: 0,
+          is_streaming: false,
+          stream_finished: true,
+        };
+
+        return (
+          <div className="py-2" data-testid="event-workflow.node.output.summary">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+                ALEX
+              </span>
+              <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+                {formatTimestamp(thinkEvent.timestamp)}
+              </span>
+            </div>
+            <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
+          </div>
+        );
+      }
+      return (
+        <AssistantLogCard
+          content={thinkEvent.content}
+          timestamp={thinkEvent.timestamp}
+        />
+      );
     }
   }
 
@@ -166,7 +217,7 @@ export const EventLine = React.memo(function EventLine({
   }
   return (
     <div className={cn("text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90", style.content)}>
-      <span className="text-[10px] font-mono opacity-40 shrink-0 w-12 pt-0.5">{timestamp}</span>
+      <span className="text-[10px] opacity-40 shrink-0 w-12 pt-0.5 tabular-nums">{timestamp}</span>
       <div className="flex-1 leading-relaxed break-words">{content}</div>
     </div>
   );
@@ -186,23 +237,37 @@ function SubagentEventLine({
     const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
+    const toolName = (completeEvent.tool_name ?? "").toLowerCase();
     return (
       <div
         className="space-y-1 py-1"
         data-testid={`event-subagent-${event.event_type}`}
       >
         {showContext && <SubagentHeader context={context} />}
-        <ToolOutputCard
-          toolName={completeEvent.tool_name}
-          parameters={completeEvent.arguments}
-          result={completeEvent.result}
-          error={completeEvent.error}
-          duration={completeEvent.duration}
-          callId={completeEvent.call_id}
-          metadata={completeEvent.metadata}
-          attachments={completeEvent.attachments ?? undefined}
-          status={completeEvent.error ? "failed" : "completed"}
-        />
+        {toolName === "plan" ? (
+          <PlanGoalCard
+            goal={completeEvent.result}
+            timestamp={completeEvent.timestamp}
+          />
+        ) : toolName === "clearify" ? (
+          <ClearifyTaskCard
+            result={completeEvent.result}
+            metadata={completeEvent.metadata}
+            timestamp={completeEvent.timestamp}
+          />
+        ) : (
+          <ToolOutputCard
+            toolName={completeEvent.tool_name}
+            parameters={completeEvent.arguments}
+            result={completeEvent.result}
+            error={completeEvent.error}
+            duration={completeEvent.duration}
+            callId={completeEvent.call_id}
+            metadata={completeEvent.metadata}
+            attachments={completeEvent.attachments ?? undefined}
+            status={completeEvent.error ? "failed" : "completed"}
+          />
+        )}
       </div>
     );
   }
@@ -233,8 +298,99 @@ function SubagentEventLine({
     >
       {showContext && <SubagentHeader context={context} />}
       <div className={cn("text-sm flex gap-3 text-muted-foreground/80", style.content)}>
-        <span className="text-[10px] font-mono opacity-40 shrink-0 w-12">{formatTimestamp(event.timestamp)}</span>
+        <span className="text-[10px] opacity-40 shrink-0 w-12 tabular-nums">{formatTimestamp(event.timestamp)}</span>
         <div className="flex-1">{content}</div>
+      </div>
+    </div>
+  );
+}
+
+function PlanGoalCard({ goal, timestamp }: { goal: string; timestamp?: string }) {
+  return (
+    <div className="py-2" data-testid="event-ui-plan">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+          Goal
+        </span>
+        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+          {formatTimestamp(timestamp)}
+        </span>
+      </div>
+      <div className="text-base font-medium text-foreground whitespace-pre-wrap leading-relaxed">
+        {goal}
+      </div>
+    </div>
+  );
+}
+
+function ClearifyTaskCard({
+  result,
+  metadata,
+  timestamp,
+}: {
+  result: string;
+  metadata?: Record<string, any>;
+  timestamp?: string;
+}) {
+  const taskGoalUI =
+    typeof metadata?.task_goal_ui === "string" && metadata.task_goal_ui.trim()
+      ? String(metadata.task_goal_ui).trim()
+      : result.split(/\r?\n/)[0]?.trim() ?? "";
+  const successCriteria = Array.isArray(metadata?.success_criteria)
+    ? (metadata?.success_criteria as unknown[])
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter((item) => item.length > 0)
+    : [];
+  const needsUserInput = metadata?.needs_user_input === true;
+  const questionToUser =
+    typeof metadata?.question_to_user === "string" && metadata.question_to_user.trim()
+      ? String(metadata.question_to_user).trim()
+      : null;
+
+  return (
+    <div className="py-2 pl-4 border-l-2 border-primary/10" data-testid="event-ui-clearify">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+          Task
+        </span>
+        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+          {formatTimestamp(timestamp)}
+        </span>
+      </div>
+      <div className="text-sm font-medium text-foreground whitespace-pre-wrap leading-relaxed">
+        {taskGoalUI}
+      </div>
+
+      {successCriteria.length > 0 && (
+        <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground/80 space-y-1">
+          {successCriteria.map((crit) => (
+            <li key={crit}>{crit}</li>
+          ))}
+        </ul>
+      )}
+
+      {needsUserInput && questionToUser ? (
+        <div className="mt-2 rounded-md border border-amber-200/60 bg-amber-50/40 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-100">
+          {questionToUser}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AssistantLogCard({ content, timestamp }: { content: string; timestamp?: string }) {
+  return (
+    <div className="py-2" data-testid="event-workflow.node.output.summary">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+          ALEX
+        </span>
+        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+          {formatTimestamp(timestamp)}
+        </span>
+      </div>
+      <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+        {content}
       </div>
     </div>
   );

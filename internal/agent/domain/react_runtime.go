@@ -23,6 +23,17 @@ type reactRuntime struct {
 	startTime time.Time
 	finalizer sync.Once
 	finalize  sync.Once
+	prepare   func()
+
+	// UI orchestration state (Plan → Clearify → ReAct → Finalize).
+	runID           string
+	planEmitted     bool
+	planVersion     int
+	currentTaskID   string
+	clearifyEmitted map[string]bool
+	pendingTaskID   string
+	nextTaskSeq     int
+	pauseRequested  bool
 }
 
 type reactIteration struct {
@@ -40,8 +51,8 @@ type toolExecutionPlan struct {
 	calls     []ToolCall
 }
 
-func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, state *TaskState, services Services) *reactRuntime {
-	return &reactRuntime{
+func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, state *TaskState, services Services, prepare func()) *reactRuntime {
+	runtime := &reactRuntime{
 		engine:    engine,
 		ctx:       ctx,
 		task:      task,
@@ -49,7 +60,14 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 		services:  services,
 		tracker:   newReactWorkflow(engine.workflow),
 		startTime: engine.clock.Now(),
+		prepare:   prepare,
 	}
+	if state != nil {
+		runtime.runID = strings.TrimSpace(state.TaskID)
+	}
+	runtime.clearifyEmitted = make(map[string]bool)
+	runtime.nextTaskSeq = 1
+	return runtime
 }
 
 func (r *reactRuntime) run() (*TaskResult, error) {
@@ -77,7 +95,11 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 }
 
 func (r *reactRuntime) prepareContext() {
-	r.engine.prepareTaskContext(r.ctx, r.task, r.state)
+	if r.prepare != nil {
+		r.prepare()
+	} else {
+		r.engine.prepareUserTaskContext(r.ctx, r.task, r.state)
+	}
 	r.tracker.completeContext(workflowContextOutput(r.state))
 }
 
@@ -110,6 +132,10 @@ func (r *reactRuntime) runIteration() (*TaskResult, bool, error) {
 	iteration.executeTools()
 	iteration.observeTools()
 	iteration.finish()
+	if r.pauseRequested {
+		finalResult := r.finalizeResult("await_user_input", nil, true, nil)
+		return finalResult, true, nil
+	}
 
 	return nil, false, nil
 }
@@ -161,7 +187,128 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 		}
 	}
 
-	return r.finalizeResult("max_iterations", finalResult, false, nil), nil
+	return r.finalizeResult("max_iterations", finalResult, true, nil), nil
+}
+
+func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string) {
+	if len(calls) == 0 {
+		return false, ""
+	}
+	if len(calls) > 1 {
+		return true, "每轮仅允许 1 次工具调用。请只保留一个最关键的工具调用并重试。"
+	}
+
+	name := strings.ToLower(strings.TrimSpace(calls[0].Name))
+	switch name {
+	case "plan":
+		return false, ""
+	case "clearify":
+		if !r.planEmitted {
+			return true, r.planGatePrompt()
+		}
+		return false, ""
+	default:
+		if !r.planEmitted {
+			return true, r.planGatePrompt()
+		}
+		if r.currentTaskID == "" || !r.clearifyEmitted[r.currentTaskID] {
+			return true, r.clearifyGatePrompt()
+		}
+		return false, ""
+	}
+}
+
+func (r *reactRuntime) planGatePrompt() string {
+	runID := strings.TrimSpace(r.runID)
+	if runID == "" {
+		runID = "<run_id>"
+	}
+	return strings.TrimSpace(fmt.Sprintf(`你在调用动作工具前必须先调用 plan()。
+请先调用 plan()（仅此一个工具调用），并满足：
+- run_id: %q
+- complexity: "simple" 或 "complex"
+- overall_goal_ui: 目标/范围描述（complex 可多行；simple 必须单行）
+- internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单
+plan() 成功后再继续。`, runID))
+}
+
+func (r *reactRuntime) clearifyGatePrompt() string {
+	runID := strings.TrimSpace(r.runID)
+	if runID == "" {
+		runID = "<run_id>"
+	}
+
+	taskID := strings.TrimSpace(r.pendingTaskID)
+	if taskID == "" {
+		taskID = fmt.Sprintf("task-%d", r.nextTaskSeq)
+		r.pendingTaskID = taskID
+		r.nextTaskSeq++
+	}
+
+	return strings.TrimSpace(fmt.Sprintf(`在调用动作工具前必须先调用 clearify() 声明当前任务。
+请先调用 clearify()（仅此一个工具调用），并满足：
+- run_id: %q
+- task_id: %q
+- task_goal_ui: 描述你接下来要做的具体任务
+- success_criteria: (可选) 字符串数组
+如需用户补充信息：needs_user_input=true 并提供 question_to_user。
+clearify() 成功后再继续。`, runID, taskID))
+}
+
+func (r *reactRuntime) injectOrchestratorCorrection(content string) {
+	if r == nil || r.state == nil {
+		return
+	}
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return
+	}
+	r.state.Messages = append(r.state.Messages, Message{
+		Role:    "system",
+		Content: trimmed,
+		Source:  ports.MessageSourceSystemPrompt,
+	})
+}
+
+func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolResult) {
+	if r == nil || len(calls) == 0 || len(results) == 0 {
+		return
+	}
+	limit := len(calls)
+	if len(results) < limit {
+		limit = len(results)
+	}
+
+	for i := 0; i < limit; i++ {
+		call := calls[i]
+		result := results[i]
+		if result.Error != nil {
+			continue
+		}
+
+		name := strings.ToLower(strings.TrimSpace(call.Name))
+		switch name {
+		case "plan":
+			r.planEmitted = true
+			r.planVersion++
+		case "clearify":
+			if result.Metadata == nil {
+				continue
+			}
+			taskID, _ := result.Metadata["task_id"].(string)
+			taskID = strings.TrimSpace(taskID)
+			if taskID == "" {
+				continue
+			}
+			r.currentTaskID = taskID
+			r.clearifyEmitted[taskID] = true
+			r.pendingTaskID = ""
+
+			if needs, ok := result.Metadata["needs_user_input"].(bool); ok && needs {
+				r.pauseRequested = true
+			}
+		}
+	}
 }
 
 func (r *reactRuntime) filterValidToolCalls(toolCalls []ToolCall) []ToolCall {
@@ -221,9 +368,20 @@ func (it *reactIteration) think() error {
 		return fmt.Errorf("think step failed: %w", err)
 	}
 
+	parsedCalls := it.runtime.engine.parseToolCalls(thought, services.Parser)
+	it.runtime.engine.logger.Info("Parsed %d tool calls", len(parsedCalls))
+
+	validCalls := it.runtime.filterValidToolCalls(parsedCalls)
+	if retry, prompt := it.runtime.enforceOrchestratorGates(validCalls); retry {
+		it.runtime.injectOrchestratorCorrection(prompt)
+		tracker.completeThink(it.index, Message{}, nil, nil)
+		it.toolCalls = nil
+		it.thought = Message{}
+		return nil
+	}
+
 	it.recordThought(&thought)
-	it.toolCalls = it.runtime.engine.parseToolCalls(thought, services.Parser)
-	it.runtime.engine.logger.Info("Parsed %d tool calls", len(it.toolCalls))
+	it.toolCalls = validCalls
 
 	tracker.completeThink(it.index, thought, it.toolCalls, nil)
 
@@ -231,7 +389,7 @@ func (it *reactIteration) think() error {
 		BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:     it.index,
 		Content:       thought.Content,
-		ToolCallCount: len(thought.ToolCalls),
+		ToolCallCount: len(it.toolCalls),
 	})
 
 	it.thought = thought
@@ -311,6 +469,7 @@ func (it *reactIteration) observeTools() {
 	}
 	it.runtime.engine.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
 
+	it.runtime.updateOrchestratorState(it.plan.calls, it.toolResult)
 	it.runtime.tracker.completeTools(it.plan.iteration, it.plan.nodeID, it.toolResult, nil)
 }
 
@@ -340,7 +499,7 @@ func (it *reactIteration) handleNoTools() (*TaskResult, bool, error) {
 	}
 
 	it.runtime.engine.logger.Info("No tool calls with content - treating response as final answer")
-	finalResult := it.runtime.finalizeResult("final_answer", nil, false, nil)
+	finalResult := it.runtime.finalizeResult("final_answer", nil, true, nil)
 	return finalResult, true, nil
 }
 

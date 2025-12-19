@@ -1,10 +1,10 @@
 import {
   WorkflowToolStartedEvent,
   WorkflowToolCompletedEvent,
-  eventMatches,
 } from '@/lib/types';
 import { isWorkflowToolCompletedEvent, isWorkflowToolStartedEvent } from '@/lib/typeGuards';
 import { RendererContext } from './toolRenderers';
+import { sanitizeToolMetadataForUI } from '@/lib/toolSanitize';
 
 export type ToolCallStatus = 'running' | 'done' | 'error';
 
@@ -31,6 +31,14 @@ export function adaptToolCallForRenderer({
   const toolName = completeEvent?.tool_name ?? startEvent?.tool_name ?? event.tool_name;
   const callId = completeEvent?.call_id ?? startEvent?.call_id ?? event.call_id;
 
+  const sanitizedCompleteEvent =
+    completeEvent && completeEvent.metadata
+      ? {
+          ...completeEvent,
+          metadata: sanitizeToolMetadataForUI(toolName, completeEvent.metadata) ?? undefined,
+        }
+      : completeEvent;
+
   const streamContent =
     startEvent && typeof (startEvent as any).stream_content === 'string'
       ? ((startEvent as any).stream_content as string)
@@ -45,7 +53,7 @@ export function adaptToolCallForRenderer({
     toolName,
     context: {
       startEvent,
-      completeEvent,
+      completeEvent: sanitizedCompleteEvent,
       status,
       toolName,
       streamContent,

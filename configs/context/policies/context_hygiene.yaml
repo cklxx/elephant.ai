@@ -6,7 +6,7 @@ hard_constraints:
 soft_preferences:
   - "Reference which sections were compressed or refreshed when reporting context actions."
   - "Favor structured tables, bullet lists, or JSON for prompts so summarizers can target specific fields."
-  - "Document tool costs (tokens/time) inline so planners stay budget-aware."
+  - "Document tool costs (tokens/time) inline so the agent stays budget-aware."
 reward_hooks:
   - "Call out when proactive compaction or NOTES updates preserved critical data."
   - "Highlight cases where explicit token budgeting avoided a hard context failure."

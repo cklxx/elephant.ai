@@ -4,6 +4,7 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
+	"strings"
 )
 
 // ToolScenario represents a complete tool calling scenario for testing
@@ -12,6 +13,135 @@ type ToolScenario struct {
 	Description string
 	LLM         *MockLLMClient
 	Registry    *MockToolRegistry
+}
+
+func scenarioToolRegistry(inner func(name string) (ports.ToolExecutor, error)) *MockToolRegistry {
+	return &MockToolRegistry{
+		GetFunc: func(name string) (ports.ToolExecutor, error) {
+			switch name {
+			case "plan":
+				return newUIPlanExecutor(), nil
+			case "clearify":
+				return newUIClearifyExecutor(), nil
+			default:
+				if inner == nil {
+					return nil, fmt.Errorf("tool not found: %s", name)
+				}
+				return inner(name)
+			}
+		},
+	}
+}
+
+func newUIPlanExecutor() ports.ToolExecutor {
+	return &MockToolExecutor{
+		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+			runID, _ := call.Arguments["run_id"].(string)
+			runID = strings.TrimSpace(runID)
+			if runID == "" {
+				return &ports.ToolResult{CallID: call.ID, Content: "run_id cannot be empty", Error: fmt.Errorf("run_id cannot be empty")}, nil
+			}
+
+			goal, _ := call.Arguments["overall_goal_ui"].(string)
+			goal = strings.TrimSpace(goal)
+			if goal == "" {
+				return &ports.ToolResult{CallID: call.ID, Content: "overall_goal_ui cannot be empty", Error: fmt.Errorf("invalid overall_goal_ui")}, nil
+			}
+
+			complexity, _ := call.Arguments["complexity"].(string)
+			complexity = strings.ToLower(strings.TrimSpace(complexity))
+			if complexity != "simple" && complexity != "complex" {
+				return &ports.ToolResult{CallID: call.ID, Content: "complexity must be simple or complex", Error: fmt.Errorf("invalid complexity")}, nil
+			}
+			if complexity == "simple" && strings.ContainsAny(goal, "\r\n") {
+				return &ports.ToolResult{CallID: call.ID, Content: "overall_goal_ui must be single-line when complexity=simple", Error: fmt.Errorf("invalid overall_goal_ui")}, nil
+			}
+
+			metadata := map[string]any{
+				"run_id":          runID,
+				"overall_goal_ui": goal,
+				"complexity":      complexity,
+			}
+			if internalPlan, ok := call.Arguments["internal_plan"]; ok {
+				metadata["internal_plan"] = internalPlan
+			}
+
+			return &ports.ToolResult{CallID: call.ID, Content: goal, Metadata: metadata}, nil
+		},
+	}
+}
+
+func newUIClearifyExecutor() ports.ToolExecutor {
+	return &MockToolExecutor{
+		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+			runID, _ := call.Arguments["run_id"].(string)
+			runID = strings.TrimSpace(runID)
+			if runID == "" {
+				return &ports.ToolResult{CallID: call.ID, Content: "run_id cannot be empty", Error: fmt.Errorf("run_id cannot be empty")}, nil
+			}
+
+			taskID, _ := call.Arguments["task_id"].(string)
+			taskID = strings.TrimSpace(taskID)
+			if taskID == "" {
+				return &ports.ToolResult{CallID: call.ID, Content: "task_id cannot be empty", Error: fmt.Errorf("task_id cannot be empty")}, nil
+			}
+
+			taskGoalUI, _ := call.Arguments["task_goal_ui"].(string)
+			taskGoalUI = strings.TrimSpace(taskGoalUI)
+			if taskGoalUI == "" {
+				return &ports.ToolResult{CallID: call.ID, Content: "task_goal_ui cannot be empty", Error: fmt.Errorf("invalid task_goal_ui")}, nil
+			}
+
+			metadata := map[string]any{
+				"run_id":       runID,
+				"task_id":      taskID,
+				"task_goal_ui": taskGoalUI,
+			}
+
+			if raw, ok := call.Arguments["success_criteria"]; ok {
+				if arr, ok := raw.([]any); ok {
+					var criteria []string
+					for _, item := range arr {
+						if text, ok := item.(string); ok {
+							if trimmed := strings.TrimSpace(text); trimmed != "" {
+								criteria = append(criteria, trimmed)
+							}
+						}
+					}
+					if len(criteria) > 0 {
+						metadata["success_criteria"] = criteria
+					}
+				}
+			}
+
+			needsUserInput := false
+			if raw, ok := call.Arguments["needs_user_input"]; ok {
+				if value, ok := raw.(bool); ok {
+					needsUserInput = value
+				}
+			}
+			questionToUser := ""
+			if raw, ok := call.Arguments["question_to_user"]; ok {
+				if value, ok := raw.(string); ok {
+					questionToUser = strings.TrimSpace(value)
+				}
+			}
+			if needsUserInput {
+				if questionToUser == "" {
+					return &ports.ToolResult{CallID: call.ID, Content: "question_to_user is required when needs_user_input=true", Error: fmt.Errorf("missing question_to_user")}, nil
+				}
+				metadata["needs_user_input"] = true
+				metadata["question_to_user"] = questionToUser
+			}
+
+			content := taskGoalUI
+			if needsUserInput {
+				content = content + "\n" + questionToUser
+			}
+
+			return &ports.ToolResult{CallID: call.ID, Content: strings.TrimSpace(content), Metadata: metadata}, nil
+		},
+	}
 }
 
 // NewFileReadScenario creates a scenario where agent reads a file
@@ -23,9 +153,48 @@ func NewFileReadScenario() ToolScenario {
 		LLM: &MockLLMClient{
 			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 				callCount++
-				if callCount == 1 {
+				switch callCount {
+				case 1:
 					return &ports.CompletionResponse{
-						Content: "I need to read the configuration file to answer the question.",
+						Content: "通过读取配置来回答这个问题。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "回答问题，并在需要时读取配置文件。",
+									"complexity":      "simple",
+									"internal_plan": map[string]any{
+										"overall_goal": "Answer question using config",
+										"branches":     []any{},
+									},
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "读取配置文件以定位 API endpoint。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "读取配置文件以定位 API endpoint。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 40, TotalTokens: 160},
+					}, nil
+				case 3:
+					return &ports.CompletionResponse{
+						Content: "我将查看配置文件内容。",
 						ToolCalls: []ports.ToolCall{
 							{
 								ID:   "call_001",
@@ -36,31 +205,30 @@ func NewFileReadScenario() ToolScenario {
 							},
 						},
 						StopReason: "tool_calls",
-						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+						Usage:      ports.TokenUsage{PromptTokens: 200, CompletionTokens: 50, TotalTokens: 250},
+					}, nil
+				default:
+					return &ports.CompletionResponse{
+						Content:    "Based on the configuration file, the API endpoint is https://api.example.com/v1",
+						StopReason: "stop",
+						Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 80, TotalTokens: 380},
 					}, nil
 				}
-				return &ports.CompletionResponse{
-					Content:    "Based on the configuration file, the API endpoint is https://api.example.com/v1",
-					StopReason: "stop",
-					Usage:      ports.TokenUsage{PromptTokens: 200, CompletionTokens: 80, TotalTokens: 280},
+			},
+		},
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			if name == "file_read" {
+				return &MockToolExecutor{
+					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+						return &ports.ToolResult{
+							CallID:  call.ID,
+							Content: `{"api_endpoint": "https://api.example.com/v1", "timeout": 30}`,
+						}, nil
+					},
 				}, nil
-			},
-		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				if name == "file_read" {
-					return &MockToolExecutor{
-						ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: `{"api_endpoint": "https://api.example.com/v1", "timeout": 30}`,
-							}, nil
-						},
-					}, nil
-				}
-				return nil, fmt.Errorf("tool not found: %s", name)
-			},
-		},
+			}
+			return nil, fmt.Errorf("tool not found: %s", name)
+		}),
 	}
 }
 
@@ -75,7 +243,49 @@ func NewMultipleToolCallsScenario() ToolScenario {
 				callCount++
 				switch callCount {
 				case 1:
-					// First: read file
+					return &ports.CompletionResponse{
+						Content: "检查测试是否通过，并在需要时读取/搜索代码与运行命令。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "检查测试是否通过，并定位相关代码位置。",
+									"complexity":      "complex",
+									"internal_plan": map[string]any{
+										"overall_goal": "Check tests and locate init",
+										"branches":     []any{},
+									},
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "读取 main.go、搜索 init，并运行测试。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "读取 main.go、搜索 init，并运行测试。",
+									"success_criteria": []any{
+										"拿到 init 定义位置",
+										"确认测试运行结果",
+									},
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 45, TotalTokens: 195},
+					}, nil
+				case 3:
+					// First action: read file
 					return &ports.CompletionResponse{
 						Content: "Let me first read the main.go file",
 						ToolCalls: []ports.ToolCall{
@@ -84,7 +294,7 @@ func NewMultipleToolCallsScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
 					}, nil
-				case 2:
+				case 4:
 					// Second: search for function
 					return &ports.CompletionResponse{
 						Content: "Now let me search for the init function",
@@ -94,7 +304,7 @@ func NewMultipleToolCallsScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 45, TotalTokens: 345},
 					}, nil
-				case 3:
+				case 5:
 					// Third: run tests
 					return &ports.CompletionResponse{
 						Content: "Let me run the tests",
@@ -114,24 +324,22 @@ func NewMultipleToolCallsScenario() ToolScenario {
 				}
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						switch call.Name {
-						case "file_read":
-							return &ports.ToolResult{CallID: call.ID, Content: "package main\n\nfunc main() {...}"}, nil
-						case "ripgrep":
-							return &ports.ToolResult{CallID: call.ID, Content: "init.go:10:func init() {"}, nil
-						case "bash":
-							return &ports.ToolResult{CallID: call.ID, Content: "PASS\nok  \tpackage\t0.123s"}, nil
-						default:
-							return nil, fmt.Errorf("unknown tool: %s", call.Name)
-						}
-					},
-				}, nil
-			},
-		},
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					switch call.Name {
+					case "file_read":
+						return &ports.ToolResult{CallID: call.ID, Content: "package main\n\nfunc main() {...}"}, nil
+					case "ripgrep":
+						return &ports.ToolResult{CallID: call.ID, Content: "init.go:10:func init() {"}, nil
+					case "bash":
+						return &ports.ToolResult{CallID: call.ID, Content: "PASS\nok  \tpackage\t0.123s"}, nil
+					default:
+						return nil, fmt.Errorf("unknown tool: %s", call.Name)
+					}
+				},
+			}, nil
+		}),
 	}
 }
 
@@ -144,44 +352,94 @@ func NewParallelToolCallsScenario() ToolScenario {
 		LLM: &MockLLMClient{
 			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 				callCount++
-				if callCount == 1 {
+				switch callCount {
+				case 1:
 					return &ports.CompletionResponse{
-						Content: "I need to read multiple configuration files to compare them",
+						Content: "比较多个配置文件的差异。",
 						ToolCalls: []ports.ToolCall{
-							{ID: "call_001", Name: "file_read", Arguments: map[string]any{"path": "config/dev.json"}},
-							{ID: "call_002", Name: "file_read", Arguments: map[string]any{"path": "config/prod.json"}},
-							{ID: "call_003", Name: "file_read", Arguments: map[string]any{"path": "config/test.json"}},
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "读取并对比多个配置文件。",
+									"complexity":      "simple",
+								},
+							},
 						},
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 70, TotalTokens: 220},
 					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "读取 dev/prod/test 配置并比较 endpoint。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "读取 dev/prod/test 配置并比较 endpoint。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 180, CompletionTokens: 60, TotalTokens: 240},
+					}, nil
+				case 3:
+					return &ports.CompletionResponse{
+						Content: "Reading dev config",
+						ToolCalls: []ports.ToolCall{
+							{ID: "call_001", Name: "file_read", Arguments: map[string]any{"path": "config/dev.json"}},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 200, CompletionTokens: 40, TotalTokens: 240},
+					}, nil
+				case 4:
+					return &ports.CompletionResponse{
+						Content: "Reading prod config",
+						ToolCalls: []ports.ToolCall{
+							{ID: "call_002", Name: "file_read", Arguments: map[string]any{"path": "config/prod.json"}},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 250, CompletionTokens: 40, TotalTokens: 290},
+					}, nil
+				case 5:
+					return &ports.CompletionResponse{
+						Content: "Reading test config",
+						ToolCalls: []ports.ToolCall{
+							{ID: "call_003", Name: "file_read", Arguments: map[string]any{"path": "config/test.json"}},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 40, TotalTokens: 340},
+					}, nil
+				default:
+					return &ports.CompletionResponse{
+						Content:    "The configurations differ in API endpoints: dev uses localhost, test uses staging.example.com, prod uses api.example.com",
+						StopReason: "stop",
+						Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
+					}, nil
 				}
-				return &ports.CompletionResponse{
-					Content:    "The configurations differ in API endpoints: dev uses localhost, test uses staging.example.com, prod uses api.example.com",
-					StopReason: "stop",
-					Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
-				}, nil
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						path := call.Arguments["path"].(string)
-						var content string
-						switch path {
-						case "config/dev.json":
-							content = `{"endpoint": "http://localhost:8080"}`
-						case "config/prod.json":
-							content = `{"endpoint": "https://api.example.com"}`
-						case "config/test.json":
-							content = `{"endpoint": "https://staging.example.com"}`
-						}
-						return &ports.ToolResult{CallID: call.ID, Content: content}, nil
-					},
-				}, nil
-			},
-		},
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					path := call.Arguments["path"].(string)
+					var content string
+					switch path {
+					case "config/dev.json":
+						content = `{"endpoint": "http://localhost:8080"}`
+					case "config/prod.json":
+						content = `{"endpoint": "https://api.example.com"}`
+					case "config/test.json":
+						content = `{"endpoint": "https://staging.example.com"}`
+					}
+					return &ports.ToolResult{CallID: call.ID, Content: content}, nil
+				},
+			}, nil
+		}),
 	}
 }
 
@@ -194,7 +452,42 @@ func NewWebSearchScenario() ToolScenario {
 		LLM: &MockLLMClient{
 			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 				callCount++
-				if callCount == 1 {
+				switch callCount {
+				case 1:
+					return &ports.CompletionResponse{
+						Content: "检索并总结 Go 1.22 的新特性。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "搜索并阅读资料，总结 Go 1.22 的新特性。",
+									"complexity":      "simple",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 80, CompletionTokens: 45, TotalTokens: 125},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "先搜索，再抓取官方博客内容。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "先搜索，再抓取官方博客内容。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 30, TotalTokens: 150},
+					}, nil
+				case 3:
 					return &ports.CompletionResponse{
 						Content: "Let me search for information about Go 1.22 features",
 						ToolCalls: []ports.ToolCall{
@@ -209,8 +502,7 @@ func NewWebSearchScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 80, CompletionTokens: 45, TotalTokens: 125},
 					}, nil
-				}
-				if callCount == 2 {
+				case 4:
 					return &ports.CompletionResponse{
 						Content: "Let me fetch detailed information from the official blog",
 						ToolCalls: []ports.ToolCall{
@@ -225,45 +517,44 @@ func NewWebSearchScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 50, TotalTokens: 350},
 					}, nil
+				default:
+					return &ports.CompletionResponse{
+						Content:    "Go 1.22 introduces enhanced for-range loops, improved profile-guided optimization, and better workspace management.",
+						StopReason: "stop",
+						Usage:      ports.TokenUsage{PromptTokens: 600, CompletionTokens: 80, TotalTokens: 680},
+					}, nil
 				}
-				return &ports.CompletionResponse{
-					Content:    "Go 1.22 introduces enhanced for-range loops, improved profile-guided optimization, and better workspace management.",
-					StopReason: "stop",
-					Usage:      ports.TokenUsage{PromptTokens: 600, CompletionTokens: 80, TotalTokens: 680},
-				}, nil
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						switch call.Name {
-						case "web_search":
-							return &ports.ToolResult{
-								CallID: call.ID,
-								Content: `Search results:
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					switch call.Name {
+					case "web_search":
+						return &ports.ToolResult{
+							CallID: call.ID,
+							Content: `Search results:
 1. Go 1.22 Release Notes - https://go.dev/doc/go1.22
 2. Go Blog: Go 1.22 is released - https://go.dev/blog/go1.22
 3. What's new in Go 1.22 - Medium article`,
-							}, nil
-						case "web_fetch":
-							return &ports.ToolResult{
-								CallID: call.ID,
-								Content: `Go 1.22 Release Notes
+						}, nil
+					case "web_fetch":
+						return &ports.ToolResult{
+							CallID: call.ID,
+							Content: `Go 1.22 Release Notes
 ===
 Major changes:
 - Enhanced for-range loops with integer support
 - Profile-guided optimization improvements
 - Better workspace mode support
 - Memory optimization in runtime`,
-							}, nil
-						default:
-							return nil, fmt.Errorf("unknown tool: %s", call.Name)
-						}
-					},
-				}, nil
-			},
-		},
+						}, nil
+					default:
+						return nil, fmt.Errorf("unknown tool: %s", call.Name)
+					}
+				},
+			}, nil
+		}),
 	}
 }
 
@@ -279,6 +570,40 @@ func NewCodeEditScenario() ToolScenario {
 				switch callCount {
 				case 1:
 					return &ports.CompletionResponse{
+						Content: "读取/修改代码并运行测试来验证。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "为 utils.go 增加错误处理并验证测试通过。",
+									"complexity":      "complex",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "读取 utils.go、修改并运行 go test。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "读取 utils.go、修改并运行 go test。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 35, TotalTokens: 155},
+					}, nil
+				case 3:
+					return &ports.CompletionResponse{
 						Content: "Let me read the file first",
 						ToolCalls: []ports.ToolCall{
 							{ID: "call_001", Name: "file_read", Arguments: map[string]any{"path": "utils.go"}},
@@ -286,7 +611,7 @@ func NewCodeEditScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
 					}, nil
-				case 2:
+				case 4:
 					return &ports.CompletionResponse{
 						Content: "Now I'll add the missing error handling",
 						ToolCalls: []ports.ToolCall{
@@ -303,7 +628,7 @@ func NewCodeEditScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 50, TotalTokens: 350},
 					}, nil
-				case 3:
+				case 5:
 					return &ports.CompletionResponse{
 						Content: "Let me run the tests to verify",
 						ToolCalls: []ports.ToolCall{
@@ -321,33 +646,31 @@ func NewCodeEditScenario() ToolScenario {
 				}
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						switch call.Name {
-						case "file_read":
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: "func Process() int {\n  result := compute()\n  return result\n}",
-							}, nil
-						case "file_edit":
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: "✓ Successfully edited utils.go",
-							}, nil
-						case "bash":
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: "PASS\nok  \tproject/pkg\t0.234s",
-							}, nil
-						default:
-							return nil, fmt.Errorf("unknown tool: %s", call.Name)
-						}
-					},
-				}, nil
-			},
-		},
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					switch call.Name {
+					case "file_read":
+						return &ports.ToolResult{
+							CallID:  call.ID,
+							Content: "func Process() int {\n  result := compute()\n  return result\n}",
+						}, nil
+					case "file_edit":
+						return &ports.ToolResult{
+							CallID:  call.ID,
+							Content: "✓ Successfully edited utils.go",
+						}, nil
+					case "bash":
+						return &ports.ToolResult{
+							CallID:  call.ID,
+							Content: "PASS\nok  \tproject/pkg\t0.234s",
+						}, nil
+					default:
+						return nil, fmt.Errorf("unknown tool: %s", call.Name)
+					}
+				},
+			}, nil
+		}),
 	}
 }
 
@@ -360,7 +683,42 @@ func NewToolErrorScenario() ToolScenario {
 		LLM: &MockLLMClient{
 			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 				callCount++
-				if callCount == 1 {
+				switch callCount {
+				case 1:
+					return &ports.CompletionResponse{
+						Content: "尝试读取文件，如果失败会寻找替代方案。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "读取指定文件，并在失败时寻找替代文件。",
+									"complexity":      "simple",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "先读取目标文件，失败则搜索类似文件。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "先读取目标文件，失败则搜索类似文件。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 35, TotalTokens: 155},
+					}, nil
+				case 3:
 					return &ports.CompletionResponse{
 						Content: "Let me try to read the file",
 						ToolCalls: []ports.ToolCall{
@@ -369,9 +727,8 @@ func NewToolErrorScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
 					}, nil
-				}
-				// After error, agent should try alternative approach
-				if callCount == 2 {
+				case 4:
+					// After error, agent should try alternative approach
 					return &ports.CompletionResponse{
 						Content: "The file doesn't exist. Let me search for similar files",
 						ToolCalls: []ports.ToolCall{
@@ -380,34 +737,33 @@ func NewToolErrorScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 250, CompletionTokens: 50, TotalTokens: 300},
 					}, nil
+				default:
+					return &ports.CompletionResponse{
+						Content:    "The file you requested doesn't exist, but I found these similar files: data.txt, config.txt",
+						StopReason: "stop",
+						Usage:      ports.TokenUsage{PromptTokens: 400, CompletionTokens: 60, TotalTokens: 460},
+					}, nil
 				}
-				return &ports.CompletionResponse{
-					Content:    "The file you requested doesn't exist, but I found these similar files: data.txt, config.txt",
-					StopReason: "stop",
-					Usage:      ports.TokenUsage{PromptTokens: 400, CompletionTokens: 60, TotalTokens: 460},
-				}, nil
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						if call.Name == "file_read" {
-							return &ports.ToolResult{
-								CallID:  call.ID,
-								Content: "",
-								Error:   fmt.Errorf("file not found: /nonexistent/file.txt"),
-							}, nil
-						}
-						// find succeeds
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					if call.Name == "file_read" {
 						return &ports.ToolResult{
 							CallID:  call.ID,
-							Content: "./data.txt\n./config.txt",
+							Content: "",
+							Error:   fmt.Errorf("file not found: /nonexistent/file.txt"),
 						}, nil
-					},
-				}, nil
-			},
-		},
+					}
+					// find succeeds
+					return &ports.ToolResult{
+						CallID:  call.ID,
+						Content: "./data.txt\n./config.txt",
+					}, nil
+				},
+			}, nil
+		}),
 	}
 }
 
@@ -425,6 +781,40 @@ func NewTodoManagementScenario() ToolScenario {
 				switch callCount {
 				case 1:
 					return &ports.CompletionResponse{
+						Content: "读取并更新 todo 列表。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "维护 todo 列表：添加任务并标记完成。",
+									"complexity":      "simple",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 80, CompletionTokens: 35, TotalTokens: 115},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "读取当前 todo，再添加任务并完成第一项。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "读取当前 todo，再添加任务并完成第一项。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 35, TotalTokens: 155},
+					}, nil
+				case 3:
+					return &ports.CompletionResponse{
 						Content: "Let me check the current todo list",
 						ToolCalls: []ports.ToolCall{
 							{ID: "call_001", Name: "todo_read", Arguments: map[string]any{}},
@@ -432,7 +822,7 @@ func NewTodoManagementScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 80, CompletionTokens: 35, TotalTokens: 115},
 					}, nil
-				case 2:
+				case 4:
 					return &ports.CompletionResponse{
 						Content: "I'll add the new tasks to the list",
 						ToolCalls: []ports.ToolCall{
@@ -441,14 +831,14 @@ func NewTodoManagementScenario() ToolScenario {
 								Name: "todo_update",
 								Arguments: map[string]any{
 									"action": "add",
-									"items":  []string{"Write tests", "Update docs", "Fix bug #123"},
+									"items":  []any{"Write tests", "Update docs", "Fix bug #123"},
 								},
 							},
 						},
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 200, CompletionTokens: 45, TotalTokens: 245},
 					}, nil
-				case 3:
+				case 5:
 					return &ports.CompletionResponse{
 						Content: "Let me mark the first task as complete",
 						ToolCalls: []ports.ToolCall{
@@ -473,49 +863,51 @@ func NewTodoManagementScenario() ToolScenario {
 				}
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						switch call.Name {
-						case "todo_read":
-							result := "Current todos:\n"
-							for i, todo := range todos {
-								result += fmt.Sprintf("%d. %s\n", i+1, todo)
-							}
-							if len(todos) == 0 {
-								result = "No todos found"
-							}
-							return &ports.ToolResult{CallID: call.ID, Content: result}, nil
-						case "todo_update":
-							action := call.Arguments["action"].(string)
-							switch action {
-							case "add":
-								items := call.Arguments["items"].([]string)
-								todos = append(todos, items...)
-								return &ports.ToolResult{
-									CallID:  call.ID,
-									Content: fmt.Sprintf("Added %d tasks", len(items)),
-								}, nil
-							case "complete":
-								idx := call.Arguments["index"].(int)
-								if idx >= 0 && idx < len(todos) {
-									completed := todos[idx]
-									todos = append(todos[:idx], todos[idx+1:]...)
-									return &ports.ToolResult{
-										CallID:  call.ID,
-										Content: fmt.Sprintf("Completed: %s", completed),
-									}, nil
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					switch call.Name {
+					case "todo_read":
+						result := "Current todos:\n"
+						for i, todo := range todos {
+							result += fmt.Sprintf("%d. %s\n", i+1, todo)
+						}
+						if len(todos) == 0 {
+							result = "No todos found"
+						}
+						return &ports.ToolResult{CallID: call.ID, Content: result}, nil
+					case "todo_update":
+						action := call.Arguments["action"].(string)
+						switch action {
+						case "add":
+							items := call.Arguments["items"].([]any)
+							for _, item := range items {
+								if text, ok := item.(string); ok {
+									todos = append(todos, text)
 								}
 							}
-							return &ports.ToolResult{CallID: call.ID, Content: "OK"}, nil
-						default:
-							return nil, fmt.Errorf("unknown tool: %s", call.Name)
+							return &ports.ToolResult{
+								CallID:  call.ID,
+								Content: fmt.Sprintf("Added %d tasks", len(items)),
+							}, nil
+						case "complete":
+							idx := call.Arguments["index"].(int)
+							if idx >= 0 && idx < len(todos) {
+								completed := todos[idx]
+								todos = append(todos[:idx], todos[idx+1:]...)
+								return &ports.ToolResult{
+									CallID:  call.ID,
+									Content: fmt.Sprintf("Completed: %s", completed),
+								}, nil
+							}
 						}
-					},
-				}, nil
-			},
-		},
+						return &ports.ToolResult{CallID: call.ID, Content: "OK"}, nil
+					default:
+						return nil, fmt.Errorf("unknown tool: %s", call.Name)
+					}
+				},
+			}, nil
+		}),
 	}
 }
 
@@ -528,7 +920,42 @@ func NewSubagentDelegationScenario() ToolScenario {
 		LLM: &MockLLMClient{
 			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 				callCount++
-				if callCount == 1 {
+				switch callCount {
+				case 1:
+					return &ports.CompletionResponse{
+						Content: "委托子代理进行分析，并汇总建议。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_plan",
+								Name: "plan",
+								Arguments: map[string]any{
+									"run_id":          "test-run",
+									"overall_goal_ui": "通过子代理分析代码库性能问题并给出建议。",
+									"complexity":      "complex",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 60, TotalTokens: 210},
+					}, nil
+				case 2:
+					return &ports.CompletionResponse{
+						Content: "让子代理分析代码库并提出性能优化建议。",
+						ToolCalls: []ports.ToolCall{
+							{
+								ID:   "call_clearify",
+								Name: "clearify",
+								Arguments: map[string]any{
+									"run_id":       "test-run",
+									"task_id":      "task-1",
+									"task_goal_ui": "让子代理分析代码库并提出性能优化建议。",
+								},
+							},
+						},
+						StopReason: "tool_calls",
+						Usage:      ports.TokenUsage{PromptTokens: 180, CompletionTokens: 45, TotalTokens: 225},
+					}, nil
+				case 3:
 					return &ports.CompletionResponse{
 						Content: "This task is complex, I'll delegate it to a specialized subagent",
 						ToolCalls: []ports.ToolCall{
@@ -544,21 +971,21 @@ func NewSubagentDelegationScenario() ToolScenario {
 						StopReason: "tool_calls",
 						Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 60, TotalTokens: 210},
 					}, nil
+				default:
+					return &ports.CompletionResponse{
+						Content:    "The subagent completed the analysis. Main suggestions: 1) Use sync.Pool for object reuse, 2) Add caching layer, 3) Optimize database queries.",
+						StopReason: "stop",
+						Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
+					}, nil
 				}
-				return &ports.CompletionResponse{
-					Content:    "The subagent completed the analysis. Main suggestions: 1) Use sync.Pool for object reuse, 2) Add caching layer, 3) Optimize database queries.",
-					StopReason: "stop",
-					Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
-				}, nil
 			},
 		},
-		Registry: &MockToolRegistry{
-			GetFunc: func(name string) (ports.ToolExecutor, error) {
-				return &MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						return &ports.ToolResult{
-							CallID: call.ID,
-							Content: `Subagent analysis complete:
+		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+			return &MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					return &ports.ToolResult{
+						CallID: call.ID,
+						Content: `Subagent analysis complete:
 
 Performance Issues Found:
 1. Excessive memory allocations in hot path
@@ -571,11 +998,10 @@ Recommendations:
 3. Implement Redis caching layer for read-heavy operations
 
 Estimated improvement: 3-5x performance increase`,
-						}, nil
-					},
-				}, nil
-			},
-		},
+					}, nil
+				},
+			}, nil
+		}),
 	}
 }
 

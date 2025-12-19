@@ -240,6 +240,10 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
 	r.static["think"] = builtin.NewThink()
 
+	// UI orchestration
+	r.static["plan"] = builtin.NewPlan()
+	r.static["clearify"] = builtin.NewClearify()
+
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
 	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{

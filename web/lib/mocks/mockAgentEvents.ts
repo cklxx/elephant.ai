@@ -204,501 +204,330 @@ export interface TimedMockEvent {
 }
 
 export function createMockEventSequence(_task: string): TimedMockEvent[] {
-  const callId = 'mock-call-1';
+  const runId = 'mock-run-1';
   const parentTaskId = 'mock-core-task';
-
-  const planSteps = [
-    'Collecting repository context',
-    'Drafting remediation suggestions',
-    '总结',
-  ];
-
-  const subtaskOneMeta = {
-    is_subtask: true,
-    parent_task_id: parentTaskId,
-    subtask_index: 0,
-    total_subtasks: 2,
-    subtask_preview: 'Research comparable console UX patterns',
-    max_parallel: 2,
-  } as const;
-
-  const subtaskTwoMeta = {
-    is_subtask: true,
-    parent_task_id: parentTaskId,
-    subtask_index: 1,
-    total_subtasks: 2,
-    subtask_preview: 'Inspect tool output rendering implementation',
-    max_parallel: 2,
-  } as const;
+  const taskIdOne = 'task-1';
+  const taskIdTwo = 'task-2';
+  const callIdPlan = 'mock-call-plan';
+  const callIdClearifyOne = 'mock-call-clearify-1';
+  const callIdClearifyTwo = 'mock-call-clearify-2';
+  const callIdOne = 'mock-call-1';
+  const callIdTwo = 'mock-call-2';
+  const subagentCallIdOne = 'mock-subagent-call-1';
+  const subagentCallIdTwo = 'mock-subagent-call-2';
 
   return [
     {
-      delay: 450,
+      delay: 350,
       event: {
-        event_type: 'workflow.plan.created',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        steps: planSteps,
+        call_id: callIdPlan,
+        tool_name: 'plan',
+        result: '优化控制台交互体验',
+        duration: 120,
+        metadata: {
+          run_id: runId,
+          overall_goal_ui: '优化控制台交互体验',
+          complexity: 'complex',
+          internal_plan: {
+            overall_goal: '优化控制台交互体验',
+            branches: [
+              {
+                branch_goal: '梳理现状',
+                tasks: [{ task_goal: '收集现有 UI 事件流', success_criteria: ['定位旧展示路径'] }],
+              },
+              {
+                branch_goal: '重构展示',
+                tasks: [{ task_goal: '实现新的层级视图', success_criteria: ['替换旧 timeline 逻辑'] }],
+              },
+            ],
+          },
+        },
       },
     },
     {
-      delay: 950,
+      delay: 750,
       event: {
-        event_type: 'workflow.node.started',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        step_index: 0,
-        step_description: planSteps[0],
+        call_id: callIdClearifyOne,
+        tool_name: 'clearify',
+        result: '收集现有 UI 事件流',
+        duration: 80,
+        metadata: {
+          run_id: runId,
+          task_id: taskIdOne,
+          task_goal_ui: '收集现有 UI 事件流',
+          success_criteria: ['定位旧展示路径', '确认需要替换的组件与聚合逻辑'],
+        },
+      },
+    },
+    {
+      delay: 980,
+      event: {
+        event_type: 'workflow.node.output.summary',
+        agent_level: 'core',
+        iteration: 1,
+        content: '我先读取前端事件流与时间线相关文件，定位旧计划展示的位置。',
+        tool_call_count: 1,
       },
     },
     {
       delay: 1200,
       event: {
-        event_type: 'workflow.node.started',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         iteration: 1,
-        total_iters: 3,
+        call_id: callIdOne,
+        tool_name: 'file_read',
+        arguments: {
+          path: 'web/app/conversation/ConversationPageContent.tsx',
+        },
       },
     },
     {
       delay: 1450,
       event: {
-        event_type: 'workflow.node.output.delta',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        iteration: 1,
-        message_count: 1,
+        call_id: callIdOne,
+        tool_name: 'file_read',
+        result: 'Located legacy plan/timeline rendering path and right panel composition.',
+        duration: 420,
       },
     },
     {
-      delay: 1700,
+      delay: 1900,
       event: {
-        event_type: 'workflow.tool.started',
+        event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        iteration: 1,
-        call_id: callId,
-        tool_name: 'file_read',
-        arguments: {
-          path: 'web/app/page.tsx',
+        call_id: callIdClearifyTwo,
+        tool_name: 'clearify',
+        result: '实现新的层级视图',
+        duration: 80,
+        metadata: {
+          run_id: runId,
+          task_id: taskIdTwo,
+          task_goal_ui: '实现新的层级视图',
+          success_criteria: ['渲染 Goal/Task/Log 三层结构', '工具输出与日志保持一致字体'],
         },
       },
     },
     {
-      delay: 1950,
+      delay: 2120,
       event: {
-        event_type: 'workflow.tool.progress',
+        event_type: 'workflow.node.output.summary',
         agent_level: 'core',
-        call_id: callId,
-        chunk: 'Inspecting layout composition...\n',
-        is_complete: false,
-      },
-    },
-    {
-      delay: 2150,
-      event: {
-        event_type: 'workflow.tool.progress',
-        agent_level: 'core',
-        call_id: callId,
-        chunk: 'Detected conditional input rendering issue.\n',
-        is_complete: false,
+        iteration: 2,
+        content: '准备渲染新的层级视图，并接入右侧工具详情面板。',
+        tool_call_count: 1,
       },
     },
     {
       delay: 2350,
       event: {
-        event_type: 'workflow.tool.progress',
-        agent_level: 'core',
-        call_id: callId,
-        chunk: 'Preparing remediation suggestions...\n',
-        is_complete: true,
-      },
-    },
-    {
-      delay: 2550,
-      event: {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        call_id: callId,
-        tool_name: 'file_read',
-        result:
-          'Uploaded [Executive Review Slides], [Console Architecture Prototype], [Q3 Research Memo], [Status Heatmap], and [Latency Report] into the registry for downstream previews.',
-        duration: 420,
-        attachments: pickAttachments(
-          'Executive Review Slides',
-          'Console Architecture Prototype',
-          'Q3 Research Memo',
-          'Status Heatmap',
-          'Latency Report',
-        ),
-      },
-    },
-    {
-      delay: 2625,
-      event: {
         event_type: 'workflow.tool.started',
         agent_level: 'core',
-        iteration: 1,
-        call_id: 'mock-artifact-write',
-        tool_name: 'artifacts_write',
+        iteration: 2,
+        call_id: callIdTwo,
+        tool_name: 'file_edit',
         arguments: {
-          path: 'attachments/onboarding-guide.md',
-          format: 'markdown',
-          operation: 'create',
+          path: 'web/components/agent/PlannerReactView.tsx',
         },
       },
     },
     {
-      delay: 2850,
+      delay: 2680,
       event: {
         event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        call_id: 'mock-artifact-write',
-        tool_name: 'artifacts_write',
-        result:
-          'Persisted markdown notes as [Onboarding Guide] and staged cleanup for [Deprecated Checklist].',
-        duration: 360,
-        attachments: pickAttachments('Onboarding Guide', 'Deprecated Checklist'),
-        metadata: {
-          attachment_mutations: {
-            add: pickAttachments('Onboarding Guide'),
-            update: pickAttachments('Deprecated Checklist'),
-          },
-        },
+        call_id: callIdTwo,
+        tool_name: 'file_edit',
+        result: 'Added Planner/ReAct view layout and task/action mapping.',
+        duration: 560,
+        attachments: pickAttachments('Console Architecture Prototype'),
       },
     },
     {
-      delay: 2950,
+      delay: 2900,
       event: {
-        event_type: 'workflow.node.completed',
+        event_type: 'workflow.node.output.summary',
         agent_level: 'core',
-        step_index: 0,
-        step_result: 'Collected baseline UI findings',
-      },
-    },
-    {
-      delay: 2975,
-      event: {
-        event_type: 'workflow.tool.started',
-        agent_level: 'core',
-        iteration: 1,
-        call_id: 'mock-artifact-list',
-        tool_name: 'artifacts_list',
-        arguments: {
-          kind: 'artifact',
-          include_thumbnails: true,
-        },
-      },
-    },
-    {
-      delay: 3150,
-      event: {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        call_id: 'mock-artifact-list',
-        tool_name: 'artifacts_list',
-        result:
-          'Synced attachment catalog with thumbnails for downstream document views.',
-        duration: 310,
-        attachments: pickAttachments(
-          'Executive Review Slides',
-          'Console Architecture Prototype',
-          'Q3 Research Memo',
-          'Status Heatmap',
-          'Latency Report',
-          'Onboarding Guide',
-        ),
-        metadata: {
-          attachment_mutations: {
-            replace: pickAttachments(
-              'Executive Review Slides',
-              'Console Architecture Prototype',
-              'Q3 Research Memo',
-              'Status Heatmap',
-              'Latency Report',
-              'Onboarding Guide',
-            ),
-          },
-        },
-      },
-    },
-    {
-      delay: 3200,
-      event: {
-        event_type: 'workflow.node.completed',
-        agent_level: 'core',
-        iteration: 1,
-        tokens_used: 865,
-        tools_run: 1,
-      },
-    },
-    {
-      delay: 3225,
-      event: {
-        event_type: 'workflow.tool.started',
-        agent_level: 'core',
-        iteration: 1,
-        call_id: 'mock-artifact-delete',
-        tool_name: 'artifacts_delete',
-        arguments: {
-          names: ['Deprecated Checklist'],
-          reason: 'remove temporary scratchpad',
-        },
-      },
-    },
-    {
-      delay: 3285,
-      event: {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        call_id: 'mock-artifact-delete',
-        tool_name: 'artifacts_delete',
-        result:
-          'Archived scratch attachment [Deprecated Checklist] to keep the gallery focused on final assets.',
-        duration: 240,
-        metadata: {
-          attachment_mutations: {
-            remove: ['Deprecated Checklist'],
-          },
-        },
+        iteration: 3,
+        content: '我会收尾并给出最终总结。之后不再调用工具。',
+        tool_call_count: 0,
       },
     },
     {
       delay: 3300,
       event: {
-        event_type: 'workflow.node.started',
-        agent_level: 'subagent',
-        iteration: 1,
-        total_iters: 1,
-        ...subtaskOneMeta,
+        event_type: 'workflow.result.final',
+        agent_level: 'core',
+        final_answer: '已完成 Planner/ReAct 架构展示与工具详情联动。',
+        total_iterations: 2,
+        total_tokens: 800,
+        stop_reason: 'final_answer',
+        duration: 4200,
       },
     },
-    {
-      delay: 3350,
-      event: {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'subagent',
-        iteration: 1,
-        message_count: 1,
-        ...subtaskOneMeta,
-      },
-    },
-    {
-      delay: 3400,
-      event: {
-        event_type: 'workflow.tool.started',
-        agent_level: 'subagent',
-        iteration: 1,
-        call_id: 'mock-subagent-call-1',
-        tool_name: 'web_search',
-        arguments: {
-          query: 'subagent console ux parallel timeline inspiration',
-        },
-        ...subtaskOneMeta,
-      },
-    },
-    {
-      delay: 3500,
-      event: {
-        event_type: 'workflow.tool.progress',
-        agent_level: 'subagent',
-        call_id: 'mock-subagent-call-1',
-        chunk: 'Summarizing multi-panel timelines from recent product launches...\n',
-        is_complete: false,
-        ...subtaskOneMeta,
-      },
-    },
+    // Subagent thread 1/2
     {
       delay: 3600,
       event: {
-        event_type: 'workflow.tool.progress',
+        event_type: 'workflow.node.started',
         agent_level: 'subagent',
-        call_id: 'mock-subagent-call-1',
-        chunk: 'Highlighted research from Cursor, Windsurf, and Devina.\n',
-        is_complete: true,
-        ...subtaskOneMeta,
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 0,
+        total_subtasks: 2,
+        subtask_preview: 'Subagent: gather docs',
+        iteration: 1,
       },
     },
     {
-      delay: 3750,
+      delay: 3700,
+      event: {
+        event_type: 'workflow.node.output.delta',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 0,
+        total_subtasks: 2,
+        delta: 'Thinking...',
+        iteration: 1,
+      },
+    },
+    {
+      delay: 3800,
+      event: {
+        event_type: 'workflow.tool.started',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 0,
+        total_subtasks: 2,
+        call_id: subagentCallIdOne,
+        tool_name: 'web_search',
+        arguments: { query: 'plan/clearify protocol' },
+        iteration: 1,
+      },
+    },
+    {
+      delay: 3880,
+      event: {
+        event_type: 'workflow.tool.progress',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 0,
+        total_subtasks: 2,
+        call_id: subagentCallIdOne,
+        chunk: 'Searching...',
+      },
+    },
+    {
+      delay: 3980,
       event: {
         event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
-        call_id: 'mock-subagent-call-1',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 0,
+        total_subtasks: 2,
+        call_id: subagentCallIdOne,
         tool_name: 'web_search',
-        result:
-          'Compiled documentation links covering responsive layouts and console UX patterns used in modern AI assistants.',
-        duration: 780,
-        ...subtaskOneMeta,
-      },
-    },
-    {
-      delay: 3950,
-      event: {
-        event_type: 'workflow.result.final',
-        agent_level: 'subagent',
-        final_answer:
-          'Validated layout guidance from industry references and highlighted critical interaction affordances to emulate.',
-        total_iterations: 1,
-        total_tokens: 256,
-        stop_reason: 'completed',
-        duration: 900,
-        ...subtaskOneMeta,
-      },
-    },
-    {
-      delay: 4050,
-      event: {
-        event_type: 'workflow.node.started',
-        agent_level: 'subagent',
-        iteration: 1,
-        total_iters: 1,
-        ...subtaskTwoMeta,
+        result: 'Found docs and examples.',
+        duration: 180,
       },
     },
     {
       delay: 4100,
       event: {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'subagent',
-        iteration: 1,
-        message_count: 1,
-        ...subtaskTwoMeta,
-      },
-    },
-    {
-      delay: 4150,
-      event: {
-        event_type: 'workflow.tool.started',
-        agent_level: 'subagent',
-        iteration: 1,
-        call_id: 'mock-subagent-call-2',
-        tool_name: 'code_search',
-        arguments: {
-          path: 'web/components/agent/EventLine',
-          query: 'subagent',
-        },
-        ...subtaskTwoMeta,
-      },
-    },
-    {
-      delay: 4325,
-      event: {
-        event_type: 'workflow.tool.progress',
-        agent_level: 'subagent',
-        call_id: 'mock-subagent-call-2',
-        chunk: 'Traced ToolOutputCard props to ensure subtask metadata is surfaced...\n',
-        is_complete: false,
-        ...subtaskTwoMeta,
-      },
-    },
-    {
-      delay: 4480,
-      event: {
-        event_type: 'workflow.tool.progress',
-        agent_level: 'subagent',
-        call_id: 'mock-subagent-call-2',
-        chunk: 'Confirmed CSS tokens apply to subagent badges and dividers.\n',
-        is_complete: true,
-        ...subtaskTwoMeta,
-      },
-    },
-    {
-      delay: 4650,
-      event: {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'subagent',
-        call_id: 'mock-subagent-call-2',
-        tool_name: 'code_search',
-        result:
-          'Identified relevant components handling tool output rendering and confirmed subagent styling tokens are applied.',
-        duration: 640,
-        ...subtaskTwoMeta,
-      },
-    },
-    {
-      delay: 4850,
-      event: {
         event_type: 'workflow.result.final',
         agent_level: 'subagent',
-        final_answer:
-          'Confirmed ToolOutputCard handles metadata for subagent streams and recommended expanding automated coverage.',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 0,
+        total_subtasks: 2,
+        final_answer: 'Subagent summary: gathered protocol constraints and UI levels.',
         total_iterations: 1,
-        total_tokens: 198,
-        stop_reason: 'completed',
-        duration: 880,
-        ...subtaskTwoMeta,
+        total_tokens: 220,
+        stop_reason: 'final_answer',
+        duration: 900,
       },
     },
-    {
-      delay: 4250,
-      event: {
-        event_type: 'workflow.node.output.summary',
-        agent_level: 'core',
-        iteration: 1,
-        content: 'Ready to summarize the refactor recommendations.',
-        tool_call_count: 1,
-      },
-    },
-    {
-      delay: 4325,
-      event: {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        iteration: 1,
-        delta: 'Here are the key findings from the console audit:\n',
-        final: false,
-      },
-    },
+    // Subagent thread 2/2
     {
       delay: 4400,
       event: {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
+        event_type: 'workflow.node.started',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 1,
+        total_subtasks: 2,
+        subtask_preview: 'Subagent: verify UI',
         iteration: 1,
-        delta: '- Keep the input dock always visible so tasks are effortless.\n',
-        final: false,
       },
     },
     {
       delay: 4480,
       event: {
         event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 1,
+        total_subtasks: 2,
+        delta: 'Reviewing UI...',
         iteration: 1,
-        delta:
-          '- Stream agent output in a dedicated column for clarity.\n- Provide reconnection affordances with the new console styling.',
-        final: true,
       },
     },
     {
-      delay: 4510,
+      delay: 4580,
       event: {
-        event_type: 'workflow.result.final',
-        agent_level: 'core',
-        final_answer:
-          'Drafting summary...\n- Slides incoming: [Executive Review Slides]\n- HTML preview: [Console Architecture Prototype]',
-        total_iterations: 1,
-        total_tokens: 865,
-        stop_reason: 'completed',
-        duration: 3400,
+        event_type: 'workflow.tool.started',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 1,
+        total_subtasks: 2,
+        call_id: subagentCallIdTwo,
+        tool_name: 'file_read',
+        arguments: { path: 'web/components/agent/EventLine/index.tsx' },
+        iteration: 1,
       },
     },
     {
-      delay: 4550,
+      delay: 4680,
+      event: {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 1,
+        total_subtasks: 2,
+        call_id: subagentCallIdTwo,
+        tool_name: 'file_read',
+        result: 'Reviewed EventLine implementation.',
+        duration: 140,
+      },
+    },
+    {
+      delay: 4800,
       event: {
         event_type: 'workflow.result.final',
-        agent_level: 'core',
-        final_answer:
-          '### Artifact delivery\n- Slides: [Executive Review Slides]\n- HTML preview: [Console Architecture Prototype]\n- Markdown memo: [Q3 Research Memo]\n- Team onboarding: [Onboarding Guide]\n- Visual context: [Status Heatmap]\n- PDF summary: [Latency Report]',
+        agent_level: 'subagent',
+        is_subtask: true,
+        parent_task_id: parentTaskId,
+        subtask_index: 1,
+        total_subtasks: 2,
+        final_answer: 'Subagent summary: UI renders Goal/Task/Log correctly; fonts consistent.',
         total_iterations: 1,
-        total_tokens: 865,
-        stop_reason: 'completed',
-        duration: 3600,
-        attachments: pickAttachments(
-          'Executive Review Slides',
-          'Console Architecture Prototype',
-          'Q3 Research Memo',
-          'Onboarding Guide',
-          'Status Heatmap',
-          'Latency Report',
-        ),
+        total_tokens: 180,
+        stop_reason: 'final_answer',
+        duration: 850,
       },
     },
   ];

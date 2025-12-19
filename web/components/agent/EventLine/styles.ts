@@ -26,8 +26,8 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
     line: "is-highlighted",
   },
   "workflow.node.failed": { content: "font-semibold text-destructive", line: "is-highlighted" },
-  "workflow.tool.started": { content: "font-mono text-[12px] text-foreground/80" },
-  "workflow.tool.completed": { content: "font-mono text-[12px] text-foreground/80" },
+  "workflow.tool.started": { content: "text-[12px] text-foreground/80" },
+  "workflow.tool.completed": { content: "text-[12px] text-foreground/80" },
   "workflow.node.output.delta": { content: "text-muted-foreground italic" },
   "workflow.node.output.summary": { content: "text-foreground" },
   "workflow.node.started": {
@@ -36,7 +36,7 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
   "workflow.node.completed": {
     content: "text-foreground font-semibold",
   },
-  "workflow.tool.progress": { content: "text-muted-foreground font-mono text-[12px]" },
+  "workflow.tool.progress": { content: "text-muted-foreground text-[12px]" },
 };
 
 /**

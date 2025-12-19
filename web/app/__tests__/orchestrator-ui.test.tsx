@@ -85,7 +85,7 @@ vi.mock("@/lib/auth/context", () => ({
   }),
 }));
 
-describe("Conversation page plan progress UI", () => {
+describe("Conversation page orchestrator UI tools", () => {
   const renderWithProviders = (ui: ReactElement) => {
     const queryClient = new QueryClient();
     return render(
@@ -113,38 +113,57 @@ describe("Conversation page plan progress UI", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders step-focused progress without tool details", async () => {
+  it("renders plan/clearify UI tools with correct levels", async () => {
     const baseTimestamp = new Date().toISOString();
     mockEventsRef.current = [
       {
-        event_type: "workflow.plan.created",
-        steps: ["Research existing implementations", "Write report", "总结"],
+        event_type: "workflow.tool.completed",
         timestamp: baseTimestamp,
         agent_level: "core",
         session_id: "test-session",
         task_id: "test-task",
+        call_id: "call-plan",
+        tool_name: "plan",
+        result: "重构 Planner UI，并引入 plan/clearify 两个 UI 工具。",
+        duration: 5,
+        metadata: {
+          internal_plan: {
+            branches: [{ branch_goal: "SHOULD_NOT_RENDER", tasks: [] }],
+          },
+        },
       } as AnyAgentEvent,
       {
-        event_type: "workflow.node.started",
-        step_index: 0,
-        step_description: "Research existing implementations",
+        event_type: "workflow.tool.completed",
         timestamp: baseTimestamp,
         agent_level: "core",
         session_id: "test-session",
         task_id: "test-task",
+        call_id: "call-clearify",
+        tool_name: "clearify",
+        result: "更新 EventLine 的分级渲染",
+        duration: 3,
+        metadata: {
+          task_goal_ui: "更新 EventLine 的分级渲染",
+          success_criteria: ["plan 显示为 Level 1", "clearify 显示为 Level 2"],
+        },
       } as AnyAgentEvent,
     ];
 
     renderWithProviders(<ConversationPageContent />);
 
     expect(
-      await screen.findByText("Research existing implementations"),
+      await screen.findByText(
+        "重构 Planner UI，并引入 plan/clearify 两个 UI 工具。",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Write report")).toBeInTheDocument();
-    expect(screen.getByText("总结")).toBeInTheDocument();
+    expect(screen.getByText("更新 EventLine 的分级渲染")).toBeInTheDocument();
+    expect(screen.getByText("plan 显示为 Level 1")).toBeInTheDocument();
+    expect(screen.getByText("clearify 显示为 Level 2")).toBeInTheDocument();
+
+    // internal_plan must never be rendered.
+    expect(screen.queryByText("SHOULD_NOT_RENDER")).not.toBeInTheDocument();
 
     // The legacy mobile timeline dialog trigger should not appear in the new minimal UI.
     expect(screen.queryByTestId("mobile-timeline-trigger")).not.toBeInTheDocument();
   });
 });
-

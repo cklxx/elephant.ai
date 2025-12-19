@@ -9,6 +9,7 @@ import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
 import { userFacingToolSummary } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
+import { sanitizeToolMetadataForUI } from "@/lib/toolSanitize";
 import {
   ToolArgumentsPanel,
   ToolResultPanel,
@@ -40,6 +41,10 @@ export function ToolOutputCard({
   attachments,
   status,
 }: ToolOutputCardProps) {
+  const sanitizedMetadata = useMemo(
+    () => sanitizeToolMetadataForUI(toolName, metadata ?? null) ?? null,
+    [toolName, metadata],
+  );
   const hasResult = Boolean(result && result.trim().length > 0);
   const hasParameters = Boolean(
     parameters && Object.keys(parameters).length > 0,
@@ -95,7 +100,7 @@ export function ToolOutputCard({
         toolName,
         result,
         error: null,
-        metadata: (metadata as Record<string, any>) ?? null,
+        metadata: (sanitizedMetadata as Record<string, any>) ?? null,
         attachments: (attachments as any) ?? null,
       });
       if (summary) {
@@ -106,7 +111,7 @@ export function ToolOutputCard({
     }
     // Fallback to params
     return formatParams(parameters, toolName) || "";
-  }, [error, result, parameters, toolName, metadata, attachments]);
+  }, [error, result, parameters, toolName, sanitizedMetadata, attachments]);
 
   const attachmentCount = useMemo(
     () => (attachments ? Object.keys(attachments).length : 0),
@@ -114,9 +119,9 @@ export function ToolOutputCard({
   );
 
   const hasMetadata =
-    Boolean(metadata) &&
-    typeof metadata === "object" &&
-    Object.keys(metadata ?? {}).length > 0;
+    Boolean(sanitizedMetadata) &&
+    typeof sanitizedMetadata === "object" &&
+    Object.keys(sanitizedMetadata ?? {}).length > 0;
   const showBody =
     hasResult || hasParameters || hasError || hasMetadata || attachmentCount > 0;
 
@@ -136,11 +141,11 @@ export function ToolOutputCard({
       return "";
     }
     try {
-      return JSON.stringify(metadata, null, 2);
+      return JSON.stringify(sanitizedMetadata, null, 2);
     } catch {
-      return String(metadata);
+      return String(sanitizedMetadata);
     }
-  }, [hasMetadata, metadata]);
+  }, [hasMetadata, sanitizedMetadata]);
 
   const toggleLabel = isExpanded
     ? t("tool.toggle.collapse")
@@ -226,7 +231,7 @@ export function ToolOutputCard({
               {typeof displayDurationMs === "number" && displayDurationMs > 0 && (
                 <Badge
                   variant="outline"
-                  className="rounded-md px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground"
+                  className="rounded-md px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
                 >
                   {formatDuration(displayDurationMs)}
                 </Badge>
@@ -252,7 +257,7 @@ export function ToolOutputCard({
           ) : null}
 
           {(timestamp || (debugMode && callId)) && (
-            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted-foreground/60">
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] tabular-nums text-muted-foreground/60">
               {debugMode && callId ? (
                 <span>
                   {t("events.toolCall.id")}: {callId}
@@ -300,7 +305,7 @@ export function ToolOutputCard({
                   copyErrorLabel={t("events.toolCall.copyError")}
                   copiedLabel={t("events.toolCall.copied")}
                   attachments={attachments}
-                  metadata={(metadata as Record<string, any>) ?? null}
+                  metadata={(sanitizedMetadata as Record<string, any>) ?? null}
                 />
               )}
 

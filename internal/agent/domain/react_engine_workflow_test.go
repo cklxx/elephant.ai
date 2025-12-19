@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
@@ -87,7 +86,38 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 	mockLLM := &mocks.MockLLMClient{
 		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 			callCount++
-			if callCount == 1 {
+			switch callCount {
+			case 1:
+				return &ports.CompletionResponse{
+					Content: "执行一次简单工具调用并返回结果。",
+					ToolCalls: []ports.ToolCall{{
+						ID:   "call-plan",
+						Name: "plan",
+						Arguments: map[string]any{
+							"run_id":          "task",
+							"overall_goal_ui": "执行一次工具调用并返回结果。",
+							"complexity":      "simple",
+						},
+					}},
+					StopReason: "tool_calls",
+					Usage:      ports.TokenUsage{TotalTokens: 10},
+				}, nil
+			case 2:
+				return &ports.CompletionResponse{
+					Content: "执行 echo 工具。",
+					ToolCalls: []ports.ToolCall{{
+						ID:   "call-clearify",
+						Name: "clearify",
+						Arguments: map[string]any{
+							"run_id":       "task",
+							"task_id":      "task-1",
+							"task_goal_ui": "执行 echo 工具。",
+						},
+					}},
+					StopReason: "tool_calls",
+					Usage:      ports.TokenUsage{TotalTokens: 5},
+				}, nil
+			case 3:
 				return &ports.CompletionResponse{
 					Content: "",
 					ToolCalls: []ports.ToolCall{{
@@ -100,31 +130,44 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 					StopReason: "tool_calls",
 					Usage:      ports.TokenUsage{TotalTokens: 10},
 				}, nil
+			default:
+				return &ports.CompletionResponse{
+					Content:    "done",
+					StopReason: "stop",
+					Usage:      ports.TokenUsage{TotalTokens: 5},
+				}, nil
 			}
-
-			return &ports.CompletionResponse{
-				Content:    "done",
-				StopReason: "stop",
-				Usage:      ports.TokenUsage{TotalTokens: 5},
-			}, nil
-		},
-	}
-
-	mockTool := &mocks.MockToolExecutor{
-		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-			return &ports.ToolResult{
-				CallID:  call.ID,
-				Content: "ok",
-				Attachments: map[string]ports.Attachment{
-					"log.txt": {Name: "log.txt", MediaType: "text/plain", Data: "bG9n"},
-				},
-			}, nil
 		},
 	}
 
 	mockRegistry := &mocks.MockToolRegistry{
 		GetFunc: func(name string) (ports.ToolExecutor, error) {
-			return mockTool, nil
+			switch name {
+			case "plan":
+				return &mocks.MockToolExecutor{
+					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+						return &ports.ToolResult{CallID: call.ID, Content: "ok"}, nil
+					},
+				}, nil
+			case "clearify":
+				return &mocks.MockToolExecutor{
+					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+						return &ports.ToolResult{CallID: call.ID, Content: "ok", Metadata: map[string]any{"task_id": "task-1"}}, nil
+					},
+				}, nil
+			default:
+				return &mocks.MockToolExecutor{
+					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+						return &ports.ToolResult{
+							CallID:  call.ID,
+							Content: "ok",
+							Attachments: map[string]ports.Attachment{
+								"log.txt": {Name: "log.txt", MediaType: "text/plain", Data: "bG9n"},
+							},
+						}, nil
+					},
+				}, nil
+			}
 		},
 		ListFunc: func() []ports.ToolDefinition {
 			return []ports.ToolDefinition{{Name: "echo"}}
@@ -139,7 +182,7 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 	}
 
 	engine := domain.NewReactEngine(domain.ReactEngineConfig{
-		MaxIterations: 3,
+		MaxIterations: 6,
 		Logger:        ports.NoopLogger{},
 		Clock:         ports.SystemClock{},
 		Workflow:      tracker,
@@ -158,7 +201,24 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 		t.Fatalf("SolveTask returned error: %v", err)
 	}
 
-	for _, id := range []string{"react:context", "react:iter:1:think", "react:iter:1:plan", "react:iter:1:tools", "react:iter:1:tool:call-1", "react:iter:2:think", "react:iter:2:plan", "react:finalize"} {
+	for _, id := range []string{
+		"react:context",
+		"react:iter:1:think",
+		"react:iter:1:plan",
+		"react:iter:1:tools",
+		"react:iter:1:tool:call-plan",
+		"react:iter:2:think",
+		"react:iter:2:plan",
+		"react:iter:2:tools",
+		"react:iter:2:tool:call-clearify",
+		"react:iter:3:think",
+		"react:iter:3:plan",
+		"react:iter:3:tools",
+		"react:iter:3:tool:call-1",
+		"react:iter:4:think",
+		"react:iter:4:plan",
+		"react:finalize",
+	} {
 		if !tracker.hasStarted(id) {
 			t.Fatalf("expected workflow node %s to start", id)
 		}
@@ -173,17 +233,17 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 		t.Fatalf("expected pending attachments to be preserved, got: %#v", ctxOutput["pending_attachments"])
 	}
 
-	planOutput, ok := tracker.successOutput("react:iter:1:plan").(map[string]any)
+	planOutput, ok := tracker.successOutput("react:iter:3:plan").(map[string]any)
 	if !ok {
-		t.Fatalf("plan output missing: %#v", tracker.successOutput("react:iter:1:plan"))
+		t.Fatalf("plan output missing: %#v", tracker.successOutput("react:iter:3:plan"))
 	}
 	if planOutput["tool_calls"] != 1 {
 		t.Fatalf("expected plan to record tool count, got %#v", planOutput)
 	}
 
-	toolsOutput, ok := tracker.successOutput("react:iter:1:tools").(map[string]any)
+	toolsOutput, ok := tracker.successOutput("react:iter:3:tools").(map[string]any)
 	if !ok {
-		t.Fatalf("tools output missing: %#v", tracker.successOutput("react:iter:1:tools"))
+		t.Fatalf("tools output missing: %#v", tracker.successOutput("react:iter:3:tools"))
 	}
 	resultsVal, ok := toolsOutput["results"].([]ports.ToolResult)
 	if !ok || len(resultsVal) != 1 {
@@ -193,9 +253,9 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 		t.Fatalf("expected tool attachments to be carried over, got: %#v", resultsVal[0].Attachments)
 	}
 
-	toolCallOutput, ok := tracker.successOutput("react:iter:1:tool:call-1").(map[string]any)
+	toolCallOutput, ok := tracker.successOutput("react:iter:3:tool:call-1").(map[string]any)
 	if !ok {
-		t.Fatalf("tool call output missing: %#v", tracker.successOutput("react:iter:1:tool:call-1"))
+		t.Fatalf("tool call output missing: %#v", tracker.successOutput("react:iter:3:tool:call-1"))
 	}
 	if toolCallOutput["call_id"] != "call-1" || toolCallOutput["tool"] != "echo" {
 		t.Fatalf("unexpected tool call metadata: %#v", toolCallOutput)
@@ -217,7 +277,7 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 	}
 }
 
-func TestReactEngineRegistersToolCallsInOrder(t *testing.T) {
+func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
 	tracker := newRecordingWorkflow()
 	callCount := 0
 	mockLLM := &mocks.MockLLMClient{
@@ -250,23 +310,11 @@ func TestReactEngineRegistersToolCallsInOrder(t *testing.T) {
 		},
 	}
 
-	mockTool := &mocks.MockToolExecutor{
-		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-			if call.ID == "call-2" {
-				time.Sleep(10 * time.Millisecond)
-			} else {
-				time.Sleep(2 * time.Millisecond)
-			}
-			return &ports.ToolResult{CallID: call.ID, Content: call.Name}, nil
-		},
-	}
-
 	mockRegistry := &mocks.MockToolRegistry{
 		GetFunc: func(name string) (ports.ToolExecutor, error) {
-			return mockTool, nil
-		},
-		ListFunc: func() []ports.ToolDefinition {
-			return []ports.ToolDefinition{{Name: "alpha"}, {Name: "beta"}}
+			return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+				return &ports.ToolResult{CallID: call.ID, Content: call.Name}, nil
+			}}, nil
 		},
 	}
 
@@ -293,9 +341,6 @@ func TestReactEngineRegistersToolCallsInOrder(t *testing.T) {
 		"react:context",
 		"react:iter:1:think",
 		"react:iter:1:plan",
-		"react:iter:1:tools",
-		"react:iter:1:tool:call-1",
-		"react:iter:1:tool:call-2",
 		"react:iter:2:think",
 		"react:iter:2:plan",
 		"react:finalize",
@@ -303,5 +348,8 @@ func TestReactEngineRegistersToolCallsInOrder(t *testing.T) {
 
 	if got := tracker.orderSnapshot(); !reflect.DeepEqual(got, expectedOrder) {
 		t.Fatalf("unexpected workflow registration order: got %#v want %#v", got, expectedOrder)
+	}
+	if len(state.ToolResults) != 0 {
+		t.Fatalf("expected no tool results due to multi-tool gate, got %d", len(state.ToolResults))
 	}
 }

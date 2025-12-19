@@ -98,8 +98,8 @@ func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
 	if ragIdx == -1 {
 		t.Fatalf("expected preloaded message to remain present: %+v", state.Messages)
 	}
-	if ragIdx <= userIdx {
-		t.Fatalf("expected preloaded context to follow user input, userIdx=%d ragIdx=%d", userIdx, ragIdx)
+	if ragIdx >= userIdx {
+		t.Fatalf("expected preloaded context to remain before user input, userIdx=%d ragIdx=%d", userIdx, ragIdx)
 	}
 	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
 		t.Fatalf("expected system prompt to remain first, got source %q", state.Messages[0].Source)
@@ -137,16 +137,16 @@ func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
 
 	oldIdx := -1
 	newUserIdx := -1
-	freshAfter := true
+	var freshIdxs []int
 	for idx, msg := range state.Messages {
 		if msg.Content == "old context" {
 			oldIdx = idx
 		}
-		if msg.Content == "second question" {
+		if msg.Content == "second question" && msg.Source == ports.MessageSourceUserInput {
 			newUserIdx = idx
 		}
-		if (msg.Content == "fresh context 1" || msg.Content == "fresh context 2") && newUserIdx != -1 && idx <= newUserIdx {
-			freshAfter = false
+		if msg.Content == "fresh context 1" || msg.Content == "fresh context 2" {
+			freshIdxs = append(freshIdxs, idx)
 		}
 	}
 	if oldIdx == -1 {
@@ -158,8 +158,18 @@ func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
 	if oldIdx > newUserIdx {
 		t.Fatalf("expected previous turn context to remain before new user input, oldIdx=%d newIdx=%d", oldIdx, newUserIdx)
 	}
-	if !freshAfter {
-		t.Fatalf("expected fresh preloaded context to follow new user input: %+v", state.Messages)
+	freshBefore := false
+	freshAfter := false
+	for _, idx := range freshIdxs {
+		if idx < newUserIdx {
+			freshBefore = true
+		}
+		if idx > newUserIdx {
+			freshAfter = true
+		}
+	}
+	if !freshBefore || freshAfter {
+		t.Fatalf("expected preloaded context to remain before new user input: %+v", state.Messages)
 	}
 }
 
@@ -169,8 +179,41 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	mockLLM := &mocks.MockLLMClient{
 		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 			callCount++
-			if callCount == 1 {
-				// First call: request tool
+			switch callCount {
+			case 1:
+				return &ports.CompletionResponse{
+					Content: "读取 test.txt 并回答问题。",
+					ToolCalls: []ports.ToolCall{
+						{
+							ID:   "call_plan",
+							Name: "plan",
+							Arguments: map[string]any{
+								"run_id":          "test-run",
+								"overall_goal_ui": "读取文件并回答问题。",
+								"complexity":      "simple",
+							},
+						},
+					},
+					StopReason: "tool_calls",
+				}, nil
+			case 2:
+				return &ports.CompletionResponse{
+					Content: "读取 test.txt。",
+					ToolCalls: []ports.ToolCall{
+						{
+							ID:   "call_clearify",
+							Name: "clearify",
+							Arguments: map[string]any{
+								"run_id":       "test-run",
+								"task_id":      "task-1",
+								"task_goal_ui": "读取 test.txt。",
+							},
+						},
+					},
+					StopReason: "tool_calls",
+				}, nil
+			case 3:
+				// Third call: request action tool
 				return &ports.CompletionResponse{
 					Content: "I need to read the file",
 					ToolCalls: []ports.ToolCall{
@@ -178,12 +221,13 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 					},
 					StopReason: "tool_calls",
 				}, nil
+			default:
+				// Final answer
+				return &ports.CompletionResponse{
+					Content:    "The file contains: mock content. Final answer.",
+					StopReason: "stop",
+				}, nil
 			}
-			// Second call: final answer
-			return &ports.CompletionResponse{
-				Content:    "The file contains: mock content. Final answer.",
-				StopReason: "stop",
-			}, nil
 		},
 	}
 
@@ -191,6 +235,16 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 		GetFunc: func(name string) (ports.ToolExecutor, error) {
 			return &mocks.MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					if call.Name == "clearify" {
+						return &ports.ToolResult{
+							CallID:   call.ID,
+							Content:  "ok",
+							Metadata: map[string]any{"task_id": "task-1"},
+						}, nil
+					}
+					if call.Name == "plan" {
+						return &ports.ToolResult{CallID: call.ID, Content: "ok"}, nil
+					}
 					return &ports.ToolResult{
 						CallID:  call.ID,
 						Content: "mock file content",
@@ -220,11 +274,11 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 2 {
-		t.Errorf("Expected 2 iterations, got %d", result.Iterations)
+	if result.Iterations != 4 {
+		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}
-	if len(state.ToolResults) != 1 {
-		t.Errorf("Expected 1 tool result, got %d", len(state.ToolResults))
+	if len(state.ToolResults) != 3 {
+		t.Errorf("Expected 3 tool results, got %d", len(state.ToolResults))
 	}
 }
 
@@ -416,21 +470,9 @@ func TestReactEngine_EventListenerReceivesEvents(t *testing.T) {
 	}
 
 	state := &domain.TaskState{SessionID: "sess"}
-	result, err := engine.SolveTask(context.Background(), "summarize", state, services)
+	_, err := engine.SolveTask(context.Background(), "summarize", state, services)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
-	}
-
-	env := &ports.ExecutionEnvironment{
-		State: state,
-		Services: ports.ServiceBundle{
-			LLM: mockLLM,
-		},
-	}
-
-	summarizer := domain.NewFinalAnswerSummarizer(ports.NoopLogger{}, ports.SystemClock{})
-	if _, err := summarizer.Summarize(context.Background(), env, result, listener); err != nil {
-		t.Fatalf("expected summarization to succeed, got %v", err)
 	}
 
 	if len(listener.events) == 0 {

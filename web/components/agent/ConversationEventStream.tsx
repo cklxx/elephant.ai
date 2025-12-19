@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { AnyAgentEvent, eventMatches } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
-import { IntermediatePanel } from "./IntermediatePanel";
 import { LoadingDots } from "@/components/ui/loading-states";
 import {
   EventLine,
@@ -65,11 +64,6 @@ export function ConversationEventStream({
     });
   }, [displayEvents, subagentThreads]);
 
-  const panelAnchors = useMemo(
-    () => buildPanelAnchors(events, displayEvents),
-    [events, displayEvents],
-  );
-
   if (!isConnected || error) {
     return (
       <ConnectionBanner
@@ -115,7 +109,6 @@ export function ConversationEventStream({
 
           const event = entry.event;
           const key = `${event.event_type}-${event.timestamp}-${index}`;
-          const panelEvents = panelAnchors.get(event);
 
           return (
             <div
@@ -123,11 +116,6 @@ export function ConversationEventStream({
               className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2 py-0.5"
             >
               <EventLine event={event} />
-              {panelEvents && (
-                <div className="ml-4 pl-3 border-l border-border/40 mt-1 mb-2">
-                  <IntermediatePanel events={panelEvents} />
-                </div>
-              )}
             </div>
           );
         })}
@@ -153,46 +141,6 @@ interface SubagentThread {
   subtaskIndex: number;
 }
 
-function buildPanelAnchors(
-  events: AnyAgentEvent[],
-  anchorEvents: AnyAgentEvent[],
-): WeakMap<AnyAgentEvent, AnyAgentEvent[]> {
-  const anchorMap = new WeakMap<AnyAgentEvent, AnyAgentEvent[]>();
-  if (events.length === 0 || anchorEvents.length === 0) {
-    return anchorMap;
-  }
-
-  const eventIndexLookup = new WeakMap<AnyAgentEvent, number>();
-  events.forEach((event, index) => {
-    eventIndexLookup.set(event, index);
-  });
-
-  const sortedAnchors = anchorEvents
-    .map((event) => {
-      const index = eventIndexLookup.get(event);
-      if (typeof index !== "number") {
-        return null;
-      }
-      return { event, index };
-    })
-    .filter((anchor): anchor is { event: AnyAgentEvent; index: number } =>
-      Boolean(anchor),
-    )
-    .sort((a, b) => a.index - b.index);
-
-  if (sortedAnchors.length === 0) {
-    return anchorMap;
-  }
-
-  sortedAnchors.forEach(({ event, index }, idx) => {
-    const endIdx = sortedAnchors[idx + 1]?.index ?? events.length;
-    const segmentEvents = events.slice(index, endIdx);
-    anchorMap.set(event, segmentEvents);
-  });
-
-  return anchorMap;
-}
-
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
   if (event.agent_level === "subagent") {
     return false;
@@ -202,25 +150,11 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     event.event_type === "workflow.input.received" ||
     eventMatches(event, "workflow.result.final", "workflow.result.final") ||
     eventMatches(event, "workflow.result.cancelled", "workflow.result.cancelled") ||
-    eventMatches(event, "workflow.node.failed", "workflow.node.failed")
+    eventMatches(event, "workflow.node.failed", "workflow.node.failed") ||
+    eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary") ||
+    eventMatches(event, "workflow.tool.completed", "workflow.tool.completed")
   ) {
     return false;
-  }
-
-  if (
-    eventMatches(
-      event,
-      "workflow.tool.started",
-      "workflow.tool.completed",
-      "workflow.tool.progress",
-      "workflow.tool.started",
-      "workflow.tool.completed",
-      "workflow.tool.progress",
-      "workflow.node.output.summary",
-      "workflow.node.output.summary",
-    )
-  ) {
-    return true;
   }
 
   return true;
@@ -395,4 +329,3 @@ function isDelegationToolEvent(event: AnyAgentEvent): boolean {
     "";
   return name.trim().toLowerCase() === "subagent";
 }
-
