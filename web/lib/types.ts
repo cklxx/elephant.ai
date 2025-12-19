@@ -51,7 +51,7 @@ export interface WorkflowSnapshot {
   id: string;
   phase: WorkflowPhase;
   order: string[];
-  nodes: WorkflowNodeSnapshot[];
+  nodes?: WorkflowNodeSnapshot[];
   started_at?: string;
   completed_at?: string;
   duration?: number;

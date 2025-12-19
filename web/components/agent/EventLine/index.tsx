@@ -62,7 +62,7 @@ export const EventLine = React.memo(function EventLine({
     return (
       <div className="py-2" data-testid="event-workflow.input.received">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+          <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
             User
           </span>
           <span className="text-[10px] text-muted-foreground/40">
@@ -138,7 +138,10 @@ export const EventLine = React.memo(function EventLine({
       );
     }
     return (
-      <div data-testid="event-workflow.tool.completed" className="py-1">
+      <div
+        data-testid="event-workflow.tool.completed"
+        className="py-2 pl-4 border-l-2 border-primary/10"
+      >
         <ToolOutputCard
           toolName={completeEvent.tool_name}
           parameters={completeEvent.arguments}
@@ -159,7 +162,7 @@ export const EventLine = React.memo(function EventLine({
     return (
       <div className="py-2" data-testid="event-workflow.result.final">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+          <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
             Summary
           </span>
           <span className="text-[10px] text-muted-foreground/40">
@@ -199,15 +202,12 @@ export const EventLine = React.memo(function EventLine({
 
         return (
           <div
-            className="py-2"
+            className="py-2 pl-4 border-l-2 border-primary/10"
             data-testid="event-workflow.node.output.summary"
           >
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
-                ALEX
-              </span>
-              <span className="text-[10px] text-muted-foreground/40 tabular-nums">
-                {formatTimestamp(thinkEvent.timestamp)}
+              <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
+                Alex
               </span>
             </div>
             <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
@@ -224,7 +224,6 @@ export const EventLine = React.memo(function EventLine({
   }
 
   // Other events - use simple line format
-  const timestamp = formatTimestamp(event.timestamp);
   const content = formatContent(event);
   const style = getEventStyle(event);
   if (!content) {
@@ -237,9 +236,6 @@ export const EventLine = React.memo(function EventLine({
         style.content,
       )}
     >
-      <span className="text-[10px] opacity-40 shrink-0 w-12 pt-0.5 tabular-nums">
-        {timestamp}
-      </span>
       <div className="flex-1 leading-relaxed break-words">{content}</div>
     </div>
   );
@@ -325,9 +321,6 @@ function SubagentEventLine({
           style.content,
         )}
       >
-        <span className="text-[10px] opacity-40 shrink-0 w-12 tabular-nums">
-          {formatTimestamp(event.timestamp)}
-        </span>
         <div className="flex-1">{content}</div>
       </div>
     </div>
@@ -344,8 +337,8 @@ function PlanGoalCard({
   return (
     <div className="py-2" data-testid="event-ui-plan">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
-          {formatTimestamp(timestamp)}
+        <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
+          Alex
         </span>
       </div>
       <div className="text-base font-medium text-foreground whitespace-pre-wrap leading-relaxed">
@@ -385,11 +378,6 @@ function ClearifyTaskCard({
       className="py-2 pl-4 border-l-2 border-primary/10"
       data-testid="event-ui-clearify"
     >
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
-          {formatTimestamp(timestamp)}
-        </span>
-      </div>
       <div className="text-sm font-medium text-foreground whitespace-pre-wrap leading-relaxed">
         {taskGoalUI}
       </div>
@@ -419,13 +407,13 @@ function AssistantLogCard({
   timestamp?: string;
 }) {
   return (
-    <div className="py-2" data-testid="event-workflow.node.output.summary">
+    <div
+      className="py-2 pl-4 border-l-2 border-primary/10"
+      data-testid="event-workflow.node.output.summary"
+    >
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
-          ALEX
-        </span>
-        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
-          {formatTimestamp(timestamp)}
+        <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
+          Alex
         </span>
       </div>
       <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
@@ -572,7 +560,7 @@ interface SubagentHeaderProps {
 export function SubagentHeader({ context }: SubagentHeaderProps) {
   return (
     <div className="flex items-center gap-3">
-      <p className="text-[10px] font-bold tracking-wider text-primary uppercase">
+      <p className="text-[10px] font-bold tracking-wider text-primary">
         {context.title}
       </p>
       <div className="flex items-center gap-2">

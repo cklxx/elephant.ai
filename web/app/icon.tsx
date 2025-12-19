@@ -24,7 +24,7 @@ export default function Icon() {
         <svg
           viewBox="0 0 64 64"
           role="img"
-          aria-label="Spinner logo"
+          aria-label="Alex Code logo"
           style={{
             width: "80%",
             height: "80%",

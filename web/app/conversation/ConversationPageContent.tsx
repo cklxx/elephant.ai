@@ -530,7 +530,7 @@ export function ConversationPageContent() {
         </div>
 
         <div className="mt-6">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
             {t('console.quickstart.title')}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">

@@ -8,8 +8,6 @@ import {
   TaskStatusResponse,
   SessionListResponse,
   SessionDetailsResponse,
-  ApprovePlanRequest,
-  ApprovePlanResponse,
   RuntimeConfigSnapshot,
   RuntimeConfigOverridesPayload,
   EvaluationListResponse,
@@ -174,15 +172,6 @@ export async function cancelTask(taskId: string): Promise<void> {
   });
 }
 
-export async function approvePlan(
-  request: ApprovePlanRequest,
-): Promise<ApprovePlanResponse> {
-  return fetchAPI<ApprovePlanResponse>("/api/plans/approve", {
-    method: "POST",
-    body: JSON.stringify(request),
-  });
-}
-
 // Internal runtime config APIs
 
 export async function getRuntimeConfigSnapshot(): Promise<RuntimeConfigSnapshot> {
@@ -333,7 +322,6 @@ export const apiClient = {
   createTask,
   getTaskStatus,
   cancelTask,
-  approvePlan,
   listSessions,
   getSessionDetails,
   deleteSession,

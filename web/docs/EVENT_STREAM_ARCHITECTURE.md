@@ -10,7 +10,7 @@ The goal is a single workflow-originated event stream with semantic, namespaced 
 
 - **Envelope (all events)**: `version` (e.g., `1`), `event_type`, `timestamp` (RFC3339), `agent_level`, `workflow_id`, `run_id` (or `task_id`), `parent_task_id`, `session_id`, `node_id`, `node_kind`, `payload`, optional `attachments`.
 - **Namespaces** (examples):
-  - `workflow.lifecycle.updated` – full workflow snapshot (phase, summary, nodes).
+  - `workflow.lifecycle.updated` – workflow snapshot (phase, summary, order; node list omitted to reduce payload).
   - `workflow.node.started|completed|failed` – node lifecycle (replaces `step_started/step_completed`).
   - `workflow.node.output.delta` – token stream (replaces `workflow.node.output.delta`).
   - `workflow.node.output.summary` – completed turn/thought (replaces `workflow.node.output.summary`).
