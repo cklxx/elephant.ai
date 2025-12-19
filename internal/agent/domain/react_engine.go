@@ -220,17 +220,9 @@ func (rw *reactWorkflow) completeToolCall(nodeID string, iteration int, call Too
 
 func (b *toolCallBatch) execute() []ToolResult {
 	b.results = make([]ToolResult, len(b.calls))
-
-	var wg sync.WaitGroup
 	for i, call := range b.calls {
-		wg.Add(1)
-		go func(idx int, tc ToolCall) {
-			defer wg.Done()
-			b.runCall(idx, tc)
-		}(i, call)
+		b.runCall(i, call)
 	}
-
-	wg.Wait()
 	return b.results
 }
 

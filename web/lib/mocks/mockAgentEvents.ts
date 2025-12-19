@@ -207,6 +207,12 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
   const callId = 'mock-call-1';
   const parentTaskId = 'mock-core-task';
 
+  const planSteps = [
+    'Collecting repository context',
+    'Drafting remediation suggestions',
+    '总结',
+  ];
+
   const subtaskOneMeta = {
     is_subtask: true,
     parent_task_id: parentTaskId,
@@ -227,12 +233,20 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
 
   return [
     {
+      delay: 450,
+      event: {
+        event_type: 'workflow.plan.created',
+        agent_level: 'core',
+        steps: planSteps,
+      },
+    },
+    {
       delay: 950,
       event: {
         event_type: 'workflow.node.started',
         agent_level: 'core',
         step_index: 0,
-        step_description: 'Collecting repository context',
+        step_description: planSteps[0],
       },
     },
     {

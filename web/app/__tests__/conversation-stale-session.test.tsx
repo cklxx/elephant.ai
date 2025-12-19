@@ -25,8 +25,8 @@ vi.mock('@/hooks/useTimelineSteps', () => ({
   useTimelineSteps: vi.fn(() => []),
 }));
 
-vi.mock('@/components/agent/TerminalOutput', () => ({
-  TerminalOutput: () => <div data-testid="terminal-output" />,
+vi.mock('@/components/agent/ConversationEventStream', () => ({
+  ConversationEventStream: () => <div data-testid="terminal-output" />,
 }));
 
 vi.mock('@/components/ui/toast', () => ({

@@ -109,6 +109,11 @@ const WorkflowLifecycleUpdatedEventSchema = BaseAgentEventSchema.extend({
   workflow: WorkflowSnapshotSchema.optional(),
 });
 
+const WorkflowPlanCreatedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.plan.created'),
+  steps: z.array(z.string()).default([]),
+});
+
 const WorkflowNodeStartedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('workflow.node.started'),
   node_id: z.string().optional(),
@@ -286,6 +291,7 @@ const EVENT_TYPE_ALIASES: Record<string, WorkflowEventType> = {};
 
 const EventSchemas = [
   WorkflowLifecycleUpdatedEventSchema,
+  WorkflowPlanCreatedEventSchema,
   WorkflowNodeStartedEventSchema,
   WorkflowNodeCompletedEventSchema,
   WorkflowNodeFailedEventSchema,
