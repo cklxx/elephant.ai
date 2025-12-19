@@ -521,12 +521,6 @@ export function ConversationPageContent() {
           >
             {t('console.empty.title')}
           </p>
-          <p className="text-sm text-muted-foreground" data-testid="conversation-empty-description">
-            {t('console.empty.description')}
-          </p>
-          <p className="text-xs text-muted-foreground/80" data-testid="conversation-empty-prompt">
-            {t('console.empty.prompt')}
-          </p>
         </div>
 
         <div className="mt-6">

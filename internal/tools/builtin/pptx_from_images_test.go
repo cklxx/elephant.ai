@@ -151,7 +151,9 @@ func readZipFile(t *testing.T, zr *zip.Reader, name string) string {
 		if err != nil {
 			t.Fatalf("open %s: %v", name, err)
 		}
-		defer rc.Close()
+		defer func() {
+			_ = rc.Close()
+		}()
 		data, err := io.ReadAll(rc)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)

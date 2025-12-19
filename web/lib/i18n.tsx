@@ -172,8 +172,6 @@ const translations = {
     "console.timeline.sidebarDescription": "Select a step.",
     "console.empty.badge": "Waiting",
     "console.empty.title": "Ready to start",
-    "console.empty.description": "Send a task to begin.",
-    "console.empty.prompt": "说点啥，让我们开始吧。",
     "console.input.placeholder.active": "输入 /plan 即可提问",
     "console.input.placeholder.idle": "输入 /plan 即可提问",
     "console.input.hotkeyHint": "Enter sends · Shift+Enter newline",

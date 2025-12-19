@@ -666,35 +666,6 @@ func messageMaterialOrigin(msg Message) string {
 	return "message_history"
 }
 
-func isPreloadedContextMessage(msg Message) bool {
-	if len(msg.Metadata) == 0 {
-		return false
-	}
-	value, ok := msg.Metadata["rag_preload"]
-	if !ok {
-		return false
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
-		return err == nil && parsed
-	case float64:
-		return v != 0
-	case int:
-		return v != 0
-	case int64:
-		return v != 0
-	case uint:
-		return v != 0
-	case uint64:
-		return v != 0
-	default:
-		return false
-	}
-}
-
 // ensureAttachmentStore initializes the attachment map on the task state.
 func ensureAttachmentStore(state *TaskState) {
 	if state.Attachments == nil {
