@@ -2,23 +2,25 @@
 
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Button } from '@/components/ui/button';
+
+const LoadingShell = () => (
+  <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <div className="rounded-3xl bg-white/80 p-6 ring-1 ring-white/70">
+        <p className="text-sm text-slate-600">Loading preview…</p>
+      </div>
+    </div>
+  </div>
+);
 
 const ConsolePreviewContent = dynamic(() => import('./ConsolePreviewContent'), {
   ssr: false,
-  loading: () => (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
-      <div className="mx-auto flex max-w-2xl flex-col gap-6">
-        <div className="rounded-3xl bg-white/80 p-6 ring-1 ring-white/70">
-          <p className="text-sm text-slate-600">Loading preview…</p>
-        </div>
-      </div>
-    </div>
-  ),
+  loading: () => <LoadingShell />,
 });
 
-export default function ConsolePreviewPage() {
+function ConsolePreviewPageContent() {
   const searchParams = useSearchParams();
   const autoPreview = searchParams.get('auto') === '1';
   const [manualPreview, setManualPreview] = useState(false);
@@ -49,5 +51,13 @@ export default function ConsolePreviewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ConsolePreviewPage() {
+  return (
+    <Suspense fallback={<LoadingShell />}>
+      <ConsolePreviewPageContent />
+    </Suspense>
   );
 }
