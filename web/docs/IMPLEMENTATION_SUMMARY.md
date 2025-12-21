@@ -199,7 +199,7 @@ web/hooks/__tests__/useTimelineSteps.test.ts
 
 # Test components
 web/components/agent/__tests__/TaskInput.test.tsx
-web/components/agent/__tests__/TerminalOutput.test.tsx
+web/components/agent/__tests__/ConversationEventStream.test.tsx
 ```
 
 ### Integration Tests

@@ -33,7 +33,7 @@ This file is a “read map” (reading order + pointers) for understanding the r
 
 - Event ingestion + de-dupe: `web/hooks/useSSE.ts`
 - Attachment hydration: `web/lib/events/attachmentRegistry.ts`
-- Main conversation stream UI: `web/components/agent/TerminalOutput.tsx`
+- Main conversation stream UI: `web/components/agent/ConversationEventStream.tsx`
 - Right resources panel (skills + attachments): `web/app/conversation/ConversationPageContent.tsx`
 - Skills catalog generation: `web/scripts/generate-skills-catalog.js` → `web/lib/generated/skillsCatalog.json`
 

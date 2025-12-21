@@ -235,6 +235,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifacts_write"] = builtin.NewArtifactsWrite()
 	r.static["artifacts_list"] = builtin.NewArtifactsList()
 	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
+	r.static["a2ui_emit"] = builtin.NewA2UIEmit()
 
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})

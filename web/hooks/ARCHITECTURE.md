@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Application Components                    │
-│  (TerminalOutput, EventList, EventLine, TaskInput, etc.)   │
+│  (ConversationEventStream, EventList, EventLine, TaskInput, etc.)   │
 └────────────┬────────────────────────────────┬───────────────┘
              │                                │
              ▼                                ▼

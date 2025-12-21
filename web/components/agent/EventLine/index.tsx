@@ -69,7 +69,7 @@ export const EventLine = React.memo(function EventLine({
             {formatTimestamp(event.timestamp)}
           </span>
         </div>
-        <div className="text-base font-medium text-foreground">
+        <div className="text-base text-foreground">
           {textSegments.map((segment, index) => (
             <p
               key={`text-segment-${index}`}
@@ -140,7 +140,7 @@ export const EventLine = React.memo(function EventLine({
     return (
       <div
         data-testid="event-workflow.tool.completed"
-        className="py-2 pl-4 border-l-2 border-primary/10"
+        className="py-1 pl-2 border-l-2 border-primary/10"
       >
         <ToolOutputCard
           toolName={completeEvent.tool_name}
@@ -164,9 +164,6 @@ export const EventLine = React.memo(function EventLine({
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
             Summary
-          </span>
-          <span className="text-[10px] text-muted-foreground/40">
-            {formatTimestamp(event.timestamp)}
           </span>
         </div>
         <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
@@ -205,11 +202,6 @@ export const EventLine = React.memo(function EventLine({
             className="py-2 pl-4 border-l-2 border-primary/10"
             data-testid="event-workflow.node.output.summary"
           >
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
-                Alex
-              </span>
-            </div>
             <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
           </div>
         );
@@ -374,10 +366,7 @@ function ClearifyTaskCard({
       : null;
 
   return (
-    <div
-      className="py-2 pl-4 border-l-2 border-primary/10"
-      data-testid="event-ui-clearify"
-    >
+    <div className="py-2 border-primary/10" data-testid="event-ui-clearify">
       <div className="text-sm font-medium text-foreground whitespace-pre-wrap leading-relaxed">
         {taskGoalUI}
       </div>
@@ -411,11 +400,6 @@ function AssistantLogCard({
       className="py-2 pl-4 border-l-2 border-primary/10"
       data-testid="event-workflow.node.output.summary"
     >
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
-          Alex
-        </span>
-      </div>
       <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
         {content}
       </div>

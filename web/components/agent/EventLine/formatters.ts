@@ -1,5 +1,5 @@
 // Formatting utilities for agent events
-// Extracted from TerminalOutput.tsx for better maintainability
+// Extracted from ConversationEventStream.tsx for better maintainability
 
 import { AnyAgentEvent, eventMatches } from '@/lib/types';
 

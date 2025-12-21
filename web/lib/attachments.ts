@@ -480,6 +480,13 @@ export function getAttachmentSegmentType(
   return 'image';
 }
 
+export function isA2UIAttachment(attachment: AttachmentPayload): boolean {
+  const mediaType = attachment.media_type?.toLowerCase() ?? '';
+  const format = attachment.format?.toLowerCase() ?? '';
+  const previewProfile = attachment.preview_profile?.toLowerCase() ?? '';
+  return mediaType.includes('a2ui') || format === 'a2ui' || previewProfile.includes('a2ui');
+}
+
 interface AttachmentDetail {
   key: string;
   attachment: AttachmentPayload;

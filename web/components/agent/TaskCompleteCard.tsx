@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { WorkflowResultFinalEvent } from "@/lib/types";
+import { WorkflowResultFinalEvent, AttachmentPayload } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n";
 import {
   parseContentSegments,
@@ -10,6 +10,7 @@ import {
   replacePlaceholdersWithMarkdown,
   getAttachmentSegmentType,
   ContentSegment,
+  isA2UIAttachment,
 } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
@@ -17,6 +18,7 @@ import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
 import { LoadingDots } from "@/components/ui/loading-states";
+import { A2UIAttachmentPreview } from "@/components/agent/A2UIAttachmentPreview";
 
 interface StopReasonCopy {
   title: string;
@@ -53,11 +55,32 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const answer = event.final_answer ?? "";
   const markdownAnswer = convertInlineMediaToMarkdown(answer);
   const attachments = event.attachments ?? undefined;
+  const { a2uiAttachments, standardAttachments } = useMemo(() => {
+    if (!attachments) {
+      return {
+        a2uiAttachments: {} as Record<string, AttachmentPayload>,
+        standardAttachments: undefined as Record<string, AttachmentPayload> | undefined,
+      };
+    }
+    const a2ui: Record<string, AttachmentPayload> = {};
+    const standard: Record<string, AttachmentPayload> = {};
+    Object.entries(attachments).forEach(([key, attachment]) => {
+      if (isA2UIAttachment(attachment)) {
+        a2ui[key] = attachment;
+      } else {
+        standard[key] = attachment;
+      }
+    });
+    return {
+      a2uiAttachments: a2ui,
+      standardAttachments: Object.keys(standard).length > 0 ? standard : undefined,
+    };
+  }, [attachments]);
   const streamInProgress =
     event.stream_finished === false ||
     (event.is_streaming === true && event.stream_finished !== true);
   const streamFinished = event.stream_finished === true;
-  const inlineAttachments = streamInProgress ? undefined : attachments;
+  const inlineAttachments = streamInProgress ? undefined : standardAttachments;
   const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
     markdownAnswer,
     inlineAttachments,
@@ -138,7 +161,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       };
     }, [inlineAttachments]);
   const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
-    const segments = parseContentSegments(markdownAnswer, attachments);
+    const segments = parseContentSegments(markdownAnswer, standardAttachments);
     const unreferencedMedia: ContentSegment[] = [];
     const artifacts: ContentSegment[] = [];
 
@@ -162,7 +185,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       unreferencedMediaSegments: unreferencedMedia,
       artifactSegments: artifacts,
     };
-  }, [markdownAnswer, attachments]);
+  }, [markdownAnswer, standardAttachments]);
+  const hasA2UIAttachments = Object.keys(a2uiAttachments).length > 0;
   const hasAnswerContent = contentWithInlineMedia.trim().length > 0;
   // Only render the markdown block when there is actual answer content (or the stream is still in progress).
   // Otherwise we may render an empty "final answer" area when the backend returns attachments-only results.
@@ -170,9 +194,15 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   const hasUnrenderedAttachments =
     unreferencedMediaSegments.length > 0 || artifactSegments.length > 0;
   const shouldShowFallback =
-    !shouldRenderMarkdown && !hasUnrenderedAttachments && !hasAttachments;
+    !shouldRenderMarkdown &&
+    !hasUnrenderedAttachments &&
+    !hasAttachments &&
+    !hasA2UIAttachments;
   const shouldShowAttachmentNotice =
-    !shouldRenderMarkdown && !hasUnrenderedAttachments && hasAttachments;
+    !shouldRenderMarkdown &&
+    !hasUnrenderedAttachments &&
+    hasAttachments &&
+    !hasA2UIAttachments;
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
 
   const InlineMarkdownImage = ({
@@ -244,7 +274,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   );
                 },
                 pre: ({ children }: any) => (
-                  <div className="my-4">{children}</div>
+                  <div className="markdown-code-block relative my-4">
+                    {children}
+                  </div>
                 ),
                 p: ({ children }: any) => (
                   <div className="mb-4 leading-relaxed text-foreground">
@@ -348,6 +380,17 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             )}
           </div>
         ) : null}
+
+        {!streamInProgress && hasA2UIAttachments && (
+          <div className="space-y-4">
+            {Object.entries(a2uiAttachments).map(([key, attachment]) => (
+              <A2UIAttachmentPreview
+                key={`task-complete-a2ui-${key}`}
+                attachment={attachment}
+              />
+            ))}
+          </div>
+        )}
 
         {!streamInProgress && unreferencedMediaSegments.length > 0 && (
           <div className="flex flex-wrap items-start gap-3">

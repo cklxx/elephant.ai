@@ -148,7 +148,7 @@ export function ToolOutputCard({
 
   return (
     <div
-      className="group mb-2"
+      className="group"
       data-testid={`tool-output-card-${normalizedToolName.replace(/\s+/g, "-")}`}
     >
       <button
@@ -170,14 +170,14 @@ export function ToolOutputCard({
       >
         <div
           className={cn(
-            "relative flex h-6 w-6 flex-none items-center justify-center rounded-md",
+            "relative flex h-4 w-4 flex-none items-center justify-center rounded-md",
             resolvedStatus === "running" &&
               "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
             resolvedStatus === "failed" &&
               "border-red-200/60 bg-red-50/40 dark:border-red-800/30 dark:bg-red-950/30",
           )}
         >
-          <span className="text-[13px] leading-none" aria-hidden="true">
+          <span className="text-[10px] leading-none" aria-hidden="true">
             {toolIcon}
           </span>
         </div>
@@ -185,7 +185,7 @@ export function ToolOutputCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-3">
             <span
-              className="min-w-0 flex-1 truncate text-[13px] tracking-tight"
+              className="min-w-0 flex-1 truncate text-xs tracking-tight"
               data-testid="tool-name"
             >
               {displayToolName}
