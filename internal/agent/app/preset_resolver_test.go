@@ -87,11 +87,17 @@ func TestPresetResolver_ResolveToolRegistry_WithContextPreset(t *testing.T) {
 func TestPresetResolver_ResolveToolRegistry_InvalidPreset(t *testing.T) {
 	logger := &testLogger{}
 	resolver := NewPresetResolver(logger)
-	baseRegistry := stubToolRegistry{}
+	baseRegistry := &mockToolRegistry{
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "bash"}},
+	}
 
 	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "invalid-preset")
-	if registry != baseRegistry {
-		t.Fatal("expected base registry when preset is invalid")
+	if registry == nil {
+		t.Fatal("expected registry when preset is invalid")
+	}
+	tools := registry.List()
+	if len(tools) != len(baseRegistry.tools) {
+		t.Fatalf("expected fallback to full preset, got %d tools", len(tools))
 	}
 }
 

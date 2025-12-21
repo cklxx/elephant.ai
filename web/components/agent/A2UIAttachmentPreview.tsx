@@ -13,28 +13,37 @@ export function A2UIAttachmentPreview({
 }: {
   attachment: AttachmentPayload;
 }) {
-  const [messages, setMessages] = useState<A2UIMessage[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
   const attachmentKey = useMemo(
     () => `${attachment.name}:${attachment.data ?? ""}:${attachment.uri ?? ""}`,
     [attachment.name, attachment.data, attachment.uri],
   );
 
+  const [state, setState] = useState<{
+    key: string;
+    messages: A2UIMessage[] | null;
+    error: string | null;
+  }>(() => ({
+    key: attachmentKey,
+    messages: null,
+    error: null,
+  }));
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    setMessages(null);
-    setError(null);
 
     loadA2UIAttachmentMessages(attachment, controller.signal)
       .then((loaded) => {
         if (cancelled) return;
-        setMessages(loaded);
+        setState({ key: attachmentKey, messages: loaded, error: null });
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setState({
+          key: attachmentKey,
+          messages: [],
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
 
     return () => {
@@ -43,6 +52,9 @@ export function A2UIAttachmentPreview({
     };
   }, [attachment, attachmentKey]);
 
+  const isCurrent = state.key === attachmentKey;
+  const messages = isCurrent ? state.messages : null;
+  const error = isCurrent ? state.error : null;
   const title = attachment.description || attachment.name || "A2UI";
 
   return (
