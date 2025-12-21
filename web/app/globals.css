@@ -107,19 +107,12 @@
     background: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
     cursor: pointer;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(-2px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  .markdown-body .wmde-markdown pre:hover .copied,
-  .markdown-body .wmde-markdown .markdown-code-block:hover .copied {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translateY(0);
+  .markdown-body .wmde-markdown .copied:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
   }
 
   .markdown-body .wmde-markdown .copied .octicon-copy {
