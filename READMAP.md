@@ -25,7 +25,7 @@ This file is a “read map” (reading order + pointers) for understanding the r
 - Tool registry + builtins: `internal/toolregistry`, `internal/tools`
 - Skills (Markdown playbooks): `skills/`
   - Tool access: `internal/tools/builtin/skills.go`
-  - Index generation for prompts: `internal/skills/index.go`
+  - Index generation for skills catalog: `internal/skills/index.go`
   - Prompt injection: `internal/context/manager.go`
 - Context builder: `internal/context`
 

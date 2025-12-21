@@ -269,25 +269,24 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 	var lastHistoryTime time.Time
 
-	globalHistory := h.broadcaster.GetGlobalHistory()
-	if len(globalHistory) > 0 {
-		h.logger.Info("Replaying %d global events", len(globalHistory))
-		for _, event := range globalHistory {
-			if sendEvent(event) {
-				lastHistoryTime = event.Timestamp()
-			}
+	if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: ""}, func(event ports.AgentEvent) error {
+		if sendEvent(event) {
+			lastHistoryTime = event.Timestamp()
 		}
+		return nil
+	}); err != nil {
+		h.logger.Warn("Failed to replay global events: %v", err)
 	}
 
 	// Replay historical events for this session
-	history := h.broadcaster.GetEventHistory(sessionID)
-	if len(history) > 0 {
-		h.logger.Info("Replaying %d historical events for session: %s", len(history), sessionID)
-		for _, event := range history {
-			if sendEvent(event) {
-				lastHistoryTime = event.Timestamp()
-			}
+	if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: sessionID}, func(event ports.AgentEvent) error {
+		if sendEvent(event) {
+			lastHistoryTime = event.Timestamp()
 		}
+		return nil
+	}); err != nil {
+		h.logger.Warn("Failed to replay historical events for session %s: %v", sessionID, err)
+	} else {
 		h.logger.Info("Completed replaying historical events for session: %s", sessionID)
 	}
 

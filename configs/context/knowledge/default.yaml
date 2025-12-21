@@ -1,16 +1,19 @@
 id: default
 description: |
-  Layered operating procedures distilled from the legacy coder prompt, Claude Code
+  Layered operating procedures distilled from legacy execution guidance, Claude Code
   context best practices, and the Context Schema optimization plan. These packs
   capture the task execution framework, TODO lifecycle, research strategy, and
   observability guardrails so the context manager can rebuild the same guidance
   without bloated monolithic templates.
 sop_refs:
-  - docs/research/claude_code_prompt_best_practices.md#system-prompt-crafting
-  - docs/design/agent_context_framework.md#5-context-schema-优化
-  - internal/prompts/coder.md#task-execution-framework
-  - internal/prompts/coder.md#research--investigation-strategy
-  - internal/prompts/coder.md#communication-standards
+  - TASK_EXECUTION_FRAMEWORK.md#task-execution-framework
+  - TASK_EXECUTION_FRAMEWORK.md#todo-lifecycle
+  - TASK_EXECUTION_FRAMEWORK.md#research--investigation-strategy
+  - TASK_EXECUTION_FRAMEWORK.md#communication-standards
+  - TASK_EXECUTION_FRAMEWORK.md#context-budget--compression
+  - TASK_EXECUTION_FRAMEWORK.md#observability--traceability
+  - docs/AGENT.md#react-execution-loop
+  - docs/AGENT.md#memory--sessions
 rag_collections:
   - context-static
   - context-observability

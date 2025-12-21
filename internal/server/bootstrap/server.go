@@ -56,7 +56,19 @@ func RunServer(observabilityConfigPath string) error {
 		container.AgentCoordinator.SetEnvironmentSummary(summary)
 	}
 
-	broadcaster := serverApp.NewEventBroadcaster()
+	var historyStore serverApp.EventHistoryStore
+	if container.SessionDB != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB)
+		if err := pgHistory.EnsureSchema(ctx); err != nil {
+			logger.Warn("Failed to initialize event history schema: %v", err)
+		} else {
+			historyStore = pgHistory
+		}
+	}
+
+	broadcaster := serverApp.NewEventBroadcaster(serverApp.WithEventHistoryStore(historyStore))
 	taskStore := serverApp.NewInMemoryTaskStore()
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
@@ -80,7 +92,22 @@ func RunServer(observabilityConfigPath string) error {
 		serverApp.WithAnalyticsClient(analyticsClient),
 		serverApp.WithJournalReader(journalReader),
 		serverApp.WithObservability(obs),
+		serverApp.WithHistoryStore(container.HistoryStore),
 	)
+
+	if historyStore != nil {
+		if err := MigrateSessionsToDatabase(
+			context.Background(),
+			container.SessionDir(),
+			container.SessionStore,
+			container.StateStore,
+			container.HistoryStore,
+			historyStore,
+			logger,
+		); err != nil {
+			logger.Warn("Session migration failed: %v", err)
+		}
+	}
 
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))

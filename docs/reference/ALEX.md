@@ -202,8 +202,8 @@ The project adheres to a set of design philosophies intended to keep the codebas
 
 ## Naming Guidelines
 
-- Functions: AnalyzeCode(), LoadPrompts(), ExecuteTool(), etc.
-- Types: ReactAgent, PromptLoader, ToolExecutor.
+- Functions: AnalyzeCode(), BuildWindow(), ExecuteTool(), etc.
+- Types: ReactAgent, ContextManager, ToolExecutor.
 - Variables: taskResult, userMessage, promptTemplate.
 
 ## Architectural Principles
@@ -257,7 +257,7 @@ go test -coverprofile=coverage.out ./...
 
 - Core repository layout:
   - cmd/        CLI entry points and command handlers
-  - internal/   core application logic (agent, llm, tools, memory, mcp, prompts, config, session)
+  - internal/   core application logic (agent, llm, tools, memory, mcp, context, config, session)
   - evaluation/ SWE-Bench
   - docs/       documentation and guides
   - scripts/    development automation
