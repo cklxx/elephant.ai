@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Sprint 3: Coordinator Dependency Refactoring**
 - `PresetResolver` component for agent preset resolution
 - Agent preset system with 5 specialized personas (default, code-expert, researcher, devops, security-analyst)
-- Tool preset system with 5 access levels (full, read-only, code-only, web-only, safe)
+- Tool access split into CLI/Web modes with presets (full, read-only, safe)
 - Filtered tool registry for preset-based access control
 - Context-based preset passing via PresetContextKey
 - Task metadata now includes agent_preset and tool_preset

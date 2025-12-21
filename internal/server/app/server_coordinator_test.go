@@ -89,6 +89,10 @@ func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, ses
 	}, nil
 }
 
+func (m *MockAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
+}
+
 type mockAnalytics struct {
 	captures []struct {
 		distinctID string
@@ -663,6 +667,10 @@ func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task 
 	}
 }
 
+func (m *MockCancellableAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
+}
+
 // TestTaskCancellation verifies task cancellation works correctly
 func TestTaskCancellation(t *testing.T) {
 	// Setup
@@ -925,4 +933,8 @@ func (f *failingAgentCoordinator) GetSession(ctx context.Context, id string) (*a
 
 func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
 	return nil, f.err
+}
+
+func (f *failingAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
 }

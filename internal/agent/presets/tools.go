@@ -6,16 +6,21 @@ import (
 	"alex/internal/agent/ports"
 )
 
-// ToolPreset defines different tool access levels for agents
+// ToolMode defines the runtime surface the agent runs under.
+type ToolMode string
+
+const (
+	ToolModeCLI ToolMode = "cli"
+	ToolModeWeb ToolMode = "web"
+)
+
+// ToolPreset defines tool access levels for CLI agents.
 type ToolPreset string
 
 const (
-	ToolPresetFull         ToolPreset = "full"
-	ToolPresetReadOnly     ToolPreset = "read-only"
-	ToolPresetCodeOnly     ToolPreset = "code-only"
-	ToolPresetWebOnly      ToolPreset = "web-only"
-	ToolPresetSafe         ToolPreset = "safe"
-	ToolPresetOrchestrator ToolPreset = "orchestrator"
+	ToolPresetFull     ToolPreset = "full"
+	ToolPresetReadOnly ToolPreset = "read-only"
+	ToolPresetSafe     ToolPreset = "safe"
 )
 
 // ToolConfig contains tool access configuration for a preset
@@ -26,162 +31,87 @@ type ToolConfig struct {
 	DeniedTools  map[string]bool // Tools explicitly denied
 }
 
-// GetToolConfig returns the tool configuration for a preset
-func GetToolConfig(preset ToolPreset) (*ToolConfig, error) {
-	configs := map[ToolPreset]*ToolConfig{
-		ToolPresetFull: {
-			Name:         "Full Access",
-			Description:  "All tools available - unrestricted access",
-			AllowedTools: nil, // nil means allow all
-			DeniedTools:  make(map[string]bool),
-		},
-
-		ToolPresetReadOnly: {
-			Name:        "Read-Only Access",
-			Description: "Only read operations - no modifications allowed",
-			AllowedTools: map[string]bool{
-				"file_read":        true,
-				"list_files":       true,
-				"grep":             true,
-				"ripgrep":          true,
-				"find":             true,
-				"web_search":       true,
-				"web_fetch":        true,
-				"plan":             true,
-				"clearify":         true,
-				"think":            true,
-				"final":            true,
-				"todo_read":        true,
-				"skills":           true,
-				"subagent":         true,
-				"explore":          true,
-				"text_to_image":    true,
-				"image_to_image":   true,
-				"vision_analyze":   true,
-				"pptx_from_images": true,
-			},
-			DeniedTools: map[string]bool{
-				"file_write":   true,
-				"file_edit":    true,
-				"bash":         true,
-				"code_execute": true,
-				"todo_update":  true,
-			},
-		},
-
-		ToolPresetCodeOnly: {
-			Name:        "Code Operations",
-			Description: "File operations and code execution - no web access",
-			AllowedTools: map[string]bool{
-				"file_read":    true,
-				"file_write":   true,
-				"file_edit":    true,
-				"list_files":   true,
-				"grep":         true,
-				"ripgrep":      true,
-				"find":         true,
-				"code_execute": true,
-				"plan":         true,
-				"clearify":     true,
-				"think":        true,
-				"final":        true,
-				"todo_read":    true,
-				"todo_update":  true,
-				"skills":       true,
-				"subagent":     true,
-				"explore":      true,
-			},
-			DeniedTools: map[string]bool{
-				"web_search": true,
-				"web_fetch":  true,
-				"bash":       true,
-			},
-		},
-
-		ToolPresetWebOnly: {
-			Name:        "Web Access",
-			Description: "Web search and fetch only - no file system access",
-			AllowedTools: map[string]bool{
-				"web_search": true,
-				"web_fetch":  true,
-				"plan":       true,
-				"clearify":   true,
-				"think":      true,
-				"final":      true,
-				"todo_read":  true,
-				"skills":     true,
-			},
-			DeniedTools: map[string]bool{
-				"file_read":    true,
-				"file_write":   true,
-				"file_edit":    true,
-				"list_files":   true,
-				"bash":         true,
-				"code_execute": true,
-				"grep":         true,
-				"ripgrep":      true,
-				"find":         true,
-				"todo_update":  true,
-				"subagent":     true,
-			},
-		},
-
-		ToolPresetSafe: {
-			Name:        "Safe Mode",
-			Description: "Excludes potentially dangerous tools (bash, code execution)",
-			AllowedTools: map[string]bool{
-				"file_read":        true,
-				"file_write":       true,
-				"file_edit":        true,
-				"list_files":       true,
-				"grep":             true,
-				"ripgrep":          true,
-				"find":             true,
-				"web_search":       true,
-				"web_fetch":        true,
-				"plan":             true,
-				"clearify":         true,
-				"think":            true,
-				"final":            true,
-				"todo_read":        true,
-				"todo_update":      true,
-				"skills":           true,
-				"subagent":         true,
-				"explore":          true,
-				"text_to_image":    true,
-				"image_to_image":   true,
-				"vision_analyze":   true,
-				"pptx_from_images": true,
-			},
-			DeniedTools: map[string]bool{
-				"bash":         true,
-				"code_execute": true,
-			},
-		},
-
-		ToolPresetOrchestrator: {
-			Name:        "Orchestrator Only",
-			Description: "Core agent coordination preset (think, todo, delegate, final)",
-			AllowedTools: map[string]bool{
-				"plan":        true,
-				"clearify":    true,
-				"think":       true,
-				"todo_read":   true,
-				"todo_update": true,
-				"skills":      true,
-				"subagent":    true,
-				"final":       true,
-			},
-			DeniedTools: make(map[string]bool),
-		},
+var (
+	webDeniedTools = map[string]bool{
+		"file_read":    true,
+		"file_write":   true,
+		"file_edit":    true,
+		"list_files":   true,
+		"grep":         true,
+		"ripgrep":      true,
+		"find":         true,
+		"bash":         true,
+		"code_execute": true,
+		"skills":       true,
+		"todo_read":    true,
+		"todo_update":  true,
 	}
-
-	config, ok := configs[preset]
-	if !ok {
-		return nil, fmt.Errorf("unknown tool preset: %s", preset)
+	readOnlyDeniedTools = map[string]bool{
+		"file_write":   true,
+		"file_edit":    true,
+		"bash":         true,
+		"code_execute": true,
+		"todo_update":  true,
 	}
+	safeDeniedTools = map[string]bool{
+		"bash":         true,
+		"code_execute": true,
+	}
+)
 
-	return config, nil
+func cloneToolSet(src map[string]bool) map[string]bool {
+	dst := make(map[string]bool, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+// GetToolConfig returns the tool configuration for a mode and preset.
+func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
+	if mode == "" {
+		mode = ToolModeCLI
+	}
+	switch mode {
+	case ToolModeWeb:
+		return &ToolConfig{
+			Name:         "Web Mode",
+			Description:  "All non-local tools (file/shell/code exec disabled)",
+			AllowedTools: nil,
+			DeniedTools:  cloneToolSet(webDeniedTools),
+		}, nil
+	case ToolModeCLI:
+		if preset == "" {
+			preset = ToolPresetFull
+		}
+		switch preset {
+		case ToolPresetFull:
+			return &ToolConfig{
+				Name:         "Full Access",
+				Description:  "All tools available - unrestricted access",
+				AllowedTools: nil,
+				DeniedTools:  make(map[string]bool),
+			}, nil
+		case ToolPresetReadOnly:
+			return &ToolConfig{
+				Name:         "Read-Only Access",
+				Description:  "No local writes or shell/code execution",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(readOnlyDeniedTools),
+			}, nil
+		case ToolPresetSafe:
+			return &ToolConfig{
+				Name:         "Safe Mode",
+				Description:  "Excludes potentially dangerous tools (bash, code execution)",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(safeDeniedTools),
+			}, nil
+		default:
+			return nil, fmt.Errorf("unknown tool preset: %s", preset)
+		}
+	default:
+		return nil, fmt.Errorf("unknown tool mode: %s", mode)
+	}
 }
 
 // FilteredToolRegistry wraps a tool registry with preset-based filtering
@@ -190,9 +120,9 @@ type FilteredToolRegistry struct {
 	config *ToolConfig
 }
 
-// NewFilteredToolRegistry creates a filtered registry based on tool preset
-func NewFilteredToolRegistry(parent ports.ToolRegistry, preset ToolPreset) (*FilteredToolRegistry, error) {
-	config, err := GetToolConfig(preset)
+// NewFilteredToolRegistry creates a filtered registry based on tool mode and preset.
+func NewFilteredToolRegistry(parent ports.ToolRegistry, mode ToolMode, preset ToolPreset) (*FilteredToolRegistry, error) {
+	config, err := GetToolConfig(mode, preset)
 	if err != nil {
 		return nil, err
 	}
@@ -264,17 +194,14 @@ func GetAllToolPresets() []ToolPreset {
 	return []ToolPreset{
 		ToolPresetFull,
 		ToolPresetReadOnly,
-		ToolPresetCodeOnly,
-		ToolPresetWebOnly,
 		ToolPresetSafe,
-		ToolPresetOrchestrator,
 	}
 }
 
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetCodeOnly, ToolPresetWebOnly, ToolPresetSafe, ToolPresetOrchestrator:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe:
 		return true
 	default:
 		return false

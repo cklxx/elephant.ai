@@ -31,6 +31,10 @@ func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, 
 	return nil, errors.New("not implemented")
 }
 
+func (f *failingAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
+}
+
 type stubAgentCoordinator struct{}
 
 func (stubAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
@@ -48,6 +52,10 @@ func (stubAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPo
 
 func (stubAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
 	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+}
+
+func (stubAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
 }
 
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {

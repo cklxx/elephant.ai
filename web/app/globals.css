@@ -107,7 +107,23 @@
     background: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
     cursor: pointer;
+    pointer-events: auto;
+    visibility: visible;
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .markdown-body .wmde-markdown pre {
+    overflow: visible;
+  }
+
+  .markdown-body .wmde-markdown pre > code {
+    display: block;
+    padding-top: 2.25rem;
+  }
+
+  .markdown-body .wmde-markdown .markdown-code-block > code {
+    display: block;
+    padding-top: 2.25rem;
   }
 
   .markdown-body .wmde-markdown .copied:hover {

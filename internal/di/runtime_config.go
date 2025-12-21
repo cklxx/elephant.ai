@@ -1,6 +1,10 @@
 package di
 
-import runtimeconfig "alex/internal/config"
+import (
+	runtimeconfig "alex/internal/config"
+
+	"alex/internal/agent/presets"
+)
 
 // ConfigFromRuntimeConfig maps the shared RuntimeConfig into the dependency
 // injection container configuration.
@@ -29,6 +33,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		StopSequences:           append([]string(nil), runtime.StopSequences...),
 		AgentPreset:             runtime.AgentPreset,
 		ToolPreset:              runtime.ToolPreset,
+		ToolMode:                string(presets.ToolModeCLI),
 		Environment:             runtime.Environment,
 		Verbose:                 runtime.Verbose,
 		DisableTUI:              runtime.DisableTUI,

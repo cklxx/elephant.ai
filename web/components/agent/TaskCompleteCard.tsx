@@ -253,7 +253,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               isStreaming={streamInProgress}
               streamFinished={streamFinished}
               components={{
-                code: ({ inline, className, children, ...props }: any) => {
+                code: ({ inline, children, ...props }: any) => {
                   if (inline) {
                     return (
                       <code
@@ -266,7 +266,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   }
                   return (
                     <code
-                      className="block overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4 font-mono text-xs leading-relaxed text-foreground"
+                      className="block font-mono text-xs leading-relaxed text-foreground"
                       {...props}
                     >
                       {children}
@@ -274,9 +274,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                   );
                 },
                 pre: ({ children }: any) => (
-                  <div className="markdown-code-block relative my-4">
+                  <pre className="markdown-code-block relative my-4 overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4">
                     {children}
-                  </div>
+                  </pre>
                 ),
                 p: ({ children }: any) => (
                   <div className="mb-4 leading-relaxed text-foreground">

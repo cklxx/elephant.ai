@@ -133,6 +133,7 @@ type AgentConfig struct {
 	StopSequences []string
 	AgentPreset   string
 	ToolPreset    string
+	ToolMode      string
 }
 
 // TaskResult represents the result of task execution

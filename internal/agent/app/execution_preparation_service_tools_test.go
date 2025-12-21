@@ -25,7 +25,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	}
 
 	service := NewExecutionPreparationService(deps)
-	filtered := service.selectToolRegistry(context.Background(), service.config.ToolPreset)
+	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeCLI, service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
 	expected := []string{"file_read", "final", "subagent", "think", "todo_read", "todo_update"}
@@ -55,7 +55,7 @@ func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	}
 
 	service := NewExecutionPreparationService(deps)
-	filtered := service.selectToolRegistry(context.Background(), service.config.ToolPreset)
+	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeCLI, service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
 	expected := []string{"bash", "file_read", "final", "subagent", "think", "todo_read", "todo_update"}
@@ -86,7 +86,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 
 	service := NewExecutionPreparationService(deps)
 	ctx := MarkSubagentContext(context.Background())
-	filtered := service.selectToolRegistry(ctx, service.config.ToolPreset)
+	filtered := service.selectToolRegistry(ctx, presets.ToolModeCLI, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
 	if containsString(names, "bash") {
@@ -113,7 +113,7 @@ func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset
 
 	service := NewExecutionPreparationService(deps)
 	ctx := MarkSubagentContext(context.Background())
-	filtered := service.selectToolRegistry(ctx, service.config.ToolPreset)
+	filtered := service.selectToolRegistry(ctx, presets.ToolModeCLI, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
 	if containsString(names, "subagent") {

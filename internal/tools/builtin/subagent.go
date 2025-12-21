@@ -43,7 +43,7 @@ func (t *subagent) Metadata() ports.ToolMetadata {
 func (t *subagent) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "subagent",
-		Description: `Delegate complex work to a dedicated subagent (single run). The subagent inherits the current tool preset and can use the full toolset, but it cannot spawn other subagents.`,
+		Description: `Delegate complex work to a dedicated subagent (single run). The subagent inherits the current tool access mode/preset and cannot spawn other subagents.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{

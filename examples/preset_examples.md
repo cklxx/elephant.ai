@@ -2,218 +2,128 @@
 
 This document demonstrates how to use ALEX agent presets with practical examples.
 
-## Prerequisites
+## Runtime modes
 
-1. Start the ALEX server:
+ALEX now separates tool access by runtime mode:
+
+- **CLI (`alex`)**: `tool_preset` applies. Available presets are `full`, `read-only`, and `safe`.
+- **Server (`alex-server`)**: runs in **web mode**. Local filesystem/shell tools are disabled, and `tool_preset` is ignored. All non-local tools are available.
+
+If you need local code access, use the CLI mode.
+
+---
+
+## CLI examples (local code access)
+
+### Example 1: Security Code Review (read-only)
+
 ```bash
-./alex-server
-```
-
-2. The server runs on `http://localhost:8080` by default
-
-## Example 1: Security Code Review
-
-Review code for security vulnerabilities using the security-analyst preset with read-only access.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Review the authentication code in internal/auth/ for security vulnerabilities. Check for SQL injection, authentication bypasses, and insecure password handling.",
-    "agent_preset": "security-analyst",
-    "tool_preset": "read-only"
-  }'
+alex config set tool_preset read-only
+alex "Review the authentication code in internal/auth/ for security vulnerabilities. Check for SQL injection, authentication bypasses, and insecure password handling."
 ```
 
 **What happens:**
 - Agent uses security-focused analysis
 - Only reads files (no modifications)
-- Checks for common vulnerabilities
-- Provides detailed security report
+- Provides a detailed security report
 
-## Example 2: Performance Optimization
-
-Optimize code performance using the code-expert preset with full access.
+### Example 2: Performance Optimization (full)
 
 ```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Analyze and optimize the database queries in internal/db/queries.go. Look for N+1 queries and add appropriate indexes.",
-    "agent_preset": "code-expert",
-    "tool_preset": "full"
-  }'
+alex config set tool_preset full
+alex "Analyze and optimize the database queries in internal/db/queries.go. Look for N+1 queries and add appropriate indexes."
 ```
 
 **What happens:**
 - Agent analyzes code for performance issues
 - Can modify code to implement optimizations
 - Adds tests to verify improvements
-- Focuses on maintainability
 
-## Example 3: Technology Research
-
-Research and compare technologies using the researcher preset.
+### Example 3: Safe Code Review (safe)
 
 ```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Research and compare different state management solutions for React: Redux, MobX, Zustand, and Jotai. Provide pros/cons and recommendation.",
-    "agent_preset": "researcher",
-    "tool_preset": "web-only"
-  }'
-```
-
-**What happens:**
-- Agent performs systematic research
-- Uses web search to gather information
-- No file system access (web-only)
-- Provides structured comparison with recommendations
-
-## Example 4: Infrastructure Setup
-
-Set up infrastructure using the devops preset.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Create a production deployment checklist for running alex-server and serving the static web UI behind an nginx reverse proxy. Include systemd unit examples, health checks, and required environment variables.",
-    "agent_preset": "devops",
-    "tool_preset": "full"
-  }'
-```
-
-**What happens:**
-- Agent uses DevOps best practices
-- Produces a concrete checklist + example configs for deployment
-- Includes health checks and monitoring suggestions
-- Documents environment variables and operational knobs
-
-## Example 5: Codebase Investigation
-
-Investigate a codebase using the researcher preset.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Analyze the architecture of the internal/agent/ package. Document the main components, their relationships, and provide a summary of the design patterns used.",
-    "agent_preset": "researcher",
-    "tool_preset": "read-only"
-  }'
-```
-
-**What happens:**
-- Agent analyzes code structure
-- Documents architecture and patterns
-- Read-only access prevents modifications
-- Creates comprehensive documentation
-
-## Example 6: Code Refactoring
-
-Refactor code using the code-expert preset.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Refactor the internal/tools/builtin/file_*.go files to reduce code duplication. Extract common validation logic into shared utilities.",
-    "agent_preset": "code-expert",
-    "tool_preset": "code-only"
-  }'
-```
-
-**What happens:**
-- Agent identifies code duplication
-- Extracts common patterns
-- No web access (focused on local code)
-- Maintains backward compatibility
-
-## Example 7: CI/CD Pipeline
-
-Create CI/CD pipeline using the devops preset.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Create a GitHub Actions workflow for this Go project. Include: linting, testing, building, and uploading release artifacts. Add caching for faster builds.",
-    "agent_preset": "devops",
-    "tool_preset": "full"
-  }'
-```
-
-**What happens:**
-- Agent creates .github/workflows/ci.yml
-- Includes all necessary steps
-- Optimizes with caching
-- Follows CI/CD best practices
-
-## Example 8: Security Audit
-
-Comprehensive security audit using the security-analyst preset.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Perform a comprehensive security audit of the entire codebase. Check for: hardcoded secrets, unsafe dependencies, insecure configurations, and potential injection vulnerabilities.",
-    "agent_preset": "security-analyst",
-    "tool_preset": "read-only"
-  }'
-```
-
-**What happens:**
-- Systematic security analysis
-- Checks for common vulnerabilities
-- Scans dependencies for CVEs
-- Provides prioritized findings
-
-## Example 9: API Documentation
-
-Create API documentation using the researcher preset.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Create comprehensive API documentation for all endpoints in internal/server/http/. Include request/response examples, error codes, and authentication requirements.",
-    "agent_preset": "researcher",
-    "tool_preset": "code-only"
-  }'
-```
-
-**What happens:**
-- Agent analyzes API endpoints
-- Creates structured documentation
-- Includes practical examples
-- No web access needed
-
-## Example 10: Safe Code Review
-
-Review untrusted code safely.
-
-```bash
-curl -X POST http://localhost:8080/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Review the pull request changes in /tmp/pr-diff.txt. Analyze code quality, potential bugs, and suggest improvements.",
-    "agent_preset": "code-expert",
-    "tool_preset": "safe"
-  }'
+alex config set tool_preset safe
+alex "Review the pull request changes in /tmp/pr-diff.txt. Analyze code quality, potential bugs, and suggest improvements."
 ```
 
 **What happens:**
 - Agent reviews code changes
 - Cannot execute code (safe mode)
 - Provides detailed feedback
-- No risk of running malicious code
 
-## Monitoring Task Execution
+### Example 4: Codebase Investigation (read-only)
 
-After creating a task, you'll receive a response like:
+```bash
+alex config set tool_preset read-only
+alex "Analyze the architecture of internal/agent/. Document the main components, their relationships, and summarize the design patterns used."
+```
+
+**What happens:**
+- Agent analyzes code structure
+- Documents architecture and patterns
+- Read-only access prevents modifications
+
+### Example 5: Refactor (full)
+
+```bash
+alex config set tool_preset full
+alex "Refactor the internal/tools/builtin/file_*.go files to reduce code duplication. Extract common validation logic into shared utilities."
+```
+
+**What happens:**
+- Agent identifies code duplication
+- Extracts common patterns
+- Maintains backward compatibility
+
+---
+
+## Server/web mode examples (non-local tools only)
+
+Start the server first:
+
+```bash
+./alex-server
+```
+
+The server runs on `http://localhost:8080` by default.
+
+### Example A: Technology Research
+
+```bash
+curl -X POST http://localhost:8080/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": "Research and compare different state management solutions for React: Redux, MobX, Zustand, and Jotai. Provide pros/cons and a recommendation.",
+    "agent_preset": "researcher"
+  }'
+```
+
+**What happens:**
+- Agent performs systematic research
+- Uses web tools to gather information
+- No local file system access
+
+### Example B: Deployment Checklist Draft
+
+```bash
+curl -X POST http://localhost:8080/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": "Create a production deployment checklist for running alex-server behind an nginx reverse proxy. Include systemd unit examples, health checks, and required environment variables.",
+    "agent_preset": "devops"
+  }'
+```
+
+**What happens:**
+- Agent focuses on operational best practices
+- Outputs a checklist + sample configs
+- Avoids local filesystem mutations
+
+---
+
+## Monitoring Task Execution (server)
+
+After creating a task, you will receive a response like:
 
 ```json
 {
@@ -226,35 +136,28 @@ After creating a task, you'll receive a response like:
 ### Check Task Status
 
 ```bash
-curl http://localhost:3000/api/tasks/task-abc123
+curl http://localhost:8080/api/tasks/task-abc123
 ```
 
 ### Stream Events (SSE)
 
 ```bash
-curl -N http://localhost:3000/api/events/sess-xyz789
+curl -N http://localhost:8080/api/events/sess-xyz789
 ```
 
-This will stream real-time events as the agent works on the task.
+---
 
-## Combining Presets Effectively
-
-### Best Combinations
+## Combining Presets Effectively (CLI)
 
 | Task Type | Agent Preset | Tool Preset | Why |
 |-----------|--------------|-------------|-----|
 | Security Audit | `security-analyst` | `read-only` | Safe analysis without modifications |
 | Bug Fix | `code-expert` | `full` | Full capability to fix issues |
-| Research | `researcher` | `web-only` | Focus on information gathering |
-| Infrastructure | `devops` | `full` | Need to create configs and scripts |
 | Code Review | `code-expert` | `read-only` | Review without changes |
 | Documentation | `researcher` | `read-only` | Analyze and document existing code |
+| Untrusted Code Review | `code-expert` | `safe` | Avoid executing untrusted code |
 
-### Anti-Patterns (Avoid These)
-
-❌ `security-analyst` + `full` for initial audit (start with `read-only`)
-❌ `devops` + `web-only` for infrastructure setup (needs file access)
-❌ `researcher` + `code-only` for web research (needs web access)
+---
 
 ## Tips for Best Results
 
@@ -272,80 +175,35 @@ This will stream real-time events as the agent works on the task.
    - Start with `read-only` or `safe`
    - Upgrade to `full` if needed
 
-4. **Use Sessions**: Reuse sessions for related tasks
-   ```json
-   {
-     "task": "Now fix the issues found",
-     "session_id": "sess-xyz789",
-     "agent_preset": "code-expert",
-     "tool_preset": "full"
-   }
-   ```
+---
 
-## Advanced Patterns
+## Advanced Patterns (CLI)
 
 ### Two-Phase Workflow
 
 **Phase 1: Analysis**
 ```bash
-# First, analyze with read-only access
-curl -X POST http://localhost:3000/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Analyze security vulnerabilities in auth system",
-    "agent_preset": "security-analyst",
-    "tool_preset": "read-only"
-  }'
+alex config set tool_preset read-only
+alex "Analyze security vulnerabilities in auth system"
 ```
 
 **Phase 2: Fix**
 ```bash
-# Then, fix with full access using the same session
-curl -X POST http://localhost:3000/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Fix the security issues identified in the previous task",
-    "session_id": "sess-from-phase-1",
-    "agent_preset": "code-expert",
-    "tool_preset": "full"
-  }'
+alex config set tool_preset full
+alex "Fix the security issues identified in the previous task"
 ```
 
-### Research Then Implement
-
-**Step 1: Research**
-```bash
-curl -X POST http://localhost:3000/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Research best practices for rate limiting in Go APIs",
-    "agent_preset": "researcher",
-    "tool_preset": "web-only"
-  }'
-```
-
-**Step 2: Implement**
-```bash
-curl -X POST http://localhost:3000/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Implement rate limiting based on the research findings",
-    "session_id": "sess-from-research",
-    "agent_preset": "code-expert",
-    "tool_preset": "full"
-  }'
-```
+---
 
 ## Troubleshooting
 
-### Task Fails with "Tool Not Available"
+### Task Fails with "Tool Not Available" (CLI)
 
 **Problem**: Agent tries to use a blocked tool
 
 **Solution**: Use a less restrictive tool preset
 ```bash
-# Change from read-only to code-only or full
-"tool_preset": "code-only"
+alex config set tool_preset full
 ```
 
 ### Agent Behavior Doesn't Match Preset
@@ -355,52 +213,34 @@ curl -X POST http://localhost:3000/api/tasks \
 **Solution**:
 1. Check preset spelling
 2. Verify task matches preset expertise
-3. Check server logs for errors
+3. Check logs for preset resolution
 
-### Need More Control
+---
 
-**Problem**: Built-in presets don't fit your needs
-
-**Solution**: Combine presets creatively or request custom preset support
-
-## Example Script
+## Example Script (CLI)
 
 Save this as `test-presets.sh`:
 
 ```bash
 #!/bin/bash
 
-API_URL="http://localhost:3000/api/tasks"
+set -euo pipefail
 
 echo "1. Security Audit (read-only)..."
-curl -X POST $API_URL \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Audit internal/server/http/ for security issues",
-    "agent_preset": "security-analyst",
-    "tool_preset": "read-only"
-  }'
+alex config set tool_preset read-only
+alex "Audit internal/server/http/ for security issues"
 
-echo "\n\n2. Code Review (code-expert)..."
-curl -X POST $API_URL \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Review internal/tools/builtin/ for code quality",
-    "agent_preset": "code-expert",
-    "tool_preset": "read-only"
-  }'
+echo "2. Code Review (read-only)..."
+alex config set tool_preset read-only
+alex "Review internal/tools/builtin/ for code quality"
 
-echo "\n\n3. Tech Research (researcher)..."
-curl -X POST $API_URL \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Research Go testing frameworks: testify vs. ginkgo",
-    "agent_preset": "researcher",
-    "tool_preset": "web-only"
-  }'
+echo "3. Safe Code Review (safe)..."
+alex config set tool_preset safe
+alex "Review the pull request changes in /tmp/pr-diff.txt"
 ```
 
 Make it executable and run:
+
 ```bash
 chmod +x test-presets.sh
 ./test-presets.sh

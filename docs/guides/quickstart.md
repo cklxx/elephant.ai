@@ -97,7 +97,7 @@ make server-run
 
 ## Tool safety (recommended)
 
-Use `tool_preset` to control which tools the agent can call:
+Use `tool_preset` to control which tools the CLI agent can call (web mode ignores it and enables all non-local tools):
 
 ```bash
 ./alex config set tool_preset safe

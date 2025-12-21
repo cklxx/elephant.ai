@@ -17,7 +17,7 @@ func TestPresetResolver_ResolveToolRegistry_DefaultBehavior(t *testing.T) {
 		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "bash"}},
 	}
 
-	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, "")
+	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "")
 	if registry == nil {
 		t.Fatal("expected registry when defaulting tool preset")
 	}
@@ -34,7 +34,7 @@ func TestPresetResolver_ResolveToolRegistry_WithConfigPreset(t *testing.T) {
 		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}},
 	}
 
-	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, "read-only")
+	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "read-only")
 	if registry == baseRegistry {
 		t.Fatal("expected filtered registry, got base registry")
 	}
@@ -49,15 +49,16 @@ func TestPresetResolver_ResolveToolRegistry_WithConfigPreset(t *testing.T) {
 func TestPresetResolver_ResolveToolRegistry_WithContextPreset(t *testing.T) {
 	resolver := NewPresetResolver(&testLogger{})
 	baseRegistry := &mockToolRegistry{
-		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "web_search"}},
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}},
 	}
 
-	ctx := context.WithValue(context.Background(), PresetContextKey{}, PresetConfig{ToolPreset: "web-only"})
+	ctx := context.WithValue(context.Background(), PresetContextKey{}, PresetConfig{ToolPreset: "read-only"})
 
-	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, "read-only")
+	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, presets.ToolModeCLI, "safe")
 	tools := registry.List()
 	hasWebSearch := false
 	hasFileRead := false
+	hasFileWrite := false
 	for _, tool := range tools {
 		if tool.Name == "web_search" {
 			hasWebSearch = true
@@ -65,12 +66,21 @@ func TestPresetResolver_ResolveToolRegistry_WithContextPreset(t *testing.T) {
 		if tool.Name == "file_read" {
 			hasFileRead = true
 		}
+		if tool.Name == "file_write" {
+			hasFileWrite = true
+		}
+		if tool.Name == "bash" {
+			t.Fatal("expected bash to be filtered out in read-only preset")
+		}
 	}
 	if !hasWebSearch {
-		t.Fatal("expected web_search in web-only preset")
+		t.Fatal("expected web_search in read-only preset")
 	}
-	if hasFileRead {
-		t.Fatal("expected file_read to be filtered out in web-only preset")
+	if !hasFileRead {
+		t.Fatal("expected file_read to be retained in read-only preset")
+	}
+	if hasFileWrite {
+		t.Fatal("expected file_write to be filtered out in read-only preset")
 	}
 }
 
@@ -79,7 +89,7 @@ func TestPresetResolver_ResolveToolRegistry_InvalidPreset(t *testing.T) {
 	resolver := NewPresetResolver(logger)
 	baseRegistry := stubToolRegistry{}
 
-	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, "invalid-preset")
+	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "invalid-preset")
 	if registry != baseRegistry {
 		t.Fatal("expected base registry when preset is invalid")
 	}
@@ -91,10 +101,10 @@ func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}, {Name: "think"}},
 	}
 
-	validPresets := []string{"full", "read-only", "code-only", "web-only", "safe"}
+	validPresets := []string{"full", "read-only", "safe"}
 	for _, preset := range validPresets {
 		t.Run(preset, func(t *testing.T) {
-			registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, preset)
+			registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, preset)
 			if registry == nil {
 				t.Fatalf("expected non-nil registry for preset %s", preset)
 			}
@@ -108,24 +118,31 @@ func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 
 func TestPresetResolver_ContextPriorityOverConfigForTools(t *testing.T) {
 	resolver := NewPresetResolver(&testLogger{})
-	ctx := context.WithValue(context.Background(), PresetContextKey{}, PresetConfig{ToolPreset: "web-only"})
+	ctx := context.WithValue(context.Background(), PresetContextKey{}, PresetConfig{ToolPreset: "safe"})
 	baseRegistry := &mockToolRegistry{
-		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "web_search"}},
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}},
 	}
 
-	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, "read-only")
+	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, presets.ToolModeCLI, "read-only")
 	tools := registry.List()
 	hasWeb := false
+	hasFileWrite := false
 	for _, tool := range tools {
 		if tool.Name == "web_search" {
 			hasWeb = true
 		}
-		if tool.Name == "file_read" {
-			t.Fatal("expected file_read filtered out in context preset")
+		if tool.Name == "file_write" {
+			hasFileWrite = true
+		}
+		if tool.Name == "bash" {
+			t.Fatal("expected bash filtered out in safe preset")
 		}
 	}
 	if !hasWeb {
 		t.Fatal("expected web_search retained via context preset")
+	}
+	if !hasFileWrite {
+		t.Fatal("expected file_write retained via context preset")
 	}
 }
 
@@ -145,7 +162,7 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 	}
 
 	ctx := context.WithValue(context.Background(), ports.SessionContextKey{}, "test-session-123")
-	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, "read-only")
+	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, presets.ToolModeCLI, "read-only")
 
 	if len(eventCapturer.events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(eventCapturer.events))
@@ -174,7 +191,7 @@ func TestPresetResolver_DefaultPresetStillEmitsEvent(t *testing.T) {
 	})
 
 	baseRegistry := &mockToolRegistry{tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "bash"}}}
-	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, "")
+	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, "")
 	if len(eventCapturer.events) != 1 {
 		t.Fatalf("expected an event for default preset application, got %d", len(eventCapturer.events))
 	}
