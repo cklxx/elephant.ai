@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -401,11 +402,36 @@ func (r *slowToolRegistry) Register(tool ports.ToolExecutor) error {
 }
 
 func (r *slowToolRegistry) Get(name string) (ports.ToolExecutor, error) {
-	return &slowTool{}, nil
+	switch name {
+	case "plan":
+		return &fastPlanTool{}, nil
+	case "clearify":
+		return &fastClearifyTool{}, nil
+	default:
+		return &slowTool{}, nil
+	}
 }
 
 func (r *slowToolRegistry) List() []ports.ToolDefinition {
 	return []ports.ToolDefinition{
+		{
+			Name:        "plan",
+			Description: "Create a UI plan for the run",
+			Parameters: ports.ParameterSchema{
+				Type:       "object",
+				Properties: map[string]ports.Property{},
+				Required:   []string{},
+			},
+		},
+		{
+			Name:        "clearify",
+			Description: "Declare the current task before tool calls",
+			Parameters: ports.ParameterSchema{
+				Type:       "object",
+				Properties: map[string]ports.Property{},
+				Required:   []string{},
+			},
+		},
 		{
 			Name:        "slow_tool",
 			Description: "A tool that takes time to execute",
@@ -457,6 +483,96 @@ func (t *slowTool) Metadata() ports.ToolMetadata {
 	}
 }
 
+type fastPlanTool struct{}
+
+func (t *fastPlanTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	runID, _ := call.Arguments["run_id"].(string)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		runID = "test-run"
+	}
+
+	metadata := map[string]any{
+		"run_id": runID,
+	}
+	if goal, ok := call.Arguments["overall_goal_ui"].(string); ok {
+		if goal = strings.TrimSpace(goal); goal != "" {
+			metadata["overall_goal_ui"] = goal
+		}
+	}
+	if complexity, ok := call.Arguments["complexity"].(string); ok {
+		if complexity = strings.TrimSpace(complexity); complexity != "" {
+			metadata["complexity"] = complexity
+		}
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  "plan ok",
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *fastPlanTool) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{
+		Name:        "plan",
+		Description: "Create a UI plan for the run",
+		Parameters: ports.ParameterSchema{
+			Type:       "object",
+			Properties: map[string]ports.Property{},
+			Required:   []string{},
+		},
+	}
+}
+
+func (t *fastPlanTool) Metadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:     "plan",
+		Version:  "1.0.0",
+		Category: "test",
+	}
+}
+
+type fastClearifyTool struct{}
+
+func (t *fastClearifyTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	taskID, _ := call.Arguments["task_id"].(string)
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		taskID = "task-1"
+	}
+
+	metadata := map[string]any{
+		"task_id": taskID,
+	}
+
+	return &ports.ToolResult{
+		CallID:   call.ID,
+		Content:  "clearify ok",
+		Metadata: metadata,
+	}, nil
+}
+
+func (t *fastClearifyTool) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{
+		Name:        "clearify",
+		Description: "Declare the current task before tool calls",
+		Parameters: ports.ParameterSchema{
+			Type:       "object",
+			Properties: map[string]ports.Property{},
+			Required:   []string{},
+		},
+	}
+}
+
+func (t *fastClearifyTool) Metadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:     "clearify",
+		Version:  "1.0.0",
+		Category: "test",
+	}
+}
+
 type testContextManager struct{}
 
 func newTestContextManager() *testContextManager {
@@ -501,21 +617,56 @@ func (p *testParser) Validate(call ports.ToolCall, definition ports.ToolDefiniti
 }
 
 // Slow parser that returns tool calls to trigger iterations
-type slowParser struct{}
+type slowParser struct {
+	mu   sync.Mutex
+	step int
+}
 
 func newSlowParser() *slowParser {
 	return &slowParser{}
 }
 
 func (p *slowParser) Parse(content string) ([]ports.ToolCall, error) {
-	// Always return a tool call to keep the iteration going
-	return []ports.ToolCall{
-		{
-			ID:        fmt.Sprintf("call-%d", time.Now().UnixNano()),
-			Name:      "slow_tool",
-			Arguments: map[string]any{},
-		},
-	}, nil
+	p.mu.Lock()
+	p.step++
+	step := p.step
+	p.mu.Unlock()
+
+	switch step {
+	case 1:
+		return []ports.ToolCall{
+			{
+				ID:   fmt.Sprintf("call-plan-%d", step),
+				Name: "plan",
+				Arguments: map[string]any{
+					"run_id":          "test-run",
+					"overall_goal_ui": "Execute a slow tool for cancellation testing.",
+					"complexity":      "simple",
+				},
+			},
+		}, nil
+	case 2:
+		return []ports.ToolCall{
+			{
+				ID:   fmt.Sprintf("call-clearify-%d", step),
+				Name: "clearify",
+				Arguments: map[string]any{
+					"run_id":       "test-run",
+					"task_id":      "task-1",
+					"task_goal_ui": "Run the slow tool.",
+				},
+			},
+		}, nil
+	default:
+		// Always return a tool call to keep the iteration going.
+		return []ports.ToolCall{
+			{
+				ID:        fmt.Sprintf("call-slow-%d", step),
+				Name:      "slow_tool",
+				Arguments: map[string]any{},
+			},
+		}, nil
+	}
 }
 
 func (p *slowParser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error {

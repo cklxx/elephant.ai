@@ -1,219 +1,121 @@
-# ALEX Web Frontend
+# ALEX Web UI
 
-Modern Next.js web interface for the ALEX AI Programming Agent.
+Next.js App Router frontend for the ALEX AI programming agent. The UI streams task events over SSE, renders tool calls and artifacts, and manages sessions for long-running work.
 
-## Features
+## Highlights
 
-- Real-time event streaming via Server-Sent Events (SSE)
-- Task execution with live progress updates
-- Session management (view, fork, delete)
-- Responsive design with Tailwind CSS
-- Type-safe TypeScript implementation
-- Automatic reconnection with exponential backoff
-- Tool call visualization with color-coded cards
-- Markdown rendering for final answers
-- Right-side resources panel with Skills + Attachments (collapsed by default)
+- Real-time SSE event stream with reconnect and backoff
+- Task execution with live progress and timeline rendering
+- Session history with fork and delete actions
+- Tool call cards, markdown rendering, and attachment/skills panels
+- Type-safe React + TypeScript with Tailwind CSS styling
 
-## Tech Stack
-
-- **Framework**: Next.js (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand
-- **Data Fetching**: TanStack Query (React Query)
-- **Markdown**: react-markdown + remark-gfm
-- **Icons**: lucide-react
-
-## Getting Started
-
-### Prerequisites
+## Requirements
 
 - Node.js 20+ and npm
-- ALEX backend server running (see main README)
+- ALEX backend server running (see repo root `README.md`)
 
-### Installation
-
-1. Install dependencies:
+## Quick Start
 
 ```bash
 npm install
-```
-
-2. Configure environment variables:
-
-```bash
 cp .env.local.example .env.local
 ```
 
-Edit `.env.local` and set:
+Edit `.env.local` and set at least:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-### Development
-
-Run the development server:
+Start the dev server:
 
 ```bash
 npm run dev
 ```
 
-`npm run dev/build/test` will generate `web/lib/generated/skillsCatalog.json` from the repo-level `skills/` folder via `web/scripts/generate-skills-catalog.js`.
+Notes:
+- `npm run dev/build/test` automatically regenerates `web/lib/generated/skillsCatalog.json` from the repo-level `skills/` folder via `web/scripts/generate-skills-catalog.js`.
+- The dev script chooses an open port starting from `3000`. Set `PORT=...` or `DISABLE_TURBO=1` if needed.
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+## Environment Variables
 
-### Production Build
+Core:
+- `NEXT_PUBLIC_API_URL`: API base URL. Use `auto` to resolve from `window.location` (default). Falls back to `http://localhost:8080` in dev and `http://alex-server:8080` in production.
+
+Analytics (optional):
+- `NEXT_PUBLIC_POSTHOG_KEY`: PostHog API key (enables analytics).
+- `NEXT_PUBLIC_POSTHOG_HOST`: PostHog host (defaults to `https://app.posthog.com`).
+
+Hosting (optional):
+- `NEXT_PUBLIC_BASE_PATH`: Next.js base path for subpath deployments.
+- `NEXT_PUBLIC_ASSET_PREFIX`: Asset prefix for CDN or subpath hosting.
+
+Debugging (optional):
+- `NEXT_PUBLIC_DEBUG_UI=1` to force debug UI.
+- Or set `?debug=1` in the URL or `localStorage.alex_debug=1`.
+
+## Common Scripts
 
 ```bash
-npm run build
-npm start
+npm run dev           # start dev server (predev generates skills catalog)
+npm run build         # production build
+npm run start         # run production server
+npm run lint          # eslint
+npm run test          # vitest run
+npm run test:watch    # vitest watch mode
+npm run test:coverage # vitest coverage
+npm run e2e           # playwright tests
+npm run storybook     # storybook dev server
 ```
 
-## Project Structure
+## Project Layout
 
 ```
 web/
-├── app/                        # Next.js App Router pages
-│   ├── layout.tsx             # Root layout with navigation
-│   ├── page.tsx               # Home page (task execution)
-│   ├── sessions/
-│   │   ├── page.tsx           # Sessions list
-│   │   └── [id]/page.tsx      # Session details
-│   ├── providers.tsx          # React Query provider
-│   └── globals.css            # Global styles
-├── components/
-│   ├── agent/                 # Agent-specific components
-│   │   ├── TaskInput.tsx      # Task input form
-│   │   ├── AgentOutput.tsx    # Event stream display
-│   │   ├── ToolCallCard.tsx   # Tool execution card
-│   │   ├── TaskAnalysisCard.tsx
-│   │   ├── TaskCompleteCard.tsx
-│   │   ├── ErrorCard.tsx
-│   │   ├── ThinkingIndicator.tsx
-│   │   └── ConnectionStatus.tsx
-│   ├── session/               # Session management components
-│   │   ├── SessionList.tsx
-│   │   └── SessionCard.tsx
-│   └── ui/                    # Base UI components
-│       ├── button.tsx
-│       ├── card.tsx
-│       └── badge.tsx
-├── hooks/
-│   ├── useSSE.ts              # SSE connection hook
-│   ├── useTaskExecution.ts    # Task execution hook
-│   └── useSessionStore.ts     # Session state management
-├── lib/
-│   ├── types.ts               # TypeScript type definitions
-│   ├── api.ts                 # API client
-│   └── utils.ts               # Utility functions
-└── package.json
+├── app/            # App Router routes, layouts, and pages
+├── components/     # UI and agent-facing components
+├── hooks/          # SSE, tasks, and session hooks
+├── lib/            # API client, types, utilities, analytics
+├── scripts/        # dev tooling (skills catalog, dev server)
+├── tests/          # test helpers and fixtures
+├── e2e/            # Playwright tests
+└── docs/           # frontend-specific docs
 ```
 
-## Key Components
+## Data Flow (High Level)
 
-### SSE Connection Hook
+- Create a task with `POST /api/tasks` (React Query mutation).
+- Open the SSE stream at `/api/sse?session_id=...`.
+- Render server events in the conversation timeline.
 
-The `useSSE` hook manages Server-Sent Events connections with automatic reconnection:
-
-```typescript
-const { events, isConnected, isReconnecting, error } = useSSE(sessionId);
-```
-
-Features:
-- Automatic reconnection with exponential backoff
-- Event buffering
-- Connection status tracking
-- Max retry limit (default: 5)
-
-### Task Execution
-
-Submit tasks to the ALEX agent:
-
-```typescript
-const { mutate: executeTask, isPending } = useTaskExecution();
-
-executeTask({ task: 'Add dark mode toggle', session_id: sessionId });
-```
-
-### Event Stream Display
-
-The `AgentOutput` component renders events in real-time:
-
-- Task analysis with goals
-- Tool calls with arguments and results
-- Thinking indicators
-- Task completion with final answers
-- Error displays
+For a deeper view, read `web/ARCHITECTURE.md`.
 
 ## Event Types
 
-All events correspond to Go types in `internal/agent/domain/events.go`:
+Events mirror Go types in `internal/agent/domain/events.go`:
 
-- `workflow.node.started` - ReAct iteration start
-- `workflow.node.output.delta` - LLM is generating response
-- `workflow.node.output.summary` - LLM response received
-- `workflow.tool.started` - Tool execution begins
-- `workflow.tool.progress` - Streaming tool output
-- `workflow.tool.completed` - Tool execution complete
-- `workflow.node.completed` - Iteration complete
-- `workflow.result.final` - Task finished
-- `error` - Error occurred
+- `workflow.node.started`
+- `workflow.node.output.delta`
+- `workflow.node.output.summary`
+- `workflow.tool.started`
+- `workflow.tool.progress`
+- `workflow.tool.completed`
+- `workflow.node.completed`
+- `workflow.result.final`
+- `error`
 
-## Tool Icons and Colors
+## API Endpoints (Backend)
 
-Tools use the unified console palette:
-
-- **File & web operations** (primary accent): file_read, file_write, file_edit, web_search, web_fetch
-- **Shell execution** (amber accent): bash, code_execute
-- **Indexing & organization** (primary accent): grep, ripgrep, find, todo_read, todo_update
-- **Think** (muted neutral): think
-
-## API Integration
-
-The frontend communicates with the ALEX backend via:
-
-- **REST API**: Task and session management
-- **SSE**: Real-time event streaming
-
-### API Endpoints
-
-- `POST /api/tasks` - Create and execute task
-- `GET /api/tasks/:id` - Get task status
-- `POST /api/tasks/:id/cancel` - Cancel task
-- `GET /api/sessions` - List sessions
-- `GET /api/sessions/:id` - Get session details
-- `DELETE /api/sessions/:id` - Delete session
-- `POST /api/sessions/:id/fork` - Fork session
-- `GET /api/sse?session_id=xxx` - SSE event stream
-
-## Styling
-
-The project uses Tailwind CSS with custom design tokens:
-
-- Color scheme matches CLI output colors
-- Responsive breakpoints for mobile/tablet/desktop
-- Custom scrollbar styles
-- Markdown prose styles
-
-## Error Handling
-
-- Network errors show user-friendly messages
-- SSE disconnections trigger automatic reconnection
-- Failed API calls display error alerts
-- Recoverable vs non-recoverable errors indicated
-
-## Performance Optimizations
-
-- React Query caching for API responses
-- Automatic scroll to latest event
-- Debounced event updates
-- Optimistic UI updates for actions
+- `POST /api/tasks` - create and execute a task
+- `GET /api/tasks/:id` - task status
+- `POST /api/tasks/:id/cancel` - cancel task
+- `GET /api/sessions` - list sessions
+- `GET /api/sessions/:id` - session details
+- `DELETE /api/sessions/:id` - delete session
+- `POST /api/sessions/:id/fork` - fork session
+- `GET /api/sse?session_id=...` - SSE event stream
 
 ## Contributing
 
-Follow the main ALEX project contribution guidelines.
-
-## License
-
-See main ALEX project LICENSE.
+Follow the repo-level contribution guidelines.

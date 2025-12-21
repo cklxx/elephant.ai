@@ -77,7 +77,7 @@ Adapters (Infrastructure: LLM, Tools, Session)
 - Search: `grep.go`, `ripgrep.go`, `find.go`
 - Task: `todo_read.go`, `todo_update.go`
 - Web: `web_search.go` (Tavily), `web_fetch.go` (15-min cache)
-- Reasoning: `think.go`
+- Reasoning: `think.go` (not registered by default)
 
 **Tool Registration:** `internal/tools/registry.go` - Dynamic registration system
 

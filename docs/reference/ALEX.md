@@ -159,17 +159,19 @@ The architecture emphasizes:
 
 ## Built-in Tools and Features
 
-Alex-Code ships with a curated set of built-in tools wired into the MCP ecosystem. The default tool suite includes 13 tools across categories:
+Alex-Code ships with a curated set of built-in tools wired into the MCP ecosystem. The tool suite includes common categories:
 
 - File Operations: file_read, file_update, file_replace, file_list
 - Shell Execution: bash, code_executor
 - Search & Analysis: grep, ripgrep, find
 - Task Management: todo_read, todo_update
 - Web Integration: web_search (via Tavily API integration in code)
-- Thought/Reasoning: think (structured problem solving)
+- Thought/Reasoning: think (structured problem solving; not registered by default)
 - MCP Protocol: dynamic external tool integration for extensibility
 
-All tools are registered in the internal tool registry and are discoverable by MCP servers. Security and input validation are baked into tool adapters to prevent dangerous operations.
+Note: the `think` tool is intentionally not registered by default; reasoning happens in the internal Think phase of the ReAct loop.
+
+Registered tools are discoverable by MCP servers. Security and input validation are baked into tool adapters to prevent dangerous operations.
 
 ## Security Features
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+import { Component, ReactNode, ErrorInfo } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import Link from 'next/link';
 
@@ -152,23 +152,4 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     return children;
   }
-}
-
-/**
- * Hook-based error boundary wrapper for functional components
- * Note: This doesn't replace ErrorBoundary class, but provides a convenient way to add error handling
- */
-export function withErrorBoundary<P extends object>(
-  Component: React.ComponentType<P>,
-  fallback?: (error: Error, reset: () => void) => ReactNode
-): React.FC<P> {
-  const WrappedComponent: React.FC<P> = (props) => (
-    <ErrorBoundary fallback={fallback}>
-      <Component {...props} />
-    </ErrorBoundary>
-  );
-
-  WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name || 'Component'})`;
-
-  return WrappedComponent;
 }

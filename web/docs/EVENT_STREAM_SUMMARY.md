@@ -27,10 +27,10 @@ A complete event stream state management system has been implemented for the ALE
   - 13 specialized selectors for UI components
   - Memory usage tracking
 
-- ✅ **web/hooks/useAgentStreamIntegration.ts** - SSE + Store bridge:
-  - Backwards-compatible integration layer
-  - Syncs SSE events to store automatically
-  - Unified clearEvents() function
+- ✅ **Store wiring via `useAgentEventStream` + `useAgentStreamStore`**:
+  - Stream events with `useAgentEventStream`
+  - Forward events with `onEvent` + `useAgentStreamStore().addEvent`
+  - Clear store events via `useAgentStreamStore().clearEvents`
 
 - ✅ **web/components/agent/VirtualizedEventList.tsx** - Virtual scrolling (220 lines):
   - TanStack Virtual integration
@@ -164,8 +164,9 @@ const { events, isConnected } = useSSE(sessionId);
 
 ### Phase 2: Add Store Integration
 ```typescript
-// Drop-in replacement
-const { events, isConnected } = useAgentStreamIntegration(sessionId);
+// Wire events into the store
+const addEvent = useAgentStreamStore((state) => state.addEvent);
+const { isConnected } = useAgentEventStream(sessionId, { onEvent: addEvent });
 ```
 
 ### Phase 3: Use Specialized Selectors
@@ -276,9 +277,6 @@ npm test web/hooks/useAgentStreamStore.test.ts
 ### Integration Tests (Recommended)
 
 ```bash
-# Test SSE + Store integration
-npm test web/hooks/useAgentStreamIntegration.test.ts
-
 # Test virtual scrolling
 npm test web/components/agent/VirtualizedEventList.test.tsx
 ```
@@ -341,10 +339,9 @@ useEffect(() => {
 
 ## Files Summary
 
-### New Files (7)
+### New Files (6)
 - `web/lib/eventAggregation.ts` (260 lines)
 - `web/hooks/useAgentStreamStore.ts` (280 lines)
-- `web/hooks/useAgentStreamIntegration.ts` (45 lines)
 - `web/components/agent/VirtualizedEventList.tsx` (220 lines)
 - `web/docs/EVENT_STREAM_ARCHITECTURE.md` (500+ lines)
 - `web/docs/QUICK_START_STORE.md` (300+ lines)
