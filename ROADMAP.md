@@ -1,6 +1,6 @@
-# elephant.ai / ALEX Codebase Readmap
+# elephant.ai / ALEX Codebase Roadmap
 
-This file is a “read map” (reading order + pointers) for understanding the repository without guesswork.
+This roadmap outlines the recommended reading order and pointers for understanding the repository without guesswork.
 
 ## 1) Start Here
 
