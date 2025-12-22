@@ -144,6 +144,24 @@ func truncateInlinePreview(preview string, limit int) string {
 	return string(runes[:limit-1]) + "…"
 }
 
+func truncateWithEllipsis(preview string, limit int) string {
+	if limit <= 0 {
+		return preview
+	}
+
+	runes := []rune(preview)
+	if len(runes) <= limit {
+		return preview
+	}
+
+	ellipsis := "..."
+	if limit <= len(ellipsis) {
+		return string(runes[:limit])
+	}
+
+	return string(runes[:limit-len(ellipsis)]) + ellipsis
+}
+
 // RenderToolCallComplete renders tool call completion with hierarchy and category awareness
 func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
 	// Hide tool calls for subagents (they show progress summary instead)
@@ -248,10 +266,7 @@ func (r *CLIRenderer) formatToolOutput(ctx *types.OutputContext, toolName, resul
 		return r.formatReasoningOutput(result, indent, grayStyle)
 	default:
 		cleaned := filterSystemReminders(result)
-		preview := cleaned
-		if len(preview) > 80 {
-			preview = preview[:77] + "..."
-		}
+		preview := truncateWithEllipsis(cleaned, 80)
 		return fmt.Sprintf("%s  %s\n", indent, grayStyle.Render("→ "+preview))
 	}
 }
@@ -336,10 +351,7 @@ func (r *CLIRenderer) formatExecutionOutput(toolName, result, indent string, sty
 	}
 
 	// Concise mode: just show summary
-	preview := cleaned
-	if len(preview) > 100 {
-		preview = preview[:97] + "..."
-	}
+	preview := truncateWithEllipsis(cleaned, 100)
 	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 }
 
@@ -455,10 +467,7 @@ func (r *CLIRenderer) formatTaskOutput(toolName, result, indent string, style li
 
 func (r *CLIRenderer) formatReasoningOutput(result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
-	preview := cleaned
-	if len(preview) > 100 {
-		preview = preview[:97] + "..."
-	}
+	preview := truncateWithEllipsis(cleaned, 100)
 	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 }
 
