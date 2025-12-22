@@ -1,6 +1,6 @@
 import { HomeManifestoPage } from "@/components/home/HomeManifestoPage";
 
 export default function HomePage() {
-  return <HomeManifestoPage lang="zh" />;
+  return <HomeManifestoPage lang="en" />;
 }
 
