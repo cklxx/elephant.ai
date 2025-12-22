@@ -202,17 +202,50 @@ func unzipFile(path, dest string) error {
 	}
 	defer r.Close()
 
+	// Normalize destination directory and use its absolute path for safety checks.
+	destAbs, err := filepath.Abs(filepath.Clean(dest))
+	if err != nil {
+		return fmt.Errorf("resolve destination path: %w", err)
+	}
+
 	for _, f := range r.File {
-		target := filepath.Join(dest, f.Name)
+		// Clean the entry name to eliminate redundant separators and dots.
+		name := filepath.Clean(f.Name)
+		// Reject empty names.
+		if name == "." || name == "" {
+			continue
+		}
+		// Reject absolute paths from the archive.
+		if filepath.IsAbs(name) {
+			return fmt.Errorf("zip entry %q has absolute path", f.Name)
+		}
+		// On Windows, also reject paths starting with a drive letter like "C:".
+		if vol := filepath.VolumeName(name); vol != "" {
+			return fmt.Errorf("zip entry %q has invalid volume %q", f.Name, vol)
+		}
+
+		target := filepath.Join(destAbs, name)
+		targetAbs, err := filepath.Abs(target)
+		if err != nil {
+			return fmt.Errorf("resolve target path for %q: %w", f.Name, err)
+		}
+
+		// Ensure the target path is within the destination directory (Zip Slip protection).
+		destPrefix := destAbs + string(os.PathSeparator)
+		targetPrefix := targetAbs + string(os.PathSeparator)
+		if !strings.HasPrefix(targetPrefix, destPrefix) {
+			return fmt.Errorf("zip entry %q would be extracted outside destination", f.Name)
+		}
+
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, f.Mode()); err != nil {
-				return fmt.Errorf("create dir %s: %w", target, err)
+			if err := os.MkdirAll(targetAbs, f.Mode()); err != nil {
+				return fmt.Errorf("create dir %s: %w", targetAbs, err)
 			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return fmt.Errorf("prepare dir %s: %w", target, err)
+		if err := os.MkdirAll(filepath.Dir(targetAbs), 0o755); err != nil {
+			return fmt.Errorf("prepare dir %s: %w", targetAbs, err)
 		}
 
 		rc, err := f.Open()
@@ -220,16 +253,16 @@ func unzipFile(path, dest string) error {
 			return fmt.Errorf("open zip entry %s: %w", f.Name, err)
 		}
 
-		file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+		file, err := os.OpenFile(targetAbs, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
 		if err != nil {
 			rc.Close()
-			return fmt.Errorf("create file %s: %w", target, err)
+			return fmt.Errorf("create file %s: %w", targetAbs, err)
 		}
 
 		if _, err := io.Copy(file, rc); err != nil {
 			rc.Close()
 			file.Close()
-			return fmt.Errorf("write file %s: %w", target, err)
+			return fmt.Errorf("write file %s: %w", targetAbs, err)
 		}
 
 		rc.Close()
