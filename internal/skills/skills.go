@@ -69,7 +69,6 @@ func Load(dir string) (Library, error) {
 	}
 
 	var skills []Skill
-	byName := make(map[string]Skill)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -85,23 +84,10 @@ func Load(dir string) (Library, error) {
 		if err != nil {
 			return Library{}, err
 		}
-		if skill.Name == "" {
-			return Library{}, fmt.Errorf("skill %s missing name front matter", path)
-		}
-		if skill.Description == "" {
-			return Library{}, fmt.Errorf("skill %s missing description front matter", path)
-		}
-		key := NormalizeName(skill.Name)
-		if _, exists := byName[key]; exists {
-			return Library{}, fmt.Errorf("duplicate skill name %q in %s", key, path)
-		}
-		byName[key] = skill
 		skills = append(skills, skill)
 	}
 
-	sort.Slice(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name })
-
-	return Library{skills: skills, byName: byName, root: trimmed}, nil
+	return buildLibrary(skills, trimmed)
 }
 
 type frontMatter struct {
@@ -173,4 +159,31 @@ func NormalizeName(name string) string {
 	name = strings.TrimSpace(strings.ToLower(name))
 	name = strings.ReplaceAll(name, " ", "_")
 	return name
+}
+
+func buildLibrary(skills []Skill, root string) (Library, error) {
+	byName := make(map[string]Skill, len(skills))
+	var unique []Skill
+
+	for _, skill := range skills {
+		skill.Name = strings.TrimSpace(skill.Name)
+		skill.Description = strings.TrimSpace(skill.Description)
+		key := NormalizeName(skill.Name)
+		if key == "" {
+			return Library{}, fmt.Errorf("skill missing name: %s", skill.SourcePath)
+		}
+		if skill.Description == "" {
+			return Library{}, fmt.Errorf("skill %s missing description", key)
+		}
+		if _, exists := byName[key]; exists {
+			continue
+		}
+		skill.Name = key
+		unique = append(unique, skill)
+		byName[key] = skill
+	}
+
+	sort.Slice(unique, func(i, j int) bool { return unique[i].Name < unique[j].Name })
+
+	return Library{skills: unique, byName: byName, root: strings.TrimSpace(root)}, nil
 }
