@@ -44,8 +44,8 @@ func (s *Store) EnsureSchema(ctx context.Context) error {
 		return fmt.Errorf("session store not initialized")
 	}
 
-	query := fmt.Sprintf(`
-CREATE TABLE IF NOT EXISTS %s (
+	statements := []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
     id TEXT PRIMARY KEY,
     messages JSONB NOT NULL DEFAULT '[]'::jsonb,
     todos JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -53,12 +53,17 @@ CREATE TABLE IF NOT EXISTS %s (
     attachments JSONB,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_agent_sessions_updated_at ON %s (updated_at DESC);
-`, sessionTable, sessionTable)
+);`, sessionTable),
+		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_agent_sessions_updated_at ON %s (updated_at DESC);`, sessionTable),
+	}
 
-	_, err := s.pool.Exec(ctx, query)
-	return err
+	for _, stmt := range statements {
+		if _, err := s.pool.Exec(ctx, stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Create creates a new session row.

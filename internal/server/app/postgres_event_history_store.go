@@ -59,8 +59,8 @@ func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("history store not initialized")
 	}
-	query := `
-CREATE TABLE IF NOT EXISTS agent_session_events (
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS agent_session_events (
     id BIGSERIAL PRIMARY KEY,
     session_id TEXT NOT NULL DEFAULT '',
     task_id TEXT NOT NULL DEFAULT '',
@@ -79,13 +79,19 @@ CREATE TABLE IF NOT EXISTS agent_session_events (
     subtask_preview TEXT NOT NULL DEFAULT '',
     max_parallel INTEGER NOT NULL DEFAULT 0,
     payload JSONB
-);
-CREATE INDEX IF NOT EXISTS idx_agent_session_events_session ON agent_session_events (session_id, id);
-CREATE INDEX IF NOT EXISTS idx_agent_session_events_type ON agent_session_events (event_type, id);
-CREATE INDEX IF NOT EXISTS idx_agent_session_events_session_type ON agent_session_events (session_id, event_type, id);
-`
-	_, err := s.pool.Exec(ctx, query)
-	return err
+);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session ON agent_session_events (session_id, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_type ON agent_session_events (event_type, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session_type ON agent_session_events (session_id, event_type, id);`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := s.pool.Exec(ctx, stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Append persists a new event.

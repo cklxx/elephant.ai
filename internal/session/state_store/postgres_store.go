@@ -36,8 +36,8 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
 		return fmt.Errorf("snapshot store not initialized")
 	}
 
-	query := `
-CREATE TABLE IF NOT EXISTS agent_session_snapshots (
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS agent_session_snapshots (
     session_id TEXT NOT NULL,
     turn_id INTEGER NOT NULL,
     kind TEXT NOT NULL,
@@ -46,12 +46,17 @@ CREATE TABLE IF NOT EXISTS agent_session_snapshots (
     created_at TIMESTAMPTZ NOT NULL,
     payload JSONB NOT NULL,
     PRIMARY KEY (session_id, turn_id, kind)
-);
-CREATE INDEX IF NOT EXISTS idx_agent_session_snapshots_session_kind ON agent_session_snapshots (session_id, kind, turn_id DESC);
-`
+);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_snapshots_session_kind ON agent_session_snapshots (session_id, kind, turn_id DESC);`,
+	}
 
-	_, err := s.pool.Exec(ctx, query)
-	return err
+	for _, stmt := range statements {
+		if _, err := s.pool.Exec(ctx, stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Init is a no-op for the Postgres store.
