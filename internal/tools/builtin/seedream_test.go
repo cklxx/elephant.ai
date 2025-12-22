@@ -4,16 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"alex/internal/agent/ports"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
+	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
@@ -523,6 +527,79 @@ func TestSeedreamVideoDefinitionMentionsDurationRange(t *testing.T) {
 	if !strings.Contains(durationDesc, rangeToken) {
 		t.Fatalf("expected duration description %q to include range token %q", durationDesc, rangeToken)
 	}
+}
+
+func TestSeedreamTextToolLogsRequestAndResponse(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv("ALEX_REQUEST_LOG_DIR", logDir)
+
+	cfg := SeedreamConfig{APIKey: "key", Model: "seedream", ModelDescriptor: "Seedream"}
+	client := &stubSeedreamClient{
+		imagesResp: arkm.ImagesResponse{
+			Model:   "seedream",
+			Created: 123,
+			Data: []*arkm.Image{{
+				B64Json: volcengine.String("YQ=="),
+				Size:    "1x1",
+			}},
+		},
+	}
+
+	tool := &seedreamTextTool{config: cfg, factory: &seedreamClientFactory{config: cfg, client: client}}
+
+	if _, err := tool.Execute(context.Background(), ports.ToolCall{ID: "seedream-call", Arguments: map[string]any{"prompt": "hi"}}); err != nil {
+		t.Fatalf("expected tool to succeed, got error: %v", err)
+	}
+
+	logPath := filepath.Join(logDir, "streaming.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read request log: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "[req:seedream-call] [request]") {
+		t.Fatalf("expected request payload entry in log, got: %s", content)
+	}
+	if !strings.Contains(content, "[req:seedream-call] [response]") {
+		t.Fatalf("expected response payload entry in log, got: %s", content)
+	}
+}
+
+type stubSeedreamClient struct {
+	imagesResp    arkm.ImagesResponse
+	imagesErr     error
+	responsesResp *responses.ResponseObject
+	responsesErr  error
+	createResp    *arkm.CreateContentGenerationTaskResponse
+	createErr     error
+	getResp       *arkm.GetContentGenerationTaskResponse
+	getErr        error
+}
+
+func (s *stubSeedreamClient) GenerateImages(context.Context, arkm.GenerateImagesRequest) (arkm.ImagesResponse, error) {
+	return s.imagesResp, s.imagesErr
+}
+
+func (s *stubSeedreamClient) CreateResponses(context.Context, *responses.ResponsesRequest) (*responses.ResponseObject, error) {
+	if s.responsesResp != nil || s.responsesErr != nil {
+		return s.responsesResp, s.responsesErr
+	}
+	return nil, errors.New("unexpected CreateResponses call")
+}
+
+func (s *stubSeedreamClient) CreateContentGenerationTask(context.Context, arkm.CreateContentGenerationTaskRequest) (*arkm.CreateContentGenerationTaskResponse, error) {
+	if s.createResp != nil || s.createErr != nil {
+		return s.createResp, s.createErr
+	}
+	return nil, errors.New("unexpected CreateContentGenerationTask call")
+}
+
+func (s *stubSeedreamClient) GetContentGenerationTask(context.Context, arkm.GetContentGenerationTaskRequest) (*arkm.GetContentGenerationTaskResponse, error) {
+	if s.getResp != nil || s.getErr != nil {
+		return s.getResp, s.getErr
+	}
+	return nil, errors.New("unexpected GetContentGenerationTask call")
 }
 
 func TestSeedreamVideoRejectsDurationsOutsideRange(t *testing.T) {

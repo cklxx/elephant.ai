@@ -20,6 +20,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/httpclient"
 	"alex/internal/logging"
+	"alex/internal/utils"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
@@ -35,22 +36,60 @@ type SeedreamConfig struct {
 	ModelEnvVar     string
 }
 
+type seedreamClient interface {
+	GenerateImages(ctx context.Context, request arkm.GenerateImagesRequest) (arkm.ImagesResponse, error)
+	CreateResponses(ctx context.Context, request *responses.ResponsesRequest) (*responses.ResponseObject, error)
+	CreateContentGenerationTask(ctx context.Context, request arkm.CreateContentGenerationTaskRequest) (*arkm.CreateContentGenerationTaskResponse, error)
+	GetContentGenerationTask(ctx context.Context, request arkm.GetContentGenerationTaskRequest) (*arkm.GetContentGenerationTaskResponse, error)
+}
+
+type seedreamAPIClient struct {
+	client *arkruntime.Client
+}
+
+func (c *seedreamAPIClient) GenerateImages(ctx context.Context, request arkm.GenerateImagesRequest) (arkm.ImagesResponse, error) {
+	return c.client.GenerateImages(ctx, request)
+}
+
+func (c *seedreamAPIClient) CreateResponses(ctx context.Context, request *responses.ResponsesRequest) (*responses.ResponseObject, error) {
+	return c.client.CreateResponses(ctx, request)
+}
+
+func (c *seedreamAPIClient) CreateContentGenerationTask(ctx context.Context, request arkm.CreateContentGenerationTaskRequest) (*arkm.CreateContentGenerationTaskResponse, error) {
+	resp, err := c.client.CreateContentGenerationTask(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *seedreamAPIClient) GetContentGenerationTask(ctx context.Context, request arkm.GetContentGenerationTaskRequest) (*arkm.GetContentGenerationTaskResponse, error) {
+	resp, err := c.client.GetContentGenerationTask(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 type seedreamClientFactory struct {
 	config SeedreamConfig
 	once   sync.Once
-	client *arkruntime.Client
+	client seedreamClient
 	err    error
 }
 
-func (f *seedreamClientFactory) instance() (*arkruntime.Client, error) {
+func (f *seedreamClientFactory) instance() (seedreamClient, error) {
 	f.once.Do(func() {
+		if f.client != nil {
+			return
+		}
 		apiKey := strings.TrimSpace(f.config.APIKey)
 		if apiKey == "" {
 			f.err = errors.New("seedream API key missing")
 			return
 		}
 		httpLogger := logging.NewComponentLogger("SeedreamHTTP")
-		f.client = arkruntime.NewClientWithApiKey(apiKey, arkruntime.WithHTTPClient(httpclient.New(10*time.Minute, httpLogger)))
+		f.client = &seedreamAPIClient{client: arkruntime.NewClientWithApiKey(apiKey, arkruntime.WithHTTPClient(httpclient.New(10*time.Minute, httpLogger)))}
 	})
 	if f.err != nil {
 		return nil, f.err
@@ -99,6 +138,18 @@ const (
 
 var seedreamPlaceholderNonce = func() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}
+
+func logSeedreamRequestPayload(requestID string, payload any) {
+	if encoded, err := json.Marshal(payload); err == nil {
+		utils.LogStreamingRequestPayload(strings.TrimSpace(requestID), encoded)
+	}
+}
+
+func logSeedreamResponsePayload(requestID string, payload any) {
+	if encoded, err := json.Marshal(payload); err == nil {
+		utils.LogStreamingResponsePayload(strings.TrimSpace(requestID), encoded)
+	}
 }
 
 // NewSeedreamTextToImage returns a tool that generates imagery from prompts.
@@ -209,6 +260,8 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	requestID := strings.TrimSpace(call.ID)
+
 	req := arkm.GenerateImagesRequest{
 		Model:          t.config.Model,
 		Prompt:         prompt,
@@ -223,10 +276,14 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
+	logSeedreamRequestPayload(requestID, req)
+
 	resp, err := client.GenerateImages(ctx, req)
 	if err != nil {
+		logSeedreamResponsePayload(requestID, map[string]any{"error": err.Error()})
 		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedream request failed: %v", err), Error: err}, nil
 	}
+	logSeedreamResponsePayload(requestID, resp)
 	if resp.Error != nil {
 		apiErr := fmt.Sprintf("Seedream API error (%s): %s", resp.Error.Code, resp.Error.Message)
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
@@ -315,6 +372,8 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 
 	prompt, _ := call.Arguments["prompt"].(string)
 
+	requestID := strings.TrimSpace(call.ID)
+
 	req := arkm.GenerateImagesRequest{
 		Model:          t.config.Model,
 		Prompt:         strings.TrimSpace(prompt),
@@ -323,6 +382,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
+	logSeedreamRequestPayload(requestID, req)
 	t.logRequestPayload(imageValue, normalizedImage, kind, req)
 
 	client, err := t.factory.instance()
@@ -333,8 +393,10 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 
 	resp, err := client.GenerateImages(ctx, req)
 	if err != nil {
+		logSeedreamResponsePayload(requestID, map[string]any{"error": err.Error()})
 		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedream request failed: %v", err), Error: err}, nil
 	}
+	logSeedreamResponsePayload(requestID, resp)
 	if resp.Error != nil {
 		apiErr := fmt.Sprintf("Seedream API error (%s): %s", resp.Error.Code, resp.Error.Message)
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
@@ -538,6 +600,8 @@ func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	requestID := strings.TrimSpace(call.ID)
+
 	req := &responses.ResponsesRequest{
 		Model: t.config.Model,
 		Input: &responses.ResponsesInput{
@@ -564,10 +628,14 @@ func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
+	logSeedreamRequestPayload(requestID, req)
+
 	resp, err := client.CreateResponses(ctx, req)
 	if err != nil {
+		logSeedreamResponsePayload(requestID, map[string]any{"error": err.Error()})
 		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedream vision request failed: %v", err), Error: err}, nil
 	}
+	logSeedreamResponsePayload(requestID, resp)
 	if resp.Error != nil {
 		apiErr := fmt.Sprintf("Seedream API error (%s): %s", resp.Error.GetCode(), resp.Error.GetMessage())
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
@@ -671,16 +739,22 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		request.ReturnLastFrame = volcengine.Bool(true)
 	}
 
+	requestID := strings.TrimSpace(call.ID)
+
 	client, err := t.factory.instance()
 	if err != nil {
 		wrapped := fmt.Errorf("seedream client init: %w", err)
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
+	logSeedreamRequestPayload(requestID, request)
+
 	createResp, err := client.CreateContentGenerationTask(ctx, request)
 	if err != nil {
+		logSeedreamResponsePayload(requestID, map[string]any{"error": err.Error(), "stage": "create_task"})
 		return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedance request failed: %v", err), Error: err}, nil
 	}
+	logSeedreamResponsePayload(requestID, createResp)
 
 	taskID := strings.TrimSpace(createResp.ID)
 	if taskID == "" {
@@ -702,13 +776,18 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 
 		resp, err := client.GetContentGenerationTask(ctx, arkm.GetContentGenerationTaskRequest{ID: taskID})
 		if err != nil {
+			logSeedreamResponsePayload(requestID, map[string]any{"error": err.Error(), "stage": "poll", "task_id": taskID})
 			return &ports.ToolResult{CallID: call.ID, Content: fmt.Sprintf("Seedance polling failed: %v", err), Error: err}, nil
+		}
+
+		if resp.Status != arkm.StatusRunning {
+			logSeedreamResponsePayload(requestID, resp)
 		}
 
 		switch resp.Status {
 		case arkm.StatusSucceeded:
 			content, metadata, attachments := formatSeedreamVideoResponse(
-				&resp,
+				resp,
 				t.config.ModelDescriptor,
 				prompt,
 				duration,
