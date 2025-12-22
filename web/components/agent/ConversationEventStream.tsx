@@ -383,6 +383,15 @@ function getPlanTaskCount(event: AnyAgentEvent): number | null {
       : null;
 
   const internalPlan = metadata?.internal_plan ?? metadata?.internalPlan;
+  const steps =
+    internalPlan && Array.isArray(internalPlan.steps)
+      ? internalPlan.steps
+      : [];
+
+  if (steps.length > 0) {
+    return steps.length;
+  }
+
   const branches =
     internalPlan && Array.isArray(internalPlan.branches)
       ? internalPlan.branches
