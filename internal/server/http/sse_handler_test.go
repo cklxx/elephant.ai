@@ -224,6 +224,13 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatalf("step payload missing or wrong type: %v", stepEnvelopeEvent.data)
 	}
+	workflowPayload, ok := stepPayload["workflow"].(map[string]any)
+	if !ok {
+		t.Fatalf("workflow payload missing or wrong type: %v", stepPayload)
+	}
+	if _, hasNodes := workflowPayload["nodes"]; hasNodes {
+		t.Fatalf("workflow nodes should not be streamed: %v", workflowPayload)
+	}
 	if status := stepPayload["status"]; status != stepEvent.Status {
 		t.Fatalf("unexpected step status: %v", stepEnvelopeEvent.data)
 	}
