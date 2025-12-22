@@ -1,10 +1,38 @@
-import { AnyAgentEvent } from '@/lib/types';
+import { AnyAgentEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { handleEnvironmentSnapshot } from '@/hooks/useDiagnostics';
 import { handleAttachmentEvent } from './attachmentRegistry';
+import { useSessionStore } from '@/hooks/useSessionStore';
 
 type EventSideEffect = (event: AnyAgentEvent) => void;
 
 type Registry = Map<AnyAgentEvent['event_type'], EventSideEffect[]>;
+
+function handlePlanGoal(event: AnyAgentEvent) {
+  if (event.event_type !== 'workflow.tool.completed' || event.tool_name !== 'plan') {
+    return;
+  }
+
+  const planEvent = event as WorkflowToolCompletedEvent;
+  const sessionId = planEvent.session_id?.trim();
+  if (!sessionId) {
+    return;
+  }
+
+  const metadata = planEvent.metadata ?? {};
+  const goalCandidate = [
+    metadata.overall_goal_ui,
+    metadata.overall_goal,
+    metadata.internal_plan?.overall_goal,
+    planEvent.result,
+  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+  if (!goalCandidate) {
+    return;
+  }
+
+  const { renameSession } = useSessionStore.getState();
+  renameSession(sessionId, goalCandidate.trim());
+}
 
 export class EventRegistry {
   private registry: Registry = new Map();
@@ -28,6 +56,7 @@ export class EventRegistry {
 
 export const defaultEventRegistry = new EventRegistry();
 
+defaultEventRegistry.register('workflow.tool.completed', handlePlanGoal as EventSideEffect);
 defaultEventRegistry.register('workflow.diagnostic.environment_snapshot', handleEnvironmentSnapshot as EventSideEffect);
 
 defaultEventRegistry.register('workflow.tool.completed', handleAttachmentEvent as EventSideEffect);
