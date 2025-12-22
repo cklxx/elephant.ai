@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/httpclient"
+	"alex/internal/utils"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -295,7 +297,7 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 		analysisCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		analysis, err := t.analyzeLLM(analysisCtx, content, prompt)
+		analysis, err := t.analyzeLLM(analysisCtx, callID, content, prompt)
 		if err == nil && analysis != "" {
 			// Return LLM analysis (no emojis for TUI compatibility)
 			output := fmt.Sprintf("Source: %s%s\n\n"+
@@ -358,7 +360,8 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 }
 
 // analyzeLLM uses LLM to analyze content based on prompt
-func (t *webFetch) analyzeLLM(ctx context.Context, content, prompt string) (string, error) {
+func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt string) (string, error) {
+	requestID := strings.TrimSpace(callID)
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{
@@ -372,9 +375,27 @@ func (t *webFetch) analyzeLLM(ctx context.Context, content, prompt string) (stri
 		MaxTokens:   1000,
 	}
 
+	if requestID != "" {
+		req.Metadata = map[string]any{"request_id": requestID}
+	}
+
+	if payload, err := json.Marshal(req); err == nil {
+		utils.LogStreamingRequestPayload(requestID, payload)
+	}
+
 	resp, err := t.llmClient.Complete(ctx, req)
 	if err != nil {
 		return "", err
+	}
+
+	if requestID == "" && resp != nil {
+		if id, ok := resp.Metadata["request_id"].(string); ok {
+			requestID = strings.TrimSpace(id)
+		}
+	}
+
+	if respPayload, err := json.Marshal(resp); err == nil {
+		utils.LogStreamingResponsePayload(requestID, respPayload)
 	}
 
 	return resp.Content, nil

@@ -1,8 +1,13 @@
 package builtin
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"alex/internal/agent/ports"
 )
 
 func TestWebFetchBuildResultCreatesAttachment(t *testing.T) {
@@ -39,3 +44,44 @@ func TestWebFetchBuildResultCreatesAttachment(t *testing.T) {
 		}
 	}
 }
+
+func TestWebFetchAnalyzeLLMLogsRequestAndResponse(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv("ALEX_REQUEST_LOG_DIR", logDir)
+
+	tool := &webFetch{
+		llmClient: &stubLLMClient{response: &ports.CompletionResponse{
+			Content:  "analysis",
+			Metadata: map[string]any{"request_id": "tool-call-123"},
+		}},
+	}
+
+	_, err := tool.buildResult("tool-call-123", "https://example.com", "page content", false, "What matters?")
+	if err != nil {
+		t.Fatalf("buildResult returned error: %v", err)
+	}
+
+	logPath := filepath.Join(logDir, "streaming.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read request log: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "[req:tool-call-123] [request]") {
+		t.Fatalf("request payload not logged, content: %s", content)
+	}
+	if !strings.Contains(content, "[req:tool-call-123] [response]") {
+		t.Fatalf("response payload not logged, content: %s", content)
+	}
+}
+
+type stubLLMClient struct {
+	response *ports.CompletionResponse
+}
+
+func (s *stubLLMClient) Complete(_ context.Context, _ ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	return s.response, nil
+}
+
+func (*stubLLMClient) Model() string { return "stub-model" }
