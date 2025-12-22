@@ -69,6 +69,9 @@ func (stubContextManager) EstimateTokens(messages []ports.Message) int { return 
 func (stubContextManager) Compress(messages []ports.Message, targetTokens int) ([]ports.Message, error) {
 	return messages, nil
 }
+func (stubContextManager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
+	return messages, false
+}
 func (stubContextManager) ShouldCompress(messages []ports.Message, limit int) bool { return false }
 func (stubContextManager) Preload(context.Context) error                           { return nil }
 func (stubContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
@@ -213,14 +216,14 @@ func TestCoordinatorGetConfigIncludesCompletionDefaults(t *testing.T) {
 	sessionStore := &stubSessionStore{}
 	stopSeqs := []string{"<<END>>"}
 
-coordinator := NewAgentCoordinator(
-llmFactory,
-stubToolRegistry{},
-sessionStore,
-stubContextManager{},
-nil,
-stubParser{},
-nil,
+	coordinator := NewAgentCoordinator(
+		llmFactory,
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		stubParser{},
+		nil,
 		Config{
 			LLMProvider:         "mock",
 			LLMModel:            "config-check",
@@ -257,14 +260,14 @@ func TestNewAgentCoordinatorHonorsZeroTemperature(t *testing.T) {
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
 
-coordinator := NewAgentCoordinator(
-llmFactory,
-stubToolRegistry{},
-sessionStore,
-stubContextManager{},
-nil,
-stubParser{},
-nil,
+	coordinator := NewAgentCoordinator(
+		llmFactory,
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		stubParser{},
+		nil,
 		Config{
 			LLMProvider:         "mock",
 			LLMModel:            "deterministic",

@@ -446,6 +446,49 @@ func TestCompressInjectsStructuredSummary(t *testing.T) {
 	}
 }
 
+func TestAutoCompactTriggersCompression(t *testing.T) {
+	mgr := &manager{}
+	limit := 50
+	messages := []ports.Message{
+		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "base system"},
+		{Role: "user", Content: strings.Repeat("x", 400)},
+	}
+
+	compacted, compactedFlag := mgr.AutoCompact(messages, limit)
+	if !compactedFlag {
+		t.Fatalf("expected auto compaction to run")
+	}
+	if len(compacted) != 2 {
+		t.Fatalf("expected system prompt and summary, got %d entries", len(compacted))
+	}
+	if compacted[0].Content != messages[0].Content {
+		t.Fatalf("system prompt should be preserved")
+	}
+	summary := compacted[1]
+	if summary.Source != ports.MessageSourceSystemPrompt || summary.Role != "system" {
+		t.Fatalf("summary should be injected as a system prompt, got %+v", summary)
+	}
+	if !strings.Contains(summary.Content, "Earlier conversation had 1 user message(s)") {
+		t.Fatalf("unexpected summary content: %q", summary.Content)
+	}
+}
+
+func TestAutoCompactNoopBelowThreshold(t *testing.T) {
+	mgr := &manager{}
+	messages := []ports.Message{
+		{Role: "system", Source: ports.MessageSourceSystemPrompt, Content: "base system"},
+		{Role: "user", Content: "short"},
+	}
+
+	compacted, compactedFlag := mgr.AutoCompact(messages, 5_000)
+	if compactedFlag {
+		t.Fatalf("auto compaction should not trigger below threshold")
+	}
+	if len(compacted) != len(messages) {
+		t.Fatalf("messages should remain untouched when no compaction occurs")
+	}
+}
+
 func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	mgr := &manager{}
 	messages := []ports.Message{

@@ -39,6 +39,13 @@ type manager struct {
 	preloadErr  error
 }
 
+func (m *manager) compressionThreshold() float64 {
+	if m.threshold <= 0 {
+		return defaultThreshold
+	}
+	return m.threshold
+}
+
 const (
 	defaultThreshold    = 0.8
 	defaultStaticTTL    = 30 * time.Minute
@@ -131,7 +138,27 @@ func (m *manager) ShouldCompress(messages []ports.Message, limit int) bool {
 	if limit <= 0 {
 		return false
 	}
-	return float64(m.EstimateTokens(messages)) > float64(limit)*m.threshold
+	threshold := m.compressionThreshold()
+	return float64(m.EstimateTokens(messages)) > float64(limit)*threshold
+}
+
+// AutoCompact applies compression when the configured threshold is exceeded.
+// It returns the (possibly) compacted messages alongside a flag indicating
+// whether compaction was performed.
+func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
+	if !m.ShouldCompress(messages, limit) {
+		return messages, false
+	}
+
+	threshold := m.compressionThreshold()
+	target := int(float64(limit) * threshold)
+	compressed, err := m.Compress(messages, target)
+	if err != nil {
+		logging.OrNop(m.logger).Warn("Auto compaction failed: %v", err)
+		return messages, false
+	}
+
+	return compressed, true
 }
 
 // Compress preserves all system prompts and summarizes everything else when the
@@ -282,11 +309,9 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 	knowledge := mapToSlice(staticSnapshot.Knowledge)
 
 	messages := append([]ports.Message(nil), session.Messages...)
-	if cfg.TokenLimit > 0 && m.ShouldCompress(messages, cfg.TokenLimit) {
-		if compressed, err := m.Compress(messages, int(float64(cfg.TokenLimit)*0.8)); err == nil {
-			messages = compressed
-		} else if m.logger != nil {
-			m.logger.Warn("Context compression failed: %v", err)
+	if cfg.TokenLimit > 0 {
+		if compacted, ok := m.AutoCompact(messages, cfg.TokenLimit); ok {
+			messages = compacted
 		}
 	}
 
