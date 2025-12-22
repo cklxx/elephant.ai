@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import type { JSX } from "react";
 import { useMemo } from "react";
 
 import {
