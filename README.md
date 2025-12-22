@@ -125,6 +125,8 @@ Reusable playbooks in `skills/` are indexed into the context builder and discove
   ```
 * Override the skills directory with `ALEX_SKILLS_DIR=/path/to/skills`.
 
+The loader also understands the Agent Skills folder layout (`<skill-name>/SKILL.md`). See [`docs/guides/skills.md`](docs/guides/skills.md) for integration details.
+
 Built-in examples include `video_production` and `ppt_deck`.
 
 ---

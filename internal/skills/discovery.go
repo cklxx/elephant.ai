@@ -52,7 +52,7 @@ func searchSkillsRootFromDir(start string) string {
 	}
 	for {
 		candidate := filepath.Join(dir, "skills")
-		if hasMarkdownFiles(candidate) {
+		if hasSkillFiles(candidate) {
 			return candidate
 		}
 		parent := filepath.Dir(dir)
@@ -64,23 +64,11 @@ func searchSkillsRootFromDir(start string) string {
 	return ""
 }
 
-func hasMarkdownFiles(dir string) bool {
+func hasSkillFiles(dir string) bool {
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
 		return false
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := strings.ToLower(entry.Name())
-		if strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".mdx") {
-			return true
-		}
-	}
-	return false
+	paths, err := discoverSkillFiles(dir)
+	return err == nil && len(paths) > 0
 }

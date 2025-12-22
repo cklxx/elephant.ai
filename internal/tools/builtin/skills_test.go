@@ -96,3 +96,42 @@ Body.
 		t.Fatalf("expected search to list match, got %q", result.Content)
 	}
 }
+
+func TestSkillsToolSupportsSkillDirectories(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ALEX_SKILLS_DIR", dir)
+
+	skillDir := filepath.Join(dir, "data-analysis")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+
+	content := `---
+name: data_analysis
+description: Analyze datasets and summarize insights.
+---
+# Data Analysis
+
+Steps...
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	tool := NewSkills()
+	result, err := tool.Execute(context.Background(), ports.ToolCall{
+		ID: "call-4",
+		Arguments: map[string]any{
+			"action": "list",
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute list: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("list returned error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "data_analysis") {
+		t.Fatalf("expected list to include skill name, got %q", result.Content)
+	}
+}

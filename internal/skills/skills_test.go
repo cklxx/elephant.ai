@@ -46,6 +46,42 @@ Some body text.
 	}
 }
 
+func TestLoadSupportsSkillDirectories(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "pdf-processing")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+
+	content := `---
+name: pdf_processing
+description: Extract text and tables from PDFs.
+---
+# PDF Processing
+
+Steps...
+`
+	sourcePath := filepath.Join(skillDir, "SKILL.md")
+	if err := os.WriteFile(sourcePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	skill, ok := lib.Get("pdf_processing")
+	if !ok {
+		t.Fatalf("expected skill to be present")
+	}
+	if skill.SourcePath != sourcePath {
+		t.Fatalf("expected source path %s, got %s", sourcePath, skill.SourcePath)
+	}
+}
+
 func TestLoadRejectsMissingFrontMatter(t *testing.T) {
 	t.Parallel()
 
