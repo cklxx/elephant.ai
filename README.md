@@ -1,6 +1,6 @@
 # elephant.ai
 
-elephant.ai is the reference implementation of the ALEX agent: a Go backend and Next.js dashboard that weave scattered facts, logs, and notebook scraps into a structured task plan. The CLI/TUI, HTTP + SSE server, and web UI all stream the same Think → Act → Observe loop so operators and automation stay in sync.
+elephant.ai provides a Go backend and Next.js dashboard built around a shared Think → Act → Observe loop. The `alex` CLI/TUI, HTTP + SSE server, and web UI run the same runtime so operators and automation stay in sync.
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
@@ -10,11 +10,11 @@ elephant.ai is the reference implementation of the ALEX agent: a Go backend and 
 
 ## What it does
 
-* **Fragment-to-plan reasoning.** Streams shell transcripts, notebook outputs, tickets, and freeform notes into a stitched execution plan.
+* **Fragment-to-plan reasoning.** Streams shell transcripts, notebook outputs, tickets, and freeform notes into stitched execution plans using the shared agent runtime.
 * **One runtime, many surfaces.** CLI/TUI (`cmd/alex`), server (`cmd/alex-server`), and dashboard (`web/`) all share the same dependency injection container and event stream.
 * **Tooling that respects context.** File, shell, search, and notebook helpers emit typed events with artifacts/attachments for the dashboard.
-* **Observability-first.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking are built in.
-* **Evaluated by default.** SWE-Bench harnesses and batch runners in `evaluation/` keep weaving quality measurable.
+* **Observability-first.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking live under `internal/observability`.
+* **Evaluation harnesses.** SWE-Bench runners in `evaluation/` keep quality measurable during development.
 
 ---
 
