@@ -277,10 +277,10 @@ describe('ConversationEventStream', () => {
         timestamp: planTimestamp,
         metadata: {
           internal_plan: {
-            branches: [
+            steps: [
               {
-                branch_goal: 'Only branch',
-                tasks: [{ task_goal: 'Single task', success_criteria: [] }],
+                task_goal: 'Single task',
+                success_criteria: [],
               },
             ],
           },
@@ -338,14 +338,9 @@ describe('ConversationEventStream', () => {
         timestamp: planTimestamp,
         metadata: {
           internal_plan: {
-            branches: [
-              {
-                branch_goal: 'Branch A',
-                tasks: [
-                  { task_goal: 'Task A1', success_criteria: [] },
-                  { task_goal: 'Task A2', success_criteria: [] },
-                ],
-              },
+            steps: [
+              { task_goal: 'Task A1', success_criteria: [] },
+              { task_goal: 'Task A2', success_criteria: [] },
             ],
           },
         },
