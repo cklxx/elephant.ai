@@ -125,4 +125,27 @@ describe('EventPipeline deduplication', () => {
 
     expect(received).toHaveLength(2);
   });
+
+  it('keeps distinct tool events with identical timestamps when names differ', () => {
+    const timestamp = '2024-04-01T00:00:00Z';
+    const basePayload = {
+      event_type: 'workflow.tool.completed',
+      session_id: 'session-tool',
+      task_id: 'task-tool',
+      timestamp,
+      tool_name: '',
+      call_id: '',
+      result: '',
+      duration: 1,
+    } satisfies AnyAgentEvent;
+
+    pipeline.process({ ...basePayload, tool_name: 'plan' });
+    pipeline.process({ ...basePayload, tool_name: 'clearify' });
+
+    expect(received).toHaveLength(2);
+    expect(received.map((e) => (e as AnyAgentEvent & { tool_name?: string }).tool_name)).toEqual([
+      'plan',
+      'clearify',
+    ]);
+  });
 });
