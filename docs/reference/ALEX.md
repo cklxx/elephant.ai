@@ -159,17 +159,19 @@ The architecture emphasizes:
 
 ## Built-in Tools and Features
 
-Alex-Code ships with a curated set of built-in tools wired into the MCP ecosystem. The default tool suite includes 13 tools across categories:
+Alex-Code ships with a curated set of built-in tools wired into the MCP ecosystem. The tool suite includes common categories:
 
 - File Operations: file_read, file_update, file_replace, file_list
 - Shell Execution: bash, code_executor
 - Search & Analysis: grep, ripgrep, find
 - Task Management: todo_read, todo_update
 - Web Integration: web_search (via Tavily API integration in code)
-- Thought/Reasoning: think (structured problem solving)
+- Thought/Reasoning: think (structured problem solving; not registered by default)
 - MCP Protocol: dynamic external tool integration for extensibility
 
-All tools are registered in the internal tool registry and are discoverable by MCP servers. Security and input validation are baked into tool adapters to prevent dangerous operations.
+Note: the `think` tool is intentionally not registered by default; reasoning happens in the internal Think phase of the ReAct loop.
+
+Registered tools are discoverable by MCP servers. Security and input validation are baked into tool adapters to prevent dangerous operations.
 
 ## Security Features
 
@@ -200,8 +202,8 @@ The project adheres to a set of design philosophies intended to keep the codebas
 
 ## Naming Guidelines
 
-- Functions: AnalyzeCode(), LoadPrompts(), ExecuteTool(), etc.
-- Types: ReactAgent, PromptLoader, ToolExecutor.
+- Functions: AnalyzeCode(), BuildWindow(), ExecuteTool(), etc.
+- Types: ReactAgent, ContextManager, ToolExecutor.
 - Variables: taskResult, userMessage, promptTemplate.
 
 ## Architectural Principles
@@ -255,7 +257,7 @@ go test -coverprofile=coverage.out ./...
 
 - Core repository layout:
   - cmd/        CLI entry points and command handlers
-  - internal/   core application logic (agent, llm, tools, memory, mcp, prompts, config, session)
+  - internal/   core application logic (agent, llm, tools, memory, mcp, context, config, session)
   - evaluation/ SWE-Bench
   - docs/       documentation and guides
   - scripts/    development automation

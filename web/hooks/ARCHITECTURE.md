@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Application Components                    │
-│  (TerminalOutput, EventList, EventLine, TaskInput, etc.)   │
+│  (ConversationEventStream, EventList, EventLine, TaskInput, etc.)   │
 └────────────┬────────────────────────────────┬───────────────┘
              │                                │
              ▼                                ▼
@@ -13,7 +13,7 @@
 │   Data Fetching Hooks  │      │   Presentation Hooks       │
 │                        │      │                            │
 │  • useSSE              │      │  • useEventFormatter       │
-│  • useTaskExecution    │      │  • useAutoScroll           │
+│  • useTaskExecution    │      │                            │
 │  • useTaskStatus       │      │                            │
 │  • useCancelTask       │      │                            │
 └────────────┬───────────┘      └────────────┬───────────────┘
@@ -88,28 +88,6 @@ Dependencies:
   • Pure functions only
 ```
 
-### 4. Behavior Hooks
-**Purpose:** Implement common UI behaviors
-
-```
-useAutoScroll
-├── Auto-scroll on dependency change
-├── User scroll lock detection
-├── Passive event listeners
-└── Configurable threshold/behavior
-
-useScrollToBottom (simplified variant)
-├── Always scroll to bottom
-├── No user lock detection
-└── Minimal configuration
-
-Dependencies:
-  • React: useRef, useEffect
-  • Browser scroll APIs
-```
-
----
-
 ## Hook Interaction Patterns
 
 ### Pattern 1: Real-time Event Stream
@@ -123,11 +101,8 @@ function LiveEventStream() {
   // 2. Format events for display
   const { formatContent, getEventStyle } = useEventFormatter();
 
-  // 3. Auto-scroll as events arrive
-  const containerRef = useAutoScroll([events.length]);
-
   return (
-    <div ref={containerRef}>
+    <div>
       {events.map(event => (
         <div className={getEventStyle(event.event_type)}>
           {formatContent(event)}
@@ -224,21 +199,6 @@ CPU: Very low (functions only recalculated on deps change)
 Rendering: ~30% faster with 1000+ events
 ```
 
-### useAutoScroll
-```
-┌─────────────────────────────────────────────────────────┐
-│ Event Handling                                          │
-├─────────────────────────────────────────────────────────┤
-│ Scroll events:  Passive (non-blocking)                  │
-│ User detection: Debounced (100ms)                       │
-│ Auto-scroll:    Deferred (requestAnimationFrame)        │
-└─────────────────────────────────────────────────────────┘
-
-Memory: O(1) - single ref
-CPU: Very low (passive listeners)
-Scroll performance: 60fps (non-blocking)
-```
-
 ### useTaskExecution
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -307,36 +267,6 @@ const formatter = useEventFormatter({ formatOverrides });
 const formatter = useEventFormatter({
   formatOverrides: { workflow.input.received: (e) => `🎯 ${e.task}` }
 });
-```
-
-### useAutoScroll Best Practices
-
-✅ **DO:**
-- Attach ref to the scrollable container (not children)
-- Use appropriate threshold for your UI
-- Consider using `useScrollToBottom` for simple cases
-
-❌ **DON'T:**
-- Don't use on virtualized lists (they have built-in scroll)
-- Don't set threshold too large (poor UX)
-- Don't forget the dependency array
-
-```tsx
-// ✅ Good
-const containerRef = useAutoScroll([events.length], {
-  threshold: 100
-});
-
-return <div ref={containerRef} className="overflow-auto">...</div>;
-
-// ❌ Bad - attached to child
-const containerRef = useAutoScroll([events.length]);
-
-return (
-  <div className="overflow-auto">
-    <div ref={containerRef}>...</div> {/* Wrong element */}
-  </div>
-);
 ```
 
 ### useTaskExecution Best Practices

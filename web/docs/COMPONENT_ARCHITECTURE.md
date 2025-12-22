@@ -20,7 +20,7 @@ conversation/page.tsx (Research console workspace)
      │   └─ SessionHistory (recent list)
      ├─ ConversationStream
      │   ├─ Header (language switch + timeline status)
-     │   ├─ TerminalOutput (event cards, plan approval, tool statuses)
+     │   ├─ ConversationEventStream (event cards, plan approval, tool statuses)
      │   └─ TaskInput (textarea + submit button)
      └─ GuidanceSidebar
          ├─ QuickstartButtons

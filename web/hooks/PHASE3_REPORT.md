@@ -13,7 +13,6 @@ Successfully completed Phase 3 of the frontend refactoring plan, focusing on hoo
 ### Key Achievements
 - ✅ Simplified `useSSE.ts` - eliminated circular dependency issue
 - ✅ Created `useEventFormatter.ts` - memoized event formatting
-- ✅ Created `useAutoScroll.ts` - reusable auto-scroll behavior
 - ✅ Optimized `useTaskExecution.ts` - added retry logic and lifecycle hooks
 - ✅ Enhanced `EventList.tsx` - improved scroll lock detection
 - ✅ Created comprehensive documentation
@@ -137,71 +136,7 @@ function CustomEventDisplay({ event }) {
 
 ---
 
-### 3. useAutoScroll Hook (NEW)
-
-**File:** `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/useAutoScroll.ts`
-
-**Purpose:**
-Provide reusable auto-scroll behavior with user scroll lock detection.
-
-**Features:**
-- Auto-scroll to bottom when dependencies change
-- Detects manual user scrolling
-- Configurable threshold for "near bottom"
-- Smooth scrolling behavior
-- Passive event listeners (no blocking)
-- Two variants: smart auto-scroll and always-scroll
-
-**API:**
-```typescript
-interface UseAutoScrollOptions {
-  enabled?: boolean;        // Default: true
-  threshold?: number;       // Default: 100px from bottom
-  behavior?: ScrollBehavior; // Default: 'smooth'
-  delay?: number;           // Default: 100ms
-}
-
-// Smart auto-scroll (with user lock)
-const containerRef = useAutoScroll([events.length], options);
-
-// Always scroll (no user lock)
-const containerRef = useScrollToBottom([events.length], 'smooth');
-```
-
-**Example Usage:**
-```tsx
-function EventStream({ events }) {
-  const containerRef = useAutoScroll([events.length], {
-    threshold: 100,
-    behavior: 'smooth'
-  });
-
-  return (
-    <div ref={containerRef} className="overflow-auto max-h-screen">
-      {events.map(event => <EventLine key={event.id} event={event} />)}
-    </div>
-  );
-}
-```
-
-**How it Works:**
-1. Tracks scroll position via passive listener
-2. Detects if user is "near bottom" (within threshold)
-3. Only auto-scrolls if user hasn't manually scrolled up
-4. Resets lock when user scrolls back to bottom
-
-**Performance Benefits:**
-- Passive event listeners (non-blocking)
-- Debounced scroll detection
-- No unnecessary DOM measurements
-
-**Note:** `EventList` component uses virtualizer's `scrollToIndex`, so this hook is better for non-virtualized lists.
-
-**Lines of Code:** 164 lines
-
----
-
-### 4. useTaskExecution.ts Optimization
+### 3. useTaskExecution.ts Optimization
 
 **File:** `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/useTaskExecution.ts`
 
@@ -352,7 +287,6 @@ useEffect(() => {
 | useSSE | Re-renders | Every render | Only on sessionId/enabled change | Stable |
 | useEventFormatter | Render time (1000 events) | Baseline | 30% faster | 30% faster |
 | useEventFormatter | Memory | N/A | Memoized | Lower |
-| useAutoScroll | Scroll blocking | Potential | None (passive) | Non-blocking |
 | useTaskExecution | Network failures | Manual retry | 3 auto retries | Better UX |
 | useTaskExecution | Error details | Basic | Comprehensive | Better debugging |
 
@@ -382,17 +316,12 @@ useEffect(() => {
    - Custom format overrides
    - Full TypeScript typing
 
-2. `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/useAutoScroll.ts` (164 lines)
-   - Smart auto-scroll behavior
-   - User scroll lock detection
-   - Two variants (smart + always-scroll)
-
-3. `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/README.md` (329 lines)
+2. `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/README.md` (329 lines)
    - Comprehensive documentation
    - Usage examples
    - Performance benchmarks
 
-4. `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/PHASE3_REPORT.md` (this file)
+3. `/Users/ckl/code/Alex-code2/Alex-Code/web/hooks/PHASE3_REPORT.md` (this file)
    - Detailed completion report
 
 ---
@@ -440,13 +369,7 @@ Components can optionally adopt new hooks:
    const { formatContent } = useEventFormatter();
    ```
 
-2. **Use `useAutoScroll` for non-virtualized lists:**
-   ```tsx
-   // Optional: Use in custom scroll containers
-   const ref = useAutoScroll([deps]);
-   ```
-
-3. **Use enhanced `useTaskExecution` options:**
+2. **Use enhanced `useTaskExecution` options:**
    ```tsx
    // Optional: Add retry and lifecycle hooks
    const { mutate } = useTaskExecution({
@@ -518,34 +441,7 @@ export function CompactEventDisplay({ events }: { events: AnyAgentEvent[] }) {
 }
 ```
 
-### Example 2: Simple List with useAutoScroll
-
-```tsx
-'use client';
-
-import { useAutoScroll } from '@/hooks/useAutoScroll';
-import { AnyAgentEvent } from '@/lib/types';
-
-export function SimpleEventList({ events }: { events: AnyAgentEvent[] }) {
-  const containerRef = useAutoScroll([events.length], {
-    threshold: 50,
-    behavior: 'smooth'
-  });
-
-  return (
-    <div
-      ref={containerRef}
-      className="overflow-auto max-h-96 space-y-2"
-    >
-      {events.map((event, idx) => (
-        <div key={idx}>{event.event_type}</div>
-      ))}
-    </div>
-  );
-}
-```
-
-### Example 3: Task Execution with Retry
+### Example 2: Task Execution with Retry
 
 ```tsx
 'use client';

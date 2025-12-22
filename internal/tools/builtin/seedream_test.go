@@ -44,7 +44,7 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 	}
 
 	prompt := "超真实的猫咪坐在沙发上录音"
-	descriptor := "Seedream 3.0 text-to-image"
+	descriptor := "Seedream 4.5 text-to-image"
 
 	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, prompt)
 
@@ -87,7 +87,7 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 		},
 	}
 
-	descriptor := "Seedream 3.0 text-to-image"
+	descriptor := "Seedream 4.5 text-to-image"
 
 	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, "")
 
@@ -239,6 +239,20 @@ func TestSanitizeSeedreamGuidanceScale(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tt.expected, actual)
 			}
 		})
+	}
+}
+
+func TestApplyImageRequestOptionsDefaultsSize(t *testing.T) {
+	t.Parallel()
+
+	req := arkm.GenerateImagesRequest{}
+	applyImageRequestOptions(&req, map[string]any{})
+
+	if req.Size == nil {
+		t.Fatal("expected default size to be set")
+	}
+	if *req.Size != seedreamDefaultImageSize {
+		t.Fatalf("expected default size %q, got %q", seedreamDefaultImageSize, *req.Size)
 	}
 }
 

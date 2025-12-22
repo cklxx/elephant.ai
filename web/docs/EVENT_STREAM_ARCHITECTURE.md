@@ -292,11 +292,20 @@ function MyComponent({ sessionId }) {
 #### After (Store-based with Selectors)
 
 ```typescript
-import { useAgentStreamIntegration } from '@/hooks/useAgentStreamIntegration';
-import { useCompletedIterations, useActiveToolCall } from '@/hooks/useAgentStreamStore';
+import { useAgentEventStream } from '@/hooks/useAgentEventStream';
+import {
+  useAgentStreamStore,
+  useRawEvents,
+  useCompletedIterations,
+  useActiveToolCall,
+} from '@/hooks/useAgentStreamStore';
 
 function MyComponent({ sessionId }) {
-  const { events, isConnected, error } = useAgentStreamIntegration(sessionId);
+  const addEvent = useAgentStreamStore((state) => state.addEvent);
+  const events = useRawEvents();
+  const { isConnected, error } = useAgentEventStream(sessionId, {
+    onEvent: addEvent,
+  });
   const completedIterations = useCompletedIterations();
   const activeToolCall = useActiveToolCall();
 
@@ -467,15 +476,15 @@ describe('EventLRUCache', () => {
 ### Integration Tests
 
 ```typescript
-// Test store with SSE integration
-describe('useAgentStreamIntegration', () => {
+// Test store wiring with SSE callbacks
+describe('useAgentEventStream', () => {
   it('should sync SSE events to store', async () => {
-    const { result } = renderHook(() => useAgentStreamIntegration('session-123'));
+    const addEvent = useAgentStreamStore.getState().addEvent;
+    renderHook(() => useAgentEventStream('session-123', { onEvent: addEvent }));
 
-    // Simulate SSE event
     act(() => {
       const event = { event_type: 'workflow.node.started', iteration: 1, total_iters: 3, ... };
-      result.current.onEvent(event);
+      addEvent(event);
     });
 
     const storeState = useAgentStreamStore.getState();

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
+	"alex/internal/agent/presets"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
@@ -29,6 +31,7 @@ import (
 type AgentExecutor interface {
 	GetSession(ctx context.Context, id string) (*ports.Session, error)
 	ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error)
+	GetConfig() ports.AgentConfig
 }
 
 // Ensure AgentCoordinator implements AgentExecutor
@@ -41,6 +44,7 @@ type ServerCoordinator struct {
 	broadcaster      *EventBroadcaster
 	sessionStore     ports.SessionStore
 	stateStore       sessionstate.Store
+	historyStore     sessionstate.Store
 	taskStore        serverPorts.TaskStore
 	logger           logging.Logger
 	analytics        analytics.Client
@@ -50,6 +54,14 @@ type ServerCoordinator struct {
 	// Cancel function map for task cancellation support
 	cancelFuncs map[string]context.CancelCauseFunc
 	cancelMu    sync.RWMutex
+}
+
+func (s *ServerCoordinator) isWebMode() bool {
+	if s.agentCoordinator == nil {
+		return false
+	}
+	config := s.agentCoordinator.GetConfig()
+	return strings.EqualFold(strings.TrimSpace(config.ToolMode), string(presets.ToolModeWeb))
 }
 
 // ContextSnapshotRecord captures a snapshot of the messages sent to the LLM.
@@ -114,6 +126,13 @@ func WithJournalReader(reader journal.Reader) ServerCoordinatorOption {
 	}
 }
 
+// WithHistoryStore wires the turn history store for cleanup operations.
+func WithHistoryStore(store sessionstate.Store) ServerCoordinatorOption {
+	return func(coordinator *ServerCoordinator) {
+		coordinator.historyStore = store
+	}
+}
+
 // WithObservability wires the observability provider into the coordinator.
 func WithObservability(obs *observability.Observability) ServerCoordinatorOption {
 	return func(coordinator *ServerCoordinator) {
@@ -124,7 +143,14 @@ func WithObservability(obs *observability.Observability) ServerCoordinatorOption
 // ExecuteTaskAsync executes a task asynchronously and streams events via SSE
 // Returns immediately with the task record, spawns background goroutine for execution
 func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
-	s.logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
+	logToolPreset := toolPreset
+	if s.isWebMode() {
+		logToolPreset = ""
+	}
+	s.logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, logToolPreset)
+	if s.isWebMode() {
+		toolPreset = ""
+	}
 
 	// CRITICAL FIX: Get or create session SYNCHRONOUSLY before creating task
 	// This ensures we have a confirmed session ID for the task record and broadcaster mapping
@@ -262,12 +288,16 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusRunning)
 
 	// Add presets to context for the agent coordinator
-	if agentPreset != "" || toolPreset != "" {
+	if agentPreset != "" || (toolPreset != "" && !s.isWebMode()) {
 		ctx = context.WithValue(ctx, agentApp.PresetContextKey{}, agentApp.PresetConfig{
 			AgentPreset: agentPreset,
 			ToolPreset:  toolPreset,
 		})
-		s.logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, toolPreset)
+		logToolPreset := toolPreset
+		if s.isWebMode() {
+			logToolPreset = ""
+		}
+		s.logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, logToolPreset)
 	}
 
 	// Execute task with broadcaster as event listener
@@ -318,7 +348,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		if agentPreset != "" {
 			props["agent_preset"] = agentPreset
 		}
-		if toolPreset != "" {
+		if toolPreset != "" && !s.isWebMode() {
 			props["tool_preset"] = toolPreset
 		}
 		s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCancelled, props)
@@ -350,7 +380,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		if agentPreset != "" {
 			props["agent_preset"] = agentPreset
 		}
-		if toolPreset != "" {
+		if toolPreset != "" && !s.isWebMode() {
 			props["tool_preset"] = toolPreset
 		}
 		s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionFailed, props)
@@ -374,7 +404,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	if agentPreset != "" {
 		props["agent_preset"] = agentPreset
 	}
-	if toolPreset != "" {
+	if toolPreset != "" && !s.isWebMode() {
 		props["tool_preset"] = toolPreset
 	}
 	if result.StopReason != "" {
@@ -531,16 +561,15 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 		return nil
 	}
 
-	events := s.broadcaster.GetEventHistory(sessionID)
-	if len(events) == 0 {
-		return nil
-	}
-
 	snapshots := make([]ContextSnapshotRecord, 0)
-	for _, event := range events {
+	filter := EventHistoryFilter{
+		SessionID:  sessionID,
+		EventTypes: []string{(&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()},
+	}
+	_ = s.broadcaster.StreamHistory(context.Background(), filter, func(event ports.AgentEvent) error {
 		snapshot, ok := event.(*domain.WorkflowDiagnosticContextSnapshotEvent)
 		if !ok {
-			continue
+			return nil
 		}
 		record := ContextSnapshotRecord{
 			SessionID:    sessionID,
@@ -553,6 +582,10 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 			Excluded:     cloneMessages(snapshot.Excluded),
 		}
 		snapshots = append(snapshots, record)
+		return nil
+	})
+	if len(snapshots) == 0 {
+		return nil
 	}
 	return snapshots
 }
@@ -604,7 +637,24 @@ func (s *ServerCoordinator) ListSessions(ctx context.Context) ([]string, error) 
 
 // DeleteSession removes a session
 func (s *ServerCoordinator) DeleteSession(ctx context.Context, id string) error {
-	return s.sessionStore.Delete(ctx, id)
+	var combined error
+	if err := s.sessionStore.Delete(ctx, id); err != nil {
+		combined = errors.Join(combined, err)
+	}
+	if s.stateStore != nil {
+		if err := s.stateStore.ClearSession(ctx, id); err != nil {
+			combined = errors.Join(combined, err)
+		}
+	}
+	if s.historyStore != nil {
+		if err := s.historyStore.ClearSession(ctx, id); err != nil {
+			combined = errors.Join(combined, err)
+		}
+	}
+	if s.broadcaster != nil {
+		s.broadcaster.ClearEventHistory(id)
+	}
+	return combined
 }
 
 // GetBroadcaster returns the event broadcaster

@@ -94,6 +94,7 @@ const (
 	seedreamMinGuidanceScale     = 1.0
 	seedreamMaxGuidanceScale     = 10.0
 	seedreamDefaultGuidanceScale = 7.0
+	seedreamDefaultImageSize     = "1920x1920"
 )
 
 var seedreamPlaceholderNonce = func() string {
@@ -165,7 +166,7 @@ func (t *seedreamTextTool) Definition() ports.ToolDefinition {
 				},
 				"size": {
 					Type:        "string",
-					Description: "Optional WxH string (e.g. 1024x1024).",
+					Description: "Optional WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
 				},
 				"width": {
 					Type:        "integer",
@@ -269,7 +270,7 @@ func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 				},
 				"size": {
 					Type:        "string",
-					Description: "Output WxH string (e.g. 1024x1024).",
+					Description: "Output WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
 				},
 				"width": {
 					Type: "integer",
@@ -766,6 +767,9 @@ func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]a
 			req.Size = volcengine.String(fmt.Sprintf("%dx%d", width, height))
 		}
 	}
+	if req.Size == nil {
+		req.Size = volcengine.String(seedreamDefaultImageSize)
+	}
 	if seed, ok := readInt(args, "seed"); ok {
 		req.Seed = volcengine.Int64(int64(seed))
 	}
@@ -815,7 +819,7 @@ func seedreamMissingConfigMessage(config SeedreamConfig) string {
 	if config.ModelEnvVar != "" {
 		fmt.Fprintf(builder, "- %s to select the desired Seedream model\n", strings.ToUpper(config.ModelEnvVar))
 	} else {
-		builder.WriteString("- Seedream model identifier (e.g. doubao-seedream-3-0-t2i-250415)\n")
+		builder.WriteString("- Seedream model identifier (e.g. doubao-seedream-4-5-251128)\n")
 	}
 	return builder.String()
 }

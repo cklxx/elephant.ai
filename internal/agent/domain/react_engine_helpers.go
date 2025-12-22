@@ -1028,6 +1028,41 @@ func resolveContentAttachments(content string, state *TaskState) map[string]port
 	return resolved
 }
 
+func isA2UIAttachment(att ports.Attachment) bool {
+	media := strings.ToLower(strings.TrimSpace(att.MediaType))
+	format := strings.ToLower(strings.TrimSpace(att.Format))
+	profile := strings.ToLower(strings.TrimSpace(att.PreviewProfile))
+	return strings.Contains(media, "a2ui") || format == "a2ui" || strings.Contains(profile, "a2ui")
+}
+
+func collectA2UIAttachments(state *TaskState) map[string]ports.Attachment {
+	if state == nil || len(state.Attachments) == 0 {
+		return nil
+	}
+	collected := make(map[string]ports.Attachment)
+	for key, att := range state.Attachments {
+		if !isA2UIAttachment(att) {
+			continue
+		}
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		cloned := att
+		if cloned.Name == "" {
+			cloned.Name = placeholder
+		}
+		collected[placeholder] = cloned
+	}
+	if len(collected) == 0 {
+		return nil
+	}
+	return collected
+}
+
 // collectGeneratedAttachments returns attachments produced during the current
 // iteration so alias resolution can prioritize fresh outputs.
 func collectGeneratedAttachments(state *TaskState, iteration int) map[string]ports.Attachment {

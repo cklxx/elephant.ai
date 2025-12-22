@@ -68,41 +68,37 @@ func TestGetPromptConfig(t *testing.T) {
 func TestGetToolConfig(t *testing.T) {
 	tests := []struct {
 		name    string
+		mode    ToolMode
 		preset  ToolPreset
 		wantErr bool
 	}{
 		{
 			name:    "full preset",
+			mode:    ToolModeCLI,
 			preset:  ToolPresetFull,
 			wantErr: false,
 		},
 		{
 			name:    "read-only preset",
+			mode:    ToolModeCLI,
 			preset:  ToolPresetReadOnly,
 			wantErr: false,
 		},
 		{
-			name:    "code-only preset",
-			preset:  ToolPresetCodeOnly,
-			wantErr: false,
-		},
-		{
-			name:    "web-only preset",
-			preset:  ToolPresetWebOnly,
-			wantErr: false,
-		},
-		{
 			name:    "safe preset",
+			mode:    ToolModeCLI,
 			preset:  ToolPresetSafe,
 			wantErr: false,
 		},
 		{
-			name:    "orchestrator preset",
-			preset:  ToolPresetOrchestrator,
+			name:    "web mode ignores preset",
+			mode:    ToolModeWeb,
+			preset:  ToolPreset(""),
 			wantErr: false,
 		},
 		{
 			name:    "invalid preset",
+			mode:    ToolModeCLI,
 			preset:  ToolPreset("invalid"),
 			wantErr: true,
 		},
@@ -110,7 +106,7 @@ func TestGetToolConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := GetToolConfig(tt.preset)
+			config, err := GetToolConfig(tt.mode, tt.preset)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetToolConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -160,10 +156,7 @@ func TestIsValidToolPreset(t *testing.T) {
 	}{
 		{"full", "full", true},
 		{"read-only", "read-only", true},
-		{"code-only", "code-only", true},
-		{"web-only", "web-only", true},
 		{"safe", "safe", true},
-		{"orchestrator", "orchestrator", true},
 		{"invalid", "invalid", false},
 		{"empty", "", false},
 	}
@@ -180,111 +173,121 @@ func TestIsValidToolPreset(t *testing.T) {
 func TestToolPresetBlocking(t *testing.T) {
 	tests := []struct {
 		name      string
+		mode      ToolMode
 		preset    ToolPreset
 		toolName  string
 		wantAllow bool
 	}{
 		{
 			name:      "read-only allows file_read",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
 			toolName:  "file_read",
 			wantAllow: true,
 		},
 		{
 			name:      "read-only blocks file_write",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
 			toolName:  "file_write",
 			wantAllow: false,
 		},
 		{
 			name:      "read-only blocks bash",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
 			toolName:  "bash",
 			wantAllow: false,
 		},
 		{
-			name:      "code-only allows file_edit",
-			preset:    ToolPresetCodeOnly,
-			toolName:  "file_edit",
-			wantAllow: true,
-		},
-		{
-			name:      "code-only blocks web_search",
-			preset:    ToolPresetCodeOnly,
-			toolName:  "web_search",
-			wantAllow: false,
-		},
-		{
-			name:      "web-only allows web_search",
-			preset:    ToolPresetWebOnly,
-			toolName:  "web_search",
-			wantAllow: true,
-		},
-		{
-			name:      "web-only blocks file_read",
-			preset:    ToolPresetWebOnly,
-			toolName:  "file_read",
-			wantAllow: false,
-		},
-		{
 			name:      "safe allows file_write",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
 			toolName:  "file_write",
 			wantAllow: true,
 		},
 		{
 			name:      "safe blocks bash",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
 			toolName:  "bash",
 			wantAllow: false,
 		},
 		{
 			name:      "safe blocks code_execute",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
 			toolName:  "code_execute",
 			wantAllow: false,
 		},
 		{
 			name:      "read-only allows vision_analyze",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
 			toolName:  "vision_analyze",
 			wantAllow: true,
 		},
 		{
 			name:      "safe allows vision_analyze",
+			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
 			toolName:  "vision_analyze",
 			wantAllow: true,
 		},
-{
-name:      "orchestrator allows think",
-preset:    ToolPresetOrchestrator,
-toolName:  "think",
-wantAllow: true,
-},
-{
-name:      "orchestrator allows todo_read",
-preset:    ToolPresetOrchestrator,
-toolName:  "todo_read",
-wantAllow: true,
-},
-{
-name:      "orchestrator allows todo_update",
-preset:    ToolPresetOrchestrator,
-toolName:  "todo_update",
-wantAllow: true,
-},
-{
-name:      "orchestrator blocks file_read",
-preset:    ToolPresetOrchestrator,
-toolName:  "file_read",
-wantAllow: false,
+		{
+			name:      "read-only allows plan",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetReadOnly,
+			toolName:  "plan",
+			wantAllow: true,
+		},
+		{
+			name:      "read-only allows clearify",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetReadOnly,
+			toolName:  "clearify",
+			wantAllow: true,
+		},
+		{
+			name:      "safe allows plan",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetSafe,
+			toolName:  "plan",
+			wantAllow: true,
+		},
+		{
+			name:      "safe allows clearify",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetSafe,
+			toolName:  "clearify",
+			wantAllow: true,
+		},
+		{
+			name:      "web mode blocks file_read",
+			mode:      ToolModeWeb,
+			preset:    ToolPresetFull,
+			toolName:  "file_read",
+			wantAllow: false,
+		},
+		{
+			name:      "web mode allows web_search",
+			mode:      ToolModeWeb,
+			preset:    ToolPresetFull,
+			toolName:  "web_search",
+			wantAllow: true,
+		},
+		{
+			name:      "web mode blocks skills",
+			mode:      ToolModeWeb,
+			preset:    ToolPresetFull,
+			toolName:  "skills",
+			wantAllow: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := GetToolConfig(tt.preset)
+			config, err := GetToolConfig(tt.mode, tt.preset)
 			if err != nil {
 				t.Fatalf("GetToolConfig() error = %v", err)
 			}
@@ -341,18 +344,15 @@ func TestGetAllPresets(t *testing.T) {
 
 func TestGetAllToolPresets(t *testing.T) {
 	presets := GetAllToolPresets()
-	if len(presets) != 6 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 6", len(presets))
+	if len(presets) != 3 {
+		t.Errorf("GetAllToolPresets() returned %d presets, want 3", len(presets))
 	}
 
 	// Check all expected presets are present
 	expected := map[ToolPreset]bool{
-		ToolPresetFull:         false,
-		ToolPresetReadOnly:     false,
-		ToolPresetCodeOnly:     false,
-		ToolPresetWebOnly:      false,
-		ToolPresetSafe:         false,
-		ToolPresetOrchestrator: false,
+		ToolPresetFull:     false,
+		ToolPresetReadOnly: false,
+		ToolPresetSafe:     false,
 	}
 
 	for _, preset := range presets {

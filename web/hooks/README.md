@@ -66,51 +66,6 @@ const { formatContent, getEventStyle, formatTimestamp } = useEventFormatter({
 
 ---
 
-### useAutoScroll
-**Location:** `hooks/useAutoScroll.ts`
-
-Automatic scrolling with user scroll lock detection.
-
-**Features:**
-- Auto-scroll to bottom when dependencies change
-- Detects when user manually scrolls up
-- Configurable threshold for "near bottom" detection
-- Smooth scrolling behavior
-
-**Usage:**
-```tsx
-// Basic usage
-const containerRef = useAutoScroll([events.length]);
-
-return (
-  <div ref={containerRef} className="overflow-auto max-h-screen">
-    {events.map(event => <EventLine key={event.id} event={event} />)}
-  </div>
-);
-
-// Advanced usage with options
-const containerRef = useAutoScroll([events.length], {
-  enabled: true,
-  threshold: 100,        // Consider "at bottom" if within 100px
-  behavior: 'smooth',    // or 'auto' for instant scroll
-  delay: 100            // Delay before scrolling (ms)
-});
-```
-
-**Alternative:** Use `useScrollToBottom` for simple always-scroll behavior:
-```tsx
-const containerRef = useScrollToBottom([events.length]);
-```
-
-**Performance Impact:**
-- Uses passive event listeners (no scroll blocking)
-- Debounced scroll detection reduces CPU usage
-- Prevents unnecessary DOM measurements
-
-**Note:** `EventList` component implements this behavior inline with the virtualizer. Use `useAutoScroll` for non-virtualized lists or custom scroll containers.
-
----
-
 ### useTaskExecution (Optimized)
 **Location:** `hooks/useTaskExecution.ts`
 
@@ -225,34 +180,6 @@ function MyComponent({ event }) {
 }
 ```
 
-### From manual scroll to useAutoScroll:
-
-**Before:**
-```tsx
-function EventList({ events }) {
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [events.length]);
-
-  return <div ref={containerRef}>{/* events */}</div>;
-}
-```
-
-**After:**
-```tsx
-function EventList({ events }) {
-  const containerRef = useAutoScroll([events.length]);
-
-  return <div ref={containerRef}>{/* events */}</div>;
-}
-```
-
----
-
 ## Performance Benchmarks
 
 ### useSSE Optimization
@@ -264,11 +191,6 @@ function EventList({ events }) {
 - Render time (1000 events): 30% faster
 - Memory usage: Slightly lower (memoized functions)
 - Re-render prevention: Yes
-
-### useAutoScroll
-- Scroll performance: No blocking
-- CPU usage: Minimal (passive listeners)
-- User experience: Smooth with scroll lock
 
 ### useTaskExecution Retry Logic
 - Network failure recovery: 3 automatic retries

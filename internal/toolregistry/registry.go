@@ -235,10 +235,10 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifacts_write"] = builtin.NewArtifactsWrite()
 	r.static["artifacts_list"] = builtin.NewArtifactsList()
 	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
+	r.static["a2ui_emit"] = builtin.NewA2UIEmit()
 
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
-	r.static["think"] = builtin.NewThink()
 
 	// UI orchestration
 	r.static["plan"] = builtin.NewPlan()
@@ -259,14 +259,14 @@ func (r *Registry) registerBuiltins(config Config) error {
 	if config.SeedreamTextModel != "" {
 		textConfig := seedreamBase
 		textConfig.Model = config.SeedreamTextModel
-		textConfig.ModelDescriptor = "Seedream 3.0 text-to-image"
+		textConfig.ModelDescriptor = "Seedream 4.5 text-to-image"
 		textConfig.ModelEnvVar = "SEEDREAM_TEXT_MODEL"
 		r.static["text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
 	}
 	if config.SeedreamImageModel != "" {
 		imageConfig := seedreamBase
 		imageConfig.Model = config.SeedreamImageModel
-		imageConfig.ModelDescriptor = "Seedream 4.0 image-to-image"
+		imageConfig.ModelDescriptor = "Seedream 4.5 image-to-image"
 		imageConfig.ModelEnvVar = "SEEDREAM_IMAGE_MODEL"
 		r.static["image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
 	}

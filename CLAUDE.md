@@ -77,7 +77,7 @@ Adapters (Infrastructure: LLM, Tools, Session)
 - Search: `grep.go`, `ripgrep.go`, `find.go`
 - Task: `todo_read.go`, `todo_update.go`
 - Web: `web_search.go` (Tavily), `web_fetch.go` (15-min cache)
-- Reasoning: `think.go`
+- Reasoning: `think.go` (not registered by default)
 
 **Tool Registration:** `internal/tools/registry.go` - Dynamic registration system
 
@@ -110,7 +110,7 @@ Adapters (Infrastructure: LLM, Tools, Session)
 
 ### Web Frontend (Next.js)
 - `web/app/page.tsx` - Main page with the research console layout (header → output → input)
-- `web/components/agent/TerminalOutput.tsx` - Terminal-style event display
+- `web/components/agent/ConversationEventStream.tsx` - Terminal-style event display
 - `web/components/agent/TaskInput.tsx` - Persistent input (always visible)
 - `web/hooks/useSSE.ts` - SSE connection with auto-reconnect
 - `web/hooks/useTaskExecution.ts` - Task submission API

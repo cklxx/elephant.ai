@@ -385,12 +385,22 @@ func (it *reactIteration) think() error {
 
 	tracker.completeThink(it.index, thought, it.toolCalls, nil)
 
-	it.runtime.engine.emitEvent(&WorkflowNodeOutputSummaryEvent{
-		BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
-		Iteration:     it.index,
-		Content:       thought.Content,
-		ToolCallCount: len(it.toolCalls),
-	})
+	hasPlanCall := false
+	for _, call := range it.toolCalls {
+		if call.Name == "plan" {
+			hasPlanCall = true
+			break
+		}
+	}
+
+	if len(it.toolCalls) > 0 && !hasPlanCall {
+		it.runtime.engine.emitEvent(&WorkflowNodeOutputSummaryEvent{
+			BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+			Iteration:     it.index,
+			Content:       thought.Content,
+			ToolCallCount: len(it.toolCalls),
+		})
+	}
 
 	it.thought = thought
 	return nil

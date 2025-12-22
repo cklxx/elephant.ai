@@ -301,7 +301,7 @@ describe('useTimelineSteps', () => {
           timestamp: '2025-01-01T09:59:59Z',
           session_id: 'test-123',
           agent_level: 'core',
-          task: '把 TerminalOutput 改名，并让 UI 更像 Manus',
+          task: '把 ConversationEventStream 改名，并让 UI 更像 Manus',
         } as AnyAgentEvent,
         {
           event_type: 'workflow.node.started',
@@ -333,7 +333,7 @@ describe('useTimelineSteps', () => {
       const { result } = renderHook(() => useTimelineSteps(events));
       expect(result.current).toHaveLength(2);
       expect(result.current[0].title).toBe('先抽出组件，再统一进度展示');
-      expect(result.current[1].title).toContain('把 TerminalOutput 改名');
+      expect(result.current[1].title).toContain('把 ConversationEventStream 改名');
     });
 
     it('should return empty when there are no explicit steps', () => {

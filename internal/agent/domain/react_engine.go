@@ -517,6 +517,18 @@ func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result 
 	if normalized.ParentTaskID == "" {
 		normalized.ParentTaskID = state.ParentTaskID
 	}
+	if strings.EqualFold(tc.Name, "a2ui_emit") {
+		normalized.Attachments = nil
+		if len(normalized.Metadata) > 0 {
+			delete(normalized.Metadata, "attachment_mutations")
+			delete(normalized.Metadata, "attachments_mutations")
+			delete(normalized.Metadata, "attachmentMutations")
+			delete(normalized.Metadata, "attachmentsMutations")
+			if len(normalized.Metadata) == 0 {
+				normalized.Metadata = nil
+			}
+		}
+	}
 	return normalized
 }
 
@@ -630,8 +642,23 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 
 	attachments := resolveContentAttachments(result.Answer, state)
 	result.Answer = ensureAttachmentPlaceholders(result.Answer, attachments)
-	if len(attachments) == 0 {
-		return nil
+
+	a2uiAttachments := collectA2UIAttachments(state)
+	if len(a2uiAttachments) == 0 {
+		if len(attachments) == 0 {
+			return nil
+		}
+		return attachments
+	}
+
+	if attachments == nil {
+		attachments = make(map[string]ports.Attachment, len(a2uiAttachments))
+	}
+	for key, att := range a2uiAttachments {
+		if _, ok := attachments[key]; ok {
+			continue
+		}
+		attachments[key] = att
 	}
 	return attachments
 }

@@ -40,7 +40,7 @@ Tools are registered through the dependency injection container:
 
 - **Builtin tools** live in `internal/tools/builtin`. Each tool implements the `Tool` interface.
 - **MCP tools** are handled by the MCP supervisor in `internal/mcp`. It manages process lifecycles, JSON-RPC connections, and exposes the tools via the same registry interface.
-- **Registry filtering** (`internal/toolregistry`) applies policy decisions (allow lists, presets, read-only mode) before tools reach the domain layer.
+- **Registry filtering** (`internal/agent/presets`) applies tool access policy by mode (web vs CLI) and preset (full/read-only/safe) before tools reach the domain layer. Web mode blocks local filesystem/shell tools and exposes the rest.
 
 Because tools conform to a shared interface the ReAct loop does not need to know whether a capability is local, remote, or provided via MCP.
 

@@ -40,6 +40,7 @@ type ContextWindowConfig struct {
 	PersonaKey         string
 	GoalKey            string
 	WorldKey           string
+	ToolMode           string
 	ToolPreset         string
 	EnvironmentSummary string
 }

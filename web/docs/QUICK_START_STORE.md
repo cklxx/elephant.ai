@@ -2,19 +2,23 @@
 
 ## Basic Usage
 
-### 1. Import the Integration Hook
+### 1. Wire the Event Stream into the Store
 
 ```typescript
-import { useAgentStreamIntegration } from '@/hooks/useAgentStreamIntegration';
+import { useAgentEventStream } from '@/hooks/useAgentEventStream';
+import { useAgentStreamStore, useRawEvents } from '@/hooks/useAgentStreamStore';
 
 function MyComponent({ sessionId }) {
+  const addEvent = useAgentStreamStore((state) => state.addEvent);
+  const clearEvents = useAgentStreamStore((state) => state.clearEvents);
+  const events = useRawEvents();
   const {
-    events,           // All events (for backwards compatibility)
-    isConnected,      // SSE connection status
-    isReconnecting,   // Reconnection in progress
-    error,           // Connection error
-    clearEvents,     // Clear all events
-  } = useAgentStreamIntegration(sessionId);
+    isConnected,    // SSE connection status
+    isReconnecting, // Reconnection in progress
+    error,          // Connection error
+  } = useAgentEventStream(sessionId, {
+    onEvent: addEvent,
+  });
 
   return <VirtualizedEventList events={events} />;
 }
@@ -76,9 +80,13 @@ function ResearchProgress() {
 
 ```typescript
 import { VirtualizedEventList } from '@/components/agent/VirtualizedEventList';
+import { useAgentEventStream } from '@/hooks/useAgentEventStream';
+import { useAgentStreamStore, useRawEvents } from '@/hooks/useAgentStreamStore';
 
 function EventStream({ sessionId }) {
-  const { events } = useAgentStreamIntegration(sessionId);
+  const addEvent = useAgentStreamStore((state) => state.addEvent);
+  const events = useRawEvents();
+  useAgentEventStream(sessionId, { onEvent: addEvent });
 
   return (
     <VirtualizedEventList
@@ -95,7 +103,9 @@ function EventStream({ sessionId }) {
 |----------|---------|----------|
 | `useCurrentResearchStep()` | `ResearchStep \| null` | Show active research step |
 | `useCompletedResearchSteps()` | `ResearchStep[]` | Timeline of completed steps |
-| `useInProgressResearchSteps()` | `ResearchStep[]` | Currently executing steps |
+| `useActiveResearchSteps()` | `ResearchStep[]` | Currently executing steps |
+| `usePlannedResearchSteps()` | `ResearchStep[]` | Planned steps |
+| `useFailedResearchSteps()` | `ResearchStep[]` | Failed steps |
 | `useActiveToolCall()` | `AggregatedToolCall \| null` | Show currently running tool |
 | `useIterationToolCalls(n)` | `AggregatedToolCall[]` | Get all tools for iteration N |
 | `useCurrentIteration()` | `IterationGroup \| null` | Current iteration details |
@@ -103,7 +113,6 @@ function EventStream({ sessionId }) {
 | `useErrorStates()` | `{ hasError, errorMessage, ... }` | Error tracking |
 | `useTaskSummary()` | `{ actionName, goal, status, ... }` | Task metadata |
 | `useMemoryStats()` | `{ eventCount, estimatedBytes, ... }` | Memory usage |
-| `useLatestBrowserDiagnostics()` | `BrowserDiagnostics \| null` | Latest browser diagnostics |
 | `useIterationsArray()` | `IterationGroup[]` | Sorted iterations (for virtualizer) |
 | `useRawEvents()` | `AnyAgentEvent[]` | Raw event array (debug/export) |
 
@@ -289,7 +298,7 @@ useEffect(() => {
 ## Migration Checklist
 
 - [ ] Install dependencies: `@tanstack/react-virtual`, `immer`
-- [ ] Replace `useSSE` with `useAgentStreamIntegration`
+- [ ] Wire `useAgentEventStream` `onEvent` to `useAgentStreamStore().addEvent`
 - [ ] Update event list to use `VirtualizedEventList`
 - [ ] Add memory stats display to header
 - [ ] Create research timeline component (optional)

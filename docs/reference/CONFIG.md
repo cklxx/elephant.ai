@@ -127,7 +127,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### 工具与运行体验
 
-- `tool_preset`：工具权限预设：`safe` / `read-only` / `code-only` / `web-only` / `full` / `orchestrator`。
+- `tool_preset`：工具权限预设（仅 CLI）：`safe` / `read-only` / `full`。Web 模式下忽略该字段并默认启用全部非本地工具。
+- 运行时工具模式由入口决定：`alex` 为 CLI 模式、`alex-server` 为 Web 模式（非本地工具全开、禁用本地文件/命令）。
 - `agent_preset`：agent 预设（按项目内 presets 定义）。
 - `verbose`：verbose 模式（CLI/Server 的输出更详细）。
 - `session_dir`：会话存储目录（支持 `~` 与 `$ENV` 展开）。
@@ -170,4 +171,4 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - **控制图片体积**：base64 会显著膨胀 payload，且不同 provider 有请求大小上限；优先使用可访问的远程 URL 或在入库/上传阶段做压缩/缩放。
 - **Ollama 仅接受 inline base64 图片**：如果你给 attachment 只填了远程 `uri`，需要确保同时提供 `data`（或 data URI）才能走 `messages[].images`。
 - **避免把大体积 data URI 打进日志**：图片常以 `data:image/...;base64,...` 出现；项目已在 LLM request log 里做脱敏，但仍建议避免在业务日志中打印原始附件。
-- **工具调用安全**：只开启需要的 `tool_preset`；并避免让模型“发明未声明工具”。项目已在基础层对 tool-call 解析做了 declared-tools 过滤，但 preset 仍是第一道闸。
+- **工具调用安全**：只开启需要的 `tool_preset`（CLI）；并避免让模型“发明未声明工具”。项目已在基础层对 tool-call 解析做了 declared-tools 过滤，但 preset 仍是第一道闸。

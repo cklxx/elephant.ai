@@ -159,8 +159,12 @@ export function ArtifactPreviewCard({
               Loading preview...
             </div>
           ) : markdownPreview ? (
-            <div className="relative max-h-[400px] overflow-y-auto p-4 text-sm prose prose-sm dark:prose-invert max-w-none">
-              <LazyMarkdownRenderer content={markdownPreview} />
+            <div className="relative max-h-[400px] overflow-y-auto p-4 text-sm">
+              <LazyMarkdownRenderer
+                content={markdownPreview}
+                containerClassName="markdown-body"
+                className="prose prose-sm max-w-none dark:prose-invert"
+              />
             </div>
           ) : htmlAsset ? (
             <iframe

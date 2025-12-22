@@ -32,7 +32,7 @@ const CONFIG_FIELDS: ConfigField[] = [
   { key: "seedream_video_model", label: "Seedream Video Model", type: "text" },
   { key: "environment", label: "Runtime Environment", type: "text" },
   { key: "agent_preset", label: "Agent Preset", type: "text" },
-  { key: "tool_preset", label: "Tool Preset", type: "text" },
+  { key: "tool_preset", label: "Tool Preset (CLI only)", type: "text" },
   { key: "session_dir", label: "Session Directory", type: "text" },
   { key: "cost_dir", label: "Cost Directory", type: "text" },
   { key: "max_tokens", label: "Max Tokens", type: "number", numericKind: "int" },

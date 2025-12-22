@@ -7,26 +7,12 @@ import {
   WorkflowNodeOutputDeltaEvent,
   WorkflowNodeOutputSummaryEvent,
   WorkflowToolStartedEvent,
-  WorkflowToolProgressEvent,
   WorkflowToolCompletedEvent,
   WorkflowNodeCompletedEvent,
   WorkflowResultFinalEvent,
-  WorkflowResultCancelledEvent,
   WorkflowNodeFailedEvent,
-  WorkflowInputReceivedEvent,
   eventMatches,
 } from '@/lib/types';
-
-// Base event type guard
-export function isAgentEvent(event: unknown): event is AnyAgentEvent {
-  return (
-    typeof event === 'object' &&
-    event !== null &&
-    'event_type' in event &&
-    'timestamp' in event &&
-    'agent_level' in event
-  );
-}
 
 // Iteration Start Event (iteration-level)
 export function isIterationNodeStartedEvent(
@@ -59,11 +45,6 @@ export function isWorkflowToolStartedEvent(event: AnyAgentEvent): event is Workf
   return eventMatches(event, 'workflow.tool.started');
 }
 
-// Tool Call Stream Event
-export function isWorkflowToolProgressEvent(event: AnyAgentEvent): event is WorkflowToolProgressEvent {
-  return eventMatches(event, 'workflow.tool.progress');
-}
-
 // Tool Call Complete Event
 export function isWorkflowToolCompletedEvent(event: AnyAgentEvent): event is WorkflowToolCompletedEvent {
   return eventMatches(event, 'workflow.tool.completed');
@@ -90,11 +71,6 @@ export function isWorkflowResultFinalEvent(event: AnyAgentEvent): event is Workf
   return eventMatches(event, 'workflow.result.final');
 }
 
-// Task Cancelled Event
-export function isWorkflowResultCancelledEvent(event: AnyAgentEvent): event is WorkflowResultCancelledEvent {
-  return eventMatches(event, 'workflow.result.cancelled');
-}
-
 // Error Event
 export function isWorkflowNodeFailedEvent(event: AnyAgentEvent): event is WorkflowNodeFailedEvent {
   return eventMatches(event, 'workflow.node.failed');
@@ -114,37 +90,7 @@ export function isWorkflowNodeCompletedEvent(
   return eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number';
 }
 
-// User Task Event
-export function isWorkflowInputReceivedEvent(event: AnyAgentEvent): event is WorkflowInputReceivedEvent {
-  return event.event_type === 'workflow.input.received';
-}
-
-// Composite type guards for common patterns
-
-// Check if event is a tool-related event
-export function isToolEvent(
-  event: AnyAgentEvent
-): event is WorkflowToolStartedEvent | WorkflowToolProgressEvent | WorkflowToolCompletedEvent {
-  return (
-    isWorkflowToolStartedEvent(event) ||
-    isWorkflowToolProgressEvent(event) ||
-    isWorkflowToolCompletedEvent(event)
-  );
-}
-
-// Check if event is an iteration-related event
-export function isIterationEvent(
-  event: AnyAgentEvent
-): event is WorkflowNodeStartedEvent | WorkflowNodeCompletedEvent {
-  return isIterationNodeStartedEvent(event) || isIterationNodeCompletedEvent(event);
-}
-
-// Check if event is a step-related event
-export function isStepEvent(
-  event: AnyAgentEvent
-): event is WorkflowNodeStartedEvent | WorkflowNodeCompletedEvent {
-  return isWorkflowNodeStartedEvent(event) || isWorkflowNodeCompletedEvent(event);
-}
+// Utility guards
 
 // Check if event has iteration field
 export function hasIteration(
@@ -154,18 +100,4 @@ export function hasIteration(
   { iteration: number }
 > {
   return 'iteration' in event && typeof (event as any).iteration === 'number';
-}
-
-// Check if event has call_id field (tool call events)
-export function hasCallId(
-  event: AnyAgentEvent
-): event is Extract<AnyAgentEvent, { call_id: string }> {
-  return 'call_id' in event && typeof (event as any).call_id === 'string';
-}
-
-// Check if event has arguments field (tool call start)
-export function hasArguments(
-  event: AnyAgentEvent
-): event is Extract<AnyAgentEvent, { arguments: Record<string, any> }> {
-  return 'arguments' in event && typeof (event as any).arguments === 'object';
 }

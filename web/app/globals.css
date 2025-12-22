@@ -85,3 +85,70 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .markdown-body .wmde-markdown pre,
+  .markdown-body .wmde-markdown .markdown-code-block {
+    position: relative;
+  }
+
+  .markdown-body .wmde-markdown .copied {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    pointer-events: auto;
+    visibility: visible;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .markdown-body .wmde-markdown pre {
+    overflow: visible;
+  }
+
+  .markdown-body .wmde-markdown pre > code {
+    display: block;
+    padding-top: 2.25rem;
+  }
+
+  .markdown-body .wmde-markdown .markdown-code-block > code {
+    display: block;
+    padding-top: 2.25rem;
+  }
+
+  .markdown-body .wmde-markdown .copied:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+  }
+
+  .markdown-body .wmde-markdown .copied .octicon-copy {
+    display: block;
+  }
+
+  .markdown-body .wmde-markdown .copied .octicon-check {
+    display: none;
+  }
+
+  .markdown-body .wmde-markdown .copied.active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .markdown-body .wmde-markdown .copied.active .octicon-copy {
+    display: none;
+  }
+
+  .markdown-body .wmde-markdown .copied.active .octicon-check {
+    display: block;
+  }
+}

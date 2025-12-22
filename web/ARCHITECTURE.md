@@ -127,7 +127,7 @@ App
         │   │   └── SessionHistory (recent list)
         │   ├── ConversationStream
         │   │   ├── Header (language switch + timeline status)
-        │   │   ├── TerminalOutput
+        │   │   ├── ConversationEventStream
         │   │   └── TaskInput
         │   └── GuidanceSidebar
         │       ├── Quickstart Buttons

@@ -313,7 +313,7 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideFollowTranscript := false
 	overrideFollowStream := false
 	overrideAgentPreset := "designer"
-	overrideToolPreset := "web-only"
+	overrideToolPreset := "read-only"
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{

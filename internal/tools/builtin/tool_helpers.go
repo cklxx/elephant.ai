@@ -100,6 +100,8 @@ func previewProfile(mediaType, format string) string {
 	fmtFormat := strings.ToLower(format)
 
 	switch {
+	case strings.Contains(media, "a2ui") || fmtFormat == "a2ui":
+		return "document.a2ui"
 	case strings.Contains(media, "markdown") || fmtFormat == "markdown" || fmtFormat == "md":
 		return "document.markdown"
 	case strings.Contains(media, "html") || fmtFormat == "html":

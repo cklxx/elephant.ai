@@ -362,20 +362,6 @@ function normalizeEventData(data: unknown): Record<string, any> | null {
   return normalized;
 }
 
-export function validateEvent(data: unknown): AnyAgentEvent | null {
-  try {
-    const normalized = normalizeEventData(data);
-    if (!normalized) {
-      return null;
-    }
-    return AnyAgentEventSchema.parse(normalized) as AnyAgentEvent;
-  } catch (error) {
-    console.error('[Schema Validation] Failed to validate event:', error);
-    console.debug('[Schema Validation] Raw event data:', data);
-    return null;
-  }
-}
-
 export function safeValidateEvent(
   data: unknown,
 ): { success: true; data: AnyAgentEvent } | { success: false; error: z.ZodError; raw: unknown } {

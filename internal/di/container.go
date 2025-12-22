@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
 	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
@@ -18,9 +20,11 @@ import (
 	"alex/internal/mcp"
 	"alex/internal/parser"
 	"alex/internal/session/filestore"
+	"alex/internal/session/postgresstore"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/time/rate"
 )
 
@@ -29,11 +33,13 @@ type Container struct {
 	AgentCoordinator *agentApp.AgentCoordinator
 	SessionStore     ports.SessionStore
 	StateStore       sessionstate.Store
+	HistoryStore     sessionstate.Store
 	HistoryManager   ports.HistoryManager
 	CostTracker      ports.CostTracker
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
+	SessionDB        *pgxpool.Pool
 
 	// Lazy initialization state
 	config       Config
@@ -69,6 +75,7 @@ type Config struct {
 	StopSequences           []string
 	AgentPreset             string
 	ToolPreset              string
+	ToolMode                string
 	Environment             string
 	Verbose                 bool
 	DisableTUI              bool
@@ -78,8 +85,9 @@ type Config struct {
 	EnvironmentSummary string
 
 	// Storage Configuration
-	SessionDir string // Directory for session storage (default: ~/.alex-sessions)
-	CostDir    string // Directory for cost tracking (default: ~/.alex-costs)
+	SessionDir         string // Directory for session storage (default: ~/.alex-sessions)
+	CostDir            string // Directory for cost tracking (default: ~/.alex-costs)
+	SessionDatabaseURL string // Optional database URL for session persistence
 
 	// Feature Flags
 	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
@@ -127,6 +135,11 @@ func (c *Container) Shutdown() error {
 		logger.Info("MCP shutdown successfully")
 	}
 
+	if c.SessionDB != nil {
+		c.SessionDB.Close()
+		c.SessionDB = nil
+	}
+
 	logger.Info("Container shutdown complete")
 	return nil
 }
@@ -163,6 +176,10 @@ func BuildContainer(config Config) (*Container, error) {
 	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex-sessions")
 	costDir := resolveStorageDir(config.CostDir, "~/.alex-costs")
 
+	if strings.TrimSpace(config.ToolMode) == "" {
+		config.ToolMode = string(presets.ToolModeCLI)
+	}
+
 	logger.Debug("Building container with session_dir=%s, cost_dir=%s", sessionDir, costDir)
 
 	// Infrastructure Layer
@@ -184,9 +201,44 @@ func BuildContainer(config Config) (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
-	sessionStore := filestore.New(sessionDir)
-	stateStore := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
-	historyStore := sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
+	var sessionStore ports.SessionStore = filestore.New(sessionDir)
+	var stateStore sessionstate.Store = sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
+	var historyStore sessionstate.Store = sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
+	var sessionDB *pgxpool.Pool
+
+	if dbURL := strings.TrimSpace(config.SessionDatabaseURL); dbURL != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		pool, err := pgxpool.New(ctx, dbURL)
+		if err != nil {
+			logger.Warn("Failed to create session DB pool: %v", err)
+		} else if err := pool.Ping(ctx); err != nil {
+			pool.Close()
+			logger.Warn("Failed to ping session DB: %v", err)
+		} else {
+			dbSessionStore := postgresstore.New(pool)
+			if err := dbSessionStore.EnsureSchema(ctx); err != nil {
+				pool.Close()
+				logger.Warn("Failed to initialize session schema: %v", err)
+			} else {
+				dbStateStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindState)
+				dbHistoryStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindTurn)
+				if err := dbStateStore.EnsureSchema(ctx); err != nil {
+					pool.Close()
+					logger.Warn("Failed to initialize snapshot schema: %v", err)
+				} else if err := dbHistoryStore.EnsureSchema(ctx); err != nil {
+					pool.Close()
+					logger.Warn("Failed to initialize history schema: %v", err)
+				} else {
+					sessionDB = pool
+					sessionStore = dbSessionStore
+					stateStore = dbStateStore
+					historyStore = dbHistoryStore
+					logger.Info("Session persistence backed by Postgres")
+				}
+			}
+		}
+	}
 	journalDir := filepath.Join(sessionDir, "journals")
 	var journalWriter journal.Writer
 	if fileWriter, err := journal.NewFileWriter(journalDir); err != nil {
@@ -268,6 +320,7 @@ func BuildContainer(config Config) (*Container, error) {
 			StopSequences:       append([]string(nil), config.StopSequences...),
 			AgentPreset:         config.AgentPreset,
 			ToolPreset:          config.ToolPreset,
+			ToolMode:            config.ToolMode,
 			EnvironmentSummary:  config.EnvironmentSummary,
 		},
 	)
@@ -284,10 +337,12 @@ func BuildContainer(config Config) (*Container, error) {
 		AgentCoordinator: coordinator,
 		SessionStore:     sessionStore,
 		StateStore:       stateStore,
+		HistoryStore:     historyStore,
 		HistoryManager:   historyMgr,
 		CostTracker:      costTracker,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
+		SessionDB:        sessionDB,
 		config:           config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,

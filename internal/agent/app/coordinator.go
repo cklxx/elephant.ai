@@ -50,7 +50,8 @@ type Config struct {
 	TopP                float64
 	StopSequences       []string
 	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
-	ToolPreset          string // Tool access preset (full, read-only, etc.)
+	ToolPreset          string // Tool access preset (CLI-only: full, read-only, safe)
+	ToolMode            string // Tool access mode (web or cli)
 	EnvironmentSummary  string
 }
 
@@ -488,6 +489,7 @@ func (c *AgentCoordinator) GetConfig() ports.AgentConfig {
 		StopSequences: append([]string(nil), c.config.StopSequences...),
 		AgentPreset:   c.config.AgentPreset,
 		ToolPreset:    c.config.ToolPreset,
+		ToolMode:      c.config.ToolMode,
 	}
 }
 
@@ -602,6 +604,10 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		return defaultSystemPrompt
 	}
 	personaKey := c.config.AgentPreset
+	toolMode := c.config.ToolMode
+	if strings.TrimSpace(toolMode) == "" {
+		toolMode = string(presets.ToolModeCLI)
+	}
 	toolPreset := c.config.ToolPreset
 	if c.prepService != nil {
 		if resolved := c.prepService.ResolveAgentPreset(context.Background(), personaKey); resolved != "" {
@@ -613,10 +619,14 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 	} else if toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
+	if strings.EqualFold(strings.TrimSpace(toolMode), string(presets.ToolModeWeb)) {
+		toolPreset = ""
+	}
 	session := &ports.Session{ID: "", Messages: nil}
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
 		PersonaKey:         personaKey,
+		ToolMode:           toolMode,
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: c.config.EnvironmentSummary,
 	})

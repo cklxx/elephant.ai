@@ -56,65 +56,81 @@ func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
 func (r *PresetResolver) ResolveToolRegistry(
 	ctx context.Context,
 	baseRegistry ports.ToolRegistry,
+	mode presets.ToolMode,
 	configPreset string,
 ) ports.ToolRegistry {
-	toolPreset, source := r.resolveToolPreset(ctx, configPreset)
+	toolMode := normalizeToolMode(mode)
+	toolPreset, source := r.resolveToolPreset(ctx, toolMode, configPreset)
 
-	// If we have a valid preset, apply filtering
-	if toolPreset != "" && presets.IsValidToolPreset(toolPreset) {
-		originalTools := baseRegistry.List()
-		originalCount := len(originalTools)
+	originalTools := baseRegistry.List()
+	originalCount := len(originalTools)
 
-		filteredRegistry, err := presets.NewFilteredToolRegistry(baseRegistry, presets.ToolPreset(toolPreset))
-		if err != nil {
-			r.logger.Warn("Failed to create filtered registry: %v, using default", err)
-			return baseRegistry
-		}
-
-		filteredTools := filteredRegistry.List()
-		filteredCount := len(filteredTools)
-
-		toolConfig, _ := presets.GetToolConfig(presets.ToolPreset(toolPreset))
-		retainedPercent := 0.0
-		if originalCount > 0 {
-			retainedPercent = float64(filteredCount) / float64(originalCount) * 100.0
-		}
-		r.logger.Info("Tool filtering applied: preset=%s, original=%d, filtered=%d (%.0f%% retained)",
-			toolConfig.Name, originalCount, filteredCount, retainedPercent)
-		r.logger.Info("Using tool preset: %s (source=%s, tool_count=%d/%d)", toolConfig.Name, source, filteredCount, originalCount)
-
-		// Extract identifiers from context for event emission
-		ids := id.IDsFromContext(ctx)
-		sessionID := r.extractSessionID(ctx)
-		if sessionID == "" {
-			sessionID = ids.SessionID
-		} else {
-			ids.SessionID = sessionID
-		}
-
-		// Emit tool filtering metrics event
-		toolNames := make([]string, 0, filteredCount)
-		for _, tool := range filteredTools {
-			toolNames = append(toolNames, tool.Name)
-		}
-		filterEvent := domain.NewWorkflowDiagnosticToolFilteringEvent(
-			ports.LevelCore,
-			sessionID,
-			ids.TaskID,
-			ids.ParentTaskID,
-			toolConfig.Name,
-			originalCount,
-			filteredCount,
-			toolNames,
-			r.clock.Now(),
-		)
-		r.eventEmitter.OnEvent(filterEvent)
-
-		return filteredRegistry
+	config, err := presets.GetToolConfig(toolMode, presets.ToolPreset(toolPreset))
+	if err != nil {
+		r.logger.Warn("Failed to resolve tool config: %v, using defaults", err)
+		config, _ = presets.GetToolConfig(toolMode, presets.ToolPresetFull)
+		toolPreset = string(presets.ToolPresetFull)
+		source = "default"
 	}
 
-	// No preset, return base registry
-	return baseRegistry
+	filteredRegistry, err := presets.NewFilteredToolRegistry(baseRegistry, toolMode, presets.ToolPreset(toolPreset))
+	if err != nil {
+		r.logger.Warn("Failed to create filtered registry: %v, using default", err)
+		return baseRegistry
+	}
+
+	filteredTools := filteredRegistry.List()
+	filteredCount := len(filteredTools)
+
+	retainedPercent := 0.0
+	if originalCount > 0 {
+		retainedPercent = float64(filteredCount) / float64(originalCount) * 100.0
+	}
+	r.logger.Info(
+		"Tool filtering applied: mode=%s, preset=%s, original=%d, filtered=%d (%.0f%% retained)",
+		toolMode,
+		config.Name,
+		originalCount,
+		filteredCount,
+		retainedPercent,
+	)
+	r.logger.Info(
+		"Using tool access: mode=%s, preset=%s (source=%s, tool_count=%d/%d)",
+		toolMode,
+		config.Name,
+		source,
+		filteredCount,
+		originalCount,
+	)
+
+	// Extract identifiers from context for event emission
+	ids := id.IDsFromContext(ctx)
+	sessionID := r.extractSessionID(ctx)
+	if sessionID == "" {
+		sessionID = ids.SessionID
+	} else {
+		ids.SessionID = sessionID
+	}
+
+	// Emit tool filtering metrics event
+	toolNames := make([]string, 0, filteredCount)
+	for _, tool := range filteredTools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	filterEvent := domain.NewWorkflowDiagnosticToolFilteringEvent(
+		ports.LevelCore,
+		sessionID,
+		ids.TaskID,
+		ids.ParentTaskID,
+		config.Name,
+		originalCount,
+		filteredCount,
+		toolNames,
+		r.clock.Now(),
+	)
+	r.eventEmitter.OnEvent(filterEvent)
+
+	return filteredRegistry
 }
 
 // extractSessionID attempts to extract session ID from context
@@ -150,7 +166,11 @@ func (r *PresetResolver) resolveAgentPreset(ctx context.Context, configPreset st
 
 // resolveToolPreset determines the tool preset to use.
 // Returns the preset name and source ("context", "config", or "").
-func (r *PresetResolver) resolveToolPreset(ctx context.Context, configPreset string) (preset string, source string) {
+func (r *PresetResolver) resolveToolPreset(ctx context.Context, mode presets.ToolMode, configPreset string) (preset string, source string) {
+	if normalizeToolMode(mode) == presets.ToolModeWeb {
+		return "", "mode"
+	}
+
 	// Check context first (highest priority)
 	if presetCfg, ok := ctx.Value(PresetContextKey{}).(PresetConfig); ok && presetCfg.ToolPreset != "" {
 		r.logger.Debug("Using tool preset from context: %s", presetCfg.ToolPreset)
@@ -164,4 +184,11 @@ func (r *PresetResolver) resolveToolPreset(ctx context.Context, configPreset str
 
 	// No preset configured, default to full tool access
 	return string(presets.ToolPresetFull), "default"
+}
+
+func normalizeToolMode(mode presets.ToolMode) presets.ToolMode {
+	if mode == "" {
+		return presets.ToolModeCLI
+	}
+	return mode
 }

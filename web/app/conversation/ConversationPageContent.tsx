@@ -483,21 +483,21 @@ export function ConversationPageContent() {
         label: t('console.quickstart.items.image'),
         icon: Image,
         prompt:
-          '/plan 画图：请根据以下要求生成一张图片。\n主题：\n风格：\n尺寸/比例：\n需要包含/避免：\n',
+          '/plan 画图：生成一张“雨夜的霓虹书店”插画。\n风格：赛博朋克 + 手绘质感\n画面要素：湿润街道反光、玻璃窗内暖光、行人撑伞剪影\n尺寸/比例：16:9\n避免：文字、水印、人脸特写\n',
       },
       {
         id: 'article',
         label: t('console.quickstart.items.article'),
         icon: FileText,
         prompt:
-          '/plan 写文章：请根据以下要求写一篇文章。\n主题：\n受众：\n字数：\n结构/要点：\n',
+          '/plan 写文章：写一篇面向产品经理的短文。\n主题：如何用“问题-假设-验证”闭环提升功能迭代质量\n字数：800-1000字\n结构：开场痛点 → 三步法解释 → 一个真实场景案例 → 可执行清单\n要求：语气务实、少术语、多可落地方法\n',
       },
       {
         id: 'video',
         label: t('console.quickstart.items.video'),
         icon: Film,
         prompt:
-          '/plan 生成视频：请根据以下要求生成一段视频。\n内容/脚本：\n风格：\n时长：\n比例/分辨率：\n',
+          '/plan 生成视频：制作一段15秒品牌短片。\n内容/脚本：城市清晨→通勤人群→产品特写→logo收尾\n风格：极简、干净、轻快节奏\n时长：15秒\n比例/分辨率：9:16，1080x1920\n配乐：轻电子，留白感\n',
       },
     ],
     [t],

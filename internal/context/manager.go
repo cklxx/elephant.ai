@@ -310,7 +310,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 			Goal:               goal,
 			Policies:           policies,
 			Knowledge:          knowledge,
-			Tools:              buildToolHints(cfg.ToolPreset),
+			Tools:              buildToolHints(cfg.ToolMode, cfg.ToolPreset),
 			World:              world,
 			EnvironmentSummary: cfg.EnvironmentSummary,
 			Version:            staticSnapshot.Version,
@@ -363,11 +363,22 @@ func (m *manager) RecordTurn(ctx context.Context, record ports.ContextTurnRecord
 
 // Helper conversions -------------------------------------------------------
 
-func buildToolHints(preset string) []string {
-	if preset == "" {
+func buildToolHints(mode string, preset string) []string {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	preset = strings.TrimSpace(preset)
+	if mode == "" && preset == "" {
 		return nil
 	}
-	return []string{preset}
+	if mode == "" {
+		mode = "cli"
+	}
+	if mode == "web" {
+		return []string{"mode=web", "scope=non-local"}
+	}
+	if preset == "" {
+		preset = "full"
+	}
+	return []string{fmt.Sprintf("mode=%s", mode), fmt.Sprintf("preset=%s", preset)}
 }
 
 func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) ports.DynamicContext {
@@ -643,7 +654,7 @@ func buildEnvironmentSection(static ports.StaticContext) string {
 		lines = append(lines, fmt.Sprintf("Cost awareness: %s", strings.Join(static.World.CostModel, ", ")))
 	}
 	if len(static.Tools) > 0 {
-		lines = append(lines, fmt.Sprintf("Tool presets: %s", strings.Join(static.Tools, ", ")))
+		lines = append(lines, fmt.Sprintf("Tool access: %s", strings.Join(static.Tools, ", ")))
 	}
 	if len(lines) == 0 {
 		return ""

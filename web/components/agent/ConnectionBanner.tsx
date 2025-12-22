@@ -1,5 +1,5 @@
 // ConnectionBanner - displays connection status and error messages
-// Extracted from TerminalOutput.tsx for better component separation
+// Extracted from ConversationEventStream.tsx for better component separation
 
 import { AlertCircle, Loader2, WifiOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';

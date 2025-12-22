@@ -138,14 +138,22 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		window            ports.ContextWindow
 	)
 
-	toolPreset := s.config.ToolPreset
+	toolMode := presets.ToolMode(strings.TrimSpace(s.config.ToolMode))
+	if toolMode == "" {
+		toolMode = presets.ToolModeCLI
+	}
+	toolPreset := strings.TrimSpace(s.config.ToolPreset)
 	if s.presetResolver != nil {
-		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolPreset); resolved != "" {
+		if resolved, source := s.presetResolver.resolveToolPreset(ctx, toolMode, toolPreset); resolved != "" {
 			toolPreset = resolved
 			s.logger.Info("Using tool preset %s (source=%s)", resolved, source)
 		}
-	} else if toolPreset == "" {
+	}
+	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
+	}
+	if toolMode == presets.ToolModeWeb {
+		toolPreset = ""
 	}
 	personaKey := s.config.AgentPreset
 	if s.presetResolver != nil {
@@ -160,6 +168,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
 			TokenLimit:         s.config.MaxTokens,
 			PersonaKey:         personaKey,
+			ToolMode:           string(toolMode),
 			ToolPreset:         toolPreset,
 			EnvironmentSummary: s.config.EnvironmentSummary,
 		})
@@ -310,7 +319,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	toolRegistry := s.selectToolRegistry(ctx, toolPreset)
+	toolRegistry := s.selectToolRegistry(ctx, toolMode, toolPreset)
 	services := domain.Services{
 		LLM:          streamingClient,
 		ToolExecutor: toolRegistry,
@@ -740,7 +749,11 @@ func (s *ExecutionPreparationService) ResolveToolPreset(ctx context.Context, pre
 	if s.presetResolver == nil {
 		return ""
 	}
-	resolved, _ := s.presetResolver.resolveToolPreset(ctx, preset)
+	toolMode := presets.ToolMode(strings.TrimSpace(s.config.ToolMode))
+	if toolMode == "" {
+		toolMode = presets.ToolModeCLI
+	}
+	resolved, _ := s.presetResolver.resolveToolPreset(ctx, toolMode, preset)
 	return resolved
 }
 
@@ -760,11 +773,14 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 	return session, err
 }
 
-func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, resolvedToolPreset string) ports.ToolRegistry {
+func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, toolMode presets.ToolMode, resolvedToolPreset string) ports.ToolRegistry {
 	// Handle subagent context filtering first
 	registry := s.toolRegistry
+	if toolMode == "" {
+		toolMode = presets.ToolModeCLI
+	}
 	configPreset := resolvedToolPreset
-	if configPreset == "" {
+	if configPreset == "" && toolMode != presets.ToolModeWeb {
 		configPreset = s.config.ToolPreset
 	}
 	if isSubagentContext(ctx) {
@@ -772,10 +788,10 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, re
 		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
 
 		// Apply preset configured for subagents (context overrides allowed)
-		return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)
+		return s.presetResolver.ResolveToolRegistry(ctx, registry, toolMode, configPreset)
 	}
 
-	return s.presetResolver.ResolveToolRegistry(ctx, registry, configPreset)
+	return s.presetResolver.ResolveToolRegistry(ctx, registry, toolMode, configPreset)
 }
 
 func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolRegistry {
