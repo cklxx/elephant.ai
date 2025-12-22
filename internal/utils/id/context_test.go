@@ -65,7 +65,7 @@ func TestNewGenerators(t *testing.T) {
 	}
 
 	taskID := NewTaskID()
-	if !strings.HasPrefix(taskID, "task-") || len(taskID) <= len("task-") {
+	if !strings.HasPrefix(taskID, "task-") || len(taskID) != len("task-")+taskIDSuffixLength {
 		t.Fatalf("unexpected task id format: %s", taskID)
 	}
 
@@ -76,7 +76,7 @@ func TestNewGenerators(t *testing.T) {
 	}
 
 	taskUUID := NewTaskID()
-	if !strings.HasPrefix(taskUUID, "task-") || len(taskUUID) <= len("task-") {
+	if !strings.HasPrefix(taskUUID, "task-") || len(taskUUID) != len("task-")+taskIDSuffixLength {
 		t.Fatalf("unexpected uuidv7 task id format: %s", taskUUID)
 	}
 

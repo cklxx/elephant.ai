@@ -14,26 +14,30 @@ export interface ContentSegment {
 
 export type AttachmentSegmentType = ContentSegment['type'];
 
+function toTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.trim() : undefined;
+}
+
 export function buildAttachmentUri(
   attachment: AttachmentPayload,
 ): string | null {
-  const direct = attachment.uri?.trim();
+  const direct = toTrimmedString(attachment.uri);
   if (direct) {
     return normalizeAttachmentUri(direct);
   }
-  const data = attachment.data?.trim();
+  const data = toTrimmedString(attachment.data);
   if (!data) {
     const previewAssets = attachment.preview_assets ?? [];
     const preferredAsset = previewAssets.find((asset) => {
-      const mime = asset.mime_type?.toLowerCase() ?? '';
-      const previewType = asset.preview_type?.toLowerCase() ?? '';
+      const mime = toTrimmedString(asset.mime_type)?.toLowerCase() ?? '';
+      const previewType = toTrimmedString(asset.preview_type)?.toLowerCase() ?? '';
       return (
-        Boolean(asset.cdn_url?.trim()) &&
+        Boolean(toTrimmedString(asset.cdn_url)) &&
         (mime.startsWith('video/') || previewType.includes('video'))
       );
     });
-    const fallbackAsset = previewAssets.find((asset) => asset.cdn_url?.trim());
-    const cdnUrl = preferredAsset?.cdn_url?.trim() || fallbackAsset?.cdn_url?.trim();
+    const fallbackAsset = previewAssets.find((asset) => toTrimmedString(asset.cdn_url));
+    const cdnUrl = toTrimmedString(preferredAsset?.cdn_url) || toTrimmedString(fallbackAsset?.cdn_url);
     return cdnUrl ? normalizeAttachmentUri(cdnUrl) : null;
   }
   // If the payload already contains a data URI or a full URL, return it directly.
