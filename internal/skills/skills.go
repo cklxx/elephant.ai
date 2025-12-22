@@ -1,7 +1,9 @@
 package skills
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,7 +56,7 @@ func Load(dir string) (Library, error) {
 
 	info, err := os.Stat(trimmed)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return Library{}, nil
 		}
 		return Library{}, fmt.Errorf("stat skills dir: %w", err)
@@ -63,24 +65,14 @@ func Load(dir string) (Library, error) {
 		return Library{}, fmt.Errorf("skills dir %s is not a directory", trimmed)
 	}
 
-	entries, err := os.ReadDir(trimmed)
+	skillFiles, err := discoverSkillFiles(trimmed)
 	if err != nil {
-		return Library{}, fmt.Errorf("read skills dir: %w", err)
+		return Library{}, fmt.Errorf("discover skills: %w", err)
 	}
 
-	var skills []Skill
-	byName := make(map[string]Skill)
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		lower := strings.ToLower(name)
-		if !strings.HasSuffix(lower, ".md") && !strings.HasSuffix(lower, ".mdx") {
-			continue
-		}
-
-		path := filepath.Join(trimmed, name)
+	skills := make([]Skill, 0, len(skillFiles))
+	byName := make(map[string]Skill, len(skillFiles))
+	for _, path := range skillFiles {
 		skill, err := parseSkillFile(path)
 		if err != nil {
 			return Library{}, err
@@ -102,6 +94,36 @@ func Load(dir string) (Library, error) {
 	sort.Slice(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name })
 
 	return Library{skills: skills, byName: byName, root: trimmed}, nil
+}
+
+func discoverSkillFiles(root string) ([]string, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() {
+			for _, candidate := range []string{"SKILL.md", "SKILL.mdx"} {
+				path := filepath.Join(root, name, candidate)
+				info, err := os.Stat(path)
+				if err == nil && !info.IsDir() {
+					paths = append(paths, path)
+					break
+				}
+			}
+			continue
+		}
+
+		if isMarkdownFile(name) {
+			paths = append(paths, filepath.Join(root, name))
+		}
+	}
+
+	sort.Strings(paths)
+	return paths, nil
 }
 
 type frontMatter struct {
@@ -166,6 +188,11 @@ func extractMarkdownTitle(body string) string {
 		break
 	}
 	return ""
+}
+
+func isMarkdownFile(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".mdx")
 }
 
 // NormalizeName normalizes a skill name for lookups.
