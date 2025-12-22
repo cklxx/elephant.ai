@@ -256,6 +256,21 @@ func TestApplyImageRequestOptionsDefaultsSize(t *testing.T) {
 	}
 }
 
+func TestApplyImageRequestOptionsUpscalesSmallSize(t *testing.T) {
+	t.Parallel()
+
+	req := arkm.GenerateImagesRequest{}
+	applyImageRequestOptions(&req, map[string]any{"size": "1024x1024"})
+
+	if req.Size == nil {
+		t.Fatal("expected size to be set")
+	}
+
+	if *req.Size != seedreamDefaultImageSize {
+		t.Fatalf("expected size to be upscaled to %s, got %s", seedreamDefaultImageSize, *req.Size)
+	}
+}
+
 func floatEquals(a, b float64) bool {
 	if math.IsNaN(a) && math.IsNaN(b) {
 		return true

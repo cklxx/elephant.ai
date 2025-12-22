@@ -95,6 +95,7 @@ const (
 	seedreamMaxGuidanceScale     = 10.0
 	seedreamDefaultGuidanceScale = 7.0
 	seedreamDefaultImageSize     = "1920x1920"
+	seedreamMinImagePixels       = 3686400
 )
 
 var seedreamPlaceholderNonce = func() string {
@@ -752,6 +753,7 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 }
 
 func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]any) {
+	sizeValue := seedreamDefaultImageSize
 	if format, ok := args["response_format"].(string); ok {
 		switch strings.ToLower(strings.TrimSpace(format)) {
 		case "b64_json":
@@ -761,15 +763,13 @@ func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]a
 		}
 	}
 	if size, ok := args["size"].(string); ok && strings.TrimSpace(size) != "" {
-		req.Size = volcengine.String(strings.TrimSpace(size))
+		sizeValue = strings.TrimSpace(size)
 	} else if width, ok := readInt(args, "width"); ok {
 		if height, okh := readInt(args, "height"); okh && width > 0 && height > 0 {
-			req.Size = volcengine.String(fmt.Sprintf("%dx%d", width, height))
+			sizeValue = fmt.Sprintf("%dx%d", width, height)
 		}
 	}
-	if req.Size == nil {
-		req.Size = volcengine.String(seedreamDefaultImageSize)
-	}
+	req.Size = volcengine.String(normalizeSeedreamSize(sizeValue))
 	if seed, ok := readInt(args, "seed"); ok {
 		req.Seed = volcengine.Int64(int64(seed))
 	}
@@ -779,6 +779,42 @@ func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]a
 	if optimize, ok := args["optimize_prompt"].(bool); ok {
 		req.OptimizePrompt = volcengine.Bool(optimize)
 	}
+}
+
+func normalizeSeedreamSize(raw string) string {
+	width, height, ok := parseSeedreamSize(raw)
+	if !ok {
+		return seedreamDefaultImageSize
+	}
+
+	area := width * height
+	if area >= seedreamMinImagePixels {
+		return fmt.Sprintf("%dx%d", width, height)
+	}
+
+	scale := math.Sqrt(float64(seedreamMinImagePixels) / float64(area))
+	scaledWidth := int(math.Ceil(float64(width) * scale))
+	scaledHeight := int(math.Ceil(float64(height) * scale))
+	return fmt.Sprintf("%dx%d", scaledWidth, scaledHeight)
+}
+
+func parseSeedreamSize(raw string) (int, int, bool) {
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(raw)), "x")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+
+	width, err := strconv.Atoi(parts[0])
+	if err != nil || width <= 0 {
+		return 0, 0, false
+	}
+
+	height, err := strconv.Atoi(parts[1])
+	if err != nil || height <= 0 {
+		return 0, 0, false
+	}
+
+	return width, height, true
 }
 
 func sanitizeSeedreamGuidanceScale(value float64) float64 {
