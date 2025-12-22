@@ -93,7 +93,6 @@ export const WorkflowSnapshotSchema = z.object({
   id: z.string(),
   phase: z.enum(['pending', 'running', 'succeeded', 'failed']),
   order: z.array(z.string()),
-  nodes: z.array(WorkflowNodeSnapshotSchema).optional(),
   started_at: z.string().optional(),
   completed_at: z.string().optional(),
   duration: z.number().optional(),

@@ -786,6 +786,9 @@ func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) 
 				sanitized[key] = sanitizeUntypedAttachments(val, sent, cache)
 				continue
 			}
+			if key == "nodes" {
+				continue
+			}
 			if key == "messages" || key == "attachment_iterations" {
 				continue
 			}
