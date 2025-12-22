@@ -1,45 +1,63 @@
-# elephant.ai / ALEX Codebase Roadmap
+# elephant.ai / ALEX Roadmap
 
-This roadmap outlines the recommended reading order and pointers for understanding the repository without guesswork.
+This roadmap is a guided reading order for the codebase. Follow it when you onboard, or when you need to trace how an event trave
+ls from the CLI/web into the agent core and back to the user.
 
-## 1) Start Here
+## 1) Orientation
 
-- `README.md` — product overview, quickstarts, and high-level architecture.
-- `docs/README.md` — documentation index.
-- `docs/AGENT.md` — the Think→Act→Observe loop, event model, and orchestration flow.
+Start with the "why" and the top-level mechanics:
 
-## 2) Delivery Surfaces
+- `README.md` — product overview, quickstart (`./dev.sh`), and high-level architecture.
+- `docs/README.md` — table of contents for deeper docs.
+- `docs/AGENT.md` — the Think → Act → Observe loop, event lifecycle, and orchestration semantics.
 
-- CLI/TUI: `cmd/alex`, `internal/cli`
-- Server (HTTP + SSE): `cmd/alex-server`, `internal/server`, `internal/http`
-- Web dashboard: `web/` (see `web/README.md`)
+## 2) Entry Surfaces
 
-## 3) Agent Core (Go)
+Trace how requests arrive and responses are streamed back:
 
-- Application layer: `internal/agent/app`
-- Domain model + ports: `internal/agent/domain`, `internal/agent/ports`
-- DI container / wiring: `internal/di`
+- CLI/TUI: `cmd/alex`, wired through `internal/cli` for prompts, history, and output formatting.
+- HTTP + SSE server: `cmd/alex-server`, `internal/server`, `internal/http` for routing and streaming.
+- Web dashboard: `web/` (see `web/README.md`) for Next.js app structure and dev tasks.
 
-## 4) Tooling & Context
+## 3) Agent Runtime (Go)
 
-- Tool registry + builtins: `internal/toolregistry`, `internal/tools`
-- Skills (Markdown playbooks): `skills/`
-  - Tool access: `internal/tools/builtin/skills.go`
-  - Index generation for skills catalog: `internal/skills/index.go`
-  - Prompt injection: `internal/context/manager.go`
-- Context builder: `internal/context`
+Core execution path and orchestration hooks:
 
-## 5) Web Event Stream (Next.js)
+- Application services: `internal/agent/app` coordinates conversations and tool calls.
+- Domain model + ports: `internal/agent/domain`, `internal/agent/ports` define aggregates, events, and boundaries.
+- Dependency wiring: `internal/di` assembles adapters (LLM, vector stores, tools, storage).
 
-- Event ingestion + de-dupe: `web/hooks/useSSE.ts`
-- Attachment hydration: `web/lib/events/attachmentRegistry.ts`
-- Main conversation stream UI: `web/components/agent/ConversationEventStream.tsx`
-- Right resources panel (skills + attachments): `web/app/conversation/ConversationPageContent.tsx`
-- Skills catalog generation: `web/scripts/generate-skills-catalog.js` → `web/lib/generated/skillsCatalog.json`
+## 4) Context, Tools, and Skills
 
-## 6) Tests & Validation
+How the agent gathers context and safely executes actions:
 
-- Go: `make test`, plus targeted packages under `internal/`
-- Web unit tests: `(cd web && npm test)`
-- Web e2e: `(cd web && npm run e2e)`
-- Evaluations: `evaluation/`
+- Context builder + prompt injection: `internal/context`, `internal/context/manager.go`.
+- Tool registry and built-ins: `internal/toolregistry`, `internal/tools`.
+- Skills (Markdown playbooks): `skills/` with LLM-exposed wrappers in `internal/tools/builtin/skills.go`.
+- Skill catalog generation: `internal/skills/index.go` produces metadata consumed by the web app.
+
+## 5) Data Plane and Events (Web)
+
+Follow the event stream that powers the dashboard:
+
+- SSE ingestion and dedupe: `web/hooks/useSSE.ts`.
+- Attachment hydration + renderers: `web/lib/events/attachmentRegistry.ts`.
+- Conversation stream UI: `web/components/agent/ConversationEventStream.tsx`.
+- Right-hand resources (skills, attachments): `web/app/conversation/ConversationPageContent.tsx`.
+- Catalog generation bridge: `web/scripts/generate-skills-catalog.js` → `web/lib/generated/skillsCatalog.json`.
+
+## 6) Persistence and Ops
+
+Supporting infrastructure and migrations:
+
+- Database migrations: `migrations/` and `deploy/` manifests for cluster installs.
+- Configuration: `configs/` and service defaults under `internal/config`.
+- Deployment helpers: `deploy.sh`, `k8s/`, and Docker images built via `Makefile` targets.
+
+## 7) Quality Gates
+
+Run these to validate changes end-to-end:
+
+- Go lint + tests: `./scripts/run-golangci-lint.sh run --timeout=10m ./...` and `make test`.
+- Web lint + unit tests: `npm --prefix web run lint` and `npm --prefix web test`.
+- End-to-end + evaluations: `npm --prefix web run e2e` and `./dev.sh test` for the orchestrated suite.
