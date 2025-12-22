@@ -50,9 +50,9 @@ const references = [
 const copy = {
   zh: {
     badge: "elephant.ai · Manifesto",
-    title: "把 Agent 做成可控、可验收的工程系统",
+    title: "把 Agent 变成可控、可验收的工程系统",
     subtitle:
-      "让 AI 像软件一样工作：可约束、可观测、可复盘，而不是像聊天一样碰运气。",
+      "让 AI 像软件一样工作：可约束、可观测、可复盘，而不是像聊天一样凭运气。",
     actions: {
       primary: "进入控制台",
       secondary: "查看会话",
@@ -67,13 +67,13 @@ const copy = {
     },
     section: {
       problem: {
-        title: "我们解决的不是聪明，而是不稳定",
+        title: "问题不在智商，而在不稳定",
         description:
-          "多数 Agent 失败不是模型不够强，而是缺少工程系统三要素：层级、分离、契约。",
+          "多数 Agent 失败不是模型不够强，而是缺少工程三要素：层级、分离、契约。",
         bullets: [
-          "目标与任务层级不清：用户不知道系统现在到底在做什么",
-          "计划与执行混在同一段输出里：难调试、容易漂移、也难验收",
-          "工具调用缺少统一协议：状态不一致、日志不可追、问题不可复现",
+          "目标/任务层级不清：用户不知道系统现在到底在做什么",
+          "计划和执行挤在同一段输出：难调试、易漂移、也难验收",
+          "工具调用缺乏统一协议：状态不一致、日志不可追、问题不可复现",
         ],
       },
       beliefs: {
@@ -83,26 +83,26 @@ const copy = {
             icon: Eye,
             title: "目标可见，计划不可见",
             description:
-              "对外只承诺意图与进展；完整计划作为内部控制结构保存，必要时重规划。",
+              "对外只承诺意图与进度；完整计划作为内部控制结构保存，随时可重规划。",
           },
           {
             icon: ListChecks,
             title: "任务必须先声明，再开始行动",
             description:
-              "用任务声明把粒度拉到可验收的最小单元：每个任务都有完成标准与证据入口。",
+              "把粒度压到可验收的最小单元：每个任务都有完成标准和证据入口。",
           },
           {
             icon: ShieldCheck,
             title: "工具是契约，不是提示词",
             description:
-              "用结构化输入/输出和执行闭环替代“更长的提示词”，把系统变成可控的状态机。",
+              "用结构化输入/输出和执行闭环取代“更长的提示词”，把系统变成可控的状态机。",
           },
         ],
       },
       method: {
         title: "Plan + Clearify + ReAct：让编排器掌控节奏",
         description:
-          "Plan 用于意图对齐；Clearify 将工作拆到最小可验收任务；ReAct 在任务内部交替推理/行动，留下可解释证据。编排器通过 Gate 强制顺序：先 Plan → 再 Clearify → 再执行。",
+          "Plan 对齐意图；Clearify 拆到最小可验收任务；ReAct 在任务内交替推理/行动并留证据。编排器用 Gate 强制顺序：先 Plan → 再 Clearify → 再执行。",
       },
       ui: {
         title: "HTML UI 示例（可观测 + 可验收）",
@@ -116,17 +116,17 @@ const copy = {
           {
             icon: ScrollText,
             title: "可观测性",
-            desc: "每一次工具调用都有上下文与证据。",
+            desc: "每次工具调用都带上下文和证据。",
           },
           {
             icon: GitBranch,
             title: "可追溯性",
-            desc: "任务从声明到完成形成链路，便于复盘/回归。",
+            desc: "任务从声明到完成形成链路，方便复盘/回归。",
           },
           {
             icon: Wrench,
             title: "可重规划性",
-            desc: "计划可内部更新；对外只呈现当前任务与证据。",
+            desc: "计划可在内部更新；界面只呈现当前任务与证据。",
           },
           {
             icon: CheckCircle2,
@@ -138,7 +138,7 @@ const copy = {
       oneLiner: {
         title: "一句话",
         description:
-          "elephant.ai 不是让模型更会说，而是让智能体更像软件：有清晰目标、明确任务、可展开证据、稳定执行顺序、可复盘工程轨迹。",
+          "elephant.ai 不是让模型更会说，而是让智能体更像软件：目标清晰、任务明确、证据可展开、顺序可控、轨迹可复盘。",
       },
       refs: {
         title: "参考",
@@ -261,7 +261,7 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-full border border-border bg-background/60 p-1 text-xs font-semibold backdrop-blur">
           <Link
-            href="/"
+            href="/zh"
             className={cn(
               "rounded-full px-3 py-1 transition",
               lang === "zh"
@@ -272,7 +272,7 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
             中文
           </Link>
           <Link
-            href="/en"
+            href="/"
             className={cn(
               "rounded-full px-3 py-1 transition",
               lang === "en"
@@ -382,10 +382,10 @@ function MiniConsolePreview({ lang }: { lang: HomeLang }) {
           title={planTitle}
           lines={[
             lang === "zh"
-              ? "Goal: 让 Agent 可控、可验收"
+              ? "Goal: 让 Agent 可控且可验收"
               : "Goal: controllable & auditable agents",
             lang === "zh"
-              ? "Steps: 明确层级 → 明确契约 → 留下证据"
+              ? "Steps: 层级清晰 → 契约明确 → 证据留存"
               : "Steps: hierarchy → contracts → evidence",
           ]}
         />
@@ -393,10 +393,10 @@ function MiniConsolePreview({ lang }: { lang: HomeLang }) {
           title={taskTitle}
           lines={[
             lang === "zh"
-              ? "Task: 替换首页，新增双语理念文案"
+              ? "Task: 重写首页，更新双语理念文案"
               : "Task: replace homepage with bilingual manifesto",
             lang === "zh"
-              ? "Done: 中/英可切换；含 UI 示例；样式低饱和"
+              ? "Done: 中/英可切换；含 UI 示例；低饱和样式"
               : "Done: zh/en toggle; UI examples; low-sat style",
           ]}
         />
@@ -406,7 +406,7 @@ function MiniConsolePreview({ lang }: { lang: HomeLang }) {
             "tool: file_read web/app/page.tsx",
             "tool: apply_patch web/app/page.tsx",
             lang === "zh"
-              ? "evidence: UI + 文案可直接验收"
+              ? "evidence: UI 与文案可直接验收"
               : "evidence: UI + copy are reviewable",
           ]}
         />
@@ -486,22 +486,22 @@ function HtmlUiExample({ lang }: { lang: HomeLang }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 lg:grid-cols-3">
-          <ExampleCard
-            title="Plan"
-            icon={Eye}
-            lines={[
-              lang === "zh" ? "只展示目标与进度" : "Expose goal + progress",
-              lang === "zh" ? "完整计划留在内部" : "Keep full plan internal",
-            ]}
-          />
-          <ExampleCard
-            title="Clearify"
-            icon={ListChecks}
-            lines={[
-              lang === "zh" ? "任务先声明" : "Declare tasks first",
+            <ExampleCard
+              title="Plan"
+              icon={Eye}
+              lines={[
+              lang === "zh" ? "只呈现目标与进度" : "Expose goal + progress",
+              lang === "zh" ? "完整计划放在内部" : "Keep full plan internal",
+              ]}
+            />
+            <ExampleCard
+              title="Clearify"
+              icon={ListChecks}
+              lines={[
+              lang === "zh" ? "先声明任务" : "Declare tasks first",
               lang === "zh" ? "每项都有验收标准" : "Every task is reviewable",
-            ]}
-          />
+              ]}
+            />
           <ExampleCard
             title="ReAct"
             icon={Wrench}
@@ -640,7 +640,7 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
                     <Bullets
                       items={[
                         lang === "zh"
-                          ? "每个任务都能被一句话验收"
+                          ? "每个任务都能用一句话验收"
                           : "Every task is reviewable in one line",
                         lang === "zh"
                           ? "每次工具调用都能还原上下文"
