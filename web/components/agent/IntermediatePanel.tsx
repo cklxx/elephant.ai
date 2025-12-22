@@ -542,18 +542,18 @@ function ToolCallDetailsPanel({
         className="relative flex h-full w-full flex-col overflow-hidden rounded-none border border-border/50 border-r-0 bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:max-w-[640px] sm:rounded-l-3xl"
         aria-label="Tool call activity"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
+        <header className="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
           <div className="min-w-0 space-y-1">
-            <p className="text-[11px] font-semibold tracking-wide text-muted-foreground/70">
+            <p className="text-[10px] font-semibold tracking-wide text-muted-foreground/70">
               Tool activity
             </p>
             {headline ? (
-              <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
+              <p className="truncate text-[12px] font-semibold tracking-tight text-foreground">
                 {headline}
               </p>
             ) : null}
             {preview ? (
-              <p className="line-clamp-2 text-[12px] leading-snug text-muted-foreground/70">
+              <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground/70">
                 {preview}
               </p>
             ) : null}
@@ -565,7 +565,7 @@ function ToolCallDetailsPanel({
                 stats.completed > 0 ||
                 stats.failed > 0 ||
                 stats.durationLabel) && (
-                <div className="hidden items-center gap-2 border-l border-border/40 pl-3 text-[11px] font-mono tabular-nums text-muted-foreground/70 sm:flex">
+                <div className="hidden items-center gap-2 border-l border-border/40 pl-3 text-[10px] font-mono tabular-nums text-muted-foreground/70 sm:flex">
                   {stats.running > 0 && <span>{stats.running} running</span>}
                   {stats.completed > 0 && <span>{stats.completed} done</span>}
                   {stats.failed > 0 && (
@@ -577,14 +577,14 @@ function ToolCallDetailsPanel({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/50 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-background"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/50 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-background"
               aria-label="Close tool call details"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto space-y-3 px-5 py-4">
+        <div className="flex-1 overflow-y-auto space-y-3 px-4 py-3">
           {children}
         </div>
       </aside>
