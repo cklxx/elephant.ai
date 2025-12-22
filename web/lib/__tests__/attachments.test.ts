@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { buildApiUrl } from "../api-base";
 import { buildAttachmentUri, parseContentSegments } from "../attachments";
 import { AttachmentPayload } from "@/lib/types";
 
@@ -130,6 +131,25 @@ describe("buildAttachmentUri", () => {
         data: "aGVsbG8=",
       }),
     ).toBe("data:image/png;base64,aGVsbG8=");
+  });
+
+  it("ignores non-string URIs and falls back to preview assets", () => {
+    const uri = buildAttachmentUri({
+      name: "image.png",
+      media_type: "image/png",
+      // Simulate a malformed payload from upstream
+      // @ts-expect-error - intentionally non-string
+      uri: { cdn_url: "/api/data/broken" },
+      preview_assets: [
+        {
+          cdn_url: "/api/data/fallback",
+          mime_type: "image/png",
+          preview_type: "thumbnail",
+        },
+      ],
+    });
+
+    expect(uri).toBe(buildApiUrl("/api/data/fallback"));
   });
 
   it("rewrites relative API paths using the configured API base", async () => {
