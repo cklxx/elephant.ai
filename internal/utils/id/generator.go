@@ -22,6 +22,8 @@ var (
 	defaultGenerator = &Generator{strategy: StrategyKSUID}
 )
 
+const taskIDSuffixLength = 6
+
 // Generator produces identifiers for sessions and tasks.
 type Generator struct {
 	mu       sync.RWMutex
@@ -46,7 +48,7 @@ func NewSessionID() string {
 
 // NewTaskID generates a new task identifier with a stable prefix for display.
 func NewTaskID() string {
-	return defaultGenerator.newIdentifier("task")
+	return defaultGenerator.newShortIdentifier("task", taskIDSuffixLength)
 }
 
 // NewRequestID generates a new identifier for LLM requests and correlated logs.
@@ -54,27 +56,23 @@ func NewRequestID() string {
 	return defaultGenerator.newIdentifier("llm")
 }
 
-func (g *Generator) newIdentifier(prefix string) string {
+func (g *Generator) generateBody() string {
 	g.mu.RLock()
 	strategy := g.strategy
 	g.mu.RUnlock()
 
-	var body string
 	switch strategy {
 	case StrategyUUIDv7:
 		uuidv7, err := uuid.NewV7()
 		if err == nil {
-			body = uuidv7.String()
-			break
+			return uuidv7.String()
 		}
 		fallthrough
 	case StrategyKSUID:
-		body = ksuid.New().String()
+		return ksuid.New().String()
 	default:
-		body = ksuid.New().String()
+		return ksuid.New().String()
 	}
-
-	return fmt.Sprintf("%s-%s", prefix, body)
 }
 
 // NewKSUID exposes raw KSUID generation for callers that need unprefixed identifiers.
@@ -89,4 +87,16 @@ func NewUUIDv7() string {
 		return ""
 	}
 	return uuidv7.String()
+}
+
+func (g *Generator) newIdentifier(prefix string) string {
+	return fmt.Sprintf("%s-%s", prefix, g.generateBody())
+}
+
+func (g *Generator) newShortIdentifier(prefix string, tailLen int) string {
+	body := g.generateBody()
+	if tailLen > 0 && len(body) > tailLen {
+		body = body[len(body)-tailLen:]
+	}
+	return fmt.Sprintf("%s-%s", prefix, body)
 }
