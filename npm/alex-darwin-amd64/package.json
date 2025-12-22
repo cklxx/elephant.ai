@@ -1,6 +1,6 @@
 {
   "name": "alex-code-darwin-amd64",
-  "version": "0.5.8",
+  "version": "0.6.0",
   "description": "The Darwin AMD64 binary for alex-code.",
   "main": "index.js",
   "os": [
@@ -11,7 +11,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cklxx/Alex-Code.git"
+    "url": "git+https://github.com/cklxx/elephant.ai.git"
   },
   "keywords": [
     "ai",
@@ -22,9 +22,9 @@
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/cklxx/Alex-Code/issues"
+    "url": "https://github.com/cklxx/elephant.ai/issues"
   },
-  "homepage": "https://github.com/cklxx/Alex-Code#readme",
+  "homepage": "https://github.com/cklxx/elephant.ai#readme",
   "files": [
     "bin"
   ],

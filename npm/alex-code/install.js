@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 
-const REPO = 'cklxx/Alex-Code';
+const REPO = 'cklxx/elephant.ai';
 
 // Dynamically read version from package.json to ensure consistency
 function getVersion() {
