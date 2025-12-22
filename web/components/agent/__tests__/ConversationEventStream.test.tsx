@@ -259,4 +259,127 @@ describe('ConversationEventStream', () => {
     const conversationEvents = screen.getByTestId('conversation-events');
     expect(within(conversationEvents).queryByTestId(/event-workflow.tool.completed/)).not.toBeInTheDocument();
   });
+
+  it('hides clearify events when the plan only returns a single task', () => {
+    const planTimestamp = new Date(Date.now() + 500).toISOString();
+    const clearifyTimestamp = new Date(Date.now() + 1000).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: baseEvent.session_id,
+        task_id: baseEvent.task_id,
+        tool_name: 'plan',
+        result: 'Execute a single clear task',
+        duration: 1,
+        timestamp: planTimestamp,
+        metadata: {
+          internal_plan: {
+            branches: [
+              {
+                branch_goal: 'Only branch',
+                tasks: [{ task_goal: 'Single task', success_criteria: [] }],
+              },
+            ],
+          },
+        },
+      },
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: baseEvent.session_id,
+        task_id: baseEvent.task_id,
+        tool_name: 'clearify',
+        result: 'Single task detail that should not render',
+        duration: 1,
+        timestamp: clearifyTimestamp,
+        metadata: {
+          task_goal_ui: 'Single task detail that should not render',
+          success_criteria: ['explain clearly'],
+        },
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByText(/execute a single clear task/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/single task detail that should not render/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps clearify events visible when the plan includes multiple tasks', () => {
+    const planTimestamp = new Date(Date.now() + 500).toISOString();
+    const clearifyTimestamp = new Date(Date.now() + 1000).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: baseEvent.session_id,
+        task_id: baseEvent.task_id,
+        tool_name: 'plan',
+        result: 'Handle two tasks',
+        duration: 1,
+        timestamp: planTimestamp,
+        metadata: {
+          internal_plan: {
+            branches: [
+              {
+                branch_goal: 'Branch A',
+                tasks: [
+                  { task_goal: 'Task A1', success_criteria: [] },
+                  { task_goal: 'Task A2', success_criteria: [] },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: baseEvent.session_id,
+        task_id: baseEvent.task_id,
+        tool_name: 'clearify',
+        result: 'Multi-task detail should appear',
+        duration: 1,
+        timestamp: clearifyTimestamp,
+        metadata: {
+          task_goal_ui: 'Multi-task detail should appear',
+          success_criteria: ['displayed'],
+        },
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByText(/handle two tasks/i)).toBeInTheDocument();
+    expect(screen.getByText(/multi-task detail should appear/i)).toBeInTheDocument();
+  });
 });

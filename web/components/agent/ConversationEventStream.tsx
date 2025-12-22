@@ -168,6 +168,24 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   return true;
 }
 
+function shouldHideClearify(
+  event: AnyAgentEvent,
+  planTaskCountForSession?: number,
+): boolean {
+  if (planTaskCountForSession !== 1) {
+    return false;
+  }
+
+  if (event.agent_level && event.agent_level !== "core") {
+    return false;
+  }
+
+  return (
+    eventMatches(event, "workflow.tool.completed") &&
+    getToolName(event) === "clearify"
+  );
+}
+
 function partitionEvents(events: AnyAgentEvent[]): {
   displayEvents: AnyAgentEvent[];
   subagentThreads: SubagentThread[];
@@ -175,11 +193,28 @@ function partitionEvents(events: AnyAgentEvent[]): {
   const displayEvents: AnyAgentEvent[] = [];
   const threads = new Map<string, SubagentThread>();
   const arrivalOrder = new WeakMap<AnyAgentEvent, number>();
+  const planTaskCounts = new Map<string, number>();
   let arrival = 0;
 
   events.forEach((event) => {
     arrival += 1;
     arrivalOrder.set(event, arrival);
+
+    const sessionId =
+      typeof event.session_id === "string" && event.session_id.trim()
+        ? event.session_id
+        : null;
+
+    if (sessionId && isPlanToolEvent(event)) {
+      const taskCount = getPlanTaskCount(event);
+      if (taskCount !== null) {
+        planTaskCounts.set(sessionId, taskCount);
+      }
+    }
+
+    if (sessionId && shouldHideClearify(event, planTaskCounts.get(sessionId))) {
+      return;
+    }
     if (isDelegationToolEvent(event)) {
       return;
     }
@@ -302,6 +337,65 @@ function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
   );
 }
 
+function getToolName(event: AnyAgentEvent): string | null {
+  if (
+    !eventMatches(
+      event,
+      "workflow.tool.started",
+      "workflow.tool.progress",
+      "workflow.tool.completed",
+    )
+  ) {
+    return null;
+  }
+
+  const name =
+    ("tool_name" in event && typeof event.tool_name === "string"
+      ? event.tool_name
+      : "tool" in event && typeof (event as any).tool === "string"
+        ? (event as any).tool
+        : "") || "";
+
+  const normalized = name.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+function isPlanToolEvent(event: AnyAgentEvent): boolean {
+  if (!eventMatches(event, "workflow.tool.completed")) {
+    return false;
+  }
+
+  if (event.agent_level && event.agent_level !== "core") {
+    return false;
+  }
+
+  return getToolName(event) === "plan";
+}
+
+function getPlanTaskCount(event: AnyAgentEvent): number | null {
+  if (!isPlanToolEvent(event)) {
+    return null;
+  }
+
+  const metadata =
+    "metadata" in event && event.metadata && typeof event.metadata === "object"
+      ? (event.metadata as Record<string, any>)
+      : null;
+
+  const internalPlan = metadata?.internal_plan ?? metadata?.internalPlan;
+  const branches =
+    internalPlan && Array.isArray(internalPlan.branches)
+      ? internalPlan.branches
+      : [];
+
+  const totalTasks = branches.reduce((count: number, branch: any) => {
+    const tasks = Array.isArray(branch?.tasks) ? branch.tasks : [];
+    return count + tasks.length;
+  }, 0);
+
+  return totalTasks > 0 ? totalTasks : null;
+}
+
 function sortSubagentEvents(
   events: AnyAgentEvent[],
   arrivalOrder: WeakMap<AnyAgentEvent, number>,
@@ -317,24 +411,5 @@ function sortSubagentEvents(
 }
 
 function isDelegationToolEvent(event: AnyAgentEvent): boolean {
-  if (
-    !eventMatches(
-      event,
-      "workflow.tool.started",
-      "workflow.tool.progress",
-      "workflow.tool.completed",
-    )
-  ) {
-    return false;
-  }
-
-  const name =
-    ("tool_name" in event &&
-      typeof (event as any).tool_name === "string" &&
-      (event as any).tool_name) ||
-    ("tool" in event &&
-      typeof (event as any).tool === "string" &&
-      (event as any).tool) ||
-    "";
-  return name.trim().toLowerCase() === "subagent";
+  return getToolName(event) === "subagent";
 }
