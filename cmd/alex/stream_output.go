@@ -170,6 +170,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 
 	handler := NewStreamingOutputHandler(container, verbose)
 	handler.ctx = ctx // Store context for OutputContext lookup
+	handler.printTaskStart(task)
 
 	// Create event bridge
 	bridge := NewStreamEventBridge(handler)
@@ -374,6 +375,21 @@ func (h *StreamingOutputHandler) onTaskComplete(event *domain.WorkflowResultFina
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.lastCompletion = event
+}
+
+func (h *StreamingOutputHandler) printTaskStart(task string) {
+	ids := id.IDsFromContext(h.ctx)
+	outCtx := &types.OutputContext{
+		Level:        types.LevelCore,
+		AgentID:      "core",
+		Verbose:      h.verbose,
+		SessionID:    ids.SessionID,
+		TaskID:       ids.TaskID,
+		ParentTaskID: ids.ParentTaskID,
+	}
+
+	rendered := h.renderer.RenderTaskStart(outCtx, task)
+	h.write(rendered)
 }
 
 func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {

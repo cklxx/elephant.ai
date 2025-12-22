@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"regexp"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/tools/builtin"
+	"alex/internal/utils/id"
 )
 
 func TestHandleSubtaskEventTracksProgress(t *testing.T) {
@@ -111,6 +113,23 @@ func TestStreamingOutputHandlerPrintsInterruptMessages(t *testing.T) {
 	output := out.String()
 	require.Contains(t, output, "Interrupt requested")
 	require.Contains(t, output, "Force exit requested")
+}
+
+func TestStreamingOutputHandlerPrintsTaskStart(t *testing.T) {
+	handler := NewStreamingOutputHandler(nil, false)
+	var out bytes.Buffer
+	handler.SetOutputWriter(&out)
+
+	ctx := id.WithTaskID(id.WithSessionID(context.Background(), "session-123"), "task-456")
+	handler.ctx = ctx
+
+	handler.printTaskStart("demo task")
+
+	output := out.String()
+	require.Contains(t, output, "Start")
+	require.Contains(t, output, "session-123")
+	require.Contains(t, output, "task-456")
+	require.Contains(t, output, "demo task")
 }
 
 func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
