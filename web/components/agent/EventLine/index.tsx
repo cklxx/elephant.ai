@@ -295,7 +295,7 @@ function PlanGoalCard({
     <div className="py-1" data-testid="event-ui-plan">
       <div className="flex items-center">
         <img
-          src="/elephant.jpg"
+          src="/elephant.png"
           alt=""
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"

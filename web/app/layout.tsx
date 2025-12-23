@@ -5,13 +5,17 @@ import { Providers } from "./providers";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"] });
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "elephant.ai",
-  description: "Build controllable, auditable agents with Plan + Clearify + ReAct.",
+  description:
+    "Build controllable, auditable agents with Plan + Clearify + ReAct.",
   icons: {
-    icon: "/elephant.jpg",
+    icon: "/elephant.png",
   },
 };
 
@@ -25,14 +29,12 @@ export default function RootLayout({
       <body
         className={cn(
           "h-full bg-app-canvas text-foreground antialiased",
-          inter.className
+          inter.className,
         )}
       >
         <Providers>
           <ErrorBoundary>
-            <main className="flex min-h-screen flex-col">
-              {children}
-            </main>
+            <main className="flex min-h-screen flex-col">{children}</main>
           </ErrorBoundary>
         </Providers>
       </body>
