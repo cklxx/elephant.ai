@@ -472,7 +472,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
           durationLabel: headlineDurationLabel,
         }}
       >
-        <div className="space-y-4">
+        <div className="space-y-2">
           {timelineItems.map((entry) =>
             entry.kind === "think" ? (
               <ThinkStreamCard

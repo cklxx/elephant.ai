@@ -28,7 +28,7 @@ const EVENT_STYLE_MAP: Record<string, EventStyle> = {
   "workflow.node.failed": { content: "font-semibold text-destructive", line: "is-highlighted" },
   "workflow.tool.started": { content: "text-[12px] text-foreground/80" },
   "workflow.tool.completed": { content: "text-[12px] text-foreground/80" },
-  "workflow.node.output.delta": { content: "text-muted-foreground italic" },
+  "workflow.node.output.delta": { content: "text-muted-foreground italic whitespace-pre-wrap" },
   "workflow.node.output.summary": { content: "text-foreground" },
   "workflow.node.started": {
     content: "text-muted-foreground",

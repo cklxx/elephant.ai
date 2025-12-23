@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
 import { getToolIcon, formatDuration } from '@/lib/utils';
-import { ChevronRight, Loader2, X, Film } from 'lucide-react';
+import { Loader2, X, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { resolveToolRenderer } from './tooling/toolRenderers';
@@ -111,7 +111,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
   return (
     <div
       className={cn(
-        "group mb-2 transition-all",
+        "group mb-1 transition-all",
         isFocused && "bg-muted/10"
       )}
       data-testid={`tool-call-card-${toolName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`}
@@ -122,7 +122,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         onClick={() => setIsExpanded(!isExpanded)}
         data-testid="tool-call-header"
         className={cn(
-          "grid grid-cols-[16px,1fr,auto] items-center gap-x-3 px-3 py-2 cursor-pointer select-none rounded-md",
+          "grid grid-cols-[16px,1fr,auto] items-center gap-x-3 px-3 py-1.5 cursor-pointer select-none rounded-md",
           "text-[13px] leading-snug",
           "bg-secondary/40 hover:bg-secondary/60 transition-colors border border-border/40",
           status === 'running' && "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
@@ -168,19 +168,12 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
           ) : duration ? (
             <span data-testid="tool-call-duration">{duration}</span>
           ) : null}
-          <ChevronRight
-            className={cn(
-              "w-3.5 h-3.5 transition-transform duration-200 text-muted-foreground/70",
-              isExpanded && "rotate-90"
-            )}
-            data-testid="tool-call-expand-icon"
-          />
         </div>
       </div>
 
       {/* Expanded Details - Keep it clean */}
       {isExpanded && (
-        <div className="mt-2 pl-4 pr-1">
+        <div className="mt-1 pl-4 pr-1">
           {showVideoWaitHint && (
             <div className="flex items-center gap-2 p-2 mb-2 text-xs rounded-md bg-amber-50 text-amber-800 border border-amber-100">
               <Film className="w-4 h-4" />

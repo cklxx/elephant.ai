@@ -155,9 +155,9 @@ export const EventLine = React.memo(function EventLine({
       arguments?: Record<string, unknown>;
     };
     const pairedArguments =
-      (completeEvent.arguments &&
-        typeof completeEvent.arguments === "object" &&
-        !Array.isArray(completeEvent.arguments))
+      completeEvent.arguments &&
+      typeof completeEvent.arguments === "object" &&
+      !Array.isArray(completeEvent.arguments)
         ? (completeEvent.arguments as Record<string, unknown>)
         : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
@@ -181,10 +181,7 @@ export const EventLine = React.memo(function EventLine({
     return (
       <div
         data-testid="event-workflow.tool.completed"
-        className={cn(
-          "py-1",
-          !isNested && "pl-2 border-l-2 border-primary/10",
-        )}
+        className={cn("py-1", !isNested && "pl-2 border-l-2 border-primary/10")}
       >
         <ToolOutputCard
           toolName={completeEvent.tool_name}
@@ -299,9 +296,9 @@ function SubagentEventLine({
     };
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
     const pairedArguments =
-      (completeEvent.arguments &&
-        typeof completeEvent.arguments === "object" &&
-        !Array.isArray(completeEvent.arguments))
+      completeEvent.arguments &&
+      typeof completeEvent.arguments === "object" &&
+      !Array.isArray(completeEvent.arguments)
         ? (completeEvent.arguments as Record<string, unknown>)
         : pairedToolStartEvent?.arguments;
     return (
@@ -386,11 +383,11 @@ function PlanGoalCard({
     <div className="py-1" data-testid="event-ui-plan">
       <div className="flex items-center gap-2">
         <ElephantMark
-          className="h-4 w-4 text-muted-foreground/60"
+          className="h-3 w-3 text-muted-foreground/60"
           aria-hidden="true"
           focusable="false"
         />
-        <span className="text-sm font-bold text-muted-foreground/60 tracking-wider">
+        <span className="text-xs font-bold text-muted-foreground/60 tracking-wider">
           Alex
         </span>
       </div>
@@ -461,7 +458,10 @@ function AssistantLogCard({
 }) {
   return (
     <div
-      className={cn("py-2", variant !== "nested" && "pl-4 border-l-2 border-primary/10")}
+      className={cn(
+        "py-2",
+        variant !== "nested" && "pl-4 border-l-2 border-primary/10",
+      )}
       data-testid="event-workflow.node.output.summary"
     >
       <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">

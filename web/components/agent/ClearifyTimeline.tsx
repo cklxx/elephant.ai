@@ -6,7 +6,7 @@ import type {
   WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
 } from "@/lib/types";
-import { ChevronRight, Check, Loader2, CircleHelp } from "lucide-react";
+import { Check, Loader2, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EventLine } from "./EventLine";
 
@@ -18,7 +18,9 @@ export interface ClearifyTaskGroup {
 interface ClearifyTimelineProps {
   groups: ClearifyTaskGroup[];
   isRunning: boolean;
-  resolvePairedToolStart: (event: AnyAgentEvent) => WorkflowToolStartedEvent | undefined;
+  resolvePairedToolStart: (
+    event: AnyAgentEvent,
+  ) => WorkflowToolStartedEvent | undefined;
 }
 
 export function ClearifyTimeline({
@@ -52,7 +54,8 @@ function getGroupKey(group: ClearifyTaskGroup, index: number): string {
       ? group.clearifyEvent.metadata.task_id.trim()
       : "";
   if (metaTaskId) return `clearify:${metaTaskId}`;
-  if (group.clearifyEvent.call_id) return `clearify:call:${group.clearifyEvent.call_id}`;
+  if (group.clearifyEvent.call_id)
+    return `clearify:call:${group.clearifyEvent.call_id}`;
   return `clearify:${group.clearifyEvent.timestamp}:${index}`;
 }
 
@@ -67,32 +70,43 @@ function ClearifyTimelineItem({
   index: number;
   total: number;
   isRunning: boolean;
-  resolvePairedToolStart: (event: AnyAgentEvent) => WorkflowToolStartedEvent | undefined;
+  resolvePairedToolStart: (
+    event: AnyAgentEvent,
+  ) => WorkflowToolStartedEvent | undefined;
 }) {
   const { taskGoalUI, successCriteria, needsUserInput, questionToUser } =
-    useMemo(() => parseClearifyMetadata(group.clearifyEvent), [group.clearifyEvent]);
+    useMemo(
+      () => parseClearifyMetadata(group.clearifyEvent),
+      [group.clearifyEvent],
+    );
 
   const isLast = index === total - 1;
   const isActive = isLast && isRunning;
 
-  const [expanded, setExpanded] = useState<boolean>(() => isLast || needsUserInput);
+  const [expanded, setExpanded] = useState<boolean>(
+    () => isLast || needsUserInput,
+  );
+  const showTail = index < total - 1 || expanded;
 
   return (
     <div
-      className="relative flex gap-3 py-2"
+      className="relative grid grid-cols-[24px,1fr] gap-x-3 py-1"
       data-testid="event-ui-clearify"
     >
       {/* Timeline gutter */}
-      <div className="relative flex w-6 flex-col items-center" aria-hidden="true">
+      <div
+        className="relative flex w-6 justify-center self-stretch"
+        aria-hidden="true"
+      >
         {index > 0 ? (
-          <div className="h-2 w-px border-l border-dashed border-border/60" />
-        ) : (
-          <div className="h-2 w-px border-l border-transparent" />
-        )}
-
+          <div className="absolute left-1/2 top-0 h-[14px] w-px -translate-x-1/2 bg-border/50" />
+        ) : null}
+        {showTail ? (
+          <div className="absolute left-1/2 top-[14px] bottom-0 w-px -translate-x-1/2 bg-border/50" />
+        ) : null}
         <div
           className={cn(
-            "relative z-10 flex h-5 w-5 items-center justify-center rounded-full border bg-background",
+            "relative z-10 mt-1 flex h-5 w-5 items-center justify-center rounded-full border bg-background",
             needsUserInput
               ? "border-amber-300/60 bg-amber-50/60 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
               : isActive
@@ -108,12 +122,6 @@ function ClearifyTimelineItem({
             <Check className="h-3 w-3" />
           )}
         </div>
-
-        {index < total - 1 ? (
-          <div className="mt-1 flex-1 w-px border-l border-dashed border-border/60" />
-        ) : (
-          <div className="mt-1 flex-1 w-px border-l border-transparent" />
-        )}
       </div>
 
       {/* Content */}
@@ -122,23 +130,23 @@ function ClearifyTimelineItem({
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "group flex w-full items-start justify-between gap-3 rounded-md px-2 py-1 text-left",
+            "group flex w-full items-center justify-between gap-3 rounded-md px-2 py-0.5 text-left",
             "hover:bg-muted/20 transition-colors",
           )}
           aria-expanded={expanded}
         >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground truncate">
+              <span className="text-sm text-foreground truncate">
                 {taskGoalUI}
               </span>
               {needsUserInput ? (
-                <span className="text-[10px] font-semibold tracking-wide text-amber-700 dark:text-amber-200">
+                <span className="text-[10px] tracking-wide text-amber-700 dark:text-amber-200">
                   Needs input
                 </span>
               ) : null}
               {isActive ? (
-                <span className="text-[10px] font-semibold tracking-wide text-primary">
+                <span className="text-[10px] tracking-wide text-primary">
                   Active
                 </span>
               ) : null}
@@ -150,18 +158,10 @@ function ClearifyTimelineItem({
               </div>
             ) : null}
           </div>
-
-          <ChevronRight
-            className={cn(
-              "mt-0.5 h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
-              expanded && "rotate-90",
-            )}
-            aria-hidden="true"
-          />
         </button>
 
         {expanded ? (
-          <div className="pl-2 pr-1 pt-1 space-y-3">
+          <div className="pl-2 pr-1 pt-1 space-y-2">
             {successCriteria.length > 0 ? (
               <ul className="list-disc pl-5 text-xs text-muted-foreground/80 space-y-1">
                 {successCriteria.map((crit) => (
@@ -177,7 +177,7 @@ function ClearifyTimelineItem({
             ) : null}
 
             {group.events.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {group.events.map((event, idx) => (
                   <EventLine
                     key={`${event.event_type}-${event.timestamp}-${idx}`}
@@ -230,4 +230,3 @@ function parseClearifyMetadata(event: WorkflowToolCompletedEvent): {
     questionToUser,
   };
 }
-

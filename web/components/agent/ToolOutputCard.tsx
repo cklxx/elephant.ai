@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, cn, getToolIcon } from "@/lib/utils";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
@@ -211,14 +211,6 @@ export function ToolOutputCard({
           )}
         </div>
 
-        <ChevronRight
-          className={cn(
-            "h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
-            isExpanded && "rotate-90",
-          )}
-          data-testid="tool-expand-icon"
-          aria-hidden="true"
-        />
       </button>
 
       {/* Expanded Content */}

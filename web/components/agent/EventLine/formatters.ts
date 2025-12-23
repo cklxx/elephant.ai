@@ -47,8 +47,13 @@ export function formatContent(event: AnyAgentEvent): string {
       return `Iteration ${(event as any).iteration}/${(event as any).total_iters}`;
     }
 
-    case eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta'):
-      return eventMatches(event, 'workflow.node.output.delta') ? 'Thinking...' : (event as any).delta ?? 'Thinking...';
+    case eventMatches(event, 'workflow.node.output.delta'): {
+      const delta = (event as any).delta;
+      if (typeof delta === 'string' && delta.length > 0) {
+        return delta;
+      }
+      return '';
+    }
 
     case eventMatches(event, 'workflow.node.output.summary', 'workflow.node.output.summary'):
       if ('content' in event) {

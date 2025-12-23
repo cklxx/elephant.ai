@@ -141,22 +141,24 @@ export function ConversationEventStream({
             return (
               <div
                 key={entry.thread.key}
-                className="pl-4 ml-2 border-l-2 border-primary/10 my-2"
+                className="group my-2 -mx-2 px-2"
                 data-testid="subagent-thread"
                 data-subagent-key={entry.thread.key}
               >
-                <div className="mb-2">
-                  <SubagentHeader context={entry.thread.context} />
-                </div>
-                <div className="flex flex-col">
-                  {entry.thread.events.map((ev, i) => (
-                    <EventLine
-                      key={`${entry.thread.key}-${ev.event_type}-${ev.timestamp}-${i}`}
-                      event={ev}
-                      showSubagentContext={false}
-                      pairedToolStartEvent={resolvePairedToolStart(ev)}
-                    />
-                  ))}
+                <div className="rounded-xl border border-border/40 bg-muted/10 p-2 transition-colors group-hover:bg-muted/20">
+                  <div className="mb-2">
+                    <SubagentHeader context={entry.thread.context} />
+                  </div>
+                  <div className="space-y-1">
+                    {entry.thread.events.map((ev, i) => (
+                      <EventLine
+                        key={`${entry.thread.key}-${ev.event_type}-${ev.timestamp}-${i}`}
+                        event={ev}
+                        showSubagentContext={false}
+                        pairedToolStartEvent={resolvePairedToolStart(ev)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -309,6 +311,9 @@ function partitionEvents(events: AnyAgentEvent[]): {
 
       const thread = threads.get(key)!;
       thread.context = mergeSubagentContext(thread.context, context);
+      if (maybeMergeDeltaEvent(thread.events, event)) {
+        return;
+      }
       thread.events.push(event);
       return;
     }
@@ -340,6 +345,61 @@ function partitionEvents(events: AnyAgentEvent[]): {
         return 0;
       }),
   };
+}
+
+function maybeMergeDeltaEvent(
+  events: AnyAgentEvent[],
+  incoming: AnyAgentEvent,
+): boolean {
+  if (!eventMatches(incoming, "workflow.node.output.delta")) {
+    return false;
+  }
+
+  const delta = (incoming as any).delta;
+  if (typeof delta !== "string" || delta.length === 0) {
+    return true;
+  }
+
+  const last = events[events.length - 1];
+  if (!last || !eventMatches(last, "workflow.node.output.delta")) {
+    return false;
+  }
+
+  const lastNodeId = typeof (last as any).node_id === "string" ? (last as any).node_id : "";
+  const incomingNodeId =
+    typeof (incoming as any).node_id === "string" ? (incoming as any).node_id : "";
+
+  if ((lastNodeId || incomingNodeId) && lastNodeId !== incomingNodeId) {
+    return false;
+  }
+  if (last.session_id !== incoming.session_id) {
+    return false;
+  }
+  if ((last.task_id ?? "") !== (incoming.task_id ?? "")) {
+    return false;
+  }
+  if ((last.parent_task_id ?? "") !== (incoming.parent_task_id ?? "")) {
+    return false;
+  }
+  if ((last.agent_level ?? "") !== (incoming.agent_level ?? "")) {
+    return false;
+  }
+
+  const MAX_DELTA_CHARS = 10_000;
+  const mergedDeltaRaw = `${(last as any).delta ?? ""}${delta}`;
+  const mergedDelta =
+    mergedDeltaRaw.length > MAX_DELTA_CHARS
+      ? mergedDeltaRaw.slice(-MAX_DELTA_CHARS)
+      : mergedDeltaRaw;
+  const merged = {
+    ...(last as any),
+    ...(incoming as any),
+    delta: mergedDelta,
+    timestamp: incoming.timestamp ?? last.timestamp,
+  } as AnyAgentEvent;
+
+  events[events.length - 1] = merged;
+  return true;
 }
 
 type DisplayEntry =
