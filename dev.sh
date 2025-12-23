@@ -136,6 +136,64 @@ stop_port_listeners() {
   done
 }
 
+port_listener_pids() {
+  local port="$1"
+
+  if ! command_exists lsof; then
+    return 0
+  fi
+
+  lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+pid_executable_path() {
+  local pid="$1"
+
+  if ! command_exists lsof; then
+    return 1
+  fi
+
+  lsof -nP -p "$pid" 2>/dev/null | awk '$4 ~ /txt/ {print $9; exit}'
+}
+
+is_our_backend_pid() {
+  local pid="$1"
+  local backend_bin="${SCRIPT_DIR}/alex-server"
+  local exe
+
+  exe="$(pid_executable_path "$pid" || true)"
+  [[ -n "$exe" && "$exe" == "$backend_bin" ]]
+}
+
+backend_listener_pids() {
+  local port="$1"
+  local pid
+
+  for pid in $(port_listener_pids "$port"); do
+    if is_our_backend_pid "$pid"; then
+      echo "$pid"
+    fi
+  done
+}
+
+die_port_in_use() {
+  local port="$1"
+  local name="$2"
+  local upper_name
+  upper_name="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
+
+  log_error "${name} port ${port} is already in use. Stop the process or set ${upper_name}_PORT."
+  if command_exists lsof; then
+    local listeners
+    listeners="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    if [[ -n "$listeners" ]]; then
+      log_error "Listeners:"
+      printf '%s\n' "$listeners" | sed 's/^/  /' >&2
+    fi
+  fi
+  exit 1
+}
+
 stop_service() {
   local name="$1"
   local pid_file="$2"
@@ -180,9 +238,7 @@ assert_port_available() {
   local port="$1"
   local name="$2"
   if ! is_port_available "$port"; then
-    local upper_name
-    upper_name="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
-    die "${name} port ${port} is already in use. Stop the process or set ${upper_name}_PORT."
+    die_port_in_use "$port" "$name"
   fi
 }
 
@@ -233,6 +289,32 @@ start_server() {
   if is_process_running "$pid"; then
     log_info "Backend already running (PID: ${pid})"
     return 0
+  fi
+
+  if ! is_port_available "$SERVER_PORT"; then
+    local backend_pids=()
+    while IFS= read -r pid; do
+      [[ -n "$pid" ]] && backend_pids+=("$pid")
+    done < <(backend_listener_pids "$SERVER_PORT")
+
+    if ((${#backend_pids[@]} == 1)); then
+      log_warn "Backend already listening on :${SERVER_PORT} (PID: ${backend_pids[0]}); restoring PID file"
+      echo "${backend_pids[0]}" >"${SERVER_PID_FILE}"
+      return 0
+    fi
+
+    if ((${#backend_pids[@]} > 1)); then
+      log_warn "Multiple backend listeners detected on :${SERVER_PORT}; cannot determine which one to manage:"
+      for pid in "${backend_pids[@]}"; do
+        local cmd
+        cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+        if [[ -n "$cmd" ]]; then
+          log_warn "  PID ${pid}: ${cmd}"
+        else
+          log_warn "  PID ${pid}"
+        fi
+      done
+    fi
   fi
 
   assert_port_available "$SERVER_PORT" "server"
@@ -304,6 +386,25 @@ cmd_down() {
   stop_service "Web" "${WEB_PID_FILE}"
   cleanup_next_dev_lock
   stop_service "Backend" "${SERVER_PID_FILE}"
+
+  local backend_pids=()
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] && backend_pids+=("$pid")
+  done < <(backend_listener_pids "$SERVER_PORT")
+  if ((${#backend_pids[@]} > 0)); then
+    log_warn "Found orphaned backend listener(s) on :${SERVER_PORT} without PID file; stopping..."
+    for pid in "${backend_pids[@]}"; do
+      local cmd
+      cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+      if [[ -n "$cmd" ]]; then
+        log_warn "Stopping PID ${pid}: ${cmd}"
+      else
+        log_warn "Stopping PID ${pid}"
+      fi
+      stop_pid "$pid" "backend port ${SERVER_PORT} listener"
+    done
+  fi
 }
 
 cmd_status() {
@@ -314,7 +415,19 @@ cmd_status() {
   if is_process_running "$server_pid"; then
     log_success "Backend: running (PID: ${server_pid}) http://localhost:${SERVER_PORT}"
   else
-    log_warn "Backend: stopped"
+    local backend_pids=()
+    local pid
+    while IFS= read -r pid; do
+      [[ -n "$pid" ]] && backend_pids+=("$pid")
+    done < <(backend_listener_pids "$SERVER_PORT")
+
+    if ((${#backend_pids[@]} == 1)); then
+      log_success "Backend: running (PID: ${backend_pids[0]}) http://localhost:${SERVER_PORT} (PID file missing)"
+    elif ((${#backend_pids[@]} > 1)); then
+      log_warn "Backend: multiple listeners on :${SERVER_PORT} (PID file missing)"
+    else
+      log_warn "Backend: stopped"
+    fi
   fi
 
   if is_process_running "$web_pid"; then
