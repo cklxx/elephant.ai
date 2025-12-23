@@ -21,11 +21,13 @@ import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
 import { AgentMarkdown } from "../AgentMarkdown";
+import { ElephantMark } from "@/components/icons/ElephantMark";
 
 interface EventLineProps {
   event: AnyAgentEvent;
   showSubagentContext?: boolean;
   pairedToolStartEvent?: WorkflowToolStartedEvent | null;
+  variant?: "default" | "nested";
 }
 
 /**
@@ -36,8 +38,10 @@ export const EventLine = React.memo(function EventLine({
   event,
   showSubagentContext = true,
   pairedToolStartEvent = null,
+  variant = "default",
 }: EventLineProps) {
   const isSubtaskEvent = isSubagentLike(event);
+  const isNested = variant === "nested";
 
   if (isSubtaskEvent) {
     return (
@@ -177,7 +181,10 @@ export const EventLine = React.memo(function EventLine({
     return (
       <div
         data-testid="event-workflow.tool.completed"
-        className="py-1 pl-2 border-l-2 border-primary/10"
+        className={cn(
+          "py-1",
+          !isNested && "pl-2 border-l-2 border-primary/10",
+        )}
       >
         <ToolOutputCard
           toolName={completeEvent.tool_name}
@@ -236,7 +243,10 @@ export const EventLine = React.memo(function EventLine({
 
         return (
           <div
-            className="py-2 pl-4 border-l-2 border-primary/10"
+            className={cn(
+              "py-2",
+              !isNested && "pl-4 border-l-2 border-primary/10",
+            )}
             data-testid="event-workflow.node.output.summary"
           >
             <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
@@ -247,6 +257,7 @@ export const EventLine = React.memo(function EventLine({
         <AssistantLogCard
           content={thinkEvent.content}
           timestamp={thinkEvent.timestamp}
+          variant={variant}
         />
       );
     }
@@ -374,7 +385,12 @@ function PlanGoalCard({
   return (
     <div className="py-1" data-testid="event-ui-plan">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
+        <ElephantMark
+          className="h-3 w-3 text-muted-foreground/60"
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span className="text-xs font-bold text-muted-foreground/60 tracking-wider">
           Alex
         </span>
       </div>
@@ -437,13 +453,15 @@ function ClearifyTaskCard({
 function AssistantLogCard({
   content,
   timestamp,
+  variant = "default",
 }: {
   content: string;
   timestamp?: string;
+  variant?: "default" | "nested";
 }) {
   return (
     <div
-      className="py-2 pl-4 border-l-2 border-primary/10"
+      className={cn("py-2", variant !== "nested" && "pl-4 border-l-2 border-primary/10")}
       data-testid="event-workflow.node.output.summary"
     >
       <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">

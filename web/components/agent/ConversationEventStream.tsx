@@ -6,6 +6,7 @@ import {
   WorkflowToolStartedEvent,
   eventMatches,
 } from "@/lib/types";
+import type { WorkflowToolCompletedEvent } from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { LoadingDots } from "@/components/ui/loading-states";
 import {
@@ -15,6 +16,7 @@ import {
   getSubagentContext,
   isSubagentLike,
 } from "./EventLine";
+import { ClearifyTimeline, type ClearifyTaskGroup } from "./ClearifyTimeline";
 
 interface ConversationEventStreamProps {
   events: AnyAgentEvent[];
@@ -38,6 +40,11 @@ export function ConversationEventStream({
   const { displayEvents, subagentThreads } = useMemo(
     () => partitionEvents(events),
     [events],
+  );
+
+  const displayEntries = useMemo(
+    () => buildDisplayEntriesWithClearifyTimeline(displayEvents),
+    [displayEvents],
   );
 
   const toolStartEventsByCallKey = useMemo(() => {
@@ -74,14 +81,26 @@ export function ConversationEventStream({
   const combinedEntries = useMemo(() => {
     type CombinedEntry =
       | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
+      | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number }
       | { kind: "subagent"; thread: SubagentThread; ts: number; order: number };
 
-    const entries: CombinedEntry[] = displayEvents.map((event, idx) => ({
-      kind: "event",
-      event,
-      ts: Date.parse(event.timestamp ?? "") || 0,
-      order: idx,
-    }));
+    const entries: CombinedEntry[] = displayEntries.map((entry, idx) => {
+      if (entry.kind === "event") {
+        return {
+          kind: "event",
+          event: entry.event,
+          ts: Date.parse(entry.event.timestamp ?? "") || 0,
+          order: idx,
+        };
+      }
+
+      return {
+        kind: "clearifyTimeline",
+        groups: entry.groups,
+        ts: entry.ts,
+        order: idx,
+      };
+    });
 
     subagentThreads.forEach((thread, idx) => {
       const first = thread.events[0];
@@ -89,7 +108,7 @@ export function ConversationEventStream({
         kind: "subagent",
         thread,
         ts: (first && Date.parse(first.timestamp ?? "")) || 0,
-        order: idx,
+        order: displayEntries.length + idx,
       });
     });
 
@@ -97,7 +116,7 @@ export function ConversationEventStream({
       if (a.ts !== b.ts) return a.ts - b.ts;
       return a.order - b.order;
     });
-  }, [displayEvents, subagentThreads]);
+  }, [displayEntries, subagentThreads]);
 
   if (!isConnected || error) {
     return (
@@ -139,6 +158,22 @@ export function ConversationEventStream({
                     />
                   ))}
                 </div>
+              </div>
+            );
+          }
+
+          if (entry.kind === "clearifyTimeline") {
+            return (
+              <div
+                key={`clearify-timeline-${entry.ts}-${index}`}
+                className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
+                data-testid="clearify-timeline-entry"
+              >
+                <ClearifyTimeline
+                  groups={entry.groups}
+                  isRunning={isRunning}
+                  resolvePairedToolStart={resolvePairedToolStart}
+                />
               </div>
             );
           }
@@ -305,6 +340,86 @@ function partitionEvents(events: AnyAgentEvent[]): {
         return 0;
       }),
   };
+}
+
+type DisplayEntry =
+  | { kind: "event"; event: AnyAgentEvent }
+  | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number };
+
+function isClearifyToolEvent(event: AnyAgentEvent): boolean {
+  if (!eventMatches(event, "workflow.tool.completed")) {
+    return false;
+  }
+
+  if (event.agent_level && event.agent_level !== "core") {
+    return false;
+  }
+
+  return getToolName(event) === "clearify";
+}
+
+function buildDisplayEntriesWithClearifyTimeline(
+  displayEvents: AnyAgentEvent[],
+): DisplayEntry[] {
+  const entries: DisplayEntry[] = [];
+  const groups: ClearifyTaskGroup[] = [];
+  let currentGroup: ClearifyTaskGroup | null = null;
+  let timelineTs: number | null = null;
+  let timelineStarted = false;
+
+  for (const event of displayEvents) {
+    if (isClearifyToolEvent(event)) {
+      timelineStarted = true;
+      if (timelineTs === null) {
+        timelineTs = Date.parse(event.timestamp ?? "") || 0;
+      }
+      if (currentGroup) {
+        groups.push(currentGroup);
+      }
+      currentGroup = {
+        clearifyEvent: event as WorkflowToolCompletedEvent,
+        events: [],
+      };
+      continue;
+    }
+
+    const isTerminal = eventMatches(
+      event,
+      "workflow.result.final",
+      "workflow.result.cancelled",
+    );
+
+    if (timelineStarted && isTerminal) {
+      if (currentGroup) {
+        groups.push(currentGroup);
+        currentGroup = null;
+      }
+      entries.push({ kind: "clearifyTimeline", groups: [...groups], ts: timelineTs ?? 0 });
+      groups.length = 0;
+      timelineStarted = false;
+      timelineTs = null;
+      entries.push({ kind: "event", event });
+      continue;
+    }
+
+    if (timelineStarted && currentGroup) {
+      currentGroup.events.push(event);
+      continue;
+    }
+
+    entries.push({ kind: "event", event });
+  }
+
+  if (timelineStarted) {
+    if (currentGroup) {
+      groups.push(currentGroup);
+    }
+    if (groups.length > 0) {
+      entries.push({ kind: "clearifyTimeline", groups, ts: timelineTs ?? 0 });
+    }
+  }
+
+  return entries;
 }
 
 function mergeSubagentContext(

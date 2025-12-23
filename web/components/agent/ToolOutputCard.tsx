@@ -190,7 +190,10 @@ export function ToolOutputCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-3">
             <span
-              className="min-w-0 flex-1 truncate text-xs tracking-tight"
+              className={cn(
+                "min-w-0 flex-1 truncate text-xs tracking-tight",
+                resolvedStatus === "completed" && "text-muted-foreground/80",
+              )}
               data-testid="tool-name"
             >
               {displayToolName}
