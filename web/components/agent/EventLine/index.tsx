@@ -21,7 +21,6 @@ import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
 import { AgentMarkdown } from "../AgentMarkdown";
-import { ElephantMark } from "@/components/icons/ElephantMark";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -382,10 +381,11 @@ function PlanGoalCard({
   return (
     <div className="py-1" data-testid="event-ui-plan">
       <div className="flex items-center gap-2">
-        <ElephantMark
-          className="h-3 w-3 text-muted-foreground/60"
+        <img
+          src="/elephant.jpg"
+          alt=""
+          className="h-3 w-3 rounded-sm object-cover"
           aria-hidden="true"
-          focusable="false"
         />
         <span className="text-xs font-bold text-muted-foreground/60 tracking-wider">
           Alex
