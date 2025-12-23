@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -15,7 +17,8 @@ import (
 )
 
 const (
-	defaultHistoryBatchSize = 500
+	defaultHistoryBatchSize               = 500
+	historyInlineAttachmentRetentionLimit = 128 * 1024
 )
 
 type eventRecord struct {
@@ -337,27 +340,23 @@ func stripBinaryPayloads(value any) any {
 	case nil:
 		return nil
 	case ports.Attachment:
-		v.Data = ""
-		return v
+		return sanitizeAttachmentForHistory(v)
 	case *ports.Attachment:
 		if v == nil {
 			return nil
 		}
-		cleaned := *v
-		cleaned.Data = ""
+		cleaned := sanitizeAttachmentForHistory(*v)
 		return &cleaned
 	case map[string]ports.Attachment:
 		cleaned := make(map[string]ports.Attachment, len(v))
 		for key, att := range v {
-			att.Data = ""
-			cleaned[key] = att
+			cleaned[key] = sanitizeAttachmentForHistory(att)
 		}
 		return cleaned
 	case []ports.Attachment:
 		cleaned := make([]ports.Attachment, len(v))
 		for i, att := range v {
-			att.Data = ""
-			cleaned[i] = att
+			cleaned[i] = sanitizeAttachmentForHistory(att)
 		}
 		return cleaned
 	case map[string]any:
@@ -381,6 +380,48 @@ func stripBinaryPayloads(value any) any {
 	}
 
 	return value
+}
+
+func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
+	mediaType := strings.TrimSpace(att.MediaType)
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+		att.MediaType = mediaType
+	}
+
+	inline := strings.TrimSpace(ports.AttachmentInlineBase64(att))
+	if inline != "" {
+		size := base64.StdEncoding.DecodedLen(len(inline))
+		if shouldRetainInlinePayload(mediaType, size) {
+			att.Data = inline
+			// Avoid persisting redundant data URIs; keep the base64-only payload.
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") {
+				att.URI = ""
+			}
+			return att
+		}
+	}
+
+	// Default: drop inline payloads; rely on URI (e.g. CDN URL) when present.
+	att.Data = ""
+	return att
+}
+
+func shouldRetainInlinePayload(mediaType string, size int) bool {
+	if size <= 0 || size > historyInlineAttachmentRetentionLimit {
+		return false
+	}
+
+	media := strings.ToLower(strings.TrimSpace(mediaType))
+	if media == "" {
+		return false
+	}
+
+	if strings.HasPrefix(media, "text/") {
+		return true
+	}
+
+	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
 }
 
 func eventFromRecord(record eventRecord) (ports.AgentEvent, error) {

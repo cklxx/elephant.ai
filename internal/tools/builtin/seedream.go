@@ -798,7 +798,6 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 				firstFrameKind,
 				firstFrameMimeTypeResolved,
 			)
-			t.embedRemoteAttachmentData(ctx, attachments)
 
 			metadata["task_id"] = taskID
 			metadata["poll_interval_seconds"] = int(pollInterval / time.Second)
@@ -965,23 +964,19 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 			urlStr = *item.Url
 			entry["url"] = urlStr
 		}
-		var encoded string
-		if item.B64Json != nil && *item.B64Json != "" {
-			encoded = *item.B64Json
-		}
 		placeholder := fmt.Sprintf("%s_%d.png", requestID, idx)
 		entry["placeholder"] = placeholder
 		attachmentURI := strings.TrimSpace(urlStr)
-		if attachmentURI == "" && encoded != "" {
-			attachmentURI = fmt.Sprintf("data:image/png;base64,%s", encoded)
-		}
-		attachments[placeholder] = ports.Attachment{
-			Name:        placeholder,
-			MediaType:   "image/png",
-			Data:        encoded,
-			URI:         attachmentURI,
-			Source:      "seedream",
-			Description: attachmentDescription,
+		if attachmentURI == "" {
+			entry["warning"] = "missing url; base64 payload omitted"
+		} else {
+			attachments[placeholder] = ports.Attachment{
+				Name:        placeholder,
+				MediaType:   "image/png",
+				URI:         attachmentURI,
+				Source:      "seedream",
+				Description: attachmentDescription,
+			}
 		}
 		images = append(images, entry)
 	}
@@ -1020,6 +1015,8 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 			fmt.Fprintf(&builder, "%d. [%s]", idx+1, placeholder)
 			if url != "" {
 				fmt.Fprintf(&builder, " (url: %s)", url)
+			} else if warning, _ := img["warning"].(string); strings.TrimSpace(warning) != "" {
+				fmt.Fprintf(&builder, " (%s)", warning)
 			}
 			builder.WriteString("\n")
 		}
@@ -1635,32 +1632,10 @@ func formatSeedreamVideoResponse(resp *arkm.GetContentGenerationTaskResponse, de
 }
 
 func (t *seedreamVideoTool) embedRemoteAttachmentData(ctx context.Context, attachments map[string]ports.Attachment) {
-	if len(attachments) == 0 {
-		return
-	}
-
-	for key, att := range attachments {
-		if strings.TrimSpace(att.URI) == "" || att.Data != "" {
-			continue
-		}
-		lowerURI := strings.ToLower(strings.TrimSpace(att.URI))
-		if !strings.HasPrefix(lowerURI, "http://") && !strings.HasPrefix(lowerURI, "https://") {
-			continue
-		}
-
-		limit := inlineLimitForMedia(att.MediaType)
-		payload, mediaType, err := t.downloadAsset(ctx, att.URI, limit)
-		if err != nil {
-			logging.OrNop(t.logger).Debug("Seedream inline fetch skipped for %s: %v", att.URI, err)
-			continue
-		}
-
-		if strings.TrimSpace(att.MediaType) == "" && strings.TrimSpace(mediaType) != "" {
-			att.MediaType = mediaType
-		}
-		att.Data = base64.StdEncoding.EncodeToString(payload)
-		attachments[key] = att
-	}
+	_ = ctx
+	_ = attachments
+	// URL-only attachments: keep the original URI and avoid embedding large payloads
+	// as base64 in session/event payloads.
 }
 
 func inlineLimitForMedia(mediaType string) int64 {

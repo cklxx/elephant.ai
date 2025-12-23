@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,12 +28,13 @@ const maxCreateTaskBodySize = 1 << 20 // 1 MiB
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
-	coordinator   *app.ServerCoordinator
-	healthChecker *app.HealthCheckerImpl
-	logger        logging.Logger
-	internalMode  bool
-	obs           *observability.Observability
-	evaluationSvc *app.EvaluationService
+	coordinator     *app.ServerCoordinator
+	healthChecker   *app.HealthCheckerImpl
+	logger          logging.Logger
+	internalMode    bool
+	obs             *observability.Observability
+	evaluationSvc   *app.EvaluationService
+	attachmentStore *AttachmentStore
 }
 
 // APIHandlerOption configures API handler behavior.
@@ -49,6 +51,14 @@ func WithAPIObservability(obs *observability.Observability) APIHandlerOption {
 func WithEvaluationService(service *app.EvaluationService) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.evaluationSvc = service
+	}
+}
+
+// WithAttachmentStore wires an attachment store used to persist client-provided payloads
+// and expose them as URL-backed attachments.
+func WithAttachmentStore(store *AttachmentStore) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.attachmentStore = store
 	}
 }
 
@@ -363,25 +373,63 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 			return nil, fmt.Errorf("attachment media_type is required")
 		}
 
-		data := strings.TrimSpace(incoming.Data)
 		uri := strings.TrimSpace(incoming.URI)
-		if data == "" && uri == "" {
+		data := strings.TrimSpace(incoming.Data)
+		if uri == "" && data == "" {
 			return nil, fmt.Errorf("attachment '%s' must include data or uri", name)
+		}
+
+		lowerURI := strings.ToLower(strings.TrimSpace(uri))
+		if strings.HasPrefix(lowerURI, "data:") {
+			data = uri
+			uri = ""
+		}
+
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(data)), "data:") {
+			_, decoded, ok := decodeDataURI(data)
+			if !ok {
+				return nil, fmt.Errorf("attachment '%s' includes invalid data uri", name)
+			}
+			if h.attachmentStore == nil {
+				return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
+			}
+			storedURI, err := h.attachmentStore.StoreBytes(name, mediaType, decoded)
+			if err != nil {
+				return nil, fmt.Errorf("store attachment '%s': %w", name, err)
+			}
+			uri = storedURI
+			data = ""
+		} else if uri == "" && data != "" {
+			decoded, err := base64.StdEncoding.DecodeString(data)
+			if err != nil {
+				return nil, fmt.Errorf("attachment '%s' includes invalid base64 payload", name)
+			}
+			if len(decoded) == 0 {
+				return nil, fmt.Errorf("attachment '%s' payload is empty", name)
+			}
+			if h.attachmentStore == nil {
+				return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
+			}
+			storedURI, err := h.attachmentStore.StoreBytes(name, mediaType, decoded)
+			if err != nil {
+				return nil, fmt.Errorf("store attachment '%s': %w", name, err)
+			}
+			uri = storedURI
+		}
+
+		if uri == "" || strings.HasPrefix(strings.ToLower(strings.TrimSpace(uri)), "data:") {
+			return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
 		}
 
 		attachment := agentports.Attachment{
 			Name:                name,
 			MediaType:           mediaType,
-			Data:                data,
 			URI:                 uri,
 			Description:         strings.TrimSpace(incoming.Description),
 			Source:              "user_upload",
 			Kind:                strings.TrimSpace(incoming.Kind),
 			Format:              strings.TrimSpace(incoming.Format),
 			RetentionTTLSeconds: incoming.RetentionTTLSeconds,
-		}
-		if attachment.URI == "" && attachment.Data != "" {
-			attachment.URI = fmt.Sprintf("data:%s;base64,%s", attachment.MediaType, attachment.Data)
 		}
 		attachments = append(attachments, attachment)
 	}

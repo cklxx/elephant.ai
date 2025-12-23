@@ -155,6 +155,30 @@ func (t *artifactsList) Execute(ctx context.Context, call ports.ToolCall) (*port
 		}
 	}
 
+	if target != "" && len(resultAttachments) == 0 {
+		for key, att := range attachments {
+			uri := strings.TrimSpace(att.URI)
+			if uri == "" {
+				continue
+			}
+			if uri == target || strings.EqualFold(uri, target) {
+				resultAttachments[key] = att
+				break
+			}
+		}
+	}
+
+	if target != "" && len(resultAttachments) == 0 {
+		if payload, ok := extractDataURIBase64(target); ok {
+			for key, att := range attachments {
+				if strings.TrimSpace(att.Data) == payload {
+					resultAttachments[key] = att
+					break
+				}
+			}
+		}
+	}
+
 	// If a specific attachment was requested but not found, return an error
 	if target != "" && len(resultAttachments) == 0 {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("attachment not found: %s", target)}, nil
@@ -255,4 +279,28 @@ func unwrapArtifactPlaceholderName(value string) string {
 		return trimmed
 	}
 	return name
+}
+
+func extractDataURIBase64(value string) (string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", false
+	}
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "data:") {
+		return "", false
+	}
+	comma := strings.Index(trimmed, ",")
+	if comma < 0 {
+		return "", false
+	}
+	meta := strings.ToLower(trimmed[:comma])
+	if !strings.Contains(meta, ";base64") {
+		return "", false
+	}
+	payload := strings.TrimSpace(trimmed[comma+1:])
+	if payload == "" {
+		return "", false
+	}
+	return payload, true
 }

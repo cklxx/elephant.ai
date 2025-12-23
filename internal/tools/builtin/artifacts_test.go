@@ -84,11 +84,13 @@ func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
 }
 
 func TestArtifactsListReturnsSnapshot(t *testing.T) {
+	notePayload := base64.StdEncoding.EncodeToString([]byte("content"))
 	attachments := map[string]ports.Attachment{
 		"note.md": {
 			Name:        "note.md",
 			MediaType:   "text/markdown",
-			Data:        base64.StdEncoding.EncodeToString([]byte("content")),
+			Data:        notePayload,
+			URI:         "data:text/markdown;base64," + notePayload,
 			Description: "notes",
 		},
 		"image.png": {Name: "image.png", MediaType: "image/png"},
@@ -122,6 +124,15 @@ func TestArtifactsListReturnsSnapshot(t *testing.T) {
 	}
 	if _, ok := targeted.Attachments["note.md"]; !ok {
 		t.Fatalf("expected placeholder name to resolve: %+v", targeted.Attachments)
+	}
+
+	call.Arguments = map[string]any{"name": attachments["note.md"].URI}
+	targeted, err = tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := targeted.Attachments["note.md"]; !ok {
+		t.Fatalf("expected data URI to resolve: %+v", targeted.Attachments)
 	}
 }
 

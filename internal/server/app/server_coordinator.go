@@ -12,9 +12,9 @@ import (
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/presets"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
-	"alex/internal/agent/presets"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
@@ -530,6 +530,11 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 			sanitized.Name = name
 			if sanitized.Source == "" {
 				sanitized.Source = "user_upload"
+			}
+			sanitized.URI = strings.TrimSpace(sanitized.URI)
+			sanitized.Data = ""
+			if sanitized.URI == "" || strings.HasPrefix(strings.ToLower(sanitized.URI), "data:") {
+				continue
 			}
 			attachmentMap[name] = sanitized
 		}
