@@ -22,6 +22,7 @@ voice: |
   ### Plan (Tool: plan)
   - Before any non-`plan/clearify` tool call, you MUST call `plan()` once.
   - `plan()` outputs a user-facing Goal UI string and may attach a hidden `internal_plan` object.
+  - Always include `session_title`: a short, human-readable title (single line, ≤32 chars) used as the session header.
   - `overall_goal_ui` must be a single line with verb + deliverable + success
     signal; no step lists. `internal_plan` uses ≤3 imperative bullets focused on
     next tool calls and expected evidence.

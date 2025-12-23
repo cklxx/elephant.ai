@@ -194,28 +194,43 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	if len(calls) == 0 {
 		return false, ""
 	}
-	if len(calls) > 1 {
-		return true, "每轮仅允许 1 次工具调用。请只保留一个最关键的工具调用并重试。"
+
+	hasPlan := false
+	hasClearify := false
+	for _, call := range calls {
+		name := strings.ToLower(strings.TrimSpace(call.Name))
+		switch name {
+		case "plan":
+			hasPlan = true
+		case "clearify":
+			hasClearify = true
+		}
 	}
 
-	name := strings.ToLower(strings.TrimSpace(calls[0].Name))
-	switch name {
-	case "plan":
-		return false, ""
-	case "clearify":
-		if !r.planEmitted {
-			return true, r.planGatePrompt()
-		}
-		return false, ""
-	default:
-		if !r.planEmitted {
-			return true, r.planGatePrompt()
-		}
-		if r.currentTaskID == "" || !r.clearifyEmitted[r.currentTaskID] {
-			return true, r.clearifyGatePrompt()
+	if hasPlan {
+		if len(calls) > 1 {
+			return true, "plan() 必须单独调用。请移除同轮其它工具调用并重试。"
 		}
 		return false, ""
 	}
+
+	if hasClearify {
+		if len(calls) > 1 {
+			return true, "clearify() 必须单独调用。请移除同轮其它工具调用并重试。"
+		}
+		if !r.planEmitted {
+			return true, r.planGatePrompt()
+		}
+		return false, ""
+	}
+
+	if !r.planEmitted {
+		return true, r.planGatePrompt()
+	}
+	if r.currentTaskID == "" || !r.clearifyEmitted[r.currentTaskID] {
+		return true, r.clearifyGatePrompt()
+	}
+	return false, ""
 }
 
 func (r *reactRuntime) planGatePrompt() string {
@@ -227,6 +242,7 @@ func (r *reactRuntime) planGatePrompt() string {
 请先调用 plan()（仅此一个工具调用），并满足：
 - run_id: %q
 - complexity: "simple" 或 "complex"
+- session_title: (推荐) 会话短标题（单行，≤32字）
 - overall_goal_ui: 目标/范围描述（complex 可多行；simple 必须单行）
 - internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单
 plan() 成功后再继续。`, runID))

@@ -90,28 +90,28 @@ function ClearifyTimelineItem({
 
   return (
     <div
-      className="relative grid grid-cols-[20px,1fr] gap-x-1 py-1"
+      className="relative grid grid-cols-[16px,1fr] gap-x-0.5 py-1"
       data-testid="event-ui-clearify"
     >
       {/* Timeline gutter */}
       <div
-        className="relative flex w-5 justify-center self-stretch"
+        className="relative flex w-4 justify-center self-stretch"
         aria-hidden="true"
       >
         {index > 0 ? (
-          <div className="absolute left-1/2 top-0 h-[14px] w-px -translate-x-1/2 bg-border/50" />
+          <div className="absolute left-1/2 top-0 h-[12px] w-px -translate-x-1/2 bg-border/50" />
         ) : null}
         {showTail ? (
-          <div className="absolute left-1/2 top-[14px] bottom-0 w-px -translate-x-1/2 bg-border/50" />
+          <div className="absolute left-1/2 top-[12px] bottom-0 w-px -translate-x-1/2 bg-border/50" />
         ) : null}
         <div
           className={cn(
-            "relative z-10 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border",
+            "relative z-10 mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border",
             needsUserInput
               ? "border-amber-300/60 bg-amber-50/60 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
               : isActive
                 ? "border-primary/60 bg-transparent text-primary"
-                : "border-primary/40 bg-primary/15 text-primary",
+                : "border-primary bg-primary text-primary-foreground",
           )}
         >
           {needsUserInput ? (

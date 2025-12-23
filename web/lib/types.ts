@@ -121,6 +121,7 @@ export interface TaskStatusResponse {
 
 export interface Session {
   id: string;
+  title?: string | null;
   created_at: string;
   updated_at: string;
   task_count: number;

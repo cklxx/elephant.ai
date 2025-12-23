@@ -22,6 +22,7 @@ import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { AlexWordmark } from "@/components/ui/alex-wordmark";
+import Image from "next/image";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -295,9 +296,12 @@ function PlanGoalCard({
   return (
     <div className="py-1" data-testid="event-ui-plan">
       <div className="flex items-center">
-        <img
+        <Image
           src="/elephant.jpg"
           alt=""
+          width={36}
+          height={36}
+          sizes="36px"
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
@@ -376,9 +380,10 @@ function AssistantLogCard({
       )}
       data-testid="event-workflow.node.output.summary"
     >
-      <div className="text-sm text-foreground whitespace-pre-wrap leading-normal">
-        {content}
-      </div>
+      <AgentMarkdown
+        content={content}
+        className="prose max-w-none text-sm leading-normal text-foreground"
+      />
     </div>
   );
 }

@@ -39,6 +39,10 @@ Rules:
 					Type:        "string",
 					Description: "Run identifier (must match the current run_id provided by the system).",
 				},
+				"session_title": {
+					Type:        "string",
+					Description: "Short session title used for session headers/lists (single-line).",
+				},
 				"overall_goal_ui": {
 					Type:        "string",
 					Description: "User-facing goal UI text. For complexity=simple it must be single-line.",
@@ -103,10 +107,24 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	var sessionTitle string
+	if raw, exists := call.Arguments["session_title"]; exists {
+		value, ok := raw.(string)
+		if !ok {
+			err := fmt.Errorf("session_title must be a string")
+			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		}
+		sessionTitle = strings.TrimSpace(value)
+		if sessionTitle != "" && (strings.Contains(sessionTitle, "\n") || strings.Contains(sessionTitle, "\r")) {
+			err := fmt.Errorf("session_title must be single-line")
+			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		}
+	}
+
 	// Reject unexpected parameters to keep the protocol strict.
 	for key := range call.Arguments {
 		switch key {
-		case "run_id", "overall_goal_ui", "complexity", "internal_plan":
+		case "run_id", "session_title", "overall_goal_ui", "complexity", "internal_plan":
 		default:
 			err := fmt.Errorf("unsupported parameter: %s", key)
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -117,6 +135,9 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 		"run_id":          runID,
 		"overall_goal_ui": goal,
 		"complexity":      complexity,
+	}
+	if sessionTitle != "" {
+		metadata["session_title"] = sessionTitle
 	}
 	if internalPlan, exists := call.Arguments["internal_plan"]; exists {
 		metadata["internal_plan"] = internalPlan

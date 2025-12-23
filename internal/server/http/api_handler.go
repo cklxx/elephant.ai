@@ -394,14 +394,14 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 				return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
 			}
 			storedURI, err := h.attachmentStore.StoreBytes(name, mediaType, decoded)
-				if err != nil {
-					return nil, fmt.Errorf("store attachment '%s': %w", name, err)
-				}
-				uri = storedURI
-			} else if uri == "" && data != "" {
-				decoded, err := base64.StdEncoding.DecodeString(data)
-				if err != nil {
-					return nil, fmt.Errorf("attachment '%s' includes invalid base64 payload", name)
+			if err != nil {
+				return nil, fmt.Errorf("store attachment '%s': %w", name, err)
+			}
+			uri = storedURI
+		} else if uri == "" && data != "" {
+			decoded, err := base64.StdEncoding.DecodeString(data)
+			if err != nil {
+				return nil, fmt.Errorf("attachment '%s' includes invalid base64 payload", name)
 			}
 			if len(decoded) == 0 {
 				return nil, fmt.Errorf("attachment '%s' payload is empty", name)
@@ -466,6 +466,7 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 // SessionResponse matches TypeScript Session interface
 type SessionResponse struct {
 	ID        string `json:"id"`
+	Title     string `json:"title,omitempty"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 	TaskCount int    `json:"task_count"`
@@ -510,6 +511,7 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 
 		sessions = append(sessions, SessionResponse{
 			ID:        session.ID,
+			Title:     strings.TrimSpace(session.Metadata["title"]),
 			CreatedAt: session.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: session.UpdatedAt.Format(time.RFC3339),
 			TaskCount: taskCount,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
@@ -122,6 +123,73 @@ func NewAgentCoordinator(
 	return coordinator
 }
 
+type planSessionTitleRecorder struct {
+	mu    sync.Mutex
+	title string
+	sink  ports.EventListener
+}
+
+func (r *planSessionTitleRecorder) OnEvent(event ports.AgentEvent) {
+	if event == nil {
+		return
+	}
+
+	if tc, ok := event.(*domain.WorkflowToolCompletedEvent); ok {
+		if tc.Error == nil && strings.EqualFold(strings.TrimSpace(tc.ToolName), "plan") {
+			if title := extractPlanSessionTitle(tc.Metadata); title != "" {
+				r.mu.Lock()
+				r.title = title
+				r.mu.Unlock()
+			}
+		}
+	}
+
+	if r.sink != nil {
+		r.sink.OnEvent(event)
+	}
+}
+
+func (r *planSessionTitleRecorder) Title() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.title
+}
+
+func extractPlanSessionTitle(metadata map[string]any) string {
+	if metadata == nil {
+		return ""
+	}
+
+	if raw, ok := metadata["session_title"].(string); ok {
+		if title := normalizeSessionTitle(raw); title != "" {
+			return title
+		}
+	}
+
+	if raw, ok := metadata["overall_goal_ui"].(string); ok {
+		return normalizeSessionTitle(raw)
+	}
+
+	return ""
+}
+
+func normalizeSessionTitle(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	if idx := strings.IndexAny(trimmed, "\r\n"); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
+
+	runes := []rune(trimmed)
+	const maxRunes = 32
+	if len(runes) > maxRunes {
+		trimmed = string(runes[:maxRunes]) + "…"
+	}
+	return trimmed
+}
+
 // ExecuteTask executes a task with optional event listener for streaming output
 func (c *AgentCoordinator) ExecuteTask(
 	ctx context.Context,
@@ -132,6 +200,11 @@ func (c *AgentCoordinator) ExecuteTask(
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive both legacy and semantic workflow.* events.
 	eventListener := wrapWithWorkflowEnvelope(listener, nil)
+	var planTitleRecorder *planSessionTitleRecorder
+	if eventListener != nil && !isSubagentContext(ctx) {
+		planTitleRecorder = &planSessionTitleRecorder{sink: eventListener}
+		eventListener = planTitleRecorder
+	}
 
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx, ensuredTaskID := id.EnsureTaskID(ctx, id.NewTaskID)
@@ -260,6 +333,14 @@ func (c *AgentCoordinator) ExecuteTask(
 		c.logger.Debug("Skipping session persistence for subagent execution")
 		wf.succeed(stagePersist, "skipped (subagent context)")
 	} else {
+		if planTitleRecorder != nil {
+			if title := strings.TrimSpace(planTitleRecorder.Title()); title != "" {
+				if env.Session.Metadata == nil {
+					env.Session.Metadata = make(map[string]string)
+				}
+				env.Session.Metadata["title"] = title
+			}
+		}
 		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
 			wf.fail(stagePersist, err)
 			return attachWorkflow(result, env), err

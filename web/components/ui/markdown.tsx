@@ -128,7 +128,7 @@ export function MarkdownRenderer({
     h1: ({ className: headingClass, ...props }: any) => (
       <h2
         className={cn(
-          "mt-3 mb-2 scroll-m-20 text-base font-semibold leading-snug tracking-tight",
+          "mt-3 mb-2 scroll-m-20 text-base font-medium leading-snug tracking-tight",
           headingClass,
         )}
         {...props}
@@ -137,7 +137,7 @@ export function MarkdownRenderer({
     h2: ({ className: headingClass, ...props }: any) => (
       <h3
         className={cn(
-          "mt-2 mb-2 scroll-m-20 text-base font-semibold leading-snug tracking-tight",
+          "mt-2 mb-2 scroll-m-20 text-base font-medium leading-snug tracking-tight",
           headingClass,
         )}
         {...props}
@@ -181,7 +181,7 @@ export function MarkdownRenderer({
     ),
     strong: ({ className: strongClass, ...props }: any) => (
       <strong
-        className={cn("font-semibold text-foreground", strongClass)}
+        className={cn("font-medium text-foreground", strongClass)}
         {...props}
       />
     ),

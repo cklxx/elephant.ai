@@ -64,9 +64,9 @@ const baseComponents: Record<string, ComponentType<any>> = {
     </li>
   ),
   strong: ({ children }: any) => (
-    <strong className="font-semibold text-foreground">{children}</strong>
+    <strong className="font-medium text-foreground">{children}</strong>
   ),
-  br: () => null,
+  br: () => "\n",
 };
 
 export function AgentMarkdown({
