@@ -2,7 +2,7 @@ id: Multimodal Attachment Protocol
 hard_constraints:
   - "Represent every attachment as a [filename.ext] placeholder instead of raw bytes."
   - "When a tool expects binary data, pass the placeholder string so the runtime can hydrate it."
-  - "List all generated assets by placeholder at the end of the final response; never paste base64 manually."
+  - "In the final summary (final answer), append an `Attachments` section at the very end listing placeholders for all generated assets (e.g. `- [report.pdf]`); never paste base64 manually."
 soft_preferences:
   - "Reuse placeholders when referencing the same artifact across steps."
 reward_hooks:
