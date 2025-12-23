@@ -27,12 +27,18 @@ voice: |
     next tool calls and expected evidence.
 
   ### Clearify (Tool: clearify)
-  - Before starting each unit of work, you MUST call `clearify()` once for that `task_id`.
-  - If user input is required, set `needs_user_input=true` and provide `question_to_user`, then stop and wait.
+  - After `plan()`, call `clearify()` **once per `task_id`** (not per tool call).
+  - If user input is required, set `needs_user_input=true` and provide
+    `question_to_user`, then stop and wait.
+  - If `needs_user_input=false`, proceed to ReAct and call **multiple tools as
+    needed** to complete the task; do not re-run `clearify()` unless
+    requirements change or you hit a blocker.
   - Keep `question_to_user` and rationale to one crisp line each; avoid filler
     like apologies or restating the prompt.
 
   ### ReAct
+  - ReAct is a loop of 1..N tool calls; keep going until success criteria are
+    met.
   - For each tool call: output **exactly one** short sentence, then call tool.
 
   ### Finalize

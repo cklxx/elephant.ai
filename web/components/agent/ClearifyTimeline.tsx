@@ -90,12 +90,12 @@ function ClearifyTimelineItem({
 
   return (
     <div
-      className="relative grid grid-cols-[24px,1fr] gap-x-3 py-1"
+      className="relative grid grid-cols-[20px,1fr] gap-x-2 py-1"
       data-testid="event-ui-clearify"
     >
       {/* Timeline gutter */}
       <div
-        className="relative flex w-6 justify-center self-stretch"
+        className="relative flex w-5 justify-center self-stretch"
         aria-hidden="true"
       >
         {index > 0 ? (
@@ -130,7 +130,7 @@ function ClearifyTimelineItem({
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "group flex w-full items-center justify-between gap-3 rounded-md px-2 py-0.5 text-left",
+            "group flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left",
             "hover:bg-muted/20 transition-colors",
           )}
           aria-expanded={expanded}
@@ -161,7 +161,7 @@ function ClearifyTimelineItem({
         </button>
 
         {expanded ? (
-          <div className="pl-2 pr-1 pt-1 space-y-2">
+          <div className="pl-1 pr-1 pt-1 space-y-2">
             {successCriteria.length > 0 ? (
               <ul className="list-disc pl-5 text-xs text-muted-foreground/80 space-y-1">
                 {successCriteria.map((crit) => (
