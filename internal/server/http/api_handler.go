@@ -394,15 +394,14 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 				return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
 			}
 			storedURI, err := h.attachmentStore.StoreBytes(name, mediaType, decoded)
-			if err != nil {
-				return nil, fmt.Errorf("store attachment '%s': %w", name, err)
-			}
-			uri = storedURI
-			data = ""
-		} else if uri == "" && data != "" {
-			decoded, err := base64.StdEncoding.DecodeString(data)
-			if err != nil {
-				return nil, fmt.Errorf("attachment '%s' includes invalid base64 payload", name)
+				if err != nil {
+					return nil, fmt.Errorf("store attachment '%s': %w", name, err)
+				}
+				uri = storedURI
+			} else if uri == "" && data != "" {
+				decoded, err := base64.StdEncoding.DecodeString(data)
+				if err != nil {
+					return nil, fmt.Errorf("attachment '%s' includes invalid base64 payload", name)
 			}
 			if len(decoded) == 0 {
 				return nil, fmt.Errorf("attachment '%s' payload is empty", name)
