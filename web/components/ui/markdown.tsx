@@ -7,7 +7,10 @@ import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { ComponentType, useMemo, useState } from "react";
 import { VideoPreview } from "@/components/ui/video-preview";
-import { buildAttachmentUri, getAttachmentSegmentType } from "@/lib/attachments";
+import {
+  buildAttachmentUri,
+  getAttachmentSegmentType,
+} from "@/lib/attachments";
 import { AttachmentPayload } from "@/lib/types";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -79,10 +82,7 @@ export function MarkdownRenderer({
 
     if (isInline) {
       return (
-        <code
-          className={cn(className)}
-          {...props}
-        >
+        <code className={cn(className)} {...props}>
           {children}
         </code>
       );
@@ -94,12 +94,15 @@ export function MarkdownRenderer({
         code={String(children).replace(/\n$/, "")}
         language={language}
       >
-        {({ className: resolvedClassName, style, tokens, getLineProps, getTokenProps }) => (
+        {({
+          className: resolvedClassName,
+          style,
+          tokens,
+          getLineProps,
+          getTokenProps,
+        }) => (
           <pre
-            className={cn(
-              resolvedClassName,
-              className,
-            )}
+            className={cn(resolvedClassName, className)}
             style={style}
             {...props}
           >
@@ -125,7 +128,7 @@ export function MarkdownRenderer({
     h1: ({ className: headingClass, ...props }: any) => (
       <h2
         className={cn(
-          "mt-5 mb-2 scroll-m-20 text-base font-semibold leading-snug tracking-tight",
+          "mt-3 mb-2 scroll-m-20 text-base font-semibold leading-snug tracking-tight",
           headingClass,
         )}
         {...props}
@@ -134,7 +137,7 @@ export function MarkdownRenderer({
     h2: ({ className: headingClass, ...props }: any) => (
       <h3
         className={cn(
-          "mt-4 mb-2 scroll-m-20 text-base font-semibold leading-snug tracking-tight",
+          "mt-2 mb-2 scroll-m-20 text-base font-semibold leading-snug tracking-tight",
           headingClass,
         )}
         {...props}
@@ -143,7 +146,7 @@ export function MarkdownRenderer({
     h3: ({ className: headingClass, ...props }: any) => (
       <h4
         className={cn(
-          "mt-4 mb-1.5 scroll-m-20 text-base font-medium leading-snug tracking-tight",
+          "mt-2 mb-1.5 scroll-m-20 text-base font-medium leading-snug tracking-tight",
           headingClass,
         )}
         {...props}
@@ -161,7 +164,7 @@ export function MarkdownRenderer({
     h5: ({ className: headingClass, ...props }: any) => (
       <h6
         className={cn(
-          "mt-3 mb-1 scroll-m-20 text-base font-medium leading-snug text-muted-foreground",
+          "mt-2 mb-1 scroll-m-20 text-base font-medium leading-snug text-muted-foreground",
           headingClass,
         )}
         {...props}
@@ -170,25 +173,35 @@ export function MarkdownRenderer({
     h6: ({ className: headingClass, ...props }: any) => (
       <h6
         className={cn(
-          "mt-3 mb-1 scroll-m-20 text-base font-medium leading-snug text-muted-foreground",
+          "mt-2 mb-1 scroll-m-20 text-base font-medium leading-snug text-muted-foreground",
           headingClass,
         )}
         {...props}
       />
     ),
     strong: ({ className: strongClass, ...props }: any) => (
-      <strong className={cn("font-semibold text-foreground", strongClass)} {...props} />
+      <strong
+        className={cn("font-semibold text-foreground", strongClass)}
+        {...props}
+      />
     ),
-    hr: (props: any) => <hr className={cn("my-6", props.className)} {...props} />,
+    hr: (props: any) => (
+      <hr className={cn("my-6", props.className)} {...props} />
+    ),
     a: ({ className: linkClassName, href, children, ...props }: any) => {
-      const matchedAttachment = href ? inlineAttachmentMap.get(href) : undefined;
+      const matchedAttachment = href
+        ? inlineAttachmentMap.get(href)
+        : undefined;
 
       if (matchedAttachment?.type === "video") {
         return (
           <VideoPreview
             src={href}
             mimeType={matchedAttachment.mime || "video/mp4"}
-            description={matchedAttachment.description || (typeof children === "string" ? children : undefined)}
+            description={
+              matchedAttachment.description ||
+              (typeof children === "string" ? children : undefined)
+            }
             className="my-2 max-w-full"
             maxHeight="320px"
             maxWidth="480px"
@@ -197,11 +210,7 @@ export function MarkdownRenderer({
       }
 
       return (
-        <a
-          className={cn(linkClassName)}
-          href={href}
-          {...props}
-        >
+        <a className={cn(linkClassName)} href={href} {...props}>
           {children}
         </a>
       );
@@ -259,7 +268,10 @@ export function MarkdownRenderer({
   return (
     <div className={cn("markdown-body", containerClassName)}>
       <MarkdownPreview
-        className={cn("markdown-body__content prose prose-sm max-w-none text-foreground", className)}
+        className={cn(
+          "markdown-body__content prose prose-sm max-w-none text-foreground",
+          className,
+        )}
         source={content}
         remarkPlugins={[remarkGfm]}
         wrapperElement={{ "data-color-mode": "light" }}
@@ -271,7 +283,13 @@ export function MarkdownRenderer({
 
 export type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
 
-export function MarkdownImage({ className, alt, src, style, ...props }: MarkdownImageProps) {
+export function MarkdownImage({
+  className,
+  alt,
+  src,
+  style,
+  ...props
+}: MarkdownImageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   if (!src) {
