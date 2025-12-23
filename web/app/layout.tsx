@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "
 export const metadata: Metadata = {
   title: "elephant.ai",
   description: "Build controllable, auditable agents with Plan + Clearify + ReAct.",
+  icons: {
+    icon: "/elephant.jpg",
+  },
 };
 
 export default function RootLayout({
