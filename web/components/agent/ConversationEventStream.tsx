@@ -141,22 +141,27 @@ export function ConversationEventStream({
             return (
               <div
                 key={entry.thread.key}
-                className="group my-2 -mx-2 px-2"
+                className="group my-2 -mx-2 px-2 transition-colors rounded-lg hover:bg-muted/10"
                 data-testid="subagent-thread"
                 data-subagent-key={entry.thread.key}
               >
-                <div className="rounded-xl border border-border/40 bg-muted/10 p-2 transition-colors group-hover:bg-muted/20">
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-2 transition-colors group-hover:bg-muted/20">
                   <div className="mb-2">
                     <SubagentHeader context={entry.thread.context} />
                   </div>
                   <div className="space-y-1">
                     {entry.thread.events.map((ev, i) => (
-                      <EventLine
+                      <div
                         key={`${entry.thread.key}-${ev.event_type}-${ev.timestamp}-${i}`}
-                        event={ev}
-                        showSubagentContext={false}
-                        pairedToolStartEvent={resolvePairedToolStart(ev)}
-                      />
+                        className="transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2"
+                      >
+                        <EventLine
+                          event={ev}
+                          showSubagentContext={false}
+                          pairedToolStartEvent={resolvePairedToolStart(ev)}
+                          variant="nested"
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>

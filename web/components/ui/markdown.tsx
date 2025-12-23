@@ -122,6 +122,60 @@ export function MarkdownRenderer({
   };
 
   const defaultComponents: Record<string, ComponentType<any>> = {
+    h1: ({ className: headingClass, ...props }: any) => (
+      <h2
+        className={cn(
+          "mt-6 mb-2 scroll-m-20 text-lg font-semibold leading-tight tracking-tight",
+          headingClass,
+        )}
+        {...props}
+      />
+    ),
+    h2: ({ className: headingClass, ...props }: any) => (
+      <h3
+        className={cn(
+          "mt-5 mb-2 scroll-m-20 text-base font-semibold leading-tight tracking-tight",
+          headingClass,
+        )}
+        {...props}
+      />
+    ),
+    h3: ({ className: headingClass, ...props }: any) => (
+      <h4
+        className={cn(
+          "mt-4 mb-1.5 scroll-m-20 text-sm font-semibold leading-tight tracking-tight",
+          headingClass,
+        )}
+        {...props}
+      />
+    ),
+    h4: ({ className: headingClass, ...props }: any) => (
+      <h5
+        className={cn(
+          "mt-4 mb-1.5 scroll-m-20 text-sm font-medium leading-tight text-foreground/90",
+          headingClass,
+        )}
+        {...props}
+      />
+    ),
+    h5: ({ className: headingClass, ...props }: any) => (
+      <h6
+        className={cn(
+          "mt-3 mb-1 scroll-m-20 text-xs font-medium leading-tight text-muted-foreground",
+          headingClass,
+        )}
+        {...props}
+      />
+    ),
+    h6: ({ className: headingClass, ...props }: any) => (
+      <h6
+        className={cn(
+          "mt-3 mb-1 scroll-m-20 text-xs font-medium leading-tight text-muted-foreground",
+          headingClass,
+        )}
+        {...props}
+      />
+    ),
     hr: (props: any) => <hr className={cn("my-6", props.className)} {...props} />,
     a: ({ className: linkClassName, href, children, ...props }: any) => {
       const matchedAttachment = href ? inlineAttachmentMap.get(href) : undefined;
