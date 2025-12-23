@@ -2,7 +2,9 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,7 +20,18 @@ import (
 
 const (
 	replayTaskPrefix = "replay"
+	migrationMarker  = ".migrated_to_postgres_v1"
+
+	envSkipSessionMigration  = "ALEX_SKIP_SESSION_MIGRATION"
+	envForceSessionMigration = "ALEX_FORCE_SESSION_MIGRATION"
 )
+
+type sessionMigrationMarker struct {
+	Version        int       `json:"version"`
+	CompletedAt    time.Time `json:"completed_at"`
+	SourceSessions int       `json:"source_sessions"`
+	DestSessions   int       `json:"dest_sessions"`
+}
 
 // MigrateSessionsToDatabase migrates file-backed sessions into the provided stores.
 func MigrateSessionsToDatabase(
@@ -41,6 +54,20 @@ func MigrateSessionsToDatabase(
 		return nil
 	}
 
+	if envBool(envSkipSessionMigration) {
+		logger.Info("Session migration skipped (%s enabled)", envSkipSessionMigration)
+		return nil
+	}
+
+	markerPath := filepath.Join(sessionDir, migrationMarker)
+	force := envBool(envForceSessionMigration)
+	if !force {
+		if _, err := os.Stat(markerPath); err == nil {
+			logger.Info("Session migration skipped (marker present: %s)", markerPath)
+			return nil
+		}
+	}
+
 	sourceSessions := filestore.New(sessionDir)
 	sourceSnapshots := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
 	sourceHistory := sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
@@ -49,34 +76,63 @@ func MigrateSessionsToDatabase(
 	if err != nil {
 		return fmt.Errorf("list sessions for migration: %w", err)
 	}
+	ids = filterSessionIDsForMigration(ids)
 	if len(ids) == 0 {
 		return nil
 	}
 
+	if !force {
+		if destIDs, err := destSessions.List(ctx); err == nil && len(destIDs) >= len(ids) {
+			logger.Info(
+				"Session migration skipped (destination already has %d sessions; source=%d)",
+				len(destIDs),
+				len(ids),
+			)
+			_ = writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
+				Version:        1,
+				CompletedAt:    time.Now().UTC(),
+				SourceSessions: len(ids),
+				DestSessions:   len(destIDs),
+			})
+			return nil
+		}
+	}
+
+	startedAt := time.Now()
 	logger.Info("Migrating %d sessions to database", len(ids))
-	for _, sessionID := range ids {
+	var migratedCount int
+	var failures int
+	for idx, sessionID := range ids {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		sessionStartedAt := time.Now()
 		session, err := sourceSessions.Get(ctx, sessionID)
 		if err != nil {
 			logger.Warn("Skipping session %s: %v", sessionID, err)
+			failures++
 			continue
 		}
 		if err := destSessions.Save(ctx, session); err != nil {
 			logger.Warn("Failed to migrate session %s: %v", sessionID, err)
+			failures++
+		} else {
+			migratedCount++
 		}
 
 		if err := migrateSnapshots(ctx, sourceSnapshots, destSnapshots, sessionID); err != nil {
 			logger.Warn("Failed to migrate snapshots for session %s: %v", sessionID, err)
+			failures++
 		}
 		if err := migrateSnapshots(ctx, sourceHistory, destHistory, sessionID); err != nil {
 			logger.Warn("Failed to migrate history turns for session %s: %v", sessionID, err)
+			failures++
 		}
 
 		hasEvents, err := historyStore.HasSessionEvents(ctx, sessionID)
 		if err != nil {
 			logger.Warn("Failed to check event history for session %s: %v", sessionID, err)
+			failures++
 			continue
 		}
 		if hasEvents {
@@ -86,6 +142,7 @@ func MigrateSessionsToDatabase(
 		turns, err := loadSnapshots(ctx, sourceHistory, sessionID)
 		if err != nil {
 			logger.Warn("Failed to load turn history for session %s: %v", sessionID, err)
+			failures++
 			continue
 		}
 		if len(turns) == 0 && session != nil && len(session.Messages) > 0 {
@@ -100,13 +157,87 @@ func MigrateSessionsToDatabase(
 		for _, event := range buildReplayEvents(sessionID, turns) {
 			if err := historyStore.Append(ctx, event); err != nil {
 				logger.Warn("Failed to persist replay event for session %s: %v", sessionID, err)
+				failures++
 				break
 			}
 		}
+
+		sessionElapsed := time.Since(sessionStartedAt)
+		if sessionElapsed > 3*time.Second {
+			logger.Info(
+				"Migrated session %s (%d/%d) elapsed=%s",
+				sessionID,
+				idx+1,
+				len(ids),
+				sessionElapsed.Truncate(time.Millisecond),
+			)
+		} else if (idx+1)%10 == 0 {
+			logger.Info(
+				"Migrating sessions... %d/%d (elapsed=%s)",
+				idx+1,
+				len(ids),
+				time.Since(startedAt).Truncate(time.Second),
+			)
+		}
 	}
 
-	logger.Info("Session migration complete")
+	elapsed := time.Since(startedAt)
+	logger.Info(
+		"Session migration complete (migrated=%d/%d failures=%d elapsed=%s)",
+		migratedCount,
+		len(ids),
+		failures,
+		elapsed.Truncate(time.Millisecond),
+	)
+	_ = writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
+		Version:        1,
+		CompletedAt:    time.Now().UTC(),
+		SourceSessions: len(ids),
+		DestSessions:   migratedCount,
+	})
 	return nil
+}
+
+func envBool(name string) bool {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return false
+	}
+	switch strings.ToLower(value) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func writeSessionMigrationMarker(path string, marker sessionMigrationMarker) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	data, err := json.MarshalIndent(marker, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
+func filterSessionIDsForMigration(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	filtered := make([]string, 0, len(ids))
+	for _, sessionID := range ids {
+		trimmed := strings.TrimSpace(sessionID)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasSuffix(trimmed, "_attachments") {
+			continue
+		}
+		filtered = append(filtered, trimmed)
+	}
+	return filtered
 }
 
 func migrateSnapshots(ctx context.Context, source, dest sessionstate.Store, sessionID string) error {

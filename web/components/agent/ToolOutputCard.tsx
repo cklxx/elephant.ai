@@ -190,17 +190,6 @@ export function ToolOutputCard({
             >
               {displayToolName}
             </span>
-
-            <div className="flex flex-none flex-wrap items-center justify-end gap-2">
-              {attachmentCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="rounded-md px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
-                >
-                  {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
-                </Badge>
-              )}
-            </div>
           </div>
 
           {debugMode && callId && (
