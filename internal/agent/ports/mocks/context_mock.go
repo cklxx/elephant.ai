@@ -10,6 +10,7 @@ import (
 type MockContextManager struct {
 	EstimateTokensFunc func(messages []ports.Message) int
 	CompressFunc       func(messages []ports.Message, targetTokens int) ([]ports.Message, error)
+	AutoCompactFunc    func(messages []ports.Message, limit int) ([]ports.Message, bool)
 	ShouldCompressFunc func(messages []ports.Message, limit int) bool
 	PreloadFunc        func(ctx context.Context) error
 	BuildWindowFunc    func(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error)
@@ -28,6 +29,13 @@ func (m *MockContextManager) Compress(messages []ports.Message, targetTokens int
 		return m.CompressFunc(messages, targetTokens)
 	}
 	return messages, nil
+}
+
+func (m *MockContextManager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
+	if m.AutoCompactFunc != nil {
+		return m.AutoCompactFunc(messages, limit)
+	}
+	return messages, false
 }
 
 func (m *MockContextManager) ShouldCompress(messages []ports.Message, limit int) bool {

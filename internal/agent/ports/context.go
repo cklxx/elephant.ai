@@ -14,6 +14,11 @@ type ContextManager interface {
 	// Compress reduces message size when limit approached.
 	Compress(messages []Message, targetTokens int) ([]Message, error)
 
+	// AutoCompact applies compression automatically when the configured
+	// threshold is exceeded. It returns the possibly compacted slice and a flag
+	// indicating whether compaction occurred.
+	AutoCompact(messages []Message, limit int) ([]Message, bool)
+
 	// ShouldCompress checks if compression needed.
 	ShouldCompress(messages []Message, limit int) bool
 

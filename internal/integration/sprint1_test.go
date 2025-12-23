@@ -587,6 +587,10 @@ func (m *testContextManager) Compress(messages []ports.Message, targetTokens int
 	return messages, nil
 }
 
+func (m *testContextManager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
+	return messages, false
+}
+
 func (m *testContextManager) ShouldCompress(messages []ports.Message, limit int) bool {
 	return false
 }
