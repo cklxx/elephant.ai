@@ -300,7 +300,7 @@ function PlanGoalCard({
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <span className="text-base font-bold text-muted-foreground/60 tracking-wider text-center">
+        <span className="text-base text-muted-foreground/60 tracking-wider text-center">
           Alex
         </span>
       </div>
