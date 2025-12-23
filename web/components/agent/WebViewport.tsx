@@ -24,6 +24,7 @@ import { AttachmentPayload } from "@/lib/types";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
+import { userFacingToolTitle } from "@/lib/toolPresentation";
 
 export type ToolOutputType = 'web_fetch' | 'bash' | 'file_read' | 'file_write' | 'file_edit' | 'generic';
 
@@ -209,13 +210,22 @@ function OutputRenderer({
 }) {
   const containerClass = fullscreen ? "text-foreground" : "text-foreground";
 
+  const toolTitle = useMemo(() => {
+    return userFacingToolTitle({
+      toolName: output.toolName,
+      arguments: buildToolTitleArguments(output),
+      metadata: null,
+      attachments: output.attachments ?? null,
+    });
+  }, [output]);
+
   return (
     <div className={cn("space-y-3", containerClass)}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border pb-2">
         <div className="flex items-center gap-2">
           <ToolTypeIcon type={output.type} />
-          <span className="font-semibold">{output.toolName}</span>
+          <span className="font-semibold">{toolTitle}</span>
         </div>
         <Badge variant="outline" className="text-xs font-mono">
           {new Date(output.timestamp).toLocaleTimeString()}
@@ -268,6 +278,25 @@ function OutputRenderer({
       )}
     </div>
   );
+}
+
+function buildToolTitleArguments(output: ToolOutput): Record<string, any> | null {
+  switch (output.type) {
+    case "web_fetch":
+      return output.url ? { url: output.url } : null;
+    case "bash":
+      return output.command ? { command: output.command } : null;
+    case "file_read":
+    case "file_write":
+      return output.filePath ? { path: output.filePath } : null;
+    case "file_edit":
+      return output.filePath ? { file_path: output.filePath, path: output.filePath } : null;
+    default:
+      if (output.url) return { url: output.url };
+      if (output.command) return { command: output.command };
+      if (output.filePath) return { path: output.filePath };
+      return null;
+  }
 }
 
 function ToolTypeIcon({ type }: { type: ToolOutputType }) {

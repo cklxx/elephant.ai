@@ -44,7 +44,7 @@ const baseComponents: Record<string, ComponentType<any>> = {
     </pre>
   ),
   p: ({ children }: any) => (
-    <div className="mb-4 leading-relaxed text-foreground">{children}</div>
+    <div className="leading-relaxed text-foreground">{children}</div>
   ),
   ul: ({ children }: any) => (
     <ul className="mb-4 space-y-2 leading-relaxed text-foreground">
@@ -95,4 +95,3 @@ export function AgentMarkdown({
     />
   );
 }
-

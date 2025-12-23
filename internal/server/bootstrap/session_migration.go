@@ -12,6 +12,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agentports "alex/internal/agent/ports"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	serverapp "alex/internal/server/app"
 	"alex/internal/session/filestore"
@@ -68,11 +69,7 @@ func MigrateSessionsToDatabase(
 		}
 	}
 
-	sourceSessions := filestore.New(sessionDir)
-	sourceSnapshots := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
-	sourceHistory := sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
-
-	ids, err := sourceSessions.List(ctx)
+	ids, err := listFileSessionIDs(sessionDir)
 	if err != nil {
 		return fmt.Errorf("list sessions for migration: %w", err)
 	}
@@ -80,6 +77,10 @@ func MigrateSessionsToDatabase(
 	if len(ids) == 0 {
 		return nil
 	}
+
+	sourceSessions := filestore.New(sessionDir)
+	sourceSnapshots := sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
+	sourceHistory := sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
 
 	if !force {
 		if destIDs, err := destSessions.List(ctx); err == nil && len(destIDs) >= len(ids) {
@@ -198,8 +199,35 @@ func MigrateSessionsToDatabase(
 	return nil
 }
 
+func listFileSessionIDs(sessionDir string) ([]string, error) {
+	entries, err := os.ReadDir(sessionDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := strings.TrimSpace(entry.Name())
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		ids = append(ids, strings.TrimSuffix(name, ".json"))
+	}
+	return ids, nil
+}
+
 func envBool(name string) bool {
-	value := strings.TrimSpace(os.Getenv(name))
+	lookup := runtimeconfig.DefaultEnvLookup
+	value, ok := lookup(name)
+	if !ok {
+		return false
+	}
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return false
 	}

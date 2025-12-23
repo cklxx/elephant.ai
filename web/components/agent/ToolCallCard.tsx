@@ -3,13 +3,13 @@
 import { useMemo, useState } from 'react';
 import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
-import { getToolIcon, formatDuration, humanizeToolName } from '@/lib/utils';
+import { getToolIcon, formatDuration } from '@/lib/utils';
 import { ChevronRight, Loader2, X, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { resolveToolRenderer } from './tooling/toolRenderers';
 import { adaptToolCallForRenderer } from './tooling/toolDataAdapters';
-import { userFacingToolSummary } from '@/lib/toolPresentation';
+import { userFacingToolSummary, userFacingToolTitle } from '@/lib/toolPresentation';
 import { useElapsedDurationMs } from '@/hooks/useElapsedDurationMs';
 
 interface ToolCallCardProps {
@@ -31,8 +31,18 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
 
   // Humanize tool name
   const displayToolName = useMemo(() => {
-    return humanizeToolName(toolName);
-  }, [toolName]);
+    return userFacingToolTitle({
+      toolName,
+      arguments: adapter.context.startEvent?.arguments ?? null,
+      metadata: adapter.context.completeEvent?.metadata ?? null,
+      attachments: adapter.context.completeEvent?.attachments ?? null,
+    });
+  }, [
+    toolName,
+    adapter.context.startEvent?.arguments,
+    adapter.context.completeEvent?.metadata,
+    adapter.context.completeEvent?.attachments,
+  ]);
 
 
   const ToolIcon = getToolIcon(toolName);
@@ -104,7 +114,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
         "group mb-2 transition-all",
         isFocused && "bg-muted/10"
       )}
-      data-testid={`tool-call-card-${displayToolName.toLowerCase().replace(/\s+/g, '-')}`}
+      data-testid={`tool-call-card-${toolName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`}
     >
       {/* Header Row - Manus Style Gray Pill */}
       <div

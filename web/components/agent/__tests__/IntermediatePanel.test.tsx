@@ -63,7 +63,7 @@ describe("IntermediatePanel", () => {
     renderPanel(events);
 
     expect(
-      screen.getByText(/Run Shell · npm test -- --watch=false/i),
+      screen.getByText(/Run Shell：npm test -- --watch=false/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/1 running/i)).toBeInTheDocument();
     expect(screen.getByText(/1 done/i)).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe("IntermediatePanel", () => {
     renderPanel(events);
 
     expect(
-      screen.getByText(/Fetch Page · https:\/\/news\.example\.com/i),
+      screen.getByText(/Fetch Page：https:\/\/news\.example\.com/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Headline: Example News/i)).toBeInTheDocument();
     expect(screen.queryByText(/running/i)).not.toBeInTheDocument();

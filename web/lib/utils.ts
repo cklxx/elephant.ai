@@ -147,8 +147,9 @@ const TOOL_NAME_MAP: Record<string, string> = {
   'send_command_input': 'Send Input',
 
   // Web
-  'web_search': 'Web Search',
-  'search_web': 'Web Search',
+  'web_search': '正在查找',
+  'search_web': '正在查找',
+  'websearch': '正在查找',
   'web_fetch': 'Fetch Page',
   'read_url_content': 'Fetch Page',
   'open_browser_url': 'Open Page',

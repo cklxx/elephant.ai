@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { formatDuration, cn, humanizeToolName, getToolIcon } from "@/lib/utils";
+import { formatDuration, cn, getToolIcon } from "@/lib/utils";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
-import { userFacingToolSummary } from "@/lib/toolPresentation";
+import { userFacingToolTitle } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
 import { sanitizeToolMetadataForUI } from "@/lib/toolSanitize";
 import {
@@ -58,8 +58,13 @@ export function ToolOutputCard({
 
   // Humanize tool Name
   const displayToolName = useMemo(() => {
-    return humanizeToolName(toolName);
-  }, [toolName]);
+    return userFacingToolTitle({
+      toolName,
+      arguments: (parameters as Record<string, any>) ?? null,
+      metadata: (metadata as Record<string, any>) ?? null,
+      attachments: attachments ?? null,
+    });
+  }, [attachments, metadata, parameters, toolName]);
 
   const resolvedStatus: "running" | "completed" | "failed" = useMemo(() => {
     if (status) return status;

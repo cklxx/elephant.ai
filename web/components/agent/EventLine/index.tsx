@@ -351,15 +351,15 @@ function PlanGoalCard({
   timestamp?: string;
 }) {
   return (
-    <div className="py-2" data-testid="event-ui-plan">
-      <div className="flex items-center gap-2 mb-1">
+    <div className="py-1" data-testid="event-ui-plan">
+      <div className="flex items-center gap-2">
         <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
           Alex
         </span>
       </div>
       <AgentMarkdown
         content={goal}
-        className="prose max-w-none text-sm leading-relaxed text-foreground"
+        className="prose max-w-none text-base leading-relaxed text-foreground"
       />
     </div>
   );
@@ -392,7 +392,7 @@ function ClearifyTaskCard({
 
   return (
     <div className="py-2 border-primary/10" data-testid="event-ui-clearify">
-      <div className="text-sm font-medium text-foreground whitespace-pre-wrap leading-relaxed">
+      <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
         {taskGoalUI}
       </div>
 

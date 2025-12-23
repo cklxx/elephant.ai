@@ -89,6 +89,9 @@ type Config struct {
 	CostDir            string // Directory for cost tracking (default: ~/.alex-costs)
 	SessionDatabaseURL string // Optional database URL for session persistence
 
+	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
+	RequireSessionDatabase bool
+
 	// Feature Flags
 	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
 }
@@ -201,33 +204,55 @@ func BuildContainer(config Config) (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
-	var sessionStore ports.SessionStore = filestore.New(sessionDir)
-	var stateStore sessionstate.Store = sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
-	var historyStore sessionstate.Store = sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
-	var sessionDB *pgxpool.Pool
+	var (
+		sessionStore ports.SessionStore
+		stateStore   sessionstate.Store
+		historyStore sessionstate.Store
+		sessionDB    *pgxpool.Pool
+	)
 
-	if dbURL := strings.TrimSpace(config.SessionDatabaseURL); dbURL != "" {
+	dbURL := strings.TrimSpace(config.SessionDatabaseURL)
+	if config.RequireSessionDatabase && dbURL == "" {
+		return nil, fmt.Errorf("session database is required but no database URL is configured")
+	}
+
+	if dbURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		pool, err := pgxpool.New(ctx, dbURL)
 		if err != nil {
+			if config.RequireSessionDatabase {
+				return nil, fmt.Errorf("failed to create session DB pool: %w", err)
+			}
 			logger.Warn("Failed to create session DB pool: %v", err)
 		} else if err := pool.Ping(ctx); err != nil {
 			pool.Close()
+			if config.RequireSessionDatabase {
+				return nil, fmt.Errorf("failed to ping session DB: %w", err)
+			}
 			logger.Warn("Failed to ping session DB: %v", err)
 		} else {
 			dbSessionStore := postgresstore.New(pool)
 			if err := dbSessionStore.EnsureSchema(ctx); err != nil {
 				pool.Close()
+				if config.RequireSessionDatabase {
+					return nil, fmt.Errorf("failed to initialize session schema: %w", err)
+				}
 				logger.Warn("Failed to initialize session schema: %v", err)
 			} else {
 				dbStateStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindState)
 				dbHistoryStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindTurn)
 				if err := dbStateStore.EnsureSchema(ctx); err != nil {
 					pool.Close()
+					if config.RequireSessionDatabase {
+						return nil, fmt.Errorf("failed to initialize snapshot schema: %w", err)
+					}
 					logger.Warn("Failed to initialize snapshot schema: %v", err)
 				} else if err := dbHistoryStore.EnsureSchema(ctx); err != nil {
 					pool.Close()
+					if config.RequireSessionDatabase {
+						return nil, fmt.Errorf("failed to initialize history schema: %w", err)
+					}
 					logger.Warn("Failed to initialize history schema: %v", err)
 				} else {
 					sessionDB = pool
@@ -238,6 +263,15 @@ func BuildContainer(config Config) (*Container, error) {
 				}
 			}
 		}
+	}
+	if sessionStore == nil {
+		sessionStore = filestore.New(sessionDir)
+	}
+	if stateStore == nil {
+		stateStore = sessionstate.NewFileStore(filepath.Join(sessionDir, "snapshots"))
+	}
+	if historyStore == nil {
+		historyStore = sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
 	}
 	journalDir := filepath.Join(sessionDir, "journals")
 	var journalWriter journal.Writer

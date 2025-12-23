@@ -22,6 +22,7 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - ALEX_VERBOSE=${ALEX_VERBOSE:-false}
       - SESSION_STORE_PATH=/data/sessions
+      - ALEX_SESSION_DATABASE_URL=${ALEX_SESSION_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
       - REDIS_URL=${REDIS_URL:-}
     volumes:
       - alex-sessions:/data/sessions

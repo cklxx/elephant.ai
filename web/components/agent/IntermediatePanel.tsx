@@ -20,9 +20,9 @@ import {
 import { Loader2, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
-import { humanizeToolName, formatDuration } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
 import { isDebugModeEnabled } from "@/lib/debugMode";
-import { userFacingToolSummary } from "@/lib/toolPresentation";
+import { userFacingToolSummary, userFacingToolTitle } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
 
 interface IntermediatePanelProps {
@@ -322,11 +322,18 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       return runningSummary || toolSummary || "Tool activity";
     }
 
-    const humanizedName = humanizeToolName(headlineCall.toolName);
-    if (!headlineHint) {
-      return humanizedName;
+    const semanticName = userFacingToolTitle({
+      toolName: headlineCall.toolName,
+      arguments: (headlineCall.parameters as Record<string, any>) ?? null,
+      metadata: (headlineCall.metadata as Record<string, any>) ?? null,
+      attachments: (headlineCall.attachments as any) ?? null,
+    });
+
+    if (headlineHint && !semanticName.includes("：")) {
+      return `${semanticName} · ${headlineHint}`;
     }
-    return `${humanizedName} · ${headlineHint}`;
+
+    return semanticName;
   }, [headlineCall, headlineHint, runningSummary, toolSummary]);
 
   const headlinePreview = useMemo(() => {
