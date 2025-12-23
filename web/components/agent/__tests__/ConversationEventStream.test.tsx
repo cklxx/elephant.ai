@@ -14,6 +14,77 @@ const baseEvent: AnyAgentEvent = {
 };
 
 describe('ConversationEventStream', () => {
+  it('enriches tool output titles with start arguments', () => {
+    const startedAt = new Date().toISOString();
+    const completedAt = new Date(Date.now() + 500).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.tool.started',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        call_id: 'call-1',
+        tool_name: 'web_search',
+        arguments: {
+          query: 'PM iteration pain points',
+        },
+        timestamp: startedAt,
+      },
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        call_id: 'call-1',
+        tool_name: 'web_search',
+        result: 'Search results',
+        duration: 120,
+        timestamp: completedAt,
+      },
+      {
+        event_type: 'workflow.tool.started',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        call_id: 'call-2',
+        tool_name: 'artifacts_list',
+        arguments: {
+          name: 'pm_iteration_article.md',
+        },
+        timestamp: startedAt,
+      },
+      {
+        event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        call_id: 'call-2',
+        tool_name: 'artifacts_list',
+        result: 'Attachments on record',
+        duration: 50,
+        timestamp: completedAt,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByText('正在查找：PM iteration pain points')).toBeInTheDocument();
+    expect(screen.getByText('查看文件：pm_iteration_article.md')).toBeInTheDocument();
+  });
+
   it('filters workflow.node.output.delta events from the output stream', () => {
     const firstTimestamp = new Date().toISOString();
     const thirdTimestamp = new Date(Date.now() + 2000).toISOString();

@@ -155,6 +155,10 @@
   /* Fix heading anchor alignment (rehype-autolink-headings via @uiw/react-markdown-preview). */
   .markdown-body .wmde-markdown a.anchor {
     float: left;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
     padding-right: 0.25rem;
     margin-left: -1.25rem;
     line-height: 1;

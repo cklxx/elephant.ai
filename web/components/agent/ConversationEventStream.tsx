@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { AnyAgentEvent, eventMatches } from "@/lib/types";
+import {
+  AnyAgentEvent,
+  WorkflowToolStartedEvent,
+  eventMatches,
+} from "@/lib/types";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { LoadingDots } from "@/components/ui/loading-states";
 import {
@@ -35,6 +39,37 @@ export function ConversationEventStream({
     () => partitionEvents(events),
     [events],
   );
+
+  const toolStartEventsByCallKey = useMemo(() => {
+    const map = new Map<string, WorkflowToolStartedEvent>();
+    events.forEach((event) => {
+      if (!eventMatches(event, "workflow.tool.started")) {
+        return;
+      }
+      const started = event as WorkflowToolStartedEvent;
+      const sessionId =
+        typeof started.session_id === "string" ? started.session_id : "";
+      if (!started.call_id) {
+        return;
+      }
+      map.set(`${sessionId}:${started.call_id}`, started);
+    });
+    return map;
+  }, [events]);
+
+  const resolvePairedToolStart = useMemo(() => {
+    return (event: AnyAgentEvent) => {
+      if (!eventMatches(event, "workflow.tool.completed")) {
+        return undefined;
+      }
+      const callId = (event as any).call_id as string | undefined;
+      const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+      if (!callId) {
+        return undefined;
+      }
+      return toolStartEventsByCallKey.get(`${sessionId}:${callId}`);
+    };
+  }, [toolStartEventsByCallKey]);
 
   const combinedEntries = useMemo(() => {
     type CombinedEntry =
@@ -100,6 +135,7 @@ export function ConversationEventStream({
                       key={`${entry.thread.key}-${ev.event_type}-${ev.timestamp}-${i}`}
                       event={ev}
                       showSubagentContext={false}
+                      pairedToolStartEvent={resolvePairedToolStart(ev)}
                     />
                   ))}
                 </div>
@@ -115,7 +151,10 @@ export function ConversationEventStream({
               key={key}
               className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
             >
-              <EventLine event={event} />
+              <EventLine
+                event={event}
+                pairedToolStartEvent={resolvePairedToolStart(event)}
+              />
             </div>
           );
         })}

@@ -5,6 +5,7 @@ import React from "react";
 import {
   AnyAgentEvent,
   WorkflowToolCompletedEvent,
+  WorkflowToolStartedEvent,
   WorkflowNodeOutputSummaryEvent,
   WorkflowResultFinalEvent,
   eventMatches,
@@ -24,6 +25,7 @@ import { AgentMarkdown } from "../AgentMarkdown";
 interface EventLineProps {
   event: AnyAgentEvent;
   showSubagentContext?: boolean;
+  pairedToolStartEvent?: WorkflowToolStartedEvent | null;
 }
 
 /**
@@ -33,12 +35,17 @@ interface EventLineProps {
 export const EventLine = React.memo(function EventLine({
   event,
   showSubagentContext = true,
+  pairedToolStartEvent = null,
 }: EventLineProps) {
   const isSubtaskEvent = isSubagentLike(event);
 
   if (isSubtaskEvent) {
     return (
-      <SubagentEventLine event={event} showContext={showSubagentContext} />
+      <SubagentEventLine
+        event={event}
+        showContext={showSubagentContext}
+        pairedToolStartEvent={pairedToolStartEvent}
+      />
     );
   }
 
@@ -143,6 +150,12 @@ export const EventLine = React.memo(function EventLine({
     const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
     };
+    const pairedArguments =
+      (completeEvent.arguments &&
+        typeof completeEvent.arguments === "object" &&
+        !Array.isArray(completeEvent.arguments))
+        ? (completeEvent.arguments as Record<string, unknown>)
+        : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
     if (toolName === "plan") {
       return (
@@ -168,7 +181,7 @@ export const EventLine = React.memo(function EventLine({
       >
         <ToolOutputCard
           toolName={completeEvent.tool_name}
-          parameters={completeEvent.arguments}
+          parameters={pairedArguments}
           result={completeEvent.result}
           error={completeEvent.error}
           duration={completeEvent.duration}
@@ -259,11 +272,13 @@ export const EventLine = React.memo(function EventLine({
 
 interface SubagentEventLineProps {
   event: AnyAgentEvent;
+  pairedToolStartEvent?: WorkflowToolStartedEvent | null;
 }
 
 function SubagentEventLine({
   event,
   showContext = true,
+  pairedToolStartEvent = null,
 }: SubagentEventLineProps & { showContext?: boolean }) {
   const context = getSubagentContext(event);
 
@@ -272,6 +287,12 @@ function SubagentEventLine({
       arguments?: Record<string, unknown>;
     };
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
+    const pairedArguments =
+      (completeEvent.arguments &&
+        typeof completeEvent.arguments === "object" &&
+        !Array.isArray(completeEvent.arguments))
+        ? (completeEvent.arguments as Record<string, unknown>)
+        : pairedToolStartEvent?.arguments;
     return (
       <div
         className="space-y-1 py-1"
@@ -292,7 +313,7 @@ function SubagentEventLine({
         ) : (
           <ToolOutputCard
             toolName={completeEvent.tool_name}
-            parameters={completeEvent.arguments}
+            parameters={pairedArguments}
             result={completeEvent.result}
             error={completeEvent.error}
             duration={completeEvent.duration}
