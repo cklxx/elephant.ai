@@ -369,7 +369,7 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 // storeEventHistory stores an event in the session's history
 func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.AgentEvent) {
 	if b.historyStore != nil {
-		if err := b.historyStore.Append(context.Background(), BaseAgentEvent(event)); err != nil {
+		if err := b.historyStore.Append(context.Background(), event); err != nil {
 			b.logger.Warn("Failed to persist event history for session %s: %v", sessionID, err)
 		}
 		return
@@ -395,7 +395,7 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.
 
 func (b *EventBroadcaster) storeGlobalEvent(event agentports.AgentEvent) {
 	if b.historyStore != nil {
-		if err := b.historyStore.Append(context.Background(), BaseAgentEvent(event)); err != nil {
+		if err := b.historyStore.Append(context.Background(), event); err != nil {
 			b.logger.Warn("Failed to persist global event history: %v", err)
 		}
 		return

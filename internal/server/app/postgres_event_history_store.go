@@ -278,18 +278,34 @@ func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
 		return eventRecord{}, fmt.Errorf("event missing base")
 	}
 
-	ts := base.Timestamp()
+	ts := event.Timestamp()
 	if ts.IsZero() {
 		ts = time.Now()
 	}
 
+	agentLevel := event.GetAgentLevel()
+	if agentLevel == "" {
+		agentLevel = base.GetAgentLevel()
+	}
+
 	record := eventRecord{
-		sessionID:    base.GetSessionID(),
-		taskID:       base.GetTaskID(),
-		parentTaskID: base.GetParentTaskID(),
-		agentLevel:   string(base.GetAgentLevel()),
+		sessionID:    event.GetSessionID(),
+		taskID:       event.GetTaskID(),
+		parentTaskID: event.GetParentTaskID(),
+		agentLevel:   string(agentLevel),
 		eventType:    base.EventType(),
 		eventTS:      ts,
+	}
+
+	hasSubtaskWrapper := false
+	if wrapper, ok := event.(ports.SubtaskWrapper); ok && wrapper != nil {
+		meta := wrapper.SubtaskDetails()
+		record.isSubtask = true
+		record.subtaskIndex = meta.Index
+		record.totalSubtasks = meta.Total
+		record.subtaskPrev = meta.Preview
+		record.maxParallel = meta.MaxParallel
+		hasSubtaskWrapper = true
 	}
 
 	var payload any
@@ -303,11 +319,13 @@ func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
 		record.runID = e.RunID
 		record.nodeID = e.NodeID
 		record.nodeKind = e.NodeKind
-		record.isSubtask = e.IsSubtask
-		record.subtaskIndex = e.SubtaskIndex
-		record.totalSubtasks = e.TotalSubtasks
-		record.subtaskPrev = e.SubtaskPreview
-		record.maxParallel = e.MaxParallel
+		if !hasSubtaskWrapper {
+			record.isSubtask = e.IsSubtask
+			record.subtaskIndex = e.SubtaskIndex
+			record.totalSubtasks = e.TotalSubtasks
+			record.subtaskPrev = e.SubtaskPreview
+			record.maxParallel = e.MaxParallel
+		}
 		payload = stripBinaryPayloads(e.Payload)
 	case *domain.WorkflowInputReceivedEvent:
 		payload = map[string]any{
