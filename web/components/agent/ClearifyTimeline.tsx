@@ -90,7 +90,7 @@ function ClearifyTimelineItem({
 
   return (
     <div
-      className="relative grid grid-cols-[20px,1fr] gap-x-2 py-1"
+      className="relative grid grid-cols-[20px,1fr] gap-x-1 py-1"
       data-testid="event-ui-clearify"
     >
       {/* Timeline gutter */}
@@ -106,12 +106,12 @@ function ClearifyTimelineItem({
         ) : null}
         <div
           className={cn(
-            "relative z-10 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border bg-background",
+            "relative z-10 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border",
             needsUserInput
               ? "border-amber-300/60 bg-amber-50/60 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
               : isActive
-                ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-border/60 text-muted-foreground",
+                ? "border-primary/60 bg-transparent text-primary"
+                : "border-primary/40 bg-primary/15 text-primary",
           )}
         >
           {needsUserInput ? (
