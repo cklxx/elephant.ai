@@ -5,7 +5,7 @@ import type { Config } from "tailwindcss";
  *
  * Design Principles:
  * - Flat, line-based surfaces (borders over elevation)
- * - Clean typography with Inter font family
+ * - Clean typography with Plus Jakarta Sans
  * - Consistent radius scale across components
  * - High information density with maintained readability
  */
@@ -91,22 +91,27 @@ const config: Config = {
       },
       /**
        * Typography Scale
-       * - Font family: Inter with system fallbacks
+       * - Font family: Plus Jakarta Sans with system fallbacks
        * - Bold headings (600-700 weight)
        * - Regular body (400 weight)
        */
       fontFamily: {
         sans: [
-          'Inter',
+          'var(--font-sans)',
           '-apple-system',
           'BlinkMacSystemFont',
           'Segoe UI',
           'Roboto',
           'Helvetica Neue',
           'Arial',
+          'PingFang SC',
+          'Hiragino Sans GB',
+          'Microsoft YaHei',
+          'Noto Sans CJK SC',
           'sans-serif',
         ],
         mono: [
+          'var(--font-mono)',
           'ui-monospace',
           'SFMono-Regular',
           'SF Mono',
