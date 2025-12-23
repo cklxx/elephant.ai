@@ -195,7 +195,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	}))))
 
 	// Session endpoints
-	mux.Handle("/api/sessions/", routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	sessionsHandler := routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
 			annotateRequestRoute(r, "/api/sessions")
 			apiHandler.HandleListSessions(w, r)
@@ -238,7 +238,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 
 		http.Error(w, "Not found", http.StatusNotFound)
-	}))))
+	})))
+	// Handle both `/api/sessions` and `/api/sessions/` without relying on ServeMux redirects.
+	mux.Handle("/api/sessions", sessionsHandler)
+	mux.Handle("/api/sessions/", sessionsHandler)
 
 	// Health check endpoint
 	mux.Handle("/health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))

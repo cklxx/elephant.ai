@@ -107,7 +107,7 @@ func newToolCallBatch(
 	subagentSnapshots := make([]*ports.TaskState, len(calls))
 	for i, call := range calls {
 		tc := call
-		tc.Arguments = engine.expandPlaceholders(tc.Arguments, state)
+		tc.Arguments = engine.expandToolCallArguments(tc.Name, tc.Arguments, state)
 		expanded[i] = tc
 
 		if tc.Name == "subagent" {
@@ -1020,6 +1020,63 @@ func (e *ReactEngine) expandPlaceholders(args map[string]any, state *TaskState) 
 		expanded[key] = e.expandPlaceholderValue(value, state)
 	}
 	return expanded
+}
+
+func (e *ReactEngine) expandToolCallArguments(toolName string, args map[string]any, state *TaskState) map[string]any {
+	if len(args) == 0 {
+		return args
+	}
+
+	// Artifact tools operate on attachment filenames; expanding them into URIs
+	// breaks name-based operations (e.g., artifacts_list/delete).
+	var skipKeys map[string]bool
+	switch strings.TrimSpace(toolName) {
+	case "artifacts_list":
+		skipKeys = map[string]bool{"name": true}
+	case "artifacts_write":
+		skipKeys = map[string]bool{"name": true}
+	case "artifacts_delete":
+		skipKeys = map[string]bool{"name": true, "names": true}
+	default:
+		return e.expandPlaceholders(args, state)
+	}
+
+	expanded := make(map[string]any, len(args))
+	for key, value := range args {
+		if skipKeys[key] {
+			expanded[key] = unwrapAttachmentPlaceholderValue(value)
+			continue
+		}
+		expanded[key] = e.expandPlaceholderValue(value, state)
+	}
+	return expanded
+}
+
+func unwrapAttachmentPlaceholderValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		if name, ok := extractPlaceholderName(v); ok {
+			return name
+		}
+		return v
+	case []any:
+		out := make([]any, len(v))
+		for i := range v {
+			out[i] = unwrapAttachmentPlaceholderValue(v[i])
+		}
+		return out
+	case []string:
+		out := make([]string, len(v))
+		for i := range v {
+			out[i] = v[i]
+			if name, ok := extractPlaceholderName(v[i]); ok {
+				out[i] = name
+			}
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func (e *ReactEngine) expandPlaceholderValue(value any, state *TaskState) any {
