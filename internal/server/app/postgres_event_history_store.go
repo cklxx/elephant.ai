@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -304,11 +305,11 @@ func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
 		record.totalSubtasks = e.TotalSubtasks
 		record.subtaskPrev = e.SubtaskPreview
 		record.maxParallel = e.MaxParallel
-		payload = e.Payload
+		payload = stripBinaryPayloads(e.Payload)
 	case *domain.WorkflowInputReceivedEvent:
 		payload = map[string]any{
 			"task":        e.Task,
-			"attachments": e.Attachments,
+			"attachments": stripBinaryPayloads(e.Attachments),
 		}
 	case *domain.WorkflowDiagnosticContextSnapshotEvent:
 		payload = map[string]any{
@@ -329,6 +330,57 @@ func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
 	}
 
 	return record, nil
+}
+
+func stripBinaryPayloads(value any) any {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case ports.Attachment:
+		v.Data = ""
+		return v
+	case *ports.Attachment:
+		if v == nil {
+			return nil
+		}
+		cleaned := *v
+		cleaned.Data = ""
+		return &cleaned
+	case map[string]ports.Attachment:
+		cleaned := make(map[string]ports.Attachment, len(v))
+		for key, att := range v {
+			att.Data = ""
+			cleaned[key] = att
+		}
+		return cleaned
+	case []ports.Attachment:
+		cleaned := make([]ports.Attachment, len(v))
+		for i, att := range v {
+			att.Data = ""
+			cleaned[i] = att
+		}
+		return cleaned
+	case map[string]any:
+		cleaned := make(map[string]any, len(v))
+		for key, val := range v {
+			cleaned[key] = stripBinaryPayloads(val)
+		}
+		return cleaned
+	case []any:
+		cleaned := make([]any, len(v))
+		for i, val := range v {
+			cleaned[i] = stripBinaryPayloads(val)
+		}
+		return cleaned
+	}
+
+	rv := reflect.ValueOf(value)
+	if rv.IsValid() && rv.Kind() == reflect.Slice && rv.Type().Elem().Kind() == reflect.Uint8 {
+		// Avoid persisting raw byte blobs.
+		return nil
+	}
+
+	return value
 }
 
 func eventFromRecord(record eventRecord) (ports.AgentEvent, error) {
