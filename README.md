@@ -31,7 +31,7 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 | Infrastructure | `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/observability`, and `internal/context` provide adapters, LLM clients, MCP runtime, persistence, rendering, telemetry, and layered context. |
 | Frontend | `web/` renders real-time sessions via SSE, supports cost inspection, and lets operators feed new fragments. |
 
-More detail lives in [`docs/AGENT.md`](docs/AGENT.md). New to the codebase? Start with [`READMAP.md`](READMAP.md).
+More detail lives in [`docs/AGENT.md`](docs/AGENT.md). New to the codebase? Start with [`ROADMAP.md`](ROADMAP.md).
 
 ---
 
@@ -57,6 +57,21 @@ More detail lives in [`docs/AGENT.md`](docs/AGENT.md). New to the codebase? Star
 * Go **1.24+** (see `go.mod`).
 * Node.js **20+** for the dashboard.
 * Docker (optional) for containerized deployments.
+
+### One-command dev loop
+
+Use `./dev.sh` to launch the backend and dashboard together and to run common checks:
+
+```bash
+./dev.sh            # start backend + web
+./dev.sh status     # show port and PID info
+./dev.sh logs web   # tail dashboard logs (or `logs server`)
+./dev.sh test       # Go + web tests
+./dev.sh lint       # Go + web lint
+./dev.sh down       # stop everything
+```
+
+Environment overrides: `SERVER_PORT` (default `8080`), `WEB_PORT` (default `3000`), `START_WITH_WATCH=1` to hot-reload the backend when `air` is installed, and `AUTO_STOP_CONFLICTING_PORTS=0` to disable auto-killing listeners on the web port.
 
 ### CLI / TUI
 
@@ -98,6 +113,8 @@ For split origins during development, set `NEXT_PUBLIC_API_URL=http://localhost:
 ---
 
 ## Development workflow
+
+Use `./dev.sh` for the combined backend + dashboard loop. For backend-only work:
 
 ```bash
 make fmt     # golangci-lint (fix) + format
@@ -143,7 +160,7 @@ Built-in examples include `video_production` and `ppt_deck`.
 
 ## Documentation index
 
-* [`READMAP.md`](READMAP.md) – guided reading order for the codebase.
+* [`ROADMAP.md`](ROADMAP.md) – guided reading order for the codebase.
 * [`docs/README.md`](docs/README.md) – documentation index.
 * [`docs/AGENT.md`](docs/AGENT.md) – orchestration flow and event model.
 * [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md) – configuration schema and precedence.
