@@ -386,11 +386,11 @@ function PlanGoalCard({
     <div className="py-1" data-testid="event-ui-plan">
       <div className="flex items-center gap-2">
         <ElephantMark
-          className="h-3 w-3 text-muted-foreground/60"
+          className="h-4 w-4 text-muted-foreground/60"
           aria-hidden="true"
           focusable="false"
         />
-        <span className="text-xs font-bold text-muted-foreground/60 tracking-wider">
+        <span className="text-sm font-bold text-muted-foreground/60 tracking-wider">
           Alex
         </span>
       </div>
