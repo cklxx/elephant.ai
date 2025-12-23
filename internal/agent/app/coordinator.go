@@ -582,6 +582,14 @@ func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 	}
 }
 
+func sanitizeAttachmentForPersistence(att ports.Attachment) ports.Attachment {
+	uri := strings.TrimSpace(att.URI)
+	if uri != "" && !strings.HasPrefix(strings.ToLower(uri), "data:") {
+		att.Data = ""
+	}
+	return att
+}
+
 func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, map[string]ports.Attachment) {
 	if len(messages) == 0 {
 		return nil, nil
@@ -608,7 +616,7 @@ func sanitizeMessagesForPersistence(messages []ports.Message) ([]ports.Message, 
 				if att.Name == "" {
 					att.Name = name
 				}
-				attachments[name] = att
+				attachments[name] = sanitizeAttachmentForPersistence(att)
 			}
 			cloned.Attachments = nil
 		}

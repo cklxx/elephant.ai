@@ -101,6 +101,10 @@ func (s *AttachmentStore) Handler() http.Handler {
 		}
 
 		path := filepath.Join(s.dir, name)
+		if rel, err := filepath.Rel(s.dir, path); err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			http.NotFound(w, r)
+			return
+		}
 		http.ServeFile(w, r, path)
 	})
 }

@@ -159,6 +159,8 @@ func TestSanitizeMessagesForPersistenceSkipsUserHistory(t *testing.T) {
 				"diagram.png": {
 					Name:      "diagram.png",
 					MediaType: "image/png",
+					Data:      "ZmFrZV9iYXNlNjQ=",
+					URI:       "/api/attachments/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
 				},
 			},
 		},
@@ -186,8 +188,13 @@ func TestSanitizeMessagesForPersistenceSkipsUserHistory(t *testing.T) {
 		t.Fatalf("expected 1 persisted attachment, got %d", len(attachments))
 	}
 
-	if _, ok := attachments["diagram.png"]; !ok {
+	persisted, ok := attachments["diagram.png"]
+	if !ok {
 		t.Fatalf("expected diagram.png attachment to be persisted, got keys %v", attachments)
+	}
+
+	if persisted.Data != "" {
+		t.Fatalf("expected persisted attachment data to be cleared when URI is set, got %q", persisted.Data)
 	}
 }
 

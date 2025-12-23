@@ -372,6 +372,7 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 		if mediaType == "" {
 			return nil, fmt.Errorf("attachment media_type is required")
 		}
+		isImage := strings.HasPrefix(strings.ToLower(mediaType), "image/")
 
 		uri := strings.TrimSpace(incoming.URI)
 		data := strings.TrimSpace(incoming.Data)
@@ -379,6 +380,7 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 			return nil, fmt.Errorf("attachment '%s' must include data or uri", name)
 		}
 
+		var inlineBase64 string
 		lowerURI := strings.ToLower(strings.TrimSpace(uri))
 		if strings.HasPrefix(lowerURI, "data:") {
 			data = uri
@@ -398,6 +400,9 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 				return nil, fmt.Errorf("store attachment '%s': %w", name, err)
 			}
 			uri = storedURI
+			if isImage {
+				inlineBase64 = base64.StdEncoding.EncodeToString(decoded)
+			}
 		} else if uri == "" && data != "" {
 			decoded, err := base64.StdEncoding.DecodeString(data)
 			if err != nil {
@@ -414,6 +419,9 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 				return nil, fmt.Errorf("store attachment '%s': %w", name, err)
 			}
 			uri = storedURI
+			if isImage {
+				inlineBase64 = base64.StdEncoding.EncodeToString(decoded)
+			}
 		}
 
 		if uri == "" || strings.HasPrefix(strings.ToLower(strings.TrimSpace(uri)), "data:") {
@@ -423,6 +431,7 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 		attachment := agentports.Attachment{
 			Name:                name,
 			MediaType:           mediaType,
+			Data:                inlineBase64,
 			URI:                 uri,
 			Description:         strings.TrimSpace(incoming.Description),
 			Source:              "user_upload",
