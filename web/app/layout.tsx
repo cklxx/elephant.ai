@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description:
     "Build controllable, auditable agents with Plan + Clearify + ReAct.",
   icons: {
-    icon: "/elephant.png",
+    icon: "/elephant.jpg",
   },
 };
 
