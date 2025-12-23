@@ -116,10 +116,10 @@ const codeExecuteRenderer: ToolRenderer = (ctx) => {
       ? ctx.startEvent.arguments.code
       : undefined;
   if (code) {
-    panels.push(
+      panels.push(
       <SimplePanel key="code-execute-source">
         <PanelHeader title="Code" />
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-3 font-mono text-[11px] leading-relaxed text-foreground/90">
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-3 font-mono text-[11px] leading-snug text-foreground/90">
           {code}
         </pre>
       </SimplePanel>,

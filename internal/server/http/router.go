@@ -3,10 +3,10 @@ package http
 import (
 	"net/http"
 	"strings"
-	"time"
 
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
@@ -16,12 +16,28 @@ import (
 func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
-	dataCache := NewDataCache(256, 30*time.Minute)
+	attachmentStore := (*AttachmentStore)(nil)
+	attachmentDir := "~/.alex-web-attachments"
+	if value, ok := runtimeconfig.DefaultEnvLookup("ALEX_WEB_ATTACHMENT_DIR"); ok && strings.TrimSpace(value) != "" {
+		attachmentDir = strings.TrimSpace(value)
+	}
+	if store, err := NewAttachmentStore(attachmentDir); err != nil {
+		logger.Warn("Attachment store disabled: %v", err)
+	} else {
+		attachmentStore = store
+	}
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEDataCache(dataCache))
+	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
-	apiHandler := NewAPIHandler(coordinator, healthChecker, internalMode, WithAPIObservability(obs), WithEvaluationService(evaluationService))
+	apiHandler := NewAPIHandler(
+		coordinator,
+		healthChecker,
+		internalMode,
+		WithAPIObservability(obs),
+		WithEvaluationService(evaluationService),
+		WithAttachmentStore(attachmentStore),
+	)
 
 	var authMiddleware func(http.Handler) http.Handler
 	if authHandler != nil && authService != nil {
@@ -57,10 +73,9 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// SSE endpoint
 	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
-	// Attachment blobs served from the in-memory cache must stay publicly readable so the
-	// frontend can load them without propagating auth tokens. The contents are already
-	// sanitized when stored.
-	mux.Handle("/api/data/", routeHandler("/api/data", dataCache.Handler()))
+	if attachmentStore != nil {
+		mux.Handle("/api/attachments/", routeHandler("/api/attachments", attachmentStore.Handler()))
+	}
 	mux.Handle("/api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
 
 	if authHandler != nil {
@@ -195,7 +210,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	}))))
 
 	// Session endpoints
-	mux.Handle("/api/sessions/", routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	sessionsHandler := routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
 			annotateRequestRoute(r, "/api/sessions")
 			apiHandler.HandleListSessions(w, r)
@@ -238,7 +253,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 
 		http.Error(w, "Not found", http.StatusNotFound)
-	}))))
+	})))
+	// Handle both `/api/sessions` and `/api/sessions/` without relying on ServeMux redirects.
+	mux.Handle("/api/sessions", sessionsHandler)
+	mux.Handle("/api/sessions/", sessionsHandler)
 
 	// Health check endpoint
 	mux.Handle("/health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))

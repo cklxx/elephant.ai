@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { formatDuration, cn, humanizeToolName, getToolIcon } from "@/lib/utils";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { formatDuration, cn, getToolIcon } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
-import { userFacingToolSummary } from "@/lib/toolPresentation";
+import { userFacingToolTitle } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
 import { sanitizeToolMetadataForUI } from "@/lib/toolSanitize";
 import {
@@ -58,8 +58,13 @@ export function ToolOutputCard({
 
   // Humanize tool Name
   const displayToolName = useMemo(() => {
-    return humanizeToolName(toolName);
-  }, [toolName]);
+    return userFacingToolTitle({
+      toolName,
+      arguments: (parameters as Record<string, any>) ?? null,
+      metadata: (metadata as Record<string, any>) ?? null,
+      attachments: attachments ?? null,
+    });
+  }, [attachments, metadata, parameters, toolName]);
 
   const resolvedStatus: "running" | "completed" | "failed" = useMemo(() => {
     if (status) return status;
@@ -185,22 +190,14 @@ export function ToolOutputCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-3">
             <span
-              className="min-w-0 flex-1 truncate text-xs tracking-tight"
+              className={cn(
+                "min-w-0 flex-1 truncate text-xs tracking-tight",
+                resolvedStatus === "completed" && "text-muted-foreground/80",
+              )}
               data-testid="tool-name"
             >
               {displayToolName}
             </span>
-
-            <div className="flex flex-none flex-wrap items-center justify-end gap-2">
-              {attachmentCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="rounded-md px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
-                >
-                  {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
-                </Badge>
-              )}
-            </div>
           </div>
 
           {debugMode && callId && (
@@ -214,52 +211,42 @@ export function ToolOutputCard({
           )}
         </div>
 
-        <ChevronRight
-          className={cn(
-            "h-4 w-4 flex-none text-muted-foreground/60 transition-transform duration-200",
-            isExpanded && "rotate-90",
-          )}
-          data-testid="tool-expand-icon"
-          aria-hidden="true"
-        />
       </button>
 
       {/* Expanded Content */}
       {isExpanded && showBody && (
         <div className="mt-2 pl-4 pr-1" data-testid="tool-content-expanded">
-          <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
-            <div className="grid gap-3 lg:grid-cols-2">
-              {hasParameters && (
-                <ToolArgumentsPanel
-                  args={formattedArguments}
-                  label={t("tool.section.parameters")}
-                  copyLabel={t("events.toolCall.copyArguments")}
-                  copiedLabel={t("events.toolCall.copied")}
-                />
-              )}
+          <div className="grid gap-3 lg:grid-cols-2">
+            {hasParameters && (
+              <ToolArgumentsPanel
+                args={formattedArguments}
+                label={t("tool.section.parameters")}
+                copyLabel={t("events.toolCall.copyArguments")}
+                copiedLabel={t("events.toolCall.copied")}
+              />
+            )}
 
-              {(hasResult || hasError || attachmentCount > 0) && (
-                <ToolResultPanel
-                  toolName={toolName}
-                  result={result ?? ""}
-                  error={error ?? null}
-                  resultTitle={t("tool.section.output")}
-                  errorTitle={t("tool.section.error")}
-                  copyLabel={t("events.toolCall.copyResult")}
-                  copyErrorLabel={t("events.toolCall.copyError")}
-                  copiedLabel={t("events.toolCall.copied")}
-                  attachments={attachments}
-                  metadata={(sanitizedMetadata as Record<string, any>) ?? null}
-                />
-              )}
+            {(hasResult || hasError || attachmentCount > 0) && (
+              <ToolResultPanel
+                toolName={toolName}
+                result={result ?? ""}
+                error={error ?? null}
+                resultTitle={t("tool.section.output")}
+                errorTitle={t("tool.section.error")}
+                copyLabel={t("events.toolCall.copyResult")}
+                copyErrorLabel={t("events.toolCall.copyError")}
+                copiedLabel={t("events.toolCall.copied")}
+                attachments={attachments}
+                metadata={(sanitizedMetadata as Record<string, any>) ?? null}
+              />
+            )}
 
-              {hasMetadata && (
-                <ToolStreamPanel
-                  title={t("conversation.tool.timeline.metadata")}
-                  content={formattedMetadata}
-                />
-              )}
-            </div>
+            {hasMetadata && (
+              <ToolStreamPanel
+                title={t("conversation.tool.timeline.metadata")}
+                content={formattedMetadata}
+              />
+            )}
           </div>
         </div>
       )}

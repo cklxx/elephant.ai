@@ -40,6 +40,7 @@ import {
   collectAttachmentItems,
 } from '@/components/agent/AttachmentPanel';
 import { SkillsPanel } from '@/components/agent/SkillsPanel';
+import { ConnectionBanner } from '@/components/agent/ConnectionBanner';
 
 const LazyConversationEventStream = dynamic(
   () => import('@/components/agent/ConversationEventStream').then((mod) => mod.ConversationEventStream),
@@ -503,6 +504,18 @@ export function ConversationPageContent() {
     [t],
   );
 
+  const showConnectingState =
+    Boolean(resolvedSessionId) &&
+    events.length === 0 &&
+    !isConnected &&
+    !isReconnecting &&
+    !error &&
+    reconnectAttempts === 0;
+  const showConnectionBanner =
+    Boolean(resolvedSessionId) &&
+    events.length === 0 &&
+    (Boolean(error) || isReconnecting || reconnectAttempts > 0);
+
   const emptyState = (
     <div
       className="w-full max-w-md"
@@ -698,7 +711,24 @@ export function ConversationPageContent() {
             >
               {events.length === 0 ? (
                 <div className="flex min-h-[60vh] items-center justify-center">
-                  {emptyState}
+                  {showConnectingState ? (
+                    <div className="flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-background/70 px-8 py-6 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        {t('sessions.details.loading')}
+                      </p>
+                    </div>
+                  ) : showConnectionBanner ? (
+                    <ConnectionBanner
+                      isConnected={isConnected}
+                      isReconnecting={isReconnecting}
+                      error={error}
+                      reconnectAttempts={reconnectAttempts}
+                      onReconnect={reconnect}
+                    />
+                  ) : (
+                    emptyState
+                  )}
                 </div>
               ) : (
                 <LazyConversationEventStream

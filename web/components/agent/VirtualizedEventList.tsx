@@ -340,7 +340,15 @@ function EventCard({
     </div>
   );
 
-  if (eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
+  if (eventMatches(event, 'workflow.node.output.delta')) {
+    const delta = (event as any).delta;
+      if (typeof delta === 'string' && delta.trim().length > 0) {
+        return wrapWithContext(
+        <div className="text-sm text-muted-foreground/80 italic whitespace-pre-wrap leading-normal">
+          {delta}
+        </div>,
+      );
+    }
     return <ThinkingIndicator />;
   }
 

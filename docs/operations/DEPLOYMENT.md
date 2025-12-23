@@ -230,7 +230,9 @@ kubectl rollout undo deployment/alex-server -n alex-system
 | `LLM_MODEL` | ❌ | `deepseek/deepseek-chat` | LLM 模型 |
 | `LLM_VISION_MODEL` | ❌ | - | 图片附件存在时使用的 vision 模型 |
 | `ALEX_VERBOSE` | ❌ | `false` | 详细日志 |
-| `SESSION_STORE_PATH` | ❌ | `/data/sessions` | 会话存储路径 |
+| `ALEX_SESSION_DATABASE_URL` | ✅ | - | Web 模式 Session 持久化 Postgres 连接串（可与 `AUTH_DATABASE_URL` 共用） |
+| `ALEX_WEB_SESSION_DIR` | ❌ | `~/.alex-web-sessions` | Web 模式会话侧文件产物（journals、migration marker）路径 |
+| `SESSION_STORE_PATH` | ❌ | `/data/sessions` | 兼容旧配置：同 `ALEX_WEB_SESSION_DIR` |
 | `REDIS_URL` | ❌ | - | Redis 连接地址（可选） |
 | `PORT` | ❌ | `8080` | HTTP 监听端口 |
 
@@ -247,7 +249,7 @@ kubectl rollout undo deployment/alex-server -n alex-system
 #### Docker Compose
 
 Volume 自动创建：
-- `alex-sessions`: 会话数据
+- `alex-sessions`: Web 会话侧文件产物（journals 等）
 - `redis-data`: Redis 持久化
 
 #### Kubernetes

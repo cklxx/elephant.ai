@@ -38,7 +38,7 @@ func NewArtifactsDelete() ports.ToolExecutor {
 }
 
 func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	name := strings.TrimSpace(stringArg(call.Arguments, "name"))
+	name := unwrapArtifactPlaceholderName(stringArg(call.Arguments, "name"))
 	if name == "" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("name is required")}, nil
 	}
@@ -143,15 +143,39 @@ func (t *artifactsList) Execute(ctx context.Context, call ports.ToolCall) (*port
 		return &ports.ToolResult{CallID: call.ID, Content: "No attachments available"}, nil
 	}
 
-	target := strings.TrimSpace(stringArg(call.Arguments, "name"))
+	target := unwrapArtifactPlaceholderName(stringArg(call.Arguments, "name"))
 	var builder strings.Builder
 	builder.WriteString("Attachments on record:\n")
 
 	resultAttachments := make(map[string]ports.Attachment)
 	for key, att := range attachments {
 		builder.WriteString(fmt.Sprintf("- %s (%s)\n", att.Name, att.MediaType))
-		if target != "" && key == target {
+		if target != "" && (key == target || att.Name == target || strings.EqualFold(key, target) || strings.EqualFold(att.Name, target)) {
 			resultAttachments[key] = att
+		}
+	}
+
+	if target != "" && len(resultAttachments) == 0 {
+		for key, att := range attachments {
+			uri := strings.TrimSpace(att.URI)
+			if uri == "" {
+				continue
+			}
+			if uri == target || strings.EqualFold(uri, target) {
+				resultAttachments[key] = att
+				break
+			}
+		}
+	}
+
+	if target != "" && len(resultAttachments) == 0 {
+		if payload, ok := extractDataURIBase64(target); ok {
+			for key, att := range attachments {
+				if strings.TrimSpace(att.Data) == payload {
+					resultAttachments[key] = att
+					break
+				}
+			}
 		}
 	}
 
@@ -188,12 +212,16 @@ func (t *artifactsList) Metadata() ports.ToolMetadata {
 func (t *artifactsDelete) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	names := stringSliceArg(call.Arguments, "names")
 	if len(names) == 0 {
-		if single := strings.TrimSpace(stringArg(call.Arguments, "name")); single != "" {
+		if single := unwrapArtifactPlaceholderName(stringArg(call.Arguments, "name")); single != "" {
 			names = append(names, single)
 		}
 	}
 	if len(names) == 0 {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("at least one name is required")}, nil
+	}
+
+	for i := range names {
+		names[i] = unwrapArtifactPlaceholderName(names[i])
 	}
 
 	mutations := map[string]any{
@@ -236,4 +264,43 @@ func normalizeFormat(format string) string {
 		return "html"
 	}
 	return normalized
+}
+
+func unwrapArtifactPlaceholderName(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < 3 {
+		return trimmed
+	}
+	if !strings.HasPrefix(trimmed, "[") || !strings.HasSuffix(trimmed, "]") {
+		return trimmed
+	}
+	name := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	if name == "" {
+		return trimmed
+	}
+	return name
+}
+
+func extractDataURIBase64(value string) (string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", false
+	}
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "data:") {
+		return "", false
+	}
+	comma := strings.Index(trimmed, ",")
+	if comma < 0 {
+		return "", false
+	}
+	meta := strings.ToLower(trimmed[:comma])
+	if !strings.Contains(meta, ";base64") {
+		return "", false
+	}
+	payload := strings.TrimSpace(trimmed[comma+1:])
+	if payload == "" {
+		return "", false
+	}
+	return payload, true
 }

@@ -17,6 +17,10 @@ interface SessionCardProps {
 export function SessionCard({ session, onDelete, onFork }: SessionCardProps) {
   const { t, language } = useI18n();
   const locale = getLanguageLocale(language);
+  const sessionTitle =
+    typeof session.title === 'string' && session.title.trim()
+      ? session.title.trim()
+      : null;
 
   return (
     <Card className="transition hover:bg-white/10 backdrop-blur">
@@ -24,11 +28,16 @@ export function SessionCard({ session, onDelete, onFork }: SessionCardProps) {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <CardTitle className="text-lg">
-              {t('sessions.card.title', { id: session.id.slice(0, 8) })}
+              {sessionTitle || t('sessions.card.title', { id: session.id.slice(0, 8) })}
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {formatRelativeTime(session.created_at, locale)}
             </p>
+            {sessionTitle && (
+              <p className="mt-1 text-[10px] font-mono text-muted-foreground/70">
+                …{session.id.slice(-4)}
+              </p>
+            )}
           </div>
           <Link
             href={`/sessions/details?id=${encodeURIComponent(session.id)}`}

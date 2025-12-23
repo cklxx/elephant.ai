@@ -3,7 +3,6 @@ package builtin
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -130,17 +129,13 @@ func TestFormatSeedreamResponsePopulatesAttachmentURIFromBase64(t *testing.T) {
 		},
 	}
 
-	_, _, attachments := formatSeedreamResponse(resp, "descriptor", "prompt")
+	content, _, attachments := formatSeedreamResponse(resp, "descriptor", "prompt")
 	placeholder := "seedream_nonce_0.png"
-	att, ok := attachments[placeholder]
-	if !ok {
-		t.Fatalf("expected attachment %q to exist", placeholder)
+	if _, ok := attachments[placeholder]; ok {
+		t.Fatalf("expected base64-only attachment %q to be omitted", placeholder)
 	}
-	if att.URI == "" {
-		t.Fatalf("expected attachment URI to be populated for %q", placeholder)
-	}
-	if !strings.HasPrefix(att.URI, "data:image/png;base64,") {
-		t.Fatalf("expected attachment URI to be data URI, got %q", att.URI)
+	if !strings.Contains(content, "missing url; base64 payload omitted") {
+		t.Fatalf("expected content to mention omitted base64 payload, got %q", content)
 	}
 }
 
@@ -483,15 +478,8 @@ func TestSeedreamVideoToolEmbedRemoteAttachmentDataInlinesVideo(t *testing.T) {
 	tool.embedRemoteAttachmentData(context.Background(), attachments)
 
 	att := attachments["demo.mp4"]
-	if att.Data == "" {
-		t.Fatalf("expected video attachment to include inline data")
-	}
-	decoded, err := base64.StdEncoding.DecodeString(att.Data)
-	if err != nil {
-		t.Fatalf("failed to decode attachment data: %v", err)
-	}
-	if !bytes.Equal(decoded, payload) {
-		t.Fatalf("expected attachment payload to match source bytes")
+	if att.Data != "" {
+		t.Fatalf("expected video attachment data to remain empty (URL-only), got %q", att.Data)
 	}
 	if att.MediaType != "video/mp4" {
 		t.Fatalf("expected media type to remain video/mp4, got %s", att.MediaType)
@@ -524,7 +512,7 @@ func TestSeedreamVideoToolEmbedRemoteAttachmentDataSkipsLargeAssets(t *testing.T
 	tool.embedRemoteAttachmentData(context.Background(), attachments)
 
 	if attachments["large.mp4"].Data != "" {
-		t.Fatalf("expected large asset to skip inlining due to size limit")
+		t.Fatalf("expected attachment data to remain empty (URL-only)")
 	}
 }
 

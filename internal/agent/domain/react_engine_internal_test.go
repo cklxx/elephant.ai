@@ -438,6 +438,48 @@ func TestExpandPlaceholdersResolvesCanonicalSeedreamNameWithoutBrackets(t *testi
 	}
 }
 
+func TestExpandToolCallArgumentsSkipsArtifactNameExpansion(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"article.md": {
+				Name:      "article.md",
+				MediaType: "text/markdown",
+				URI:       "https://example.com/article.md",
+			},
+			"note.md": {
+				Name:      "note.md",
+				MediaType: "text/markdown",
+				URI:       "https://example.com/note.md",
+			},
+		},
+	}
+
+	expanded := engine.expandToolCallArguments("artifacts_list", map[string]any{"name": "article.md"}, state)
+	if got, _ := expanded["name"].(string); got != "article.md" {
+		t.Fatalf("expected artifacts_list name to remain literal, got %q", got)
+	}
+
+	expanded = engine.expandToolCallArguments("artifacts_list", map[string]any{"name": "[article.md]"}, state)
+	if got, _ := expanded["name"].(string); got != "article.md" {
+		t.Fatalf("expected artifacts_list placeholder to unwrap, got %q", got)
+	}
+
+	expanded = engine.expandToolCallArguments("artifacts_write", map[string]any{"name": "note.md"}, state)
+	if got, _ := expanded["name"].(string); got != "note.md" {
+		t.Fatalf("expected artifacts_write name to remain literal, got %q", got)
+	}
+
+	expanded = engine.expandToolCallArguments("artifacts_delete", map[string]any{"names": []string{"[note.md]", "article.md"}}, state)
+	names, ok := expanded["names"].([]string)
+	if !ok || len(names) != 2 {
+		t.Fatalf("expected names slice, got %#v", expanded["names"])
+	}
+	if names[0] != "note.md" || names[1] != "article.md" {
+		t.Fatalf("expected placeholder unwrapping, got %#v", names)
+	}
+}
+
 func TestDecorateFinalResultOmitsUnreferencedAttachments(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{

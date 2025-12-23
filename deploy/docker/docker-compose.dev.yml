@@ -18,6 +18,7 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - ALEX_VERBOSE=true
       - SESSION_STORE_PATH=/data/sessions
+      - ALEX_SESSION_DATABASE_URL=${ALEX_SESSION_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
       - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-dev-secret-change-me}
       - AUTH_ACCESS_TOKEN_TTL_MINUTES=${AUTH_ACCESS_TOKEN_TTL_MINUTES:-15}
       - AUTH_REFRESH_TOKEN_TTL_DAYS=${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}

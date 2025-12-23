@@ -84,11 +84,13 @@ func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
 }
 
 func TestArtifactsListReturnsSnapshot(t *testing.T) {
+	notePayload := base64.StdEncoding.EncodeToString([]byte("content"))
 	attachments := map[string]ports.Attachment{
 		"note.md": {
 			Name:        "note.md",
 			MediaType:   "text/markdown",
-			Data:        base64.StdEncoding.EncodeToString([]byte("content")),
+			Data:        notePayload,
+			URI:         "data:text/markdown;base64," + notePayload,
 			Description: "notes",
 		},
 		"image.png": {Name: "image.png", MediaType: "image/png"},
@@ -114,12 +116,30 @@ func TestArtifactsListReturnsSnapshot(t *testing.T) {
 	if _, ok := targeted.Attachments["note.md"]; !ok {
 		t.Fatalf("expected targeted attachment to be returned: %+v", targeted.Attachments)
 	}
+
+	call.Arguments = map[string]any{"name": "[note.md]"}
+	targeted, err = tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := targeted.Attachments["note.md"]; !ok {
+		t.Fatalf("expected placeholder name to resolve: %+v", targeted.Attachments)
+	}
+
+	call.Arguments = map[string]any{"name": attachments["note.md"].URI}
+	targeted, err = tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := targeted.Attachments["note.md"]; !ok {
+		t.Fatalf("expected data URI to resolve: %+v", targeted.Attachments)
+	}
 }
 
 func TestArtifactsDeleteBuildsRemovalMutation(t *testing.T) {
 	tool := NewArtifactsDelete()
 	call := ports.ToolCall{ID: "del-1", Name: "artifacts_delete", Arguments: map[string]any{
-		"names": []string{"old.md", "draft.txt"},
+		"names": []string{"[old.md]", "draft.txt"},
 	}}
 
 	result, err := tool.Execute(context.Background(), call)
@@ -131,5 +151,8 @@ func TestArtifactsDeleteBuildsRemovalMutation(t *testing.T) {
 	removed, ok := mutations["remove"].([]string)
 	if !ok || len(removed) != 2 {
 		t.Fatalf("expected removal entries for two attachments, got: %+v", mutations)
+	}
+	if removed[0] != "old.md" {
+		t.Fatalf("expected placeholder to unwrap to old.md, got %q", removed[0])
 	}
 }

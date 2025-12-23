@@ -96,9 +96,6 @@ func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) 
 		}
 		opt(handler)
 	}
-	if handler.dataCache == nil {
-		handler.dataCache = NewDataCache(128, 30*time.Minute)
-	}
 	return handler
 }
 

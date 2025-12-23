@@ -18,6 +18,7 @@ type Config struct {
 	EnableMCP          bool
 	EnvironmentSummary string
 	Auth               AuthConfig
+	Session            SessionConfig
 	Analytics          AnalyticsConfig
 	AllowedOrigins     []string
 }
@@ -40,6 +41,12 @@ type AuthConfig struct {
 	BootstrapEmail        string
 	BootstrapPassword     string
 	BootstrapDisplayName  string
+}
+
+// SessionConfig captures session persistence configuration for the server (web mode).
+type SessionConfig struct {
+	DatabaseURL string
+	Dir         string
 }
 
 // AnalyticsConfig holds analytics configuration values.
@@ -154,6 +161,17 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		authCfg.BootstrapDisplayName = strings.TrimSpace(name)
 	}
 	cfg.Auth = authCfg
+
+	sessionCfg := SessionConfig{Dir: "~/.alex-web-sessions"}
+	if dbURL, ok := envLookup("ALEX_SESSION_DATABASE_URL"); ok {
+		sessionCfg.DatabaseURL = strings.TrimSpace(dbURL)
+	}
+	if dir, ok := envLookup("ALEX_WEB_SESSION_DIR"); ok && strings.TrimSpace(dir) != "" {
+		sessionCfg.Dir = strings.TrimSpace(dir)
+	} else if dir, ok := envLookup("SESSION_STORE_PATH"); ok && strings.TrimSpace(dir) != "" {
+		sessionCfg.Dir = strings.TrimSpace(dir)
+	}
+	cfg.Session = sessionCfg
 
 	analyticsCfg := AnalyticsConfig{}
 	if apiKey, ok := envLookup("POSTHOG_API_KEY"); ok {

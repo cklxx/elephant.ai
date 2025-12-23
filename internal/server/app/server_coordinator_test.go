@@ -528,7 +528,7 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		{
 			Name:        " sketch.png ",
 			MediaType:   "image/png",
-			Data:        "dGVzdC1pbWFnZS1iYXNlNjQ=",
+			URI:         "https://example.com/sketch.png",
 			Description: "hand-drawn sketch",
 		},
 		{
@@ -597,11 +597,11 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 	if sketch.MediaType != "image/png" {
 		t.Fatalf("unexpected media type: %s", sketch.MediaType)
 	}
-	if sketch.Data == "" {
-		t.Fatal("expected base64 data for sketch attachment")
+	if sketch.Data != "" {
+		t.Fatalf("expected attachment data to be omitted, got %q", sketch.Data)
 	}
-	if sketch.URI != "" {
-		t.Fatalf("expected empty URI when data is provided, got %q", sketch.URI)
+	if sketch.URI != "https://example.com/sketch.png" {
+		t.Fatalf("unexpected sketch URI: %q", sketch.URI)
 	}
 
 	diagram, ok := userTaskEvent.Attachments["diagram.svg"]

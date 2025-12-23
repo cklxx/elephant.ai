@@ -151,4 +151,50 @@
   .markdown-body .wmde-markdown .copied.active .octicon-check {
     display: block;
   }
+
+  /* Fix heading anchor alignment (rehype-autolink-headings via @uiw/react-markdown-preview). */
+  .markdown-body .wmde-markdown a.anchor {
+    float: left;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    padding-right: 0.25rem;
+    margin-left: -1.25rem;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .markdown-body .wmde-markdown .anchor:focus {
+    outline: none;
+  }
+
+  .markdown-body .wmde-markdown h1 .octicon-link,
+  .markdown-body .wmde-markdown h2 .octicon-link,
+  .markdown-body .wmde-markdown h3 .octicon-link,
+  .markdown-body .wmde-markdown h4 .octicon-link,
+  .markdown-body .wmde-markdown h5 .octicon-link,
+  .markdown-body .wmde-markdown h6 .octicon-link {
+    color: inherit;
+    vertical-align: middle;
+    visibility: hidden;
+  }
+
+  .markdown-body .wmde-markdown h1:hover .anchor,
+  .markdown-body .wmde-markdown h2:hover .anchor,
+  .markdown-body .wmde-markdown h3:hover .anchor,
+  .markdown-body .wmde-markdown h4:hover .anchor,
+  .markdown-body .wmde-markdown h5:hover .anchor,
+  .markdown-body .wmde-markdown h6:hover .anchor {
+    text-decoration: none;
+  }
+
+  .markdown-body .wmde-markdown h1:hover .anchor .octicon-link,
+  .markdown-body .wmde-markdown h2:hover .anchor .octicon-link,
+  .markdown-body .wmde-markdown h3:hover .anchor .octicon-link,
+  .markdown-body .wmde-markdown h4:hover .anchor .octicon-link,
+  .markdown-body .wmde-markdown h5:hover .anchor .octicon-link,
+  .markdown-body .wmde-markdown h6:hover .anchor .octicon-link {
+    visibility: visible;
+  }
 }

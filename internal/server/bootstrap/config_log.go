@@ -40,6 +40,18 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	} else {
 		logger.Info("API Key: (not set; source=%s)", config.RuntimeMeta.Source("api_key"))
 	}
+
+	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
+	authDBURL := strings.TrimSpace(config.Auth.DatabaseURL)
+	switch {
+	case sessionDBURL != "":
+		logger.Info("Session DB: (set; source=ALEX_SESSION_DATABASE_URL)")
+	case authDBURL != "":
+		logger.Info("Session DB: (fallback to AUTH_DATABASE_URL)")
+	default:
+		logger.Info("Session DB: (not set)")
+	}
+
 	logger.Info("Max Tokens: %d (source=%s)", runtimeCfg.MaxTokens, config.RuntimeMeta.Source("max_tokens"))
 	logger.Info("Max Iterations: %d (source=%s)", runtimeCfg.MaxIterations, config.RuntimeMeta.Source("max_iterations"))
 	logger.Info("Temperature: %.2f (provided=%t; source=%s)", runtimeCfg.Temperature, runtimeCfg.TemperatureProvided, config.RuntimeMeta.Source("temperature"))

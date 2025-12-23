@@ -14,7 +14,7 @@ describe('plan goal session titles', () => {
     });
   });
 
-  it('uses the plan goal from metadata as the session label', () => {
+  it('uses the plan session_title from metadata as the session label', () => {
     const event: WorkflowToolCompletedEvent = {
       event_type: 'workflow.tool.completed',
       agent_level: 'core',
@@ -24,13 +24,13 @@ describe('plan goal session titles', () => {
       tool_name: 'plan',
       result: 'Refine onboarding experience',
       duration: 120,
-      metadata: { overall_goal_ui: 'Improve plan labeling UX' },
+      metadata: { session_title: 'Plan labeling', overall_goal_ui: 'Improve plan labeling UX' },
     };
 
     defaultEventRegistry.run(event);
 
     expect(useSessionStore.getState().sessionLabels['session-plan-1']).toBe(
-      'Improve plan labeling UX',
+      'Plan labeling',
     );
   });
 
@@ -50,6 +50,26 @@ describe('plan goal session titles', () => {
 
     expect(useSessionStore.getState().sessionLabels['session-plan-2']).toBe(
       'Draft new help center IA',
+    );
+  });
+
+  it('falls back to overall_goal_ui when session_title is missing', () => {
+    const event: WorkflowToolCompletedEvent = {
+      event_type: 'workflow.tool.completed',
+      agent_level: 'core',
+      timestamp: new Date().toISOString(),
+      session_id: 'session-plan-3',
+      call_id: 'call-plan-3',
+      tool_name: 'plan',
+      result: 'Refine onboarding experience',
+      duration: 120,
+      metadata: { overall_goal_ui: 'Improve plan labeling UX' },
+    };
+
+    defaultEventRegistry.run(event);
+
+    expect(useSessionStore.getState().sessionLabels['session-plan-3']).toBe(
+      'Improve plan labeling UX',
     );
   });
 
