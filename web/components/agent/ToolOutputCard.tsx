@@ -227,39 +227,37 @@ export function ToolOutputCard({
       {/* Expanded Content */}
       {isExpanded && showBody && (
         <div className="mt-2 pl-4 pr-1" data-testid="tool-content-expanded">
-          <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
-            <div className="grid gap-3 lg:grid-cols-2">
-              {hasParameters && (
-                <ToolArgumentsPanel
-                  args={formattedArguments}
-                  label={t("tool.section.parameters")}
-                  copyLabel={t("events.toolCall.copyArguments")}
-                  copiedLabel={t("events.toolCall.copied")}
-                />
-              )}
+          <div className="grid gap-3 lg:grid-cols-2">
+            {hasParameters && (
+              <ToolArgumentsPanel
+                args={formattedArguments}
+                label={t("tool.section.parameters")}
+                copyLabel={t("events.toolCall.copyArguments")}
+                copiedLabel={t("events.toolCall.copied")}
+              />
+            )}
 
-              {(hasResult || hasError || attachmentCount > 0) && (
-                <ToolResultPanel
-                  toolName={toolName}
-                  result={result ?? ""}
-                  error={error ?? null}
-                  resultTitle={t("tool.section.output")}
-                  errorTitle={t("tool.section.error")}
-                  copyLabel={t("events.toolCall.copyResult")}
-                  copyErrorLabel={t("events.toolCall.copyError")}
-                  copiedLabel={t("events.toolCall.copied")}
-                  attachments={attachments}
-                  metadata={(sanitizedMetadata as Record<string, any>) ?? null}
-                />
-              )}
+            {(hasResult || hasError || attachmentCount > 0) && (
+              <ToolResultPanel
+                toolName={toolName}
+                result={result ?? ""}
+                error={error ?? null}
+                resultTitle={t("tool.section.output")}
+                errorTitle={t("tool.section.error")}
+                copyLabel={t("events.toolCall.copyResult")}
+                copyErrorLabel={t("events.toolCall.copyError")}
+                copiedLabel={t("events.toolCall.copied")}
+                attachments={attachments}
+                metadata={(sanitizedMetadata as Record<string, any>) ?? null}
+              />
+            )}
 
-              {hasMetadata && (
-                <ToolStreamPanel
-                  title={t("conversation.tool.timeline.metadata")}
-                  content={formattedMetadata}
-                />
-              )}
-            </div>
+            {hasMetadata && (
+              <ToolStreamPanel
+                title={t("conversation.tool.timeline.metadata")}
+                content={formattedMetadata}
+              />
+            )}
           </div>
         </div>
       )}

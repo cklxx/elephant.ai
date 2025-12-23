@@ -16,7 +16,7 @@ import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 import { Card, CardContent } from "@/components/ui/card";
-import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
+import { AgentMarkdown } from "./AgentMarkdown";
 import { LoadingDots } from "@/components/ui/loading-states";
 import { A2UIAttachmentPreview } from "@/components/agent/A2UIAttachmentPreview";
 
@@ -59,7 +59,9 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     if (!attachments) {
       return {
         a2uiAttachments: {} as Record<string, AttachmentPayload>,
-        standardAttachments: undefined as Record<string, AttachmentPayload> | undefined,
+        standardAttachments: undefined as
+          | Record<string, AttachmentPayload>
+          | undefined,
       };
     }
     const a2ui: Record<string, AttachmentPayload> = {};
@@ -73,7 +75,8 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     });
     return {
       a2uiAttachments: a2ui,
-      standardAttachments: Object.keys(standard).length > 0 ? standard : undefined,
+      standardAttachments:
+        Object.keys(standard).length > 0 ? standard : undefined,
     };
   }, [attachments]);
   const streamInProgress =
@@ -229,228 +232,174 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
   };
 
   return (
-    <Card data-testid="task-complete-event">
-      <CardContent className="mt-2 space-y-4 p-4">
-        {streamInProgress && !hasAnswerContent ? (
-          <div
-            className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
-            data-testid="task-complete-streaming-placeholder"
-          >
-            <p className="font-medium text-foreground">
-              {t("events.taskComplete.streaming")}
-            </p>
-            <p className="mt-1 inline-flex items-center gap-2 text-muted-foreground">
-              <LoadingDots />
-              <span>{t("events.taskComplete.streamingHint")}</span>
-            </p>
-          </div>
-        ) : shouldRenderMarkdown ? (
-          <>
-            <StreamingMarkdownRenderer
-              content={contentWithInlineMedia}
-              className="prose max-w-none text-sm leading-relaxed text-foreground"
-              attachments={inlineAttachments}
-              isStreaming={streamInProgress}
-              streamFinished={streamFinished}
-              components={{
-                code: ({ inline, children, ...props }: any) => {
-                  if (inline) {
-                    return (
-                      <code
-                        className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    );
-                  }
+    <Card
+      data-testid="task-complete-event"
+      className="border-0 bg-transparent shadow-none"
+    >
+      {streamInProgress && !hasAnswerContent ? (
+        <div
+          className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
+          data-testid="task-complete-streaming-placeholder"
+        >
+          <p className="font-medium text-foreground">
+            {t("events.taskComplete.streaming")}
+          </p>
+          <p className="mt-1 inline-flex items-center gap-2 text-muted-foreground">
+            <LoadingDots />
+            <span>{t("events.taskComplete.streamingHint")}</span>
+          </p>
+        </div>
+      ) : shouldRenderMarkdown ? (
+        <>
+          <AgentMarkdown
+            content={contentWithInlineMedia}
+            className="prose max-w-none text-sm leading-relaxed text-foreground"
+            attachments={inlineAttachments}
+            isStreaming={streamInProgress}
+            streamFinished={streamFinished}
+            components={{
+              img: ({ src, alt }: { src?: string; alt?: string }) => {
+                const recoveredSrc =
+                  (src && src.trim()) ||
+                  inlineImageMap.get((alt || "").trim()) ||
+                  undefined;
+                if (!recoveredSrc) {
+                  return null;
+                }
+                const matchedAttachment = inlineAttachmentMap.get(recoveredSrc);
+                if (matchedAttachment?.type === "video") {
                   return (
-                    <code
-                      className="block font-mono text-xs leading-relaxed text-foreground"
-                      {...props}
-                    >
-                      {children}
-                    </code>
+                    <VideoPreview
+                      key={`task-complete-inline-video-${matchedAttachment.key}`}
+                      src={recoveredSrc}
+                      mimeType={matchedAttachment.mime || "video/mp4"}
+                      description={
+                        matchedAttachment.description ||
+                        alt ||
+                        matchedAttachment.key
+                      }
+                      className="w-full"
+                      maxHeight="20rem"
+                    />
                   );
-                },
-                pre: ({ children }: any) => (
-                  <pre className="markdown-code-block relative my-4 overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4">
-                    {children}
-                  </pre>
-                ),
-                p: ({ children }: any) => (
-                  <div className="mb-4 leading-relaxed text-foreground">
-                    {children}
-                  </div>
-                ),
-                ul: ({ children }: any) => (
-                  <ul className="mb-4 space-y-2 leading-relaxed text-foreground">
-                    {children}
-                  </ul>
-                ),
-                ol: ({ children }: any) => (
-                  <ol className="mb-4 space-y-2 leading-relaxed text-foreground">
-                    {children}
-                  </ol>
-                ),
-                li: ({ children }: any) => (
-                  <li className="leading-relaxed text-foreground">
-                    {children}
-                  </li>
-                ),
-                strong: ({ children }: any) => (
-                  <strong className="font-bold text-foreground">
-                    {children}
-                  </strong>
-                ),
-                img: ({ src, alt }: { src?: string; alt?: string }) => {
-                  const recoveredSrc =
-                    (src && src.trim()) ||
-                    inlineImageMap.get((alt || "").trim()) ||
-                    undefined;
-                  if (!recoveredSrc) {
-                    return null;
-                  }
-                  const matchedAttachment =
-                    inlineAttachmentMap.get(recoveredSrc);
-                  if (matchedAttachment?.type === "video") {
-                    return (
-                      <VideoPreview
-                        key={`task-complete-inline-video-${matchedAttachment.key}`}
-                        src={recoveredSrc}
-                        mimeType={matchedAttachment.mime || "video/mp4"}
-                        description={
-                          matchedAttachment.description ||
-                          alt ||
-                          matchedAttachment.key
-                        }
-                        className="w-full"
-                        maxHeight="20rem"
+                }
+
+                if (
+                  matchedAttachment &&
+                  (matchedAttachment.type === "document" ||
+                    matchedAttachment.type === "embed")
+                ) {
+                  return (
+                    <div className="my-4">
+                      <ArtifactPreviewCard
+                        attachment={matchedAttachment.attachment}
                       />
-                    );
-                  }
+                    </div>
+                  );
+                }
 
-                  if (
-                    matchedAttachment &&
-                    (matchedAttachment.type === "document" ||
-                      matchedAttachment.type === "embed")
-                  ) {
-                    return (
-                      <div className="my-4">
-                        <ArtifactPreviewCard
-                          attachment={matchedAttachment.attachment}
-                        />
-                      </div>
-                    );
-                  }
+                return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
+              },
+            }}
+          />
+        </>
+      ) : shouldShowFallback ? (
+        <div
+          className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
+          data-testid="task-complete-fallback"
+        >
+          <p className="font-medium text-foreground">{stopReasonCopy.title}</p>
+          {stopReasonCopy.body && (
+            <p className="mt-1 text-muted-foreground">{stopReasonCopy.body}</p>
+          )}
+        </div>
+      ) : shouldShowAttachmentNotice ? (
+        <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+          <p className="font-medium text-foreground">
+            {t("events.taskComplete.empty")}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            {t("events.taskComplete.attachmentsAvailable")}
+          </p>
+          {attachmentNames.length > 0 && (
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+              {attachmentNames.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
-                  return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
-                },
-              }}
+      {!streamInProgress && hasA2UIAttachments && (
+        <div className="space-y-4">
+          {Object.entries(a2uiAttachments).map(([key, attachment]) => (
+            <A2UIAttachmentPreview
+              key={`task-complete-a2ui-${key}`}
+              attachment={attachment}
             />
-          </>
-        ) : shouldShowFallback ? (
-          <div
-            className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm"
-            data-testid="task-complete-fallback"
-          >
-            <p className="font-medium text-foreground">
-              {stopReasonCopy.title}
-            </p>
-            {stopReasonCopy.body && (
-              <p className="mt-1 text-muted-foreground">
-                {stopReasonCopy.body}
-              </p>
-            )}
-          </div>
-        ) : shouldShowAttachmentNotice ? (
-          <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm">
-            <p className="font-medium text-foreground">
-              {t("events.taskComplete.empty")}
-            </p>
-            <p className="mt-1 text-muted-foreground">
-              {t("events.taskComplete.attachmentsAvailable")}
-            </p>
-            {attachmentNames.length > 0 && (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                {attachmentNames.map((name) => (
-                  <li key={name}>{name}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
+          ))}
+        </div>
+      )}
 
-        {!streamInProgress && hasA2UIAttachments && (
-          <div className="space-y-4">
-            {Object.entries(a2uiAttachments).map(([key, attachment]) => (
-              <A2UIAttachmentPreview
-                key={`task-complete-a2ui-${key}`}
-                attachment={attachment}
-              />
-            ))}
-          </div>
-        )}
-
-        {!streamInProgress && unreferencedMediaSegments.length > 0 && (
-          <div className="flex flex-wrap items-start gap-3">
-            {unreferencedMediaSegments.map((segment, index) => {
-              if (!segment.attachment) {
-                return null;
-              }
-              const uri = buildAttachmentUri(segment.attachment);
-              if (!uri) {
-                return null;
-              }
-              const caption =
-                segment.attachment.description ||
-                segment.attachment.name ||
-                `image-${index + 1}`;
-              const key = segment.placeholder || `${segment.type}-${index}`;
-              if (segment.type === "video") {
-                return (
-                  <VideoPreview
-                    key={`task-complete-media-${key}`}
-                    src={uri}
-                    mimeType={segment.attachment.media_type || "video/mp4"}
-                    description={segment.attachment.description}
-                    className="w-full sm:w-[220px] lg:w-[260px]"
-                    maxHeight="20rem"
-                  />
-                );
-              }
+      {!streamInProgress && unreferencedMediaSegments.length > 0 && (
+        <div className="flex flex-wrap items-start gap-3">
+          {unreferencedMediaSegments.map((segment, index) => {
+            if (!segment.attachment) {
+              return null;
+            }
+            const uri = buildAttachmentUri(segment.attachment);
+            if (!uri) {
+              return null;
+            }
+            const caption =
+              segment.attachment.description ||
+              segment.attachment.name ||
+              `image-${index + 1}`;
+            const key = segment.placeholder || `${segment.type}-${index}`;
+            if (segment.type === "video") {
               return (
-                <ImagePreview
+                <VideoPreview
                   key={`task-complete-media-${key}`}
                   src={uri}
-                  alt={caption}
-                  minHeight="12rem"
-                  maxHeight="20rem"
+                  mimeType={segment.attachment.media_type || "video/mp4"}
+                  description={segment.attachment.description}
                   className="w-full sm:w-[220px] lg:w-[260px]"
-                  sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 100vw"
+                  maxHeight="20rem"
                 />
               );
-            })}
-          </div>
-        )}
+            }
+            return (
+              <ImagePreview
+                key={`task-complete-media-${key}`}
+                src={uri}
+                alt={caption}
+                minHeight="12rem"
+                maxHeight="20rem"
+                className="w-full sm:w-[220px] lg:w-[260px]"
+                sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 100vw"
+              />
+            );
+          })}
+        </div>
+      )}
 
-        {!streamInProgress && artifactSegments.length > 0 && (
-          <div className="mt-4 space-y-3">
-            {artifactSegments.map((segment, index) => {
-              if (!segment.attachment) {
-                return null;
-              }
-              const key = segment.placeholder || `artifact-${index}`;
-              return (
-                <ArtifactPreviewCard
-                  key={`task-complete-artifact-${key}`}
-                  attachment={segment.attachment}
-                />
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
+      {!streamInProgress && artifactSegments.length > 0 && (
+        <div className="mt-4 space-y-3">
+          {artifactSegments.map((segment, index) => {
+            if (!segment.attachment) {
+              return null;
+            }
+            const key = segment.placeholder || `artifact-${index}`;
+            return (
+              <ArtifactPreviewCard
+                key={`task-complete-artifact-${key}`}
+                attachment={segment.attachment}
+              />
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }

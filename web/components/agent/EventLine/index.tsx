@@ -19,6 +19,7 @@ import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
+import { AgentMarkdown } from "../AgentMarkdown";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -59,57 +60,80 @@ export const EventLine = React.memo(function EventLine({
         (segment.type === "document" || segment.type === "embed") &&
         segment.attachment,
     );
+
+    const hasTextContent = textSegments.some(
+      (segment) => typeof segment.text === "string" && segment.text.length > 0,
+    );
     return (
-      <div className="py-2" data-testid="event-workflow.input.received">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
-            User
-          </span>
-          <span className="text-[10px] text-muted-foreground/40">
+      <div
+        className="py-2 flex justify-end"
+        data-testid="event-workflow.input.received"
+      >
+        <div className="flex w-full max-w-[min(36rem,100%)] flex-col items-end gap-2">
+          {hasTextContent && (
+            <div className="w-fit max-w-full rounded-2xl border border-border/60 bg-background px-4 py-3 shadow-sm">
+              <div className="text-base text-foreground">
+                {textSegments.map((segment, index) => (
+                  <p
+                    key={`text-segment-${index}`}
+                    className="whitespace-pre-wrap leading-relaxed"
+                  >
+                    {segment.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mediaSegments.length > 0 && (
+            <div className="w-full grid grid-cols-2 gap-2">
+              {mediaSegments.map((segment, index) => {
+                if (!segment.attachment) return null;
+                const uri = buildAttachmentUri(segment.attachment);
+                if (!uri) return null;
+                if (segment.type === "video") {
+                  return (
+                    <VideoPreview
+                      key={index}
+                      src={uri}
+                      mimeType={segment.attachment.media_type || "video/mp4"}
+                      description={segment.attachment.description}
+                      className="rounded-lg border border-border/20"
+                      maxHeight="16rem"
+                      controls
+                    />
+                  );
+                }
+                return (
+                  <ImagePreview
+                    key={index}
+                    src={uri}
+                    alt={segment.attachment.description || "User upload"}
+                    className="rounded-lg border border-border/20"
+                    maxHeight="16rem"
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {artifactSegments.length > 0 && (
+            <div className="w-full space-y-2">
+              {artifactSegments.map((segment, index) =>
+                segment.attachment ? (
+                  <ArtifactPreviewCard
+                    key={index}
+                    attachment={segment.attachment}
+                  />
+                ) : null,
+              )}
+            </div>
+          )}
+
+          <div className="text-[10px] text-muted-foreground/40">
             {formatTimestamp(event.timestamp)}
-          </span>
-        </div>
-        <div className="text-base text-foreground">
-          {textSegments.map((segment, index) => (
-            <p
-              key={`text-segment-${index}`}
-              className="whitespace-pre-wrap leading-relaxed"
-            >
-              {segment.text}
-            </p>
-          ))}
-        </div>
-        {mediaSegments.length > 0 && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {mediaSegments.map((segment, index) => {
-              // ... keep media rendering logic ...
-              if (!segment.attachment) return null;
-              const uri = buildAttachmentUri(segment.attachment);
-              if (!uri) return null;
-              return (
-                <ImagePreview
-                  key={index}
-                  src={uri}
-                  alt="User upload"
-                  className="rounded-lg border border-border/20"
-                  maxHeight="16rem"
-                />
-              );
-            })}
           </div>
-        )}
-        {artifactSegments.length > 0 && (
-          <div className="mt-2 space-y-2">
-            {artifactSegments.map((segment, index) =>
-              segment.attachment ? (
-                <ArtifactPreviewCard
-                  key={index}
-                  attachment={segment.attachment}
-                />
-              ) : null,
-            )}
-          </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -333,9 +357,10 @@ function PlanGoalCard({
           Alex
         </span>
       </div>
-      <div className="text-base font-medium text-foreground whitespace-pre-wrap leading-relaxed">
-        {goal}
-      </div>
+      <AgentMarkdown
+        content={goal}
+        className="prose max-w-none text-sm leading-relaxed text-foreground"
+      />
     </div>
   );
 }
