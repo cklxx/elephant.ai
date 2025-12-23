@@ -21,6 +21,7 @@ import { VideoPreview } from "@/components/ui/video-preview";
 import { ArtifactPreviewCard } from "../ArtifactPreviewCard";
 import { Badge } from "@/components/ui/badge";
 import { AgentMarkdown } from "../AgentMarkdown";
+import { AlexWordmark } from "@/components/ui/alex-wordmark";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -300,9 +301,7 @@ function PlanGoalCard({
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <span className="text-base text-muted-foreground/60 tracking-wider text-center">
-          Alex
-        </span>
+        <AlexWordmark className="ml-2 text-muted-foreground/60" />
       </div>
       <AgentMarkdown
         content={goal}
