@@ -151,7 +151,7 @@ export const EventLine = React.memo(function EventLine({
             {formatTimestamp(event.timestamp)}
           </div>
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -172,7 +172,7 @@ export const EventLine = React.memo(function EventLine({
         <PlanGoalCard
           goal={completeEvent.result}
           timestamp={completeEvent.timestamp}
-        />
+        />,
       );
     }
     if (toolName === "clearify") {
@@ -181,7 +181,7 @@ export const EventLine = React.memo(function EventLine({
           result={completeEvent.result}
           metadata={completeEvent.metadata}
           timestamp={completeEvent.timestamp}
-        />
+        />,
       );
     }
     return wrapWithSubagentContext(
@@ -200,7 +200,7 @@ export const EventLine = React.memo(function EventLine({
           metadata={completeEvent.metadata}
           attachments={completeEvent.attachments ?? undefined}
         />
-      </div>
+      </div>,
     );
   }
 
@@ -214,7 +214,7 @@ export const EventLine = React.memo(function EventLine({
           </span>
         </div>
         <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
-      </div>
+      </div>,
     );
   }
 
@@ -253,7 +253,7 @@ export const EventLine = React.memo(function EventLine({
             data-testid="event-workflow.node.output.summary"
           >
             <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
-          </div>
+          </div>,
         );
       }
       return wrapWithSubagentContext(
@@ -261,7 +261,7 @@ export const EventLine = React.memo(function EventLine({
           content={thinkEvent.content}
           timestamp={thinkEvent.timestamp}
           variant={variant}
-        />
+        />,
       );
     }
   }
@@ -280,7 +280,7 @@ export const EventLine = React.memo(function EventLine({
       )}
     >
       <div className="flex-1 leading-relaxed break-words">{content}</div>
-    </div>
+    </div>,
   );
 });
 
@@ -293,14 +293,14 @@ function PlanGoalCard({
 }) {
   return (
     <div className="py-1" data-testid="event-ui-plan">
-      <div className="flex items-end gap-1">
+      <div className="flex items-center">
         <img
           src="/elephant.jpg"
           alt=""
-          className="h-7 w-7 rounded-sm object-cover bg-white"
+          className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <span className="text-base font-bold text-muted-foreground/60 tracking-wider">
+        <span className="text-base font-bold text-muted-foreground/60 tracking-wider text-center">
           Alex
         </span>
       </div>
