@@ -31,7 +31,7 @@ const baseComponents: Record<string, ComponentType<any>> = {
     }
     return (
       <code
-        className="block font-mono text-xs leading-relaxed text-foreground"
+        className="block font-mono text-xs leading-snug text-foreground"
         {...props}
       >
         {children}
@@ -39,29 +39,34 @@ const baseComponents: Record<string, ComponentType<any>> = {
     );
   },
   pre: ({ children }: any) => (
-    <pre className="markdown-code-block relative my-4 overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4">
+    <pre className="markdown-code-block relative my-2 overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4">
       {children}
     </pre>
   ),
   p: ({ children }: any) => (
-    <div className="whitespace-pre-wrap leading-relaxed text-foreground">{children}</div>
+    <div className="whitespace-pre-wrap leading-normal text-foreground">
+      {children}
+    </div>
   ),
   ul: ({ children }: any) => (
-    <ul className="mb-4 space-y-2 leading-relaxed text-foreground">
+    <ul className="mb-2 space-y-1 leading-normal text-foreground">
       {children}
     </ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="mb-4 space-y-2 leading-relaxed text-foreground">
+    <ol className="mb-2 space-y-1 leading-normal text-foreground">
       {children}
     </ol>
   ),
   li: ({ children }: any) => (
-    <li className="whitespace-pre-wrap leading-relaxed text-foreground">{children}</li>
+    <li className="whitespace-pre-wrap leading-normal text-foreground">
+      {children}
+    </li>
   ),
   strong: ({ children }: any) => (
-    <strong className="font-bold text-foreground">{children}</strong>
+    <strong className="font-semibold text-foreground">{children}</strong>
   ),
+  br: () => null,
 };
 
 export function AgentMarkdown({

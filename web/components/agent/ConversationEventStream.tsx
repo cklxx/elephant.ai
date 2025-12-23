@@ -275,7 +275,26 @@ function partitionEvents(events: AnyAgentEvent[]): {
   const threads = new Map<string, SubagentThread>();
   const arrivalOrder = new WeakMap<AnyAgentEvent, number>();
   const planTaskCounts = new Map<string, number>();
+  const finalAnswerByThreadKey = new Map<string, string>();
   let arrival = 0;
+
+  events.forEach((event) => {
+    if (!eventMatches(event, "workflow.result.final", "workflow.result.final")) {
+      return;
+    }
+    const key = getThreadKey(event);
+    if (!key) {
+      return;
+    }
+    const finalAnswer =
+      "final_answer" in event && typeof event.final_answer === "string"
+        ? event.final_answer
+        : "";
+    if (!finalAnswer.trim()) {
+      return;
+    }
+    finalAnswerByThreadKey.set(key, normalizeComparableText(finalAnswer));
+  });
 
   events.forEach((event) => {
     arrival += 1;
@@ -303,9 +322,6 @@ function partitionEvents(events: AnyAgentEvent[]): {
     const isSubagentEvent = isSubagentLike(event);
 
     if (isSubagentEvent) {
-      if (!shouldDisplaySubagentEvent(event)) {
-        return;
-      }
       const key = getSubagentKey(event);
       const context = getSubagentContext(event);
       const subtaskIndex = getSubtaskIndex(event);
@@ -316,7 +332,11 @@ function partitionEvents(events: AnyAgentEvent[]): {
 
       const thread = threads.get(key)!;
       thread.context = mergeSubagentContext(thread.context, context);
-      if (maybeMergeDeltaEvent(thread.events, event)) {
+
+      if (!shouldDisplaySubagentEvent(event)) {
+        return;
+      }
+      if (shouldSkipDuplicateSummaryEvent(event, finalAnswerByThreadKey)) {
         return;
       }
       thread.events.push(event);
@@ -330,6 +350,7 @@ function partitionEvents(events: AnyAgentEvent[]): {
         "workflow.node.output.delta",
         "workflow.node.output.delta",
       ) &&
+      !shouldSkipDuplicateSummaryEvent(event, finalAnswerByThreadKey) &&
       !shouldSkipEvent(event)
     ) {
       displayEvents.push(event);
@@ -410,6 +431,58 @@ function maybeMergeDeltaEvent(
 type DisplayEntry =
   | { kind: "event"; event: AnyAgentEvent }
   | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number };
+
+function normalizeComparableText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function getThreadKey(event: AnyAgentEvent): string | null {
+  const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+  const taskId = typeof event.task_id === "string" ? event.task_id : "";
+
+  if (isSubagentLike(event)) {
+    return `subagent:${sessionId}:${getSubagentKey(event)}`;
+  }
+
+  if (taskId) {
+    return `core:${sessionId}:${taskId}`;
+  }
+
+  if (sessionId) {
+    return `core:${sessionId}`;
+  }
+
+  return null;
+}
+
+function shouldSkipDuplicateSummaryEvent(
+  event: AnyAgentEvent,
+  finalAnswerByThreadKey: Map<string, string>,
+): boolean {
+  if (
+    !eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary")
+  ) {
+    return false;
+  }
+
+  const key = getThreadKey(event);
+  if (!key) {
+    return false;
+  }
+
+  const finalAnswer = finalAnswerByThreadKey.get(key);
+  if (!finalAnswer) {
+    return false;
+  }
+
+  const content =
+    "content" in event && typeof event.content === "string" ? event.content : "";
+  if (!content.trim()) {
+    return false;
+  }
+
+  return normalizeComparableText(content) === finalAnswer;
+}
 
 function isClearifyToolEvent(event: AnyAgentEvent): boolean {
   if (!eventMatches(event, "workflow.tool.completed")) {
@@ -542,14 +615,9 @@ function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
   return (
     eventMatches(
       event,
-      "workflow.subflow.progress",
-      "workflow.subflow.completed",
-      "workflow.tool.started",
-      "workflow.tool.progress",
       "workflow.tool.completed",
       "workflow.result.final",
       "workflow.result.cancelled",
-      "workflow.node.output.delta",
       "workflow.node.output.summary",
       "workflow.node.failed",
     ) || false

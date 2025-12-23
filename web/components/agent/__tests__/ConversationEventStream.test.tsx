@@ -196,6 +196,55 @@ describe('ConversationEventStream', () => {
     expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
   });
 
+  it('dedupes workflow.node.output.summary when it repeats the final answer', () => {
+    const summaryTimestamp = new Date(Date.now() + 500).toISOString();
+    const completionTimestamp = new Date(Date.now() + 1500).toISOString();
+    const content = '## Final Summary\n\n- ✅ Done\n';
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.node.output.summary',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        iteration: 1,
+        content,
+        timestamp: summaryTimestamp,
+      } as AnyAgentEvent,
+      {
+        event_type: 'workflow.result.final',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        final_answer: content,
+        total_iterations: 2,
+        total_tokens: 1234,
+        stop_reason: 'complete',
+        duration: 3200,
+        timestamp: completionTimestamp,
+      } as AnyAgentEvent,
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
+    expect(screen.queryByTestId('event-workflow.node.output.summary')).not.toBeInTheDocument();
+  });
+
   it('aggregates subagent events under a single panel', () => {
     const subagentTimestamp = new Date(Date.now() + 500).toISOString();
 
@@ -327,8 +376,8 @@ describe('ConversationEventStream', () => {
     expect(threads).toHaveLength(1);
     expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
 
-    const conversationEvents = screen.getByTestId('conversation-events');
-    expect(within(conversationEvents).queryByTestId(/event-workflow.tool.completed/)).not.toBeInTheDocument();
+    expect(within(threads[0]).getByTestId('event-workflow.tool.completed')).toBeInTheDocument();
+    expect(screen.getAllByTestId('event-workflow.tool.completed')).toHaveLength(1);
   });
 
   it('hides clearify events when the plan only returns a single task', () => {

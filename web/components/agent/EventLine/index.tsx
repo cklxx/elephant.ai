@@ -39,19 +39,25 @@ export const EventLine = React.memo(function EventLine({
   pairedToolStartEvent = null,
   variant = "default",
 }: EventLineProps) {
-  const isSubtaskEvent = isSubagentLike(event);
   const isNested = variant === "nested";
+  const isSubagentEvent = isSubagentLike(event);
+  const subagentContext = isSubagentEvent ? getSubagentContext(event) : null;
 
-  if (isSubtaskEvent) {
+  const wrapWithSubagentContext = (content: React.ReactNode) => {
+    if (!isSubagentEvent || !subagentContext) {
+      return content;
+    }
+
     return (
-      <SubagentEventLine
-        event={event}
-        showContext={showSubagentContext}
-        pairedToolStartEvent={pairedToolStartEvent}
-        variant={variant}
-      />
+      <div
+        className="space-y-1"
+        data-testid={`event-subagent-${event.event_type}`}
+      >
+        {showSubagentContext && <SubagentHeader context={subagentContext} />}
+        {content}
+      </div>
     );
-  }
+  };
 
   // User Task / Input
   if (event.event_type === "workflow.input.received") {
@@ -75,7 +81,7 @@ export const EventLine = React.memo(function EventLine({
     const hasTextContent = textSegments.some(
       (segment) => typeof segment.text === "string" && segment.text.length > 0,
     );
-    return (
+    return wrapWithSubagentContext(
       <div
         className="py-2 flex justify-end"
         data-testid="event-workflow.input.received"
@@ -87,7 +93,7 @@ export const EventLine = React.memo(function EventLine({
                 {textSegments.map((segment, index) => (
                   <p
                     key={`text-segment-${index}`}
-                    className="whitespace-pre-wrap leading-relaxed"
+                    className="whitespace-pre-wrap leading-normal"
                   >
                     {segment.text}
                   </p>
@@ -162,7 +168,7 @@ export const EventLine = React.memo(function EventLine({
         : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
     if (toolName === "plan") {
-      return (
+      return wrapWithSubagentContext(
         <PlanGoalCard
           goal={completeEvent.result}
           timestamp={completeEvent.timestamp}
@@ -170,7 +176,7 @@ export const EventLine = React.memo(function EventLine({
       );
     }
     if (toolName === "clearify") {
-      return (
+      return wrapWithSubagentContext(
         <ClearifyTaskCard
           result={completeEvent.result}
           metadata={completeEvent.metadata}
@@ -178,7 +184,7 @@ export const EventLine = React.memo(function EventLine({
         />
       );
     }
-    return (
+    return wrapWithSubagentContext(
       <div
         data-testid="event-workflow.tool.completed"
         className={cn("py-1", !isNested && "pl-2 border-l-2 border-primary/10")}
@@ -200,7 +206,7 @@ export const EventLine = React.memo(function EventLine({
 
   // Task complete
   if (event.event_type === "workflow.result.final") {
-    return (
+    return wrapWithSubagentContext(
       <div className="py-2" data-testid="event-workflow.result.final">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
@@ -238,7 +244,7 @@ export const EventLine = React.memo(function EventLine({
           stream_finished: true,
         };
 
-        return (
+        return wrapWithSubagentContext(
           <div
             className={cn(
               "py-2",
@@ -250,7 +256,7 @@ export const EventLine = React.memo(function EventLine({
           </div>
         );
       }
-      return (
+      return wrapWithSubagentContext(
         <AssistantLogCard
           content={thinkEvent.content}
           timestamp={thinkEvent.timestamp}
@@ -266,7 +272,7 @@ export const EventLine = React.memo(function EventLine({
   if (!content) {
     return null;
   }
-  return (
+  return wrapWithSubagentContext(
     <div
       className={cn(
         "text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90",
@@ -277,179 +283,6 @@ export const EventLine = React.memo(function EventLine({
     </div>
   );
 });
-
-interface SubagentEventLineProps {
-  event: AnyAgentEvent;
-  pairedToolStartEvent?: WorkflowToolStartedEvent | null;
-  variant?: "default" | "nested";
-  showContext?: boolean;
-}
-
-function SubagentEventLine({
-  event,
-  showContext = true,
-  pairedToolStartEvent = null,
-  variant = "default",
-}: SubagentEventLineProps) {
-  const context = getSubagentContext(event);
-  const isNested = variant === "nested";
-
-  if (event.event_type === "workflow.tool.completed") {
-    const completeEvent = event as WorkflowToolCompletedEvent & {
-      arguments?: Record<string, unknown>;
-    };
-    const toolName = (completeEvent.tool_name ?? "").toLowerCase();
-    const pairedArguments =
-      completeEvent.arguments &&
-      typeof completeEvent.arguments === "object" &&
-      !Array.isArray(completeEvent.arguments)
-        ? (completeEvent.arguments as Record<string, unknown>)
-        : pairedToolStartEvent?.arguments;
-    return (
-      <div
-        className="space-y-1 py-1"
-        data-testid={`event-subagent-${event.event_type}`}
-      >
-        {showContext && <SubagentHeader context={context} />}
-        {toolName === "plan" ? (
-          <PlanGoalCard
-            goal={completeEvent.result}
-            timestamp={completeEvent.timestamp}
-          />
-        ) : toolName === "clearify" ? (
-          <ClearifyTaskCard
-            result={completeEvent.result}
-            metadata={completeEvent.metadata}
-            timestamp={completeEvent.timestamp}
-          />
-        ) : (
-          <div
-            className={cn(
-              "py-1",
-              !isNested && "pl-2 border-l-2 border-primary/10",
-            )}
-          >
-            <ToolOutputCard
-              toolName={completeEvent.tool_name}
-              parameters={pairedArguments}
-              result={completeEvent.result}
-              error={completeEvent.error}
-              duration={completeEvent.duration}
-              callId={completeEvent.call_id}
-              metadata={completeEvent.metadata}
-              attachments={completeEvent.attachments ?? undefined}
-              status={completeEvent.error ? "failed" : "completed"}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (event.event_type === "workflow.result.final") {
-    return (
-      <div
-        className="space-y-1 py-2"
-        data-testid="event-subagent-workflow.result.final"
-      >
-        {showContext && <SubagentHeader context={context} />}
-        <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
-      </div>
-    );
-  }
-
-  if (event.event_type === "workflow.node.output.summary") {
-    const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
-    const content = thinkEvent.content ?? "";
-    if (content.trim().length === 0) {
-      return null;
-    }
-
-    const hasAttachments =
-      Boolean(thinkEvent.attachments) &&
-      typeof thinkEvent.attachments === "object" &&
-      Object.keys(thinkEvent.attachments ?? {}).length > 0;
-
-    if (hasAttachments) {
-      const mockWorkflowResultFinalEvent: WorkflowResultFinalEvent = {
-        event_type: "workflow.result.final",
-        timestamp: thinkEvent.timestamp,
-        agent_level: thinkEvent.agent_level,
-        session_id: thinkEvent.session_id,
-        task_id: thinkEvent.task_id,
-        parent_task_id: thinkEvent.parent_task_id,
-        final_answer: content,
-        attachments: thinkEvent.attachments,
-        total_iterations: thinkEvent.iteration ?? 0,
-        total_tokens: 0,
-        stop_reason: "workflow.node.output.summary",
-        duration: 0,
-        is_streaming: false,
-        stream_finished: true,
-      };
-
-      return (
-        <div
-          data-testid={`event-subagent-${event.event_type}`}
-          className="space-y-1"
-        >
-          {showContext && <SubagentHeader context={context} />}
-          <div
-            className={cn(
-              "py-2",
-              !isNested && "pl-4 border-l-2 border-primary/10",
-            )}
-          >
-            <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        data-testid={`event-subagent-${event.event_type}`}
-        className="space-y-1"
-      >
-        {showContext && <SubagentHeader context={context} />}
-        <div
-          className={cn(
-            "py-2",
-            !isNested && "pl-4 border-l-2 border-primary/10",
-          )}
-        >
-          <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-            {content}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const content = formatContent(event);
-  if (!content) {
-    return null;
-  }
-
-  const style = getEventStyle(event);
-
-  return (
-    <div
-      className="space-y-1"
-      data-testid={`event-subagent-${event.event_type}`}
-    >
-      {showContext && <SubagentHeader context={context} />}
-      <div
-        className={cn(
-          "text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90",
-          style.content,
-        )}
-      >
-        <div className="flex-1 leading-relaxed break-words">{content}</div>
-      </div>
-    </div>
-  );
-}
 
 function PlanGoalCard({
   goal,
@@ -473,7 +306,7 @@ function PlanGoalCard({
       </div>
       <AgentMarkdown
         content={goal}
-        className="prose max-w-none text-base leading-relaxed text-foreground"
+        className="prose max-w-none text-base leading-normal text-foreground"
       />
     </div>
   );
@@ -506,7 +339,7 @@ function ClearifyTaskCard({
 
   return (
     <div className="py-2 border-primary/10" data-testid="event-ui-clearify">
-      <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+      <div className="text-sm text-foreground whitespace-pre-wrap leading-normal">
         {taskGoalUI}
       </div>
 
@@ -544,7 +377,7 @@ function AssistantLogCard({
       )}
       data-testid="event-workflow.node.output.summary"
     >
-      <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+      <div className="text-sm text-foreground whitespace-pre-wrap leading-normal">
         {content}
       </div>
     </div>

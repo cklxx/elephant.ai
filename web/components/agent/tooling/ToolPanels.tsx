@@ -98,7 +98,7 @@ export function ToolArgumentsPanel({
   return (
     <SimplePanel>
       <PanelHeader title={label} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={args} />} />
-      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80">
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-snug text-foreground/80">
         {args}
       </pre>
     </SimplePanel>
@@ -182,7 +182,7 @@ export function ToolResultPanel({
       {attachmentsAvailable ? (
         <div className="rounded-lg border border-border/60 bg-background p-3">
           {(textSegments.length > 0 || formatted.trim().length > 0) && (
-            <div className="max-h-56 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/80">
+            <div className="max-h-56 overflow-auto whitespace-pre-wrap text-[11px] leading-normal text-foreground/80">
               {textSegments.length > 0
                 ? textSegments.map((segment, index) => (
                     <span key={`tool-result-text-${index}`}>{segment.text}</span>
@@ -243,7 +243,7 @@ export function ToolResultPanel({
           )}
         </div>
       ) : (
-        <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 text-[11px] leading-relaxed text-foreground/80">
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 text-[11px] leading-snug text-foreground/80">
           {formatted}
         </pre>
       )}
