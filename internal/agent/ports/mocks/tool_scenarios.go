@@ -352,26 +352,17 @@ func NewMultipleToolCallsScenario() ToolScenario {
 				StopReason: "tool_calls",
 				Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
 			},
-			ports.CompletionResponse{
-				Content: "读取 main.go、搜索 init，并运行测试。",
-				ToolCalls: []ports.ToolCall{
-					{
-						ID:   "call_clearify",
-						Name: "clearify",
-						Arguments: map[string]any{
-							"run_id":       "test-run",
-							"task_id":      "task-1",
-							"task_goal_ui": "读取 main.go、搜索 init，并运行测试。",
-							"success_criteria": []any{
-								"拿到 init 定义位置",
-								"确认测试运行结果",
-							},
-						},
+			newClearifyCompletion(
+				"读取 main.go、搜索 init，并运行测试。",
+				"读取 main.go、搜索 init，并运行测试。",
+				ports.TokenUsage{PromptTokens: 150, CompletionTokens: 45, TotalTokens: 195},
+				map[string]any{
+					"success_criteria": []any{
+						"拿到 init 定义位置",
+						"确认测试运行结果",
 					},
 				},
-				StopReason: "tool_calls",
-				Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 45, TotalTokens: 195},
-			},
+			),
 			// First action: read file
 			ports.CompletionResponse{
 				Content: "Let me first read the main.go file",
