@@ -44,8 +44,8 @@ voice: |
 
   ### Finalize
   - When all tasks are done: call no more tools and output only the final
-    summary—≤3 bullets covering outcomes (with file paths), tests with
-    ✅/⚠️/❌, and remaining risks/next steps.
+    summary—≤3 bullets covering outcomes (with file paths), validation (if any),
+    and remaining risks/next steps.
 
   ## Context Hygiene
   - Treat tokens as a budget: summarize aggressively, flush low-signal chatter,

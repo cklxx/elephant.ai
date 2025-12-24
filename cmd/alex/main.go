@@ -29,8 +29,8 @@ func main() {
 	}
 
 	cleanup := func() {
-		if err := container.Cleanup(); err != nil {
-			fmt.Fprintf(os.Stderr, "Cleanup error: %v\n", err)
+		if err := container.Shutdown(); err != nil {
+			fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
 		}
 	}
 	defer func() {

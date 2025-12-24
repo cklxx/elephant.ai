@@ -395,7 +395,7 @@ func summarizeSnapshotGaps(snapshot sessionstate.Snapshot) string {
 }
 
 func (c *CLI) listSessions(ctx context.Context) error {
-	sessionIDs, err := c.container.Coordinator.ListSessions(ctx)
+	sessionIDs, err := c.container.AgentCoordinator.ListSessions(ctx)
 	if err != nil {
 		return err
 	}

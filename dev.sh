@@ -15,7 +15,7 @@
 #   SERVER_PORT=8080            # Backend port override (default 8080)
 #   WEB_PORT=3000               # Web port override (default 3000)
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
-#   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop processes using WEB_PORT (default 1)
+#   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
 ###############################################################################
 
@@ -165,7 +165,26 @@ is_our_backend_pid() {
   [[ -n "$exe" && "$exe" == "$backend_bin" ]]
 }
 
-backend_listener_pids() {
+is_alex_server_pid() {
+  local pid="$1"
+  local exe
+
+  exe="$(pid_executable_path "$pid" || true)"
+  [[ -n "$exe" && "$(basename "$exe")" == "alex-server" ]]
+}
+
+alex_server_listener_pids() {
+  local port="$1"
+  local pid
+
+  for pid in $(port_listener_pids "$port"); do
+    if is_alex_server_pid "$pid"; then
+      echo "$pid"
+    fi
+  done
+}
+
+our_backend_listener_pids() {
   local port="$1"
   local pid
 
@@ -173,6 +192,55 @@ backend_listener_pids() {
     if is_our_backend_pid "$pid"; then
       echo "$pid"
     fi
+  done
+}
+
+maybe_stop_backend_supervisor() {
+  local pid="$1"
+  local ppid
+  local parent_comm
+  local parent_cmd
+
+  ppid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
+  [[ -n "$ppid" && "$ppid" != "0" && "$ppid" != "1" ]] || return 0
+
+  parent_comm="$(ps -o comm= -p "$ppid" 2>/dev/null || true)"
+  [[ "$parent_comm" == "air" ]] || return 0
+
+  parent_cmd="$(ps -o command= -p "$ppid" 2>/dev/null || true)"
+  if [[ "$parent_cmd" == *"alex-server"* ]] || [[ "$parent_cmd" == *"cmd/alex-server"* ]]; then
+    stop_pid "$ppid" "backend supervisor (air)"
+  fi
+}
+
+stop_alex_server_listeners() {
+  local port="$1"
+
+  if ! command_exists lsof; then
+    log_warn "lsof not found; cannot auto-stop server port ${port} listeners"
+    return 0
+  fi
+
+  local pids=()
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] && pids+=("$pid")
+  done < <(alex_server_listener_pids "$port")
+
+  ((${#pids[@]} > 0)) || return 0
+
+  log_warn "server port ${port} is already in use by alex-server; attempting to stop listener(s)"
+  for pid in "${pids[@]}"; do
+    local cmd
+    cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+    if [[ -n "$cmd" ]]; then
+      log_warn "Stopping PID ${pid}: ${cmd}"
+    else
+      log_warn "Stopping PID ${pid}"
+    fi
+
+    maybe_stop_backend_supervisor "$pid"
+    stop_pid "$pid" "backend port ${port} listener"
   done
 }
 
@@ -295,7 +363,7 @@ start_server() {
     local backend_pids=()
     while IFS= read -r pid; do
       [[ -n "$pid" ]] && backend_pids+=("$pid")
-    done < <(backend_listener_pids "$SERVER_PORT")
+    done < <(our_backend_listener_pids "$SERVER_PORT")
 
     if ((${#backend_pids[@]} == 1)); then
       log_warn "Backend already listening on :${SERVER_PORT} (PID: ${backend_pids[0]}); restoring PID file"
@@ -303,17 +371,8 @@ start_server() {
       return 0
     fi
 
-    if ((${#backend_pids[@]} > 1)); then
-      log_warn "Multiple backend listeners detected on :${SERVER_PORT}; cannot determine which one to manage:"
-      for pid in "${backend_pids[@]}"; do
-        local cmd
-        cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
-        if [[ -n "$cmd" ]]; then
-          log_warn "  PID ${pid}: ${cmd}"
-        else
-          log_warn "  PID ${pid}"
-        fi
-      done
+    if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]]; then
+      stop_alex_server_listeners "$SERVER_PORT"
     fi
   fi
 
@@ -385,26 +444,11 @@ cmd_up() {
 cmd_down() {
   stop_service "Web" "${WEB_PID_FILE}"
   cleanup_next_dev_lock
-  stop_service "Backend" "${SERVER_PID_FILE}"
-
-  local backend_pids=()
-  local pid
-  while IFS= read -r pid; do
-    [[ -n "$pid" ]] && backend_pids+=("$pid")
-  done < <(backend_listener_pids "$SERVER_PORT")
-  if ((${#backend_pids[@]} > 0)); then
-    log_warn "Found orphaned backend listener(s) on :${SERVER_PORT} without PID file; stopping..."
-    for pid in "${backend_pids[@]}"; do
-      local cmd
-      cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
-      if [[ -n "$cmd" ]]; then
-        log_warn "Stopping PID ${pid}: ${cmd}"
-      else
-        log_warn "Stopping PID ${pid}"
-      fi
-      stop_pid "$pid" "backend port ${SERVER_PORT} listener"
-    done
+  if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
+    stop_port_listeners "$WEB_PORT" "web"
   fi
+  stop_service "Backend" "${SERVER_PID_FILE}"
+  stop_alex_server_listeners "$SERVER_PORT"
 }
 
 cmd_status() {
@@ -419,7 +463,7 @@ cmd_status() {
     local pid
     while IFS= read -r pid; do
       [[ -n "$pid" ]] && backend_pids+=("$pid")
-    done < <(backend_listener_pids "$SERVER_PORT")
+    done < <(alex_server_listener_pids "$SERVER_PORT")
 
     if ((${#backend_pids[@]} == 1)); then
       log_success "Backend: running (PID: ${backend_pids[0]}) http://localhost:${SERVER_PORT} (PID file missing)"

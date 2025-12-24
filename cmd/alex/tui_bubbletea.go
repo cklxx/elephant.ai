@@ -339,7 +339,7 @@ func (m *bubbleChatUI) onSubmit() (tea.Model, tea.Cmd) {
 func (m *bubbleChatUI) runTaskCmd(ctx context.Context, task string, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		if sessionID == "" {
-			session, err := m.container.Coordinator.GetSession(ctx, "")
+			session, err := m.container.AgentCoordinator.GetSession(ctx, "")
 			if err != nil {
 				return tuiTaskCompleteMsg{err: fmt.Errorf("create session: %w", err)}
 			}
@@ -355,7 +355,7 @@ func (m *bubbleChatUI) runTaskCmd(ctx context.Context, task string, sessionID st
 		})
 		taskCtx = builtin.WithParentListener(taskCtx, listener)
 
-		result, err := m.container.Coordinator.ExecuteTask(taskCtx, task, sessionID, listener)
+		result, err := m.container.AgentCoordinator.ExecuteTask(taskCtx, task, sessionID, listener)
 		if err != nil {
 			return tuiTaskCompleteMsg{err: err}
 		}

@@ -43,44 +43,6 @@ func (d *CostTrackingDecorator) Wrap(ctx context.Context, sessionID string, clie
 	}
 }
 
-// Attach is deprecated - use Wrap instead for proper session isolation
-// This method is kept for backward compatibility but will modify shared client state
-func (d *CostTrackingDecorator) Attach(ctx context.Context, sessionID string, client ports.LLMClient) ports.LLMClient {
-	if d.tracker == nil {
-		return client
-	}
-
-	trackingClient, ok := client.(ports.UsageTrackingClient)
-	if !ok {
-		return client
-	}
-
-	trackingClient.SetUsageCallback(func(usage ports.TokenUsage, model string, provider string) {
-		record := ports.UsageRecord{
-			SessionID:    sessionID,
-			Model:        model,
-			Provider:     provider,
-			InputTokens:  usage.PromptTokens,
-			OutputTokens: usage.CompletionTokens,
-			TotalTokens:  usage.TotalTokens,
-			Timestamp:    d.clock.Now(),
-		}
-
-		record.InputCost, record.OutputCost, record.TotalCost = ports.CalculateCost(
-			usage.PromptTokens,
-			usage.CompletionTokens,
-			model,
-		)
-
-		if err := d.tracker.RecordUsage(ctx, record); err != nil {
-			d.logger.Warn("Failed to record cost: %v", err)
-		}
-	})
-
-	d.logger.Debug("Cost tracking enabled for session: %s", sessionID)
-	return client
-}
-
 // costTrackingWrapper wraps an LLMClient and tracks usage per session
 type costTrackingWrapper struct {
 	client    ports.LLMClient

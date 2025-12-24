@@ -209,7 +209,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	}()
 
 	// Execute task with streaming via listener
-	domainResult, err := container.Coordinator.ExecuteTask(ctx, task, sessionID, bridge)
+	domainResult, err := container.AgentCoordinator.ExecuteTask(ctx, task, sessionID, bridge)
 	if err != nil {
 		if forceExit.Load() {
 			handler.consumeTaskCompletion()

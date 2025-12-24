@@ -121,60 +121,51 @@ func TestReadinessSummaryWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestExecuteConfigCommandSetAndClear(t *testing.T) {
+func assertExecuteConfigCommandSetAndClearStringField(
+	t *testing.T,
+	field string,
+	value string,
+	get func(runtimeconfig.Overrides) *string,
+) {
+	t.Helper()
+
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("OPENAI_API_KEY", "")
 
 	overridesPath := managedOverridesPath(runtimeEnvLookup())
-	if err := executeConfigCommand([]string{"set", "llm_model", "cli-test"}, io.Discard); err != nil {
-		t.Fatalf("set override: %v", err)
+	if err := executeConfigCommand([]string{"set", field, value}, io.Discard); err != nil {
+		t.Fatalf("set override %s: %v", field, err)
 	}
 	store := configadmin.NewFileStore(overridesPath)
 	overrides, err := store.LoadOverrides(context.Background())
 	if err != nil {
 		t.Fatalf("load overrides: %v", err)
 	}
-	if overrides.LLMModel == nil || *overrides.LLMModel != "cli-test" {
-		t.Fatalf("expected override to persist model, got %#v", overrides.LLMModel)
+	if got := get(overrides); got == nil || *got != value {
+		t.Fatalf("expected override %s to persist %q, got %#v", field, value, got)
 	}
-	if err := executeConfigCommand([]string{"clear", "llm_model"}, io.Discard); err != nil {
-		t.Fatalf("clear override: %v", err)
+	if err := executeConfigCommand([]string{"clear", field}, io.Discard); err != nil {
+		t.Fatalf("clear override %s: %v", field, err)
 	}
 	overrides, err = store.LoadOverrides(context.Background())
 	if err != nil {
 		t.Fatalf("reload overrides: %v", err)
 	}
-	if overrides.LLMModel != nil {
-		t.Fatalf("expected llm_model override to be cleared, got %#v", overrides.LLMModel)
+	if got := get(overrides); got != nil {
+		t.Fatalf("expected override %s to be cleared, got %#v", field, got)
 	}
 }
 
-func TestExecuteConfigCommandSetAndClearVisionModel(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("OPENAI_API_KEY", "")
+func TestExecuteConfigCommandSetAndClear(t *testing.T) {
+	assertExecuteConfigCommandSetAndClearStringField(t, "llm_model", "cli-test", func(overrides runtimeconfig.Overrides) *string {
+		return overrides.LLMModel
+	})
+}
 
-	overridesPath := managedOverridesPath(runtimeEnvLookup())
-	if err := executeConfigCommand([]string{"set", "llm_vision_model", "vision-test"}, io.Discard); err != nil {
-		t.Fatalf("set override: %v", err)
-	}
-	store := configadmin.NewFileStore(overridesPath)
-	overrides, err := store.LoadOverrides(context.Background())
-	if err != nil {
-		t.Fatalf("load overrides: %v", err)
-	}
-	if overrides.LLMVisionModel == nil || *overrides.LLMVisionModel != "vision-test" {
-		t.Fatalf("expected override to persist vision model, got %#v", overrides.LLMVisionModel)
-	}
-	if err := executeConfigCommand([]string{"clear", "llm_vision_model"}, io.Discard); err != nil {
-		t.Fatalf("clear override: %v", err)
-	}
-	overrides, err = store.LoadOverrides(context.Background())
-	if err != nil {
-		t.Fatalf("reload overrides: %v", err)
-	}
-	if overrides.LLMVisionModel != nil {
-		t.Fatalf("expected llm_vision_model override to be cleared, got %#v", overrides.LLMVisionModel)
-	}
+func TestExecuteConfigCommandSetAndClearVisionModel(t *testing.T) {
+	assertExecuteConfigCommandSetAndClearStringField(t, "llm_vision_model", "vision-test", func(overrides runtimeconfig.Overrides) *string {
+		return overrides.LLMVisionModel
+	})
 }
 
 func TestSetOverrideFieldParsesTypedValues(t *testing.T) {
