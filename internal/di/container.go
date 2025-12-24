@@ -147,11 +147,6 @@ func (c *Container) Shutdown() error {
 	return nil
 }
 
-// Cleanup gracefully shuts down all resources (alias for Shutdown for backward compatibility)
-func (c *Container) Cleanup() error {
-	return c.Shutdown()
-}
-
 // startMCP starts MCP registry initialization
 func (c *Container) startMCP() error {
 	c.mcpMu.Lock()
@@ -554,16 +549,6 @@ func resolveStorageDir(configured, defaultPath string) string {
 	path = os.ExpandEnv(path)
 
 	return path
-}
-
-// Deprecated: API key resolution moved to internal/config loader. Retained for backward compatibility.
-func GetAPIKey(provider string) string {
-	switch provider {
-	case "ollama":
-		return ""
-	default:
-		return ""
-	}
 }
 
 // SessionDir returns the resolved session directory backing file-based stores.

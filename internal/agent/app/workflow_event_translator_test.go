@@ -363,3 +363,35 @@ func TestWorkflowEventTranslatorReusesWorkflowContextForTools(t *testing.T) {
 		t.Fatalf("unexpected tool envelope metadata: kind=%q id=%q", env.NodeKind, env.NodeID)
 	}
 }
+
+func TestWorkflowEventTranslatorForwardsContextSnapshotEvents(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	ts := time.Unix(1710000200, 0)
+	original := domain.NewWorkflowDiagnosticContextSnapshotEvent(
+		ports.LevelCore,
+		"sess",
+		"task",
+		"parent",
+		1,
+		1,
+		"req-1",
+		[]ports.Message{{Role: "user", Content: "ping"}},
+		nil,
+		ts,
+	)
+
+	translator.OnEvent(original)
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected one event, got %d", got)
+	}
+	if _, ok := events[0].(*domain.WorkflowDiagnosticContextSnapshotEvent); !ok {
+		t.Fatalf("expected context snapshot event, got %T", events[0])
+	}
+	if events[0].EventType() != original.EventType() {
+		t.Fatalf("unexpected event type %q", events[0].EventType())
+	}
+}

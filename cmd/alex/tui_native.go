@@ -182,7 +182,7 @@ func getTerminalWidth() int {
 func (ui *NativeChatUI) executeTask(task string) error {
 	// Create session if needed
 	if ui.sessionID == "" {
-		session, err := ui.container.Coordinator.GetSession(ui.ctx, "")
+		session, err := ui.container.AgentCoordinator.GetSession(ui.ctx, "")
 		if err != nil {
 			return fmt.Errorf("failed to create session: %w", err)
 		}
@@ -196,7 +196,7 @@ func (ui *NativeChatUI) executeTask(task string) error {
 	taskCtx = id.WithTaskID(taskCtx, id.NewTaskID())
 
 	// Execute task using coordinator's method
-	result, err := ui.container.Coordinator.ExecuteTask(taskCtx, task, ui.sessionID, listener)
+	result, err := ui.container.AgentCoordinator.ExecuteTask(taskCtx, task, ui.sessionID, listener)
 	if err != nil {
 		return fmt.Errorf("task execution failed: %w", err)
 	}

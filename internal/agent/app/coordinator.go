@@ -198,7 +198,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	listener ports.EventListener,
 ) (*ports.TaskResult, error) {
 	// Decorate the listener with the workflow envelope translator so downstream
-	// consumers receive both legacy and semantic workflow.* events.
+	// consumers receive workflow event envelopes.
 	eventListener := wrapWithWorkflowEnvelope(listener, nil)
 	var planTitleRecorder *planSessionTitleRecorder
 	if eventListener != nil && !isSubagentContext(ctx) {

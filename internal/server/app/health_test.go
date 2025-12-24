@@ -68,7 +68,7 @@ func TestMCPProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer func() { _ = container.Cleanup() }()
+		defer func() { _ = container.Shutdown() }()
 
 		probe := NewMCPProbe(container, false)
 		health := probe.Check(context.Background())
@@ -92,7 +92,7 @@ func TestMCPProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer func() { _ = container.Cleanup() }()
+		defer func() { _ = container.Shutdown() }()
 
 		probe := NewMCPProbe(container, true) // Probe thinks it's enabled
 		health := probe.Check(context.Background())
@@ -113,7 +113,7 @@ func TestLLMFactoryProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer failed: %v", err)
 		}
-		defer func() { _ = container.Cleanup() }()
+		defer func() { _ = container.Shutdown() }()
 
 		probe := NewLLMFactoryProbe(container)
 		health := probe.Check(context.Background())

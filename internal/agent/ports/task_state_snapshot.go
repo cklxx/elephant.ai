@@ -54,7 +54,7 @@ func CloneTaskState(state *TaskState) *TaskState {
 		SessionID:              state.SessionID,
 		TaskID:                 state.TaskID,
 		ParentTaskID:           state.ParentTaskID,
-		PendingUserAttachments: cloneAttachmentMap(state.PendingUserAttachments),
+		PendingUserAttachments: CloneAttachmentMap(state.PendingUserAttachments),
 	}
 	if len(state.Messages) > 0 {
 		cloned.Messages = CloneMessages(state.Messages)
@@ -63,7 +63,7 @@ func CloneTaskState(state *TaskState) *TaskState {
 		cloned.ToolResults = CloneToolResults(state.ToolResults)
 	}
 	if len(state.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentMap(state.Attachments)
+		cloned.Attachments = CloneAttachmentMap(state.Attachments)
 	}
 	if len(state.AttachmentIterations) > 0 {
 		cloned.AttachmentIterations = cloneIterationMap(state.AttachmentIterations)
@@ -117,7 +117,7 @@ func cloneMessage(msg Message) Message {
 		cloned.Metadata = metadata
 	}
 	if len(msg.Attachments) > 0 {
-		cloned.Attachments = cloneAttachmentMap(msg.Attachments)
+		cloned.Attachments = CloneAttachmentMap(msg.Attachments)
 	}
 	return cloned
 }
@@ -156,7 +156,7 @@ func CloneToolResults(results []ToolResult) []ToolResult {
 			cloned[i].Metadata = metadata
 		}
 		if len(results[i].Attachments) > 0 {
-			cloned[i].Attachments = cloneAttachmentMap(results[i].Attachments)
+			cloned[i].Attachments = CloneAttachmentMap(results[i].Attachments)
 		}
 	}
 	return cloned
