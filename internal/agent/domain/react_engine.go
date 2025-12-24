@@ -641,52 +641,6 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 	}
 
 	attachments := resolveContentAttachments(result.Answer, state)
-	// Auto-surface attachments generated during this run (e.g. artifacts_write),
-	// even when the LLM forgets to reference them explicitly.
-	if len(state.Attachments) > 0 {
-		for key, att := range state.Attachments {
-			placeholder := strings.TrimSpace(key)
-			if placeholder == "" {
-				placeholder = strings.TrimSpace(att.Name)
-			}
-			if placeholder == "" {
-				continue
-			}
-			if isA2UIAttachment(att) {
-				continue
-			}
-			if strings.EqualFold(strings.TrimSpace(att.Source), "user_upload") {
-				continue
-			}
-			kind := strings.ToLower(strings.TrimSpace(att.Kind))
-			source := strings.ToLower(strings.TrimSpace(att.Source))
-			// Only auto-surface durable deliverables (artifacts), not incidental
-			// intermediate attachments like generated images.
-			if kind != "artifact" && source != "artifacts_write" {
-				continue
-			}
-			iter := 0
-			if state.AttachmentIterations != nil {
-				iter = state.AttachmentIterations[placeholder]
-			}
-			// Preloaded attachments start at iteration 0; only include attachments
-			// added/updated during this execution.
-			if iter <= 0 {
-				continue
-			}
-			if attachments == nil {
-				attachments = make(map[string]ports.Attachment)
-			}
-			if _, exists := attachments[placeholder]; exists {
-				continue
-			}
-			cloned := att
-			if cloned.Name == "" {
-				cloned.Name = placeholder
-			}
-			attachments[placeholder] = cloned
-		}
-	}
 
 	result.Answer = ensureAttachmentPlaceholders(result.Answer, attachments)
 
