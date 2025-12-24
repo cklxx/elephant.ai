@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export function AlexWordmark({
   className,
-  title = "alex",
+  title = "Alex",
 }: {
   className?: string;
   title?: string;
@@ -17,7 +17,7 @@ export function AlexWordmark({
       )}
       aria-label={title}
     >
-      alex
+      {title}
     </span>
   );
 }
