@@ -58,6 +58,9 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 		format = "markdown"
 	}
 	format = normalizeFormat(format)
+	if description == "" {
+		description = strings.TrimSpace(deriveAttachmentDescription(name, content, mediaType, format))
+	}
 
 	kind := strings.TrimSpace(stringArg(call.Arguments, "kind"))
 	if kind == "" {
@@ -135,6 +138,69 @@ func (t *artifactsWrite) Definition() ports.ToolDefinition {
 
 func (t *artifactsWrite) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{Name: "artifacts_write", Version: "1.0.0", Category: "attachments"}
+}
+
+func deriveAttachmentDescription(name, content, mediaType, format string) string {
+	if strings.TrimSpace(content) == "" {
+		return ""
+	}
+
+	normalizedMedia := strings.ToLower(strings.TrimSpace(mediaType))
+	normalizedFormat := strings.ToLower(strings.TrimSpace(format))
+	isMarkdown := strings.Contains(normalizedMedia, "markdown") || normalizedFormat == "markdown" || normalizedFormat == "md"
+	if !isMarkdown {
+		return ""
+	}
+
+	title := deriveMarkdownTitle(content)
+	if title == "" {
+		return ""
+	}
+
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return ""
+	}
+
+	// Avoid echoing the filename as the description.
+	if strings.EqualFold(title, strings.TrimSpace(name)) {
+		return ""
+	}
+
+	const maxTitleRunes = 80
+	runes := []rune(title)
+	if len(runes) > maxTitleRunes {
+		title = string(runes[:maxTitleRunes])
+	}
+
+	return title
+}
+
+func deriveMarkdownTitle(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if i >= 60 {
+			break
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "#") {
+			idx := 0
+			for idx < len(trimmed) && trimmed[idx] == '#' {
+				idx += 1
+			}
+			candidate := strings.TrimSpace(trimmed[idx:])
+			candidate = strings.TrimSpace(strings.TrimRight(candidate, "#"))
+			if candidate != "" {
+				return candidate
+			}
+		}
+	}
+	return ""
 }
 
 func (t *artifactsList) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
