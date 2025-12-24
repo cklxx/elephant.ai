@@ -198,26 +198,13 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 				}, nil
 			case 2:
 				return &ports.CompletionResponse{
-					Content: "读取 test.txt。",
-					ToolCalls: []ports.ToolCall{
-						{
-							ID:   "call_clearify",
-							Name: "clearify",
-							Arguments: map[string]any{
-								"run_id":       "test-run",
-								"task_id":      "task-1",
-								"task_goal_ui": "读取 test.txt。",
-							},
-						},
-					},
-					StopReason: "tool_calls",
-				}, nil
-			case 3:
-				// Third call: request action tool
-				return &ports.CompletionResponse{
 					Content: "I need to read the file",
 					ToolCalls: []ports.ToolCall{
-						{ID: "call1", Name: "file_read", Arguments: map[string]any{"path": "test.txt"}},
+						{
+							ID:        "call1",
+							Name:      "file_read",
+							Arguments: map[string]any{"path": "test.txt"},
+						},
 					},
 					StopReason: "tool_calls",
 				}, nil
@@ -235,13 +222,6 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 		GetFunc: func(name string) (ports.ToolExecutor, error) {
 			return &mocks.MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-					if call.Name == "clearify" {
-						return &ports.ToolResult{
-							CallID:   call.ID,
-							Content:  "ok",
-							Metadata: map[string]any{"task_id": "task-1"},
-						}, nil
-					}
 					if call.Name == "plan" {
 						return &ports.ToolResult{CallID: call.ID, Content: "ok"}, nil
 					}
@@ -274,11 +254,11 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	if result.Iterations != 3 {
+		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
 	}
-	if len(state.ToolResults) != 3 {
-		t.Errorf("Expected 3 tool results, got %d", len(state.ToolResults))
+	if len(state.ToolResults) != 2 {
+		t.Errorf("Expected 2 tool results, got %d", len(state.ToolResults))
 	}
 }
 

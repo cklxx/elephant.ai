@@ -106,21 +106,6 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 				return &ports.CompletionResponse{
 					Content: "执行 echo 工具。",
 					ToolCalls: []ports.ToolCall{{
-						ID:   "call-clearify",
-						Name: "clearify",
-						Arguments: map[string]any{
-							"run_id":       "task",
-							"task_id":      "task-1",
-							"task_goal_ui": "执行 echo 工具。",
-						},
-					}},
-					StopReason: "tool_calls",
-					Usage:      ports.TokenUsage{TotalTokens: 5},
-				}, nil
-			case 3:
-				return &ports.CompletionResponse{
-					Content: "",
-					ToolCalls: []ports.ToolCall{{
 						ID:   "call-1",
 						Name: "echo",
 						Arguments: map[string]any{
@@ -147,12 +132,6 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 				return &mocks.MockToolExecutor{
 					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 						return &ports.ToolResult{CallID: call.ID, Content: "ok"}, nil
-					},
-				}, nil
-			case "clearify":
-				return &mocks.MockToolExecutor{
-					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-						return &ports.ToolResult{CallID: call.ID, Content: "ok", Metadata: map[string]any{"task_id": "task-1"}}, nil
 					},
 				}, nil
 			default:
@@ -210,13 +189,9 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 		"react:iter:2:think",
 		"react:iter:2:plan",
 		"react:iter:2:tools",
-		"react:iter:2:tool:call-clearify",
+		"react:iter:2:tool:call-1",
 		"react:iter:3:think",
 		"react:iter:3:plan",
-		"react:iter:3:tools",
-		"react:iter:3:tool:call-1",
-		"react:iter:4:think",
-		"react:iter:4:plan",
 		"react:finalize",
 	} {
 		if !tracker.hasStarted(id) {
@@ -233,17 +208,17 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 		t.Fatalf("expected pending attachments to be preserved, got: %#v", ctxOutput["pending_attachments"])
 	}
 
-	planOutput, ok := tracker.successOutput("react:iter:3:plan").(map[string]any)
+	planOutput, ok := tracker.successOutput("react:iter:2:plan").(map[string]any)
 	if !ok {
-		t.Fatalf("plan output missing: %#v", tracker.successOutput("react:iter:3:plan"))
+		t.Fatalf("plan output missing: %#v", tracker.successOutput("react:iter:2:plan"))
 	}
 	if planOutput["tool_calls"] != 1 {
 		t.Fatalf("expected plan to record tool count, got %#v", planOutput)
 	}
 
-	toolsOutput, ok := tracker.successOutput("react:iter:3:tools").(map[string]any)
+	toolsOutput, ok := tracker.successOutput("react:iter:2:tools").(map[string]any)
 	if !ok {
-		t.Fatalf("tools output missing: %#v", tracker.successOutput("react:iter:3:tools"))
+		t.Fatalf("tools output missing: %#v", tracker.successOutput("react:iter:2:tools"))
 	}
 	resultsVal, ok := toolsOutput["results"].([]ports.ToolResult)
 	if !ok || len(resultsVal) != 1 {
@@ -253,9 +228,9 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 		t.Fatalf("expected tool attachments to be carried over, got: %#v", resultsVal[0].Attachments)
 	}
 
-	toolCallOutput, ok := tracker.successOutput("react:iter:3:tool:call-1").(map[string]any)
+	toolCallOutput, ok := tracker.successOutput("react:iter:2:tool:call-1").(map[string]any)
 	if !ok {
-		t.Fatalf("tool call output missing: %#v", tracker.successOutput("react:iter:3:tool:call-1"))
+		t.Fatalf("tool call output missing: %#v", tracker.successOutput("react:iter:2:tool:call-1"))
 	}
 	if toolCallOutput["call_id"] != "call-1" || toolCallOutput["tool"] != "echo" {
 		t.Fatalf("unexpected tool call metadata: %#v", toolCallOutput)

@@ -55,9 +55,9 @@ export function TimelineStepList({
           const iconClasses = cn(
             'flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold',
             step.status === 'active'
-              ? 'border-primary/60 bg-primary/10 text-primary'
+              ? 'border-muted-foreground/40 bg-muted/30 text-muted-foreground'
               : step.status === 'done'
-                ? 'border-primary/30 bg-primary/5 text-primary'
+                ? 'border-muted-foreground/30 bg-muted text-muted-foreground'
                 : step.status === 'failed'
                   ? 'border-destructive/40 bg-destructive/10 text-destructive'
                   : 'border-border/60 text-muted-foreground',
@@ -116,8 +116,8 @@ export function TimelineStepList({
             <div className="flex flex-col items-center pt-1">
               <div className={cn(
                 "flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold border",
-                step.status === 'active' ? "border-primary bg-primary text-primary-foreground" :
-                  step.status === 'done' ? "border-primary/50 bg-primary/10 text-primary" :
+                step.status === 'active' ? "border-muted-foreground/40 bg-muted/30 text-muted-foreground" :
+                  step.status === 'done' ? "border-muted-foreground/30 bg-muted text-muted-foreground" :
                     "border-muted-foreground/30 text-muted-foreground"
               )}>
                 {step.status === 'done' ? <Check className="w-3 h-3" /> : (index + 1)}

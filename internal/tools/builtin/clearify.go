@@ -30,7 +30,8 @@ func (t *uiClearify) Definition() ports.ToolDefinition {
 		Description: `UI tool: emit Level 2 task header before starting a unit of work.
 
 Rules:
-- Must be called once per task (task_id) before the task's first non-plan/clearify tool call.
+- Required when plan(complexity="complex"): must be called once per task (task_id) before the task's first action tool call.
+- Optional when plan(complexity="simple"): only call it if you need to pause and ask the user for missing input.
 - When needs_user_input=true, provide question_to_user and the orchestrator should pause.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",

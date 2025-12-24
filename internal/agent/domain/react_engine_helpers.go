@@ -1495,9 +1495,36 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 		builder.WriteString(replaced)
 		builder.WriteString("\n\n")
 	}
-	builder.WriteString("Attachments available:\n")
+
+	if len(missing) == 1 {
+		name := missing[0]
+		att := attachments[name]
+		if isMarkdownLikeAttachment(att) {
+			fmt.Fprintf(&builder, "请查阅附件中的 Markdown 文件 `%s` 获取详细内容。\n\n", name)
+		} else {
+			fmt.Fprintf(&builder, "请查阅附件 `%s` 获取详细内容。\n\n", name)
+		}
+		fmt.Fprintf(&builder, "[%s]\n", name)
+		return strings.TrimSpace(builder.String())
+	}
+
+	builder.WriteString("请查阅以下附件获取详细内容：\n\n")
 	for _, name := range missing {
-		fmt.Fprintf(&builder, "- [%s]\n", name)
+		fmt.Fprintf(&builder, "[%s]\n", name)
 	}
 	return strings.TrimSpace(builder.String())
+}
+
+func isMarkdownLikeAttachment(att ports.Attachment) bool {
+	media := strings.ToLower(strings.TrimSpace(att.MediaType))
+	if strings.Contains(media, "markdown") {
+		return true
+	}
+	format := strings.ToLower(strings.TrimSpace(att.Format))
+	switch format {
+	case "md", "markdown", "x-markdown":
+		return true
+	default:
+		return false
+	}
 }

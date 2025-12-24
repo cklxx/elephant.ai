@@ -657,7 +657,7 @@ func (aa *AlexAgent) GetConfiguration() map[string]interface{} {
 // Close cleans up resources
 func (aa *AlexAgent) Close() error {
 	if aa.container != nil {
-		return aa.container.Cleanup()
+		return aa.container.Shutdown()
 	}
 	return nil
 }

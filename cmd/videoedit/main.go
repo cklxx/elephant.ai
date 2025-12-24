@@ -36,13 +36,13 @@ type demoOptions struct {
 	watermarkFont     int
 	watermarkOpacity  float64
 	watermarkMargin   int
-        watermarkPosition string
-        watermarkImage    string
-        watermarkScale    float64
-        watermarkImgAlpha float64
-        subtitleFile      string
-        subtitleCharset   string
-        subtitleStyle     string
+	watermarkPosition string
+	watermarkImage    string
+	watermarkScale    float64
+	watermarkImgAlpha float64
+	subtitleFile      string
+	subtitleCharset   string
+	subtitleStyle     string
 }
 
 func main() {
@@ -71,12 +71,12 @@ func main() {
 	flag.IntVar(&opts.watermarkMargin, "watermark-margin", 40, "Pixel margin between the watermark and its anchor edge")
 	flag.StringVar(&opts.watermarkPosition, "watermark-position", "bottom-right", "Watermark anchor (bottom-right,bottom-left,top-right,top-left,center)")
 	flag.StringVar(&opts.watermarkImage, "watermark-image", "", "Optional PNG watermark path blended on top of the video")
-        flag.Float64Var(&opts.watermarkScale, "watermark-image-scale", 1.0, "Scale multiplier applied to the PNG watermark (1 keeps original size)")
-        flag.Float64Var(&opts.watermarkImgAlpha, "watermark-image-opacity", 1.0, "Opacity (0-1) multiplier for the PNG watermark")
-        flag.StringVar(&opts.subtitleFile, "subtitle-file", "", "Optional subtitle file (SRT/ASS) rendered through the demo script")
-        flag.StringVar(&opts.subtitleCharset, "subtitle-charset", "UTF-8", "Charset passed to the ffmpeg subtitles filter")
-        flag.StringVar(&opts.subtitleStyle, "subtitle-style", "", "Optional force_style string applied when rendering subtitles (still missing preset library)")
-        flag.Parse()
+	flag.Float64Var(&opts.watermarkScale, "watermark-image-scale", 1.0, "Scale multiplier applied to the PNG watermark (1 keeps original size)")
+	flag.Float64Var(&opts.watermarkImgAlpha, "watermark-image-opacity", 1.0, "Opacity (0-1) multiplier for the PNG watermark")
+	flag.StringVar(&opts.subtitleFile, "subtitle-file", "", "Optional subtitle file (SRT/ASS) rendered through the demo script")
+	flag.StringVar(&opts.subtitleCharset, "subtitle-charset", "UTF-8", "Charset passed to the ffmpeg subtitles filter")
+	flag.StringVar(&opts.subtitleStyle, "subtitle-style", "", "Optional force_style string applied when rendering subtitles (still missing preset library)")
+	flag.Parse()
 
 	if err := runDemo(opts); err != nil {
 		fmt.Fprintf(os.Stderr, "videoedit: %v\n", err)
@@ -137,14 +137,14 @@ func buildDemoEnv(opts demoOptions) []string {
 	appendEnv("WATERMARK_OPACITY", formatFloat(opts.watermarkOpacity))
 	appendEnv("WATERMARK_MARGIN", formatInt(opts.watermarkMargin))
 	appendEnv("WATERMARK_POSITION", opts.watermarkPosition)
-        appendEnv("WATERMARK_IMAGE_PATH", opts.watermarkImage)
-        appendEnv("WATERMARK_IMAGE_SCALE", formatFloat(opts.watermarkScale))
-        appendEnv("WATERMARK_IMAGE_OPACITY", formatFloat(opts.watermarkImgAlpha))
-        appendEnv("SUBTITLE_FILE", opts.subtitleFile)
-        appendEnv("SUBTITLE_CHARSET", opts.subtitleCharset)
-        appendEnv("SUBTITLE_FORCE_STYLE", opts.subtitleStyle)
+	appendEnv("WATERMARK_IMAGE_PATH", opts.watermarkImage)
+	appendEnv("WATERMARK_IMAGE_SCALE", formatFloat(opts.watermarkScale))
+	appendEnv("WATERMARK_IMAGE_OPACITY", formatFloat(opts.watermarkImgAlpha))
+	appendEnv("SUBTITLE_FILE", opts.subtitleFile)
+	appendEnv("SUBTITLE_CHARSET", opts.subtitleCharset)
+	appendEnv("SUBTITLE_FORCE_STYLE", opts.subtitleStyle)
 
-        return env
+	return env
 }
 
 func formatFloat(v float64) string {

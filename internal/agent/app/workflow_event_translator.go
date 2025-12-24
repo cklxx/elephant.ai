@@ -12,7 +12,8 @@ import (
 )
 
 // wrapWithWorkflowEnvelope decorates the provided listener with a translator that
-// emits semantic workflow.* envelope events alongside domain events.
+// converts domain workflow events into the `domain.WorkflowEventEnvelope` contract
+// consumed by downstream adapters (SSE, CLI bridges, replay stores, etc.).
 func wrapWithWorkflowEnvelope(listener ports.EventListener, logger *slog.Logger) ports.EventListener {
 	if listener == nil {
 		return nil
@@ -38,6 +39,14 @@ type workflowEventTranslator struct {
 
 func (t *workflowEventTranslator) OnEvent(evt ports.AgentEvent) {
 	if evt == nil || t.sink == nil {
+		return
+	}
+
+	// Context snapshots are intentionally stored for replay/diagnostics but are not
+	// streamed to the UI. They also don't follow the workflow envelope contract,
+	// so forward them as-is.
+	if _, ok := evt.(*domain.WorkflowDiagnosticContextSnapshotEvent); ok {
+		t.sink.OnEvent(evt)
 		return
 	}
 

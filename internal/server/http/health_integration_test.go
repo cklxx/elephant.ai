@@ -22,7 +22,7 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildContainer failed: %v", err)
 	}
-	defer func() { _ = container.Cleanup() }()
+	defer func() { _ = container.Shutdown() }()
 
 	// Start lifecycle
 	if err := container.Start(); err != nil {

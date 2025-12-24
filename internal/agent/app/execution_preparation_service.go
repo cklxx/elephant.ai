@@ -19,7 +19,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
-	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → Clearify → ReAct → Finalize. Call plan() before any non-plan/clearify tool call; call clearify() before each task's first action tool call."
+	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clearify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clearify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clearify unless you need user input."
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -194,11 +194,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if systemPrompt == "" {
 		systemPrompt = defaultSystemPrompt
 	}
+	systemPrompt = strings.TrimSpace(systemPrompt + `
+
+## Artifacts & Attachments
+- When producing long-form deliverables (reports, articles, specs), write them to a Markdown artifact via artifacts_write.
+- Provide a short summary in the final answer and point the user to the generated file instead of pasting the full content.
+- If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
 	if runID := strings.TrimSpace(ids.TaskID); runID != "" {
 		systemPrompt = strings.TrimSpace(systemPrompt +
 			"\n\n## Runtime Identifiers\n" +
 			fmt.Sprintf("- run_id: %s\n", runID) +
-			"- Use this exact run_id for plan() and clearify().")
+			"- Use this exact run_id for plan() (and clearify() if used).")
 	}
 
 	preloadedAttachments := collectSessionAttachments(session)

@@ -106,12 +106,12 @@ function ClearifyTimelineItem({
         ) : null}
         <div
           className={cn(
-            "relative z-10 mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border",
+            "relative z-10 mt-1 flex h-4 w-4 items-center justify-center rounded-full border",
             needsUserInput
               ? "border-amber-300/60 bg-amber-50/60 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
               : isActive
-                ? "border-primary/60 bg-transparent text-primary"
-                : "border-primary bg-primary text-primary-foreground",
+                ? "border-muted-foreground/40 bg-muted/30 text-muted-foreground"
+                : "border-muted-foreground/30 bg-muted text-muted-foreground",
           )}
         >
           {needsUserInput ? (
@@ -130,7 +130,7 @@ function ClearifyTimelineItem({
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "group flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left",
+            "group flex w-full items-center justify-between gap-2 rounded-md py-0.5 text-left",
             "hover:bg-muted/20 transition-colors",
           )}
           aria-expanded={expanded}
@@ -161,7 +161,7 @@ function ClearifyTimelineItem({
         </button>
 
         {expanded ? (
-          <div className="pl-1 pr-1 pt-1 space-y-2">
+          <div className="pt-1 space-y-2">
             {successCriteria.length > 0 ? (
               <ul className="list-disc pl-5 text-xs text-muted-foreground/80 space-y-1">
                 {successCriteria.map((crit) => (

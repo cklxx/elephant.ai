@@ -186,8 +186,8 @@ func TestBuildContainer(t *testing.T) {
 		}
 
 		// Cleanup
-		if err := container.Cleanup(); err != nil {
-			t.Errorf("Cleanup() error = %v", err)
+		if err := container.Shutdown(); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
 
@@ -206,7 +206,7 @@ func TestBuildContainer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer() should succeed without API key when features disabled: %v", err)
 		}
-		defer func() { _ = container.Cleanup() }()
+		defer func() { _ = container.Shutdown() }()
 
 		if container == nil {
 			t.Fatal("Expected non-nil container")
@@ -228,7 +228,7 @@ func TestContainer_Lifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildContainer() error = %v", err)
 		}
-		defer func() { _ = container.Cleanup() }()
+		defer func() { _ = container.Shutdown() }()
 
 		// Start should succeed
 		if err := container.Start(); err != nil {
@@ -248,26 +248,6 @@ func TestContainer_Lifecycle(t *testing.T) {
 		// Multiple shutdowns should be safe
 		if err := container.Shutdown(); err != nil {
 			t.Errorf("Second Shutdown() error = %v", err)
-		}
-	})
-
-	t.Run("Cleanup backward compatibility", func(t *testing.T) {
-		config := Config{
-			LLMProvider: "mock",
-			LLMModel:    "test",
-			SessionDir:  "/tmp/alex-test-cleanup",
-			CostDir:     "/tmp/alex-test-cleanup-costs",
-			EnableMCP:   false,
-		}
-
-		container, err := BuildContainer(config)
-		if err != nil {
-			t.Fatalf("BuildContainer() error = %v", err)
-		}
-
-		// Cleanup should work (calls Shutdown internally)
-		if err := container.Cleanup(); err != nil {
-			t.Errorf("Cleanup() error = %v", err)
 		}
 	})
 }

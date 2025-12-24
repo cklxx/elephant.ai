@@ -380,7 +380,7 @@ describe('ConversationEventStream', () => {
     expect(screen.getAllByTestId('event-workflow.tool.completed')).toHaveLength(1);
   });
 
-  it('hides clearify events when the plan only returns a single task', () => {
+  it('renders clearify events when present', () => {
     const planTimestamp = new Date(Date.now() + 500).toISOString();
     const clearifyTimestamp = new Date(Date.now() + 1000).toISOString();
 
@@ -392,7 +392,7 @@ describe('ConversationEventStream', () => {
         session_id: baseEvent.session_id,
         task_id: baseEvent.task_id,
         tool_name: 'plan',
-        result: 'Execute a single clear task',
+        result: 'Handle two tasks',
         duration: 1,
         timestamp: planTimestamp,
         metadata: {
@@ -412,70 +412,11 @@ describe('ConversationEventStream', () => {
         session_id: baseEvent.session_id,
         task_id: baseEvent.task_id,
         tool_name: 'clearify',
-        result: 'Single task detail that should not render',
+        result: 'Single task detail should render',
         duration: 1,
         timestamp: clearifyTimestamp,
         metadata: {
-          task_goal_ui: 'Single task detail that should not render',
-          success_criteria: ['explain clearly'],
-        },
-      },
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    expect(screen.getByText(/execute a single clear task/i)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/single task detail that should not render/i),
-    ).not.toBeInTheDocument();
-  });
-
-  it('keeps clearify events visible when the plan includes multiple tasks', () => {
-    const planTimestamp = new Date(Date.now() + 500).toISOString();
-    const clearifyTimestamp = new Date(Date.now() + 1000).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        session_id: baseEvent.session_id,
-        task_id: baseEvent.task_id,
-        tool_name: 'plan',
-        result: 'Handle two tasks',
-        duration: 1,
-        timestamp: planTimestamp,
-        metadata: {
-          internal_plan: {
-            steps: [
-              { task_goal: 'Task A1', success_criteria: [] },
-              { task_goal: 'Task A2', success_criteria: [] },
-            ],
-          },
-        },
-      },
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        session_id: baseEvent.session_id,
-        task_id: baseEvent.task_id,
-        tool_name: 'clearify',
-        result: 'Multi-task detail should appear',
-        duration: 1,
-        timestamp: clearifyTimestamp,
-        metadata: {
-          task_goal_ui: 'Multi-task detail should appear',
+          task_goal_ui: 'Single task detail should render',
           success_criteria: ['displayed'],
         },
       },
@@ -495,6 +436,6 @@ describe('ConversationEventStream', () => {
     );
 
     expect(screen.getByText(/handle two tasks/i)).toBeInTheDocument();
-    expect(screen.getByText(/multi-task detail should appear/i)).toBeInTheDocument();
+    expect(screen.getByText(/single task detail should render/i)).toBeInTheDocument();
   });
 });

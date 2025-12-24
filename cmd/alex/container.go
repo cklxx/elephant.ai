@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 
-	"alex/internal/agent/app"
 	"alex/internal/di"
 	"alex/internal/environment"
 )
@@ -13,9 +12,7 @@ import (
 // Container wraps the DI container for CLI use
 type Container struct {
 	*di.Container
-	// Coordinator is an alias for AgentCoordinator to maintain backward compatibility
-	Coordinator *app.AgentCoordinator
-	Runtime     appConfig
+	Runtime appConfig
 }
 
 func configureDefaultLogger(verbose bool) {
@@ -54,13 +51,12 @@ func buildContainer() (*Container, error) {
 	}
 
 	result := &Container{
-		Container:   container,
-		Coordinator: container.AgentCoordinator,
-		Runtime:     cfg,
+		Container: container,
+		Runtime:   cfg,
 	}
 
 	if environmentSummary != "" {
-		result.Coordinator.SetEnvironmentSummary(environmentSummary)
+		result.AgentCoordinator.SetEnvironmentSummary(environmentSummary)
 	}
 
 	return result, nil
