@@ -291,22 +291,6 @@ func NewFileReadScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
 			},
 			ports.CompletionResponse{
-				Content: "读取配置文件以定位 API endpoint。",
-				ToolCalls: []ports.ToolCall{
-					{
-						ID:   "call_clearify",
-						Name: "clearify",
-						Arguments: map[string]any{
-							"run_id":       "test-run",
-							"task_id":      "task-1",
-							"task_goal_ui": "读取配置文件以定位 API endpoint。",
-						},
-					},
-				},
-				StopReason: "tool_calls",
-				Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 40, TotalTokens: 160},
-			},
-			ports.CompletionResponse{
 				Content: "我将查看配置文件内容。",
 				ToolCalls: []ports.ToolCall{
 					{
@@ -464,22 +448,6 @@ func NewParallelToolCallsScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 150, CompletionTokens: 70, TotalTokens: 220},
 			},
 			ports.CompletionResponse{
-				Content: "读取 dev/prod/test 配置并比较 endpoint。",
-				ToolCalls: []ports.ToolCall{
-					{
-						ID:   "call_clearify",
-						Name: "clearify",
-						Arguments: map[string]any{
-							"run_id":       "test-run",
-							"task_id":      "task-1",
-							"task_goal_ui": "读取 dev/prod/test 配置并比较 endpoint。",
-						},
-					},
-				},
-				StopReason: "tool_calls",
-				Usage:      ports.TokenUsage{PromptTokens: 180, CompletionTokens: 60, TotalTokens: 240},
-			},
-			ports.CompletionResponse{
 				Content: "Reading dev config",
 				ToolCalls: []ports.ToolCall{
 					{ID: "call_001", Name: "file_read", Arguments: map[string]any{"path": "config/dev.json"}},
@@ -540,12 +508,6 @@ func NewWebSearchScenario() ToolScenario {
 				"搜索并阅读资料，总结 Go 1.22 的新特性。",
 				"simple",
 				ports.TokenUsage{PromptTokens: 80, CompletionTokens: 45, TotalTokens: 125},
-				nil,
-			),
-			newClearifyCompletion(
-				"先搜索，再抓取官方博客内容。",
-				"先搜索，再抓取官方博客内容。",
-				ports.TokenUsage{PromptTokens: 120, CompletionTokens: 30, TotalTokens: 150},
 				nil,
 			),
 			newToolCallCompletion(
@@ -721,12 +683,6 @@ func NewToolErrorScenario() ToolScenario {
 			ports.TokenUsage{PromptTokens: 100, CompletionTokens: 40, TotalTokens: 140},
 			nil,
 		),
-		newClearifyCompletion(
-			"先读取目标文件，失败则搜索类似文件。",
-			"先读取目标文件，失败则搜索类似文件。",
-			ports.TokenUsage{PromptTokens: 120, CompletionTokens: 35, TotalTokens: 155},
-			nil,
-		),
 		newToolCallCompletion(
 			"Let me try to read the file",
 			ports.ToolCall{
@@ -804,22 +760,6 @@ func NewTodoManagementScenario() ToolScenario {
 				},
 				StopReason: "tool_calls",
 				Usage:      ports.TokenUsage{PromptTokens: 80, CompletionTokens: 35, TotalTokens: 115},
-			},
-			ports.CompletionResponse{
-				Content: "读取当前 todo，再添加任务并完成第一项。",
-				ToolCalls: []ports.ToolCall{
-					{
-						ID:   "call_clearify",
-						Name: "clearify",
-						Arguments: map[string]any{
-							"run_id":       "test-run",
-							"task_id":      "task-1",
-							"task_goal_ui": "读取当前 todo，再添加任务并完成第一项。",
-						},
-					},
-				},
-				StopReason: "tool_calls",
-				Usage:      ports.TokenUsage{PromptTokens: 120, CompletionTokens: 35, TotalTokens: 155},
 			},
 			ports.CompletionResponse{
 				Content: "Let me check the current todo list",

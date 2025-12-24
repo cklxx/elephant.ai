@@ -19,7 +19,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
-	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → Clearify → ReAct → Finalize. Call plan() before any non-plan/clearify tool call; call clearify() before each task's first action tool call."
+	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clearify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clearify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clearify unless you need user input."
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -204,7 +204,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		systemPrompt = strings.TrimSpace(systemPrompt +
 			"\n\n## Runtime Identifiers\n" +
 			fmt.Sprintf("- run_id: %s\n", runID) +
-			"- Use this exact run_id for plan() and clearify().")
+			"- Use this exact run_id for plan() (and clearify() if used).")
 	}
 
 	preloadedAttachments := collectSessionAttachments(session)

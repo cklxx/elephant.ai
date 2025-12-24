@@ -29,6 +29,7 @@ type reactRuntime struct {
 	runID           string
 	planEmitted     bool
 	planVersion     int
+	planComplexity  string
 	currentTaskID   string
 	clearifyEmitted map[string]bool
 	pendingTaskID   string
@@ -227,6 +228,10 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	if !r.planEmitted {
 		return true, r.planGatePrompt()
 	}
+
+	if strings.EqualFold(strings.TrimSpace(r.planComplexity), "simple") {
+		return false, ""
+	}
 	if r.currentTaskID == "" || !r.clearifyEmitted[r.currentTaskID] {
 		return true, r.clearifyGatePrompt()
 	}
@@ -245,6 +250,8 @@ func (r *reactRuntime) planGatePrompt() string {
 - session_title: (推荐) 会话短标题（单行，≤32字）
 - overall_goal_ui: 目标/范围描述（complex 可多行；simple 必须单行）
 - internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单
+- complexity="simple" 时：plan() 后可直接调用动作工具；无需 clearify()（除非需要用户补充信息并暂停）。
+- complexity="complex" 时：在每个任务的首个动作工具调用前必须 clearify()。
 plan() 成功后再继续。`, runID))
 }
 
@@ -307,6 +314,19 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 		case "plan":
 			r.planEmitted = true
 			r.planVersion++
+			if raw, ok := call.Arguments["complexity"].(string); ok {
+				complexity := strings.ToLower(strings.TrimSpace(raw))
+				if complexity == "simple" || complexity == "complex" {
+					r.planComplexity = complexity
+				}
+			} else if result.Metadata != nil {
+				if raw, ok := result.Metadata["complexity"].(string); ok {
+					complexity := strings.ToLower(strings.TrimSpace(raw))
+					if complexity == "simple" || complexity == "complex" {
+						r.planComplexity = complexity
+					}
+				}
+			}
 		case "clearify":
 			if result.Metadata == nil {
 				continue

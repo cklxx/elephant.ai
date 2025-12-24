@@ -26,11 +26,11 @@ func TestReactEngine_FileReadScenario(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	if result.Iterations != 3 {
+		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
 	}
-	if len(state.ToolResults) != 3 {
-		t.Errorf("Expected 3 tool results (plan, clearify, file_read), got %d", len(state.ToolResults))
+	if len(state.ToolResults) != 2 {
+		t.Errorf("Expected 2 tool results (plan, file_read), got %d", len(state.ToolResults))
 	}
 	if result.Answer == "" {
 		t.Error("Expected non-empty answer")
@@ -103,14 +103,14 @@ func TestReactEngine_ParallelToolCallsScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 6 iterations: plan + clearify + 3 file reads + final answer
-	if result.Iterations != 6 {
-		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
+	// 5 iterations: plan + 3 file reads + final answer
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
-	// Should have 5 tool results
-	if len(state.ToolResults) != 5 {
-		t.Errorf("Expected 5 tool results, got %d", len(state.ToolResults))
+	// Should have 4 tool results
+	if len(state.ToolResults) != 4 {
+		t.Errorf("Expected 4 tool results, got %d", len(state.ToolResults))
 	}
 
 	// All tool results should have same iteration number (parallel execution)
@@ -136,13 +136,13 @@ func TestReactEngine_WebSearchScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 5 iterations: plan, clearify, web_search, web_fetch, final reasoning
-	if result.Iterations != 5 {
-		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
+	// 4 iterations: plan, web_search, web_fetch, final reasoning
+	if result.Iterations != 4 {
+		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}
 
-	if len(state.ToolResults) != 4 {
-		t.Errorf("Expected 4 tool results, got %d", len(state.ToolResults))
+	if len(state.ToolResults) != 3 {
+		t.Errorf("Expected 3 tool results, got %d", len(state.ToolResults))
 	}
 }
 
@@ -195,9 +195,9 @@ func TestReactEngine_ToolErrorScenario(t *testing.T) {
 	}
 
 	// LLM decides when to stop - should retry after error
-	// Expected flow: iter1: file_read fails → iter2: find succeeds → iter3: final answer
+	// Expected flow: file_read fails → find succeeds → final answer
 	if result.Iterations < 4 {
-		t.Errorf("Expected at least 4 iterations (plan+clearify+retry), got %d", result.Iterations)
+		t.Errorf("Expected at least 4 iterations (plan+retry), got %d", result.Iterations)
 	}
 
 	if result.StopReason != "final_answer" && result.StopReason != "max_iterations" {
@@ -240,13 +240,13 @@ func TestReactEngine_TodoManagementScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 6 iterations: plan, clearify, todo_read, todo_update (add), todo_update (complete), final answer
-	if result.Iterations != 6 {
-		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
+	// 5 iterations: plan, todo_read, todo_update (add), todo_update (complete), final answer
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
-	if len(state.ToolResults) != 5 {
-		t.Errorf("Expected 5 tool results, got %d", len(state.ToolResults))
+	if len(state.ToolResults) != 4 {
+		t.Errorf("Expected 4 tool results, got %d", len(state.ToolResults))
 	}
 }
 
