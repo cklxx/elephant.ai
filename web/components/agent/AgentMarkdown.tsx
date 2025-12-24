@@ -49,12 +49,12 @@ const baseComponents: Record<string, ComponentType<any>> = {
     </div>
   ),
   ul: ({ children }: any) => (
-    <ul className="mb-2 space-y-1 leading-normal text-foreground">
+    <ul className="mb-2 list-disc !pl-4 space-y-1 leading-normal text-foreground marker:text-muted-foreground/70">
       {children}
     </ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="mb-2 space-y-1 leading-normal text-foreground">
+    <ol className="mb-2 list-decimal !pl-4 space-y-1 leading-normal text-foreground marker:text-muted-foreground/70">
       {children}
     </ol>
   ),
