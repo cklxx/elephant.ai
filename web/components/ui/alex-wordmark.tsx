@@ -10,16 +10,14 @@ export function AlexWordmark({
   title?: string;
 }) {
   return (
-    <svg
-      viewBox="0 0 59 10"
-      className={cn("h-5 w-auto font-sans font-semibold", className)}
-      role="img"
+    <span
+      className={cn(
+        "inline-flex whitespace-nowrap font-sans text-xl font-medium leading-none",
+        className,
+      )}
       aria-label={title}
     >
-      <title>{title}</title>
-      <text x="0" y="8" fill="currentColor">
-        alex
-      </text>
-    </svg>
+      alex
+    </span>
   );
 }
