@@ -106,7 +106,7 @@ function ClearifyTimelineItem({
         ) : null}
         <div
           className={cn(
-            "relative z-10 mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border",
+            "relative z-10 mt-1 flex h-4 w-4 items-center justify-center rounded-full border",
             needsUserInput
               ? "border-amber-300/60 bg-amber-50/60 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
               : isActive
