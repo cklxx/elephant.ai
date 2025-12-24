@@ -110,8 +110,8 @@ function ClearifyTimelineItem({
             needsUserInput
               ? "border-amber-300/60 bg-amber-50/60 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
               : isActive
-                ? "border-primary/60 bg-transparent text-primary"
-                : "border-primary bg-primary text-primary-foreground",
+                ? "border-muted-foreground/40 bg-muted/30 text-muted-foreground"
+                : "border-muted-foreground/30 bg-muted text-muted-foreground",
           )}
         >
           {needsUserInput ? (

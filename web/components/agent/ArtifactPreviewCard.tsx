@@ -7,8 +7,8 @@ import { AttachmentPayload } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { buildAttachmentUri } from '@/lib/attachments';
 import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
-import { Download, ExternalLink, FileText, FileCode, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Download, ExternalLink, FileText, FileCode, Loader2, X } from "lucide-react";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 const AUTO_PREFETCH_MARKDOWN_MAX_BYTES = 512 * 1024;
 const MARKDOWN_SNIPPET_MAX_CHARS = 1400;
@@ -224,6 +224,7 @@ export function ArtifactPreviewCard({
           <DialogContent
             className="w-[90vw] h-[90vh] max-w-[90vw] max-h-[90vh] p-0 overflow-hidden rounded-2xl border border-border/70 bg-background"
             onClose={() => setIsPreviewOpen(false)}
+            showCloseButton={false}
           >
             <DialogTitle className="sr-only">{displayName}</DialogTitle>
             <div className="flex h-full flex-col">
@@ -248,32 +249,43 @@ export function ArtifactPreviewCard({
                   </div>
                 </div>
 
-                {downloadUri ? (
-                  <div className="flex items-center gap-1">
-                    <a
-                      href={downloadUri}
+                <div className="flex items-center gap-1">
+                  {downloadUri ? (
+                    <>
+                      <a
+                        href={downloadUri}
+                        className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        title="Open in new tab"
+                        aria-label="Open in new tab"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                      <a
+                        href={downloadUri}
+                        download={attachment.name}
+                        className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        title="Download"
+                        aria-label="Download"
+                      >
+                        <Download className="h-4 w-4" />
+                      </a>
+                    </>
+                  ) : null}
+                  <DialogClose asChild>
+                    <button
+                      type="button"
                       className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      title="Open in new tab"
-                      aria-label="Open in new tab"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      aria-label="Close preview"
                     >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                    <a
-                      href={downloadUri}
-                      download={attachment.name}
-                      className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      title="Download"
-                      aria-label="Download"
-                    >
-                      <Download className="h-4 w-4" />
-                    </a>
-                  </div>
-                ) : null}
+                      <X className="h-4 w-4" />
+                    </button>
+                  </DialogClose>
+                </div>
               </div>
 
-              <div className="flex-1 overflow-auto px-6 py-5">
+              <div className="flex-1 overflow-auto bg-muted/30 px-6 py-6">
                 {isMarkdown ? (
                   markdownLoading && !markdownPreview ? (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
@@ -281,22 +293,26 @@ export function ArtifactPreviewCard({
                       Loading preview…
                     </div>
                   ) : markdownPreview ? (
-                    <LazyMarkdownRenderer
-                      content={markdownPreview}
-                      containerClassName="markdown-body"
-                      className="prose max-w-none text-base leading-normal text-foreground"
-                    />
+                    <div className="mx-auto w-full max-w-[820px] rounded-xl border border-border/60 bg-background p-8 shadow-sm">
+                      <LazyMarkdownRenderer
+                        content={markdownPreview}
+                        containerClassName="markdown-body"
+                        className="prose max-w-none text-base leading-normal text-foreground"
+                      />
+                    </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">
                       Preview unavailable.
                     </div>
                   )
                 ) : htmlAsset ? (
-                  <iframe
-                    src={htmlAsset.cdn_url}
-                    className="h-full w-full rounded-lg border border-border/60 bg-white"
-                    title="Preview"
-                  />
+                  <div className="mx-auto w-full max-w-[980px]">
+                    <iframe
+                      src={htmlAsset.cdn_url}
+                      className="h-[80vh] w-full rounded-xl border border-border/60 bg-white"
+                      title="Preview"
+                    />
+                  </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">
                     Preview unavailable.
