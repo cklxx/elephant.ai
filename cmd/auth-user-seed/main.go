@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	authadapters "alex/internal/auth/adapters"
 	authcrypto "alex/internal/auth/crypto"
 	authdomain "alex/internal/auth/domain"
 	"github.com/google/uuid"
@@ -95,6 +97,8 @@ func seedUser(opts userSeedOptions) error {
 		return fmt.Errorf("ping Postgres: %w", err)
 	}
 
+	userRepo, _, _, _ := authadapters.NewPostgresStores(pool)
+
 	hashed, err := authcrypto.HashPassword(opts.password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
@@ -106,33 +110,51 @@ func seedUser(opts userSeedOptions) error {
 	}
 
 	now := time.Now().UTC()
-	args := []any{
-		uuid.NewString(),
-		email,
-		opts.displayName,
-		opts.status,
-		hashed,
-		opts.points,
-		opts.tier,
-		opts.expiresAt,
-		now,
-		now,
+
+	desired := authdomain.User{
+		ID:                    uuid.NewString(),
+		Email:                 email,
+		DisplayName:           opts.displayName,
+		Status:                opts.status,
+		PasswordHash:          hashed,
+		PointsBalance:         opts.points,
+		SubscriptionTier:      opts.tier,
+		SubscriptionExpiresAt: opts.expiresAt,
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}
 
-	const query = `
-INSERT INTO auth_users (id, email, display_name, status, password_hash, points_balance, subscription_tier, subscription_expires_at, created_at, updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-ON CONFLICT (email) DO UPDATE
-SET display_name = EXCLUDED.display_name,
-    status = EXCLUDED.status,
-    password_hash = EXCLUDED.password_hash,
-    points_balance = EXCLUDED.points_balance,
-    subscription_tier = EXCLUDED.subscription_tier,
-    subscription_expires_at = EXCLUDED.subscription_expires_at,
-    updated_at = NOW();`
+	existing, err := userRepo.FindByEmail(ctx, email)
+	if err != nil && !errors.Is(err, authdomain.ErrUserNotFound) {
+		return fmt.Errorf("lookup user: %w", err)
+	}
 
-	if _, err := pool.Exec(ctx, query, args...); err != nil {
-		return fmt.Errorf("insert user: %w", err)
+	if errors.Is(err, authdomain.ErrUserNotFound) {
+		if _, err := userRepo.Create(ctx, desired); err != nil {
+			if errors.Is(err, authdomain.ErrUserExists) {
+				// Race: someone created the user after our lookup - retry as update.
+				existing, err := userRepo.FindByEmail(ctx, email)
+				if err != nil {
+					return fmt.Errorf("reload user after conflict: %w", err)
+				}
+				desired.ID = existing.ID
+				desired.CreatedAt = existing.CreatedAt
+				desired.UpdatedAt = now
+				if _, err := userRepo.Update(ctx, desired); err != nil {
+					return fmt.Errorf("update user after conflict: %w", err)
+				}
+				return nil
+			}
+			return fmt.Errorf("create user: %w", err)
+		}
+		return nil
+	}
+
+	desired.ID = existing.ID
+	desired.CreatedAt = existing.CreatedAt
+	desired.UpdatedAt = now
+	if _, err := userRepo.Update(ctx, desired); err != nil {
+		return fmt.Errorf("update user: %w", err)
 	}
 	return nil
 }
