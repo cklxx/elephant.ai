@@ -80,6 +80,28 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	}
 }
 
+func TestBuildWindowSkipsEnvironmentSectionInWebMode(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+	session := &ports.Session{ID: "web-mode", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
+		EnvironmentSummary: "should-not-appear",
+		ToolMode:           "web",
+	})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if strings.Contains(window.SystemPrompt, "# Operating Environment") {
+		t.Fatalf("expected operating environment section to be omitted in web mode, got %q", window.SystemPrompt)
+	}
+	if strings.Contains(window.SystemPrompt, "Environment summary") {
+		t.Fatalf("expected environment summary to be excluded in web mode, got %q", window.SystemPrompt)
+	}
+	if window.Static.EnvironmentSummary != "" {
+		t.Fatalf("expected environment summary to be cleared in web mode, got %q", window.Static.EnvironmentSummary)
+	}
+}
+
 func TestDefaultStaticContextCarriesLegacyPromptSections(t *testing.T) {
 	configRoot := resolveDefaultConfigRoot(t)
 	mgr := NewManager(WithConfigRoot(configRoot))
@@ -397,7 +419,7 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 		Recommendations: []string{"Prioritize secure defaults"},
 	}
 
-	prompt := composeSystemPrompt(nil, static, dynamic, meta)
+	prompt := composeSystemPrompt(nil, static, dynamic, meta, false)
 	if !strings.Contains(prompt, "Persona version: persona-v2") {
 		t.Fatalf("expected persona version in prompt, got %q", prompt)
 	}
