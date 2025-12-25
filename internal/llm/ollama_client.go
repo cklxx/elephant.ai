@@ -112,7 +112,6 @@ func (c *ollamaClient) StreamComplete(
 	var builder strings.Builder
 	var finalResponse *ports.CompletionResponse
 	finalSent := false
-	loggedTTFB := false
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -120,14 +119,11 @@ func (c *ollamaClient) StreamComplete(
 			continue
 		}
 
-		if !loggedTTFB {
-			loggedTTFB = true
-			logCLILatencyf(
-				"[latency] llm_stream_ttfb_ms=%.2f provider=ollama model=%s\n",
-				float64(time.Since(requestStarted))/float64(time.Millisecond),
-				c.model,
-			)
-		}
+		logCLILatencyf(
+			"[latency] llm_stream_ttfb_ms=%.2f provider=ollama model=%s\n",
+			float64(time.Since(requestStarted))/float64(time.Millisecond),
+			c.model,
+		)
 
 		var chunk ollamaResponse
 		if err := json.Unmarshal([]byte(line), &chunk); err != nil {
