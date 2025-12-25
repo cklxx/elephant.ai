@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	runtimeconfig "alex/internal/config"
+	"alex/internal/memory"
 	"alex/internal/tools/builtin"
 )
 
@@ -35,6 +36,7 @@ type Config struct {
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
+	MemoryService           memory.Service
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -42,6 +44,10 @@ func NewRegistry(config Config) (*Registry, error) {
 		static:  make(map[string]ports.ToolExecutor),
 		dynamic: make(map[string]ports.ToolExecutor),
 		mcp:     make(map[string]ports.ToolExecutor),
+	}
+
+	if config.MemoryService == nil {
+		config.MemoryService = memory.NewService(memory.NewInMemoryStore())
 	}
 
 	if err := r.registerBuiltins(Config{
@@ -53,6 +59,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
+		MemoryService:           config.MemoryService,
 	}); err != nil {
 		return nil, err
 	}
@@ -241,8 +248,10 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
 
 	// UI orchestration
-	r.static["plan"] = builtin.NewPlan()
+	r.static["plan"] = builtin.NewPlan(config.MemoryService)
 	r.static["clearify"] = builtin.NewClearify()
+	r.static["memory_recall"] = builtin.NewMemoryRecall(config.MemoryService)
+	r.static["memory_write"] = builtin.NewMemoryWrite(config.MemoryService)
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)

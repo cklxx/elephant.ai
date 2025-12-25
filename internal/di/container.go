@@ -18,6 +18,7 @@ import (
 	"alex/internal/llm"
 	"alex/internal/logging"
 	"alex/internal/mcp"
+	"alex/internal/memory"
 	"alex/internal/parser"
 	"alex/internal/session/filestore"
 	"alex/internal/session/postgresstore"
@@ -36,6 +37,7 @@ type Container struct {
 	HistoryStore     sessionstate.Store
 	HistoryManager   ports.HistoryManager
 	CostTracker      ports.CostTracker
+	MemoryService    memory.Service
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
@@ -188,24 +190,12 @@ func BuildContainer(config Config) (*Container, error) {
 		llmFactory.EnableUserRateLimit(rate.Limit(config.UserRateLimitRPS), config.UserRateLimitBurst)
 	}
 
-	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
-		TavilyAPIKey:            config.TavilyAPIKey,
-		ArkAPIKey:               config.ArkAPIKey,
-		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
-		SeedreamTextModel:       config.SeedreamTextModel,
-		SeedreamImageModel:      config.SeedreamImageModel,
-		SeedreamVisionModel:     config.SeedreamVisionModel,
-		SeedreamVideoModel:      config.SeedreamVideoModel,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tool registry: %w", err)
-	}
 	var (
 		sessionStore ports.SessionStore
 		stateStore   sessionstate.Store
 		historyStore sessionstate.Store
 		sessionDB    *pgxpool.Pool
+		memoryStore  memory.Store
 	)
 
 	dbURL := strings.TrimSpace(config.SessionDatabaseURL)
@@ -256,6 +246,7 @@ func BuildContainer(config Config) (*Container, error) {
 					sessionStore = dbSessionStore
 					stateStore = dbStateStore
 					historyStore = dbHistoryStore
+					memoryStore = memory.NewPostgresStore(pool)
 					logger.Info("Session persistence backed by Postgres")
 				}
 			}
@@ -269,6 +260,14 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 	if historyStore == nil {
 		historyStore = sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
+	}
+	if memoryStore == nil {
+		memoryStore = memory.NewInMemoryStore()
+	}
+
+	memoryService := memory.NewService(memoryStore)
+	if err := memoryStore.EnsureSchema(context.Background()); err != nil {
+		logger.Warn("Failed to initialize memory store schema: %v", err)
 	}
 	journalDir := filepath.Join(sessionDir, "journals")
 	var journalWriter journal.Writer
@@ -292,6 +291,21 @@ func BuildContainer(config Config) (*Container, error) {
 		return nil, fmt.Errorf("failed to create cost store: %w", err)
 	}
 	costTracker := agentApp.NewCostTracker(costStore)
+
+	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
+		TavilyAPIKey:            config.TavilyAPIKey,
+		ArkAPIKey:               config.ArkAPIKey,
+		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
+		SeedreamTextModel:       config.SeedreamTextModel,
+		SeedreamImageModel:      config.SeedreamImageModel,
+		SeedreamVisionModel:     config.SeedreamVisionModel,
+		SeedreamVideoModel:      config.SeedreamVideoModel,
+		MemoryService:           memoryService,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool registry: %w", err)
+	}
 
 	runtimeSnapshot := runtimeconfig.RuntimeConfig{
 		LLMProvider:             config.LLMProvider,
@@ -373,6 +387,7 @@ func BuildContainer(config Config) (*Container, error) {
 		HistoryStore:     historyStore,
 		HistoryManager:   historyMgr,
 		CostTracker:      costTracker,
+		MemoryService:    memoryService,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
 		SessionDB:        sessionDB,

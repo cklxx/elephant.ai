@@ -7,13 +7,16 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	"alex/internal/memory"
 	id "alex/internal/utils/id"
 )
 
-type uiPlan struct{}
+type uiPlan struct {
+	memory memory.Service
+}
 
-func NewPlan() ports.ToolExecutor {
-	return &uiPlan{}
+func NewPlan(memoryService memory.Service) ports.ToolExecutor {
+	return &uiPlan{memory: memoryService}
 }
 
 func (t *uiPlan) Metadata() ports.ToolMetadata {
@@ -54,6 +57,14 @@ Rules:
 					Type:        "string",
 					Description: "simple or complex",
 					Enum:        []any{"simple", "complex"},
+				},
+				"memory_keywords": {
+					Type:        "array",
+					Description: "Keywords to recall user memories before planning.",
+				},
+				"memory_slots": {
+					Type:        "object",
+					Description: "Intent slots (key/value) used to recall user memories.",
 				},
 				"internal_plan": {
 					Type:        "object",
@@ -132,7 +143,7 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	// Reject unexpected parameters to keep the protocol strict.
 	for key := range call.Arguments {
 		switch key {
-		case "run_id", "session_title", "overall_goal_ui", "complexity", "internal_plan":
+		case "run_id", "session_title", "overall_goal_ui", "complexity", "internal_plan", "memory_keywords", "memory_slots":
 		default:
 			err := fmt.Errorf("unsupported parameter: %s", key)
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -147,8 +158,31 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	if sessionTitle != "" {
 		metadata["session_title"] = sessionTitle
 	}
+
+	memoryKeywords := parseKeywordArray(call.Arguments["memory_keywords"])
+	if len(memoryKeywords) > 0 {
+		metadata["memory_keywords"] = memoryKeywords
+	}
+	memorySlots := parseSlotObject(call.Arguments["memory_slots"])
+	if len(memorySlots) > 0 {
+		metadata["memory_slots"] = memorySlots
+	}
 	if internalPlan, exists := call.Arguments["internal_plan"]; exists {
 		metadata["internal_plan"] = internalPlan
+	}
+
+	if t.memory != nil && (len(memoryKeywords) > 0 || len(memorySlots) > 0) {
+		userID := id.UserIDFromContext(ctx)
+		if strings.TrimSpace(userID) != "" {
+			memories, err := t.memory.Recall(ctx, memory.Query{
+				UserID:   userID,
+				Keywords: memoryKeywords,
+				Slots:    memorySlots,
+			})
+			if err == nil && len(memories) > 0 {
+				metadata["memory_recall"] = serializeMemories(memories)
+			}
+		}
 	}
 
 	return &ports.ToolResult{
