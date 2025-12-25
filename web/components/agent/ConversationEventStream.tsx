@@ -103,12 +103,19 @@ export function ConversationEventStream({
     });
 
     subagentThreads.forEach((thread, idx) => {
-      const first = thread.events[0];
+      const threadTs =
+        typeof thread.firstSeenAt === "number"
+          ? thread.firstSeenAt
+          : Number.POSITIVE_INFINITY;
+      const threadOrder =
+        typeof thread.firstArrival === "number"
+          ? thread.firstArrival
+          : displayEntries.length + idx;
       entries.push({
         kind: "subagent",
         thread,
-        ts: (first && Date.parse(first.timestamp ?? "")) || 0,
-        order: displayEntries.length + idx,
+        ts: threadTs,
+        order: threadOrder,
       });
     });
 
@@ -220,6 +227,13 @@ interface SubagentThread {
   context: SubagentContext;
   events: AnyAgentEvent[];
   subtaskIndex: number;
+  firstSeenAt: number | null;
+  firstArrival: number;
+}
+
+function parseEventTimestamp(event: AnyAgentEvent): number | null {
+  const ts = Date.parse(event.timestamp ?? "");
+  return Number.isFinite(ts) ? ts : null;
 }
 
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
@@ -281,6 +295,7 @@ function partitionEvents(events: AnyAgentEvent[]): {
     arrival += 1;
     arrivalOrder.set(event, arrival);
 
+    const eventTs = parseEventTimestamp(event);
     const sessionId =
       typeof event.session_id === "string" && event.session_id.trim()
         ? event.session_id
@@ -298,11 +313,26 @@ function partitionEvents(events: AnyAgentEvent[]): {
       const subtaskIndex = getSubtaskIndex(event);
 
       if (!threads.has(key)) {
-        threads.set(key, { key, context, events: [], subtaskIndex });
+        threads.set(key, {
+          key,
+          context,
+          events: [],
+          subtaskIndex,
+          firstSeenAt: eventTs,
+          firstArrival: arrival,
+        });
       }
 
       const thread = threads.get(key)!;
       thread.context = mergeSubagentContext(thread.context, context);
+      if (eventTs !== null) {
+        if (thread.firstSeenAt === null || eventTs < thread.firstSeenAt) {
+          thread.firstSeenAt = eventTs;
+        }
+      }
+      if (arrival < thread.firstArrival) {
+        thread.firstArrival = arrival;
+      }
 
       if (!shouldDisplaySubagentEvent(event)) {
         return;
@@ -623,8 +653,8 @@ function sortSubagentEvents(
   arrivalOrder: WeakMap<AnyAgentEvent, number>,
 ): AnyAgentEvent[] {
   return [...events].sort((a, b) => {
-    const tA = Date.parse(a.timestamp ?? "") || 0;
-    const tB = Date.parse(b.timestamp ?? "") || 0;
+    const tA = parseEventTimestamp(a) ?? 0;
+    const tB = parseEventTimestamp(b) ?? 0;
     if (tA !== tB) return tA - tB;
     const aArrival = arrivalOrder.get(a) ?? 0;
     const bArrival = arrivalOrder.get(b) ?? 0;

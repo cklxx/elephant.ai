@@ -20,6 +20,7 @@ import { EventPipeline } from "@/lib/events/eventPipeline";
 import { SSEClient } from "@/lib/events/sseClient";
 import { buildEventSignature } from "@/lib/events/signature";
 import { authClient } from "@/lib/auth/client";
+import { type SSEReplayMode } from "@/lib/api";
 
 export interface UseSSEOptions {
   enabled?: boolean;
@@ -76,6 +77,7 @@ export function useSSE(
   const assistantMessageBufferRef = useRef<Map<string, AssistantBufferEntry>>(
     new Map(),
   );
+  const hasLocalHistoryRef = useRef(false);
   const sessionIdRef = useRef(sessionId);
   const dedupeRef = useRef<{ seen: Set<string>; order: string[] }>({
     seen: new Set(),
@@ -202,6 +204,7 @@ export function useSSE(
     resetPipelineDedupe();
     resetStreamingBuffer();
     resetAssistantMessageBuffer();
+    hasLocalHistoryRef.current = false;
   }, [resetDedupe, resetPipelineDedupe, resetStreamingBuffer, resetAssistantMessageBuffer]);
 
   const cleanup = useCallback(() => {
@@ -246,21 +249,12 @@ export function useSSE(
 
     isConnectingRef.current = true;
 
-    const token = await authClient.ensureAccessToken();
-    if (!token) {
-      console.warn("[SSE] Missing access token, skipping connection attempt");
-      setConnectionState({
-        sessionId: currentSessionId,
-        isConnected: false,
-        isReconnecting: false,
-        error: "Missing access token",
-        reconnectAttempts: 0,
-      });
-      isConnectingRef.current = false;
-      return;
-    }
+    const token = authClient.getSession()?.accessToken;
+
+    const replay: SSEReplayMode = hasLocalHistoryRef.current ? "none" : "session";
 
     const client = new SSEClient(currentSessionId, pipeline, {
+      replay,
       onOpen: () => {
         isConnectingRef.current = false;
         reconnectAttemptsRef.current = 0;
@@ -462,13 +456,18 @@ export function useSSE(
           nextEvents = [...previousEvents, enrichedEvent];
         }
 
-        return {
+        const nextState = {
           sessionId: targetSessionId,
           events: clampEvents(
             squashFinalEvents(nextEvents),
             MAX_EVENT_HISTORY,
           ),
         };
+
+        hasLocalHistoryRef.current = nextState.events.some(
+          (evt) => evt.event_type !== "connected",
+        );
+        return nextState;
       });
       onEventRef.current?.(enrichedEvent);
     });
@@ -496,6 +495,7 @@ export function useSSE(
       resetPipelineDedupe();
       resetStreamingBuffer();
       resetAssistantMessageBuffer();
+      hasLocalHistoryRef.current = false;
     }
 
     if (sessionId && enabled) {

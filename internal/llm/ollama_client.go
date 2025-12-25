@@ -92,6 +92,7 @@ func (c *ollamaClient) StreamComplete(
 		return nil, err
 	}
 
+	requestStarted := time.Now()
 	resp, err := c.doRequest(ctx, payload)
 	if err != nil {
 		return nil, err
@@ -117,6 +118,12 @@ func (c *ollamaClient) StreamComplete(
 		if line == "" {
 			continue
 		}
+
+		logCLILatencyf(
+			"[latency] llm_stream_ttfb_ms=%.2f provider=ollama model=%s\n",
+			float64(time.Since(requestStarted))/float64(time.Millisecond),
+			c.model,
+		)
 
 		var chunk ollamaResponse
 		if err := json.Unmarshal([]byte(line), &chunk); err != nil {

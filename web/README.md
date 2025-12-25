@@ -86,7 +86,7 @@ web/
 ## Data Flow (High Level)
 
 - Create a task with `POST /api/tasks` (React Query mutation).
-- Open the SSE stream at `/api/sse?session_id=...`.
+- Open the SSE stream at `/api/sse?session_id=...` (optionally `&replay=none|session|full`).
 - Render server events in the conversation timeline.
 
 For a deeper view, read `web/ARCHITECTURE.md`.
@@ -110,11 +110,12 @@ Events mirror Go types in `internal/agent/domain/events.go`:
 - `POST /api/tasks` - create and execute a task
 - `GET /api/tasks/:id` - task status
 - `POST /api/tasks/:id/cancel` - cancel task
+- `POST /api/sessions` - create an empty session (for UI prewarm)
 - `GET /api/sessions` - list sessions
 - `GET /api/sessions/:id` - session details
 - `DELETE /api/sessions/:id` - delete session
 - `POST /api/sessions/:id/fork` - fork session
-- `GET /api/sse?session_id=...` - SSE event stream
+- `GET /api/sse?session_id=...` - SSE event stream (`replay=none|session|full`)
 
 ## Contributing
 

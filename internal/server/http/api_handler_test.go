@@ -58,6 +58,25 @@ func (stubAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
 }
 
+type storeBackedAgentCoordinator struct {
+	store agentPorts.SessionStore
+}
+
+func (c storeBackedAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+	if id == "" {
+		return c.store.Create(ctx)
+	}
+	return c.store.Get(ctx, id)
+}
+
+func (storeBackedAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+}
+
+func (storeBackedAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
+}
+
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
 	rootErr := errors.New("json: cannot unmarshal object into Go struct field ToolResult.messages.tool_results.error of type error")
 	coordinator := app.NewServerCoordinator(&failingAgentCoordinator{err: rootErr}, app.NewEventBroadcaster(), nil, nil, nil)
@@ -154,6 +173,42 @@ func TestSnapshotHandlers(t *testing.T) {
 	handler.HandleReplaySession(replayResp, replayReq)
 	if replayResp.Code != http.StatusAccepted {
 		t.Fatalf("expected 202 for replay, got %d", replayResp.Code)
+	}
+}
+
+func TestHandleCreateSession(t *testing.T) {
+	sessionStore := filestore.New(t.TempDir())
+	stateStore := sessionstate.NewInMemoryStore()
+	broadcaster := app.NewEventBroadcaster()
+	taskStore := app.NewInMemoryTaskStore()
+	coordinator := app.NewServerCoordinator(
+		storeBackedAgentCoordinator{store: sessionStore},
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+	)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sessions", nil)
+	resp := httptest.NewRecorder()
+	handler.HandleCreateSession(resp, req)
+
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected 201 got %d", resp.Code)
+	}
+
+	var payload struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if payload.SessionID == "" {
+		t.Fatalf("expected session_id to be set")
+	}
+	if _, err := sessionStore.Get(context.Background(), payload.SessionID); err != nil {
+		t.Fatalf("expected created session to be retrievable: %v", err)
 	}
 }
 

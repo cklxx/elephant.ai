@@ -95,7 +95,7 @@ docker compose -f deploy/docker/docker-compose.yml down
 
 - **Web 界面**: http://localhost:3000
 - **API 服务**: http://localhost:8080
-- **SSE 事件流**: http://localhost:8080/api/sse?session_id=xxx
+- **SSE 事件流**: http://localhost:8080/api/sse?session_id=xxx&replay=session
 - **Health Check**: http://localhost:8080/health
 - **Redis**: localhost:6379
 
@@ -413,7 +413,7 @@ kubectl port-forward svc/alex-web-service 3000:3000 -n alex-system  # 端口转�
 
 # 测试
 curl http://localhost:8080/health             # 健康检查
-curl -N http://localhost:8080/api/sse?session_id=test  # 测试 SSE
+curl -N http://localhost:8080/api/sse?session_id=test&replay=session  # 测试 SSE
 ```
 
 ---

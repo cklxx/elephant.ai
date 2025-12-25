@@ -114,6 +114,22 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	replayMode := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("replay")))
+	includeSessionHistory := true
+	includeGlobalHistory := true
+	switch replayMode {
+	case "", "full":
+		// Preserve existing behavior.
+	case "session":
+		includeGlobalHistory = false
+	case "none":
+		includeSessionHistory = false
+		includeGlobalHistory = false
+	default:
+		http.Error(w, "invalid replay mode", http.StatusBadRequest)
+		return
+	}
+
 	h.logger.Info("SSE connection established for session: %s", sessionID)
 
 	ctx := r.Context()
@@ -266,25 +282,29 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 	var lastHistoryTime time.Time
 
-	if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: ""}, func(event ports.AgentEvent) error {
-		if sendEvent(event) {
-			lastHistoryTime = event.Timestamp()
+	if includeGlobalHistory {
+		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: ""}, func(event ports.AgentEvent) error {
+			if sendEvent(event) {
+				lastHistoryTime = event.Timestamp()
+			}
+			return nil
+		}); err != nil {
+			h.logger.Warn("Failed to replay global events: %v", err)
 		}
-		return nil
-	}); err != nil {
-		h.logger.Warn("Failed to replay global events: %v", err)
 	}
 
 	// Replay historical events for this session
-	if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: sessionID}, func(event ports.AgentEvent) error {
-		if sendEvent(event) {
-			lastHistoryTime = event.Timestamp()
+	if includeSessionHistory {
+		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: sessionID}, func(event ports.AgentEvent) error {
+			if sendEvent(event) {
+				lastHistoryTime = event.Timestamp()
+			}
+			return nil
+		}); err != nil {
+			h.logger.Warn("Failed to replay historical events for session %s: %v", sessionID, err)
+		} else {
+			h.logger.Info("Completed replaying historical events for session: %s", sessionID)
 		}
-		return nil
-	}); err != nil {
-		h.logger.Warn("Failed to replay historical events for session %s: %v", sessionID, err)
-	} else {
-		h.logger.Info("Completed replaying historical events for session: %s", sessionID)
 	}
 
 	// Drain any duplicates that were queued while replaying history

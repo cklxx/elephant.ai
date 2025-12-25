@@ -11,6 +11,7 @@ import (
 	"alex/internal/agent/ports"
 	materialapi "alex/internal/materials/api"
 	materialports "alex/internal/materials/ports"
+	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
 
@@ -476,7 +477,15 @@ func (e *ReactEngine) think(
 		modelName = services.LLM.Model()
 	}
 
+	llmCallStarted := time.Now()
 	resp, err := services.LLM.Complete(ctx, req)
+	clilatency.Printf(
+		"[latency] llm_complete_ms=%.2f iteration=%d model=%s request_id=%s\n",
+		float64(time.Since(llmCallStarted))/float64(time.Millisecond),
+		state.Iterations,
+		strings.TrimSpace(modelName),
+		requestID,
+	)
 
 	if err != nil {
 		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)

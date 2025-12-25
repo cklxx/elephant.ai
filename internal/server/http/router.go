@@ -213,7 +213,14 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	sessionsHandler := routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
 			annotateRequestRoute(r, "/api/sessions")
-			apiHandler.HandleListSessions(w, r)
+			switch r.Method {
+			case http.MethodGet:
+				apiHandler.HandleListSessions(w, r)
+			case http.MethodPost:
+				apiHandler.HandleCreateSession(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
 			return
 		}
 

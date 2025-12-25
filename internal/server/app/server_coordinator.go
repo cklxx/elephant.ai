@@ -640,6 +640,23 @@ func (s *ServerCoordinator) ListSessions(ctx context.Context) ([]string, error) 
 	return s.sessionStore.List(ctx)
 }
 
+// CreateSession creates a new session record without executing a task.
+func (s *ServerCoordinator) CreateSession(ctx context.Context) (*ports.Session, error) {
+	if s.agentCoordinator == nil {
+		return nil, fmt.Errorf("agent coordinator not initialized")
+	}
+	session, err := s.agentCoordinator.GetSession(ctx, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+	if s.stateStore != nil {
+		if err := s.stateStore.Init(ctx, session.ID); err != nil {
+			s.logger.Warn("[ServerCoordinator] Failed to initialize state store for session %s: %v", session.ID, err)
+		}
+	}
+	return session, nil
+}
+
 // DeleteSession removes a session
 func (s *ServerCoordinator) DeleteSession(ctx context.Context, id string) error {
 	var combined error

@@ -294,7 +294,7 @@ function PlanGoalCard({
   timestamp?: string;
 }) {
   return (
-    <div className="py-1" data-testid="event-ui-plan">
+    <div className="py-1 mb-1" data-testid="event-ui-plan">
       <div className="flex items-center">
         <Image
           src="/elephant.jpg"
@@ -305,7 +305,7 @@ function PlanGoalCard({
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <AlexWordmark className="ml-2 text-muted-foreground/60" />
+        <AlexWordmark className="ml-0.5 text-muted-foreground/60" />
       </div>
       <AgentMarkdown
         content={goal}

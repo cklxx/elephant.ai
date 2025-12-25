@@ -183,6 +183,7 @@ type startEvaluationRequest struct {
 type evaluationJobResponse struct {
 	ID            string                        `json:"id"`
 	Status        string                        `json:"status"`
+	Error         string                        `json:"error,omitempty"`
 	AgentID       string                        `json:"agent_id,omitempty"`
 	DatasetPath   string                        `json:"dataset_path,omitempty"`
 	InstanceLimit int                           `json:"instance_limit,omitempty"`
@@ -486,6 +487,30 @@ type SessionResponse struct {
 type SessionListResponse struct {
 	Sessions []SessionResponse `json:"sessions"`
 	Total    int               `json:"total"`
+}
+
+type CreateSessionResponse struct {
+	SessionID string `json:"session_id"`
+}
+
+// HandleCreateSession handles POST /api/sessions
+func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+
+	session, err := h.coordinator.CreateSession(r.Context())
+	if err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create session", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(CreateSessionResponse{SessionID: session.ID}); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
 }
 
 // HandleListSessions handles GET /api/sessions
@@ -1354,6 +1379,9 @@ func (h *APIHandler) buildEvaluationResponse(job *agent_eval.EvaluationJob, resu
 	resp := evaluationJobResponse{
 		ID:     job.ID,
 		Status: string(job.Status),
+	}
+	if job.Error != nil {
+		resp.Error = job.Error.Error()
 	}
 
 	if job.Config != nil {

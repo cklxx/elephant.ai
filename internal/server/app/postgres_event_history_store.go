@@ -145,6 +145,86 @@ INSERT INTO agent_session_events (
 	return err
 }
 
+// AppendBatch persists a group of events in a single statement.
+// It is intended for non-latency-sensitive background flushers.
+func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ports.AgentEvent) error {
+	if s == nil || s.pool == nil {
+		return fmt.Errorf("history store not initialized")
+	}
+	if len(events) == 0 {
+		return nil
+	}
+
+	records := make([]eventRecord, 0, len(events))
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		record, err := recordFromEvent(BaseAgentEvent(event))
+		if err != nil {
+			return err
+		}
+		records = append(records, record)
+	}
+	if len(records) == 0 {
+		return nil
+	}
+
+	const columns = `session_id, task_id, parent_task_id, agent_level, event_type, event_ts,
+    envelope_version, workflow_id, run_id, node_id, node_kind,
+    is_subtask, subtask_index, total_subtasks, subtask_preview, max_parallel, payload`
+
+	args := make([]any, 0, len(records)*17)
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO agent_session_events (")
+	sb.WriteString(columns)
+	sb.WriteString(") VALUES ")
+
+	argPos := 1
+	for idx, record := range records {
+		if idx > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("(")
+		for i := 0; i < 17; i++ {
+			if i > 0 {
+				sb.WriteString(",")
+			}
+			sb.WriteString(fmt.Sprintf("$%d", argPos))
+			argPos++
+		}
+		sb.WriteString(")")
+
+		var payloadParam any
+		if len(record.payload) > 0 {
+			payloadParam = record.payload
+		}
+		args = append(args,
+			record.sessionID,
+			record.taskID,
+			record.parentTaskID,
+			record.agentLevel,
+			record.eventType,
+			record.eventTS,
+			record.envelopeVer,
+			record.workflowID,
+			record.runID,
+			record.nodeID,
+			record.nodeKind,
+			record.isSubtask,
+			record.subtaskIndex,
+			record.totalSubtasks,
+			record.subtaskPrev,
+			record.maxParallel,
+			payloadParam,
+		)
+	}
+
+	sb.WriteString(";")
+	_, err := s.pool.Exec(ctx, sb.String(), args...)
+	return err
+}
+
 // Stream replays events matching the filter in order.
 func (s *PostgresEventHistoryStore) Stream(ctx context.Context, filter EventHistoryFilter, fn func(ports.AgentEvent) error) error {
 	if s == nil || s.pool == nil {

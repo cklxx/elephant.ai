@@ -304,6 +304,53 @@ describe('ConversationEventStream', () => {
     expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);
   });
 
+  it('orders subagent threads by their first seen timestamp even without displayable events', () => {
+    const baseTimestamp = new Date().toISOString();
+    const progressTimestamp = new Date(Date.now() + 1000).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      { ...baseEvent, timestamp: baseTimestamp },
+      {
+        event_type: 'workflow.tool.progress',
+        agent_level: 'subagent',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        subtask_index: 0,
+        total_subtasks: 1,
+        tool_name: 'web_search',
+        progress: 0.3,
+        timestamp: progressTimestamp,
+      } as AnyAgentEvent,
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    const conversationEvents = screen.getByTestId('conversation-events');
+    const children = Array.from(conversationEvents.children);
+    const baseIndex = children.findIndex((node) =>
+      node.querySelector('[data-testid="event-workflow.input.received"]'),
+    );
+    const subagentIndex = children.findIndex(
+      (node) => node.getAttribute('data-testid') === 'subagent-thread',
+    );
+
+    expect(baseIndex).toBeGreaterThanOrEqual(0);
+    expect(subagentIndex).toBeGreaterThanOrEqual(0);
+    expect(subagentIndex).toBeGreaterThan(baseIndex);
+  });
+
   it('ignores delegation-only subagent tool events', () => {
     const subagentTimestamp = new Date(Date.now() + 500).toISOString();
 

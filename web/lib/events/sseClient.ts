@@ -1,9 +1,11 @@
 import { apiClient } from '@/lib/api';
 import { WorkflowEventType } from '@/lib/types';
 import { EventPipeline } from './eventPipeline';
+import type { SSEReplayMode } from '@/lib/api';
 
 export interface SSEClientOptions {
   eventTypes: Array<WorkflowEventType | 'connected'>;
+  replay?: SSEReplayMode;
   onOpen?: () => void;
   onError?: (error: Event | Error) => void;
   onClose?: () => void;
@@ -48,6 +50,7 @@ export class SSEClient {
     this.pipeline = pipeline;
     this.options = {
       eventTypes: options.eventTypes ?? DEFAULT_EVENTS,
+      replay: options.replay,
       onOpen: options.onOpen,
       onError: options.onError,
       onClose: options.onClose,
@@ -61,6 +64,7 @@ export class SSEClient {
     this.eventSource = apiClient.createSSEConnection(
       this.sessionId,
       accessToken,
+      { replay: this.options.replay },
     );
     const eventSource = this.eventSource;
 

@@ -20,6 +20,27 @@ type EvaluationService struct {
 	baseOutputDir string
 }
 
+func canonicalizePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	abs := path
+	if evaluated, err := filepath.Abs(path); err == nil {
+		abs = evaluated
+	}
+
+	// EvalSymlinks requires the path to exist; if the full path does not exist
+	// (e.g. job output dir), resolve symlinks for the parent directory instead.
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
+	dir := filepath.Dir(abs)
+	if resolvedDir, err := filepath.EvalSymlinks(dir); err == nil {
+		return filepath.Join(resolvedDir, filepath.Base(abs))
+	}
+	return abs
+}
+
 // NewEvaluationService constructs a new evaluation service with sane defaults.
 func NewEvaluationService(baseOutputDir string) (*EvaluationService, error) {
 	if baseOutputDir == "" {
@@ -29,6 +50,7 @@ func NewEvaluationService(baseOutputDir string) (*EvaluationService, error) {
 	if err := ensureSafeBaseDir(baseOutputDir); err != nil {
 		return nil, err
 	}
+	baseOutputDir = canonicalizePath(baseOutputDir)
 
 	defaultConfig := agent_eval.EvaluationConfig{
 		DatasetType:    "swe_bench",
@@ -80,7 +102,8 @@ func (s *EvaluationService) Start(ctx context.Context, options *agent_eval.Evalu
 	}
 
 	s.logger.Info("Scheduling evaluation: dataset=%s limit=%d workers=%d", config.DatasetPath, config.InstanceLimit, config.MaxWorkers)
-	return s.manager.ScheduleEvaluation(ctx, config)
+	// Detach from request context cancellation; evaluations are async background jobs.
+	return s.manager.ScheduleEvaluation(context.WithoutCancel(ctx), config)
 }
 
 // ListJobs returns snapshots for all known evaluation jobs.
@@ -163,15 +186,41 @@ func (s *EvaluationService) mergeOptions(options *agent_eval.EvaluationOptions) 
 }
 
 func (s *EvaluationService) safeOutputDir(requested string) string {
-	cleaned := filepath.Clean(requested)
-	if filepath.IsAbs(cleaned) {
-		cleaned = strings.TrimPrefix(cleaned, string(filepath.Separator))
+	cleaned := filepath.Clean(strings.TrimSpace(requested))
+	if cleaned == "" || cleaned == "." || cleaned == ".." {
+		return s.baseOutputDir
 	}
 
-	joined := filepath.Join(s.baseOutputDir, cleaned)
-	if rel, err := filepath.Rel(s.baseOutputDir, joined); err == nil {
+	base := canonicalizePath(s.baseOutputDir)
+	baseName := filepath.Base(base)
+
+	// Common caller mistake: passing the base dir itself (relative or absolute).
+	if cleaned == baseName {
+		return base
+	}
+
+	// Absolute requests are only allowed if they are already within base.
+	if filepath.IsAbs(cleaned) {
+		abs := canonicalizePath(cleaned)
+		if abs == base {
+			return base
+		}
+		if rel, err := filepath.Rel(base, abs); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+			return abs
+		}
+		if rel, err := filepath.Rel(base, abs); err == nil && rel == "." {
+			return base
+		}
+		return base
+	}
+
+	joined := filepath.Join(base, cleaned)
+	if rel, err := filepath.Rel(base, joined); err == nil {
+		if rel == "." {
+			return base
+		}
 		if strings.HasPrefix(rel, "..") {
-			return s.baseOutputDir
+			return base
 		}
 	}
 
@@ -180,7 +229,10 @@ func (s *EvaluationService) safeOutputDir(requested string) string {
 
 func (s *EvaluationService) ensureOutputDir(outputDir string) error {
 	cleaned := filepath.Clean(outputDir)
-	rel, err := filepath.Rel(s.baseOutputDir, cleaned)
+	baseAbs := canonicalizePath(filepath.Clean(s.baseOutputDir))
+	outAbs := canonicalizePath(cleaned)
+
+	rel, err := filepath.Rel(baseAbs, outAbs)
 	if err != nil {
 		return fmt.Errorf("invalid output dir: %w", err)
 	}

@@ -57,6 +57,7 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	var historyStore serverApp.EventHistoryStore
+	var asyncHistoryStore *serverApp.AsyncEventHistoryStore
 	if container.SessionDB != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -65,10 +66,18 @@ func RunServer(observabilityConfigPath string) error {
 			logger.Warn("Failed to initialize event history schema: %v", err)
 		} else {
 			historyStore = pgHistory
+			asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory)
+			defer func() {
+				_ = asyncHistoryStore.Close()
+			}()
 		}
 	}
 
-	broadcaster := serverApp.NewEventBroadcaster(serverApp.WithEventHistoryStore(historyStore))
+	broadcasterHistoryStore := historyStore
+	if asyncHistoryStore != nil {
+		broadcasterHistoryStore = asyncHistoryStore
+	}
+	broadcaster := serverApp.NewEventBroadcaster(serverApp.WithEventHistoryStore(broadcasterHistoryStore))
 	taskStore := serverApp.NewInMemoryTaskStore()
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)

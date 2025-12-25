@@ -40,6 +40,7 @@ http/               # HTTP handlers (SSE, REST API, middleware, router)
 
 REST API endpoints:
 - `POST /api/tasks` - Create and execute task
+- `POST /api/sessions` - Create empty session
 - `GET /api/sessions` - List sessions
 - `GET /api/sessions/:id` - Get session details
 - `DELETE /api/sessions/:id` - Delete session
@@ -67,7 +68,7 @@ make server-test
 ```bash
 # Terminal 1: Start SSE connection
 curl -N -H "Accept: text/event-stream" \
-  "http://localhost:8080/api/sse?session_id=test"
+  "http://localhost:8080/api/sse?session_id=test&replay=session"
 
 # Terminal 2: Submit task
 curl -X POST http://localhost:8080/api/tasks \
