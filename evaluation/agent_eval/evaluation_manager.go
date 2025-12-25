@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -213,8 +215,18 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 	// 基于现有SWE-Bench加载器
 	loader := swe_bench.NewDatasetLoader()
 
+	datasetType := strings.TrimSpace(config.DatasetType)
+	if datasetType == "" {
+		datasetType = "file"
+	}
+	if datasetType == "swe_bench" && config.DatasetPath != "" {
+		if _, err := os.Stat(config.DatasetPath); err == nil {
+			datasetType = "file"
+		}
+	}
+
 	datasetConfig := swe_bench.DatasetConfig{
-		Type:          config.DatasetType,
+		Type:          datasetType,
 		FilePath:      config.DatasetPath,
 		InstanceLimit: config.InstanceLimit,
 	}
