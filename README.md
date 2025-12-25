@@ -8,17 +8,28 @@ elephant.ai provides a Go backend and Next.js dashboard built around a shared Th
 
 ---
 
-## What it does
+## Why it’s different
 
-* **Fragment-to-plan reasoning.** Streams shell transcripts, notebook outputs, tickets, and freeform notes into stitched execution plans using the shared agent runtime.
-* **One runtime, many surfaces.** CLI/TUI (`cmd/alex`), server (`cmd/alex-server`), and dashboard (`web/`) all share the same dependency injection container and event stream.
-* **Tooling that respects context.** File, shell, search, and notebook helpers emit typed events with artifacts/attachments for the dashboard.
-* **Observability-first.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking live under `internal/observability`.
-* **Evaluation harnesses.** SWE-Bench runners in `evaluation/` keep quality measurable during development.
+* **One runtime, many surfaces.** CLI/TUI (`cmd/alex`), server (`cmd/alex-server`), and dashboard (`web/`) all consume the same dependency injection container and event stream, keeping operator and automation behavior identical.
+* **Artifact-rich, typed events.** File, shell, search, and notebook helpers emit structured events with attachments so the dashboard can render transcripts, artifacts, and approvals without brittle parsing.
+* **Observation-first instrumentation.** Structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost tracking are built into the runtime via `internal/observability`.
+* **Safety with intent visibility.** Destructive tools surface explicit approvals and safety policies in the ReAct loop so operators see what will happen before it runs.
+* **Grounded context builder.** Layered retrieval (`internal/context`, `internal/rag`) merges session state, skills, docs, and external context to reduce hallucinations.
+* **Evaluation baked in.** SWE-Bench and regression harnesses in `evaluation/` keep changes accountable during development.
 
 ---
 
-## Architecture at a glance
+## Design principles
+
+* **Parity across surfaces.** The same container wiring powers CLI, server, and web so sessions are consistent regardless of entrypoint.
+* **Typed interactions over ad hoc logs.** Every tool call is an event with schema-backed payloads, artifacts, and attachments rather than plain text.
+* **Operator-forward UX.** The dashboard is optimized for reading and approving steps in real time through SSE streams instead of replaying logs after the fact.
+* **Observability as a first-class API.** Telemetry is emitted from the agent runtime itself—not bolted onto handlers—so traces align with ReAct steps.
+* **Measurable progress.** Evaluation suites live in-repo and are expected to run in development, not only in CI.
+
+---
+
+## Architecture sketch
 
 ```
 Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Infrastructure Adapters
@@ -26,141 +37,22 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 
 | Layer | Highlights |
 | --- | --- |
-| Delivery | `cmd/alex`, `cmd/alex-server`, and `web/` consume the same DI container for consistent behavior. |
+| Delivery | Shared DI container drives `cmd/alex`, `cmd/alex-server`, and `web/` for consistent sessions. |
 | Agent core | `internal/agent/app`, `internal/agent/domain`, and `internal/agent/ports` implement the ReAct loop, approvals, and typed events. |
 | Infrastructure | `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/observability`, and `internal/context` provide adapters, LLM clients, MCP runtime, persistence, rendering, telemetry, and layered context. |
-| Frontend | `web/` renders real-time sessions via SSE, supports cost inspection, and lets operators feed new fragments. |
-
-More detail lives in [`docs/AGENT.md`](docs/AGENT.md). New to the codebase? Start with [`ROADMAP.md`](ROADMAP.md).
+| Frontend | `web/` renders real-time sessions via SSE, surfaces cost inspection, and lets operators feed new fragments. |
 
 ---
 
-## Repository map
+## Components to know
 
-| Path | Purpose |
+| Path | Focus |
 | --- | --- |
-| `cmd/` | Go entrypoints (`alex`, `alex-server`). |
-| `internal/` | Agent core, DI, tools, context orchestration, storage, and observability. |
-| `web/` | Next.js dashboard with SSE client, session list, and controls. |
-| `evaluation/` | SWE-Bench automation and reporting utilities. |
-| `docs/` | Architecture notes, references, operations guides, and research. |
-| `tests/` | End-to-end and integration suites executed in CI. |
-| `scripts/` | Developer automation and CI helpers. |
-| `deploy/docker/` | Dockerfiles, Compose stacks, and nginx config for containerized deployments. |
+| `internal/agent/` | ReAct loop, approvals, event model, and application services. |
+| `internal/context/` + `internal/rag/` | Layered retrieval and summarization for memory accuracy. |
+| `internal/observability/` | Logs, traces, metrics, and cost accounting wired into the runtime. |
+| `internal/tools/` + `internal/toolregistry/` | Typed tool definitions, registration, and safety policies. |
+| `web/` | Next.js dashboard that streams typed events and artifacts. |
+| `evaluation/` | SWE-Bench runners and regression harnesses. |
 
----
-
-## Quickstart
-
-### Prerequisites
-
-* Go **1.24+** (see `go.mod`).
-* Node.js **20+** for the dashboard.
-* Docker (optional) for containerized deployments.
-
-### One-command dev loop
-
-Use `./dev.sh` to launch the backend and dashboard together and to run common checks:
-
-```bash
-./dev.sh            # start backend + web
-./dev.sh status     # show port and PID info
-./dev.sh logs web   # tail dashboard logs (or `logs server`)
-./dev.sh test       # Go + web tests
-./dev.sh lint       # Go + web lint
-./dev.sh down       # stop everything
-```
-
-Environment overrides: `SERVER_PORT` (default `8080`), `WEB_PORT` (default `3000`), `START_WITH_WATCH=1` to hot-reload the backend when `air` is installed, and `AUTO_STOP_CONFLICTING_PORTS=0` to disable auto-killing listeners on the web port.
-
-### CLI / TUI
-
-```bash
-make build        # build ./alex
-./alex            # launch the TUI
-./alex --no-tui   # run in line-mode
-```
-
-Common maintenance commands:
-
-```bash
-./alex sessions cleanup --older-than 30d --keep-latest 25
-./alex sessions cleanup --older-than 14d --dry-run
-```
-
-### Server + Dashboard
-
-```bash
-./alex-server            # start HTTP + SSE server on :8080
-(cd web && npm install)  # install frontend deps
-(cd web && npm run dev)  # launch Next.js dashboard
-```
-
-For split origins during development, set `NEXT_PUBLIC_API_URL=http://localhost:8080` (or keep the default `auto` for same-origin setups).
-
-### Production
-
-1. Configure secrets and models in `~/.alex-config.json` (override via `ALEX_CONFIG_PATH`) and export keys such as `OPENAI_API_KEY` and `TAVILY_API_KEY`. See [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md).
-2. Run `./deploy.sh` for the nginx-backed stack on port 80. Mainland China networks can use `./deploy.sh cn` for mirror settings. Inspect with `./deploy.sh pro status|logs|down`.
-3. For Compose-based production, prefer `deploy/docker/docker-compose.yml`:
-   ```bash
-   echo "OPENAI_API_KEY=sk-your-key" > .env
-   docker compose -f deploy/docker/docker-compose.yml up -d
-   docker compose -f deploy/docker/docker-compose.yml logs -f alex-server
-   ```
-4. Wire liveness probes to `/health` and ship logs/metrics to your monitoring stack.
-
----
-
-## Development workflow
-
-Use `./dev.sh` for the combined backend + dashboard loop. For backend-only work:
-
-```bash
-make fmt     # golangci-lint (fix) + format
-make vet     # go vet on cmd/ and internal/
-make build   # compile CLI
-make test    # run all Go tests
-```
-
-Frontend commands live in `web/README.md`; evaluation jobs use scripts in `evaluation/`.
-
----
-
-## Skills (Markdown playbooks)
-
-Reusable playbooks in `skills/` are indexed into the context builder and discoverable via the `skills` tool.
-
-* Each skill is a `.md/.mdx` file with YAML front matter:
-  ```md
-  ---
-  name: my_skill
-  description: One-line summary used for discovery/tooling.
-  ---
-  # Title
-  ...
-  ```
-* Override the skills directory with `ALEX_SKILLS_DIR=/path/to/skills`.
-
-The loader also understands the Agent Skills folder layout (`<skill-name>/SKILL.md`). See [`docs/guides/skills.md`](docs/guides/skills.md) for integration details.
-
-Built-in examples include `video_production` and `ppt_deck`.
-
----
-
-## Roadmap snapshots
-
-* **TUI polish.** Better inline help, command palette hints, and transcript exports.
-* **Server hardening.** Expanded health/readiness probes plus structured error responses; K8s manifests are available today.
-* **Memory accuracy.** Retrieval and summarization tuning within `internal/context` and `internal/rag`.
-* **Tool safety.** Approval policies for destructive actions with configurable templates.
-* **Evaluation coverage.** Growing SWE-Bench and regression suites under `evaluation/` and `tests/`.
-
----
-
-## Documentation index
-
-* [`ROADMAP.md`](ROADMAP.md) – guided reading order for the codebase.
-* [`docs/README.md`](docs/README.md) – documentation index.
-* [`docs/AGENT.md`](docs/AGENT.md) – orchestration flow and event model.
-* [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md) – configuration schema and precedence.
+For deeper dives, see [`docs/AGENT.md`](docs/AGENT.md) and [`docs/README.md`](docs/README.md).
