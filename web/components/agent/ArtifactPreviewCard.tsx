@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { AttachmentPayload } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { buildAttachmentUri } from '@/lib/attachments';
+import { resolveAttachmentDownloadUris } from '@/lib/attachments';
 import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
 import { Download, ExternalLink, FileText, FileCode, Loader2, X } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -27,7 +27,17 @@ export function ArtifactPreviewCard({
   const [markdownPreview, setMarkdownPreview] = useState<string | null>(null);
   const [markdownLoading, setMarkdownLoading] = useState(false);
 
-  const downloadUri = buildAttachmentUri(attachment);
+  const { preferredUri: downloadUri, fallbackUri: originalUri, preferredKind } =
+    resolveAttachmentDownloadUris(attachment);
+  const preferredDownloadName =
+    preferredKind === "pdf" && attachment.name
+      ? `${attachment.name.replace(/\.[^.]+$/, "")}.pdf`
+      : attachment.name;
+  const fallbackLabel =
+    preferredKind === "pdf" && originalUri
+      ? `Download ${attachment.format?.toUpperCase() || "PPTX"}`
+      : null;
+  const primaryDownloadLabel = preferredKind === "pdf" ? "Download PDF" : "Download";
   const displayName = attachment.description || attachment.name || "Artifact";
   const formatLabel = attachment.format?.toUpperCase() || attachment.media_type || "FILE";
   const isMarkdown = formatLabel.includes("MARKDOWN") || attachment.media_type?.includes("markdown");
@@ -172,8 +182,8 @@ export function ArtifactPreviewCard({
                 <a
                   href={downloadUri}
                   className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title="View"
-                  aria-label="View"
+                  title={preferredKind === "pdf" ? "Open PDF" : "View"}
+                  aria-label={preferredKind === "pdf" ? "Open PDF" : "View"}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={stopPropagation}
@@ -182,14 +192,26 @@ export function ArtifactPreviewCard({
                 </a>
                 <a
                   href={downloadUri}
-                  download={attachment.name}
+                  download={preferredDownloadName}
                   className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title="Download"
-                  aria-label="Download"
+                  title={primaryDownloadLabel}
+                  aria-label={primaryDownloadLabel}
                   onClick={stopPropagation}
                 >
                   <Download className="w-4 h-4" />
                 </a>
+                {originalUri ? (
+                  <a
+                    href={originalUri}
+                    download={attachment.name}
+                    className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title={fallbackLabel ?? "Download original"}
+                    aria-label={fallbackLabel ?? "Download original"}
+                    onClick={stopPropagation}
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                ) : null}
               </>
             )}
           </div>
@@ -255,8 +277,8 @@ export function ArtifactPreviewCard({
                       <a
                         href={downloadUri}
                         className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        title="Open in new tab"
-                        aria-label="Open in new tab"
+                        title={preferredKind === "pdf" ? "Open PDF in new tab" : "Open in new tab"}
+                        aria-label={preferredKind === "pdf" ? "Open PDF in new tab" : "Open in new tab"}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -264,13 +286,24 @@ export function ArtifactPreviewCard({
                       </a>
                       <a
                         href={downloadUri}
-                        download={attachment.name}
+                        download={preferredDownloadName}
                         className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        title="Download"
-                        aria-label="Download"
+                        title={primaryDownloadLabel}
+                        aria-label={primaryDownloadLabel}
                       >
                         <Download className="h-4 w-4" />
                       </a>
+                      {originalUri ? (
+                        <a
+                          href={originalUri}
+                          download={attachment.name}
+                          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          title={fallbackLabel ?? "Download original"}
+                          aria-label={fallbackLabel ?? "Download original"}
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      ) : null}
                     </>
                   ) : null}
                   <DialogClose asChild>

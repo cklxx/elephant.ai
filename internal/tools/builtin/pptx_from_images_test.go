@@ -59,6 +59,16 @@ func TestPPTXFromImagesBuildsDeckFromAttachmentPlaceholders(t *testing.T) {
 	if att.MediaType != pptxFromImagesMediaType {
 		t.Fatalf("expected media type %q, got %q", pptxFromImagesMediaType, att.MediaType)
 	}
+	foundPDFAsset := false
+	for _, asset := range att.PreviewAssets {
+		if asset.MimeType == pdfMediaType {
+			foundPDFAsset = true
+			break
+		}
+	}
+	if !foundPDFAsset {
+		t.Fatalf("expected pptx attachment to include pdf preview asset")
+	}
 
 	pptxBytes, err := base64.StdEncoding.DecodeString(att.Data)
 	if err != nil {
@@ -98,6 +108,24 @@ func TestPPTXFromImagesBuildsDeckFromAttachmentPlaceholders(t *testing.T) {
 	contentTypes := readZipFile(t, zr, "[Content_Types].xml")
 	if !strings.Contains(contentTypes, `/ppt/slides/slide2.xml`) {
 		t.Fatalf("expected content types to include slide2 override, got %q", contentTypes)
+	}
+
+	pdf, ok := result.Attachments["deck.pdf"]
+	if !ok {
+		t.Fatalf("expected deck.pdf attachment to exist")
+	}
+	if pdf.MediaType != pdfMediaType {
+		t.Fatalf("expected pdf media type %q, got %q", pdfMediaType, pdf.MediaType)
+	}
+	if pdf.Format != "pdf" {
+		t.Fatalf("expected pdf format, got %q", pdf.Format)
+	}
+	pdfBytes, err := base64.StdEncoding.DecodeString(pdf.Data)
+	if err != nil {
+		t.Fatalf("decode pdf base64: %v", err)
+	}
+	if len(pdfBytes) == 0 || !strings.HasPrefix(string(pdfBytes), "%PDF-") {
+		t.Fatalf("expected valid pdf bytes, got %d bytes", len(pdfBytes))
 	}
 }
 
