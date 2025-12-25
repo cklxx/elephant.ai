@@ -118,10 +118,14 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
+	latencySessionID := sessionID
+	if session != nil && session.ID != "" {
+		latencySessionID = session.ID
+	}
 	clilatency.Printf(
 		"[latency] session_load_ms=%.2f session=%s\n",
 		float64(time.Since(sessionLoadStarted))/float64(time.Millisecond),
-		session.ID,
+		latencySessionID,
 	)
 
 	ids := id.IDsFromContext(ctx)
