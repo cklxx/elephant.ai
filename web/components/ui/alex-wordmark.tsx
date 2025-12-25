@@ -12,7 +12,7 @@ export function AlexWordmark({
   return (
     <span
       className={cn(
-        "inline-flex whitespace-nowrap font-sans text-xl font-medium leading-none",
+        "inline-flex whitespace-nowrap font-sans text-base font-medium leading-none",
         className,
       )}
       aria-label={title}
