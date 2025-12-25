@@ -51,6 +51,42 @@ func TestServiceSaveAndRecall(t *testing.T) {
 	}
 }
 
+func TestServiceRecallRespectsSlots(t *testing.T) {
+	store := NewInMemoryStore()
+	svc := NewService(store)
+
+	_, err := svc.Save(context.Background(), Entry{
+		UserID:  "user-1",
+		Content: "triage auth issue",
+		Slots:   map[string]string{"intent": "triage"},
+	})
+	if err != nil {
+		t.Fatalf("save triage failed: %v", err)
+	}
+	_, err = svc.Save(context.Background(), Entry{
+		UserID:  "user-1",
+		Content: "write summary",
+		Slots:   map[string]string{"intent": "write"},
+	})
+	if err != nil {
+		t.Fatalf("save write failed: %v", err)
+	}
+
+	results, err := svc.Recall(context.Background(), Query{
+		UserID: "user-1",
+		Slots:  map[string]string{"intent": "triage"},
+	})
+	if err != nil {
+		t.Fatalf("recall returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for matching slot, got %d", len(results))
+	}
+	if results[0].Slots["intent"] != "triage" {
+		t.Fatalf("unexpected slot match: %+v", results[0].Slots)
+	}
+}
+
 func TestServiceRejectsMissingUserOrContent(t *testing.T) {
 	svc := NewService(NewInMemoryStore())
 	if _, err := svc.Save(context.Background(), Entry{}); err == nil {

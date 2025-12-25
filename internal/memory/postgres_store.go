@@ -84,6 +84,16 @@ func (s *PostgresStore) Search(ctx context.Context, query Query) ([]Entry, error
 	args := []any{query.UserID}
 	argPos := 2
 
+	if len(query.Slots) > 0 {
+		slotsJSON, err := json.Marshal(query.Slots)
+		if err != nil {
+			return nil, fmt.Errorf("encode slot filter: %w", err)
+		}
+		conditions = append(conditions, fmt.Sprintf("slots @> $%d::jsonb", argPos))
+		args = append(args, slotsJSON)
+		argPos++
+	}
+
 	if len(query.Terms) > 0 {
 		conditions = append(conditions, fmt.Sprintf("terms && $%d", argPos))
 		args = append(args, query.Terms)

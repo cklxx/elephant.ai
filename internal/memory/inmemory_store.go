@@ -53,6 +53,9 @@ func (s *InMemoryStore) Search(_ context.Context, query Query) ([]Entry, error) 
 
 	var results []Entry
 	for _, entry := range candidates {
+		if !matchSlots(entry.Slots, query.Slots) {
+			continue
+		}
 		if matchesTerms(entry.Terms, termSet) {
 			results = append(results, entry)
 		}
@@ -71,4 +74,16 @@ func matchesTerms(entryTerms []string, query map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+func matchSlots(entrySlots map[string]string, querySlots map[string]string) bool {
+	if len(querySlots) == 0 {
+		return true
+	}
+	for key, value := range querySlots {
+		if strings.TrimSpace(entrySlots[key]) != strings.TrimSpace(value) {
+			return false
+		}
+	}
+	return true
 }
