@@ -41,6 +41,10 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 
 	set("LLM_MODEL", cfg.LLMModel)
 
+	set("LLM_SMALL_PROVIDER", cfg.LLMSmallProvider)
+
+	set("LLM_SMALL_MODEL", cfg.LLMSmallModel)
+
 	set("LLM_VISION_MODEL", cfg.LLMVisionModel)
 
 	set("LLM_BASE_URL", cfg.BaseURL)

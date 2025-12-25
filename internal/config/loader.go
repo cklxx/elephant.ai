@@ -33,6 +33,8 @@ const (
 type RuntimeConfig struct {
 	LLMProvider             string   `json:"llm_provider"`
 	LLMModel                string   `json:"llm_model"`
+	LLMSmallProvider        string   `json:"llm_small_provider"`
+	LLMSmallModel           string   `json:"llm_small_model"`
 	LLMVisionModel          string   `json:"llm_vision_model"`
 	APIKey                  string   `json:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key"`
@@ -101,6 +103,8 @@ func (m Metadata) LoadedAt() time.Time {
 type Overrides struct {
 	LLMProvider             *string   `json:"llm_provider,omitempty"`
 	LLMModel                *string   `json:"llm_model,omitempty"`
+	LLMSmallProvider        *string   `json:"llm_small_provider,omitempty"`
+	LLMSmallModel           *string   `json:"llm_small_model,omitempty"`
 	LLMVisionModel          *string   `json:"llm_vision_model,omitempty"`
 	APIKey                  *string   `json:"api_key,omitempty"`
 	ArkAPIKey               *string   `json:"ark_api_key,omitempty"`
@@ -200,6 +204,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	cfg := RuntimeConfig{
 		LLMProvider:         "openrouter",
 		LLMModel:            "deepseek/deepseek-chat",
+		LLMSmallProvider:    "openrouter",
+		LLMSmallModel:       "gpt-4o-mini",
 		BaseURL:             "https://openrouter.ai/api/v1",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
@@ -239,6 +245,14 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	// If API key remains unset, default to mock provider.
 	if cfg.APIKey == "" && cfg.LLMProvider != "mock" {
 		cfg.LLMProvider = "mock"
+		if cfg.LLMSmallProvider != "mock" {
+			cfg.LLMSmallProvider = "mock"
+			setSource("llm_small_provider", SourceDefault)
+		}
+		if cfg.LLMSmallModel != "mock" {
+			cfg.LLMSmallModel = "mock"
+			setSource("llm_small_model", SourceDefault)
+		}
 		setSource("llm_provider", SourceDefault)
 	}
 
@@ -248,6 +262,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 type fileConfig struct {
 	LLMProvider             string   `json:"llm_provider"`
 	LLMModel                string   `json:"llm_model"`
+	LLMSmallProvider        string   `json:"llm_small_provider"`
+	LLMSmallModel           string   `json:"llm_small_model"`
 	LLMVisionModel          string   `json:"llm_vision_model"`
 	APIKey                  string   `json:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key"`
@@ -323,6 +339,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.LLMModel != "" {
 		cfg.LLMModel = parsed.LLMModel
 		meta.sources["llm_model"] = SourceFile
+	}
+	if parsed.LLMSmallProvider != "" {
+		cfg.LLMSmallProvider = parsed.LLMSmallProvider
+		meta.sources["llm_small_provider"] = SourceFile
+	}
+	if parsed.LLMSmallModel != "" {
+		cfg.LLMSmallModel = parsed.LLMSmallModel
+		meta.sources["llm_small_model"] = SourceFile
 	}
 	if parsed.LLMVisionModel != "" {
 		cfg.LLMVisionModel = parsed.LLMVisionModel
@@ -446,6 +470,14 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("LLM_MODEL"); ok && value != "" {
 		cfg.LLMModel = value
 		meta.sources["llm_model"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_SMALL_PROVIDER"); ok && value != "" {
+		cfg.LLMSmallProvider = value
+		meta.sources["llm_small_provider"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_SMALL_MODEL"); ok && value != "" {
+		cfg.LLMSmallModel = value
+		meta.sources["llm_small_model"] = SourceEnv
 	}
 	if value, ok := lookup("LLM_VISION_MODEL"); ok && value != "" {
 		cfg.LLMVisionModel = value
@@ -616,6 +648,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.LLMModel != nil {
 		cfg.LLMModel = *overrides.LLMModel
 		meta.sources["llm_model"] = SourceOverride
+	}
+	if overrides.LLMSmallProvider != nil {
+		cfg.LLMSmallProvider = *overrides.LLMSmallProvider
+		meta.sources["llm_small_provider"] = SourceOverride
+	}
+	if overrides.LLMSmallModel != nil {
+		cfg.LLMSmallModel = *overrides.LLMSmallModel
+		meta.sources["llm_small_model"] = SourceOverride
 	}
 	if overrides.LLMVisionModel != nil {
 		cfg.LLMVisionModel = *overrides.LLMVisionModel

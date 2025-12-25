@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -237,16 +238,27 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		mergeAttachmentMaps(preloadedAttachments, inheritedState.Attachments)
 	}
 
+	taskAnalysis, preferSmallModel := s.preAnalyzeTask(ctx, session, task)
+
 	effectiveModel := s.config.LLMModel
+	effectiveProvider := s.config.LLMProvider
+	if preferSmallModel && strings.TrimSpace(s.config.LLMSmallModel) != "" {
+		effectiveProvider = strings.TrimSpace(s.config.LLMSmallProvider)
+		if effectiveProvider == "" {
+			effectiveProvider = s.config.LLMProvider
+		}
+		effectiveModel = s.config.LLMSmallModel
+	}
 	if taskNeedsVision(task, preloadedAttachments, GetUserAttachments(ctx)) {
 		if visionModel := strings.TrimSpace(s.config.LLMVisionModel); visionModel != "" {
+			effectiveProvider = s.config.LLMProvider
 			effectiveModel = visionModel
 		}
 	}
 
-	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", s.config.LLMProvider, effectiveModel)
+	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProvider, effectiveModel)
 	// Use GetIsolatedClient to ensure session-level cost tracking isolation
-	llmClient, err := s.llmFactory.GetIsolatedClient(s.config.LLMProvider, effectiveModel, ports.LLMConfig{
+	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, ports.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
 	})
@@ -340,6 +352,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		Services:     services,
 		Session:      session,
 		SystemPrompt: systemPrompt,
+		TaskAnalysis: taskAnalysis,
 	}, nil
 }
 
@@ -810,6 +823,200 @@ func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolReg
 	}
 
 	return s.toolRegistry
+}
+
+func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *ports.Session, task string) (*ports.TaskAnalysis, bool) {
+	if strings.TrimSpace(task) == "" {
+		return nil, false
+	}
+	provider, model, ok := s.resolveSmallModelConfig()
+	if !ok || session == nil {
+		return nil, false
+	}
+	client, err := s.llmFactory.GetIsolatedClient(provider, model, ports.LLMConfig{
+		APIKey:  s.config.APIKey,
+		BaseURL: s.config.BaseURL,
+	})
+	if err != nil {
+		s.logger.Warn("Task pre-analysis skipped: %v", err)
+		return nil, false
+	}
+	client = s.costDecorator.Wrap(ctx, session.ID, client)
+
+	req := ports.CompletionRequest{
+		Messages: []ports.Message{
+			{
+				Role: "system",
+				Content: "You are a fast task triage assistant. Decide if the user's task is simple or complex, name the task, and provide a compact breakdown. " +
+					`Respond ONLY with JSON: {"complexity":"simple|complex","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
+					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}]}`,
+			},
+			{Role: "user", Content: task},
+		},
+		Temperature: 0.2,
+		MaxTokens:   320,
+	}
+
+	analysisCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	resp, err := client.Complete(analysisCtx, req)
+	if err != nil || resp == nil {
+		s.logger.Warn("Task pre-analysis failed: %v", err)
+		return nil, false
+	}
+	analysis := parseTaskAnalysis(resp.Content)
+	if analysis == nil {
+		s.logger.Warn("Task pre-analysis returned unparsable output")
+		return nil, false
+	}
+	return analysis, strings.EqualFold(analysis.Complexity, "simple")
+}
+
+func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string, bool) {
+	model := strings.TrimSpace(s.config.LLMSmallModel)
+	if model == "" {
+		return "", "", false
+	}
+	provider := strings.TrimSpace(s.config.LLMSmallProvider)
+	if provider == "" {
+		provider = strings.TrimSpace(s.config.LLMProvider)
+	}
+	if provider == "" {
+		return "", "", false
+	}
+	return provider, model, true
+}
+
+type taskAnalysisPayload struct {
+	Complexity      string                     `json:"complexity"`
+	TaskName        string                     `json:"task_name"`
+	ActionName      string                     `json:"action_name"`
+	Goal            string                     `json:"goal"`
+	Approach        string                     `json:"approach"`
+	SuccessCriteria []string                   `json:"success_criteria"`
+	Steps           []taskAnalysisStepPayload  `json:"steps"`
+	Retrieval       taskAnalysisRetrievalHints `json:"retrieval"`
+}
+
+type taskAnalysisStepPayload struct {
+	Description          string `json:"description"`
+	Rationale            string `json:"rationale"`
+	NeedsExternalContext bool   `json:"needs_external_context"`
+}
+
+type taskAnalysisRetrievalHints struct {
+	ShouldRetrieve bool     `json:"should_retrieve"`
+	LocalQueries   []string `json:"local_queries"`
+	SearchQueries  []string `json:"search_queries"`
+	CrawlURLs      []string `json:"crawl_urls"`
+	KnowledgeGaps  []string `json:"knowledge_gaps"`
+	Notes          string   `json:"notes"`
+}
+
+func parseTaskAnalysis(raw string) *ports.TaskAnalysis {
+	body := strings.TrimSpace(raw)
+	start := strings.Index(body, "{")
+	end := strings.LastIndex(body, "}")
+	if start < 0 || end <= start {
+		return nil
+	}
+	body = body[start : end+1]
+
+	var payload taskAnalysisPayload
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		return nil
+	}
+
+	analysis := &ports.TaskAnalysis{
+		Complexity:      normalizeComplexity(payload.Complexity),
+		ActionName:      coalesce(payload.TaskName, payload.ActionName),
+		Goal:            strings.TrimSpace(payload.Goal),
+		Approach:        strings.TrimSpace(payload.Approach),
+		SuccessCriteria: compactStrings(payload.SuccessCriteria),
+	}
+
+	if len(payload.Steps) > 0 {
+		analysis.TaskBreakdown = make([]ports.TaskAnalysisStep, 0, len(payload.Steps))
+		for _, step := range payload.Steps {
+			if strings.TrimSpace(step.Description) == "" {
+				continue
+			}
+			analysis.TaskBreakdown = append(analysis.TaskBreakdown, ports.TaskAnalysisStep{
+				Description:          strings.TrimSpace(step.Description),
+				NeedsExternalContext: step.NeedsExternalContext,
+				Rationale:            strings.TrimSpace(step.Rationale),
+			})
+		}
+	}
+
+	if analysis.Retrieval.ShouldRetrieve || payload.Retrieval.ShouldRetrieve {
+		analysis.Retrieval.ShouldRetrieve = true
+	}
+	if len(payload.Retrieval.LocalQueries) > 0 {
+		analysis.Retrieval.LocalQueries = compactStrings(payload.Retrieval.LocalQueries)
+	}
+	if len(payload.Retrieval.SearchQueries) > 0 {
+		analysis.Retrieval.SearchQueries = compactStrings(payload.Retrieval.SearchQueries)
+	}
+	if len(payload.Retrieval.CrawlURLs) > 0 {
+		analysis.Retrieval.CrawlURLs = compactStrings(payload.Retrieval.CrawlURLs)
+	}
+	if len(payload.Retrieval.KnowledgeGaps) > 0 {
+		analysis.Retrieval.KnowledgeGaps = compactStrings(payload.Retrieval.KnowledgeGaps)
+	}
+	if note := strings.TrimSpace(payload.Retrieval.Notes); note != "" {
+		analysis.Retrieval.Notes = note
+	}
+	if !analysis.Retrieval.ShouldRetrieve {
+		for _, step := range payload.Steps {
+			if step.NeedsExternalContext {
+				analysis.Retrieval.ShouldRetrieve = true
+				break
+			}
+		}
+	}
+
+	return analysis
+}
+
+func normalizeComplexity(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "simple", "easy":
+		return "simple"
+	case "complex", "hard":
+		return "complex"
+	default:
+		return ""
+	}
+}
+
+func compactStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, v := range values {
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func coalesce(values ...string) string {
+	for _, v := range values {
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 func buildWorldStateFromWindow(window ports.ContextWindow) (map[string]any, map[string]any) {
 	profile := window.Static.World

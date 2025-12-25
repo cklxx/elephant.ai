@@ -41,6 +41,7 @@ type ExecutionEnvironment struct {
 
 // TaskAnalysis contains structured task pre-analysis result
 type TaskAnalysis struct {
+	Complexity      string
 	ActionName      string
 	Goal            string
 	Approach        string

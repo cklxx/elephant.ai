@@ -41,6 +41,8 @@ type preparationService interface {
 type Config struct {
 	LLMProvider         string
 	LLMModel            string
+	LLMSmallProvider    string
+	LLMSmallModel       string
 	LLMVisionModel      string
 	APIKey              string
 	BaseURL             string
@@ -240,6 +242,9 @@ func (c *AgentCoordinator) ExecuteTask(
 	if env.TaskAnalysis != nil {
 		if env.TaskAnalysis.ActionName != "" {
 			prepareOutput["action_name"] = env.TaskAnalysis.ActionName
+		}
+		if env.TaskAnalysis.Complexity != "" {
+			prepareOutput["complexity"] = env.TaskAnalysis.Complexity
 		}
 		if env.TaskAnalysis.Goal != "" {
 			prepareOutput["goal"] = env.TaskAnalysis.Goal

@@ -54,6 +54,8 @@ type Config struct {
 	// LLM Configuration
 	LLMProvider             string
 	LLMModel                string
+	LLMSmallProvider        string
+	LLMSmallModel           string
 	LLMVisionModel          string
 	APIKey                  string
 	ArkAPIKey               string
@@ -338,6 +340,8 @@ func BuildContainer(config Config) (*Container, error) {
 		agentApp.Config{
 			LLMProvider:         config.LLMProvider,
 			LLMModel:            config.LLMModel,
+			LLMSmallProvider:    config.LLMSmallProvider,
+			LLMSmallModel:       config.LLMSmallModel,
 			LLMVisionModel:      config.LLMVisionModel,
 			APIKey:              config.APIKey,
 			BaseURL:             config.BaseURL,

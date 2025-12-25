@@ -6,6 +6,8 @@ func TestRuntimeEnvLookup(t *testing.T) {
 	cfg := RuntimeConfig{
 		LLMProvider:             "openai",
 		LLMModel:                "gpt-4",
+		LLMSmallProvider:        "openai",
+		LLMSmallModel:           "gpt-4o-mini",
 		LLMVisionModel:          "gpt-4o-mini",
 		APIKey:                  "test-key",
 		ArkAPIKey:               "ark-key",
@@ -41,6 +43,8 @@ func TestRuntimeEnvLookup(t *testing.T) {
 		"ARK_API_KEY":                "ark-key",
 		"LLM_PROVIDER":               "openai",
 		"LLM_MODEL":                  "gpt-4",
+		"LLM_SMALL_PROVIDER":         "openai",
+		"LLM_SMALL_MODEL":            "gpt-4o-mini",
 		"LLM_VISION_MODEL":           "gpt-4o-mini",
 		"LLM_BASE_URL":               "https://example.com",
 		"TAVILY_API_KEY":             "tavily-key",
