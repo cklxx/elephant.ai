@@ -120,3 +120,33 @@ func TestRecallWithoutTermsReturnsEmpty(t *testing.T) {
 		t.Fatalf("expected empty results without terms, got %d", len(results))
 	}
 }
+
+func TestServiceRecallMatchesCJKSubstringsViaInvertedTerms(t *testing.T) {
+	store := NewInMemoryStore()
+	svc := NewService(store)
+
+	created, err := svc.Save(context.Background(), Entry{
+		UserID:   "u",
+		Content:  `撰写了面向产品经理的短文《如何用“问题-假设-验证”闭环提升功能迭代质量》`,
+		Keywords: []string{"写作"},
+	})
+	if err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	results, err := svc.Recall(context.Background(), Query{UserID: "u", Keywords: []string{"撰写"}})
+	if err != nil {
+		t.Fatalf("recall failed: %v", err)
+	}
+	if len(results) != 1 || results[0].Key != created.Key {
+		t.Fatalf("expected recall by substring keyword to return saved entry")
+	}
+
+	results, err = svc.Recall(context.Background(), Query{UserID: "u", Keywords: []string{"产品经理"}})
+	if err != nil {
+		t.Fatalf("recall failed: %v", err)
+	}
+	if len(results) != 1 || results[0].Key != created.Key {
+		t.Fatalf("expected recall by internal CJK term to return saved entry")
+	}
+}

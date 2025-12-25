@@ -36,6 +36,7 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
     created_at TIMESTAMPTZ NOT NULL
 );`,
 		`CREATE INDEX IF NOT EXISTS idx_user_memories_user ON user_memories (user_id, created_at DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_user_memories_keywords ON user_memories USING GIN (keywords);`,
 		`CREATE INDEX IF NOT EXISTS idx_user_memories_terms ON user_memories USING GIN (terms);`,
 	}
 	for _, stmt := range statements {
@@ -76,7 +77,7 @@ func (s *PostgresStore) Search(ctx context.Context, query Query) ([]Entry, error
 		return nil, fmt.Errorf("memory store not initialized")
 	}
 
-	if len(query.Terms) == 0 {
+	if len(query.Terms) == 0 && len(query.Keywords) == 0 {
 		return nil, nil
 	}
 
@@ -95,10 +96,41 @@ func (s *PostgresStore) Search(ctx context.Context, query Query) ([]Entry, error
 	}
 
 	if len(query.Terms) > 0 {
-		conditions = append(conditions, fmt.Sprintf("terms && $%d", argPos))
+	}
+
+	var matchConditions []string
+	if len(query.Terms) > 0 {
+		matchConditions = append(matchConditions, fmt.Sprintf("terms && $%d", argPos))
 		args = append(args, query.Terms)
 		argPos++
 	}
+	if len(query.Keywords) > 0 {
+		matchConditions = append(matchConditions, fmt.Sprintf("keywords && $%d", argPos))
+		args = append(args, query.Keywords)
+		argPos++
+	}
+	// Fallback substring matching so older rows (with coarse tokenization) can still be recalled.
+	// Bound this to a small number of keywords to avoid bloating the SQL.
+	const maxKeywordPatterns = 8
+	patterns := 0
+	for _, kw := range query.Keywords {
+		trimmed := strings.TrimSpace(kw)
+		if trimmed == "" {
+			continue
+		}
+		if patterns >= maxKeywordPatterns {
+			break
+		}
+		matchConditions = append(matchConditions, fmt.Sprintf("content ILIKE $%d", argPos))
+		args = append(args, "%"+trimmed+"%")
+		argPos++
+		patterns++
+	}
+
+	if len(matchConditions) == 0 {
+		return nil, nil
+	}
+	conditions = append(conditions, "("+strings.Join(matchConditions, " OR ")+")")
 
 	where := strings.Join(conditions, " AND ")
 	querySQL := fmt.Sprintf(`

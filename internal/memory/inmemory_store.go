@@ -47,7 +47,7 @@ func (s *InMemoryStore) Search(_ context.Context, query Query) ([]Entry, error) 
 	for _, term := range query.Terms {
 		termSet[strings.ToLower(term)] = true
 	}
-	if len(termSet) == 0 {
+	if len(termSet) == 0 && len(query.Keywords) == 0 {
 		return nil, nil
 	}
 
@@ -56,7 +56,7 @@ func (s *InMemoryStore) Search(_ context.Context, query Query) ([]Entry, error) 
 		if !matchSlots(entry.Slots, query.Slots) {
 			continue
 		}
-		if matchesTerms(entry.Terms, termSet) {
+		if matchesTerms(entry.Terms, termSet) || containsAny(entry.Content, query.Keywords) {
 			results = append(results, entry)
 		}
 		if query.Limit > 0 && len(results) >= query.Limit {
@@ -86,4 +86,20 @@ func matchSlots(entrySlots map[string]string, querySlots map[string]string) bool
 		}
 	}
 	return true
+}
+
+func containsAny(content string, keywords []string) bool {
+	if content == "" || len(keywords) == 0 {
+		return false
+	}
+	for _, kw := range keywords {
+		trimmed := strings.TrimSpace(kw)
+		if trimmed == "" {
+			continue
+		}
+		if strings.Contains(content, trimmed) {
+			return true
+		}
+	}
+	return false
 }
