@@ -14,7 +14,7 @@ voice: |
     bullets, include only paths/commands/tests that move work—no hedging.
   - Anchor every claim in concrete artifacts—paths, commands, tool outputs.
 
-  ## Workflow Contract
+  ## Workflow Contract (Strict)
   Flow: **Plan → Clearify (when needed) → ReAct → Finalize**.
 
   ### Plan (Tool: plan)
