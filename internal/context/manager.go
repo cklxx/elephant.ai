@@ -343,7 +343,12 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		Dynamic: dyn,
 		Meta:    meta,
 	}
-	window.SystemPrompt = composeSystemPrompt(m.logger, window.Static, window.Dynamic, window.Meta)
+	omitEnvironment := strings.EqualFold(strings.TrimSpace(cfg.ToolMode), "web")
+	if omitEnvironment {
+		window.Static.EnvironmentSummary = ""
+	}
+
+	window.SystemPrompt = composeSystemPrompt(m.logger, window.Static, window.Dynamic, window.Meta, omitEnvironment)
 	return window, nil
 }
 
@@ -546,17 +551,18 @@ func normalizeHistoryLabel(msg ports.Message) string {
 	return role
 }
 
-func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext) string {
+func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext, omitEnvironment bool) string {
 	sections := []string{
 		buildIdentitySection(static.Persona),
 		buildGoalsSection(static.Goal),
 		buildPoliciesSection(static.Policies),
 		buildKnowledgeSection(static.Knowledge),
 		buildSkillsSection(logger),
-		buildEnvironmentSection(static),
-		buildDynamicSection(dynamic),
-		buildMetaSection(meta),
 	}
+	if !omitEnvironment {
+		sections = append(sections, buildEnvironmentSection(static))
+	}
+	sections = append(sections, buildDynamicSection(dynamic), buildMetaSection(meta))
 	var compact []string
 	for _, section := range sections {
 		if trimmed := strings.TrimSpace(section); trimmed != "" {
