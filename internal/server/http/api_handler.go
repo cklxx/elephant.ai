@@ -183,6 +183,7 @@ type startEvaluationRequest struct {
 type evaluationJobResponse struct {
 	ID            string                        `json:"id"`
 	Status        string                        `json:"status"`
+	Error         string                        `json:"error,omitempty"`
 	AgentID       string                        `json:"agent_id,omitempty"`
 	DatasetPath   string                        `json:"dataset_path,omitempty"`
 	InstanceLimit int                           `json:"instance_limit,omitempty"`
@@ -1378,6 +1379,9 @@ func (h *APIHandler) buildEvaluationResponse(job *agent_eval.EvaluationJob, resu
 	resp := evaluationJobResponse{
 		ID:     job.ID,
 		Status: string(job.Status),
+	}
+	if job.Error != nil {
+		resp.Error = job.Error.Error()
 	}
 
 	if job.Config != nil {

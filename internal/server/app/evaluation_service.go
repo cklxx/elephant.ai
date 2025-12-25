@@ -102,7 +102,8 @@ func (s *EvaluationService) Start(ctx context.Context, options *agent_eval.Evalu
 	}
 
 	s.logger.Info("Scheduling evaluation: dataset=%s limit=%d workers=%d", config.DatasetPath, config.InstanceLimit, config.MaxWorkers)
-	return s.manager.ScheduleEvaluation(ctx, config)
+	// Detach from request context cancellation; evaluations are async background jobs.
+	return s.manager.ScheduleEvaluation(context.WithoutCancel(ctx), config)
 }
 
 // ListJobs returns snapshots for all known evaluation jobs.
