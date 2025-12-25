@@ -44,11 +44,21 @@ type StreamingOutputHandler struct {
 	streamedContent                 bool
 	mdBuffer                        *markdownStreamBuffer
 	lastStreamChunkEndedWithNewline bool
+	startedAt                       time.Time
+	firstTokenLogged                bool
 }
 
 var ErrForceExit = errors.New("force exit requested by user")
 
-const markdownBufferThreshold = 4096
+const (
+	// markdownBufferThreshold controls how much streamed markdown we buffer before
+	// emitting a partial fragment. Keep this small so CLI/TUI get fast first-byte
+	// output even when the model streams without newlines.
+	markdownBufferThreshold = 256
+	// markdownMaxFlushDelay bounds how long we wait to show partial output after
+	// the last flush, even if the buffer is still small.
+	markdownMaxFlushDelay = 75 * time.Millisecond
+)
 
 type markdownChunk struct {
 	content      string
@@ -58,10 +68,17 @@ type markdownChunk struct {
 type markdownStreamBuffer struct {
 	builder     strings.Builder
 	maxBuffered int
+	maxDelay    time.Duration
+	lastFlush   time.Time
+	flushedOnce bool
+	rawMode     bool
 }
 
 func newMarkdownStreamBuffer() *markdownStreamBuffer {
-	return &markdownStreamBuffer{maxBuffered: markdownBufferThreshold}
+	return &markdownStreamBuffer{
+		maxBuffered: markdownBufferThreshold,
+		maxDelay:    markdownMaxFlushDelay,
+	}
 }
 
 func (b *markdownStreamBuffer) Append(delta string) []markdownChunk {
@@ -72,6 +89,7 @@ func (b *markdownStreamBuffer) Append(delta string) []markdownChunk {
 	b.builder.WriteString(delta)
 	data := b.builder.String()
 	var chunks []markdownChunk
+	now := time.Now()
 
 	for {
 		idx := strings.IndexByte(data, '\n')
@@ -80,7 +98,7 @@ func (b *markdownStreamBuffer) Append(delta string) []markdownChunk {
 		}
 
 		chunk := data[:idx+1]
-		chunks = append(chunks, markdownChunk{content: chunk, completeLine: true})
+		chunks = append(chunks, markdownChunk{content: chunk, completeLine: !b.rawMode})
 		if idx+1 >= len(data) {
 			data = ""
 			break
@@ -93,12 +111,35 @@ func (b *markdownStreamBuffer) Append(delta string) []markdownChunk {
 		if len(data) > 0 {
 			b.builder.WriteString(data)
 		}
+		b.flushedOnce = true
+		b.lastFlush = now
 		return chunks
+	}
+
+	// Ensure first token shows up immediately even if the model doesn't emit
+	// newlines for a while.
+	if !b.flushedOnce && data != "" {
+		b.builder.Reset()
+		b.flushedOnce = true
+		b.lastFlush = now
+		b.rawMode = true
+		return []markdownChunk{{content: data, completeLine: false}}
 	}
 
 	if b.maxBuffered > 0 && len(data) >= b.maxBuffered {
 		chunk := data
 		b.builder.Reset()
+		b.flushedOnce = true
+		b.lastFlush = now
+		b.rawMode = true
+		return []markdownChunk{{content: chunk, completeLine: false}}
+	}
+
+	if b.maxDelay > 0 && !b.lastFlush.IsZero() && now.Sub(b.lastFlush) >= b.maxDelay && data != "" {
+		chunk := data
+		b.builder.Reset()
+		b.lastFlush = now
+		b.rawMode = true
 		return []markdownChunk{{content: chunk, completeLine: false}}
 	}
 
@@ -170,6 +211,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 
 	handler := NewStreamingOutputHandler(container, verbose)
 	handler.ctx = ctx // Store context for OutputContext lookup
+	handler.startedAt = time.Now()
 	handler.printTaskStart(task)
 
 	// Create event bridge
@@ -288,6 +330,13 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 		for _, chunk := range h.mdBuffer.Append(event.Delta) {
 			if chunk.content == "" {
 				continue
+			}
+			if !h.firstTokenLogged && strings.TrimSpace(chunk.content) != "" {
+				if _, ok := os.LookupEnv("ALEX_CLI_LATENCY"); ok {
+					elapsed := time.Since(h.startedAt)
+					_, _ = fmt.Fprintf(os.Stderr, "[latency] first_token_ms=%.2f\n", float64(elapsed.Microseconds())/1000.0)
+				}
+				h.firstTokenLogged = true
 			}
 			rendered := h.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
 			h.write(rendered)
@@ -448,6 +497,10 @@ func (h *StreamingOutputHandler) write(rendered string) {
 	}
 	if _, err := fmt.Fprint(h.out, rendered); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "stream output write error: %v\n", err)
+	}
+	type flusher interface{ Flush() error }
+	if f, ok := h.out.(flusher); ok {
+		_ = f.Flush()
 	}
 }
 

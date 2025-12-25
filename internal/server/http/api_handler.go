@@ -488,6 +488,30 @@ type SessionListResponse struct {
 	Total    int               `json:"total"`
 }
 
+type CreateSessionResponse struct {
+	SessionID string `json:"session_id"`
+}
+
+// HandleCreateSession handles POST /api/sessions
+func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+
+	session, err := h.coordinator.CreateSession(r.Context())
+	if err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create session", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(CreateSessionResponse{SessionID: session.ID}); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
 // HandleListSessions handles GET /api/sessions
 func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

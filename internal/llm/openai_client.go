@@ -272,6 +272,12 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		requestID = id.NewRequestID()
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
+	provider := "openrouter"
+	if strings.Contains(c.baseURL, "api.openai.com") {
+		provider = "openai"
+	} else if strings.Contains(c.baseURL, "api.deepseek.com") {
+		provider = "deepseek"
+	}
 
 	oaiReq := map[string]any{
 		"model":       c.model,
@@ -335,6 +341,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
+	requestStarted := time.Now()
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
@@ -400,6 +407,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	var contentBuilder strings.Builder
 	usage := ports.TokenUsage{}
 	finishReason := ""
+	loggedTTFB := false
 
 	appendToolCall := func(idx int) *toolAccumulator {
 		acc, ok := toolAccumulators[idx]
@@ -426,6 +434,17 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		}
 		if payload == "[DONE]" {
 			break
+		}
+
+		if !loggedTTFB {
+			loggedTTFB = true
+			logCLILatencyf(
+				"[latency] llm_stream_ttfb_ms=%.2f provider=%s model=%s request_id=%s\n",
+				float64(time.Since(requestStarted))/float64(time.Millisecond),
+				provider,
+				c.model,
+				requestID,
+			)
 		}
 
 		var chunk streamChunk
@@ -508,12 +527,6 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	}
 
 	if c.usageCallback != nil {
-		provider := "openrouter"
-		if strings.Contains(c.baseURL, "api.openai.com") {
-			provider = "openai"
-		} else if strings.Contains(c.baseURL, "api.deepseek.com") {
-			provider = "deepseek"
-		}
 		c.usageCallback(result.Usage, c.model, provider)
 	}
 

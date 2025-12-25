@@ -287,26 +287,46 @@ export async function getEvaluation(
   return fetchAPI<EvaluationDetailResponse>(`/api/evaluations/${evaluationId}`);
 }
 
+// Sessions
+
+export async function createSession(): Promise<{ session_id: string }> {
+  return fetchAPI<{ session_id: string }>("/api/sessions", {
+    method: "POST",
+  });
+}
+
 // SSE Connection
+
+export type SSEReplayMode = "full" | "session" | "none";
+
+export function sseRequiresAccessToken(): boolean {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  const url = new URL(buildApiUrl("/api/sse"));
+  return !window.location?.origin || url.origin !== window.location.origin;
+}
 
 export function createSSEConnection(
   sessionId: string,
   accessToken?: string,
+  options: { replay?: SSEReplayMode } = {},
 ): EventSource {
   const url = new URL(buildApiUrl("/api/sse"));
   url.searchParams.set("session_id", sessionId);
 
-  const shouldIncludeAccessToken =
-    typeof window === "undefined" ||
-    !window.location?.origin ||
-    url.origin !== window.location.origin;
+  const replay = options.replay ?? "full";
+  if (replay !== "full") {
+    url.searchParams.set("replay", replay);
+  }
+
+  const shouldIncludeAccessToken = sseRequiresAccessToken();
 
   if (shouldIncludeAccessToken) {
     const token = accessToken ?? authClient.getSession()?.accessToken;
-    if (!token) {
-      throw new Error("Missing access token for SSE connection");
+    if (token) {
+      url.searchParams.set("access_token", token);
     }
-    url.searchParams.set("access_token", token);
   }
   return new EventSource(url.toString(), { withCredentials: true });
 }
@@ -322,6 +342,7 @@ export const apiClient = {
   createTask,
   getTaskStatus,
   cancelTask,
+  createSession,
   listSessions,
   getSessionDetails,
   deleteSession,

@@ -3,6 +3,7 @@ events:
   - event: session_deleted
   - event: session_selected
   - event: sidebar_toggled
+  - event: first_token_rendered
   - event: task_cancel_failed
   - event: task_cancel_requested
   - event: task_execution_cancelled

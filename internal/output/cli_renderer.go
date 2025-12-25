@@ -519,6 +519,14 @@ func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNe
 		return content
 	}
 
+	// Streaming fragments are often tiny and do not represent valid markdown on
+	// their own. Rendering them via glamour is expensive and can delay the first
+	// visible token, so we fast-path raw output unless the caller is explicitly
+	// emitting a complete line.
+	if !ensureTrailingNewline {
+		return content
+	}
+
 	if r.mdRenderer == nil {
 		if ensureTrailingNewline && !strings.HasSuffix(content, "\n") {
 			return content + "\n"

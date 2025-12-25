@@ -32,6 +32,7 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
     const iterationFallback = new Map<number, TimelineStep>();
     let latestTaskText: string | null = null;
     let latestPrepareIdea: string | null = null;
+    let terminal: { kind: 'final' | 'cancelled'; ts: number } | null = null;
 
     const shorten = (text: string, max: number) => {
       const trimmed = text.trim();
@@ -69,6 +70,15 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
     events.forEach((event, index) => {
       if (event.event_type === 'workflow.input.received' && typeof (event as any).task === 'string') {
         latestTaskText = String((event as any).task);
+      }
+
+      if (event.event_type === 'workflow.result.final') {
+        const ts = Date.parse(event.timestamp ?? '') || Date.now();
+        terminal = { kind: 'final', ts };
+      }
+      if (event.event_type === 'workflow.result.cancelled') {
+        const ts = Date.parse(event.timestamp ?? '') || Date.now();
+        terminal = { kind: 'cancelled', ts };
       }
 
       if (isWorkflowNodeStartedEvent(event)) {
@@ -177,6 +187,32 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
         }
       }
     });
+
+    if (terminal) {
+      for (const [id, step] of steps.entries()) {
+        if (step.status !== 'active') continue;
+        const endTime = terminal.ts;
+        const nextStatus = terminal.kind === 'cancelled' ? 'failed' : 'done';
+        steps.set(id, {
+          ...step,
+          status: nextStatus,
+          endTime,
+          duration: typeof step.startTime === 'number' ? endTime - step.startTime : undefined,
+          error: terminal.kind === 'cancelled' ? (step.error ?? 'Cancelled') : step.error,
+        });
+      }
+      for (const [iteration, step] of iterationFallback.entries()) {
+        if (step.status !== 'active') continue;
+        const endTime = terminal.ts;
+        iterationFallback.set(iteration, {
+          ...step,
+          status: terminal.kind === 'cancelled' ? 'failed' : 'done',
+          endTime,
+          duration: typeof step.startTime === 'number' ? endTime - step.startTime : undefined,
+          error: terminal.kind === 'cancelled' ? (step.error ?? 'Cancelled') : step.error,
+        });
+      }
+    }
 
     const parseStepIndex = (id: string) => {
       const match = id.match(/^step-(\d+)$/);

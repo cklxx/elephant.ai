@@ -33,6 +33,7 @@ import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/t
 import { eventMatches } from '@/lib/types';
 import { captureEvent } from '@/lib/analytics/posthog';
 import { AnalyticsEvent } from '@/lib/analytics/events';
+import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -59,6 +60,7 @@ export function ConversationPageContent() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
+  const [prewarmSessionId, setPrewarmSessionId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -66,6 +68,9 @@ export function ConversationPageContent() {
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
+  const pendingSubmitTsRef = useRef<number | null>(null);
+  const submittedAtByTaskRef = useRef<Map<string, number>>(new Map());
+  const firstTokenReportedRef = useRef<Set<string>>(new Set());
   const searchParams = useSearchParams();
   const { t } = useI18n();
 
@@ -103,6 +108,7 @@ export function ConversationPageContent() {
   } = useSessionStore();
 
   const resolvedSessionId = sessionId || currentSessionId;
+  const streamSessionId = resolvedSessionId ?? prewarmSessionId;
   const formatSessionBadge = useCallback(
     (value: string) =>
       value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
@@ -116,17 +122,34 @@ export function ConversationPageContent() {
         return;
       }
 
+      if (eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
+        if (!firstTokenReportedRef.current.has(currentId)) {
+          const submittedAt = submittedAtByTaskRef.current.get(currentId);
+          if (typeof submittedAt === 'number') {
+            firstTokenReportedRef.current.add(currentId);
+            captureEvent(AnalyticsEvent.FirstTokenRendered, {
+              session_id: resolvedSessionId ?? null,
+              task_id: currentId,
+              latency_ms: Math.max(0, performance.now() - submittedAt),
+              mock_stream: useMockStream,
+            });
+          }
+        }
+      }
+
       if (
         eventMatches(event, 'workflow.result.final', 'workflow.result.final') ||
         eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled') ||
         eventMatches(event, 'workflow.node.failed')
       ) {
+        submittedAtByTaskRef.current.delete(currentId);
+        firstTokenReportedRef.current.delete(currentId);
         setActiveTaskId(null);
         setCancelRequested(false);
         cancelIntentRef.current = false;
       }
     },
-    [setActiveTaskId, setCancelRequested]
+    [resolvedSessionId, setActiveTaskId, setCancelRequested, useMockStream]
   );
 
   const {
@@ -138,7 +161,7 @@ export function ConversationPageContent() {
     clearEvents,
     reconnect,
     addEvent,
-  } = useAgentEventStream(resolvedSessionId, {
+  } = useAgentEventStream(streamSessionId, {
     useMock: useMockStream,
     onEvent: handleAgentEvent,
   });
@@ -153,6 +176,36 @@ export function ConversationPageContent() {
     () => collectAttachmentItems(events).length > 0,
     [events]
   );
+
+  const hasRenderableEvents = useMemo(
+    () => events.some((evt) => evt.event_type !== 'connected'),
+    [events],
+  );
+
+  useEffect(() => {
+    void import('@/components/agent/ConversationEventStream');
+  }, []);
+
+  useEffect(() => {
+    if (useMockStream) return;
+    if (resolvedSessionId) return;
+    if (prewarmSessionId) return;
+
+    let cancelled = false;
+    apiClient
+      .createSession()
+      .then(({ session_id }) => {
+        if (cancelled) return;
+        setPrewarmSessionId(session_id);
+      })
+      .catch((err) => {
+        console.warn('[ConversationPage] Failed to prewarm session:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [prewarmSessionId, resolvedSessionId, useMockStream]);
 
   const performCancellation = useCallback(
     (taskId: string) => {
@@ -182,7 +235,6 @@ export function ConversationPageContent() {
             setActiveTaskId((prevActiveTaskId) =>
               prevActiveTaskId === taskId ? null : prevActiveTaskId
             );
-            setCancelRequested(false);
           }
           toast.success(
             t('console.toast.taskCancelRequested.title'),
@@ -229,6 +281,7 @@ export function ConversationPageContent() {
 
   const handleTaskSubmit = (task: string, attachments: AttachmentUpload[]) => {
     console.log('[ConversationPage] Task submitted:', { task, attachments });
+    pendingSubmitTsRef.current = performance.now();
 
     captureEvent(AnalyticsEvent.TaskSubmitted, {
       session_id: resolvedSessionId ?? null,
@@ -269,7 +322,7 @@ export function ConversationPageContent() {
       return;
     }
 
-    const initialSessionId = resolvedSessionId;
+    const initialSessionId = resolvedSessionId ?? prewarmSessionId;
     let retriedWithoutSession = false;
 
     const runExecution = (requestedSessionId: string | null) => {
@@ -282,11 +335,18 @@ export function ConversationPageContent() {
         {
           onSuccess: (data) => {
             console.log('[ConversationPage] Task execution started:', data);
+            setPrewarmSessionId(null);
             setSessionId(data.session_id);
             setTaskId(data.task_id);
             setActiveTaskId(data.task_id);
             setCurrentSession(data.session_id);
             addToHistory(data.session_id);
+
+            const submitTs = pendingSubmitTsRef.current;
+            if (typeof submitTs === 'number') {
+              submittedAtByTaskRef.current.set(data.task_id, submitTs);
+              firstTokenReportedRef.current.delete(data.task_id);
+            }
 
             const attachmentMap = buildAttachmentMap(attachments);
             addEvent({
@@ -390,6 +450,7 @@ export function ConversationPageContent() {
     setActiveTaskId(null);
     setCancelRequested(false);
     cancelIntentRef.current = false;
+    setPrewarmSessionId(null);
     clearEvents();
     clearCurrentSession();
     captureEvent(AnalyticsEvent.SessionCreated, {
@@ -402,6 +463,7 @@ export function ConversationPageContent() {
   const handleSessionSelect = (id: string) => {
     if (!id) return;
     clearEvents();
+    setPrewarmSessionId(null);
     setSessionId(id);
     setTaskId(null);
     setActiveTaskId(null);
@@ -465,6 +527,7 @@ export function ConversationPageContent() {
   const isTaskRunning = Boolean(activeTaskId);
   const stopPending = cancelRequested || isCancelPending;
   const inputDisabled = cancelRequested || isCancelPending;
+  const streamIsRunning = isTaskRunning && !stopPending;
 
   const activeSessionLabel = resolvedSessionId
     ? sessionLabels[resolvedSessionId]?.trim()
@@ -506,14 +569,14 @@ export function ConversationPageContent() {
 
   const showConnectingState =
     Boolean(resolvedSessionId) &&
-    events.length === 0 &&
+    !hasRenderableEvents &&
     !isConnected &&
     !isReconnecting &&
     !error &&
     reconnectAttempts === 0;
   const showConnectionBanner =
     Boolean(resolvedSessionId) &&
-    events.length === 0 &&
+    !hasRenderableEvents &&
     (Boolean(error) || isReconnecting || reconnectAttempts > 0);
 
   const emptyState = (
@@ -709,7 +772,7 @@ export function ConversationPageContent() {
               fullWidth
               contentClassName="space-y-4"
             >
-              {events.length === 0 ? (
+              {!hasRenderableEvents ? (
                 <div className="flex min-h-[60vh] items-center justify-center">
                   {showConnectingState ? (
                     <div className="flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-background/70 px-8 py-6 text-center">
@@ -738,7 +801,7 @@ export function ConversationPageContent() {
                   error={error}
                   reconnectAttempts={reconnectAttempts}
                   onReconnect={reconnect}
-                  isRunning={isTaskRunning}
+                  isRunning={streamIsRunning}
                 />
               )}
             </ContentArea>

@@ -4,6 +4,7 @@ export const AnalyticsEvent = {
   TaskRetriedWithoutSession: 'task_retried_without_session',
   TaskCancelRequested: 'task_cancel_requested',
   TaskCancelFailed: 'task_cancel_failed',
+  FirstTokenRendered: 'first_token_rendered',
   SessionSelected: 'session_selected',
   SessionCreated: 'session_created',
   SessionDeleted: 'session_deleted',
