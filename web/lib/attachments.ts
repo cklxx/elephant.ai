@@ -21,6 +21,19 @@ function toTrimmedString(value: unknown): string | undefined {
 export function buildAttachmentUri(
   attachment: AttachmentPayload,
 ): string | null {
+  return buildAttachmentUriInternal(attachment, { preferDownloadAsset: true });
+}
+
+function buildAttachmentUriInternal(
+  attachment: AttachmentPayload,
+  options?: { preferDownloadAsset?: boolean },
+): string | null {
+  const preferredAsset =
+    options?.preferDownloadAsset === false ? undefined : findPreferredDownloadAsset(attachment);
+  if (preferredAsset?.cdn_url) {
+    return normalizeAttachmentUri(preferredAsset.cdn_url);
+  }
+
   const direct = toTrimmedString(attachment.uri);
   if (direct) {
     return normalizeAttachmentUri(direct);
@@ -66,6 +79,52 @@ function normalizeAttachmentUri(uri: string): string {
     return buildApiUrl(trimmed);
   }
   return trimmed;
+}
+
+function isPresentationAttachment(attachment: AttachmentPayload): boolean {
+  const format = attachment.format?.toLowerCase() ?? '';
+  const mediaType = attachment.media_type?.toLowerCase() ?? '';
+  return (
+    format === 'ppt' ||
+    format === 'pptx' ||
+    mediaType.includes('officedocument.presentation') ||
+    mediaType === 'application/ppt' ||
+    mediaType === 'application/powerpoint'
+  );
+}
+
+function findPreferredDownloadAsset(
+  attachment: AttachmentPayload,
+): AttachmentPayload['preview_assets'][number] | undefined {
+  if (!isPresentationAttachment(attachment)) {
+    return undefined;
+  }
+
+  const previewAssets = attachment.preview_assets ?? [];
+  return previewAssets.find((asset) => {
+    const mime = toTrimmedString(asset.mime_type)?.toLowerCase() ?? '';
+    const previewType = toTrimmedString(asset.preview_type)?.toLowerCase() ?? '';
+    const cdnUrl = toTrimmedString(asset.cdn_url);
+    if (!cdnUrl) {
+      return false;
+    }
+    return mime === 'application/pdf' || previewType.includes('pdf');
+  });
+}
+
+export function resolveAttachmentDownloadUris(
+  attachment: AttachmentPayload,
+): { preferredUri: string | null; fallbackUri: string | null; preferredKind: 'pdf' | null } {
+  const preferredAsset = findPreferredDownloadAsset(attachment);
+  const fallbackUri = buildAttachmentUriInternal(attachment, { preferDownloadAsset: false });
+
+  if (preferredAsset?.cdn_url) {
+    const preferredUri = normalizeAttachmentUri(preferredAsset.cdn_url);
+    const fallbackDistinct = fallbackUri && fallbackUri !== preferredUri ? fallbackUri : null;
+    return { preferredUri, fallbackUri: fallbackDistinct, preferredKind: 'pdf' };
+  }
+
+  return { preferredUri: fallbackUri, fallbackUri: null, preferredKind: null };
 }
 
 export function replacePlaceholdersWithMarkdown(

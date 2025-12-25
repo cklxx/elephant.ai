@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -84,8 +85,13 @@ func (t *uiClearify) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 	expected := strings.TrimSpace(id.TaskIDFromContext(ctx))
 	if expected != "" && runID != expected {
-		err := fmt.Errorf("run_id must equal current run_id %q", expected)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		err := errors.New("run_id does not match the active task")
+		return &ports.ToolResult{
+			CallID: call.ID,
+			Content: "Request does not match the active task. Please retry " +
+				"from the latest conversation turn.",
+			Error: err,
+		}, nil
 	}
 
 	taskID, ok := call.Arguments["task_id"].(string)

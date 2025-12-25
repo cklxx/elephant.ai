@@ -212,10 +212,6 @@ func (t *seedreamTextTool) Definition() ports.ToolDefinition {
 					Type:        "string",
 					Description: "Creative brief describing what to render.",
 				},
-				"response_format": {
-					Type:        "string",
-					Description: "Set to `url` (default) or `b64_json`.",
-				},
 				"size": {
 					Type:        "string",
 					Description: "Optional WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
@@ -266,7 +262,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 	req := arkm.GenerateImagesRequest{
 		Model:          t.config.Model,
 		Prompt:         prompt,
-		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatURL),
 		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
@@ -322,10 +318,6 @@ func (t *seedreamImageTool) Definition() ports.ToolDefinition {
 					Type:        "string",
 					Description: "Optional guidance describing the target adjustments.",
 				},
-				"response_format": {
-					Type:        "string",
-					Description: "Set to `url` (default) or `b64_json`.",
-				},
 				"size": {
 					Type:        "string",
 					Description: "Output WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
@@ -379,7 +371,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		Model:          t.config.Model,
 		Prompt:         strings.TrimSpace(prompt),
 		Image:          normalizedImage,
-		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatURL),
 		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
@@ -832,14 +824,6 @@ func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*
 
 func applyImageRequestOptions(req *arkm.GenerateImagesRequest, args map[string]any) {
 	sizeValue := seedreamDefaultImageSize
-	if format, ok := args["response_format"].(string); ok {
-		switch strings.ToLower(strings.TrimSpace(format)) {
-		case "b64_json":
-			req.ResponseFormat = volcengine.String(arkm.GenerateImagesResponseFormatBase64)
-		case "url":
-			req.ResponseFormat = volcengine.String(arkm.GenerateImagesResponseFormatURL)
-		}
-	}
 	if size, ok := args["size"].(string); ok && strings.TrimSpace(size) != "" {
 		sizeValue = strings.TrimSpace(size)
 	} else if width, ok := readInt(args, "width"); ok {
@@ -968,6 +952,7 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 		entry["placeholder"] = placeholder
 		attachmentURI := strings.TrimSpace(urlStr)
 		if attachmentURI == "" {
+			// TODO(seedream): If/when we support base64-only responses, upload the payload to a CDN and return a stable HTTPS URL for user access.
 			entry["warning"] = "missing url; base64 payload omitted"
 		} else {
 			attachments[placeholder] = ports.Attachment{

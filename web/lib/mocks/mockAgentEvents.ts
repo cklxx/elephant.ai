@@ -15,6 +15,8 @@ const ONBOARDING_MARKDOWN_SOURCE =
 const CHECKLIST_MARKDOWN_SOURCE =
   'data:text/markdown;base64,IyBEZXByZWNhdGVkIENoZWNrbGlzdAoKLSBSZW1vdmUgc3RhbGUgc2NyZWVuc2hvdHMuCi0gQXJjaGl2ZSBvbGQgc3R1ZHkgZG9jcy4KLSBSZXBsYWNlIHdpdGggZnJlc2ggbWFya2Rvd24gcHJldmlld3MuCg==';
 
+const EXEC_SLIDES_PDF = 'https://mock.cdn.example.com/artifacts/executive-review-slides.pdf';
+
 function createSvgDataUrl(color: string, label: string) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" rx="24" fill="${color}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="32" fill="#ffffff">${label}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -44,6 +46,13 @@ const mockAttachmentGallery: Record<string, AttachmentPayload> = {
         mime_type: 'image/svg+xml',
         preview_type: 'image',
         cdn_url: createSvgDataUrl('#7c3aed', 'Slide 2'),
+      },
+      {
+        asset_id: 'ppt-pdf',
+        label: 'Download PDF',
+        mime_type: 'application/pdf',
+        preview_type: 'document.pdf',
+        cdn_url: EXEC_SLIDES_PDF,
       },
     ],
   },

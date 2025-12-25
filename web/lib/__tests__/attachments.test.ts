@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildApiUrl } from "../api-base";
-import { buildAttachmentUri, parseContentSegments } from "../attachments";
+import { buildAttachmentUri, parseContentSegments, resolveAttachmentDownloadUris } from "../attachments";
 import { AttachmentPayload } from "@/lib/types";
 
 describe("parseContentSegments", () => {
@@ -166,5 +166,44 @@ describe("buildAttachmentUri", () => {
     ).toBe("http://localhost:8080/api/data/example-id");
     process.env.NEXT_PUBLIC_API_URL = previous;
     vi.resetModules();
+  });
+
+  it("prefers pdf preview assets for pptx downloads", () => {
+    const uri = buildAttachmentUri({
+      name: "deck.pptx",
+      media_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      format: "pptx",
+      uri: "/api/data/deck.pptx",
+      preview_assets: [
+        {
+          cdn_url: "/api/data/deck.pdf",
+          mime_type: "application/pdf",
+          preview_type: "document.pdf",
+        },
+      ],
+    });
+
+    expect(uri).toBe(buildApiUrl("/api/data/deck.pdf"));
+  });
+});
+
+describe("resolveAttachmentDownloadUris", () => {
+  it("returns pdf preferred uri with pptx fallback when available", () => {
+    const result = resolveAttachmentDownloadUris({
+      name: "slides.pptx",
+      media_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      format: "pptx",
+      uri: "/api/data/slides.pptx",
+      preview_assets: [
+        {
+          cdn_url: "/api/data/slides.pdf",
+          mime_type: "application/pdf",
+        },
+      ],
+    });
+
+    expect(result.preferredKind).toBe("pdf");
+    expect(result.preferredUri).toBe(buildApiUrl("/api/data/slides.pdf"));
+    expect(result.fallbackUri).toBe(buildApiUrl("/api/data/slides.pptx"));
   });
 });

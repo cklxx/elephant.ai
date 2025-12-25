@@ -7,6 +7,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -17,6 +20,8 @@ import (
 	"alex/internal/agent/ports"
 
 	_ "embed"
+
+	"github.com/jung-kurt/gofpdf"
 )
 
 const (
@@ -25,6 +30,8 @@ const (
 
 	pptxDefaultSlideCX = 12192000
 	pptxDefaultSlideCY = 6858000
+
+	pdfMediaType = "application/pdf"
 )
 
 //go:embed assets/pptx_blank_template.pptx
@@ -48,7 +55,7 @@ func (t *pptxFromImages) Metadata() ports.ToolMetadata {
 		Tags:     []string{"pptx", "slides", "deck", "powerpoint", "image"},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			Consumes: []string{"image/png", "image/jpeg"},
-			Produces: []string{pptxFromImagesMediaType},
+			Produces: []string{pptxFromImagesMediaType, pdfMediaType},
 		},
 	}
 }
@@ -77,7 +84,7 @@ func (t *pptxFromImages) Definition() ports.ToolDefinition {
 		},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			Consumes: []string{"image/png", "image/jpeg"},
-			Produces: []string{pptxFromImagesMediaType},
+			Produces: []string{pptxFromImagesMediaType, pdfMediaType},
 		},
 	}
 }
@@ -133,7 +140,19 @@ func (t *pptxFromImages) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
+	pdfBytes, err := buildPDFDeckFromImages(resolved)
+	if err != nil {
+		wrapped := fmt.Errorf("build pdf: %w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
+	}
+
+	baseName := strings.TrimSuffix(outputName, filepath.Ext(outputName))
+	pdfName := baseName + ".pdf"
+
 	encoded := base64.StdEncoding.EncodeToString(pptxBytes)
+	pdfEncoded := base64.StdEncoding.EncodeToString(pdfBytes)
+	pdfDataURI := fmt.Sprintf("data:%s;base64,%s", pdfMediaType, pdfEncoded)
+
 	attachment := ports.Attachment{
 		Name:           outputName,
 		MediaType:      pptxFromImagesMediaType,
@@ -144,9 +163,33 @@ func (t *pptxFromImages) Execute(ctx context.Context, call ports.ToolCall) (*por
 		Kind:           "artifact",
 		Format:         "pptx",
 		PreviewProfile: "document.ppt",
+		PreviewAssets: []ports.AttachmentPreviewAsset{
+			{
+				AssetID:     "pdf_download",
+				Label:       "PDF export",
+				MimeType:    pdfMediaType,
+				CDNURL:      pdfDataURI,
+				PreviewType: "document.pdf",
+			},
+		},
 	}
 
-	resultAttachments := map[string]ports.Attachment{outputName: attachment}
+	pdfAttachment := ports.Attachment{
+		Name:           pdfName,
+		MediaType:      pdfMediaType,
+		Data:           pdfEncoded,
+		URI:            pdfDataURI,
+		Source:         call.Name,
+		Description:    description,
+		Kind:           "artifact",
+		Format:         "pdf",
+		PreviewProfile: "document.pdf",
+	}
+
+	resultAttachments := map[string]ports.Attachment{
+		outputName: attachment,
+		pdfName:    pdfAttachment,
+	}
 	mutations := map[string]any{
 		"attachment_mutations": map[string]any{
 			"add": resultAttachments,
@@ -155,7 +198,7 @@ func (t *pptxFromImages) Execute(ctx context.Context, call ports.ToolCall) (*por
 
 	return &ports.ToolResult{
 		CallID:      call.ID,
-		Content:     fmt.Sprintf("Created %s with %d slide(s).", outputName, len(images)),
+		Content:     fmt.Sprintf("Created %s and %s with %d slide(s).", outputName, pdfName, len(images)),
 		Metadata:    mutations,
 		Attachments: resultAttachments,
 	}, nil
@@ -348,6 +391,73 @@ func (t *pptxFromImages) fetchImage(ctx context.Context, url string) ([]byte, st
 		mimeType = strings.TrimSpace(mimeType[:idx])
 	}
 	return bytes, mimeType, nil
+}
+
+func buildPDFDeckFromImages(images []resolvedPPTXImage) ([]byte, error) {
+	if len(images) == 0 {
+		return nil, errors.New("no images provided")
+	}
+
+	pdf := gofpdf.NewCustom(&gofpdf.InitType{
+		UnitStr: "pt",
+		Size: gofpdf.SizeType{
+			Wd: float64(pptxDefaultSlideCX) / 12700.0, // convert from EMU (914400 per inch) to points (72 per inch)
+			Ht: float64(pptxDefaultSlideCY) / 12700.0,
+		},
+	})
+
+	for idx, img := range images {
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(img.bytes))
+		if err != nil {
+			return nil, fmt.Errorf("decode image %d: %w", idx, err)
+		}
+
+		pageSize := gofpdf.SizeType{
+			Wd: float64(cfg.Width),
+			Ht: float64(cfg.Height),
+		}
+		orientation := "P"
+		if pageSize.Wd >= pageSize.Ht {
+			orientation = "L"
+		}
+
+		pdf.AddPageFormat(orientation, pageSize)
+
+		imageType := strings.ToUpper(img.ext)
+		if imageType == "JPEG" {
+			imageType = "JPG"
+		}
+
+		if info := pdf.RegisterImageOptionsReader(
+			fmt.Sprintf("slide-%d", idx+1),
+			gofpdf.ImageOptions{ImageType: imageType},
+			bytes.NewReader(img.bytes),
+		); info == nil {
+			return nil, fmt.Errorf("register image %d: %v", idx, pdf.Error())
+		}
+
+		pdf.ImageOptions(
+			fmt.Sprintf("slide-%d", idx+1),
+			0,
+			0,
+			pageSize.Wd,
+			pageSize.Ht,
+			false,
+			gofpdf.ImageOptions{ImageType: imageType},
+			0,
+			"",
+		)
+	}
+
+	if err := pdf.Error(); err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func buildPPTXDeckFromImages(template []byte, images []resolvedPPTXImage) ([]byte, error) {
