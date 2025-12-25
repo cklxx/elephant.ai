@@ -539,6 +539,16 @@ func printConfigSummary(out io.Writer, overridesPath string) error {
 	if _, err := fmt.Fprintf(out, "  Model:          %s\n", cfg.LLMModel); err != nil {
 		return fmt.Errorf("write model: %w", err)
 	}
+	if cfg.LLMSmallProvider != "" {
+		if _, err := fmt.Fprintf(out, "  Small Provider: %s\n", cfg.LLMSmallProvider); err != nil {
+			return fmt.Errorf("write small provider: %w", err)
+		}
+	}
+	if cfg.LLMSmallModel != "" {
+		if _, err := fmt.Fprintf(out, "  Small Model:    %s\n", cfg.LLMSmallModel); err != nil {
+			return fmt.Errorf("write small model: %w", err)
+		}
+	}
 	if cfg.LLMVisionModel != "" {
 		if _, err := fmt.Fprintf(out, "  Vision Model:   %s\n", cfg.LLMVisionModel); err != nil {
 			return fmt.Errorf("write vision model: %w", err)
@@ -607,7 +617,7 @@ func printConfigUsage(out io.Writer) {
 		"  alex config clear <field>         Remove an override",
 		"  alex config path                  Print the overrides file location",
 		"",
-		"Supported fields: llm_provider, llm_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
+		"Supported fields: llm_provider, llm_model, llm_small_provider, llm_small_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
 	}
 
 	for _, line := range lines {
@@ -659,6 +669,10 @@ func setOverrideField(overrides *runtimeconfig.Overrides, key, value string) err
 		overrides.LLMProvider = stringPtr(value)
 	case "llm_model":
 		overrides.LLMModel = stringPtr(value)
+	case "llm_small_provider":
+		overrides.LLMSmallProvider = stringPtr(value)
+	case "llm_small_model":
+		overrides.LLMSmallModel = stringPtr(value)
 	case "llm_vision_model":
 		overrides.LLMVisionModel = stringPtr(value)
 	case "api_key":
@@ -766,6 +780,10 @@ func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error
 		overrides.LLMProvider = nil
 	case "llm_model":
 		overrides.LLMModel = nil
+	case "llm_small_provider":
+		overrides.LLMSmallProvider = nil
+	case "llm_small_model":
+		overrides.LLMSmallModel = nil
 	case "llm_vision_model":
 		overrides.LLMVisionModel = nil
 	case "api_key":
