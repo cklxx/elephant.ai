@@ -95,9 +95,6 @@ func (s *PostgresStore) Search(ctx context.Context, query Query) ([]Entry, error
 		argPos++
 	}
 
-	if len(query.Terms) > 0 {
-	}
-
 	var matchConditions []string
 	if len(query.Terms) > 0 {
 		matchConditions = append(matchConditions, fmt.Sprintf("terms && $%d", argPos))
