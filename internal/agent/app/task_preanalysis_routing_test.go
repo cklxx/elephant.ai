@@ -114,3 +114,42 @@ noise suffix`)
 	}
 }
 
+func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
+	session := &ports.Session{ID: "session-preanalysis-greeting", Messages: nil, Metadata: map[string]string{}}
+	store := &stubSessionStore{session: session}
+	factory := &recordingLLMFactory{}
+
+	service := NewExecutionPreparationService(ExecutionPreparationDeps{
+		LLMFactory:   factory,
+		ToolRegistry: &registryWithList{defs: []ports.ToolDefinition{{Name: "shell"}}},
+		SessionStore: store,
+		ContextMgr:   stubContextManager{},
+		Parser:       stubParser{},
+		Config: Config{
+			LLMProvider:      "mock-default",
+			LLMModel:         "default-model",
+			LLMSmallProvider: "mock-small",
+			LLMSmallModel:    "small-model",
+			MaxIterations:    3,
+		},
+		Logger:       ports.NoopLogger{},
+		EventEmitter: ports.NoopEventListener{},
+	})
+
+	_, err := service.Prepare(context.Background(), "nihao", session.ID)
+	if err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+
+	if got := strings.TrimSpace(session.Metadata["title"]); got != "Greeting" {
+		t.Fatalf("expected session title Greeting, got %q", got)
+	}
+
+	modelCalls := factory.CallModels()
+	if len(modelCalls) != 1 {
+		t.Fatalf("expected 1 LLM factory call (execution client only), got %v", modelCalls)
+	}
+	if modelCalls[0] != "mock-small|small-model" {
+		t.Fatalf("expected greeting to use small model directly, got %q", modelCalls[0])
+	}
+}

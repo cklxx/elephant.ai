@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
 	"alex/internal/logging"
+	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
 
@@ -199,6 +201,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	sessionID string,
 	listener ports.EventListener,
 ) (*ports.TaskResult, error) {
+	prepareStarted := time.Now()
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive workflow event envelopes.
 	eventListener := wrapWithWorkflowEnvelope(listener, nil)
@@ -234,6 +237,11 @@ func (c *AgentCoordinator) ExecuteTask(
 		wf.fail(stagePrepare, err)
 		return attachWorkflow(nil, env), err
 	}
+	clilatency.Printf(
+		"[latency] prepare_ms=%.2f session=%s\n",
+		float64(time.Since(prepareStarted))/float64(time.Millisecond),
+		env.Session.ID,
+	)
 	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level)
 	prepareOutput := map[string]any{
 		"session": env.Session.ID,

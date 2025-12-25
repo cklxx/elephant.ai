@@ -1,4 +1,4 @@
-package domain
+package clilatency
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func shouldLogCLILatency() bool {
+func Enabled() bool {
 	value, ok := os.LookupEnv("ALEX_CLI_LATENCY")
 	if !ok {
 		return false
@@ -15,10 +15,9 @@ func shouldLogCLILatency() bool {
 	return value == "" || value == "1" || value == "true" || value == "yes"
 }
 
-func logCLILatencyf(format string, args ...any) {
-	if !shouldLogCLILatency() {
+func Printf(format string, args ...any) {
+	if !Enabled() {
 		return
 	}
 	_, _ = fmt.Fprintf(os.Stderr, format, args...)
 }
-

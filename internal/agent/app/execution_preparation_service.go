@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
+	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
 
@@ -112,17 +113,29 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
 	s.logger.Info("PrepareExecution called: task='%s'", task)
 
+	sessionLoadStarted := time.Now()
 	session, err := s.loadSession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
+	clilatency.Printf(
+		"[latency] session_load_ms=%.2f session=%s\n",
+		float64(time.Since(sessionLoadStarted))/float64(time.Millisecond),
+		session.ID,
+	)
 
 	ids := id.IDsFromContext(ctx)
 	if session != nil {
 		ids.SessionID = session.ID
 	}
 
+	historyLoadStarted := time.Now()
 	sessionHistory := s.loadSessionHistory(ctx, session)
+	clilatency.Printf(
+		"[latency] session_history_ms=%.2f messages=%d\n",
+		float64(time.Since(historyLoadStarted))/float64(time.Millisecond),
+		len(sessionHistory),
+	)
 	rawHistory := ports.CloneMessages(sessionHistory)
 	if session != nil {
 		session.Messages = sessionHistory
@@ -164,31 +177,44 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 	if s.contextMgr != nil {
-		originalCount := len(session.Messages)
-		var err error
-		window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
-			TokenLimit:         s.config.MaxTokens,
-			PersonaKey:         personaKey,
-			ToolMode:           string(toolMode),
-			ToolPreset:         toolPreset,
-			EnvironmentSummary: s.config.EnvironmentSummary,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("build context window: %w", err)
-		}
-		session.Messages = window.Messages
-		initialWorldState, initialWorldDiff = buildWorldStateFromWindow(window)
-		if compressedCount := len(window.Messages); compressedCount < originalCount {
-			compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
-				ports.LevelCore,
-				session.ID,
-				ids.TaskID,
-				ids.ParentTaskID,
+		if skip, reason := shouldSkipContextWindow(task, session); skip {
+			clilatency.Printf("[latency] context_window=skipped reason=%s\n", reason)
+			window.Messages = session.Messages
+			window.SystemPrompt = defaultSystemPrompt
+		} else {
+			originalCount := len(session.Messages)
+			windowStarted := time.Now()
+			var err error
+			window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+				TokenLimit:         s.config.MaxTokens,
+				PersonaKey:         personaKey,
+				ToolMode:           string(toolMode),
+				ToolPreset:         toolPreset,
+				EnvironmentSummary: s.config.EnvironmentSummary,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("build context window: %w", err)
+			}
+			clilatency.Printf(
+				"[latency] context_window_ms=%.2f original=%d final=%d\n",
+				float64(time.Since(windowStarted))/float64(time.Millisecond),
 				originalCount,
-				compressedCount,
-				s.clock.Now(),
+				len(window.Messages),
 			)
-			s.eventEmitter.OnEvent(compressionEvent)
+			session.Messages = window.Messages
+			initialWorldState, initialWorldDiff = buildWorldStateFromWindow(window)
+			if compressedCount := len(window.Messages); compressedCount < originalCount {
+				compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
+					ports.LevelCore,
+					session.ID,
+					ids.TaskID,
+					ids.ParentTaskID,
+					originalCount,
+					compressedCount,
+					s.clock.Now(),
+				)
+				s.eventEmitter.OnEvent(compressionEvent)
+			}
 		}
 	}
 	systemPrompt := strings.TrimSpace(window.SystemPrompt)
@@ -268,10 +294,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProvider, effectiveModel)
 	// Use GetIsolatedClient to ensure session-level cost tracking isolation
+	llmInitStarted := time.Now()
 	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, ports.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
 	})
+	clilatency.Printf(
+		"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
+		float64(time.Since(llmInitStarted))/float64(time.Millisecond),
+		strings.TrimSpace(effectiveProvider),
+		strings.TrimSpace(effectiveModel),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM client: %w", err)
 	}
@@ -843,6 +876,10 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	if !ok || session == nil {
 		return nil, false
 	}
+	if analysis, preferSmall, ok := quickTriageTask(task); ok {
+		clilatency.Printf("[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
+		return analysis, preferSmall
+	}
 	client, err := s.llmFactory.GetIsolatedClient(provider, model, ports.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
@@ -876,9 +913,15 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		MaxTokens:   320,
 	}
 
+	preanalysisStarted := time.Now()
 	analysisCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	resp, err := client.Complete(analysisCtx, req)
+	clilatency.Printf(
+		"[latency] preanalysis_ms=%.2f model=%s\n",
+		float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
+		strings.TrimSpace(model),
+	)
 	if err != nil || resp == nil {
 		s.logger.Warn("Task pre-analysis failed: %v", err)
 		return nil, false
@@ -899,6 +942,60 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	return analysis, preferSmallModel
 }
 
+func quickTriageTask(task string) (*ports.TaskAnalysis, bool, bool) {
+	trimmed := strings.TrimSpace(task)
+	if trimmed == "" {
+		return nil, false, false
+	}
+	if strings.Contains(trimmed, "\n") || strings.Contains(trimmed, "\r") {
+		return nil, false, false
+	}
+	runes := []rune(trimmed)
+	if len(runes) > 24 {
+		return nil, false, false
+	}
+
+	switch strings.ToLower(trimmed) {
+	case "hi", "hello", "hey", "yo", "nihao", "你好", "您好", "嗨", "在吗", "ping", "pings":
+		return &ports.TaskAnalysis{
+			Complexity: "simple",
+			ActionName: "Greeting",
+			Goal:       "",
+			Approach:   "greeting",
+		}, true, true
+	case "thanks", "thank you", "thx", "谢谢", "多谢", "感谢", "ok", "okay", "好的", "收到":
+		return &ports.TaskAnalysis{
+			Complexity: "simple",
+			ActionName: "Acknowledge",
+			Goal:       "",
+			Approach:   "ack",
+		}, true, true
+	default:
+		return nil, false, false
+	}
+}
+
+func shouldSkipContextWindow(task string, session *ports.Session) (bool, string) {
+	if session == nil {
+		return false, ""
+	}
+	if len(session.Messages) > 0 {
+		return false, ""
+	}
+	analysis, _, ok := quickTriageTask(task)
+	if !ok || analysis == nil {
+		return false, ""
+	}
+	switch strings.TrimSpace(strings.ToLower(analysis.Approach)) {
+	case "greeting":
+		return true, "greeting"
+	case "ack":
+		return true, "ack"
+	default:
+		return false, ""
+	}
+}
+
 func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string, bool) {
 	model := strings.TrimSpace(s.config.LLMSmallModel)
 	if model == "" {
@@ -915,15 +1012,15 @@ func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string,
 }
 
 type taskAnalysisPayload struct {
-	Complexity      string                     `json:"complexity"`
-	RecommendedModel string                    `json:"recommended_model"`
-	TaskName        string                     `json:"task_name"`
-	ActionName      string                     `json:"action_name"`
-	Goal            string                     `json:"goal"`
-	Approach        string                     `json:"approach"`
-	SuccessCriteria []string                   `json:"success_criteria"`
-	Steps           []taskAnalysisStepPayload  `json:"steps"`
-	Retrieval       taskAnalysisRetrievalHints `json:"retrieval"`
+	Complexity       string                     `json:"complexity"`
+	RecommendedModel string                     `json:"recommended_model"`
+	TaskName         string                     `json:"task_name"`
+	ActionName       string                     `json:"action_name"`
+	Goal             string                     `json:"goal"`
+	Approach         string                     `json:"approach"`
+	SuccessCriteria  []string                   `json:"success_criteria"`
+	Steps            []taskAnalysisStepPayload  `json:"steps"`
+	Retrieval        taskAnalysisRetrievalHints `json:"retrieval"`
 }
 
 type taskAnalysisStepPayload struct {
