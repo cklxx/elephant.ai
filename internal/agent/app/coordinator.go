@@ -343,7 +343,9 @@ func (c *AgentCoordinator) ExecuteTask(
 				if env.Session.Metadata == nil {
 					env.Session.Metadata = make(map[string]string)
 				}
-				env.Session.Metadata["title"] = title
+				if strings.TrimSpace(env.Session.Metadata["title"]) == "" {
+					env.Session.Metadata["title"] = title
+				}
 			}
 		}
 		if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {

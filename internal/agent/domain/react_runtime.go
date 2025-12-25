@@ -247,7 +247,7 @@ func (r *reactRuntime) planGatePrompt() string {
 请先调用 plan()（仅此一个工具调用），并满足：
 - run_id: %q
 - complexity: "simple" 或 "complex"
-- session_title: (推荐) 会话短标题（单行，≤32字）
+- session_title: (可选) 会话短标题（单行，≤32字；不填将使用预分析标题/默认标题）
 - overall_goal_ui: 目标/范围描述（complex 可多行；simple 必须单行）
 - internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单
 - complexity="simple" 时：plan() 后可直接调用动作工具；无需 clearify()（除非需要用户补充信息并暂停）。

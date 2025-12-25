@@ -239,6 +239,16 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}
 
 	taskAnalysis, preferSmallModel := s.preAnalyzeTask(ctx, session, task)
+	if session != nil && taskAnalysis != nil {
+		if session.Metadata == nil {
+			session.Metadata = make(map[string]string)
+		}
+		if strings.TrimSpace(session.Metadata["title"]) == "" {
+			if title := normalizeSessionTitle(taskAnalysis.ActionName); title != "" {
+				session.Metadata["title"] = title
+			}
+		}
+	}
 
 	effectiveModel := s.config.LLMModel
 	effectiveProvider := s.config.LLMProvider
@@ -847,9 +857,18 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		Messages: []ports.Message{
 			{
 				Role: "system",
-				Content: "You are a fast task triage assistant. Decide if the user's task is simple or complex, name the task, and provide a compact breakdown. " +
-					`Respond ONLY with JSON: {"complexity":"simple|complex","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
-					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}]}`,
+				Content: "You are a fast task triage assistant. Analyze the user's task and decide which model tier is sufficient.\n\n" +
+					"Definitions:\n" +
+					`- complexity="simple": can be completed quickly with straightforward steps; no deep design/architecture; no large refactors; no ambiguous requirements; no heavy external research.\n` +
+					`- complexity="complex": otherwise.\n` +
+					`- recommended_model="small": a smaller/cheaper model should handle the entire task reliably.\n` +
+					`- recommended_model="default": use the default (stronger) model.\n\n` +
+					"Output requirements:\n" +
+					`- Respond ONLY with JSON.\n` +
+					`- task_name must be a short single-line title (<= 32 chars), suitable for a session title.\n\n` +
+					`Schema: {"complexity":"simple|complex","recommended_model":"small|default","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
+					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}],` +
+					`"retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""}}`,
 			},
 			{Role: "user", Content: task},
 		},
@@ -864,12 +883,20 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		s.logger.Warn("Task pre-analysis failed: %v", err)
 		return nil, false
 	}
-	analysis := parseTaskAnalysis(resp.Content)
+	analysis, recommendedModel := parseTaskAnalysis(resp.Content)
 	if analysis == nil {
 		s.logger.Warn("Task pre-analysis returned unparsable output")
 		return nil, false
 	}
-	return analysis, strings.EqualFold(analysis.Complexity, "simple")
+	preferSmallModel := false
+	if strings.EqualFold(recommendedModel, "small") {
+		preferSmallModel = true
+	} else if strings.EqualFold(recommendedModel, "default") {
+		preferSmallModel = false
+	} else {
+		preferSmallModel = strings.EqualFold(analysis.Complexity, "simple")
+	}
+	return analysis, preferSmallModel
 }
 
 func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string, bool) {
@@ -889,6 +916,7 @@ func (s *ExecutionPreparationService) resolveSmallModelConfig() (string, string,
 
 type taskAnalysisPayload struct {
 	Complexity      string                     `json:"complexity"`
+	RecommendedModel string                    `json:"recommended_model"`
 	TaskName        string                     `json:"task_name"`
 	ActionName      string                     `json:"action_name"`
 	Goal            string                     `json:"goal"`
@@ -913,18 +941,18 @@ type taskAnalysisRetrievalHints struct {
 	Notes          string   `json:"notes"`
 }
 
-func parseTaskAnalysis(raw string) *ports.TaskAnalysis {
+func parseTaskAnalysis(raw string) (*ports.TaskAnalysis, string) {
 	body := strings.TrimSpace(raw)
 	start := strings.Index(body, "{")
 	end := strings.LastIndex(body, "}")
 	if start < 0 || end <= start {
-		return nil
+		return nil, ""
 	}
 	body = body[start : end+1]
 
 	var payload taskAnalysisPayload
 	if err := json.Unmarshal([]byte(body), &payload); err != nil {
-		return nil
+		return nil, ""
 	}
 
 	analysis := &ports.TaskAnalysis{
@@ -976,7 +1004,7 @@ func parseTaskAnalysis(raw string) *ports.TaskAnalysis {
 		}
 	}
 
-	return analysis
+	return analysis, normalizeRecommendedModel(payload.RecommendedModel)
 }
 
 func normalizeComplexity(value string) string {
@@ -985,6 +1013,17 @@ func normalizeComplexity(value string) string {
 		return "simple"
 	case "complex", "hard":
 		return "complex"
+	default:
+		return ""
+	}
+}
+
+func normalizeRecommendedModel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "small", "mini":
+		return "small"
+	case "default", "large":
+		return "default"
 	default:
 		return ""
 	}
