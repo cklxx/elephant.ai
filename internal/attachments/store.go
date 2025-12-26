@@ -247,7 +247,7 @@ func (s *Store) buildCloudURI(key string) string {
 }
 
 func (s *Store) objectFetchURL(ctx context.Context, key string) string {
-	clean := objectKey(s.cloudKeyPrefix, key)
+	clean := objectKey("", key)
 	if s.cloudPublicBase != "" {
 		return fmt.Sprintf("%s/%s", s.cloudPublicBase, clean)
 	}
