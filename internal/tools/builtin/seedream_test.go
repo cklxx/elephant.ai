@@ -708,6 +708,71 @@ func TestResolveSeedreamInitImagePlaceholderMissing(t *testing.T) {
 	}
 }
 
+func TestResolveSeedreamVisionImagesResolvesAttachments(t *testing.T) {
+	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+		"scene.png": {
+			Name:      "scene.png",
+			MediaType: "image/png",
+			Data:      "YmFzZTY0",
+			Source:    "camera_upload",
+		},
+		"Asset.JPG": {
+			Name:      "Asset.JPG",
+			MediaType: "image/jpeg",
+			URI:       "https://example.com/asset.jpg",
+			Source:    "user_upload",
+		},
+	}, nil)
+
+	resolved, note, err := resolveSeedreamVisionImages(ctx, []string{
+		"[scene.png]",
+		"asset.jpg",
+		"https://example.com/remote.png",
+	})
+	if err != nil {
+		t.Fatalf("expected vision image resolution to succeed, got %v", err)
+	}
+	if len(resolved) != 3 {
+		t.Fatalf("expected 3 resolved images, got %d", len(resolved))
+	}
+	if resolved[0] != "data:image/png;base64,YmFzZTY0" {
+		t.Fatalf("expected data URI for scene.png, got %q", resolved[0])
+	}
+	if resolved[1] != "https://example.com/asset.jpg" {
+		t.Fatalf("expected attachment URL for asset.jpg, got %q", resolved[1])
+	}
+	if resolved[2] != "https://example.com/remote.png" {
+		t.Fatalf("expected remote URL to pass through, got %q", resolved[2])
+	}
+	if !strings.Contains(note, "Image sources:") {
+		t.Fatalf("expected source note header, got %q", note)
+	}
+	if !strings.Contains(note, "scene.png: camera_upload") {
+		t.Fatalf("expected scene source in note, got %q", note)
+	}
+	if !strings.Contains(note, "Asset.JPG: user_upload") {
+		t.Fatalf("expected asset source in note, got %q", note)
+	}
+}
+
+func TestResolveSeedreamVisionImagesRejectsMissingPlaceholder(t *testing.T) {
+	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+		"seed.png": {
+			Name:      "seed.png",
+			MediaType: "image/png",
+			Data:      "YmFzZTY0",
+		},
+	}, nil)
+
+	_, _, err := resolveSeedreamVisionImages(ctx, []string{"[missing.png]"})
+	if err == nil {
+		t.Fatalf("expected missing placeholder to return an error")
+	}
+	if !strings.Contains(err.Error(), "image placeholder [missing.png] could not be resolved") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func TestSeedreamImageToImageRejectsUnresolvedPlaceholder(t *testing.T) {
 	tool := &seedreamImageTool{
 		config: SeedreamConfig{

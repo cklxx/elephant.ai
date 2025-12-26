@@ -104,6 +104,51 @@ const copy = {
         description:
           "Plan 对齐意图；Clearify 拆到最小可验收任务；ReAct 在任务内交替推理/行动并留证据。编排器用 Gate 强制顺序：先 Plan → 再 Clearify → 再执行。",
       },
+      showcase: {
+        badge: "Mock showcase",
+        title: "Showcase：合规发布的可验收样板",
+        description:
+          "主页直接模拟一次完整的发布任务，展示层级、证据与评审方式如何落地。",
+        brief: {
+          title: "任务简报",
+          description:
+            "先对齐目标、风险、交付物，再进入执行；所有步骤都可追溯。",
+        },
+        highlights: [
+          { label: "目标", value: "v0.9 上线并可审计" },
+          { label: "窗口", value: "48 小时，3 人复核" },
+          { label: "入口", value: "CLI + Web 控制台" },
+          { label: "风险", value: "10 分钟内可回滚" },
+        ],
+        deliverablesLabel: "交付物",
+        deliverables: [
+          "发布 checklist 与责任人",
+          "审批记录与证据链接",
+          "回归结果与风险摘要",
+          "回滚与复盘计划",
+        ],
+        trace: {
+          title: "执行轨迹（Mock）",
+          description: "每条记录对应可验收任务，状态和证据一目了然。",
+          steps: [
+            { title: "Plan", detail: "冻结目标、回滚门槛、复核角色" },
+            {
+              title: "Clearify",
+              detail: "拆分 12 个可验收子任务，绑定证据入口",
+            },
+            {
+              title: "ReAct",
+              detail: "按 gate 执行与审批，记录耗时和风险变化",
+            },
+          ],
+        },
+        metricsLabel: "评审指标",
+        metrics: [
+          { label: "任务关闭", value: "12", hint: "全部带证据" },
+          { label: "审批次数", value: "5", hint: "含 2 次阻断" },
+          { label: "响应时延", value: "1.8s", hint: "中位确认" },
+        ],
+      },
       ui: {
         title: "HTML UI 示例（可观测 + 可验收）",
         description:
@@ -200,6 +245,54 @@ const copy = {
         title: "Plan + Clearify + ReAct: keep the orchestrator in control",
         description:
           "Plan aligns intent once; Clearify defines the smallest acceptable tasks; ReAct alternates reasoning/actions inside a task and leaves evidence. The orchestrator gates order: Plan → Clearify → Execute.",
+      },
+      showcase: {
+        badge: "Mock showcase",
+        title: "Showcase: an audit-ready release cutover",
+        description:
+          "A mocked run on the homepage to demonstrate hierarchy, evidence, and review flow.",
+        brief: {
+          title: "Run brief",
+          description:
+            "Align the goal, risks, and deliverables before execution. Every step stays traceable.",
+        },
+        highlights: [
+          { label: "Goal", value: "Ship v0.9 with audit trail" },
+          { label: "Window", value: "48 hours, 3 reviewers" },
+          { label: "Surface", value: "CLI + Web console" },
+          { label: "Risk", value: "Rollback within 10 minutes" },
+        ],
+        deliverablesLabel: "Deliverables",
+        deliverables: [
+          "Release checklist with owners",
+          "Approval log + evidence links",
+          "Regression results and risk summary",
+          "Rollback and postmortem plan",
+        ],
+        trace: {
+          title: "Execution trace (mock)",
+          description:
+            "Each entry maps to a reviewable task with status and evidence.",
+          steps: [
+            { title: "Plan", detail: "Freeze goals, rollback gates, reviewers" },
+            {
+              title: "Clearify",
+              detail:
+                "Split into 12 reviewable tasks with evidence hooks",
+            },
+            {
+              title: "ReAct",
+              detail:
+                "Run via gates, capture timing and risk changes",
+            },
+          ],
+        },
+        metricsLabel: "Review metrics",
+        metrics: [
+          { label: "Tasks closed", value: "12", hint: "All with evidence" },
+          { label: "Approvals", value: "5", hint: "2 blocked" },
+          { label: "Ack latency", value: "1.8s", hint: "Median step" },
+        ],
       },
       ui: {
         title: "HTML UI example (observable + reviewable)",
@@ -354,6 +447,127 @@ function Hero({ lang }: { lang: HomeLang }) {
 
       <MiniConsolePreview lang={lang} />
     </div>
+  );
+}
+
+function Showcase({ lang }: { lang: HomeLang }) {
+  const showcase = copy[lang].section.showcase;
+
+  return (
+    <SectionBlock className="gap-4">
+      <div className="flex flex-col gap-2">
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+          {showcase.badge}
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
+            {showcase.title}
+          </h2>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            {showcase.description}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+        <Card className="bg-card/70 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <ScrollText className="h-4 w-4" aria-hidden />
+              {showcase.brief.title}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {showcase.brief.description}
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {showcase.highlights.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-border/70 bg-background/60 p-3"
+                >
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    {item.label}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-foreground">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
+              <div className="mb-2 text-xs font-semibold text-muted-foreground">
+                {showcase.deliverablesLabel}
+              </div>
+              <ul className="space-y-2 text-sm text-foreground/90">
+                {showcase.deliverables.map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-none rounded-full bg-foreground/40" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/70 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <ListChecks className="h-4 w-4" aria-hidden />
+              {showcase.trace.title}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {showcase.trace.description}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {showcase.trace.steps.map((step, index) => (
+                <div
+                  key={step.title}
+                  className="rounded-2xl border border-border/70 bg-background/60 p-3"
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-[11px] text-foreground/80">
+                      {index + 1}
+                    </span>
+                    {step.title}
+                  </div>
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    {step.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
+              <div className="mb-2 text-xs font-semibold text-muted-foreground">
+                {showcase.metricsLabel}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {showcase.metrics.map((metric) => (
+                  <div
+                    key={metric.label}
+                    className="rounded-xl border border-border/70 bg-background/70 p-3"
+                  >
+                    <div className="text-xs text-muted-foreground">
+                      {metric.label}
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-foreground">
+                      {metric.value}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {metric.hint}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </SectionBlock>
   );
 }
 
@@ -562,6 +776,8 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
             <HomeTopBar lang={lang} />
             <Hero lang={lang} />
           </SectionBlock>
+
+          <Showcase lang={lang} />
 
           <SectionBlock className="gap-4">
             <div className="grid gap-4 lg:grid-cols-2 lg:items-start">

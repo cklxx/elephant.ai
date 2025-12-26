@@ -103,3 +103,23 @@ func TestParseAttachmentsDoesNotRetainInlineBase64ForNonImages(t *testing.T) {
 		t.Fatalf("expected attachment URI to be stored, got %q", att.URI)
 	}
 }
+
+func TestParseAttachmentsPreservesSource(t *testing.T) {
+	handler := &APIHandler{}
+
+	attachments, err := handler.parseAttachments([]AttachmentPayload{{
+		Name:      "scene.png",
+		MediaType: "image/png",
+		URI:       "https://example.com/scene.png",
+		Source:    "camera_upload",
+	}})
+	if err != nil {
+		t.Fatalf("parseAttachments: %v", err)
+	}
+	if len(attachments) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(attachments))
+	}
+	if attachments[0].Source != "camera_upload" {
+		t.Fatalf("expected source to be preserved, got %q", attachments[0].Source)
+	}
+}
