@@ -55,6 +55,7 @@ func (s *Store) EnsureSchema(ctx context.Context) error {
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );`, sessionTable),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS important JSONB;`, sessionTable),
 		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_agent_sessions_updated_at ON %s (updated_at DESC);`, sessionTable),
 	}
 
