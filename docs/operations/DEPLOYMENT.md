@@ -233,6 +233,7 @@ kubectl rollout undo deployment/alex-server -n alex-system
 | `ALEX_SESSION_DATABASE_URL` | ✅ | - | Web 模式 Session 持久化 Postgres 连接串（可与 `AUTH_DATABASE_URL` 共用） |
 | `ALEX_WEB_SESSION_DIR` | ❌ | `~/.alex-web-sessions` | Web 模式会话侧文件产物（journals、migration marker）路径 |
 | `SESSION_STORE_PATH` | ❌ | `/data/sessions` | 兼容旧配置：同 `ALEX_WEB_SESSION_DIR` |
+| `ALEX_WEB_MAX_TASK_BODY_BYTES` | ❌ | `20971520` | `/api/tasks` POST 请求体上限（字节），需要更大附件时调高 |
 | `REDIS_URL` | ❌ | - | Redis 连接地址（可选） |
 | `PORT` | ❌ | `8080` | HTTP 监听端口 |
 
