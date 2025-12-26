@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	authapp "alex/internal/auth/app"
@@ -12,13 +13,32 @@ import (
 	"alex/internal/server/app"
 )
 
+func createTaskBodyLimit(env runtimeconfig.EnvLookup) int64 {
+	if env == nil {
+		return defaultMaxCreateTaskBodySize
+	}
+
+	raw, ok := env("ALEX_WEB_MAX_TASK_BODY_BYTES")
+	if !ok {
+		return defaultMaxCreateTaskBodySize
+	}
+
+	value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || value <= 0 {
+		return defaultMaxCreateTaskBodySize
+	}
+
+	return value
+}
+
 // NewRouter creates a new HTTP router with all endpoints
 func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
+	envLookup := runtimeconfig.DefaultEnvLookup
 	attachmentStore := (*AttachmentStore)(nil)
 	attachmentDir := "~/.alex-web-attachments"
-	if value, ok := runtimeconfig.DefaultEnvLookup("ALEX_WEB_ATTACHMENT_DIR"); ok && strings.TrimSpace(value) != "" {
+	if value, ok := envLookup("ALEX_WEB_ATTACHMENT_DIR"); ok && strings.TrimSpace(value) != "" {
 		attachmentDir = strings.TrimSpace(value)
 	}
 	if store, err := NewAttachmentStore(attachmentDir); err != nil {
@@ -26,6 +46,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	} else {
 		attachmentStore = store
 	}
+	taskBodyLimit := createTaskBodyLimit(envLookup)
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
@@ -37,6 +58,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		WithAPIObservability(obs),
 		WithEvaluationService(evaluationService),
 		WithAttachmentStore(attachmentStore),
+		WithMaxCreateTaskBodySize(taskBodyLimit),
 	)
 
 	var authMiddleware func(http.Handler) http.Handler

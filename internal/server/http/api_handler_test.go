@@ -112,6 +112,21 @@ func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
 	}
 }
 
+func TestHandleCreateTaskHonorsBodyLimit(t *testing.T) {
+	coordinator := app.NewServerCoordinator(&stubAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithMaxCreateTaskBodySize(64))
+
+	oversizedPayload := `{"task":"` + strings.Repeat("a", 80) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", strings.NewReader(oversizedPayload))
+	rr := httptest.NewRecorder()
+
+	handler.HandleCreateTask(rr, req)
+
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status %d, got %d", http.StatusRequestEntityTooLarge, rr.Code)
+	}
+}
+
 func TestSnapshotHandlers(t *testing.T) {
 	sessionStore := filestore.New(t.TempDir())
 	stateStore := sessionstate.NewInMemoryStore()

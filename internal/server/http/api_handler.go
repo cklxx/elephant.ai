@@ -24,17 +24,18 @@ import (
 	id "alex/internal/utils/id"
 )
 
-const maxCreateTaskBodySize = 1 << 20 // 1 MiB
+const defaultMaxCreateTaskBodySize int64 = 20 << 20 // 20 MiB
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
-	coordinator     *app.ServerCoordinator
-	healthChecker   *app.HealthCheckerImpl
-	logger          logging.Logger
-	internalMode    bool
-	obs             *observability.Observability
-	evaluationSvc   *app.EvaluationService
-	attachmentStore *AttachmentStore
+	coordinator           *app.ServerCoordinator
+	healthChecker         *app.HealthCheckerImpl
+	logger                logging.Logger
+	internalMode          bool
+	obs                   *observability.Observability
+	evaluationSvc         *app.EvaluationService
+	attachmentStore       *AttachmentStore
+	maxCreateTaskBodySize int64
 }
 
 // APIHandlerOption configures API handler behavior.
@@ -62,19 +63,32 @@ func WithAttachmentStore(store *AttachmentStore) APIHandlerOption {
 	}
 }
 
+// WithMaxCreateTaskBodySize overrides the maximum accepted body size for CreateTask requests.
+func WithMaxCreateTaskBodySize(limit int64) APIHandlerOption {
+	return func(handler *APIHandler) {
+		if limit > 0 {
+			handler.maxCreateTaskBodySize = limit
+		}
+	}
+}
+
 // NewAPIHandler creates a new API handler
 func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.HealthCheckerImpl, internalMode bool, opts ...APIHandlerOption) *APIHandler {
 	handler := &APIHandler{
-		coordinator:   coordinator,
-		healthChecker: healthChecker,
-		logger:        logging.NewComponentLogger("APIHandler"),
-		internalMode:  internalMode,
+		coordinator:           coordinator,
+		healthChecker:         healthChecker,
+		logger:                logging.NewComponentLogger("APIHandler"),
+		internalMode:          internalMode,
+		maxCreateTaskBodySize: defaultMaxCreateTaskBodySize,
 	}
 	for _, opt := range opts {
 		if opt == nil {
 			continue
 		}
 		opt(handler)
+	}
+	if handler.maxCreateTaskBodySize <= 0 {
+		handler.maxCreateTaskBodySize = defaultMaxCreateTaskBodySize
 	}
 	return handler
 }
@@ -236,7 +250,7 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Limit request body size to avoid resource exhaustion attacks
-	body := http.MaxBytesReader(w, r.Body, maxCreateTaskBodySize)
+	body := http.MaxBytesReader(w, r.Body, h.maxCreateTaskBodySize)
 	defer func() {
 		_ = body.Close()
 	}()
