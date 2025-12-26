@@ -68,6 +68,9 @@ func CloneTaskState(state *TaskState) *TaskState {
 	if len(state.AttachmentIterations) > 0 {
 		cloned.AttachmentIterations = cloneIterationMap(state.AttachmentIterations)
 	}
+	if len(state.Important) > 0 {
+		cloned.Important = CloneImportantNotes(state.Important)
+	}
 	if len(state.Plans) > 0 {
 		cloned.Plans = ClonePlanNodes(state.Plans)
 	}

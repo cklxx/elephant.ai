@@ -56,3 +56,13 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 | `evaluation/` | SWE-Bench runners and regression harnesses. |
 
 For deeper dives, see [`docs/AGENT.md`](docs/AGENT.md) and [`docs/README.md`](docs/README.md).
+
+## Session data lifecycle
+
+User sessions persist across turns (Plan → ReAct loops) with distinct lifetimes for each payload type:
+
+* **Messages and turn history.** Session messages (system, user, assistant, tool results) are saved after each turn and may be auto-compressed for token budgets; system/user prompts survive compression while non-critical content can be summarized.
+* **Attachments.** Binary artifacts and placeholders travel with the session and are stored separately from messages so they can be reused by later turns or delegated subagents.
+* **Important notes.** High-signal, user-personalized snippets can be pinned via the `attention` tool; they share the session lifecycle with attachments and are automatically recalled and appended when history is compressed.
+* **Plans and execution state.** Plan trees, beliefs, world state snapshots, and feedback signals are captured per turn so downstream UI and APIs can replay the session timeline.
+* **History snapshots.** Session history is stored in the configured session store (file/SQLite/Postgres) and fed back into context windows, with compression summaries and pinned notes re-attached when token limits are hit.
