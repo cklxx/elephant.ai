@@ -4,24 +4,26 @@ import (
 	"net/http"
 	"strings"
 
+	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
-	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, attachmentCfg attachments.StoreConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
 	attachmentStore := (*AttachmentStore)(nil)
-	attachmentDir := "~/.alex-web-attachments"
-	if value, ok := runtimeconfig.DefaultEnvLookup("ALEX_WEB_ATTACHMENT_DIR"); ok && strings.TrimSpace(value) != "" {
-		attachmentDir = strings.TrimSpace(value)
+	if strings.TrimSpace(attachmentCfg.Dir) == "" {
+		attachmentCfg.Dir = "~/.alex-web-attachments"
 	}
-	if store, err := NewAttachmentStore(attachmentDir); err != nil {
+	if strings.TrimSpace(attachmentCfg.Provider) == "" {
+		attachmentCfg.Provider = attachments.ProviderLocal
+	}
+	if store, err := NewAttachmentStore(attachmentCfg); err != nil {
 		logger.Warn("Attachment store disabled: %v", err)
 	} else {
 		attachmentStore = store

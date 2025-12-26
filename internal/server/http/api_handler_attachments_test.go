@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"alex/internal/attachments"
 )
 
 func TestParseAttachmentsPreservesInlineBase64ForImages(t *testing.T) {
-	store, err := NewAttachmentStore(t.TempDir())
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("create attachment store: %v", err)
 	}
@@ -38,13 +40,13 @@ func TestParseAttachmentsPreservesInlineBase64ForImages(t *testing.T) {
 		t.Fatalf("expected attachment URI to be stored, got %q", att.URI)
 	}
 	filename := strings.TrimPrefix(att.URI, "/api/attachments/")
-	if _, statErr := os.Stat(filepath.Join(store.dir, filename)); statErr != nil {
+	if _, statErr := os.Stat(filepath.Join(store.LocalDir(), filename)); statErr != nil {
 		t.Fatalf("expected stored file to exist: %v", statErr)
 	}
 }
 
 func TestParseAttachmentsPreservesInlineBase64ForImageDataURI(t *testing.T) {
-	store, err := NewAttachmentStore(t.TempDir())
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("create attachment store: %v", err)
 	}
@@ -74,7 +76,7 @@ func TestParseAttachmentsPreservesInlineBase64ForImageDataURI(t *testing.T) {
 }
 
 func TestParseAttachmentsDoesNotRetainInlineBase64ForNonImages(t *testing.T) {
-	store, err := NewAttachmentStore(t.TempDir())
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("create attachment store: %v", err)
 	}

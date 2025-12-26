@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"alex/internal/attachments"
 	"alex/internal/di"
 	"alex/internal/server/app"
 	"alex/internal/server/ports"
@@ -48,7 +49,7 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	healthChecker.RegisterProbe(app.NewLLMFactoryProbe(container))
 
 	// Create router
-	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development", nil, nil, nil, nil)
+	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development", nil, nil, nil, nil, attachments.StoreConfig{Dir: t.TempDir()})
 
 	// Test health endpoint
 	req := httptest.NewRequest("GET", "/health", nil)

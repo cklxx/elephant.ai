@@ -153,6 +153,7 @@ func RunServer(observabilityConfigPath string) error {
 		configHandler,
 		evaluationService,
 		obs,
+		config.Attachment,
 	)
 
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
