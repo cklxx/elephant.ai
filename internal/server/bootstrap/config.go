@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/attachments"
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
 )
@@ -21,6 +22,7 @@ type Config struct {
 	Session            SessionConfig
 	Analytics          AnalyticsConfig
 	AllowedOrigins     []string
+	Attachment         attachments.StoreConfig
 }
 
 // AuthConfig captures authentication-related environment configuration.
@@ -93,6 +95,10 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		Port:           "8080",
 		EnableMCP:      true, // Default: enabled
 		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
+		Attachment: attachments.StoreConfig{
+			Provider: attachments.ProviderLocal,
+			Dir:      "~/.alex-web-attachments",
+		},
 	}
 
 	if port, ok := envLookup("PORT"); ok && port != "" {
@@ -181,6 +187,36 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		analyticsCfg.PostHogHost = strings.TrimSpace(host)
 	}
 	cfg.Analytics = analyticsCfg
+
+	if provider, ok := envLookup("ALEX_ATTACHMENT_PROVIDER"); ok {
+		cfg.Attachment.Provider = strings.TrimSpace(provider)
+	}
+	if dir, ok := envLookup("ALEX_WEB_ATTACHMENT_DIR"); ok && strings.TrimSpace(dir) != "" {
+		cfg.Attachment.Dir = strings.TrimSpace(dir)
+	}
+	if accountID, ok := envLookup("CLOUDFLARE_ACCOUNT_ID"); ok {
+		cfg.Attachment.CloudflareAccountID = strings.TrimSpace(accountID)
+	}
+	if accessKey, ok := envLookup("CLOUDFLARE_ACCESS_KEY_ID"); ok {
+		cfg.Attachment.CloudflareAccessKeyID = strings.TrimSpace(accessKey)
+	}
+	if secret, ok := envLookup("CLOUDFLARE_SECRET_ACCESS_KEY"); ok {
+		cfg.Attachment.CloudflareSecretAccessKey = strings.TrimSpace(secret)
+	}
+	if bucket, ok := envLookup("CLOUDFLARE_BUCKET"); ok {
+		cfg.Attachment.CloudflareBucket = strings.TrimSpace(bucket)
+	}
+	if base, ok := envLookup("CLOUDFLARE_PUBLIC_BASE_URL"); ok {
+		cfg.Attachment.CloudflarePublicBaseURL = strings.TrimSpace(base)
+	}
+	if prefix, ok := envLookup("CLOUDFLARE_ATTACHMENT_KEY_PREFIX"); ok {
+		cfg.Attachment.CloudflareKeyPrefix = strings.TrimSpace(prefix)
+	}
+	if ttlRaw, ok := envLookup("ALEX_ATTACHMENT_PRESIGN_TTL"); ok && strings.TrimSpace(ttlRaw) != "" {
+		if parsed, err := time.ParseDuration(strings.TrimSpace(ttlRaw)); err == nil && parsed > 0 {
+			cfg.Attachment.PresignTTL = parsed
+		}
+	}
 
 	resolver := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
 		if ctx == nil {
