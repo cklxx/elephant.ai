@@ -138,6 +138,7 @@ class AttachmentRegistry {
     attachments?: AttachmentMap,
     firstSeen?: number,
     visibility: AttachmentVisibility = 'default',
+    preserveExistingVisibility = false,
   ) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
@@ -147,10 +148,15 @@ class AttachmentRegistry {
     Object.entries(normalized).forEach(([key, attachment]) => {
       const existing = this.store.get(key);
       const firstSeenAt = existing ? Math.min(existing.firstSeen, seenAt) : seenAt;
-      const nextVisibility: AttachmentVisibility =
-        visibility === 'default' || existing?.visibility === 'default'
-          ? 'default'
-          : 'recalled';
+      const requestedVisibility: AttachmentVisibility =
+        attachment.visibility === 'recalled' ? 'recalled' : visibility;
+      const nextVisibility: AttachmentVisibility = preserveExistingVisibility && existing?.visibility
+        ? existing.visibility
+        : requestedVisibility === 'recalled'
+          ? 'recalled'
+          : existing?.visibility === 'default'
+            ? 'default'
+            : requestedVisibility;
       this.store.set(key, { attachment, firstSeen: firstSeenAt, visibility: nextVisibility });
     });
   }
@@ -159,13 +165,14 @@ class AttachmentRegistry {
     attachments?: AttachmentMap,
     firstSeen?: number,
     visibility: AttachmentVisibility = 'default',
+    preserveExistingVisibility = false,
   ) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
       return;
     }
     Object.keys(normalized).forEach((key) => this.displayedByTool.add(key));
-    this.upsertMany(normalized, firstSeen, visibility);
+    this.upsertMany(normalized, firstSeen, visibility, preserveExistingVisibility);
   }
 
   private removeMany(keys?: string[]) {
@@ -288,9 +295,9 @@ class AttachmentRegistry {
     }
 
     if (options.markDisplayed) {
-      this.recordToolAttachments(resolved, options.timestamp);
+      this.recordToolAttachments(resolved, options.timestamp, 'default', true);
     } else {
-      this.upsertMany(resolved, options.timestamp);
+      this.upsertMany(resolved, options.timestamp, 'default', true);
     }
 
     return resolved;

@@ -286,4 +286,25 @@ describe('attachmentRegistry', () => {
     expect(referenced.attachments?.['history.pdf']).toBeDefined();
     expect(referenced.attachments?.['history.pdf']?.visibility).toBe('recalled');
   });
+
+  it('keeps recalled attachments as recalled when final answers reference them', () => {
+    ingestRecalledAttachments({
+      'hidden.txt': {
+        name: 'hidden.txt',
+        media_type: 'text/plain',
+        data: 'c2VjcmV0',
+        visibility: 'recalled',
+      },
+    });
+
+    const referenced: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
+      final_answer: 'Pulling in [hidden.txt].',
+    };
+
+    handleAttachmentEvent(referenced);
+
+    expect(referenced.attachments?.['hidden.txt']).toBeDefined();
+    expect(referenced.attachments?.['hidden.txt']?.visibility).toBe('recalled');
+  });
 });
