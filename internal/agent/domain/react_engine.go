@@ -279,6 +279,7 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		result.Metadata,
 		&b.attachmentsMu,
 	)
+	b.engine.applyImportantNotes(b.state, tc, result.Metadata)
 
 	b.finalize(idx, tc, nodeID, *result, startTime)
 }
@@ -640,6 +641,7 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string, duration tim
 		SessionID:    state.SessionID,
 		TaskID:       state.TaskID,
 		ParentTaskID: state.ParentTaskID,
+		Important:    ports.CloneImportantNotes(state.Important),
 		Duration:     duration,
 	}
 }
@@ -963,6 +965,99 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	}
 	applyAttachmentMutationsToState(state, merged, mutations, call.Name)
 	return merged
+}
+
+func (e *ReactEngine) applyImportantNotes(state *TaskState, call ToolCall, metadata map[string]any) {
+	if state == nil || len(metadata) == 0 {
+		return
+	}
+	raw, ok := metadata["important_notes"]
+	if !ok {
+		return
+	}
+	notes := normalizeImportantNotes(raw, e.clock)
+	if len(notes) == 0 {
+		return
+	}
+	if state.Important == nil {
+		state.Important = make(map[string]ports.ImportantNote)
+	}
+	for _, note := range notes {
+		if strings.TrimSpace(note.Content) == "" {
+			continue
+		}
+		if note.ID == "" {
+			note.ID = id.NewKSUID()
+		}
+		if note.CreatedAt.IsZero() && e.clock != nil {
+			note.CreatedAt = e.clock.Now()
+		}
+		if note.Source == "" {
+			note.Source = call.Name
+		}
+		state.Important[note.ID] = note
+	}
+}
+
+func normalizeImportantNotes(raw any, clock ports.Clock) []ports.ImportantNote {
+	switch v := raw.(type) {
+	case []ports.ImportantNote:
+		notes := make([]ports.ImportantNote, len(v))
+		copy(notes, v)
+		return notes
+	case []any:
+		var notes []ports.ImportantNote
+		for _, item := range v {
+			switch note := item.(type) {
+			case ports.ImportantNote:
+				notes = append(notes, note)
+			case map[string]any:
+				if parsed := parseImportantNoteMap(note, clock); parsed.Content != "" {
+					notes = append(notes, parsed)
+				}
+			}
+		}
+		return notes
+	case map[string]any:
+		if parsed := parseImportantNoteMap(v, clock); parsed.Content != "" {
+			return []ports.ImportantNote{parsed}
+		}
+	}
+	return nil
+}
+
+func parseImportantNoteMap(raw map[string]any, clock ports.Clock) ports.ImportantNote {
+	note := ports.ImportantNote{}
+	if idVal, ok := raw["id"].(string); ok {
+		note.ID = strings.TrimSpace(idVal)
+	}
+	if content, ok := raw["content"].(string); ok {
+		note.Content = strings.TrimSpace(content)
+	}
+	if source, ok := raw["source"].(string); ok {
+		note.Source = strings.TrimSpace(source)
+	}
+	if tagsRaw, ok := raw["tags"].([]any); ok {
+		for _, tag := range tagsRaw {
+			if text, ok := tag.(string); ok {
+				if trimmed := strings.TrimSpace(text); trimmed != "" {
+					note.Tags = append(note.Tags, trimmed)
+				}
+			}
+		}
+	}
+	switch created := raw["created_at"].(type) {
+	case time.Time:
+		note.CreatedAt = created
+	case string:
+		if parsed, err := time.Parse(time.RFC3339, created); err == nil {
+			note.CreatedAt = parsed
+		}
+	}
+	if note.CreatedAt.IsZero() && clock != nil {
+		note.CreatedAt = clock.Now()
+	}
+	return note
 }
 
 func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, state *TaskState) {

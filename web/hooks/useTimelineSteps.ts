@@ -33,6 +33,13 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
     let latestTaskText: string | null = null;
     let latestPrepareIdea: string | null = null;
     let terminal: { kind: 'final' | 'cancelled'; ts: number } | null = null;
+    const fallbackTimestamp = events.reduce((latest, evt) => {
+      const parsed = Date.parse(evt.timestamp ?? '');
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.max(latest, parsed);
+      }
+      return latest;
+    }, 0);
 
     const shorten = (text: string, max: number) => {
       const trimmed = text.trim();
@@ -88,10 +95,12 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       }
 
       if (event.event_type === 'workflow.result.final') {
-        terminal = { kind: 'final', ts: parseTimestamp(event.timestamp) };
+        const ts = Date.parse(event.timestamp ?? '') || fallbackTimestamp;
+        terminal = { kind: 'final', ts };
       }
       if (event.event_type === 'workflow.result.cancelled') {
-        terminal = { kind: 'cancelled', ts: parseTimestamp(event.timestamp) };
+        const ts = Date.parse(event.timestamp ?? '') || fallbackTimestamp;
+        terminal = { kind: 'cancelled', ts };
       }
 
       if (isWorkflowNodeStartedEvent(event)) {
