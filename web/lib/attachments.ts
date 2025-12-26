@@ -14,6 +14,8 @@ export interface ContentSegment {
 
 export type AttachmentSegmentType = ContentSegment['type'];
 
+type PreviewAsset = NonNullable<AttachmentPayload['preview_assets']>[number];
+
 function toTrimmedString(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim() : undefined;
 }
@@ -95,7 +97,7 @@ function isPresentationAttachment(attachment: AttachmentPayload): boolean {
 
 function findPreferredDownloadAsset(
   attachment: AttachmentPayload,
-): AttachmentPayload['preview_assets'][number] | undefined {
+): PreviewAsset | undefined {
   if (!isPresentationAttachment(attachment)) {
     return undefined;
   }
