@@ -8,6 +8,7 @@ import (
 	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
