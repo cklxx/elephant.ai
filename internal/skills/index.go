@@ -20,7 +20,7 @@ func IndexMarkdown(library Library) string {
 	var builder strings.Builder
 	builder.WriteString("# Skills Catalog\n\n")
 	builder.WriteString("Reusable playbooks available to the agent. Use the `skills` tool to view full details.\n\n")
-	builder.WriteString("Example: `skills({\"action\":\"show\",\"name\":\"video_production\"})`\n\n")
+	builder.WriteString("Example: `skills({\"action\":\"show\",\"name\":\"ppt-deck\"})`\n\n")
 	builder.WriteString("Available skills:\n")
 	for _, skill := range skills {
 		desc := strings.TrimSpace(skill.Description)
