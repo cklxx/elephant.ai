@@ -10,6 +10,7 @@ import {
 const PLACEHOLDER_PATTERN = /\[([^\[\]]+)\]/g;
 
 type AttachmentMap = Record<string, AttachmentPayload>;
+type AttachmentVisibility = 'default' | 'recalled';
 
 type AttachmentMutations = {
   replace?: AttachmentMap;
@@ -21,6 +22,7 @@ type AttachmentMutations = {
 type StoredAttachment = {
   attachment: AttachmentPayload;
   firstSeen: number;
+  visibility: AttachmentVisibility;
 };
 
 function parseMutationsPayload(
@@ -121,6 +123,10 @@ class AttachmentRegistry {
     this.displayedByTool.clear();
   }
 
+  ingestRecalled(attachments?: AttachmentMap, firstSeen?: number) {
+    this.upsertMany(attachments, firstSeen, 'recalled');
+  }
+
   private getEventTimestamp(event: AnyAgentEvent): number {
     const parsed = event && typeof (event as any).timestamp === "string"
       ? Date.parse((event as any).timestamp)
@@ -128,7 +134,12 @@ class AttachmentRegistry {
     return Number.isFinite(parsed) ? parsed : Date.now();
   }
 
-  private upsertMany(attachments?: AttachmentMap, firstSeen?: number) {
+  private upsertMany(
+    attachments?: AttachmentMap,
+    firstSeen?: number,
+    visibility: AttachmentVisibility = 'default',
+    preserveExistingVisibility = false,
+  ) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
       return;
@@ -137,17 +148,31 @@ class AttachmentRegistry {
     Object.entries(normalized).forEach(([key, attachment]) => {
       const existing = this.store.get(key);
       const firstSeenAt = existing ? Math.min(existing.firstSeen, seenAt) : seenAt;
-      this.store.set(key, { attachment, firstSeen: firstSeenAt });
+      const requestedVisibility: AttachmentVisibility =
+        attachment.visibility === 'recalled' ? 'recalled' : visibility;
+      const nextVisibility: AttachmentVisibility = preserveExistingVisibility && existing?.visibility
+        ? existing.visibility
+        : requestedVisibility === 'recalled'
+          ? 'recalled'
+          : existing?.visibility === 'default'
+            ? 'default'
+            : requestedVisibility;
+      this.store.set(key, { attachment, firstSeen: firstSeenAt, visibility: nextVisibility });
     });
   }
 
-  private recordToolAttachments(attachments?: AttachmentMap, firstSeen?: number) {
+  private recordToolAttachments(
+    attachments?: AttachmentMap,
+    firstSeen?: number,
+    visibility: AttachmentVisibility = 'default',
+    preserveExistingVisibility = false,
+  ) {
     const normalized = normalizeAttachmentMap(attachments);
     if (!normalized) {
       return;
     }
     Object.keys(normalized).forEach((key) => this.displayedByTool.add(key));
-    this.upsertMany(normalized, firstSeen);
+    this.upsertMany(normalized, firstSeen, visibility, preserveExistingVisibility);
   }
 
   private removeMany(keys?: string[]) {
@@ -270,9 +295,9 @@ class AttachmentRegistry {
     }
 
     if (options.markDisplayed) {
-      this.recordToolAttachments(resolved, options.timestamp);
+      this.recordToolAttachments(resolved, options.timestamp, 'default', true);
     } else {
-      this.upsertMany(resolved, options.timestamp);
+      this.upsertMany(resolved, options.timestamp, 'default', true);
     }
 
     return resolved;
@@ -282,11 +307,12 @@ class AttachmentRegistry {
     return this.takeFromStore();
   }
 
-  private takeFromStore(options: { includeDisplayed?: boolean; timestamp?: number } = {}): AttachmentMap | undefined {
+  private takeFromStore(options: { includeDisplayed?: boolean; timestamp?: number; includeRecalled?: boolean } = {}): AttachmentMap | undefined {
     const entries = Array.from(this.store.entries()).filter(
       ([key, stored]) =>
         (options.includeDisplayed || !this.displayedByTool.has(key)) &&
-        this.isAvailable(key, options.timestamp),
+        this.isAvailable(key, options.timestamp) &&
+        (options.includeRecalled !== false || stored.visibility !== 'recalled'),
     );
 
     if (entries.length === 0) {
@@ -375,6 +401,7 @@ class AttachmentRegistry {
           const allowDisplayed = shouldIncludeDisplayedAttachments(taskEvent);
           taskEvent.attachments = this.takeFromStore({
             includeDisplayed: allowDisplayed,
+            includeRecalled: false,
             timestamp: eventTimestamp,
           });
         }
@@ -394,4 +421,12 @@ export const handleAttachmentEvent = (event: AnyAgentEvent) => {
 
 export const resetAttachmentRegistry = () => {
   attachmentRegistry.clear();
+};
+
+export const ingestRecalledAttachments = (
+  attachments?: AttachmentMap | null,
+  timestamp?: number,
+) => {
+  if (!attachments || Object.keys(attachments).length === 0) return;
+  attachmentRegistry.ingestRecalled(attachments, timestamp);
 };

@@ -78,6 +78,8 @@ export function useSSE(
     new Map(),
   );
   const hasLocalHistoryRef = useRef(false);
+  const initialUserId = authClient.getSession()?.user.id?.trim() || null;
+  const userIdRef = useRef<string | null>(initialUserId);
   const sessionIdRef = useRef(sessionId);
   const dedupeRef = useRef<{ seen: Set<string>; order: string[] }>({
     seen: new Set(),
@@ -199,7 +201,9 @@ export function useSSE(
 
   const clearEvents = useCallback(() => {
     setEventState({ sessionId: sessionIdRef.current, events: [] });
-    resetAttachmentRegistry();
+    if (!userIdRef.current) {
+      resetAttachmentRegistry();
+    }
     resetDedupe();
     resetPipelineDedupe();
     resetStreamingBuffer();
@@ -482,6 +486,11 @@ export function useSSE(
     const previousSessionId = previousSessionIdRef.current;
     previousSessionIdRef.current = sessionId;
 
+    const currentUserId = authClient.getSession()?.user.id?.trim() || null;
+    const userChanged = userIdRef.current !== currentUserId;
+    const shouldResetAttachments = userChanged || !currentUserId;
+    userIdRef.current = currentUserId;
+
     cleanup();
     reconnectAttemptsRef.current = 0;
 
@@ -490,12 +499,18 @@ export function useSSE(
       (Boolean(previousSessionId) && previousSessionId !== sessionId);
 
     if (shouldResetState) {
-      resetAttachmentRegistry();
+      if (shouldResetAttachments) {
+        resetAttachmentRegistry();
+      }
       resetDedupe();
       resetPipelineDedupe();
       resetStreamingBuffer();
       resetAssistantMessageBuffer();
       hasLocalHistoryRef.current = false;
+    }
+
+    if (!shouldResetState && shouldResetAttachments) {
+      resetAttachmentRegistry();
     }
 
     if (sessionId && enabled) {
