@@ -79,6 +79,10 @@ func (t *memoryWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	keywords := parseKeywordArray(call.Arguments["keywords"])
 	slots := parseSlotObject(call.Arguments["slots"])
+	if len(keywords) == 0 && len(slots) == 0 {
+		err := fmt.Errorf("provide keywords or slots to capture personalized memory")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
 
 	entry, err := t.service.Save(ctx, memory.Entry{
 		UserID:   userID,

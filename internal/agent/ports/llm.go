@@ -1,6 +1,9 @@
 package ports
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // LLMClient represents any LLM provider
 type LLMClient interface {
@@ -102,6 +105,7 @@ const (
 	MessageSourceToolResult     MessageSource = "tool_result"
 	MessageSourceDebug          MessageSource = "debug"
 	MessageSourceEvaluation     MessageSource = "evaluation"
+	MessageSourceImportant      MessageSource = "important_notice"
 )
 
 type Message struct {
@@ -113,6 +117,17 @@ type Message struct {
 	Metadata    map[string]any        `json:"metadata,omitempty"`
 	Attachments map[string]Attachment `json:"attachments,omitempty"`
 	Source      MessageSource         `json:"source,omitempty"`
+}
+
+// ImportantNote captures high-signal, user-personalized snippets that should
+// survive context compression and be reattached to the conversation window on
+// demand.
+type ImportantNote struct {
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	Source    string    `json:"source,omitempty"`
+	Tags      []string  `json:"tags,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Attachment represents a binary asset (image, audio, etc.) referenced within a

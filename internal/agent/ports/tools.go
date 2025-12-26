@@ -82,6 +82,7 @@ type TaskState struct {
 	Attachments            map[string]Attachment
 	AttachmentIterations   map[string]int
 	PendingUserAttachments map[string]Attachment
+	Important              map[string]ImportantNote
 	Plans                  []PlanNode
 	Beliefs                []Belief
 	KnowledgeRefs          []KnowledgeReference
@@ -148,6 +149,7 @@ type TaskResult struct {
 	TaskID       string // The unique task identifier for this execution
 	ParentTaskID string // The parent task identifier when invoked as a subtask
 	Duration     time.Duration
+	Important    map[string]ImportantNote
 	Workflow     *workflow.WorkflowSnapshot
 }
 
