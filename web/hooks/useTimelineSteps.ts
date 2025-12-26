@@ -40,6 +40,21 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       return `${trimmed.slice(0, max)}…`;
     };
 
+    const fallbackTimestamp = (() => {
+      for (const evt of events) {
+        const parsed = Date.parse((evt as any).timestamp ?? '');
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+      return 0;
+    })();
+
+    const parseTimestamp = (value: unknown): number => {
+      const parsed = Date.parse(typeof value === 'string' ? value : '');
+      return Number.isFinite(parsed) ? parsed : fallbackTimestamp;
+    };
+
     const toStageKey = (value: unknown) =>
       typeof value === 'string' ? value.trim().toLowerCase() : '';
 
@@ -73,12 +88,10 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       }
 
       if (event.event_type === 'workflow.result.final') {
-        const ts = Date.parse(event.timestamp ?? '') || Date.now();
-        terminal = { kind: 'final', ts };
+        terminal = { kind: 'final', ts: parseTimestamp(event.timestamp) };
       }
       if (event.event_type === 'workflow.result.cancelled') {
-        const ts = Date.parse(event.timestamp ?? '') || Date.now();
-        terminal = { kind: 'cancelled', ts };
+        terminal = { kind: 'cancelled', ts: parseTimestamp(event.timestamp) };
       }
 
       if (isWorkflowNodeStartedEvent(event)) {

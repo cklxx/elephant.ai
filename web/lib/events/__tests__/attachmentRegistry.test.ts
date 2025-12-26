@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { handleAttachmentEvent, resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
+import { handleAttachmentEvent, ingestRecalledAttachments, resetAttachmentRegistry } from '@/lib/events/attachmentRegistry';
 import { WorkflowResultFinalEvent, WorkflowToolCompletedEvent, WorkflowInputReceivedEvent } from '@/lib/types';
 
 const baseToolCallEvent = (): WorkflowToolCompletedEvent => ({
@@ -259,5 +259,31 @@ describe('attachmentRegistry', () => {
 
     expect(newerTaskComplete.attachments?.['future.md']).toBeDefined();
     expect(earlierTaskComplete.attachments).toBeUndefined();
+  });
+
+  it('keeps recalled attachments hidden unless referenced', () => {
+    ingestRecalledAttachments({
+      'history.pdf': {
+        name: 'history.pdf',
+        media_type: 'application/pdf',
+        uri: 'https://example.com/history.pdf',
+        visibility: 'recalled',
+      },
+    }, Date.parse('2024-01-01T00:00:00.000Z'));
+
+    const summaryOnly: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
+      final_answer: 'Summary only.',
+    };
+    handleAttachmentEvent(summaryOnly);
+    expect(summaryOnly.attachments).toBeUndefined();
+
+    const referenced: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
+      final_answer: 'See [history.pdf] for details.',
+    };
+    handleAttachmentEvent(referenced);
+    expect(referenced.attachments?.['history.pdf']).toBeDefined();
+    expect(referenced.attachments?.['history.pdf']?.visibility).toBe('recalled');
   });
 });
