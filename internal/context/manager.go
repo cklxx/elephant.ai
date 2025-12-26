@@ -182,7 +182,7 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	)
 
 	for _, msg := range messages {
-		if msg.Source == ports.MessageSourceSystemPrompt {
+		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
 			compressed = append(compressed, msg)
 			continue
 		}

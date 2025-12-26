@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -151,9 +152,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}
 
 	var (
-		initialWorldState map[string]any
-		initialWorldDiff  map[string]any
-		window            ports.ContextWindow
+		initialWorldState    map[string]any
+		initialWorldDiff     map[string]any
+		window               ports.ContextWindow
+		contextWasCompressed bool
 	)
 
 	toolMode := presets.ToolMode(strings.TrimSpace(s.config.ToolMode))
@@ -208,6 +210,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			session.Messages = window.Messages
 			initialWorldState, initialWorldDiff = buildWorldStateFromWindow(window)
 			if compressedCount := len(window.Messages); compressedCount < originalCount {
+				contextWasCompressed = true
 				compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
 					ports.LevelCore,
 					session.ID,
@@ -239,6 +242,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}
 
 	preloadedAttachments := collectSessionAttachments(session)
+	preloadedImportant := collectSessionImportant(session)
 	inheritedAttachments, inheritedIterations := GetInheritedAttachments(ctx)
 	if len(inheritedAttachments) > 0 {
 		if preloadedAttachments == nil {
@@ -266,6 +270,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			preloadedAttachments = make(map[string]ports.Attachment)
 		}
 		mergeAttachmentMaps(preloadedAttachments, inheritedState.Attachments)
+	}
+	if inheritedState != nil && len(inheritedState.Important) > 0 {
+		mergeImportantNotes(preloadedImportant, inheritedState.Important)
+	}
+	if contextWasCompressed && len(preloadedImportant) > 0 {
+		if msg := buildImportantNotesMessage(preloadedImportant); msg != nil {
+			window.Messages = append(window.Messages, *msg)
+			session.Messages = append(session.Messages, *msg)
+		}
 	}
 
 	taskAnalysis, preferSmallModel := s.preAnalyzeTask(ctx, session, task)
@@ -336,6 +349,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		ParentTaskID:         ids.ParentTaskID,
 		Attachments:          preloadedAttachments,
 		AttachmentIterations: make(map[string]int),
+		Important:            preloadedImportant,
 		Plans:                nil,
 		Beliefs:              nil,
 		KnowledgeRefs:        nil,
@@ -683,6 +697,94 @@ func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]p
 	}
 }
 
+func collectSessionImportant(session *ports.Session) map[string]ports.ImportantNote {
+	notes := make(map[string]ports.ImportantNote)
+	if session == nil {
+		return notes
+	}
+	mergeImportantNotes(notes, session.Important)
+	return notes
+}
+
+func mergeImportantNotes(target map[string]ports.ImportantNote, source map[string]ports.ImportantNote) {
+	if len(source) == 0 {
+		return
+	}
+	for key, note := range source {
+		id := strings.TrimSpace(key)
+		if id == "" {
+			id = strings.TrimSpace(note.ID)
+		}
+		if id == "" {
+			continue
+		}
+		if note.ID == "" {
+			note.ID = id
+		}
+		target[id] = note
+	}
+}
+
+func buildImportantNotesMessage(notes map[string]ports.ImportantNote) *ports.Message {
+	if len(notes) == 0 {
+		return nil
+	}
+	type annotated struct {
+		id   string
+		note ports.ImportantNote
+	}
+	items := make([]annotated, 0, len(notes))
+	for id, note := range notes {
+		content := strings.TrimSpace(note.Content)
+		if content == "" {
+			continue
+		}
+		note.Content = content
+		items = append(items, annotated{id: id, note: note})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left := items[i].note.CreatedAt
+		right := items[j].note.CreatedAt
+		if !left.Equal(right) {
+			return left.Before(right)
+		}
+		return items[i].id < items[j].id
+	})
+
+	var builder strings.Builder
+	builder.WriteString("Important session notes (auto-recalled after compression):\n")
+	for idx, item := range items {
+		builder.WriteString(fmt.Sprintf("%d. %s", idx+1, item.note.Content))
+		var metaParts []string
+		if len(item.note.Tags) > 0 {
+			metaParts = append(metaParts, fmt.Sprintf("tags: %s", strings.Join(item.note.Tags, ",")))
+		}
+		if source := strings.TrimSpace(item.note.Source); source != "" {
+			metaParts = append(metaParts, fmt.Sprintf("source: %s", source))
+		}
+		if !item.note.CreatedAt.IsZero() {
+			metaParts = append(metaParts, fmt.Sprintf("recorded: %s", item.note.CreatedAt.Format(time.RFC3339)))
+		}
+		if len(metaParts) > 0 {
+			builder.WriteString(" (")
+			builder.WriteString(strings.Join(metaParts, "; "))
+			builder.WriteString(")")
+		}
+		if idx < len(items)-1 {
+			builder.WriteString("\n")
+		}
+	}
+
+	return &ports.Message{
+		Role:    "system",
+		Content: builder.String(),
+		Source:  ports.MessageSourceImportant,
+	}
+}
+
 var visionPlaceholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)
 
 func taskNeedsVision(task string, attachments map[string]ports.Attachment, userAttachments []ports.Attachment) bool {
@@ -765,6 +867,12 @@ func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.
 			state.Attachments = make(map[string]ports.Attachment)
 		}
 		mergeAttachmentMaps(state.Attachments, snapshot.Attachments)
+	}
+	if len(snapshot.Important) > 0 {
+		if state.Important == nil {
+			state.Important = make(map[string]ports.ImportantNote)
+		}
+		mergeImportantNotes(state.Important, snapshot.Important)
 	}
 	if len(snapshot.AttachmentIterations) > 0 {
 		if state.AttachmentIterations == nil {

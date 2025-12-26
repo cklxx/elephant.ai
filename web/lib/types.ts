@@ -76,6 +76,7 @@ export interface AttachmentPayload {
   format?: string;
   preview_profile?: string;
   preview_assets?: AttachmentPreviewAssetPayload[];
+  visibility?: 'default' | 'recalled' | string;
   retention_ttl_seconds?: number;
   size?: number;
 }

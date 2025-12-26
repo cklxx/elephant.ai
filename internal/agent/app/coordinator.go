@@ -466,6 +466,11 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	} else {
 		session.Attachments = nil
 	}
+	if len(result.Important) > 0 {
+		session.Important = ports.CloneImportantNotes(result.Important)
+	} else {
+		session.Important = nil
+	}
 	session.UpdatedAt = c.clock.Now()
 
 	if session.Metadata == nil {
@@ -514,6 +519,7 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 		SessionID:    state.SessionID,
 		TaskID:       state.TaskID,
 		ParentTaskID: state.ParentTaskID,
+		Important:    ports.CloneImportantNotes(state.Important),
 	}
 
 	if result.SessionID == "" {
