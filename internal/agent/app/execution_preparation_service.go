@@ -1002,6 +1002,13 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	}
 	client = s.costDecorator.Wrap(ctx, session.ID, client)
 
+	taskNameRule := `- task_name must be a short single-line title (<= 32 chars), suitable for a session title.` + "\n\n"
+	if session != nil {
+		if strings.TrimSpace(session.Metadata["title"]) != "" {
+			taskNameRule = `- task_name must be an empty string because the session already has a title.` + "\n\n"
+		}
+	}
+
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{
@@ -1014,7 +1021,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 					`- recommended_model="default": use the default (stronger) model.\n\n` +
 					"Output requirements:\n" +
 					`- Respond ONLY with JSON.\n` +
-					`- task_name must be a short single-line title (<= 32 chars), suitable for a session title.\n\n` +
+					taskNameRule +
 					`Schema: {"complexity":"simple|complex","recommended_model":"small|default","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
 					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}],` +
 					`"retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""}}`,

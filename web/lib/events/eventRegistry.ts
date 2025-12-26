@@ -2,6 +2,7 @@ import { AnyAgentEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { handleEnvironmentSnapshot } from '@/hooks/useDiagnostics';
 import { handleAttachmentEvent } from './attachmentRegistry';
 import { useSessionStore } from '@/hooks/useSessionStore';
+import { apiClient } from '@/lib/api';
 
 type EventSideEffect = (event: AnyAgentEvent) => void;
 
@@ -31,22 +32,21 @@ function handlePlanGoal(event: AnyAgentEvent) {
     return;
   }
 
-  const metadata = planEvent.metadata ?? {};
-  const goalCandidate = [
-    metadata.session_title,
-    metadata.title,
-    metadata.overall_goal_ui,
-    metadata.overall_goal,
-    metadata.internal_plan?.overall_goal,
-    planEvent.result,
-  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
-
-  if (!goalCandidate) {
+  const { renameSession, sessionLabels } = useSessionStore.getState();
+  if (sessionLabels?.[sessionId]?.trim()) {
     return;
   }
 
-  const { renameSession } = useSessionStore.getState();
-  renameSession(sessionId, normalizeSessionTitle(goalCandidate));
+  void apiClient
+    .getSessionTitle(sessionId)
+    .then((title) => {
+      const normalized = normalizeSessionTitle(title ?? '');
+      if (!normalized) {
+        return;
+      }
+      renameSession(sessionId, normalized);
+    })
+    .catch(() => {});
 }
 
 export class EventRegistry {
