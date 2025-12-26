@@ -101,7 +101,9 @@ export function ArtifactPreviewCard({
 
   // Effect to load markdown (for snippet + modal).
   useEffect(() => {
-    if (!isMarkdown || !downloadUri) return;
+    const uri = downloadUri;
+    if (!isMarkdown || !uri) return;
+    const markdownUri: string = uri;
     if (!prefetchRequested && !isPreviewOpen) return;
     if (markdownPreview !== null) return;
 
@@ -110,7 +112,7 @@ export function ArtifactPreviewCard({
 
     async function fetchMd() {
       try {
-        const res = await fetch(downloadUri);
+        const res = await fetch(markdownUri);
         const text = await res.text();
         if (!cancelled) setMarkdownPreview(text);
       } catch (e) {

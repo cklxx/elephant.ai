@@ -200,28 +200,30 @@ export function useTimelineSteps(events: AnyAgentEvent[]): TimelineStep[] {
       }
     });
 
-    if (terminal) {
+    const terminalInfo = terminal;
+    if (terminalInfo) {
+      const { ts, kind } = terminalInfo;
       for (const [id, step] of steps.entries()) {
         if (step.status !== 'active') continue;
-        const endTime = terminal.ts;
-        const nextStatus = terminal.kind === 'cancelled' ? 'failed' : 'done';
+        const endTime = ts;
+        const nextStatus = kind === 'cancelled' ? 'failed' : 'done';
         steps.set(id, {
           ...step,
           status: nextStatus,
           endTime,
           duration: typeof step.startTime === 'number' ? endTime - step.startTime : undefined,
-          error: terminal.kind === 'cancelled' ? (step.error ?? 'Cancelled') : step.error,
+          error: kind === 'cancelled' ? (step.error ?? 'Cancelled') : step.error,
         });
       }
       for (const [iteration, step] of iterationFallback.entries()) {
         if (step.status !== 'active') continue;
-        const endTime = terminal.ts;
+        const endTime = ts;
         iterationFallback.set(iteration, {
           ...step,
-          status: terminal.kind === 'cancelled' ? 'failed' : 'done',
+          status: kind === 'cancelled' ? 'failed' : 'done',
           endTime,
           duration: typeof step.startTime === 'number' ? endTime - step.startTime : undefined,
-          error: terminal.kind === 'cancelled' ? (step.error ?? 'Cancelled') : step.error,
+          error: kind === 'cancelled' ? (step.error ?? 'Cancelled') : step.error,
         });
       }
     }
