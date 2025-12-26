@@ -121,6 +121,7 @@ type AttachmentPayload struct {
 	MediaType           string `json:"media_type"`
 	Data                string `json:"data,omitempty"`
 	URI                 string `json:"uri,omitempty"`
+	Source              string `json:"source,omitempty"`
 	Description         string `json:"description,omitempty"`
 	Kind                string `json:"kind,omitempty"`
 	Format              string `json:"format,omitempty"`
