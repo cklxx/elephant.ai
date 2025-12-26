@@ -67,31 +67,60 @@ function extractTitle(markdownBody) {
   return '';
 }
 
-async function loadSkills(skillsDir) {
-  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-  const mdFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'))
-    .map((entry) => entry.name)
-    .sort((a, b) => a.localeCompare(b));
+function isMarkdown(name) {
+  const lowered = name.toLowerCase();
+  return lowered.endsWith('.md') || lowered.endsWith('.mdx');
+}
 
+async function discoverSkillFiles(skillsDir) {
+  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      for (const candidate of ['SKILL.md', 'SKILL.mdx']) {
+        const candidatePath = path.join(skillsDir, entry.name, candidate);
+        const stat = await fs.stat(candidatePath).catch(() => null);
+        if (stat?.isFile()) {
+          files.push(candidatePath);
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (entry.isFile() && isMarkdown(entry.name)) {
+      files.push(path.join(skillsDir, entry.name));
+    }
+  }
+
+  return files.sort((a, b) => a.localeCompare(b));
+}
+
+async function loadSkills(skillsDir, repoRoot) {
+  const skillFiles = await discoverSkillFiles(skillsDir);
   const skills = [];
 
-  for (const fileName of mdFiles) {
-    const fullPath = path.join(skillsDir, fileName);
-    const raw = await fs.readFile(fullPath, 'utf8');
+  for (const filePath of skillFiles) {
+    const raw = await fs.readFile(filePath, 'utf8');
     const { frontmatter, body } = splitFrontmatter(raw);
     const meta = parseFrontmatter(frontmatter);
-    const fallbackName = fileName.replace(/\.md$/i, '');
+    const fileName = path.basename(filePath);
+    const fallbackName = fileName.replace(/\.mdx?$/i, '');
     const name = (meta.name || fallbackName).trim() || fallbackName;
     const title = extractTitle(body) || name;
     const description = (meta.description || '').trim();
+    const sourcePath = path
+      .relative(repoRoot, filePath)
+      .split(path.sep)
+      .join('/');
 
     skills.push({
       name,
       title,
       description,
       markdown: body.trim(),
-      sourcePath: `skills/${fileName}`,
+      sourcePath,
     });
   }
 
@@ -107,7 +136,7 @@ async function main() {
   const outputDir = path.join(repoRoot, 'web', 'lib', 'generated');
   const outputFile = path.join(outputDir, 'skillsCatalog.json');
 
-  const skills = await loadSkills(skillsDir);
+  const skills = await loadSkills(skillsDir, repoRoot);
   const payload = { skills };
 
   await fs.mkdir(outputDir, { recursive: true });

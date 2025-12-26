@@ -12,7 +12,7 @@ func TestLoadParsesFrontMatterAndTitle(t *testing.T) {
 
 	dir := t.TempDir()
 	content := `---
-name: video_production
+name: video-production
 description: Create a video from brief to export.
 ---
 # Video Production
@@ -28,12 +28,12 @@ Some body text.
 		t.Fatalf("load: %v", err)
 	}
 
-	skill, ok := lib.Get("video_production")
+	skill, ok := lib.Get("video-production")
 	if !ok {
 		t.Fatalf("expected skill to be present")
 	}
-	if skill.Name != "video_production" {
-		t.Fatalf("expected name video_production, got %q", skill.Name)
+	if skill.Name != "video-production" {
+		t.Fatalf("expected name video-production, got %q", skill.Name)
 	}
 	if skill.Description == "" {
 		t.Fatalf("expected description to be populated")
@@ -56,7 +56,7 @@ func TestLoadSupportsSkillDirectories(t *testing.T) {
 	}
 
 	content := `---
-name: pdf_processing
+name: pdf-processing
 description: Extract text and tables from PDFs.
 ---
 # PDF Processing
@@ -73,7 +73,7 @@ Steps...
 		t.Fatalf("load: %v", err)
 	}
 
-	skill, ok := lib.Get("pdf_processing")
+	skill, ok := lib.Get("pdf-processing")
 	if !ok {
 		t.Fatalf("expected skill to be present")
 	}
@@ -104,7 +104,7 @@ func TestIndexMarkdownIncludesSkillList(t *testing.T) {
 
 	dir := t.TempDir()
 	content := `---
-name: ppt_deck
+name: ppt-deck
 description: Build a PPT deck playbook.
 ---
 # PPT Deck
@@ -124,7 +124,7 @@ Body.
 	if !strings.Contains(index, "Skills Catalog") {
 		t.Fatalf("expected header in index, got %q", index)
 	}
-	if !strings.Contains(index, "`ppt_deck`") {
+	if !strings.Contains(index, "`ppt-deck`") {
 		t.Fatalf("expected skill name in index, got %q", index)
 	}
 }

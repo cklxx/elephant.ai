@@ -67,7 +67,7 @@ func TestSkillsToolSearch(t *testing.T) {
 	t.Setenv("ALEX_SKILLS_DIR", dir)
 
 	content := `---
-name: ppt_deck
+name: ppt-deck
 description: Presentation playbook.
 ---
 # PPT Deck
@@ -92,7 +92,7 @@ Body.
 	if result.Error != nil {
 		t.Fatalf("search returned error: %v", result.Error)
 	}
-	if !strings.Contains(result.Content, "`ppt_deck`") {
+	if !strings.Contains(result.Content, "`ppt-deck`") {
 		t.Fatalf("expected search to list match, got %q", result.Content)
 	}
 }
@@ -107,7 +107,7 @@ func TestSkillsToolSupportsSkillDirectories(t *testing.T) {
 	}
 
 	content := `---
-name: data_analysis
+name: data-analysis
 description: Analyze datasets and summarize insights.
 ---
 # Data Analysis
@@ -131,7 +131,7 @@ Steps...
 	if result.Error != nil {
 		t.Fatalf("list returned error: %v", result.Error)
 	}
-	if !strings.Contains(result.Content, "data_analysis") {
+	if !strings.Contains(result.Content, "data-analysis") {
 		t.Fatalf("expected list to include skill name, got %q", result.Content)
 	}
 }

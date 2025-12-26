@@ -10,10 +10,10 @@ describe('SkillsPanel', () => {
     render(<SkillsPanel />);
 
     expect(screen.getByText('Skills')).toBeInTheDocument();
-    expect(screen.getByText('ppt_deck')).toBeInTheDocument();
-    expect(screen.getByText('video_production')).toBeInTheDocument();
+    expect(screen.getByText('ppt-deck')).toBeInTheDocument();
+    expect(screen.getByText('video-production')).toBeInTheDocument();
 
     await user.click(screen.getByText('PPT 产出（从目标到可交付 Deck）'));
-    expect(screen.getByText(/何时使用/)).toBeInTheDocument();
+    expect(screen.getByText(/When to use this skill/i)).toBeInTheDocument();
   });
 });
