@@ -52,7 +52,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	taskBodyLimit := createTaskBodyLimit(envLookup)
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
+	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore))
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
 	apiHandler := NewAPIHandler(
 		coordinator,

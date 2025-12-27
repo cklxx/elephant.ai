@@ -59,11 +59,12 @@ var blockedNodePrefixes = []string{
 
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
-	broadcaster *app.EventBroadcaster
-	logger      logging.Logger
-	formatter   *domain.ToolFormatter
-	obs         *observability.Observability
-	dataCache   *DataCache
+	broadcaster     *app.EventBroadcaster
+	logger          logging.Logger
+	formatter       *domain.ToolFormatter
+	obs             *observability.Observability
+	dataCache       *DataCache
+	attachmentStore *AttachmentStore
 }
 
 // SSEHandlerOption configures optional instrumentation for the SSE handler.
@@ -80,6 +81,14 @@ func WithSSEObservability(obs *observability.Observability) SSEHandlerOption {
 func WithSSEDataCache(cache *DataCache) SSEHandlerOption {
 	return func(handler *SSEHandler) {
 		handler.dataCache = cache
+	}
+}
+
+// WithSSEAttachmentStore wires a persistent attachment store so inline
+// payloads (e.g. HTML artifacts) can be written to static storage.
+func WithSSEAttachmentStore(store *AttachmentStore) SSEHandlerOption {
+	return func(handler *SSEHandler) {
+		handler.attachmentStore = store
 	}
 }
 
@@ -419,7 +428,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 
 	// Allow direct user input events if they have not been wrapped yet.
 	if input, ok := event.(*domain.WorkflowInputReceivedEvent); ok {
-		if sanitized := sanitizeAttachmentsForStream(input.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(input.Attachments, sentAttachments, h.dataCache, h.attachmentStore, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
 		data["task"] = input.Task
@@ -460,7 +469,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		data["max_parallel"] = envelope.MaxParallel
 	}
 
-	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache)
+	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache, h.attachmentStore)
 	if envelope.Event == "workflow.result.final" {
 		if val, ok := payload["final_answer"].(string); ok {
 			key := envelope.GetTaskID()
@@ -623,14 +632,14 @@ func sanitizeStringValue(cache *DataCache, value string) interface{} {
 	return value
 }
 
-func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string, cache *DataCache, forceInclude bool) map[string]ports.Attachment {
+func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string, cache *DataCache, store *AttachmentStore, forceInclude bool) map[string]ports.Attachment {
 	if len(attachments) == 0 {
 		return nil
 	}
 
 	sanitized := make(map[string]ports.Attachment, len(attachments))
 	for name, attachment := range attachments {
-		sanitized[name] = normalizeAttachmentPayload(attachment, cache)
+		sanitized[name] = normalizeAttachmentPayload(attachment, cache, store)
 	}
 
 	if forceInclude {
@@ -670,6 +679,101 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	return unsent
 }
 
+func isHTMLAttachment(att ports.Attachment) bool {
+	media := strings.ToLower(strings.TrimSpace(att.MediaType))
+	format := strings.ToLower(strings.TrimSpace(att.Format))
+	profile := strings.ToLower(strings.TrimSpace(att.PreviewProfile))
+	return strings.Contains(media, "html") || format == "html" || strings.Contains(profile, "document.html")
+}
+
+func shouldPersistHTML(att ports.Attachment) bool {
+	if !isHTMLAttachment(att) {
+		return false
+	}
+	if strings.TrimSpace(att.URI) != "" && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") && strings.TrimSpace(att.Data) == "" {
+		return false
+	}
+	return true
+}
+
+func persistHTMLAttachment(att ports.Attachment, store *AttachmentStore) (ports.Attachment, bool) {
+	if store == nil || !shouldPersistHTML(att) {
+		return att, false
+	}
+
+	mediaType := strings.TrimSpace(att.MediaType)
+	if mediaType == "" {
+		mediaType = "text/html"
+	}
+
+	var payload []byte
+	switch {
+	case att.Data != "":
+		if decoded, err := base64.StdEncoding.DecodeString(att.Data); err == nil {
+			payload = decoded
+		}
+	case strings.HasPrefix(att.URI, "data:"):
+		if ct, decoded, ok := decodeDataURI(att.URI); ok {
+			if ct != "" {
+				mediaType = ct
+			}
+			payload = decoded
+		}
+	}
+
+	if len(payload) == 0 {
+		return att, false
+	}
+
+	uri, err := store.StoreBytes(att.Name, mediaType, payload)
+	if err != nil || strings.TrimSpace(uri) == "" {
+		return att, false
+	}
+
+	att.URI = uri
+	att.Data = ""
+	if att.MediaType == "" {
+		att.MediaType = mediaType
+	}
+	return ensureHTMLPreview(att), true
+}
+
+func ensureHTMLPreview(att ports.Attachment) ports.Attachment {
+	if !isHTMLAttachment(att) {
+		return att
+	}
+
+	if att.MediaType == "" {
+		att.MediaType = "text/html"
+	}
+	if att.Format == "" {
+		att.Format = "html"
+	}
+	if att.PreviewProfile == "" {
+		att.PreviewProfile = "document.html"
+	}
+
+	hasHTMLPreview := false
+	for _, asset := range att.PreviewAssets {
+		if strings.Contains(strings.ToLower(asset.MimeType), "html") {
+			hasHTMLPreview = true
+			break
+		}
+	}
+
+	if !hasHTMLPreview && strings.TrimSpace(att.URI) != "" {
+		att.PreviewAssets = append(att.PreviewAssets, ports.AttachmentPreviewAsset{
+			AssetID:     fmt.Sprintf("%s-html", strings.TrimSpace(att.Name)),
+			Label:       "HTML preview",
+			MimeType:    att.MediaType,
+			CDNURL:      att.URI,
+			PreviewType: "iframe",
+		})
+	}
+
+	return att
+}
+
 func shouldRetainInlinePayload(mediaType string, size int) bool {
 	if size <= 0 || size > inlineAttachmentRetentionLimit {
 		return false
@@ -688,15 +792,21 @@ func shouldRetainInlinePayload(mediaType string, size int) bool {
 }
 
 // normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
-// so SSE streams do not push large base64 blobs to the client.
-func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.Attachment {
+// or persistent attachment store entries so SSE streams do not push large base64 blobs to the client.
+func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache, store *AttachmentStore) ports.Attachment {
+	if store != nil && shouldPersistHTML(att) {
+		if rewritten, ok := persistHTMLAttachment(att, store); ok {
+			return rewritten
+		}
+	}
+
 	if cache == nil {
 		return att
 	}
 
 	// Already points to an external or cached resource.
 	if att.Data == "" && att.URI != "" && !strings.HasPrefix(att.URI, "data:") {
-		return att
+		return ensureHTMLPreview(att)
 	}
 
 	mediaType := strings.TrimSpace(att.MediaType)
@@ -716,7 +826,7 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 				if shouldRetainInlinePayload(att.MediaType, len(decoded)) {
 					att.Data = base64.StdEncoding.EncodeToString(decoded)
 				}
-				return att
+				return ensureHTMLPreview(att)
 			}
 		}
 	}
@@ -741,41 +851,41 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.At
 			} else {
 				att.Data = ""
 			}
-			return att
+			return ensureHTMLPreview(att)
 		}
 	}
 
-	return att
+	return ensureHTMLPreview(att)
 }
 
-func sanitizeEnvelopePayload(payload map[string]any, sent map[string]string, cache *DataCache) map[string]any {
+func sanitizeEnvelopePayload(payload map[string]any, sent map[string]string, cache *DataCache, store *AttachmentStore) map[string]any {
 	if len(payload) == 0 {
 		return nil
 	}
 	sanitized := make(map[string]any, len(payload))
 	for key, value := range payload {
 		if key == "attachments" {
-			sanitized[key] = sanitizeUntypedAttachments(value, sent, cache)
+			sanitized[key] = sanitizeUntypedAttachments(value, sent, cache, store)
 			continue
 		}
 		if key == "result" && cache != nil {
 			clean := sanitizeStepResultValue(value)
-			sanitized[key] = sanitizeEnvelopeValue(clean, sent, cache)
+			sanitized[key] = sanitizeEnvelopeValue(clean, sent, cache, store)
 			continue
 		}
-		sanitized[key] = sanitizeEnvelopeValue(value, sent, cache)
+		sanitized[key] = sanitizeEnvelopeValue(value, sent, cache, store)
 	}
 	return sanitized
 }
 
-func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) any {
+func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache, store *AttachmentStore) any {
 	switch v := value.(type) {
 	case nil:
 		return nil
 	case map[string]ports.Attachment:
-		return sanitizeAttachmentsForStream(v, sent, cache, false)
+		return sanitizeAttachmentsForStream(v, sent, cache, store, false)
 	case ports.Attachment:
-		if sanitized := sanitizeAttachmentsForStream(map[string]ports.Attachment{"attachment": v}, sent, cache, false); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(map[string]ports.Attachment{"attachment": v}, sent, cache, store, false); len(sanitized) > 0 {
 			return sanitized["attachment"]
 		}
 		return nil
@@ -800,7 +910,7 @@ func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) 
 		sanitized := make(map[string]any, len(v))
 		for key, val := range v {
 			if key == "attachments" {
-				sanitized[key] = sanitizeUntypedAttachments(val, sent, cache)
+				sanitized[key] = sanitizeUntypedAttachments(val, sent, cache, store)
 				continue
 			}
 			if key == "nodes" {
@@ -809,13 +919,13 @@ func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) 
 			if key == "messages" || key == "attachment_iterations" {
 				continue
 			}
-			sanitized[key] = sanitizeEnvelopeValue(val, sent, cache)
+			sanitized[key] = sanitizeEnvelopeValue(val, sent, cache, store)
 		}
 		return sanitized
 	case []any:
 		out := make([]any, len(v))
 		for i, entry := range v {
-			out[i] = sanitizeEnvelopeValue(entry, sent, cache)
+			out[i] = sanitizeEnvelopeValue(entry, sent, cache, store)
 		}
 		return out
 	default:
@@ -823,7 +933,7 @@ func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache) 
 	}
 }
 
-func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent map[string]string, cache *DataCache) map[string]any {
+func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent map[string]string, cache *DataCache, store *AttachmentStore) map[string]any {
 	if env == nil {
 		return nil
 	}
@@ -833,7 +943,7 @@ func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent map
 		payload = scrubStepPayload(payload)
 	}
 
-	return sanitizeEnvelopePayload(payload, sent, cache)
+	return sanitizeEnvelopePayload(payload, sent, cache, store)
 }
 
 func sanitizeStepResultValue(value any) any {
@@ -916,10 +1026,10 @@ func summarizeStepResult(value any) string {
 	}
 }
 
-func sanitizeUntypedAttachments(value any, sent map[string]string, cache *DataCache) any {
+func sanitizeUntypedAttachments(value any, sent map[string]string, cache *DataCache, store *AttachmentStore) any {
 	raw, ok := value.(map[string]any)
 	if !ok {
-		return sanitizeEnvelopeValue(value, sent, cache)
+		return sanitizeEnvelopeValue(value, sent, cache, store)
 	}
 
 	attachments := make(map[string]ports.Attachment)
@@ -936,10 +1046,10 @@ func sanitizeUntypedAttachments(value any, sent map[string]string, cache *DataCa
 	}
 
 	if len(attachments) == 0 {
-		return sanitizeEnvelopePayload(raw, sent, cache)
+		return sanitizeEnvelopePayload(raw, sent, cache, store)
 	}
 
-	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, false)
+	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, store, false)
 	if len(sanitized) == 0 {
 		return nil
 	}

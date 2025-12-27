@@ -259,6 +259,8 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
 		// Reserved for future config.
 	})
+	r.static["douyin_hot"] = builtin.NewDouyinHot()
+	r.static["miniapp_html"] = builtin.NewMiniAppHTML()
 
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
