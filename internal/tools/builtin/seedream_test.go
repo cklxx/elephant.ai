@@ -31,6 +31,13 @@ func stubSeedreamNonce(t *testing.T, value string) {
 	})
 }
 
+func assertContains(t *testing.T, content, needle, label string) {
+	t.Helper()
+	if !strings.Contains(content, needle) {
+		t.Fatalf("expected %s to include %q, got %q", label, needle, content)
+	}
+}
+
 func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 	stubSeedreamNonce(t, "nonce")
 
@@ -51,15 +58,9 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 
 	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, prompt)
 
-	if !strings.Contains(content, descriptor) {
-		t.Fatalf("expected content to include descriptor header, got %q", content)
-	}
-	if strings.Contains(content, prompt) {
-		t.Fatalf("expected prompt to be omitted from content, got %q", content)
-	}
-	if !strings.Contains(content, "[doubao_seedream-3_nonce_0.png]") {
-		t.Fatalf("expected content to include placeholder listing, got %q", content)
-	}
+	assertContains(t, content, descriptor, "descriptor header")
+	assertContains(t, content, "Prompt: "+prompt, "prompt line")
+	assertContains(t, content, "[doubao_seedream-3_nonce_0.png]", "placeholder listing")
 
 	if metadata["description"] != prompt {
 		t.Fatalf("expected metadata description to equal prompt, got %#v", metadata["description"])
@@ -72,6 +73,12 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 	}
 	if att.Description != prompt {
 		t.Fatalf("expected attachment description to be prompt, got %q", att.Description)
+	}
+	if att.Data != "YWJjMTIz" {
+		t.Fatalf("expected attachment to preserve base64 payload, got %q", att.Data)
+	}
+	if !strings.HasPrefix(att.URI, "data:image/png;base64,") {
+		t.Fatalf("expected data URI to be populated, got %q", att.URI)
 	}
 }
 
@@ -94,12 +101,8 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 
 	content, metadata, attachments := formatSeedreamResponse(resp, descriptor, "")
 
-	if !strings.Contains(content, descriptor) {
-		t.Fatalf("expected content to include descriptor title, got %q", content)
-	}
-	if !strings.Contains(content, "[seedream_nonce_0.png]") {
-		t.Fatalf("expected content to list placeholder names, got %q", content)
-	}
+	assertContains(t, content, descriptor, "descriptor title")
+	assertContains(t, content, "[seedream_nonce_0.png]", "placeholder name")
 
 	if metadata["description"] != descriptor {
 		t.Fatalf("expected metadata description to equal descriptor, got %#v", metadata["description"])
@@ -131,12 +134,14 @@ func TestFormatSeedreamResponsePopulatesAttachmentURIFromBase64(t *testing.T) {
 
 	content, _, attachments := formatSeedreamResponse(resp, "descriptor", "prompt")
 	placeholder := "seedream_nonce_0.png"
-	if _, ok := attachments[placeholder]; ok {
-		t.Fatalf("expected base64-only attachment %q to be omitted", placeholder)
+	att, ok := attachments[placeholder]
+	if !ok {
+		t.Fatalf("expected base64 attachment %q to be included", placeholder)
 	}
-	if !strings.Contains(content, "missing url; base64 payload omitted") {
-		t.Fatalf("expected content to mention omitted base64 payload, got %q", content)
+	if att.URI == "" || att.Data == "" {
+		t.Fatalf("expected attachment to include URI and Data fields, got %+v", att)
 	}
+	assertContains(t, content, "[seedream_nonce_0.png]", "placeholder listing")
 }
 
 func TestNormalizeSeedreamInitImageDataURI(t *testing.T) {
