@@ -1003,10 +1003,8 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	client = s.costDecorator.Wrap(ctx, session.ID, client)
 
 	taskNameRule := `- task_name must be a short single-line title (<= 32 chars), suitable for a session title.` + "\n\n"
-	if session != nil {
-		if strings.TrimSpace(session.Metadata["title"]) != "" {
-			taskNameRule = `- task_name must be an empty string because the session already has a title.` + "\n\n"
-		}
+	if strings.TrimSpace(session.Metadata["title"]) != "" {
+		taskNameRule = `- task_name must be an empty string because the session already has a title.` + "\n\n"
 	}
 
 	req := ports.CompletionRequest{
