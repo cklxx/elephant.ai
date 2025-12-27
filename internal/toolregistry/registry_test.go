@@ -1,9 +1,12 @@
 package toolregistry
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
+
+	"alex/internal/agent/ports"
 )
 
 func TestNewRegistryRegistersBuiltins(t *testing.T) {
@@ -64,5 +67,76 @@ func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 	}
 	if !slices.Contains(def.Parameters.Required, "duration_seconds") {
 		t.Fatalf("expected duration_seconds to be required: %v", def.Parameters.Required)
+	}
+}
+
+type stubLLMFactory struct {
+	provider string
+	model    string
+	client   ports.LLMClient
+}
+
+func (s *stubLLMFactory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+	s.provider = provider
+	s.model = model
+	return s.client, nil
+}
+
+func (s *stubLLMFactory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+	return s.GetClient(provider, model, config)
+}
+
+func (*stubLLMFactory) DisableRetry() {}
+
+type countingLLM struct {
+	calls int
+}
+
+func (c *countingLLM) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	c.calls++
+	return &ports.CompletionResponse{
+		Content: "<html><body>llm output</body></html>",
+	}, nil
+}
+
+func (*countingLLM) Model() string { return "stub-model" }
+
+func TestMiniAppHTMLUsesConfiguredLLM(t *testing.T) {
+	llm := &countingLLM{}
+	factory := &stubLLMFactory{client: llm}
+
+	registry, err := NewRegistry(Config{
+		LLMFactory:  factory,
+		LLMProvider: "openai",
+		LLMModel:    "gpt-4o",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	if factory.provider != "openai" || factory.model != "gpt-4o" {
+		t.Fatalf("expected factory to be called with provider/model, got %q/%q", factory.provider, factory.model)
+	}
+
+	tool, err := registry.Get("miniapp_html")
+	if err != nil {
+		t.Fatalf("expected miniapp_html to be registered: %v", err)
+	}
+
+	if _, err := tool.Execute(context.Background(), ports.ToolCall{
+		ID: "miniapp-1",
+		Arguments: map[string]any{
+			"prompt": "meme tapping game",
+			"title":  "Meme Tap",
+		},
+	}); err != nil {
+		t.Fatalf("expected tool execution to succeed: %v", err)
+	}
+
+	if llm.calls == 0 {
+		t.Fatalf("expected configured LLM to be invoked")
+	}
+	if factory.provider != "openai" || factory.model != "gpt-4o" {
+		t.Fatalf("expected factory to be called with provider/model, got %q/%q", factory.provider, factory.model)
 	}
 }

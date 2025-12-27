@@ -295,6 +295,11 @@ func BuildContainer(config Config) (*Container, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
 		ArkAPIKey:               config.ArkAPIKey,
+		LLMFactory:              llmFactory,
+		LLMProvider:             config.LLMProvider,
+		LLMModel:                config.LLMModel,
+		APIKey:                  config.APIKey,
+		BaseURL:                 config.BaseURL,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
 		SeedreamTextModel:       config.SeedreamTextModel,

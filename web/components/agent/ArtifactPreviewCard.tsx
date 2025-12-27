@@ -47,7 +47,21 @@ export function ArtifactPreviewCard({
 
   const previewAssets = attachment.preview_assets || [];
   const imageAssets = previewAssets.filter((asset) => asset.mime_type?.startsWith("image/"));
-  const htmlAsset = previewAssets.find((asset) => asset.mime_type?.includes("html"));
+  const isHTML =
+    attachment.media_type?.toLowerCase().includes("html") ||
+    attachment.format?.toLowerCase() === "html" ||
+    attachment.preview_profile?.toLowerCase().includes("document.html");
+  const htmlAsset =
+    previewAssets.find((asset) => asset.mime_type?.includes("html")) ??
+    (isHTML && attachment.uri
+      ? {
+          asset_id: `${attachment.name || "html"}-preview`,
+          label: "HTML preview",
+          mime_type: attachment.media_type || "text/html",
+          cdn_url: attachment.uri,
+          preview_type: "iframe",
+        }
+      : undefined);
   const previewImageUrl =
     imageAssets.find((asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim())?.cdn_url ??
     null;
