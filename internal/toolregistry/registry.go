@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	runtimeconfig "alex/internal/config"
+	"alex/internal/llm"
 	"alex/internal/memory"
 	"alex/internal/tools/builtin"
 )
@@ -36,7 +37,13 @@ type Config struct {
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
-	MemoryService           memory.Service
+
+	LLMFactory    ports.LLMClientFactory
+	LLMProvider   string
+	LLMModel      string
+	APIKey        string
+	BaseURL       string
+	MemoryService memory.Service
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -53,6 +60,11 @@ func NewRegistry(config Config) (*Registry, error) {
 	if err := r.registerBuiltins(Config{
 		TavilyAPIKey:            config.TavilyAPIKey,
 		ArkAPIKey:               config.ArkAPIKey,
+		LLMFactory:              config.LLMFactory,
+		LLMProvider:             config.LLMProvider,
+		LLMModel:                config.LLMModel,
+		APIKey:                  config.APIKey,
+		BaseURL:                 config.BaseURL,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
 		SeedreamTextModel:       config.SeedreamTextModel,
@@ -260,7 +272,26 @@ func (r *Registry) registerBuiltins(config Config) error {
 		// Reserved for future config.
 	})
 	r.static["douyin_hot"] = builtin.NewDouyinHot()
-	r.static["miniapp_html"] = builtin.NewMiniAppHTML()
+	miniappLLM := llm.NewMockClient()
+	provider := strings.TrimSpace(config.LLMProvider)
+	model := strings.TrimSpace(config.LLMModel)
+	if provider != "" && provider != "mock" {
+		if config.LLMFactory == nil {
+			return fmt.Errorf("miniapp_html: LLMFactory is required when provider is %q", provider)
+		}
+		if model == "" {
+			return fmt.Errorf("miniapp_html: model is required when provider is %q", provider)
+		}
+		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
+			APIKey:  config.APIKey,
+			BaseURL: config.BaseURL,
+		})
+		if err != nil {
+			return fmt.Errorf("miniapp_html: failed to create LLM client: %w", err)
+		}
+		miniappLLM = client
+	}
+	r.static["miniapp_html"] = builtin.NewMiniAppHTMLWithLLM(miniappLLM)
 
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
