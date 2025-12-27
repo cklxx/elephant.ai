@@ -32,7 +32,10 @@ export const useSessionStore = create<SessionState>()(
       addToHistory: (sessionId: string) =>
         set((state) => {
           const currentHistory = state.sessionHistory ?? [];
-          const nextHistory = [sessionId, ...currentHistory.filter((id) => id !== sessionId)];
+          if (!sessionId || currentHistory.includes(sessionId)) {
+            return state;
+          }
+          const nextHistory = [sessionId, ...currentHistory];
 
           return {
             sessionHistory: nextHistory.slice(0, MAX_HISTORY),

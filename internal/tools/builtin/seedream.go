@@ -571,9 +571,14 @@ func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (
 		return &ports.ToolResult{CallID: call.ID, Content: msg}, nil
 	}
 
-	images := readStringSlice(call.Arguments["images"])
-	if len(images) == 0 {
+	rawImages := readStringSlice(call.Arguments["images"])
+	if len(rawImages) == 0 {
 		err := errors.New("images parameter must include at least one URL or data URI")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	images, sourceNote, err := resolveSeedreamVisionImages(ctx, rawImages)
+	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
@@ -581,6 +586,13 @@ func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		prompt = "Describe the images in detail."
+	}
+	if sourceNote != "" {
+		if prompt != "" {
+			prompt = prompt + "\n\n" + sourceNote
+		} else {
+			prompt = sourceNote
+		}
 	}
 
 	detail := responses.ContentItemImageDetail_auto.Enum()
@@ -1534,6 +1546,115 @@ func resolveSeedreamInitImagePlaceholder(ctx context.Context, raw string) (strin
 	}
 
 	return "", "", false
+}
+
+type seedreamVisionImageSourceEntry struct {
+	name   string
+	source string
+}
+
+func resolveSeedreamVisionImages(ctx context.Context, rawImages []string) ([]string, string, error) {
+	resolved := make([]string, 0, len(rawImages))
+	seen := make(map[string]bool)
+	var sources []seedreamVisionImageSourceEntry
+
+	for _, raw := range rawImages {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+		if isSeedreamVisionImageReference(trimmed) {
+			resolved = append(resolved, trimmed)
+			continue
+		}
+
+		if name, ok := extractPlaceholderIdentifier(trimmed); ok {
+			value, canonical, source, ok := resolveSeedreamAttachmentByName(ctx, name)
+			if !ok {
+				return nil, "", fmt.Errorf("image placeholder [%s] could not be resolved via attachment context", name)
+			}
+			resolved = append(resolved, value)
+			sources = appendSeedreamVisionSourceEntry(sources, seen, canonical, source)
+			continue
+		}
+
+		value, canonical, source, ok := resolveSeedreamAttachmentByName(ctx, trimmed)
+		if ok {
+			resolved = append(resolved, value)
+			sources = appendSeedreamVisionSourceEntry(sources, seen, canonical, source)
+			continue
+		}
+
+		return nil, "", fmt.Errorf("image value %q must be an HTTPS URL, data URI, or attachment placeholder", trimmed)
+	}
+
+	return resolved, buildSeedreamVisionImageSourceNote(sources), nil
+}
+
+func isSeedreamVisionImageReference(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "data:")
+}
+
+func resolveSeedreamAttachmentByName(ctx context.Context, name string) (string, string, string, bool) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", "", "", false
+	}
+
+	attachments, _ := ports.GetAttachmentContext(ctx)
+	if len(attachments) == 0 {
+		return "", "", "", false
+	}
+
+	if att, exists := attachments[trimmed]; exists {
+		if resolved := attachmentReferenceValueForTool(att); resolved != "" {
+			return resolved, trimmed, strings.TrimSpace(att.Source), true
+		}
+	}
+
+	lowerName := strings.ToLower(trimmed)
+	for key, att := range attachments {
+		if strings.ToLower(strings.TrimSpace(key)) != lowerName {
+			continue
+		}
+		if resolved := attachmentReferenceValueForTool(att); resolved != "" {
+			canonical := strings.TrimSpace(key)
+			if canonical == "" {
+				canonical = strings.TrimSpace(att.Name)
+			}
+			return resolved, canonical, strings.TrimSpace(att.Source), true
+		}
+	}
+
+	return "", "", "", false
+}
+
+func appendSeedreamVisionSourceEntry(entries []seedreamVisionImageSourceEntry, seen map[string]bool, name, source string) []seedreamVisionImageSourceEntry {
+	trimmedName := strings.TrimSpace(name)
+	trimmedSource := strings.TrimSpace(source)
+	if trimmedName == "" || trimmedSource == "" {
+		return entries
+	}
+	if seen[trimmedName] {
+		return entries
+	}
+	seen[trimmedName] = true
+	return append(entries, seedreamVisionImageSourceEntry{name: trimmedName, source: trimmedSource})
+}
+
+func buildSeedreamVisionImageSourceNote(entries []seedreamVisionImageSourceEntry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	builder.WriteString("Image sources:\n")
+	for i, entry := range entries {
+		builder.WriteString(fmt.Sprintf("- %s: %s", entry.name, entry.source))
+		if i < len(entries)-1 {
+			builder.WriteString("\n")
+		}
+	}
+	return builder.String()
 }
 
 func extractPlaceholderIdentifier(value string) (string, bool) {

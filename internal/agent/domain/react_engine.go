@@ -1132,20 +1132,37 @@ func (e *ReactEngine) expandToolCallArguments(toolName string, args map[string]a
 		return args
 	}
 
-	// Artifact tools operate on attachment filenames; expanding them into URIs
-	// breaks name-based operations (e.g., artifacts_list/delete).
-	var skipKeys map[string]bool
 	switch strings.TrimSpace(toolName) {
+	case "vision_analyze":
+		preserve := map[string]bool{"images": true, "prompt": true}
+		return e.expandToolArgsPreservingKeys(args, state, preserve)
 	case "artifacts_list":
-		skipKeys = map[string]bool{"name": true}
+		skipKeys := map[string]bool{"name": true}
+		return e.expandToolArgsSkippingKeys(args, state, skipKeys)
 	case "artifacts_write":
-		skipKeys = map[string]bool{"name": true}
+		skipKeys := map[string]bool{"name": true}
+		return e.expandToolArgsSkippingKeys(args, state, skipKeys)
 	case "artifacts_delete":
-		skipKeys = map[string]bool{"name": true, "names": true}
+		skipKeys := map[string]bool{"name": true, "names": true}
+		return e.expandToolArgsSkippingKeys(args, state, skipKeys)
 	default:
 		return e.expandPlaceholders(args, state)
 	}
+}
 
+func (e *ReactEngine) expandToolArgsPreservingKeys(args map[string]any, state *TaskState, preserveKeys map[string]bool) map[string]any {
+	expanded := make(map[string]any, len(args))
+	for key, value := range args {
+		if preserveKeys[key] {
+			expanded[key] = value
+			continue
+		}
+		expanded[key] = e.expandPlaceholderValue(value, state)
+	}
+	return expanded
+}
+
+func (e *ReactEngine) expandToolArgsSkippingKeys(args map[string]any, state *TaskState, skipKeys map[string]bool) map[string]any {
 	expanded := make(map[string]any, len(args))
 	for key, value := range args {
 		if skipKeys[key] {

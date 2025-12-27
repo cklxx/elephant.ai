@@ -22,7 +22,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
-	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clearify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clearify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clearify unless you need user input."
+	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clearify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clearify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clearify unless you need user input. Avoid emojis in responses unless the user explicitly requests them."
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -1002,6 +1002,11 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	}
 	client = s.costDecorator.Wrap(ctx, session.ID, client)
 
+	taskNameRule := `- task_name must be a short single-line title (<= 32 chars), suitable for a session title.` + "\n\n"
+	if strings.TrimSpace(session.Metadata["title"]) != "" {
+		taskNameRule = `- task_name must be an empty string because the session already has a title.` + "\n\n"
+	}
+
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{
@@ -1014,7 +1019,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 					`- recommended_model="default": use the default (stronger) model.\n\n` +
 					"Output requirements:\n" +
 					`- Respond ONLY with JSON.\n` +
-					`- task_name must be a short single-line title (<= 32 chars), suitable for a session title.\n\n` +
+					taskNameRule +
 					`Schema: {"complexity":"simple|complex","recommended_model":"small|default","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
 					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}],` +
 					`"retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""}}`,

@@ -505,6 +505,10 @@ func (r *CLIRenderer) renderMarkdown(content string) string {
 		return content
 	}
 
+	rendered = trimWhitespaceLineEdges(rendered)
+	if rendered == "" {
+		return ""
+	}
 	return strings.TrimRight(rendered, "\n") + "\n"
 }
 
@@ -542,11 +546,63 @@ func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNe
 		return content
 	}
 
+	rendered = trimWhitespaceLineEdges(rendered)
 	rendered = strings.TrimRight(rendered, "\n")
 	if ensureTrailingNewline {
 		rendered += "\n"
 	}
 	return rendered
+}
+
+// trimWhitespaceLineEdges removes leading/trailing whitespace-only lines from
+// rendered markdown to avoid extra blank lines in streaming output.
+func trimWhitespaceLineEdges(rendered string) string {
+	if rendered == "" {
+		return rendered
+	}
+
+	lines := strings.Split(rendered, "\n")
+	start := 0
+	for start < len(lines) && isWhitespaceLine(lines[start]) {
+		start++
+	}
+	end := len(lines)
+	for end > start && isWhitespaceLine(lines[end-1]) {
+		end--
+	}
+	if start == 0 && end == len(lines) {
+		return rendered
+	}
+	return strings.Join(lines[start:end], "\n")
+}
+
+func isWhitespaceLine(line string) bool {
+	return strings.TrimSpace(stripANSI(line)) == ""
+}
+
+func stripANSI(input string) string {
+	if input == "" {
+		return input
+	}
+
+	var out strings.Builder
+	out.Grow(len(input))
+	for i := 0; i < len(input); {
+		if input[i] == 0x1b && i+1 < len(input) && input[i+1] == '[' {
+			i += 2
+			for i < len(input) {
+				c := input[i]
+				i++
+				if c >= 0x40 && c <= 0x7e {
+					break
+				}
+			}
+			continue
+		}
+		out.WriteByte(input[i])
+		i++
+	}
+	return out.String()
 }
 
 // filterSystemReminders removes <system-reminder> tags from output

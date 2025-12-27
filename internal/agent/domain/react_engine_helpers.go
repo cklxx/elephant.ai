@@ -759,9 +759,16 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 			continue
 		}
 		builder.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
+		var meta []string
 		description := strings.TrimSpace(att.Description)
 		if description != "" {
-			builder.WriteString(" — " + description)
+			meta = append(meta, description)
+		}
+		if source := strings.TrimSpace(att.Source); source != "" {
+			meta = append(meta, "source: "+source)
+		}
+		if len(meta) > 0 {
+			builder.WriteString(" — " + strings.Join(meta, " | "))
 		}
 		builder.WriteString("\n")
 	}

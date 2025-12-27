@@ -250,6 +250,23 @@ export async function getSessionDetails(
   };
 }
 
+export async function getSessionTitle(
+  sessionId: string,
+): Promise<string | null> {
+  type SessionRecord = {
+    id: string;
+    metadata?: Record<string, string>;
+  };
+
+  const session = await fetchAPI<SessionRecord>(`/api/sessions/${sessionId}`);
+  const title = session?.metadata?.title;
+  if (typeof title !== "string") {
+    return null;
+  }
+  const trimmed = title.trim();
+  return trimmed ? trimmed : null;
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
   await fetchAPI(`/api/sessions/${sessionId}`, {
     method: "DELETE",
@@ -345,6 +362,7 @@ export const apiClient = {
   createSession,
   listSessions,
   getSessionDetails,
+  getSessionTitle,
   deleteSession,
   forkSession,
   listEvaluations,
