@@ -18,8 +18,13 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/attachments"
+	"alex/internal/config"
 	"alex/internal/httpclient"
 	"alex/internal/logging"
+	"alex/internal/materials"
+	materialapi "alex/internal/materials/api"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/utils"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
@@ -262,7 +267,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 	req := arkm.GenerateImagesRequest{
 		Model:          t.config.Model,
 		Prompt:         prompt,
-		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatURL),
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
 		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
@@ -286,7 +291,7 @@ func (t *seedreamTextTool) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
 
-	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
+	content, metadata, attachments := formatSeedreamResponseWithContext(ctx, &resp, t.config.ModelDescriptor, prompt)
 	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
@@ -371,7 +376,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		Model:          t.config.Model,
 		Prompt:         strings.TrimSpace(prompt),
 		Image:          normalizedImage,
-		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatURL),
+		ResponseFormat: volcengine.String(arkm.GenerateImagesResponseFormatBase64),
 		Watermark:      volcengine.Bool(false),
 	}
 	applyImageRequestOptions(&req, call.Arguments)
@@ -395,7 +400,7 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: apiErr, Error: errors.New(apiErr)}, nil
 	}
 
-	content, metadata, attachments := formatSeedreamResponse(&resp, t.config.ModelDescriptor, prompt)
+	content, metadata, attachments := formatSeedreamResponseWithContext(ctx, &resp, t.config.ModelDescriptor, prompt)
 	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: metadata, Attachments: attachments}, nil
 }
 
@@ -935,12 +940,17 @@ func seedreamMissingConfigMessage(config SeedreamConfig) string {
 }
 
 func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string) (string, map[string]any, map[string]ports.Attachment) {
+	return formatSeedreamResponseWithContext(context.Background(), resp, descriptor, prompt)
+}
+
+func formatSeedreamResponseWithContext(ctx context.Context, resp *arkm.ImagesResponse, descriptor, prompt string) (string, map[string]any, map[string]ports.Attachment) {
 	if resp == nil {
 		return "Seedream returned an empty response.", nil, nil
 	}
 
 	images := make([]map[string]any, 0, len(resp.Data))
 	attachments := make(map[string]ports.Attachment)
+	placeholders := make([]string, 0, len(resp.Data))
 
 	requestID := seedreamAttachmentPrefix(resp.Model, resp.Created)
 
@@ -949,33 +959,58 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 	if attachmentDescription == "" {
 		attachmentDescription = strings.TrimSpace(descriptor)
 	}
+	if attachmentDescription == "" {
+		attachmentDescription = "Seedream image"
+	}
 
 	for idx, item := range resp.Data {
 		if item == nil {
 			continue
 		}
 		entry := map[string]any{"index": idx}
-		var urlStr string
-		if item.Url != nil && *item.Url != "" {
-			urlStr = *item.Url
-			entry["url"] = urlStr
+		if strings.TrimSpace(item.Size) != "" {
+			entry["size"] = strings.TrimSpace(item.Size)
 		}
+
 		placeholder := fmt.Sprintf("%s_%d.png", requestID, idx)
 		entry["placeholder"] = placeholder
-		attachmentURI := strings.TrimSpace(urlStr)
-		if attachmentURI == "" {
-			// TODO(seedream): If/when we support base64-only responses, upload the payload to a CDN and return a stable HTTPS URL for user access.
-			entry["warning"] = "missing url; base64 payload omitted"
-		} else {
+
+		urlStr := strings.TrimSpace(safeDeref(item.Url))
+		if urlStr != "" {
+			entry["url"] = urlStr
+		}
+
+		b64 := strings.TrimSpace(safeDeref(item.B64Json))
+		mimeType := inferMediaTypeFromURL(urlStr, "image/png")
+
+		switch {
+		case b64 != "":
 			attachments[placeholder] = ports.Attachment{
 				Name:        placeholder,
-				MediaType:   "image/png",
-				URI:         attachmentURI,
+				MediaType:   mimeType,
+				Data:        b64,
+				URI:         fmt.Sprintf("data:%s;base64,%s", mimeType, b64),
 				Source:      "seedream",
 				Description: attachmentDescription,
 			}
+			entry["source"] = "base64"
+		case urlStr != "":
+			attachments[placeholder] = ports.Attachment{
+				Name:        placeholder,
+				MediaType:   mimeType,
+				URI:         urlStr,
+				Source:      "seedream",
+				Description: attachmentDescription,
+			}
+			entry["source"] = "url"
+		default:
+			entry["warning"] = "missing image payload"
+			images = append(images, entry)
+			continue
 		}
+
 		images = append(images, entry)
+		placeholders = append(placeholders, placeholder)
 	}
 
 	metadata := map[string]any{
@@ -999,30 +1034,85 @@ func formatSeedreamResponse(resp *arkm.ImagesResponse, descriptor, prompt string
 	var builder strings.Builder
 	title := strings.TrimSpace(descriptor)
 	if title == "" {
-		title = "Seedream"
+		title = "Seedream image generation"
 	}
-	if title != "" {
-		fmt.Fprintf(&builder, "%s response\n", title)
+	fmt.Fprintf(&builder, "%s complete.\n", title)
+	if trimmedPrompt != "" {
+		fmt.Fprintf(&builder, "Prompt: %s\n", trimmedPrompt)
 	}
-	if len(images) > 0 {
-		fmt.Fprintf(&builder, "Generated %d image(s). Use these placeholders for follow-up steps:\n", len(images))
-		for idx, img := range images {
-			placeholder, _ := img["placeholder"].(string)
-			url, _ := img["url"].(string)
-			fmt.Fprintf(&builder, "%d. [%s]", idx+1, placeholder)
-			if url != "" {
-				fmt.Fprintf(&builder, " (url: %s)", url)
-			} else if warning, _ := img["warning"].(string); strings.TrimSpace(warning) != "" {
-				fmt.Fprintf(&builder, " (%s)", warning)
-			}
-			builder.WriteString("\n")
+	if len(placeholders) > 0 {
+		builder.WriteString("Attachments:\n")
+		for idx, name := range placeholders {
+			fmt.Fprintf(&builder, "%d. [%s]\n", idx+1, name)
 		}
 	}
+
 	content := strings.TrimSpace(builder.String())
-	if content == "" {
-		return "Seedream image generation complete.", metadata, attachments
+
+	if len(attachments) > 0 {
+		if uploader, err := seedreamAttachmentUploader(); err == nil && uploader != nil {
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			normalized, err := uploader.Normalize(ctx, materialports.MigrationRequest{
+				Attachments: attachments,
+				Status:      materialapi.MaterialStatusFinal,
+				Origin:      "seedream",
+			})
+			if err == nil && len(normalized) > 0 {
+				attachments = normalized
+			}
+		}
 	}
+
 	return content, metadata, attachments
+}
+
+func safeDeref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+var (
+	seedreamUploaderOnce sync.Once
+	seedreamUploader     *materials.AttachmentStoreMigrator
+	seedreamUploaderErr  error
+)
+
+func seedreamAttachmentUploader() (*materials.AttachmentStoreMigrator, error) {
+	seedreamUploaderOnce.Do(func() {
+		envLookup := config.DefaultEnvLookup
+		resolve := func(key string) string {
+			value, _ := envLookup(key)
+			return strings.TrimSpace(value)
+		}
+		cfg := attachments.StoreConfig{
+			Provider:                  resolve("ALEX_ATTACHMENT_PROVIDER"),
+			Dir:                       "~/.alex-seedream-attachments",
+			CloudflareAccountID:       resolve("CLOUDFLARE_ACCOUNT_ID"),
+			CloudflareAccessKeyID:     resolve("CLOUDFLARE_ACCESS_KEY_ID"),
+			CloudflareSecretAccessKey: resolve("CLOUDFLARE_SECRET_ACCESS_KEY"),
+			CloudflareBucket:          resolve("CLOUDFLARE_BUCKET"),
+			CloudflarePublicBaseURL:   resolve("CLOUDFLARE_PUBLIC_BASE_URL"),
+			CloudflareKeyPrefix:       resolve("CLOUDFLARE_ATTACHMENT_KEY_PREFIX"),
+		}
+		if cfg.Provider == "" {
+			cfg.Provider = attachments.ProviderCloudflare
+		}
+		cfg = attachments.NormalizeConfig(cfg)
+
+		store, err := attachments.NewStore(cfg)
+		if err != nil {
+			seedreamUploaderErr = err
+			return
+		}
+
+		client := httpclient.New(seedreamAssetHTTPTimeout, logging.NewComponentLogger("SeedreamUpload"))
+		seedreamUploader = materials.NewAttachmentStoreMigrator(store, client, cfg.CloudflarePublicBaseURL, logging.NewComponentLogger("SeedreamUpload"))
+	})
+	return seedreamUploader, seedreamUploaderErr
 }
 
 func buildVisionContent(images []string, prompt string, detail *responses.ContentItemImageDetail_Enum) ([]*responses.ContentItem, error) {

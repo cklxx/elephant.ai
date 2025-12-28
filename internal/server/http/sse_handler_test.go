@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/attachments"
 	serverapp "alex/internal/server/app"
 	"alex/internal/tools/builtin"
 	"alex/internal/workflow"
@@ -405,7 +406,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 		},
 	}
 
-	first := sanitizeAttachmentsForStream(attachments, sent, cache, false)
+	first := sanitizeAttachmentsForStream(attachments, sent, cache, nil, false)
 	if first == nil || len(first) != 1 {
 		t.Fatalf("expected initial attachments to be forwarded, got %#v", first)
 	}
@@ -414,7 +415,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 	}
 
 	// Re-sending the same attachment payload should be suppressed.
-	if dup := sanitizeAttachmentsForStream(attachments, sent, cache, false); dup != nil {
+	if dup := sanitizeAttachmentsForStream(attachments, sent, cache, nil, false); dup != nil {
 		t.Fatalf("expected duplicate attachments to be filtered: %#v", dup)
 	}
 
@@ -426,7 +427,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 		},
 	}
 
-	resent := sanitizeAttachmentsForStream(updated, sent, cache, false)
+	resent := sanitizeAttachmentsForStream(updated, sent, cache, nil, false)
 	if resent == nil || len(resent) != 1 {
 		t.Fatalf("expected updated attachment to be forwarded, got %#v", resent)
 	}
@@ -457,7 +458,7 @@ func TestSanitizeWorkflowEnvelopePayloadStripsStepResultMessages(t *testing.T) {
 		},
 	}
 
-	payload := sanitizeWorkflowEnvelopePayload(env, make(map[string]string), cache)
+	payload := sanitizeWorkflowEnvelopePayload(env, make(map[string]string), cache, nil)
 	res, ok := payload["result"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected sanitized result map, got %T", payload["result"])
@@ -494,7 +495,7 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache)
+	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache, nil)
 	if sanitized == nil {
 		t.Fatalf("expected sanitized payload")
 	}
@@ -519,6 +520,40 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 	}
 }
 
+func TestSanitizeAttachmentsForStreamPersistsHTMLToStore(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	sent := make(map[string]string)
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("failed to create attachment store: %v", err)
+	}
+	attachments := map[string]ports.Attachment{
+		"game.html": {
+			Name:      "game.html",
+			MediaType: "text/html",
+			Data:      base64.StdEncoding.EncodeToString([]byte("<html><body>play</body></html>")),
+		},
+	}
+
+	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, store, false)
+	if len(sanitized) != 1 {
+		t.Fatalf("expected 1 sanitized attachment, got %d", len(sanitized))
+	}
+	att := sanitized["game.html"]
+	if att.URI == "" || !strings.Contains(att.URI, "/api/attachments/") {
+		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", att.URI)
+	}
+	if att.Data != "" {
+		t.Fatalf("expected data to be cleared after persistence")
+	}
+	if att.PreviewProfile != "document.html" {
+		t.Fatalf("expected HTML preview profile, got %q", att.PreviewProfile)
+	}
+	if len(att.PreviewAssets) == 0 || att.PreviewAssets[0].CDNURL != att.URI {
+		t.Fatalf("expected preview asset pointing to stored URI, got %#v", att.PreviewAssets)
+	}
+}
+
 func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
 	raw := map[string]any{
@@ -532,7 +567,7 @@ func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache)
+	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache, nil)
 	attachments, ok := sanitized["attachments"].(map[string]ports.Attachment)
 	if !ok {
 		t.Fatalf("expected attachments map, got %T", sanitized["attachments"])

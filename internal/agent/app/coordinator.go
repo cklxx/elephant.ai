@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
 	"alex/internal/logging"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
@@ -29,8 +30,9 @@ type AgentCoordinator struct {
 	logger       ports.Logger
 	clock        ports.Clock
 
-	prepService   preparationService
-	costDecorator *CostTrackingDecorator
+	prepService        preparationService
+	costDecorator      *CostTrackingDecorator
+	attachmentMigrator materialports.Migrator
 }
 
 type preparationService interface {
@@ -273,6 +275,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		Logger:             c.logger,
 		Clock:              c.clock,
 		CompletionDefaults: completionDefaults,
+		AttachmentMigrator: c.attachmentMigrator,
 		Workflow:           wf,
 	})
 
@@ -601,6 +604,11 @@ func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 	if c.prepService != nil {
 		c.prepService.SetEnvironmentSummary(summary)
 	}
+}
+
+// SetAttachmentMigrator wires a CDN migrator used to rewrite inline attachments.
+func (c *AgentCoordinator) SetAttachmentMigrator(migrator materialports.Migrator) {
+	c.attachmentMigrator = migrator
 }
 
 func sanitizeAttachmentForPersistence(att ports.Attachment) ports.Attachment {

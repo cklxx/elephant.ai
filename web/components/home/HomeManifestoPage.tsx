@@ -18,11 +18,13 @@ import {
   PageShell,
   SectionBlock,
 } from "@/components/layout/page-shell";
+import { FlowShowcase } from "@/components/home/FlowShowcase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-export type HomeLang = "zh" | "en";
+import type { FlowStep } from "./FlowShowcase";
+import type { HomeLang } from "./types";
 
 const references = [
   {
@@ -102,7 +104,7 @@ const copy = {
       method: {
         title: "Plan + Clearify + ReAct：让编排器掌控节奏",
         description:
-          "Plan 对齐意图；Clearify 拆到最小可验收任务；ReAct 在任务内交替推理/行动并留证据。编排器用 Gate 强制顺序：先 Plan → 再 Clearify → 再执行。",
+          "Plan 对齐意图；Clearify 拆到最小可验收任务；ReAct 在任务内交替推理/行动并留证据。流程的实时演示见下方动态卡片。",
       },
       showcase: {
         badge: "Mock showcase",
@@ -152,8 +154,10 @@ const copy = {
       ui: {
         title: "HTML UI 示例（可观测 + 可验收）",
         description:
-          "UI 不是靠文案分层，而是靠“工具类型”分层：Plan/Task/Action Log 对应一级/二级/三级语义。",
-        snippetLabel: "最小示例（HTML）",
+          "把请求拆成可验收的任务链，直接展示“目标-任务-行动日志”三层证据的更新过程。",
+        timelineLabel: "阶段进度",
+        logLabel: "行动日志 / 证据",
+        liveLabel: "实时播放",
       },
       engineering: {
         title: "工程化落点",
@@ -244,7 +248,7 @@ const copy = {
       method: {
         title: "Plan + Clearify + ReAct: keep the orchestrator in control",
         description:
-          "Plan aligns intent once; Clearify defines the smallest acceptable tasks; ReAct alternates reasoning/actions inside a task and leaves evidence. The orchestrator gates order: Plan → Clearify → Execute.",
+          "Plan aligns intent; Clearify defines the smallest acceptable tasks; ReAct alternates reasoning/actions inside a task and leaves evidence. Watch the live demo below instead of reading static prose.",
       },
       showcase: {
         badge: "Mock showcase",
@@ -297,8 +301,10 @@ const copy = {
       ui: {
         title: "HTML UI example (observable + reviewable)",
         description:
-          "UI hierarchy comes from tool types—not prose styling: Plan/Task/Action Log map to Level 1/2/3 semantics.",
-        snippetLabel: "Minimal example (HTML)",
+          "Turn a request into a chain of reviewable tasks and show how goal, tasks, and evidence refresh together.",
+        timelineLabel: "Timeline",
+        logLabel: "Action log / evidence",
+        liveLabel: "Live",
       },
       engineering: {
         title: "Engineering outcomes",
@@ -336,6 +342,109 @@ const copy = {
     },
   },
 } as const satisfies Record<HomeLang, unknown>;
+
+const flowSteps: Record<HomeLang, FlowStep[]> = {
+  zh: [
+    {
+      stage: "Plan",
+      headline: "Plan：确认目标与约束",
+      summary: "抽取意图、约束和交付线索。",
+      highlights: [
+        "目标：让首页以动态流程为主角",
+        "约束：保持可验收粒度、双语同步",
+        "输出：编排器可重放的计划节点",
+      ],
+      log: [
+        'plan.goal = "展示 Plan → Clearify → ReAct 的动态流程"',
+        "plan.constraints = ['可观测', '可验收', '不靠长文案']",
+        "emit(plan.contract)",
+      ],
+      accent: "from-indigo-500 via-sky-500 to-emerald-500",
+    },
+    {
+      stage: "Clearify",
+      headline: "Clearify：声明可验收任务",
+      summary: "拆到可以一句话验收的粒度。",
+      highlights: [
+        "任务 1：流程卡片自动播放且可点击切换",
+        "任务 2：行动日志面板同步更新证据",
+        "任务 3：移除静态讲解，聚焦演示",
+      ],
+      log: [
+        "task[1] = render_flow(autoPlay=true)",
+        "task[2] = render_log(source=evidence.flow)",
+        "acceptance = ['三步可切换', '日志随步骤刷新']",
+      ],
+      accent: "from-amber-500 via-orange-500 to-rose-500",
+    },
+    {
+      stage: "ReAct",
+      headline: "ReAct：执行并留痕",
+      summary: "工具调用驱动界面更新，证据随步骤展开。",
+      highlights: [
+        "调用 tools.render → 更新流程高亮",
+        "调用 tools.log → 记录工具入参/结果",
+        "结果：首页成为动态可验收的轨迹",
+      ],
+      log: [
+        "tool.render(target='flow.showcase', step=active)",
+        "tool.log(event='action', proof='/evidence/flow')",
+        "ui.commit(status='ready for review')",
+      ],
+      accent: "from-emerald-500 via-teal-500 to-cyan-500",
+    },
+  ],
+  en: [
+    {
+      stage: "Plan",
+      headline: "Plan: lock the goal",
+      summary: "Extract intent, constraints, and acceptance hooks.",
+      highlights: [
+        "Goal: put the live flow front and center",
+        "Constraints: reviewable steps, bilingual parity",
+        "Output: a replayable contract for the orchestrator",
+      ],
+      log: [
+        'plan.goal = "Show Plan → Clearify → ReAct as motion"',
+        "plan.constraints = ['observable', 'reviewable', 'no long prose']",
+        "emit(plan.contract)",
+      ],
+      accent: "from-indigo-500 via-sky-500 to-emerald-500",
+    },
+    {
+      stage: "Clearify",
+      headline: "Clearify: declare reviewable tasks",
+      summary: "Cut work into one-line acceptance units.",
+      highlights: [
+        "Task 1: autoplayable flow card with manual switch",
+        "Task 2: action log panel mirrors evidence updates",
+        "Task 3: remove static explainer in favor of demo",
+      ],
+      log: [
+        "task[1] = render_flow(autoPlay=true)",
+        "task[2] = render_log(source=evidence.flow)",
+        "acceptance = ['switch anytime', 'log follows step']",
+      ],
+      accent: "from-amber-500 via-orange-500 to-rose-500",
+    },
+    {
+      stage: "ReAct",
+      headline: "ReAct: execute with evidence",
+      summary: "Tools drive the UI while proof is captured inline.",
+      highlights: [
+        "Call tools.render to move the flow highlight",
+        "Call tools.log to persist inputs and outputs",
+        "Outcome: homepage becomes a dynamic, auditable trace",
+      ],
+      log: [
+        "tool.render(target='flow.showcase', step=active)",
+        "tool.log(event='action', proof='/evidence/flow')",
+        "ui.commit(status='ready for review')",
+      ],
+      accent: "from-emerald-500 via-teal-500 to-cyan-500",
+    },
+  ],
+} as const;
 
 function HomeTopBar({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
@@ -657,112 +766,6 @@ function Bullets({ items }: { items: readonly string[] }) {
   );
 }
 
-function HtmlUiExample({ lang }: { lang: HomeLang }) {
-  const t = copy[lang];
-  const snippet = `<!-- Level 1: Goal (Plan) -->
-<section data-level="plan">
-  <h2>Plan</h2>
-  <p>Goal: controllable, auditable agent</p>
-  <ol>
-    <li>Align intent</li>
-    <li>Declare tasks</li>
-    <li>Execute with evidence</li>
-  </ol>
-</section>
-
-<!-- Level 2: Task (Clearify) -->
-<section data-level="clearify">
-  <h3>Task: Replace homepage</h3>
-  <ul>
-    <li>Acceptance: bilingual (zh/en)</li>
-    <li>Acceptance: includes UI examples</li>
-    <li>Acceptance: low-saturation style</li>
-  </ul>
-</section>
-
-<!-- Level 3: Action Log (ReAct) -->
-<section data-level="react-log">
-  <p>tool: file_read → web/app/page.tsx</p>
-  <p>tool: apply_patch → web/app/page.tsx</p>
-  <p>result: UI updated, ready to review</p>
-</section>`;
-
-  return (
-    <Card className="overflow-hidden bg-card/70 backdrop-blur">
-      <CardHeader className="space-y-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <FileCode2 className="h-4 w-4" aria-hidden />
-          {t.section.ui.title}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {t.section.ui.description}
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 lg:grid-cols-3">
-            <ExampleCard
-              title="Plan"
-              icon={Eye}
-              lines={[
-              lang === "zh" ? "只呈现目标与进度" : "Expose goal + progress",
-              lang === "zh" ? "完整计划放在内部" : "Keep full plan internal",
-              ]}
-            />
-            <ExampleCard
-              title="Clearify"
-              icon={ListChecks}
-              lines={[
-              lang === "zh" ? "先声明任务" : "Declare tasks first",
-              lang === "zh" ? "每项都有验收标准" : "Every task is reviewable",
-              ]}
-            />
-          <ExampleCard
-            title="ReAct"
-            icon={Wrench}
-            lines={[
-              lang === "zh" ? "工具调用留证据" : "Evidence via tool calls",
-              lang === "zh" ? "轨迹可复盘" : "Replayable traces",
-            ]}
-          />
-        </div>
-
-        <div>
-          <div className="mb-2 text-xs font-semibold text-muted-foreground">
-            {t.section.ui.snippetLabel}
-          </div>
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-2xl border border-border bg-background/60 p-4 font-mono text-[11px] leading-relaxed text-foreground/90">
-            {snippet}
-          </pre>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ExampleCard({
-  title,
-  icon: Icon,
-  lines,
-}: {
-  title: string;
-  icon: typeof Eye;
-  lines: string[];
-}) {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        <Icon className="h-4 w-4 text-foreground/80" aria-hidden />
-        {title}
-      </div>
-      <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-        {lines.map((line) => (
-          <div key={line}>{line}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const t = copy[lang];
 
@@ -778,6 +781,14 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
           </SectionBlock>
 
           <Showcase lang={lang} />
+
+          <SectionBlock className="gap-4">
+            <FlowShowcase
+              lang={lang}
+              copy={t.section.flow}
+              steps={flowSteps[lang]}
+            />
+          </SectionBlock>
 
           <SectionBlock className="gap-4">
             <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
@@ -823,54 +834,6 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
                   ))}
                 </CardContent>
               </Card>
-            </div>
-          </SectionBlock>
-
-          <SectionBlock className="gap-4">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="bg-card/70 backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <GitBranch className="h-5 w-5" aria-hidden />
-                    {t.section.method.title}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t.section.method.description}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <WorkflowRow
-                    items={[
-                      { label: "Plan", icon: Eye },
-                      { label: "Clearify", icon: ListChecks },
-                      { label: "ReAct", icon: Wrench },
-                    ]}
-                  />
-                  <div className="rounded-2xl border border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2 font-semibold text-foreground">
-                      <ScrollText className="h-4 w-4" aria-hidden />
-                      {lang === "zh"
-                        ? "验收标准建议"
-                        : "Suggested acceptance criteria"}
-                    </div>
-                    <Bullets
-                      items={[
-                        lang === "zh"
-                          ? "每个任务都能用一句话验收"
-                          : "Every task is reviewable in one line",
-                        lang === "zh"
-                          ? "每次工具调用都能还原上下文"
-                          : "Every tool call is replayable with context",
-                        lang === "zh"
-                          ? "UI 只呈现“当前任务 + 证据”"
-                          : "UI focuses on “current task + evidence”",
-                      ]}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <HtmlUiExample lang={lang} />
             </div>
           </SectionBlock>
 
@@ -949,29 +912,4 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
 
 export function HomeManifestoPage({ lang }: { lang: HomeLang }) {
   return <HomePage lang={lang} />;
-}
-
-function WorkflowRow({
-  items,
-}: {
-  items: {
-    label: string;
-    icon: typeof Eye;
-  }[];
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-background/60 p-3">
-      {items.map((item, index) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground">
-            <item.icon className="h-3.5 w-3.5 text-foreground/80" aria-hidden />
-            {item.label}
-          </span>
-          {index < items.length - 1 ? (
-            <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
 }

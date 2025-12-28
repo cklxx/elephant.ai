@@ -38,12 +38,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	latencyLogger := logging.NewLatencyLogger("HTTP")
 	envLookup := runtimeconfig.DefaultEnvLookup
 	attachmentStore := (*AttachmentStore)(nil)
-	if strings.TrimSpace(attachmentCfg.Dir) == "" {
-		attachmentCfg.Dir = "~/.alex-web-attachments"
-	}
-	if strings.TrimSpace(attachmentCfg.Provider) == "" {
-		attachmentCfg.Provider = attachments.ProviderLocal
-	}
+	attachmentCfg = attachments.NormalizeConfig(attachmentCfg)
 	if store, err := NewAttachmentStore(attachmentCfg); err != nil {
 		logger.Warn("Attachment store disabled: %v", err)
 	} else {
@@ -52,7 +47,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	taskBodyLimit := createTaskBodyLimit(envLookup)
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs))
+	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore))
 	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
 	apiHandler := NewAPIHandler(
 		coordinator,

@@ -11,8 +11,10 @@ import (
 	"time"
 
 	agentdomain "alex/internal/agent/domain"
+	"alex/internal/attachments"
 	"alex/internal/diagnostics"
 	"alex/internal/logging"
+	"alex/internal/materials"
 	serverApp "alex/internal/server/app"
 	serverHTTP "alex/internal/server/http"
 )
@@ -54,6 +56,14 @@ func RunServer(observabilityConfigPath string) error {
 
 	if summary := config.EnvironmentSummary; summary != "" {
 		container.AgentCoordinator.SetEnvironmentSummary(summary)
+	}
+
+	config.Attachment = attachments.NormalizeConfig(config.Attachment)
+	if store, err := attachments.NewStore(config.Attachment); err != nil {
+		logger.Warn("Attachment migrator disabled: %v", err)
+	} else {
+		migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
+		container.AgentCoordinator.SetAttachmentMigrator(migrator)
 	}
 
 	var historyStore serverApp.EventHistoryStore
