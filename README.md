@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/elephant.jpeg" alt="elephant.ai mascot" width="60">
+</p>
+
 # elephant.ai
 
 elephant.ai provides a Go backend and Next.js dashboard built around a shared Think → Act → Observe loop. The `alex` CLI/TUI, HTTP + SSE server, and web UI run the same runtime so operators and automation stay in sync.
@@ -27,9 +31,7 @@ elephant.ai provides a Go backend and Next.js dashboard built around a shared Th
 * **Observability as a first-class API.** Telemetry is emitted from the agent runtime itself—not bolted onto handlers—so traces align with ReAct steps.
 * **Measurable progress.** Evaluation suites live in-repo and are expected to run in development, not only in CI.
 
-<p align="center">
-  <img src="web/public/elephant.jpeg" alt="elephant.ai mascot" width="360">
-</p>
+
 
 ---
 
