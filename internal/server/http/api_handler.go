@@ -121,6 +121,7 @@ type AttachmentPayload struct {
 	MediaType           string `json:"media_type"`
 	Data                string `json:"data,omitempty"`
 	URI                 string `json:"uri,omitempty"`
+	Source              string `json:"source,omitempty"`
 	Description         string `json:"description,omitempty"`
 	Kind                string `json:"kind,omitempty"`
 	Format              string `json:"format,omitempty"`
@@ -443,13 +444,17 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 			return nil, fmt.Errorf("attachment '%s' must include uri (base64 uploads are disabled)", name)
 		}
 
+		source := strings.TrimSpace(incoming.Source)
+		if source == "" {
+			source = "user_upload"
+		}
 		attachment := agentports.Attachment{
 			Name:                name,
 			MediaType:           mediaType,
 			Data:                inlineBase64,
 			URI:                 uri,
 			Description:         strings.TrimSpace(incoming.Description),
-			Source:              "user_upload",
+			Source:              source,
 			Kind:                strings.TrimSpace(incoming.Kind),
 			Format:              strings.TrimSpace(incoming.Format),
 			RetentionTTLSeconds: incoming.RetentionTTLSeconds,

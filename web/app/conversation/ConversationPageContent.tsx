@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import {
   Loader2,
   Film,
@@ -12,11 +12,11 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
-} from 'lucide-react';
-import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
-import { useAgentEventStream } from '@/hooks/useAgentEventStream';
-import { useSessionStore, useDeleteSession } from '@/hooks/useSessionStore';
-import { toast } from '@/components/ui/toast';
+} from "lucide-react";
+import { useTaskExecution, useCancelTask } from "@/hooks/useTaskExecution";
+import { useAgentEventStream } from "@/hooks/useAgentEventStream";
+import { useSessionStore, useDeleteSession } from "@/hooks/useSessionStore";
+import { toast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -24,27 +24,39 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { useI18n } from '@/lib/i18n';
-import { Sidebar, Header, ContentArea } from '@/components/layout';
-import { TaskInput } from '@/components/agent/TaskInput';
-import { formatParsedError, getErrorLogPayload, isAPIError, parseError } from '@/lib/errors';
-import type { AnyAgentEvent, AttachmentPayload, AttachmentUpload } from '@/lib/types';
-import { eventMatches } from '@/lib/types';
-import { captureEvent } from '@/lib/analytics/posthog';
-import { AnalyticsEvent } from '@/lib/analytics/events';
-import { apiClient } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/dialog";
+import { useI18n } from "@/lib/i18n";
+import { Sidebar, Header, ContentArea } from "@/components/layout";
+import { TaskInput } from "@/components/agent/TaskInput";
+import {
+  formatParsedError,
+  getErrorLogPayload,
+  isAPIError,
+  parseError,
+} from "@/lib/errors";
+import type {
+  AnyAgentEvent,
+  AttachmentPayload,
+  AttachmentUpload,
+} from "@/lib/types";
+import { eventMatches } from "@/lib/types";
+import { captureEvent } from "@/lib/analytics/posthog";
+import { AnalyticsEvent } from "@/lib/analytics/events";
+import { apiClient } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   AttachmentPanel,
   collectAttachmentItems,
-} from '@/components/agent/AttachmentPanel';
-import { SkillsPanel } from '@/components/agent/SkillsPanel';
-import { ConnectionBanner } from '@/components/agent/ConnectionBanner';
+} from "@/components/agent/AttachmentPanel";
+import { SkillsPanel } from "@/components/agent/SkillsPanel";
+import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
 
 const LazyConversationEventStream = dynamic(
-  () => import('@/components/agent/ConversationEventStream').then((mod) => mod.ConversationEventStream),
+  () =>
+    import("@/components/agent/ConversationEventStream").then(
+      (mod) => mod.ConversationEventStream,
+    ),
   {
     ssr: false,
     loading: () => (
@@ -74,7 +86,10 @@ export function ConversationPageContent() {
   const searchParams = useSearchParams();
   const { t } = useI18n();
 
-  const useMockStream = useMemo(() => searchParams.get('mockSSE') === '1', [searchParams]);
+  const useMockStream = useMemo(
+    () => searchParams.get("mockSSE") === "1",
+    [searchParams],
+  );
 
   const buildAttachmentMap = useCallback(
     (uploads: AttachmentUpload[]) =>
@@ -87,14 +102,15 @@ export function ConversationPageContent() {
         } as AttachmentPayload;
         return acc;
       }, {}),
-    []
+    [],
   );
 
   useEffect(() => {
     activeTaskIdRef.current = activeTaskId;
   }, [activeTaskId]);
 
-  const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution();
+  const { mutate: executeTask, isPending: isCreatePending } =
+    useTaskExecution();
   const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
   const deleteSessionMutation = useDeleteSession();
   const {
@@ -112,7 +128,7 @@ export function ConversationPageContent() {
   const formatSessionBadge = useCallback(
     (value: string) =>
       value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
-    []
+    [],
   );
 
   const handleAgentEvent = useCallback(
@@ -122,10 +138,16 @@ export function ConversationPageContent() {
         return;
       }
 
-      if (eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta')) {
+      if (
+        eventMatches(
+          event,
+          "workflow.node.output.delta",
+          "workflow.node.output.delta",
+        )
+      ) {
         if (!firstTokenReportedRef.current.has(currentId)) {
           const submittedAt = submittedAtByTaskRef.current.get(currentId);
-          if (typeof submittedAt === 'number') {
+          if (typeof submittedAt === "number") {
             firstTokenReportedRef.current.add(currentId);
             captureEvent(AnalyticsEvent.FirstTokenRendered, {
               session_id: resolvedSessionId ?? null,
@@ -138,9 +160,13 @@ export function ConversationPageContent() {
       }
 
       if (
-        eventMatches(event, 'workflow.result.final', 'workflow.result.final') ||
-        eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled') ||
-        eventMatches(event, 'workflow.node.failed')
+        eventMatches(event, "workflow.result.final", "workflow.result.final") ||
+        eventMatches(
+          event,
+          "workflow.result.cancelled",
+          "workflow.result.cancelled",
+        ) ||
+        eventMatches(event, "workflow.node.failed")
       ) {
         submittedAtByTaskRef.current.delete(currentId);
         firstTokenReportedRef.current.delete(currentId);
@@ -149,7 +175,7 @@ export function ConversationPageContent() {
         cancelIntentRef.current = false;
       }
     },
-    [resolvedSessionId, setActiveTaskId, setCancelRequested, useMockStream]
+    [resolvedSessionId, setActiveTaskId, setCancelRequested, useMockStream],
   );
 
   const {
@@ -174,16 +200,16 @@ export function ConversationPageContent() {
 
   const hasAttachments = useMemo(
     () => collectAttachmentItems(events).length > 0,
-    [events]
+    [events],
   );
 
   const hasRenderableEvents = useMemo(
-    () => events.some((evt) => evt.event_type !== 'connected'),
+    () => events.some((evt) => evt.event_type !== "connected"),
     [events],
   );
 
   useEffect(() => {
-    void import('@/components/agent/ConversationEventStream');
+    void import("@/components/agent/ConversationEventStream");
   }, []);
 
   useEffect(() => {
@@ -199,7 +225,7 @@ export function ConversationPageContent() {
         setPrewarmSessionId(session_id);
       })
       .catch((err) => {
-        console.warn('[ConversationPage] Failed to prewarm session:', err);
+        console.warn("[ConversationPage] Failed to prewarm session:", err);
       });
 
     return () => {
@@ -215,13 +241,13 @@ export function ConversationPageContent() {
         setActiveTaskId(null);
         setCancelRequested(false);
         toast.success(
-          t('console.toast.taskCancelRequested.title'),
-          t('console.toast.taskCancelRequested.description')
+          t("console.toast.taskCancelRequested.title"),
+          t("console.toast.taskCancelRequested.description"),
         );
         captureEvent(AnalyticsEvent.TaskCancelRequested, {
           session_id: resolvedSessionId ?? null,
           task_id: taskId,
-          status: 'success',
+          status: "success",
           mock_stream: true,
         });
         return;
@@ -233,38 +259,40 @@ export function ConversationPageContent() {
 
           if (!currentActiveTaskId || currentActiveTaskId === taskId) {
             setActiveTaskId((prevActiveTaskId) =>
-              prevActiveTaskId === taskId ? null : prevActiveTaskId
+              prevActiveTaskId === taskId ? null : prevActiveTaskId,
             );
           }
           toast.success(
-            t('console.toast.taskCancelRequested.title'),
-            t('console.toast.taskCancelRequested.description')
+            t("console.toast.taskCancelRequested.title"),
+            t("console.toast.taskCancelRequested.description"),
           );
           captureEvent(AnalyticsEvent.TaskCancelRequested, {
             session_id: resolvedSessionId ?? null,
             task_id: taskId,
-            status: 'success',
+            status: "success",
             mock_stream: false,
           });
         },
         onError: (cancelError) => {
           console.error(
-            '[ConversationPage] Task cancellation error:',
-            getErrorLogPayload(cancelError)
+            "[ConversationPage] Task cancellation error:",
+            getErrorLogPayload(cancelError),
           );
           setCancelRequested(false);
-          const parsed = parseError(cancelError, t('common.error.unknown'));
+          const parsed = parseError(cancelError, t("common.error.unknown"));
           toast.error(
-            t('console.toast.taskCancelError.title'),
-            t('console.toast.taskCancelError.description', {
+            t("console.toast.taskCancelError.title"),
+            t("console.toast.taskCancelError.description", {
               message: formatParsedError(parsed),
-            })
+            }),
           );
           captureEvent(AnalyticsEvent.TaskCancelFailed, {
             session_id: resolvedSessionId ?? null,
             task_id: taskId,
-            error_kind: isAPIError(cancelError) ? 'api' : 'unknown',
-            ...(isAPIError(cancelError) ? { status_code: cancelError.status } : {}),
+            error_kind: isAPIError(cancelError) ? "api" : "unknown",
+            ...(isAPIError(cancelError)
+              ? { status_code: cancelError.status }
+              : {}),
           });
         },
       });
@@ -276,11 +304,11 @@ export function ConversationPageContent() {
       setCancelRequested,
       t,
       useMockStream,
-    ]
+    ],
   );
 
   const handleTaskSubmit = (task: string, attachments: AttachmentUpload[]) => {
-    console.log('[ConversationPage] Task submitted:', { task, attachments });
+    console.log("[ConversationPage] Task submitted:", { task, attachments });
     pendingSubmitTsRef.current = performance.now();
 
     captureEvent(AnalyticsEvent.TaskSubmitted, {
@@ -299,19 +327,23 @@ export function ConversationPageContent() {
     if (useMockStream) {
       const submissionTimestamp = new Date();
       const provisionalSessionId =
-        sessionId || currentSessionId || `mock-${submissionTimestamp.getTime().toString(36)}`;
+        sessionId ||
+        currentSessionId ||
+        `mock-${submissionTimestamp.getTime().toString(36)}`;
       const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
 
       const attachmentMap = buildAttachmentMap(attachments);
 
       addEvent({
-        event_type: 'workflow.input.received',
+        event_type: "workflow.input.received",
         timestamp: submissionTimestamp.toISOString(),
-        agent_level: 'core',
+        agent_level: "core",
         session_id: provisionalSessionId,
         task_id: mockTaskId,
         task,
-        attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
+        attachments: Object.keys(attachmentMap).length
+          ? attachmentMap
+          : undefined,
       });
 
       setSessionId(provisionalSessionId);
@@ -334,7 +366,7 @@ export function ConversationPageContent() {
         },
         {
           onSuccess: (data) => {
-            console.log('[ConversationPage] Task execution started:', data);
+            console.log("[ConversationPage] Task execution started:", data);
             setPrewarmSessionId(null);
             setSessionId(data.session_id);
             setTaskId(data.task_id);
@@ -343,21 +375,23 @@ export function ConversationPageContent() {
             addToHistory(data.session_id);
 
             const submitTs = pendingSubmitTsRef.current;
-            if (typeof submitTs === 'number') {
+            if (typeof submitTs === "number") {
               submittedAtByTaskRef.current.set(data.task_id, submitTs);
               firstTokenReportedRef.current.delete(data.task_id);
             }
 
             const attachmentMap = buildAttachmentMap(attachments);
             addEvent({
-              event_type: 'workflow.input.received',
+              event_type: "workflow.input.received",
               timestamp: new Date().toISOString(),
-              agent_level: 'core',
+              agent_level: "core",
               session_id: data.session_id,
               task_id: data.task_id,
               parent_task_id: data.parent_task_id ?? undefined,
               task,
-              attachments: Object.keys(attachmentMap).length ? attachmentMap : undefined,
+              attachments: Object.keys(attachmentMap).length
+                ? attachmentMap
+                : undefined,
             });
             if (cancelIntentRef.current) {
               setCancelRequested(true);
@@ -373,52 +407,55 @@ export function ConversationPageContent() {
 
             if (isStaleSession) {
               retriedWithoutSession = true;
-            console.warn('[ConversationPage] Session not found, retrying without session_id', {
-              sessionId: requestedSessionId,
-              error: getErrorLogPayload(error),
-            });
+              console.warn(
+                "[ConversationPage] Session not found, retrying without session_id",
+                {
+                  sessionId: requestedSessionId,
+                  error: getErrorLogPayload(error),
+                },
+              );
 
-            setSessionId(null);
-            setTaskId(null);
-            setActiveTaskId(null);
-            setCancelRequested(false);
+              setSessionId(null);
+              setTaskId(null);
+              setActiveTaskId(null);
+              setCancelRequested(false);
+              cancelIntentRef.current = false;
+              clearCurrentSession();
+              removeSession(requestedSessionId);
+              clearEvents();
+
+              captureEvent(AnalyticsEvent.TaskRetriedWithoutSession, {
+                session_id: requestedSessionId,
+                error_status: 404,
+                mock_stream: useMockStream,
+              });
+
+              runExecution(null);
+              return;
+            }
+
+            console.error(
+              "[ConversationPage] Task execution error:",
+              getErrorLogPayload(error),
+            );
             cancelIntentRef.current = false;
-            clearCurrentSession();
-            removeSession(requestedSessionId);
-            clearEvents();
-
-            captureEvent(AnalyticsEvent.TaskRetriedWithoutSession, {
-              session_id: requestedSessionId,
-              error_status: 404,
+            setCancelRequested(false);
+            setActiveTaskId(null);
+            const parsed = parseError(error, t("common.error.unknown"));
+            toast.error(
+              t("console.toast.taskFailed"),
+              formatParsedError(parsed),
+            );
+            captureEvent(AnalyticsEvent.TaskSubmissionFailed, {
+              session_id: requestedSessionId ?? null,
+              is_api_error: isAPIError(error),
               mock_stream: useMockStream,
+              ...(isAPIError(error) ? { status_code: error.status } : {}),
             });
-
-            runExecution(null);
-            return;
-          }
-
-          console.error(
-            '[ConversationPage] Task execution error:',
-            getErrorLogPayload(error)
-          );
-          cancelIntentRef.current = false;
-          setCancelRequested(false);
-          setActiveTaskId(null);
-          const parsed = parseError(error, t('common.error.unknown'));
-          toast.error(
-            t('console.toast.taskFailed'),
-            formatParsedError(parsed)
-          );
-          captureEvent(AnalyticsEvent.TaskSubmissionFailed, {
-            session_id: requestedSessionId ?? null,
-            is_api_error: isAPIError(error),
-            mock_stream: useMockStream,
-            ...(isAPIError(error) ? { status_code: error.status } : {}),
-          });
+          },
         },
-      }
-    );
-  };
+      );
+    };
 
     runExecution(initialSessionId ?? null);
   };
@@ -431,9 +468,9 @@ export function ConversationPageContent() {
     captureEvent(AnalyticsEvent.TaskCancelRequested, {
       session_id: resolvedSessionId ?? null,
       task_id: activeTaskId ?? null,
-      status: 'initiated',
+      status: "initiated",
       mock_stream: useMockStream,
-      request_state: activeTaskId ? 'inflight' : 'queued',
+      request_state: activeTaskId ? "inflight" : "queued",
     });
 
     setCancelRequested(true);
@@ -442,7 +479,13 @@ export function ConversationPageContent() {
     } else {
       cancelIntentRef.current = true;
     }
-  }, [activeTaskId, isCancelPending, performCancellation, resolvedSessionId, useMockStream]);
+  }, [
+    activeTaskId,
+    isCancelPending,
+    performCancellation,
+    resolvedSessionId,
+    useMockStream,
+  ]);
 
   const handleNewSession = () => {
     setSessionId(null);
@@ -502,20 +545,26 @@ export function ConversationPageContent() {
         cancelIntentRef.current = false;
         clearCurrentSession();
       }
-      toast.success(t('sidebar.session.toast.deleteSuccess'));
+      toast.success(t("sidebar.session.toast.deleteSuccess"));
       captureEvent(AnalyticsEvent.SessionDeleted, {
         session_id: deleteTargetId,
-        status: 'success',
+        status: "success",
       });
       setDeleteTargetId(null);
     } catch (err) {
-      console.error('[ConversationPage] Failed to delete session:', getErrorLogPayload(err));
-      const parsed = parseError(err, t('common.error.unknown'));
-      toast.error(t('sidebar.session.toast.deleteError'), formatParsedError(parsed));
+      console.error(
+        "[ConversationPage] Failed to delete session:",
+        getErrorLogPayload(err),
+      );
+      const parsed = parseError(err, t("common.error.unknown"));
+      toast.error(
+        t("sidebar.session.toast.deleteError"),
+        formatParsedError(parsed),
+      );
       captureEvent(AnalyticsEvent.SessionDeleted, {
         session_id: deleteTargetId,
-        status: 'error',
-        error_kind: isAPIError(err) ? 'api' : 'unknown',
+        status: "error",
+        error_kind: isAPIError(err) ? "api" : "unknown",
         ...(isAPIError(err) ? { status_code: err.status } : {}),
       });
     } finally {
@@ -534,34 +583,34 @@ export function ConversationPageContent() {
     : null;
   const deleteTargetLabel = deleteTargetId
     ? sessionLabels[deleteTargetId]?.trim() ||
-      t('console.history.itemPrefix', { id: deleteTargetId.slice(0, 8) })
+      t("console.history.itemPrefix", { id: deleteTargetId.slice(0, 8) })
     : null;
   const headerTitle = resolvedSessionId
-    ? activeSessionLabel || t('conversation.header.activeLabel')
-    : t('conversation.header.idle');
+    ? activeSessionLabel || t("conversation.header.activeLabel")
+    : t("conversation.header.idle");
 
   const quickPrompts = useMemo(
     () => [
       {
-        id: 'image',
-        label: t('console.quickstart.items.image'),
+        id: "image",
+        label: t("console.quickstart.items.image"),
         icon: Image,
         prompt:
-          '/plan 画图：生成一张“雨夜的霓虹书店”插画。\n风格：赛博朋克 + 手绘质感\n画面要素：湿润街道反光、玻璃窗内暖光、行人撑伞剪影\n尺寸/比例：16:9\n避免：文字、水印、人脸特写\n',
+          "画图：生成一张“雨夜的霓虹书店”插画。\n风格：赛博朋克 + 手绘质感\n画面要素：湿润街道反光、玻璃窗内暖光、行人撑伞剪影\n尺寸/比例：16:9\n避免：文字、水印、人脸特写\n",
       },
       {
-        id: 'article',
-        label: t('console.quickstart.items.article'),
+        id: "article",
+        label: t("console.quickstart.items.article"),
         icon: FileText,
         prompt:
-          '/plan 写文章：写一篇面向产品经理的短文。\n主题：如何用“问题-假设-验证”闭环提升功能迭代质量\n字数：800-1000字\n结构：开场痛点 → 三步法解释 → 一个真实场景案例 → 可执行清单\n要求：语气务实、少术语、多可落地方法\n',
+          "写文章：写一篇面向产品经理的短文。\n主题：如何用“问题-假设-验证”闭环提升功能迭代质量\n字数：800-1000字\n结构：开场痛点 → 三步法解释 → 一个真实场景案例 → 可执行清单\n要求：语气务实、少术语、多可落地方法\n",
       },
       {
-        id: 'video',
-        label: t('console.quickstart.items.video'),
+        id: "video",
+        label: t("console.quickstart.items.video"),
         icon: Film,
         prompt:
-          '/plan 生成视频：制作一段15秒品牌短片。\n内容/脚本：城市清晨→通勤人群→产品特写→logo收尾\n风格：极简、干净、轻快节奏\n时长：15秒\n比例/分辨率：9:16，1080x1920\n配乐：轻电子，留白感\n',
+          "生成视频：制作一段15秒品牌短片。\n内容/脚本：城市清晨→通勤人群→产品特写→logo收尾\n风格：极简、干净、轻快节奏\n时长：15秒\n比例/分辨率：9:16，1080x1920\n配乐：轻电子，留白感\n",
       },
     ],
     [t],
@@ -580,14 +629,11 @@ export function ConversationPageContent() {
     (Boolean(error) || isReconnecting || reconnectAttempts > 0);
 
   const emptyState = (
-    <div
-      className="w-full max-w-md"
-      data-testid="conversation-empty-state"
-    >
+    <div className="w-full max-w-md" data-testid="conversation-empty-state">
       <div className="rounded-3xl border border-border/60 bg-background/70 p-6 text-center">
         <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/70" />
-          {t('console.empty.badge')}
+          {t("console.empty.badge")}
         </div>
 
         <div className="mt-4 space-y-2">
@@ -595,13 +641,13 @@ export function ConversationPageContent() {
             className="text-lg font-semibold tracking-tight text-foreground"
             data-testid="conversation-empty-title"
           >
-            {t('console.empty.title')}
+            {t("console.empty.title")}
           </p>
         </div>
 
         <div className="mt-6">
           <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
-            {t('console.quickstart.title')}
+            {t("console.quickstart.title")}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {quickPrompts.map((item) => (
@@ -620,7 +666,7 @@ export function ConversationPageContent() {
           </div>
 
           <p className="mt-4 text-xs text-muted-foreground">
-            {t('console.input.hotkeyHint')}
+            {t("console.input.hotkeyHint")}
           </p>
         </div>
       </div>
@@ -640,10 +686,10 @@ export function ConversationPageContent() {
         <DialogContent className="max-w-md rounded-3xl">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-lg font-semibold">
-              {t('sidebar.session.confirmDelete.title')}
+              {t("sidebar.session.confirmDelete.title")}
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              {t('sidebar.session.confirmDelete.description')}
+              {t("sidebar.session.confirmDelete.description")}
             </DialogDescription>
             {deleteTargetId && (
               <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-muted/30 px-3 py-2">
@@ -664,7 +710,7 @@ export function ConversationPageContent() {
               onClick={handleDeleteCancel}
               disabled={deleteInProgress}
             >
-              {t('sidebar.session.confirmDelete.cancel')}
+              {t("sidebar.session.confirmDelete.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -672,7 +718,7 @@ export function ConversationPageContent() {
               disabled={deleteInProgress}
             >
               {deleteInProgress && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('sidebar.session.confirmDelete.confirm')}
+              {t("sidebar.session.confirmDelete.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -691,8 +737,8 @@ export function ConversationPageContent() {
                 setIsSidebarOpen((prev) => {
                   const next = !prev;
                   captureEvent(AnalyticsEvent.SidebarToggled, {
-                    next_state: next ? 'open' : 'closed',
-                    previous_state: prev ? 'open' : 'closed',
+                    next_state: next ? "open" : "closed",
+                    previous_state: prev ? "open" : "closed",
                   });
                   return next;
                 })
@@ -708,8 +754,8 @@ export function ConversationPageContent() {
               )}
               <span className="sr-only">
                 {isSidebarOpen
-                  ? t('sidebar.toggle.close')
-                  : t('sidebar.toggle.open')}
+                  ? t("sidebar.toggle.close")
+                  : t("sidebar.toggle.open")}
               </span>
             </Button>
           }
@@ -723,9 +769,9 @@ export function ConversationPageContent() {
                 setIsRightPanelOpen((prev) => {
                   const next = !prev;
                   captureEvent(AnalyticsEvent.SidebarToggled, {
-                    sidebar: 'right_panel',
-                    next_state: next ? 'open' : 'closed',
-                    previous_state: prev ? 'open' : 'closed',
+                    sidebar: "right_panel",
+                    next_state: next ? "open" : "closed",
+                    previous_state: prev ? "open" : "closed",
                   });
                   return next;
                 })
@@ -740,7 +786,7 @@ export function ConversationPageContent() {
                 <PanelRightOpen className="h-4 w-4" />
               )}
               <span className="sr-only">
-                {isRightPanelOpen ? 'Close right panel' : 'Open right panel'}
+                {isRightPanelOpen ? "Close right panel" : "Open right panel"}
               </span>
             </Button>
           }
@@ -751,7 +797,7 @@ export function ConversationPageContent() {
             id="conversation-sidebar"
             className={cn(
               "overflow-hidden transition-all duration-300 lg:w-72 lg:flex-none",
-              isSidebarOpen ? "block" : "hidden"
+              isSidebarOpen ? "block" : "hidden",
             )}
             aria-hidden={!isSidebarOpen}
           >
@@ -778,7 +824,7 @@ export function ConversationPageContent() {
                     <div className="flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-background/70 px-8 py-6 text-center">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
-                        {t('sessions.details.loading')}
+                        {t("sessions.details.loading")}
                       </p>
                     </div>
                   ) : showConnectionBanner ? (
@@ -811,8 +857,8 @@ export function ConversationPageContent() {
                 onSubmit={handleTaskSubmit}
                 placeholder={
                   resolvedSessionId
-                    ? t('console.input.placeholder.active')
-                    : t('console.input.placeholder.idle')
+                    ? t("console.input.placeholder.active")
+                    : t("console.input.placeholder.idle")
                 }
                 disabled={inputDisabled}
                 loading={creationPending}
@@ -829,7 +875,7 @@ export function ConversationPageContent() {
             id="conversation-right-panel"
             className={cn(
               "hidden lg:flex flex-none justify-end overflow-hidden transition-all duration-300",
-              isRightPanelOpen ? "w-[380px] xl:w-[440px]" : "w-0"
+              isRightPanelOpen ? "w-[380px] xl:w-[440px]" : "w-0",
             )}
             aria-hidden={!isRightPanelOpen}
           >

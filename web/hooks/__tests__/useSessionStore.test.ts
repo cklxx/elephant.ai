@@ -68,7 +68,7 @@ describe('useSessionStore', () => {
         result.current.addToHistory('session-1');
       });
 
-      expect(result.current.sessionHistory).toEqual(['session-1', 'session-2']);
+      expect(result.current.sessionHistory).toEqual(['session-2', 'session-1']);
     });
 
     it('limits history to the most recent 10 items', () => {
@@ -85,7 +85,7 @@ describe('useSessionStore', () => {
       expect(result.current.sessionHistory).not.toContain('session-1');
     });
 
-    it('moves existing sessions to the front when re-added', () => {
+    it('keeps existing sessions in place when re-added', () => {
       const { result } = renderHook(() => useSessionStore());
 
       act(() => {
@@ -105,9 +105,9 @@ describe('useSessionStore', () => {
       });
 
       expect(result.current.sessionHistory).toEqual([
-        'session-1',
         'session-3',
         'session-2',
+        'session-1',
       ]);
     });
   });

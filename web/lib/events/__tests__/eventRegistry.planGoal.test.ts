@@ -1,8 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultEventRegistry } from '@/lib/events/eventRegistry';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { WorkflowToolCompletedEvent } from '@/lib/types';
+import { apiClient } from '@/lib/api';
+
+vi.mock('@/lib/api', () => ({
+  apiClient: {
+    getSessionTitle: vi.fn(),
+  },
+}));
+
+const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('plan goal session titles', () => {
   beforeEach(() => {
@@ -12,9 +21,11 @@ describe('plan goal session titles', () => {
       sessionHistory: [],
       sessionLabels: {},
     });
+    vi.mocked(apiClient.getSessionTitle).mockReset();
   });
 
-  it('uses the plan session_title from metadata as the session label', () => {
+  it('uses the stored session title as the session label', async () => {
+    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce('Plan labeling');
     const event: WorkflowToolCompletedEvent = {
       event_type: 'workflow.tool.completed',
       agent_level: 'core',
@@ -28,13 +39,15 @@ describe('plan goal session titles', () => {
     };
 
     defaultEventRegistry.run(event);
+    await flushPromises();
 
     expect(useSessionStore.getState().sessionLabels['session-plan-1']).toBe(
       'Plan labeling',
     );
   });
 
-  it('falls back to the plan result when no metadata goal is present', () => {
+  it('skips renaming when no session title is available', async () => {
+    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce(null);
     const event: WorkflowToolCompletedEvent = {
       event_type: 'workflow.tool.completed',
       agent_level: 'core',
@@ -47,30 +60,9 @@ describe('plan goal session titles', () => {
     };
 
     defaultEventRegistry.run(event);
+    await flushPromises();
 
-    expect(useSessionStore.getState().sessionLabels['session-plan-2']).toBe(
-      'Draft new help center IA',
-    );
-  });
-
-  it('falls back to overall_goal_ui when session_title is missing', () => {
-    const event: WorkflowToolCompletedEvent = {
-      event_type: 'workflow.tool.completed',
-      agent_level: 'core',
-      timestamp: new Date().toISOString(),
-      session_id: 'session-plan-3',
-      call_id: 'call-plan-3',
-      tool_name: 'plan',
-      result: 'Refine onboarding experience',
-      duration: 120,
-      metadata: { overall_goal_ui: 'Improve plan labeling UX' },
-    };
-
-    defaultEventRegistry.run(event);
-
-    expect(useSessionStore.getState().sessionLabels['session-plan-3']).toBe(
-      'Improve plan labeling UX',
-    );
+    expect(useSessionStore.getState().sessionLabels['session-plan-2']).toBeUndefined();
   });
 
   it('ignores non-plan tool completions', () => {
@@ -89,5 +81,31 @@ describe('plan goal session titles', () => {
     defaultEventRegistry.run(event);
 
     expect(useSessionStore.getState().sessionLabels['session-non-plan']).toBeUndefined();
+  });
+
+  it('does not override an existing session label', async () => {
+    useSessionStore.setState({
+      sessionLabels: { 'session-plan-3': 'Existing label' },
+    });
+    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce('New label');
+
+    const event: WorkflowToolCompletedEvent = {
+      event_type: 'workflow.tool.completed',
+      agent_level: 'core',
+      timestamp: new Date().toISOString(),
+      session_id: 'session-plan-3',
+      call_id: 'call-plan-3',
+      tool_name: 'plan',
+      result: 'Refine onboarding experience',
+      duration: 120,
+    };
+
+    defaultEventRegistry.run(event);
+    await flushPromises();
+
+    expect(useSessionStore.getState().sessionLabels['session-plan-3']).toBe(
+      'Existing label',
+    );
+    expect(apiClient.getSessionTitle).not.toHaveBeenCalled();
   });
 });

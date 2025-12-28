@@ -22,6 +22,12 @@ func (stubMarkdownRenderer) Render(input string) (string, error) {
 	return normalized + "\n", nil
 }
 
+type paddedMarkdownRenderer struct{}
+
+func (paddedMarkdownRenderer) Render(_ string) (string, error) {
+	return "\x1b[0m   \nHello\n\x1b[0m \n", nil
+}
+
 func newTestRenderer(verbose bool) *CLIRenderer {
 	return NewCLIRendererWithMarkdown(verbose, stubMarkdownRenderer{})
 }
@@ -99,5 +105,13 @@ func TestRenderMarkdownStreamChunkMaintainsTrailingNewline(t *testing.T) {
 	}
 	if !strings.HasSuffix(chunk, "\n") {
 		t.Fatalf("expected rendered chunk to end with newline, got %q", chunk)
+	}
+}
+
+func TestRenderMarkdownStreamChunkTrimsWhitespaceEdges(t *testing.T) {
+	renderer := NewCLIRendererWithMarkdown(false, paddedMarkdownRenderer{})
+	chunk := renderer.RenderMarkdownStreamChunk("ignored", true)
+	if chunk != "Hello\n" {
+		t.Fatalf("expected trimmed output, got %q", chunk)
 	}
 }
