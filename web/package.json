@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
-    "pretest": "node scripts/generate-skills-catalog.js",
+    "pretest": "npm run build",
     "test": "vitest run --config vitest.config.mts",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
