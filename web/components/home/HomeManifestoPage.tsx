@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import {
   PageContainer,
@@ -114,6 +115,13 @@ const copy = {
         logLabel: "行动日志 / 证据",
         liveLabel: "实时播放",
       },
+      hero: {
+        highlights: [
+          "目标、任务、证据三层结构实时同步",
+          "Plan + Clearify + ReAct，计划与执行分层可控",
+          "工具调用全链路留痕，便于追踪和复盘",
+        ],
+      },
       engineering: {
         title: "工程化落点",
         bullets: [
@@ -212,6 +220,13 @@ const copy = {
         timelineLabel: "Timeline",
         logLabel: "Action log / evidence",
         liveLabel: "Live",
+      },
+      hero: {
+        highlights: [
+          "Goal · task · evidence stay in sync",
+          "Plan + Clearify + ReAct keeps planning and execution separated",
+          "Tool calls are logged end-to-end for replay",
+        ],
       },
       engineering: {
         title: "Engineering outcomes",
@@ -587,7 +602,7 @@ function MiniPanel({ title, lines }: { title: string; lines: string[] }) {
   );
 }
 
-function HeroHighlights({ items }: { items: string[] }) {
+function HeroHighlights({ items }: { items: readonly string[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
       {items.map((item) => (
@@ -613,7 +628,7 @@ function HighlightCard({
 }: {
   title: string;
   description?: string;
-  lines: string[];
+  lines: readonly string[];
   icon: LucideIcon;
 }) {
   return (
