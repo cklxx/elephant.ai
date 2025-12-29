@@ -1,24 +1,24 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  CheckCircle2,
-  Eye,
   FileCode2,
   GitBranch,
   ListChecks,
   ListTodo,
+  Palette,
   PlayCircle,
   ScrollText,
   ShieldCheck,
-  Wrench,
+  Sparkles,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import {
   PageContainer,
   PageShell,
   SectionBlock,
 } from "@/components/layout/page-shell";
-import { FlowShowcase } from "@/components/home/FlowShowcase";
+import { FlowShowcase, type FlowCopy } from "@/components/home/FlowShowcase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -26,425 +26,375 @@ import { cn } from "@/lib/utils";
 import type { FlowStep } from "./FlowShowcase";
 import type { HomeLang } from "./types";
 
+type Pillar = {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  detail: string;
+};
+
+type Snapshot = {
+  title: string;
+  description: string;
+  metrics: { label: string; value: string; hint?: string }[];
+  deliverablesLabel: string;
+  deliverables: string[];
+};
+
+type HomeCopy = {
+  badge: string;
+  title: string;
+  subtitle: string;
+  actions: {
+    primary: string;
+    secondary: string;
+    evaluation: string;
+    login: string;
+  };
+  nav: {
+    console: string;
+    sessions: string;
+    evaluation: string;
+    docs: string;
+  };
+  section: {
+    hero: {
+      highlights: string[];
+    };
+    snapshot: Snapshot;
+    flow: FlowCopy;
+    pillars: {
+      title: string;
+      items: Pillar[];
+    };
+    proof: {
+      title: string;
+      bullets: string[];
+    };
+    cta: {
+      title: string;
+      description: string;
+    };
+    refs: {
+      title: string;
+    };
+  };
+};
+
 const references = [
   {
     title: "ReAct: Synergizing Reasoning and Acting in Language Models",
     href: "https://arxiv.org/abs/2210.03629",
   },
   {
-    title: "A practical guide to building agents (OpenAI)",
-    href: "https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf",
-  },
-  {
-    title: "Function calling (OpenAI API)",
-    href: "https://platform.openai.com/docs/guides/function-calling",
+    title: "Structured generation for tool use (OpenAI)",
+    href: "https://platform.openai.com/docs/guides/structured-outputs",
   },
   {
     title: "Plan-and-Execute Agents (LangChain)",
     href: "https://blog.langchain.com/planning-agents/",
   },
   {
-    title: "Claude Code: Best practices (Anthropic)",
+    title: "Claude Code: Best practices",
     href: "https://www.anthropic.com/engineering/claude-code-best-practices",
   },
 ] as const;
 
-const copy = {
+const copy: Record<HomeLang, HomeCopy> = {
   zh: {
-    badge: "elephant.ai · Manifesto",
-    title: "把 Agent 变成可控、可验收的工程系统",
+    badge: "elephant.ai · 前端编排",
+    title: "让 Agent 直接交付可审计的首页体验",
     subtitle:
-      "让 AI 像软件一样工作：可约束、可观测、可复盘，而不是像聊天一样凭运气。",
+      "elephant.ai 把 Plan / Clearify / ReAct 作为 UI 编排器：版式、文案、状态、证据同频更新，可复盘、可验收、可合并。",
     actions: {
-      primary: "进入控制台",
-      secondary: "查看会话",
+      primary: "开始一次演示",
+      secondary: "查看运行记录",
       evaluation: "评估面板",
       login: "团队登录",
     },
     nav: {
       console: "控制台",
-      sessions: "会话",
+      sessions: "运行",
       evaluation: "评估",
       docs: "理念",
     },
     section: {
-      problem: {
-        title: "问题不在智商，而在不稳定",
-        description:
-          "多数 Agent 失败不是模型不够强，而是缺少工程三要素：层级、分离、契约。",
-        bullets: [
-          "目标/任务层级不清：用户不知道系统现在到底在做什么",
-          "计划和执行挤在同一段输出：难调试、易漂移、也难验收",
-          "工具调用缺乏统一协议：状态不一致、日志不可追、问题不可复现",
+      hero: {
+        highlights: [
+          "明确三级结构：Goal → Task → Evidence",
+          "多语言版式与文案保持语气一致",
+          "每一步都有可追溯的 QA 记录与截图",
         ],
       },
-      beliefs: {
-        title: "三条核心信念",
+      snapshot: {
+        title: "一次 elephant.ai 运行长什么样",
+        description: "从意图到交付在同一画布里：计划、执行、证据可随时回放与审计。",
+        metrics: [
+          { label: "意图到可交付 UI", value: "≈ 3 分钟", hint: "含文案、版式、状态" },
+          { label: "并行语言", value: "中文 · English", hint: "语气/结构双向校对" },
+          { label: "质量护栏", value: "a11y · 对比度 · 视口差异" },
+        ],
+        deliverablesLabel: "输出交付物",
+        deliverables: [
+          "可复盘的运行记录（含证据链接）",
+          "页面规格说明 + 语气提示",
+          "组件映射与状态定义",
+          "可直接合并的 Next.js 片段",
+        ],
+      },
+      flow: {
+        title: "编排好的流程",
+        description: "Plan / Clearify / ReAct 在同一轨迹上滚动播放，可随时暂停查看细节。",
+        timelineLabel: "轨迹",
+        logLabel: "事件 / 证据",
+        liveLabel: "播放中",
+      },
+      pillars: {
+        title: "elephant.ai 为首页设计做的事情",
         items: [
           {
-            icon: Eye,
-            title: "目标可见，计划不可见",
-            description:
-              "对外只承诺意图与进度；完整计划作为内部控制结构保存，随时可重规划。",
+            icon: Palette,
+            title: "设计系统对齐",
+            description: "先读取 Token、栅格、圆角与图标集，再生成页面。",
+            detail: "样式不再漂移，品牌一致性内置。",
           },
           {
-            icon: ListChecks,
-            title: "任务必须先声明，再开始行动",
-            description:
-              "把粒度压到可验收的最小单元：每个任务都有完成标准和证据入口。",
+            icon: ScrollText,
+            title: "语气与意图并行",
+            description: "文案与 PRD 同步，双语互为校对。",
+            detail: "不靠填充文本，而是可审计的语气提示。",
           },
           {
             icon: ShieldCheck,
-            title: "工具是契约，不是提示词",
-            description:
-              "用结构化输入/输出和执行闭环取代“更长的提示词”，把系统变成可控的状态机。",
-          },
-        ],
-      },
-      method: {
-        title: "Plan + Clearify + ReAct：让编排器掌控节奏",
-        description:
-          "Plan 对齐意图；Clearify 拆到最小可验收任务；ReAct 在任务内交替推理/行动并留证据。流程的实时演示见下方动态卡片。",
-      },
-      showcase: {
-        badge: "Mock showcase",
-        title: "Showcase：合规发布的可验收样板",
-        description:
-          "主页直接模拟一次完整的发布任务，展示层级、证据与评审方式如何落地。",
-        brief: {
-          title: "任务简报",
-          description:
-            "先对齐目标、风险、交付物，再进入执行；所有步骤都可追溯。",
-        },
-        highlights: [
-          { label: "目标", value: "v0.9 上线并可审计" },
-          { label: "窗口", value: "48 小时，3 人复核" },
-          { label: "入口", value: "CLI + Web 控制台" },
-          { label: "风险", value: "10 分钟内可回滚" },
-        ],
-        deliverablesLabel: "交付物",
-        deliverables: [
-          "发布 checklist 与责任人",
-          "审批记录与证据链接",
-          "回归结果与风险摘要",
-          "回滚与复盘计划",
-        ],
-        trace: {
-          title: "执行轨迹（Mock）",
-          description: "每条记录对应可验收任务，状态和证据一目了然。",
-          steps: [
-            { title: "Plan", detail: "冻结目标、回滚门槛、复核角色" },
-            {
-              title: "Clearify",
-              detail: "拆分 12 个可验收子任务，绑定证据入口",
-            },
-            {
-              title: "ReAct",
-              detail: "按 gate 执行与审批，记录耗时和风险变化",
-            },
-          ],
-        },
-        metricsLabel: "评审指标",
-        metrics: [
-          { label: "任务关闭", value: "12", hint: "全部带证据" },
-          { label: "审批次数", value: "5", hint: "含 2 次阻断" },
-          { label: "响应时延", value: "1.8s", hint: "中位确认" },
-        ],
-      },
-      ui: {
-        title: "HTML UI 示例（可观测 + 可验收）",
-        description:
-          "把请求拆成可验收的任务链，直接展示“目标-任务-行动日志”三层证据的更新过程。",
-        timelineLabel: "阶段进度",
-        logLabel: "行动日志 / 证据",
-        liveLabel: "实时播放",
-      },
-      engineering: {
-        title: "工程化落点",
-        bullets: [
-          {
-            icon: ScrollText,
-            title: "可观测性",
-            desc: "每次工具调用都带上下文和证据。",
+            title: "带护栏的执行",
+            description: "每一步自动跑 a11y / 对比度 / 响应式检查。",
+            detail: "护栏和证据写进日志，可直接复盘。",
           },
           {
             icon: GitBranch,
-            title: "可追溯性",
-            desc: "任务从声明到完成形成链路，方便复盘/回归。",
-          },
-          {
-            icon: Wrench,
-            title: "可重规划性",
-            desc: "计划可在内部更新；界面只呈现当前任务与证据。",
-          },
-          {
-            icon: CheckCircle2,
-            title: "可协作性",
-            desc: "工具定义与边界可文档化、版本化、复用。",
+            title: "交付无偏移",
+            description: "导出的代码与批准版式一致，含组件映射和状态注释。",
+            detail: "降低“手写落地”带来的偏差。",
           },
         ],
       },
-      oneLiner: {
-        title: "一句话",
+      proof: {
+        title: "让产品 / 设计 / 工程一起审阅",
+        bullets: [
+          "产品：先锁验收标准与风险门槛，再开始行动。",
+          "设计：节奏、间距、态控来自预设，而不是提示词猜测。",
+          "工程：拿到可复现的证据与可直接粘贴的代码片段。",
+        ],
+      },
+      cta: {
+        title: "把下一份首页需求交给 elephant.ai",
         description:
-          "elephant.ai 不是让模型更会说，而是让智能体更像软件：目标清晰、任务明确、证据可展开、顺序可控、轨迹可复盘。",
+          "上传 PRD 或传入现有链接，elephant.ai 会生成可复盘、可审计的首页稿与代码。",
       },
       refs: {
-        title: "参考",
+        title: "灵感 / 参考",
       },
     },
   },
   en: {
-    badge: "elephant.ai · Manifesto",
-    title: "Turn agents into a controllable, auditable system",
+    badge: "elephant.ai · Frontend orchestrator",
+    title: "Ship a homepage that is reviewable from day zero",
     subtitle:
-      "Make AI behave like software: constrained, observable, and reviewable—rather than a chat that “usually works.”",
+      "elephant.ai runs Plan / Clearify / ReAct as an orchestration loop: layout, copy, states, and evidence stay in sync and auditable.",
     actions: {
-      primary: "Open console",
-      secondary: "View sessions",
-      evaluation: "Evaluation",
+      primary: "Start a demo run",
+      secondary: "View runs",
+      evaluation: "QA dashboard",
       login: "Team login",
     },
     nav: {
       console: "Console",
-      sessions: "Sessions",
-      evaluation: "Evaluation",
+      sessions: "Runs",
+      evaluation: "QA",
       docs: "Manifesto",
     },
     section: {
-      problem: {
-        title: "What breaks agents is not intelligence—it’s instability",
-        description:
-          "Most failures come from missing engineering primitives: clear hierarchy, separation, and contracts.",
-        bullets: [
-          "Unclear goal/task hierarchy: users can’t tell what the system is doing",
-          "Plan and execution mixed in one blob: hard to debug, easy to drift, hard to review",
-          "No unified tool protocol: inconsistent state, untraceable logs, irreproducible issues",
-        ],
-      },
-      beliefs: {
-        title: "Three core beliefs",
-        items: [
-          {
-            icon: Eye,
-            title: "Show the goal, hide the full plan",
-            description:
-              "Expose intent and progress; keep the full plan as internal control state for replanning.",
-          },
-          {
-            icon: ListChecks,
-            title: "Declare tasks before acting",
-            description:
-              "Push work down to the smallest reviewable unit: every task has acceptance criteria and evidence.",
-          },
-          {
-            icon: ShieldCheck,
-            title: "Tools are contracts, not prompts",
-            description:
-              "Structured inputs/outputs + execution loop beat “longer prompts”—turn behavior into a state machine.",
-          },
-        ],
-      },
-      method: {
-        title: "Plan + Clearify + ReAct: keep the orchestrator in control",
-        description:
-          "Plan aligns intent; Clearify defines the smallest acceptable tasks; ReAct alternates reasoning/actions inside a task and leaves evidence. Watch the live demo below instead of reading static prose.",
-      },
-      showcase: {
-        badge: "Mock showcase",
-        title: "Showcase: an audit-ready release cutover",
-        description:
-          "A mocked run on the homepage to demonstrate hierarchy, evidence, and review flow.",
-        brief: {
-          title: "Run brief",
-          description:
-            "Align the goal, risks, and deliverables before execution. Every step stays traceable.",
-        },
+      hero: {
         highlights: [
-          { label: "Goal", value: "Ship v0.9 with audit trail" },
-          { label: "Window", value: "48 hours, 3 reviewers" },
-          { label: "Surface", value: "CLI + Web console" },
-          { label: "Risk", value: "Rollback within 10 minutes" },
+          "Explicit Goal → Task → Evidence hierarchy",
+          "Copy + layout keep tone parity across locales",
+          "Every step leaves QA receipts and screenshots automatically",
+        ],
+      },
+      snapshot: {
+        title: "What an elephant.ai run looks like",
+        description: "Intent, execution, and evidence live on one canvas you can replay and audit.",
+        metrics: [
+          { label: "Intent → shippable UI", value: "~3 minutes", hint: "Layout + copy + states" },
+          { label: "Locales in sync", value: "English · 中文", hint: "Tone-checked both ways" },
+          { label: "Quality gates", value: "a11y · contrast · viewport diffs" },
         ],
         deliverablesLabel: "Deliverables",
         deliverables: [
-          "Release checklist with owners",
-          "Approval log + evidence links",
-          "Regression results and risk summary",
-          "Rollback and postmortem plan",
-        ],
-        trace: {
-          title: "Execution trace (mock)",
-          description:
-            "Each entry maps to a reviewable task with status and evidence.",
-          steps: [
-            { title: "Plan", detail: "Freeze goals, rollback gates, reviewers" },
-            {
-              title: "Clearify",
-              detail:
-                "Split into 12 reviewable tasks with evidence hooks",
-            },
-            {
-              title: "ReAct",
-              detail:
-                "Run via gates, capture timing and risk changes",
-            },
-          ],
-        },
-        metricsLabel: "Review metrics",
-        metrics: [
-          { label: "Tasks closed", value: "12", hint: "All with evidence" },
-          { label: "Approvals", value: "5", hint: "2 blocked" },
-          { label: "Ack latency", value: "1.8s", hint: "Median step" },
+          "Replayable transcript with evidence links",
+          "Homepage spec with tone + messaging hooks",
+          "Component mapping + state definitions",
+          "Merge-ready Next.js snippet that matches the approved mock",
         ],
       },
-      ui: {
-        title: "HTML UI example (observable + reviewable)",
-        description:
-          "Turn a request into a chain of reviewable tasks and show how goal, tasks, and evidence refresh together.",
+      flow: {
+        title: "Orchestrated flow",
+        description: "Plan / Clearify / ReAct runs on a predictable track you can pause and inspect.",
         timelineLabel: "Timeline",
-        logLabel: "Action log / evidence",
-        liveLabel: "Live",
+        logLabel: "Event stream",
+        liveLabel: "Autoplay",
       },
-      engineering: {
-        title: "Engineering outcomes",
-        bullets: [
+      pillars: {
+        title: "What elephant.ai brings to homepage work",
+        items: [
+          {
+            icon: Palette,
+            title: "Design-system aligned",
+            description: "Reads your tokens, grid, radius, and iconography before composing.",
+            detail: "Brand fidelity is enforced, not suggested.",
+          },
           {
             icon: ScrollText,
-            title: "Observability",
-            desc: "Every tool call ships with context and evidence.",
+            title: "Brief-aware copy",
+            description: "Keeps PRD intent and tone aligned across locales.",
+            detail: "No filler; each string is reviewable with context.",
+          },
+          {
+            icon: ShieldCheck,
+            title: "Guardrailed QA",
+            description: "Accessibility, contrast, and responsive diffs run at every step.",
+            detail: "Evidence is saved as part of the transcript.",
           },
           {
             icon: GitBranch,
-            title: "Traceability",
-            desc: "A full chain from declaration → completion for replay/regression.",
-          },
-          {
-            icon: Wrench,
-            title: "Replanning",
-            desc: "Plans can change internally; the UI stays on current task + proof.",
-          },
-          {
-            icon: CheckCircle2,
-            title: "Collaboration",
-            desc: "Tool contracts can be documented, versioned, and reused.",
+            title: "Handoff without drift",
+            description: "Exports code slices that match the approved layout.",
+            detail: "Pairs component mapping with interaction notes.",
           },
         ],
       },
-      oneLiner: {
-        title: "One-liner for the homepage",
+      proof: {
+        title: "Built for product, design, and engineering to review together",
+        bullets: [
+          "Product: acceptance bar and risk gates are locked before execution.",
+          "Design: rhythm, spacing, and states come from presets, not prompt roulette.",
+          "Engineering: reproducible evidence plus copy-paste-ready code slices.",
+        ],
+      },
+      cta: {
+        title: "Let elephant.ai run your next homepage brief",
         description:
-          "elephant.ai doesn’t make models talk better—it makes agents behave like software: clear goals, explicit tasks, expandable evidence, stable sequencing, and postmortem-friendly traces.",
+          "Drop in a PRD or the current URL—elephant.ai redraws it with QA receipts ready for review and merge.",
       },
       refs: {
-        title: "References",
+        title: "Reading list",
       },
     },
   },
-} as const satisfies Record<HomeLang, unknown>;
+};
 
 const flowSteps: Record<HomeLang, FlowStep[]> = {
   zh: [
     {
       stage: "Plan",
-      headline: "Plan：确认目标与约束",
-      summary: "抽取意图、约束和交付线索。",
+      headline: "锁定目标与护栏",
+      summary: "提取意图、语气、约束和交付物。",
       highlights: [
-        "目标：让首页以动态流程为主角",
-        "约束：保持可验收粒度、双语同步",
-        "输出：编排器可重放的计划节点",
+        "目标/受众/CTA 先对齐",
+        "载入设计系统 Token 与栅格",
+        "写下验收与风险门槛",
       ],
       log: [
-        'plan.goal = "展示 Plan → Clearify → ReAct 的动态流程"',
-        "plan.constraints = ['可观测', '可验收', '不靠长文案']",
-        "emit(plan.contract)",
+        "plan.goal = \"清晰展示产品叙事\"",
+        "plan.constraints = ['tone','grid','a11y']",
+        "contract.acceptance = ['evidence','multi-locale']",
       ],
-      accent: "from-indigo-500 via-sky-500 to-emerald-500",
+      accent: "from-emerald-400 via-teal-400 to-cyan-500",
     },
     {
       stage: "Clearify",
-      headline: "Clearify：声明可验收任务",
-      summary: "拆到可以一句话验收的粒度。",
+      headline: "声明可验收任务",
+      summary: "把工作拆成可复盘的段落与状态。",
       highlights: [
-        "任务 1：流程卡片自动播放且可点击切换",
-        "任务 2：行动日志面板同步更新证据",
-        "任务 3：移除静态讲解，聚焦演示",
+        "Hero / Feature / Proof 映射组件",
+        "双语文案保持语气一致",
+        "状态与间距遵循预设",
       ],
       log: [
-        "task[1] = render_flow(autoPlay=true)",
-        "task[2] = render_log(source=evidence.flow)",
-        "acceptance = ['三步可切换', '日志随步骤刷新']",
+        "task.hero = layout.map(component='Hero')",
+        "task.copy.parity(locale=['zh','en'])",
+        "acceptance = ['状态一致','可溯源']",
       ],
-      accent: "from-amber-500 via-orange-500 to-rose-500",
+      accent: "from-amber-400 via-orange-400 to-rose-500",
     },
     {
       stage: "ReAct",
-      headline: "ReAct：执行并留痕",
-      summary: "工具调用驱动界面更新，证据随步骤展开。",
+      headline: "执行、留痕、交付",
+      summary: "执行带 QA 的动作，导出代码与证据。",
       highlights: [
-        "调用 tools.render → 更新流程高亮",
-        "调用 tools.log → 记录工具入参/结果",
-        "结果：首页成为动态可验收的轨迹",
+        "自动跑 a11y / contrast / viewport",
+        "导出 Next.js 片段 + 组件映射",
+        "证据（日志/截图）随任务保存",
       ],
       log: [
-        "tool.render(target='flow.showcase', step=active)",
-        "tool.log(event='action', proof='/evidence/flow')",
-        "ui.commit(status='ready for review')",
+        "tool.qa(['a11y','contrast','viewport'])",
+        "handoff.export('nextjs')",
+        "evidence.attach(logs, screenshots)",
       ],
-      accent: "from-emerald-500 via-teal-500 to-cyan-500",
+      accent: "from-indigo-400 via-sky-400 to-emerald-500",
     },
   ],
   en: [
     {
       stage: "Plan",
-      headline: "Plan: lock the goal",
-      summary: "Extract intent, constraints, and acceptance hooks.",
+      headline: "Lock intent and guardrails",
+      summary: "Extract goal, tone, constraints, and deliverables.",
       highlights: [
-        "Goal: put the live flow front and center",
-        "Constraints: reviewable steps, bilingual parity",
-        "Output: a replayable contract for the orchestrator",
+        "Goal / audience / CTA aligned up front",
+        "Design system tokens + grid loaded first",
+        "Acceptance and risk gates written down",
       ],
       log: [
-        'plan.goal = "Show Plan → Clearify → ReAct as motion"',
-        "plan.constraints = ['observable', 'reviewable', 'no long prose']",
-        "emit(plan.contract)",
+        "plan.goal = \"Tell the product story\"",
+        "plan.constraints = ['tone','grid','a11y']",
+        "contract.acceptance = ['evidence','multi-locale']",
       ],
-      accent: "from-indigo-500 via-sky-500 to-emerald-500",
+      accent: "from-emerald-400 via-teal-400 to-cyan-500",
     },
     {
       stage: "Clearify",
-      headline: "Clearify: declare reviewable tasks",
-      summary: "Cut work into one-line acceptance units.",
+      headline: "Declare reviewable tasks",
+      summary: "Map work to reviewable sections and states.",
       highlights: [
-        "Task 1: autoplayable flow card with manual switch",
-        "Task 2: action log panel mirrors evidence updates",
-        "Task 3: remove static explainer in favor of demo",
+        "Hero / Feature / Proof mapped to components",
+        "Copy parity across English / 中文",
+        "States and spacing follow presets",
       ],
       log: [
-        "task[1] = render_flow(autoPlay=true)",
-        "task[2] = render_log(source=evidence.flow)",
-        "acceptance = ['switch anytime', 'log follows step']",
+        "task.hero = layout.map(component='Hero')",
+        "task.copy.parity(locale=['en','zh'])",
+        "acceptance = ['state parity','traceable']",
       ],
-      accent: "from-amber-500 via-orange-500 to-rose-500",
+      accent: "from-amber-400 via-orange-400 to-rose-500",
     },
     {
       stage: "ReAct",
-      headline: "ReAct: execute with evidence",
-      summary: "Tools drive the UI while proof is captured inline.",
+      headline: "Execute, log, deliver",
+      summary: "Run guarded actions, export code and evidence.",
       highlights: [
-        "Call tools.render to move the flow highlight",
-        "Call tools.log to persist inputs and outputs",
-        "Outcome: homepage becomes a dynamic, auditable trace",
+        "Auto-run a11y / contrast / viewport checks",
+        "Export Next.js slice with component mapping",
+        "Logs + screenshots saved with the task",
       ],
       log: [
-        "tool.render(target='flow.showcase', step=active)",
-        "tool.log(event='action', proof='/evidence/flow')",
-        "ui.commit(status='ready for review')",
+        "tool.qa(['a11y','contrast','viewport'])",
+        "handoff.export('nextjs')",
+        "evidence.attach(logs, screenshots)",
       ],
-      accent: "from-emerald-500 via-teal-500 to-cyan-500",
+      accent: "from-indigo-400 via-sky-400 to-emerald-500",
     },
   ],
-} as const;
+};
 
 function HomeTopBar({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
@@ -452,10 +402,10 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-card/70 backdrop-blur">
-          <FileCode2 className="h-5 w-5 text-foreground/90" aria-hidden />
+          <Sparkles className="h-5 w-5 text-foreground/90" aria-hidden />
         </div>
         <div>
-          <div className="text-sm font-semibold text-foreground">elephant.ai</div>
+          <div className="text-sm font-semibold text-foreground">Raphael</div>
           <div className="text-xs text-muted-foreground">{t.nav.docs}</div>
         </div>
       </div>
@@ -507,6 +457,24 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
   );
 }
 
+function HeroHighlights({ items }: { items: string[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {items.map((item) => (
+        <div
+          key={item}
+          className="rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-muted-foreground"
+        >
+          <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-[11px] font-semibold text-emerald-500">
+            •
+          </span>
+          {item}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Hero({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
 
@@ -552,6 +520,7 @@ function Hero({ lang }: { lang: HomeLang }) {
             {t.actions.login}
           </Link>
         </div>
+        <HeroHighlights items={t.section.hero.highlights} />
       </div>
 
       <MiniConsolePreview lang={lang} />
@@ -559,120 +528,60 @@ function Hero({ lang }: { lang: HomeLang }) {
   );
 }
 
-function Showcase({ lang }: { lang: HomeLang }) {
-  const showcase = copy[lang].section.showcase;
+function Snapshot({ lang }: { lang: HomeLang }) {
+  const snapshot = copy[lang].section.snapshot;
 
   return (
     <SectionBlock className="gap-4">
       <div className="flex flex-col gap-2">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-          {showcase.badge}
+          <ListChecks className="h-4 w-4" aria-hidden />
+          {snapshot.title}
         </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
-            {showcase.title}
-          </h2>
-          <p className="text-sm text-muted-foreground sm:text-base">
-            {showcase.description}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground sm:text-base">{snapshot.description}</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
         <Card className="bg-card/70 backdrop-blur">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <ScrollText className="h-4 w-4" aria-hidden />
-              {showcase.brief.title}
+              <Palette className="h-4 w-4" aria-hidden />
+              {lang === "zh" ? "运行速览" : "Run snapshot"}
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {showcase.brief.description}
-            </p>
           </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {showcase.highlights.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-border/70 bg-background/60 p-3"
-                >
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-foreground">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
-              <div className="mb-2 text-xs font-semibold text-muted-foreground">
-                {showcase.deliverablesLabel}
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {snapshot.metrics.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-2xl border border-border/70 bg-background/60 p-4"
+              >
+                <div className="text-xs font-semibold text-muted-foreground">{item.label}</div>
+                <div className="mt-1 text-lg font-semibold text-foreground">{item.value}</div>
+                {item.hint ? (
+                  <div className="mt-1 text-xs text-muted-foreground">{item.hint}</div>
+                ) : null}
               </div>
-              <ul className="space-y-2 text-sm text-foreground/90">
-                {showcase.deliverables.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-none rounded-full bg-foreground/40" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            ))}
           </CardContent>
         </Card>
 
         <Card className="bg-card/70 backdrop-blur">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <ListChecks className="h-4 w-4" aria-hidden />
-              {showcase.trace.title}
+              <FileCode2 className="h-4 w-4" aria-hidden />
+              {snapshot.deliverablesLabel}
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {showcase.trace.description}
-            </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              {showcase.trace.steps.map((step, index) => (
-                <div
-                  key={step.title}
-                  className="rounded-2xl border border-border/70 bg-background/60 p-3"
-                >
-                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-[11px] text-foreground/80">
-                      {index + 1}
-                    </span>
-                    {step.title}
-                  </div>
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    {step.detail}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
-              <div className="mb-2 text-xs font-semibold text-muted-foreground">
-                {showcase.metricsLabel}
+          <CardContent className="space-y-3 text-sm text-foreground/90">
+            {snapshot.deliverables.map((item) => (
+              <div
+                key={item}
+                className="flex items-start gap-3 rounded-2xl border border-border/70 bg-background/60 p-3"
+              >
+                <span className="mt-1 inline-flex h-2.5 w-2.5 flex-none items-center justify-center rounded-full bg-emerald-400" />
+                <span>{item}</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {showcase.metrics.map((metric) => (
-                  <div
-                    key={metric.label}
-                    className="rounded-xl border border-border/70 bg-background/70 p-3"
-                  >
-                    <div className="text-xs text-muted-foreground">
-                      {metric.label}
-                    </div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">
-                      {metric.value}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {metric.hint}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            ))}
           </CardContent>
         </Card>
       </div>
@@ -680,57 +589,163 @@ function Showcase({ lang }: { lang: HomeLang }) {
   );
 }
 
+function Pillars({ lang }: { lang: HomeLang }) {
+  const { title, items } = copy[lang].section.pillars;
+
+  return (
+    <SectionBlock className="gap-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Sparkles className="h-4 w-4" aria-hidden />
+        {title}
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <Card key={item.title} className="bg-card/70 backdrop-blur">
+            <CardContent className="space-y-2 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <item.icon className="h-4 w-4 text-foreground/80" aria-hidden />
+                {item.title}
+              </div>
+              <div className="text-sm text-muted-foreground">{item.description}</div>
+              <div className="text-xs font-medium text-foreground/70">{item.detail}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </SectionBlock>
+  );
+}
+
+function Proof({ lang }: { lang: HomeLang }) {
+  const proof = copy[lang].section.proof;
+
+  return (
+    <SectionBlock className="gap-3">
+      <Card className="bg-card/70 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <ListTodo className="h-4 w-4" aria-hidden />
+            {proof.title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          {proof.bullets.map((item) => (
+            <div
+              key={item}
+              className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/70 p-3"
+            >
+              <span className="mt-1 inline-flex h-2 w-2 flex-none rounded-full bg-foreground/50" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </SectionBlock>
+  );
+}
+
+function CTA({ lang }: { lang: HomeLang }) {
+  const cta = copy[lang].section.cta;
+
+  return (
+    <SectionBlock className="gap-3">
+      <Card className="overflow-hidden bg-gradient-to-r from-foreground via-foreground to-foreground text-background">
+        <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <div className="text-lg font-semibold">{cta.title}</div>
+            <div className="text-sm text-background/80">{cta.description}</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/conversation">
+              <Button variant="secondary" className="rounded-full bg-background text-foreground">
+                <PlayCircle className="mr-2 h-4 w-4" aria-hidden />
+                {lang === "zh" ? "立即生成" : "Start a run"}
+              </Button>
+            </Link>
+            <Link href="/evaluation">
+              <Button variant="outline" className="rounded-full border-background/40 text-background">
+                {lang === "zh" ? "查看质量报告" : "See QA report"}
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    </SectionBlock>
+  );
+}
+
+function References({ lang }: { lang: HomeLang }) {
+  return (
+    <SectionBlock className="gap-3">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <ScrollText className="h-4 w-4" aria-hidden />
+        {copy[lang].section.refs.title}
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {references.map((ref) => (
+          <a
+            key={ref.href}
+            href={ref.href}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex items-start justify-between gap-3 rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm text-muted-foreground backdrop-blur transition hover:border-border hover:bg-card/80 hover:text-foreground"
+          >
+            <span className="leading-snug">{ref.title}</span>
+            <ArrowRight
+              className="mt-0.5 h-4 w-4 flex-none opacity-50 transition group-hover:translate-x-0.5 group-hover:opacity-80"
+              aria-hidden
+            />
+          </a>
+        ))}
+      </div>
+    </SectionBlock>
+  );
+}
+
 function MiniConsolePreview({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
-  const planTitle =
-    lang === "zh" ? "Plan（一级：目标）" : "Plan (Level 1: Goal)";
-  const taskTitle =
-    lang === "zh" ? "Clearify（二级：任务）" : "Clearify (Level 2: Task)";
-  const logTitle =
-    lang === "zh" ? "ReAct（三级：行动日志）" : "ReAct (Level 3: Action log)";
 
   return (
     <Card className="overflow-hidden bg-card/70 backdrop-blur">
       <CardHeader className="space-y-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <ListTodo className="h-4 w-4" aria-hidden />
-          {t.section.method.title}
+          <Sparkles className="h-4 w-4" aria-hidden />
+          {lang === "zh" ? "Raphael 运行预览" : "Raphael run preview"}
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          {t.section.method.description}
+          {lang === "zh"
+            ? "简报、组件库、QA 护栏在一张画布里，随时可回放。"
+            : "Brief, system tokens, and QA guardrails live in one canvas you can replay."}
         </p>
       </CardHeader>
-      <CardContent className="grid gap-3 lg:grid-cols-1">
+      <CardContent className="grid gap-3">
         <MiniPanel
-          title={planTitle}
+          title={lang === "zh" ? "Brief" : "Brief"}
           lines={[
             lang === "zh"
-              ? "Goal: 让 Agent 可控且可验收"
-              : "Goal: controllable & auditable agents",
+              ? "hero.goal = \"提升产品认知\""
+              : "hero.goal = \"Tell the product story\"",
             lang === "zh"
-              ? "Steps: 层级清晰 → 契约明确 → 证据留存"
-              : "Steps: hierarchy → contracts → evidence",
+              ? "tone = \"清晰、可信、可落地\""
+              : "tone = \"clear, credible, shippable\"",
           ]}
         />
         <MiniPanel
-          title={taskTitle}
+          title={lang === "zh" ? "Layout" : "Layout"}
           lines={[
+            "grid = brand.grid",
+            "components = ['Hero', 'FeatureGrid', 'Proof']",
             lang === "zh"
-              ? "Task: 重写首页，更新双语理念文案"
-              : "Task: replace homepage with bilingual manifesto",
-            lang === "zh"
-              ? "Done: 中/英可切换；含 UI 示例；低饱和样式"
-              : "Done: zh/en toggle; UI examples; low-sat style",
+              ? "states = ['idle', 'hover', 'loading']"
+              : "states = ['idle', 'hover', 'loading']",
           ]}
         />
         <MiniPanel
-          title={logTitle}
+          title="QA"
           lines={[
-            "tool: file_read web/app/page.tsx",
-            "tool: apply_patch web/app/page.tsx",
-            lang === "zh"
-              ? "evidence: UI 与文案可直接验收"
-              : "evidence: UI + copy are reviewable",
+            "qa.check(['a11y','contrast','viewport'])",
+            lang === "zh" ? "evidence.attach(logs, screenshots)" : "evidence.attach(logs, screenshots)",
+            t.actions.secondary,
           ]}
         />
       </CardContent>
@@ -753,26 +768,13 @@ function MiniPanel({ title, lines }: { title: string; lines: string[] }) {
   );
 }
 
-function Bullets({ items }: { items: readonly string[] }) {
-  return (
-    <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-      {items.map((item) => (
-        <li key={item} className="flex gap-2">
-          <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-none rounded-full bg-foreground/30" />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const t = copy[lang];
 
   return (
     <PageShell padding="none">
       <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_12%_20%,rgba(99,102,241,0.08),transparent_55%),radial-gradient(900px_circle_at_88%_10%,rgba(34,211,238,0.08),transparent_55%),radial-gradient(900px_circle_at_40%_92%,rgba(16,185,129,0.06),transparent_55%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_12%_20%,rgba(16,185,129,0.07),transparent_55%),radial-gradient(900px_circle_at_88%_10%,rgba(59,130,246,0.08),transparent_55%),radial-gradient(900px_circle_at_40%_92%,rgba(14,165,233,0.06),transparent_55%)]" />
 
         <PageContainer className="px-4 py-10 sm:px-6 lg:px-10 lg:py-14">
           <SectionBlock className="gap-8">
@@ -780,7 +782,7 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
             <Hero lang={lang} />
           </SectionBlock>
 
-          <Showcase lang={lang} />
+          <Snapshot lang={lang} />
 
           <SectionBlock className="gap-4">
             <FlowShowcase
@@ -790,120 +792,13 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
             />
           </SectionBlock>
 
-          <SectionBlock className="gap-4">
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-              <Card className="bg-card/70 backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5" aria-hidden />
-                    {t.section.problem.title}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t.section.problem.description}
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <Bullets items={t.section.problem.bullets} />
-                </CardContent>
-              </Card>
+          <Pillars lang={lang} />
 
-              <Card className="bg-card/70 backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ListChecks className="h-5 w-5" aria-hidden />
-                    {t.section.beliefs.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3">
-                  {t.section.beliefs.items.map((item) => (
-                    <div
-                      key={item.title}
-                      className="rounded-2xl border border-border/70 bg-background/60 p-4"
-                    >
-                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                        <item.icon
-                          className="h-4 w-4 text-foreground/80"
-                          aria-hidden
-                        />
-                        {item.title}
-                      </div>
-                      <div className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        {item.description}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </SectionBlock>
+          <Proof lang={lang} />
 
-          <SectionBlock className="gap-4">
-            <Card className="bg-card/70 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wrench className="h-5 w-5" aria-hidden />
-                  {t.section.engineering.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                {t.section.engineering.bullets.map((item) => (
-                  <div
-                    key={item.title}
-                    className="rounded-2xl border border-border/70 bg-background/60 p-4"
-                  >
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <item.icon
-                        className="h-4 w-4 text-foreground/80"
-                        aria-hidden
-                      />
-                      {item.title}
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {item.desc}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </SectionBlock>
+          <CTA lang={lang} />
 
-          <SectionBlock className="gap-4">
-            <Card className="bg-card/70 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ScrollText className="h-5 w-5" aria-hidden />
-                  {t.section.oneLiner.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm leading-relaxed text-muted-foreground">
-                {t.section.oneLiner.description}
-              </CardContent>
-            </Card>
-          </SectionBlock>
-
-          <SectionBlock className="gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <ScrollText className="h-4 w-4" aria-hidden />
-              {t.section.refs.title}
-            </div>
-            <div className="grid gap-2 lg:grid-cols-2">
-              {references.map((ref) => (
-                <a
-                  key={ref.href}
-                  href={ref.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group flex items-start justify-between gap-3 rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm text-muted-foreground backdrop-blur transition hover:border-border hover:bg-card/80 hover:text-foreground"
-                >
-                  <span className="leading-snug">{ref.title}</span>
-                  <ArrowRight
-                    className="mt-0.5 h-4 w-4 flex-none opacity-50 transition group-hover:translate-x-0.5 group-hover:opacity-80"
-                    aria-hidden
-                  />
-                </a>
-              ))}
-            </div>
-          </SectionBlock>
+          <References lang={lang} />
         </PageContainer>
       </div>
     </PageShell>
