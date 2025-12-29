@@ -20,6 +20,12 @@ import {
   SectionBlock,
 } from "@/components/layout/page-shell";
 import { FlowShowcase } from "@/components/home/FlowShowcase";
+import {
+  LiveChatShowcase,
+  type StageCopy,
+  type ChatTurn,
+} from "@/components/home/LiveChatShowcase";
+import { liveChatCopy, liveChatScript, liveChatStages } from "@/components/home/LiveChatCopy";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -669,6 +675,9 @@ function Bullets({ items }: { items: readonly string[] }) {
 
 function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const t = copy[lang];
+  const liveCopy = liveChatCopy[lang];
+  const liveStages: StageCopy[] = liveChatStages[lang];
+  const liveScript: ChatTurn[] = liveChatScript[lang];
 
   return (
     <PageShell padding="none">
@@ -682,10 +691,11 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
           </SectionBlock>
 
           <SectionBlock className="gap-4">
-            <FlowShowcase
+            <LiveChatShowcase
               lang={lang}
-              copy={t.section.flow}
-              steps={flowSteps[lang]}
+              copy={liveCopy}
+              stages={liveStages}
+              script={liveScript}
             />
           </SectionBlock>
 
