@@ -416,21 +416,32 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
 
 function Hero({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
+  const problem = t.section.problem;
+  const beliefs = t.section.beliefs;
+  const flow = t.section.flow;
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
-      <div className="space-y-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground backdrop-blur">
-          {t.badge}
+    <div className="grid gap-6 lg:grid-cols-[1.05fr,0.95fr] lg:items-center">
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground backdrop-blur">
+            {t.badge}
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+            <ScrollText className="h-3.5 w-3.5" aria-hidden />
+            {flow.title}
+          </div>
         </div>
+
         <div className="space-y-3">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
             {t.title}
           </h1>
-          <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+          <p className="max-w-3xl text-base leading-relaxed text-muted-foreground sm:text-lg">
             {t.subtitle}
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/conversation">
             <Button className="group rounded-xl">
@@ -459,9 +470,46 @@ function Hero({ lang }: { lang: HomeLang }) {
             {t.actions.login}
           </Link>
         </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <HighlightCard
+            title={problem.title}
+            description={problem.description}
+            lines={problem.bullets}
+            icon={ShieldCheck}
+          />
+          <HighlightCard
+            title={beliefs.title}
+            description=""
+            lines={beliefs.items.map((item) => `${item.title} · ${item.description}`)}
+            icon={ListChecks}
+          />
+        </div>
+
+        <HeroHighlights items={t.section.hero.highlights} />
       </div>
 
-      <MiniConsolePreview lang={lang} />
+      <div className="space-y-4">
+        <MiniConsolePreview lang={lang} />
+        <Card className="bg-card/70 backdrop-blur">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <PlayCircle className="h-4 w-4" aria-hidden />
+              {flow.description}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-3">
+            {t.section.hero.highlights.map((item) => (
+              <div
+                key={item}
+                className="rounded-xl border border-border/70 bg-background/60 p-3 text-sm text-muted-foreground"
+              >
+                {item}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -536,6 +584,58 @@ function MiniPanel({ title, lines }: { title: string; lines: string[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function HeroHighlights({ items }: { items: string[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {items.map((item) => (
+        <div
+          key={item}
+          className="rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-muted-foreground"
+        >
+          <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-[11px] font-semibold text-emerald-500">
+            •
+          </span>
+          {item}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HighlightCard({
+  title,
+  description,
+  lines,
+  icon: Icon,
+}: {
+  title: string;
+  description?: string;
+  lines: string[];
+  icon: LucideIcon;
+}) {
+  return (
+    <Card className="bg-card/70 backdrop-blur">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Icon className="h-4 w-4 text-foreground/80" aria-hidden />
+          {title}
+        </div>
+        {description ? (
+          <div className="text-sm text-muted-foreground">{description}</div>
+        ) : null}
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          {lines.map((line) => (
+            <li key={line} className="flex items-start gap-2">
+              <span className="mt-1 inline-flex h-1.5 w-1.5 flex-none rounded-full bg-foreground/50" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
