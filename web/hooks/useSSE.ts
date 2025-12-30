@@ -488,15 +488,14 @@ export function useSSE(
 
     const currentUserId = authClient.getSession()?.user.id?.trim() || null;
     const userChanged = userIdRef.current !== currentUserId;
-    const shouldResetAttachments = userChanged || !currentUserId;
+    const sessionChanged = Boolean(previousSessionId) && previousSessionId !== sessionId;
+    const shouldResetAttachments = sessionChanged || userChanged || !currentUserId;
     userIdRef.current = currentUserId;
 
     cleanup();
     reconnectAttemptsRef.current = 0;
 
-    const shouldResetState =
-      sessionId === null ||
-      (Boolean(previousSessionId) && previousSessionId !== sessionId);
+    const shouldResetState = sessionId === null || sessionChanged;
 
     if (shouldResetState) {
       if (shouldResetAttachments) {
