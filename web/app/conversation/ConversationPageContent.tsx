@@ -630,7 +630,7 @@ export function ConversationPageContent() {
 
   const emptyState = (
     <div className="w-full max-w-md" data-testid="conversation-empty-state">
-      <div className="rounded-3xl border border-border/60 bg-background/70 p-6 text-center">
+      <div className="rounded-3xl p-6 text-center">
         <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/70" />
           {t("console.empty.badge")}
@@ -811,7 +811,7 @@ export function ConversationPageContent() {
             />
           </div>
 
-          <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-card">
+          <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl">
             <ContentArea
               ref={contentRef}
               className="flex-1 min-h-0 min-w-0"
@@ -852,7 +852,7 @@ export function ConversationPageContent() {
               )}
             </ContentArea>
 
-            <div className="border-t border-border/60 bg-background/70 px-3 py-4 sm:px-6 sm:py-6">
+            <div className="border-t px-3 py-4 sm:px-6 sm:py-6">
               <TaskInput
                 onSubmit={handleTaskSubmit}
                 placeholder={
