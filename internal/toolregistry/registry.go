@@ -64,6 +64,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		LLMFactory:              config.LLMFactory,
 		LLMProvider:             config.LLMProvider,
 		LLMModel:                config.LLMModel,
+		LLMVisionModel:          config.LLMVisionModel,
 		APIKey:                  config.APIKey,
 		BaseURL:                 config.BaseURL,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
