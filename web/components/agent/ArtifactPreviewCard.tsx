@@ -110,21 +110,22 @@ export function ArtifactPreviewCard({
 
   const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
 
-  const markdownContent = useMemo(() => {
+  const normalizedMarkdown = useMemo(() => {
     if (!markdownPreview) return null;
-    const stripped = stripRedundantHeading(markdownPreview, normalizedTitle);
-    return stripped.trim() || markdownPreview.trim();
-  }, [markdownPreview, normalizedTitle]);
+    const trimmed = markdownPreview.replace(/^\uFEFF/, "").trim();
+    return trimmed || null;
+  }, [markdownPreview]);
 
   const markdownSnippet = useMemo(() => {
-    if (!markdownContent) return null;
-    const trimmed = markdownContent.trim();
+    if (!normalizedMarkdown) return null;
+    const withoutHeading = stripRedundantHeading(normalizedMarkdown, normalizedTitle);
+    const trimmed = withoutHeading.trim();
     if (!trimmed) return null;
     if (trimmed.length <= MARKDOWN_SNIPPET_MAX_CHARS) return trimmed;
     return `${trimmed
       .slice(0, MARKDOWN_SNIPPET_MAX_CHARS)
       .replace(/\s+$/, "")}\n…`;
-  }, [markdownContent]);
+  }, [normalizedMarkdown, normalizedTitle]);
 
   const requestPreview = () => {
     if (!canInlinePreview) return;
@@ -393,7 +394,7 @@ export function ArtifactPreviewCard({
                   ) : markdownPreview ? (
                     <div className="mx-auto w-full max-w-[820px] rounded-xl border border-border/60 bg-background p-6 shadow-sm">
                       <LazyMarkdownRenderer
-                        content={markdownContent ?? markdownPreview}
+                        content={normalizedMarkdown ?? markdownPreview}
                         containerClassName="markdown-body"
                         className="prose max-w-none text-base leading-normal text-foreground"
                       />
