@@ -50,6 +50,8 @@ const createPage = (state) => {
   return {
     async goto(url) { state.lastUrl = url; },
     async setDefaultTimeout() {},
+    async setExtraHTTPHeaders(headers) { state.pageHeaders = headers; },
+    async waitForTimeout(ms) { state.waits.push(ms); },
     async evaluate(fn) {
       const previousDocument = global.document;
       const previousWindow = global.window;
@@ -78,27 +80,50 @@ const createPage = (state) => {
     mouse: {
       wheel: async (dx, dy) => { state.scrolled.push([dx, dy]); },
     },
-    context() {
-      return {
-        addCookies: async (cookies) => { state.cookies = cookies; },
-      };
-    },
     async screenshot(options) {
       fs.writeFileSync(options.path, png);
     },
   };
 };
 
+const createContext = (state) => {
+  const page = createPage(state);
+  return {
+    addCookies: async (cookies) => { state.cookies = cookies; },
+    addInitScript: async (fn) => { state.initScripts.push(String(fn)); },
+    setExtraHTTPHeaders: async (headers) => { state.extraHTTPHeaders = headers; },
+    newPage: async () => page,
+    close: async () => { state.contextClosed = true; },
+  };
+};
+
 module.exports = {
   chromium: {
-    launch: async () => {
+    launch: async (options = {}) => {
       const nodes = JSON.parse(process.env.PLAYWRIGHT_FAKE_NODES || '[]');
       const viewport = JSON.parse(process.env.PLAYWRIGHT_FAKE_VIEWPORT || '{"width":1280,"height":720}');
       const scrollHeight = parseInt(process.env.PLAYWRIGHT_FAKE_SCROLL_HEIGHT || '2000', 10);
-      const state = { nodes, viewport, scrollHeight, clicked: [], scrolled: [], cookies: [] };
-      const page = createPage(state);
+      const state = {
+        nodes,
+        viewport,
+        scrollHeight,
+        clicked: [],
+        scrolled: [],
+        cookies: [],
+        waits: [],
+        initScripts: [],
+        extraHTTPHeaders: null,
+        launchOptions: options,
+      };
+      const contextFactory = createContext(state);
       return {
-        newPage: async () => page,
+        newContext: async (ctxOptions = {}) => {
+          state.contextOptions = ctxOptions;
+          if (ctxOptions.viewport) {
+            state.viewport = ctxOptions.viewport;
+          }
+          return { ...contextFactory };
+        },
         close: async () => { state.closed = true; },
       };
     },
@@ -146,6 +171,31 @@ func TestCompilePlaywrightScriptInjectsPresetCookies(t *testing.T) {
 	}
 	if !strings.Contains(script, `applyPresetCookies("https://example.com/home")`) {
 		t.Fatalf("expected applyPresetCookies call for open command, got %s", script)
+	}
+}
+
+func TestCompilePlaywrightScriptAddsStealthHeaders(t *testing.T) {
+	cmds, err := parseBrowserDSL("open https://www.xiaohongshu.com/explore")
+	if err != nil {
+		t.Fatalf("parseBrowserDSL: %v", err)
+	}
+
+	script, err := (&browserTool{}).compilePlaywrightScript(cmds, t.TempDir(), viewport{width: 1280, height: 720})
+	if err != nil {
+		t.Fatalf("compilePlaywrightScript: %v", err)
+	}
+	for _, want := range []string{
+		"ignoreDefaultArgs",
+		"navigator, 'webdriver'",
+		"extraHTTPHeaders: baseHeaders",
+		"applyHeaders(\"https://www.xiaohongshu.com/explore\")",
+		"waitUntil: 'domcontentloaded'",
+		"waitForTimeout(1200)",
+		"headers['Referer'] = 'https://www.xiaohongshu.com/'",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected script to include %q, got %s", want, script)
+		}
 	}
 }
 
