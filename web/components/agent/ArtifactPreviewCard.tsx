@@ -193,7 +193,8 @@ export function ArtifactPreviewCard({
       <div
         className={cn(
           "group relative w-full overflow-hidden rounded-xl border border-border/40 bg-card transition-colors",
-          canInlinePreview && "cursor-pointer hover:bg-muted/10",
+          canInlinePreview &&
+            "cursor-pointer hover:border-ring/60 hover:ring-1 hover:ring-ring/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60",
           className,
         )}
         role={canInlinePreview ? "button" : undefined}
