@@ -304,6 +304,7 @@ function ChatBubble({
   stage?: StageCopy;
 }) {
   const isUser = turn.role === "user";
+  const isAgent = turn.role === "agent";
   const isTool = turn.role === "tool";
 
   return (
@@ -317,7 +318,8 @@ function ChatBubble({
 
       <div
         className={cn(
-          "max-w-[640px] space-y-2 rounded-2xl border px-4 py-3 text-sm shadow-sm transition",
+          "max-w-[640px] rounded-2xl border px-4 py-3 text-sm shadow-sm transition",
+          !isAgent && "space-y-2",
           isUser
             ? "ml-auto border-transparent bg-gradient-to-br from-emerald-500 via-sky-500 to-indigo-500 text-white shadow-[0_10px_40px_-20px_rgba(59,130,246,0.7)]"
             : "border-border/70 bg-background/85",
@@ -325,28 +327,47 @@ function ChatBubble({
           isActive && "ring-2 ring-emerald-200 ring-offset-2 ring-offset-background",
         )}
       >
-        <div className="flex items-center gap-2 text-[11px] font-semibold">
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5",
-              isUser ? "bg-white/20 text-white" : "bg-border/70 text-foreground",
-            )}
-          >
-            {roleLabels[turn.role]}
-          </span>
-          {stage ? (
-            <Badge
-              variant="secondary"
-              className={cn("bg-gradient-to-r text-background", stage.accent)}
-            >
-              {stage.label}
-            </Badge>
-          ) : null}
-        </div>
+        {isAgent ? (
+          <div className="flex min-w-0 flex-nowrap items-center gap-2 text-sm leading-relaxed">
+            <span className="shrink-0 rounded-full bg-border/70 px-2 py-0.5 text-[11px] font-semibold text-foreground">
+              {roleLabels[turn.role]}
+            </span>
+            {stage ? (
+              <Badge
+                variant="secondary"
+                className={cn("bg-gradient-to-r text-background", stage.accent, "shrink-0")}
+              >
+                {stage.label}
+              </Badge>
+            ) : null}
+            <span className="truncate text-foreground/90">{turn.content}</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-[11px] font-semibold">
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5",
+                  isUser ? "bg-white/20 text-white" : "bg-border/70 text-foreground",
+                )}
+              >
+                {roleLabels[turn.role]}
+              </span>
+              {stage ? (
+                <Badge
+                  variant="secondary"
+                  className={cn("bg-gradient-to-r text-background", stage.accent)}
+                >
+                  {stage.label}
+                </Badge>
+              ) : null}
+            </div>
 
-        <div className={cn("leading-relaxed", isUser ? "text-white/95" : "text-foreground/90")}>
-          {turn.content}
-        </div>
+            <div className={cn("leading-relaxed", isUser ? "text-white/95" : "text-foreground/90")}>
+              {turn.content}
+            </div>
+          </>
+        )}
       </div>
 
       {isUser && <MessageAvatar label={roleLabels[turn.role]} role={turn.role} accent={stage?.accent} />}
