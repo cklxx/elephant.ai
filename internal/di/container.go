@@ -298,6 +298,7 @@ func BuildContainer(config Config) (*Container, error) {
 		LLMFactory:              llmFactory,
 		LLMProvider:             config.LLMProvider,
 		LLMModel:                config.LLMModel,
+		LLMVisionModel:          config.LLMVisionModel,
 		APIKey:                  config.APIKey,
 		BaseURL:                 config.BaseURL,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
