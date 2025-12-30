@@ -40,6 +40,25 @@ describe("resolveApiBaseUrl", () => {
     expect(resolveApiBaseUrl()).toBe("http://152.136.32.119:8080");
   });
 
+  it("preserves pathname, search, and hash when rewriting internal hosts", async () => {
+    process.env.NEXT_PUBLIC_API_URL =
+      "http://alex-server:8080/api/v1?token=abc#section";
+    globalThis.window = {
+      location: {
+        origin: "https://app.example.com",
+        hostname: "app.example.com",
+        protocol: "https:",
+        href: "",
+      } as unknown as Location,
+    } as Window & typeof globalThis;
+
+    const { resolveApiBaseUrl } = await import("./api-base");
+
+    expect(resolveApiBaseUrl()).toBe(
+      "https://app.example.com:8080/api/v1?token=abc#section",
+    );
+  });
+
   it("does not rewrite when the browser is also on localhost", async () => {
     process.env.NEXT_PUBLIC_API_URL = "http://localhost:8080";
     globalThis.window = {

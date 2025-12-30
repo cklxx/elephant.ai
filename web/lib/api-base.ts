@@ -45,7 +45,8 @@ function rewriteInternalBaseUrl(url: string): string | null {
 
     const portSuffix = parsed.port ? `:${parsed.port}` : "";
     const protocol = clientProtocol || parsed.protocol;
-    const rewritten = `${protocol}//${clientHostname}${portSuffix}`;
+    const pathname = parsed.pathname === "/" ? "" : parsed.pathname;
+    const rewritten = `${protocol}//${clientHostname}${portSuffix}${pathname}${parsed.search}${parsed.hash}`;
 
     return normalizeBaseUrl(rewritten);
   } catch {
