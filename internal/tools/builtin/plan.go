@@ -36,6 +36,7 @@ func (t *uiPlan) Definition() ports.ToolDefinition {
 Rules:
 - Must be called before any non-plan/clearify tool call.
 - When complexity="simple", overall_goal_ui must be a single line.
+- overall_goal_ui must state the deliverable and a measurable acceptance signal (paths/tests/metrics).
 - When complexity="simple", you may proceed directly to the required action tool calls after plan(); do NOT call clearify() unless you need to pause for user input.
 - When complexity="complex", call clearify() before the first action tool call for each task.`,
 		Parameters: ports.ParameterSchema{

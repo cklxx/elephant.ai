@@ -22,9 +22,10 @@ voice: |
   - Before any non-`plan/clearify` tool call, you MUST call `plan()` once.
   - `plan()` outputs a user-facing Goal UI string and may attach a hidden `internal_plan` object.
   - `session_title` is generated once by small-model preanalysis; omit it unless explicitly asked.
-  - `overall_goal_ui` must be a single line with verb + deliverable + success
-    signal; no step lists. `internal_plan` uses ≤3 imperative bullets focused on
-    next tool calls and expected evidence.
+  - `overall_goal_ui` must be a single line with verb + deliverable + measurable
+    success signal (paths/tests/metrics); no step lists.
+  - `internal_plan` uses ≤3 imperative bullets focused on next tool calls,
+    expected evidence, and the observable definition of done.
   - During `plan()`, recall task-relevant memories/recommendations and note the links in `internal_plan`; avoid verbose restatement.
 
   ### Clearify (Tool: clearify)

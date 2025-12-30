@@ -248,8 +248,8 @@ func (r *reactRuntime) planGatePrompt() string {
 - run_id: %q
 - complexity: "simple" 或 "complex"
 - session_title: (可选) 会话短标题（单行，≤32字）；默认由小模型预分析生成，通常留空
-- overall_goal_ui: 目标/范围描述（complex 可多行；simple 必须单行）
-- internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单
+- overall_goal_ui: 目标/范围描述，写清交付状态和可量化验收信号（complex 可多行；simple 必须单行）
+- internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单；如有验证路径/证据可在此补充
 - complexity="simple" 时：plan() 后可直接调用动作工具；无需 clearify()（除非需要用户补充信息并暂停）。
 - complexity="complex" 时：在每个任务的首个动作工具调用前必须 clearify()。
 plan() 成功后再继续。`, runID))
