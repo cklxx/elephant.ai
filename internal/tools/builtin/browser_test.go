@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"alex/internal/agent/ports"
 )
 
 const fakePlaywrightModule = `
@@ -286,6 +288,52 @@ end
 	}
 	if runResult.Steps[3].Label != "scroll down 240" {
 		t.Fatalf("expected scroll down label, got %q", runResult.Steps[3].Label)
+	}
+}
+
+func TestBrowserExecuteAddsReminderAndMetadata(t *testing.T) {
+	workdir := t.TempDir()
+	tool := &browserTool{
+		runner: func(ctx context.Context, commands []browserCommand, _ string, _ viewport) (playwrightRunResult, error) {
+			return playwrightRunResult{
+				Steps:       []playwrightStep{{Label: "open https://example.com"}},
+				artifactDir: workdir,
+			}, nil
+		},
+		viewport: viewport{width: 1280, height: 720},
+	}
+
+	ctx := WithWorkingDir(context.Background(), workdir)
+	call := ports.ToolCall{
+		ID: "call-1",
+		Arguments: map[string]any{
+			"script": "open https://example.com",
+		},
+	}
+
+	res, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if res == nil {
+		t.Fatalf("expected result, got nil")
+	}
+	if !strings.Contains(res.Content, "<system-reminder>") {
+		t.Fatalf("expected reminder in content, got %q", res.Content)
+	}
+	if !strings.Contains(res.Content, "https://example.com") {
+		t.Fatalf("expected URL in reminder, got %q", res.Content)
+	}
+	if res.Metadata == nil || res.Metadata["url"] != "https://example.com" {
+		t.Fatalf("expected metadata url to be set, got %+v", res.Metadata)
+	}
+	browserMeta, ok := res.Metadata["browser"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected browser metadata map, got %+v", res.Metadata["browser"])
+	}
+	if browserMeta["url"] != "https://example.com" {
+		t.Fatalf("expected browser metadata url, got %+v", browserMeta["url"])
 	}
 }
 

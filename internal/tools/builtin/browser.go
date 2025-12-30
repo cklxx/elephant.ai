@@ -143,6 +143,7 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
+	firstURL := firstOpenURL(commands)
 
 	resolver := GetPathResolverFromContext(ctx)
 	workdir := t.playwrightWorkdir(resolver)
@@ -159,6 +160,10 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	if summary == "" {
 		summary = formatFallbackSummary(steps)
 	}
+	content := summary
+	if reminder := buildBrowserReminder(firstURL); reminder != "" {
+		content = summary + "\n\n" + reminder
+	}
 
 	metadata := map[string]any{
 		"browser": map[string]any{
@@ -168,10 +173,14 @@ func (t *browserTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 			"summary":  summary,
 		},
 	}
+	if firstURL != "" {
+		metadata["url"] = firstURL
+		metadata["browser"].(map[string]any)["url"] = firstURL
+	}
 
 	return &ports.ToolResult{
 		CallID:      call.ID,
-		Content:     summary,
+		Content:     content,
 		Metadata:    metadata,
 		Attachments: attachments,
 	}, nil
@@ -950,4 +959,28 @@ func scrollDelta(direction string, amount int) (int, int) {
 	default:
 		return 0, 0
 	}
+}
+
+func buildBrowserReminder(openURL string) string {
+	if strings.TrimSpace(openURL) == "" {
+		return ""
+	}
+	return fmt.Sprintf("<system-reminder>The browser page stays live until the task ends. Reuse the existing page at %s instead of reopening.</system-reminder>", strings.TrimSpace(openURL))
+}
+
+func firstOpenURL(commands []browserCommand) string {
+	for _, cmd := range commands {
+		switch cmd.kind {
+		case commandOpen:
+			return cmd.value
+		case commandIfExists:
+			if url := firstOpenURL(cmd.thenBlock); url != "" {
+				return url
+			}
+			if url := firstOpenURL(cmd.elseBlock); url != "" {
+				return url
+			}
+		}
+	}
+	return ""
 }
