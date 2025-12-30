@@ -37,6 +37,7 @@ type Config struct {
 	SeedreamImageModel      string
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
+	LLMVisionModel          string
 
 	LLMFactory    ports.LLMClientFactory
 	LLMProvider   string
@@ -63,6 +64,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		LLMFactory:              config.LLMFactory,
 		LLMProvider:             config.LLMProvider,
 		LLMModel:                config.LLMModel,
+		LLMVisionModel:          config.LLMVisionModel,
 		APIKey:                  config.APIKey,
 		BaseURL:                 config.BaseURL,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
@@ -313,12 +315,17 @@ func (r *Registry) registerBuiltins(config Config) error {
 		imageConfig.ModelEnvVar = "SEEDREAM_IMAGE_MODEL"
 		r.static["image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
 	}
+	var visionTool ports.ToolExecutor
 	if config.SeedreamVisionModel != "" {
 		visionConfig := seedreamBase
 		visionConfig.Model = config.SeedreamVisionModel
 		visionConfig.ModelDescriptor = "Seedream vision analysis"
 		visionConfig.ModelEnvVar = "SEEDREAM_VISION_MODEL"
-		r.static["vision_analyze"] = builtin.NewSeedreamVisionAnalyze(visionConfig)
+		visionTool = builtin.NewVisionAnalyze(builtin.VisionConfig{
+			Provider: builtin.VisionProviderSeedream,
+			Seedream: visionConfig,
+		})
+		r.static["vision_analyze"] = visionTool
 	}
 	videoModel := strings.TrimSpace(config.SeedreamVideoModel)
 	if videoModel == "" {
@@ -331,6 +338,16 @@ func (r *Registry) registerBuiltins(config Config) error {
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
 		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
 	}
+
+	r.static["browser"] = builtin.NewBrowser(builtin.BrowserConfig{
+		LLMFactory:     config.LLMFactory,
+		LLMProvider:    config.LLMProvider,
+		LLMModel:       config.LLMModel,
+		LLMVisionModel: config.LLMVisionModel,
+		APIKey:         config.APIKey,
+		BaseURL:        config.BaseURL,
+		VisionTool:     visionTool,
+	})
 
 	return nil
 }

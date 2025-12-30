@@ -41,6 +41,16 @@ type SeedreamConfig struct {
 	ModelEnvVar     string
 }
 
+const (
+	VisionProviderSeedream = "seedream"
+)
+
+// VisionConfig allows selecting a vision provider; seedream is the default.
+type VisionConfig struct {
+	Provider string
+	Seedream SeedreamConfig
+}
+
 type seedreamClient interface {
 	GenerateImages(ctx context.Context, request arkm.GenerateImagesRequest) (arkm.ImagesResponse, error)
 	CreateResponses(ctx context.Context, request *responses.ResponsesRequest) (*responses.ResponseObject, error)
@@ -118,11 +128,22 @@ type seedreamVisionTool struct {
 	factory *seedreamClientFactory
 }
 
+type visionTool struct {
+	seedream *seedreamVisionTool
+}
+
 type seedreamVideoTool struct {
 	config     SeedreamConfig
 	factory    *seedreamClientFactory
 	httpClient *http.Client
 	logger     logging.Logger
+}
+
+func newSeedreamVisionTool(config SeedreamConfig) *seedreamVisionTool {
+	return &seedreamVisionTool{
+		config:  config,
+		factory: &seedreamClientFactory{config: config},
+	}
 }
 
 const (
@@ -177,9 +198,24 @@ func NewSeedreamImageToImage(config SeedreamConfig) ports.ToolExecutor {
 
 // NewSeedreamVisionAnalyze returns a tool that analyzes images with the vision model.
 func NewSeedreamVisionAnalyze(config SeedreamConfig) ports.ToolExecutor {
-	return &seedreamVisionTool{
-		config:  config,
-		factory: &seedreamClientFactory{config: config},
+	return NewVisionAnalyze(VisionConfig{Provider: VisionProviderSeedream, Seedream: config})
+}
+
+// NewVisionAnalyze returns a provider-agnostic vision tool (defaults to Seedream).
+func NewVisionAnalyze(config VisionConfig) ports.ToolExecutor {
+	provider := strings.TrimSpace(strings.ToLower(config.Provider))
+	if provider == "" {
+		provider = VisionProviderSeedream
+	}
+	switch provider {
+	case VisionProviderSeedream:
+		return &visionTool{
+			seedream: newSeedreamVisionTool(config.Seedream),
+		}
+	default:
+		return &visionTool{
+			seedream: newSeedreamVisionTool(config.Seedream),
+		}
 	}
 }
 
@@ -497,6 +533,20 @@ func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 	}
 }
 
+func (t *visionTool) Metadata() ports.ToolMetadata {
+	if t.seedream != nil {
+		return t.seedream.Metadata()
+	}
+	return ports.ToolMetadata{Name: "vision_analyze"}
+}
+
+func (t *visionTool) Definition() ports.ToolDefinition {
+	if t.seedream != nil {
+		return t.seedream.Definition()
+	}
+	return ports.ToolDefinition{Name: "vision_analyze"}
+}
+
 func (t *seedreamVideoTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name: "video_generate",
@@ -669,6 +719,14 @@ func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (
 	}
 
 	return &ports.ToolResult{CallID: call.ID, Content: answer, Metadata: metadata}, nil
+}
+
+func (t *visionTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	if t.seedream != nil {
+		return t.seedream.Execute(ctx, call)
+	}
+	err := errors.New("vision provider not configured")
+	return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 }
 
 func (t *seedreamVideoTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
