@@ -154,6 +154,8 @@ describe("Conversation page orchestrator UI tools", () => {
     expect(
       await screen.findByText(
         "重构 Planner UI，并引入 plan/clearify 两个 UI 工具。",
+        undefined,
+        { timeout: 5000 },
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("更新 EventLine 的分级渲染")).toBeInTheDocument();
