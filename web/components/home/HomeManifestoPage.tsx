@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, PlayCircle, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, PlayCircle, Sparkles, Wand2 } from "lucide-react";
 
 import { PageContainer, PageShell, SectionBlock } from "@/components/layout/page-shell";
 import {
@@ -258,54 +258,6 @@ function Hero({ lang }: { lang: HomeLang }) {
   );
 }
 
-function IdeaCard({ lang }: { lang: HomeLang }) {
-  const t = copy[lang];
-  return (
-    <Card className="h-full bg-card/70 shadow-sm backdrop-blur">
-      <CardHeader className="space-y-3 pb-4">
-        <Badge
-          variant="secondary"
-          className="w-fit bg-gradient-to-r from-indigo-500/90 via-sky-500/90 to-emerald-500/90 text-background"
-        >
-          {t.idea.ribbon}
-        </Badge>
-        <div className="space-y-1">
-          <CardTitle className="text-lg">{t.idea.title}</CardTitle>
-          <p className="text-sm text-muted-foreground">{t.idea.subtitle}</p>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-2">
-          {t.idea.bullets.map((item) => (
-            <div
-              key={item}
-              className="rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm leading-relaxed text-foreground/90 shadow-[0_1px_0_rgba(255,255,255,0.04)]"
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" aria-hidden />
-            <span>{t.nav.docs}</span>
-          </div>
-          <Link
-            href="https://github.com/Elephant-Labs/elephant.ai"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-foreground hover:underline"
-          >
-            {lang === "zh" ? "查看仓库" : "View repo"}
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const liveCopy = liveChatCopy[lang];
   const liveStages: StageCopy[] = liveChatStages[lang];
@@ -323,10 +275,7 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
           </SectionBlock>
 
           <SectionBlock className="gap-6">
-            <div className="grid gap-4 lg:grid-cols-[0.9fr,1.1fr] lg:items-start">
-              <IdeaCard lang={lang} />
-              <LiveChatShowcase lang={lang} copy={liveCopy} stages={liveStages} script={liveScript} />
-            </div>
+            <LiveChatShowcase lang={lang} copy={liveCopy} stages={liveStages} script={liveScript} />
           </SectionBlock>
         </PageContainer>
       </div>

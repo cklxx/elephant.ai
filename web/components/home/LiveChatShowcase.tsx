@@ -67,7 +67,7 @@ export function LiveChatShowcase({
 
     const id = setInterval(() => {
       setActiveIndex((current) => (current + 1) % script.length);
-    }, 3200);
+    }, 2000);
 
     return () => clearInterval(id);
   }, [isPlaying, script.length]);
@@ -209,7 +209,7 @@ export function LiveChatShowcase({
             </div>
           </div>
 
-          <ScrollArea className="relative h-[440px] px-4 pb-5">
+          <ScrollArea className="relative h-[360px] px-4 pb-5">
             <div className="space-y-3">
               {visibleTurns.map((turn, index) => (
                 <ChatBubble
