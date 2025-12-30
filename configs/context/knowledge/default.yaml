@@ -12,6 +12,7 @@ sop_refs:
   - TASK_EXECUTION_FRAMEWORK.md#communication-standards
   - TASK_EXECUTION_FRAMEWORK.md#context-budget--compression
   - TASK_EXECUTION_FRAMEWORK.md#observability--traceability
+  - docs/guides/user_intent_understanding.md#user-intent-understanding-pipeline-prompt
   - docs/AGENT.md#react-execution-loop
   - docs/AGENT.md#memory--sessions
 rag_collections:
