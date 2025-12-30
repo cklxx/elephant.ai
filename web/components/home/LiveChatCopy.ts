@@ -12,16 +12,16 @@ type DemoCopy = {
 
 export const liveChatCopy: Record<HomeLang, DemoCopy> = {
   zh: {
-    title: "Live demo: 以对话框展示 Plan → Clearify → ReAct",
-    description: "直接看对话框里如何声明任务、调用工具、记录证据。",
+    title: "Live demo: 对话框演示 Plan → Clearify → ReAct",
+    description: "少字多动，看任务声明、工具调用与证据。",
     userLabel: "用户",
     agentLabel: "Agent",
     toolLabel: "Tool",
     evidenceLabel: "证据流",
   },
   en: {
-    title: "Live demo: Plan → Clearify → ReAct inside chat",
-    description: "Watch the conversation declare tasks, call tools, and log evidence.",
+    title: "Live demo: Plan → Clearify → ReAct in chat",
+    description: "Less copy, more motion—see tasks, tools, and evidence.",
     userLabel: "User",
     agentLabel: "Agent",
     toolLabel: "Tool",
@@ -34,13 +34,13 @@ export const liveChatStages: Record<HomeLang, StageCopy[]> = {
     {
       key: "plan",
       label: "Plan",
-      summary: "声明目标 + 约束",
+      summary: "目标 + 约束",
       accent: "from-indigo-500 via-sky-500 to-emerald-500",
     },
     {
       key: "clearify",
       label: "Clearify",
-      summary: "拆成可验收任务",
+      summary: "拆成小任务",
       accent: "from-amber-500 via-orange-500 to-rose-500",
     },
     {
@@ -54,13 +54,13 @@ export const liveChatStages: Record<HomeLang, StageCopy[]> = {
     {
       key: "plan",
       label: "Plan",
-      summary: "Declare goal + constraints",
+      summary: "Goal + guardrails",
       accent: "from-indigo-500 via-sky-500 to-emerald-500",
     },
     {
       key: "clearify",
       label: "Clearify",
-      summary: "Break into reviewable tasks",
+      summary: "Slice tasks",
       accent: "from-amber-500 via-orange-500 to-rose-500",
     },
     {
@@ -76,17 +76,17 @@ export const liveChatScript: Record<HomeLang, ChatTurn[]> = {
   zh: [
     {
       role: "user",
-      content: "请在首页用对话框演示 Plan/Clearify/ReAct，少一点文字，多一些动态。",
+      content: "首页用对话框演示 Plan/Clearify/ReAct，要少字多动。",
       stage: "plan",
     },
     {
       role: "agent",
-      content: "已对齐目标：用实时对话框展示流程，保持中英双语一致，首页聚焦演示。",
+      content: "目标：实时对话，双语同步，首页聚焦演示。",
       stage: "plan",
     },
     {
       role: "agent",
-      content: "任务声明：1) 自动播放三阶段 2) 支持手动暂停/重置 3) 工具调用要可见。",
+      content: "任务：1) 自动播放三阶段 2) 可暂停/重置 3) 工具调用可见。",
       stage: "clearify",
     },
     {
@@ -96,7 +96,7 @@ export const liveChatScript: Record<HomeLang, ChatTurn[]> = {
     },
     {
       role: "agent",
-      content: "执行：正在播放阶段卡片，切换时更新行动日志与证据面板。",
+      content: "执行：阶段卡片滚动，行动日志和证据同步更新。",
       stage: "react",
     },
     {
@@ -113,17 +113,17 @@ export const liveChatScript: Record<HomeLang, ChatTurn[]> = {
   en: [
     {
       role: "user",
-      content: "Show Plan/Clearify/ReAct on the homepage as a chat-style demo. Less copy, more motion.",
+      content: "Homepage chat demo for Plan/Clearify/ReAct—short copy, more motion.",
       stage: "plan",
     },
     {
       role: "agent",
-      content: "Aligned goal: live chat box shows the flow; keep zh/en in sync; homepage centered on the demo.",
+      content: "Goal: live chat shows the flow; zh/en stay aligned; homepage stays focused.",
       stage: "plan",
     },
     {
       role: "agent",
-      content: "Declaring tasks: 1) autoplay the three stages 2) allow pause/reset 3) surface tool calls.",
+      content: "Tasks: 1) autoplay stages 2) pause/reset controls 3) visible tool calls.",
       stage: "clearify",
     },
     {
@@ -133,7 +133,7 @@ export const liveChatScript: Record<HomeLang, ChatTurn[]> = {
     },
     {
       role: "agent",
-      content: "Executing: playing stage cards; switching updates the action log and evidence lane.",
+      content: "Executing: cycling stage cards; action log and evidence stay in sync.",
       stage: "react",
     },
     {
