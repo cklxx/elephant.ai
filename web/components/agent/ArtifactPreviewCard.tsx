@@ -18,6 +18,46 @@ interface ArtifactPreviewCardProps {
   className?: string;
 }
 
+const normalizeTitle = (value: string | null) =>
+  value
+    ?.replace(/^\uFEFF/, "")
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    || null;
+
+const stripRedundantHeading = (
+  markdown: string,
+  normalizedTitle: string | null,
+) => {
+  if (!markdown.trim()) return markdown;
+
+  const lines = markdown.replace(/^\uFEFF/, "").split(/\r?\n/);
+
+  let index = 0;
+  while (index < lines.length && !lines[index].trim()) {
+    index += 1;
+  }
+
+  if (index >= lines.length) {
+    return markdown.trimStart();
+  }
+
+  const headingMatch = lines[index].match(/^#{1,6}\s+(.+?)\s*#*\s*$/);
+  const headingText = headingMatch ? normalizeTitle(headingMatch[1]) : null;
+
+  if (headingText && normalizedTitle && headingText === normalizedTitle) {
+    index += 1;
+    while (index < lines.length && !lines[index].trim()) {
+      index += 1;
+    }
+    return lines.slice(index).join("\n").trimStart();
+  }
+
+  return markdown.trimStart();
+};
+
 export function ArtifactPreviewCard({
   attachment,
   className,
@@ -38,9 +78,11 @@ export function ArtifactPreviewCard({
       ? `Download ${attachment.format?.toUpperCase() || "PPTX"}`
       : null;
   const primaryDownloadLabel = preferredKind === "pdf" ? "Download PDF" : "Download";
-  const displayName = attachment.description || attachment.name || "Artifact";
+  const primaryTitle = attachment.description || attachment.name;
+  const displayName = primaryTitle || "Artifact";
   const formatLabel = attachment.format?.toUpperCase() || attachment.media_type || "FILE";
   const isMarkdown = formatLabel.includes("MARKDOWN") || attachment.media_type?.includes("markdown");
+  const normalizedTitle = normalizeTitle(primaryTitle ?? null);
 
   // Decide Icon
   const FileIcon = isMarkdown ? FileText : FileCode;
@@ -68,15 +110,21 @@ export function ArtifactPreviewCard({
 
   const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
 
-  const markdownSnippet = useMemo(() => {
+  const markdownContent = useMemo(() => {
     if (!markdownPreview) return null;
-    const trimmed = markdownPreview.trim();
+    const stripped = stripRedundantHeading(markdownPreview, normalizedTitle);
+    return stripped.trim() || markdownPreview.trim();
+  }, [markdownPreview, normalizedTitle]);
+
+  const markdownSnippet = useMemo(() => {
+    if (!markdownContent) return null;
+    const trimmed = markdownContent.trim();
     if (!trimmed) return null;
     if (trimmed.length <= MARKDOWN_SNIPPET_MAX_CHARS) return trimmed;
     return `${trimmed
       .slice(0, MARKDOWN_SNIPPET_MAX_CHARS)
       .replace(/\s+$/, "")}\n…`;
-  }, [markdownPreview]);
+  }, [markdownContent]);
 
   const requestPreview = () => {
     if (!canInlinePreview) return;
@@ -235,7 +283,7 @@ export function ArtifactPreviewCard({
 
         {/* Inline excerpt (markdown only) */}
         {isMarkdown ? (
-          <div className="border-t border-border/40 px-4 py-3">
+          <div className="border-t border-border/40 px-4 py-2.5">
             {markdownLoading && !markdownPreview ? (
               <div className="h-24 w-full animate-pulse rounded-lg border border-border/40 bg-muted/20" />
             ) : markdownSnippet ? (
@@ -334,7 +382,7 @@ export function ArtifactPreviewCard({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto bg-muted/30 px-6 py-6">
+              <div className="flex-1 overflow-auto bg-muted/30 px-5 py-5">
                 {isMarkdown ? (
                   markdownLoading && !markdownPreview ? (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
@@ -342,9 +390,9 @@ export function ArtifactPreviewCard({
                       Loading preview…
                     </div>
                   ) : markdownPreview ? (
-                    <div className="mx-auto w-full max-w-[820px] rounded-xl border border-border/60 bg-background p-8 shadow-sm">
+                    <div className="mx-auto w-full max-w-[820px] rounded-xl border border-border/60 bg-background p-6 shadow-sm">
                       <LazyMarkdownRenderer
-                        content={markdownPreview}
+                        content={markdownContent ?? markdownPreview}
                         containerClassName="markdown-body"
                         className="prose max-w-none text-base leading-normal text-foreground"
                       />
