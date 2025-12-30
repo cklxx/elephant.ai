@@ -78,6 +78,11 @@ const createPage = (state) => {
     mouse: {
       wheel: async (dx, dy) => { state.scrolled.push([dx, dy]); },
     },
+    context() {
+      return {
+        addCookies: async (cookies) => { state.cookies = cookies; },
+      };
+    },
     async screenshot(options) {
       fs.writeFileSync(options.path, png);
     },
@@ -90,7 +95,7 @@ module.exports = {
       const nodes = JSON.parse(process.env.PLAYWRIGHT_FAKE_NODES || '[]');
       const viewport = JSON.parse(process.env.PLAYWRIGHT_FAKE_VIEWPORT || '{"width":1280,"height":720}');
       const scrollHeight = parseInt(process.env.PLAYWRIGHT_FAKE_SCROLL_HEIGHT || '2000', 10);
-      const state = { nodes, viewport, scrollHeight, clicked: [], scrolled: [] };
+      const state = { nodes, viewport, scrollHeight, clicked: [], scrolled: [], cookies: [] };
       const page = createPage(state);
       return {
         newPage: async () => page,
@@ -116,6 +121,64 @@ func TestParseBrowserDSLRequiresScrollAmount(t *testing.T) {
 	}
 	if got := cmds[0].label(); got != "scroll up 120" {
 		t.Fatalf("expected scroll label to include amount, got %q", got)
+	}
+}
+
+func TestCompilePlaywrightScriptInjectsPresetCookies(t *testing.T) {
+	cmds, err := parseBrowserDSL("open https://example.com/home")
+	if err != nil {
+		t.Fatalf("parseBrowserDSL: %v", err)
+	}
+
+	tool := &browserTool{
+		presetCookies: PresetCookieJar{
+			"example.com": {
+				{Name: "antibot", Value: "ok", Domain: "example.com"},
+			},
+		},
+	}
+	script, err := tool.compilePlaywrightScript(cmds, t.TempDir(), viewport{width: 1024, height: 768})
+	if err != nil {
+		t.Fatalf("compilePlaywrightScript: %v", err)
+	}
+	if !strings.Contains(script, `"example.com"`) || !strings.Contains(script, "antibot") {
+		t.Fatalf("expected preset cookies to be embedded, got %s", script)
+	}
+	if !strings.Contains(script, `applyPresetCookies("https://example.com/home")`) {
+		t.Fatalf("expected applyPresetCookies call for open command, got %s", script)
+	}
+}
+
+func TestDefaultPresetCookieJarCoversMajorPlatforms(t *testing.T) {
+	jar := defaultPresetCookieJar()
+	if len(jar) < 20 {
+		t.Fatalf("expected at least 20 preset domains, got %d", len(jar))
+	}
+	for _, domain := range []string{
+		".xiaohongshu.com",
+		".google.com",
+		".youtube.com",
+		".tiktok.com",
+		".baidu.com",
+		".taobao.com",
+		".tmall.com",
+		".jd.com",
+		".bilibili.com",
+		".douyin.com",
+		".weibo.com",
+		".zhihu.com",
+		".qq.com",
+		".so.com",
+		".sogou.com",
+		".bing.com",
+		".reddit.com",
+		".x.com",
+		".douban.com",
+		".kuaishou.com",
+	} {
+		if _, ok := jar[domain]; !ok {
+			t.Fatalf("expected preset cookies for %s", domain)
+		}
 	}
 }
 

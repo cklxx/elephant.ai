@@ -26,6 +26,7 @@ type BrowserConfig struct {
 	APIKey         string
 	BaseURL        string
 	VisionTool     ports.ToolExecutor
+	PresetCookies  PresetCookieJar
 }
 
 type browserTool struct {
@@ -38,6 +39,7 @@ type browserTool struct {
 	visionTool     ports.ToolExecutor
 	runner         playwrightRunner
 	viewport       viewport
+	presetCookies  PresetCookieJar
 }
 
 type viewport struct {
@@ -47,6 +49,10 @@ type viewport struct {
 
 // NewBrowser creates a DSL-driven browser automation tool backed by Playwright.
 func NewBrowser(cfg BrowserConfig) ports.ToolExecutor {
+	presetCookies := cfg.PresetCookies
+	if len(presetCookies) == 0 {
+		presetCookies = defaultPresetCookieJar()
+	}
 	tool := &browserTool{
 		llmFactory:     cfg.LLMFactory,
 		llmProvider:    strings.TrimSpace(cfg.LLMProvider),
@@ -55,6 +61,7 @@ func NewBrowser(cfg BrowserConfig) ports.ToolExecutor {
 		apiKey:         cfg.APIKey,
 		baseURL:        cfg.BaseURL,
 		visionTool:     cfg.VisionTool,
+		presetCookies:  presetCookies,
 		viewport: viewport{
 			width:  1280,
 			height: 720,
@@ -195,7 +202,7 @@ func (t *browserTool) runPlaywright(ctx context.Context, commands []browserComma
 		return playwrightRunResult{}, fmt.Errorf("create artifact dir: %w", err)
 	}
 
-	script, err := compilePlaywrightScript(commands, artifactDir, size)
+	script, err := t.compilePlaywrightScript(commands, artifactDir, size)
 	if err != nil {
 		_ = os.RemoveAll(artifactDir)
 		return playwrightRunResult{}, err
@@ -731,20 +738,59 @@ func parseAction(line string) (browserCommand, error) {
 	}
 }
 
-func compilePlaywrightScript(commands []browserCommand, artifactDir string, size viewport) (string, error) {
+func (t *browserTool) compilePlaywrightScript(commands []browserCommand, artifactDir string, size viewport) (string, error) {
 	if artifactDir == "" {
 		return "", fmt.Errorf("artifact directory is empty")
+	}
+
+	cookiesJSON := "{}"
+	if len(t.presetCookies) > 0 {
+		encoded, err := json.Marshal(t.presetCookies)
+		if err != nil {
+			return "", fmt.Errorf("marshal preset cookies: %w", err)
+		}
+		cookiesJSON = string(encoded)
 	}
 
 	var builder strings.Builder
 	builder.WriteString("const { chromium } = require('playwright');\n")
 	builder.WriteString("const fs = require('fs');\n")
 	builder.WriteString("const path = require('path');\n")
+	builder.WriteString(fmt.Sprintf("const presetCookies = %s;\n", cookiesJSON))
 	builder.WriteString(fmt.Sprintf("const artifactDir = %q;\n", artifactDir))
 	builder.WriteString("fs.mkdirSync(artifactDir, { recursive: true });\n")
 	builder.WriteString("async function run() {\n")
 	builder.WriteString("  const browser = await chromium.launch({ headless: true });\n")
 	builder.WriteString(fmt.Sprintf("  const page = await browser.newPage({ viewport: { width: %d, height: %d } });\n", size.width, size.height))
+	builder.WriteString("  const resolvePresetCookies = (targetUrl) => {\n")
+	builder.WriteString("    try {\n")
+	builder.WriteString("      const { hostname } = new URL(targetUrl);\n")
+	builder.WriteString("      const host = hostname.toLowerCase();\n")
+	builder.WriteString("      const segments = host.split('.').filter(Boolean);\n")
+	builder.WriteString("      const domains = new Set([host]);\n")
+	builder.WriteString("      for (let i = 0; i < segments.length - 1; i++) {\n")
+	builder.WriteString("        const candidate = segments.slice(i).join('.');\n")
+	builder.WriteString("        domains.add(candidate);\n")
+	builder.WriteString("        domains.add('.' + candidate);\n")
+	builder.WriteString("      }\n")
+	builder.WriteString("      const resolved = [];\n")
+	builder.WriteString("      for (const domain of domains) {\n")
+	builder.WriteString("        const entries = presetCookies[domain];\n")
+	builder.WriteString("        if (!entries || !entries.length) continue;\n")
+	builder.WriteString("        for (const cookie of entries) {\n")
+	builder.WriteString("          resolved.push({ ...cookie, domain: cookie.domain || domain, path: cookie.path || '/' });\n")
+	builder.WriteString("        }\n")
+	builder.WriteString("      }\n")
+	builder.WriteString("      return resolved;\n")
+	builder.WriteString("    } catch (err) {\n")
+	builder.WriteString("      return [];\n")
+	builder.WriteString("    }\n")
+	builder.WriteString("  };\n")
+	builder.WriteString("  const applyPresetCookies = async (targetUrl) => {\n")
+	builder.WriteString("    const cookies = resolvePresetCookies(targetUrl);\n")
+	builder.WriteString("    if (!cookies.length) return;\n")
+	builder.WriteString("    await page.context().addCookies(cookies);\n")
+	builder.WriteString("  };\n")
 	builder.WriteString("  page.setDefaultTimeout(15000);\n")
 	builder.WriteString("  const steps = [];\n")
 	builder.WriteString("  let shotCount = 0;\n")
@@ -777,6 +823,7 @@ func emitCommands(builder *strings.Builder, commands []browserCommand, indent st
 	for _, cmd := range commands {
 		switch cmd.kind {
 		case commandOpen:
+			builder.WriteString(fmt.Sprintf("%sawait applyPresetCookies(%s);\n", indent, strconv.Quote(cmd.value)))
 			builder.WriteString(fmt.Sprintf("%sawait page.goto(%s, { waitUntil: 'networkidle' });\n", indent, strconv.Quote(cmd.value)))
 			if !ctx.pageContextCaptured {
 				builder.WriteString(fmt.Sprintf("%sconst pageContext = await page.evaluate(() => {\n", indent))
