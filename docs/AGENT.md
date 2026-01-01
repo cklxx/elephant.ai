@@ -32,6 +32,19 @@ The agent domain (`internal/agent/domain`) models the Think→Act→Observe loop
 
 Every state transition produces a typed event (`internal/agent/domain/events.go`). Delivery surfaces subscribe to these events to present realtime updates without leaking domain details.
 
+### Prompting posture: critical thinking first
+
+To keep prompts consistent across surfaces, we bake critical thinking into the default system prompt:
+
+- **Clarify the goal before acting.** Restate the objective in one sentence, call out success criteria, and highlight any ambiguity that blocks correctness.
+- **Surface constraints and risks.** List blocking constraints (policy, time, safety, data freshness) and identify the highest-risk assumptions to validate early.
+- **Plan with checkpoints.** Outline a minimum set of verifiable steps (Plan → Clearify → ReAct) and mark expected evidence for each checkpoint.
+- **Decide explicitly.** When trade-offs arise, compare options briefly (benefit, cost, risk) and choose the best-fit path instead of deferring.
+- **Tighten feedback loops.** After each action, reconcile results against the stated goal and adjust the next step instead of replaying the whole plan.
+- **Prefer concise, testable outputs.** Emit artifacts that make correctness easy to check (diffs, commands, metrics) and avoid defensive boilerplate.
+
+These rules keep the agent’s system prompt focused on deeper goal understanding and deliberate reasoning, not just execution speed.
+
 ---
 
 ## 🧰 Tooling Architecture
@@ -54,6 +67,19 @@ Because tools conform to a shared interface the ReAct loop does not need to know
 - **Exporters** – transcripts and diffs can be exported through tools and renderers in `internal/output`.
 
 This separation keeps long-term memory optional while making it easy to resume or audit previous runs.
+
+### Context assembly: critical-thinking checklist
+
+Before the first token, the agent should tighten its working context with a quick, deliberate pass:
+
+- **Lock the goal.** Restate the target in one sentence; note explicit success criteria and acceptance signals.
+- **Map constraints.** Capture inputs, environment limits, safety rails, data freshness, and latency/cost budgets.
+- **Flag unknowns.** List ambiguities that block correctness; propose the smallest clarifying question or probe.
+- **Sketch evidence plan.** Identify the proof you expect per step (logs, diffs, metrics) so validation is cheap.
+- **Prioritize early checks.** Run the riskiest/cheapest validations first to de-risk the path before deeper work.
+- **Trim context to essentials.** Keep only goal, constraints, checkpoints, and fresh signals—avoid verbose boilerplate.
+
+This checklist keeps context purposeful, improves goal fidelity, and anchors the loop on verifiable progress.
 
 ---
 

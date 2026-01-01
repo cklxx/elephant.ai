@@ -5,14 +5,18 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  ListChecks,
   Pause,
   Play,
   PlayCircle,
   RefreshCw,
   Sparkles,
+  Target,
   SquareTerminal,
   User,
+  Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +33,12 @@ export type StageCopy = {
   label: string;
   summary: string;
   accent: string;
+};
+
+const stageIcons: Record<StageKey, LucideIcon> = {
+  plan: Target,
+  clearify: ListChecks,
+  react: Zap,
 };
 
 export type ChatTurn = {
@@ -84,6 +94,7 @@ export function LiveChatShowcase({
 
   const activeStage = script[activeIndex]?.stage ?? stages[0].key;
   const activeStageCopy = stages.find((stage) => stage.key === activeStage) ?? stages[0];
+  const ActiveStageIcon = stageIcons[activeStage];
   const progress = ((activeIndex + 1) / script.length) * 100;
   const visibleTurns = script.slice(0, activeIndex + 1);
   const actionLog = visibleTurns.filter((turn) => turn.role !== "user").slice(-5);
@@ -161,49 +172,72 @@ export function LiveChatShowcase({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">
-          {stages.map((stage) => (
-            <button
-              key={stage.key}
-              type="button"
-              onClick={() => handleStageSelect(stage.key)}
-              className={cn(
-                "group flex flex-col gap-1 rounded-xl border bg-background/70 px-3 py-2 text-left transition hover:-translate-y-0.5 hover:border-foreground/50",
-                stage.key === activeStage ? "border-foreground/60 shadow-[0_0_0_1px_rgba(16,185,129,0.2)]" : "border-border/70",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-semibold text-foreground">{stage.label}</div>
-                <span
-                  className={cn("h-2 w-2 rounded-full bg-gradient-to-r shadow-sm", stage.accent)}
-                  aria-hidden
-                />
-              </div>
-              <div className="text-[11px] text-muted-foreground">{stage.summary}</div>
-              <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-border/70">
-                <div
-                  className={cn("absolute inset-y-0 left-0 rounded-full bg-gradient-to-r", stage.accent)}
-                  style={{ width: `${stageProgress(stage.key)}%` }}
-                  aria-hidden
-                />
-              </div>
-            </button>
-          ))}
+          {stages.map((stage) => {
+            const StageIcon = stageIcons[stage.key];
+            return (
+              <button
+                key={stage.key}
+                type="button"
+                onClick={() => handleStageSelect(stage.key)}
+                className={cn(
+                  "group flex items-center gap-3 rounded-2xl border bg-background/70 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-foreground/50",
+                  stage.key === activeStage
+                    ? "border-foreground/60 shadow-[0_10px_40px_-25px_rgba(16,185,129,0.8)]"
+                    : "border-border/70",
+                )}
+              >
+                <div className="relative inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+                  <div
+                    className={cn("absolute inset-0 bg-gradient-to-br opacity-70", stage.accent)}
+                    aria-hidden
+                  />
+                  <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-background/95 text-foreground shadow-sm">
+                    <StageIcon className="h-4 w-4" aria-hidden />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    {stage.label}
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-foreground/60" aria-hidden />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">{stage.summary}</div>
+                  <div className="relative h-1.5 overflow-hidden rounded-full bg-border/70">
+                    <div
+                      className={cn("absolute inset-y-0 left-0 rounded-full bg-gradient-to-r", stage.accent)}
+                      style={{ width: `${stageProgress(stage.key)}%` }}
+                      aria-hidden
+                    />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-5">
         <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-background/70">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.06),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(34,211,238,0.08),transparent_35%)]" />
-          <div className="relative flex items-center justify-between px-4 py-3 text-xs font-semibold text-muted-foreground">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/80 px-2 py-1">
-              <PlayCircle className="h-3.5 w-3.5 text-emerald-500" aria-hidden />
-              {conversationLabel}
+          <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs font-semibold text-muted-foreground">
+            <div className="inline-flex items-center gap-3 rounded-full border border-border/70 bg-card/80 px-3 py-1.5 shadow-sm">
+              <div className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-background/90">
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/30 via-sky-500/20 to-indigo-500/30" aria-hidden />
+                <PlayCircle className="relative h-4 w-4 text-emerald-500" aria-hidden />
+              </div>
+              <span className="text-foreground">{conversationLabel}</span>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/80 px-2 py-1">
+            <div className="inline-flex items-center gap-3 rounded-full border border-border/70 bg-card/80 px-3 py-1.5 shadow-sm">
+              <div className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-background/90">
+                <div
+                  className={cn("absolute inset-0 bg-gradient-to-br opacity-70", activeStageCopy.accent)}
+                  aria-hidden
+                />
+                <ActiveStageIcon className="relative h-4 w-4 text-foreground" aria-hidden />
+              </div>
               <Badge variant="secondary" className="bg-gradient-to-r from-emerald-500/80 via-teal-500/80 to-cyan-500/80 text-background">
                 {activeStageCopy.label}
               </Badge>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="rounded-full bg-border/70 px-2 py-1 text-[11px] text-muted-foreground">
                 {Math.round(progress)}%
               </span>
             </div>
@@ -227,9 +261,15 @@ export function LiveChatShowcase({
         <div className="grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
           <div className="rounded-2xl border border-border/70 bg-background/70">
             <div className="flex items-center justify-between px-4 py-3 text-xs font-semibold text-foreground">
-              <span>{actionLogLabel}</span>
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/80 px-2 py-1 text-[11px] text-muted-foreground">
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              <div className="inline-flex items-center gap-3">
+                <div className="relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-card/80 shadow-sm">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/25 via-sky-500/20 to-indigo-500/25" aria-hidden />
+                  <Sparkles className="relative h-4 w-4 text-foreground" aria-hidden />
+                </div>
+                <span className="text-sm font-semibold text-foreground">{actionLogLabel}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground shadow-sm">
+                <ArrowRight className="h-3.5 w-3.5 text-emerald-500" aria-hidden />
                 {copy.evidenceLabel}
               </div>
             </div>
@@ -255,35 +295,52 @@ export function LiveChatShowcase({
               </div>
             </div>
             <div className="mt-3 space-y-2">
-              {stages.map((stage) => (
-                <div
-                  key={stage.key}
-                  className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl border bg-background/70 px-3 py-2",
-                    stage.key === activeStage ? "border-foreground/60" : "border-border/70",
-                  )}
-                >
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <Badge
-                        variant="secondary"
-                        className={cn("bg-gradient-to-r text-background", stage.accent)}
-                      >
-                        {stage.label}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{stage.summary}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleStageSelect(stage.key)}
-                    className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-1 text-[11px] font-semibold text-foreground transition hover:border-foreground/60"
+              {stages.map((stage) => {
+                const StageIcon = stageIcons[stage.key];
+                return (
+                  <div
+                    key={stage.key}
+                    className={cn(
+                      "flex items-center justify-between gap-4 rounded-2xl border bg-background/70 px-3 py-3",
+                      stage.key === activeStage ? "border-foreground/60 shadow-[0_6px_28px_-20px_rgba(16,185,129,0.6)]" : "border-border/70",
+                    )}
                   >
-                    {lang === "zh" ? "跳转" : "Jump"}
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3">
+                      <div className="relative inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+                        <div
+                          className={cn("absolute inset-0 bg-gradient-to-br opacity-70", stage.accent)}
+                          aria-hidden
+                        />
+                        <div className="relative inline-flex h-8 w-8 items-center justify-center rounded-xl bg-background/95 text-foreground shadow-sm">
+                          <StageIcon className="h-4 w-4" aria-hidden />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+                          <Badge
+                            variant="secondary"
+                            className={cn("bg-gradient-to-r text-background", stage.accent)}
+                          >
+                            {stage.label}
+                          </Badge>
+                          <span className="rounded-full bg-border/70 px-2 py-1 text-[11px] text-muted-foreground">
+                            {lang === "zh" ? "在播" : "In flow"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">{stage.summary}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleStageSelect(stage.key)}
+                      className="inline-flex items-center gap-1 rounded-full border border-border/70 px-3 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-foreground/60"
+                    >
+                      {lang === "zh" ? "跳转" : "Jump"}
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -318,13 +375,13 @@ function ChatBubble({
 
       <div
         className={cn(
-          "max-w-[640px] rounded-2xl border px-4 py-3 text-sm shadow-sm transition",
+          "max-w-[640px] rounded-3xl border px-5 py-4 text-sm shadow-sm transition",
           !isAgent && "space-y-2",
           isUser
-            ? "ml-auto border-transparent bg-gradient-to-br from-emerald-500 via-sky-500 to-indigo-500 text-white shadow-[0_10px_40px_-20px_rgba(59,130,246,0.7)]"
-            : "border-border/70 bg-background/85",
+            ? "ml-auto border-transparent bg-gradient-to-br from-emerald-500 via-sky-500 to-indigo-500 text-white shadow-[0_16px_55px_-28px_rgba(59,130,246,0.9)]"
+            : "border-border/60 bg-background/90 backdrop-blur-sm",
           isTool && "font-mono text-[12px]",
-          isActive && "ring-2 ring-emerald-200 ring-offset-2 ring-offset-background",
+          isActive && "shadow-[0_18px_40px_-28px_rgba(16,185,129,0.8)] ring-2 ring-emerald-200 ring-offset-2 ring-offset-background",
         )}
       >
         {isAgent ? (
@@ -386,13 +443,19 @@ function MessageAvatar({
 }) {
   return (
     <div
-      className={cn(
-        "mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-card/80 text-[11px] font-semibold text-foreground shadow-sm",
-        accent && "bg-gradient-to-br text-background",
-        accent,
-      )}
+      className="relative mt-0.5 inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm"
     >
-      {role === "user" ? <User className="h-4 w-4" aria-hidden /> : <SquareTerminal className="h-4 w-4" aria-hidden />}
+      <div
+        className={cn("absolute inset-0 bg-gradient-to-br opacity-70", accent ?? "from-border via-border to-border")}
+        aria-hidden
+      />
+      <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/95 text-foreground shadow-sm">
+        {role === "user" ? (
+          <User className="h-4 w-4" aria-hidden />
+        ) : (
+          <SquareTerminal className="h-4 w-4" aria-hidden />
+        )}
+      </div>
       <span className="sr-only">{label}</span>
     </div>
   );
@@ -410,13 +473,20 @@ function EvidenceRow({
   roleLabels: Record<ChatTurn["role"], string>;
 }) {
   const roleLabel = roleLabels[turn.role];
+  const RoleIcon = turn.role === "user" ? User : turn.role === "agent" ? Sparkles : SquareTerminal;
   return (
-    <div className="grid grid-cols-[auto,1fr] gap-3 px-4 py-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/80 text-xs font-semibold text-foreground">
-        {roleLabel}
+    <div className="grid grid-cols-[auto,1fr] items-start gap-4 px-4 py-3">
+      <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+        <div
+          className={cn("absolute inset-0 bg-gradient-to-br opacity-70", stage?.accent ?? "from-border via-border to-border")}
+          aria-hidden
+        />
+        <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/95 text-foreground shadow-sm">
+          <RoleIcon className="h-4 w-4" aria-hidden />
+        </div>
       </div>
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-foreground">
           {stage ? (
             <Badge
               variant="secondary"
@@ -425,6 +495,9 @@ function EvidenceRow({
               {stage.label}
             </Badge>
           ) : null}
+          <span className="rounded-full bg-border/70 px-2 py-1 text-[11px] text-muted-foreground">
+            {roleLabel}
+          </span>
           <span className="text-muted-foreground">{lang === "zh" ? "最新证据" : "Latest evidence"}</span>
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-sm leading-relaxed text-foreground/90">
