@@ -115,8 +115,11 @@ function HomeTopBar({ lang }: { lang: HomeLang }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-card/70 shadow-sm backdrop-blur">
-          <Sparkles className="h-5 w-5 text-foreground/90" aria-hidden />
+        <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm backdrop-blur">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/15 via-sky-500/10 to-indigo-500/15" />
+          <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/90 shadow-sm">
+            <Sparkles className="h-5 w-5 text-foreground/90" aria-hidden />
+          </div>
         </div>
         <div>
           <div className="text-sm font-semibold text-foreground">elephant.ai</div>
