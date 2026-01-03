@@ -113,22 +113,13 @@ export function LiveChatShowcase({
     setIsPlaying(false);
   };
 
-  const stageProgress = (stageKey: StageKey) => {
-    const indices = stageIndicesByKey[stageKey];
-    if (indices.length === 0) {
-      return 0;
-    }
-    const completed = indices.filter((index) => index <= activeIndex).length;
-    return (completed / indices.length) * 100;
-  };
-
   const conversationLabel = lang === "zh" ? "对话演示" : "Conversation";
   const actionLogLabel = lang === "zh" ? "行动日志" : "Action log";
 
   return (
     <Card className="h-full bg-card/70 shadow-sm backdrop-blur">
       <CardHeader className="space-y-4 border-b border-border/60 pb-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Sparkles className="h-4 w-4" aria-hidden />
@@ -136,7 +127,7 @@ export function LiveChatShowcase({
             </CardTitle>
             <p className="text-sm text-muted-foreground">{copy.description}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
               <SquareTerminal className="h-3.5 w-3.5" aria-hidden />
               {lang === "zh" ? "自动播放" : "Auto-play"}
@@ -171,48 +162,6 @@ export function LiveChatShowcase({
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3">
-          {stages.map((stage) => {
-            const StageIcon = stageIcons[stage.key];
-            return (
-              <button
-                key={stage.key}
-                type="button"
-                onClick={() => handleStageSelect(stage.key)}
-                className={cn(
-                  "group flex items-center gap-3 rounded-2xl border bg-background/70 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-foreground/50",
-                  stage.key === activeStage
-                    ? "border-foreground/60 shadow-[0_10px_40px_-25px_rgba(16,185,129,0.8)]"
-                    : "border-border/70",
-                )}
-              >
-                <div className="relative inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-                  <div
-                    className={cn("absolute inset-0 bg-gradient-to-br opacity-70", stage.accent)}
-                    aria-hidden
-                  />
-                  <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-background/95 text-foreground shadow-sm">
-                    <StageIcon className="h-4 w-4" aria-hidden />
-                  </div>
-                </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                    {stage.label}
-                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-foreground/60" aria-hidden />
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{stage.summary}</div>
-                  <div className="relative h-1.5 overflow-hidden rounded-full bg-border/70">
-                    <div
-                      className={cn("absolute inset-y-0 left-0 rounded-full bg-gradient-to-r", stage.accent)}
-                      style={{ width: `${stageProgress(stage.key)}%` }}
-                      aria-hidden
-                    />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
       </CardHeader>
 
       <CardContent className="space-y-5">
@@ -243,7 +192,7 @@ export function LiveChatShowcase({
             </div>
           </div>
 
-          <ScrollArea className="relative h-[360px] px-4 pb-5">
+          <ScrollArea className="relative h-[320px] px-4 pb-5 sm:h-[360px] lg:h-[420px]">
             <div className="space-y-3">
               {visibleTurns.map((turn, index) => (
                 <ChatBubble
