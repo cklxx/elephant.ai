@@ -146,8 +146,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email: string, password: string) => {
     set({ status: "loading" });
-    const next = await authClient.login(email, password);
-    get().setSessionState(next);
+    try {
+      const next = await authClient.login(email, password);
+      get().setSessionState(next);
+    } catch (error) {
+      get().setSessionState(null);
+      throw error instanceof Error ? error : new Error("Login failed");
+    }
   },
 
   register: async (email: string, password: string, displayName: string) => {
