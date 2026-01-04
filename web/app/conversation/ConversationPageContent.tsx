@@ -51,6 +51,7 @@ import {
 } from "@/components/agent/AttachmentPanel";
 import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
+import { FlowModePanel } from "@/components/flow/FlowModePanel";
 
 const LazyConversationEventStream = dynamic(
   () =>
@@ -71,6 +72,7 @@ export function ConversationPageContent() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
+  const [viewMode, setViewMode] = useState<"console" | "flow">("console");
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [prewarmSessionId, setPrewarmSessionId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -216,6 +218,7 @@ export function ConversationPageContent() {
     if (useMockStream) return;
     if (resolvedSessionId) return;
     if (prewarmSessionId) return;
+    if (viewMode === "flow") return;
 
     let cancelled = false;
     apiClient
@@ -231,7 +234,7 @@ export function ConversationPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [prewarmSessionId, resolvedSessionId, useMockStream]);
+  }, [prewarmSessionId, resolvedSessionId, useMockStream, viewMode]);
 
   const performCancellation = useCallback(
     (taskId: string) => {
@@ -588,6 +591,7 @@ export function ConversationPageContent() {
   const headerTitle = resolvedSessionId
     ? activeSessionLabel || t("conversation.header.activeLabel")
     : t("conversation.header.idle");
+  const flowHeaderTitle = t("conversation.flow.headerTitle");
 
   const quickPrompts = useMemo(
     () => [
@@ -673,6 +677,61 @@ export function ConversationPageContent() {
     </div>
   );
 
+  const viewModeSwitch = (
+    <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 p-1">
+      <Button
+        type="button"
+        size="sm"
+        variant={viewMode === "console" ? "default" : "ghost"}
+        className="rounded-full px-3"
+        onClick={() => setViewMode("console")}
+      >
+        {t("conversation.mode.console")}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={viewMode === "flow" ? "default" : "ghost"}
+        className="rounded-full px-3"
+        onClick={() => setViewMode("flow")}
+      >
+        {t("conversation.mode.flow")}
+      </Button>
+    </div>
+  );
+
+  const rightPanelToggle = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      data-testid="right-panel-toggle"
+      onClick={() =>
+        setIsRightPanelOpen((prev) => {
+          const next = !prev;
+          captureEvent(AnalyticsEvent.SidebarToggled, {
+            sidebar: "right_panel",
+            next_state: next ? "open" : "closed",
+            previous_state: prev ? "open" : "closed",
+          });
+          return next;
+        })
+      }
+      className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
+      aria-expanded={isRightPanelOpen}
+      aria-controls="conversation-right-panel"
+    >
+      {isRightPanelOpen ? (
+        <PanelRightClose className="h-4 w-4" />
+      ) : (
+        <PanelRightOpen className="h-4 w-4" />
+      )}
+      <span className="sr-only">
+        {isRightPanelOpen ? "Close right panel" : "Open right panel"}
+      </span>
+    </Button>
+  );
+
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
       <Dialog
@@ -725,177 +784,163 @@ export function ConversationPageContent() {
       </Dialog>
       <div className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
         <Header
-          title={headerTitle}
-          showEnvironmentStrip={false}
+          title={viewMode === "flow" ? flowHeaderTitle : headerTitle}
+          subtitle={viewMode === "flow" ? t("conversation.flow.subtitle") : undefined}
+          showEnvironmentStrip={viewMode !== "flow"}
           leadingSlot={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              data-testid="session-list-toggle"
-              onClick={() =>
-                setIsSidebarOpen((prev) => {
-                  const next = !prev;
-                  captureEvent(AnalyticsEvent.SidebarToggled, {
-                    next_state: next ? "open" : "closed",
-                    previous_state: prev ? "open" : "closed",
-                  });
-                  return next;
-                })
-              }
-              className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-              aria-expanded={isSidebarOpen}
-              aria-controls="conversation-sidebar"
-            >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isSidebarOpen
-                  ? t("sidebar.toggle.close")
-                  : t("sidebar.toggle.open")}
-              </span>
-            </Button>
+            viewMode === "console" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                data-testid="session-list-toggle"
+                onClick={() =>
+                  setIsSidebarOpen((prev) => {
+                    const next = !prev;
+                    captureEvent(AnalyticsEvent.SidebarToggled, {
+                      next_state: next ? "open" : "closed",
+                      previous_state: prev ? "open" : "closed",
+                    });
+                    return next;
+                  })
+                }
+                className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
+                aria-expanded={isSidebarOpen}
+                aria-controls="conversation-sidebar"
+              >
+                {isSidebarOpen ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeftOpen className="h-4 w-4" />
+                )}
+                <span className="sr-only">
+                  {isSidebarOpen
+                    ? t("sidebar.toggle.close")
+                    : t("sidebar.toggle.open")}
+                </span>
+              </Button>
+            ) : null
           }
           actionsSlot={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              data-testid="right-panel-toggle"
-              onClick={() =>
-                setIsRightPanelOpen((prev) => {
-                  const next = !prev;
-                  captureEvent(AnalyticsEvent.SidebarToggled, {
-                    sidebar: "right_panel",
-                    next_state: next ? "open" : "closed",
-                    previous_state: prev ? "open" : "closed",
-                  });
-                  return next;
-                })
-              }
-              className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-              aria-expanded={isRightPanelOpen}
-              aria-controls="conversation-right-panel"
-            >
-              {isRightPanelOpen ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isRightPanelOpen ? "Close right panel" : "Open right panel"}
-              </span>
-            </Button>
+            <div className="flex items-center gap-2">
+              {viewModeSwitch}
+              {viewMode === "console" ? rightPanelToggle : null}
+            </div>
           }
         />
 
-        <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
-          <div
-            id="conversation-sidebar"
-            className={cn(
-              "overflow-hidden transition-all duration-300 lg:w-72 lg:flex-none",
-              isSidebarOpen ? "block" : "hidden",
-            )}
-            aria-hidden={!isSidebarOpen}
-          >
-            <Sidebar
-              sessionHistory={sessionHistory}
-              sessionLabels={sessionLabels}
-              currentSessionId={resolvedSessionId}
-              onSessionSelect={handleSessionSelect}
-              onSessionDelete={handleSessionDeleteRequest}
-              onNewSession={handleNewSession}
-            />
-          </div>
-
-          <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl">
-            <ContentArea
-              ref={contentRef}
-              className="flex-1 min-h-0 min-w-0"
-              fullWidth
-              contentClassName="space-y-4"
-            >
-              {!hasRenderableEvents ? (
-                <div className="flex min-h-[60vh] items-center justify-center">
-                  {showConnectingState ? (
-                    <div className="flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-background/70 px-8 py-6 text-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
-                        {t("sessions.details.loading")}
-                      </p>
-                    </div>
-                  ) : showConnectionBanner ? (
-                    <ConnectionBanner
-                      isConnected={isConnected}
-                      isReconnecting={isReconnecting}
-                      error={error}
-                      reconnectAttempts={reconnectAttempts}
-                      onReconnect={reconnect}
-                    />
-                  ) : (
-                    emptyState
-                  )}
-                </div>
-              ) : (
-                <LazyConversationEventStream
-                  events={events}
-                  isConnected={isConnected}
-                  isReconnecting={isReconnecting}
-                  error={error}
-                  reconnectAttempts={reconnectAttempts}
-                  onReconnect={reconnect}
-                  isRunning={streamIsRunning}
-                />
-              )}
-            </ContentArea>
-
-            <div className="border-t px-3 py-4 sm:px-6 sm:py-6">
-              <TaskInput
-                onSubmit={handleTaskSubmit}
-                placeholder={
-                  resolvedSessionId
-                    ? t("console.input.placeholder.active")
-                    : t("console.input.placeholder.idle")
-                }
-                disabled={inputDisabled}
-                loading={creationPending}
-                prefill={prefillTask}
-                onPrefillApplied={() => setPrefillTask(null)}
-                onStop={handleStop}
-                isRunning={isTaskRunning}
-                stopPending={stopPending}
-                stopDisabled={isCancelPending}
-              />
+        {viewMode === "flow" ? (
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 rounded-3xl border border-border/60 bg-background/60 px-4 py-5 shadow-sm lg:px-8">
+              <FlowModePanel />
             </div>
           </div>
-          <div
-            id="conversation-right-panel"
-            className={cn(
-              "hidden lg:flex flex-none justify-end overflow-hidden transition-all duration-300",
-              isRightPanelOpen ? "w-[380px] xl:w-[440px]" : "w-0",
-            )}
-            aria-hidden={!isRightPanelOpen}
-          >
-            {isRightPanelOpen ? (
-              <div className="sticky top-24 w-full max-w-[440px] space-y-4">
-                <SkillsPanel />
-                {hasAttachments ? (
-                  <AttachmentPanel events={events} />
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                    No attachments yet.
+        ) : (
+          <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
+            <div
+              id="conversation-sidebar"
+              className={cn(
+                "overflow-hidden transition-all duration-300 lg:w-72 lg:flex-none",
+                isSidebarOpen ? "block" : "hidden",
+              )}
+              aria-hidden={!isSidebarOpen}
+            >
+              <Sidebar
+                sessionHistory={sessionHistory}
+                sessionLabels={sessionLabels}
+                currentSessionId={resolvedSessionId}
+                onSessionSelect={handleSessionSelect}
+                onSessionDelete={handleSessionDeleteRequest}
+                onNewSession={handleNewSession}
+              />
+            </div>
+
+            <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl">
+              <ContentArea
+                ref={contentRef}
+                className="flex-1 min-h-0 min-w-0"
+                fullWidth
+                contentClassName="space-y-4"
+              >
+                {!hasRenderableEvents ? (
+                  <div className="flex min-h-[60vh] items-center justify-center">
+                    {showConnectingState ? (
+                      <div className="flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-background/70 px-8 py-6 text-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          {t("sessions.details.loading")}
+                        </p>
+                      </div>
+                    ) : showConnectionBanner ? (
+                      <ConnectionBanner
+                        isConnected={isConnected}
+                        isReconnecting={isReconnecting}
+                        error={error}
+                        reconnectAttempts={reconnectAttempts}
+                        onReconnect={reconnect}
+                      />
+                    ) : (
+                      emptyState
+                    )}
                   </div>
+                ) : (
+                  <LazyConversationEventStream
+                    events={events}
+                    isConnected={isConnected}
+                    isReconnecting={isReconnecting}
+                    error={error}
+                    reconnectAttempts={reconnectAttempts}
+                    onReconnect={reconnect}
+                    isRunning={streamIsRunning}
+                  />
                 )}
+              </ContentArea>
+
+              <div className="border-t px-3 py-4 sm:px-6 sm:py-6">
+                <TaskInput
+                  onSubmit={handleTaskSubmit}
+                  placeholder={
+                    resolvedSessionId
+                      ? t("console.input.placeholder.active")
+                      : t("console.input.placeholder.idle")
+                  }
+                  disabled={inputDisabled}
+                  loading={creationPending}
+                  prefill={prefillTask}
+                  onPrefillApplied={() => setPrefillTask(null)}
+                  onStop={handleStop}
+                  isRunning={isTaskRunning}
+                  stopPending={stopPending}
+                  stopDisabled={isCancelPending}
+                />
               </div>
-            ) : null}
+            </div>
+            <div
+              id="conversation-right-panel"
+              className={cn(
+                "hidden lg:flex flex-none justify-end overflow-hidden transition-all duration-300",
+                isRightPanelOpen ? "w-[380px] xl:w-[440px]" : "w-0",
+              )}
+              aria-hidden={!isRightPanelOpen}
+            >
+              {isRightPanelOpen ? (
+                <div className="sticky top-24 w-full max-w-[440px] space-y-4">
+                  <SkillsPanel />
+                  {hasAttachments ? (
+                    <AttachmentPanel events={events} />
+                  ) : (
+                    <div className="rounded-3xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                      No attachments yet.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {isRightPanelOpen && (
+      {viewMode === "console" && isRightPanelOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <button
             type="button"
