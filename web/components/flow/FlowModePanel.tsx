@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, RefreshCcw, Search, Wand2 } from "lucide-react";
 import type Quill from "quill";
-import "quill/dist/quill.snow.css";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
