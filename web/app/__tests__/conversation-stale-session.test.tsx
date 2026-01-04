@@ -7,6 +7,7 @@ import { useSessionStore } from '@/hooks/useSessionStore';
 import { APIError } from '@/lib/api';
 import { useTaskExecution, useCancelTask } from '@/hooks/useTaskExecution';
 import { useAgentEventStream } from '@/hooks/useAgentEventStream';
+import type { AnyAgentEvent } from '@/lib/types';
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -73,7 +74,30 @@ vi.mock('@/components/layout', async () => {
 
   return {
     ...actual,
-    Sidebar: () => <div data-testid="sidebar" />,
+    Sidebar: ({
+      sessionHistory = [],
+      currentSessionId = null,
+      onSessionSelect,
+    }: {
+      sessionHistory?: string[];
+      sessionLabels?: Record<string, string>;
+      currentSessionId?: string | null;
+      onSessionSelect?: (id: string) => void;
+    }) => (
+      <div data-testid="sidebar">
+        {sessionHistory.map((id) => (
+          <button
+            key={id}
+            data-testid="session-list-item"
+            data-session-id={id}
+            aria-current={currentSessionId === id}
+            onClick={() => onSessionSelect?.(id)}
+          >
+            {id}
+          </button>
+        ))}
+      </div>
+    ),
     Header: ({ leadingSlot }: { leadingSlot?: React.ReactNode }) => (
       <div data-testid="header">{leadingSlot}</div>
     ),
@@ -103,6 +127,7 @@ vi.mock('@/hooks/useSessionStore', async () => {
 const useTaskExecutionMock = vi.mocked(useTaskExecution);
 const useCancelTaskMock = vi.mocked(useCancelTask);
 const useAgentEventStreamMock = vi.mocked(useAgentEventStream);
+let clearEventsMock: ReturnType<typeof vi.fn>;
 
 describe('ConversationPageContent - stale session handling', () => {
   const defaultStoreState = useSessionStore.getState();
@@ -110,13 +135,15 @@ describe('ConversationPageContent - stale session handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    clearEventsMock = vi.fn();
+
     useAgentEventStreamMock.mockReturnValue({
       events: [],
       isConnected: true,
       isReconnecting: false,
       error: null,
       reconnectAttempts: 0,
-      clearEvents: vi.fn(),
+      clearEvents: clearEventsMock,
       reconnect: vi.fn(),
       addEvent: vi.fn(),
     });
@@ -213,5 +240,49 @@ describe('ConversationPageContent - stale session handling', () => {
     const state = useSessionStore.getState();
     expect(state.currentSessionId).toBe('new-session');
     expect(state.sessionHistory[0]).toBe('new-session');
+  });
+
+  it('keeps conversation state when reselecting the active session', () => {
+    const addEvent = vi.fn();
+    const localClearEvents = vi.fn();
+
+    useAgentEventStreamMock.mockReturnValue({
+      events: [
+        {
+          event_type: 'workflow.tool.completed',
+          timestamp: new Date().toISOString(),
+          agent_level: 'core',
+          session_id: 'active-session',
+          task_id: 'task-1',
+          tool_name: 'test-tool',
+        } as AnyAgentEvent,
+      ],
+      isConnected: true,
+      isReconnecting: false,
+      error: null,
+      reconnectAttempts: 0,
+      clearEvents: localClearEvents,
+      reconnect: vi.fn(),
+      addEvent,
+    });
+
+    useSessionStore.setState({
+      currentSessionId: 'active-session',
+      sessionHistory: ['active-session'],
+      sessionLabels: {},
+    });
+
+    const store = useSessionStore.getState();
+    const setCurrentSessionSpy = vi.spyOn(store, 'setCurrentSession');
+    const addToHistorySpy = vi.spyOn(store, 'addToHistory');
+
+    render(<ConversationPageContent />);
+
+    const sessionButton = screen.getByTestId('session-list-item');
+    fireEvent.click(sessionButton);
+
+    expect(localClearEvents).not.toHaveBeenCalled();
+    expect(setCurrentSessionSpy).not.toHaveBeenCalled();
+    expect(addToHistorySpy).not.toHaveBeenCalled();
   });
 });

@@ -504,7 +504,7 @@ export function ConversationPageContent() {
   };
 
   const handleSessionSelect = (id: string) => {
-    if (!id) return;
+    if (!id || id === resolvedSessionId) return;
     clearEvents();
     setPrewarmSessionId(null);
     setSessionId(id);
