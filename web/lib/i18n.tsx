@@ -142,7 +142,7 @@ const translations = {
     "conversation.mode.console": "对话",
     "conversation.mode.flow": "心流",
     "conversation.flow.headerTitle": "心流写作模式",
-    "conversation.flow.subtitle": "纯写作辅助：解析句子、重排节奏、生成搜索提示。",
+    "conversation.flow.subtitle": "LLM 自动生成提示和搜索建议，保持写作心流。",
     "conversation.quickstart.subtitle": "Pick a prompt.",
     "conversation.quickstart.useSuggestion": "Use: {suggestion}",
     "conversation.status.doing": "Working…",

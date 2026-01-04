@@ -1,433 +1,354 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, RefreshCcw, Search, Wand2 } from "lucide-react";
-import type Quill from "quill";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, RefreshCw, Search, Sparkles, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  analyzeSentences,
-  buildFlowDraft,
-  buildFlowOutline,
-  buildSearchCues,
-  computeDraftStats,
-  detectBlockers,
-  extractKeywords,
-  splitSentences,
-  tightenSentence,
-} from "./flow-utils";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { apiClient } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-type FlowIntent =
-  | { kind: "list"; hint: string }
-  | { kind: "research"; hint: string }
-  | { kind: "rewrite"; hint: string }
-  | null;
+type PromptSuggestion = {
+  id: string;
+  title: string;
+  content: string;
+  priority: number;
+};
 
-function htmlToPlainText(html: string): string {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  return container.innerText.replace(/\u00A0/g, " ").trim();
+type SearchSuggestion = {
+  id: string;
+  query: string;
+  reason?: string;
+  priority: number;
+};
+
+type LlmSuggestionPayload = {
+  prompts?: Array<Pick<PromptSuggestion, "title" | "content" | "priority">>;
+  searches?: Array<{ query: string; reason?: string; priority?: number }>;
+};
+
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "error"]);
+const DEFAULT_DRAFT =
+  "写作目的：重构心流写作模式，让提示由 LLM 自动生成。\n要求：简洁、权重排序、带自动搜索建议。\n\n草稿：这里粘贴你正在写的正文，助手会自动给出下一步提示。";
+
+function normalizePriority(value: unknown, fallback = 3): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function detectIntent(text: string, html: string, recentInput?: string): FlowIntent {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
+function parseLlmSuggestions(raw: string): { prompts: PromptSuggestion[]; searches: SearchSuggestion[] } | null {
+  const fencedMatch = raw.match(/```json\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch?.[1]?.trim() ?? raw.trim();
 
-  if (/<(ol|ul)[^>]*>/i.test(html) || /^[-*•]/m.test(trimmed) || recentInput === "list") {
-    return { kind: "list", hint: "检测到清单编辑，已保持段落行距和分点解析" };
+  try {
+    const parsed = JSON.parse(candidate) as LlmSuggestionPayload;
+    const prompts = (parsed.prompts ?? [])
+      .filter((item) => item.title?.trim() && item.content?.trim())
+      .map((item, index) => ({
+        id: `${item.title}-${index}`,
+        title: item.title.trim(),
+        content: item.content.trim(),
+        priority: normalizePriority(item.priority, index + 1),
+      }));
+
+    const searches = (parsed.searches ?? [])
+      .filter((item) => item.query?.trim())
+      .map((item, index) => ({
+        id: `${item.query}-${index}`,
+        query: item.query.trim(),
+        reason: item.reason?.trim() || undefined,
+        priority: normalizePriority(item.priority, index + 1),
+      }));
+
+    return {
+      prompts: prompts.sort((a, b) => a.priority - b.priority),
+      searches: searches.sort((a, b) => a.priority - b.priority),
+    };
+  } catch (error) {
+    console.error("[flow] Failed to parse LLM suggestions", error);
+    return null;
   }
+}
 
-  if (/[?？]/.test(trimmed) || /^(目标|目的|背景)/.test(trimmed) || recentInput === "research") {
-    return { kind: "research", hint: "检测到提问语气，已生成搜索提示与意图摘要" };
-  }
-
-  if (trimmed.length > 360 || recentInput === "rewrite") {
-    return { kind: "rewrite", hint: "检测到长句，建议一键紧凑或心流重排" };
-  }
-
-  return null;
+function buildFlowTaskPrompt(draft: string): string {
+  const compactDraft = draft.trim();
+  return [
+    "你是心流写作助手，负责基于用户草稿产出下一步动作。",
+    "必须返回 JSON，不要加入解释或 markdown。",
+    "JSON 结构：{\"prompts\":[{\"title\":\"\",\"content\":\"\",\"priority\":1}],\"searches\":[{\"query\":\"\",\"reason\":\"\",\"priority\":1}]}",
+    "prompts 用于直接给用户的写作提示，priority 数字越小越靠前，务必排序。",
+    "searches 用于自动检索/案例建议，query 面向搜索引擎，reason 简要说明价值。",
+    `草稿：${compactDraft}`,
+  ].join("\n");
 }
 
 export function FlowModePanel() {
-  const initialText =
-    "写作目的：展示产品的“心流写作模式”。\n语气：克制、务实、偏产品说明。\n\n初稿：\n我们希望提供一个纯净的写作界面，减少干扰，让用户专注于句子本身。通过拆分句子、生成搜索提示和自动润色，帮助用户让文章更流畅。把写作过程从“堆字”变为“连句”，形成一气呵成的心流。";
-  const [draftHtml, setDraftHtml] = useState<string>("");
-  const [intent, setIntent] = useState<FlowIntent>(null);
-  const quillRef = useRef<Quill | null>(null);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState(DEFAULT_DRAFT);
+  const [prompts, setPrompts] = useState<PromptSuggestion[]>([]);
+  const [searches, setSearches] = useState<SearchSuggestion[]>([]);
+  const [status, setStatus] = useState<"idle" | "pending" | "waiting" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [activeTask, setActiveTask] = useState<{ id: string; version: number } | null>(null);
+  const requestVersion = useRef(0);
+
+  const statusLabel = useMemo(() => {
+    switch (status) {
+      case "pending":
+        return "LLM 正在理解草稿…";
+      case "waiting":
+        return "等待 LLM 输出…";
+      case "error":
+        return "生成失败，稍后重试";
+      default:
+        return "自动生成提示与搜索建议";
+    }
+  }, [status]);
+
+  const runSuggestionTask = useCallback(
+    async (input: string) => {
+      const version = requestVersion.current + 1;
+      setStatus("pending");
+      setError(null);
+      requestVersion.current = version;
+
+      try {
+        const task = await apiClient.createTask({ task: buildFlowTaskPrompt(input) });
+        if (version === requestVersion.current) {
+          setActiveTask({ id: task.task_id, version });
+          setStatus("waiting");
+        }
+      } catch (err) {
+        console.error("[flow] createTask failed", err);
+        if (version === requestVersion.current) {
+          setError("无法创建任务，请稍后重试");
+          setStatus("error");
+        }
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    const container = editorContainerRef.current;
-    if (!container) return;
+    const trimmed = draft.trim();
+    if (!trimmed) return undefined;
 
-    let quillInstance: Quill | null = null;
-    void import("quill").then(({ default: QuillImport }) => {
-      quillInstance = new QuillImport(container, {
-        theme: "snow",
-        placeholder: "写作目标、受众、稿件正文……",
-        modules: {
-          toolbar: [
-            [{ header: [2, 3, false] }],
-            ["bold", "italic", "underline"],
-            [{ list: "ordered" }, { list: "bullet" }],
-            ["blockquote", "link"],
-            ["clean"],
-          ],
-        },
-      });
+    const timer = setTimeout(() => {
+      void runSuggestionTask(trimmed);
+    }, 800);
 
-      quillRef.current = quillInstance;
-      quillInstance.root.innerHTML = initialText
-        .split(/\n{2,}/)
-        .map((paragraph) => `<p>${paragraph.trim()}</p>`)
-        .join("");
-      setDraftHtml(quillInstance.root.innerHTML);
+    return () => clearTimeout(timer);
+  }, [draft, runSuggestionTask]);
 
-      quillInstance.on("text-change", (_delta, _old, source) => {
-        if (source !== "user") return;
-        const html = quillInstance?.root.innerHTML ?? "";
-        setDraftHtml(html);
-        setIntent(detectIntent(quillInstance?.getText() ?? "", html));
-      });
-    });
+  useEffect(() => {
+    if (!activeTask) return undefined;
 
-    return () => {
-      quillInstance?.off("text-change");
-      quillRef.current = null;
+    let attempts = 0;
+    const { id, version } = activeTask;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const response = await apiClient.getTaskStatus(id);
+        if (response.status === "completed" && response.final_answer) {
+          if (version === requestVersion.current) {
+            const parsed = parseLlmSuggestions(response.final_answer);
+            if (parsed) {
+              setPrompts(parsed.prompts);
+              setSearches(parsed.searches);
+              setStatus("idle");
+            } else {
+              setError("LLM 返回格式异常");
+              setStatus("error");
+            }
+          }
+          setActiveTask(null);
+          return;
+        }
+
+        if (TERMINAL_STATUSES.has(response.status) || attempts > 40) {
+          if (version === requestVersion.current) {
+            setStatus("error");
+            setError("任务未返回有效结果");
+          }
+          setActiveTask(null);
+        }
+      } catch (err) {
+        console.error("[flow] polling failed", err);
+        if (version === requestVersion.current) {
+          setError("任务状态查询失败");
+          setStatus("error");
+        }
+        setActiveTask(null);
+      }
     };
+
+    const interval = setInterval(poll, 1500);
+    void poll();
+
+    return () => clearInterval(interval);
+  }, [activeTask]);
+
+  const handleApplyPrompt = useCallback((content: string) => {
+    setDraft((current) => `${current.trim()}\n\n${content}`.trim());
   }, []);
 
-  useEffect(() => {
-    const quill = quillRef.current;
-    if (!quill) return;
-    if (quill.root.innerHTML === draftHtml) return;
-    const selection = quill.getSelection();
-    quill.clipboard.dangerouslyPasteHTML(draftHtml);
-    if (selection) {
-      quill.setSelection(selection);
-    }
-  }, [draftHtml]);
-
-  const draftText = useMemo(() => htmlToPlainText(draftHtml), [draftHtml]);
-  const sentences = useMemo(() => splitSentences(draftText), [draftText]);
-  const insights = useMemo(() => analyzeSentences(sentences), [sentences]);
-  const keywords = useMemo(() => extractKeywords(draftText, 10), [draftText]);
-  const flowDraft = useMemo(() => buildFlowDraft(sentences), [sentences]);
-  const outline = useMemo(() => buildFlowOutline(sentences), [sentences]);
-  const searchCues = useMemo(() => buildSearchCues(sentences), [sentences]);
-  const stats = useMemo(
-    () => computeDraftStats(draftText, sentences, keywords),
-    [draftText, sentences, keywords],
+  const hasSuggestions = prompts.length > 0 || searches.length > 0;
+  const handleDraftChange = useCallback(
+    (next: string) => {
+      setDraft(next);
+      if (!next.trim()) {
+        setPrompts([]);
+        setSearches([]);
+        setActiveTask(null);
+        setStatus("idle");
+        setError(null);
+      }
+    },
+    [],
   );
-  const blockers = useMemo(
-    () => detectBlockers(draftText, sentences, keywords, stats.paragraphs),
-    [draftText, sentences, keywords, stats.paragraphs],
-  );
-
-  const applyTightenAll = () => {
-    const tightened = sentences.map((sentence) => tightenSentence(sentence)).join("\n");
-    quillRef.current?.clipboard.dangerouslyPasteHTML(
-      tightened
-        .split(/\n{2,}/)
-        .map((paragraph) => `<p>${paragraph.trim()}</p>`)
-        .join(""),
-    );
-    const nextHtml = quillRef.current?.root.innerHTML ?? "";
-    setDraftHtml(nextHtml);
-    setIntent(detectIntent(htmlToPlainText(nextHtml), nextHtml, "rewrite"));
-  };
-
-  const applyFlowDraft = () => {
-    if (!flowDraft) return;
-    quillRef.current?.clipboard.dangerouslyPasteHTML(
-      flowDraft
-        .split(/\n{2,}/)
-        .map((paragraph) => `<p>${paragraph.trim()}</p>`)
-        .join(""),
-    );
-    const nextHtml = quillRef.current?.root.innerHTML ?? "";
-    setDraftHtml(nextHtml);
-    setIntent(detectIntent(htmlToPlainText(nextHtml), nextHtml, "rewrite"));
-  };
-
-  const applyToolbarFormat = (format: "bold" | "italic" | "list", value?: unknown) => {
-    if (!quillRef.current) return;
-    quillRef.current.focus();
-    quillRef.current.format(format, value ?? true);
-    const html = quillRef.current.root.innerHTML;
-    setDraftHtml(html);
-    setIntent(detectIntent(quillRef.current.getText(), html, format === "list" ? "list" : undefined));
-  };
-
-  const intentBadge =
-    intent && (
-      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-600">
-        <span>
-          {intent.kind === "list"
-            ? "检测到清单"
-            : intent.kind === "research"
-              ? "检测到提问/研究意图"
-              : "检测到长句"}
-        </span>
-        <span className="text-foreground/70">{intent.hint}</span>
-      </div>
-    );
 
   return (
-    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1.05fr,0.95fr] lg:items-start">
+    <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
       <Card className="bg-card/70 backdrop-blur">
         <CardHeader className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-500">
               <Wand2 className="h-3.5 w-3.5" aria-hidden />
-              心流写作 · Quill
+              心流写作
             </div>
-            <span className="text-xs text-muted-foreground">
-              纯写作辅助 · 所见即所得 · 句子解析
-            </span>
+            <Badge
+              variant="secondary"
+              className={cn(
+                "border border-border/60 bg-background/60 text-[11px] font-semibold",
+                status === "error" && "border-destructive/40 text-destructive",
+              )}
+            >
+              {statusLabel}
+            </Badge>
           </div>
+          <p className="text-sm text-muted-foreground">
+            只保留一个书写框，其他交给 LLM：它会自动生成优先级排序的提示和搜索建议。
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={draft}
+            rows={12}
+            onChange={(event) => handleDraftChange(event.target.value)}
+            placeholder="开始写作，LLM 会自动给出下一步提示"
+            className="min-h-[260px] rounded-2xl border-border/70 bg-background/80 text-base leading-7"
+          />
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="secondary" className="border border-border/50 bg-background/60">
-              字符：{stats.characters}
-            </Badge>
-            <Badge variant="secondary" className="border border-border/50 bg-background/60">
-              句子：{stats.sentences}
-            </Badge>
-            <Badge variant="secondary" className="border border-border/50 bg-background/60">
-              段落：{stats.paragraphs}
-            </Badge>
-            <Badge variant="secondary" className="border border-border/50 bg-background/60">
-              关键词：{stats.keywordCount}
-            </Badge>
-            <Badge variant="secondary" className="border border-border/50 bg-background/60">
-              预计阅读：{stats.readingMinutes} 分钟
-            </Badge>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={() => runSuggestionTask(draft.trim())}
+              disabled={!draft.trim() || status === "pending" || status === "waiting"}
+            >
+              {status === "pending" || status === "waiting" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" aria-hidden />
+              )}
+              重新生成提示
+            </Button>
+            {error ? <span className="text-destructive">{error}</span> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => applyToolbarFormat("bold")}
-            >
-              加粗
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => applyToolbarFormat("italic")}
-            >
-              斜体
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => applyToolbarFormat("list", "bullet")}
-            >
-              列表
-            </Button>
-            {intentBadge}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/70 backdrop-blur">
+        <CardHeader className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Sparkles className="h-4 w-4" aria-hidden />
+            智能提示与自动搜索
           </div>
+          <Badge variant="outline" className="border-dashed text-[11px]">
+            数字越小越优先
+          </Badge>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-2xl border border-border/70 bg-background/70 p-1">
-            <div ref={editorContainerRef} className="min-h-[260px]" />
-          </div>
-          {blockers.length ? (
-            <div className="space-y-3 rounded-2xl border border-amber-300/50 bg-amber-50/70 p-3 text-sm text-amber-900">
-              <div className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                卡点扫描
-              </div>
-              <div className="space-y-2">
-                {blockers.map((blocker) => (
-                  <div
-                    key={blocker.id}
-                    className="rounded-xl border border-amber-200 bg-white/70 p-3 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.25)]"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="border-amber-200 bg-amber-100 text-amber-900">
-                        {blocker.title}
-                      </Badge>
-                      {blocker.fixHint && (
-                        <span className="text-[11px] text-amber-700">{blocker.fixHint}</span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-amber-800">{blocker.detail}</p>
-                    {blocker.id === "structure" && flowDraft ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="mt-2 rounded-full"
-                        onClick={applyFlowDraft}
-                      >
-                        一键心流重排
-                      </Button>
-                    ) : null}
-                    {blocker.id === "expression" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="mt-2 rounded-full"
-                        onClick={applyTightenAll}
-                      >
-                        压缩长句
-                      </Button>
-                    ) : null}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Wand2 className="h-3.5 w-3.5" aria-hidden />
+              写作提示（点击可插入正文）
+            </div>
+            {prompts.map((prompt) => (
+              <div
+                key={prompt.id}
+                className="flex flex-col gap-2 rounded-2xl border border-border/70 bg-background/70 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+                    <Badge variant="secondary" className="border-border/60 bg-background/60 text-[11px]">
+                      优先级 {prompt.priority}
+                    </Badge>
+                    <span>{prompt.title}</span>
                   </div>
-                ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => handleApplyPrompt(prompt.content)}
+                  >
+                    应用
+                  </Button>
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground whitespace-pre-wrap">
+                  {prompt.content}
+                </p>
               </div>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-sm text-emerald-900">
-              思路通畅，继续写下去吧。
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              className="rounded-full"
-              onClick={applyFlowDraft}
-              disabled={!flowDraft}
-            >
-              <ArrowRight className="mr-2 h-4 w-4" aria-hidden />
-              应用心流重排
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full"
-              onClick={applyTightenAll}
-              disabled={!sentences.length}
-            >
-              <RefreshCcw className="mr-2 h-4 w-4" aria-hidden />
-              一键紧凑
-            </Button>
-            <div className="inline-flex flex-wrap gap-2 text-xs text-muted-foreground">
-              {keywords.map((keyword) => (
-                <Badge
-                  key={keyword}
-                  variant="outline"
-                  className="border-dashed bg-background/50"
-                >
-                  {keyword}
-                </Badge>
-              ))}
-            </div>
+            ))}
+            {!prompts.length && (
+              <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                正在等待 LLM 生成写作提示…
+              </div>
+            )}
           </div>
-          {flowDraft ? (
-            <div className="rounded-2xl border border-border/60 bg-muted/30 p-3 text-sm leading-6 text-foreground">
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-                <Wand2 className="h-3.5 w-3.5" aria-hidden />
-                心流草稿
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Search className="h-3.5 w-3.5" aria-hidden />
+              自动搜索与案例建议
+            </div>
+            {searches.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-1 rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-foreground"
+              >
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="border-border/60 bg-background/60 text-[11px]">
+                    优先级 {item.priority}
+                  </Badge>
+                  <span className="font-semibold">{item.query}</span>
+                </div>
+                {item.reason ? (
+                  <p className="text-xs text-muted-foreground">{item.reason}</p>
+                ) : null}
               </div>
-              <p className="whitespace-pre-line text-muted-foreground">{flowDraft}</p>
+            ))}
+            {!searches.length && (
+              <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                自动搜索提示会根据正文实时生成。
+              </div>
+            )}
+          </div>
+
+          {!hasSuggestions && status !== "error" ? (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-900">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              正在为当前草稿构思提示…
             </div>
           ) : null}
         </CardContent>
       </Card>
-
-      <div className="space-y-4">
-        <Card className="bg-card/70 backdrop-blur">
-          <CardHeader className="space-y-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Search className="h-4 w-4" aria-hidden />
-              搜索提示 · 表达查找
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              自动抓取关键词，生成可直接搜的提示，便于扩写/找案例/换表达。
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {searchCues.map((cue) => (
-              <Badge
-                key={cue}
-                variant="secondary"
-                className="rounded-full border border-border/60 bg-background/70 text-xs font-semibold text-foreground"
-              >
-                {cue}
-              </Badge>
-            ))}
-            {!searchCues.length && (
-              <span className="text-xs text-muted-foreground">输入草稿后自动生成。</span>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/70 backdrop-blur">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-sm font-semibold">句子解析 · 紧凑重写</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              拆句、标注节奏、建议更紧凑的改写，方便你挑选。
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {insights.map((insight) => (
-              <div
-                key={insight.original}
-                className="rounded-2xl border border-border/60 bg-background/60 p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                  <Badge variant="outline" className="border-dashed">
-                    {insight.rhythm === "short"
-                      ? "短句"
-                      : insight.rhythm === "balanced"
-                        ? "均衡"
-                        : "长句"}
-                  </Badge>
-                  {insight.keywords.map((keyword) => (
-                    <Badge key={keyword} variant="secondary" className="border-border/60">
-                      {keyword}
-                    </Badge>
-                  ))}
-                  <span>长度：{insight.length}</span>
-                </div>
-                <p className="mt-2 text-sm font-medium text-foreground">{insight.original}</p>
-                <p className="mt-1 text-sm text-emerald-500">{insight.tightened}</p>
-              </div>
-            ))}
-            {!insights.length && (
-              <p className="text-xs text-muted-foreground">输入一段文本即可生成句子解析。</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/70 backdrop-blur">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-sm font-semibold">行文脉络</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              自动提取开场、展开、收束，保持文章心流。
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 lg:grid-cols-3">
-              {outline.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm text-foreground"
-                >
-                  {item}
-                </div>
-              ))}
-              {!outline.length && (
-                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
-                  输入两句以上文本后自动生成开场-展开-收束。
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
