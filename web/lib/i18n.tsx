@@ -1,6 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo } from "react";
+import type { ReactNode } from "react";
+import { useCallback } from "react";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type Language = "en";
 
@@ -501,14 +504,30 @@ export type TranslationParams = Record<string, string | number>;
 
 interface LanguageContextValue {
   language: Language;
+  setLanguage: (language: Language) => void;
   t: (key: TranslationKey, params?: TranslationParams) => string;
 }
-
-const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 const languageLocaleMap: Record<Language, string> = {
   en: "en-US",
 };
+
+type LanguageStore = {
+  language: Language;
+  setLanguage: (language: Language) => void;
+};
+
+export const useLanguageStore = create<LanguageStore>()(
+  persist(
+    (set) => ({
+      language: "en",
+      setLanguage: (language) => set({ language }),
+    }),
+    {
+      name: "alex-language",
+    },
+  ),
+);
 
 export function getLanguageLocale(language: Language): string {
   return languageLocaleMap[language] ?? "en-US";
@@ -522,40 +541,26 @@ function format(template: string, params?: TranslationParams) {
   });
 }
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const language: Language = "en";
-
-  const translate = useCallback(
-    (key: TranslationKey, params?: TranslationParams) => {
-      const dictionary = translations[language];
-      const fallback = translations.en;
-      const template = (dictionary[key] ?? fallback[key]) as string;
-      return format(template, params);
-    },
-    [],
-  );
-
-  const value = useMemo<LanguageContextValue>(
-    () => ({
-      language,
-      t: translate,
-    }),
-    [translate],
-  );
-
-  return (
-    <LanguageContext.Provider value={value}>
-      {children}
-    </LanguageContext.Provider>
-  );
+function translateKey(key: TranslationKey, language: Language, params?: TranslationParams) {
+  const dictionary = translations[language] ?? translations.en;
+  const template = (dictionary[key] ?? translations.en[key]) as string;
+  return format(template, params);
 }
 
-export function useI18n() {
-  const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error("useI18n must be used within a LanguageProvider");
-  }
-  return context;
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  return <>{children}</>;
+}
+
+export function useI18n(): LanguageContextValue {
+  const language = useLanguageStore((state) => state.language);
+  const setLanguage = useLanguageStore((state) => state.setLanguage);
+
+  const t = useCallback(
+    (key: TranslationKey, params?: TranslationParams) => translateKey(key, language, params),
+    [language],
+  );
+
+  return { language, t, setLanguage };
 }
 
 export function useTranslation() {

@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import type { ReactNode } from "react";
+import { useEffect } from "react";
+import { create } from "zustand";
 import {
   authClient,
   AuthSession,
@@ -25,302 +19,250 @@ interface AuthContextValue {
   session: AuthSession | null;
   user: AuthUser | null;
   accessToken: string | null;
+  initialize: () => void | (() => void);
   login: (email: string, password: string) => Promise<void>;
-  register: (
-    email: string,
-    password: string,
-    displayName: string,
-  ) => Promise<AuthSession>;
+  register: (email: string, password: string, displayName: string) => Promise<AuthSession>;
   logout: () => Promise<void>;
   refresh: () => Promise<AuthSession | null>;
   loginWithProvider: (provider: OAuthProvider) => Promise<AuthSession>;
   startOAuth: (provider: OAuthProvider) => Promise<{ url: string; state: string }>;
-  awaitOAuthSession: (
-    provider: OAuthProvider,
-    options?: OAuthSessionOptions,
-  ) => Promise<AuthSession>;
+  awaitOAuthSession: (provider: OAuthProvider, options?: OAuthSessionOptions) => Promise<AuthSession>;
   adjustPoints: (delta: number) => Promise<AuthUser>;
-  updateSubscription: (
-    tier: string,
-    expiresAt?: string | null,
-  ) => Promise<AuthUser>;
+  updateSubscription: (tier: string, expiresAt?: string | null) => Promise<AuthUser>;
   listPlans: () => Promise<SubscriptionPlan[]>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+type AuthState = Omit<AuthContextValue, "user"> & {
+  setSessionState: (session: AuthSession | null) => void;
+};
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(() =>
-    authClient.getSession(),
-  );
-  const [status, setStatus] = useState<AuthStatus>("loading");
-  const refreshTimerRef = useRef<number | null>(null);
+let refreshTimeoutId: number | null = null;
+let initialized = false;
+let teardown: (() => void) | null = null;
 
-  useEffect(() => {
-    let cancelled = false;
+function clearRefreshTimer() {
+  if (typeof window === "undefined") return;
+  if (refreshTimeoutId !== null) {
+    window.clearTimeout(refreshTimeoutId);
+    refreshTimeoutId = null;
+  }
+}
 
-    const updateFromClient = (next: AuthSession | null) => {
-      if (cancelled) {
-        return;
-      }
-      setSession(next);
-      setStatus(next ? "authenticated" : "unauthenticated");
+function scheduleRefresh(session: AuthSession | null) {
+  if (typeof window === "undefined") return;
+  clearRefreshTimer();
+  if (!session) return;
+
+  const expiryTimestamp = Date.parse(session.accessExpiry);
+  if (!Number.isFinite(expiryTimestamp)) {
+    return;
+  }
+
+  const REFRESH_LEEWAY_MS = 60 * 1000;
+  const delay = Math.max(0, expiryTimestamp - Date.now() - REFRESH_LEEWAY_MS);
+
+  if (delay === 0) {
+    void authClient.ensureAccessToken();
+    return;
+  }
+
+  refreshTimeoutId = window.setTimeout(() => {
+    void authClient.ensureAccessToken();
+  }, delay);
+}
+
+function attachStorageListener(): (() => void) | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  const handleStorage = (event: StorageEvent) => {
+    authClient.handleStorageEvent(event);
+  };
+
+  window.addEventListener("storage", handleStorage);
+  return () => window.removeEventListener("storage", handleStorage);
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  status: "loading",
+  session: authClient.getSession(),
+  accessToken: authClient.getSession()?.accessToken ?? null,
+  initialize: () => {
+    if (initialized) return teardown ?? undefined;
+    initialized = true;
+
+    const syncState = (next: AuthSession | null) => {
+      set({
+        session: next,
+        status: next ? "authenticated" : "unauthenticated",
+        accessToken: next?.accessToken ?? null,
+      });
+      scheduleRefresh(next);
     };
 
-    const unsubscribe = authClient.subscribe(updateFromClient);
+    const unsubscribe = authClient.subscribe(syncState);
+    const detachStorage = attachStorageListener();
 
-    (async () => {
-      try {
-        const existing = authClient.getSession();
-        if (!existing) {
-          setSession(null);
-          setStatus("loading");
-          try {
-            await authClient.resumeFromRefreshCookie();
-          } catch (error) {
-            console.warn(
-              "[AuthProvider] Failed to resume session from cookie",
-              error,
-            );
-          }
-          updateFromClient(authClient.getSession());
-          return;
+    const bootstrap = async () => {
+      const existing = authClient.getSession();
+      if (!existing) {
+        set({ session: null, status: "loading", accessToken: null });
+        try {
+          await authClient.resumeFromRefreshCookie();
+        } catch (error) {
+          console.warn("[AuthProvider] Failed to resume session from cookie", error);
         }
+        syncState(authClient.getSession());
+        return;
+      }
+
+      try {
         await authClient.ensureAccessToken();
       } catch (error) {
         console.warn("[AuthProvider] Failed to bootstrap session", error);
-      } finally {
-        updateFromClient(authClient.getSession());
       }
-    })();
+      syncState(authClient.getSession());
+    };
 
-    return () => {
-      cancelled = true;
+    void bootstrap();
+
+    teardown = () => {
       unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handleStorage = (event: StorageEvent) => {
-      authClient.handleStorageEvent(event);
+      detachStorage?.();
+      clearRefreshTimer();
+      initialized = false;
     };
 
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+    return teardown;
+  },
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+  setSessionState: (session) => {
+    set({
+      session,
+      status: session ? "authenticated" : "unauthenticated",
+      accessToken: session?.accessToken ?? null,
+    });
+    scheduleRefresh(session);
+  },
 
-    if (refreshTimerRef.current !== null) {
-      window.clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
+  login: async (email: string, password: string) => {
+    set({ status: "loading" });
+    const next = await authClient.login(email, password);
+    get().setSessionState(next);
+  },
 
-    if (status !== "authenticated" || !session) {
-      return;
-    }
-
-    const expiryTimestamp = Date.parse(session.accessExpiry);
-    if (Number.isNaN(expiryTimestamp) || !Number.isFinite(expiryTimestamp)) {
-      return;
-    }
-
-    const REFRESH_LEEWAY_MS = 60 * 1000; // 1 minute before expiry
-    const delay = Math.max(0, expiryTimestamp - Date.now() - REFRESH_LEEWAY_MS);
-
-    if (delay === 0) {
-      void authClient.ensureAccessToken().catch((error) => {
-        console.warn(
-          "[AuthProvider] Failed to proactively refresh access token",
-          error,
-        );
-      });
-      return;
-    }
-
-    refreshTimerRef.current = window.setTimeout(() => {
-      void authClient.ensureAccessToken().catch((error) => {
-        console.warn(
-          "[AuthProvider] Failed to proactively refresh access token",
-          error,
-        );
-      });
-    }, delay);
-
-    return () => {
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-    };
-  }, [session, status]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    setStatus("loading");
+  register: async (email: string, password: string, displayName: string) => {
+    set({ status: "loading" });
     try {
+      await authClient.register(email, password, displayName);
       const next = await authClient.login(email, password);
-      setSession(next);
-      setStatus("authenticated");
+      get().setSessionState(next);
+      return next;
     } catch (error) {
-      setSession(null);
-      setStatus("unauthenticated");
+      const existing = authClient.getSession();
+      get().setSessionState(existing);
       throw error;
     }
-  }, []);
+  },
 
-  const register = useCallback(
-    async (email: string, password: string, displayName: string) => {
-      setStatus("loading");
-      try {
-        await authClient.register(email, password, displayName);
-        const next = await authClient.login(email, password);
-        setSession(next);
-        setStatus("authenticated");
-        return next;
-      } catch (error) {
-        const existing = authClient.getSession();
-        setSession(existing);
-        setStatus(existing ? "authenticated" : "unauthenticated");
-        throw error;
-      }
-    },
-    [],
-  );
-
-  const logout = useCallback(async () => {
-    setStatus("loading");
+  logout: async () => {
+    set({ status: "loading" });
     try {
       await authClient.logout();
     } finally {
       const next = authClient.getSession();
-      setSession(next);
-      setStatus(next ? "authenticated" : "unauthenticated");
+      get().setSessionState(next);
     }
-  }, []);
+  },
 
-  const refresh = useCallback(async () => {
+  refresh: async () => {
     const next = await authClient.refresh();
-    setSession(next);
-    setStatus(next ? "authenticated" : "unauthenticated");
+    get().setSessionState(next);
     return next;
+  },
+
+  startOAuth: (provider: OAuthProvider) => authClient.startOAuth(provider),
+
+  awaitOAuthSession: async (provider: OAuthProvider, options?: OAuthSessionOptions) => {
+    const existing = authClient.getSession();
+    set({ status: "loading" });
+    try {
+      const next = await authClient.waitForOAuthSession(provider, options);
+      get().setSessionState(next);
+      return next;
+    } catch (error) {
+      const current = authClient.getSession();
+      const next = current ?? existing;
+      get().setSessionState(next);
+      throw error instanceof Error ? error : new Error("OAuth login failed");
+    }
+  },
+
+  loginWithProvider: async (provider: OAuthProvider) => {
+    if (typeof window === "undefined") {
+      throw new Error("OAuth login is only available in the browser");
+    }
+
+    try {
+      const { url } = await get().startOAuth(provider);
+      const popup = window.open(
+        url,
+        `alex-console-auth-${provider}`,
+        "width=520,height=720,noopener,noreferrer",
+      );
+      if (!popup) {
+        throw new Error("OAuth login popup was blocked");
+      }
+      return await get().awaitOAuthSession(provider, { popup });
+    } catch (error) {
+      throw error instanceof Error ? error : new Error("OAuth login failed");
+    }
+  },
+
+  adjustPoints: async (delta: number) => {
+    const user = await authClient.adjustPoints(delta);
+    const session = authClient.getSession();
+    get().setSessionState(session);
+    return user;
+  },
+
+  updateSubscription: async (tier: string, expiresAt?: string | null) => {
+    const user = await authClient.updateSubscription(tier, expiresAt);
+    const session = authClient.getSession();
+    get().setSessionState(session);
+    return user;
+  },
+
+  listPlans: () => authClient.listPlans(),
+}));
+
+export function initializeAuthStore() {
+  return useAuthStore.getState().initialize();
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    return initializeAuthStore();
   }, []);
 
-  const startOAuth = useCallback(
-    (provider: OAuthProvider) => authClient.startOAuth(provider),
-    [],
-  );
-
-  const awaitOAuthSession = useCallback(
-    async (provider: OAuthProvider, options?: OAuthSessionOptions) => {
-      const existing = authClient.getSession();
-      setStatus("loading");
-      try {
-        const next = await authClient.waitForOAuthSession(provider, options);
-        setSession(next);
-        setStatus("authenticated");
-        return next;
-      } catch (error) {
-        const current = authClient.getSession();
-        const next = current ?? existing;
-        setSession(next);
-        setStatus(next ? "authenticated" : "unauthenticated");
-        throw error instanceof Error
-          ? error
-          : new Error("OAuth login failed");
-      }
-    },
-    [],
-  );
-
-  const loginWithProvider = useCallback(
-    async (provider: OAuthProvider) => {
-      if (typeof window === "undefined") {
-        throw new Error("OAuth login is only available in the browser");
-      }
-
-      try {
-        const { url } = await startOAuth(provider);
-        const popup = window.open(
-          url,
-          `alex-console-auth-${provider}`,
-          "width=520,height=720,noopener,noreferrer",
-        );
-        if (!popup) {
-          throw new Error("OAuth login popup was blocked");
-        }
-        return await awaitOAuthSession(provider, { popup });
-      } catch (error) {
-        throw error instanceof Error
-          ? error
-          : new Error("OAuth login failed");
-      }
-    },
-    [awaitOAuthSession, startOAuth],
-  );
-
-  const adjustPoints = useCallback(
-    (delta: number) => authClient.adjustPoints(delta),
-    [],
-  );
-
-  const updateSubscription = useCallback(
-    (tier: string, expiresAt?: string | null) =>
-      authClient.updateSubscription(tier, expiresAt),
-    [],
-  );
-
-  const listPlans = useCallback(
-    () => authClient.listPlans(),
-    [],
-  );
-
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      status,
-      session,
-      user: session?.user ?? null,
-      accessToken: session?.accessToken ?? null,
-      login,
-      register,
-      logout,
-      refresh,
-      loginWithProvider,
-      startOAuth,
-      awaitOAuthSession,
-      adjustPoints,
-      updateSubscription,
-      listPlans,
-    }),
-    [
-      status,
-      session,
-      login,
-      register,
-      logout,
-      refresh,
-      loginWithProvider,
-      startOAuth,
-      awaitOAuthSession,
-      adjustPoints,
-      updateSubscription,
-      listPlans,
-    ],
-  );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <>{children}</>;
 }
 
 export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  return useAuthStore((state) => ({
+    status: state.status,
+    session: state.session,
+    user: state.session?.user ?? null,
+    accessToken: state.accessToken,
+    initialize: state.initialize,
+    login: state.login,
+    register: state.register,
+    logout: state.logout,
+    refresh: state.refresh,
+    loginWithProvider: state.loginWithProvider,
+    startOAuth: state.startOAuth,
+    awaitOAuthSession: state.awaitOAuthSession,
+    adjustPoints: state.adjustPoints,
+    updateSubscription: state.updateSubscription,
+    listPlans: state.listPlans,
+  }));
 }
