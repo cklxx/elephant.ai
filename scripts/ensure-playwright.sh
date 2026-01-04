@@ -9,6 +9,26 @@ LOG_DIR="${PLAYWRIGHT_LOG_DIR:-${ROOT_DIR}/logs}"
 INSTALL_LOG="${LOG_DIR}/playwright-install.log"
 DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST:-https://playwright.azureedge.net}"
 
+PYTHON_BIN=""
+
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  if python - <<'PY'
+import sys
+
+sys.exit(0 if sys.version_info >= (3, 0) else 1)
+PY
+  then
+    PYTHON_BIN="python"
+  fi
+fi
+
+if [[ -z "${PYTHON_BIN}" ]]; then
+  echo "Python 3 is required to patch Playwright progress logging; install python3." >&2
+  exit 1
+fi
+
 mkdir -p "${LOG_DIR}"
 
 patch_playwright_progress() {
@@ -23,7 +43,7 @@ patch_playwright_progress() {
     return 0
   fi
 
-  python - "${fetcher}" <<'PY'
+  "${PYTHON_BIN}" - "${fetcher}" <<'PY'
 from pathlib import Path
 import sys
 
@@ -49,7 +69,7 @@ path.write_text(text)
 PY
 
   if [[ -f "${downloader}" ]] && ! grep -q "totalBytes > 0 && downloadedBytes !== totalBytes" "${downloader}"; then
-    python - "${downloader}" <<'PY'
+    "${PYTHON_BIN}" - "${downloader}" <<'PY'
 from pathlib import Path
 import sys
 
