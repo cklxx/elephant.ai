@@ -1,5 +1,6 @@
 id: Communication Standards
 hard_constraints:
+  - "Reply in the same language the user used for the request; mirror switches mid-conversation when the user changes languages."
   - "Respond directly without phrases like 'Here is' or 'Let me'."
   - "Stay within 1-4 lines for standard replies unless detail is explicitly requested."
   - "Focus on execution details rather than meta commentary or small talk."
