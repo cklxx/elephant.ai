@@ -53,13 +53,58 @@ function normalizePriority(value: unknown, fallback = 3): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function parseLlmSuggestions(raw: string): { prompts: PromptSuggestion[]; searches: SearchSuggestion[] } | null {
+function extractJsonCandidate(raw: string): string | null {
   const fencedMatch = raw.match(/```json\s*([\s\S]*?)```/i);
-  const candidate = fencedMatch?.[1]?.trim() ?? raw.trim();
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed;
+  }
+
+  const firstBraceIndex = raw.indexOf("{");
+  if (firstBraceIndex === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let i = firstBraceIndex; i < raw.length; i += 1) {
+    const char = raw[i];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(firstBraceIndex, i + 1).trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+export function parseLlmSuggestions(raw: string): { prompts: PromptSuggestion[]; searches: SearchSuggestion[] } | null {
+  const candidate = extractJsonCandidate(raw);
+  if (!candidate) {
+    return null;
+  }
 
   try {
     const parsed = JSON.parse(candidate) as LlmSuggestionPayload;
-    const prompts = (parsed.prompts ?? [])
+    const promptItems = Array.isArray(parsed.prompts)
+      ? parsed.prompts
+      : parsed.prompts
+        ? [parsed.prompts]
+        : [];
+    const searchItems = Array.isArray(parsed.searches)
+      ? parsed.searches
+      : parsed.searches
+        ? [parsed.searches]
+        : [];
+
+    const prompts = promptItems
       .filter((item) => item.title?.trim() && item.content?.trim())
       .map((item, index) => ({
         id: `${item.title}-${index}`,
@@ -68,7 +113,7 @@ function parseLlmSuggestions(raw: string): { prompts: PromptSuggestion[]; search
         priority: normalizePriority(item.priority, index + 1),
       }));
 
-    const searches = (parsed.searches ?? [])
+    const searches = searchItems
       .filter((item) => item.query?.trim())
       .map((item, index) => ({
         id: `${item.query}-${index}`,
@@ -92,6 +137,7 @@ function buildFlowTaskPrompt(draft: string): string {
   return [
     "你是心流写作助手，负责基于用户草稿产出下一步动作。",
     "必须返回 JSON，不要加入解释或 markdown。",
+    "禁止添加 Summary 或其他额外文本，只输出 JSON 对象。",
     "JSON 结构：{\"prompts\":[{\"title\":\"\",\"content\":\"\",\"priority\":1}],\"searches\":[{\"query\":\"\",\"reason\":\"\",\"priority\":1}]}",
     "prompts 用于直接给用户的写作提示，priority 数字越小越靠前，务必排序。",
     "searches 用于自动检索/案例建议，query 面向搜索引擎，reason 简要说明价值。",
