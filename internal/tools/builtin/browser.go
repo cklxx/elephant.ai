@@ -94,6 +94,8 @@ func (t *browserTool) Definition() ports.ToolDefinition {
 Supported statements (one per line):
 - open <url>
 - click <css_selector>
+- press <key>
+- type <text> [into <css_selector>]
 - scroll <up|down|left|right> <pixels>
 - wait <seconds>
 - if exists <css_selector>
@@ -575,6 +577,7 @@ func formatFallbackSummary(steps []map[string]any) string {
 type browserCommand struct {
 	kind      commandKind
 	value     string
+	target    string
 	amount    int
 	thenBlock []browserCommand
 	elseBlock []browserCommand
@@ -592,6 +595,13 @@ func (c browserCommand) label() string {
 		return fmt.Sprintf("wait %ds", c.amount)
 	case commandIfExists:
 		return fmt.Sprintf("if exists %s", c.value)
+	case commandPress:
+		return fmt.Sprintf("press %s", c.value)
+	case commandType:
+		if c.target != "" {
+			return fmt.Sprintf("type %s into %s", c.value, c.target)
+		}
+		return fmt.Sprintf("type %s", c.value)
 	default:
 		return string(c.kind)
 	}
@@ -604,6 +614,8 @@ const (
 	commandClick    commandKind = "click"
 	commandScroll   commandKind = "scroll"
 	commandWait     commandKind = "wait"
+	commandPress    commandKind = "press"
+	commandType     commandKind = "type"
 	commandIfExists commandKind = "if"
 )
 
@@ -752,6 +764,35 @@ func parseAction(line string) (browserCommand, error) {
 			return browserCommand{}, fmt.Errorf("wait requires a positive integer number of seconds")
 		}
 		return browserCommand{kind: commandWait, amount: seconds}, nil
+
+	case strings.HasPrefix(lower, "press "):
+		key := strings.TrimSpace(line[len("press "):])
+		key = strings.Trim(key, "[]")
+		if key == "" {
+			return browserCommand{}, fmt.Errorf("key is required for press")
+		}
+		return browserCommand{kind: commandPress, value: key}, nil
+
+	case strings.HasPrefix(lower, "type "):
+		rest := strings.TrimSpace(line[len("type "):])
+		if rest == "" {
+			return browserCommand{}, fmt.Errorf("text is required for type")
+		}
+		text := rest
+		target := ""
+		if idx := strings.LastIndex(strings.ToLower(rest), " into "); idx >= 0 {
+			textPart := strings.TrimSpace(rest[:idx])
+			targetPart := strings.TrimSpace(rest[idx+len(" into "):])
+			if textPart != "" && targetPart != "" {
+				text = textPart
+				target = strings.Trim(targetPart, "[]")
+			}
+		}
+		text = strings.Trim(text, "[]")
+		if text == "" {
+			return browserCommand{}, fmt.Errorf("text is required for type")
+		}
+		return browserCommand{kind: commandType, value: text, target: target}, nil
 	default:
 		return browserCommand{}, fmt.Errorf("unsupported statement: %s", line)
 	}
@@ -949,6 +990,22 @@ func emitCommands(builder *strings.Builder, commands []browserCommand, indent st
 		case commandWait:
 			builder.WriteString(fmt.Sprintf("%sawait page.waitForTimeout(%d);\n", indent, cmd.amount*1000))
 			builder.WriteString(fmt.Sprintf("%sawait snap(%s);\n", indent, strconv.Quote(cmd.label())))
+
+		case commandPress:
+			builder.WriteString(fmt.Sprintf("%sawait page.keyboard.press(%s);\n", indent, strconv.Quote(cmd.value)))
+			builder.WriteString(fmt.Sprintf("%sawait snap(%s);\n", indent, strconv.Quote(cmd.label())))
+
+		case commandType:
+			if cmd.target != "" {
+				builder.WriteString(fmt.Sprintf("%s{\n", indent))
+				builder.WriteString(fmt.Sprintf("%s  const handle = await page.$(%s);\n", indent, strconv.Quote(cmd.target)))
+				builder.WriteString(fmt.Sprintf("%s  if (handle) { await handle.fill(%s); } else { steps.push({ label: %s, error: 'selector not found' }); }\n", indent, strconv.Quote(cmd.value), strconv.Quote(cmd.label())))
+				builder.WriteString(fmt.Sprintf("%s  await snap(%s);\n", indent, strconv.Quote(cmd.label())))
+				builder.WriteString(fmt.Sprintf("%s}\n", indent))
+			} else {
+				builder.WriteString(fmt.Sprintf("%sawait page.keyboard.type(%s);\n", indent, strconv.Quote(cmd.value)))
+				builder.WriteString(fmt.Sprintf("%sawait snap(%s);\n", indent, strconv.Quote(cmd.label())))
+			}
 
 		case commandIfExists:
 			builder.WriteString(fmt.Sprintf("%sif (await page.$(%s)) {\n", indent, strconv.Quote(cmd.value)))

@@ -27,6 +27,7 @@ const toElement = (node) => {
     id: node.id || '',
     className: node.className || '',
     innerText: node.text || '',
+    async fill(text) { (node.filled = node.filled || []).push(text); },
     getBoundingClientRect: () => ({
       width: rect.width || 0,
       height: rect.height || 0,
@@ -77,10 +78,14 @@ const createPage = (state) => {
     },
     async $(selector) {
       const element = find(selector);
-      return element ? { click: async () => { state.clicked.push(selector); } } : null;
+      return element ? { click: async () => { state.clicked.push(selector); }, fill: async (text) => { state.filled.push([selector, text]); } } : null;
     },
     mouse: {
       wheel: async (dx, dy) => { state.scrolled.push([dx, dy]); },
+    },
+    keyboard: {
+      press: async (key) => { state.pressed.push(key); },
+      type: async (text) => { state.typed.push(text); },
     },
     async screenshot(options) {
       fs.writeFileSync(options.path, png);
@@ -111,6 +116,9 @@ module.exports = {
         scrollHeight,
         clicked: [],
         scrolled: [],
+        pressed: [],
+        typed: [],
+        filled: [],
         cookies: [],
         waits: [],
         initScripts: [],
@@ -148,6 +156,29 @@ func TestParseBrowserDSLRequiresScrollAmount(t *testing.T) {
 	}
 	if got := cmds[0].label(); got != "scroll up 120" {
 		t.Fatalf("expected scroll label to include amount, got %q", got)
+	}
+}
+
+func TestParseBrowserDSLSupportsTypingAndPress(t *testing.T) {
+	cmds, err := parseBrowserDSL(`
+press Enter
+type hello world into #search
+type quick input
+`)
+	if err != nil {
+		t.Fatalf("expected typing and press to parse: %v", err)
+	}
+	if len(cmds) != 3 {
+		t.Fatalf("expected 3 commands, got %d", len(cmds))
+	}
+	if cmds[0].kind != commandPress || cmds[0].value != "Enter" {
+		t.Fatalf("expected press Enter, got %+v", cmds[0])
+	}
+	if cmds[1].kind != commandType || cmds[1].value != "hello world" || cmds[1].target != "#search" {
+		t.Fatalf("expected type into selector, got %+v", cmds[1])
+	}
+	if cmds[2].label() != "type quick input" {
+		t.Fatalf("expected type label without target, got %q", cmds[2].label())
 	}
 }
 
@@ -248,6 +279,9 @@ if exists .missing
 else
   scroll down 240
 end
+press Enter
+type demo query into #primary
+type final input
 `
 	commands, err := parseBrowserDSL(dsl)
 	if err != nil {
@@ -265,8 +299,8 @@ end
 		t.Fatalf("runPlaywright: %v", err)
 	}
 
-	if len(runResult.Steps) != 4 {
-		t.Fatalf("expected 4 steps, got %d", len(runResult.Steps))
+	if len(runResult.Steps) != 7 {
+		t.Fatalf("expected 7 steps, got %d", len(runResult.Steps))
 	}
 
 	first := runResult.Steps[0]
@@ -288,6 +322,15 @@ end
 	}
 	if runResult.Steps[3].Label != "scroll down 240" {
 		t.Fatalf("expected scroll down label, got %q", runResult.Steps[3].Label)
+	}
+	if runResult.Steps[4].Label != "press Enter" {
+		t.Fatalf("expected press label, got %q", runResult.Steps[4].Label)
+	}
+	if runResult.Steps[5].Label != "type demo query into #primary" {
+		t.Fatalf("expected type into selector label, got %q", runResult.Steps[5].Label)
+	}
+	if runResult.Steps[6].Label != "type final input" {
+		t.Fatalf("expected type label, got %q", runResult.Steps[6].Label)
 	}
 }
 
