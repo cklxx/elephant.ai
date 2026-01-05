@@ -52,7 +52,7 @@ Supporting infrastructure and migrations:
 
 - Database migrations: `migrations/` and `deploy/` manifests for cluster installs.
 - Configuration: `configs/` and service defaults under `internal/config`.
-- Deployment helpers: `deploy.sh`, `k8s/`, and Docker images built via `Makefile` targets.
+- Deployment helpers: `deploy.sh` and Docker images built via `Makefile` targets.
 
 ## 7) Quality Gates
 
