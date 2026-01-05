@@ -97,6 +97,14 @@ func (s *EvaluationService) Start(ctx context.Context, options *agent_eval.Evalu
 		return nil, err
 	}
 
+	if config.DatasetPath != "" {
+		safePath, err := s.safeDatasetPath(config.DatasetPath)
+		if err != nil {
+			return nil, err
+		}
+		config.DatasetPath = safePath
+	}
+
 	if err := os.MkdirAll(config.OutputDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create output dir %s: %w", config.OutputDir, err)
 	}
@@ -225,6 +233,34 @@ func (s *EvaluationService) safeOutputDir(requested string) string {
 	}
 
 	return joined
+}
+
+func (s *EvaluationService) safeDatasetPath(requested string) (string, error) {
+	cleaned := strings.TrimSpace(requested)
+	if cleaned == "" || cleaned == "." || cleaned == ".." {
+		return "", fmt.Errorf("invalid dataset path")
+	}
+
+	// Resolve dataset paths relative to the base output directory to keep them within a safe root.
+	joined := filepath.Join(s.baseOutputDir, cleaned)
+	abs, err := filepath.Abs(joined)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve dataset path: %w", err)
+	}
+
+	baseAbs, err := filepath.Abs(s.baseOutputDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base output dir: %w", err)
+	}
+
+	// Ensure the resulting path is within the base directory.
+	baseWithSep := baseAbs + string(os.PathSeparator)
+	absWithSep := abs + string(os.PathSeparator)
+	if abs != baseAbs && !strings.HasPrefix(absWithSep, baseWithSep) {
+		return "", fmt.Errorf("dataset path must be within base output directory")
+	}
+
+	return abs, nil
 }
 
 func (s *EvaluationService) ensureOutputDir(outputDir string) error {
