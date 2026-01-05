@@ -164,6 +164,9 @@ export function FlowModePanel({ events, onRunTask }: FlowModePanelProps) {
     if (!isWorkflowResultFinalEvent(event)) return;
     if (processedTaskIds.current.has(event.task_id)) return;
 
+    const streamInProgress = event.is_streaming === true || event.stream_finished === false;
+    if (streamInProgress) return;
+
     processedTaskIds.current.add(event.task_id);
     const previousSnapshot = lastSnapshotRef.current;
     if (previousSnapshot && (previousSnapshot.prompts.length || previousSnapshot.searches.length)) {
