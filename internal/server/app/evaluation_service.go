@@ -97,6 +97,14 @@ func (s *EvaluationService) Start(ctx context.Context, options *agent_eval.Evalu
 		return nil, err
 	}
 
+	if config.DatasetPath != "" {
+		safePath, err := s.safeDatasetPath(config.DatasetPath)
+		if err != nil {
+			return nil, err
+		}
+		config.DatasetPath = safePath
+	}
+
 	if err := os.MkdirAll(config.OutputDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create output dir %s: %w", config.OutputDir, err)
 	}
@@ -225,6 +233,49 @@ func (s *EvaluationService) safeOutputDir(requested string) string {
 	}
 
 	return joined
+}
+
+func (s *EvaluationService) safeDatasetPath(requested string) (string, error) {
+	cleaned := strings.TrimSpace(requested)
+	if cleaned == "" || cleaned == "." || cleaned == ".." {
+		return "", fmt.Errorf("invalid dataset path")
+	}
+
+	workingDir, err := filepath.Abs(".")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve working directory: %w", err)
+	}
+
+	var candidate string
+	if filepath.IsAbs(cleaned) {
+		candidate = cleaned
+	} else {
+		candidate = filepath.Join(workingDir, cleaned)
+	}
+	candidate = canonicalizePath(candidate)
+
+	baseOutput := canonicalizePath(filepath.Clean(s.baseOutputDir))
+	allowedBases := []string{baseOutput}
+
+	workingCanonical := canonicalizePath(workingDir)
+	if workingCanonical != baseOutput {
+		allowedBases = append(allowedBases, workingCanonical)
+	}
+
+	for _, base := range allowedBases {
+		rel, err := filepath.Rel(base, candidate)
+		if err != nil {
+			continue
+		}
+		if rel == "." {
+			return candidate, nil
+		}
+		if rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("dataset path must stay within the base output directory or working directory")
 }
 
 func (s *EvaluationService) ensureOutputDir(outputDir string) error {
