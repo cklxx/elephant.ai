@@ -60,6 +60,17 @@ type ContextWindow struct {
 	Meta         MetaContext    `json:"meta"`
 }
 
+// ContextWindowPreview bundles the constructed window with metadata useful for
+// debugging and visualization.
+type ContextWindowPreview struct {
+	Window        ContextWindow `json:"window"`
+	TokenEstimate int           `json:"token_estimate"`
+	TokenLimit    int           `json:"token_limit"`
+	PersonaKey    string        `json:"persona_key,omitempty"`
+	ToolMode      string        `json:"tool_mode,omitempty"`
+	ToolPreset    string        `json:"tool_preset,omitempty"`
+}
+
 // StaticContext captures persona, goals, rules and knowledge packs.
 type StaticContext struct {
 	Persona            PersonaProfile       `json:"persona"`

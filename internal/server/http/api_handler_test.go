@@ -35,6 +35,10 @@ func (f *failingAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
 }
 
+func (f *failingAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{}, f.err
+}
+
 type stubAgentCoordinator struct{}
 
 func (stubAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
@@ -58,6 +62,15 @@ func (stubAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
 }
 
+func (stubAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{
+		Window: agentPorts.ContextWindow{
+			SessionID: sessionID,
+		},
+		ToolMode: "cli",
+	}, nil
+}
+
 type storeBackedAgentCoordinator struct {
 	store agentPorts.SessionStore
 }
@@ -75,6 +88,71 @@ func (storeBackedAgentCoordinator) ExecuteTask(ctx context.Context, task string,
 
 func (storeBackedAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
+}
+
+func (storeBackedAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{
+		Window: agentPorts.ContextWindow{
+			SessionID: sessionID,
+		},
+		TokenLimit: 128000,
+		ToolMode:   "cli",
+	}, nil
+}
+
+type previewAgentCoordinator struct{}
+
+func (previewAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+	if id == "" {
+		id = "preview-session"
+	}
+	now := time.Now()
+	return &agentPorts.Session{
+		ID:        id,
+		Messages:  []agentPorts.Message{},
+		Metadata:  map[string]string{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}, nil
+}
+
+func (previewAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+}
+
+func (previewAgentCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{MaxTokens: 2048, AgentPreset: "dev-debug", ToolPreset: "full"}
+}
+
+func (previewAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	attachments := map[string]agentPorts.Attachment{
+		"report.md": {
+			Name:      "report.md",
+			MediaType: "text/markdown",
+			Data:      "YmFzZTY0LWRhdGE=",
+		},
+	}
+	messages := []agentPorts.Message{
+		{Role: "system", Content: "System seed", Attachments: attachments},
+		{Role: "user", Content: "Ping", Attachments: attachments},
+	}
+
+	return agentPorts.ContextWindowPreview{
+		Window: agentPorts.ContextWindow{
+			SessionID:    sessionID,
+			Messages:     messages,
+			SystemPrompt: "base prompt",
+			Static: agentPorts.StaticContext{
+				Persona: agentPorts.PersonaProfile{ID: "debugger"},
+				Tools:   []string{"code_read"},
+			},
+		},
+		TokenEstimate: 321,
+		TokenLimit:    2048,
+		PersonaKey:    "dev-debug",
+		ToolMode:      "cli",
+		ToolPreset:    "full",
+	}, nil
 }
 
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
@@ -339,6 +417,68 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 	}
 	if second.Messages[0].Attachments != nil {
 		t.Fatalf("expected duplicate attachments to be omitted, got %v", second.Messages[0].Attachments)
+	}
+}
+
+func TestHandleGetContextWindowPreviewReturnsWindow(t *testing.T) {
+	coordinator := app.NewServerCoordinator(&previewAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithDevMode(true))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dev/sessions/dev-ctx/context-window", nil)
+	resp := httptest.NewRecorder()
+
+	handler.HandleGetContextWindowPreview(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.Code)
+	}
+
+	var body ContextWindowPreviewResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if body.SessionID != "dev-ctx" {
+		t.Fatalf("expected session id dev-ctx, got %s", body.SessionID)
+	}
+	if body.TokenEstimate != 321 {
+		t.Fatalf("expected token estimate 321, got %d", body.TokenEstimate)
+	}
+	if body.TokenLimit != 2048 {
+		t.Fatalf("expected token limit 2048, got %d", body.TokenLimit)
+	}
+	if body.PersonaKey != "dev-debug" {
+		t.Fatalf("expected persona key dev-debug, got %s", body.PersonaKey)
+	}
+	if body.ToolPreset != "full" {
+		t.Fatalf("expected tool preset full, got %s", body.ToolPreset)
+	}
+
+	if len(body.Window.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(body.Window.Messages))
+	}
+	if len(body.Window.Messages[0].Attachments) != 1 {
+		t.Fatalf("expected first message to retain attachment, got %v", body.Window.Messages[0].Attachments)
+	}
+	if body.Window.Messages[1].Attachments != nil {
+		t.Fatalf("expected duplicate attachments to be skipped in subsequent messages, got %v", body.Window.Messages[1].Attachments)
+	}
+	if body.Window.SystemPrompt != "base prompt" {
+		t.Fatalf("unexpected system prompt: %s", body.Window.SystemPrompt)
+	}
+}
+
+func TestHandleGetContextWindowPreviewDisabledOutsideDev(t *testing.T) {
+	coordinator := app.NewServerCoordinator(&previewAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dev/sessions/dev-ctx/context-window", nil)
+	resp := httptest.NewRecorder()
+
+	handler.HandleGetContextWindowPreview(resp, req)
+
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when dev mode disabled, got %d", resp.Code)
 	}
 }
 

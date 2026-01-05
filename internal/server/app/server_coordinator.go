@@ -32,6 +32,7 @@ type AgentExecutor interface {
 	GetSession(ctx context.Context, id string) (*ports.Session, error)
 	ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error)
 	GetConfig() ports.AgentConfig
+	PreviewContextWindow(ctx context.Context, sessionID string) (ports.ContextWindowPreview, error)
 }
 
 // Ensure AgentCoordinator implements AgentExecutor
@@ -558,6 +559,14 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 	}
 
 	s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionStarted, props)
+}
+
+// PreviewContextWindow returns the constructed context window for a session.
+func (s *ServerCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (ports.ContextWindowPreview, error) {
+	if s.agentCoordinator == nil {
+		return ports.ContextWindowPreview{}, fmt.Errorf("agent coordinator not configured")
+	}
+	return s.agentCoordinator.PreviewContextWindow(ctx, sessionID)
 }
 
 // GetContextSnapshots retrieves context snapshots captured during LLM calls for a session.

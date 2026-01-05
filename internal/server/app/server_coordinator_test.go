@@ -93,6 +93,16 @@ func (m *MockAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
 }
 
+func (m *MockAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{
+		Window: agentPorts.ContextWindow{
+			SessionID: sessionID,
+		},
+		TokenLimit: 128000,
+		ToolMode:   "cli",
+	}, nil
+}
+
 type mockAnalytics struct {
 	captures []struct {
 		distinctID string
@@ -671,6 +681,15 @@ func (m *MockCancellableAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
 }
 
+func (m *MockCancellableAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{
+		Window: agentPorts.ContextWindow{
+			SessionID: sessionID,
+		},
+		ToolMode: "cli",
+	}, nil
+}
+
 // TestTaskCancellation verifies task cancellation works correctly
 func TestTaskCancellation(t *testing.T) {
 	// Setup
@@ -937,4 +956,8 @@ func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, 
 
 func (f *failingAgentCoordinator) GetConfig() agentPorts.AgentConfig {
 	return agentPorts.AgentConfig{}
+}
+
+func (f *failingAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{}, f.err
 }
