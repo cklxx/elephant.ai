@@ -1,17 +1,17 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { useI18n } from "@/lib/i18n";
 
 function buildNextParam(
   pathname: string | null,
-  searchParams: URLSearchParams,
+  search: string,
 ): string {
   const base =
     pathname && pathname.startsWith("/") ? pathname : "/conversation";
-  const query = searchParams.toString();
+  const query = search;
   const combined = query ? `${base}?${query}` : base;
   return combined.startsWith("/") ? combined : "/conversation";
 }
@@ -37,14 +37,16 @@ function RequireAuthContent({
   const searchParams = useSearchParams();
   const { t } = useI18n();
 
+  const search = searchParams.toString();
+  const target = useMemo(() => buildNextParam(pathname, search), [pathname, search]);
+
   useEffect(() => {
     if (status !== "unauthenticated") {
       return;
     }
-    const target = buildNextParam(pathname, searchParams);
     const href = `/login?next=${encodeURIComponent(target)}`;
     router.replace(href);
-  }, [status, pathname, searchParams, router]);
+  }, [status, target, router]);
 
   if (status === "loading") {
     return <RequireAuthFallback />;
