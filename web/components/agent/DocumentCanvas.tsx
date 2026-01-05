@@ -55,6 +55,7 @@ export function DocumentCanvas({
   const t = useTranslation();
   const [viewMode, setViewMode] = useState<ViewMode>(initialMode);
   const [isExpanded, setIsExpanded] = useState(false);
+  const viewMaxHeight = isExpanded ? "calc(100vh - 220px)" : "70vh";
   const viewHeightClass = isExpanded
     ? "max-h-[calc(100vh-220px)]"
     : "max-h-[70vh]";
@@ -166,6 +167,7 @@ export function DocumentCanvas({
               document={document}
               compareDocument={compareDocument}
               className={viewHeightClass}
+              maxHeight={viewMaxHeight}
             />
           ) : viewMode === "reading" ? (
             <ReadingView document={document} className={viewHeightClass} />
@@ -217,20 +219,27 @@ function CompareView({
   document,
   compareDocument,
   className,
+  maxHeight,
 }: {
   document: DocumentContent;
   compareDocument: DocumentContent;
   className?: string;
+  maxHeight?: string;
 }) {
+  const heightStyle = maxHeight
+    ? { maxHeight, height: maxHeight }
+    : undefined;
+
   return (
     <div
       className={cn(
-        "grid grid-cols-1 divide-y divide-gray-200 overflow-hidden lg:grid-cols-2 lg:divide-y-0 lg:divide-x",
+        "grid grid-cols-1 grid-rows-[minmax(0,1fr)] divide-y divide-gray-200 overflow-hidden lg:grid-cols-2 lg:divide-y-0 lg:divide-x",
         className,
       )}
+      style={heightStyle}
     >
       {/* Left pane */}
-      <div className="overflow-auto">
+      <div className="flex min-h-0 flex-col overflow-auto">
         <div className="sticky top-0 bg-destructive/10 border-b border-destructive/30 px-4 py-2 z-10">
           <p className="text-sm font-semibold text-destructive">{document.title}</p>
         </div>
@@ -240,7 +249,7 @@ function CompareView({
       </div>
 
       {/* Right pane */}
-      <div className="overflow-auto">
+      <div className="flex min-h-0 flex-col overflow-auto">
         <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 px-4 py-2 z-10">
           <p className="text-sm font-semibold text-emerald-700">{compareDocument.title}</p>
         </div>
