@@ -7,8 +7,6 @@ import {
   eventMatches,
 } from '@/lib/types';
 
-const PLACEHOLDER_PATTERN = /\[([^\[\]]+)\]/g;
-
 type AttachmentMap = Record<string, AttachmentPayload>;
 type AttachmentVisibility = 'default' | 'recalled';
 
@@ -68,6 +66,25 @@ function normalizeAttachmentMap(
     };
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function extractPlaceholderKeys(content?: string): string[] {
+  if (!content || !content.includes("[")) {
+    return [];
+  }
+
+  const pattern = /\[([^\[\]]+)\]/g;
+  const matches: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    const name = match[1]?.trim();
+    if (name) {
+      matches.push(name);
+    }
+  }
+
+  return matches;
 }
 
 function normalizeAttachmentMutations(
@@ -263,21 +280,22 @@ class AttachmentRegistry {
     content: string,
     cutoff?: number,
   ): AttachmentMap | undefined {
-    if (!content || !content.includes("[")) {
+    const referencedKeys = extractPlaceholderKeys(content);
+    if (referencedKeys.length === 0) {
       return undefined;
     }
     const resolved: AttachmentMap = {};
-    let match: RegExpExecArray | null;
-    while ((match = PLACEHOLDER_PATTERN.exec(content)) !== null) {
-      const name = match[1]?.trim();
-      if (!name || resolved[name]) {
-        continue;
+
+    referencedKeys.forEach((name) => {
+      if (resolved[name]) {
+        return;
       }
       const stored = this.store.get(name);
       if (stored && this.isAvailable(name, cutoff)) {
         resolved[name] = stored.attachment;
       }
-    }
+    });
+
     return Object.keys(resolved).length > 0 ? resolved : undefined;
   }
 
@@ -322,6 +340,31 @@ class AttachmentRegistry {
     const result = Object.fromEntries(entries.map(([key, stored]) => [key, stored.attachment]));
     entries.forEach(([key]) => this.displayedByTool.add(key));
     return result;
+  }
+
+  private omitPreviouslyDisplayedUnlessReferenced(
+    attachments?: AttachmentMap,
+    content?: string,
+    displayedSnapshot: Set<string> = this.displayedByTool,
+  ): AttachmentMap | undefined {
+    const normalized = normalizeAttachmentMap(attachments);
+    if (!normalized) {
+      return undefined;
+    }
+
+    const referencedKeys = new Set(extractPlaceholderKeys(content));
+    const entries = Object.entries(normalized).filter(([key]) => {
+      if (referencedKeys.has(key)) {
+        return true;
+      }
+      return !displayedSnapshot.has(key);
+    });
+
+    if (entries.length === 0) {
+      return undefined;
+    }
+
+    return Object.fromEntries(entries);
   }
 
   handleEvent(event: AnyAgentEvent) {
@@ -374,10 +417,18 @@ class AttachmentRegistry {
       }
       case eventMatches(event, 'workflow.result.final', 'workflow.result.final'): {
         const taskEvent = event as WorkflowResultFinalEvent;
+        const displayedSnapshot = new Set(this.displayedByTool);
         const normalized = normalizeAttachmentMap(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {
-          taskEvent.attachments = normalized;
-          this.upsertMany(normalized, eventTimestamp);
+          const filtered = this.omitPreviouslyDisplayedUnlessReferenced(
+            normalized,
+            taskEvent.final_answer,
+            displayedSnapshot,
+          );
+          taskEvent.attachments = filtered;
+          if (filtered) {
+            this.upsertMany(filtered, eventTimestamp);
+          }
           break;
         }
 
@@ -386,8 +437,15 @@ class AttachmentRegistry {
           timestamp: eventTimestamp,
         });
         if (fallback) {
-          taskEvent.attachments = fallback;
-          this.upsertMany(fallback, eventTimestamp);
+          const filtered = this.omitPreviouslyDisplayedUnlessReferenced(
+            fallback,
+            taskEvent.final_answer,
+            displayedSnapshot,
+          );
+          taskEvent.attachments = filtered;
+          if (filtered) {
+            this.upsertMany(filtered, eventTimestamp);
+          }
           break;
         }
 
@@ -395,15 +453,24 @@ class AttachmentRegistry {
           timestamp: eventTimestamp,
         });
         if (rendered) {
-          taskEvent.attachments = rendered;
+          taskEvent.attachments = this.omitPreviouslyDisplayedUnlessReferenced(
+            rendered,
+            taskEvent.final_answer,
+            displayedSnapshot,
+          );
         }
         if (!taskEvent.attachments) {
           const allowDisplayed = shouldIncludeDisplayedAttachments(taskEvent);
-          taskEvent.attachments = this.takeFromStore({
+          const fromStore = this.takeFromStore({
             includeDisplayed: allowDisplayed,
             includeRecalled: false,
             timestamp: eventTimestamp,
           });
+          taskEvent.attachments = this.omitPreviouslyDisplayedUnlessReferenced(
+            fromStore,
+            taskEvent.final_answer,
+            displayedSnapshot,
+          );
         }
         break;
       }
