@@ -727,21 +727,14 @@ run_web_unit_tests() {
 }
 
 ensure_playwright_browsers() {
-    local cache_dir="${SCRIPT_DIR}/web/node_modules/.cache/ms-playwright"
-
-    if [[ -d "$cache_dir" ]]; then
-        return 0
-    fi
-
-    log_info "Installing Playwright browsers (first run may take a while)..."
-
-    if ! (cd web && npx playwright install 2>&1 | tee "$LOG_DIR/playwright-install.log"); then
-        log_error "Playwright browser install failed, check logs/playwright-install.log"
-        tail -20 "$LOG_DIR/playwright-install.log"
+    log_info "Ensuring Playwright browsers..."
+    if PLAYWRIGHT_LOG_DIR="${LOG_DIR}" "${SCRIPT_DIR}/scripts/ensure-playwright.sh"; then
+        log_success "Playwright browsers ready"
+    else
+        log_error "Playwright browser install failed, check ${LOG_DIR}/playwright-install.log"
+        tail -20 "$LOG_DIR/playwright-install.log" || true
         return 1
     fi
-
-    log_success "Playwright browsers installed"
 }
 
 run_web_e2e_tests() {

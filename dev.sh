@@ -73,6 +73,16 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+ensure_playwright_browsers() {
+  log_info "Ensuring Playwright browsers..."
+  if PLAYWRIGHT_LOG_DIR="${LOG_DIR}" "${SCRIPT_DIR}/scripts/ensure-playwright.sh"; then
+    log_success "Playwright browsers ready"
+  else
+    log_error "Playwright browser install failed; see ${LOG_DIR}/playwright-install.log"
+    exit 1
+  fi
+}
+
 ensure_dirs() {
   mkdir -p "${PID_DIR}" "${LOG_DIR}"
 }
@@ -505,6 +515,8 @@ cmd_test() {
   log_info "Running Go tests..."
   "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" test ./... -count=1
   log_success "Go tests passed"
+
+  ensure_playwright_browsers
 
   log_info "Running web tests..."
   npm --prefix "${SCRIPT_DIR}/web" test
