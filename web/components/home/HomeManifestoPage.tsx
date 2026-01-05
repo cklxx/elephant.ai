@@ -4,12 +4,6 @@ import { BookOpenText, PlayCircle, Wand2 } from "lucide-react";
 
 import { Header } from "@/components/layout";
 import { PageContainer } from "@/components/layout/page-shell";
-import {
-  LiveChatShowcase,
-  type ChatTurn,
-  type StageCopy,
-} from "@/components/home/LiveChatShowcase";
-import { liveChatCopy, liveChatScript, liveChatStages } from "@/components/home/LiveChatCopy";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -97,6 +91,25 @@ const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
       },
     ],
     closing: "Slow is fast: fewer layers, truer state. That's the only marketing copy we keep.",
+  },
+};
+
+type VideoCopy = {
+  title: string;
+  body: string;
+  note: string;
+};
+
+const videoCopy: Record<HomeLang, VideoCopy> = {
+  zh: {
+    title: "演示视频稍后放在这里",
+    body: "首页只保留核心文案，待会我们会把真实操作的视频嵌在这个位置。",
+    note: "无模拟对话框：保持界面干净，方便替换成录屏。",
+  },
+  en: {
+    title: "Demo video will live here soon",
+    body: "The homepage keeps only the core copy. We’ll embed a real walkthrough video in this spot later.",
+    note: "No simulated chat: a clean space ready for the recording.",
   },
 };
 
@@ -207,10 +220,28 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
   );
 }
 
+function VideoPlaceholder({ lang }: { lang: HomeLang }) {
+  const copy = videoCopy[lang];
+
+  return (
+    <div className="rounded-3xl border border-dashed border-border/80 bg-card/70 p-6 shadow-sm">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <PlayCircle className="h-6 w-6" aria-hidden />
+        </div>
+        <div className="space-y-2">
+          <p className="text-lg font-semibold text-foreground">{copy.title}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+            {copy.note}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HomePage({ lang = "en" }: { lang?: HomeLang }) {
-  const liveCopy = liveChatCopy[lang];
-  const liveStages: StageCopy[] = liveChatStages[lang];
-  const liveScript: ChatTurn[] = liveChatScript[lang];
   const heroCopy = copy[lang];
 
   return (
@@ -235,14 +266,10 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
           />
         </Suspense>
 
-        <div className="grid flex-1 min-h-0 gap-5 lg:grid-cols-[0.95fr,1.05fr]">
-          <div className="flex min-h-0 flex-col gap-4">
-            <Hero lang={lang} />
-            <ManifestoArticle lang={lang} />
-          </div>
-          <div className="flex min-h-0 flex-col">
-            <LiveChatShowcase lang={lang} copy={liveCopy} stages={liveStages} script={liveScript} />
-          </div>
+        <div className="flex min-h-0 flex-col gap-4">
+          <Hero lang={lang} />
+          <ManifestoArticle lang={lang} />
+          <VideoPlaceholder lang={lang} />
         </div>
       </PageContainer>
     </div>
