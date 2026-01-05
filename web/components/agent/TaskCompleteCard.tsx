@@ -253,7 +253,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         <>
           <AgentMarkdown
             content={contentWithInlineMedia}
-            className="prose max-w-none text-base leading-normal text-foreground"
+            className="prose max-w-none text-base leading-snug text-foreground"
             attachments={inlineAttachments}
             isStreaming={streamInProgress}
             streamFinished={streamFinished}

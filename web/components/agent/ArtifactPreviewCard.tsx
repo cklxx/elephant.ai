@@ -1,14 +1,26 @@
-'use client';
+"use client";
 
 import type { KeyboardEvent, MouseEvent } from "react";
-import { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
-import { AttachmentPayload } from '@/lib/types';
-import { cn } from '@/lib/utils';
-import { resolveAttachmentDownloadUris } from '@/lib/attachments';
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { AttachmentPayload } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { resolveAttachmentDownloadUris } from "@/lib/attachments";
 import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
-import { Download, ExternalLink, FileText, FileCode, Loader2, X } from "lucide-react";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Download,
+  ExternalLink,
+  FileText,
+  FileCode,
+  Loader2,
+  X,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const AUTO_PREFETCH_MARKDOWN_MAX_BYTES = 512 * 1024;
 const MARKDOWN_SNIPPET_MAX_CHARS = 1400;
@@ -24,8 +36,7 @@ const normalizeTitle = (value: string | null) =>
     .replace(/\.[^.]+$/, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim()
-    || null;
+    .trim() || null;
 
 const stripRedundantHeading = (
   markdown: string,
@@ -67,8 +78,11 @@ export function ArtifactPreviewCard({
   const [markdownPreview, setMarkdownPreview] = useState<string | null>(null);
   const [markdownLoading, setMarkdownLoading] = useState(false);
 
-  const { preferredUri: downloadUri, fallbackUri: originalUri, preferredKind } =
-    resolveAttachmentDownloadUris(attachment);
+  const {
+    preferredUri: downloadUri,
+    fallbackUri: originalUri,
+    preferredKind,
+  } = resolveAttachmentDownloadUris(attachment);
   const preferredDownloadName =
     preferredKind === "pdf" && attachment.name
       ? `${attachment.name.replace(/\.[^.]+$/, "")}.pdf`
@@ -77,18 +91,24 @@ export function ArtifactPreviewCard({
     preferredKind === "pdf" && originalUri
       ? `Download ${attachment.format?.toUpperCase() || "PPTX"}`
       : null;
-  const primaryDownloadLabel = preferredKind === "pdf" ? "Download PDF" : "Download";
+  const primaryDownloadLabel =
+    preferredKind === "pdf" ? "Download PDF" : "Download";
   const primaryTitle = attachment.description || attachment.name;
   const displayName = primaryTitle || "Artifact";
-  const formatLabel = attachment.format?.toUpperCase() || attachment.media_type || "FILE";
-  const isMarkdown = formatLabel.includes("MARKDOWN") || attachment.media_type?.includes("markdown");
+  const formatLabel =
+    attachment.format?.toUpperCase() || attachment.media_type || "FILE";
+  const isMarkdown =
+    formatLabel.includes("MARKDOWN") ||
+    attachment.media_type?.includes("markdown");
   const normalizedTitle = normalizeTitle(primaryTitle ?? null);
 
   // Decide Icon
   const FileIcon = isMarkdown ? FileText : FileCode;
 
   const previewAssets = attachment.preview_assets || [];
-  const imageAssets = previewAssets.filter((asset) => asset.mime_type?.startsWith("image/"));
+  const imageAssets = previewAssets.filter((asset) =>
+    asset.mime_type?.startsWith("image/"),
+  );
   const isHTML =
     attachment.media_type?.toLowerCase().includes("html") ||
     attachment.format?.toLowerCase() === "html" ||
@@ -105,8 +125,9 @@ export function ArtifactPreviewCard({
         }
       : undefined);
   const previewImageUrl =
-    imageAssets.find((asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim())?.cdn_url ??
-    null;
+    imageAssets.find(
+      (asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim(),
+    )?.cdn_url ?? null;
 
   const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
 
@@ -118,7 +139,10 @@ export function ArtifactPreviewCard({
 
   const markdownSnippet = useMemo(() => {
     if (!normalizedMarkdown) return null;
-    const withoutHeading = stripRedundantHeading(normalizedMarkdown, normalizedTitle);
+    const withoutHeading = stripRedundantHeading(
+      normalizedMarkdown,
+      normalizedTitle,
+    );
     const trimmed = withoutHeading.trim();
     if (!trimmed) return null;
     if (trimmed.length <= MARKDOWN_SNIPPET_MAX_CHARS) return trimmed;
@@ -186,8 +210,16 @@ export function ArtifactPreviewCard({
     }
     fetchMd();
 
-    return () => { cancelled = true; };
-  }, [downloadUri, isMarkdown, prefetchRequested, isPreviewOpen, markdownPreview]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    downloadUri,
+    isMarkdown,
+    prefetchRequested,
+    isPreviewOpen,
+    markdownPreview,
+  ]);
 
   return (
     <>
@@ -207,7 +239,7 @@ export function ArtifactPreviewCard({
         onFocus={canInlinePreview ? requestPreview : undefined}
       >
         {/* Header / Main Body - Manus Style File Card */}
-        <div className="flex items-center gap-3 p-4">
+        <div className="flex items-center gap-3 px-4 py-3">
           {/* Icon Box */}
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
             {previewImageUrl ? (
@@ -227,7 +259,13 @@ export function ArtifactPreviewCard({
 
           {/* Content */}
           <div className="flex-1 min-w-0 grid gap-0.5">
-            <h4 className="text-sm font-medium text-foreground truncate">
+            <h4
+              className="text-sm font-medium text-foreground truncate"
+              style={{
+                marginTop: "0px",
+                marginBottom: "0px",
+              }}
+            >
               {displayName}
             </h4>
             <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
@@ -285,15 +323,16 @@ export function ArtifactPreviewCard({
 
         {/* Inline excerpt (markdown only) */}
         {isMarkdown ? (
-          <div className="border-t border-border/40 px-4 py-2.5">
+          <div className="border-t border-border/40 px-4 py-2">
             {markdownLoading && !markdownPreview ? (
               <div className="h-24 w-full animate-pulse rounded-lg border border-border/40 bg-muted/20" />
             ) : markdownSnippet ? (
               <div className="relative max-h-64 overflow-hidden pointer-events-none">
                 <LazyMarkdownRenderer
                   content={markdownSnippet}
-                  containerClassName="markdown-body"
+                  containerClassName="markdown-compact"
                   className={cn(
+                    "flex flex-col",
                     "prose prose-sm max-w-none text-foreground/90",
                     "prose-p:my-1.5 prose-headings:my-1 prose-li:my-0.5 prose-pre:my-2",
                   )}
@@ -301,7 +340,9 @@ export function ArtifactPreviewCard({
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card via-card/80 to-transparent" />
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">Click to preview</div>
+              <div className="text-xs text-muted-foreground">
+                Click to preview
+              </div>
             )}
           </div>
         ) : null}
@@ -316,7 +357,7 @@ export function ArtifactPreviewCard({
           >
             <DialogTitle className="sr-only">{displayName}</DialogTitle>
             <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-4">
+              <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-3">
                 <div className="min-w-0 flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
                     <FileIcon className="h-5 w-5" />
@@ -343,8 +384,16 @@ export function ArtifactPreviewCard({
                       <a
                         href={downloadUri}
                         className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        title={preferredKind === "pdf" ? "Open PDF in new tab" : "Open in new tab"}
-                        aria-label={preferredKind === "pdf" ? "Open PDF in new tab" : "Open in new tab"}
+                        title={
+                          preferredKind === "pdf"
+                            ? "Open PDF in new tab"
+                            : "Open in new tab"
+                        }
+                        aria-label={
+                          preferredKind === "pdf"
+                            ? "Open PDF in new tab"
+                            : "Open in new tab"
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -395,7 +444,7 @@ export function ArtifactPreviewCard({
                     <div className="mx-auto w-full max-w-[820px] rounded-xl border border-border/60 bg-background p-6 shadow-sm">
                       <LazyMarkdownRenderer
                         content={normalizedMarkdown ?? markdownPreview}
-                        containerClassName="markdown-body"
+                        containerClassName="markdown-compact"
                         className="prose max-w-none text-base leading-normal text-foreground"
                       />
                     </div>
