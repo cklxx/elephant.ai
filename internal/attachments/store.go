@@ -112,11 +112,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 
 		store.cloudClient = client
 		store.cloudBucket = bucket
-		publicBase := strings.TrimRight(strings.TrimSpace(cfg.CloudflarePublicBaseURL), "/")
-		if publicBase == "" {
-			publicBase = fmt.Sprintf("https://%s.r2.cloudflarestorage.com/%s", accountID, bucket)
-		}
-		store.cloudPublicBase = publicBase
+		store.cloudPublicBase = strings.TrimRight(strings.TrimSpace(cfg.CloudflarePublicBaseURL), "/")
 		store.cloudKeyPrefix = normalizePrefix(cfg.CloudflareKeyPrefix)
 
 	default:
