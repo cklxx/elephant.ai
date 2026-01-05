@@ -309,7 +309,7 @@ function PlanGoalCard({
       </div>
       <AgentMarkdown
         content={goal}
-        className="prose max-w-none text-base leading-normal text-foreground"
+        className="prose max-w-none text-base leading-snug text-foreground"
       />
     </div>
   );
@@ -382,7 +382,7 @@ function AssistantLogCard({
     >
       <AgentMarkdown
         content={content}
-        className="prose max-w-none text-sm leading-normal text-foreground"
+        className="prose max-w-none text-sm leading-snug text-foreground"
       />
     </div>
   );

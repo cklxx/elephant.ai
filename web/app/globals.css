@@ -201,4 +201,45 @@
     .markdown-body .wmde-markdown h6:hover .anchor .octicon-link {
         visibility: visible;
     }
+
+    .markdown-body .wmde-markdown > :first-child {
+        margin-top: 0;
+    }
+
+    .markdown-body .wmde-markdown > :last-child {
+        margin-bottom: 0;
+    }
+
+    .markdown-compact .wmde-markdown h1,
+    .markdown-compact .wmde-markdown h2,
+    .markdown-compact .wmde-markdown h3,
+    .markdown-compact .wmde-markdown h4,
+    .markdown-compact .wmde-markdown h5,
+    .markdown-compact .wmde-markdown h6 {
+        margin-top: 0.75rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.35;
+    }
+
+    .markdown-compact .wmde-markdown h1:first-child,
+    .markdown-compact .wmde-markdown h2:first-child,
+    .markdown-compact .wmde-markdown h3:first-child,
+    .markdown-compact .wmde-markdown h4:first-child,
+    .markdown-compact .wmde-markdown h5:first-child,
+    .markdown-compact .wmde-markdown h6:first-child {
+        margin-top: 0;
+    }
+
+    .markdown-compact .wmde-markdown p,
+    .markdown-compact .wmde-markdown ul,
+    .markdown-compact .wmde-markdown ol,
+    .markdown-compact .wmde-markdown blockquote {
+        margin-top: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .markdown-compact .wmde-markdown ul,
+    .markdown-compact .wmde-markdown ol {
+        padding-left: 1.25rem;
+    }
 }
