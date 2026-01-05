@@ -112,7 +112,11 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 
 		store.cloudClient = client
 		store.cloudBucket = bucket
-		store.cloudPublicBase = strings.TrimRight(strings.TrimSpace(cfg.CloudflarePublicBaseURL), "/")
+		publicBase := strings.TrimRight(strings.TrimSpace(cfg.CloudflarePublicBaseURL), "/")
+		if publicBase == "" {
+			publicBase = fmt.Sprintf("https://%s.r2.cloudflarestorage.com/%s", accountID, bucket)
+		}
+		store.cloudPublicBase = publicBase
 		store.cloudKeyPrefix = normalizePrefix(cfg.CloudflareKeyPrefix)
 
 	default:
@@ -241,9 +245,16 @@ func (s *Store) storeCloudflare(filename, mediaType string, data []byte) (string
 
 func (s *Store) buildCloudURI(key string) string {
 	if s.cloudPublicBase != "" {
-		return fmt.Sprintf("%s/%s", s.cloudPublicBase, key)
+		return fmt.Sprintf("%s/%s", s.cloudPublicBase, objectKey("", key))
 	}
-	return s.buildURI(key)
+	if s.cloudClient == nil {
+		return ""
+	}
+	url, err := s.cloudClient.PresignedGetObject(context.Background(), s.cloudBucket, objectKey("", key), s.presignTTL, nil)
+	if err != nil {
+		return ""
+	}
+	return url.String()
 }
 
 func (s *Store) objectFetchURL(ctx context.Context, key string) string {
