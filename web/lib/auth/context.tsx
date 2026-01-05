@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   authClient,
   AuthSession,
@@ -253,21 +254,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth(): AuthContextValue {
-  return useAuthStore((state) => ({
-    status: state.status,
-    session: state.session,
-    user: state.session?.user ?? null,
-    accessToken: state.accessToken,
-    initialize: state.initialize,
-    login: state.login,
-    register: state.register,
-    logout: state.logout,
-    refresh: state.refresh,
-    loginWithProvider: state.loginWithProvider,
-    startOAuth: state.startOAuth,
-    awaitOAuthSession: state.awaitOAuthSession,
-    adjustPoints: state.adjustPoints,
-    updateSubscription: state.updateSubscription,
-    listPlans: state.listPlans,
-  }));
+  return useAuthStore(
+    useShallow((state) => ({
+      status: state.status,
+      session: state.session,
+      user: state.session?.user ?? null,
+      accessToken: state.accessToken,
+      initialize: state.initialize,
+      login: state.login,
+      register: state.register,
+      logout: state.logout,
+      refresh: state.refresh,
+      loginWithProvider: state.loginWithProvider,
+      startOAuth: state.startOAuth,
+      awaitOAuthSession: state.awaitOAuthSession,
+      adjustPoints: state.adjustPoints,
+      updateSubscription: state.updateSubscription,
+      listPlans: state.listPlans,
+    })),
+  );
 }

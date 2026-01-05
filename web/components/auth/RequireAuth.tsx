@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { useI18n } from "@/lib/i18n";
 
@@ -11,8 +11,7 @@ function buildNextParam(
 ): string {
   const base =
     pathname && pathname.startsWith("/") ? pathname : "/conversation";
-  const query = search;
-  const combined = query ? `${base}?${query}` : base;
+  const combined = search ? `${base}?${search}` : base;
   return combined.startsWith("/") ? combined : "/conversation";
 }
 
@@ -33,20 +32,29 @@ function RequireAuthContent({
 }) {
   const { status } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { t } = useI18n();
-
-  const search = searchParams.toString();
-  const target = useMemo(() => buildNextParam(pathname, search), [pathname, search]);
+  const lastStatusRef = useRef<
+    "loading" | "authenticated" | "unauthenticated" | null
+  >(null);
 
   useEffect(() => {
-    if (status !== "unauthenticated") {
+    const previousStatus = lastStatusRef.current;
+    lastStatusRef.current = status;
+
+    if (status !== "unauthenticated" || previousStatus === "unauthenticated") {
       return;
     }
+
+    const pathname =
+      typeof window !== "undefined" ? window.location.pathname : null;
+    const search =
+      typeof window !== "undefined"
+        ? window.location.search.replace(/^\?/, "")
+        : "";
+    const target = buildNextParam(pathname, search);
     const href = `/login?next=${encodeURIComponent(target)}`;
     router.replace(href);
-  }, [status, target, router]);
+  }, [status, router]);
 
   if (status === "loading") {
     return <RequireAuthFallback />;

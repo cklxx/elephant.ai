@@ -18,6 +18,11 @@ export function A2UIAttachmentPreview({
     [attachment.name, attachment.data, attachment.uri],
   );
 
+  const attachmentSnapshot = useMemo<AttachmentPayload>(
+    () => ({ ...attachment }),
+    [attachment],
+  );
+
   const [state, setState] = useState<{
     key: string;
     messages: A2UIMessage[] | null;
@@ -32,7 +37,7 @@ export function A2UIAttachmentPreview({
     let cancelled = false;
     const controller = new AbortController();
 
-    loadA2UIAttachmentMessages(attachment, controller.signal)
+    loadA2UIAttachmentMessages(attachmentSnapshot, controller.signal)
       .then((loaded) => {
         if (cancelled) return;
         setState({ key: attachmentKey, messages: loaded, error: null });
@@ -50,7 +55,7 @@ export function A2UIAttachmentPreview({
       cancelled = true;
       controller.abort();
     };
-  }, [attachment, attachmentKey]);
+  }, [attachmentKey, attachmentSnapshot]);
 
   const isCurrent = state.key === attachmentKey;
   const messages = isCurrent ? state.messages : null;
