@@ -241,26 +241,41 @@ func (s *EvaluationService) safeDatasetPath(requested string) (string, error) {
 		return "", fmt.Errorf("invalid dataset path")
 	}
 
-	// Resolve dataset paths relative to the base output directory to keep them within a safe root.
-	joined := filepath.Join(s.baseOutputDir, cleaned)
-	abs, err := filepath.Abs(joined)
+	workingDir, err := filepath.Abs(".")
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve dataset path: %w", err)
+		return "", fmt.Errorf("failed to resolve working directory: %w", err)
 	}
 
-	baseAbs, err := filepath.Abs(s.baseOutputDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve base output dir: %w", err)
+	var candidate string
+	if filepath.IsAbs(cleaned) {
+		candidate = cleaned
+	} else {
+		candidate = filepath.Join(workingDir, cleaned)
+	}
+	candidate = canonicalizePath(candidate)
+
+	baseOutput := canonicalizePath(filepath.Clean(s.baseOutputDir))
+	allowedBases := []string{baseOutput}
+
+	workingCanonical := canonicalizePath(workingDir)
+	if workingCanonical != baseOutput {
+		allowedBases = append(allowedBases, workingCanonical)
 	}
 
-	// Ensure the resulting path is within the base directory.
-	baseWithSep := baseAbs + string(os.PathSeparator)
-	absWithSep := abs + string(os.PathSeparator)
-	if abs != baseAbs && !strings.HasPrefix(absWithSep, baseWithSep) {
-		return "", fmt.Errorf("dataset path must be within base output directory")
+	for _, base := range allowedBases {
+		rel, err := filepath.Rel(base, candidate)
+		if err != nil {
+			continue
+		}
+		if rel == "." {
+			return candidate, nil
+		}
+		if rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return candidate, nil
+		}
 	}
 
-	return abs, nil
+	return "", fmt.Errorf("dataset path must stay within the base output directory or working directory")
 }
 
 func (s *EvaluationService) ensureOutputDir(outputDir string) error {
