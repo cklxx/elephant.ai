@@ -214,7 +214,7 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const heroCopy = copy[lang];
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
+    <div className="relative min-h-screen bg-muted/10 text-foreground">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_12%_20%,rgba(99,102,241,0.08),transparent_55%),radial-gradient(900px_circle_at_88%_10%,rgba(34,211,238,0.08),transparent_55%),radial-gradient(900px_circle_at_40%_92%,rgba(16,185,129,0.06),transparent_55%)]" />
       <PageContainer className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 px-4 pb-12 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
         <Suspense fallback={<div className="h-[60px]" />}>
