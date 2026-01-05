@@ -121,7 +121,7 @@ docker compose -f deploy/docker/docker-compose.yml up -d
 
 ## Kubernetes 集群部署
 
-> ⚠️ 当前仓库仅提供 `k8s/deployment.yaml` 这一手动应用的示例清单，没有额外的 `deploy.sh k8s` 或自动化脚本；以下步骤均需直接使用 `kubectl` 部署这些资源。
+> ⚠️ 仓库当前不再内置 Kubernetes 清单；如需在集群部署，请基于下述镜像与配置要点编写自定义 manifest 并使用 `kubectl` 应用。
 
 ### 1. 准备镜像
 
@@ -136,7 +136,7 @@ docker push your-registry/alex-web:v1.0.0
 
 ### 2. 配置 Secret
 
-编辑 `k8s/deployment.yaml`，更新 Secret：
+在集群中创建包含所需凭据的 Secret：
 
 ```bash
 # 使用 base64 编码 API Key
@@ -150,9 +150,11 @@ kubectl create secret generic alex-secrets \
 
 ### 3. 部署到集群
 
+使用自行维护的 Kubernetes 清单应用 Deployment/Service/Ingress 等资源，并检查部署状态：
+
 ```bash
 # 应用所有资源
-kubectl apply -f k8s/deployment.yaml
+kubectl apply -f your-manifest.yaml
 
 # 查看部署状态
 kubectl get pods -n alex-system
@@ -406,8 +408,8 @@ docker compose -f deploy/docker/docker-compose.dev.yml up         # 启动开发
 docker compose -f deploy/docker/docker-compose.yml logs -f        # 查看日志
 docker compose -f deploy/docker/docker-compose.yml down           # 停止服务
 
-# Kubernetes
-kubectl apply -f k8s/deployment.yaml          # 部署
+# Kubernetes（需使用自定义 manifest）
+kubectl apply -f your-manifest.yaml           # 部署
 kubectl get all -n alex-system                # 查看状态
 kubectl logs -f deployment/alex-server -n alex-system  # 查看日志
 kubectl port-forward svc/alex-web-service 3000:3000 -n alex-system  # 端口转发

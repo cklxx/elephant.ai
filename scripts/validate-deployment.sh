@@ -124,7 +124,6 @@ run_test "检查 docker-compose.yml" "test -f deploy/docker/docker-compose.yml"
 run_test "检查 docker-compose.dev.yml" "test -f deploy/docker/docker-compose.dev.yml"
 run_test "检查 Dockerfile.server" "test -f deploy/docker/Dockerfile.server"
 run_test "检查 web/Dockerfile" "test -f web/Dockerfile"
-run_test "检查 k8s/deployment.yaml" "test -f k8s/deployment.yaml"
 run_test "检查 nginx.conf" "test -f deploy/docker/nginx.conf"
 
 echo ""
