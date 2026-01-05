@@ -151,10 +151,11 @@ export function FlowModePanel() {
     const { id, version } = activeTask;
     const poll = async () => {
       attempts += 1;
+      const isCurrent = version === requestVersion.current;
       try {
         const response = await apiClient.getTaskStatus(id);
         if (response.status === "completed" && response.final_answer) {
-          if (version === requestVersion.current) {
+          if (isCurrent) {
             const parsed = parseLlmSuggestions(response.final_answer);
             if (parsed) {
               setPrompts(parsed.prompts);
@@ -165,24 +166,26 @@ export function FlowModePanel() {
               setStatus("error");
             }
           }
-          setActiveTask(null);
+          if (isCurrent) {
+            setActiveTask(null);
+          }
           return;
         }
 
         if (TERMINAL_STATUSES.has(response.status) || attempts > 40) {
-          if (version === requestVersion.current) {
+          if (isCurrent) {
             setStatus("error");
             setError("任务未返回有效结果");
+            setActiveTask(null);
           }
-          setActiveTask(null);
         }
       } catch (err) {
         console.error("[flow] polling failed", err);
-        if (version === requestVersion.current) {
+        if (isCurrent) {
           setError("任务状态查询失败");
           setStatus("error");
+          setActiveTask(null);
         }
-        setActiveTask(null);
       }
     };
 
