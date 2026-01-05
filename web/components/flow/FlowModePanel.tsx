@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw, Search, Sparkles, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { apiClient } from "@/lib/api";
+import { isWorkflowResultFinalEvent } from "@/lib/typeGuards";
+import { AnyAgentEvent, eventMatches } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type PromptSuggestion = {
@@ -29,9 +30,20 @@ type LlmSuggestionPayload = {
   searches?: Array<{ query: string; reason?: string; priority?: number }>;
 };
 
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "error"]);
 const DEFAULT_DRAFT =
-  "写作目的：重构心流写作模式，让提示由 LLM 自动生成。\n要求：简洁、权重排序、带自动搜索建议。\n\n草稿：这里粘贴你正在写的正文，助手会自动给出下一步提示。";
+  "写作目的：重构心流写作模式，让提示由 Agent 自动生成。\n要求：简洁、权重排序、带自动搜索建议。\n\n草稿：这里粘贴你正在写的正文，助手会自动给出下一步提示。";
+
+type FlowModePanelProps = {
+  events: AnyAgentEvent[];
+  onRunTask: (task: string) => Promise<{ session_id: string; task_id: string }>;
+};
+
+type SuggestionSnapshot = {
+  id: string;
+  prompts: PromptSuggestion[];
+  searches: SearchSuggestion[];
+  createdAt: string;
+};
 
 function normalizePriority(value: unknown, fallback = 3): number {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -87,21 +99,24 @@ function buildFlowTaskPrompt(draft: string): string {
   ].join("\n");
 }
 
-export function FlowModePanel() {
+export function FlowModePanel({ events, onRunTask }: FlowModePanelProps) {
   const [draft, setDraft] = useState(DEFAULT_DRAFT);
   const [prompts, setPrompts] = useState<PromptSuggestion[]>([]);
   const [searches, setSearches] = useState<SearchSuggestion[]>([]);
+  const [history, setHistory] = useState<SuggestionSnapshot[]>([]);
   const [status, setStatus] = useState<"idle" | "pending" | "waiting" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [activeTask, setActiveTask] = useState<{ id: string; version: number } | null>(null);
+  const [activeTask, setActiveTask] = useState<{ id: string; sessionId: string; version: number } | null>(null);
   const requestVersion = useRef(0);
+  const processedTaskIds = useRef<Set<string>>(new Set());
+  const lastSnapshotRef = useRef<{ prompts: PromptSuggestion[]; searches: SearchSuggestion[] } | null>(null);
 
   const statusLabel = useMemo(() => {
     switch (status) {
       case "pending":
-        return "LLM 正在理解草稿…";
+        return "Agent 正在理解草稿…";
       case "waiting":
-        return "等待 LLM 输出…";
+        return "等待 Agent 输出…";
       case "error":
         return "生成失败，稍后重试";
       default:
@@ -117,9 +132,9 @@ export function FlowModePanel() {
       requestVersion.current = version;
 
       try {
-        const task = await apiClient.createTask({ task: buildFlowTaskPrompt(input) });
+        const task = await onRunTask(buildFlowTaskPrompt(input));
         if (version === requestVersion.current) {
-          setActiveTask({ id: task.task_id, version });
+          setActiveTask({ id: task.task_id, sessionId: task.session_id, version });
           setStatus("waiting");
         }
       } catch (err) {
@@ -130,8 +145,54 @@ export function FlowModePanel() {
         }
       }
     },
-    [],
+    [onRunTask],
   );
+
+  const handleFlowEvent = useEffectEvent((event: AnyAgentEvent, taskVersion: number) => {
+    if (!event.task_id) return;
+
+    if (
+      eventMatches(event, "workflow.node.failed", "workflow.result.cancelled", "workflow.diagnostic.error")
+    ) {
+      processedTaskIds.current.add(event.task_id);
+      setStatus("error");
+      setError("任务未返回有效结果");
+      setActiveTask(null);
+      return;
+    }
+
+    if (!isWorkflowResultFinalEvent(event)) return;
+    if (processedTaskIds.current.has(event.task_id)) return;
+
+    processedTaskIds.current.add(event.task_id);
+    const previousSnapshot = lastSnapshotRef.current;
+    if (previousSnapshot && (previousSnapshot.prompts.length || previousSnapshot.searches.length)) {
+      setHistory((prev) => [
+        {
+          id: `${event.task_id}-${event.timestamp ?? Date.now()}`,
+          prompts: previousSnapshot.prompts,
+          searches: previousSnapshot.searches,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    }
+
+    const parsed = parseLlmSuggestions(event.final_answer ?? "");
+    if (parsed) {
+      setPrompts(parsed.prompts);
+      setSearches(parsed.searches);
+      setStatus("idle");
+      setError(null);
+    } else {
+      setError("Agent 返回格式异常");
+      setStatus("error");
+    }
+
+    if (requestVersion.current === taskVersion) {
+      setActiveTask(null);
+    }
+  });
 
   useEffect(() => {
     const trimmed = draft.trim();
@@ -147,53 +208,15 @@ export function FlowModePanel() {
   useEffect(() => {
     if (!activeTask) return undefined;
 
-    let attempts = 0;
-    const { id, version } = activeTask;
-    const poll = async () => {
-      attempts += 1;
-      const isCurrent = version === requestVersion.current;
-      try {
-        const response = await apiClient.getTaskStatus(id);
-        if (response.status === "completed" && response.final_answer) {
-          if (isCurrent) {
-            const parsed = parseLlmSuggestions(response.final_answer);
-            if (parsed) {
-              setPrompts(parsed.prompts);
-              setSearches(parsed.searches);
-              setStatus("idle");
-            } else {
-              setError("LLM 返回格式异常");
-              setStatus("error");
-            }
-          }
-          if (isCurrent) {
-            setActiveTask(null);
-          }
-          return;
-        }
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const event = events[i];
+      if (event.task_id !== activeTask.id) continue;
+      handleFlowEvent(event, activeTask.version);
+      break;
+    }
 
-        if (TERMINAL_STATUSES.has(response.status) || attempts > 40) {
-          if (isCurrent) {
-            setStatus("error");
-            setError("任务未返回有效结果");
-            setActiveTask(null);
-          }
-        }
-      } catch (err) {
-        console.error("[flow] polling failed", err);
-        if (isCurrent) {
-          setError("任务状态查询失败");
-          setStatus("error");
-          setActiveTask(null);
-        }
-      }
-    };
-
-    const interval = setInterval(poll, 1500);
-    void poll();
-
-    return () => clearInterval(interval);
-  }, [activeTask]);
+    return undefined;
+  }, [activeTask, events]);
 
   const handleApplyPrompt = useCallback((content: string) => {
     setDraft((current) => `${current.trim()}\n\n${content}`.trim());
@@ -207,6 +230,7 @@ export function FlowModePanel() {
         setPrompts([]);
         setSearches([]);
         setActiveTask(null);
+        setHistory([]);
         setStatus("idle");
         setError(null);
       }
@@ -214,8 +238,12 @@ export function FlowModePanel() {
     [],
   );
 
+  useEffect(() => {
+    lastSnapshotRef.current = { prompts, searches };
+  }, [prompts, searches]);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),360px] xl:grid-cols-[minmax(0,1fr),420px]">
       <Card className="bg-card/70 backdrop-blur">
         <CardHeader className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
@@ -234,7 +262,7 @@ export function FlowModePanel() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            只保留一个书写框，其他交给 LLM：它会自动生成优先级排序的提示和搜索建议。
+            只保留一个书写框，其他交给 Agent：它会自动生成优先级排序的提示和搜索建议，并通过流式返回。
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -242,7 +270,7 @@ export function FlowModePanel() {
             value={draft}
             rows={12}
             onChange={(event) => handleDraftChange(event.target.value)}
-            placeholder="开始写作，LLM 会自动给出下一步提示"
+            placeholder="开始写作，Agent 会自动给出下一步提示"
             className="min-h-[260px] rounded-2xl border-border/70 bg-background/80 text-base leading-7"
           />
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -311,9 +339,41 @@ export function FlowModePanel() {
             ))}
             {!prompts.length && (
               <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
-                正在等待 LLM 生成写作提示…
+                正在等待 Agent 生成写作提示…
               </div>
             )}
+            {history.length ? (
+              <details className="rounded-xl border border-dashed border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                <summary className="flex cursor-pointer items-center justify-between gap-2 font-semibold text-foreground">
+                  历史提示（折叠）
+                  <span className="text-[11px] text-muted-foreground">{history.length} 条</span>
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {history.map((item) => (
+                    <div
+                      key={item.id}
+                      className="space-y-2 rounded-lg border border-border/50 bg-background/70 p-3 text-foreground"
+                    >
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>{new Date(item.createdAt).toLocaleString()}</span>
+                        <span>
+                          提示 {item.prompts.length} · 搜索 {item.searches.length}
+                        </span>
+                      </div>
+                      {item.prompts.length ? (
+                        <div className="space-y-1 text-xs">
+                          {item.prompts.slice(0, 2).map((prompt) => (
+                            <div key={prompt.id} className="truncate font-semibold">
+                              {prompt.title}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
           </div>
 
           <div className="space-y-2">
