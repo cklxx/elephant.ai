@@ -218,7 +218,6 @@ export function ConversationPageContent() {
     if (useMockStream) return;
     if (resolvedSessionId) return;
     if (prewarmSessionId) return;
-    if (viewMode === "flow") return;
 
     let cancelled = false;
     apiClient
@@ -234,7 +233,7 @@ export function ConversationPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [prewarmSessionId, resolvedSessionId, useMockStream, viewMode]);
+  }, [prewarmSessionId, resolvedSessionId, useMockStream]);
 
   const performCancellation = useCallback(
     (taskId: string) => {
@@ -462,6 +461,126 @@ export function ConversationPageContent() {
 
     runExecution(initialSessionId ?? null);
   };
+
+  const ensureFlowSessionId = useCallback(async () => {
+    if (resolvedSessionId) return resolvedSessionId;
+    if (prewarmSessionId) return prewarmSessionId;
+
+    const { session_id } = await apiClient.createSession();
+    setPrewarmSessionId(session_id);
+    return session_id;
+  }, [prewarmSessionId, resolvedSessionId]);
+
+  const runFlowTask = useCallback(
+    async (task: string) => {
+      if (useMockStream) {
+        const submissionTimestamp = new Date();
+        const session =
+          resolvedSessionId ??
+          currentSessionId ??
+          prewarmSessionId ??
+          `mock-${submissionTimestamp.getTime().toString(36)}`;
+        const taskId = `flow-mock-${submissionTimestamp.getTime().toString(36)}`;
+        const timestamp = submissionTimestamp.toISOString();
+
+        setSessionId(session);
+        setCurrentSession(session);
+        addToHistory(session);
+
+        const inputEvent: AnyAgentEvent = {
+          event_type: "workflow.input.received",
+          timestamp,
+          agent_level: "core",
+          session_id: session,
+          task_id: taskId,
+          task,
+        };
+
+        addEvent(inputEvent);
+
+        const finalAnswer = JSON.stringify({
+          prompts: [
+            {
+              title: "精炼要点",
+              content: "从正文中提炼 2-3 条核心观点，并按重要性排序扩写。",
+              priority: 1,
+            },
+            {
+              title: "补充论据",
+              content: "为关键观点增加真实案例或数据引用，让论证更扎实。",
+              priority: 2,
+            },
+          ],
+          searches: [
+            {
+              query: "行业最新案例 数据 支撑",
+              reason: "为正文挑选可以引用的案例与数据来源。",
+              priority: 1,
+            },
+          ],
+        });
+
+        const completionEvent: AnyAgentEvent = {
+          event_type: "workflow.result.final",
+          timestamp: new Date().toISOString(),
+          agent_level: "core",
+          session_id: session,
+          task_id: taskId,
+          final_answer: finalAnswer,
+          total_iterations: 1,
+          total_tokens: 0,
+          stop_reason: "mock",
+          duration: 0,
+          is_streaming: false,
+          stream_finished: true,
+        };
+
+        setTimeout(() => addEvent(completionEvent), 120);
+
+        return {
+          task_id: taskId,
+          session_id: session,
+        };
+      }
+
+      const targetSessionId = await ensureFlowSessionId();
+      const response = await apiClient.createTask({
+        task,
+        session_id: targetSessionId,
+      });
+
+      setPrewarmSessionId((prev) => (prev === response.session_id ? null : prev));
+      setSessionId(response.session_id);
+      setCurrentSession(response.session_id);
+      addToHistory(response.session_id);
+
+      const submissionEvent: AnyAgentEvent = {
+        event_type: "workflow.input.received",
+        timestamp: new Date().toISOString(),
+        agent_level: "core",
+        session_id: response.session_id,
+        task_id: response.task_id,
+        parent_task_id: response.parent_task_id ?? undefined,
+        task,
+      };
+
+      addEvent(submissionEvent);
+
+      return response;
+    },
+    [
+      addEvent,
+      addToHistory,
+      currentSessionId,
+      ensureFlowSessionId,
+      prewarmSessionId,
+      resolvedSessionId,
+      setCurrentSession,
+      setSessionId,
+      setPrewarmSessionId,
+      useMockStream,
+    ],
+  );
 
   const handleStop = useCallback(() => {
     if (isCancelPending) {
@@ -827,12 +946,12 @@ export function ConversationPageContent() {
               {viewMode === "console" ? rightPanelToggle : null}
             </div>
           }
-        />
+        /> 
 
         {viewMode === "flow" ? (
           <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 rounded-3xl border border-border/60 bg-background/60 px-4 py-5 shadow-sm lg:px-8">
-              <FlowModePanel />
+            <div className="mx-auto flex h-full w-full max-w-none flex-col gap-6 rounded-3xl border border-border/60 bg-background/60 px-4 py-5 shadow-sm lg:px-8">
+              <FlowModePanel events={events} onRunTask={runFlowTask} />
             </div>
           </div>
         ) : (
