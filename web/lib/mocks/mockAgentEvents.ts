@@ -150,6 +150,14 @@ const mockAttachmentGallery: Record<string, AttachmentPayload> = {
     kind: 'attachment',
     uri: createSvgDataUrl('#f97316', 'Status'),
   },
+  'UX Snapshot': {
+    name: 'UX Snapshot',
+    description: 'UX Snapshot mock',
+    media_type: 'image/svg+xml',
+    format: 'png',
+    kind: 'attachment',
+    uri: createSvgDataUrl('#0ea5e9', 'Snapshot'),
+  },
   'Latency Report': {
     name: 'Latency Report',
     description: 'Latency Report',
@@ -355,7 +363,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         tool_name: 'file_edit',
         result: 'Added Planner/ReAct view layout and task/action mapping.',
         duration: 560,
-        attachments: pickAttachments('Console Architecture Prototype'),
+        attachments: pickAttachments('Console Architecture Prototype', 'UX Snapshot'),
       },
     },
     {
