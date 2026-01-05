@@ -95,6 +95,7 @@ Supported statements (one per line):
 - open <url>
 - click <css_selector>
 - scroll <up|down|left|right> <pixels>
+- wait <seconds>
 - if exists <css_selector>
     ...actions...
   else
@@ -587,6 +588,8 @@ func (c browserCommand) label() string {
 		return fmt.Sprintf("click %s", c.value)
 	case commandScroll:
 		return fmt.Sprintf("scroll %s %d", c.value, c.amount)
+	case commandWait:
+		return fmt.Sprintf("wait %ds", c.amount)
 	case commandIfExists:
 		return fmt.Sprintf("if exists %s", c.value)
 	default:
@@ -600,6 +603,7 @@ const (
 	commandOpen     commandKind = "open"
 	commandClick    commandKind = "click"
 	commandScroll   commandKind = "scroll"
+	commandWait     commandKind = "wait"
 	commandIfExists commandKind = "if"
 )
 
@@ -742,6 +746,12 @@ func parseAction(line string) (browserCommand, error) {
 		default:
 			return browserCommand{}, fmt.Errorf("unknown scroll direction: %s", direction)
 		}
+	case strings.HasPrefix(lower, "wait "):
+		seconds, err := strconv.Atoi(strings.TrimSpace(line[len("wait "):]))
+		if err != nil || seconds <= 0 {
+			return browserCommand{}, fmt.Errorf("wait requires a positive integer number of seconds")
+		}
+		return browserCommand{kind: commandWait, amount: seconds}, nil
 	default:
 		return browserCommand{}, fmt.Errorf("unsupported statement: %s", line)
 	}
@@ -934,6 +944,10 @@ func emitCommands(builder *strings.Builder, commands []browserCommand, indent st
 		case commandScroll:
 			dx, dy := scrollDelta(cmd.value, cmd.amount)
 			builder.WriteString(fmt.Sprintf("%sawait page.mouse.wheel(%d, %d);\n", indent, dx, dy))
+			builder.WriteString(fmt.Sprintf("%sawait snap(%s);\n", indent, strconv.Quote(cmd.label())))
+
+		case commandWait:
+			builder.WriteString(fmt.Sprintf("%sawait page.waitForTimeout(%d);\n", indent, cmd.amount*1000))
 			builder.WriteString(fmt.Sprintf("%sawait snap(%s);\n", indent, strconv.Quote(cmd.label())))
 
 		case commandIfExists:
