@@ -55,6 +55,9 @@ export function DocumentCanvas({
   const t = useTranslation();
   const [viewMode, setViewMode] = useState<ViewMode>(initialMode);
   const [isExpanded, setIsExpanded] = useState(false);
+  const viewHeightClass = isExpanded
+    ? "max-h-[calc(100vh-220px)]"
+    : "max-h-[70vh]";
 
   if (!document) {
     return (
@@ -157,21 +160,17 @@ export function DocumentCanvas({
         </div>
 
         {/* Content */}
-        <CardContent
-          className={cn(
-            "p-0",
-            isExpanded ? "h-[calc(100%-100px)]" : "h-[600px]",
-          )}
-        >
+        <CardContent className="p-0">
           {viewMode === "compare" && compareDocument ? (
             <CompareView
               document={document}
               compareDocument={compareDocument}
+              className={viewHeightClass}
             />
           ) : viewMode === "reading" ? (
-            <ReadingView document={document} />
+            <ReadingView document={document} className={viewHeightClass} />
           ) : (
-            <DefaultView document={document} />
+            <DefaultView document={document} className={viewHeightClass} />
           )}
         </CardContent>
       </Card>
@@ -179,17 +178,34 @@ export function DocumentCanvas({
   );
 }
 
-function DefaultView({ document }: { document: DocumentContent }) {
+function DefaultView({
+  document,
+  className,
+}: {
+  document: DocumentContent;
+  className?: string;
+}) {
   return (
-    <div className="h-full overflow-auto">
+    <div className={cn("overflow-auto", className)}>
       <DocumentRenderer document={document} showLineNumbers />
     </div>
   );
 }
 
-function ReadingView({ document }: { document: DocumentContent }) {
+function ReadingView({
+  document,
+  className,
+}: {
+  document: DocumentContent;
+  className?: string;
+}) {
   return (
-    <div className="h-full overflow-auto bg-gradient-to-br from-amber-50/30 to-white">
+    <div
+      className={cn(
+        "overflow-auto bg-gradient-to-br from-amber-50/30 to-white",
+        className,
+      )}
+    >
       <div className="max-w-4xl mx-auto p-8">
         <DocumentRenderer document={document} cleanMode />
       </div>
@@ -200,12 +216,19 @@ function ReadingView({ document }: { document: DocumentContent }) {
 function CompareView({
   document,
   compareDocument,
+  className,
 }: {
   document: DocumentContent;
   compareDocument: DocumentContent;
+  className?: string;
 }) {
   return (
-    <div className="h-full grid grid-cols-2 divide-x divide-gray-200">
+    <div
+      className={cn(
+        "grid grid-cols-1 divide-y divide-gray-200 overflow-hidden lg:grid-cols-2 lg:divide-y-0 lg:divide-x",
+        className,
+      )}
+    >
       {/* Left pane */}
       <div className="overflow-auto">
         <div className="sticky top-0 bg-destructive/10 border-b border-destructive/30 px-4 py-2 z-10">
