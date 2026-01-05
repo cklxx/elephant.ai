@@ -229,11 +229,41 @@ export function MarkdownRenderer({
     td: ({ className: tdClass, ...props }: any) => (
       <td className={cn("px-4 py-2 align-top", tdClass)} {...props} />
     ),
+    p: ({ className: pClass, ...props }: any) => (
+      <p
+        className={cn(
+          "my-1.5 leading-[1.55] text-foreground",
+          pClass,
+        )}
+        {...props}
+      />
+    ),
     ul: ({ className: ulClass, ...props }: any) => (
-      <ul className={cn("my-4 list-disc list-inside !pl-0", ulClass)} {...props} />
+      <ul
+        className={cn(
+          "my-2 list-disc list-inside !pl-0 space-y-1.5 leading-[1.55] text-foreground",
+          ulClass,
+        )}
+        {...props}
+      />
     ),
     ol: ({ className: olClass, ...props }: any) => (
-      <ol className={cn("my-4 list-decimal list-inside !pl-0", olClass)} {...props} />
+      <ol
+        className={cn(
+          "my-2 list-decimal list-inside !pl-0 space-y-1.5 leading-[1.55] text-foreground",
+          olClass,
+        )}
+        {...props}
+      />
+    ),
+    li: ({ className: liClass, ...props }: any) => (
+      <li
+        className={cn(
+          "leading-[1.55] text-foreground",
+          liClass,
+        )}
+        {...props}
+      />
     ),
     img: ({ src, alt, ...imgProps }: any) => {
       if (src) {

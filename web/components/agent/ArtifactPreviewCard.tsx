@@ -198,6 +198,7 @@ export function ArtifactPreviewCard({
             "cursor-pointer hover:border-ring/60 hover:ring-1 hover:ring-ring/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60",
           className,
         )}
+        data-testid="artifact-preview-card"
         role={canInlinePreview ? "button" : undefined}
         tabIndex={canInlinePreview ? 0 : undefined}
         aria-label={canInlinePreview ? `Preview ${displayName}` : undefined}
@@ -294,8 +295,8 @@ export function ArtifactPreviewCard({
                   content={markdownSnippet}
                   containerClassName="markdown-body"
                   className={cn(
-                    "prose prose-sm max-w-none text-foreground/90",
-                    "prose-p:my-1.5 prose-headings:my-1 prose-li:my-0.5 prose-pre:my-2",
+                    "prose prose-sm max-w-none text-foreground/90 leading-[1.5]",
+                    "prose-p:my-1 prose-headings:my-0.5 prose-li:my-0.25 prose-pre:my-1.5",
                   )}
                 />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card via-card/80 to-transparent" />
