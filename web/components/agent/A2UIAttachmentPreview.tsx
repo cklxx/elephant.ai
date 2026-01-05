@@ -19,13 +19,8 @@ export function A2UIAttachmentPreview({
   );
 
   const attachmentSnapshot = useMemo<AttachmentPayload>(
-    () => ({
-      name: attachment.name,
-      media_type: attachment.media_type,
-      data: attachment.data,
-      uri: attachment.uri,
-    }),
-    [attachment.name, attachment.media_type, attachment.data, attachment.uri],
+    () => ({ ...attachment }),
+    [attachment],
   );
 
   const [state, setState] = useState<{
