@@ -1,13 +1,19 @@
 package agent_eval
 
 import (
+	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"alex/evaluation/swe_bench"
 )
+
+//go:embed datasets/general_agent_eval.json
+var embeddedGeneralDataset []byte
 
 type GeneralAgentTask struct {
 	ID             string     `json:"id"`
@@ -24,15 +30,22 @@ type GeneralAgentTask struct {
 }
 
 func loadGeneralAgentDataset(path string, limit int) ([]swe_bench.Instance, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open general agent dataset: %w", err)
-	}
-	defer file.Close()
-
 	var tasks []GeneralAgentTask
-	if err := json.NewDecoder(file).Decode(&tasks); err != nil {
-		return nil, fmt.Errorf("decode general agent dataset: %w", err)
+
+	if strings.TrimSpace(path) == "" {
+		if err := decodeGeneralDataset(bytes.NewReader(embeddedGeneralDataset), &tasks); err != nil {
+			return nil, fmt.Errorf("decode embedded general agent dataset: %w", err)
+		}
+	} else {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open general agent dataset: %w", err)
+		}
+		defer file.Close()
+
+		if err := decodeGeneralDataset(file, &tasks); err != nil {
+			return nil, err
+		}
 	}
 
 	if limit > 0 && limit < len(tasks) {
@@ -101,4 +114,11 @@ func formatConstraints(constraints []string) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func decodeGeneralDataset(reader io.Reader, tasks *[]GeneralAgentTask) error {
+	if err := json.NewDecoder(reader).Decode(tasks); err != nil {
+		return fmt.Errorf("decode general agent dataset: %w", err)
+	}
+	return nil
 }

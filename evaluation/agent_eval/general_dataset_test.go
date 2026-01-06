@@ -42,4 +42,17 @@ func TestLoadGeneralAgentDataset(t *testing.T) {
 	if len(all) < len(instances) {
 		t.Fatalf("expected full dataset to be at least as large as limited slice, got %d", len(all))
 	}
+
+	t.Run("EmbeddedDataset", func(t *testing.T) {
+		embedded, err := loadGeneralAgentDataset("", 2)
+		if err != nil {
+			t.Fatalf("load embedded general agent dataset: %v", err)
+		}
+		if len(embedded) != 2 {
+			t.Fatalf("expected limit to apply on embedded dataset, got %d", len(embedded))
+		}
+		if embedded[0].Metadata["surface"] != "web" {
+			t.Fatalf("expected embedded dataset surface to be web, got %v", embedded[0].Metadata["surface"])
+		}
+	})
 }

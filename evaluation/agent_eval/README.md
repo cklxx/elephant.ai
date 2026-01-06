@@ -44,7 +44,7 @@
 
 ## 内置通用Agent评测集
 
-默认数据集位于 `evaluation/agent_eval/datasets/general_agent_eval.json`，`DatasetType` 使用 `general_agent`。该集合聚焦通用能力（主要面向 Web Agent 能力），而非SWE-Bench式的代码修复场景（偏 CLI），覆盖：
+默认数据集位于 `evaluation/agent_eval/datasets/general_agent_eval.json`（已内置到二进制，可选指定路径），`DatasetType` 使用 `general_agent`。该集合聚焦通用能力（主要面向 Web Agent 能力），而非SWE-Bench式的代码修复场景（偏 CLI），覆盖：
 
 - 规划与项目管理：跨团队计划、歧义拆解、排期对齐
 - 分析与可观察性：日志三角定位、指标归因、故障假设
@@ -97,7 +97,7 @@ func main() {
     
     // 配置评估选项
     options := &agent_eval.EvaluationOptions{
-        DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
+        DatasetPath:    "", // 留空使用内置general_agent数据集
         InstanceLimit:  50,
         MaxWorkers:     4,
         TimeoutPerTask: 300 * time.Second,
@@ -125,7 +125,7 @@ func compareConfigurations() {
     
     // 基准配置
     baselineConfig := &agent_eval.EvaluationConfig{
-        DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
+        DatasetPath:    "", // 留空使用内置general_agent数据集
         InstanceLimit:  20,
         MaxWorkers:     2,
         TimeoutPerTask: 300 * time.Second,
@@ -135,7 +135,7 @@ func compareConfigurations() {
     
     // 实验配置
     experimentConfig := &agent_eval.EvaluationConfig{
-        DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
+        DatasetPath:    "", // 留空使用内置general_agent数据集
         InstanceLimit:  20,
         MaxWorkers:     4, // 增加worker数量
         TimeoutPerTask: 600 * time.Second, // 增加超时时间
@@ -298,7 +298,7 @@ go test -v
    ```
    Error: dataset file does not exist: ./evaluation/agent_eval/datasets/general_agent_eval.json
    ```
-   确保评测数据集文件存在且路径正确。
+   若需要自定义文件路径，确保评测数据集文件存在且路径正确；默认留空将自动使用内置的general_agent数据。
 
 2. **内存不足**
    ```

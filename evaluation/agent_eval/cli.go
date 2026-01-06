@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -29,7 +30,7 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 
 	config := &EvaluationConfig{
 		DatasetType:    "general_agent",
-		DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
+		DatasetPath:    "",
 		InstanceLimit:  10, // 默认少量实例用于测试
 		MaxWorkers:     2,
 		AgentID:        "default-agent",
@@ -198,7 +199,7 @@ type EvaluationOptions struct {
 // DefaultEvaluationOptions 默认评估选项
 func DefaultEvaluationOptions() *EvaluationOptions {
 	return &EvaluationOptions{
-		DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
+		DatasetPath:    "",
 		DatasetType:    "general_agent",
 		InstanceLimit:  10,
 		MaxWorkers:     2,
@@ -377,8 +378,12 @@ func (cm *CLIManager) compareResults(baseline, experiment *EvaluationResults) *C
 
 // ValidateConfig 验证配置
 func ValidateConfig(config *EvaluationConfig) error {
-	if config.DatasetPath == "" {
-		return fmt.Errorf("dataset path is required")
+	datasetType := strings.TrimSpace(config.DatasetType)
+
+	if datasetType != "general_agent" || strings.TrimSpace(config.DatasetPath) != "" {
+		if config.DatasetPath == "" {
+			return fmt.Errorf("dataset path is required")
+		}
 	}
 
 	if config.InstanceLimit <= 0 {
@@ -403,9 +408,11 @@ func ValidateConfig(config *EvaluationConfig) error {
 	}
 	config.OutputDir = cleanedOutputDir
 
-	// 检查数据集文件是否存在
-	if _, err := os.Stat(config.DatasetPath); os.IsNotExist(err) {
-		return fmt.Errorf("dataset file does not exist: %s", config.DatasetPath)
+	// 检查数据集文件是否存在（general_agent 可使用内置数据集）
+	if datasetType != "general_agent" || strings.TrimSpace(config.DatasetPath) != "" {
+		if _, err := os.Stat(config.DatasetPath); os.IsNotExist(err) {
+			return fmt.Errorf("dataset file does not exist: %s", config.DatasetPath)
+		}
 	}
 
 	return nil
