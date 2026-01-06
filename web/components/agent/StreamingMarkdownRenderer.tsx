@@ -5,7 +5,6 @@ import type { ComponentType } from "react";
 
 import type { MarkdownRendererProps } from "@/components/ui/markdown";
 import { cn } from "@/lib/utils";
-import { StreamingIndicator } from "@/components/ui/loading-states";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 
 type StreamingMarkdownRendererProps = MarkdownRendererProps & {
@@ -57,7 +56,7 @@ export function StreamingMarkdownRenderer({
           )}
           data-testid="markdown-streaming-indicator"
         >
-          <StreamingIndicator />
+          <span aria-hidden="true">...</span>
           <span className="sr-only">Streaming markdown output</span>
         </div>
       )}
