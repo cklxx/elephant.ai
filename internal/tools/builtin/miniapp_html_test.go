@@ -22,8 +22,15 @@ func (s *stubLLM) Complete(ctx context.Context, req ports.CompletionRequest) (*p
 	}, nil
 }
 
-func (*stubLLM) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
-	return nil, nil
+func (s *stubLLM) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	resp, _ := s.Complete(ctx, req)
+	if cb := callbacks.OnContentDelta; cb != nil {
+		if resp != nil && resp.Content != "" {
+			cb(ports.ContentDelta{Delta: resp.Content})
+		}
+		cb(ports.ContentDelta{Final: true})
+	}
+	return resp, nil
 }
 
 func (*stubLLM) Model() string { return "stub" }
@@ -68,6 +75,13 @@ func TestMiniAppHTMLBuildsAttachment(t *testing.T) {
 	}
 	if result.Metadata["prefill_task"] == "" {
 		t.Fatalf("expected prefill_task metadata")
+	}
+	validation, ok := result.Metadata["validation"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected validation metadata")
+	}
+	if _, ok := validation["error_count"]; !ok {
+		t.Fatalf("expected validation error_count")
 	}
 	if llm.lastPrompt == "" || len(llm.messages) == 0 {
 		t.Fatalf("expected LLM to be invoked")

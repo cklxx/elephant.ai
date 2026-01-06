@@ -291,6 +291,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		writeLLM = client
 	}
 	r.static["flow_write"] = builtin.NewFlowWrite(writeLLM)
+	r.static["html_edit"] = builtin.NewHTMLEdit(writeLLM)
 	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
 		// Reserved for future config.
 	})

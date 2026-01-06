@@ -7,6 +7,9 @@ import { AttachmentPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { resolveAttachmentDownloadUris } from "@/lib/attachments";
 import { LazyMarkdownRenderer } from "@/components/agent/LazyMarkdownRenderer";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Download,
   ExternalLink,
@@ -24,6 +27,112 @@ import {
 
 const AUTO_PREFETCH_MARKDOWN_MAX_BYTES = 512 * 1024;
 const MARKDOWN_SNIPPET_MAX_CHARS = 1400;
+const HTML_EDITOR_MIN_HEIGHT = "min-h-[360px]";
+
+type HtmlValidationIssue = {
+  level: "error" | "warning";
+  message: string;
+};
+
+function decodeBase64ToText(value: string): string {
+  const binary = atob(value);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function decodeHtmlFromDataUri(uri: string): string | null {
+  if (!uri.startsWith("data:")) return null;
+  const commaIndex = uri.indexOf(",");
+  if (commaIndex === -1) return null;
+  const meta = uri.slice(5, commaIndex);
+  const data = uri.slice(commaIndex + 1);
+  if (/;base64/i.test(meta)) {
+    try {
+      return decodeBase64ToText(data);
+    } catch (error) {
+      console.error("Failed to decode base64 HTML", error);
+      return null;
+    }
+  }
+  try {
+    return decodeURIComponent(data);
+  } catch (error) {
+    console.error("Failed to decode HTML data URI", error);
+    return null;
+  }
+}
+
+async function loadHtmlSource(uri: string): Promise<string> {
+  const decoded = decodeHtmlFromDataUri(uri);
+  if (decoded !== null) return decoded;
+  const response = await fetch(uri);
+  if (!response.ok) {
+    throw new Error(`Failed to load HTML (${response.status})`);
+  }
+  return response.text();
+}
+
+function buildHtmlDataUri(html: string): string {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+function validateHtmlSource(html: string): HtmlValidationIssue[] {
+  const trimmed = html.trim();
+  if (!trimmed) {
+    return [{ level: "error", message: "HTML is empty." }];
+  }
+
+  const lower = trimmed.toLowerCase();
+  const issues: HtmlValidationIssue[] = [];
+  const htmlTags = (lower.match(/<html\b/g) ?? []).length;
+  const bodyTags = (lower.match(/<body\b/g) ?? []).length;
+  const headTags = (lower.match(/<head\b/g) ?? []).length;
+
+  if (!lower.includes("<!doctype html")) {
+    issues.push({ level: "warning", message: "Missing <!DOCTYPE html>." });
+  }
+  if (htmlTags === 0) {
+    issues.push({ level: "warning", message: "Missing <html> tag." });
+  } else if (htmlTags > 1) {
+    issues.push({ level: "error", message: "Multiple <html> tags found." });
+  }
+  if (headTags === 0) {
+    issues.push({ level: "warning", message: "Missing <head> tag." });
+  } else if (headTags > 1) {
+    issues.push({ level: "warning", message: "Multiple <head> tags found." });
+  }
+  if (bodyTags === 0) {
+    issues.push({ level: "warning", message: "Missing <body> tag." });
+  } else if (bodyTags > 1) {
+    issues.push({ level: "warning", message: "Multiple <body> tags found." });
+  }
+  if (!lower.includes("<meta charset")) {
+    issues.push({ level: "warning", message: "Missing <meta charset>." });
+  }
+  if (!/name=["']viewport["']/.test(lower)) {
+    issues.push({
+      level: "warning",
+      message: "Missing <meta name=\"viewport\">.",
+    });
+  }
+  if (!lower.includes("<title")) {
+    issues.push({ level: "warning", message: "Missing <title> tag." });
+  }
+
+  const openScripts = (lower.match(/<script\b/g) ?? []).length;
+  const closeScripts = (lower.match(/<\/script>/g) ?? []).length;
+  if (openScripts !== closeScripts) {
+    issues.push({ level: "error", message: "Mismatched <script> tags." });
+  }
+
+  const openStyles = (lower.match(/<style\b/g) ?? []).length;
+  const closeStyles = (lower.match(/<\/style>/g) ?? []).length;
+  if (openStyles !== closeStyles) {
+    issues.push({ level: "warning", message: "Mismatched <style> tags." });
+  }
+
+  return issues;
+}
 
 interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
@@ -77,6 +186,12 @@ export function ArtifactPreviewCard({
   const [prefetchRequested, setPrefetchRequested] = useState(false);
   const [markdownPreview, setMarkdownPreview] = useState<string | null>(null);
   const [markdownLoading, setMarkdownLoading] = useState(false);
+  const [htmlPrefetchRequested, setHtmlPrefetchRequested] = useState(false);
+  const [htmlSource, setHtmlSource] = useState<string | null>(null);
+  const [htmlDraft, setHtmlDraft] = useState<string | null>(null);
+  const [htmlLoading, setHtmlLoading] = useState(false);
+  const [htmlError, setHtmlError] = useState<string | null>(null);
+  const [htmlView, setHtmlView] = useState<"preview" | "source">("preview");
 
   const {
     preferredUri: downloadUri,
@@ -124,6 +239,7 @@ export function ArtifactPreviewCard({
           preview_type: "iframe",
         }
       : undefined);
+  const htmlSourceUri = htmlAsset?.cdn_url || downloadUri || originalUri;
   const previewImageUrl =
     imageAssets.find(
       (asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim(),
@@ -154,6 +270,7 @@ export function ArtifactPreviewCard({
   const requestPreview = () => {
     if (!canInlinePreview) return;
     if (isMarkdown) setPrefetchRequested(true);
+    if (isHTML) setHtmlPrefetchRequested(true);
   };
 
   const openPreview = () => {
@@ -220,6 +337,63 @@ export function ArtifactPreviewCard({
     isPreviewOpen,
     markdownPreview,
   ]);
+
+  useEffect(() => {
+    if (!isHTML) return;
+    if (!htmlSourceUri) return;
+    if (!htmlPrefetchRequested && !isPreviewOpen) return;
+    if (htmlSource !== null || htmlLoading) return;
+
+    let cancelled = false;
+    setHtmlLoading(true);
+    setHtmlError(null);
+
+    loadHtmlSource(htmlSourceUri)
+      .then((html) => {
+        if (cancelled) return;
+        setHtmlSource(html);
+        setHtmlDraft((current) => current ?? html);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setHtmlError(
+          error instanceof Error ? error.message : "Failed to load HTML.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setHtmlLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    htmlSourceUri,
+    htmlPrefetchRequested,
+    isPreviewOpen,
+    isHTML,
+    htmlSource,
+    htmlLoading,
+  ]);
+
+  const htmlBaseline = htmlSource ?? "";
+  const htmlContent = htmlDraft ?? htmlBaseline;
+  const htmlReady = Boolean(htmlSource) || htmlDraft !== null;
+  const htmlIssues = useMemo(
+    () => (htmlReady ? validateHtmlSource(htmlContent) : []),
+    [htmlReady, htmlContent],
+  );
+  const htmlErrors = htmlIssues.filter((issue) => issue.level === "error");
+  const htmlWarnings = htmlIssues.filter((issue) => issue.level === "warning");
+  const htmlStatus =
+    htmlErrors.length > 0 ? "error" : htmlWarnings.length > 0 ? "warning" : "ok";
+  const htmlPreviewUri = useMemo(() => {
+    if (htmlContent.trim().length > 0) {
+      return buildHtmlDataUri(htmlContent);
+    }
+    return htmlAsset?.cdn_url ?? null;
+  }, [htmlContent, htmlAsset?.cdn_url]);
+  const isHtmlDirty = htmlDraft !== null && htmlDraft !== htmlBaseline;
 
   return (
     <>
@@ -454,12 +628,141 @@ export function ArtifactPreviewCard({
                     </div>
                   )
                 ) : htmlAsset ? (
-                  <div className="mx-auto w-full max-w-[980px]">
-                    <iframe
-                      src={htmlAsset.cdn_url}
-                      className="h-[80vh] w-full rounded-xl border border-border/60 bg-white"
-                      title="Preview"
-                    />
+                  <div className="w-full space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => setHtmlView("preview")}
+                          variant={htmlView === "preview" ? "default" : "outline"}
+                          size="sm"
+                        >
+                          Preview
+                        </Button>
+                        <Button
+                          onClick={() => setHtmlView("source")}
+                          variant={htmlView === "source" ? "default" : "outline"}
+                          size="sm"
+                        >
+                          Source
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {htmlReady && (
+                          <Badge
+                            variant={
+                              htmlStatus === "error"
+                                ? "destructive"
+                                : htmlStatus === "warning"
+                                  ? "warning"
+                                  : "success"
+                            }
+                          >
+                            {htmlStatus === "error"
+                              ? `Errors (${htmlErrors.length})`
+                              : htmlStatus === "warning"
+                                ? `Warnings (${htmlWarnings.length})`
+                                : "Valid HTML"}
+                          </Badge>
+                        )}
+                        {isHtmlDirty && (
+                          <Badge variant="warning">Edited</Badge>
+                        )}
+                        <Button
+                          onClick={() => setHtmlDraft(null)}
+                          variant="outline"
+                          size="sm"
+                          disabled={!isHtmlDirty}
+                        >
+                          Reset
+                        </Button>
+                      </div>
+                    </div>
+
+                    {htmlView === "preview" ? (
+                      htmlPreviewUri ? (
+                        <div className="w-full">
+                          <div className="mx-auto w-full max-w-[1100px]">
+                            <iframe
+                              src={htmlPreviewUri}
+                              className="h-[80vh] w-full rounded-xl border border-border/60 bg-white"
+                              title="Preview"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          Preview unavailable.
+                        </div>
+                      )
+                    ) : htmlLoading && !htmlSource ? (
+                      <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading HTML...
+                      </div>
+                    ) : htmlError ? (
+                      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                        {htmlError}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <Textarea
+                          value={htmlContent}
+                          onChange={(event) => setHtmlDraft(event.target.value)}
+                          spellCheck={false}
+                          className={cn(
+                            "font-mono text-xs leading-relaxed resize-y",
+                            HTML_EDITOR_MIN_HEIGHT,
+                          )}
+                        />
+                        <div className="rounded-xl border border-border/60 bg-background p-3">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                            <span>Validation</span>
+                            {htmlReady && (
+                              <Badge
+                                variant={
+                                  htmlStatus === "error"
+                                    ? "destructive"
+                                    : htmlStatus === "warning"
+                                      ? "warning"
+                                      : "success"
+                                }
+                                className="text-[10px]"
+                              >
+                                {htmlStatus === "error"
+                                  ? `${htmlErrors.length} errors`
+                                  : htmlStatus === "warning"
+                                    ? `${htmlWarnings.length} warnings`
+                                    : "OK"}
+                              </Badge>
+                            )}
+                          </div>
+                          {!htmlReady ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Load HTML to validate.
+                            </p>
+                          ) : htmlIssues.length === 0 ? (
+                            <p className="mt-2 text-xs text-emerald-700">
+                              No validation issues found.
+                            </p>
+                          ) : (
+                            <ul className="mt-2 space-y-1 text-xs">
+                              {htmlIssues.map((issue, index) => (
+                                <li
+                                  key={`html-issue-${index}`}
+                                  className={
+                                    issue.level === "error"
+                                      ? "text-destructive"
+                                      : "text-amber-700"
+                                  }
+                                >
+                                  {issue.level.toUpperCase()}: {issue.message}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">

@@ -1217,6 +1217,9 @@ func (e *ReactEngine) expandToolCallArguments(toolName string, args map[string]a
 	case "artifacts_delete":
 		skipKeys := map[string]bool{"name": true, "names": true}
 		return e.expandToolArgsSkippingKeys(args, state, skipKeys)
+	case "html_edit":
+		skipKeys := map[string]bool{"name": true, "output_name": true}
+		return e.expandToolArgsSkippingKeys(args, state, skipKeys)
 	default:
 		return e.expandPlaceholders(args, state)
 	}

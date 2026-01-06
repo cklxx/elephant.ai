@@ -93,6 +93,8 @@ func (t *miniAppHTML) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	llmHTML := t.generateWithLLM(ctx, title, prompt, theme, cta)
 	html := t.buildHTML(title, prompt, theme, cta, llmHTML)
+	issues := validateHTMLSource(html)
+	errors, warnings := splitValidationIssues(issues)
 	encoded := base64.StdEncoding.EncodeToString([]byte(html))
 
 	attachment := ports.Attachment{
@@ -114,7 +116,14 @@ func (t *miniAppHTML) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		},
 	}
 
-	content := "Generated single-file HTML mini-app. Save to static storage and open to play."
+	content := fmt.Sprintf(
+		"Generated single-file HTML mini-app. Validation: %d errors, %d warnings.",
+		len(errors),
+		len(warnings),
+	)
+	if len(errors) > 0 {
+		content += " Fix errors before use."
+	}
 
 	return &ports.ToolResult{
 		CallID:      call.ID,
@@ -122,6 +131,11 @@ func (t *miniAppHTML) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		Attachments: map[string]ports.Attachment{attachment.Name: attachment},
 		Metadata: map[string]any{
 			"prefill_task": fmt.Sprintf("预览并改进小游戏《%s》：聚焦节奏、动效和易用性", title),
+			"validation": map[string]any{
+				"error_count":   len(errors),
+				"warning_count": len(warnings),
+				"issues":        issues,
+			},
 		},
 	}, nil
 }
