@@ -577,6 +577,7 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 
 		attachments := r.engine.decorateFinalResult(r.state, result)
 		if emitCompletionEvent {
+			r.emitFinalAnswerStream(stopReason, result)
 			r.engine.emitEvent(&WorkflowResultFinalEvent{
 				BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.TaskID, r.state.ParentTaskID),
 				FinalAnswer:     result.Answer,
@@ -593,4 +594,39 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 	})
 
 	return result
+}
+
+func (r *reactRuntime) emitFinalAnswerStream(stopReason string, result *TaskResult) {
+	if result == nil {
+		return
+	}
+	answer := result.Answer
+	if strings.TrimSpace(answer) == "" {
+		return
+	}
+
+	const chunkSize = 800
+	runes := []rune(answer)
+	if len(runes) == 0 {
+		return
+	}
+
+	var builder strings.Builder
+	for i := 0; i < len(runes); i += chunkSize {
+		end := i + chunkSize
+		if end > len(runes) {
+			end = len(runes)
+		}
+		builder.WriteString(string(runes[i:end]))
+		r.engine.emitEvent(&WorkflowResultFinalEvent{
+			BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.TaskID, r.state.ParentTaskID),
+			FinalAnswer:     builder.String(),
+			TotalIterations: result.Iterations,
+			TotalTokens:     result.TokensUsed,
+			StopReason:      stopReason,
+			Duration:        result.Duration,
+			IsStreaming:     true,
+			StreamFinished:  false,
+		})
+	}
 }

@@ -89,17 +89,6 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	expected := strings.TrimSpace(id.TaskIDFromContext(ctx))
-	if expected != "" && runID != expected {
-		err := errors.New("run_id does not match the active task")
-		return &ports.ToolResult{
-			CallID: call.ID,
-			Content: "Request does not match the active task. Please retry " +
-				"from the latest conversation turn.",
-			Error: err,
-		}, nil
-	}
-
 	complexityRaw, ok := call.Arguments["complexity"].(string)
 	if !ok {
 		err := fmt.Errorf("missing 'complexity'")
@@ -109,6 +98,19 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	if complexity != "simple" && complexity != "complex" {
 		err := fmt.Errorf("complexity must be \"simple\" or \"complex\"")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	if complexity != "simple" {
+		expected := strings.TrimSpace(id.TaskIDFromContext(ctx))
+		if expected != "" && runID != expected {
+			err := errors.New("run_id does not match the active task")
+			return &ports.ToolResult{
+				CallID: call.ID,
+				Content: "Request does not match the active task. Please retry " +
+					"from the latest conversation turn.",
+				Error: err,
+			}, nil
+		}
 	}
 
 	goal, ok := call.Arguments["overall_goal_ui"].(string)

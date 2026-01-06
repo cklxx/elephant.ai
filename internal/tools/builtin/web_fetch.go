@@ -383,7 +383,35 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 		utils.LogStreamingRequestPayload(requestID, payload)
 	}
 
-	resp, err := t.llmClient.Complete(ctx, req)
+	streaming, ok := ports.EnsureStreamingClient(t.llmClient).(ports.StreamingLLMClient)
+	if !ok {
+		return "", fmt.Errorf("streaming LLM client unavailable")
+	}
+
+	const progressChunkMinChars = 256
+	var progressBuffer strings.Builder
+	var contentBuffer strings.Builder
+	callbacks := ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				contentBuffer.WriteString(delta.Delta)
+				progressBuffer.WriteString(delta.Delta)
+				if progressBuffer.Len() >= progressChunkMinChars {
+					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					progressBuffer.Reset()
+				}
+			}
+			if delta.Final {
+				if progressBuffer.Len() > 0 {
+					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					progressBuffer.Reset()
+				}
+				ports.EmitToolProgress(ctx, "", true)
+			}
+		},
+	}
+
+	resp, err := streaming.StreamComplete(ctx, req, callbacks)
 	if err != nil {
 		return "", err
 	}
@@ -398,7 +426,11 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 		utils.LogStreamingResponsePayload(requestID, respPayload)
 	}
 
-	return resp.Content, nil
+	contentOut := resp.Content
+	if contentOut == "" {
+		contentOut = contentBuffer.String()
+	}
+	return contentOut, nil
 }
 
 // Helper functions

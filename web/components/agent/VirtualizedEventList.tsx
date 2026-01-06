@@ -13,6 +13,7 @@ import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
+import { AgentMarkdown } from './AgentMarkdown';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -254,6 +255,7 @@ export function VirtualizedEventList({
               const event = visibleEvents[virtualItem.index];
               const completedEvent = isWorkflowToolCompletedEvent(event) ? event : null;
               const isFocused = effectiveFocusedEventIndex === virtualItem.index;
+              const isStreamingDelta = eventMatches(event, 'workflow.node.output.delta');
               return (
                 <div
                   key={virtualItem.key}
@@ -268,27 +270,46 @@ export function VirtualizedEventList({
                   ref={virtualizer.measureElement}
                 >
                   <div
-                    className={cn('pb-6', isFocused && 'scroll-mt-40')}
+                    className={cn(isStreamingDelta ? 'pb-3' : 'pb-6', isFocused && 'scroll-mt-40')}
                     data-focused={isFocused ? 'true' : undefined}
                   >
-                    <Card
-                      className={cn(
-                        'bg-card/95 transition-all duration-150 ease-out',
-                        isFocused && 'outline outline-2 outline-offset-4 outline-foreground',
-                      )}
-                    >
-                      <CardContent className="px-5 py-4">
-                      <EventCard
-                        event={event}
-                        pairedStart={
-                          completedEvent
-                            ? toolCallStartEvents.get(completedEvent.call_id)
-                            : undefined
-                        }
-                        isFocused={isFocused}
-                      />
-                      </CardContent>
-                    </Card>
+                    {isStreamingDelta ? (
+                      <div
+                        className={cn(
+                          'px-5 py-2',
+                          isFocused && 'outline outline-2 outline-offset-4 outline-foreground',
+                        )}
+                      >
+                        <EventCard
+                          event={event}
+                          pairedStart={
+                            completedEvent
+                              ? toolCallStartEvents.get(completedEvent.call_id)
+                              : undefined
+                          }
+                          isFocused={isFocused}
+                        />
+                      </div>
+                    ) : (
+                      <Card
+                        className={cn(
+                          'bg-card/95 transition-all duration-150 ease-out',
+                          isFocused && 'outline outline-2 outline-offset-4 outline-foreground',
+                        )}
+                      >
+                        <CardContent className="px-5 py-4">
+                          <EventCard
+                            event={event}
+                            pairedStart={
+                              completedEvent
+                                ? toolCallStartEvents.get(completedEvent.call_id)
+                                : undefined
+                            }
+                            isFocused={isFocused}
+                          />
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 </div>
               );
@@ -342,11 +363,16 @@ function EventCard({
 
   if (eventMatches(event, 'workflow.node.output.delta')) {
     const delta = (event as any).delta;
-      if (typeof delta === 'string' && delta.trim().length > 0) {
-        return wrapWithContext(
-        <div className="text-sm text-muted-foreground/80 italic whitespace-pre-wrap leading-normal">
-          {delta}
-        </div>,
+    if (typeof delta === 'string' && delta.trim().length > 0) {
+      const streamFinished = (event as any).final === true;
+      const isStreaming = !streamFinished;
+      return (
+        <AgentMarkdown
+          content={delta}
+          className="prose max-w-none text-sm leading-snug text-foreground"
+          isStreaming={isStreaming}
+          streamFinished={streamFinished}
+        />
       );
     }
     return <ThinkingIndicator />;

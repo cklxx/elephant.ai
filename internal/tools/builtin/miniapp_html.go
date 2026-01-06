@@ -93,6 +93,8 @@ func (t *miniAppHTML) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 
 	llmHTML := t.generateWithLLM(ctx, title, prompt, theme, cta)
 	html := t.buildHTML(title, prompt, theme, cta, llmHTML)
+	issues := validateHTMLSource(html)
+	errors, warnings := splitValidationIssues(issues)
 	encoded := base64.StdEncoding.EncodeToString([]byte(html))
 
 	attachment := ports.Attachment{
@@ -114,7 +116,14 @@ func (t *miniAppHTML) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		},
 	}
 
-	content := "Generated single-file HTML mini-app. Save to static storage and open to play."
+	content := fmt.Sprintf(
+		"Generated single-file HTML mini-app. Validation: %d errors, %d warnings.",
+		len(errors),
+		len(warnings),
+	)
+	if len(errors) > 0 {
+		content += " Fix errors before use."
+	}
 
 	return &ports.ToolResult{
 		CallID:      call.ID,
@@ -122,6 +131,11 @@ func (t *miniAppHTML) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		Attachments: map[string]ports.Attachment{attachment.Name: attachment},
 		Metadata: map[string]any{
 			"prefill_task": fmt.Sprintf("预览并改进小游戏《%s》：聚焦节奏、动效和易用性", title),
+			"validation": map[string]any{
+				"error_count":   len(errors),
+				"warning_count": len(warnings),
+				"issues":        issues,
+			},
 		},
 	}, nil
 }
@@ -134,7 +148,35 @@ func (t *miniAppHTML) generateWithLLM(ctx context.Context, title, prompt, theme,
   <button aria-label="Start meme chaos">Start</button>
 </div>`
 
-	resp, err := t.llm.Complete(ctx, ports.CompletionRequest{
+	streaming, ok := ports.EnsureStreamingClient(t.llm).(ports.StreamingLLMClient)
+	if !ok {
+		return ""
+	}
+
+	const progressChunkMinChars = 256
+	var progressBuffer strings.Builder
+	var contentBuffer strings.Builder
+	callbacks := ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				contentBuffer.WriteString(delta.Delta)
+				progressBuffer.WriteString(delta.Delta)
+				if progressBuffer.Len() >= progressChunkMinChars {
+					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					progressBuffer.Reset()
+				}
+			}
+			if delta.Final {
+				if progressBuffer.Len() > 0 {
+					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					progressBuffer.Reset()
+				}
+				ports.EmitToolProgress(ctx, "", true)
+			}
+		},
+	}
+
+	resp, err := streaming.StreamComplete(ctx, ports.CompletionRequest{
 		Messages: []ports.Message{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
@@ -142,11 +184,15 @@ func (t *miniAppHTML) generateWithLLM(ctx context.Context, title, prompt, theme,
 		},
 		MaxTokens:   800,
 		Temperature: 0.7,
-	})
+	}, callbacks)
 	if err != nil || resp == nil {
 		return ""
 	}
-	return strings.TrimSpace(resp.Content)
+	trimmed := strings.TrimSpace(resp.Content)
+	if trimmed == "" {
+		trimmed = strings.TrimSpace(contentBuffer.String())
+	}
+	return trimmed
 }
 
 func (t *miniAppHTML) buildHTML(title, prompt, theme, cta, llmHTML string) string {

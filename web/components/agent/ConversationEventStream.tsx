@@ -37,9 +37,14 @@ export function ConversationEventStream({
   onReconnect,
   isRunning = false,
 }: ConversationEventStreamProps) {
+  const activeTaskId = useMemo(() => resolveActiveTaskId(events), [events]);
   const { displayEvents, subagentThreads } = useMemo(
-    () => partitionEvents(events),
-    [events],
+    () =>
+      partitionEvents(events, {
+        includeDeltas: isRunning,
+        activeTaskId,
+      }),
+    [events, isRunning, activeTaskId],
   );
 
   const displayEntries = useMemo(
@@ -263,7 +268,10 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   return true;
 }
 
-function partitionEvents(events: AnyAgentEvent[]): {
+function partitionEvents(
+  events: AnyAgentEvent[],
+  options: { includeDeltas: boolean; activeTaskId: string | null },
+): {
   displayEvents: AnyAgentEvent[];
   subagentThreads: SubagentThread[];
 } {
@@ -272,6 +280,8 @@ function partitionEvents(events: AnyAgentEvent[]): {
   const arrivalOrder = new WeakMap<AnyAgentEvent, number>();
   const finalAnswerByThreadKey = new Map<string, string>();
   let arrival = 0;
+  const includeDeltas = options.includeDeltas;
+  const activeTaskId = options.activeTaskId;
 
   events.forEach((event) => {
     if (!eventMatches(event, "workflow.result.final", "workflow.result.final")) {
@@ -345,12 +355,27 @@ function partitionEvents(events: AnyAgentEvent[]): {
     }
 
     if (
-      !eventMatches(
+      eventMatches(
         event,
         "workflow.node.output.delta",
         "workflow.node.output.delta",
         "workflow.node.output.delta",
-      ) &&
+      )
+    ) {
+      if (
+        includeDeltas &&
+        !isSubagentEvent &&
+        (activeTaskId === null ||
+          (typeof event.task_id === "string" && event.task_id === activeTaskId))
+      ) {
+        if (!maybeMergeDeltaEvent(displayEvents, event)) {
+          displayEvents.push(event);
+        }
+      }
+      return;
+    }
+
+    if (
       !shouldSkipDuplicateSummaryEvent(event, finalAnswerByThreadKey) &&
       !shouldSkipEvent(event)
     ) {
@@ -384,6 +409,16 @@ function maybeMergeDeltaEvent(
 
   const delta = (incoming as any).delta;
   if (typeof delta !== "string" || delta.length === 0) {
+    const last = events[events.length - 1];
+    if (last && eventMatches(last, "workflow.node.output.delta")) {
+      const merged = {
+        ...(last as any),
+        ...(incoming as any),
+        delta: (last as any).delta ?? "",
+        timestamp: incoming.timestamp ?? last.timestamp,
+      } as AnyAgentEvent;
+      events[events.length - 1] = merged;
+    }
     return true;
   }
 
@@ -451,6 +486,53 @@ function getThreadKey(event: AnyAgentEvent): string | null {
 
   if (sessionId) {
     return `core:${sessionId}`;
+  }
+
+  return null;
+}
+
+function resolveActiveTaskId(events: AnyAgentEvent[]): string | null {
+  let activeTaskId: string | null = null;
+
+  events.forEach((event) => {
+    if (event.event_type === "workflow.input.received") {
+      if (event.agent_level !== "core") {
+        return;
+      }
+      if (typeof event.task_id === "string" && event.task_id.trim()) {
+        activeTaskId = event.task_id;
+      }
+      return;
+    }
+    if (!activeTaskId) {
+      return;
+    }
+    if (event.agent_level !== "core") {
+      return;
+    }
+    if (event.task_id !== activeTaskId) {
+      return;
+    }
+    if (
+      eventMatches(event, "workflow.result.final", "workflow.result.cancelled") ||
+      eventMatches(event, "workflow.node.failed")
+    ) {
+      activeTaskId = null;
+    }
+  });
+
+  if (activeTaskId) {
+    return activeTaskId;
+  }
+
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    if (events[i].agent_level !== "core") {
+      continue;
+    }
+    const taskId = typeof events[i].task_id === "string" ? events[i].task_id.trim() : "";
+    if (taskId) {
+      return taskId;
+    }
   }
 
   return null;

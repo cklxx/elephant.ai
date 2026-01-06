@@ -220,6 +220,33 @@ export const EventLine = React.memo(function EventLine({
     );
   }
 
+  // Assistant streaming (delta)
+  if (event.event_type === "workflow.node.output.delta") {
+    const delta =
+      "delta" in event && typeof event.delta === "string" ? event.delta : "";
+    if (!delta.trim()) {
+      return null;
+    }
+    const streamFinished = (event as any).final === true;
+    const isStreaming = !streamFinished;
+    return wrapWithSubagentContext(
+      <div
+        className={cn(
+          "py-2",
+          !isNested && "pl-4 border-l-2 border-primary/10",
+        )}
+        data-testid="event-workflow.node.output.delta"
+      >
+        <AgentMarkdown
+          content={delta}
+          className="prose max-w-none text-base leading-snug text-foreground"
+          isStreaming={isStreaming}
+          streamFinished={streamFinished}
+        />
+      </div>,
+    );
+  }
+
   // Assistant log (ReAct)
   if (event.event_type === "workflow.node.output.summary") {
     const thinkEvent = event as WorkflowNodeOutputSummaryEvent;
