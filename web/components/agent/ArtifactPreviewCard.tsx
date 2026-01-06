@@ -72,8 +72,41 @@ async function loadHtmlSource(uri: string): Promise<string> {
   return response.text();
 }
 
+function ensureViewportMeta(html: string): string {
+  const trimmed = html.trim();
+  if (!trimmed) return html;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.includes('name="viewport"') ||
+    lower.includes("name='viewport'")
+  ) {
+    return html;
+  }
+
+  const viewportTag =
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />';
+  if (/<head\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(/<head\b[^>]*>/i, (match) => `${match}\n  ${viewportTag}`);
+  }
+  if (/<body\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(
+      /<body\b[^>]*>/i,
+      (match) => `<head>\n  ${viewportTag}\n</head>\n${match}`,
+    );
+  }
+  if (/<html\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(
+      /<html\b[^>]*>/i,
+      (match) => `${match}\n<head>\n  ${viewportTag}\n</head>`,
+    );
+  }
+
+  return `<!doctype html><html><head>${viewportTag}</head><body>${trimmed}</body></html>`;
+}
+
 function buildHtmlDataUri(html: string): string {
-  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+  const normalized = ensureViewportMeta(html);
+  return `data:text/html;charset=utf-8,${encodeURIComponent(normalized)}`;
 }
 
 function validateHtmlSource(html: string): HtmlValidationIssue[] {
