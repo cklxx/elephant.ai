@@ -200,7 +200,7 @@ export function ConversationPageContent() {
     addEvent: addFlowEvent,
   } = useAgentEventStream(flowStreamSessionId, {
     useMock: useMockStream,
-    enabled: viewMode === "flow" && (Boolean(flowStreamSessionId) || useMockStream),
+    enabled: Boolean(flowStreamSessionId) || useMockStream,
   });
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
