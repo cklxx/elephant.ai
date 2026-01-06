@@ -21,18 +21,18 @@ type HomeCopy = {
 
 const copy: Record<HomeLang, HomeCopy> = {
   zh: {
-    badge: "elephant.ai · orchestration-first",
+    badge: "elephant.ai · proactive agent",
     title: "一只猛虎，不在纸上",
-    subtitle: "首页与 Console 同框：一段实时对话，Plan · Clearify · ReAct。",
+    subtitle: "首页与 Console 同框：主动 Agent 先探路、先澄清、再执行。",
     actions: {
       primary: "进入控制台",
       flow: "体验心流模式",
     },
   },
   en: {
-    badge: "elephant.ai · orchestration-first",
+    badge: "elephant.ai · proactive agent",
     title: "A tiger is not on paper",
-    subtitle: "Same frame as the console—one live chat to Plan · Clearify · ReAct.",
+    subtitle: "Proactive agents share the console frame—scouting, clarifying, then executing.",
     actions: {
       primary: "Open console",
       flow: "Try Flow mode",
@@ -51,49 +51,49 @@ type ManifestoCopy = {
 const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
   zh: {
     badge: "纯文本 · 理念",
-    title: "Plan · Clearify · ReAct 的纯净宣言",
-    lede: "首页与控制台同框：以编排为先，少装饰，多留证据。",
+    title: "主动式 Agent 的纯净宣言",
+    lede: "首页与控制台同框：主动 Agent 持续感知、提前协同，编排先于回答。",
     points: [
       {
-        title: "先计划，不做堆料式提示",
-        body: "Session 保持有状态，目标和约束并排，Agent 知道不能踩的线。",
+        title: "主动觉察，先于指令规划",
+        body: "Session 保持有状态，主动 Agent 按目标和约束预判路径，标注不可踩的线。",
         accent: "from-indigo-500 via-sky-500 to-emerald-500",
       },
       {
-        title: "清晰拆解，可见的步骤",
-        body: "任务拆成可调用的工具，证据同行，review 时能看见结果是怎么来的。",
+        title: "少催促，多澄清",
+        body: "行动前主动提问和暴露依赖，再把任务拆成可调用的工具，风险在执行前就被看见。",
         accent: "from-amber-500 via-orange-500 to-rose-500",
       },
       {
-        title: "行动可追责",
-        body: "每一步像控制台一样可停、可重放、易交接；记录先于包装。",
+        title: "行动自证可追责",
+        body: "每一步像控制台一样可停、可重放，连同证据输出，方便交接与复盘。",
         accent: "from-emerald-500 via-teal-500 to-cyan-500",
       },
     ],
-    closing: "慢即快：少一层包装，多一份真实状态。这就是我们保留的全部文案。",
+    closing: "慢即快：主动 Agent 少一次往返催促，多一次真实状态与证据。",
   },
   en: {
     badge: "Plain text · why elephant.ai",
-    title: "A clean manifesto for Plan · Clearify · ReAct",
-    lede: "Homepage shares the console frame: orchestration first, minimal chrome, evidence always visible.",
+    title: "A clean manifesto for proactive agents",
+    lede: "Homepage shares the console frame: proactive agents keep sensing, coordinating, and orchestrating before answering.",
     points: [
       {
-        title: "Plan before prompting",
-        body: "Sessions stay stateful with goals and guardrails side by side so agents know the lines they cannot cross.",
+        title: "Sense early, plan ahead",
+        body: "Sessions stay stateful; proactive agents read goals and guardrails to anticipate paths and mark the lines they cannot cross.",
         accent: "from-indigo-500 via-sky-500 to-emerald-500",
       },
       {
-        title: "Clearify into visible steps",
-        body: "Work is sliced into callable tools with evidence inline, so reviewers see exactly how outputs are produced.",
+        title: "Clarify before moving",
+        body: "They ask first, surface dependencies, and slice work into callable tools so risks show up before execution.",
         accent: "from-amber-500 via-orange-500 to-rose-500",
       },
       {
-        title: "ReAct with accountability",
-        body: "Every action mirrors the conversation view—stoppable, replayable, and ready to hand off without rework.",
+        title: "Act with built-in evidence",
+        body: "Every action mirrors the console view—pausable, replayable, and delivered with inline artifacts for handoffs and reviews.",
         accent: "from-emerald-500 via-teal-500 to-cyan-500",
       },
     ],
-    closing: "Slow is fast: fewer layers, truer state. That's the only marketing copy we keep.",
+    closing: "Slow is fast: proactive agents cut nagging loops and keep real state with proof.",
   },
 };
 
@@ -105,14 +105,14 @@ type VideoCopy = {
 
 const videoCopy: Record<HomeLang, VideoCopy> = {
   zh: {
-    title: "演示视频稍后放在这里",
-    body: "首页只保留核心文案，待会我们会把真实操作的视频嵌在这个位置。",
-    note: "无模拟对话框：保持界面干净，方便替换成录屏。",
+    title: "主动 Agent 演示视频稍后放在这里",
+    body: "这一块预留给真实录屏：主动 Agent 如何先探路、澄清依赖，再行动并交付证据。",
+    note: "无模拟对话框：留白给真实上下文与产出，方便直接替换成录屏。",
   },
   en: {
-    title: "Demo video will live here soon",
-    body: "The homepage keeps only the core copy. We’ll embed a real walkthrough video in this spot later.",
-    note: "No simulated chat: a clean space ready for the recording.",
+    title: "Proactive agent demo video will live here soon",
+    body: "Reserved for a real recording: how a proactive agent scouts, clarifies dependencies, then acts with evidence.",
+    note: "No simulated chat—a clean space to drop in real context and artifacts.",
   },
 };
 
