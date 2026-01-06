@@ -45,10 +45,12 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		attachmentStore = store
 	}
 	taskBodyLimit := createTaskBodyLimit(envLookup)
+	normalizedEnv := strings.TrimSpace(environment)
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore))
-	internalMode := strings.EqualFold(environment, "internal") || strings.EqualFold(environment, "evaluation")
+	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
+	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
 	apiHandler := NewAPIHandler(
 		coordinator,
 		healthChecker,
@@ -56,6 +58,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		WithAPIObservability(obs),
 		WithEvaluationService(evaluationService),
 		WithAttachmentStore(attachmentStore),
+		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
 	)
 
@@ -75,6 +78,12 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	mux := http.NewServeMux()
 
 	mux.Handle("/api/internal/sessions/", routeHandler("/api/internal/sessions", http.HandlerFunc(apiHandler.HandleInternalSessionRequest)))
+
+	if devMode {
+		devSessionHandler := routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleDevSessionRequest)))
+		mux.Handle("/api/dev/sessions", devSessionHandler)
+		mux.Handle("/api/dev/sessions/", devSessionHandler)
+	}
 
 	if internalMode && configHandler != nil {
 		runtimeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

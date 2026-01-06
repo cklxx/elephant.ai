@@ -14,6 +14,7 @@ import {
   EvaluationDetailResponse,
   StartEvaluationRequest,
   EvaluationJobSummary,
+  ContextWindowPreviewResponse,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -273,6 +274,13 @@ export async function deleteSession(sessionId: string): Promise<void> {
   });
 }
 
+export async function getContextWindowPreview(
+  sessionId: string,
+): Promise<ContextWindowPreviewResponse> {
+  const sanitized = encodeURIComponent(sessionId);
+  return fetchAPI<ContextWindowPreviewResponse>(`/api/dev/sessions/${sanitized}/context-window`);
+}
+
 export async function forkSession(
   sessionId: string,
 ): Promise<{ new_session_id: string }> {
@@ -364,6 +372,7 @@ export const apiClient = {
   getSessionDetails,
   getSessionTitle,
   deleteSession,
+  getContextWindowPreview,
   forkSession,
   listEvaluations,
   startEvaluation,

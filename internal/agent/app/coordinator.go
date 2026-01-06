@@ -716,6 +716,64 @@ func (c *AgentCoordinator) GetContextManager() ports.ContextManager {
 	return c.contextMgr
 }
 
+// PreviewContextWindow constructs the current context window for a session
+// without mutating session state. This is intended for diagnostics in
+// development flows.
+func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (ports.ContextWindowPreview, error) {
+	preview := ports.ContextWindowPreview{}
+
+	if c.contextMgr == nil {
+		return preview, fmt.Errorf("context manager not configured")
+	}
+
+	session, err := c.GetSession(ctx, sessionID)
+	if err != nil {
+		return preview, err
+	}
+
+	toolMode := presets.ToolMode(strings.TrimSpace(c.config.ToolMode))
+	if toolMode == "" {
+		toolMode = presets.ToolModeCLI
+	}
+	toolPreset := strings.TrimSpace(c.config.ToolPreset)
+	if c.prepService != nil {
+		if resolved := c.prepService.ResolveToolPreset(ctx, toolPreset); resolved != "" {
+			toolPreset = resolved
+		}
+		if resolved := c.prepService.ResolveAgentPreset(ctx, c.config.AgentPreset); resolved != "" {
+			preview.PersonaKey = resolved
+		}
+	}
+	if preview.PersonaKey == "" {
+		preview.PersonaKey = c.config.AgentPreset
+	}
+	if toolMode == presets.ToolModeCLI && toolPreset == "" {
+		toolPreset = string(presets.ToolPresetFull)
+	}
+	if toolMode == presets.ToolModeWeb {
+		toolPreset = ""
+	}
+
+	window, err := c.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+		TokenLimit:         c.config.MaxTokens,
+		PersonaKey:         preview.PersonaKey,
+		ToolMode:           string(toolMode),
+		ToolPreset:         toolPreset,
+		EnvironmentSummary: c.config.EnvironmentSummary,
+	})
+	if err != nil {
+		return preview, fmt.Errorf("build context window: %w", err)
+	}
+
+	preview.Window = window
+	preview.TokenEstimate = c.contextMgr.EstimateTokens(window.Messages)
+	preview.TokenLimit = c.config.MaxTokens
+	preview.ToolMode = string(toolMode)
+	preview.ToolPreset = toolPreset
+
+	return preview, nil
+}
+
 // GetSystemPrompt returns the system prompt
 func (c *AgentCoordinator) GetSystemPrompt() string {
 	if c.contextMgr == nil {

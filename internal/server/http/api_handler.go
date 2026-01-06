@@ -32,6 +32,7 @@ type APIHandler struct {
 	healthChecker         *app.HealthCheckerImpl
 	logger                logging.Logger
 	internalMode          bool
+	devMode               bool
 	obs                   *observability.Observability
 	evaluationSvc         *app.EvaluationService
 	attachmentStore       *AttachmentStore
@@ -69,6 +70,13 @@ func WithMaxCreateTaskBodySize(limit int64) APIHandlerOption {
 		if limit > 0 {
 			handler.maxCreateTaskBodySize = limit
 		}
+	}
+}
+
+// WithDevMode enables development-only endpoints.
+func WithDevMode(enabled bool) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.devMode = enabled
 	}
 }
 
@@ -141,6 +149,16 @@ type ContextSnapshotItem struct {
 type ContextSnapshotResponse struct {
 	SessionID string                `json:"session_id"`
 	Snapshots []ContextSnapshotItem `json:"snapshots"`
+}
+
+type ContextWindowPreviewResponse struct {
+	SessionID     string                   `json:"session_id"`
+	TokenEstimate int                      `json:"token_estimate"`
+	TokenLimit    int                      `json:"token_limit"`
+	PersonaKey    string                   `json:"persona_key,omitempty"`
+	ToolMode      string                   `json:"tool_mode,omitempty"`
+	ToolPreset    string                   `json:"tool_preset,omitempty"`
+	Window        agentports.ContextWindow `json:"window"`
 }
 
 type SessionSnapshotItem struct {
@@ -942,6 +960,70 @@ func (h *APIHandler) HandleInternalSessionRequest(w http.ResponseWriter, r *http
 	}
 
 	http.NotFound(w, r)
+}
+
+// HandleDevSessionRequest routes development-only session endpoints.
+func (h *APIHandler) HandleDevSessionRequest(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.NotFound(w, r)
+		return
+	}
+
+	if strings.HasSuffix(r.URL.Path, "/context-window") {
+		h.HandleGetContextWindowPreview(w, r)
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+// HandleGetContextWindowPreview handles GET /api/dev/sessions/:id/context-window.
+func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.NotFound(w, r)
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/dev/sessions/")
+	path = strings.TrimSuffix(path, "/context-window")
+	sessionID := strings.Trim(path, "/")
+	if sessionID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Session ID required", fmt.Errorf("invalid session id"))
+		return
+	}
+
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	preview, err := h.coordinator.PreviewContextWindow(r.Context(), sessionID)
+	if err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, "Failed to build context window", err)
+		return
+	}
+
+	sentAttachments := make(map[string]string)
+	sanitizedWindow := preview.Window
+	sanitizedWindow.SessionID = sessionID
+	sanitizedWindow.Messages = sanitizeMessagesForDelivery(preview.Window.Messages, sentAttachments)
+
+	response := ContextWindowPreviewResponse{
+		SessionID:     sessionID,
+		TokenEstimate: preview.TokenEstimate,
+		TokenLimit:    preview.TokenLimit,
+		PersonaKey:    preview.PersonaKey,
+		ToolMode:      preview.ToolMode,
+		ToolPreset:    preview.ToolPreset,
+		Window:        sanitizedWindow,
+	}
+
+	h.writeJSON(w, http.StatusOK, response)
 }
 
 // HandleGetContextSnapshots handles GET /api/internal/sessions/:id/context.
