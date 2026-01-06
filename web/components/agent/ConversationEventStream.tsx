@@ -409,6 +409,16 @@ function maybeMergeDeltaEvent(
 
   const delta = (incoming as any).delta;
   if (typeof delta !== "string" || delta.length === 0) {
+    const last = events[events.length - 1];
+    if (last && eventMatches(last, "workflow.node.output.delta")) {
+      const merged = {
+        ...(last as any),
+        ...(incoming as any),
+        delta: (last as any).delta ?? "",
+        timestamp: incoming.timestamp ?? last.timestamp,
+      } as AnyAgentEvent;
+      events[events.length - 1] = merged;
+    }
     return true;
   }
 

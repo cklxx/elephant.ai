@@ -13,6 +13,7 @@ import { ToolCallCard } from './ToolCallCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
+import { AgentMarkdown } from './AgentMarkdown';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -342,11 +343,16 @@ function EventCard({
 
   if (eventMatches(event, 'workflow.node.output.delta')) {
     const delta = (event as any).delta;
-      if (typeof delta === 'string' && delta.trim().length > 0) {
-        return wrapWithContext(
-        <div className="text-sm text-muted-foreground/80 italic whitespace-pre-wrap leading-normal">
-          {delta}
-        </div>,
+    if (typeof delta === 'string' && delta.trim().length > 0) {
+      const streamFinished = (event as any).final === true;
+      const isStreaming = !streamFinished;
+      return wrapWithContext(
+        <AgentMarkdown
+          content={delta}
+          className="prose max-w-none text-sm leading-snug text-foreground"
+          isStreaming={isStreaming}
+          streamFinished={streamFinished}
+        />,
       );
     }
     return <ThinkingIndicator />;
