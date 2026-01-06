@@ -136,6 +136,57 @@ describe('ConversationEventStream', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows workflow.node.output.delta events while running', () => {
+    const firstTimestamp = new Date().toISOString();
+    const thirdTimestamp = new Date(Date.now() + 2000).toISOString();
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.node.output.delta',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        iteration: 1,
+        delta: 'Here is the summary',
+        final: false,
+        timestamp: firstTimestamp,
+        created_at: firstTimestamp,
+      },
+      {
+        event_type: 'workflow.node.output.delta',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        iteration: 1,
+        delta: ' with additional context.',
+        final: true,
+        timestamp: thirdTimestamp,
+        created_at: thirdTimestamp,
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+          isRunning
+        />
+      </LanguageProvider>,
+    );
+
+    expect(
+      screen.getByText(/Here is the summary with additional context\./i),
+    ).toBeInTheDocument();
+  });
+
   it('renders the latest workflow.result.final event inline without duplication', () => {
     const firstTimestamp = new Date().toISOString();
     const completionTimestamp = new Date(Date.now() + 1500).toISOString();

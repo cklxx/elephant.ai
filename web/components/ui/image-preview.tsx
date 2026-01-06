@@ -14,6 +14,7 @@ interface ImagePreviewProps {
   sizes?: string;
   minHeight?: string;
   maxHeight?: string;
+  loading?: "eager" | "lazy";
 }
 
 export function ImagePreview({
@@ -24,8 +25,11 @@ export function ImagePreview({
   sizes = "100vw",
   minHeight = "12rem",
   maxHeight = "20rem",
+  loading = "lazy",
 }: ImagePreviewProps) {
   const [open, setOpen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const altText = alt?.trim() || "Image preview";
   const label = alt ? `查看 ${alt} 大图` : "查看大图";
 
@@ -44,14 +48,36 @@ export function ImagePreview({
           className="relative w-full"
           style={{ minHeight, maxHeight }}
         >
-          <Image
-            src={src}
-            alt={altText}
-            fill
-            className={cn("object-contain transition-transform duration-300 group-hover:scale-[1.02]", imageClassName)}
-            sizes={sizes}
-            unoptimized
+          <div
+            className={cn(
+              "absolute inset-0 rounded-md bg-muted/30",
+              !isLoaded && !hasError && "animate-pulse",
+              (isLoaded || hasError) && "opacity-0",
+            )}
+            aria-hidden="true"
           />
+          {hasError ? (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+              Image unavailable
+            </div>
+          ) : (
+            <Image
+              src={src}
+              alt={altText}
+              fill
+              className={cn(
+                "object-contain transition-opacity duration-300 group-hover:scale-[1.02]",
+                isLoaded ? "opacity-100" : "opacity-0",
+                imageClassName,
+              )}
+              sizes={sizes}
+              unoptimized
+              loading={loading}
+              priority={loading === "eager"}
+              onLoadingComplete={() => setIsLoaded(true)}
+              onError={() => setHasError(true)}
+            />
+          )}
         </div>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>

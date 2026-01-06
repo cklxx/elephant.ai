@@ -227,6 +227,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         maxHeight="14rem"
         sizes="220px"
         imageClassName="object-contain"
+        loading="eager"
       />
     );
   };
@@ -378,6 +379,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                 maxHeight="20rem"
                 className="w-full sm:w-[220px] lg:w-[260px]"
                 sizes="(min-width: 1280px) 260px, (min-width: 768px) 220px, 100vw"
+                loading={index === 0 ? "eager" : "lazy"}
               />
             );
           })}
