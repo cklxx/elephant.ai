@@ -21,7 +21,7 @@ jobs:
       - name: Post @codex kickoff comment
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_PAT }}
           script: |
             const prNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
