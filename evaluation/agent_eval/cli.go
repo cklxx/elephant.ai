@@ -28,8 +28,8 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 	}
 
 	config := &EvaluationConfig{
-		DatasetType:    "swe_bench",
-		DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+		DatasetType:    "general_agent",
+		DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
 		InstanceLimit:  10, // 默认少量实例用于测试
 		MaxWorkers:     2,
 		AgentID:        "default-agent",
@@ -87,6 +87,9 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 
 	if options.DatasetPath != "" {
 		config.DatasetPath = options.DatasetPath
+	}
+	if options.DatasetType != "" {
+		config.DatasetType = options.DatasetType
 	}
 	if options.AgentID != "" {
 		config.AgentID = options.AgentID
@@ -181,6 +184,7 @@ func (cm *CLIManager) GetJobResults(jobID string) (*EvaluationResults, error) {
 // EvaluationOptions 评估选项
 type EvaluationOptions struct {
 	DatasetPath    string        `json:"dataset_path"`
+	DatasetType    string        `json:"dataset_type"`
 	InstanceLimit  int           `json:"instance_limit"`
 	MaxWorkers     int           `json:"max_workers"`
 	TimeoutPerTask time.Duration `json:"timeout_per_task"`
@@ -194,7 +198,8 @@ type EvaluationOptions struct {
 // DefaultEvaluationOptions 默认评估选项
 func DefaultEvaluationOptions() *EvaluationOptions {
 	return &EvaluationOptions{
-		DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+		DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
+		DatasetType:    "general_agent",
 		InstanceLimit:  10,
 		MaxWorkers:     2,
 		TimeoutPerTask: 300 * time.Second,

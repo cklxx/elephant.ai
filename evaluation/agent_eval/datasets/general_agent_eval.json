@@ -1,0 +1,206 @@
+[
+  {
+    "id": "ga-planning-001",
+    "title": "Cross-team beta launch readiness",
+    "goal": "Produce a week-by-week readiness plan for a beta launch across application, infrastructure, and security workstreams.",
+    "context": "The app team is shipping a collaborative workspace feature while the infrastructure team finishes a Kubernetes 1.30 migration. Security needs a refreshed DPA before any external rollout.",
+    "input": "Stakeholders: PM (Nora), Eng (Kai), Security (Uma). Target beta date: June 30. Risks observed: soak testing incomplete, rollout guardrails missing, and no exit criteria defined for the beta.",
+    "constraints": [
+      "Keep the plan inside a two-week window leading to June 30",
+      "List owners with measurable checkpoints and expected signals",
+      "Call out the top three risks with specific mitigations and validation steps"
+    ],
+    "expected_output": "A markdown table with week, owner, milestone, risk, mitigation, and verification signals, followed by a concise narrative of critical dependencies.",
+    "skills": ["planning", "risk_management", "program_management"],
+    "difficulty": "medium",
+    "domain": "program_management",
+    "surface": "web"
+  },
+  {
+    "id": "ga-analysis-002",
+    "title": "Log triage for intermittent latency spikes",
+    "goal": "Isolate the likely root cause behind latency spikes observed during European peak hours.",
+    "context": "A Go microservice emits structured logs with request_id, path, and db_duration_ms. A new feature flag 'async_export' shipped last week.",
+    "input": "Sample log snippets: `path=/export duration_ms=1240 db_duration_ms=950 async_export=true`, `path=/export duration_ms=210 db_duration_ms=45 async_export=false`, `path=/export duration_ms=1320 db_duration_ms=1020 async_export=true`.",
+    "constraints": [
+      "Do not assume unrelated services are at fault",
+      "Prefer hypotheses grounded in the provided evidence",
+      "Propose one lightweight experiment to validate the cause within one hour"
+    ],
+    "expected_output": "A ranked list of two or three hypotheses with supporting evidence from the logs and a single quick experiment to confirm the top hypothesis.",
+    "skills": ["log_analysis", "hypothesis_generation", "debugging"],
+    "difficulty": "medium",
+    "domain": "operations",
+    "surface": "web"
+  },
+  {
+    "id": "ga-data-003",
+    "title": "Reshape customer feedback into prioritization input",
+    "goal": "Transform raw feedback notes into a concise prioritization brief for the roadmap meeting.",
+    "context": "Feedback themes: slow search for large tenants, missing audit exports, unclear billing errors. Usage mix: 65% API, 35% dashboard.",
+    "input": "Notes: 'Search gets slower after 50k documents', 'Billing errors lack actionable hints', 'Audit exports arrive hours later than UI changes', 'API users want stronger idempotency guarantees'.",
+    "constraints": [
+      "Bucket items into no more than four themes",
+      "Assign an impact estimate (H/M/L) and confidence (H/M/L) per theme",
+      "Include a one-sentence customer quote for each theme"
+    ],
+    "expected_output": "A markdown list of themes with impact, confidence, representative quote, and a recommended next action per theme.",
+    "skills": ["information_synthesis", "prioritization", "customer_focus"],
+    "difficulty": "easy",
+    "domain": "product",
+    "surface": "web"
+  },
+  {
+    "id": "ga-sql-004",
+    "title": "Author a safe analytics query",
+    "goal": "Write a single SQL query that surfaces the weekly retention of active projects without scanning the entire table.",
+    "context": "Table projects(id, owner_id, created_at, last_active_at, status). Partitioned by created_at month with an index on last_active_at.",
+    "input": "Definition of active: last_active_at within the last 30 days and status = 'active'. Retention window: group by ISO week of last_active_at.",
+    "constraints": [
+      "Avoid full table scans; leverage the existing index and partitions",
+      "Return columns: week_start_date, active_projects, returning_projects",
+      "Document any assumptions about timezone handling"
+    ],
+    "expected_output": "A parameterized SQL statement plus a short note on how it avoids full scans.",
+    "skills": ["sql", "performance_awareness", "analytics"],
+    "difficulty": "medium",
+    "domain": "data",
+    "surface": "web"
+  },
+  {
+    "id": "ga-api-005",
+    "title": "Design a minimal incident export API",
+    "goal": "Specify a small but complete HTTP API that lets customers export incidents in NDJSON.",
+    "context": "Incidents have fields id, title, severity, opened_at, resolved_at, services. Customers need incremental exports for compliance archiving.",
+    "input": "Consumers want time-bounded exports, pagination, and filtering by severity or service. Rate limits already enforced by an upstream gateway.",
+    "constraints": [
+      "Keep the surface minimal: prefer one resource with clear query parameters",
+      "Describe the shape of a success response and one error envelope",
+      "Show how clients resume from an offset or cursor"
+    ],
+    "expected_output": "Endpoint specification including method, path, parameters, response schema, and an example success and error payload.",
+    "skills": ["api_design", "specification", "communication"],
+    "difficulty": "medium",
+    "domain": "architecture",
+    "surface": "web"
+  },
+  {
+    "id": "ga-security-006",
+    "title": "Threat model a webhook ingestion path",
+    "goal": "Identify concrete threats and mitigations for a public webhook endpoint that stores events before processing.",
+    "context": "The endpoint accepts JSON payloads, writes to a queue, and persists to an events table. Payloads are later validated asynchronously.",
+    "input": "Current controls: TLS termination at the load balancer, API keys in headers, and rate limiting on the gateway.",
+    "constraints": [
+      "Prioritize realistic threats over exhaustive catalogs",
+      "Map each threat to a specific mitigation or detection",
+      "Keep the output under 12 bullet points"
+    ],
+    "expected_output": "A concise list of threats (spoofing, tampering, replay, abuse) with paired mitigations and any monitoring hooks.",
+    "skills": ["security_review", "threat_modeling", "risk_management"],
+    "difficulty": "hard",
+    "domain": "security",
+    "surface": "web"
+  },
+  {
+    "id": "ga-schedule-007",
+    "title": "Reconcile overlapping maintenance windows",
+    "goal": "Produce a schedule that avoids customer-visible downtime across two dependent services.",
+    "context": "Service A needs a kernel patch (20 minutes downtime). Service B depends on A and needs a schema migration (5 minutes downtime). Traffic is lowest between 02:00-04:00 UTC.",
+    "input": "Customer SLAs: no more than 10 minutes of downtime per 24 hours, notify 24 hours in advance.",
+    "constraints": [
+      "Sequence the work to respect the dependency",
+      "Stay within the 02:00-04:00 UTC window",
+      "Call out customer notification timing and rollback cues"
+    ],
+    "expected_output": "A timestamped runbook with order of operations, expected downtime per step, and explicit notification/rollback steps.",
+    "skills": ["scheduling", "runbook_writing", "operations"],
+    "difficulty": "easy",
+    "domain": "operations",
+    "surface": "web"
+  },
+  {
+    "id": "ga-observability-008",
+    "title": "Correlate metrics to isolate a regression",
+    "goal": "Suggest the most likely cause of an error-rate regression using limited metrics.",
+    "context": "Metrics available: request_error_rate, p95_latency, queue_depth, worker_cpu. Regression started after build 412 was deployed to 30% of traffic.",
+    "input": "Recent observations: error_rate +2.5%, p95_latency flat, queue_depth up 40%, worker_cpu down 10%.",
+    "constraints": [
+      "Do not invent signals not present in the metrics",
+      "Prefer a single, testable hypothesis",
+      "Recommend one metrics slice or log query to confirm"
+    ],
+    "expected_output": "A short narrative identifying the likeliest bottleneck and one verification step.",
+    "skills": ["observability", "hypothesis_generation", "debugging"],
+    "difficulty": "medium",
+    "domain": "observability",
+    "surface": "web"
+  },
+  {
+    "id": "ga-docs-009",
+    "title": "Summarize a design RFC for executives",
+    "goal": "Distill a technical RFC into an executive-friendly brief highlighting outcomes and risks.",
+    "context": "The RFC introduces a background compaction service to reduce storage costs by 20% while keeping availability unchanged.",
+    "input": "Key points: compaction runs off-peak, uses adaptive throttling, and writes checkpoints to S3. Risks: increased S3 spend, possible long-tail latencies if throttling fails.",
+    "constraints": [
+      "Avoid jargon; keep the summary under 180 words",
+      "Emphasize measurable outcomes and timelines",
+      "Call out the top two risks with mitigations"
+    ],
+    "expected_output": "A crisp summary with an outcome section, a timeline, and a two-bullet risk section.",
+    "skills": ["communication", "summarization", "risk_management"],
+    "difficulty": "easy",
+    "domain": "product",
+    "surface": "web"
+  },
+  {
+    "id": "ga-quality-010",
+    "title": "Backfill tests for a flaky workflow",
+    "goal": "Propose targeted tests to stabilize a workflow that sporadically fails during retries.",
+    "context": "Workflow steps: enqueue job -> fetch external artifact -> transform -> persist result. Failures spike when the external dependency slows down.",
+    "input": "Current coverage: happy-path integration test only. Metrics show retry_count averages 2.3 with occasional timeouts.",
+    "constraints": [
+      "Focus on tests rather than rewriting the workflow",
+      "Cover at least one timeout and one retry exhaustion scenario",
+      "Keep the plan to three or fewer new tests"
+    ],
+    "expected_output": "A numbered list of new tests with their purpose and the failure they guard against.",
+    "skills": ["testing_strategy", "resilience", "system_design"],
+    "difficulty": "medium",
+    "domain": "quality",
+    "surface": "web"
+  },
+  {
+    "id": "ga-reasoning-011",
+    "title": "Map an ambiguous request into concrete tasks",
+    "goal": "Turn a vague stakeholder request into a clear, actionable task list.",
+    "context": "Stakeholder asks: 'Make onboarding feel smoother for larger customers; it's too confusing right now.'",
+    "input": "Known signals: support tickets mention SSO confusion and slow data imports; adoption for tenants >200 seats is 30% lower.",
+    "constraints": [
+      "Keep tasks within a two-sprint horizon",
+      "Show expected outcomes per task",
+      "Include at least one measurement to track success"
+    ],
+    "expected_output": "A task list with owners, expected outcomes, and metrics to watch.",
+    "skills": ["requirements_analysis", "planning", "communication"],
+    "difficulty": "medium",
+    "domain": "product",
+    "surface": "web"
+  },
+  {
+    "id": "ga-governance-012",
+    "title": "Define guardrails for agent tool usage",
+    "goal": "Create lightweight governance rules for how a general agent may invoke tools in production.",
+    "context": "Tools available: database read-only queries, cache writes, ticket creation, and shell read-only commands. Compliance requires auditable actions.",
+    "input": "Incidents last quarter: two runaway cache writes and one noisy ticket storm.",
+    "constraints": [
+      "Favor simple, enforceable rules over complex policies",
+      "Explicitly state approval requirements and logging expectations",
+      "Address runaway or repeated actions with rate limits or circuit breakers"
+    ],
+    "expected_output": "A short policy with allowed tools, required approvals, audit expectations, and safeguards against repeated actions.",
+    "skills": ["governance", "policy_design", "risk_management"],
+    "difficulty": "hard",
+    "domain": "governance",
+    "surface": "web"
+  }
+]

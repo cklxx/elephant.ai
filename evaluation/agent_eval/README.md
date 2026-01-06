@@ -42,6 +42,18 @@
 - 优先级分类的建议
 - 对比分析支持
 
+## 内置通用Agent评测集
+
+默认数据集位于 `evaluation/agent_eval/datasets/general_agent_eval.json`，`DatasetType` 使用 `general_agent`。该集合聚焦通用能力（主要面向 Web Agent 能力），而非SWE-Bench式的代码修复场景（偏 CLI），覆盖：
+
+- 规划与项目管理：跨团队计划、歧义拆解、排期对齐
+- 分析与可观察性：日志三角定位、指标归因、故障假设
+- 架构与API：最小API设计、治理与工具使用边界
+- 安全与运营：威胁建模、运维窗口排程、弹性与测试策略
+- 产品与沟通：高层摘要、客户反馈整合、优先级梳理
+
+每条任务默认 `surface=web`，可通过 `Metadata["surface"]` 过滤区分；SWE-Bench 仍适用于 CLI/修复类评测。
+
 ## 快速开始
 
 ### 1. 基本使用
@@ -85,7 +97,7 @@ func main() {
     
     // 配置评估选项
     options := &agent_eval.EvaluationOptions{
-        DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+        DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
         InstanceLimit:  50,
         MaxWorkers:     4,
         TimeoutPerTask: 300 * time.Second,
@@ -113,7 +125,7 @@ func compareConfigurations() {
     
     // 基准配置
     baselineConfig := &agent_eval.EvaluationConfig{
-        DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+        DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
         InstanceLimit:  20,
         MaxWorkers:     2,
         TimeoutPerTask: 300 * time.Second,
@@ -123,7 +135,7 @@ func compareConfigurations() {
     
     // 实验配置
     experimentConfig := &agent_eval.EvaluationConfig{
-        DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+        DatasetPath:    "./evaluation/agent_eval/datasets/general_agent_eval.json",
         InstanceLimit:  20,
         MaxWorkers:     4, // 增加worker数量
         TimeoutPerTask: 600 * time.Second, // 增加超时时间
@@ -151,7 +163,7 @@ func compareConfigurations() {
 ```go
 type EvaluationConfig struct {
     // 数据集配置
-    DatasetType   string        // 数据集类型 (默认: "swe_bench")
+    DatasetType   string        // 数据集类型 (默认: "general_agent")
     DatasetPath   string        // 数据集路径
     InstanceLimit int           // 实例限制 (默认: 10)
     
@@ -284,9 +296,9 @@ go test -v
 
 1. **数据集文件不存在**
    ```
-   Error: dataset file does not exist: ./evaluation/swe_bench/real_instances.json
+   Error: dataset file does not exist: ./evaluation/agent_eval/datasets/general_agent_eval.json
    ```
-   确保SWE-Bench数据集文件存在且路径正确。
+   确保评测数据集文件存在且路径正确。
 
 2. **内存不足**
    ```
