@@ -15,6 +15,7 @@ type HomeCopy = {
   subtitle: string;
   actions: {
     primary: string;
+    flow: string;
   };
 };
 
@@ -25,6 +26,7 @@ const copy: Record<HomeLang, HomeCopy> = {
     subtitle: "首页与 Console 同框：一段实时对话，Plan · Clearify · ReAct。",
     actions: {
       primary: "进入控制台",
+      flow: "体验心流模式",
     },
   },
   en: {
@@ -33,6 +35,7 @@ const copy: Record<HomeLang, HomeCopy> = {
     subtitle: "Same frame as the console—one live chat to Plan · Clearify · ReAct.",
     actions: {
       primary: "Open console",
+      flow: "Try Flow mode",
     },
   },
 };
@@ -259,6 +262,16 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
                   <Button size="sm" className="rounded-full shadow-sm">
                     <PlayCircle className="mr-2 h-4 w-4" aria-hidden />
                     {heroCopy.actions.primary}
+                  </Button>
+                </Link>
+                <Link href="/conversation?mode=flow">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full border-border/60 shadow-sm"
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" aria-hidden />
+                    {heroCopy.actions.flow}
                   </Button>
                 </Link>
               </div>
