@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const defaultDatasetBaseDir = "datasets"
+
 // CLIManager CLI管理器
 type CLIManager struct {
 	evaluationManager *EvaluationManager
@@ -410,10 +412,56 @@ func ValidateConfig(config *EvaluationConfig) error {
 
 	// 检查数据集文件是否存在（general_agent 可使用内置数据集）
 	if datasetType != "general_agent" || strings.TrimSpace(config.DatasetPath) != "" {
+		sanitizedDatasetPath, err := sanitizeDatasetPath(defaultDatasetBaseDir, config.DatasetPath)
+		if err != nil {
+			return err
+		}
+		config.DatasetPath = sanitizedDatasetPath
+
 		if _, err := os.Stat(config.DatasetPath); os.IsNotExist(err) {
 			return fmt.Errorf("dataset file does not exist: %s", config.DatasetPath)
+		} else if err != nil {
+			return fmt.Errorf("failed to stat dataset file %s: %w", config.DatasetPath, err)
 		}
 	}
 
 	return nil
+}
+
+func sanitizeDatasetPath(baseDir, datasetPath string) (string, error) {
+	trimmed := strings.TrimSpace(datasetPath)
+	if trimmed == "" {
+		return "", fmt.Errorf("dataset path is required")
+	}
+
+	cleaned := filepath.Clean(trimmed)
+	if cleaned == "." || cleaned == ".." {
+		return "", fmt.Errorf("invalid dataset path")
+	}
+
+	base := filepath.Clean(baseDir)
+	if !filepath.IsAbs(base) {
+		var err error
+		base, err = filepath.Abs(base)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve dataset base directory: %w", err)
+		}
+	}
+
+	joined := filepath.Join(base, cleaned)
+	absPath, err := filepath.Abs(joined)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve dataset path: %w", err)
+	}
+
+	// Ensure the final path is within the base directory.
+	baseWithSep := base
+	if !strings.HasSuffix(baseWithSep, string(os.PathSeparator)) {
+		baseWithSep += string(os.PathSeparator)
+	}
+	if absPath != base && !strings.HasPrefix(absPath, baseWithSep) {
+		return "", fmt.Errorf("dataset path escapes allowed directory")
+	}
+
+	return absPath, nil
 }
