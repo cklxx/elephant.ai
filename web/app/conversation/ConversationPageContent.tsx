@@ -89,6 +89,11 @@ export function ConversationPageContent() {
   const searchParams = useSearchParams();
   const { t } = useI18n();
 
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    setViewMode(mode === "flow" ? "flow" : "console");
+  }, [searchParams]);
+
   const useMockStream = useMemo(
     () => searchParams.get("mockSSE") === "1",
     [searchParams],
@@ -777,29 +782,6 @@ export function ConversationPageContent() {
     </div>
   );
 
-  const viewModeSwitch = (
-    <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 p-1">
-      <Button
-        type="button"
-        size="sm"
-        variant={viewMode === "console" ? "default" : "ghost"}
-        className="rounded-full px-3"
-        onClick={() => setViewMode("console")}
-      >
-        {t("conversation.mode.console")}
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={viewMode === "flow" ? "default" : "ghost"}
-        className="rounded-full px-3"
-        onClick={() => setViewMode("flow")}
-      >
-        {t("conversation.mode.flow")}
-      </Button>
-    </div>
-  );
-
   const rightPanelToggle = (
     <Button
       type="button"
@@ -922,12 +904,11 @@ export function ConversationPageContent() {
             ) : null
           }
           actionsSlot={
-            <div className="flex items-center gap-2">
-              {viewModeSwitch}
-              {viewMode === "console" ? rightPanelToggle : null}
-            </div>
+            viewMode === "console" ? (
+              <div className="flex items-center gap-2">{rightPanelToggle}</div>
+            ) : null
           }
-        /> 
+        />
 
         {viewMode === "flow" ? (
           <div className="flex-1 min-h-[calc(100vh-6rem)] overflow-y-auto">
