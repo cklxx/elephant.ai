@@ -563,7 +563,7 @@ export function ArtifactPreviewCard({
             showCloseButton={false}
           >
             <DialogTitle className="sr-only">{displayName}</DialogTitle>
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-full min-h-0 min-w-0 flex-col">
               <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-3">
                 <div className="min-w-0 flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
@@ -640,7 +640,7 @@ export function ArtifactPreviewCard({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto bg-muted/30 px-5 py-5 min-h-0">
+              <div className="flex-1 min-w-0 overflow-auto bg-muted/30 px-5 py-5 min-h-0">
                 {isMarkdown ? (
                   markdownLoading && !markdownPreview ? (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
