@@ -32,12 +32,18 @@ type GeneralAgentTask struct {
 func loadGeneralAgentDataset(path string, limit int) ([]swe_bench.Instance, error) {
 	var tasks []GeneralAgentTask
 
-	if strings.TrimSpace(path) == "" {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
 		if err := decodeGeneralDataset(bytes.NewReader(embeddedGeneralDataset), &tasks); err != nil {
 			return nil, fmt.Errorf("decode embedded general agent dataset: %w", err)
 		}
 	} else {
-		file, err := os.Open(path)
+		// Ensure the path is a single file name without directory traversal.
+		if strings.Contains(cleanPath, "/") || strings.Contains(cleanPath, "\\") || strings.Contains(cleanPath, "..") {
+			return nil, fmt.Errorf("invalid general agent dataset path")
+		}
+
+		file, err := os.Open(cleanPath)
 		if err != nil {
 			return nil, fmt.Errorf("open general agent dataset: %w", err)
 		}
