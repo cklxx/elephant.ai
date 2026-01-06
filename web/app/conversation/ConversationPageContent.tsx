@@ -75,6 +75,7 @@ export function ConversationPageContent() {
   const [viewMode, setViewMode] = useState<"console" | "flow">("console");
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [prewarmSessionId, setPrewarmSessionId] = useState<string | null>(null);
+  const [flowSessionId, setFlowSessionId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -127,6 +128,7 @@ export function ConversationPageContent() {
 
   const resolvedSessionId = sessionId || currentSessionId;
   const streamSessionId = resolvedSessionId ?? prewarmSessionId;
+  const flowStreamSessionId = flowSessionId;
   const formatSessionBadge = useCallback(
     (value: string) =>
       value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
@@ -192,6 +194,13 @@ export function ConversationPageContent() {
   } = useAgentEventStream(streamSessionId, {
     useMock: useMockStream,
     onEvent: handleAgentEvent,
+  });
+  const {
+    events: flowEvents,
+    addEvent: addFlowEvent,
+  } = useAgentEventStream(flowStreamSessionId, {
+    useMock: useMockStream,
+    enabled: viewMode === "flow" && (Boolean(flowStreamSessionId) || useMockStream),
   });
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -463,29 +472,23 @@ export function ConversationPageContent() {
   };
 
   const ensureFlowSessionId = useCallback(async () => {
-    if (resolvedSessionId) return resolvedSessionId;
-    if (prewarmSessionId) return prewarmSessionId;
-
+    if (flowSessionId) return flowSessionId;
     const { session_id } = await apiClient.createSession();
-    setPrewarmSessionId(session_id);
+    setFlowSessionId(session_id);
     return session_id;
-  }, [prewarmSessionId, resolvedSessionId]);
+  }, [flowSessionId]);
 
   const runFlowTask = useCallback(
     async (task: string) => {
       if (useMockStream) {
         const submissionTimestamp = new Date();
         const session =
-          resolvedSessionId ??
-          currentSessionId ??
-          prewarmSessionId ??
-          `mock-${submissionTimestamp.getTime().toString(36)}`;
+          flowSessionId ??
+          `flow-mock-${submissionTimestamp.getTime().toString(36)}`;
         const taskId = `flow-mock-${submissionTimestamp.getTime().toString(36)}`;
         const timestamp = submissionTimestamp.toISOString();
 
-        setSessionId(session);
-        setCurrentSession(session);
-        addToHistory(session);
+        setFlowSessionId(session);
 
         const inputEvent: AnyAgentEvent = {
           event_type: "workflow.input.received",
@@ -496,29 +499,16 @@ export function ConversationPageContent() {
           task,
         };
 
-        addEvent(inputEvent);
+        addFlowEvent(inputEvent);
 
-        const finalAnswer = JSON.stringify({
-          prompts: [
-            {
-              title: "精炼要点",
-              content: "从正文中提炼 2-3 条核心观点，并按重要性排序扩写。",
-              priority: 1,
-            },
-            {
-              title: "补充论据",
-              content: "为关键观点增加真实案例或数据引用，让论证更扎实。",
-              priority: 2,
-            },
-          ],
-          searches: [
-            {
-              query: "行业最新案例 数据 支撑",
-              reason: "为正文挑选可以引用的案例与数据来源。",
-              priority: 1,
-            },
-          ],
-        });
+        const finalAnswer = [
+          "写作提示：",
+          "1) 精炼要点：从正文中提炼 2-3 条核心观点，并按重要性排序扩写。",
+          "2) 补充论据：为关键观点增加真实案例或数据引用，让论证更扎实。",
+          "",
+          "自动搜索：",
+          "1) 行业最新案例 数据 支撑 —— 为正文挑选可以引用的案例与数据来源。",
+        ].join("\n");
 
         const completionEvent: AnyAgentEvent = {
           event_type: "workflow.result.final",
@@ -535,7 +525,7 @@ export function ConversationPageContent() {
           stream_finished: true,
         };
 
-        setTimeout(() => addEvent(completionEvent), 120);
+        setTimeout(() => addFlowEvent(completionEvent), 120);
 
         return {
           task_id: taskId,
@@ -549,10 +539,7 @@ export function ConversationPageContent() {
         session_id: targetSessionId,
       });
 
-      setPrewarmSessionId((prev) => (prev === response.session_id ? null : prev));
-      setSessionId(response.session_id);
-      setCurrentSession(response.session_id);
-      addToHistory(response.session_id);
+      setFlowSessionId(response.session_id);
 
       const submissionEvent: AnyAgentEvent = {
         event_type: "workflow.input.received",
@@ -564,20 +551,14 @@ export function ConversationPageContent() {
         task,
       };
 
-      addEvent(submissionEvent);
+      addFlowEvent(submissionEvent);
 
       return response;
     },
     [
-      addEvent,
-      addToHistory,
-      currentSessionId,
+      addFlowEvent,
       ensureFlowSessionId,
-      prewarmSessionId,
-      resolvedSessionId,
-      setCurrentSession,
-      setSessionId,
-      setPrewarmSessionId,
+      flowSessionId,
       useMockStream,
     ],
   );
@@ -951,7 +932,7 @@ export function ConversationPageContent() {
         {viewMode === "flow" ? (
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto flex h-full w-full max-w-none flex-col gap-6 rounded-3xl border border-border/60 bg-background/60 px-4 py-5 shadow-sm lg:px-8">
-              <FlowModePanel events={events} onRunTask={runFlowTask} />
+              <FlowModePanel events={flowEvents} onRunTask={runFlowTask} />
             </div>
           </div>
         ) : (
