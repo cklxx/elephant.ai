@@ -1,0 +1,49 @@
+name: rfc-autostart-codex
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+    paths:
+      - "rfc/**"
+      - "**/*RFC*"
+      - "**/*rfc*"
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  comment_to_start_codex:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Post @codex kickoff comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const marker = "<!-- codex-autostart:v1 -->";
+            const body =
+`${marker}
+@codex
+
+请把这个 PR 视为 RFC。先读完 RFC 内容，再输出一份执行计划，然后拆成若干可独立合并的小 PR。先实现最小可交付切片，补齐测试与文档，跑完整 CI。每个 PR 在描述里写清楚验收标准是否满足，以及回滚方案。`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNumber, per_page: 100
+            });
+
+            const already = comments.some(c => (c.body || "").includes(marker));
+            if (already) {
+              core.info("Already commented, skip.");
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: prNumber, body
+            });
