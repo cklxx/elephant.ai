@@ -660,8 +660,8 @@ export function FlowModePanel({ events, onRunTask }: FlowModePanelProps) {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),360px] xl:grid-cols-[minmax(0,1fr),420px]">
-      <Card className="bg-card/70 backdrop-blur">
+    <div className="grid h-full gap-6 lg:grid-cols-[minmax(0,1fr),360px] xl:grid-cols-[minmax(0,1fr),420px]">
+      <Card className="h-full border-none bg-card/70 shadow-none backdrop-blur">
         <CardHeader className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-500">
@@ -711,7 +711,7 @@ export function FlowModePanel({ events, onRunTask }: FlowModePanelProps) {
         </CardContent>
       </Card>
 
-      <Card className="bg-card/70 backdrop-blur">
+      <Card className="h-full border-none bg-card/70 shadow-none backdrop-blur">
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="h-4 w-4" aria-hidden />

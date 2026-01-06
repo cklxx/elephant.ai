@@ -930,8 +930,8 @@ export function ConversationPageContent() {
         /> 
 
         {viewMode === "flow" ? (
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto flex h-full w-full max-w-none flex-col gap-6 rounded-3xl border border-border/60 bg-background/60 px-4 py-5 shadow-sm lg:px-8">
+          <div className="flex-1 min-h-[calc(100vh-6rem)] overflow-y-auto">
+            <div className="mx-auto flex h-full w-full max-w-none flex-col gap-6 px-4 py-5 lg:px-8">
               <FlowModePanel events={flowEvents} onRunTask={runFlowTask} />
             </div>
           </div>
