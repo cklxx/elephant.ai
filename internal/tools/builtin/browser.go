@@ -407,11 +407,43 @@ func (t *browserTool) summarize(ctx context.Context, dsl string, steps []map[str
 		MaxTokens:   400,
 	}
 
-	resp, err := client.Complete(ctx, req)
+	streaming, ok := ports.EnsureStreamingClient(client).(ports.StreamingLLMClient)
+	if !ok {
+		return ""
+	}
+
+	const progressChunkMinChars = 256
+	var progressBuffer strings.Builder
+	var contentBuffer strings.Builder
+	callbacks := ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				contentBuffer.WriteString(delta.Delta)
+				progressBuffer.WriteString(delta.Delta)
+				if progressBuffer.Len() >= progressChunkMinChars {
+					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					progressBuffer.Reset()
+				}
+			}
+			if delta.Final {
+				if progressBuffer.Len() > 0 {
+					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					progressBuffer.Reset()
+				}
+				ports.EmitToolProgress(ctx, "", true)
+			}
+		},
+	}
+
+	resp, err := streaming.StreamComplete(ctx, req, callbacks)
 	if err != nil || resp == nil {
 		return ""
 	}
-	return strings.TrimSpace(resp.Content)
+	trimmed := strings.TrimSpace(resp.Content)
+	if trimmed == "" {
+		trimmed = strings.TrimSpace(contentBuffer.String())
+	}
+	return trimmed
 }
 
 func buildBrowserVisionPrompt(dsl string, steps []map[string]any) string {

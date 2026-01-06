@@ -491,7 +491,27 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 	}
 	summaryCtx, cancel := context.WithTimeout(ctx, historySummaryLLMTimeout)
 	defer cancel()
-	resp, err := llm.Complete(summaryCtx, req)
+	streaming, ok := ports.EnsureStreamingClient(llm).(ports.StreamingLLMClient)
+	if !ok {
+		resp, err := llm.Complete(summaryCtx, req)
+		if err != nil {
+			s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
+			return nil
+		}
+		if resp == nil || strings.TrimSpace(resp.Content) == "" {
+			s.logger.Warn("History summary composition returned empty response (request_id=%s)", requestID)
+			return nil
+		}
+		summary := strings.TrimSpace(resp.Content)
+		return []ports.Message{{
+			Role:    "system",
+			Content: summary,
+			Source:  ports.MessageSourceUserHistory,
+		}}
+	}
+	resp, err := streaming.StreamComplete(summaryCtx, req, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(ports.ContentDelta) {},
+	})
 	if err != nil {
 		s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
 		return nil
@@ -1033,7 +1053,36 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	preanalysisStarted := time.Now()
 	analysisCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	resp, err := client.Complete(analysisCtx, req)
+	streaming, ok := ports.EnsureStreamingClient(client).(ports.StreamingLLMClient)
+	if !ok {
+		resp, err := client.Complete(analysisCtx, req)
+		clilatency.Printf(
+			"[latency] preanalysis_ms=%.2f model=%s\n",
+			float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
+			strings.TrimSpace(model),
+		)
+		if err != nil || resp == nil {
+			s.logger.Warn("Task pre-analysis failed: %v", err)
+			return nil, false
+		}
+		analysis, recommendedModel := parseTaskAnalysis(resp.Content)
+		if analysis == nil {
+			s.logger.Warn("Task pre-analysis returned unparsable output")
+			return nil, false
+		}
+		preferSmallModel := false
+		if strings.EqualFold(recommendedModel, "small") {
+			preferSmallModel = true
+		} else if strings.EqualFold(recommendedModel, "default") {
+			preferSmallModel = false
+		} else {
+			preferSmallModel = strings.EqualFold(analysis.Complexity, "simple")
+		}
+		return analysis, preferSmallModel
+	}
+	resp, err := streaming.StreamComplete(analysisCtx, req, ports.CompletionStreamCallbacks{
+		OnContentDelta: func(ports.ContentDelta) {},
+	})
 	clilatency.Printf(
 		"[latency] preanalysis_ms=%.2f model=%s\n",
 		float64(time.Since(preanalysisStarted))/float64(time.Millisecond),

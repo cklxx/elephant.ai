@@ -252,6 +252,17 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	}
 
 	toolCtx := ports.WithAttachmentContext(b.ctx, b.attachments, b.attachmentIterations)
+	toolCtx = ports.WithToolProgressEmitter(toolCtx, func(chunk string, isComplete bool) {
+		if chunk == "" && !isComplete {
+			return
+		}
+		b.engine.emitEvent(&WorkflowToolProgressEvent{
+			BaseEvent:  b.engine.newBaseEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID),
+			CallID:     tc.ID,
+			Chunk:      chunk,
+			IsComplete: isComplete,
+		})
+	})
 	if tc.Name == "subagent" {
 		if snapshot := b.subagentSnapshots[idx]; snapshot != nil {
 			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
@@ -479,7 +490,44 @@ func (e *ReactEngine) think(
 	}
 
 	llmCallStarted := time.Now()
-	resp, err := services.LLM.Complete(ctx, req)
+	const streamChunkMinChars = 256
+	var streamBuffer strings.Builder
+	streamedContent := false
+	callbacks := ports.CompletionStreamCallbacks{
+		OnContentDelta: func(delta ports.ContentDelta) {
+			if delta.Delta != "" {
+				streamedContent = true
+				streamBuffer.WriteString(delta.Delta)
+				if streamBuffer.Len() >= streamChunkMinChars {
+					chunk := streamBuffer.String()
+					streamBuffer.Reset()
+					e.emitEvent(&WorkflowNodeOutputDeltaEvent{
+						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+						Iteration:   state.Iterations,
+						Delta:       chunk,
+						Final:       false,
+						CreatedAt:   e.clock.Now(),
+						SourceModel: modelName,
+					})
+				}
+			}
+			if delta.Final {
+				if streamBuffer.Len() > 0 {
+					chunk := streamBuffer.String()
+					streamBuffer.Reset()
+					e.emitEvent(&WorkflowNodeOutputDeltaEvent{
+						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+						Iteration:   state.Iterations,
+						Delta:       chunk,
+						Final:       false,
+						CreatedAt:   e.clock.Now(),
+						SourceModel: modelName,
+					})
+				}
+			}
+		},
+	}
+	resp, err := services.LLM.StreamComplete(ctx, req, callbacks)
 	clilatency.Printf(
 		"[latency] llm_complete_ms=%.2f iteration=%d model=%s request_id=%s\n",
 		float64(time.Since(llmCallStarted))/float64(time.Millisecond),
@@ -492,11 +540,35 @@ func (e *ReactEngine) think(
 		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
 	}
+	if resp == nil {
+		e.logger.Error("LLM call returned nil response (request_id=%s)", requestID)
+		return Message{}, fmt.Errorf("LLM call failed: nil response")
+	}
 
+	if streamBuffer.Len() > 0 {
+		chunk := streamBuffer.String()
+		streamBuffer.Reset()
+		if chunk != "" {
+			streamedContent = true
+			e.emitEvent(&WorkflowNodeOutputDeltaEvent{
+				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				Iteration:   state.Iterations,
+				Delta:       chunk,
+				Final:       false,
+				CreatedAt:   e.clock.Now(),
+				SourceModel: modelName,
+			})
+		}
+	}
+
+	finalDelta := ""
+	if !streamedContent {
+		finalDelta = resp.Content
+	}
 	e.emitEvent(&WorkflowNodeOutputDeltaEvent{
 		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 		Iteration:   state.Iterations,
-		Delta:       resp.Content,
+		Delta:       finalDelta,
 		Final:       true,
 		CreatedAt:   e.clock.Now(),
 		SourceModel: modelName,
