@@ -36,7 +36,7 @@ export const ContentArea = forwardRef<HTMLDivElement, ContentAreaProps>(
       <ScrollArea
         ref={ref}
         className={cn('flex-1', className)}
-        viewportClassName="h-full"
+        viewportClassName="h-full [&>div]:!block [&>div]:!min-w-0 [&>div]:!w-full"
       >
         {isEmpty ? (
           <div className="flex h-full items-center justify-center px-6 py-10">
