@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -212,13 +211,15 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 
 // loadDataset 加载数据集
 func (em *EvaluationManager) loadDataset(ctx context.Context, config *EvaluationConfig) ([]swe_bench.Instance, error) {
-	// 基于现有SWE-Bench加载器
-	loader := swe_bench.NewDatasetLoader()
-
-	datasetType := strings.TrimSpace(config.DatasetType)
+	datasetType := normalizeDatasetType(config.DatasetType)
 	if datasetType == "" {
 		datasetType = "file"
 	}
+	if datasetType == "general_agent" {
+		return loadGeneralAgentDataset(config.DatasetPath, config.InstanceLimit)
+	}
+	// 基于现有SWE-Bench加载器
+	loader := swe_bench.NewDatasetLoader()
 	if datasetType == "swe_bench" && config.DatasetPath != "" {
 		if _, err := os.Stat(config.DatasetPath); err == nil {
 			datasetType = "file"
