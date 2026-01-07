@@ -280,6 +280,15 @@ export default function ContextConfigPage() {
     return selectedDraft.split(/\r?\n/).length;
   }, [selectedDraft]);
 
+  const previewTokenEstimate = useMemo(() => {
+    if (preview && typeof preview.token_estimate === "number" && preview.token_estimate > 0) {
+      return preview.token_estimate;
+    }
+    const prompt = preview?.window?.system_prompt?.trim();
+    if (!prompt) return null;
+    return Math.floor(prompt.length / 4);
+  }, [preview]);
+
   return (
     <RequireAuth>
       <div className="min-h-screen bg-muted/40 p-6">
@@ -319,7 +328,7 @@ export default function ContextConfigPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="info">web mode</Badge>
                   <Badge variant="secondary">
-                    Tokens: {preview?.token_estimate ?? "—"}
+                    Tokens: {previewTokenEstimate ?? "—"}
                   </Badge>
                   <Button
                     variant="outline"

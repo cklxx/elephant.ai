@@ -127,6 +127,9 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 		})
 	}
 	tokenEstimate := manager.EstimateTokens(estimateMessages)
+	if tokenEstimate == 0 {
+		tokenEstimate = estimateTokensFromText(window.SystemPrompt)
+	}
 
 	response := ContextWindowPreviewResponse{
 		SessionID:     session.ID,
@@ -138,6 +141,14 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 		Window:        window,
 	}
 	writeJSON(w, http.StatusOK, response)
+}
+
+func estimateTokensFromText(text string) int {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return 0
+	}
+	return len([]rune(trimmed)) / 4
 }
 
 func (h *ContextConfigHandler) HandleGetContextConfig(w http.ResponseWriter, r *http.Request) {
