@@ -318,6 +318,9 @@ export default function ContextConfigPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="info">web mode</Badge>
+                  <Badge variant="secondary">
+                    Tokens: {preview?.token_estimate ?? "—"}
+                  </Badge>
                   <Button
                     variant="outline"
                     onClick={() => loadPreview(previewOverrides)}

@@ -118,9 +118,19 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 		return
 	}
 
+	estimateMessages := append([]agentports.Message(nil), window.Messages...)
+	if strings.TrimSpace(window.SystemPrompt) != "" {
+		estimateMessages = append(estimateMessages, agentports.Message{
+			Role:    "system",
+			Content: window.SystemPrompt,
+			Source:  agentports.MessageSourceSystemPrompt,
+		})
+	}
+	tokenEstimate := manager.EstimateTokens(estimateMessages)
+
 	response := ContextWindowPreviewResponse{
 		SessionID:     session.ID,
-		TokenEstimate: manager.EstimateTokens(window.Messages),
+		TokenEstimate: tokenEstimate,
 		TokenLimit:    cfg.TokenLimit,
 		PersonaKey:    cfg.PersonaKey,
 		ToolMode:      cfg.ToolMode,
