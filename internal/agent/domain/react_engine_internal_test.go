@@ -946,3 +946,66 @@ func TestAttachmentReferenceValueFallsBackToData(t *testing.T) {
 		t.Fatalf("expected data URI fallback, got %q", value)
 	}
 }
+
+func TestAppendGoalPlanReminderWhenDistanceExceeded(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{}
+	planText := strings.Repeat("plan ", goalPlanPromptDistanceThreshold)
+	calls := []ToolCall{{
+		Name: "plan",
+		Arguments: map[string]any{
+			"overall_goal_ui": "ship it",
+			"internal_plan":   planText,
+		},
+	}}
+	results := []ToolResult{{
+		CallID:  "call-1",
+		Content: "ship it",
+		Metadata: map[string]any{
+			"internal_plan": planText,
+		},
+	}}
+	engine.updateGoalPlanPrompts(state, calls, results)
+	messages := engine.buildToolMessages(results)
+	updated := engine.appendGoalPlanReminder(state, messages)
+	if len(updated) != 1 {
+		t.Fatalf("expected a single tool message, got %d", len(updated))
+	}
+	if !strings.Contains(updated[0].Content, "<system-reminder>") {
+		t.Fatalf("expected reminder to be appended, got %q", updated[0].Content)
+	}
+	if !strings.Contains(updated[0].Content, "Goal: ship it") {
+		t.Fatalf("expected goal to appear in reminder, got %q", updated[0].Content)
+	}
+	if !strings.Contains(updated[0].Content, "Plan:") {
+		t.Fatalf("expected plan to appear in reminder, got %q", updated[0].Content)
+	}
+}
+
+func TestAppendGoalPlanReminderSkippedWhenDistanceSmall(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{}
+	calls := []ToolCall{{
+		Name: "plan",
+		Arguments: map[string]any{
+			"overall_goal_ui": "stay close",
+			"internal_plan":   "stay close plan",
+		},
+	}}
+	results := []ToolResult{{
+		CallID:  "call-1",
+		Content: "stay close",
+		Metadata: map[string]any{
+			"internal_plan": "stay close plan",
+		},
+	}}
+	engine.updateGoalPlanPrompts(state, calls, results)
+	messages := engine.buildToolMessages(results)
+	updated := engine.appendGoalPlanReminder(state, messages)
+	if len(updated) != 1 {
+		t.Fatalf("expected a single tool message, got %d", len(updated))
+	}
+	if strings.Contains(updated[0].Content, "<system-reminder>") {
+		t.Fatalf("did not expect reminder when distance small, got %q", updated[0].Content)
+	}
+}
