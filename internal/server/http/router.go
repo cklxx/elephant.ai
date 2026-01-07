@@ -83,6 +83,16 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		devSessionHandler := routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleDevSessionRequest)))
 		mux.Handle("/api/dev/sessions", devSessionHandler)
 		mux.Handle("/api/dev/sessions/", devSessionHandler)
+
+		contextConfigHandler := NewContextConfigHandler("")
+		if contextConfigHandler != nil {
+			devContextHandler := routeHandler("/api/dev/context-config", wrap(http.HandlerFunc(contextConfigHandler.HandleContextConfig)))
+			devContextPreviewHandler := routeHandler("/api/dev/context-config/preview", wrap(http.HandlerFunc(contextConfigHandler.HandleContextPreview)))
+			mux.Handle("/api/dev/context-config", devContextHandler)
+			mux.Handle("/api/dev/context-config/", devContextHandler)
+			mux.Handle("/api/dev/context-config/preview", devContextPreviewHandler)
+			mux.Handle("/api/dev/context-config/preview/", devContextPreviewHandler)
+		}
 	}
 
 	if internalMode && configHandler != nil {
