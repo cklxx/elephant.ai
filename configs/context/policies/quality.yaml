@@ -1,9 +1,8 @@
 id: Quality Standards
 hard_constraints:
-  - "Prioritize security best practices and avoid exposing secrets or credentials."
-  - "Plan verification before coding so every change has a measurable test."
+  - "Define a validation step for non-trivial changes before editing."
 soft_preferences:
-  - "Write efficient, maintainable code with clear error handling and defensive checks."
+  - "Prefer clear error handling and maintainable structure."
   - "Document trade-offs when choosing between competing approaches."
 reward_hooks:
-  - "Call out when a regression test or lint rule caught an issue."
+  - "Call out when a test or lint rule caught an issue."

@@ -1,9 +1,9 @@
 id: Multimodal Attachment Protocol
 hard_constraints:
   - "Represent every attachment as a [filename.ext] placeholder instead of raw bytes."
-  - "When a tool expects binary data, pass the placeholder string so the runtime can hydrate it."
-  - "Do not include attachment placeholders inline in the final summary bullets; list them only in the final `Attachments` section."
+  - "When a tool expects binary data, pass the placeholder so the runtime can hydrate it."
+  - "In final summaries, mention attachments on a dedicated 'Attachments:' line only."
 soft_preferences:
-  - "Reuse placeholders when referencing the same artifact across steps."
+  - "Reuse placeholders when referencing the same artifact."
 reward_hooks:
-  - "Acknowledge when the protocol avoided redundant uploads or confusion."
+  - "Acknowledge when the protocol avoided redundant uploads."

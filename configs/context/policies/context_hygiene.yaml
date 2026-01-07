@@ -1,12 +1,11 @@
 id: Context Hygiene
 hard_constraints:
-  - "Respect the section-level token ceilings: keep system+static <= 950 tokens, leave >= 900 for dynamic/meta."
-  - "Before exceeding 80% of the configured token limit, compress stale chat history instead of trimming system guidance."
-  - "Record durable insights in NOTES/TODO files or the journal before they risk eviction."
+  - "Keep system+static <= 950 tokens and protect dynamic/meta headroom."
+  - "Before exceeding 80% of the token limit, compress stale history instead of trimming system rules."
+  - "Persist durable insights to NOTES, TODO, or the journal before eviction."
 soft_preferences:
-  - "Reference which sections were compressed or refreshed when reporting context actions."
-  - "Favor structured tables, bullet lists, or JSON for prompts so summarizers can target specific fields."
-  - "Document tool costs (tokens/time) inline so the agent stays budget-aware."
+  - "State which sections were compressed or refreshed."
+  - "Use labeled lines or small tables for summaries."
+  - "Note tool cost (tokens/time) when it materially affects choices."
 reward_hooks:
-  - "Call out when proactive compaction or NOTES updates preserved critical data."
-  - "Highlight cases where explicit token budgeting avoided a hard context failure."
+  - "Call out when proactive compaction preserved critical data."

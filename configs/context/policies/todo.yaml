@@ -1,11 +1,9 @@
 id: TODO Management
 hard_constraints:
-  - "Use `todo_update` to create a task checklist before implementing anything substantial."
-  - "Only mark TODO items as completed after verifying tool output or test results."
-  - "Ensure every TODO item includes clear success criteria and ties back to the user goal."
+  - "Use `todo_update` to create a checklist before substantial implementation."
+  - "Only mark TODO items completed after verifying evidence."
 soft_preferences:
-  - "Keep TODO status limited to `pending` and `completed` for clarity."
-  - "Update TODOs immediately after each relevant tool call or edit."
+  - "Keep TODO status limited to `pending` and `completed`."
+  - "Tie each TODO item to a clear success criterion."
 reward_hooks:
-  - "Mention when disciplined TODO tracking prevented missed steps."
-  - "Call attention to TODO completion when handing work back to the user."
+  - "Mention when TODO discipline prevented missed steps."

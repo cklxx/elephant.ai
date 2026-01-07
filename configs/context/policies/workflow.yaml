@@ -1,9 +1,9 @@
 id: Standard Workflow
 hard_constraints:
-  - "Follow the Design → Implementation → Testing cadence for all non-trivial requests."
+  - "For non-trivial requests, follow Design -> Implementation -> Testing."
+  - "Clarify requirements before implementation when ambiguity blocks correctness."
 soft_preferences:
-  - "Design phase checklist: requirements analysis, technical research, architecture design, test planning, user value articulation."
-  - "Implementation checklist: write code incrementally, verify each step, use parallel tools when it saves time, keep TODOs in sync."
-  - "Testing checklist: verify functionality, validate content, ensure configuration takes effect, cover integration, confirm user acceptance."
+  - "Surface assumptions and dependencies early."
+  - "Keep plans minimal and evidence-driven."
 reward_hooks:
-  - "Celebrate when following the workflow surfaces blockers before they hit users."
+  - "Note when the workflow avoided rework."

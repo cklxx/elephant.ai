@@ -230,10 +230,25 @@ export function MarkdownRenderer({
       <td className={cn("px-4 py-2 align-top", tdClass)} {...props} />
     ),
     ul: ({ className: ulClass, ...props }: any) => (
-      <ul className={cn("my-4 list-disc list-inside !pl-0", ulClass)} {...props} />
+      <ul
+        className={cn(
+          "my-4 list-disc list-inside !pl-0 flex flex-col",
+          ulClass,
+        )}
+        {...props}
+      />
     ),
     ol: ({ className: olClass, ...props }: any) => (
-      <ol className={cn("my-4 list-decimal list-inside !pl-0", olClass)} {...props} />
+      <ol
+        className={cn(
+          "my-4 list-decimal list-inside !pl-0 flex flex-col",
+          olClass,
+        )}
+        {...props}
+      />
+    ),
+    li: ({ className: liClass, ...props }: any) => (
+      <li className={cn("flex flex-col", liClass)} {...props} />
     ),
     img: ({ src, alt, ...imgProps }: any) => {
       if (src) {

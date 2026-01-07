@@ -291,9 +291,10 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
                     matchedAttachment.type === "embed")
                 ) {
                   return (
-                    <div className="my-3">
+                    <div className="my-2">
                       <ArtifactPreviewCard
                         attachment={matchedAttachment.attachment}
+                        compact
                       />
                     </div>
                   );

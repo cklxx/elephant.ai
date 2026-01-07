@@ -76,17 +76,17 @@ function ensureViewportMeta(html: string): string {
   const trimmed = html.trim();
   if (!trimmed) return html;
   const lower = trimmed.toLowerCase();
-  if (
-    lower.includes('name="viewport"') ||
-    lower.includes("name='viewport'")
-  ) {
+  if (lower.includes('name="viewport"') || lower.includes("name='viewport'")) {
     return html;
   }
 
   const viewportTag =
     '<meta name="viewport" content="width=device-width, initial-scale=1" />';
   if (/<head\b[^>]*>/i.test(trimmed)) {
-    return trimmed.replace(/<head\b[^>]*>/i, (match) => `${match}\n  ${viewportTag}`);
+    return trimmed.replace(
+      /<head\b[^>]*>/i,
+      (match) => `${match}\n  ${viewportTag}`,
+    );
   }
   if (/<body\b[^>]*>/i.test(trimmed)) {
     return trimmed.replace(
@@ -145,7 +145,7 @@ function validateHtmlSource(html: string): HtmlValidationIssue[] {
   if (!/name=["']viewport["']/.test(lower)) {
     issues.push({
       level: "warning",
-      message: "Missing <meta name=\"viewport\">.",
+      message: 'Missing <meta name="viewport">.',
     });
   }
   if (!lower.includes("<title")) {
@@ -170,6 +170,8 @@ function validateHtmlSource(html: string): HtmlValidationIssue[] {
 interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
   className?: string;
+  compact?: boolean;
+  showInlinePreview?: boolean;
 }
 
 const normalizeTitle = (value: string | null) =>
@@ -214,6 +216,8 @@ const stripRedundantHeading = (
 export function ArtifactPreviewCard({
   attachment,
   className,
+  compact = false,
+  showInlinePreview = true,
 }: ArtifactPreviewCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [prefetchRequested, setPrefetchRequested] = useState(false);
@@ -419,7 +423,11 @@ export function ArtifactPreviewCard({
   const htmlErrors = htmlIssues.filter((issue) => issue.level === "error");
   const htmlWarnings = htmlIssues.filter((issue) => issue.level === "warning");
   const htmlStatus =
-    htmlErrors.length > 0 ? "error" : htmlWarnings.length > 0 ? "warning" : "ok";
+    htmlErrors.length > 0
+      ? "error"
+      : htmlWarnings.length > 0
+        ? "warning"
+        : "ok";
   const htmlPreviewUri = useMemo(() => {
     if (htmlContent.trim().length > 0) {
       return buildHtmlDataUri(htmlContent);
@@ -433,6 +441,7 @@ export function ArtifactPreviewCard({
       <div
         className={cn(
           "group relative w-full overflow-hidden rounded-xl border border-border/40 bg-card transition-colors",
+          compact && "flex aspect-[1.618/1] max-w-[420px] flex-col",
           canInlinePreview &&
             "cursor-pointer hover:border-ring/60 hover:ring-1 hover:ring-ring/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60",
           className,
@@ -446,21 +455,31 @@ export function ArtifactPreviewCard({
         onFocus={canInlinePreview ? requestPreview : undefined}
       >
         {/* Header / Main Body - Manus Style File Card */}
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            compact ? "px-3 py-2" : "px-4 py-3",
+          )}
+        >
           {/* Icon Box */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+          <div
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400",
+              compact ? "h-8 w-8" : "h-10 w-10",
+            )}
+          >
             {previewImageUrl ? (
               <Image
                 src={previewImageUrl}
                 alt=""
-                width={40}
-                height={40}
+                width={compact ? 32 : 40}
+                height={compact ? 32 : 40}
                 className="h-full w-full rounded-lg object-cover"
                 unoptimized
-                sizes="40px"
+                sizes={compact ? "32px" : "40px"}
               />
             ) : (
-              <FileIcon className="h-5 w-5" />
+              <FileIcon className={compact ? "h-4 w-4" : "h-5 w-5"} />
             )}
           </div>
 
@@ -530,22 +549,51 @@ export function ArtifactPreviewCard({
 
         {/* Inline excerpt (markdown only) */}
         {isMarkdown ? (
-          <div className="border-t border-border/40 px-4 py-2">
-            {markdownLoading && !markdownPreview ? (
-              <div className="h-24 w-full animate-pulse rounded-lg border border-border/40 bg-muted/20" />
-            ) : markdownSnippet ? (
-              <div className="relative max-h-64 overflow-hidden pointer-events-none">
-                <LazyMarkdownRenderer
-                  content={markdownSnippet}
-                  containerClassName="markdown-compact"
+        <div
+          className={cn(
+            "border-t border-border/40",
+            compact && "flex-1 min-h-0",
+            compact ? "px-3 py-2" : "px-4 py-2",
+          )}
+        >
+            {showInlinePreview ? (
+              markdownLoading && !markdownPreview ? (
+                <div
                   className={cn(
-                    "flex flex-col",
-                    "prose prose-sm max-w-none text-foreground/90",
-                    "prose-p:my-1.5 prose-headings:my-1 prose-li:my-0.5 prose-pre:my-2",
+                    "w-full animate-pulse rounded-lg border border-border/40 bg-muted/20",
+                    compact ? "h-16" : "h-24",
                   )}
                 />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card via-card/80 to-transparent" />
-              </div>
+              ) : markdownSnippet ? (
+                <div
+                  className={cn(
+                    "relative overflow-hidden pointer-events-none",
+                    compact ? "h-full" : "max-h-64",
+                  )}
+                >
+                  <LazyMarkdownRenderer
+                    content={markdownSnippet}
+                    containerClassName="markdown-compact"
+                    className={cn(
+                      "flex flex-col",
+                      "prose prose-sm max-w-none text-foreground/90",
+                      compact ? "leading-snug" : "leading-normal",
+                      "prose-p:my-1.5 prose-headings:my-1 prose-li:my-0.5 prose-pre:my-2",
+                      "prose-ol:flex prose-ol:flex-col prose-ul:flex prose-ul:flex-col prose-li:flex prose-li:flex-col",
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/80 to-transparent",
+                      compact ? "h-10" : "h-12",
+                    )}
+                  />
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Click to preview
+                </div>
+              )
             ) : (
               <div className="text-xs text-muted-foreground">
                 Click to preview
@@ -652,7 +700,7 @@ export function ArtifactPreviewCard({
                       <LazyMarkdownRenderer
                         content={normalizedMarkdown ?? markdownPreview}
                         containerClassName="markdown-compact"
-                        className="prose max-w-none text-base leading-normal text-foreground"
+                        className="prose text-base leading-normal text-foreground prose-ol:flex prose-ol:flex-col prose-ul:flex prose-ul:flex-col prose-li:flex prose-li:flex-col"
                       />
                     </div>
                   ) : (
@@ -666,14 +714,18 @@ export function ArtifactPreviewCard({
                       <div className="flex items-center gap-2">
                         <Button
                           onClick={() => setHtmlView("preview")}
-                          variant={htmlView === "preview" ? "default" : "outline"}
+                          variant={
+                            htmlView === "preview" ? "default" : "outline"
+                          }
                           size="sm"
                         >
                           Preview
                         </Button>
                         <Button
                           onClick={() => setHtmlView("source")}
-                          variant={htmlView === "source" ? "default" : "outline"}
+                          variant={
+                            htmlView === "source" ? "default" : "outline"
+                          }
                           size="sm"
                         >
                           Source
@@ -697,9 +749,7 @@ export function ArtifactPreviewCard({
                                 : "Valid HTML"}
                           </Badge>
                         )}
-                        {isHtmlDirty && (
-                          <Badge variant="warning">Edited</Badge>
-                        )}
+                        {isHtmlDirty && <Badge variant="warning">Edited</Badge>}
                         <Button
                           onClick={() => setHtmlDraft(null)}
                           variant="outline"
