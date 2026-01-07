@@ -354,6 +354,28 @@ export interface RuntimeConfigSnapshot {
   updated_at?: string;
 }
 
+export interface ContextConfigFile {
+  path: string;
+  section: string;
+  name: string;
+  content: string;
+  updated_at?: string;
+}
+
+export interface ContextConfigSnapshot {
+  root: string;
+  files: ContextConfigFile[];
+}
+
+export interface ContextConfigUpdateFile {
+  path: string;
+  content: string;
+}
+
+export interface ContextConfigUpdatePayload {
+  files: ContextConfigUpdateFile[];
+}
+
 export type MessageSource =
   | 'system_prompt'
   | 'user_input'

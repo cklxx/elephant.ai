@@ -54,10 +54,10 @@ const (
 	// markdownBufferThreshold controls how much streamed markdown we buffer before
 	// emitting a partial fragment. Keep this small so CLI/TUI get fast first-byte
 	// output even when the model streams without newlines.
-	markdownBufferThreshold = 256
+	markdownBufferThreshold = 64
 	// markdownMaxFlushDelay bounds how long we wait to show partial output after
 	// the last flush, even if the buffer is still small.
-	markdownMaxFlushDelay = 75 * time.Millisecond
+	markdownMaxFlushDelay = 16 * time.Millisecond
 )
 
 type markdownChunk struct {
@@ -359,6 +359,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 			h.write("\n")
 			h.lastStreamChunkEndedWithNewline = true
 		}
+		h.renderer.ResetMarkdownStreamState()
 	}
 }
 

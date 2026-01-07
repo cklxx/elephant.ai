@@ -49,19 +49,19 @@ const baseComponents: Record<string, ComponentType<any>> = {
     </div>
   ),
   ul: ({ children }: any) => (
-    <ul className="mb-2 list-disc list-inside !pl-0 space-y-1 leading-snug text-foreground marker:text-muted-foreground/70">
+    <div className="mb-2 space-y-1 leading-snug text-foreground">
       {children}
-    </ul>
+    </div>
   ),
   ol: ({ children }: any) => (
-    <ol className="mb-2 list-decimal list-inside !pl-0 space-y-1 leading-snug text-foreground marker:text-muted-foreground/70">
+    <div className="mb-2 space-y-1 leading-snug text-foreground">
       {children}
-    </ol>
+    </div>
   ),
   li: ({ children }: any) => (
-    <li className="whitespace-pre-wrap leading-snug text-foreground">
+    <div className="whitespace-pre-wrap leading-snug text-foreground">
       {children}
-    </li>
+    </div>
   ),
   strong: ({ children }: any) => (
     <strong className="font-medium text-foreground">{children}</strong>

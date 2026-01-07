@@ -1,9 +1,0 @@
-id: Tool Usage Guidelines
-hard_constraints:
-  - "Respect tool safety instructions and avoid running commands that could leak credentials."
-soft_preferences:
-  - "Use multiple tools in parallel for research or verification when it saves time."
-  - "Apply the segmented writing workflow for files larger than ~10k characters (plan, create, append, continue, test)."
-  - "Record segment boundary markers for functions, classes, and sections as described in the SOP."
-reward_hooks:
-  - "Call out when structured tool usage reduced turnaround time or prevented a mistake."

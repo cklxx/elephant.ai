@@ -1,11 +1,7 @@
 id: default
 description: |
-  Layered operating procedures distilled from legacy execution guidance, Claude Code
-  context best practices, and the Context Schema optimization plan. These packs
-  capture the task execution framework, TODO lifecycle, research strategy, and
-  observability guardrails so the context manager can rebuild the same proactive
-  guidance—scouting gaps, clarifying dependencies, and tying actions to evidence—
-  without bloated monolithic templates.
+  Layered operating procedures for execution, research, and context hygiene.
+  These references keep guidance compact and auditable.
 sop_refs:
   - TASK_EXECUTION_FRAMEWORK.md#task-execution-framework
   - TASK_EXECUTION_FRAMEWORK.md#todo-lifecycle

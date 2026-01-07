@@ -15,6 +15,8 @@ import {
   StartEvaluationRequest,
   EvaluationJobSummary,
   ContextWindowPreviewResponse,
+  ContextConfigSnapshot,
+  ContextConfigUpdatePayload,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -186,6 +188,39 @@ export async function updateRuntimeConfig(
     method: "PUT",
     body: JSON.stringify(request),
   });
+}
+
+// Dev context config APIs
+
+export async function getContextConfig(): Promise<ContextConfigSnapshot> {
+  return fetchAPI<ContextConfigSnapshot>("/api/dev/context-config");
+}
+
+export async function updateContextConfig(
+  request: ContextConfigUpdatePayload,
+): Promise<ContextConfigSnapshot> {
+  return fetchAPI<ContextConfigSnapshot>("/api/dev/context-config", {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getContextConfigPreview(params?: {
+  personaKey?: string;
+  goalKey?: string;
+  worldKey?: string;
+  toolMode?: string;
+  toolPreset?: string;
+}): Promise<ContextWindowPreviewResponse> {
+  const search = new URLSearchParams();
+  if (params?.personaKey) search.set("persona_key", params.personaKey);
+  if (params?.goalKey) search.set("goal_key", params.goalKey);
+  if (params?.worldKey) search.set("world_key", params.worldKey);
+  if (params?.toolMode) search.set("tool_mode", params.toolMode);
+  if (params?.toolPreset) search.set("tool_preset", params.toolPreset);
+  const suffix = search.toString();
+  const endpoint = suffix ? `/api/dev/context-config/preview?${suffix}` : "/api/dev/context-config/preview";
+  return fetchAPI<ContextWindowPreviewResponse>(endpoint);
 }
 
 // Session APIs
@@ -373,6 +408,9 @@ export const apiClient = {
   getSessionTitle,
   deleteSession,
   getContextWindowPreview,
+  getContextConfig,
+  updateContextConfig,
+  getContextConfigPreview,
   forkSession,
   listEvaluations,
   startEvaluation,
