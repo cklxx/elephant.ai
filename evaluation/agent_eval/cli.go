@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -28,8 +29,8 @@ func NewCLIManager(outputDir string) (*CLIManager, error) {
 	}
 
 	config := &EvaluationConfig{
-		DatasetType:    "swe_bench",
-		DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+		DatasetType:    "general_agent",
+		DatasetPath:    "",
 		InstanceLimit:  10, // 默认少量实例用于测试
 		MaxWorkers:     2,
 		AgentID:        "default-agent",
@@ -87,6 +88,9 @@ func (cm *CLIManager) applyOptions(options *EvaluationOptions) *EvaluationConfig
 
 	if options.DatasetPath != "" {
 		config.DatasetPath = options.DatasetPath
+	}
+	if options.DatasetType != "" {
+		config.DatasetType = options.DatasetType
 	}
 	if options.AgentID != "" {
 		config.AgentID = options.AgentID
@@ -181,6 +185,7 @@ func (cm *CLIManager) GetJobResults(jobID string) (*EvaluationResults, error) {
 // EvaluationOptions 评估选项
 type EvaluationOptions struct {
 	DatasetPath    string        `json:"dataset_path"`
+	DatasetType    string        `json:"dataset_type"`
 	InstanceLimit  int           `json:"instance_limit"`
 	MaxWorkers     int           `json:"max_workers"`
 	TimeoutPerTask time.Duration `json:"timeout_per_task"`
@@ -194,7 +199,8 @@ type EvaluationOptions struct {
 // DefaultEvaluationOptions 默认评估选项
 func DefaultEvaluationOptions() *EvaluationOptions {
 	return &EvaluationOptions{
-		DatasetPath:    "./evaluation/swe_bench/real_instances.json",
+		DatasetPath:    "",
+		DatasetType:    "general_agent",
 		InstanceLimit:  10,
 		MaxWorkers:     2,
 		TimeoutPerTask: 300 * time.Second,
@@ -372,9 +378,9 @@ func (cm *CLIManager) compareResults(baseline, experiment *EvaluationResults) *C
 
 // ValidateConfig 验证配置
 func ValidateConfig(config *EvaluationConfig) error {
-	if config.DatasetPath == "" {
-		return fmt.Errorf("dataset path is required")
-	}
+	datasetType := normalizeDatasetType(config.DatasetType)
+
+	datasetPath := strings.TrimSpace(config.DatasetPath)
 
 	if config.InstanceLimit <= 0 {
 		return fmt.Errorf("instance limit must be positive")
@@ -398,10 +404,25 @@ func ValidateConfig(config *EvaluationConfig) error {
 	}
 	config.OutputDir = cleanedOutputDir
 
-	// 检查数据集文件是否存在
-	if _, err := os.Stat(config.DatasetPath); os.IsNotExist(err) {
-		return fmt.Errorf("dataset file does not exist: %s", config.DatasetPath)
+	// 检查数据集文件是否存在（general_agent 可使用内置数据集）
+	if datasetType != "general_agent" || datasetPath != "" {
+		if datasetPath == "" {
+			return fmt.Errorf("dataset path is required")
+		}
+		if _, err := os.Stat(datasetPath); os.IsNotExist(err) {
+			return fmt.Errorf("dataset file does not exist: %s", datasetPath)
+		}
 	}
 
 	return nil
+}
+
+func normalizeDatasetType(datasetType string) string {
+	d := strings.TrimSpace(datasetType)
+	switch d {
+	case "test":
+		return "general_agent"
+	default:
+		return d
+	}
 }
