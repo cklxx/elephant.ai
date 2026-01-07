@@ -270,27 +270,25 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
-	r.static["flow_search"] = builtin.NewFlowSearch(config.TavilyAPIKey)
 	writeLLM := llm.NewMockClient()
 	provider := strings.TrimSpace(config.LLMProvider)
 	model := strings.TrimSpace(config.LLMModel)
 	if provider != "" && provider != "mock" {
 		if config.LLMFactory == nil {
-			return fmt.Errorf("flow_write: LLMFactory is required when provider is %q", provider)
+			return fmt.Errorf("html_edit: LLMFactory is required when provider is %q", provider)
 		}
 		if model == "" {
-			return fmt.Errorf("flow_write: model is required when provider is %q", provider)
+			return fmt.Errorf("html_edit: model is required when provider is %q", provider)
 		}
 		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
 			APIKey:  config.APIKey,
 			BaseURL: config.BaseURL,
 		})
 		if err != nil {
-			return fmt.Errorf("flow_write: failed to create LLM client: %w", err)
+			return fmt.Errorf("html_edit: failed to create LLM client: %w", err)
 		}
 		writeLLM = client
 	}
-	r.static["flow_write"] = builtin.NewFlowWrite(writeLLM)
 	r.static["html_edit"] = builtin.NewHTMLEdit(writeLLM)
 	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
 		// Reserved for future config.
