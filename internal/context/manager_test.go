@@ -102,7 +102,7 @@ func TestBuildWindowSkipsEnvironmentSectionInWebMode(t *testing.T) {
 	}
 }
 
-func TestDefaultStaticContextCarriesLegacyPromptSections(t *testing.T) {
+func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 	configRoot := resolveDefaultConfigRoot(t)
 	mgr := NewManager(WithConfigRoot(configRoot))
 	session := &ports.Session{ID: "legacy-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
@@ -114,12 +114,11 @@ func TestDefaultStaticContextCarriesLegacyPromptSections(t *testing.T) {
 
 	prompt := window.SystemPrompt
 	expectations := []string{
-		"Use `todo_update` to create a task checklist",
-		"Represent every attachment as a [filename.ext] placeholder",
-		"Investigate before coding: understand the user's workflow",
-		"Follow the Design → Implementation → Testing cadence",
-		"Use multiple tools in parallel for research or verification when it saves time",
-		"Respond directly without phrases like 'Here is'",
+		"correctness, reproducibility, and controlled risk",
+		"propose a direction early",
+		"In execution, inspect code",
+		"Workflow Contract (Strict): Flow: Plan -> Clearify (when needed) -> ReAct -> Finalize.",
+		"Never execute destructive shell commands or delete data without explicit confirmation.",
 	}
 	for _, snippet := range expectations {
 		if !strings.Contains(prompt, snippet) {
@@ -154,14 +153,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 
 	expectedPolicies := []string{
 		"Core Guardrails",
-		"Execution Principles",
-		"TODO Management",
 		"Standard Workflow",
-		"Quality Standards",
-		"Multimodal Attachment Protocol",
-		"Research & Investigation",
-		"Tool Usage Guidelines",
-		"Communication Standards",
 	}
 	for _, id := range expectedPolicies {
 		if _, ok := snapshot.Policies[id]; !ok {
