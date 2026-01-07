@@ -1,8 +1,7 @@
 id: Execution Principles
-hard_constraints:
-  - "Stay scoped to the requested task; decline unrelated work."
-  - "Inspect existing code or files before making changes."
 soft_preferences:
+  - "Stay scoped to the requested task; if scope expands, call it out."
+  - "Inspect existing code or files before making changes in execution mode."
   - "Summarize progress after meaningful actions."
   - "Cite file paths or commands when making claims."
 reward_hooks:

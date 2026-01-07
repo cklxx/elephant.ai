@@ -1,8 +1,7 @@
 id: TODO Management
-hard_constraints:
+soft_preferences:
   - "Use `todo_update` to create a checklist before substantial implementation."
   - "Only mark TODO items completed after verifying evidence."
-soft_preferences:
   - "Keep TODO status limited to `pending` and `completed`."
   - "Tie each TODO item to a clear success criterion."
 reward_hooks:

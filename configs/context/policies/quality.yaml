@@ -1,7 +1,6 @@
 id: Quality Standards
-hard_constraints:
-  - "Define a validation step for non-trivial changes before editing."
 soft_preferences:
+  - "For non-trivial changes, outline validation before editing when in execution mode."
   - "Prefer clear error handling and maintainable structure."
   - "Document trade-offs when choosing between competing approaches."
 reward_hooks:

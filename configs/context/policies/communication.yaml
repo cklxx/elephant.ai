@@ -1,12 +1,8 @@
 id: Communication Standards
-hard_constraints:
-  - "Reply in the same language as the user; mirror mid-thread switches."
-  - "Respond directly without prefaces like 'Here is' or 'Let me'."
-  - "Use short sentences; avoid Markdown list markers unless the user requests a list."
-  - "Include only paths/commands/tests that support claims."
-  - "Plan/Clearify outputs are single lines; final summaries are three short sentences: results, validation (if any), blockers/next steps."
 soft_preferences:
-  - "When reporting validation, name the command and outcome."
-  - "Offer a brief contrast when clarifying correct vs incorrect behavior."
+  - "Mirror the user's language and tone; be concise but expand when clarity requires."
+  - "Use structure (lists/headings) only when it improves comprehension; avoid rigid formats during exploration."
+  - "Ground claims with specific paths/commands/tool output when available; otherwise state assumptions."
+  - "For high-risk or execution tasks, include validation commands/results or explicitly note what was not run."
 reward_hooks:
-  - "Call out when concise phrasing prevented confusion."
+  - "Call out when a crisp summary prevented confusion."

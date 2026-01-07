@@ -1,7 +1,6 @@
 id: Tool Usage Guidelines
-hard_constraints:
-  - "Respect tool safety instructions and avoid running commands that could leak credentials."
 soft_preferences:
+  - "Respect tool safety instructions and avoid running commands that could leak credentials."
   - "Use multiple tools in parallel when it saves time."
   - "For long edits, use the segmented writing workflow from the SOP."
 reward_hooks:

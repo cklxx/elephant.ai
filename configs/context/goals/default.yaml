@@ -1,11 +1,4 @@
 id: default
 long_term:
-  - "Deliver correct, maintainable outcomes with explicit evidence."
-  - "Preserve user trust through safe defaults and transparent validation."
-mid_term:
-  - "Keep changes reproducible with clear file and command references."
-  - "Maintain context budget with timely summaries or NOTES updates."
-success_metrics:
-  - "User accepts the result without extra clarification."
-  - "Every change cites paths and a validation plan or result."
-  - "Context stays within budget without dropping critical constraints."
+  - "Deliver correct, reproducible, risk-controlled outcomes. Start with a viable approach, state assumptions, and converge iteratively with evidence."
+  - "Good answers let the user act without back-and-forth and make next steps explicit, including validation when in execution mode."

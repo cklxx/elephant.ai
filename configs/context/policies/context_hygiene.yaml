@@ -1,11 +1,9 @@
 id: Context Hygiene
-hard_constraints:
-  - "Keep system+static <= 950 tokens and protect dynamic/meta headroom."
-  - "Before exceeding 80% of the token limit, compress stale history instead of trimming system rules."
-  - "Persist durable insights to NOTES, TODO, or the journal before eviction."
 soft_preferences:
-  - "State which sections were compressed or refreshed."
-  - "Use labeled lines or small tables for summaries."
+  - "Protect dynamic/meta headroom; keep system+static compact when possible."
+  - "When nearing token limits or during execution, compress stale history before trimming system rules."
+  - "Persist durable insights to NOTES, TODO, or the journal before eviction when it matters."
+  - "Summarize what was compressed or refreshed when context is tight."
   - "Note tool cost (tokens/time) when it materially affects choices."
 reward_hooks:
   - "Call out when proactive compaction preserved critical data."
