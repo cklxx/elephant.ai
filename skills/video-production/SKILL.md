@@ -1,6 +1,6 @@
 ---
 name: video-production
-description: 端到端视频制作 playbook（策划→素材规范→剪辑→字幕→导出→发布→验收），并映射到本仓库的 ffmpeg/视频工具链。
+description: 端到端视频制作 playbook（策划→素材规范→剪辑→字幕→导出→发布→验收），强调可复现的交付流程。
 ---
 
 # 视频制作（从 Brief 到交付）
@@ -20,7 +20,7 @@ description: 端到端视频制作 playbook（策划→素材规范→剪辑→�
 
 ## 工作流
 1. **预制作**：写脚本（旁白+强调词+停顿点）、镜头单（镜头类型/时长/所需素材）、资产清单（来源/授权）。  
-2. **素材预检**：用 `ffprobe` 抽检分辨率、帧率、像素宽高比、时长、编码器/码率、音频采样率/声道、是否 VFR。  
+2. **素材预检**：抽检分辨率、帧率、像素宽高比、时长、编码器/码率、音频采样率/声道、是否 VFR。  
 3. **粗剪 → 精剪**：先跑通结构，再控节奏与信息密度（口播“可理解、可跟上、可复述”）。  
 4. **声音优先**：人声明晰优先于画面高级感；配乐给人声留空间。  
 5. **画面统一**：最小必要调色（统一曝光/白平衡/对比度）；避免每段素材像不同片子。  
@@ -28,11 +28,8 @@ description: 端到端视频制作 playbook（策划→素材规范→剪辑→�
 7. **导出**（YouTube SDR 参考）：容器 MP4；视频 H.264 progressive/high profile（常见 4:2:0）；音频 AAC 48kHz；fast start；1080p 约 8 Mbps（24/25/30fps）或 12 Mbps（48/50/60fps）；4K 约 35–68 Mbps；响度 -14 LUFS，true peak ≤ -1 dBTP。  
 8. **发布与验收**：逐条勾验（画面无黑帧/比例正确、声音无爆音且响度达标、字幕对齐、导出帧率/码率符合平台、fast start 生效），记录变更与已知限制。
 
-## 本仓库工具链映射
-- `cmd/videoedit`：封装 `scripts/video_editing_demo.sh`（拼接/水印/混音/字幕）。  
-- `scripts/video_editing_demo.sh`：生成样片或扩展滤镜链。  
-- `ffmpeg` / `ffprobe`：素材预检、转码、拼接、字幕烧录与导出。  
-- 验收示例：`go run ./cmd/videoedit --output deliverables/demo.mp4`
+## 本仓库工具链说明
+- 当前仓库不提供内建视频处理工具链；请根据团队规范选择并记录使用的外部工具与版本。
 
 ## 参考资料
 - YouTube 上传建议：https://support.google.com/youtube/answer/1722171  
