@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { BookOpenText, PlayCircle, Wand2 } from "lucide-react";
+import { BookOpenText, Layers, PlayCircle, ShieldCheck, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Header } from "@/components/layout";
 import { PageContainer } from "@/components/layout/page-shell";
@@ -15,7 +16,6 @@ type HomeCopy = {
   subtitle: string;
   actions: {
     primary: string;
-    flow: string;
   };
 };
 
@@ -26,7 +26,6 @@ const copy: Record<HomeLang, HomeCopy> = {
     subtitle: "首页与 Console 同框：主动 Agent 先探路、先澄清、再执行。",
     actions: {
       primary: "进入控制台",
-      flow: "体验心流模式",
     },
   },
   en: {
@@ -35,9 +34,58 @@ const copy: Record<HomeLang, HomeCopy> = {
     subtitle: "Proactive agents share the console frame—scouting, clarifying, then executing.",
     actions: {
       primary: "Open console",
-      flow: "Try Flow mode",
     },
   },
+};
+
+type HighlightCopy = {
+  title: string;
+  body: string;
+  accent: string;
+  icon: LucideIcon;
+};
+
+const highlightCopy: Record<HomeLang, HighlightCopy[]> = {
+  zh: [
+    {
+      title: "先规划再执行",
+      body: "目标、约束与依赖先对齐，动作才开始。",
+      accent: "from-indigo-500/20 via-sky-500/20 to-emerald-500/20",
+      icon: Sparkles,
+    },
+    {
+      title: "证据优先",
+      body: "行动和结果并排呈现，交付即复盘。",
+      accent: "from-amber-500/20 via-orange-500/20 to-rose-500/20",
+      icon: ShieldCheck,
+    },
+    {
+      title: "全过程可追踪",
+      body: "节奏、步骤与工具调用清晰可见。",
+      accent: "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
+      icon: Layers,
+    },
+  ],
+  en: [
+    {
+      title: "Plan before action",
+      body: "Align goals, guardrails, and dependencies up front.",
+      accent: "from-indigo-500/20 via-sky-500/20 to-emerald-500/20",
+      icon: Sparkles,
+    },
+    {
+      title: "Evidence-first delivery",
+      body: "Actions and outcomes stay side by side for review.",
+      accent: "from-amber-500/20 via-orange-500/20 to-rose-500/20",
+      icon: ShieldCheck,
+    },
+    {
+      title: "Traceable execution",
+      body: "Timelines, tools, and handoffs remain visible.",
+      accent: "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
+      icon: Layers,
+    },
+  ],
 };
 
 type ManifestoCopy = {
@@ -94,6 +142,51 @@ const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
       },
     ],
     closing: "Slow is fast: proactive agents cut nagging loops and keep real state with proof.",
+  },
+};
+
+type SlogCopy = {
+  badge: string;
+  title: string;
+  points: { title: string; body: string }[];
+};
+
+const slogCopy: Record<HomeLang, SlogCopy> = {
+  zh: {
+    badge: "slog · 可观测性",
+    title: "成本、token、节省时间一眼看清",
+    points: [
+      {
+        title: "成本可视化",
+        body: "每次运行的成本分解直达日志，避免隐性消耗。",
+      },
+      {
+        title: "token 账本",
+        body: "请求与响应的 token 统计清晰列示，便于优化策略。",
+      },
+      {
+        title: "节省时间",
+        body: "对比人工与自动化用时，让效率收益可衡量。",
+      },
+    ],
+  },
+  en: {
+    badge: "slog · observability",
+    title: "Cost, tokens, time saved—measured in slog",
+    points: [
+      {
+        title: "Cost clarity",
+        body: "Per-run cost breakdowns land in the logs with no blind spots.",
+      },
+      {
+        title: "Token ledger",
+        body: "Prompt/response token counts stay visible for tuning.",
+      },
+      {
+        title: "Time saved",
+        body: "Compare manual vs. automated runtime to quantify gains.",
+      },
+    ],
   },
 };
 
@@ -154,9 +247,9 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
 function Hero({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
   return (
-    <div className="space-y-5 rounded-3xl border border-border/60 bg-card/70 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Wand2 className="h-3.5 w-3.5" aria-hidden />
+    <div className="space-y-5 rounded-3xl border border-border/60 bg-card/80 p-6 shadow-[0_16px_60px_-40px_rgba(15,23,42,0.5)]">
+      <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Sparkles className="h-3.5 w-3.5" aria-hidden />
         {t.badge}
       </div>
 
@@ -178,6 +271,34 @@ function Hero({ lang }: { lang: HomeLang }) {
         </Link>
         <LanguageToggle lang={lang} className="sm:hidden" />
       </div>
+    </div>
+  );
+}
+
+function Highlights({ lang }: { lang: HomeLang }) {
+  const highlights = highlightCopy[lang];
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {highlights.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.title}
+            className="relative overflow-hidden rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm"
+          >
+            <div className={cn("absolute inset-0 bg-gradient-to-br", item.accent)} aria-hidden />
+            <div className="relative space-y-3">
+              <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/90 text-foreground shadow-sm">
+                <Icon className="h-4 w-4" aria-hidden />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">{item.body}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -223,6 +344,34 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
   );
 }
 
+function SlogPanel({ lang }: { lang: HomeLang }) {
+  const slog = slogCopy[lang];
+  return (
+    <section className="space-y-4 rounded-3xl border border-border/60 bg-card/70 p-6 shadow-sm">
+      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Layers className="h-3.5 w-3.5" aria-hidden />
+        {slog.badge}
+      </div>
+      <div className="space-y-2">
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          {slog.title}
+        </h2>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {slog.points.map((point) => (
+          <div
+            key={point.title}
+            className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm"
+          >
+            <p className="text-sm font-semibold text-foreground">{point.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{point.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function VideoPlaceholder({ lang }: { lang: HomeLang }) {
   const copy = videoCopy[lang];
 
@@ -264,25 +413,21 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
                     {heroCopy.actions.primary}
                   </Button>
                 </Link>
-                <Link href="/conversation?mode=flow">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full border-border/60 shadow-sm"
-                  >
-                    <Wand2 className="mr-2 h-4 w-4" aria-hidden />
-                    {heroCopy.actions.flow}
-                  </Button>
-                </Link>
               </div>
             }
           />
         </Suspense>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <Hero lang={lang} />
-          <ManifestoArticle lang={lang} />
-          <VideoPlaceholder lang={lang} />
+        <div className="grid min-h-0 gap-6 lg:grid-cols-[0.95fr,1.05fr]">
+          <div className="flex flex-col gap-4">
+            <Hero lang={lang} />
+            <Highlights lang={lang} />
+            <VideoPlaceholder lang={lang} />
+          </div>
+          <div className="flex flex-col gap-4">
+            <SlogPanel lang={lang} />
+            <ManifestoArticle lang={lang} />
+          </div>
         </div>
       </PageContainer>
     </div>
