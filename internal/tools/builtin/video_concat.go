@@ -111,8 +111,34 @@ func (t *videoConcatTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		segmentPaths = append(segmentPaths, segmentPath)
 	}
 
+	normalizedPaths := make([]string, 0, len(segmentPaths))
+	for idx, segmentPath := range segmentPaths {
+		normalizedPath := filepath.Join(workdir, fmt.Sprintf("normalized_%02d.mp4", idx+1))
+		cmd := exec.CommandContext(
+			ctx,
+			"ffmpeg",
+			"-y",
+			"-i",
+			segmentPath,
+			"-c:v",
+			"libx264",
+			"-pix_fmt",
+			"yuv420p",
+			"-c:a",
+			"aac",
+			"-movflags",
+			"+faststart",
+			normalizedPath,
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			wrapped := fmt.Errorf("ffmpeg normalize segment %d failed: %w: %s", idx, err, strings.TrimSpace(string(out)))
+			return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
+		}
+		normalizedPaths = append(normalizedPaths, normalizedPath)
+	}
+
 	manifestPath := filepath.Join(workdir, "segments.txt")
-	if err := writeConcatManifest(manifestPath, segmentPaths); err != nil {
+	if err := writeConcatManifest(manifestPath, normalizedPaths); err != nil {
 		wrapped := fmt.Errorf("write manifest: %w", err)
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
