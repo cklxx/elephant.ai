@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -215,24 +216,59 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 	if datasetType == "" {
 		datasetType = "file"
 	}
+
+	// Sanitize the dataset path before any filesystem access.
+	datasetPath := ""
+	if config.DatasetPath != "" {
+		safePath, err := sanitizeDatasetPath(config.DatasetPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dataset path: %w", err)
+		}
+		datasetPath = safePath
+	}
+
 	if datasetType == "general_agent" {
-		return loadGeneralAgentDataset(config.DatasetPath, config.InstanceLimit)
+		return loadGeneralAgentDataset(datasetPath, config.InstanceLimit)
 	}
 	// 基于现有SWE-Bench加载器
 	loader := swe_bench.NewDatasetLoader()
-	if datasetType == "swe_bench" && config.DatasetPath != "" {
-		if _, err := os.Stat(config.DatasetPath); err == nil {
+	if datasetType == "swe_bench" && datasetPath != "" {
+		if _, err := os.Stat(datasetPath); err == nil {
 			datasetType = "file"
 		}
 	}
 
 	datasetConfig := swe_bench.DatasetConfig{
 		Type:          datasetType,
-		FilePath:      config.DatasetPath,
+		FilePath:      datasetPath,
 		InstanceLimit: config.InstanceLimit,
 	}
 
 	return loader.LoadInstances(ctx, datasetConfig)
+}
+
+// sanitizeDatasetPath normalizes and validates a dataset path to prevent directory traversal.
+// It allows both absolute and relative paths but rejects any that contain parent directory components.
+func sanitizeDatasetPath(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	cleaned := filepath.Clean(trimmed)
+	if cleaned == "." || cleaned == ".." {
+		return "", fmt.Errorf("path %q is not allowed", raw)
+	}
+
+	// Check for any parent directory traversal components.
+	segments := strings.Split(cleaned, string(os.PathSeparator))
+	for _, seg := range segments {
+		if seg == ".." {
+			return "", fmt.Errorf("path %q contains disallowed parent directory reference", raw)
+		}
+	}
+
+	return cleaned, nil
 }
 
 // runEvaluation 运行评估
