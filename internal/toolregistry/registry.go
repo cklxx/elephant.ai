@@ -315,6 +315,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
+	r.static["video_concat"] = builtin.NewVideoConcat()
 
 	seedreamBase := builtin.SeedreamConfig{
 		APIKey: config.ArkAPIKey,

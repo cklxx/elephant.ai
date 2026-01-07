@@ -18,6 +18,9 @@ func TestNewRegistryRegistersBuiltins(t *testing.T) {
 	if _, err := registry.Get("file_read"); err != nil {
 		t.Fatalf("failed to get file_read: %v", err)
 	}
+	if _, err := registry.Get("video_concat"); err != nil {
+		t.Fatalf("failed to get video_concat: %v", err)
+	}
 }
 
 func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
