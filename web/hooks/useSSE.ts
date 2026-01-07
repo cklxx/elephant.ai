@@ -356,7 +356,7 @@ export function useSSE(
       );
       return nextState;
     });
-  }, [enqueueEvent]);
+  }, [applyAssistantAnswerFallback]);
 
   const scheduleFlush = useCallback(() => {
     if (IS_TEST_ENV) {
