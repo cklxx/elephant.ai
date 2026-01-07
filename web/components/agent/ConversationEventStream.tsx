@@ -526,10 +526,11 @@ function resolveActiveTaskId(events: AnyAgentEvent[]): string | null {
   }
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
-    if (events[i].agent_level !== "core") {
+    const event = events[i];
+    if (event.agent_level !== "core") {
       continue;
     }
-    const taskId = typeof events[i].task_id === "string" ? events[i].task_id.trim() : "";
+    const taskId = typeof event.task_id === "string" ? event.task_id.trim() : "";
     if (taskId) {
       return taskId;
     }

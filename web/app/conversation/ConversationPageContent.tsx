@@ -51,7 +51,6 @@ import {
 } from "@/components/agent/AttachmentPanel";
 import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
-import { FlowModePanel } from "@/components/flow/FlowModePanel";
 
 const LazyConversationEventStream = dynamic(
   () =>
@@ -72,10 +71,8 @@ export function ConversationPageContent() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
-  const [viewMode, setViewMode] = useState<"console" | "flow">("console");
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
   const [prewarmSessionId, setPrewarmSessionId] = useState<string | null>(null);
-  const [flowSessionId, setFlowSessionId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -88,11 +85,6 @@ export function ConversationPageContent() {
   const firstTokenReportedRef = useRef<Set<string>>(new Set());
   const searchParams = useSearchParams();
   const { t } = useI18n();
-
-  useEffect(() => {
-    const mode = searchParams.get("mode");
-    setViewMode(mode === "flow" ? "flow" : "console");
-  }, [searchParams]);
 
   const useMockStream = useMemo(
     () => searchParams.get("mockSSE") === "1",
@@ -133,7 +125,6 @@ export function ConversationPageContent() {
 
   const resolvedSessionId = sessionId || currentSessionId;
   const streamSessionId = resolvedSessionId ?? prewarmSessionId;
-  const flowStreamSessionId = flowSessionId;
   const formatSessionBadge = useCallback(
     (value: string) =>
       value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
@@ -199,13 +190,6 @@ export function ConversationPageContent() {
   } = useAgentEventStream(streamSessionId, {
     useMock: useMockStream,
     onEvent: handleAgentEvent,
-  });
-  const {
-    events: flowEvents,
-    addEvent: addFlowEvent,
-  } = useAgentEventStream(flowStreamSessionId, {
-    useMock: useMockStream,
-    enabled: Boolean(flowStreamSessionId) || useMockStream,
   });
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -476,98 +460,6 @@ export function ConversationPageContent() {
     runExecution(initialSessionId ?? null);
   };
 
-  const ensureFlowSessionId = useCallback(async () => {
-    if (flowSessionId) return flowSessionId;
-    const { session_id } = await apiClient.createSession();
-    setFlowSessionId(session_id);
-    return session_id;
-  }, [flowSessionId]);
-
-  const runFlowTask = useCallback(
-    async (task: string) => {
-      if (useMockStream) {
-        const submissionTimestamp = new Date();
-        const session =
-          flowSessionId ??
-          `flow-mock-${submissionTimestamp.getTime().toString(36)}`;
-        const taskId = `flow-mock-${submissionTimestamp.getTime().toString(36)}`;
-        const timestamp = submissionTimestamp.toISOString();
-
-        setFlowSessionId(session);
-
-        const inputEvent: AnyAgentEvent = {
-          event_type: "workflow.input.received",
-          timestamp,
-          agent_level: "core",
-          session_id: session,
-          task_id: taskId,
-          task,
-        };
-
-        addFlowEvent(inputEvent);
-
-        const finalAnswer = [
-          "写作提示：",
-          "1) 精炼要点：从正文中提炼 2-3 条核心观点，并按重要性排序扩写。",
-          "2) 补充论据：为关键观点增加真实案例或数据引用，让论证更扎实。",
-          "",
-          "自动搜索：",
-          "1) 行业最新案例 数据 支撑 —— 为正文挑选可以引用的案例与数据来源。",
-        ].join("\n");
-
-        const completionEvent: AnyAgentEvent = {
-          event_type: "workflow.result.final",
-          timestamp: new Date().toISOString(),
-          agent_level: "core",
-          session_id: session,
-          task_id: taskId,
-          final_answer: finalAnswer,
-          total_iterations: 1,
-          total_tokens: 0,
-          stop_reason: "mock",
-          duration: 0,
-          is_streaming: false,
-          stream_finished: true,
-        };
-
-        setTimeout(() => addFlowEvent(completionEvent), 120);
-
-        return {
-          task_id: taskId,
-          session_id: session,
-        };
-      }
-
-      const targetSessionId = await ensureFlowSessionId();
-      const response = await apiClient.createTask({
-        task,
-        session_id: targetSessionId,
-      });
-
-      setFlowSessionId(response.session_id);
-
-      const submissionEvent: AnyAgentEvent = {
-        event_type: "workflow.input.received",
-        timestamp: new Date().toISOString(),
-        agent_level: "core",
-        session_id: response.session_id,
-        task_id: response.task_id,
-        parent_task_id: response.parent_task_id ?? undefined,
-        task,
-      };
-
-      addFlowEvent(submissionEvent);
-
-      return response;
-    },
-    [
-      addFlowEvent,
-      ensureFlowSessionId,
-      flowSessionId,
-      useMockStream,
-    ],
-  );
-
   const handleStop = useCallback(() => {
     if (isCancelPending) {
       return;
@@ -696,7 +588,6 @@ export function ConversationPageContent() {
   const headerTitle = resolvedSessionId
     ? activeSessionLabel || t("conversation.header.activeLabel")
     : t("conversation.header.idle");
-  const flowHeaderTitle = t("conversation.flow.headerTitle");
 
   const quickPrompts = useMemo(
     () => [
@@ -866,58 +757,44 @@ export function ConversationPageContent() {
       </Dialog>
       <div className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
         <Header
-          title={viewMode === "flow" ? flowHeaderTitle : headerTitle}
-          subtitle={viewMode === "flow" ? t("conversation.flow.subtitle") : undefined}
-          showEnvironmentStrip={viewMode !== "flow"}
+          title={headerTitle}
+          showEnvironmentStrip
           leadingSlot={
-            viewMode === "console" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                data-testid="session-list-toggle"
-                onClick={() =>
-                  setIsSidebarOpen((prev) => {
-                    const next = !prev;
-                    captureEvent(AnalyticsEvent.SidebarToggled, {
-                      next_state: next ? "open" : "closed",
-                      previous_state: prev ? "open" : "closed",
-                    });
-                    return next;
-                  })
-                }
-                className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-                aria-expanded={isSidebarOpen}
-                aria-controls="conversation-sidebar"
-              >
-                {isSidebarOpen ? (
-                  <PanelLeftClose className="h-4 w-4" />
-                ) : (
-                  <PanelLeftOpen className="h-4 w-4" />
-                )}
-                <span className="sr-only">
-                  {isSidebarOpen
-                    ? t("sidebar.toggle.close")
-                    : t("sidebar.toggle.open")}
-                </span>
-              </Button>
-            ) : null
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              data-testid="session-list-toggle"
+              onClick={() =>
+                setIsSidebarOpen((prev) => {
+                  const next = !prev;
+                  captureEvent(AnalyticsEvent.SidebarToggled, {
+                    next_state: next ? "open" : "closed",
+                    previous_state: prev ? "open" : "closed",
+                  });
+                  return next;
+                })
+              }
+              className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
+              aria-expanded={isSidebarOpen}
+              aria-controls="conversation-sidebar"
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+              <span className="sr-only">
+                {isSidebarOpen
+                  ? t("sidebar.toggle.close")
+                  : t("sidebar.toggle.open")}
+              </span>
+            </Button>
           }
-          actionsSlot={
-            viewMode === "console" ? (
-              <div className="flex items-center gap-2">{rightPanelToggle}</div>
-            ) : null
-          }
+          actionsSlot={<div className="flex items-center gap-2">{rightPanelToggle}</div>}
         />
 
-        {viewMode === "flow" ? (
-          <div className="flex-1 min-h-[calc(100vh-6rem)] overflow-y-auto">
-            <div className="mx-auto flex h-full w-full max-w-none flex-col gap-6 px-4 py-5 lg:px-8">
-              <FlowModePanel events={flowEvents} onRunTask={runFlowTask} />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
+        <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
             <div
               id="conversation-sidebar"
               className={cn(
@@ -1018,10 +895,9 @@ export function ConversationPageContent() {
               ) : null}
             </div>
           </div>
-        )}
       </div>
 
-      {viewMode === "console" && isRightPanelOpen && (
+      {isRightPanelOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <button
             type="button"
