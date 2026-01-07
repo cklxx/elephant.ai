@@ -3,6 +3,10 @@ package di
 import (
 	"os"
 	"testing"
+
+	"alex/internal/session/postgresstore"
+	sessionstate "alex/internal/session/state_store"
+	"alex/internal/testutil"
 )
 
 func TestResolveStorageDir(t *testing.T) {
@@ -250,6 +254,81 @@ func TestContainer_Lifecycle(t *testing.T) {
 			t.Errorf("Second Shutdown() error = %v", err)
 		}
 	})
+}
+
+func TestBuildContainer_RequireSessionDatabase(t *testing.T) {
+	t.Run("fails when session database is required but missing", func(t *testing.T) {
+		config := Config{
+			LLMProvider:            "mock",
+			LLMModel:               "test",
+			MaxTokens:              100000,
+			MaxIterations:          20,
+			SessionDir:             "/tmp/alex-test-require-db-sessions",
+			CostDir:                "/tmp/alex-test-require-db-costs",
+			EnableMCP:              false,
+			RequireSessionDatabase: true,
+			SessionDatabaseURL:     "",
+		}
+
+		if _, err := BuildContainer(config); err == nil {
+			t.Fatal("BuildContainer() should fail when session database is required but missing")
+		}
+	})
+
+	t.Run("fails when session database URL is invalid", func(t *testing.T) {
+		config := Config{
+			LLMProvider:            "mock",
+			LLMModel:               "test",
+			MaxTokens:              100000,
+			MaxIterations:          20,
+			SessionDir:             "/tmp/alex-test-invalid-db-sessions",
+			CostDir:                "/tmp/alex-test-invalid-db-costs",
+			EnableMCP:              false,
+			RequireSessionDatabase: true,
+			SessionDatabaseURL:     "not-a-database-url",
+		}
+
+		if _, err := BuildContainer(config); err == nil {
+			t.Fatal("BuildContainer() should fail when session database URL is invalid")
+		}
+	})
+}
+
+func TestBuildContainer_UsesPostgresStores(t *testing.T) {
+	_, dbURL, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	config := Config{
+		LLMProvider:            "mock",
+		LLMModel:               "test",
+		MaxTokens:              100000,
+		MaxIterations:          20,
+		SessionDir:             "/tmp/alex-test-postgres-sessions",
+		CostDir:                "/tmp/alex-test-postgres-costs",
+		EnableMCP:              false,
+		RequireSessionDatabase: true,
+		SessionDatabaseURL:     dbURL,
+	}
+
+	container, err := BuildContainer(config)
+	if err != nil {
+		t.Fatalf("BuildContainer() error = %v", err)
+	}
+	defer func() { _ = container.Shutdown() }()
+
+	if container.SessionDB == nil {
+		t.Fatal("expected session DB to be initialized")
+	}
+
+	if _, ok := container.SessionStore.(*postgresstore.Store); !ok {
+		t.Fatalf("expected Postgres session store, got %T", container.SessionStore)
+	}
+	if _, ok := container.StateStore.(*sessionstate.PostgresStore); !ok {
+		t.Fatalf("expected Postgres state store, got %T", container.StateStore)
+	}
+	if _, ok := container.HistoryStore.(*sessionstate.PostgresStore); !ok {
+		t.Fatalf("expected Postgres history store, got %T", container.HistoryStore)
+	}
 }
 
 func TestMCPInitializationTracker(t *testing.T) {

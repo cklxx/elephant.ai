@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/testutil"
 )
 
 func TestRecordFromEventStripsAttachmentData(t *testing.T) {
@@ -117,23 +119,14 @@ type stubSubtaskWrapper struct {
 }
 
 func (w *stubSubtaskWrapper) EventType() string {
-	if w == nil || w.inner == nil {
-		return "subtask"
-	}
 	return w.inner.EventType()
 }
 
 func (w *stubSubtaskWrapper) Timestamp() time.Time {
-	if w == nil || w.inner == nil {
-		return time.Time{}
-	}
 	return w.inner.Timestamp()
 }
 
 func (w *stubSubtaskWrapper) GetAgentLevel() ports.AgentLevel {
-	if w == nil {
-		return ports.LevelSubagent
-	}
 	if w.level != "" {
 		return w.level
 	}
@@ -141,37 +134,22 @@ func (w *stubSubtaskWrapper) GetAgentLevel() ports.AgentLevel {
 }
 
 func (w *stubSubtaskWrapper) GetSessionID() string {
-	if w == nil || w.inner == nil {
-		return ""
-	}
 	return w.inner.GetSessionID()
 }
 
 func (w *stubSubtaskWrapper) GetTaskID() string {
-	if w == nil || w.inner == nil {
-		return ""
-	}
 	return w.inner.GetTaskID()
 }
 
 func (w *stubSubtaskWrapper) GetParentTaskID() string {
-	if w == nil || w.inner == nil {
-		return ""
-	}
 	return w.inner.GetParentTaskID()
 }
 
 func (w *stubSubtaskWrapper) SubtaskDetails() ports.SubtaskMetadata {
-	if w == nil {
-		return ports.SubtaskMetadata{}
-	}
 	return w.meta
 }
 
 func (w *stubSubtaskWrapper) WrappedEvent() ports.AgentEvent {
-	if w == nil {
-		return nil
-	}
 	return w.inner
 }
 
@@ -249,5 +227,100 @@ func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 	}
 	if env.MaxParallel != wrapper.meta.MaxParallel {
 		t.Fatalf("expected rehydrated max parallel %d, got %d", wrapper.meta.MaxParallel, env.MaxParallel)
+	}
+}
+
+func TestPostgresEventHistoryStore_CrossInstanceReplay(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	storeA := NewPostgresEventHistoryStore(pool)
+	storeB := NewPostgresEventHistoryStore(pool)
+
+	if err := storeA.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	event := domain.NewWorkflowInputReceivedEvent(
+		ports.LevelCore,
+		"session-1",
+		"task-1",
+		"",
+		"hello",
+		nil,
+		time.Now(),
+	)
+
+	if err := storeA.Append(ctx, event); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+
+	var got []ports.AgentEvent
+	if err := storeB.Stream(ctx, EventHistoryFilter{SessionID: "session-1"}, func(evt ports.AgentEvent) error {
+		got = append(got, evt)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream events: %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(got))
+	}
+	if got[0].EventType() != event.EventType() {
+		t.Fatalf("expected event type %q, got %q", event.EventType(), got[0].EventType())
+	}
+}
+
+func TestPostgresEventHistoryStore_HasAndDeleteSession(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := NewPostgresEventHistoryStore(pool)
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	sessionID := "session-has-delete"
+	has, err := store.HasSessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("check has events: %v", err)
+	}
+	if has {
+		t.Fatal("expected no events before append")
+	}
+
+	event := domain.NewWorkflowInputReceivedEvent(
+		ports.LevelCore,
+		sessionID,
+		"task-1",
+		"",
+		"hello",
+		nil,
+		time.Now(),
+	)
+	if err := store.Append(ctx, event); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+
+	has, err = store.HasSessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("check has events after append: %v", err)
+	}
+	if !has {
+		t.Fatal("expected events after append")
+	}
+
+	if err := store.DeleteSession(ctx, sessionID); err != nil {
+		t.Fatalf("delete session events: %v", err)
+	}
+
+	has, err = store.HasSessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("check has events after delete: %v", err)
+	}
+	if has {
+		t.Fatal("expected no events after delete")
 	}
 }
