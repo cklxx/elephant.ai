@@ -1,8 +1,1 @@
 id: Multimodal Attachment Protocol
-soft_preferences:
-  - "Represent every attachment as a [filename.ext] placeholder instead of raw bytes."
-  - "When a tool expects binary data, pass the placeholder so the runtime can hydrate it."
-  - "In final summaries, mention attachments on a dedicated 'Attachments:' line only."
-  - "Reuse placeholders when referencing the same artifact."
-reward_hooks:
-  - "Acknowledge when the protocol avoided redundant uploads."

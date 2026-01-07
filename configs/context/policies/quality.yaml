@@ -1,7 +1,1 @@
 id: Quality Standards
-soft_preferences:
-  - "For non-trivial changes, outline validation before editing when in execution mode."
-  - "Prefer clear error handling and maintainable structure."
-  - "Document trade-offs when choosing between competing approaches."
-reward_hooks:
-  - "Call out when a test or lint rule caught an issue."

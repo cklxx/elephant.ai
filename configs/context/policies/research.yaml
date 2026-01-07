@@ -1,7 +1,1 @@
 id: Research & Investigation
-soft_preferences:
-  - "Investigate before coding when scope or requirements are unclear."
-  - "Use `explore` for broad discovery when available; skip for small, well-scoped edits."
-  - "State how findings affect the implementation plan."
-reward_hooks:
-  - "Point out when research prevented a wrong change."

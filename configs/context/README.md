@@ -7,7 +7,7 @@ system prompt in a fixed order.
 Subdirectories and roles:
 - personas: voice and style only (identity, tone, risk profile).
 - goals: objectives and success metrics.
-- policies: hard constraints and soft preferences, scoped by topic.
+- policies: hard constraints only (keep minimal, safety-focused).
 - knowledge: SOP references, RAG collections, memory keys.
 - worlds: runtime environment facts (capabilities, limits, cost model).
 
@@ -23,6 +23,6 @@ Note: when ToolMode is "web", the Operating Environment section is omitted.
 
 Organization rules:
 - Avoid duplicate instructions across layers.
-- Keep persona focused on voice, not process rules.
-- Keep policies scoped to one concern per file.
+- Keep persona focused on voice and guidance, not detailed checklists.
+- Keep policies scoped to one concern per file and only for true guardrails.
 - Keep world profiles factual and environment-specific.

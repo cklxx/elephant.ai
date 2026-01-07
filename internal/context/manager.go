@@ -627,11 +627,17 @@ func buildPoliciesSection(policies []ports.PolicyRule) string {
 	}
 	var lines []string
 	for _, policy := range policies {
+		if len(policy.HardConstraints) == 0 && len(policy.SoftPreferences) == 0 && len(policy.RewardHooks) == 0 {
+			continue
+		}
 		label := formatPolicyLabel(policy.ID)
 		lines = append(lines, fmt.Sprintf("%s:", label))
 		lines = append(lines, prependBullet(policy.HardConstraints, 1, "Hard constraints")...)
 		lines = append(lines, prependBullet(policy.SoftPreferences, 1, "Soft preferences")...)
 		lines = append(lines, prependBullet(policy.RewardHooks, 1, "Reward hooks")...)
+	}
+	if len(lines) == 0 {
+		return ""
 	}
 	return formatSection("# Guardrails & Policies", lines)
 }

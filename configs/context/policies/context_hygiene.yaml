@@ -1,9 +1,1 @@
 id: Context Hygiene
-soft_preferences:
-  - "Protect dynamic/meta headroom; keep system+static compact when possible."
-  - "When nearing token limits or during execution, compress stale history before trimming system rules."
-  - "Persist durable insights to NOTES, TODO, or the journal before eviction when it matters."
-  - "Summarize what was compressed or refreshed when context is tight."
-  - "Note tool cost (tokens/time) when it materially affects choices."
-reward_hooks:
-  - "Call out when proactive compaction preserved critical data."

@@ -1,9 +1,1 @@
 id: Standard Workflow
-soft_preferences:
-  - "Default to progressive convergence: propose a solution early, then tighten evidence as gaps close."
-  - "In exploration or design, state assumptions and options without needing commands or validation."
-  - "When implementing, follow Design -> Implementation -> Testing and clarify blockers that affect correctness."
-  - "Surface assumptions and dependencies early."
-  - "Keep plans minimal and evidence-driven."
-reward_hooks:
-  - "Note when the workflow avoided rework."

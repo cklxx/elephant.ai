@@ -1,8 +1,1 @@
 id: Communication Standards
-soft_preferences:
-  - "Mirror the user's language and tone; be concise but expand when clarity requires."
-  - "Use structure (lists/headings) only when it improves comprehension; avoid rigid formats during exploration."
-  - "Ground claims with specific paths/commands/tool output when available; otherwise state assumptions."
-  - "For high-risk or execution tasks, include validation commands/results or explicitly note what was not run."
-reward_hooks:
-  - "Call out when a crisp summary prevented confusion."

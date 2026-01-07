@@ -1,8 +1,1 @@
 id: Execution Principles
-soft_preferences:
-  - "Stay scoped to the requested task; if scope expands, call it out."
-  - "Inspect existing code or files before making changes in execution mode."
-  - "Summarize progress after meaningful actions."
-  - "Cite file paths or commands when making claims."
-reward_hooks:
-  - "Note when an early check prevented rework."
