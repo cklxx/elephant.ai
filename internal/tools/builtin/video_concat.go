@@ -52,6 +52,10 @@ func (t *videoConcatTool) Definition() ports.ToolDefinition {
 					Type:        "array",
 					Description: "Ordered list of videos (data URI, HTTPS URL, base64 string, or attachment placeholder like `[clip.mp4]`).",
 				},
+				"ffmpeg_path": {
+					Type:        "string",
+					Description: "Optional path to the ffmpeg binary (defaults to ffmpeg in PATH).",
+				},
 				"output_name": {
 					Type:        "string",
 					Description: "Output filename (default: seedream_concat.mp4).",
@@ -75,6 +79,15 @@ func (t *videoConcatTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 	if len(videos) < 2 {
 		err := errors.New("videos must include at least two entries")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	ffmpegBin := strings.TrimSpace(stringArg(call.Arguments, "ffmpeg_path"))
+	if ffmpegBin == "" {
+		ffmpegBin = "ffmpeg"
+	}
+	if _, err := exec.LookPath(ffmpegBin); err != nil {
+		wrapped := fmt.Errorf("ffmpeg binary %q not found in PATH", ffmpegBin)
+		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
 	}
 
 	outputName := strings.TrimSpace(stringArg(call.Arguments, "output_name"))
@@ -118,7 +131,7 @@ func (t *videoConcatTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 	}
 
 	outputPath := filepath.Join(workdir, outputName)
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", manifestPath, "-c", "copy", "-movflags", "+faststart", outputPath)
+	cmd := exec.CommandContext(ctx, ffmpegBin, "-y", "-f", "concat", "-safe", "0", "-i", manifestPath, "-c", "copy", "-movflags", "+faststart", outputPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		wrapped := fmt.Errorf("ffmpeg concat failed: %w: %s", err, strings.TrimSpace(string(out)))
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
