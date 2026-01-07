@@ -3,10 +3,10 @@ module alex
 go 1.24.0
 
 require (
+	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
@@ -14,6 +14,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/minio/minio-go/v7 v7.0.73
+	github.com/muesli/termenv v0.16.0
 	github.com/philippgille/chromem-go v0.7.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/posthog/posthog-go v1.6.12
@@ -36,7 +37,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -76,7 +76,6 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

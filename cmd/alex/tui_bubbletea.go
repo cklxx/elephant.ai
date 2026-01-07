@@ -593,6 +593,7 @@ func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaE
 			m.appendRaw("\n")
 			m.lastStreamChunkEndedWithNewline = true
 		}
+		m.renderer.ResetMarkdownStreamState()
 	}
 }
 

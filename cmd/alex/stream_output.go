@@ -359,6 +359,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 			h.write("\n")
 			h.lastStreamChunkEndedWithNewline = true
 		}
+		h.renderer.ResetMarkdownStreamState()
 	}
 }
 

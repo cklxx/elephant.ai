@@ -3,7 +3,6 @@ package output
 import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
-	"alex/internal/config"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,14 +10,22 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/glamour"
+	"github.com/alecthomas/chroma/v2"
+	"github.com/alecthomas/chroma/v2/formatters"
+	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/lipgloss"
-	"golang.org/x/term"
+	"github.com/muesli/termenv"
 )
 
 // CLIRenderer renders output for CLI display with hierarchical context awareness
 type MarkdownRenderer interface {
 	Render(string) (string, error)
+}
+
+type StreamLineRenderer interface {
+	RenderLine(string) string
+	ResetStream()
 }
 
 type CLIRenderer struct {
@@ -58,32 +65,14 @@ func NewCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer 
 	// Set lipgloss to use stdout for color detection only when using the default renderer.
 	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
 
-	if defaultRenderer := buildDefaultMarkdownRenderer(); defaultRenderer != nil {
-		renderer.mdRenderer = defaultRenderer
-	}
+	renderer.mdRenderer = buildDefaultMarkdownRenderer()
 
 	return renderer
 }
 
 func buildDefaultMarkdownRenderer() MarkdownRenderer {
-	options := []glamour.TermRendererOption{
-		glamour.WithWordWrap(100),
-		glamour.WithPreservedNewLines(),
-	}
-
-	if value, ok := config.DefaultEnvLookup("GLAMOUR_STYLE"); ok && value != "" {
-		options = append(options, glamour.WithEnvironmentConfig())
-	} else if term.IsTerminal(int(os.Stdout.Fd())) {
-		options = append(options, glamour.WithAutoStyle())
-	} else {
-		options = append(options, glamour.WithStandardStyle("dark"))
-	}
-
-	mdRenderer, err := glamour.NewTermRenderer(options...)
-	if err != nil {
-		return nil
-	}
-	return mdRenderer
+	profile := lipgloss.NewRenderer(os.Stdout).ColorProfile()
+	return newMarkdownHighlighter(profile)
 }
 
 // Target returns the output target
@@ -512,6 +501,12 @@ func (r *CLIRenderer) renderMarkdown(content string) string {
 	return strings.TrimRight(rendered, "\n") + "\n"
 }
 
+func (r *CLIRenderer) ResetMarkdownStreamState() {
+	if streamRenderer, ok := r.mdRenderer.(StreamLineRenderer); ok {
+		streamRenderer.ResetStream()
+	}
+}
+
 // RenderMarkdownStreamChunk renders a fragment of markdown that may be part of a
 // streamed response. The caller can request a trailing newline to preserve
 // terminal formatting when a full line has been received.
@@ -524,9 +519,8 @@ func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNe
 	}
 
 	// Streaming fragments are often tiny and do not represent valid markdown on
-	// their own. Rendering them via glamour is expensive and can delay the first
-	// visible token, so we fast-path raw output unless the caller is explicitly
-	// emitting a complete line.
+	// their own. Avoid full markdown parsing for every chunk to keep streaming
+	// latency low; only apply lightweight styling for complete lines.
 	if !ensureTrailingNewline {
 		return content
 	}
@@ -536,6 +530,10 @@ func (r *CLIRenderer) RenderMarkdownStreamChunk(content string, ensureTrailingNe
 			return content + "\n"
 		}
 		return content
+	}
+
+	if streamRenderer, ok := r.mdRenderer.(StreamLineRenderer); ok {
+		return streamRenderer.RenderLine(content)
 	}
 
 	rendered, err := r.mdRenderer.Render(content)
@@ -680,4 +678,208 @@ func (r *CLIRenderer) formatListFiles(content, indent string, style lipgloss.Sty
 	}
 
 	return output.String()
+}
+
+type markdownHighlighter struct {
+	formatter chroma.Formatter
+	style     *chroma.Style
+
+	headingStyle lipgloss.Style
+	bulletStyle  lipgloss.Style
+
+	streamInCodeFence bool
+	streamCodeLang    string
+}
+
+func newMarkdownHighlighter(profile termenv.Profile) *markdownHighlighter {
+	formatter := formatters.NoOp
+	switch profile {
+	case termenv.TrueColor:
+		formatter = formatters.TTY16m
+	case termenv.ANSI256:
+		formatter = formatters.TTY256
+	case termenv.ANSI:
+		formatter = formatters.TTY16
+	case termenv.Ascii:
+		formatter = formatters.NoOp
+	}
+
+	style := styles.Get("dracula")
+	if style == nil {
+		style = styles.Fallback
+	}
+
+	return &markdownHighlighter{
+		formatter:    formatter,
+		style:        style,
+		headingStyle: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#5EA3FF")),
+		bulletStyle:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#8AA4BF")),
+	}
+}
+
+func (h *markdownHighlighter) Render(content string) (string, error) {
+	if strings.TrimSpace(content) == "" {
+		return "", nil
+	}
+	return h.renderMarkdown(content), nil
+}
+
+func (h *markdownHighlighter) RenderLine(line string) string {
+	if line == "" {
+		return line
+	}
+
+	hasNewline := strings.HasSuffix(line, "\n")
+	trimmedLine := strings.TrimRight(line, "\n")
+	trimmed := strings.TrimSpace(trimmedLine)
+
+	if strings.HasPrefix(trimmed, "```") {
+		if h.streamInCodeFence {
+			h.streamInCodeFence = false
+			h.streamCodeLang = ""
+		} else {
+			h.streamInCodeFence = true
+			h.streamCodeLang = strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+		}
+
+		if hasNewline {
+			return "\n"
+		}
+		return ""
+	}
+
+	var rendered string
+	if h.streamInCodeFence {
+		rendered = h.highlightCode(trimmedLine, h.streamCodeLang)
+	} else {
+		rendered = h.renderTextLine(trimmedLine)
+	}
+
+	if hasNewline && !strings.HasSuffix(rendered, "\n") {
+		rendered += "\n"
+	}
+	return rendered
+}
+
+func (h *markdownHighlighter) ResetStream() {
+	h.streamInCodeFence = false
+	h.streamCodeLang = ""
+}
+
+func (h *markdownHighlighter) renderMarkdown(content string) string {
+	normalized := strings.ReplaceAll(content, "\r\n", "\n")
+	lines := strings.Split(normalized, "\n")
+
+	var output strings.Builder
+	var codeLines []string
+	inCodeFence := false
+	codeLang := ""
+
+	flushCode := func() {
+		if len(codeLines) == 0 {
+			codeLines = nil
+			return
+		}
+		highlighted := h.highlightCode(strings.Join(codeLines, "\n"), codeLang)
+		output.WriteString(highlighted)
+		output.WriteString("\n")
+		codeLines = nil
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			if inCodeFence {
+				flushCode()
+				inCodeFence = false
+				codeLang = ""
+			} else {
+				inCodeFence = true
+				codeLang = strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+			}
+			continue
+		}
+
+		if inCodeFence {
+			codeLines = append(codeLines, line)
+			continue
+		}
+
+		output.WriteString(h.renderTextLine(line))
+		output.WriteString("\n")
+	}
+
+	if inCodeFence {
+		flushCode()
+	}
+
+	return strings.TrimRight(output.String(), "\n")
+}
+
+func (h *markdownHighlighter) renderTextLine(line string) string {
+	if line == "" {
+		return line
+	}
+
+	trimmed := strings.TrimLeft(line, " \t")
+	if trimmed == "" {
+		return ""
+	}
+	indent := line[:len(line)-len(trimmed)]
+
+	if strings.HasPrefix(trimmed, "#") {
+		level := 0
+		for level < len(trimmed) && trimmed[level] == '#' {
+			level++
+		}
+		text := strings.TrimSpace(trimmed[level:])
+		if text == "" {
+			return line
+		}
+		return indent + h.headingStyle.Render(text)
+	}
+
+	if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
+		text := strings.TrimSpace(trimmed[2:])
+		if text == "" {
+			return line
+		}
+		return indent + h.bulletStyle.Render("•") + " " + text
+	}
+
+	if strings.HasPrefix(trimmed, "> ") {
+		text := strings.TrimSpace(strings.TrimPrefix(trimmed, "> "))
+		return indent + lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render("│ "+text)
+	}
+
+	return line
+}
+
+func (h *markdownHighlighter) highlightCode(code string, language string) string {
+	if strings.TrimSpace(code) == "" {
+		return ""
+	}
+
+	lang := strings.TrimSpace(language)
+	var lexer chroma.Lexer
+	if lang != "" {
+		lexer = lexers.Get(lang)
+	}
+	if lexer == nil {
+		lexer = lexers.Analyse(code)
+	}
+	if lexer == nil {
+		lexer = lexers.Fallback
+	}
+
+	iterator, err := lexer.Tokenise(nil, code)
+	if err != nil {
+		return code
+	}
+
+	var buf strings.Builder
+	if err := h.formatter.Format(&buf, h.style, iterator); err != nil {
+		return code
+	}
+	return buf.String()
 }
