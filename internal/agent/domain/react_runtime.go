@@ -493,6 +493,7 @@ func (it *reactIteration) observeTools() {
 	state := it.runtime.state
 	state.ToolResults = append(state.ToolResults, it.toolResult...)
 	it.runtime.engine.observeToolResults(state, it.plan.iteration, it.toolResult)
+	it.runtime.engine.updateGoalPlanPrompts(state, it.plan.calls, it.toolResult)
 
 	for i, res := range it.toolResult {
 		if res.Error != nil {
@@ -503,6 +504,7 @@ func (it *reactIteration) observeTools() {
 	}
 
 	toolMessages := it.runtime.engine.buildToolMessages(it.toolResult)
+	toolMessages = it.runtime.engine.appendGoalPlanReminder(state, toolMessages)
 	state.Messages = append(state.Messages, toolMessages...)
 	attachmentsChanged := false
 	for _, msg := range toolMessages {

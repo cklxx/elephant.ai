@@ -89,6 +89,8 @@ type TaskState struct {
 	WorldState             map[string]any
 	WorldDiff              map[string]any
 	FeedbackSignals        []FeedbackSignal
+	LatestGoalPrompt       string
+	LatestPlanPrompt       string
 }
 
 // AgentCoordinator represents the main agent coordinator for subagent delegation
