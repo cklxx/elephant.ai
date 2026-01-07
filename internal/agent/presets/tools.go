@@ -32,6 +32,11 @@ type ToolConfig struct {
 }
 
 var (
+	cliDeniedTools = map[string]bool{
+		"artifacts_write":  true,
+		"artifacts_list":   true,
+		"artifacts_delete": true,
+	}
 	webDeniedTools = map[string]bool{
 		"file_read":    true,
 		"file_write":   true,
@@ -67,6 +72,13 @@ func cloneToolSet(src map[string]bool) map[string]bool {
 	return dst
 }
 
+func mergeToolSets(dst map[string]bool, src map[string]bool) map[string]bool {
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
 // GetToolConfig returns the tool configuration for a mode and preset.
 func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 	if mode == "" {
@@ -90,21 +102,21 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				Name:         "Full Access",
 				Description:  "All tools available - unrestricted access",
 				AllowedTools: nil,
-				DeniedTools:  make(map[string]bool),
+				DeniedTools:  cloneToolSet(cliDeniedTools),
 			}, nil
 		case ToolPresetReadOnly:
 			return &ToolConfig{
 				Name:         "Read-Only Access",
 				Description:  "No local writes or shell/code execution",
 				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(readOnlyDeniedTools),
+				DeniedTools:  mergeToolSets(cloneToolSet(readOnlyDeniedTools), cliDeniedTools),
 			}, nil
 		case ToolPresetSafe:
 			return &ToolConfig{
 				Name:         "Safe Mode",
 				Description:  "Excludes potentially dangerous tools (bash, code execution)",
 				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(safeDeniedTools),
+				DeniedTools:  mergeToolSets(cloneToolSet(safeDeniedTools), cliDeniedTools),
 			}, nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)

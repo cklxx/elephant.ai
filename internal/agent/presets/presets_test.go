@@ -221,6 +221,13 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
+			name:      "full blocks artifacts_write in cli mode",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetFull,
+			toolName:  "artifacts_write",
+			wantAllow: false,
+		},
+		{
 			name:      "read-only allows vision_analyze",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
