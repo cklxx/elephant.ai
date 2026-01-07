@@ -81,4 +81,3 @@ func TestEventBroadcasterPersistsSubtaskWrappers(t *testing.T) {
 		t.Fatalf("expected persisted agent level %q, got %q", ports.LevelSubagent, got.GetAgentLevel())
 	}
 }
-
