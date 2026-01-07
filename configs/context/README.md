@@ -7,7 +7,7 @@ system prompt in a fixed order.
 Subdirectories and roles:
 - personas: voice and style only (identity, tone, risk profile).
 - goals: objectives and success metrics.
-- policies: hard constraints only (keep minimal, safety-focused).
+- policies: hard constraints only (keep minimal, safety-focused). Only keep non-empty policies (currently default + workflow).
 - knowledge: SOP references, RAG collections, memory keys.
 - worlds: runtime environment facts (capabilities, limits, cost model).
 
