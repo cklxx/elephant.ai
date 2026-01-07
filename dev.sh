@@ -14,6 +14,9 @@
 # Env:
 #   SERVER_PORT=8080            # Backend port override (default 8080)
 #   WEB_PORT=3000               # Web port override (default 3000)
+#   SANDBOX_PORT=18086          # Sandbox port override (default 18086)
+#   SANDBOX_IMAGE=...           # Sandbox image override
+#   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
@@ -31,9 +34,15 @@ readonly WEB_LOG="${LOG_DIR}/web.log"
 
 readonly DEFAULT_SERVER_PORT=8080
 readonly DEFAULT_WEB_PORT=3000
+readonly DEFAULT_SANDBOX_PORT=18086
+readonly DEFAULT_SANDBOX_IMAGE="ghcr.io/agent-infra/sandbox:latest"
 
 SERVER_PORT="${SERVER_PORT:-${DEFAULT_SERVER_PORT}}"
 WEB_PORT="${WEB_PORT:-${DEFAULT_WEB_PORT}}"
+SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
+SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
+SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
+SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
 START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
@@ -344,6 +353,65 @@ wait_for_health() {
   done
 }
 
+is_local_sandbox_url() {
+  case "$SANDBOX_BASE_URL" in
+    http://localhost:*|http://127.0.0.1:*|http://0.0.0.0:*|https://localhost:*|https://127.0.0.1:*|https://0.0.0.0:*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+start_sandbox() {
+  if ! is_local_sandbox_url; then
+    wait_for_health "${SANDBOX_BASE_URL}/v1/docs" "sandbox"
+    return $?
+  fi
+
+  if ! command_exists docker; then
+    log_error "docker not found; cannot start sandbox"
+    return 1
+  fi
+
+  if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+    log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
+    wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+    return $?
+  fi
+
+  if docker ps -a --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+    log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME}..."
+    docker start "${SANDBOX_CONTAINER_NAME}" >/dev/null
+  else
+    log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME} on :${SANDBOX_PORT}..."
+    docker run -d --name "${SANDBOX_CONTAINER_NAME}" -p "${SANDBOX_PORT}:8080" "${SANDBOX_IMAGE}" >/dev/null
+  fi
+
+  wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+}
+
+stop_sandbox() {
+  if ! is_local_sandbox_url; then
+    return 0
+  fi
+  if ! command_exists docker; then
+    return 0
+  fi
+  if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+    log_info "Stopping sandbox container ${SANDBOX_CONTAINER_NAME}..."
+    docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
+  fi
+}
+
+sandbox_ready() {
+  if ! command_exists curl; then
+    return 1
+  fi
+  curl -sf --noproxy '*' "${SANDBOX_BASE_URL}/v1/docs" >/dev/null 2>&1
+}
+
 cleanup_next_dev_lock() {
   local lock_file="${SCRIPT_DIR}/web/.next/dev/lock"
   if [[ -f "$lock_file" ]]; then
@@ -446,9 +514,10 @@ start_web() {
 }
 
 cmd_up() {
+  start_sandbox
   start_server
   start_web
-  log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT}"
+  log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT} sandbox=${SANDBOX_BASE_URL}"
 }
 
 cmd_down() {
@@ -459,6 +528,7 @@ cmd_down() {
   fi
   stop_service "Backend" "${SERVER_PID_FILE}"
   stop_alex_server_listeners "$SERVER_PORT"
+  stop_sandbox
 }
 
 cmd_status() {
@@ -488,6 +558,12 @@ cmd_status() {
     log_success "Web: running (PID: ${web_pid}) http://localhost:${WEB_PORT}"
   else
     log_warn "Web: stopped"
+  fi
+
+  if sandbox_ready; then
+    log_success "Sandbox: ready ${SANDBOX_BASE_URL}"
+  else
+    log_warn "Sandbox: unavailable ${SANDBOX_BASE_URL}"
   fi
 }
 

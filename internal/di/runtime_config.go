@@ -18,6 +18,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		APIKey:                  runtime.APIKey,
 		ArkAPIKey:               runtime.ArkAPIKey,
 		BaseURL:                 runtime.BaseURL,
+		SandboxBaseURL:          runtime.SandboxBaseURL,
 		TavilyAPIKey:            runtime.TavilyAPIKey,
 		SeedreamTextEndpointID:  runtime.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: runtime.SeedreamImageEndpointID,

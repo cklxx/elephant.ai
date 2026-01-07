@@ -99,7 +99,7 @@
     "node_kind": "tool",
     "payload": {
       "call_id": "tool-1",
-      "tool_name": "browser.search",
+      "tool_name": "web_search",
       "arguments": {
         "query": "Go 1.24 release notes"
       }
@@ -133,7 +133,7 @@
     "node_kind": "tool",
     "payload": {
       "call_id": "tool-1",
-      "tool_name": "browser.search",
+      "tool_name": "web_search",
       "result": "https://go.dev/doc/go1.24",
       "duration": 850
     }

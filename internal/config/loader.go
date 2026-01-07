@@ -39,6 +39,7 @@ type RuntimeConfig struct {
 	APIKey                  string   `json:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key"`
 	BaseURL                 string   `json:"base_url"`
+	SandboxBaseURL          string   `json:"sandbox_base_url"`
 	TavilyAPIKey            string   `json:"tavily_api_key"`
 	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id"`
 	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id"`
@@ -109,6 +110,7 @@ type Overrides struct {
 	APIKey                  *string   `json:"api_key,omitempty"`
 	ArkAPIKey               *string   `json:"ark_api_key,omitempty"`
 	BaseURL                 *string   `json:"base_url,omitempty"`
+	SandboxBaseURL          *string   `json:"sandbox_base_url,omitempty"`
 	TavilyAPIKey            *string   `json:"tavily_api_key,omitempty"`
 	SeedreamTextEndpointID  *string   `json:"seedream_text_endpoint_id,omitempty"`
 	SeedreamImageEndpointID *string   `json:"seedream_image_endpoint_id,omitempty"`
@@ -207,6 +209,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMSmallProvider:    "openrouter",
 		LLMSmallModel:       "gpt-4o-mini",
 		BaseURL:             "https://openrouter.ai/api/v1",
+		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
 		SeedreamVisionModel: DefaultSeedreamVisionModel,
@@ -268,6 +271,7 @@ type fileConfig struct {
 	APIKey                  string   `json:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key"`
 	BaseURL                 string   `json:"base_url"`
+	SandboxBaseURL          string   `json:"sandbox_base_url"`
 	TavilyAPIKey            string   `json:"tavily_api_key"`
 	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id"`
 	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id"`
@@ -355,6 +359,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.BaseURL != "" {
 		cfg.BaseURL = parsed.BaseURL
 		meta.sources["base_url"] = SourceFile
+	}
+	if parsed.SandboxBaseURL != "" {
+		cfg.SandboxBaseURL = parsed.SandboxBaseURL
+		meta.sources["sandbox_base_url"] = SourceFile
 	}
 	if parsed.TavilyAPIKey != "" {
 		cfg.TavilyAPIKey = parsed.TavilyAPIKey
@@ -486,6 +494,10 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("LLM_BASE_URL"); ok && value != "" {
 		cfg.BaseURL = value
 		meta.sources["base_url"] = SourceEnv
+	}
+	if value, ok := lookup("SANDBOX_BASE_URL"); ok && value != "" {
+		cfg.SandboxBaseURL = value
+		meta.sources["sandbox_base_url"] = SourceEnv
 	}
 	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
 		cfg.TavilyAPIKey = value
@@ -672,6 +684,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.BaseURL != nil {
 		cfg.BaseURL = *overrides.BaseURL
 		meta.sources["base_url"] = SourceOverride
+	}
+	if overrides.SandboxBaseURL != nil {
+		cfg.SandboxBaseURL = *overrides.SandboxBaseURL
+		meta.sources["sandbox_base_url"] = SourceOverride
 	}
 	if overrides.TavilyAPIKey != nil {
 		cfg.TavilyAPIKey = *overrides.TavilyAPIKey

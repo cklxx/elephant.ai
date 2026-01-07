@@ -93,6 +93,7 @@ alex config path
 - `LLM_MODEL`：默认模型
 - `LLM_VISION_MODEL`：有图片附件时使用的 vision 模型（可选）
 - `LLM_BASE_URL`：OpenAI-compatible base URL（如 `https://api.openai.com/v1`、`https://openrouter.ai/api/v1`、Ollama 地址等）
+- `SANDBOX_BASE_URL`：AIO Sandbox API 根地址（**不含 `/v1`**，默认 `http://localhost:18086`）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
 
@@ -120,6 +121,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `llm_vision_model`：vision 模型；当检测到图片附件时优先使用（见下节）。
 - `api_key`：API key（生产建议用 env 注入，不要提交到 git）。
 - `base_url`：OpenAI-compatible base URL。
+- `sandbox_base_url`：AIO Sandbox API 根地址（**不含 `/v1`**）。
 - `max_tokens`：请求 `max_tokens`。
 - `temperature`：采样温度；显式写入 `0` 会被保留。
 - `top_p`：Top-P 采样。

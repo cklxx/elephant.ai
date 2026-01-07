@@ -62,6 +62,7 @@ type Config struct {
 	APIKey                  string
 	ArkAPIKey               string
 	BaseURL                 string
+	SandboxBaseURL          string
 	TavilyAPIKey            string
 	SeedreamTextEndpointID  string
 	SeedreamImageEndpointID string
@@ -301,6 +302,7 @@ func BuildContainer(config Config) (*Container, error) {
 		LLMVisionModel:          config.LLMVisionModel,
 		APIKey:                  config.APIKey,
 		BaseURL:                 config.BaseURL,
+		SandboxBaseURL:          config.SandboxBaseURL,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
 		SeedreamTextModel:       config.SeedreamTextModel,
@@ -320,6 +322,7 @@ func BuildContainer(config Config) (*Container, error) {
 		APIKey:                  config.APIKey,
 		ArkAPIKey:               config.ArkAPIKey,
 		BaseURL:                 config.BaseURL,
+		SandboxBaseURL:          config.SandboxBaseURL,
 		TavilyAPIKey:            config.TavilyAPIKey,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
