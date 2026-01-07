@@ -38,6 +38,7 @@ type Config struct {
 	SeedreamVisionModel     string
 	SeedreamVideoModel      string
 	LLMVisionModel          string
+	SandboxBaseURL          string
 
 	LLMFactory    ports.LLMClientFactory
 	LLMProvider   string
@@ -356,16 +357,12 @@ func (r *Registry) registerBuiltins(config Config) error {
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
 		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
 	}
-
-	r.static["browser"] = builtin.NewBrowser(builtin.BrowserConfig{
-		LLMFactory:     config.LLMFactory,
-		LLMProvider:    config.LLMProvider,
-		LLMModel:       config.LLMModel,
-		LLMVisionModel: config.LLMVisionModel,
-		APIKey:         config.APIKey,
-		BaseURL:        config.BaseURL,
-		VisionTool:     visionTool,
-	})
+	sandboxConfig := builtin.SandboxConfig{
+		BaseURL: config.SandboxBaseURL,
+	}
+	r.static["sandbox_browser"] = builtin.NewSandboxBrowser(sandboxConfig)
+	r.static["sandbox_browser_info"] = builtin.NewSandboxBrowserInfo(sandboxConfig)
+	r.static["sandbox_browser_screenshot"] = builtin.NewSandboxBrowserScreenshot(sandboxConfig)
 
 	return nil
 }

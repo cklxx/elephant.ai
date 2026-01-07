@@ -20,6 +20,8 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SERVER_PORT=8080
 readonly WEB_PORT=3000
+readonly DEFAULT_SANDBOX_PORT=18086
+readonly DEFAULT_SANDBOX_IMAGE="ghcr.io/agent-infra/sandbox:latest"
 readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
@@ -29,6 +31,10 @@ readonly WEB_LOG="${LOG_DIR}/web.log"
 readonly BIN_DIR="${SCRIPT_DIR}/.bin"
 readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
 readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex-config.json}"
+SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
+SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
+SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
+SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
 
 COMPOSE_CORE_VARS=()
@@ -188,6 +194,65 @@ wait_for_health() {
 
         sleep 1
     done
+}
+
+is_local_sandbox_url() {
+    case "$SANDBOX_BASE_URL" in
+        http://localhost:*|http://127.0.0.1:*|http://0.0.0.0:*|https://localhost:*|https://127.0.0.1:*|https://0.0.0.0:*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+start_sandbox() {
+    if ! is_local_sandbox_url; then
+        wait_for_health "${SANDBOX_BASE_URL}/v1/docs" "Sandbox"
+        return $?
+    fi
+
+    if ! command_exists docker; then
+        log_error "docker not found; cannot start sandbox"
+        return 1
+    fi
+
+    if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+        log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
+        wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "Sandbox"
+        return $?
+    fi
+
+    if docker ps -a --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+        log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME}..."
+        docker start "${SANDBOX_CONTAINER_NAME}" >/dev/null
+    else
+        log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME} on :${SANDBOX_PORT}..."
+        docker run -d --name "${SANDBOX_CONTAINER_NAME}" -p "${SANDBOX_PORT}:8080" "${SANDBOX_IMAGE}" >/dev/null
+    fi
+
+    wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "Sandbox"
+}
+
+stop_sandbox() {
+    if ! is_local_sandbox_url; then
+        return 0
+    fi
+    if ! command_exists docker; then
+        return 0
+    fi
+    if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+        log_info "Stopping sandbox container ${SANDBOX_CONTAINER_NAME}..."
+        docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
+    fi
+}
+
+sandbox_ready() {
+    if ! command_exists curl; then
+        return 1
+    fi
+    curl -sf --noproxy '*' "${SANDBOX_BASE_URL}/v1/docs" >/dev/null 2>&1
 }
 
 wait_for_docker_health() {
@@ -832,6 +897,7 @@ cmd_start() {
     # Build & start
     build_backend || die "Backend build failed"
     install_frontend_deps || die "Frontend dependency installation failed"
+    start_sandbox || die "Sandbox failed to start"
     start_backend || die "Backend failed to start"
     start_frontend || die "Frontend failed to start"
 
@@ -844,6 +910,7 @@ cmd_start() {
     echo -e "  ${C_CYAN}Web UI:${C_RESET}  http://localhost:$WEB_PORT"
     echo -e "  ${C_CYAN}API:${C_RESET}     http://localhost:$SERVER_PORT"
     echo -e "  ${C_CYAN}Health:${C_RESET}  http://localhost:$SERVER_PORT/health"
+    echo -e "  ${C_CYAN}Sandbox:${C_RESET} ${SANDBOX_BASE_URL}"
     echo ""
     echo -e "${C_YELLOW}Commands:${C_RESET}"
     echo -e "  ./deploy.sh logs     # Tail logs"
@@ -871,6 +938,7 @@ cmd_stop() {
 
     stop_service "Backend" "$SERVER_PID_FILE"
     stop_service "Frontend" "$WEB_PID_FILE"
+    stop_sandbox
 
     # Clean up port bindings
     kill_process_on_port "$SERVER_PORT" || true
@@ -914,6 +982,13 @@ cmd_status() {
         fi
     else
         echo -e "${C_RED}✗${C_RESET} Frontend:  Not running"
+    fi
+
+    echo ""
+    if sandbox_ready; then
+        echo -e "${C_GREEN}✓${C_RESET} Sandbox:   Ready (${SANDBOX_BASE_URL})"
+    else
+        echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Unavailable (${SANDBOX_BASE_URL})"
     fi
 
     echo ""
@@ -1077,6 +1152,7 @@ cmd_cn() {
     export BASE_GO_IMAGE="${BASE_GO_IMAGE:-docker.m.daocloud.io/library/golang:1.24-alpine}"
     export BASE_RUNTIME_IMAGE="${BASE_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:latest}"
     export BASE_NODE_IMAGE="${BASE_NODE_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}"
+    export SANDBOX_IMAGE="${SANDBOX_IMAGE:-enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest}"
 
     print_cn_mirrors
 
