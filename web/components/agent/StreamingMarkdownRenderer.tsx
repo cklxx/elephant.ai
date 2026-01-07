@@ -38,17 +38,26 @@ export function StreamingMarkdownRenderer({
 }: StreamingMarkdownRendererProps) {
   const normalizedContent = useMemo(() => content ?? "", [content]);
   const showStreamingIndicator = isStreaming && !streamFinished;
+  const renderPlainText = isStreaming && !streamFinished;
 
   return (
     <div className="space-y-2" aria-live="polite">
-      <LazyMarkdownRenderer
-        content={normalizedContent}
-        className={className}
-        containerClassName={containerClassName}
-        components={components}
-        attachments={attachments}
-        showLineNumbers={showLineNumbers}
-      />
+      {renderPlainText ? (
+        <div className={cn(containerClassName)}>
+          <div className={cn("whitespace-pre-wrap", className)}>
+            {normalizedContent}
+          </div>
+        </div>
+      ) : (
+        <LazyMarkdownRenderer
+          content={normalizedContent}
+          className={className}
+          containerClassName={containerClassName}
+          components={components}
+          attachments={attachments}
+          showLineNumbers={showLineNumbers}
+        />
+      )}
       {showStreamingIndicator && (
         <div
           className={cn(

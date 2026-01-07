@@ -22,6 +22,11 @@ import { buildEventSignature } from "@/lib/events/signature";
 import { authClient } from "@/lib/auth/client";
 import { type SSEReplayMode } from "@/lib/api";
 
+const STREAM_FLUSH_MS = 16;
+const IS_TEST_ENV =
+  process.env.NODE_ENV === "test" ||
+  process.env.VITEST_WORKER !== undefined;
+
 export interface UseSSEOptions {
   enabled?: boolean;
   onEvent?: (event: AnyAgentEvent) => void;
@@ -86,6 +91,9 @@ export function useSSE(
     order: [],
   });
   const previousSessionIdRef = useRef<string | null>(sessionId);
+  const pendingEventsRef = useRef<AnyAgentEvent[]>([]);
+  const flushHandleRef = useRef<number | null>(null);
+  const flushModeRef = useRef<"raf" | "timeout" | null>(null);
 
   const resetDedupe = useCallback(() => {
     dedupeRef.current = {
@@ -104,6 +112,24 @@ export function useSSE(
 
   const resetAssistantMessageBuffer = useCallback(() => {
     assistantMessageBufferRef.current.clear();
+  }, []);
+
+  const cancelScheduledFlush = useCallback(() => {
+    if (flushHandleRef.current == null) {
+      return;
+    }
+
+    const handle = flushHandleRef.current;
+    const mode = flushModeRef.current;
+    flushHandleRef.current = null;
+    flushModeRef.current = null;
+
+    if (mode === "raf" && typeof window !== "undefined" && "cancelAnimationFrame" in window) {
+      window.cancelAnimationFrame(handle);
+      return;
+    }
+
+    clearTimeout(handle);
   }, []);
 
   const onEventRef = useRef(onEvent);
@@ -195,11 +221,186 @@ export function useSSE(
     return null;
   }, []);
 
+  const flushPendingEvents = useCallback(() => {
+    const pending = pendingEventsRef.current;
+    if (pending.length === 0) {
+      return;
+    }
+
+    pendingEventsRef.current = [];
+    const processedEvents: AnyAgentEvent[] = [];
+
+    pending.forEach((event) => {
+      const bufferedEvent = mergeStreamingTaskComplete(
+        event,
+        streamingAnswerBufferRef.current,
+      );
+
+      if (eventMatches(bufferedEvent, "workflow.node.output.delta")) {
+        trackAssistantMessage(
+          bufferedEvent as WorkflowNodeOutputDeltaEvent,
+          assistantMessageBufferRef.current,
+        );
+      }
+
+      const enrichedEvent = applyAssistantAnswerFallback(bufferedEvent);
+
+      if (eventMatches(enrichedEvent, "workflow.result.final", "workflow.result.final")) {
+        handleAttachmentEvent(enrichedEvent);
+      }
+
+      const isStreamingTaskComplete =
+        isWorkflowResultFinalEvent(enrichedEvent) &&
+        (enrichedEvent.is_streaming === true ||
+          typeof enrichedEvent.stream_finished === "boolean");
+
+      if (!isStreamingTaskComplete) {
+        const dedupeKey = buildEventSignature(enrichedEvent);
+        const cache = dedupeRef.current;
+        if (cache.seen.has(dedupeKey)) {
+          return;
+        }
+
+        cache.seen.add(dedupeKey);
+        cache.order.push(dedupeKey);
+        if (cache.order.length > 2000) {
+          const oldest = cache.order.shift();
+          if (oldest) {
+            cache.seen.delete(oldest);
+          }
+        }
+      }
+
+      const activeSessionId = sessionIdRef.current;
+      const enrichedSessionId =
+        "session_id" in enrichedEvent && typeof enrichedEvent.session_id === "string"
+          ? enrichedEvent.session_id
+          : null;
+
+      if (
+        activeSessionId &&
+        enrichedSessionId &&
+        enrichedSessionId !== activeSessionId
+      ) {
+        return;
+      }
+
+      processedEvents.push(enrichedEvent);
+      onEventRef.current?.(enrichedEvent);
+    });
+
+    if (processedEvents.length === 0) {
+      return;
+    }
+
+    setEventState((prev) => {
+      let nextSessionId = prev.sessionId;
+      let nextEvents = prev.events;
+      let mutated = false;
+
+      processedEvents.forEach((enrichedEvent) => {
+        const activeSessionId = sessionIdRef.current;
+        const enrichedSessionId =
+          "session_id" in enrichedEvent && typeof enrichedEvent.session_id === "string"
+            ? enrichedEvent.session_id
+            : null;
+        const targetSessionId =
+          activeSessionId ?? enrichedSessionId ?? nextSessionId ?? null;
+
+        if (targetSessionId !== nextSessionId) {
+          nextSessionId = targetSessionId;
+          nextEvents = [];
+          mutated = true;
+        } else if (!mutated) {
+          nextEvents = [...nextEvents];
+          mutated = true;
+        }
+
+        const isStreamingTaskComplete =
+          isWorkflowResultFinalEvent(enrichedEvent) &&
+          (enrichedEvent.is_streaming === true ||
+            typeof enrichedEvent.stream_finished === "boolean");
+
+        if (isStreamingTaskComplete) {
+          const matchIndex = findLastStreamingTaskCompleteIndex(
+            nextEvents,
+            enrichedEvent,
+          );
+          if (matchIndex !== -1) {
+            nextEvents[matchIndex] = enrichedEvent;
+          } else {
+            const filtered = nextEvents.filter(
+              (evt) =>
+                !eventMatches(evt, "workflow.result.final", "workflow.result.final") ||
+                !isSameTask(evt, enrichedEvent),
+            );
+            nextEvents = [...filtered, enrichedEvent];
+          }
+          return;
+        }
+
+        if (mergeDeltaEvent(nextEvents, enrichedEvent)) {
+          return;
+        }
+
+        nextEvents.push(enrichedEvent);
+      });
+
+      const nextState = {
+        sessionId: nextSessionId,
+        events: clampEvents(squashFinalEvents(nextEvents), MAX_EVENT_HISTORY),
+      };
+
+      hasLocalHistoryRef.current = nextState.events.some(
+        (evt) => evt.event_type !== "connected",
+      );
+      return nextState;
+    });
+  }, [enqueueEvent]);
+
+  const scheduleFlush = useCallback(() => {
+    if (IS_TEST_ENV) {
+      flushPendingEvents();
+      return;
+    }
+
+    if (flushHandleRef.current != null) {
+      return;
+    }
+
+    if (typeof window !== "undefined" && "requestAnimationFrame" in window) {
+      flushModeRef.current = "raf";
+      flushHandleRef.current = window.requestAnimationFrame(() => {
+        flushHandleRef.current = null;
+        flushModeRef.current = null;
+        flushPendingEvents();
+      });
+      return;
+    }
+
+    flushModeRef.current = "timeout";
+    flushHandleRef.current = setTimeout(() => {
+      flushHandleRef.current = null;
+      flushModeRef.current = null;
+      flushPendingEvents();
+    }, STREAM_FLUSH_MS);
+  }, [flushPendingEvents]);
+
+  const enqueueEvent = useCallback(
+    (event: AnyAgentEvent) => {
+      pendingEventsRef.current.push(event);
+      scheduleFlush();
+    },
+    [scheduleFlush],
+  );
+
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
 
   const clearEvents = useCallback(() => {
+    cancelScheduledFlush();
+    pendingEventsRef.current = [];
     setEventState({ sessionId: sessionIdRef.current, events: [] });
     if (!userIdRef.current) {
       resetAttachmentRegistry();
@@ -209,19 +410,27 @@ export function useSSE(
     resetStreamingBuffer();
     resetAssistantMessageBuffer();
     hasLocalHistoryRef.current = false;
-  }, [resetDedupe, resetPipelineDedupe, resetStreamingBuffer, resetAssistantMessageBuffer]);
+  }, [
+    cancelScheduledFlush,
+    resetDedupe,
+    resetPipelineDedupe,
+    resetStreamingBuffer,
+    resetAssistantMessageBuffer,
+  ]);
 
   const cleanup = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+    cancelScheduledFlush();
+    pendingEventsRef.current = [];
     if (clientRef.current) {
       clientRef.current.dispose();
       clientRef.current = null;
     }
     isConnectingRef.current = false;
-  }, []);
+  }, [cancelScheduledFlush]);
 
   const connectInternal = useCallback(async () => {
     const currentSessionId = sessionIdRef.current;
@@ -379,101 +588,7 @@ export function useSSE(
     });
 
     const unsubscribe = agentEventBus.subscribe((event) => {
-      const bufferedEvent = mergeStreamingTaskComplete(
-        event,
-        streamingAnswerBufferRef.current,
-      );
-      if (eventMatches(bufferedEvent, "workflow.node.output.delta", "workflow.node.output.delta", "workflow.node.output.delta")) {
-        trackAssistantMessage(
-          bufferedEvent as WorkflowNodeOutputDeltaEvent,
-          assistantMessageBufferRef.current,
-        );
-      }
-
-      const enrichedEvent = applyAssistantAnswerFallback(bufferedEvent);
-
-      if (eventMatches(enrichedEvent, "workflow.result.final", "workflow.result.final")) {
-        handleAttachmentEvent(enrichedEvent);
-      }
-
-      const isStreamingTaskComplete =
-        isWorkflowResultFinalEvent(enrichedEvent) &&
-        (enrichedEvent.is_streaming === true ||
-          typeof enrichedEvent.stream_finished === "boolean");
-
-      if (!isStreamingTaskComplete) {
-        const dedupeKey = buildEventSignature(enrichedEvent);
-        const cache = dedupeRef.current;
-        if (cache.seen.has(dedupeKey)) {
-          return;
-        }
-
-        cache.seen.add(dedupeKey);
-        cache.order.push(dedupeKey);
-        if (cache.order.length > 2000) {
-          const oldest = cache.order.shift();
-          if (oldest) {
-            cache.seen.delete(oldest);
-          }
-        }
-      }
-
-      const activeSessionId = sessionIdRef.current;
-      const enrichedSessionId =
-        "session_id" in enrichedEvent && typeof enrichedEvent.session_id === "string"
-          ? enrichedEvent.session_id
-          : null;
-
-      if (
-        activeSessionId &&
-        enrichedSessionId &&
-        enrichedSessionId !== activeSessionId
-      ) {
-        return;
-      }
-
-      setEventState((prev) => {
-        const targetSessionId =
-          activeSessionId ?? enrichedSessionId ?? prev.sessionId ?? null;
-        const previousEvents =
-          prev.sessionId === targetSessionId ? prev.events : [];
-
-        let nextEvents = previousEvents;
-
-        if (isStreamingTaskComplete) {
-          const matchIndex = findLastStreamingTaskCompleteIndex(
-            previousEvents,
-            enrichedEvent,
-          );
-          if (matchIndex !== -1) {
-            nextEvents = [...previousEvents];
-            nextEvents[matchIndex] = enrichedEvent;
-          } else {
-            const filtered = previousEvents.filter(
-              (evt) =>
-                !eventMatches(evt, "workflow.result.final", "workflow.result.final") ||
-                !isSameTask(evt, enrichedEvent),
-            );
-            nextEvents = [...filtered, enrichedEvent];
-          }
-        } else {
-          nextEvents = [...previousEvents, enrichedEvent];
-        }
-
-        const nextState = {
-          sessionId: targetSessionId,
-          events: clampEvents(
-            squashFinalEvents(nextEvents),
-            MAX_EVENT_HISTORY,
-          ),
-        };
-
-        hasLocalHistoryRef.current = nextState.events.some(
-          (evt) => evt.event_type !== "connected",
-        );
-        return nextState;
-      });
-      onEventRef.current?.(enrichedEvent);
+      enqueueEvent(event);
     });
 
     return () => {
@@ -640,6 +755,68 @@ function squashFinalEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
   }
 
   return result.reverse();
+}
+
+const MAX_STREAM_DELTA_CHARS = 10_000;
+
+function mergeDeltaEvent(
+  events: AnyAgentEvent[],
+  incoming: AnyAgentEvent,
+): boolean {
+  if (!eventMatches(incoming, "workflow.node.output.delta")) {
+    return false;
+  }
+
+  const last = events[events.length - 1];
+  if (!last || !eventMatches(last, "workflow.node.output.delta")) {
+    return false;
+  }
+
+  const lastNodeId = typeof (last as any).node_id === "string" ? (last as any).node_id : "";
+  const incomingNodeId =
+    typeof (incoming as any).node_id === "string" ? (incoming as any).node_id : "";
+
+  if ((lastNodeId || incomingNodeId) && lastNodeId !== incomingNodeId) {
+    return false;
+  }
+
+  const lastSessionId = typeof last.session_id === "string" ? last.session_id : "";
+  const incomingSessionId =
+    typeof incoming.session_id === "string" ? incoming.session_id : "";
+  if (lastSessionId !== incomingSessionId) {
+    return false;
+  }
+
+  if ((last.task_id ?? "") !== (incoming.task_id ?? "")) {
+    return false;
+  }
+
+  if ((last.parent_task_id ?? "") !== (incoming.parent_task_id ?? "")) {
+    return false;
+  }
+
+  if ((last.agent_level ?? "") !== (incoming.agent_level ?? "")) {
+    return false;
+  }
+
+  const lastDelta = typeof (last as any).delta === "string" ? (last as any).delta : "";
+  const incomingDelta =
+    typeof (incoming as any).delta === "string" ? (incoming as any).delta : "";
+  const mergedDeltaRaw = incomingDelta ? `${lastDelta}${incomingDelta}` : lastDelta;
+  const mergedDelta =
+    mergedDeltaRaw.length > MAX_STREAM_DELTA_CHARS
+      ? mergedDeltaRaw.slice(-MAX_STREAM_DELTA_CHARS)
+      : mergedDeltaRaw;
+
+  const merged = {
+    ...(last as any),
+    ...(incoming as any),
+    delta: mergedDelta,
+    timestamp: incoming.timestamp ?? last.timestamp,
+  } as AnyAgentEvent;
+
+  events[events.length - 1] = merged;
+  return true;
 }
 
 function mergeStreamingTaskComplete(
