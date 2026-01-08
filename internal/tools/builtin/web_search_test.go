@@ -19,7 +19,15 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestWebSearchMissingAPIKey(t *testing.T) {
-	tool := newWebSearch("", nil)
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		html := `<div class="result"><a class="result__a" href="https://example.com">Example</a><a class="result__snippet">Snippet</a></div>`
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewBufferString(html)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	tool := newWebSearch("", client)
 
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID:        "call-1",
@@ -34,8 +42,14 @@ func TestWebSearchMissingAPIKey(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("expected no tool error, got %v", result.Error)
 	}
-	if result.Content == "" || result.Metadata != nil {
-		t.Fatalf("expected instructional message without metadata, got %+v", result)
+	if result.Metadata == nil {
+		t.Fatalf("expected metadata, got nil")
+	}
+	if result.Metadata["source"] != "duckduckgo" {
+		t.Fatalf("expected fallback source, got %v", result.Metadata["source"])
+	}
+	if !bytes.Contains([]byte(result.Content), []byte("Search (fallback): test")) {
+		t.Fatalf("expected fallback content to include query, got %s", result.Content)
 	}
 }
 
@@ -107,6 +121,9 @@ func TestWebSearchExecutesWithAPIKey(t *testing.T) {
 	count, ok := result.Metadata["results_count"].(int)
 	if !ok || count != 1 {
 		t.Fatalf("expected results_count=1, got %+v", result.Metadata["results_count"])
+	}
+	if result.Metadata["source"] != "tavily" {
+		t.Fatalf("expected tavily source, got %+v", result.Metadata["source"])
 	}
 	if !bytes.Contains([]byte(result.Content), []byte("Search: golang")) {
 		t.Fatalf("expected content to include query, got %s", result.Content)
