@@ -299,3 +299,4 @@ For each user request—especially non-trivial ones—try to include:
 ## Error Experience Log
 
 * 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
+* 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
