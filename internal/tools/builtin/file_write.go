@@ -3,6 +3,7 @@ package builtin
 import (
 	"alex/internal/agent/ports"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,14 +59,17 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, content string) *por
 		lines++ // Count last line if it doesn't end with newline
 	}
 
+	sum := sha256.Sum256([]byte(content))
+
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), resolved),
 		Metadata: map[string]any{
-			"path":    resolved,
-			"chars":   len(content),
-			"lines":   lines,
-			"content": content,
+			"path":           resolved,
+			"chars":          len(content),
+			"lines":          lines,
+			"content_len":    len(content),
+			"content_sha256": fmt.Sprintf("%x", sum),
 		},
 	}
 }

@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"path/filepath"
@@ -69,6 +70,7 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 	retention := uint64Arg(call.Arguments, "retention_ttl_seconds")
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	sum := sha256.Sum256([]byte(content))
 	attachment := ports.Attachment{
 		Name:                name,
 		MediaType:           mediaType,
@@ -105,6 +107,8 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 		"attachment_mutations": map[string]any{
 			mutationKey: attachments,
 		},
+		"content_len":    len(content),
+		"content_sha256": fmt.Sprintf("%x", sum),
 	}
 
 	result := &ports.ToolResult{

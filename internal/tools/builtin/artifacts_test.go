@@ -2,7 +2,9 @@ package builtin
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,6 +19,8 @@ func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
 		"content":     "# Title\nBody",
 		"description": "meeting notes",
 	}}
+	content := call.Arguments["content"].(string)
+	sum := sha256.Sum256([]byte(content))
 
 	result, err := tool.Execute(context.Background(), call)
 	if err != nil {
@@ -61,6 +65,12 @@ func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
 	}
 	if _, ok := add["note.md"]; !ok {
 		t.Fatalf("expected add mutation for note.md: %+v", add)
+	}
+	if result.Metadata["content_len"] != len(content) {
+		t.Fatalf("expected content_len %d, got %#v", len(content), result.Metadata["content_len"])
+	}
+	if result.Metadata["content_sha256"] != fmt.Sprintf("%x", sum) {
+		t.Fatalf("expected content_sha256 to match, got %#v", result.Metadata["content_sha256"])
 	}
 
 	// Execute again with existing attachment to ensure we switch to update

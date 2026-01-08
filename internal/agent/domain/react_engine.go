@@ -631,6 +631,7 @@ func (e *ReactEngine) emitWorkflowToolCompletedEvent(ctx context.Context, state 
 const (
 	toolArgInlineLengthLimit        = 256
 	toolArgPreviewLength            = 64
+	toolArgHistoryInlineLimit       = 256
 	toolResultPreviewRunes          = 280
 	maxFeedbackSignals              = 20
 	goalPlanPromptDistanceThreshold = 800
@@ -1499,6 +1500,7 @@ func (e *ReactEngine) observeToolResults(state *TaskState, iteration int, result
 		"iteration":    iteration,
 		"tool_results": updates,
 	}
+	e.compactToolCallHistory(state, results)
 	e.appendFeedbackSignals(state, results)
 }
 
@@ -1518,5 +1520,43 @@ func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResu
 	}
 	if len(state.FeedbackSignals) > maxFeedbackSignals {
 		state.FeedbackSignals = state.FeedbackSignals[len(state.FeedbackSignals)-maxFeedbackSignals:]
+	}
+}
+
+func (e *ReactEngine) compactToolCallHistory(state *TaskState, results []ToolResult) {
+	if state == nil || len(results) == 0 {
+		return
+	}
+	resultMap := make(map[string]ToolResult, len(results))
+	for _, result := range results {
+		if result.CallID == "" {
+			continue
+		}
+		resultMap[result.CallID] = result
+	}
+	if len(resultMap) == 0 {
+		return
+	}
+
+	for idx := range state.Messages {
+		msg := state.Messages[idx]
+		if len(msg.ToolCalls) == 0 {
+			continue
+		}
+		changed := false
+		for i, call := range msg.ToolCalls {
+			result, ok := resultMap[call.ID]
+			if !ok {
+				continue
+			}
+			if compacted, updated := compactToolCallArguments(call, result); updated {
+				call.Arguments = compacted
+				msg.ToolCalls[i] = call
+				changed = true
+			}
+		}
+		if changed {
+			state.Messages[idx] = msg
+		}
 	}
 }
