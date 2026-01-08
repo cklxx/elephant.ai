@@ -264,7 +264,8 @@ go test -coverprofile=coverage.out ./...
   - examples/   usage examples
 
 - Important external references:
-  - OpenRouter (model provider, API keys in configuration)
+  - Local inference via llama.cpp (default, no API keys required)
+  - OpenRouter (optional remote provider, API keys in configuration)
   - SWE-Bench documentation in evaluation/swe_bench/
 
 If you need to adapt ALEX for your environment, start with make dev-robust and customize internal/config manager to fit your infrastructure.

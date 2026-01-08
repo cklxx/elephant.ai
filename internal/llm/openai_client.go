@@ -100,7 +100,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	if c.maxRetries > 0 {
 		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
 	}
@@ -314,7 +316,9 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	if c.maxRetries > 0 {
 		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
 	}

@@ -113,7 +113,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		cfg.AllowedOrigins = parseAllowedOrigins(origins)
 	}
 
-	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
+	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" && cfg.Runtime.LLMProvider != "local" {
 		return Config{}, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 

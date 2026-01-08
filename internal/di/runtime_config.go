@@ -31,7 +31,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		UserRateLimitRPS:        runtime.UserRateLimitRPS,
 		UserRateLimitBurst:      runtime.UserRateLimitBurst,
 		Temperature:             runtime.Temperature,
-		TemperatureSet:          runtime.TemperatureProvided,
+		TemperatureProvided:     runtime.TemperatureProvided,
 		TopP:                    runtime.TopP,
 		StopSequences:           append([]string(nil), runtime.StopSequences...),
 		AgentPreset:             runtime.AgentPreset,

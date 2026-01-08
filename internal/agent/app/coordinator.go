@@ -73,13 +73,6 @@ func NewAgentCoordinator(
 	config Config,
 	opts ...CoordinatorOption,
 ) *AgentCoordinator {
-	if !config.TemperatureProvided {
-		if config.Temperature != 0 {
-			config.TemperatureProvided = true
-		} else {
-			config.Temperature = 0.7
-		}
-	}
 	if len(config.StopSequences) > 0 {
 		config.StopSequences = append([]string(nil), config.StopSequences...)
 	}

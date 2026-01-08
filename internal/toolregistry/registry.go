@@ -3,6 +3,7 @@ package toolregistry
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -56,7 +57,7 @@ func NewRegistry(config Config) (*Registry, error) {
 	}
 
 	if config.MemoryService == nil {
-		config.MemoryService = memory.NewService(memory.NewInMemoryStore())
+		return nil, fmt.Errorf("memory service is required")
 	}
 
 	if err := r.registerBuiltins(Config{
@@ -216,6 +217,9 @@ func (r *Registry) List() []ports.ToolDefinition {
 	for _, tool := range r.mcp {
 		defs = append(defs, tool.Definition())
 	}
+	sort.Slice(defs, func(i, j int) bool {
+		return defs[i].Name < defs[j].Name
+	})
 	return defs
 }
 

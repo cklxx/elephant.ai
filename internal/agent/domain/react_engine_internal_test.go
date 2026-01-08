@@ -137,6 +137,9 @@ func TestEnsureAttachmentPlaceholdersReplacesInlinePlaceholders(t *testing.T) {
 	if !strings.Contains(result, "[seed.png]") {
 		t.Fatalf("expected placeholder to remain for frontend replacement, got %q", result)
 	}
+	if strings.Contains(result, "Latest render: [seed.png]") {
+		t.Fatalf("expected placeholder to move to the end, got %q", result)
+	}
 	if strings.Contains(result, "https://example.com/seed.png") {
 		t.Fatalf("expected to avoid embedding attachment URI, got %q", result)
 	}

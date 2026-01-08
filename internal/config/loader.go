@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"alex/internal/localmodel"
 )
 
 // ValueSource describes where a configuration value originated from.
@@ -204,11 +206,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:         "openrouter",
-		LLMModel:            "deepseek/deepseek-chat",
-		LLMSmallProvider:    "openrouter",
-		LLMSmallModel:       "gpt-4o-mini",
-		BaseURL:             "https://openrouter.ai/api/v1",
+		LLMProvider:         localmodel.Provider,
+		LLMModel:            localmodel.ModelID,
+		LLMSmallProvider:    localmodel.Provider,
+		LLMSmallModel:       localmodel.ModelID,
+		BaseURL:             localmodel.BaseURL,
 		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
@@ -218,7 +220,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		FollowTranscript:    true,
 		FollowStream:        true,
 		MaxIterations:       150,
-		MaxTokens:           100000,
+		MaxTokens:           localmodel.DefaultContextSize,
 		UserRateLimitRPS:    1.0,
 		UserRateLimitBurst:  3,
 		Temperature:         0.7,
@@ -245,8 +247,9 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	// Apply caller overrides last.
 	applyOverrides(&cfg, &meta, options.overrides)
 
-	// If API key remains unset, default to mock provider.
-	if cfg.APIKey == "" && cfg.LLMProvider != "mock" {
+	normalizeRuntimeConfig(&cfg)
+  // If API key remains unset, default to mock provider (unless local/ollama).
+	if cfg.APIKey == "" && cfg.LLMProvider != "mock" && cfg.LLMProvider != "ollama" && cfg.LLMProvider != "local" {
 		cfg.LLMProvider = "mock"
 		if cfg.LLMSmallProvider != "mock" {
 			cfg.LLMSmallProvider = "mock"
@@ -260,6 +263,47 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	}
 
 	return cfg, meta, nil
+}
+
+func normalizeRuntimeConfig(cfg *RuntimeConfig) {
+	cfg.LLMProvider = strings.TrimSpace(cfg.LLMProvider)
+	cfg.LLMModel = strings.TrimSpace(cfg.LLMModel)
+	cfg.LLMSmallProvider = strings.TrimSpace(cfg.LLMSmallProvider)
+	cfg.LLMSmallModel = strings.TrimSpace(cfg.LLMSmallModel)
+	cfg.LLMVisionModel = strings.TrimSpace(cfg.LLMVisionModel)
+	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
+	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
+	cfg.SandboxBaseURL = strings.TrimSpace(cfg.SandboxBaseURL)
+	cfg.TavilyAPIKey = strings.TrimSpace(cfg.TavilyAPIKey)
+	cfg.SeedreamTextEndpointID = strings.TrimSpace(cfg.SeedreamTextEndpointID)
+	cfg.SeedreamImageEndpointID = strings.TrimSpace(cfg.SeedreamImageEndpointID)
+	cfg.SeedreamTextModel = strings.TrimSpace(cfg.SeedreamTextModel)
+	cfg.SeedreamImageModel = strings.TrimSpace(cfg.SeedreamImageModel)
+	cfg.SeedreamVisionModel = strings.TrimSpace(cfg.SeedreamVisionModel)
+	cfg.SeedreamVideoModel = strings.TrimSpace(cfg.SeedreamVideoModel)
+	cfg.Environment = strings.TrimSpace(cfg.Environment)
+	cfg.SessionDir = strings.TrimSpace(cfg.SessionDir)
+	cfg.CostDir = strings.TrimSpace(cfg.CostDir)
+	cfg.AgentPreset = strings.TrimSpace(cfg.AgentPreset)
+	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
+
+	if len(cfg.StopSequences) > 0 {
+		filtered := cfg.StopSequences[:0]
+		seen := make(map[string]struct{}, len(cfg.StopSequences))
+		for _, seq := range cfg.StopSequences {
+			trimmed := strings.TrimSpace(seq)
+			if trimmed == "" {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			filtered = append(filtered, trimmed)
+		}
+		cfg.StopSequences = filtered
+	}
 }
 
 type fileConfig struct {

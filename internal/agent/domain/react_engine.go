@@ -1007,6 +1007,7 @@ func (e *ReactEngine) cleanToolCallMarkers(content string) string {
 		`<tool_call>.*(?:</tool_call>)?$`,
 		`user<\|tool_call_begin\|>.*`,
 		`functions\.[\w_]+:\d+\(.*`,
+		`(?s)<start_function_call>.*?<end_function_call>`,
 	}
 
 	cleaned := content

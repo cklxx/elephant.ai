@@ -65,10 +65,14 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 		return false, 0
 	}
 
+	for _, arg := range args {
+		if arg == "help" || arg == "-h" || arg == "--help" {
+			printUsage()
+			return true, 0
+		}
+	}
+
 	switch args[0] {
-	case "help", "-h", "--help":
-		printUsage()
-		return true, 0
 	case "version", "-v", "--version":
 		fmt.Println(appVersion())
 		return true, 0

@@ -82,23 +82,7 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 	}
 	runtimeCfg.BaseURL = baseURL
 
-	diConfig := di.Config{
-		LLMProvider:    runtimeCfg.LLMProvider,
-		LLMModel:       runtimeCfg.LLMModel,
-		APIKey:         runtimeCfg.APIKey,
-		BaseURL:        runtimeCfg.BaseURL,
-		TavilyAPIKey:   runtimeCfg.TavilyAPIKey,
-		MaxTokens:      runtimeCfg.MaxTokens,
-		MaxIterations:  runtimeCfg.MaxIterations,
-		Temperature:    runtimeCfg.Temperature,
-		TemperatureSet: runtimeCfg.TemperatureProvided,
-		TopP:           runtimeCfg.TopP,
-		StopSequences:  append([]string(nil), runtimeCfg.StopSequences...),
-		SessionDir:     runtimeCfg.SessionDir,
-		CostDir:        runtimeCfg.CostDir,
-		Environment:    runtimeCfg.Environment,
-		Verbose:        runtimeCfg.Verbose,
-	}
+	diConfig := di.ConfigFromRuntimeConfig(runtimeCfg)
 
 	container, err := di.BuildContainer(diConfig)
 	if err != nil {
