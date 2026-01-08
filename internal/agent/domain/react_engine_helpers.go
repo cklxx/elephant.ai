@@ -1469,6 +1469,7 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 	}
 
 	used := make(map[string]bool, len(attachments))
+	ordered := make([]string, 0, len(attachments))
 	replaced := contentPlaceholderPattern.ReplaceAllStringFunc(normalized, func(match string) string {
 		name := strings.TrimSpace(match[1 : len(match)-1])
 		if name == "" {
@@ -1477,8 +1478,11 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 		if _, ok := attachments[name]; !ok {
 			return ""
 		}
-		used[name] = true
-		return fmt.Sprintf("[%s]", name)
+		if !used[name] {
+			used[name] = true
+			ordered = append(ordered, name)
+		}
+		return ""
 	})
 
 	replaced = strings.TrimSpace(replaced)
@@ -1493,7 +1497,9 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 	}
 
 	if len(missing) == 0 {
-		return replaced
+		if len(ordered) == 0 {
+			return replaced
+		}
 	}
 
 	sort.Strings(missing)
@@ -1511,12 +1517,16 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 		} else {
 			fmt.Fprintf(&builder, "请查阅附件 `%s` 获取详细内容。\n\n", name)
 		}
-		fmt.Fprintf(&builder, "[%s]\n", name)
+		for _, placeholder := range append(ordered, missing...) {
+			fmt.Fprintf(&builder, "[%s]\n", placeholder)
+		}
 		return strings.TrimSpace(builder.String())
 	}
 
-	builder.WriteString("请查阅以下附件获取详细内容：\n\n")
-	for _, name := range missing {
+	if len(missing) > 0 {
+		builder.WriteString("请查阅以下附件获取详细内容：\n\n")
+	}
+	for _, name := range append(ordered, missing...) {
 		fmt.Fprintf(&builder, "[%s]\n", name)
 	}
 	return strings.TrimSpace(builder.String())

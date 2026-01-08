@@ -293,3 +293,9 @@ For each user request—especially non-trivial ones—try to include:
   * Correctness and robustness.
   * Maintainability and evolution strategies.
 * When nonessential information is missing, minimize unnecessary back-and-forth and questioning; provide well-thought-out conclusions and implementation suggestions directly.
+
+---
+
+## Error Experience Log
+
+* 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
