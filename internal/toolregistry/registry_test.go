@@ -7,10 +7,15 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	"alex/internal/memory"
 )
 
+func newTestMemoryService() memory.Service {
+	return memory.NewService(memory.NewInMemoryStore())
+}
+
 func TestNewRegistryRegistersBuiltins(t *testing.T) {
-	registry, err := NewRegistry(Config{})
+	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -22,6 +27,7 @@ func TestNewRegistryRegistersBuiltins(t *testing.T) {
 
 func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
 	registry, err := NewRegistry(Config{
+		MemoryService:      newTestMemoryService(),
 		ArkAPIKey:          "test",
 		SeedreamVideoModel: "",
 	})
@@ -35,6 +41,7 @@ func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
 
 func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 	registry, err := NewRegistry(Config{
+		MemoryService:      newTestMemoryService(),
 		ArkAPIKey:          "test",
 		SeedreamVideoModel: " custom-video-model ",
 	})
@@ -106,9 +113,10 @@ func TestMiniAppHTMLUsesConfiguredLLM(t *testing.T) {
 	factory := &stubLLMFactory{client: llm}
 
 	registry, err := NewRegistry(Config{
-		LLMFactory:  factory,
-		LLMProvider: "openai",
-		LLMModel:    "gpt-4o",
+		MemoryService: newTestMemoryService(),
+		LLMFactory:    factory,
+		LLMProvider:   "openai",
+		LLMModel:      "gpt-4o",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
