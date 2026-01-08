@@ -293,6 +293,7 @@ For each user request—especially non-trivial ones—try to include:
   * Correctness and robustness.
   * Maintainability and evolution strategies.
 * When nonessential information is missing, minimize unnecessary back-and-forth and questioning; provide well-thought-out conclusions and implementation suggestions directly.
+* Frontend copy must be user-facing and explanatory; avoid technical or internal jargon in UI text.
 
 ---
 
